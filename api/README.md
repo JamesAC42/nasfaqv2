@@ -20,8 +20,8 @@ Required:
 
 Optional:
 
-- `PORT` (default `4001`)
-- `CORS_ORIGIN` (default `http://localhost:3000`)
+- `PORT` (default `5067`)
+- `CORS_ORIGIN` (default `http://localhost:3010`)
 - `ENABLE_MIGRATIONS=true` to apply `../ytscraper/internal/db/schema.sql` on startup
 
 ### Run
@@ -33,14 +33,14 @@ npm run dev
 
 ### Endpoints
 
-- `GET /health`
-- `GET /channels?active=true|false`
-- `GET /channels/:id`
-- `POST /channels`
-- `GET /channels/:id/latest`
-- `GET /channels/:id/timeseries?start=ISO&end=ISO`
-- `GET /channels/:id/timeseries?bucket=7%20days&start=ISO&end=ISO` (bucketed)
-- `GET /overview/latest`
-- `GET /livestreams` (aggregated from Redis)
+- `GET /api/health`
+- `GET /api/channels?active=true|false`
+- `GET /api/channels/:id`
+- `POST /api/channels`
+- `GET /api/channels/:id/latest`
+- `GET /api/channels/:id/timeseries?start=ISO&end=ISO`
+- `GET /api/channels/:id/timeseries?bucket=7%20days&start=ISO&end=ISO` (bucketed)
+- `GET /api/overview/latest`
+- `GET /api/livestreams` (aggregated from Redis)
 
 

@@ -26,7 +26,9 @@ app.use(
 const pool = createPool(cfg.databaseUrl);
 let redis = null;
 
-app.get("/health", async (_req, res) => {
+const api = express.Router();
+
+api.get("/health", async (_req, res) => {
   try {
     const r = await pool.query("SELECT 1 AS ok");
     res.json({ ok: true, db: r.rows[0].ok === 1 });
@@ -40,10 +42,12 @@ app.use((req, _res, next) => {
   next();
 });
 
-app.use("/channels", channelsRoutes);
-app.use("/overview", overviewRoutes);
-app.use("/livestreams", livestreamsRoutes);
-app.use("/analysis", analysisRoutes);
+api.use("/channels", channelsRoutes);
+api.use("/overview", overviewRoutes);
+api.use("/livestreams", livestreamsRoutes);
+api.use("/analysis", analysisRoutes);
+
+app.use("/api", api);
 
 app.use((err, _req, res, _next) => {
   // eslint-disable-next-line no-console
