@@ -23,19 +23,20 @@ import (
 type Config struct {
 	DatabaseURL      string
 	RedisURL         string
+	RedisPassword    string
 	YouTubeAPIKey    string
 	ScrapeAtUTCHour  int
 	ScrapeAtUTCMin   int
 	RequestDelayMS   int
 	PerChannelTimout time.Duration
 
-	LivePollInterval time.Duration
-	LiveMaxResults   int
+	LivePollInterval   time.Duration
+	LiveMaxResults     int
 	UpcomingMaxResults int
-	EnableLivePoll   bool
-	QuotaDailyLimit  int
-	UploadsLookback  int
-	LogYTStats       bool
+	EnableLivePoll     bool
+	QuotaDailyLimit    int
+	UploadsLookback    int
+	LogYTStats         bool
 }
 
 func main() {
@@ -70,7 +71,7 @@ func main() {
 
 	yt := youtube.New(cfg.YouTubeAPIKey)
 
-	rdb, err := newRedisClient(cfg.RedisURL)
+	rdb, err := newRedisClient(cfg.RedisURL, cfg.RedisPassword)
 	if err != nil {
 		log.Fatalf("redis: %v", err)
 	}
@@ -434,29 +435,34 @@ func mustLoadConfig() Config {
 	if redisURL == "" {
 		log.Fatalf("missing REDIS_URL")
 	}
+	redisPassword := os.Getenv("REDIS_PASSWORD")
 
 	return Config{
-		DatabaseURL:      dbURL,
-		RedisURL:         redisURL,
-		YouTubeAPIKey:    apiKey,
-		ScrapeAtUTCHour:  getInt("SCRAPE_AT_UTC_HOUR", 3),
-		ScrapeAtUTCMin:   getInt("SCRAPE_AT_UTC_MIN", 0),
-		RequestDelayMS:   getInt("REQUEST_DELAY_MS", 150),
-		PerChannelTimout: 20 * time.Second,
-		LivePollInterval: time.Duration(getInt("LIVE_POLL_SECONDS", 300)) * time.Second,
-		LiveMaxResults:   getInt("LIVE_MAX_RESULTS", 3),
+		DatabaseURL:        dbURL,
+		RedisURL:           redisURL,
+		RedisPassword:      redisPassword,
+		YouTubeAPIKey:      apiKey,
+		ScrapeAtUTCHour:    getInt("SCRAPE_AT_UTC_HOUR", 3),
+		ScrapeAtUTCMin:     getInt("SCRAPE_AT_UTC_MIN", 0),
+		RequestDelayMS:     getInt("REQUEST_DELAY_MS", 150),
+		PerChannelTimout:   20 * time.Second,
+		LivePollInterval:   time.Duration(getInt("LIVE_POLL_SECONDS", 300)) * time.Second,
+		LiveMaxResults:     getInt("LIVE_MAX_RESULTS", 3),
 		UpcomingMaxResults: getInt("UPCOMING_MAX_RESULTS", 3),
-		EnableLivePoll:   strings.ToLower(os.Getenv("LIVE_POLL_ENABLED")) != "false",
-		QuotaDailyLimit:  getInt("YOUTUBE_DAILY_QUOTA_LIMIT", 0),
-		UploadsLookback:  getInt("UPLOADS_LOOKBACK", 25),
-		LogYTStats:       strings.ToLower(os.Getenv("LOG_YT_STATS")) == "true",
+		EnableLivePoll:     strings.ToLower(os.Getenv("LIVE_POLL_ENABLED")) != "false",
+		QuotaDailyLimit:    getInt("YOUTUBE_DAILY_QUOTA_LIMIT", 0),
+		UploadsLookback:    getInt("UPLOADS_LOOKBACK", 25),
+		LogYTStats:         strings.ToLower(os.Getenv("LOG_YT_STATS")) == "true",
 	}
 }
 
-func newRedisClient(redisURL string) (*redis.Client, error) {
+func newRedisClient(redisURL, redisPassword string) (*redis.Client, error) {
 	opt, err := redis.ParseURL(redisURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse REDIS_URL: %w", err)
+	}
+	if redisPassword != "" {
+		opt.Password = redisPassword
 	}
 	rdb := redis.NewClient(opt)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

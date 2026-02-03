@@ -61,7 +61,7 @@ async function main() {
   }
 
   // Redis is required for livestream endpoints.
-  redis = await createRedis(cfg.redisUrl);
+  redis = await createRedis(cfg.redisUrl, cfg.redisPassword);
 
   app.listen(cfg.port, () => {
     // eslint-disable-next-line no-console

@@ -41,6 +41,7 @@ Create a local `.env` file (you can start from `env.example`) or set environment
 - `DATABASE_URL`: Postgres connection string, e.g. `postgres://user:pass@host:5432/dbname?sslmode=disable`
 - `YOUTUBE_API_KEY`: YouTube Data API v3 key
 - `REDIS_URL`: Redis connection string, e.g. `redis://localhost:6379/0`
+- `REDIS_PASSWORD` (optional): Redis password for AUTH
 - `SCRAPE_AT_UTC_HOUR` (optional, default `3`)
 - `SCRAPE_AT_UTC_MIN` (optional, default `0`)
 - `REQUEST_DELAY_MS` (optional, default `150`)

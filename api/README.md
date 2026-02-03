@@ -22,6 +22,7 @@ Optional:
 
 - `PORT` (default `5067`)
 - `CORS_ORIGIN` (default `http://localhost:3010`)
+- `REDIS_PASSWORD` (optional, password for Redis AUTH)
 - `ENABLE_MIGRATIONS=true` to apply `../ytscraper/internal/db/schema.sql` on startup
 
 ### Run
