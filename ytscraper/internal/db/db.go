@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -36,9 +37,16 @@ type DailyStats struct {
 }
 
 func NewPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
-	cfg, err := pgxpool.ParseConfig(databaseURL)
+	normalizedURL, schema := normalizeDatabaseURL(databaseURL)
+	cfg, err := pgxpool.ParseConfig(normalizedURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse DATABASE_URL: %w", err)
+	}
+	if schema != "" {
+		if cfg.ConnConfig.RuntimeParams == nil {
+			cfg.ConnConfig.RuntimeParams = map[string]string{}
+		}
+		cfg.ConnConfig.RuntimeParams["search_path"] = schema
 	}
 	// We intentionally use the SimpleProtocol so we can run multi-statement schema SQL.
 	cfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
@@ -47,6 +55,21 @@ func NewPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("connect postgres: %w", err)
 	}
 	return p, nil
+}
+
+func normalizeDatabaseURL(databaseURL string) (string, string) {
+	u, err := url.Parse(databaseURL)
+	if err != nil {
+		return databaseURL, ""
+	}
+	q := u.Query()
+	schema := q.Get("schema")
+	if schema == "" {
+		return databaseURL, ""
+	}
+	q.Del("schema")
+	u.RawQuery = q.Encode()
+	return u.String(), schema
 }
 
 func ApplySchema(ctx context.Context, pool *pgxpool.Pool) error {
