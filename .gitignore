@@ -1,0 +1,59 @@
+# OS/editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.tmp
+*.log
+
+# Environment/secrets
+.env
+**/.env
+
+# Node/Next.js
+node_modules/
+**/node_modules/
+.npm/
+.pnpm-store/
+.pnp.*
+.nx/
+.next/
+out/
+dist/
+build/
+coverage/
+.turbo/
+.cache/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Go build artifacts
+/bin/
+/pkg/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Logs and dumps
+logs/
+**/debug_dump*.html
+
+# Databases
+*.sqlite
+*.db
+*.db-journal
+
+**/4chan-API/

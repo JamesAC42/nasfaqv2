@@ -1,0 +1,7 @@
+beautifulsoup4==4.12.3
+requests==2.32.3
+# Optional: better Cloudflare resistance (scraper auto-falls back to requests if missing)
+curl_cffi==0.7.3
+
+# Synthetic data generation
+openai==1.59.7
