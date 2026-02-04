@@ -26,6 +26,7 @@ import (
 
 type Config struct {
 	RedisURL       string
+	RedisPassword  string
 	GeminiAPIKey   string
 	Board          string
 	PollInterval   time.Duration
@@ -67,7 +68,7 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	rdb, err := newRedisClient(cfg.RedisURL)
+	rdb, err := newRedisClient(cfg.RedisURL, cfg.RedisPassword)
 	if err != nil {
 		log.Fatalf("redis: %v", err)
 	}
@@ -128,6 +129,7 @@ func mustLoadConfig() Config {
 
 	cfg := Config{
 		RedisURL:       getEnv("REDIS_URL", ""),
+		RedisPassword:  getEnv("REDIS_PASSWORD", ""),
 		GeminiAPIKey:   getEnv("GEMINI_API_KEY", ""),
 		Board:          getEnv("FOURCHAN_BOARD", "vt"),
 		PollInterval:   time.Duration(pollSeconds) * time.Second,
@@ -160,10 +162,13 @@ func parseEnvInt(key string, fallback int) int {
 	return out
 }
 
-func newRedisClient(redisURL string) (*redis.Client, error) {
+func newRedisClient(redisURL, redisPassword string) (*redis.Client, error) {
 	opt, err := redis.ParseURL(redisURL)
 	if err != nil {
 		return nil, err
+	}
+	if redisPassword != "" {
+		opt.Password = redisPassword
 	}
 	client := redis.NewClient(opt)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
