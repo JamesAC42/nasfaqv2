@@ -499,7 +499,7 @@ func cleanText(s string) string {
 }
 
 func callGemini(ctx context.Context, client *http.Client, apiKey, prompt string) (string, error) {
-	endpoint := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=%s", apiKey)
+	endpoint := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=%s", apiKey)
 	payload := map[string]any{
 		"contents": []map[string]any{
 			{
@@ -576,11 +576,11 @@ type analysisEntry struct {
 func buildAnalysisEntry(target Target, threadID int64, postIDs []int64, analysisText string) (string, bool, error) {
 	jsonText := extractJSON(analysisText)
 	entry := analysisEntry{
-		Timestamp:  time.Now().UTC().Format(time.RFC3339),
-		ThreadTag:  target.Name,
+		Timestamp:   time.Now().UTC().Format(time.RFC3339),
+		ThreadTag:   target.Name,
 		ThreadMatch: target.Match,
-		ThreadID:   threadID,
-		NewPostIDs: postIDs,
+		ThreadID:    threadID,
+		NewPostIDs:  postIDs,
 	}
 
 	if jsonText != "" {
