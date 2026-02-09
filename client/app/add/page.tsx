@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 
 type SavedChannel = {
@@ -67,9 +68,9 @@ export default function AddChannelPage() {
             Saves to <span className="muted">yt.youtube_channels</span> via <span className="muted">POST /api/channels</span>
           </p>
         </div>
-        <a className="pill" href="/">
+        <Link className="pill" href="/">
           Back to dashboard
-        </a>
+        </Link>
       </div>
 
       <div className="card">
@@ -125,9 +126,9 @@ export default function AddChannelPage() {
             <a className="pill" href={saved.youtube_channel_url || `https://www.youtube.com/channel/${saved.youtube_channel_id}`} target="_blank" rel="noreferrer">
               Open channel
             </a>
-            <a className="pill" href="/">
+            <Link className="pill" href="/">
               View dashboard
-            </a>
+            </Link>
           </div>
         </div>
       ) : null}

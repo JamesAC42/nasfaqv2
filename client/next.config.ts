@@ -1,15 +1,14 @@
 import type { NextConfig } from "next";
 
-const apiBaseUrl = process.env.API_BASE_URL || "http://localhost:5067";
+const apiMode = process.env.API_MODE || (process.env.NODE_ENV === "development" ? "proxy" : "direct");
+const apiProxyBaseUrl = process.env.API_PROXY_BASE_URL || "http://localhost:4001";
 
 const nextConfig: NextConfig = {
   async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${apiBaseUrl}/api/:path*`,
-      },
-    ];
+    if (apiMode !== "proxy") {
+      return [];
+    }
+    return [{ source: "/api/:path*", destination: `${apiProxyBaseUrl}/api/:path*` }];
   },
 };
 

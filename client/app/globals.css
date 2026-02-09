@@ -258,6 +258,50 @@ a {
   gap: 1rem;
 }
 
+.legalFooter {
+  max-width: 92rem;
+  margin: 0 auto;
+  padding: 0 1.25rem 2rem 1.25rem;
+  display: flex;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+}
+
+.legalFooter a {
+  text-decoration: underline;
+  text-underline-offset: 0.15rem;
+}
+
+.legalPage {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem;
+}
+
+.legalPage h1 {
+  margin: 0 0 0.9rem 0;
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
+}
+
+.legalPage h2 {
+  margin: 1.35rem 0 0.45rem 0;
+  font-size: 1.08rem;
+  letter-spacing: -0.01em;
+}
+
+.legalPage p,
+.legalPage li {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.legalPage ul {
+  margin-top: 0.4rem;
+  padding-left: 1.1rem;
+}
+
 .analysisCard {
   border: 0.0625rem solid var(--border);
   background: var(--panel);

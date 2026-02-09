@@ -1,4 +1,20 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+This is the NASFAQ Next.js client app.
+
+## API Routing Mode
+
+The client calls relative paths like `/api/overview/timeseries`. `next.config.ts` controls whether those requests stay on the current base origin or are proxied for local development.
+
+Environment variables:
+
+- `API_MODE`:
+  - `proxy`: rewrite `/api/:path*` to `API_PROXY_BASE_URL/api/:path*`
+  - `direct`: do not rewrite (requests remain `[base]/api/:path*`)
+- `API_PROXY_BASE_URL` (default: `http://localhost:4001`)
+
+Defaults:
+
+- Development (`NODE_ENV=development`): `API_MODE=proxy`
+- Non-development: `API_MODE=direct`
 
 ## Getting Started
 

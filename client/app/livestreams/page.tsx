@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Stream = {
@@ -87,9 +88,9 @@ export default function LivestreamsPage() {
           <p className="subtitle">{subtitle}</p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-          <a className="pill" href="/">
+          <Link className="pill" href="/">
             Dashboard
-          </a>
+          </Link>
           <button className="btn" onClick={refresh} disabled={loading}>
             {loading ? "Refreshing…" : "Refresh"}
           </button>
