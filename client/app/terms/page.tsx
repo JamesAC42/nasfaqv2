@@ -36,7 +36,7 @@ export default function TermsPage() {
       <h2>Contact</h2>
       <p>
         If you have questions about these Terms, contact us at{" "}
-        <a href="mailto:privacy@nasfaq.com">privacy@nasfaq.com</a>.
+        <a href="mailto:nasfaqsite@gmail.com">nasfaqsite@gmail.com</a>.
       </p>
 
       <p>

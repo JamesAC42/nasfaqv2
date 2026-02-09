@@ -76,7 +76,7 @@ export default function PrivacyPage() {
 
       <h2>Contact Information</h2>
       <p>
-        For privacy questions or requests, contact <a href="mailto:privacy@nasfaq.com">privacy@nasfaq.com</a>.
+        For privacy questions or requests, contact <a href="mailto:nasfaqsite@gmail.com">nasfaqsite@gmail.com</a>.
       </p>
 
       <p>
