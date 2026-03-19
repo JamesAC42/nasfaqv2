@@ -353,8 +353,7 @@ export default function LivestreamsPage() {
 
   function StreamRow({ s, kind }: { s: Stream; kind: "live" | "upcoming" }) {
     const timeText = kind === "upcoming" ? fmtDate(s.scheduled_start_time) : null;
-    const viewers =
-      kind === "live" && typeof s.concurrent_viewers === "number" ? `${nf.format(s.concurrent_viewers)} watching` : null;
+    const liveViewers = kind === "live" && typeof s.concurrent_viewers === "number" ? s.concurrent_viewers : null;
 
     return (
       <button
@@ -368,7 +367,7 @@ export default function LivestreamsPage() {
             else window.open(getVideoUrl(s.video_id), "_blank", "noreferrer");
         }}
       >
-        <div className="thumbWrap">
+        <div className={kind === "live" ? "thumbWrap thumbWrapLive" : "thumbWrap"}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img className="thumbImg" src={s.thumbnail_url} alt="" />
           {kind === "live" ? <span className="liveBadge">LIVE</span> : null}
@@ -383,15 +382,26 @@ export default function LivestreamsPage() {
               <div className="channelIconFallback" />
             )}
             <div className="channelName">{s.channel_name}</div>
+            {kind === "live" ? (
+              <div style={{ marginLeft: "auto", color: "var(--muted)", fontWeight: 650, whiteSpace: "nowrap" }}>
+                <LiveForText actualStartTime={s.actual_start_time} />
+              </div>
+            ) : null}
           </div>
           <div className="streamMeta">
-            <span>{kind === "live" ? <LiveForText actualStartTime={s.actual_start_time} /> : timeText}</span>
-            {viewers ? (
-              <>
-                <span className="dot">·</span>
-                <span>{viewers}</span>
-              </>
-            ) : null}
+            {kind === "live" ? (
+              liveViewers == null ? null : (
+                <div className="streamMetaWatchers">
+                  <div className="watchersNumber">{nf.format(liveViewers)}</div>
+                  <div className="watchersLabel">
+                    <span>watching</span>
+                    <span className="recordingDot recordingDotAnimating" aria-hidden="true" />
+                  </div>
+                </div>
+              )
+            ) : (
+              <span>{timeText}</span>
+            )}
           </div>
         </div>
       </button>
@@ -404,7 +414,7 @@ export default function LivestreamsPage() {
       const id = window.setInterval(() => setNowTickMs(Date.now()), 1_000);
       return () => window.clearInterval(id);
     }, []);
-    return <>Live for {fmtDurationSince(actualStartTime, nowTickMs)}</>;
+    return <>{fmtDurationSince(actualStartTime, nowTickMs)}</>;
   }
 }
 

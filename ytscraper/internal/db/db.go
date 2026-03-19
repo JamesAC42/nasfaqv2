@@ -336,6 +336,27 @@ func GetSessionAggregatesFromBuckets(ctx context.Context, pool *pgxpool.Pool, vi
 	return out, nil
 }
 
+// GetMaxViewersAtFromBuckets returns the bucket_end time for the bucket holding the
+// highest `max_viewers` (tie-breaker: earliest bucket_end).
+func GetMaxViewersAtFromBuckets(ctx context.Context, pool *pgxpool.Pool, videoID string) (*time.Time, error) {
+	var t time.Time
+	err := pool.QueryRow(ctx, `
+		SELECT bucket_end
+		FROM yt.livestream_viewer_buckets_5m
+		WHERE livestream_video_id = $1
+		  AND max_viewers IS NOT NULL
+		ORDER BY max_viewers DESC, bucket_end ASC
+		LIMIT 1
+	`, videoID).Scan(&t)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get max viewers at video_id=%s: %w", videoID, err)
+	}
+	return &t, nil
+}
+
 func EndLivestreamSession(ctx context.Context, pool *pgxpool.Pool, videoID string, endedAt time.Time, avgViewers, maxViewers *int64, maxViewersAt *time.Time) error {
 	_, err := pool.Exec(ctx, `
 		UPDATE yt.livestream_sessions

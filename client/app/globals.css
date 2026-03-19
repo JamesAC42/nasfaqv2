@@ -224,6 +224,10 @@ a {
   background: rgba(255, 255, 255, 0.06);
 }
 
+.thumbWrapLive {
+  border: 0.125rem solid rgba(255, 92, 122, 0.35);
+}
+
 .thumbImg {
   width: 100%;
   height: 100%;
@@ -450,6 +454,78 @@ a {
   opacity: 0.7;
   display: inline-block;
   margin: 0 0.45rem;
+}
+
+.recordingDot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999rem;
+  background: var(--bad);
+  box-shadow: 0 0 0.35rem rgba(255, 92, 122, 0.28), 0 0 1rem rgba(255, 92, 122, 0.14);
+  display: inline-block;
+  flex: 0 0 auto;
+  transform: translateY(0.075rem); /* ~1.2px down */
+  will-change: box-shadow, transform;
+}
+
+.recordingDotAnimating {
+  animation: recordingPulse 1.1s ease-in-out infinite;
+}
+
+@keyframes recordingPulse {
+  0% {
+    box-shadow: 0 0 0.25rem rgba(255, 92, 122, 0.22), 0 0 0.75rem rgba(255, 92, 122, 0.12);
+    transform: translateY(0.075rem) scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0.7rem rgba(255, 92, 122, 0.62), 0 0 1.55rem rgba(255, 92, 122, 0.42);
+    transform: translateY(0.075rem) scale(1.12);
+  }
+  100% {
+    box-shadow: 0 0 0.25rem rgba(255, 92, 122, 0.22), 0 0 0.75rem rgba(255, 92, 122, 0.12);
+    transform: translateY(0.075rem) scale(1);
+  }
+}
+
+.streamMetaWatchers {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  margin-top: 0.05rem;
+}
+
+.watchersNumber {
+  color: var(--bad);
+  font-weight: 800;
+  font-size: 1.15rem;
+  line-height: 1.1;
+}
+
+.watchersLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--bad);
+  font-weight: 700;
+  font-size: 0.92rem;
+  letter-spacing: 0.01em;
+}
+
+.modalWatchingInline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--bad);
+  font-weight: 750;
+}
+
+.modalWatchingNumber {
+  color: var(--bad);
+  font-weight: 800;
+  font-size: 1.1rem;
+  margin-left: 0.35rem;
 }
 
 @media (max-width: 40rem) {

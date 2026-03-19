@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { getChannelIconUrl } from "../lib/channelIcons";
 
 const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
@@ -211,14 +211,29 @@ export function LivestreamModal({
   const [loading, setLoading] = useState(false);
   const [nowTickMs, setNowTickMs] = useState(() => Date.now());
   const [entered, setEntered] = useState(false);
+  const [watchingDotAnimating, setWatchingDotAnimating] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
+  useLayoutEffect(() => {
+    if (!open) {
+      setEntered(false);
+      setWatchingDotAnimating(false);
+      return;
+    }
     setEntered(false);
-    const raf = window.requestAnimationFrame(() => setEntered(true));
+    setWatchingDotAnimating(false);
+    // Use two rAFs so the browser has a chance to paint the "entered=false"
+    // styles before we flip to "entered=true". This makes the modal transition
+    // reliably run on every open (not only the first time).
+    let rafEntered2: number | null = null;
+    const raf1 = window.requestAnimationFrame(() => {
+      rafEntered2 = window.requestAnimationFrame(() => setEntered(true));
+    });
+    const raf2 = window.requestAnimationFrame(() => setWatchingDotAnimating(true));
     const id = window.setInterval(() => setNowTickMs(Date.now()), 1_000);
     return () => {
-      window.cancelAnimationFrame(raf);
+      window.cancelAnimationFrame(raf1);
+      if (rafEntered2 != null) window.cancelAnimationFrame(rafEntered2);
+      window.cancelAnimationFrame(raf2);
       window.clearInterval(id);
     };
   }, [open]);
@@ -426,8 +441,14 @@ export function LivestreamModal({
                   <span style={{ color: "rgba(231, 238, 252, 0.55)", fontWeight: 650 }}>Length</span>{" "}
                   <span className="muted">{fmtDurationSince(display.actual, nowTickMs)}</span>
                   <span className="dot">·</span>
-                  <span style={{ color: "rgba(231, 238, 252, 0.55)", fontWeight: 650 }}>Watching</span>{" "}
-                  <span className="muted">{fmtNum(display.currentViewers)}</span>
+                  <span className="modalWatchingInline">
+                    <span>Watching</span>
+                    <span
+                      className={`recordingDot${watchingDotAnimating ? " recordingDotAnimating" : ""}`}
+                      aria-hidden="true"
+                    />
+                    <span className="modalWatchingNumber">{fmtNum(display.currentViewers)}</span>
+                  </span>
                 </div>
               </div>
               <div className="links" style={{ marginTop: "0.75rem" }}>
@@ -464,7 +485,7 @@ export function LivestreamModal({
               Viewers over time (5m buckets)
             </div>
             <div style={{ height: "20rem" }}>
-              {loading ? (
+              {loading || buckets.length === 0 ? (
                 <div
                   style={{
                     height: "100%",

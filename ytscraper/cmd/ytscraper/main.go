@@ -356,10 +356,19 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 		if agg.MaxViewers != nil {
 			maxViewers = *agg.MaxViewers
 		}
+		maxViewersAt, err := db.GetMaxViewersAtFromBuckets(ctx, pool, videoID)
+		if err != nil {
+			log.Printf("livestreams: end session max_viewers_at lookup video_id=%s: %v", videoID, err)
+		}
 		if acc != nil && acc.Max > maxViewers {
 			maxViewers = acc.Max
+			// If DB lookup failed to find the newest max, fall back to "ended now".
+			if maxViewersAt == nil {
+				nowCopy := now
+				maxViewersAt = &nowCopy
+			}
 		}
-		if err := db.EndLivestreamSession(ctx, pool, videoID, now, &avgViewers, &maxViewers, nil); err != nil {
+		if err := db.EndLivestreamSession(ctx, pool, videoID, now, &avgViewers, &maxViewers, maxViewersAt); err != nil {
 			log.Printf("livestreams: end session video_id=%s: %v", videoID, err)
 		}
 		if err := db.UpsertChannelLivestreamStatsAfterEnd(ctx, pool, channelID, avgViewers, maxViewers); err != nil {
