@@ -49,6 +49,7 @@ type Stream = {
   scheduled_start_time?: string | null;
   actual_start_time?: string | null;
   concurrent_viewers?: number | null;
+  ui_concurrent_viewers?: number | null;
 };
 
 type Session = {
@@ -121,6 +122,13 @@ function fmtDurationSince(start: string | null | undefined, nowMs: number) {
   const ss = s % 60;
   const pad = (n: number) => n.toString().padStart(2, "0");
   return `${pad(hh)}:${pad(mm)}:${pad(ss)}`;
+}
+
+function getDisplayViewerCount(stream: Stream | null | undefined): number | null {
+  if (!stream) return null;
+  if (typeof stream.ui_concurrent_viewers === "number") return stream.ui_concurrent_viewers;
+  if (typeof stream.concurrent_viewers === "number") return stream.concurrent_viewers;
+  return null;
 }
 
 function buildOption(buckets: Bucket[]) {
@@ -348,7 +356,7 @@ export function LivestreamModal({
     const channelIcon = session?.channel_icon || stream?.channel_icon || null;
     const scheduled = session?.scheduled_start_at || stream?.scheduled_start_time || null;
     const actual = session?.actual_start_at || stream?.actual_start_time || null;
-    const currentViewers = typeof stream?.concurrent_viewers === "number" ? stream.concurrent_viewers : null;
+    const currentViewers = getDisplayViewerCount(stream);
     return { title, thumb, channelName, channelIcon, scheduled, actual, currentViewers };
   }, [session, stream]);
 
@@ -484,8 +492,8 @@ export function LivestreamModal({
             <div className="name" style={{ marginBottom: "0.5rem" }}>
               Viewers over time (5m buckets)
             </div>
-            <div style={{ height: "20rem" }}>
-              {loading || buckets.length === 0 ? (
+            <div style={{ height: loading || buckets.length > 0 ? "20rem" : "auto" }}>
+              {loading ? (
                 <div
                   style={{
                     height: "100%",
@@ -495,6 +503,24 @@ export function LivestreamModal({
                       "linear-gradient(90deg, rgba(231,238,252,0.04) 0%, rgba(231,238,252,0.08) 45%, rgba(231,238,252,0.04) 100%)",
                   }}
                 />
+              ) : buckets.length === 0 ? (
+                <div
+                  style={{
+                    minHeight: "7.5rem",
+                    borderRadius: "0.9rem",
+                    border: "0.0625rem dashed rgba(231, 238, 252, 0.14)",
+                    background: "rgba(231, 238, 252, 0.03)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "1.25rem",
+                    textAlign: "center",
+                    color: "rgba(231, 238, 252, 0.66)",
+                    fontWeight: 600,
+                  }}
+                >
+                  Not enough data to show the graph yet.
+                </div>
               ) : (
                 <ReactECharts option={option} style={{ height: "100%", width: "100%" }} />
               )}

@@ -44,6 +44,7 @@ type Stream = {
   scheduled_start_time?: string | null;
   actual_start_time?: string | null;
   concurrent_viewers?: number | null;
+  ui_concurrent_viewers?: number | null;
 };
 
 type Payload = {
@@ -129,6 +130,19 @@ function mergeLiveUpdates(prev: Stream[], incoming: Array<Partial<Stream> & { vi
   return Array.from(map.values());
 }
 
+function withUiViewerCounts(streams: Stream[]): Stream[] {
+  return streams.map((stream) => ({
+    ...stream,
+    ui_concurrent_viewers: typeof stream.concurrent_viewers === "number" ? stream.concurrent_viewers : null,
+  }));
+}
+
+function getDisplayViewerCount(stream: Stream): number | null {
+  if (typeof stream.ui_concurrent_viewers === "number") return stream.ui_concurrent_viewers;
+  if (typeof stream.concurrent_viewers === "number") return stream.concurrent_viewers;
+  return null;
+}
+
 export default function LivestreamsPage() {
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -154,7 +168,12 @@ export default function LivestreamsPage() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return (await res.json()) as Payload;
       })
-      .then((json) => setData(json))
+      .then((json) =>
+        setData({
+          live: withUiViewerCounts(json.live || []),
+          upcoming: json.upcoming || [],
+        })
+      )
       .catch((e) => {
         setError(String((e as Error)?.message || e));
         setData(null);
@@ -224,7 +243,10 @@ export default function LivestreamsPage() {
             pendingViewerDeltasRef.current = [];
             if (viewerFlushTimerRef.current != null) window.clearTimeout(viewerFlushTimerRef.current);
             viewerFlushTimerRef.current = null;
-            setData({ live: msg.live, upcoming: msg.upcoming });
+            setData({
+              live: withUiViewerCounts(msg.live),
+              upcoming: msg.upcoming,
+            });
             return;
           }
 
@@ -251,12 +273,24 @@ export default function LivestreamsPage() {
               };
 
               addOrUpdate(liveById, msg.liveAdded);
-              addOrUpdate(liveById, msg.liveUpdated);
+              addOrUpdate(
+                liveById,
+                msg.liveUpdated?.map((stream) => ({
+                  ...stream,
+                  ui_concurrent_viewers: typeof stream.concurrent_viewers === "number" ? stream.concurrent_viewers : null,
+                }))
+              );
               addOrUpdate(upcomingById, msg.upcomingAdded);
               addOrUpdate(upcomingById, msg.upcomingUpdated);
 
               return {
-                live: Array.from(liveById.values()),
+                live: Array.from(liveById.values()).map((stream) => ({
+                  ...stream,
+                  ui_concurrent_viewers:
+                    typeof stream.concurrent_viewers === "number"
+                      ? stream.concurrent_viewers
+                      : stream.ui_concurrent_viewers ?? null,
+                })),
                 upcoming: Array.from(upcomingById.values()),
               };
             });
@@ -285,6 +319,32 @@ export default function LivestreamsPage() {
         ws?.close();
       } catch {}
     };
+  }, []);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setData((prev) => {
+        if (!prev?.live?.length) return prev;
+
+        let changed = false;
+        const live = prev.live.map((stream) => {
+          const base = typeof stream.concurrent_viewers === "number" ? stream.concurrent_viewers : null;
+          if (base == null) return stream;
+
+          const jitterRoll = Math.random();
+          const nextUi =
+            jitterRoll < 0.28 ? Math.max(0, base - 1) : jitterRoll > 0.72 ? base + 1 : base;
+
+          if (nextUi === stream.ui_concurrent_viewers) return stream;
+          changed = true;
+          return { ...stream, ui_concurrent_viewers: nextUi };
+        });
+
+        return changed ? { ...prev, live } : prev;
+      });
+    }, 1800);
+
+    return () => window.clearInterval(id);
   }, []);
 
   const live = useMemo(() => data?.live ?? EMPTY_STREAMS, [data]);
@@ -333,7 +393,7 @@ export default function LivestreamsPage() {
 
   const subtitle = useMemo(() => {
     const base = `${live.length} live · ${upcoming.length} upcoming`;
-    return wsStatus !== "closed" ? `${base} · live viewer updates` : base;
+    return wsStatus !== "closed" ? `${base}` : base;
   }, [live.length, upcoming.length, wsStatus]);
 
   return (
@@ -396,7 +456,7 @@ export default function LivestreamsPage() {
 
   function StreamRow({ s, kind }: { s: Stream; kind: "live" | "upcoming" }) {
     const timeText = kind === "upcoming" ? fmtDate(s.scheduled_start_time) : null;
-    const liveViewers = kind === "live" && typeof s.concurrent_viewers === "number" ? s.concurrent_viewers : null;
+    const liveViewers = kind === "live" ? getDisplayViewerCount(s) : null;
 
     return (
       <button

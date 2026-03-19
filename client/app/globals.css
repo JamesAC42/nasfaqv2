@@ -226,6 +226,17 @@ a {
 
 .thumbWrapLive {
   border: 0.125rem solid rgba(255, 92, 122, 0.35);
+  box-shadow: 0 0 0.8rem rgba(255, 92, 122, 0.2), 0 0 1.6rem rgba(255, 92, 122, 0.12);
+}
+
+.thumbWrapLive::after {
+  content: "";
+  position: absolute;
+  inset: -0.125rem;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 1.1rem rgba(255, 74, 108, 0.18), 0 0 2rem rgba(255, 74, 108, 0.08);
+  opacity: 0.9;
 }
 
 .thumbImg {
