@@ -3,7 +3,7 @@ import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "NASFAQ",
+  title: "NASFAQ DASHBOARD",
   description: "YouTube channel analytics dashboard",
 };
 

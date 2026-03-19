@@ -2,6 +2,7 @@ const express = require("express");
 const path = require("node:path");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
+const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
 
 const db = require("../db");
 
@@ -9,6 +10,8 @@ const router = express.Router();
 const execFileAsync = promisify(execFile);
 const CHANNELSCRAPER_DIR = path.resolve(__dirname, "..", "..", "..", "channelscraper");
 const DETECT_TIMEOUT_MS = 300000;
+const ICON_CDN_BASE_URL = "https://images.nasfaq.biz/icons";
+const MAX_ICON_UPLOAD_BYTES = 1024 * 1024;
 
 function toVideoLink(videoId) {
   return videoId ? `https://www.youtube.com/watch?v=${videoId}` : null;
@@ -21,6 +24,11 @@ function optionalTrimmedString(value) {
   if (value === null || value === undefined) return null;
   const trimmed = value.toString().trim();
   return trimmed ? trimmed : null;
+}
+
+function getIconUrl(iconName) {
+  if (!iconName) return null;
+  return `${ICON_CDN_BASE_URL}/${encodeURIComponent(iconName)}.svg`;
 }
 
 const INVALID_DATE = Symbol("invalid_date");
@@ -38,6 +46,48 @@ function optionalIsoDate(value) {
 
 function normalizeChannelKey(value) {
   return (value || "").toString().trim().toLowerCase();
+}
+
+function getS3Client() {
+  const accessKeyId = optionalTrimmedString(process.env.AWS_ACCESS_KEY_ID);
+  const secretAccessKey = optionalTrimmedString(process.env.AWS_SECRET_ACCESS_KEY);
+  const region = optionalTrimmedString(process.env.AWS_REGION);
+  const bucket = optionalTrimmedString(process.env.AWS_SW_BUCKET);
+
+  if (!accessKeyId || !secretAccessKey || !region || !bucket) {
+    return null;
+  }
+
+  return {
+    bucket,
+    client: new S3Client({
+      region,
+      credentials: { accessKeyId, secretAccessKey },
+      followRegionRedirects: true
+    })
+  };
+}
+
+function parseUploadedIconName(filename) {
+  const baseName = path.parse(path.basename((filename || "").toString())).name.trim();
+  return baseName || null;
+}
+
+function decodeSvgUpload(data) {
+  const trimmed = optionalTrimmedString(data);
+  if (!trimmed) return null;
+
+  const buffer = Buffer.from(trimmed, "base64");
+  if (!buffer.length || buffer.length > MAX_ICON_UPLOAD_BYTES) {
+    return null;
+  }
+
+  const text = buffer.toString("utf8").trim();
+  if (!text || !/<svg[\s>]/i.test(text)) {
+    return null;
+  }
+
+  return Buffer.from(text, "utf8");
 }
 
 function defaultIconValue(nameEnglish, nameShort) {
@@ -307,6 +357,61 @@ router.post("/", async (req, res, next) => {
   }
 });
 
+router.post("/icon-upload", async (req, res, next) => {
+  try {
+    const filename = optionalTrimmedString(req.body?.filename);
+    const contentType = optionalTrimmedString(req.body?.contentType);
+    const data = optionalTrimmedString(req.body?.data);
+
+    if (!filename || !data) {
+      return res.status(400).json({ error: "icon_upload_fields_required" });
+    }
+    if (contentType && contentType !== "image/svg+xml") {
+      return res.status(400).json({ error: "icon_upload_invalid_type" });
+    }
+
+    const iconName = parseUploadedIconName(filename);
+    const body = decodeSvgUpload(data);
+    if (!iconName) {
+      return res.status(400).json({ error: "icon_upload_fields_required" });
+    }
+    if (!body) {
+      return res.status(400).json({ error: "icon_upload_invalid_svg" });
+    }
+
+    const s3 = getS3Client();
+    if (!s3) {
+      return res.status(500).json({ error: "icon_upload_not_configured" });
+    }
+
+    await s3.client.send(
+      new PutObjectCommand({
+        Bucket: s3.bucket,
+        Key: `icons/${iconName}.svg`,
+        Body: body,
+        ContentType: "image/svg+xml",
+        CacheControl: "public, max-age=31536000, immutable"
+      })
+    );
+
+    res.json({
+      icon: iconName,
+      key: `icons/${iconName}.svg`,
+      url: getIconUrl(iconName)
+    });
+  } catch (e) {
+    if (e?.name === "InvalidCharacterError") {
+      return res.status(400).json({ error: "icon_upload_invalid_svg" });
+    }
+    // eslint-disable-next-line no-console
+    console.error("icon upload failed:", e);
+    return res.status(502).json({
+      error: "icon_upload_failed",
+      detail: optionalTrimmedString(e?.message) || optionalTrimmedString(e?.Code) || optionalTrimmedString(e?.name)
+    });
+  }
+});
+
 router.post("/detect", async (req, res, next) => {
   try {
     const channels = await detectNewChannels(req.ctx.pool);
@@ -424,4 +529,3 @@ router.get("/:id/timeseries", async (req, res, next) => {
 });
 
 module.exports = router;
-

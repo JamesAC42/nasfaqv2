@@ -13,6 +13,10 @@ type RedisStore struct {
 	Client *redis.Client
 }
 
+// ChannelViewerUpdates is the Redis pub/sub channel for live viewer count updates.
+// Subscribers receive JSON: { "at": "ISO8601", "live": [ Stream, ... ] }.
+const ChannelViewerUpdates = "nasfaq_livestreams:viewer_updates"
+
 func KeyForChannel(channelID string) string {
 	// Use {...} so Redis Cluster users get stable hash slotting per channel key.
 	return fmt.Sprintf("nasfaq_livestreams:{%s}", channelID)
@@ -64,6 +68,45 @@ func (s *RedisStore) UpsertChannelStreams(ctx context.Context, channelID string,
 		return fmt.Errorf("redis pipeline exec %s: %w", key, err)
 	}
 	return nil
+}
+
+// GetChannelStreams returns all streams currently stored for the channel (live + upcoming).
+func (s *RedisStore) GetChannelStreams(ctx context.Context, channelID string) ([]Stream, error) {
+	if s == nil || s.Client == nil {
+		return nil, fmt.Errorf("nil redis client")
+	}
+	key := KeyForChannel(channelID)
+	pairs, err := s.Client.HGetAll(ctx, key).Result()
+	if err != nil {
+		return nil, fmt.Errorf("redis HGETALL %s: %w", key, err)
+	}
+	out := make([]Stream, 0, len(pairs))
+	for _, v := range pairs {
+		var st Stream
+		if err := json.Unmarshal([]byte(v), &st); err != nil {
+			continue
+		}
+		out = append(out, st)
+	}
+	return out, nil
+}
+
+// ViewerUpdatePayload is the message published to ChannelViewerUpdates.
+type ViewerUpdatePayload struct {
+	At   time.Time `json:"at"`
+	Live []Stream  `json:"live"`
+}
+
+// PublishViewerUpdate publishes the current live streams with viewer counts so API/clients can push via WebSocket.
+func PublishViewerUpdate(ctx context.Context, client *redis.Client, payload ViewerUpdatePayload) error {
+	if client == nil {
+		return nil
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	return client.Publish(ctx, ChannelViewerUpdates, string(b)).Err()
 }
 
 

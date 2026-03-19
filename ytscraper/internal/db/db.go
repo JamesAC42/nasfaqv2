@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -214,4 +215,171 @@ func ExistingDailyStatsChannelIDs(ctx context.Context, pool *pgxpool.Pool, day t
 		return nil, fmt.Errorf("iterate existing ids: %w", rows.Err())
 	}
 	return out, nil
+}
+
+// Livestream session and viewer bucket types (for DB persistence).
+
+type LivestreamSession struct {
+	YouTubeChannelID string
+	VideoID          string
+
+	Status       string // "upcoming" | "live" | "ended"
+	VideoTitle   *string
+	ThumbnailURL *string
+
+	ScheduledStartAt *time.Time
+	ActualStartAt    *time.Time
+
+	FirstSeenAt time.Time
+	LastSeenAt  time.Time
+	EndedAt     *time.Time
+	EndReason   *string
+
+	AvgConcurrentViewers   *int64
+	MaxConcurrentViewers   *int64
+	MaxConcurrentViewersAt *time.Time
+
+	UpdatedAt time.Time
+}
+
+type ViewerBucket5m struct {
+	LivestreamVideoID string
+	BucketStart       time.Time
+	BucketEnd         time.Time
+	DurationSeconds   int
+	AvgViewers        *int64
+	MaxViewers        *int64
+}
+
+func UpsertLivestreamSession(ctx context.Context, pool *pgxpool.Pool, s LivestreamSession) error {
+	if s.UpdatedAt.IsZero() {
+		s.UpdatedAt = time.Now().UTC()
+	}
+	_, err := pool.Exec(ctx, `
+		INSERT INTO yt.livestream_sessions (
+			youtube_channel_id, video_id, status,
+			video_title, thumbnail_url,
+			scheduled_start_at, actual_start_at,
+			first_seen_at, last_seen_at, ended_at, end_reason,
+			avg_concurrent_viewers, max_concurrent_viewers, max_concurrent_viewers_at,
+			updated_at
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+		ON CONFLICT (video_id)
+		DO UPDATE SET
+			status = EXCLUDED.status,
+			video_title = EXCLUDED.video_title,
+			thumbnail_url = EXCLUDED.thumbnail_url,
+			scheduled_start_at = EXCLUDED.scheduled_start_at,
+			actual_start_at = EXCLUDED.actual_start_at,
+			last_seen_at = EXCLUDED.last_seen_at,
+			ended_at = EXCLUDED.ended_at,
+			end_reason = EXCLUDED.end_reason,
+			avg_concurrent_viewers = EXCLUDED.avg_concurrent_viewers,
+			max_concurrent_viewers = EXCLUDED.max_concurrent_viewers,
+			max_concurrent_viewers_at = EXCLUDED.max_concurrent_viewers_at,
+			updated_at = EXCLUDED.updated_at
+	`,
+		s.YouTubeChannelID, s.VideoID, s.Status,
+		s.VideoTitle, s.ThumbnailURL,
+		s.ScheduledStartAt, s.ActualStartAt,
+		s.FirstSeenAt, s.LastSeenAt, s.EndedAt, s.EndReason,
+		s.AvgConcurrentViewers, s.MaxConcurrentViewers, s.MaxConcurrentViewersAt,
+		s.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("upsert livestream session video_id=%s: %w", s.VideoID, err)
+	}
+	return nil
+}
+
+func InsertViewerBucket5m(ctx context.Context, pool *pgxpool.Pool, b ViewerBucket5m) error {
+	_, err := pool.Exec(ctx, `
+		INSERT INTO yt.livestream_viewer_buckets_5m (
+			livestream_video_id, bucket_start, bucket_end, duration_seconds,
+			avg_viewers, max_viewers
+		) VALUES ($1,$2,$3,$4,$5,$6)
+		ON CONFLICT (livestream_video_id, bucket_start)
+		DO UPDATE SET
+			bucket_end = EXCLUDED.bucket_end,
+			duration_seconds = EXCLUDED.duration_seconds,
+			avg_viewers = EXCLUDED.avg_viewers,
+			max_viewers = EXCLUDED.max_viewers
+	`,
+		b.LivestreamVideoID, b.BucketStart, b.BucketEnd, b.DurationSeconds,
+		b.AvgViewers, b.MaxViewers)
+	if err != nil {
+		return fmt.Errorf("insert viewer bucket video_id=%s bucket_start=%s: %w", b.LivestreamVideoID, b.BucketStart.Format(time.RFC3339), err)
+	}
+	return nil
+}
+
+// SessionAggregates is the result of aggregating 5-minute buckets for a stream.
+type SessionAggregates struct {
+	AvgViewers *int64
+	MaxViewers *int64
+}
+
+func GetSessionAggregatesFromBuckets(ctx context.Context, pool *pgxpool.Pool, videoID string) (SessionAggregates, error) {
+	var out SessionAggregates
+	err := pool.QueryRow(ctx, `
+		SELECT
+			AVG(avg_viewers)::BIGINT,
+			MAX(max_viewers)
+		FROM yt.livestream_viewer_buckets_5m
+		WHERE livestream_video_id = $1
+	`, videoID).Scan(&out.AvgViewers, &out.MaxViewers)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return SessionAggregates{}, nil
+		}
+		return SessionAggregates{}, fmt.Errorf("get session aggregates video_id=%s: %w", videoID, err)
+	}
+	return out, nil
+}
+
+func EndLivestreamSession(ctx context.Context, pool *pgxpool.Pool, videoID string, endedAt time.Time, avgViewers, maxViewers *int64, maxViewersAt *time.Time) error {
+	_, err := pool.Exec(ctx, `
+		UPDATE yt.livestream_sessions
+		SET status = 'ended', ended_at = $2, end_reason = 'detected_end',
+		    avg_concurrent_viewers = $3, max_concurrent_viewers = $4, max_concurrent_viewers_at = $5,
+		    updated_at = now()
+		WHERE video_id = $1
+	`, videoID, endedAt, avgViewers, maxViewers, maxViewersAt)
+	if err != nil {
+		return fmt.Errorf("end livestream session video_id=%s: %w", videoID, err)
+	}
+	return nil
+}
+
+// UpsertChannelLivestreamStatsAfterEnd updates channel rollup when a stream ends.
+// streamAvg and streamMax are this stream's avg and max; equal-weight avg is recomputed from sum/count.
+func UpsertChannelLivestreamStatsAfterEnd(ctx context.Context, pool *pgxpool.Pool, youtubeChannelID string, streamAvg, streamMax int64) error {
+	_, err := pool.Exec(ctx, `
+		INSERT INTO yt.youtube_channel_livestream_stats (
+			youtube_channel_id,
+			ended_streams_count,
+			sum_stream_avg_concurrent_viewers,
+			sum_stream_max_concurrent_viewers,
+			avg_concurrent_viewers_over_streams,
+			max_concurrent_viewers_over_streams,
+			updated_at
+		) VALUES (
+			$1,
+			1,
+			$2, $3,
+			$2, $3,
+			now()
+		)
+		ON CONFLICT (youtube_channel_id)
+		DO UPDATE SET
+			ended_streams_count = yt.youtube_channel_livestream_stats.ended_streams_count + 1,
+			sum_stream_avg_concurrent_viewers = yt.youtube_channel_livestream_stats.sum_stream_avg_concurrent_viewers + $2,
+			sum_stream_max_concurrent_viewers = yt.youtube_channel_livestream_stats.sum_stream_max_concurrent_viewers + $3,
+			avg_concurrent_viewers_over_streams = (yt.youtube_channel_livestream_stats.sum_stream_avg_concurrent_viewers + $2) / (yt.youtube_channel_livestream_stats.ended_streams_count + 1),
+			max_concurrent_viewers_over_streams = GREATEST(COALESCE(yt.youtube_channel_livestream_stats.max_concurrent_viewers_over_streams, 0), $3),
+			updated_at = now()
+	`, youtubeChannelID, streamAvg, streamMax)
+	if err != nil {
+		return fmt.Errorf("upsert channel livestream stats channel_id=%s: %w", youtubeChannelID, err)
+	}
+	return nil
 }

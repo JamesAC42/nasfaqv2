@@ -44,6 +44,7 @@ npm run dev
 - `GET /api/channels/:id/timeseries?bucket=7%20days&start=ISO&end=ISO` (bucketed)
 - `GET /api/overview/latest`
 - `GET /api/livestreams` (aggregated from Redis)
+- `WebSocket /api/livestreams/ws` — live viewer count updates (JSON: `{ at, live: Stream[] }`) pushed when the scraper polls; clients should set `NEXT_PUBLIC_WS_API_BASE=ws://localhost:PORT` when the API is on a different origin (e.g. proxy mode).
 
 `POST /api/channels` and `PUT /api/channels/:id` accept `name_short` plus the optional metadata fields
 `name_english`, `name_japanese`, `twitter_id`, `profile_id`, `birthday`, `height`, and `unit`.

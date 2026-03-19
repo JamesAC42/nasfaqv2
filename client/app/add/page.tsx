@@ -1,9 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { holoSymbolMap, type HoloSymbolKey } from "../images/holosymbols";
+import { getChannelIconUrl } from "../lib/channelIcons";
 
 type SavedChannel = {
   youtube_channel_id: string;
@@ -94,10 +93,14 @@ export default function AddChannelPage() {
   const [addingAllDetected, setAddingAllDetected] = useState(false);
   const [detectionError, setDetectionError] = useState<string | null>(null);
   const [detectionSummary, setDetectionSummary] = useState<string | null>(null);
+  const [uploadingIcon, setUploadingIcon] = useState(false);
+  const [iconUploadError, setIconUploadError] = useState<string | null>(null);
+  const [iconUploadSuccess, setIconUploadSuccess] = useState<string | null>(null);
 
   const isEditing = Boolean(editingId);
   const trimmedChannelId = form.youtube_channel_id.trim();
   const trimmedName = form.name.trim();
+  const iconPreviewUrl = getChannelIconUrl(form.icon);
 
   const loadChannels = useCallback(async () => {
     setLoadingChannels(true);
@@ -294,12 +297,58 @@ export default function AddChannelPage() {
     }
   }
 
+  async function onIconFileChange(file: File | null) {
+    setIconUploadError(null);
+    setIconUploadSuccess(null);
+    setSaved(null);
+
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".svg") || (file.type && file.type !== "image/svg+xml")) {
+      setIconUploadError("Only SVG files are allowed.");
+      return;
+    }
+
+    setUploadingIcon(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = "";
+      for (const byte of bytes) {
+        binary += String.fromCharCode(byte);
+      }
+
+      const res = await fetch("/api/channels/icon-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: file.name,
+          contentType: file.type || "image/svg+xml",
+          data: btoa(binary),
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(toChannelErrorMessage(data, res.status));
+      }
+
+      const result = data as { icon: string; url: string };
+      setForm((prev) => ({ ...prev, icon: result.icon }));
+      setIconUploadSuccess(`Uploaded successfully to ${result.url}`);
+    } catch (err) {
+      setIconUploadError(String((err as Error)?.message || err));
+    } finally {
+      setUploadingIcon(false);
+    }
+  }
+
   function onEdit(channel: SavedChannel) {
     setEditingId(channel.youtube_channel_id);
     setIsManualFormOpen(true);
     setForm(toFormState(channel));
     setError(null);
     setSaved(null);
+    setIconUploadError(null);
+    setIconUploadSuccess(null);
   }
 
   function onCancelEdit() {
@@ -308,6 +357,8 @@ export default function AddChannelPage() {
     setIsManualFormOpen(false);
     setError(null);
     setSaved(null);
+    setIconUploadError(null);
+    setIconUploadSuccess(null);
   }
 
   async function onDelete(channel: SavedChannel) {
@@ -439,14 +490,50 @@ export default function AddChannelPage() {
             />
           </Field>
 
-          <Field label="Icon (optional)" hint="URL/path to icon image">
+          <Field label="Icon (optional)" hint="Stored as the icon name. Preview uses https://images.nasfaq.biz/icons/{icon}.svg">
             <input
               value={form.icon}
-              onChange={(e) => setForm((prev) => ({ ...prev, icon: e.target.value }))}
-              placeholder="https://..."
+              onChange={(e) => {
+                setForm((prev) => ({ ...prev, icon: e.target.value }));
+                setIconUploadError(null);
+                setIconUploadSuccess(null);
+              }}
+              placeholder="ame"
               style={inputStyle}
             />
           </Field>
+
+          <Field label="Upload icon (SVG only)" hint="Uploads to S3 `/icons`, then auto-fills the icon field from the uploaded filename">
+            <input
+              type="file"
+              accept=".svg,image/svg+xml"
+              onChange={(e) => void onIconFileChange(e.target.files?.[0] || null)}
+              disabled={uploadingIcon}
+              style={inputStyle}
+            />
+          </Field>
+
+          <div style={iconPreviewPanelStyle}>
+            <div style={iconPreviewHeaderStyle}>
+              <span style={{ fontWeight: 650 }}>Icon preview</span>
+              {uploadingIcon ? <span className="muted">Uploading…</span> : null}
+            </div>
+            {iconPreviewUrl ? (
+              <div style={iconPreviewContentStyle}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={iconPreviewUrl} alt="" style={iconPreviewImageStyle} loading="lazy" />
+                <div style={{ minWidth: 0 }}>
+                  <div className="muted" style={{ wordBreak: "break-all" }}>
+                    {iconPreviewUrl}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="muted">Set the icon field to preview `images.nasfaq.biz/icons/&lt;icon&gt;.svg`.</div>
+            )}
+            {iconUploadError ? <div style={{ ...warningTextStyle, margin: 0 }}>{iconUploadError}</div> : null}
+            {iconUploadSuccess ? <div style={successTextStyle}>{iconUploadSuccess}</div> : null}
+          </div>
 
           <Field label="Twitter ID (optional)" hint="Account handle without the leading @">
             <input
@@ -585,13 +672,13 @@ export default function AddChannelPage() {
                   <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", alignItems: "flex-start", flexWrap: "wrap" }}>
                     <div style={{ minWidth: 0, flex: "1 1 14rem", display: "flex", gap: "0.75rem", alignItems: "center" }}>
                       <div style={channelHeaderIconWrapStyle}>
-                        {getChannelSymbolImage(channel.icon) ? (
-                          <Image
-                            src={getChannelSymbolImage(channel.icon)!}
+                        {getChannelIconUrl(channel.icon) ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={getChannelIconUrl(channel.icon)!}
                             alt=""
-                            width={28}
-                            height={28}
                             style={channelHeaderIconStyle}
+                            loading="lazy"
                           />
                         ) : (
                           <div style={channelHeaderIconFallbackStyle} />
@@ -750,13 +837,13 @@ export default function AddChannelPage() {
                   <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", alignItems: "flex-start" }}>
                     <div style={{ minWidth: 0, display: "flex", gap: "0.75rem", alignItems: "center" }}>
                       <div style={channelHeaderIconWrapStyle}>
-                        {getChannelSymbolImage(channel.icon) ? (
-                          <Image
-                            src={getChannelSymbolImage(channel.icon)!}
+                        {getChannelIconUrl(channel.icon) ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={getChannelIconUrl(channel.icon)!}
                             alt=""
-                            width={28}
-                            height={28}
                             style={channelHeaderIconStyle}
+                            loading="lazy"
                           />
                         ) : (
                           <div style={channelHeaderIconFallbackStyle} />
@@ -847,12 +934,6 @@ function Detail({ label, value }: { label: string; value?: string | null }) {
       <span style={detailValueStyle}>{value || "—"}</span>
     </div>
   );
-}
-
-function getChannelSymbolImage(icon?: string | null) {
-  if (!icon) return null;
-  const key = icon as HoloSymbolKey;
-  return holoSymbolMap[key] || null;
 }
 
 function toFormState(channel: SavedChannel): ChannelFormState {
@@ -951,6 +1032,7 @@ function fmtDate(value: string) {
 function toChannelErrorMessage(data: unknown, status: number) {
   const error = data && typeof data === "object" && "error" in data ? data.error : null;
   const channelId = data && typeof data === "object" && "channel_id" in data ? data.channel_id : null;
+  const detail = data && typeof data === "object" && "detail" in data ? data.detail : null;
 
   switch (error) {
     case "duplicate_youtube_channel_id":
@@ -971,6 +1053,16 @@ function toChannelErrorMessage(data: unknown, status: number) {
       return "Detecting new channels failed.";
     case "channels_required":
       return "No detected channels were provided.";
+    case "icon_upload_fields_required":
+      return "Filename and SVG image data are required.";
+    case "icon_upload_not_configured":
+      return "AWS S3 upload is not configured on the API server.";
+    case "icon_upload_invalid_type":
+      return "Only SVG files are allowed.";
+    case "icon_upload_invalid_svg":
+      return "The uploaded file is not a valid SVG.";
+    case "icon_upload_failed":
+      return detail ? `Uploading the icon to S3 failed: ${String(detail)}` : "Uploading the icon to S3 failed.";
     case "not_found":
       return "That channel could not be found.";
     default:
@@ -1021,6 +1113,43 @@ const warningTextStyle: React.CSSProperties = {
   margin: "-0.35rem 0 0 0",
   color: "var(--bad)",
   fontSize: "0.9rem",
+};
+
+const successTextStyle: React.CSSProperties = {
+  color: "var(--good)",
+  fontSize: "0.9rem",
+};
+
+const iconPreviewPanelStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "0.75rem",
+  padding: "0.9rem",
+  border: "0.0625rem solid var(--border)",
+  borderRadius: "0.9rem",
+  background: "rgba(255, 255, 255, 0.02)",
+};
+
+const iconPreviewHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "0.75rem",
+};
+
+const iconPreviewContentStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "0.75rem",
+};
+
+const iconPreviewImageStyle: React.CSSProperties = {
+  width: "3.5rem",
+  height: "3.5rem",
+  borderRadius: "0.9rem",
+  objectFit: "contain",
+  background: "rgba(255, 255, 255, 0.04)",
+  padding: "0.45rem",
+  flexShrink: 0,
 };
 
 const badgeStyle: React.CSSProperties = {

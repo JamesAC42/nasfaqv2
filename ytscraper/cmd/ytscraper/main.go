@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -30,13 +31,37 @@ type Config struct {
 	RequestDelayMS   int
 	PerChannelTimout time.Duration
 
-	LivePollInterval   time.Duration
-	LiveMaxResults     int
-	UpcomingMaxResults int
-	EnableLivePoll     bool
-	QuotaDailyLimit    int
-	UploadsLookback    int
-	LogYTStats         bool
+	LivePollInterval     time.Duration
+	LiveViewerPollSec    int
+	LiveBucketMinutes    int
+	LiveRedisFreshMinutes int
+	LiveMaxResults       int
+	UpcomingMaxResults   int
+	EnableLivePoll       bool
+	QuotaDailyLimit      int
+	UploadsLookback      int
+	LogYTStats           bool
+
+	LiveDetectionPollLogEnabled  bool
+	LiveChannelScrapeLogEnabled bool
+	LiveStreamStateLogEnabled   bool
+}
+
+// bucketAccumulator holds in-memory viewer samples for one 5-minute bucket.
+type bucketAccumulator struct {
+	BucketStart time.Time
+	Sum         int64
+	Count       int64
+	Max         int64
+}
+
+// liveTracker holds the current set of live streams and their viewer-count accumulators.
+// Updated by the detection loop; read by the viewer poll loop.
+type liveTracker struct {
+	mu           sync.RWMutex
+	channels     []db.Channel
+	live         map[string]*livestreams.Stream // videoID -> stream (for Redis update)
+	accumulators map[string]*bucketAccumulator   // videoID -> current 5-min bucket
 }
 
 func main() {
@@ -84,9 +109,20 @@ func main() {
 		log.Printf("scrape: startup run failed: %v", err)
 	}
 
-	// Livestream polling loop (every N minutes).
+	// Livestream: detection loop (every N min) + viewer poll loop (every 10s).
+	tracker := &liveTracker{live: make(map[string]*livestreams.Stream), accumulators: make(map[string]*bucketAccumulator)}
 	if cfg.EnableLivePoll {
-		go pollLivestreamsLoop(ctx, pool, yt, liveStore, cfg)
+		bootstrapFreshCutoff := time.Now().UTC().Add(-time.Duration(cfg.LiveRedisFreshMinutes) * time.Minute)
+		hasFreshRedisData := bootstrapFromRedis(ctx, pool, yt, liveStore, tracker, cfg, bootstrapFreshCutoff)
+
+		// If redis already has fresh live stream data, we skip the initial detection round.
+		runImmediately := !hasFreshRedisData
+		if cfg.LiveDetectionPollLogEnabled && !runImmediately {
+			log.Printf("livestreams: skipping initial detection poll (fresh livestream data found in redis)")
+		}
+
+		go pollLivestreamsLoop(ctx, pool, yt, liveStore, tracker, cfg, runImmediately)
+		go viewerPollLoop(ctx, pool, yt, liveStore, tracker, cfg)
 	} else {
 		log.Printf("livestreams: polling disabled via LIVE_POLL_ENABLED")
 	}
@@ -113,15 +149,18 @@ func main() {
 	}
 }
 
-func pollLivestreamsLoop(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, store *livestreams.RedisStore, cfg Config) {
-	// Run immediately, then on an interval.
+func pollLivestreamsLoop(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, store *livestreams.RedisStore, tracker *liveTracker, cfg Config, runImmediately bool) {
 	run := func() {
-		if err := pollLivestreamsOnce(ctx, pool, yt, store, cfg); err != nil {
+		if err := pollLivestreamsOnce(ctx, pool, yt, store, tracker, cfg); err != nil {
 			log.Printf("livestreams: poll failed: %v", err)
 		}
 	}
-	log.Printf("livestreams: polling enabled (interval=%s)", cfg.LivePollInterval)
-	run()
+	if cfg.LiveDetectionPollLogEnabled {
+		log.Printf("livestreams: detection polling enabled (interval=%s)", cfg.LivePollInterval)
+	}
+	if runImmediately {
+		run()
+	}
 
 	t := time.NewTicker(cfg.LivePollInterval)
 	defer t.Stop()
@@ -135,7 +174,7 @@ func pollLivestreamsLoop(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 	}
 }
 
-func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, store *livestreams.RedisStore, cfg Config) error {
+func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, store *livestreams.RedisStore, tracker *liveTracker, cfg Config) error {
 	channels, err := db.ListActiveChannels(ctx, pool)
 	if err != nil {
 		return err
@@ -146,6 +185,8 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 
 	now := time.Now().UTC()
 	var fail int
+	bucketDuration := time.Duration(cfg.LiveBucketMinutes) * time.Minute
+	newLiveSet := make(map[string]*livestreams.Stream)
 
 	for i, ch := range channels {
 		if ctx.Err() != nil {
@@ -216,6 +257,29 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 			st.ConcurrentViewers = v.ConcurrentViewers
 
 			out = append(out, st)
+
+			// Persist session and track live set for viewer polling.
+			sessionStatus := "upcoming"
+			if status == livestreams.StatusLive {
+				sessionStatus = "live"
+				stCopy := st
+				newLiveSet[v.VideoID] = &stCopy
+			}
+			firstSeen := now
+			if err := db.UpsertLivestreamSession(ctx, pool, db.LivestreamSession{
+				YouTubeChannelID: ch.YouTubeChannelID,
+				VideoID:          v.VideoID,
+				Status:           sessionStatus,
+				VideoTitle:       strPtr(v.Title),
+				ThumbnailURL:     strPtr(v.ThumbnailURL),
+				ScheduledStartAt: v.ScheduledStartTime,
+				ActualStartAt:    v.ActualStartTime,
+				FirstSeenAt:      firstSeen,
+				LastSeenAt:       now,
+				UpdatedAt:        now,
+			}); err != nil {
+				log.Printf("livestreams: session upsert video_id=%s: %v", v.VideoID, err)
+			}
 		}
 
 		if err := store.UpsertChannelStreams(ctx, ch.YouTubeChannelID, out); err != nil {
@@ -224,17 +288,313 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 			continue
 		}
 
-		log.Printf("livestreams: ok (%d/%d) channel=%s live=%d upcoming=%d", i+1, len(channels), ch.YouTubeChannelID, len(liveIDs), len(upcomingIDs))
+		if cfg.LiveChannelScrapeLogEnabled {
+			log.Printf("livestreams: ok (%d/%d) channel=%s live=%d upcoming=%d", i+1, len(channels), ch.YouTubeChannelID, len(liveIDs), len(upcomingIDs))
+		}
 
 		if cfg.RequestDelayMS > 0 && i < len(channels)-1 {
 			time.Sleep(time.Duration(cfg.RequestDelayMS) * time.Millisecond)
 		}
 	}
 
+	// Detect ended streams: were live before but not in newLiveSet. Flush bucket, end session, update channel stats.
+	tracker.mu.Lock()
+	prevLive := make(map[string]string) // videoID -> channelID
+	for vid, st := range tracker.live {
+		prevLive[vid] = st.ChannelID
+	}
+	for videoID, channelID := range prevLive {
+		if _, stillLive := newLiveSet[videoID]; stillLive {
+			continue
+		}
+		acc := tracker.accumulators[videoID]
+		if acc != nil && acc.Count > 0 {
+			// Flush partial bucket.
+			bucketEnd := now
+			durSec := int(bucketEnd.Sub(acc.BucketStart).Seconds())
+			if durSec <= 0 {
+				durSec = 1
+			}
+			var avgV, maxV *int64
+			if acc.Count > 0 {
+				avg := acc.Sum / acc.Count
+				avgV, maxV = &avg, &acc.Max
+			}
+			if err := db.InsertViewerBucket5m(ctx, pool, db.ViewerBucket5m{
+				LivestreamVideoID: videoID,
+				BucketStart:       acc.BucketStart,
+				BucketEnd:         bucketEnd,
+				DurationSeconds:   durSec,
+				AvgViewers:        avgV,
+				MaxViewers:        maxV,
+			}); err != nil {
+				log.Printf("livestreams: flush final bucket video_id=%s: %v", videoID, err)
+			}
+		}
+		agg, _ := db.GetSessionAggregatesFromBuckets(ctx, pool, videoID)
+		var avgViewers, maxViewers int64
+		if agg.AvgViewers != nil {
+			avgViewers = *agg.AvgViewers
+		}
+		if agg.MaxViewers != nil {
+			maxViewers = *agg.MaxViewers
+		}
+		if acc != nil && acc.Max > maxViewers {
+			maxViewers = acc.Max
+		}
+		if err := db.EndLivestreamSession(ctx, pool, videoID, now, &avgViewers, &maxViewers, nil); err != nil {
+			log.Printf("livestreams: end session video_id=%s: %v", videoID, err)
+		}
+		if err := db.UpsertChannelLivestreamStatsAfterEnd(ctx, pool, channelID, avgViewers, maxViewers); err != nil {
+			log.Printf("livestreams: channel stats video_id=%s: %v", videoID, err)
+		}
+		delete(tracker.accumulators, videoID)
+		if cfg.LiveStreamStateLogEnabled {
+			log.Printf("livestreams: stop polling stream video_id=%s channel=%s (ended)", videoID, channelID)
+		}
+	}
+	tracker.channels = channels
+	tracker.live = newLiveSet
+	for videoID := range newLiveSet {
+		if tracker.accumulators[videoID] == nil {
+			if _, wasAlreadyLive := prevLive[videoID]; !wasAlreadyLive {
+				if st := newLiveSet[videoID]; st != nil {
+					if cfg.LiveStreamStateLogEnabled {
+						log.Printf("livestreams: start polling stream video_id=%s channel=%s", videoID, st.ChannelID)
+					}
+				} else {
+					if cfg.LiveStreamStateLogEnabled {
+						log.Printf("livestreams: start polling stream video_id=%s", videoID)
+					}
+				}
+			}
+			tracker.accumulators[videoID] = &bucketAccumulator{
+				BucketStart: now.UTC().Truncate(bucketDuration),
+			}
+		}
+	}
+	tracker.mu.Unlock()
+
 	if fail > 0 {
 		return fmt.Errorf("livestream poll completed with %d/%d channel failures", fail, len(channels))
 	}
 	return nil
+}
+
+func strPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+// bootstrapFromRedis preloads tracker.live from redis so we can skip an initial detection round.
+// It returns true if redis has any livestream data (live or upcoming) updated within the freshness window.
+func bootstrapFromRedis(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	_ *youtube.Client,
+	store *livestreams.RedisStore,
+	tracker *liveTracker,
+	cfg Config,
+	freshCutoff time.Time,
+) bool {
+	if store == nil || store.Client == nil || tracker == nil {
+		return false
+	}
+
+	channels, err := db.ListActiveChannels(ctx, pool)
+	if err != nil {
+		log.Printf("livestreams: bootstrap redis: list active channels failed: %v", err)
+		return false
+	}
+	if len(channels) == 0 {
+		return false
+	}
+
+	bucketDuration := time.Duration(cfg.LiveBucketMinutes) * time.Minute
+	if bucketDuration <= 0 {
+		bucketDuration = 5 * time.Minute
+	}
+	now := time.Now().UTC()
+
+	live := make(map[string]*livestreams.Stream)
+	acc := make(map[string]*bucketAccumulator)
+	hasFreshRedisData := false
+
+	for _, ch := range channels {
+		streams, err := store.GetChannelStreams(ctx, ch.YouTubeChannelID)
+		if err != nil {
+			continue
+		}
+		for _, st := range streams {
+			if st.UpdatedAt.Before(freshCutoff) {
+				continue
+			}
+			hasFreshRedisData = true
+
+			// Only live streams are used for 10-second viewer polling.
+			if st.Status != livestreams.StatusLive {
+				continue
+			}
+
+			stCopy := st
+			live[st.VideoID] = &stCopy
+			if acc[st.VideoID] == nil {
+				acc[st.VideoID] = &bucketAccumulator{BucketStart: now.Truncate(bucketDuration)}
+			}
+		}
+	}
+
+	if !hasFreshRedisData {
+		return false
+	}
+
+	tracker.mu.Lock()
+	tracker.channels = channels
+	tracker.live = live
+	tracker.accumulators = acc
+	tracker.mu.Unlock()
+
+	if cfg.LiveDetectionPollLogEnabled {
+		log.Printf("livestreams: bootstrapped %d live stream(s) from redis", len(live))
+	}
+	return true
+}
+
+func viewerPollLoop(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, store *livestreams.RedisStore, tracker *liveTracker, cfg Config) {
+	viewerInterval := time.Duration(cfg.LiveViewerPollSec) * time.Second
+	if viewerInterval <= 0 {
+		viewerInterval = 10 * time.Second
+	}
+	bucketDuration := time.Duration(cfg.LiveBucketMinutes) * time.Minute
+	if bucketDuration <= 0 {
+		bucketDuration = 5 * time.Minute
+	}
+	log.Printf("livestreams: viewer poll enabled (interval=%s, bucket=%s)", viewerInterval, bucketDuration)
+
+	ticker := time.NewTicker(viewerInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			viewerPollOnce(ctx, pool, yt, store, tracker, bucketDuration)
+		}
+	}
+}
+
+func viewerPollOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, store *livestreams.RedisStore, tracker *liveTracker, bucketDuration time.Duration) {
+	tracker.mu.RLock()
+	liveMap := make(map[string]*livestreams.Stream, len(tracker.live))
+	for k, v := range tracker.live {
+		liveMap[k] = v
+	}
+	tracker.mu.RUnlock()
+
+	if len(liveMap) == 0 {
+		return
+	}
+
+	liveIDs := make([]string, 0, len(liveMap))
+	for id := range liveMap {
+		liveIDs = append(liveIDs, id)
+	}
+
+	cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	videos, err := yt.FetchVideos(cctx, liveIDs)
+	cancel()
+	if err != nil {
+		log.Printf("livestreams: viewer poll FetchVideos: %v", err)
+		return
+	}
+
+	viewersByID := make(map[string]int64)
+	for _, v := range videos {
+		if v.ConcurrentViewers != nil {
+			viewersByID[v.VideoID] = *v.ConcurrentViewers
+		}
+	}
+
+	// Update Redis: per channel, get streams, set viewer count for live IDs, upsert.
+	channelStreams := make(map[string][]livestreams.Stream)
+	for _, st := range liveMap {
+		channelStreams[st.ChannelID] = nil
+	}
+	for channelID := range channelStreams {
+		streams, err := store.GetChannelStreams(ctx, channelID)
+		if err != nil {
+			log.Printf("livestreams: viewer poll GetChannelStreams %s: %v", channelID, err)
+			continue
+		}
+		for i := range streams {
+			if v, ok := viewersByID[streams[i].VideoID]; ok {
+				streams[i].ConcurrentViewers = &v
+			}
+		}
+		channelStreams[channelID] = streams
+	}
+	var liveForPub []livestreams.Stream
+	for channelID, streams := range channelStreams {
+		if len(streams) == 0 {
+			continue
+		}
+		if err := store.UpsertChannelStreams(ctx, channelID, streams); err != nil {
+			log.Printf("livestreams: viewer poll UpsertChannelStreams %s: %v", channelID, err)
+		}
+		for _, st := range streams {
+			if st.Status == livestreams.StatusLive {
+				liveForPub = append(liveForPub, st)
+			}
+		}
+	}
+	now := time.Now().UTC()
+	if len(liveForPub) > 0 {
+		if err := livestreams.PublishViewerUpdate(ctx, store.Client, livestreams.ViewerUpdatePayload{At: now, Live: liveForPub}); err != nil {
+			log.Printf("livestreams: viewer poll PublishViewerUpdate: %v", err)
+		}
+	}
+
+	// Update accumulators and flush buckets on 5-min boundary.
+	tracker.mu.Lock()
+	defer tracker.mu.Unlock()
+
+	for videoID, viewers := range viewersByID {
+		acc := tracker.accumulators[videoID]
+		if acc == nil {
+			acc = &bucketAccumulator{BucketStart: now.Truncate(bucketDuration)}
+			tracker.accumulators[videoID] = acc
+		}
+		bucketStart := now.Truncate(bucketDuration)
+		if bucketStart.After(acc.BucketStart) {
+			// Flush current bucket and start new one.
+			if acc.Count > 0 {
+				bucketEnd := acc.BucketStart.Add(bucketDuration)
+				durSec := int(bucketDuration.Seconds())
+				avg := acc.Sum / acc.Count
+				if err := db.InsertViewerBucket5m(ctx, pool, db.ViewerBucket5m{
+					LivestreamVideoID: videoID,
+					BucketStart:       acc.BucketStart,
+					BucketEnd:         bucketEnd,
+					DurationSeconds:   durSec,
+					AvgViewers:        &avg,
+					MaxViewers:        &acc.Max,
+				}); err != nil {
+					log.Printf("livestreams: flush bucket video_id=%s: %v", videoID, err)
+				}
+			}
+			acc.BucketStart = bucketStart
+			acc.Sum = 0
+			acc.Count = 0
+			acc.Max = 0
+		}
+		acc.Sum += viewers
+		acc.Count++
+		if viewers > acc.Max {
+			acc.Max = viewers
+		}
+	}
 }
 
 func scrapeOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, cfg Config) error {
@@ -422,6 +782,20 @@ func mustLoadConfig() Config {
 		}
 		return i
 	}
+	getBool := func(key string, def bool) bool {
+		v := os.Getenv(key)
+		if v == "" {
+			return def
+		}
+		switch strings.ToLower(v) {
+		case "1", "true", "yes", "y", "on":
+			return true
+		case "0", "false", "no", "n", "off":
+			return false
+		default:
+			return def
+		}
+	}
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
@@ -447,12 +821,19 @@ func mustLoadConfig() Config {
 		RequestDelayMS:     getInt("REQUEST_DELAY_MS", 150),
 		PerChannelTimout:   20 * time.Second,
 		LivePollInterval:   time.Duration(getInt("LIVE_POLL_SECONDS", 300)) * time.Second,
+		LiveViewerPollSec:  getInt("LIVE_VIEWER_POLL_SECONDS", 10),
+		LiveBucketMinutes:  getInt("LIVE_BUCKET_MINUTES", 5),
+		LiveRedisFreshMinutes: getInt("LIVE_REDIS_FRESH_MINUTES", 10),
 		LiveMaxResults:     getInt("LIVE_MAX_RESULTS", 3),
 		UpcomingMaxResults: getInt("UPCOMING_MAX_RESULTS", 3),
 		EnableLivePoll:     strings.ToLower(os.Getenv("LIVE_POLL_ENABLED")) != "false",
 		QuotaDailyLimit:    getInt("YOUTUBE_DAILY_QUOTA_LIMIT", 0),
 		UploadsLookback:    getInt("UPLOADS_LOOKBACK", 25),
 		LogYTStats:         strings.ToLower(os.Getenv("LOG_YT_STATS")) == "true",
+
+		LiveDetectionPollLogEnabled:  getBool("LIVE_DETECTION_POLL_LOG_ENABLED", true),
+		LiveChannelScrapeLogEnabled: getBool("LIVE_CHANNEL_SCRAPE_LOG_ENABLED", true),
+		LiveStreamStateLogEnabled:   getBool("LIVE_STREAM_STATE_LOG_ENABLED", true),
 	}
 }
 

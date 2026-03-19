@@ -4,6 +4,16 @@ const apiMode = process.env.API_MODE || (process.env.NODE_ENV === "development" 
 const apiProxyBaseUrl = process.env.API_PROXY_BASE_URL || "http://localhost:4001";
 
 const nextConfig: NextConfig = {
+  images: {
+    dangerouslyAllowSVG: true,
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "images.nasfaq.biz",
+        pathname: "/icons/**",
+      },
+    ],
+  },
   async rewrites() {
     if (apiMode !== "proxy") {
       return [];

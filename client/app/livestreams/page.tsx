@@ -1,9 +1,19 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { holoSymbolMap, type HoloSymbolKey } from "../images/holosymbols";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getChannelIconUrl } from "../lib/channelIcons";
+
+const WS_PATH = "/api/livestreams/ws";
+function getWsUrl(): string {
+  const base =
+    typeof process !== "undefined" && process.env.NEXT_PUBLIC_WS_API_BASE
+      ? process.env.NEXT_PUBLIC_WS_API_BASE
+      : typeof window !== "undefined"
+        ? window.location.origin.replace(/^http/, "ws")
+        : "";
+  return base ? `${base}${WS_PATH}` : "";
+}
 
 type Stream = {
   video_id: string;
@@ -32,11 +42,11 @@ function fmtDate(v?: string | null) {
   return d.toLocaleString();
 }
 
-function fmtDurationSince(start?: string | null) {
+function fmtDurationSince(start: string | undefined | null, nowMs: number) {
   if (!start) return "—";
   const t = new Date(start).getTime();
   if (Number.isNaN(t)) return "—";
-  const ms = Date.now() - t;
+  const ms = nowMs - t;
   if (ms < 0) return "—";
   const s = Math.floor(ms / 1000);
   const hh = Math.floor(s / 3600);
@@ -48,16 +58,19 @@ function fmtDurationSince(start?: string | null) {
 
 const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 
-function getChannelSymbolImage(icon?: string | null) {
-  if (!icon) return null;
-  const key = icon as HoloSymbolKey;
-  return holoSymbolMap[key] || null;
-}
+type ViewerUpdate = {
+  at: string;
+  live: Stream[];
+};
 
 export default function LivestreamsPage() {
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [wsStatus, setWsStatus] = useState<"closed" | "connecting" | "open">("closed");
+  const dataRef = useRef<Payload | null>(null);
+  dataRef.current = data;
+  const [nowTickMs, setNowTickMs] = useState(() => Date.now());
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -81,12 +94,69 @@ export default function LivestreamsPage() {
     return () => window.clearInterval(t);
   }, [refresh]);
 
+  // WebSocket: merge viewer updates into live list without refetching
+  useEffect(() => {
+    const wsUrl = getWsUrl();
+    if (!wsUrl) return;
+
+    setWsStatus("connecting");
+    const ws = new WebSocket(wsUrl);
+    ws.onopen = () => setWsStatus("open");
+    ws.onclose = () => setWsStatus("closed");
+    ws.onerror = () => setWsStatus("closed");
+
+    ws.onmessage = (event) => {
+      try {
+        const update = JSON.parse(event.data as string) as ViewerUpdate;
+        if (!update.live || !Array.isArray(update.live)) return;
+
+        setData((prev) => {
+          if (!prev) return prev;
+          return { ...prev, live: update.live };
+        });
+      } catch {
+        // ignore parse errors
+      }
+    };
+
+    return () => ws.close();
+  }, []);
+
   const live = data?.live || [];
   const upcoming = data?.upcoming || [];
 
+  // Increment "Live for" timers efficiently (only when there are live streams).
+  useEffect(() => {
+    if (live.length === 0) return;
+    const id = window.setInterval(() => setNowTickMs(Date.now()), 1_000);
+    return () => window.clearInterval(id);
+  }, [live.length]);
+
+  // Keep UI stable: sort live streams by viewer count descending.
+  const liveSorted = useMemo(() => {
+    const copy = [...live];
+    copy.sort((a, b) => {
+      const av = typeof a.concurrent_viewers === "number" ? a.concurrent_viewers : -1;
+      const bv = typeof b.concurrent_viewers === "number" ? b.concurrent_viewers : -1;
+      if (bv !== av) return bv - av; // desc
+
+      const atA = a.actual_start_time ? new Date(a.actual_start_time).getTime() : 0;
+      const atB = b.actual_start_time ? new Date(b.actual_start_time).getTime() : 0;
+      if (atB !== atA) return atB - atA;
+
+      const uA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+      const uB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+      if (uB !== uA) return uB - uA;
+
+      return a.video_id.localeCompare(b.video_id);
+    });
+    return copy;
+  }, [live]);
+
   const subtitle = useMemo(() => {
-    return `${live.length} live · ${upcoming.length} upcoming`;
-  }, [live.length, upcoming.length]);
+    const base = `${live.length} live · ${upcoming.length} upcoming`;
+    return wsStatus === "open" ? `${base} · live viewer updates` : base;
+  }, [live.length, upcoming.length, wsStatus]);
 
   return (
     <div className="container">
@@ -111,7 +181,7 @@ export default function LivestreamsPage() {
 
       <Section title="Live now" emptyText="No channels are live right now.">
         <div className="streamList">
-          {live.map((s) => (
+          {liveSorted.map((s) => (
             <StreamRow key={`${s.channel_id}:${s.video_id}`} s={s} kind="live" />
           ))}
         </div>
@@ -138,7 +208,8 @@ export default function LivestreamsPage() {
   }
 
   function StreamRow({ s, kind }: { s: Stream; kind: "live" | "upcoming" }) {
-    const timeText = kind === "live" ? `Live for ${fmtDurationSince(s.actual_start_time)}` : fmtDate(s.scheduled_start_time);
+    const timeText =
+      kind === "live" ? `Live for ${fmtDurationSince(s.actual_start_time, nowTickMs)}` : fmtDate(s.scheduled_start_time);
     const viewers =
       kind === "live" && typeof s.concurrent_viewers === "number" ? `${nf.format(s.concurrent_viewers)} watching` : null;
 
@@ -152,8 +223,9 @@ export default function LivestreamsPage() {
           <div className="streamInfo">
           <div className="streamTitle">{s.title}</div>
           <div className="channelRow">
-            {getChannelSymbolImage(s.channel_icon) ? (
-              <Image className="channelIcon" src={getChannelSymbolImage(s.channel_icon)!} alt="" width={28} height={28} />
+            {getChannelIconUrl(s.channel_icon) ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img className="channelIcon" src={getChannelIconUrl(s.channel_icon)!} alt="" loading="lazy" />
             ) : (
               <div className="channelIconFallback" />
             )}

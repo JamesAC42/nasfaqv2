@@ -1,5 +1,7 @@
+const http = require("http");
 const express = require("express");
 const cors = require("cors");
+const { WebSocketServer } = require("ws");
 
 const { loadEnv, getConfig } = require("./config");
 const { createPool } = require("./db");
@@ -11,11 +13,13 @@ const overviewRoutes = require("./routes/overview");
 const livestreamsRoutes = require("./routes/livestreams");
 const analysisRoutes = require("./routes/analysis");
 
+const LIVESTREAM_VIEWER_UPDATES_CHANNEL = "nasfaq_livestreams:viewer_updates";
+
 loadEnv();
 const cfg = getConfig();
 
 const app = express();
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "5mb" }));
 app.use(
   cors({
     origin: cfg.corsOrigin,
@@ -63,9 +67,30 @@ async function main() {
   // Redis is required for livestream endpoints.
   redis = await createRedis(cfg.redisUrl, cfg.redisPassword);
 
-  app.listen(cfg.port, () => {
+  const server = http.createServer(app);
+  const wss = new WebSocketServer({ server, path: "/api/livestreams/ws" });
+
+  wss.on("connection", (ws) => {
+    // Optional: send current snapshot from GET /api/livestreams or leave it to client to fetch once.
+    ws.on("close", () => {});
+  });
+
+  // Dedicated Redis client for pub/sub (subscriber mode can't run other commands).
+  const redisSub = await createRedis(cfg.redisUrl, cfg.redisPassword);
+  await redisSub.subscribe(LIVESTREAM_VIEWER_UPDATES_CHANNEL, (message) => {
+    const payload = String(message);
+    wss.clients.forEach((client) => {
+      if (client.readyState === 1) {
+        client.send(payload);
+      }
+    });
+  });
+  // eslint-disable-next-line no-console
+  console.log("Subscribed to Redis channel:", LIVESTREAM_VIEWER_UPDATES_CHANNEL);
+
+  server.listen(cfg.port, () => {
     // eslint-disable-next-line no-console
-    console.log(`API listening on http://localhost:${cfg.port}`);
+    console.log(`API listening on http://localhost:${cfg.port} (HTTP + WebSocket /api/livestreams/ws)`);
   });
 }
 

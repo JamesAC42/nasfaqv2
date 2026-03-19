@@ -1,11 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { holoSymbolMap, type HoloSymbolKey } from "./images/holosymbols";
+import { getChannelIconUrl } from "./lib/channelIcons";
 
 const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
 
@@ -177,13 +176,13 @@ export default function Home() {
                         <span>{c.youtube_channel_id}</span>
                       </div>
                     </div>
-                    {getChannelSymbolImage(c.icon) ? (
-                      <Image
-                        src={getChannelSymbolImage(c.icon)!}
+                    {getChannelIconUrl(c.icon) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={getChannelIconUrl(c.icon)!}
                         alt=""
-                        width={40}
-                        height={40}
                         style={{ width: "2.5rem", height: "2.5rem", borderRadius: "0.75rem", objectFit: "contain" }}
+                        loading="lazy"
                       />
                     ) : null}
                   </div>
@@ -260,12 +259,6 @@ function toNum(v: number | string | null | undefined) {
   if (v === null || v === undefined) return null;
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : null;
-}
-
-function getChannelSymbolImage(icon?: string | null) {
-  if (!icon) return null;
-  const key = icon as HoloSymbolKey;
-  return holoSymbolMap[key] || null;
 }
 
 function formatTicker(value?: string | null) {
