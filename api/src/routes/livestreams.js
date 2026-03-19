@@ -31,6 +31,52 @@ function toListStream(item) {
   };
 }
 
+function parsePage(value) {
+  const n = Number.parseInt(String(value ?? "0"), 10);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return n;
+}
+
+function weekWindowForPage(page) {
+  const now = new Date();
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  return {
+    page,
+    start: new Date(now.getTime() - (page + 1) * weekMs),
+    end: new Date(now.getTime() - page * weekMs),
+  };
+}
+
+const SESSION_SELECT = `
+  SELECT
+    s.video_id,
+    s.youtube_channel_id,
+    s.status,
+    s.video_title,
+    s.thumbnail_url,
+    s.scheduled_start_at,
+    s.actual_start_at,
+    s.first_seen_at,
+    s.last_seen_at,
+    s.ended_at,
+    s.total_views,
+    s.avg_concurrent_viewers,
+    s.max_concurrent_viewers,
+    s.max_concurrent_viewers_at,
+    COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) AS started_at,
+    CASE
+      WHEN COALESCE(s.ended_at, s.last_seen_at) IS NULL OR COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) IS NULL THEN NULL
+      ELSE GREATEST(
+        0,
+        EXTRACT(EPOCH FROM (COALESCE(s.ended_at, s.last_seen_at) - COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at)))
+      )::BIGINT
+    END AS duration_seconds,
+    c.name_short AS channel_name,
+    c.icon AS channel_icon
+  FROM yt.livestream_sessions s
+  JOIN yt.youtube_channels c ON c.youtube_channel_id = s.youtube_channel_id
+`;
+
 router.get("/", async (req, res, next) => {
   try {
     const redis = req.ctx.redis;
@@ -73,6 +119,46 @@ router.get("/", async (req, res, next) => {
   }
 });
 
+router.get("/history", async (req, res, next) => {
+  try {
+    const { pool } = req.ctx;
+    const page = parsePage(req.query.page);
+    const window = weekWindowForPage(page);
+
+    const historyResult = await pool.query(
+      `
+        ${SESSION_SELECT}
+        WHERE s.status = 'ended'
+          AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) >= $1
+          AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) < $2
+        ORDER BY COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) DESC, s.video_id DESC
+      `,
+      [window.start, window.end]
+    );
+
+    const olderResult = await pool.query(
+      `
+        SELECT 1
+        FROM yt.livestream_sessions s
+        WHERE s.status = 'ended'
+          AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) < $1
+        LIMIT 1
+      `,
+      [window.start]
+    );
+
+    res.json({
+      page,
+      week_start: window.start.toISOString(),
+      week_end: window.end.toISOString(),
+      has_older: olderResult.rowCount > 0,
+      streams: historyResult.rows,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // Get livestream session metadata for a specific video id.
 // Optional query param `channel` allows direct Redis lookup without scanning.
 router.get("/:videoId", async (req, res, next) => {
@@ -92,24 +178,7 @@ router.get("/:videoId", async (req, res, next) => {
 
     const r = await pool.query(
       `
-        SELECT
-          s.video_id,
-          s.youtube_channel_id,
-          s.status,
-          s.video_title,
-          s.thumbnail_url,
-          s.scheduled_start_at,
-          s.actual_start_at,
-          s.first_seen_at,
-          s.last_seen_at,
-          s.ended_at,
-          s.avg_concurrent_viewers,
-          s.max_concurrent_viewers,
-          s.max_concurrent_viewers_at,
-          c.name_short AS channel_name,
-          c.icon AS channel_icon
-        FROM yt.livestream_sessions s
-        JOIN yt.youtube_channels c ON c.youtube_channel_id = s.youtube_channel_id
+        ${SESSION_SELECT}
         WHERE s.video_id = $1
         LIMIT 1
       `,
@@ -151,5 +220,4 @@ router.get("/:videoId/buckets", async (req, res, next) => {
 });
 
 module.exports = router;
-
 

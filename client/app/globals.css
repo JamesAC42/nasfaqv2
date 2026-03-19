@@ -173,6 +173,18 @@ a {
   border-color: rgba(231, 238, 252, 0.25);
 }
 
+.pillButton {
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.pillButton:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .muted {
   color: var(--muted);
 }
@@ -190,6 +202,51 @@ a {
   gap: 1rem;
   /* Use auto-fill (not auto-fit) to keep column widths consistent even if the last row has fewer items */
   grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+}
+
+.sectionToolbar {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.segmentedControl {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 0.0625rem solid rgba(231, 238, 252, 0.12);
+  border-radius: 999rem;
+  background: rgba(9, 13, 21, 0.72);
+}
+
+.segmentedButton {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 650;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999rem;
+  cursor: pointer;
+}
+
+.segmentedButton.active {
+  background: rgba(231, 238, 252, 0.12);
+  color: var(--text);
+}
+
+.historySectionHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 0.85rem;
+}
+
+.historyPager {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
 }
 
 .streamItem {
@@ -461,6 +518,42 @@ a {
   align-items: center;
 }
 
+.pastStatsGrid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem 0.75rem;
+  margin-top: 0.1rem;
+}
+
+.pastStat {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.pastStatWide {
+  grid-column: 1 / -1;
+}
+
+.pastStatLabel {
+  color: rgba(231, 238, 252, 0.52);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pastStatValue {
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dot {
   opacity: 0.7;
   display: inline-block;
@@ -542,5 +635,22 @@ a {
 @media (max-width: 40rem) {
   .streamList {
     grid-template-columns: 1fr;
+  }
+
+  .historySectionHead {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .historyPager {
+    width: 100%;
+  }
+
+  .pastStatsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .pastStatWide {
+    grid-column: auto;
   }
 }

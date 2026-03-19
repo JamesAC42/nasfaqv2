@@ -126,6 +126,8 @@ CREATE TABLE IF NOT EXISTS yt.livestream_sessions (
   ended_at TIMESTAMPTZ NULL,
   end_reason TEXT NULL,
 
+  total_views BIGINT NULL,
+
   -- Aggregates derived from persisted 5-minute buckets.
   avg_concurrent_viewers BIGINT NULL,
   max_concurrent_viewers BIGINT NULL,
@@ -138,6 +140,9 @@ CREATE INDEX IF NOT EXISTS livestream_sessions_channel_actual_start_idx
   ON yt.livestream_sessions (youtube_channel_id, actual_start_at DESC);
 CREATE INDEX IF NOT EXISTS livestream_sessions_status_idx
   ON yt.livestream_sessions (status);
+
+ALTER TABLE yt.livestream_sessions
+  ADD COLUMN IF NOT EXISTS total_views BIGINT NULL;
 
 -- Viewer time-series persisted as 5-minute buckets.
 -- We align/insert bucket_start on 5-minute boundaries in the scraper.

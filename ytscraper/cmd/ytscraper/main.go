@@ -301,6 +301,7 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 					ActualStartAt:    v.ActualStartTime,
 					FirstSeenAt:      firstSeen,
 					LastSeenAt:       now,
+					TotalViews:       v.ViewCount,
 					UpdatedAt:        now,
 				}); err != nil {
 					log.Printf("livestreams: session upsert video_id=%s: %v", v.VideoID, err)

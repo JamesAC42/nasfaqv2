@@ -8,9 +8,11 @@ import { getChannelIconUrl } from "../lib/channelIcons";
 const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
 
 const BUCKET_WS_PATH = "/api/livestreams/buckets/ws";
+
 function getVideoUrl(videoId: string): string {
   return `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
 }
+
 function toWsBase(base: string): string {
   const trimmed = base.trim().replace(/\/+$/, "");
   if (!trimmed) return "";
@@ -39,17 +41,23 @@ function getBucketWsUrl(): string {
   return base ? `${base}${BUCKET_WS_PATH}` : "";
 }
 
-type Stream = {
+export type ModalStream = {
   video_id: string;
-  status: "live" | "upcoming";
+  status: "live" | "upcoming" | "ended";
   title: string;
   thumbnail_url: string;
   channel_name: string;
   channel_icon?: string | null;
   scheduled_start_time?: string | null;
   actual_start_time?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  duration_seconds?: number | null;
   concurrent_viewers?: number | null;
   ui_concurrent_viewers?: number | null;
+  total_views?: number | null;
+  avg_concurrent_viewers?: number | null;
+  max_concurrent_viewers?: number | null;
 };
 
 type Session = {
@@ -63,9 +71,12 @@ type Session = {
   first_seen_at: string;
   last_seen_at: string;
   ended_at: string | null;
+  total_views: number | null;
   avg_concurrent_viewers: number | null;
   max_concurrent_viewers: number | null;
   max_concurrent_viewers_at: string | null;
+  started_at: string | null;
+  duration_seconds: number | null;
   channel_name: string;
   channel_icon: string | null;
 };
@@ -116,15 +127,28 @@ function fmtDurationSince(start: string | null | undefined, nowMs: number) {
   if (Number.isNaN(t)) return "—";
   const ms = nowMs - t;
   if (ms < 0) return "—";
-  const s = Math.floor(ms / 1000);
-  const hh = Math.floor(s / 3600);
-  const mm = Math.floor((s % 3600) / 60);
-  const ss = s % 60;
+  return fmtDurationSeconds(Math.floor(ms / 1000));
+}
+
+function fmtDurationSeconds(seconds: number | null | undefined) {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds) || seconds < 0) return "—";
+  const whole = Math.floor(seconds);
+  const hh = Math.floor(whole / 3600);
+  const mm = Math.floor((whole % 3600) / 60);
+  const ss = whole % 60;
   const pad = (n: number) => n.toString().padStart(2, "0");
   return `${pad(hh)}:${pad(mm)}:${pad(ss)}`;
 }
 
-function getDisplayViewerCount(stream: Stream | null | undefined): number | null {
+function deriveDurationSeconds(start?: string | null, end?: string | null) {
+  if (!start || !end) return null;
+  const startMs = new Date(start).getTime();
+  const endMs = new Date(end).getTime();
+  if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs < startMs) return null;
+  return Math.floor((endMs - startMs) / 1000);
+}
+
+function getDisplayViewerCount(stream: ModalStream | null | undefined): number | null {
   if (!stream) return null;
   if (typeof stream.ui_concurrent_viewers === "number") return stream.ui_concurrent_viewers;
   if (typeof stream.concurrent_viewers === "number") return stream.concurrent_viewers;
@@ -132,7 +156,6 @@ function getDisplayViewerCount(stream: Stream | null | undefined): number | null
 }
 
 function buildOption(buckets: Bucket[]) {
-  // Use `bucket_end` on the X axis so each point reflects the end of the 5-minute interval.
   const avg = buckets.map((b) => [new Date(b.bucket_end).getTime(), b.avg_viewers ?? null]);
   const mx = buckets.map((b) => [new Date(b.bucket_end).getTime(), b.max_viewers ?? null]);
 
@@ -186,8 +209,6 @@ function buildOption(buckets: Bucket[]) {
 }
 
 function mergeBucketsByStart(prev: Bucket[], incoming: Bucket[]): Bucket[] {
-  // Merge by `bucket_start` so websocket updates can't be overwritten by the
-  // initial HTTP `/buckets` response that might still be in-flight.
   if (prev.length === 0) return incoming;
   if (incoming.length === 0) return prev;
 
@@ -196,7 +217,6 @@ function mergeBucketsByStart(prev: Bucket[], incoming: Bucket[]): Bucket[] {
 
   for (const b of incoming) {
     const existing = byStart.get(b.bucket_start);
-    // Prefer the existing (likely newer websocket) value when present.
     if (existing) byStart.set(b.bucket_start, { ...b, ...existing });
     else byStart.set(b.bucket_start, b);
   }
@@ -208,10 +228,12 @@ export function LivestreamModal({
   open,
   onClose,
   stream,
+  mode,
 }: {
   open: boolean;
   onClose: () => void;
-  stream: Stream | null;
+  stream: ModalStream | null;
+  mode: "current" | "past";
 }) {
   const [session, setSession] = useState<Session | null>(null);
   const [buckets, setBuckets] = useState<Bucket[]>([]);
@@ -229,9 +251,6 @@ export function LivestreamModal({
     }
     setEntered(false);
     setWatchingDotAnimating(false);
-    // Use two rAFs so the browser has a chance to paint the "entered=false"
-    // styles before we flip to "entered=true". This makes the modal transition
-    // reliably run on every open (not only the first time).
     let rafEntered2: number | null = null;
     const raf1 = window.requestAnimationFrame(() => {
       rafEntered2 = window.requestAnimationFrame(() => setEntered(true));
@@ -255,21 +274,29 @@ export function LivestreamModal({
 
     (async () => {
       try {
-        const res = await fetch(`/api/livestreams/${encodeURIComponent(stream.video_id)}`, {
-          cache: "no-store",
-        });
+        const res = await fetch(`/api/livestreams/${encodeURIComponent(stream.video_id)}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as { session: Session | null };
-        setSession(json.session);
+        setSession(
+          json.session
+            ? {
+                ...json.session,
+                total_views: toNum(json.session.total_views),
+                avg_concurrent_viewers: toNum(json.session.avg_concurrent_viewers),
+                max_concurrent_viewers: toNum(json.session.max_concurrent_viewers),
+                duration_seconds: toNum(json.session.duration_seconds),
+              }
+            : null
+        );
 
         const res2 = await fetch(`/api/livestreams/${encodeURIComponent(stream.video_id)}/buckets`, { cache: "no-store" });
         if (!res2.ok) throw new Error(`HTTP ${res2.status}`);
         const json2 = (await res2.json()) as { buckets: Bucket[] };
         const fetched = (json2.buckets || []).map((b) => ({
-            ...b,
-            avg_viewers: toNum((b as unknown as { avg_viewers?: unknown }).avg_viewers),
-            max_viewers: toNum((b as unknown as { max_viewers?: unknown }).max_viewers),
-          }));
+          ...b,
+          avg_viewers: toNum((b as { avg_viewers?: unknown }).avg_viewers),
+          max_viewers: toNum((b as { max_viewers?: unknown }).max_viewers),
+        }));
         setBuckets((prev) => mergeBucketsByStart(prev, fetched));
       } catch (e) {
         setError(String((e as Error)?.message || e));
@@ -279,9 +306,8 @@ export function LivestreamModal({
     })();
   }, [open, stream?.video_id]);
 
-  // Live bucket updates while modal is open.
   useEffect(() => {
-    if (!open || !stream?.video_id) return;
+    if (!open || !stream?.video_id || mode !== "current") return;
     const wsUrl = getBucketWsUrl();
     if (!wsUrl) return;
     let closed = false;
@@ -311,8 +337,7 @@ export function LivestreamModal({
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data as string) as BucketUpdate;
-          if (msg.video_id !== stream.video_id) return;
-          if (!msg.bucket_start) return;
+          if (msg.video_id !== stream.video_id || !msg.bucket_start) return;
           setBuckets((prev) => {
             const next: Bucket = {
               bucket_start: msg.bucket_start,
@@ -347,7 +372,7 @@ export function LivestreamModal({
         ws?.close();
       } catch {}
     };
-  }, [open, stream?.video_id]);
+  }, [mode, open, stream?.video_id]);
 
   const display = useMemo(() => {
     const title = session?.video_title || stream?.title || "Livestream";
@@ -356,8 +381,31 @@ export function LivestreamModal({
     const channelIcon = session?.channel_icon || stream?.channel_icon || null;
     const scheduled = session?.scheduled_start_at || stream?.scheduled_start_time || null;
     const actual = session?.actual_start_at || stream?.actual_start_time || null;
+    const startedAt = session?.started_at || stream?.started_at || actual || scheduled || null;
+    const ended = session?.ended_at || stream?.ended_at || null;
     const currentViewers = getDisplayViewerCount(stream);
-    return { title, thumb, channelName, channelIcon, scheduled, actual, currentViewers };
+    const totalViews = session?.total_views ?? stream?.total_views ?? null;
+    const avgViewers = session?.avg_concurrent_viewers ?? stream?.avg_concurrent_viewers ?? null;
+    const maxViewers = session?.max_concurrent_viewers ?? stream?.max_concurrent_viewers ?? null;
+    const durationSeconds =
+      session?.duration_seconds ??
+      stream?.duration_seconds ??
+      deriveDurationSeconds(startedAt, ended);
+    return {
+      title,
+      thumb,
+      channelName,
+      channelIcon,
+      scheduled,
+      actual,
+      startedAt,
+      ended,
+      currentViewers,
+      totalViews,
+      avgViewers,
+      maxViewers,
+      durationSeconds,
+    };
   }, [session, stream]);
 
   const stats = useMemo(() => {
@@ -370,6 +418,9 @@ export function LivestreamModal({
   }, [buckets]);
 
   const option = useMemo(() => buildOption(buckets), [buckets]);
+  const isPast = mode === "past" || session?.status === "ended";
+  const rightPanelAvg = isPast ? (display.avgViewers ?? stats.avg) : stats.avg;
+  const rightPanelMax = isPast ? (display.maxViewers ?? stats.max) : stats.max;
 
   if (!open || !stream) return null;
 
@@ -438,26 +489,44 @@ export function LivestreamModal({
                 <span>{display.channelName}</span>
               </div>
               <div style={{ marginTop: "0.65rem", display: "grid", gap: "0.35rem" }}>
-                <div className="muted">
-                  <span style={{ color: "rgba(231, 238, 252, 0.55)", fontWeight: 650 }}>Scheduled</span>{" "}
-                  <span className="muted">{fmtDate(display.scheduled)}</span>
-                  <span className="dot">·</span>
-                  <span style={{ color: "rgba(231, 238, 252, 0.55)", fontWeight: 650 }}>Actual</span>{" "}
-                  <span className="muted">{fmtDate(display.actual)}</span>
-                </div>
-                <div className="muted">
-                  <span style={{ color: "rgba(231, 238, 252, 0.55)", fontWeight: 650 }}>Length</span>{" "}
-                  <span className="muted">{fmtDurationSince(display.actual, nowTickMs)}</span>
-                  <span className="dot">·</span>
-                  <span className="modalWatchingInline">
-                    <span>Watching</span>
-                    <span
-                      className={`recordingDot${watchingDotAnimating ? " recordingDotAnimating" : ""}`}
-                      aria-hidden="true"
-                    />
-                    <span className="modalWatchingNumber">{fmtNum(display.currentViewers)}</span>
-                  </span>
-                </div>
+                {isPast ? (
+                  <>
+                    <div className="muted">
+                      <span style={{ color: "rgba(231, 238, 252, 0.55)", fontWeight: 650 }}>Started</span>{" "}
+                      <span className="muted">{fmtDate(display.actual)}</span>
+                      <span className="dot">·</span>
+                      <span style={{ color: "rgba(231, 238, 252, 0.55)", fontWeight: 650 }}>Ended</span>{" "}
+                      <span className="muted">{fmtDate(display.ended)}</span>
+                    </div>
+                    <div className="muted">
+                      <span style={{ color: "rgba(231, 238, 252, 0.55)", fontWeight: 650 }}>Duration</span>{" "}
+                      <span className="muted">{fmtDurationSeconds(display.durationSeconds)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="muted">
+                      <span style={{ color: "rgba(231, 238, 252, 0.55)", fontWeight: 650 }}>Scheduled</span>{" "}
+                      <span className="muted">{fmtDate(display.scheduled)}</span>
+                      <span className="dot">·</span>
+                      <span style={{ color: "rgba(231, 238, 252, 0.55)", fontWeight: 650 }}>Actual</span>{" "}
+                      <span className="muted">{fmtDate(display.actual)}</span>
+                    </div>
+                    <div className="muted">
+                      <span style={{ color: "rgba(231, 238, 252, 0.55)", fontWeight: 650 }}>Length</span>{" "}
+                      <span className="muted">{fmtDurationSince(display.actual, nowTickMs)}</span>
+                      <span className="dot">·</span>
+                      <span className="modalWatchingInline">
+                        <span>Watching</span>
+                        <span
+                          className={`recordingDot${watchingDotAnimating ? " recordingDotAnimating" : ""}`}
+                          aria-hidden="true"
+                        />
+                        <span className="modalWatchingNumber">{fmtNum(display.currentViewers)}</span>
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
               <div className="links" style={{ marginTop: "0.75rem" }}>
                 <a className="pill" href={getVideoUrl(stream.video_id)} target="_blank" rel="noreferrer">
@@ -527,14 +596,31 @@ export function LivestreamModal({
             </div>
           </div>
           <div className="card" style={{ padding: "0.75rem" }}>
-            <div className="name">Current (so far)</div>
+            <div className="name">{isPast ? "Session stats" : "Current (so far)"}</div>
             <div className="kv" style={{ marginTop: "0.5rem" }}>
-              <div className="k">Data points</div>
-              <div className="v">{fmtNum(buckets.length)}</div>
-              <div className="k">Avg viewers</div>
-              <div className="v">{fmtNum(stats.avg)}</div>
-              <div className="k">Max viewers</div>
-              <div className="v">{fmtNum(stats.max)}</div>
+              {isPast ? (
+                <>
+                  <div className="k">Views at end</div>
+                  <div className="v">{fmtNum(display.totalViews)}</div>
+                  <div className="k">Avg viewers</div>
+                  <div className="v">{fmtNum(rightPanelAvg)}</div>
+                  <div className="k">Max viewers</div>
+                  <div className="v">{fmtNum(rightPanelMax)}</div>
+                  <div className="k">Duration</div>
+                  <div className="v">{fmtDurationSeconds(display.durationSeconds)}</div>
+                  <div className="k">Started</div>
+                  <div className="v">{fmtDate(display.startedAt)}</div>
+                </>
+              ) : (
+                <>
+                  <div className="k">Data points</div>
+                  <div className="v">{fmtNum(buckets.length)}</div>
+                  <div className="k">Avg viewers</div>
+                  <div className="v">{fmtNum(stats.avg)}</div>
+                  <div className="k">Max viewers</div>
+                  <div className="v">{fmtNum(stats.max)}</div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -542,4 +628,3 @@ export function LivestreamModal({
     </div>
   );
 }
-

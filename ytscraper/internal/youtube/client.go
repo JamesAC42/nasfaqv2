@@ -51,6 +51,7 @@ type Video struct {
 	Title        string
 	ThumbnailURL string
 	ChannelID    string
+	ViewCount    *int64
 
 	ScheduledStartTime *time.Time
 	ActualStartTime    *time.Time
@@ -347,7 +348,7 @@ func (c *Client) FetchVideos(ctx context.Context, videoIDs []string) ([]Video, e
 func (c *Client) fetchVideosPage(ctx context.Context, videoIDs []string) ([]Video, error) {
 	u, _ := url.Parse("https://www.googleapis.com/youtube/v3/videos")
 	q := u.Query()
-	q.Set("part", "snippet,liveStreamingDetails")
+	q.Set("part", "snippet,statistics,contentDetails,liveStreamingDetails")
 	q.Set("id", strings.Join(videoIDs, ","))
 	q.Set("key", c.APIKey)
 	u.RawQuery = q.Encode()
@@ -365,6 +366,9 @@ func (c *Client) fetchVideosPage(ctx context.Context, videoIDs []string) ([]Vide
 					Default struct{ URL string `json:"url"` } `json:"default"`
 				} `json:"thumbnails"`
 			} `json:"snippet"`
+			Statistics struct {
+				ViewCount *string `json:"viewCount"`
+			} `json:"statistics"`
 			LiveStreamingDetails struct {
 				ScheduledStartTime string  `json:"scheduledStartTime"`
 				ActualStartTime    string  `json:"actualStartTime"`
@@ -384,6 +388,7 @@ func (c *Client) fetchVideosPage(ctx context.Context, videoIDs []string) ([]Vide
 			Title:      it.Snippet.Title,
 			ChannelID:  it.Snippet.ChannelID,
 			ThumbnailURL: pickThumb(it.Snippet.Thumbnails),
+			ViewCount:  parseInt64Ptr(it.Statistics.ViewCount),
 		}
 		if ts := parseTimePtr(it.LiveStreamingDetails.ScheduledStartTime); ts != nil {
 			v.ScheduledStartTime = ts

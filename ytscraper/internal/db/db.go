@@ -245,6 +245,7 @@ type LivestreamSession struct {
 	LastSeenAt  time.Time
 	EndedAt     *time.Time
 	EndReason   *string
+	TotalViews  *int64
 
 	AvgConcurrentViewers   *int64
 	MaxConcurrentViewers   *int64
@@ -271,10 +272,10 @@ func UpsertLivestreamSession(ctx context.Context, pool *pgxpool.Pool, s Livestre
 			youtube_channel_id, video_id, status,
 			video_title, thumbnail_url,
 			scheduled_start_at, actual_start_at,
-			first_seen_at, last_seen_at, ended_at, end_reason,
+			first_seen_at, last_seen_at, ended_at, end_reason, total_views,
 			avg_concurrent_viewers, max_concurrent_viewers, max_concurrent_viewers_at,
 			updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
 		ON CONFLICT (video_id)
 		DO UPDATE SET
 			status = EXCLUDED.status,
@@ -285,6 +286,7 @@ func UpsertLivestreamSession(ctx context.Context, pool *pgxpool.Pool, s Livestre
 			last_seen_at = EXCLUDED.last_seen_at,
 			ended_at = EXCLUDED.ended_at,
 			end_reason = EXCLUDED.end_reason,
+			total_views = EXCLUDED.total_views,
 			avg_concurrent_viewers = EXCLUDED.avg_concurrent_viewers,
 			max_concurrent_viewers = EXCLUDED.max_concurrent_viewers,
 			max_concurrent_viewers_at = EXCLUDED.max_concurrent_viewers_at,
@@ -293,7 +295,7 @@ func UpsertLivestreamSession(ctx context.Context, pool *pgxpool.Pool, s Livestre
 		s.YouTubeChannelID, s.VideoID, s.Status,
 		s.VideoTitle, s.ThumbnailURL,
 		s.ScheduledStartAt, s.ActualStartAt,
-		s.FirstSeenAt, s.LastSeenAt, s.EndedAt, s.EndReason,
+		s.FirstSeenAt, s.LastSeenAt, s.EndedAt, s.EndReason, s.TotalViews,
 		s.AvgConcurrentViewers, s.MaxConcurrentViewers, s.MaxConcurrentViewersAt,
 		s.UpdatedAt)
 	if err != nil {
