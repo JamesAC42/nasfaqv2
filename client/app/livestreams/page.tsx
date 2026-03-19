@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { getChannelIconUrl } from "../lib/channelIcons";
 import { LivestreamModal, type ModalStream } from "./LivestreamModal";
 
@@ -228,6 +228,7 @@ export default function LivestreamsPage() {
   const [pastData, setPastData] = useState<PastPayload | null>(null);
   const [pastLoading, setPastLoading] = useState(false);
   const [pastError, setPastError] = useState<string | null>(null);
+  const initialLoading = !data && !error;
 
   useEffect(() => {
     const id = window.setInterval(() => setNowTickMs(Date.now()), 5_000);
@@ -245,10 +246,12 @@ export default function LivestreamsPage() {
         return (await res.json()) as Payload;
       })
       .then((json) =>
-        setData({
-          live: withUiViewerCounts(json.live || []),
-          upcoming: json.upcoming || [],
-        })
+        startTransition(() =>
+          setData({
+            live: withUiViewerCounts(json.live || []),
+            upcoming: json.upcoming || [],
+          })
+        )
       )
       .catch((e) => {
         setError(String((e as Error)?.message || e));
@@ -269,7 +272,7 @@ export default function LivestreamsPage() {
       })
       .then((json) => {
         if (cancelled) return;
-        setPastData(json);
+        startTransition(() => setPastData(json));
       })
       .catch((e) => {
         if (cancelled) return;
@@ -302,10 +305,12 @@ export default function LivestreamsPage() {
       if (!deltas.length) return;
       pendingViewerDeltasRef.current = [];
 
-      setData((prev) => ({
-        live: mergeLiveUpdates(prev?.live || [], deltas),
-        upcoming: prev?.upcoming || [],
-      }));
+      startTransition(() =>
+        setData((prev) => ({
+          live: mergeLiveUpdates(prev?.live || [], deltas),
+          upcoming: prev?.upcoming || [],
+        }))
+      );
     };
 
     const scheduleViewerFlush = () => {
@@ -342,13 +347,17 @@ export default function LivestreamsPage() {
 
           if (msg.type === "snapshot") {
             if (!Array.isArray(msg.live) || !Array.isArray(msg.upcoming)) return;
+            const liveSnapshot = msg.live as CurrentStream[];
+            const upcomingSnapshot = msg.upcoming as CurrentStream[];
             pendingViewerDeltasRef.current = [];
             if (viewerFlushTimerRef.current != null) window.clearTimeout(viewerFlushTimerRef.current);
             viewerFlushTimerRef.current = null;
-            setData({
-              live: withUiViewerCounts(msg.live),
-              upcoming: msg.upcoming,
-            });
+            startTransition(() =>
+              setData({
+                live: withUiViewerCounts(liveSnapshot),
+                upcoming: upcomingSnapshot,
+              })
+            );
             return;
           }
 
@@ -356,46 +365,48 @@ export default function LivestreamsPage() {
             pendingViewerDeltasRef.current = [];
             if (viewerFlushTimerRef.current != null) window.clearTimeout(viewerFlushTimerRef.current);
             viewerFlushTimerRef.current = null;
-            setData((prev) => {
-              if (!prev) return prev;
+            startTransition(() =>
+              setData((prev) => {
+                if (!prev) return prev;
 
-              const liveById = new Map(prev.live.map((s) => [s.video_id, s]));
-              const upcomingById = new Map(prev.upcoming.map((s) => [s.video_id, s]));
+                const liveById = new Map(prev.live.map((s) => [s.video_id, s]));
+                const upcomingById = new Map(prev.upcoming.map((s) => [s.video_id, s]));
 
-              if (Array.isArray(msg.liveRemoved)) {
-                for (const id of msg.liveRemoved) liveById.delete(id);
-              }
-              if (Array.isArray(msg.upcomingRemoved)) {
-                for (const id of msg.upcomingRemoved) upcomingById.delete(id);
-              }
+                if (Array.isArray(msg.liveRemoved)) {
+                  for (const id of msg.liveRemoved) liveById.delete(id);
+                }
+                if (Array.isArray(msg.upcomingRemoved)) {
+                  for (const id of msg.upcomingRemoved) upcomingById.delete(id);
+                }
 
-              const addOrUpdate = (target: Map<string, CurrentStream>, arr: CurrentStream[] | undefined) => {
-                if (!arr) return;
-                for (const s of arr) target.set(s.video_id, s);
-              };
+                const addOrUpdate = (target: Map<string, CurrentStream>, arr: CurrentStream[] | undefined) => {
+                  if (!arr) return;
+                  for (const s of arr) target.set(s.video_id, s);
+                };
 
-              addOrUpdate(liveById, msg.liveAdded);
-              addOrUpdate(
-                liveById,
-                msg.liveUpdated?.map((stream) => ({
-                  ...stream,
-                  ui_concurrent_viewers: typeof stream.concurrent_viewers === "number" ? stream.concurrent_viewers : null,
-                }))
-              );
-              addOrUpdate(upcomingById, msg.upcomingAdded);
-              addOrUpdate(upcomingById, msg.upcomingUpdated);
+                addOrUpdate(liveById, msg.liveAdded);
+                addOrUpdate(
+                  liveById,
+                  msg.liveUpdated?.map((stream) => ({
+                    ...stream,
+                    ui_concurrent_viewers: typeof stream.concurrent_viewers === "number" ? stream.concurrent_viewers : null,
+                  }))
+                );
+                addOrUpdate(upcomingById, msg.upcomingAdded);
+                addOrUpdate(upcomingById, msg.upcomingUpdated);
 
-              return {
-                live: Array.from(liveById.values()).map((stream) => ({
-                  ...stream,
-                  ui_concurrent_viewers:
-                    typeof stream.concurrent_viewers === "number"
-                      ? stream.concurrent_viewers
-                      : stream.ui_concurrent_viewers ?? null,
-                })),
-                upcoming: Array.from(upcomingById.values()),
-              };
-            });
+                return {
+                  live: Array.from(liveById.values()).map((stream) => ({
+                    ...stream,
+                    ui_concurrent_viewers:
+                      typeof stream.concurrent_viewers === "number"
+                        ? stream.concurrent_viewers
+                        : stream.ui_concurrent_viewers ?? null,
+                  })),
+                  upcoming: Array.from(upcomingById.values()),
+                };
+              })
+            );
             return;
           }
 
@@ -553,20 +564,28 @@ export default function LivestreamsPage() {
 
       {viewMode === "current" ? (
         <>
-          <Section title="Live now" emptyText="No channels are live right now." isEmpty={live.length === 0}>
-            <div className="streamList">
-              {liveSorted.map((s) => (
-                <StreamRow key={s.video_id} stream={s} kind="live" nowTickMs={nowTickMs} onOpenCurrent={openCurrentStream} />
-              ))}
-            </div>
+          <Section title="Live now" emptyText="No channels are live right now." isEmpty={!initialLoading && live.length === 0}>
+            {initialLoading ? (
+              <StreamSkeletonList count={3} />
+            ) : (
+              <div className="streamList">
+                {liveSorted.map((s) => (
+                  <StreamRow key={s.video_id} stream={s} kind="live" nowTickMs={nowTickMs} onOpenCurrent={openCurrentStream} />
+                ))}
+              </div>
+            )}
           </Section>
 
-          <Section title="Upcoming" emptyText="No upcoming livestreams found." isEmpty={upcoming.length === 0}>
-            <div className="streamList">
-              {upcomingSorted.map((s) => (
-                <StreamRow key={s.video_id} stream={s} kind="upcoming" nowTickMs={nowTickMs} onOpenCurrent={openCurrentStream} />
-              ))}
-            </div>
+          <Section title="Upcoming" emptyText="No upcoming livestreams found." isEmpty={!initialLoading && upcoming.length === 0}>
+            {initialLoading ? (
+              <StreamSkeletonList count={3} />
+            ) : (
+              <div className="streamList">
+                {upcomingSorted.map((s) => (
+                  <StreamRow key={s.video_id} stream={s} kind="upcoming" nowTickMs={nowTickMs} onOpenCurrent={openCurrentStream} />
+                ))}
+              </div>
+            )}
           </Section>
         </>
       ) : (
@@ -767,4 +786,26 @@ function LiveForText({ actualStartTime, nowTickMs }: { actualStartTime?: string 
 function fmtNullableNumber(value: number | null | undefined) {
   if (value === null || value === undefined) return "—";
   return nf.format(value);
+}
+
+function StreamSkeletonList({ count }: { count: number }) {
+  return (
+    <div className="streamList" aria-hidden="true">
+      {Array.from({ length: count }, (_, index) => (
+        <div key={index} className="streamItem streamItemSkeleton">
+          <div className="thumbWrap skeletonBlock" />
+          <div className="streamInfo">
+            <div className="streamTitle skeletonLine skeletonLineTitle" />
+            <div className="channelRow">
+              <div className="channelIconFallback skeletonBlock" />
+              <div className="channelName skeletonLine skeletonLineShort" />
+            </div>
+            <div className="streamMeta">
+              <div className="skeletonLine skeletonLineMedium" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }

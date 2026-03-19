@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { getChannelIconUrl } from "../lib/channelIcons";
 
 const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
@@ -277,16 +277,18 @@ export function LivestreamModal({
         const res = await fetch(`/api/livestreams/${encodeURIComponent(stream.video_id)}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as { session: Session | null };
-        setSession(
-          json.session
-            ? {
-                ...json.session,
-                total_views: toNum(json.session.total_views),
-                avg_concurrent_viewers: toNum(json.session.avg_concurrent_viewers),
-                max_concurrent_viewers: toNum(json.session.max_concurrent_viewers),
-                duration_seconds: toNum(json.session.duration_seconds),
-              }
-            : null
+        startTransition(() =>
+          setSession(
+            json.session
+              ? {
+                  ...json.session,
+                  total_views: toNum(json.session.total_views),
+                  avg_concurrent_viewers: toNum(json.session.avg_concurrent_viewers),
+                  max_concurrent_viewers: toNum(json.session.max_concurrent_viewers),
+                  duration_seconds: toNum(json.session.duration_seconds),
+                }
+              : null
+          )
         );
 
         const res2 = await fetch(`/api/livestreams/${encodeURIComponent(stream.video_id)}/buckets`, { cache: "no-store" });
@@ -297,7 +299,7 @@ export function LivestreamModal({
           avg_viewers: toNum((b as { avg_viewers?: unknown }).avg_viewers),
           max_viewers: toNum((b as { max_viewers?: unknown }).max_viewers),
         }));
-        setBuckets((prev) => mergeBucketsByStart(prev, fetched));
+        startTransition(() => setBuckets((prev) => mergeBucketsByStart(prev, fetched)));
       } catch (e) {
         setError(String((e as Error)?.message || e));
       } finally {
@@ -338,25 +340,27 @@ export function LivestreamModal({
         try {
           const msg = JSON.parse(event.data as string) as BucketUpdate;
           if (msg.video_id !== stream.video_id || !msg.bucket_start) return;
-          setBuckets((prev) => {
-            const next: Bucket = {
-              bucket_start: msg.bucket_start,
-              bucket_end: msg.bucket_end,
-              duration_seconds: Math.max(
-                1,
-                Math.floor((new Date(msg.bucket_end).getTime() - new Date(msg.bucket_start).getTime()) / 1000)
-              ),
-              avg_viewers: toNum(msg.avg_viewers),
-              max_viewers: toNum(msg.max_viewers),
-            };
-            const idx = prev.findIndex((b) => b.bucket_start === msg.bucket_start);
-            if (idx >= 0) {
-              const copy = [...prev];
-              copy[idx] = { ...copy[idx], ...next };
-              return copy;
-            }
-            return [...prev, next].sort((a, b) => String(a.bucket_start).localeCompare(String(b.bucket_start)));
-          });
+          startTransition(() =>
+            setBuckets((prev) => {
+              const next: Bucket = {
+                bucket_start: msg.bucket_start,
+                bucket_end: msg.bucket_end,
+                duration_seconds: Math.max(
+                  1,
+                  Math.floor((new Date(msg.bucket_end).getTime() - new Date(msg.bucket_start).getTime()) / 1000)
+                ),
+                avg_viewers: toNum(msg.avg_viewers),
+                max_viewers: toNum(msg.max_viewers),
+              };
+              const idx = prev.findIndex((b) => b.bucket_start === msg.bucket_start);
+              if (idx >= 0) {
+                const copy = [...prev];
+                copy[idx] = { ...copy[idx], ...next };
+                return copy;
+              }
+              return [...prev, next].sort((a, b) => String(a.bucket_start).localeCompare(String(b.bucket_start)));
+            })
+          );
         } catch {
           // ignore
         }
@@ -591,7 +595,13 @@ export function LivestreamModal({
                   Not enough data to show the graph yet.
                 </div>
               ) : (
-                <ReactECharts option={option} style={{ height: "100%", width: "100%" }} />
+                <ReactECharts
+                  option={option}
+                  opts={{ renderer: "svg" }}
+                  style={{ height: "100%", width: "100%" }}
+                  notMerge
+                  lazyUpdate
+                />
               )}
             </div>
           </div>
