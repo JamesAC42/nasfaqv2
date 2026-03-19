@@ -54,6 +54,7 @@ type Video struct {
 
 	ScheduledStartTime *time.Time
 	ActualStartTime    *time.Time
+	ActualEndTime      *time.Time
 	ConcurrentViewers  *int64
 }
 
@@ -327,11 +328,23 @@ func (c *Client) FetchVideos(ctx context.Context, videoIDs []string) ([]Video, e
 	if len(videoIDs) == 0 {
 		return nil, nil
 	}
-	// videos.list accepts up to 50 ids.
-	if len(videoIDs) > 50 {
-		videoIDs = videoIDs[:50]
-	}
 
+	out := make([]Video, 0, len(videoIDs))
+	for start := 0; start < len(videoIDs); start += 50 {
+		end := start + 50
+		if end > len(videoIDs) {
+			end = len(videoIDs)
+		}
+		page, err := c.fetchVideosPage(ctx, videoIDs[start:end])
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, page...)
+	}
+	return out, nil
+}
+
+func (c *Client) fetchVideosPage(ctx context.Context, videoIDs []string) ([]Video, error) {
 	u, _ := url.Parse("https://www.googleapis.com/youtube/v3/videos")
 	q := u.Query()
 	q.Set("part", "snippet,liveStreamingDetails")
@@ -355,6 +368,7 @@ func (c *Client) FetchVideos(ctx context.Context, videoIDs []string) ([]Video, e
 			LiveStreamingDetails struct {
 				ScheduledStartTime string  `json:"scheduledStartTime"`
 				ActualStartTime    string  `json:"actualStartTime"`
+				ActualEndTime      string  `json:"actualEndTime"`
 				ConcurrentViewers  *string `json:"concurrentViewers"`
 			} `json:"liveStreamingDetails"`
 		} `json:"items"`
@@ -376,6 +390,9 @@ func (c *Client) FetchVideos(ctx context.Context, videoIDs []string) ([]Video, e
 		}
 		if ts := parseTimePtr(it.LiveStreamingDetails.ActualStartTime); ts != nil {
 			v.ActualStartTime = ts
+		}
+		if ts := parseTimePtr(it.LiveStreamingDetails.ActualEndTime); ts != nil {
+			v.ActualEndTime = ts
 		}
 		v.ConcurrentViewers = parseInt64Ptr(it.LiveStreamingDetails.ConcurrentViewers)
 		if v.VideoID != "" {

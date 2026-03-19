@@ -194,10 +194,19 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 	var fail int
 	bucketDuration := time.Duration(cfg.LiveBucketMinutes) * time.Minute
 	newLiveSet := make(map[string]*livestreams.Stream)
+	detectedEndedChannels := make(map[string]string)
+	detectedEndedAt := make(map[string]time.Time)
 
 	for i, ch := range channels {
 		if ctx.Err() != nil {
 			return ctx.Err()
+		}
+
+		openSessionIDs, err := db.ListOpenLivestreamSessionIDsByChannel(ctx, pool, ch.YouTubeChannelID)
+		if err != nil {
+			fail++
+			log.Printf("livestreams: channel=%s open session lookup error: %v", ch.YouTubeChannelID, err)
+			continue
 		}
 
 		cctx, cancel := context.WithTimeout(ctx, cfg.PerChannelTimout)
@@ -211,15 +220,15 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 		}
 
 		upcomingIDs, err := yt.SearchEventVideoIDs(cctx, ch.YouTubeChannelID, "upcoming", cfg.UpcomingMaxResults)
-		cancel()
 		if err != nil {
+			cancel()
 			fail++
 			log.Printf("livestreams: channel=%s upcoming search error: %v", ch.YouTubeChannelID, err)
 			continue
 		}
 
-		combined := append([]string{}, liveIDs...)
-		combined = append(combined, upcomingIDs...)
+		cancel()
+		combined := uniqueIDs(liveIDs, upcomingIDs, openSessionIDs)
 
 		vidCtx, vidCancel := context.WithTimeout(ctx, cfg.PerChannelTimout)
 		videos, err := yt.FetchVideos(vidCtx, combined)
@@ -243,7 +252,11 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 		out := make([]livestreams.Stream, 0, len(videos))
 		for _, v := range videos {
 			status := livestreams.StatusUpcoming
-			if _, ok := liveSet[v.VideoID]; ok {
+			if v.ActualEndTime != nil {
+				status = livestreams.StatusEnded
+			} else if _, ok := liveSet[v.VideoID]; ok {
+				status = livestreams.StatusLive
+			} else if v.ActualStartTime != nil {
 				status = livestreams.StatusLive
 			}
 
@@ -263,29 +276,42 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 			st.ActualStartTime = v.ActualStartTime
 			st.ConcurrentViewers = v.ConcurrentViewers
 
-			out = append(out, st)
+			if status != livestreams.StatusEnded {
+				out = append(out, st)
+			}
 
-			// Persist session and track live set for viewer polling.
-			sessionStatus := "upcoming"
-			if status == livestreams.StatusLive {
-				sessionStatus = "live"
+			switch status {
+			case livestreams.StatusLive:
 				stCopy := st
 				newLiveSet[v.VideoID] = &stCopy
-			}
-			firstSeen := now
-			if err := db.UpsertLivestreamSession(ctx, pool, db.LivestreamSession{
-				YouTubeChannelID: ch.YouTubeChannelID,
-				VideoID:          v.VideoID,
-				Status:           sessionStatus,
-				VideoTitle:       strPtr(v.Title),
-				ThumbnailURL:     strPtr(v.ThumbnailURL),
-				ScheduledStartAt: v.ScheduledStartTime,
-				ActualStartAt:    v.ActualStartTime,
-				FirstSeenAt:      firstSeen,
-				LastSeenAt:       now,
-				UpdatedAt:        now,
-			}); err != nil {
-				log.Printf("livestreams: session upsert video_id=%s: %v", v.VideoID, err)
+				fallthrough
+			case livestreams.StatusUpcoming:
+				firstSeen := now
+				sessionStatus := "upcoming"
+				if status == livestreams.StatusLive {
+					sessionStatus = "live"
+				}
+				if err := db.UpsertLivestreamSession(ctx, pool, db.LivestreamSession{
+					YouTubeChannelID: ch.YouTubeChannelID,
+					VideoID:          v.VideoID,
+					Status:           sessionStatus,
+					VideoTitle:       strPtr(v.Title),
+					ThumbnailURL:     strPtr(v.ThumbnailURL),
+					ScheduledStartAt: v.ScheduledStartTime,
+					ActualStartAt:    v.ActualStartTime,
+					FirstSeenAt:      firstSeen,
+					LastSeenAt:       now,
+					UpdatedAt:        now,
+				}); err != nil {
+					log.Printf("livestreams: session upsert video_id=%s: %v", v.VideoID, err)
+				}
+			case livestreams.StatusEnded:
+				detectedEndedChannels[v.VideoID] = ch.YouTubeChannelID
+				if v.ActualEndTime != nil {
+					detectedEndedAt[v.VideoID] = v.ActualEndTime.UTC()
+				} else {
+					detectedEndedAt[v.VideoID] = now
+				}
 			}
 		}
 
@@ -310,14 +336,31 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 	for vid, st := range tracker.live {
 		prevLive[vid] = st.ChannelID
 	}
+	endCandidates := make(map[string]string, len(prevLive)+len(detectedEndedChannels))
+	endTimes := make(map[string]time.Time, len(prevLive)+len(detectedEndedAt))
 	for videoID, channelID := range prevLive {
 		if _, stillLive := newLiveSet[videoID]; stillLive {
 			continue
 		}
+		endCandidates[videoID] = channelID
+		endTimes[videoID] = now
+	}
+	for videoID, channelID := range detectedEndedChannels {
+		if _, stillLive := newLiveSet[videoID]; stillLive {
+			continue
+		}
+		endCandidates[videoID] = channelID
+		if endedAt, ok := detectedEndedAt[videoID]; ok {
+			endTimes[videoID] = endedAt
+		} else {
+			endTimes[videoID] = now
+		}
+	}
+	for videoID, channelID := range endCandidates {
 		acc := tracker.accumulators[videoID]
 		if acc != nil && acc.Count > 0 {
 			// Flush partial bucket.
-			bucketEnd := now
+			bucketEnd := endTimes[videoID]
 			durSec := int(bucketEnd.Sub(acc.BucketStart).Seconds())
 			if durSec <= 0 {
 				durSec = 1
@@ -349,30 +392,29 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 			}
 		}
 		agg, _ := db.GetSessionAggregatesFromBuckets(ctx, pool, videoID)
-		var avgViewers, maxViewers int64
-		if agg.AvgViewers != nil {
-			avgViewers = *agg.AvgViewers
-		}
-		if agg.MaxViewers != nil {
-			maxViewers = *agg.MaxViewers
-		}
+		avgViewers := agg.AvgViewers
+		maxViewers := agg.MaxViewers
 		maxViewersAt, err := db.GetMaxViewersAtFromBuckets(ctx, pool, videoID)
 		if err != nil {
 			log.Printf("livestreams: end session max_viewers_at lookup video_id=%s: %v", videoID, err)
 		}
-		if acc != nil && acc.Max > maxViewers {
-			maxViewers = acc.Max
+		if acc != nil && (maxViewers == nil || acc.Max > *maxViewers) {
+			maxCopy := acc.Max
+			maxViewers = &maxCopy
 			// If DB lookup failed to find the newest max, fall back to "ended now".
 			if maxViewersAt == nil {
-				nowCopy := now
+				nowCopy := endTimes[videoID]
 				maxViewersAt = &nowCopy
 			}
 		}
-		if err := db.EndLivestreamSession(ctx, pool, videoID, now, &avgViewers, &maxViewers, maxViewersAt); err != nil {
+		updated, err := db.EndLivestreamSession(ctx, pool, videoID, endTimes[videoID], avgViewers, maxViewers, maxViewersAt)
+		if err != nil {
 			log.Printf("livestreams: end session video_id=%s: %v", videoID, err)
 		}
-		if err := db.UpsertChannelLivestreamStatsAfterEnd(ctx, pool, channelID, avgViewers, maxViewers); err != nil {
-			log.Printf("livestreams: channel stats video_id=%s: %v", videoID, err)
+		if updated && avgViewers != nil && maxViewers != nil {
+			if err := db.UpsertChannelLivestreamStatsAfterEnd(ctx, pool, channelID, *avgViewers, *maxViewers); err != nil {
+				log.Printf("livestreams: channel stats video_id=%s: %v", videoID, err)
+			}
 		}
 		delete(tracker.accumulators, videoID)
 		if cfg.LiveStreamStateLogEnabled {
@@ -405,6 +447,31 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 		return fmt.Errorf("livestream poll completed with %d/%d channel failures", fail, len(channels))
 	}
 	return nil
+}
+
+func uniqueIDs(groups ...[]string) []string {
+	seen := make(map[string]struct{})
+	out := make([]string, 0)
+	for _, group := range groups {
+		for _, id := range group {
+			if id == "" {
+				continue
+			}
+			if _, ok := seen[id]; ok {
+				continue
+			}
+			seen[id] = struct{}{}
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func strPtr(s string) *string {

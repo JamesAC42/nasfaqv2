@@ -7,6 +7,7 @@ type StreamStatus string
 const (
 	StatusLive     StreamStatus = "live"
 	StatusUpcoming StreamStatus = "upcoming"
+	StatusEnded    StreamStatus = "ended"
 )
 
 type Stream struct {

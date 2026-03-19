@@ -44,6 +44,17 @@ type DailyStats struct {
 	ScrapedAt time.Time
 }
 
+type LivestreamSessionSummary struct {
+	YouTubeChannelID  string
+	VideoID           string
+	Status            string
+	VideoTitle        *string
+	ScheduledStartAt  *time.Time
+	ActualStartAt     *time.Time
+	FirstSeenAt       time.Time
+	LastSeenAt        time.Time
+}
+
 func NewPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	normalizedURL, schema := normalizeDatabaseURL(databaseURL)
 	cfg, err := pgxpool.ParseConfig(normalizedURL)
@@ -291,6 +302,142 @@ func UpsertLivestreamSession(ctx context.Context, pool *pgxpool.Pool, s Livestre
 	return nil
 }
 
+func ListOpenLivestreamSessionIDsByChannel(ctx context.Context, pool *pgxpool.Pool, youtubeChannelID string) ([]string, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT video_id
+		FROM yt.livestream_sessions
+		WHERE youtube_channel_id = $1
+		  AND status IN ('upcoming', 'live')
+	`, youtubeChannelID)
+	if err != nil {
+		return nil, fmt.Errorf("list open livestream sessions channel_id=%s: %w", youtubeChannelID, err)
+	}
+	defer rows.Close()
+
+	var out []string
+	for rows.Next() {
+		var videoID string
+		if err := rows.Scan(&videoID); err != nil {
+			return nil, fmt.Errorf("scan open livestream sessions channel_id=%s: %w", youtubeChannelID, err)
+		}
+		if videoID != "" {
+			out = append(out, videoID)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate open livestream sessions channel_id=%s: %w", youtubeChannelID, err)
+	}
+	return out, nil
+}
+
+func ListLivestreamSessionsByStatus(ctx context.Context, pool *pgxpool.Pool, status string) ([]LivestreamSessionSummary, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT
+			youtube_channel_id,
+			video_id,
+			status,
+			video_title,
+			scheduled_start_at,
+			actual_start_at,
+			first_seen_at,
+			last_seen_at
+		FROM yt.livestream_sessions
+		WHERE status = $1
+		ORDER BY COALESCE(scheduled_start_at, first_seen_at) ASC, video_id ASC
+	`, status)
+	if err != nil {
+		return nil, fmt.Errorf("list livestream sessions by status=%s: %w", status, err)
+	}
+	defer rows.Close()
+
+	var out []LivestreamSessionSummary
+	for rows.Next() {
+		var s LivestreamSessionSummary
+		if err := rows.Scan(
+			&s.YouTubeChannelID,
+			&s.VideoID,
+			&s.Status,
+			&s.VideoTitle,
+			&s.ScheduledStartAt,
+			&s.ActualStartAt,
+			&s.FirstSeenAt,
+			&s.LastSeenAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan livestream session by status=%s: %w", status, err)
+		}
+		out = append(out, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate livestream sessions by status=%s: %w", status, err)
+	}
+	return out, nil
+}
+
+func ListLivestreamSessionsByStatusWithViewerBuckets(ctx context.Context, pool *pgxpool.Pool, status string) ([]LivestreamSessionSummary, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT
+			s.youtube_channel_id,
+			s.video_id,
+			s.status,
+			s.video_title,
+			s.scheduled_start_at,
+			s.actual_start_at,
+			s.first_seen_at,
+			s.last_seen_at
+		FROM yt.livestream_sessions s
+		WHERE s.status = $1
+		  AND EXISTS (
+			SELECT 1
+			FROM yt.livestream_viewer_buckets_5m b
+			WHERE b.livestream_video_id = s.video_id
+		  )
+		ORDER BY COALESCE(s.scheduled_start_at, s.first_seen_at) ASC, s.video_id ASC
+	`, status)
+	if err != nil {
+		return nil, fmt.Errorf("list livestream sessions by status=%s with buckets: %w", status, err)
+	}
+	defer rows.Close()
+
+	var out []LivestreamSessionSummary
+	for rows.Next() {
+		var s LivestreamSessionSummary
+		if err := rows.Scan(
+			&s.YouTubeChannelID,
+			&s.VideoID,
+			&s.Status,
+			&s.VideoTitle,
+			&s.ScheduledStartAt,
+			&s.ActualStartAt,
+			&s.FirstSeenAt,
+			&s.LastSeenAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan livestream session by status=%s with buckets: %w", status, err)
+		}
+		out = append(out, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate livestream sessions by status=%s with buckets: %w", status, err)
+	}
+	return out, nil
+}
+
+func DeleteLivestreamSessionIfNoBuckets(ctx context.Context, pool *pgxpool.Pool, videoID string) (bool, error) {
+	tag, err := pool.Exec(ctx, `
+		DELETE FROM yt.livestream_sessions s
+		WHERE s.video_id = $1
+		  AND s.status = 'upcoming'
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM yt.livestream_viewer_buckets_5m b
+			WHERE b.livestream_video_id = s.video_id
+		  )
+	`, videoID)
+	if err != nil {
+		return false, fmt.Errorf("delete livestream session video_id=%s: %w", videoID, err)
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
 func InsertViewerBucket5m(ctx context.Context, pool *pgxpool.Pool, b ViewerBucket5m) error {
 	_, err := pool.Exec(ctx, `
 		INSERT INTO yt.livestream_viewer_buckets_5m (
@@ -357,18 +504,19 @@ func GetMaxViewersAtFromBuckets(ctx context.Context, pool *pgxpool.Pool, videoID
 	return &t, nil
 }
 
-func EndLivestreamSession(ctx context.Context, pool *pgxpool.Pool, videoID string, endedAt time.Time, avgViewers, maxViewers *int64, maxViewersAt *time.Time) error {
-	_, err := pool.Exec(ctx, `
+func EndLivestreamSession(ctx context.Context, pool *pgxpool.Pool, videoID string, endedAt time.Time, avgViewers, maxViewers *int64, maxViewersAt *time.Time) (bool, error) {
+	tag, err := pool.Exec(ctx, `
 		UPDATE yt.livestream_sessions
 		SET status = 'ended', ended_at = $2, end_reason = 'detected_end',
 		    avg_concurrent_viewers = $3, max_concurrent_viewers = $4, max_concurrent_viewers_at = $5,
 		    updated_at = now()
 		WHERE video_id = $1
+		  AND status <> 'ended'
 	`, videoID, endedAt, avgViewers, maxViewers, maxViewersAt)
 	if err != nil {
-		return fmt.Errorf("end livestream session video_id=%s: %w", videoID, err)
+		return false, fmt.Errorf("end livestream session video_id=%s: %w", videoID, err)
 	}
-	return nil
+	return tag.RowsAffected() > 0, nil
 }
 
 // UpsertChannelLivestreamStatsAfterEnd updates channel rollup when a stream ends.

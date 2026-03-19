@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getChannelIconUrl } from "../lib/channelIcons";
 import { LivestreamModal } from "./LivestreamModal";
 
@@ -88,6 +88,11 @@ type ViewerUpdate = {
   }>;
 };
 
+type ViewerDelta = {
+  video_id: string;
+  concurrent_viewers?: number | null;
+};
+
 type SnapshotUpdate = {
   type: "snapshot";
   at: string;
@@ -130,6 +135,16 @@ export default function LivestreamsPage() {
   const [wsStatus, setWsStatus] = useState<"closed" | "connecting" | "open">("closed");
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [selectedStreamCache, setSelectedStreamCache] = useState<Stream | null>(null);
+  const [nowTickMs, setNowTickMs] = useState(() => Date.now());
+
+  // Avoid N timers for N rows; one shared tick is significantly cheaper.
+  useEffect(() => {
+    const id = window.setInterval(() => setNowTickMs(Date.now()), 5_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const pendingViewerDeltasRef = useRef<ViewerDelta[]>([]);
+  const viewerFlushTimerRef = useRef<number | null>(null);
 
   // Initial load (snapshot will also arrive via WebSocket).
   useEffect(() => {
@@ -155,6 +170,27 @@ export default function LivestreamsPage() {
     let ws: WebSocket | null = null;
     let attempt = 0;
     let reconnectTimer: number | null = null;
+
+    const flushViewerDeltas = () => {
+      if (closed) return;
+      viewerFlushTimerRef.current = null;
+
+      const deltas = pendingViewerDeltasRef.current;
+      if (!deltas.length) return;
+      pendingViewerDeltasRef.current = [];
+
+      // Merge deltas in one batched state update.
+      setData((prev) => ({
+        live: mergeLiveUpdates(prev?.live || [], deltas),
+        upcoming: prev?.upcoming || [],
+      }));
+    };
+
+    const scheduleViewerFlush = () => {
+      if (closed) return;
+      if (viewerFlushTimerRef.current != null) return;
+      viewerFlushTimerRef.current = window.setTimeout(flushViewerDeltas, 250);
+    };
 
     const connect = () => {
       if (closed) return;
@@ -185,11 +221,17 @@ export default function LivestreamsPage() {
 
           if (msg.type === "snapshot") {
             if (!Array.isArray(msg.live) || !Array.isArray(msg.upcoming)) return;
+            pendingViewerDeltasRef.current = [];
+            if (viewerFlushTimerRef.current != null) window.clearTimeout(viewerFlushTimerRef.current);
+            viewerFlushTimerRef.current = null;
             setData({ live: msg.live, upcoming: msg.upcoming });
             return;
           }
 
           if (msg.type === "diff") {
+            pendingViewerDeltasRef.current = [];
+            if (viewerFlushTimerRef.current != null) window.clearTimeout(viewerFlushTimerRef.current);
+            viewerFlushTimerRef.current = null;
             setData((prev) => {
               if (!prev) return prev;
 
@@ -223,10 +265,8 @@ export default function LivestreamsPage() {
 
           // Viewer delta payloads do not include `type`, so treat any `msg.live` array as viewer-count deltas.
           if (!msg.live || !Array.isArray(msg.live)) return;
-          setData((prev) => ({
-            live: mergeLiveUpdates(prev?.live || [], msg.live as any),
-            upcoming: prev?.upcoming || [],
-          }));
+          pendingViewerDeltasRef.current.push(...(msg.live as ViewerDelta[]));
+          scheduleViewerFlush();
         } catch {
           // ignore parse errors
         }
@@ -238,6 +278,9 @@ export default function LivestreamsPage() {
     return () => {
       closed = true;
       if (reconnectTimer) window.clearTimeout(reconnectTimer);
+      if (viewerFlushTimerRef.current != null) window.clearTimeout(viewerFlushTimerRef.current);
+      viewerFlushTimerRef.current = null;
+      pendingViewerDeltasRef.current = [];
       try {
         ws?.close();
       } catch {}
@@ -384,7 +427,7 @@ export default function LivestreamsPage() {
             <div className="channelName">{s.channel_name}</div>
             {kind === "live" ? (
               <div style={{ marginLeft: "auto", color: "var(--muted)", fontWeight: 650, whiteSpace: "nowrap" }}>
-                <LiveForText actualStartTime={s.actual_start_time} />
+                <LiveForText actualStartTime={s.actual_start_time} nowTickMs={nowTickMs} />
               </div>
             ) : null}
           </div>
@@ -408,12 +451,8 @@ export default function LivestreamsPage() {
     );
   }
 
-  function LiveForText({ actualStartTime }: { actualStartTime?: string | null }) {
-    const [nowTickMs, setNowTickMs] = useState(() => Date.now());
-    useEffect(() => {
-      const id = window.setInterval(() => setNowTickMs(Date.now()), 1_000);
-      return () => window.clearInterval(id);
-    }, []);
+  function LiveForText({ actualStartTime, nowTickMs }: { actualStartTime?: string | null; nowTickMs: number }) {
+    // Presentational only: parent provides a shared tick to avoid per-row intervals.
     return <>{fmtDurationSince(actualStartTime, nowTickMs)}</>;
   }
 }
