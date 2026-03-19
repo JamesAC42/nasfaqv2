@@ -1087,6 +1087,10 @@ function toChannelErrorMessage(data: unknown, status: number) {
       return "AWS S3 upload is not configured on the API server for reference images.";
     case "reference_image_download_failed":
       return detail ? `Downloading or uploading the reference image failed: ${String(detail)}` : "Downloading or uploading the reference image failed.";
+    case "reference_image_processing_not_configured":
+      return "Reference image processing is not configured on the API server.";
+    case "reference_image_processing_failed":
+      return detail ? `Processing the reference image failed: ${String(detail)}` : "Processing the reference image failed.";
     case "reference_image_upload_failed":
       return detail ? `Uploading the reference image to S3 failed: ${String(detail)}` : "Uploading the reference image to S3 failed.";
     case "not_found":

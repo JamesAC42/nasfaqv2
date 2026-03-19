@@ -337,13 +337,15 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 			}); err != nil {
 				log.Printf("livestreams: flush final bucket video_id=%s: %v", videoID, err)
 			} else {
-				_ = livestreams.PublishBucketUpdate(ctx, store.Client, livestreams.BucketUpdatePayload{
+				if err := livestreams.PublishBucketUpdate(ctx, store.Client, livestreams.BucketUpdatePayload{
 					VideoID:     videoID,
 					BucketStart: acc.BucketStart,
 					BucketEnd:   bucketEnd,
 					AvgViewers:  avgV,
 					MaxViewers:  maxV,
-				})
+				}); err != nil {
+					log.Printf("livestreams: publish bucket update (ended flush) video_id=%s bucket_start=%s: %v", videoID, acc.BucketStart.Format(time.RFC3339), err)
+				}
 			}
 		}
 		agg, _ := db.GetSessionAggregatesFromBuckets(ctx, pool, videoID)
@@ -600,13 +602,15 @@ func viewerPollOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client,
 				} else {
 					avgCopy := avg
 					maxCopy := acc.Max
-					_ = livestreams.PublishBucketUpdate(ctx, store.Client, livestreams.BucketUpdatePayload{
+					if err := livestreams.PublishBucketUpdate(ctx, store.Client, livestreams.BucketUpdatePayload{
 						VideoID:     videoID,
 						BucketStart: acc.BucketStart,
 						BucketEnd:   bucketEnd,
 						AvgViewers:  &avgCopy,
 						MaxViewers:  &maxCopy,
-					})
+					}); err != nil {
+						log.Printf("livestreams: publish bucket update video_id=%s bucket_start=%s: %v", videoID, acc.BucketStart.Format(time.RFC3339), err)
+					}
 				}
 			}
 			acc.BucketStart = bucketStart

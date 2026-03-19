@@ -14,6 +14,8 @@ const ICON_CDN_BASE_URL = "https://images.nasfaq.biz/icons";
 const REFERENCE_IMAGE_CDN_BASE_URL = "https://images.nasfaq.biz/reference-images";
 const MAX_ICON_UPLOAD_BYTES = 1024 * 1024;
 const MAX_REFERENCE_IMAGE_UPLOAD_BYTES = 12 * 1024 * 1024;
+const REFERENCE_IMAGE_SCALE = 0.6;
+const REFERENCE_IMAGE_JPEG_QUALITY = 76;
 
 function toVideoLink(videoId) {
   return videoId ? `https://www.youtube.com/watch?v=${videoId}` : null;
@@ -223,17 +225,53 @@ function extensionFromContentType(contentType) {
   }
 }
 
-function extensionFromUrl(rawUrl) {
+function getSharp() {
   try {
-    const parsed = new URL(rawUrl);
-    const ext = path.extname(parsed.pathname || "").toLowerCase();
-    if ([".png", ".jpg", ".jpeg", ".webp", ".gif"].includes(ext)) {
-      return ext === ".jpeg" ? ".jpg" : ext;
-    }
+    // Loaded lazily so the API can still boot far enough to give a clear error if deps are missing.
+    return require("sharp");
   } catch {
     return null;
   }
-  return null;
+}
+
+async function optimizeReferenceImage(bytes) {
+  const sharp = getSharp();
+  if (!sharp) {
+    const error = new Error("reference_image_processing_not_configured");
+    error.code = "reference_image_processing_not_configured";
+    throw error;
+  }
+
+  let image = sharp(bytes, { failOn: "none" }).rotate();
+  let metadata;
+  try {
+    metadata = await image.metadata();
+  } catch (cause) {
+    const error = new Error(`reference image metadata failed: ${optionalTrimmedString(cause?.message) || "decode error"}`);
+    error.code = "reference_image_processing_failed";
+    throw error;
+  }
+
+  const nextWidth = metadata?.width ? Math.max(1, Math.round(metadata.width * REFERENCE_IMAGE_SCALE)) : null;
+  if (nextWidth) {
+    image = image.resize({ width: nextWidth, withoutEnlargement: true });
+  }
+
+  try {
+    return await image
+      .flatten({ background: "#ffffff" })
+      .jpeg({
+        quality: REFERENCE_IMAGE_JPEG_QUALITY,
+        mozjpeg: true,
+        progressive: true,
+        chromaSubsampling: "4:2:0"
+      })
+      .toBuffer();
+  } catch (cause) {
+    const error = new Error(`reference image processing failed: ${optionalTrimmedString(cause?.message) || "encode error"}`);
+    error.code = "reference_image_processing_failed";
+    throw error;
+  }
 }
 
 async function uploadReferenceImageFromUrl(channel, rawUrl) {
@@ -282,8 +320,14 @@ async function uploadReferenceImageFromUrl(channel, rawUrl) {
     throw error;
   }
 
-  const ext = extensionFromContentType(contentType) || extensionFromUrl(rawUrl) || ".img";
-  const filename = `${objectBaseName}${ext}`;
+  const optimizedBytes = await optimizeReferenceImage(bytes);
+  if (!optimizedBytes.length || optimizedBytes.length > MAX_REFERENCE_IMAGE_UPLOAD_BYTES) {
+    const error = new Error("optimized reference image exceeds size limit");
+    error.code = "reference_image_processing_failed";
+    throw error;
+  }
+
+  const filename = `${objectBaseName}.jpg`;
   const key = `reference-images/${filename}`;
 
   try {
@@ -291,8 +335,8 @@ async function uploadReferenceImageFromUrl(channel, rawUrl) {
       new PutObjectCommand({
         Bucket: s3.bucket,
         Key: key,
-        Body: bytes,
-        ContentType: contentType,
+        Body: optimizedBytes,
+        ContentType: "image/jpeg",
         CacheControl: "public, max-age=31536000, immutable"
       })
     );
@@ -511,6 +555,12 @@ router.post("/", async (req, res, next) => {
     if (e?.code === "reference_image_download_failed") {
       return res.status(502).json({ error: "reference_image_download_failed", detail: optionalTrimmedString(e?.message) });
     }
+    if (e?.code === "reference_image_processing_not_configured") {
+      return res.status(500).json({ error: "reference_image_processing_not_configured" });
+    }
+    if (e?.code === "reference_image_processing_failed") {
+      return res.status(502).json({ error: "reference_image_processing_failed", detail: optionalTrimmedString(e?.message) });
+    }
     if (e?.code === "reference_image_upload_failed") {
       return res.status(502).json({ error: "reference_image_upload_failed", detail: optionalTrimmedString(e?.message) });
     }
@@ -602,6 +652,12 @@ router.post("/detect/add-all", async (req, res, next) => {
     }
     if (e?.code === "reference_image_download_failed") {
       return res.status(502).json({ error: "reference_image_download_failed", detail: optionalTrimmedString(e?.message) });
+    }
+    if (e?.code === "reference_image_processing_not_configured") {
+      return res.status(500).json({ error: "reference_image_processing_not_configured" });
+    }
+    if (e?.code === "reference_image_processing_failed") {
+      return res.status(502).json({ error: "reference_image_processing_failed", detail: optionalTrimmedString(e?.message) });
     }
     if (e?.code === "reference_image_upload_failed") {
       return res.status(502).json({ error: "reference_image_upload_failed", detail: optionalTrimmedString(e?.message) });

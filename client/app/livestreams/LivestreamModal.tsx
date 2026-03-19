@@ -124,8 +124,9 @@ function fmtDurationSince(start: string | null | undefined, nowMs: number) {
 }
 
 function buildOption(buckets: Bucket[]) {
-  const avg = buckets.map((b) => [new Date(b.bucket_start).getTime(), b.avg_viewers ?? null]);
-  const mx = buckets.map((b) => [new Date(b.bucket_start).getTime(), b.max_viewers ?? null]);
+  // Use `bucket_end` on the X axis so each point reflects the end of the 5-minute interval.
+  const avg = buckets.map((b) => [new Date(b.bucket_end).getTime(), b.avg_viewers ?? null]);
+  const mx = buckets.map((b) => [new Date(b.bucket_end).getTime(), b.max_viewers ?? null]);
 
   return {
     backgroundColor: "transparent",
@@ -176,6 +177,25 @@ function buildOption(buckets: Bucket[]) {
   };
 }
 
+function mergeBucketsByStart(prev: Bucket[], incoming: Bucket[]): Bucket[] {
+  // Merge by `bucket_start` so websocket updates can't be overwritten by the
+  // initial HTTP `/buckets` response that might still be in-flight.
+  if (prev.length === 0) return incoming;
+  if (incoming.length === 0) return prev;
+
+  const byStart = new Map<string, Bucket>();
+  for (const b of prev) byStart.set(b.bucket_start, b);
+
+  for (const b of incoming) {
+    const existing = byStart.get(b.bucket_start);
+    // Prefer the existing (likely newer websocket) value when present.
+    if (existing) byStart.set(b.bucket_start, { ...b, ...existing });
+    else byStart.set(b.bucket_start, b);
+  }
+
+  return [...byStart.values()].sort((a, b) => String(a.bucket_start).localeCompare(String(b.bucket_start)));
+}
+
 export function LivestreamModal({
   open,
   onClose,
@@ -222,13 +242,12 @@ export function LivestreamModal({
         const res2 = await fetch(`/api/livestreams/${encodeURIComponent(stream.video_id)}/buckets`, { cache: "no-store" });
         if (!res2.ok) throw new Error(`HTTP ${res2.status}`);
         const json2 = (await res2.json()) as { buckets: Bucket[] };
-        setBuckets(
-          (json2.buckets || []).map((b) => ({
+        const fetched = (json2.buckets || []).map((b) => ({
             ...b,
             avg_viewers: toNum((b as unknown as { avg_viewers?: unknown }).avg_viewers),
             max_viewers: toNum((b as unknown as { max_viewers?: unknown }).max_viewers),
-          }))
-        );
+          }));
+        setBuckets((prev) => mergeBucketsByStart(prev, fetched));
       } catch (e) {
         setError(String((e as Error)?.message || e));
       } finally {
