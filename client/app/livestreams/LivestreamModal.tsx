@@ -8,6 +8,9 @@ import { getChannelIconUrl } from "../lib/channelIcons";
 const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
 
 const BUCKET_WS_PATH = "/api/livestreams/buckets/ws";
+function getVideoUrl(videoId: string): string {
+  return `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
+}
 function toWsBase(base: string): string {
   const trimmed = base.trim().replace(/\/+$/, "");
   if (!trimmed) return "";
@@ -38,17 +41,14 @@ function getBucketWsUrl(): string {
 
 type Stream = {
   video_id: string;
-  video_url: string;
   status: "live" | "upcoming";
   title: string;
   thumbnail_url: string;
-  channel_id: string;
   channel_name: string;
   channel_icon?: string | null;
   scheduled_start_time?: string | null;
   actual_start_time?: string | null;
   concurrent_viewers?: number | null;
-  updated_at: string;
 };
 
 type Session = {
@@ -232,7 +232,7 @@ export function LivestreamModal({
 
     (async () => {
       try {
-        const res = await fetch(`/api/livestreams/${encodeURIComponent(stream.video_id)}?channel=${encodeURIComponent(stream.channel_id)}`, {
+        const res = await fetch(`/api/livestreams/${encodeURIComponent(stream.video_id)}`, {
           cache: "no-store",
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -254,7 +254,7 @@ export function LivestreamModal({
         setLoading(false);
       }
     })();
-  }, [open, stream?.video_id, stream?.channel_id]);
+  }, [open, stream?.video_id]);
 
   // Live bucket updates while modal is open.
   useEffect(() => {
@@ -431,7 +431,7 @@ export function LivestreamModal({
                 </div>
               </div>
               <div className="links" style={{ marginTop: "0.75rem" }}>
-                <a className="pill" href={stream.video_url} target="_blank" rel="noreferrer">
+                <a className="pill" href={getVideoUrl(stream.video_id)} target="_blank" rel="noreferrer">
                   Open stream
                 </a>
                 <Link className="pill" href="/livestreams" onClick={onClose}>

@@ -36,17 +36,14 @@ function getWsUrl(): string {
 
 type Stream = {
   video_id: string;
-  video_url: string;
   status: "live" | "upcoming";
   title: string;
   thumbnail_url: string;
-  channel_id: string;
   channel_name: string;
   channel_icon?: string | null;
   scheduled_start_time?: string | null;
   actual_start_time?: string | null;
   concurrent_viewers?: number | null;
-  updated_at: string;
 };
 
 type Payload = {
@@ -54,6 +51,10 @@ type Payload = {
   upcoming: Stream[];
 };
 const EMPTY_STREAMS: Stream[] = [];
+
+function getVideoUrl(videoId: string) {
+  return `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
+}
 
 function fmtDate(v?: string | null) {
   if (!v) return "—";
@@ -80,7 +81,11 @@ const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 
 type ViewerUpdate = {
   at: string;
-  live: Stream[];
+  // Viewer websocket sends only deltas between full snapshots.
+  live: Array<{
+    video_id: string;
+    concurrent_viewers?: number | null;
+  }>;
 };
 
 type SnapshotUpdate = {
@@ -90,15 +95,32 @@ type SnapshotUpdate = {
   upcoming: Stream[];
 };
 
-function mergeLiveUpdates(prev: Stream[], incoming: Stream[]): Stream[] {
-  if (prev.length === 0) return incoming;
+type DiffUpdate = {
+  type: "diff";
+  at: string;
+  liveAdded: Stream[];
+  liveUpdated: Stream[];
+  liveRemoved: string[];
+  upcomingAdded: Stream[];
+  upcomingUpdated: Stream[];
+  upcomingRemoved: string[];
+};
+
+function mergeLiveUpdates(prev: Stream[], incoming: Array<Partial<Stream> & { video_id: string }>): Stream[] {
+  // Viewer websocket updates are deltas; ignore updates if we don't yet have the full snapshot data.
+  if (prev.length === 0) return prev;
   if (incoming.length === 0) return prev;
+
   const map = new Map<string, Stream>();
   for (const stream of prev) map.set(stream.video_id, stream);
-  for (const stream of incoming) {
-    const existing = map.get(stream.video_id);
-    map.set(stream.video_id, existing ? { ...existing, ...stream } : stream);
+
+  for (const delta of incoming) {
+    const existing = map.get(delta.video_id);
+    // Ignore deltas for unknown streams; snapshots are what introduce new streams.
+    if (!existing) continue;
+    map.set(delta.video_id, { ...existing, ...delta });
   }
+
   return Array.from(map.values());
 }
 
@@ -159,15 +181,50 @@ export default function LivestreamsPage() {
 
       ws.onmessage = (event) => {
         try {
-          const msg = JSON.parse(event.data as string) as Partial<SnapshotUpdate> & Partial<ViewerUpdate>;
+          const msg = JSON.parse(event.data as string) as Partial<SnapshotUpdate> & Partial<DiffUpdate> & Partial<ViewerUpdate>;
+
           if (msg.type === "snapshot") {
             if (!Array.isArray(msg.live) || !Array.isArray(msg.upcoming)) return;
             setData({ live: msg.live, upcoming: msg.upcoming });
             return;
           }
+
+          if (msg.type === "diff") {
+            setData((prev) => {
+              if (!prev) return prev;
+
+              const liveById = new Map(prev.live.map((s) => [s.video_id, s]));
+              const upcomingById = new Map(prev.upcoming.map((s) => [s.video_id, s]));
+
+              if (Array.isArray(msg.liveRemoved)) {
+                for (const id of msg.liveRemoved) liveById.delete(id);
+              }
+              if (Array.isArray(msg.upcomingRemoved)) {
+                for (const id of msg.upcomingRemoved) upcomingById.delete(id);
+              }
+
+              const addOrUpdate = (target: Map<string, Stream>, arr: Stream[] | undefined) => {
+                if (!arr) return;
+                for (const s of arr) target.set(s.video_id, s);
+              };
+
+              addOrUpdate(liveById, msg.liveAdded);
+              addOrUpdate(liveById, msg.liveUpdated);
+              addOrUpdate(upcomingById, msg.upcomingAdded);
+              addOrUpdate(upcomingById, msg.upcomingUpdated);
+
+              return {
+                live: Array.from(liveById.values()),
+                upcoming: Array.from(upcomingById.values()),
+              };
+            });
+            return;
+          }
+
+          // Viewer delta payloads do not include `type`, so treat any `msg.live` array as viewer-count deltas.
           if (!msg.live || !Array.isArray(msg.live)) return;
           setData((prev) => ({
-            live: mergeLiveUpdates(prev?.live || [], msg.live as Stream[]),
+            live: mergeLiveUpdates(prev?.live || [], msg.live as any),
             upcoming: prev?.upcoming || [],
           }));
         } catch {
@@ -189,6 +246,16 @@ export default function LivestreamsPage() {
 
   const live = useMemo(() => data?.live ?? EMPTY_STREAMS, [data]);
   const upcoming = useMemo(() => data?.upcoming ?? EMPTY_STREAMS, [data]);
+  const upcomingSorted = useMemo(() => {
+    const copy = [...upcoming];
+    copy.sort((a, b) => {
+      const atA = a.scheduled_start_time ? new Date(a.scheduled_start_time).getTime() : 0;
+      const atB = b.scheduled_start_time ? new Date(b.scheduled_start_time).getTime() : 0;
+      if (atA !== atB) return atA - atB; // asc
+      return a.video_id.localeCompare(b.video_id);
+    });
+    return copy;
+  }, [upcoming]);
 
   // Keep selected stream data in sync with live websocket updates.
   useEffect(() => {
@@ -215,10 +282,6 @@ export default function LivestreamsPage() {
       const atA = a.actual_start_time ? new Date(a.actual_start_time).getTime() : 0;
       const atB = b.actual_start_time ? new Date(b.actual_start_time).getTime() : 0;
       if (atB !== atA) return atB - atA;
-
-      const uA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
-      const uB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
-      if (uB !== uA) return uB - uA;
 
       return a.video_id.localeCompare(b.video_id);
     });
@@ -254,15 +317,15 @@ export default function LivestreamsPage() {
       <Section title="Live now" emptyText="No channels are live right now.">
         <div className="streamList">
           {liveSorted.map((s) => (
-            <StreamRow key={`${s.channel_id}:${s.video_id}`} s={s} kind="live" />
+            <StreamRow key={s.video_id} s={s} kind="live" />
           ))}
         </div>
       </Section>
 
       <Section title="Upcoming" emptyText="No upcoming livestreams found.">
         <div className="streamList">
-          {upcoming.map((s) => (
-            <StreamRow key={`${s.channel_id}:${s.video_id}`} s={s} kind="upcoming" />
+          {upcomingSorted.map((s) => (
+            <StreamRow key={s.video_id} s={s} kind="upcoming" />
           ))}
         </div>
       </Section>
@@ -302,7 +365,7 @@ export default function LivestreamsPage() {
             setSelectedVideoId(s.video_id);
             setSelectedStreamCache(s);
           }
-          else window.open(s.video_url, "_blank", "noreferrer");
+            else window.open(getVideoUrl(s.video_id), "_blank", "noreferrer");
         }}
       >
         <div className="thumbWrap">

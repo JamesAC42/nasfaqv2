@@ -34,6 +34,63 @@ function cmpAsc(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+function toListStream(item) {
+  // Only include fields needed by the livestream list + modal open.
+  // Modal fetches session/buckets separately, so omit large/unneeded fields.
+  return {
+    video_id: item.video_id,
+    status: item.status,
+    title: item.title,
+    thumbnail_url: item.thumbnail_url,
+    channel_name: item.channel_name,
+    channel_icon: item.channel_icon,
+    scheduled_start_time: item.scheduled_start_time,
+    actual_start_time: item.actual_start_time,
+    concurrent_viewers: item.concurrent_viewers,
+  };
+}
+
+function signatureForStreamDiff(stream) {
+  // Ignore concurrent_viewers so we don't emit diffs every time viewer counts change.
+  // Viewer counts are sent separately via the viewer websocket.
+  return JSON.stringify({
+    video_id: stream.video_id,
+    status: stream.status,
+    title: stream.title,
+    thumbnail_url: stream.thumbnail_url,
+    channel_name: stream.channel_name,
+    channel_icon: stream.channel_icon,
+    scheduled_start_time: stream.scheduled_start_time,
+    actual_start_time: stream.actual_start_time,
+  });
+}
+
+function diffById(prevArr, nextArr) {
+  const prevById = new Map(prevArr.map((s) => [s.video_id, s]));
+  const nextById = new Map(nextArr.map((s) => [s.video_id, s]));
+
+  const added = [];
+  const updated = [];
+  const removed = [];
+
+  for (const [id, nextS] of nextById.entries()) {
+    const prevS = prevById.get(id);
+    if (!prevS) {
+      added.push(nextS);
+      continue;
+    }
+    if (signatureForStreamDiff(prevS) !== signatureForStreamDiff(nextS)) {
+      updated.push(nextS);
+    }
+  }
+
+  for (const [id] of prevById.entries()) {
+    if (!nextById.has(id)) removed.push(id);
+  }
+
+  return { added, updated, removed };
+}
+
 async function computeLivestreamSnapshot(redisClient) {
   const live = [];
   const upcoming = [];
@@ -60,7 +117,12 @@ async function computeLivestreamSnapshot(redisClient) {
     return cmpAsc(String(bt), String(at));
   });
 
-  return { type: "snapshot", at: new Date().toISOString(), live, upcoming };
+  return {
+    type: "snapshot",
+    at: new Date().toISOString(),
+    live: live.map(toListStream),
+    upcoming: upcoming.map(toListStream),
+  };
 }
 
 loadEnv();
@@ -125,10 +187,35 @@ async function main() {
     if (snapshotRefreshing) return;
     snapshotRefreshing = true;
     try {
-      lastSnapshot = await computeLivestreamSnapshot(redis);
-      const payload = JSON.stringify(lastSnapshot);
+      const nextSnapshot = await computeLivestreamSnapshot(redis);
+      const liveDiff = diffById(lastSnapshot.live, nextSnapshot.live);
+      const upcomingDiff = diffById(lastSnapshot.upcoming, nextSnapshot.upcoming);
+
+      const hasDiff =
+        liveDiff.added.length > 0 ||
+        liveDiff.updated.length > 0 ||
+        liveDiff.removed.length > 0 ||
+        upcomingDiff.added.length > 0 ||
+        upcomingDiff.updated.length > 0 ||
+        upcomingDiff.removed.length > 0;
+
+      lastSnapshot = nextSnapshot;
+
+      if (!hasDiff) return;
+
+      const diffPayload = JSON.stringify({
+        type: "diff",
+        at: nextSnapshot.at,
+        liveAdded: liveDiff.added,
+        liveUpdated: liveDiff.updated,
+        liveRemoved: liveDiff.removed,
+        upcomingAdded: upcomingDiff.added,
+        upcomingUpdated: upcomingDiff.updated,
+        upcomingRemoved: upcomingDiff.removed,
+      });
+
       wss.clients.forEach((client) => {
-        sendWsText(client, payload);
+        sendWsText(client, diffPayload);
       });
     } catch (e) {
       // eslint-disable-next-line no-console

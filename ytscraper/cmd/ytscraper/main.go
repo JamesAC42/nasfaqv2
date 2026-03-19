@@ -552,7 +552,7 @@ func viewerPollOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client,
 		}
 		channelStreams[channelID] = streams
 	}
-	var liveForPub []livestreams.Stream
+	var liveForPub []livestreams.ViewerDelta
 	for channelID, streams := range channelStreams {
 		if len(streams) == 0 {
 			continue
@@ -561,9 +561,14 @@ func viewerPollOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client,
 			log.Printf("livestreams: viewer poll UpsertChannelStreams %s: %v", channelID, err)
 		}
 		for _, st := range streams {
-			if st.Status == livestreams.StatusLive {
-				liveForPub = append(liveForPub, st)
+			if st.Status != livestreams.StatusLive {
+				continue
 			}
+			// Publish only viewer-count deltas to reduce bandwidth.
+			liveForPub = append(liveForPub, livestreams.ViewerDelta{
+				VideoID:         st.VideoID,
+				ConcurrentViews: st.ConcurrentViewers,
+			})
 		}
 	}
 	now := time.Now().UTC()

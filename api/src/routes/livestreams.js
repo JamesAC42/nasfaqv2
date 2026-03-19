@@ -14,6 +14,23 @@ function cmpAsc(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+function toListStream(item) {
+  // Only include fields needed by the livestream list + modal open button.
+  // Modal does its own fetch for session/buckets, so we intentionally omit
+  // fields like `video_url`, `channel_id`, and `updated_at`.
+  return {
+    video_id: item.video_id,
+    status: item.status,
+    title: item.title,
+    thumbnail_url: item.thumbnail_url,
+    channel_name: item.channel_name,
+    channel_icon: item.channel_icon,
+    scheduled_start_time: item.scheduled_start_time,
+    actual_start_time: item.actual_start_time,
+    concurrent_viewers: item.concurrent_viewers,
+  };
+}
+
 router.get("/", async (req, res, next) => {
   try {
     const redis = req.ctx.redis;
@@ -50,7 +67,7 @@ router.get("/", async (req, res, next) => {
       return cmpAsc(String(bt), String(at));
     });
 
-    res.json({ live, upcoming });
+    res.json({ live: live.map(toListStream), upcoming: upcoming.map(toListStream) });
   } catch (e) {
     next(e);
   }

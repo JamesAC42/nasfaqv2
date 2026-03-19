@@ -95,10 +95,17 @@ func (s *RedisStore) GetChannelStreams(ctx context.Context, channelID string) ([
 	return out, nil
 }
 
+// ViewerDelta is the per-stream update sent to clients over the viewer websocket.
+// Keep this payload minimal: the UI only needs the concurrent viewer count to update between snapshots.
+type ViewerDelta struct {
+	VideoID          string `json:"video_id"`
+	ConcurrentViews  *int64 `json:"concurrent_viewers,omitempty"`
+}
+
 // ViewerUpdatePayload is the message published to ChannelViewerUpdates.
 type ViewerUpdatePayload struct {
-	At   time.Time `json:"at"`
-	Live []Stream  `json:"live"`
+	At   time.Time      `json:"at"`
+	Live []ViewerDelta `json:"live"`
 }
 
 // PublishViewerUpdate publishes the current live streams with viewer counts so API/clients can push via WebSocket.
