@@ -27,6 +27,7 @@ coverage/
 
 holosymbols/
 training_data/
+reference_images/
 
 npm-debug.log*
 yarn-debug.log*

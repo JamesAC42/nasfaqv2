@@ -56,7 +56,9 @@ ALTER TABLE yt.youtube_channels
   ADD COLUMN IF NOT EXISTS height TEXT NULL,
   ADD COLUMN IF NOT EXISTS unit TEXT NULL;
 
--- Time-series table: one row per channel per day (UTC midnight).
+-- Time-series table: one row per channel per day.
+-- The scraper stores the ET/New York day boundary as a timestamptz so it can
+-- remain the Timescale time dimension while still matching the game's day.
 -- Store day in a timestamptz so it can be the Timescale time dimension.
 CREATE TABLE IF NOT EXISTS yt.youtube_channel_daily_stats (
   time TIMESTAMPTZ NOT NULL,
@@ -78,10 +80,11 @@ CREATE TABLE IF NOT EXISTS yt.youtube_channel_daily_stats (
   country TEXT NULL,
 
   -- Observability
-  scraped_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-  CONSTRAINT youtube_channel_daily_stats_time_utc_midnight CHECK (date_trunc('day', time AT TIME ZONE 'utc') = (time AT TIME ZONE 'utc'))
+  scraped_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE yt.youtube_channel_daily_stats
+  DROP CONSTRAINT IF EXISTS youtube_channel_daily_stats_time_utc_midnight;
 
 -- Convert to hypertable if TimescaleDB is installed (no-op if already).
 SELECT create_hypertable('yt.youtube_channel_daily_stats', 'time', if_not_exists => TRUE, migrate_data => TRUE);

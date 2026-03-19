@@ -71,10 +71,11 @@ CREATE TABLE IF NOT EXISTS yt.youtube_channel_daily_stats (
 
   country TEXT NULL,
 
-  scraped_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-  CONSTRAINT youtube_channel_daily_stats_time_utc_midnight CHECK (date_trunc('day', time AT TIME ZONE 'utc') = (time AT TIME ZONE 'utc'))
+  scraped_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE yt.youtube_channel_daily_stats
+  DROP CONSTRAINT IF EXISTS youtube_channel_daily_stats_time_utc_midnight;
 
 SELECT create_hypertable('yt.youtube_channel_daily_stats', 'time', if_not_exists => TRUE, migrate_data => TRUE);
 

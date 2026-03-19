@@ -41,14 +41,14 @@ type OverviewRow = {
 type MetricKey = "subscriber_count" | "view_count" | "video_count";
 
 const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-const utcDayFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: "UTC",
+const marketDayFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
   month: "numeric",
   day: "numeric",
   year: "numeric",
 });
-const utcDayShortFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: "UTC",
+const marketDayShortFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
   month: "numeric",
   day: "numeric",
 });
@@ -65,18 +65,18 @@ function fmtDate(v: string | null | undefined) {
   return d.toLocaleString();
 }
 
-function fmtUtcDay(v: string | number | Date | null | undefined) {
+function fmtMarketDay(v: string | number | Date | null | undefined) {
   if (v === null || v === undefined) return "—";
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return "—";
-  return utcDayFormatter.format(d);
+  return marketDayFormatter.format(d);
 }
 
-function fmtUtcDayShort(v: string | number | Date | null | undefined) {
+function fmtMarketDayShort(v: string | number | Date | null | undefined) {
   if (v === null || v === undefined) return "";
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return "";
-  return utcDayShortFormatter.format(d);
+  return marketDayShortFormatter.format(d);
 }
 
 export default function Home() {
@@ -208,7 +208,7 @@ export default function Home() {
                     <>
                       <div className="kv">
                         <div className="k">Latest</div>
-                        <div className="v">{fmtUtcDay(latest.time)}</div>
+                        <div className="v">{fmtMarketDay(latest.time)}</div>
 
                         <div className="k">Subscribers</div>
                         <div className="v">{fmtNum(latest.subscriber_count)}</div>
@@ -281,7 +281,6 @@ function buildChartOption(series: TimeSeriesPoint[], metric: MetricKey) {
   const points = series.map((s) => [new Date(s.time).getTime(), toNum(s[metric])]);
 
   return {
-    useUTC: true,
     backgroundColor: "transparent",
     animationDuration: 500,
     grid: { left: 48, right: 20, top: 16, bottom: 28 },
@@ -297,7 +296,7 @@ function buildChartOption(series: TimeSeriesPoint[], metric: MetricKey) {
       axisLabel: {
         color: "rgba(231, 238, 252, 0.7)",
         margin: 12,
-        formatter: (value: number) => fmtUtcDayShort(value),
+        formatter: (value: number) => fmtMarketDayShort(value),
       },
       splitLine: { lineStyle: { color: "rgba(231, 238, 252, 0.06)" } },
     },

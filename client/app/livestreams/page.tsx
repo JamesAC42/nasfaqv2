@@ -1,17 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getChannelIconUrl } from "../lib/channelIcons";
+import { LivestreamModal } from "./LivestreamModal";
 
 const WS_PATH = "/api/livestreams/ws";
+function toWsBase(base: string): string {
+  const trimmed = base.trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+  if (trimmed.startsWith("ws://") || trimmed.startsWith("wss://")) return trimmed;
+  if (trimmed.startsWith("http://")) return `ws://${trimmed.slice("http://".length)}`;
+  if (trimmed.startsWith("https://")) return `wss://${trimmed.slice("https://".length)}`;
+  return trimmed;
+}
+
+function getProxyWsBase(): string {
+  if (typeof process === "undefined") return "";
+  const isProxyMode = process.env.NEXT_PUBLIC_API_MODE === "proxy";
+  if (!isProxyMode) return "";
+  const proxyBase = process.env.NEXT_PUBLIC_API_PROXY_BASE_URL;
+  if (!proxyBase) return "";
+  return toWsBase(proxyBase);
+}
+
 function getWsUrl(): string {
-  const base =
+  const explicitBase =
     typeof process !== "undefined" && process.env.NEXT_PUBLIC_WS_API_BASE
-      ? process.env.NEXT_PUBLIC_WS_API_BASE
-      : typeof window !== "undefined"
-        ? window.location.origin.replace(/^http/, "ws")
-        : "";
+      ? toWsBase(process.env.NEXT_PUBLIC_WS_API_BASE)
+      : "";
+  const base =
+    explicitBase || getProxyWsBase() || (typeof window !== "undefined" ? window.location.origin.replace(/^http/, "ws") : "");
   return base ? `${base}${WS_PATH}` : "";
 }
 
@@ -34,6 +53,7 @@ type Payload = {
   live: Stream[];
   upcoming: Stream[];
 };
+const EMPTY_STREAMS: Stream[] = [];
 
 function fmtDate(v?: string | null) {
   if (!v) return "—";
@@ -63,74 +83,126 @@ type ViewerUpdate = {
   live: Stream[];
 };
 
+type SnapshotUpdate = {
+  type: "snapshot";
+  at: string;
+  live: Stream[];
+  upcoming: Stream[];
+};
+
+function mergeLiveUpdates(prev: Stream[], incoming: Stream[]): Stream[] {
+  if (prev.length === 0) return incoming;
+  if (incoming.length === 0) return prev;
+  const map = new Map<string, Stream>();
+  for (const stream of prev) map.set(stream.video_id, stream);
+  for (const stream of incoming) {
+    const existing = map.get(stream.video_id);
+    map.set(stream.video_id, existing ? { ...existing, ...stream } : stream);
+  }
+  return Array.from(map.values());
+}
+
 export default function LivestreamsPage() {
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [wsStatus, setWsStatus] = useState<"closed" | "connecting" | "open">("closed");
-  const dataRef = useRef<Payload | null>(null);
-  dataRef.current = data;
-  const [nowTickMs, setNowTickMs] = useState(() => Date.now());
+  const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
+  const [selectedStreamCache, setSelectedStreamCache] = useState<Stream | null>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/livestreams", { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as Payload;
-      setData(json);
-    } catch (e) {
-      setError(String((e as Error)?.message || e));
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Initial load (snapshot will also arrive via WebSocket).
   useEffect(() => {
-    void refresh();
-    const t = window.setInterval(refresh, 30_000);
-    return () => window.clearInterval(t);
-  }, [refresh]);
+    setError(null);
+    fetch("/api/livestreams", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return (await res.json()) as Payload;
+      })
+      .then((json) => setData(json))
+      .catch((e) => {
+        setError(String((e as Error)?.message || e));
+        setData(null);
+      });
+  }, []);
 
   // WebSocket: merge viewer updates into live list without refetching
   useEffect(() => {
     const wsUrl = getWsUrl();
     if (!wsUrl) return;
 
-    setWsStatus("connecting");
-    const ws = new WebSocket(wsUrl);
-    ws.onopen = () => setWsStatus("open");
-    ws.onclose = () => setWsStatus("closed");
-    ws.onerror = () => setWsStatus("closed");
+    let closed = false;
+    let ws: WebSocket | null = null;
+    let attempt = 0;
+    let reconnectTimer: number | null = null;
 
-    ws.onmessage = (event) => {
-      try {
-        const update = JSON.parse(event.data as string) as ViewerUpdate;
-        if (!update.live || !Array.isArray(update.live)) return;
+    const connect = () => {
+      if (closed) return;
+      attempt++;
+      setWsStatus("connecting");
+      ws = new WebSocket(wsUrl);
 
-        setData((prev) => {
-          if (!prev) return prev;
-          return { ...prev, live: update.live };
-        });
-      } catch {
-        // ignore parse errors
-      }
+      ws.onopen = () => {
+        attempt = 0;
+        setWsStatus("open");
+      };
+      ws.onclose = () => {
+        setWsStatus("closed");
+        if (closed) return;
+        const delay = Math.min(15_000, 1_000 * Math.max(1, attempt));
+        reconnectTimer = window.setTimeout(connect, delay);
+      };
+      ws.onerror = () => {
+        setWsStatus("closed");
+        try {
+          ws?.close();
+        } catch {}
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data as string) as Partial<SnapshotUpdate> & Partial<ViewerUpdate>;
+          if (msg.type === "snapshot") {
+            if (!Array.isArray(msg.live) || !Array.isArray(msg.upcoming)) return;
+            setData({ live: msg.live, upcoming: msg.upcoming });
+            return;
+          }
+          if (!msg.live || !Array.isArray(msg.live)) return;
+          setData((prev) => ({
+            live: mergeLiveUpdates(prev?.live || [], msg.live as Stream[]),
+            upcoming: prev?.upcoming || [],
+          }));
+        } catch {
+          // ignore parse errors
+        }
+      };
     };
 
-    return () => ws.close();
+    connect();
+
+    return () => {
+      closed = true;
+      if (reconnectTimer) window.clearTimeout(reconnectTimer);
+      try {
+        ws?.close();
+      } catch {}
+    };
   }, []);
 
-  const live = data?.live || [];
-  const upcoming = data?.upcoming || [];
+  const live = useMemo(() => data?.live ?? EMPTY_STREAMS, [data]);
+  const upcoming = useMemo(() => data?.upcoming ?? EMPTY_STREAMS, [data]);
 
-  // Increment "Live for" timers efficiently (only when there are live streams).
+  // Keep selected stream data in sync with live websocket updates.
   useEffect(() => {
-    if (live.length === 0) return;
-    const id = window.setInterval(() => setNowTickMs(Date.now()), 1_000);
-    return () => window.clearInterval(id);
-  }, [live.length]);
+    if (!selectedVideoId) return;
+    const next = live.find((s) => s.video_id === selectedVideoId);
+    if (next) setSelectedStreamCache(next);
+  }, [live, selectedVideoId]);
+
+  const selectedStream = useMemo(() => {
+    if (!selectedVideoId) return null;
+    const current = live.find((s) => s.video_id === selectedVideoId);
+    if (current) return current;
+    return selectedStreamCache?.video_id === selectedVideoId ? selectedStreamCache : null;
+  }, [live, selectedVideoId, selectedStreamCache]);
 
   // Keep UI stable: sort live streams by viewer count descending.
   const liveSorted = useMemo(() => {
@@ -155,7 +227,7 @@ export default function LivestreamsPage() {
 
   const subtitle = useMemo(() => {
     const base = `${live.length} live · ${upcoming.length} upcoming`;
-    return wsStatus === "open" ? `${base} · live viewer updates` : base;
+    return wsStatus !== "closed" ? `${base} · live viewer updates` : base;
   }, [live.length, upcoming.length, wsStatus]);
 
   return (
@@ -194,6 +266,15 @@ export default function LivestreamsPage() {
           ))}
         </div>
       </Section>
+
+      <LivestreamModal
+        open={Boolean(selectedStream)}
+        onClose={() => {
+          setSelectedVideoId(null);
+          setSelectedStreamCache(null);
+        }}
+        stream={selectedStream}
+      />
     </div>
   );
 
@@ -208,13 +289,22 @@ export default function LivestreamsPage() {
   }
 
   function StreamRow({ s, kind }: { s: Stream; kind: "live" | "upcoming" }) {
-    const timeText =
-      kind === "live" ? `Live for ${fmtDurationSince(s.actual_start_time, nowTickMs)}` : fmtDate(s.scheduled_start_time);
+    const timeText = kind === "upcoming" ? fmtDate(s.scheduled_start_time) : null;
     const viewers =
       kind === "live" && typeof s.concurrent_viewers === "number" ? `${nf.format(s.concurrent_viewers)} watching` : null;
 
     return (
-      <a className="streamItem" href={s.video_url} target="_blank" rel="noreferrer">
+      <button
+        type="button"
+        className="streamItem"
+        onClick={() => {
+          if (kind === "live") {
+            setSelectedVideoId(s.video_id);
+            setSelectedStreamCache(s);
+          }
+          else window.open(s.video_url, "_blank", "noreferrer");
+        }}
+      >
         <div className="thumbWrap">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img className="thumbImg" src={s.thumbnail_url} alt="" />
@@ -232,7 +322,7 @@ export default function LivestreamsPage() {
             <div className="channelName">{s.channel_name}</div>
           </div>
           <div className="streamMeta">
-            <span>{timeText}</span>
+            <span>{kind === "live" ? <LiveForText actualStartTime={s.actual_start_time} /> : timeText}</span>
             {viewers ? (
               <>
                 <span className="dot">·</span>
@@ -241,8 +331,17 @@ export default function LivestreamsPage() {
             ) : null}
           </div>
         </div>
-      </a>
+      </button>
     );
+  }
+
+  function LiveForText({ actualStartTime }: { actualStartTime?: string | null }) {
+    const [nowTickMs, setNowTickMs] = useState(() => Date.now());
+    useEffect(() => {
+      const id = window.setInterval(() => setNowTickMs(Date.now()), 1_000);
+      return () => window.clearInterval(id);
+    }, []);
+    return <>Live for {fmtDurationSince(actualStartTime, nowTickMs)}</>;
   }
 }
 

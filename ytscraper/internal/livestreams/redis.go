@@ -17,6 +17,10 @@ type RedisStore struct {
 // Subscribers receive JSON: { "at": "ISO8601", "live": [ Stream, ... ] }.
 const ChannelViewerUpdates = "nasfaq_livestreams:viewer_updates"
 
+// ChannelBucketUpdates is the Redis pub/sub channel for 5-minute bucket inserts.
+// Subscribers receive JSON: { "video_id": "...", "bucket_start": "...", "bucket_end": "...", "avg_viewers": 123, "max_viewers": 456 }.
+const ChannelBucketUpdates = "nasfaq_livestreams:bucket_updates"
+
 func KeyForChannel(channelID string) string {
 	// Use {...} so Redis Cluster users get stable hash slotting per channel key.
 	return fmt.Sprintf("nasfaq_livestreams:{%s}", channelID)
@@ -107,6 +111,28 @@ func PublishViewerUpdate(ctx context.Context, client *redis.Client, payload View
 		return err
 	}
 	return client.Publish(ctx, ChannelViewerUpdates, string(b)).Err()
+}
+
+type BucketUpdatePayload struct {
+	VideoID     string    `json:"video_id"`
+	BucketStart time.Time `json:"bucket_start"`
+	BucketEnd   time.Time `json:"bucket_end"`
+	AvgViewers  *int64    `json:"avg_viewers,omitempty"`
+	MaxViewers  *int64    `json:"max_viewers,omitempty"`
+}
+
+func PublishBucketUpdate(ctx context.Context, client *redis.Client, payload BucketUpdatePayload) error {
+	if client == nil {
+		return nil
+	}
+	if payload.VideoID == "" {
+		return nil
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	return client.Publish(ctx, ChannelBucketUpdates, string(b)).Err()
 }
 
 

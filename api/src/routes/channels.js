@@ -11,7 +11,9 @@ const execFileAsync = promisify(execFile);
 const CHANNELSCRAPER_DIR = path.resolve(__dirname, "..", "..", "..", "channelscraper");
 const DETECT_TIMEOUT_MS = 300000;
 const ICON_CDN_BASE_URL = "https://images.nasfaq.biz/icons";
+const REFERENCE_IMAGE_CDN_BASE_URL = "https://images.nasfaq.biz/reference-images";
 const MAX_ICON_UPLOAD_BYTES = 1024 * 1024;
+const MAX_REFERENCE_IMAGE_UPLOAD_BYTES = 12 * 1024 * 1024;
 
 function toVideoLink(videoId) {
   return videoId ? `https://www.youtube.com/watch?v=${videoId}` : null;
@@ -29,6 +31,11 @@ function optionalTrimmedString(value) {
 function getIconUrl(iconName) {
   if (!iconName) return null;
   return `${ICON_CDN_BASE_URL}/${encodeURIComponent(iconName)}.svg`;
+}
+
+function getReferenceImageUrl(filename) {
+  if (!filename) return null;
+  return `${REFERENCE_IMAGE_CDN_BASE_URL}/${encodeURIComponent(filename)}`;
 }
 
 const INVALID_DATE = Symbol("invalid_date");
@@ -150,6 +157,21 @@ function normalizeChannelInput(body, { currentIsActive = true, useDefaultIcon = 
   };
 }
 
+function normalizeReferenceImageUrl(value) {
+  const trimmed = optionalTrimmedString(value);
+  if (!trimmed) return null;
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
 function toChannelResponse(channel) {
   return {
     ...channel,
@@ -173,9 +195,125 @@ function toDetectedChannelResponse(channel) {
     birthday: channel.birthday || null,
     height: channel.height || null,
     unit: channel.unit || null,
+    reference_image_url: normalizeReferenceImageUrl(channel.reference_image_url),
     is_active: false,
     youtube_channel_url: toChannelLink(channel.youtube_channel_id)
   };
+}
+
+function referenceImageBaseName(channel) {
+  const source = optionalTrimmedString(channel?.profile_id) || optionalTrimmedString(channel?.youtube_channel_id);
+  if (!source) return null;
+  const normalized = source.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+  return normalized || null;
+}
+
+function extensionFromContentType(contentType) {
+  switch ((contentType || "").toLowerCase().split(";")[0].trim()) {
+    case "image/png":
+      return ".png";
+    case "image/jpeg":
+      return ".jpg";
+    case "image/webp":
+      return ".webp";
+    case "image/gif":
+      return ".gif";
+    default:
+      return null;
+  }
+}
+
+function extensionFromUrl(rawUrl) {
+  try {
+    const parsed = new URL(rawUrl);
+    const ext = path.extname(parsed.pathname || "").toLowerCase();
+    if ([".png", ".jpg", ".jpeg", ".webp", ".gif"].includes(ext)) {
+      return ext === ".jpeg" ? ".jpg" : ext;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+async function uploadReferenceImageFromUrl(channel, rawUrl) {
+  const s3 = getS3Client();
+  if (!s3) {
+    const error = new Error("reference_image_upload_not_configured");
+    error.code = "reference_image_upload_not_configured";
+    throw error;
+  }
+
+  const objectBaseName = referenceImageBaseName(channel);
+  if (!objectBaseName) {
+    return null;
+  }
+
+  let response;
+  try {
+    response = await fetch(rawUrl, {
+      headers: {
+        "User-Agent": "NASFAQV2 API/1.0 (+https://images.nasfaq.biz/reference-images)"
+      }
+    });
+  } catch (cause) {
+    const error = new Error(`reference image download failed: ${optionalTrimmedString(cause?.message) || "network error"}`);
+    error.code = "reference_image_download_failed";
+    throw error;
+  }
+  if (!response.ok) {
+    const error = new Error(`reference image download failed with ${response.status}`);
+    error.code = "reference_image_download_failed";
+    throw error;
+  }
+
+  const contentType = optionalTrimmedString(response.headers.get("content-type")) || "application/octet-stream";
+  const contentLength = Number(response.headers.get("content-length") || 0);
+  if (contentLength > MAX_REFERENCE_IMAGE_UPLOAD_BYTES) {
+    const error = new Error("reference image exceeds size limit");
+    error.code = "reference_image_download_failed";
+    throw error;
+  }
+
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (!bytes.length || bytes.length > MAX_REFERENCE_IMAGE_UPLOAD_BYTES) {
+    const error = new Error("reference image exceeds size limit");
+    error.code = "reference_image_download_failed";
+    throw error;
+  }
+
+  const ext = extensionFromContentType(contentType) || extensionFromUrl(rawUrl) || ".img";
+  const filename = `${objectBaseName}${ext}`;
+  const key = `reference-images/${filename}`;
+
+  try {
+    await s3.client.send(
+      new PutObjectCommand({
+        Bucket: s3.bucket,
+        Key: key,
+        Body: bytes,
+        ContentType: contentType,
+        CacheControl: "public, max-age=31536000, immutable"
+      })
+    );
+  } catch (cause) {
+    const error = new Error(`reference image upload failed: ${optionalTrimmedString(cause?.message) || optionalTrimmedString(cause?.name) || "s3 error"}`);
+    error.code = "reference_image_upload_failed";
+    throw error;
+  }
+
+  return {
+    key,
+    url: getReferenceImageUrl(filename)
+  };
+}
+
+async function maybeUploadReferenceImage(channel, rawUrl) {
+  const normalizedUrl = normalizeReferenceImageUrl(rawUrl);
+  if (!normalizedUrl) {
+    return null;
+  }
+  return uploadReferenceImageFromUrl(channel, normalizedUrl);
 }
 
 async function findChannelConflict(pool, { youtube_channel_id = null, name_short, excludeChannelId = null }) {
@@ -305,6 +443,7 @@ async function insertDetectedChannels(pool, rawChannels) {
       }
 
       const saved = await db.insertChannel(client, input);
+      await maybeUploadReferenceImage(saved, rawChannel?.reference_image_url);
       inserted.push(toChannelResponse(saved));
       existingYouTubeIds.add(input.youtube_channel_id);
       existingNames.add(normalizeChannelKey(input.name_short));
@@ -342,6 +481,7 @@ router.post("/", async (req, res, next) => {
   try {
     const input = normalizeChannelInput(req.body, { currentIsActive: false, useDefaultSymbol: true });
     const { youtube_channel_id, name_short, birthday } = input;
+    const referenceImageUrl = normalizeReferenceImageUrl(req.body?.reference_image_url);
 
     if (!youtube_channel_id) return res.status(400).json({ error: "youtube_channel_id_required" });
     if (!name_short) return res.status(400).json({ error: "name_required" });
@@ -350,9 +490,30 @@ router.post("/", async (req, res, next) => {
     const hasConflict = await rejectConflicts(res, req.ctx.pool, { youtube_channel_id, name_short });
     if (hasConflict) return;
 
-    const saved = await db.insertChannel(req.ctx.pool, input);
+    const client = await req.ctx.pool.connect();
+    let saved;
+    try {
+      await client.query("BEGIN");
+      saved = await db.insertChannel(client, input);
+      await maybeUploadReferenceImage(saved, referenceImageUrl);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
     res.json(toChannelResponse(saved));
   } catch (e) {
+    if (e?.code === "reference_image_upload_not_configured") {
+      return res.status(500).json({ error: "reference_image_upload_not_configured" });
+    }
+    if (e?.code === "reference_image_download_failed") {
+      return res.status(502).json({ error: "reference_image_download_failed", detail: optionalTrimmedString(e?.message) });
+    }
+    if (e?.code === "reference_image_upload_failed") {
+      return res.status(502).json({ error: "reference_image_upload_failed", detail: optionalTrimmedString(e?.message) });
+    }
     next(e);
   }
 });
@@ -418,6 +579,8 @@ router.post("/detect", async (req, res, next) => {
     res.json({ channels });
   } catch (e) {
     if (e?.code === "detect_command_failed") {
+      // eslint-disable-next-line no-console
+      console.error("channel detect failed:", e?.message || e);
       return res.status(502).json({ error: "detect_failed" });
     }
     next(e);
@@ -434,6 +597,15 @@ router.post("/detect/add-all", async (req, res, next) => {
     const result = await insertDetectedChannels(req.ctx.pool, channels);
     res.json(result);
   } catch (e) {
+    if (e?.code === "reference_image_upload_not_configured") {
+      return res.status(500).json({ error: "reference_image_upload_not_configured" });
+    }
+    if (e?.code === "reference_image_download_failed") {
+      return res.status(502).json({ error: "reference_image_download_failed", detail: optionalTrimmedString(e?.message) });
+    }
+    if (e?.code === "reference_image_upload_failed") {
+      return res.status(502).json({ error: "reference_image_upload_failed", detail: optionalTrimmedString(e?.message) });
+    }
     next(e);
   }
 });

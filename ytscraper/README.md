@@ -67,8 +67,9 @@ Create a local `.env` file (you can start from `env.example`) or set environment
 - `YOUTUBE_API_KEY`: YouTube Data API v3 key
 - `REDIS_URL`: Redis connection string, e.g. `redis://localhost:6379/0`
 - `REDIS_PASSWORD` (optional): Redis password for AUTH
-- `SCRAPE_AT_UTC_HOUR` (optional, default `3`)
-- `SCRAPE_AT_UTC_MIN` (optional, default `0`)
+- `SCRAPE_TIMEZONE` (optional, default `America/New_York`)
+- `SCRAPE_AT_LOCAL_HOUR` (optional, default `0`)
+- `SCRAPE_AT_LOCAL_MIN` (optional, default `5`)
 - `REQUEST_DELAY_MS` (optional, default `150`)
   - Optional: `ENV_FILE` to point at a non-default env file path
   - Livestream polling: `LIVE_POLL_SECONDS` (default `300`), `LIVE_MAX_RESULTS`, `UPCOMING_MAX_RESULTS`
@@ -90,8 +91,8 @@ go run ./cmd/ytchannels
 Behavior:
 
 - Runs **immediately** on startup
-- Then runs **once per day** at the configured UTC time
-- Upserts one row per channel per UTC day (`(youtube_channel_id, time)` unique index)
+- Then runs **once per day** at the configured local scrape time
+- Stores one row per channel per New York / Eastern calendar day, with the stored `time` anchored to that local midnight
 
 
 notes on inflation:

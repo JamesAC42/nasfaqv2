@@ -192,12 +192,12 @@ func UpsertChannel(ctx context.Context, pool *pgxpool.Pool, c Channel) error {
 	return nil
 }
 
-func ExistingDailyStatsChannelIDs(ctx context.Context, pool *pgxpool.Pool, day time.Time) (map[string]struct{}, error) {
+func ExistingDailyStatsChannelIDs(ctx context.Context, pool *pgxpool.Pool, day time.Time, timeZone string) (map[string]struct{}, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT youtube_channel_id
 		FROM yt.youtube_channel_daily_stats
-		WHERE time = $1
-	`, day)
+		WHERE (time AT TIME ZONE $2)::date = ($1 AT TIME ZONE $2)::date
+	`, day, timeZone)
 	if err != nil {
 		return nil, fmt.Errorf("query existing daily stats ids: %w", err)
 	}

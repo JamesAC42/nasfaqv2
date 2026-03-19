@@ -4,6 +4,10 @@ const apiMode = process.env.API_MODE || (process.env.NODE_ENV === "development" 
 const apiProxyBaseUrl = process.env.API_PROXY_BASE_URL || "http://localhost:4001";
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_API_MODE: apiMode,
+    NEXT_PUBLIC_API_PROXY_BASE_URL: apiProxyBaseUrl,
+  },
   images: {
     dangerouslyAllowSVG: true,
     remotePatterns: [

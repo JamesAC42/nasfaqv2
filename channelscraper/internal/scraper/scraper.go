@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -43,6 +44,7 @@ type Channel struct {
 	Height           string `json:"height"`
 	Unit             string `json:"unit"`
 	Icon             string `json:"icon"`
+	ReferenceImageURL string `json:"reference_image_url"`
 }
 
 type Options struct {
@@ -51,6 +53,7 @@ type Options struct {
 	Delay          time.Duration
 	Concurrency    int
 	SkipProfileIDs []string
+	ContinueOnProfileError bool
 }
 
 func NewHTTPClient(timeout time.Duration) *http.Client {
@@ -124,6 +127,10 @@ func scrapeProfileURLs(ctx context.Context, client *http.Client, profileURLs []s
 
 			row, err := scrapeTalentPage(ctx, client, profileURL, opts.BirthdayYear)
 			if err != nil {
+				if opts.ContinueOnProfileError {
+					log.Printf("warn: skipping profile %s: %v", profileURL, err)
+					continue
+				}
 				return nil, fmt.Errorf("scrape %s: %w", profileURL, err)
 			}
 			rows = append(rows, row)
@@ -189,10 +196,25 @@ func scrapeProfileURLs(ctx context.Context, client *http.Client, profileURLs []s
 			return nil, ctx.Err()
 		case result := <-results:
 			if result.err != nil {
+				if opts.ContinueOnProfileError {
+					log.Printf("warn: %v", result.err)
+					continue
+				}
 				return nil, result.err
 			}
 			rows[result.index] = result.row
 		}
+	}
+
+	if opts.ContinueOnProfileError {
+		filtered := make([]Channel, 0, len(rows))
+		for _, row := range rows {
+			if row.YouTubeChannelID == "" || row.NameShort == "" {
+				continue
+			}
+			filtered = append(filtered, row)
+		}
+		return filtered, nil
 	}
 
 	return rows, nil
@@ -295,13 +317,20 @@ func collectHrefs(doc *goquery.Document) []string {
 
 func profileIDFromURL(u *url.URL) string {
 	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
-	if len(parts) != 3 {
+	switch len(parts) {
+	case 2:
+		if parts[0] != "talents" || parts[1] == "" {
+			return ""
+		}
+		return parts[1]
+	case 3:
+		if parts[0] != "en" || parts[1] != "talents" || parts[2] == "" {
+			return ""
+		}
+		return parts[2]
+	default:
 		return ""
 	}
-	if parts[0] != "en" || parts[1] != "talents" || parts[2] == "" {
-		return ""
-	}
-	return parts[2]
 }
 
 func scrapeTalentPage(ctx context.Context, client *http.Client, profileURL string, birthdayYear int) (Channel, error) {
@@ -334,6 +363,7 @@ func scrapeTalentPage(ctx context.Context, client *http.Client, profileURL strin
 	row.NameShort = shortName(row.NameEnglish)
 	row.NameJapanese = normalizeJapaneseName(cleanWhitespace(h1.Find("span").First().Text()))
 	row.Icon = DefaultIcon(row.NameEnglish, row.NameShort)
+	row.ReferenceImageURL = extractReferenceImageURL(doc, finalParsed)
 
 	if row.NameEnglish == "" {
 		return Channel{}, fmt.Errorf("missing name_english")
@@ -364,6 +394,56 @@ func scrapeTalentPage(ctx context.Context, client *http.Client, profileURL strin
 	row.Unit = cleanWhitespace(dataFields["unit"])
 
 	return row, nil
+}
+
+func extractReferenceImageURL(doc *goquery.Document, baseURL *url.URL) string {
+	candidates := make([]string, 0, 8)
+	doc.Find("img").Each(func(_ int, s *goquery.Selection) {
+		imageURL, ok := resolveReferenceImageCandidate(s, baseURL)
+		if ok {
+			candidates = append(candidates, imageURL)
+		}
+	})
+
+	for _, candidate := range candidates {
+		if isPreferredReferenceImageURL(candidate) {
+			return candidate
+		}
+	}
+	if len(candidates) > 0 {
+		return candidates[0]
+	}
+	return ""
+}
+
+func resolveReferenceImageCandidate(s *goquery.Selection, baseURL *url.URL) (string, bool) {
+	alt, _ := s.Attr("alt")
+	for _, attr := range []string{"src", "data-src", "data-lazy-src", "data-original"} {
+		value, ok := s.Attr(attr)
+		if !ok {
+			continue
+		}
+		if !isReferenceImageURL(value) && !strings.Contains(alt, "全身画像") {
+			continue
+		}
+
+		rawURL, err := url.Parse(strings.TrimSpace(value))
+		if err != nil {
+			continue
+		}
+		return baseURL.ResolveReference(rawURL).String(), true
+	}
+	return "", false
+}
+
+func isReferenceImageURL(raw string) bool {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	return strings.Contains(value, "pr-img") || strings.Contains(value, "pr-image")
+}
+
+func isPreferredReferenceImageURL(raw string) bool {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	return strings.Contains(value, "pr-img_01") || strings.Contains(value, "pr-image_01")
 }
 
 func ownText(s *goquery.Selection) string {

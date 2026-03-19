@@ -62,6 +62,7 @@ type DetectedChannel = {
   birthday: string | null;
   height: string | null;
   unit: string | null;
+  reference_image_url: string | null;
   is_active: boolean;
   youtube_channel_url?: string;
 };
@@ -697,6 +698,23 @@ export default function AddChannelPage() {
                     <div style={{ ...activeBadgeStyle, flexShrink: 0, alignSelf: "flex-start" }}>Detected</div>
                   </div>
 
+                  {channel.reference_image_url ? (
+                    <a
+                      href={channel.reference_image_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={detectedReferenceImageLinkStyle}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={channel.reference_image_url}
+                        alt={`${channel.name} reference`}
+                        style={detectedReferenceImageStyle}
+                        loading="lazy"
+                      />
+                    </a>
+                  ) : null}
+
                   <div style={detailListStyle}>
                     <Detail label="EN" value={channel.name_english} />
                     <Detail label="JP" value={channel.name_japanese} />
@@ -974,6 +992,7 @@ function normalizeDetectedChannel(channel: DetectedChannel): DetectedChannel {
     birthday: channel.birthday || null,
     height: channel.height || null,
     unit: channel.unit || null,
+    reference_image_url: channel.reference_image_url || null,
   };
 }
 
@@ -990,6 +1009,7 @@ function toDetectedPayload(channel: DetectedChannel) {
     birthday: channel.birthday,
     height: channel.height,
     unit: channel.unit,
+    reference_image_url: channel.reference_image_url,
     is_active: false,
   };
 }
@@ -1063,6 +1083,12 @@ function toChannelErrorMessage(data: unknown, status: number) {
       return "The uploaded file is not a valid SVG.";
     case "icon_upload_failed":
       return detail ? `Uploading the icon to S3 failed: ${String(detail)}` : "Uploading the icon to S3 failed.";
+    case "reference_image_upload_not_configured":
+      return "AWS S3 upload is not configured on the API server for reference images.";
+    case "reference_image_download_failed":
+      return detail ? `Downloading or uploading the reference image failed: ${String(detail)}` : "Downloading or uploading the reference image failed.";
+    case "reference_image_upload_failed":
+      return detail ? `Uploading the reference image to S3 failed: ${String(detail)}` : "Uploading the reference image to S3 failed.";
     case "not_found":
       return "That channel could not be found.";
     default:
@@ -1202,6 +1228,19 @@ const channelHeaderIconFallbackStyle: React.CSSProperties = {
   height: "0.9rem",
   borderRadius: "0.3rem",
   background: "rgba(255, 255, 255, 0.16)",
+};
+
+const detectedReferenceImageLinkStyle: React.CSSProperties = {
+  display: "block",
+};
+
+const detectedReferenceImageStyle: React.CSSProperties = {
+  width: "100%",
+  maxHeight: "20rem",
+  objectFit: "contain",
+  borderRadius: "1rem",
+  background: "rgba(255, 255, 255, 0.03)",
+  border: "0.0625rem solid rgba(255, 255, 255, 0.08)",
 };
 
 const detailListStyle: React.CSSProperties = {

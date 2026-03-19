@@ -202,10 +202,17 @@ a {
   background: var(--panel);
   border-radius: 1rem;
   text-decoration: none;
+  color: var(--text);
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color 160ms ease, background-color 160ms ease;
 }
 
 .streamItem:hover {
-  border-color: rgba(231, 238, 252, 0.25);
+  /* Intentionally no hover animation: the 1s timer tick re-renders can otherwise feel "pulse-y". */
 }
 
 .thumbWrap {
@@ -441,6 +448,8 @@ a {
 
 .dot {
   opacity: 0.7;
+  display: inline-block;
+  margin: 0 0.45rem;
 }
 
 @media (max-width: 40rem) {

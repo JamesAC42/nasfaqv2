@@ -39,6 +39,7 @@ func main() {
 		Delay:          *delay,
 		Concurrency:    *concurrency,
 		SkipProfileIDs: skipProfileIDs,
+		ContinueOnProfileError: true,
 	})
 	if err != nil {
 		log.Fatalf("detect channels: %v", err)

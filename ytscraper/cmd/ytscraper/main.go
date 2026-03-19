@@ -22,27 +22,29 @@ import (
 )
 
 type Config struct {
-	DatabaseURL      string
-	RedisURL         string
-	RedisPassword    string
-	YouTubeAPIKey    string
-	ScrapeAtUTCHour  int
-	ScrapeAtUTCMin   int
-	RequestDelayMS   int
-	PerChannelTimout time.Duration
+	DatabaseURL       string
+	RedisURL          string
+	RedisPassword     string
+	YouTubeAPIKey     string
+	ScrapeTimeZone    string
+	ScrapeLocation    *time.Location
+	ScrapeAtLocalHour int
+	ScrapeAtLocalMin  int
+	RequestDelayMS    int
+	PerChannelTimout  time.Duration
 
-	LivePollInterval     time.Duration
-	LiveViewerPollSec    int
-	LiveBucketMinutes    int
+	LivePollInterval      time.Duration
+	LiveViewerPollSec     int
+	LiveBucketMinutes     int
 	LiveRedisFreshMinutes int
-	LiveMaxResults       int
-	UpcomingMaxResults   int
-	EnableLivePoll       bool
-	QuotaDailyLimit      int
-	UploadsLookback      int
-	LogYTStats           bool
+	LiveMaxResults        int
+	UpcomingMaxResults    int
+	EnableLivePoll        bool
+	QuotaDailyLimit       int
+	UploadsLookback       int
+	LogYTStats            bool
 
-	LiveDetectionPollLogEnabled  bool
+	LiveDetectionPollLogEnabled bool
 	LiveChannelScrapeLogEnabled bool
 	LiveStreamStateLogEnabled   bool
 }
@@ -127,11 +129,16 @@ func main() {
 		log.Printf("livestreams: polling disabled via LIVE_POLL_ENABLED")
 	}
 
-	// Then run once per day at configured UTC time.
+	// Then run once per day at the configured local scrape time.
 	for {
-		next := nextDailyRunUTC(time.Now(), cfg.ScrapeAtUTCHour, cfg.ScrapeAtUTCMin)
+		next := nextDailyRunInLocation(time.Now(), cfg.ScrapeLocation, cfg.ScrapeAtLocalHour, cfg.ScrapeAtLocalMin)
 		wait := time.Until(next)
-		log.Printf("scrape: next run scheduled at %s (in %s)", next.UTC().Format(time.RFC3339), wait.Round(time.Second))
+		log.Printf(
+			"scrape: next run scheduled at %s local / %s utc (in %s)",
+			next.In(cfg.ScrapeLocation).Format(time.RFC3339),
+			next.UTC().Format(time.RFC3339),
+			wait.Round(time.Second),
+		)
 
 		timer := time.NewTimer(wait)
 		select {
@@ -329,6 +336,14 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 				MaxViewers:        maxV,
 			}); err != nil {
 				log.Printf("livestreams: flush final bucket video_id=%s: %v", videoID, err)
+			} else {
+				_ = livestreams.PublishBucketUpdate(ctx, store.Client, livestreams.BucketUpdatePayload{
+					VideoID:     videoID,
+					BucketStart: acc.BucketStart,
+					BucketEnd:   bucketEnd,
+					AvgViewers:  avgV,
+					MaxViewers:  maxV,
+				})
 			}
 		}
 		agg, _ := db.GetSessionAggregatesFromBuckets(ctx, pool, videoID)
@@ -582,6 +597,16 @@ func viewerPollOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client,
 					MaxViewers:        &acc.Max,
 				}); err != nil {
 					log.Printf("livestreams: flush bucket video_id=%s: %v", videoID, err)
+				} else {
+					avgCopy := avg
+					maxCopy := acc.Max
+					_ = livestreams.PublishBucketUpdate(ctx, store.Client, livestreams.BucketUpdatePayload{
+						VideoID:     videoID,
+						BucketStart: acc.BucketStart,
+						BucketEnd:   bucketEnd,
+						AvgViewers:  &avgCopy,
+						MaxViewers:  &maxCopy,
+					})
 				}
 			}
 			acc.BucketStart = bucketStart
@@ -598,7 +623,8 @@ func viewerPollOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client,
 }
 
 func scrapeOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, cfg Config) error {
-	day := utcMidnight(time.Now())
+	now := time.Now()
+	day := localMidnight(now, cfg.ScrapeLocation)
 	scrapedAt := time.Now().UTC()
 
 	channels, err := db.ListActiveChannels(ctx, pool)
@@ -610,7 +636,7 @@ func scrapeOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, cfg
 		return nil
 	}
 
-	existing, err := db.ExistingDailyStatsChannelIDs(ctx, pool, day)
+	existing, err := db.ExistingDailyStatsChannelIDs(ctx, pool, day, cfg.ScrapeTimeZone)
 	if err != nil {
 		return err
 	}
@@ -623,14 +649,14 @@ func scrapeOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, cfg
 		}
 
 		if _, ok := existing[ch.YouTubeChannelID]; ok {
-			log.Printf("scrape: skip channel=%s (already have stats for %s)", ch.YouTubeChannelID, day.Format("2006-01-02"))
+			log.Printf("scrape: skip channel=%s (already have stats for %s %s)", ch.YouTubeChannelID, day.In(cfg.ScrapeLocation).Format("2006-01-02"), cfg.ScrapeTimeZone)
 			continue
 		}
 		toProcess = append(toProcess, ch)
 	}
 
 	if len(toProcess) == 0 {
-		log.Printf("scrape: all active channels already have stats for %s", day.Format("2006-01-02"))
+		log.Printf("scrape: all active channels already have stats for %s %s", day.In(cfg.ScrapeLocation).Format("2006-01-02"), cfg.ScrapeTimeZone)
 		return nil
 	}
 
@@ -756,18 +782,18 @@ func scrapeOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, cfg
 	return nil
 }
 
-func utcMidnight(t time.Time) time.Time {
-	u := t.UTC()
-	return time.Date(u.Year(), u.Month(), u.Day(), 0, 0, 0, 0, time.UTC)
+func localMidnight(t time.Time, loc *time.Location) time.Time {
+	local := t.In(loc)
+	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc).UTC()
 }
 
-func nextDailyRunUTC(now time.Time, hour, min int) time.Time {
-	n := now.UTC()
-	cand := time.Date(n.Year(), n.Month(), n.Day(), hour, min, 0, 0, time.UTC)
-	if !cand.After(n) {
+func nextDailyRunInLocation(now time.Time, loc *time.Location, hour, min int) time.Time {
+	localNow := now.In(loc)
+	cand := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), hour, min, 0, 0, loc)
+	if !cand.After(localNow) {
 		cand = cand.Add(24 * time.Hour)
 	}
-	return cand
+	return cand.UTC()
 }
 
 func mustLoadConfig() Config {
@@ -810,26 +836,36 @@ func mustLoadConfig() Config {
 		log.Fatalf("missing REDIS_URL")
 	}
 	redisPassword := os.Getenv("REDIS_PASSWORD")
+	scrapeTimeZone := os.Getenv("SCRAPE_TIMEZONE")
+	if scrapeTimeZone == "" {
+		scrapeTimeZone = "America/New_York"
+	}
+	scrapeLocation, err := time.LoadLocation(scrapeTimeZone)
+	if err != nil {
+		log.Fatalf("invalid SCRAPE_TIMEZONE=%q: %v", scrapeTimeZone, err)
+	}
 
 	return Config{
-		DatabaseURL:        dbURL,
-		RedisURL:           redisURL,
-		RedisPassword:      redisPassword,
-		YouTubeAPIKey:      apiKey,
-		ScrapeAtUTCHour:    getInt("SCRAPE_AT_UTC_HOUR", 3),
-		ScrapeAtUTCMin:     getInt("SCRAPE_AT_UTC_MIN", 0),
-		RequestDelayMS:     getInt("REQUEST_DELAY_MS", 150),
-		PerChannelTimout:   20 * time.Second,
-		LivePollInterval:   time.Duration(getInt("LIVE_POLL_SECONDS", 300)) * time.Second,
-		LiveViewerPollSec:  getInt("LIVE_VIEWER_POLL_SECONDS", 10),
-		LiveBucketMinutes:  getInt("LIVE_BUCKET_MINUTES", 5),
+		DatabaseURL:           dbURL,
+		RedisURL:              redisURL,
+		RedisPassword:         redisPassword,
+		YouTubeAPIKey:         apiKey,
+		ScrapeTimeZone:        scrapeTimeZone,
+		ScrapeLocation:        scrapeLocation,
+		ScrapeAtLocalHour:     getInt("SCRAPE_AT_LOCAL_HOUR", 0),
+		ScrapeAtLocalMin:      getInt("SCRAPE_AT_LOCAL_MIN", 5),
+		RequestDelayMS:        getInt("REQUEST_DELAY_MS", 150),
+		PerChannelTimout:      20 * time.Second,
+		LivePollInterval:      time.Duration(getInt("LIVE_POLL_SECONDS", 300)) * time.Second,
+		LiveViewerPollSec:     getInt("LIVE_VIEWER_POLL_SECONDS", 10),
+		LiveBucketMinutes:     getInt("LIVE_BUCKET_MINUTES", 5),
 		LiveRedisFreshMinutes: getInt("LIVE_REDIS_FRESH_MINUTES", 10),
-		LiveMaxResults:     getInt("LIVE_MAX_RESULTS", 3),
-		UpcomingMaxResults: getInt("UPCOMING_MAX_RESULTS", 3),
-		EnableLivePoll:     strings.ToLower(os.Getenv("LIVE_POLL_ENABLED")) != "false",
-		QuotaDailyLimit:    getInt("YOUTUBE_DAILY_QUOTA_LIMIT", 0),
-		UploadsLookback:    getInt("UPLOADS_LOOKBACK", 25),
-		LogYTStats:         strings.ToLower(os.Getenv("LOG_YT_STATS")) == "true",
+		LiveMaxResults:        getInt("LIVE_MAX_RESULTS", 3),
+		UpcomingMaxResults:    getInt("UPCOMING_MAX_RESULTS", 3),
+		EnableLivePoll:        strings.ToLower(os.Getenv("LIVE_POLL_ENABLED")) != "false",
+		QuotaDailyLimit:       getInt("YOUTUBE_DAILY_QUOTA_LIMIT", 0),
+		UploadsLookback:       getInt("UPLOADS_LOOKBACK", 25),
+		LogYTStats:            strings.ToLower(os.Getenv("LOG_YT_STATS")) == "true",
 
 		LiveDetectionPollLogEnabled:  getBool("LIVE_DETECTION_POLL_LOG_ENABLED", true),
 		LiveChannelScrapeLogEnabled: getBool("LIVE_CHANNEL_SCRAPE_LOG_ENABLED", true),
