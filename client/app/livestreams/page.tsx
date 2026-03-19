@@ -1,7 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { holoSymbolMap, type HoloSymbolKey } from "../images/holosymbols";
 
 type Stream = {
   video_id: string;
@@ -45,6 +47,12 @@ function fmtDurationSince(start?: string | null) {
 }
 
 const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+
+function getChannelSymbolImage(icon?: string | null) {
+  if (!icon) return null;
+  const key = icon as HoloSymbolKey;
+  return holoSymbolMap[key] || null;
+}
 
 export default function LivestreamsPage() {
   const [data, setData] = useState<Payload | null>(null);
@@ -91,9 +99,6 @@ export default function LivestreamsPage() {
           <Link className="pill" href="/">
             Dashboard
           </Link>
-          <button className="btn" onClick={refresh} disabled={loading}>
-            {loading ? "Refreshing…" : "Refresh"}
-          </button>
         </div>
       </div>
 
@@ -144,11 +149,14 @@ export default function LivestreamsPage() {
           <img className="thumbImg" src={s.thumbnail_url} alt="" />
           {kind === "live" ? <span className="liveBadge">LIVE</span> : null}
         </div>
-        <div className="streamInfo">
+          <div className="streamInfo">
           <div className="streamTitle">{s.title}</div>
           <div className="channelRow">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            {s.channel_icon ? <img className="channelIcon" src={s.channel_icon} alt="" /> : <div className="channelIconFallback" />}
+            {getChannelSymbolImage(s.channel_icon) ? (
+              <Image className="channelIcon" src={getChannelSymbolImage(s.channel_icon)!} alt="" width={28} height={28} />
+            ) : (
+              <div className="channelIconFallback" />
+            )}
             <div className="channelName">{s.channel_name}</div>
           </div>
           <div className="streamMeta">
@@ -165,5 +173,7 @@ export default function LivestreamsPage() {
     );
   }
 }
+
+
 
 

@@ -15,9 +15,9 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 
-	"nasfaqv2/brokerbot/ytscraper/internal/db"
-	"nasfaqv2/brokerbot/ytscraper/internal/livestreams"
-	"nasfaqv2/brokerbot/ytscraper/internal/youtube"
+	"github.com/JamesAC42/nasfaqv2/brokerbot/ytscraper/internal/db"
+	"github.com/JamesAC42/nasfaqv2/brokerbot/ytscraper/internal/livestreams"
+	"github.com/JamesAC42/nasfaqv2/brokerbot/ytscraper/internal/youtube"
 )
 
 type Config struct {
@@ -206,7 +206,7 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 				Title:        v.Title,
 				ThumbnailURL: v.ThumbnailURL,
 				ChannelID:    ch.YouTubeChannelID,
-				ChannelName:  ch.Name,
+				ChannelName:  ch.NameShort,
 				ChannelIcon:  icon,
 				UpdatedAt:    now,
 			}

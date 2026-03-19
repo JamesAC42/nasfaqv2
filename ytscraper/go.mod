@@ -1,6 +1,6 @@
-module nasfaqv2/brokerbot/ytscraper
+module github.com/JamesAC42/nasfaqv2/brokerbot/ytscraper
 
-go 1.23.0
+go 1.25.0
 
 require github.com/jackc/pgx/v5 v5.7.6
 

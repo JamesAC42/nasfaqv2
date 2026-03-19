@@ -1,6 +1,6 @@
-module nasfaqv2/brokerbot/4chanscraper
+module github.com/JamesAC42/nasfaqv2/brokerbot/4chanscraper
 
-go 1.23.0
+go 1.25.0
 
 require (
 	github.com/joho/godotenv v1.5.1

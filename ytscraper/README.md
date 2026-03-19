@@ -5,7 +5,8 @@ This service scrapes **daily** time-series stats for YouTube channels and stores
 ### What it stores
 
 - Channel list/config in `yt.youtube_channels`
-  - `youtube_channel_id`, `name`, `symbol`, `icon`
+  - `youtube_channel_id`, `name_short`, `name_english`, `name_japanese`
+  - `symbol`, `icon`, `twitter_id`, `profile_id`, `birthday`, `height`, `unit`
 - Daily time-series metrics in `yt.youtube_channel_daily_stats` (Timescale hypertable)
   - `subscriber_count`, `view_count`, `video_count`
   - `last_upload_at` + `last_upload_video_id`
@@ -29,9 +30,33 @@ If you prefer running it manually, execute:
 Insert channels into `yt.youtube_channels` (set `is_active=true`):
 
 ```sql
-INSERT INTO yt.youtube_channels (youtube_channel_id, name, symbol, icon)
+INSERT INTO yt.youtube_channels (
+  youtube_channel_id,
+  name_short,
+  name_english,
+  name_japanese,
+  symbol,
+  icon,
+  twitter_id,
+  profile_id,
+  birthday,
+  height,
+  unit
+)
 VALUES
-  ('UC_x5XG1OV2P6uZZ5FSM9Ttw', 'Google Developers', 'GOOG', 'https://.../icon.png');
+  (
+    'UC_x5XG1OV2P6uZZ5FSM9Ttw',
+    'Google Devs',
+    'Google Developers',
+    NULL,
+    'GOOG',
+    'https://.../icon.png',
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL
+  );
 ```
 
 ### Running the service
@@ -69,3 +94,7 @@ Behavior:
 - Upserts one row per channel per UTC day (`(youtube_channel_id, time)` unique index)
 
 
+notes on inflation:
+who cares if numbers go higher
+this game is essentially cookie clicker
+maybe have seasons where just normalize all prices back to some baseline

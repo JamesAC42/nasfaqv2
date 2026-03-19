@@ -12,9 +12,16 @@ import (
 
 type Channel struct {
 	YouTubeChannelID string
-	Name             string
+	NameShort        string
+	NameEnglish      *string
+	NameJapanese     *string
 	Symbol           *string
 	Icon             *string
+	TwitterID        *string
+	ProfileID        *string
+	Birthday         *time.Time
+	Height           *string
+	Unit             *string
 }
 
 type DailyStats struct {
@@ -84,10 +91,10 @@ func ApplySchema(ctx context.Context, pool *pgxpool.Pool) error {
 
 func ListActiveChannels(ctx context.Context, pool *pgxpool.Pool) ([]Channel, error) {
 	rows, err := pool.Query(ctx, `
-		SELECT youtube_channel_id, name, symbol, icon
+		SELECT youtube_channel_id, name_short, symbol, icon
 		FROM yt.youtube_channels
 		WHERE is_active = true
-		ORDER BY name ASC
+		ORDER BY name_short ASC
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("query active channels: %w", err)
@@ -97,7 +104,7 @@ func ListActiveChannels(ctx context.Context, pool *pgxpool.Pool) ([]Channel, err
 	var out []Channel
 	for rows.Next() {
 		var c Channel
-		if err := rows.Scan(&c.YouTubeChannelID, &c.Name, &c.Symbol, &c.Icon); err != nil {
+		if err := rows.Scan(&c.YouTubeChannelID, &c.NameShort, &c.Symbol, &c.Icon); err != nil {
 			return nil, fmt.Errorf("scan channel: %w", err)
 		}
 		out = append(out, c)
@@ -150,20 +157,34 @@ func UpsertChannel(ctx context.Context, pool *pgxpool.Pool, c Channel) error {
 	_, err := pool.Exec(ctx, `
 		INSERT INTO yt.youtube_channels (
 			youtube_channel_id,
-			name,
+			name_short,
+			name_english,
+			name_japanese,
 			symbol,
 			icon,
+			twitter_id,
+			profile_id,
+			birthday,
+			height,
+			unit,
 			is_active,
 			updated_at
-		) VALUES ($1,$2,$3,$4,TRUE,now())
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,TRUE,now())
 		ON CONFLICT (youtube_channel_id)
 		DO UPDATE SET
-			name = EXCLUDED.name,
+			name_short = EXCLUDED.name_short,
+			name_english = EXCLUDED.name_english,
+			name_japanese = EXCLUDED.name_japanese,
 			symbol = EXCLUDED.symbol,
 			icon = EXCLUDED.icon,
+			twitter_id = EXCLUDED.twitter_id,
+			profile_id = EXCLUDED.profile_id,
+			birthday = EXCLUDED.birthday,
+			height = EXCLUDED.height,
+			unit = EXCLUDED.unit,
 			is_active = TRUE,
 			updated_at = now()
-	`, c.YouTubeChannelID, c.Name, c.Symbol, c.Icon)
+	`, c.YouTubeChannelID, c.NameShort, c.NameEnglish, c.NameJapanese, c.Symbol, c.Icon, c.TwitterID, c.ProfileID, c.Birthday, c.Height, c.Unit)
 	if err != nil {
 		return fmt.Errorf("upsert channel (id=%s): %w", c.YouTubeChannelID, err)
 	}

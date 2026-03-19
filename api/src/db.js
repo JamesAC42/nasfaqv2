@@ -12,15 +12,45 @@ function createPool(databaseUrl) {
   });
 }
 
+const CHANNEL_SELECT_COLUMNS = `
+      youtube_channel_id,
+      name_short,
+      name_short AS name,
+      name_english,
+      name_japanese,
+      symbol,
+      icon,
+      twitter_id,
+      profile_id,
+      birthday,
+      height,
+      unit,
+      is_active,
+      created_at,
+      updated_at
+`;
+
 async function listChannels(pool, { activeOnly = true } = {}) {
   const { rows } = await pool.query(
     `
-    SELECT youtube_channel_id, name, symbol, icon, is_active, created_at, updated_at
+    SELECT
+${CHANNEL_SELECT_COLUMNS}
     FROM yt.youtube_channels
     WHERE ($1::boolean IS FALSE) OR (is_active = true)
-    ORDER BY name ASC
+    ORDER BY name_short ASC
   `,
     [activeOnly]
+  );
+  return rows;
+}
+
+async function listChannelIdentifiers(pool) {
+  const { rows } = await pool.query(
+    `
+    SELECT youtube_channel_id, name_short, profile_id
+    FROM yt.youtube_channels
+    ORDER BY name_short ASC
+  `
   );
   return rows;
 }
@@ -28,11 +58,27 @@ async function listChannels(pool, { activeOnly = true } = {}) {
 async function getChannel(pool, channelId) {
   const { rows } = await pool.query(
     `
-    SELECT youtube_channel_id, name, symbol, icon, is_active, created_at, updated_at
+    SELECT
+${CHANNEL_SELECT_COLUMNS}
     FROM yt.youtube_channels
     WHERE youtube_channel_id = $1
   `,
     [channelId]
+  );
+  return rows[0] || null;
+}
+
+async function findChannelByName(pool, name, { excludeChannelId = null } = {}) {
+  const { rows } = await pool.query(
+    `
+    SELECT
+${CHANNEL_SELECT_COLUMNS}
+    FROM yt.youtube_channels
+    WHERE lower(btrim(name_short)) = lower(btrim($1))
+      AND ($2::text IS NULL OR youtube_channel_id <> $2)
+    LIMIT 1
+  `,
+    [name, excludeChannelId]
   );
   return rows[0] || null;
 }
@@ -135,40 +181,162 @@ async function getTimeSeriesBucketed(pool, channelId, { start, end, bucket = "7 
   return rows;
 }
 
-async function upsertChannel(pool, { youtube_channel_id, name, symbol, icon, is_active = true }) {
+async function upsertChannel(pool, {
+  youtube_channel_id,
+  name_short,
+  name_english = null,
+  name_japanese = null,
+  symbol,
+  icon,
+  twitter_id = null,
+  profile_id = null,
+  birthday = null,
+  height = null,
+  unit = null,
+  is_active = true
+}) {
   const { rows } = await pool.query(
     `
     INSERT INTO yt.youtube_channels (
       youtube_channel_id,
-      name,
+      name_short,
+      name_english,
+      name_japanese,
       symbol,
       icon,
+      twitter_id,
+      profile_id,
+      birthday,
+      height,
+      unit,
       is_active,
       updated_at
-    ) VALUES ($1,$2,$3,$4,$5,now())
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now())
     ON CONFLICT (youtube_channel_id)
     DO UPDATE SET
-      name = EXCLUDED.name,
+      name_short = EXCLUDED.name_short,
+      name_english = EXCLUDED.name_english,
+      name_japanese = EXCLUDED.name_japanese,
       symbol = EXCLUDED.symbol,
       icon = EXCLUDED.icon,
+      twitter_id = EXCLUDED.twitter_id,
+      profile_id = EXCLUDED.profile_id,
+      birthday = EXCLUDED.birthday,
+      height = EXCLUDED.height,
+      unit = EXCLUDED.unit,
       is_active = EXCLUDED.is_active,
       updated_at = now()
-    RETURNING youtube_channel_id, name, symbol, icon, is_active, created_at, updated_at
+    RETURNING
+${CHANNEL_SELECT_COLUMNS}
   `,
-    [youtube_channel_id, name, symbol, icon, is_active]
+    [youtube_channel_id, name_short, name_english, name_japanese, symbol, icon, twitter_id, profile_id, birthday, height, unit, is_active]
   );
   return rows[0];
+}
+
+async function insertChannel(pool, {
+  youtube_channel_id,
+  name_short,
+  name_english = null,
+  name_japanese = null,
+  symbol,
+  icon,
+  twitter_id = null,
+  profile_id = null,
+  birthday = null,
+  height = null,
+  unit = null,
+  is_active = true
+}) {
+  const { rows } = await pool.query(
+    `
+    INSERT INTO yt.youtube_channels (
+      youtube_channel_id,
+      name_short,
+      name_english,
+      name_japanese,
+      symbol,
+      icon,
+      twitter_id,
+      profile_id,
+      birthday,
+      height,
+      unit,
+      is_active,
+      updated_at
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now())
+    RETURNING
+${CHANNEL_SELECT_COLUMNS}
+  `,
+    [youtube_channel_id, name_short, name_english, name_japanese, symbol, icon, twitter_id, profile_id, birthday, height, unit, is_active]
+  );
+  return rows[0];
+}
+
+async function updateChannel(pool, channelId, {
+  name_short,
+  name_english = null,
+  name_japanese = null,
+  symbol,
+  icon,
+  twitter_id = null,
+  profile_id = null,
+  birthday = null,
+  height = null,
+  unit = null,
+  is_active = true
+}) {
+  const { rows } = await pool.query(
+    `
+    UPDATE yt.youtube_channels
+    SET
+      name_short = $2,
+      name_english = $3,
+      name_japanese = $4,
+      symbol = $5,
+      icon = $6,
+      twitter_id = $7,
+      profile_id = $8,
+      birthday = $9,
+      height = $10,
+      unit = $11,
+      is_active = $12,
+      updated_at = now()
+    WHERE youtube_channel_id = $1
+    RETURNING
+${CHANNEL_SELECT_COLUMNS}
+  `,
+    [channelId, name_short, name_english, name_japanese, symbol, icon, twitter_id, profile_id, birthday, height, unit, is_active]
+  );
+  return rows[0] || null;
+}
+
+async function deleteChannel(pool, channelId) {
+  const { rows } = await pool.query(
+    `
+    DELETE FROM yt.youtube_channels
+    WHERE youtube_channel_id = $1
+    RETURNING
+${CHANNEL_SELECT_COLUMNS}
+  `,
+    [channelId]
+  );
+  return rows[0] || null;
 }
 
 module.exports = {
   createPool,
   listChannels,
+  listChannelIdentifiers,
   getChannel,
+  findChannelByName,
   getLatestStats,
   getLatestStatsAll,
   getTimeSeries,
   getTimeSeriesBucketed,
-  upsertChannel
+  upsertChannel,
+  insertChannel,
+  updateChannel,
+  deleteChannel
 };
-
 

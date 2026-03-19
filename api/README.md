@@ -38,10 +38,15 @@ npm run dev
 - `GET /api/channels?active=true|false`
 - `GET /api/channels/:id`
 - `POST /api/channels`
+- `PUT /api/channels/:id`
 - `GET /api/channels/:id/latest`
 - `GET /api/channels/:id/timeseries?start=ISO&end=ISO`
 - `GET /api/channels/:id/timeseries?bucket=7%20days&start=ISO&end=ISO` (bucketed)
 - `GET /api/overview/latest`
 - `GET /api/livestreams` (aggregated from Redis)
+
+`POST /api/channels` and `PUT /api/channels/:id` accept `name_short` plus the optional metadata fields
+`name_english`, `name_japanese`, `twitter_id`, `profile_id`, `birthday`, `height`, and `unit`.
+For backward compatibility, the API also accepts `name` as an alias for `name_short` and returns both fields.
 
 

@@ -8,13 +8,53 @@ CREATE SCHEMA IF NOT EXISTS yt;
 -- Channel metadata / configuration table (source of truth for what to scrape).
 CREATE TABLE IF NOT EXISTS yt.youtube_channels (
   youtube_channel_id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
+  name_short TEXT NOT NULL,
+  name_english TEXT NULL,
+  name_japanese TEXT NULL,
   symbol TEXT NULL,
   icon TEXT NULL,
+  twitter_id TEXT NULL,
+  profile_id TEXT NULL,
+  birthday DATE NULL,
+  height TEXT NULL,
+  unit TEXT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'yt'
+      AND table_name = 'youtube_channels'
+      AND column_name = 'name'
+  ) THEN
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'yt'
+        AND table_name = 'youtube_channels'
+        AND column_name = 'name_short'
+    ) THEN
+      EXECUTE 'UPDATE yt.youtube_channels SET name_short = COALESCE(name_short, name)';
+      EXECUTE 'ALTER TABLE yt.youtube_channels DROP COLUMN name';
+    ELSE
+      EXECUTE 'ALTER TABLE yt.youtube_channels RENAME COLUMN name TO name_short';
+    END IF;
+  END IF;
+END $$;
+
+ALTER TABLE yt.youtube_channels
+  ADD COLUMN IF NOT EXISTS name_english TEXT NULL,
+  ADD COLUMN IF NOT EXISTS name_japanese TEXT NULL,
+  ADD COLUMN IF NOT EXISTS twitter_id TEXT NULL,
+  ADD COLUMN IF NOT EXISTS profile_id TEXT NULL,
+  ADD COLUMN IF NOT EXISTS birthday DATE NULL,
+  ADD COLUMN IF NOT EXISTS height TEXT NULL,
+  ADD COLUMN IF NOT EXISTS unit TEXT NULL;
 
 -- Time-series table: one row per channel per day (UTC midnight).
 -- Store day in a timestamptz so it can be the Timescale time dimension.
