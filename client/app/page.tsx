@@ -40,7 +40,10 @@ type OverviewRow = {
 
 type HoloNewsItem = {
   headline: string;
-  characters: string[];
+  characters: Array<{
+    name: string;
+    icon: string | null;
+  }>;
   rank: number | null;
   thumbnail_s3_key: string | null;
   thumbnail_url: string | null;
@@ -208,98 +211,156 @@ export default function Home() {
         </div>
       ) : null}
 
-      <section className="holonewsSection">
-        <div className="sectionHead">
-          <div>
-            <h2 className="sectionTitle">HoloNews</h2>
-            <p className="subtitle">
-              Latest scraped /vt/ roundup. Ranked items with thumbnails appear first.
-            </p>
-            <p className="subtitle">
-              Updated: <span className="muted">{fmtDate(holoNews?.updated_at)}</span>
-            </p>
+      <div className="frontpageSplit">
+        <section className="holonewsSection">
+          <div className="sectionHead">
+            <div>
+              <h2 className="sectionTitle">HoloNews</h2>
+              <p className="subtitle">
+                Latest scraped /vt/ roundup. Ranked items with thumbnails appear first.
+              </p>
+              <p className="subtitle">
+                Updated: <span className="muted">{fmtDate(holoNews?.updated_at)}</span>
+              </p>
+            </div>
           </div>
-        </div>
 
-        {holoNewsError ? (
-          <div className="card">
-            <p className="name">Failed to load HoloNews</p>
-            <p className="muted">{holoNewsError}</p>
-          </div>
-        ) : null}
+          {holoNewsError ? (
+            <div className="card">
+              <p className="name">Failed to load HoloNews</p>
+              <p className="muted">{holoNewsError}</p>
+            </div>
+          ) : null}
 
-        {!holoNews && !holoNewsError ? (
-          <div className="card">
-            <p className="name">Loading HoloNews…</p>
-          </div>
-        ) : null}
+          {!holoNews && !holoNewsError ? (
+            <div className="card">
+              <p className="name">Loading HoloNews…</p>
+            </div>
+          ) : null}
 
-        {holoNews && holoNews.items.length > 0 ? (
-          <div className="holonewsLayout">
-            <div className="holonewsMainColumn">
-              {leadStory ? (
-                <article className="holonewsLeadCard">
-                  {leadStory.thumbnail_url ? (
-                    <div className="holonewsThumbWrap holonewsThumbWrapLead">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img className="holonewsThumb" src={leadStory.thumbnail_url} alt={leadStory.headline} loading="lazy" />
-                      <span className="holonewsRank">#1</span>
-                    </div>
-                  ) : null}
+          {holoNews && holoNews.items.length > 0 ? (
+            <div className="holonewsLayout">
+              <div className="holonewsMainColumn">
+                {leadStory ? (
+                  <article className="holonewsLeadCard">
+                    {leadStory.thumbnail_url ? (
+                      <div className="holonewsThumbWrap holonewsThumbWrapLead">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img className="holonewsThumb" src={leadStory.thumbnail_url} alt={leadStory.headline} loading="lazy" />
+                        <span className="holonewsRank">#1</span>
+                      </div>
+                    ) : null}
                     <div className="holonewsLeadBody">
                       <span className="holonewsKicker">Lead Story</span>
                       <HeadlineBlock headline={leadStory.headline} titleClassName="holonewsHeadline holonewsHeadlineLead" subheadClassName="holonewsSubhead holonewsSubheadLead" />
-                      {leadStory.characters.length > 0 ? <p className="holonewsCharacters">{leadStory.characters.join(" • ")}</p> : null}
+                      <CharacterStrip characters={leadStory.characters} className="holonewsCharactersRow" textClassName="holonewsCharacters" />
                     </div>
                   </article>
-              ) : null}
+                ) : null}
 
-              {secondaryStories.length > 0 ? (
-                <div className="holonewsSecondaryRow">
-                  {secondaryStories.map((item) => (
-                    <article key={`${item.headline}-${item.rank ?? "secondary"}`} className="holonewsCard holonewsCardFeatured">
-                      {item.thumbnail_url ? (
-                        <div className="holonewsThumbWrap">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img className="holonewsThumb" src={item.thumbnail_url} alt={item.headline} loading="lazy" />
-                          {item.rank ? <span className="holonewsRank">#{item.rank}</span> : null}
+                {secondaryStories.length > 0 ? (
+                  <div className="holonewsSecondaryRow">
+                    {secondaryStories.map((item) => (
+                      <article key={`${item.headline}-${item.rank ?? "secondary"}`} className="holonewsCard holonewsCardFeatured">
+                        {item.thumbnail_url ? (
+                          <div className="holonewsThumbWrap">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img className="holonewsThumb" src={item.thumbnail_url} alt={item.headline} loading="lazy" />
+                            {item.rank ? <span className="holonewsRank">#{item.rank}</span> : null}
+                          </div>
+                        ) : null}
+                        <div className="holonewsCardMeta">
+                          <span className="holonewsKicker">Featured</span>
                         </div>
-                      ) : null}
-                      <div className="holonewsCardMeta">
-                        <span className="holonewsKicker">Featured</span>
-                      </div>
-                      <HeadlineBlock headline={item.headline} titleClassName="holonewsHeadline" subheadClassName="holonewsSubhead" />
-                      {item.characters.length > 0 ? <p className="holonewsCharacters">{item.characters.join(" • ")}</p> : null}
-                    </article>
-                  ))}
-                </div>
+                        <HeadlineBlock headline={item.headline} titleClassName="holonewsHeadline" subheadClassName="holonewsSubhead" />
+                        <CharacterStrip characters={item.characters} className="holonewsCharactersRow" textClassName="holonewsCharacters" />
+                      </article>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
+              {otherStories.length > 0 ? (
+                <aside className="holonewsSidebar">
+                  <div className="holonewsSidebarHeader">
+                    <span className="holonewsKicker">More Headlines</span>
+                  </div>
+                  <div className="holonewsList">
+                    {otherStories.map((item, index) => (
+                      <article key={`${item.headline}-${index}`} className="holonewsListItem">
+                        <HeadlineBlock headline={item.headline} titleClassName="holonewsListHeadline" subheadClassName="holonewsListSubhead" />
+                        <CharacterStrip characters={item.characters} className="holonewsCharactersRow holonewsCharactersRowCompact" textClassName="holonewsListCharacters" />
+                      </article>
+                    ))}
+                  </div>
+                </aside>
               ) : null}
             </div>
+          ) : null}
 
-            {otherStories.length > 0 ? (
-              <aside className="holonewsSidebar">
-                <div className="holonewsSidebarHeader">
-                  <span className="holonewsKicker">More Headlines</span>
-                </div>
-                <div className="holonewsList">
-                  {otherStories.map((item, index) => (
-                    <article key={`${item.headline}-${index}`} className="holonewsListItem">
-                      <HeadlineBlock headline={item.headline} titleClassName="holonewsListHeadline" subheadClassName="holonewsListSubhead" />
-                      {item.characters.length > 0 ? <p className="holonewsListCharacters">{item.characters.join(" • ")}</p> : null}
-                    </article>
-                  ))}
-                </div>
-              </aside>
-            ) : null}
-          </div>
-        ) : null}
+          {holoNews && holoNews.items.length === 0 ? (
+            <div className="card">
+              <p className="name">No HoloNews headlines yet.</p>
+            </div>
+          ) : null}
+        </section>
 
-        {holoNews && holoNews.items.length === 0 ? (
-          <div className="card">
-            <p className="name">No HoloNews headlines yet.</p>
-          </div>
-        ) : null}
-      </section>
+        <aside className="marketSidebar">
+          <section className="marketPanel marketPanelHero">
+            <p className="marketLabel">Quote Lookup</p>
+            <div className="marketSearchShell">
+              <input className="marketSearchInput" type="text" value="SUIS, KROI, FBKX" readOnly aria-label="Quote Lookup" />
+            </div>
+          </section>
+
+          <section className="marketPanel">
+            <div className="marketPanelHead">
+              <h3 className="marketTitle">Trending Tickers</h3>
+              <span className="marketStamp">Live</span>
+            </div>
+            <div className="marketTickerList">
+              <MarketTickerRow ticker="SUIS" name="Suisei Holdings" price="$482.16" move="+8.42%" positive />
+              <MarketTickerRow ticker="KROI" name="Kronii Index" price="$211.09" move="+3.18%" positive />
+              <MarketTickerRow ticker="FWMC" name="FuwaMoco Group" price="$94.80" move="+2.74%" positive />
+              <MarketTickerRow ticker="AKIR" name="Aki Retail" price="$57.31" move="-1.22%" />
+            </div>
+          </section>
+
+          <section className="marketPanel">
+            <div className="marketPanelHead">
+              <h3 className="marketTitle">Recently Viewed Stocks</h3>
+            </div>
+            <div className="marketMiniList">
+              <span className="marketMiniPill">BOTN</span>
+              <span className="marketMiniPill">SHIO</span>
+              <span className="marketMiniPill">ANYA</span>
+              <span className="marketMiniPill">MATS</span>
+              <span className="marketMiniPill">IRYS</span>
+            </div>
+          </section>
+
+          <section className="marketPanel">
+            <div className="marketPanelHead">
+              <h3 className="marketTitle">My Portfolio</h3>
+              <span className="marketValue">$124,812.44</span>
+            </div>
+            <div className="marketPortfolioGrid">
+              <div className="marketPortfolioRow">
+                <span className="marketPortfolioLabel">Day Change</span>
+                <span className="marketPositive">+$2,418.71</span>
+              </div>
+              <div className="marketPortfolioRow">
+                <span className="marketPortfolioLabel">Top Holding</span>
+                <span className="marketPortfolioValue">SUIS 28%</span>
+              </div>
+              <div className="marketPortfolioRow">
+                <span className="marketPortfolioLabel">Risk</span>
+                <span className="marketPortfolioValue">Aggressive Growth</span>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </div>
 
       {!rows && !error ? (
         <div className="card">
@@ -422,6 +483,76 @@ function HeadlineBlock({
     <div className="holonewsHeadlineBlock">
       <h3 className={titleClassName}>{title}</h3>
       {subhead ? <p className={subheadClassName}>{subhead}</p> : null}
+    </div>
+  );
+}
+
+function CharacterStrip({
+  characters,
+  className,
+  textClassName,
+}: {
+  characters: Array<{ name: string; icon: string | null }>;
+  className: string;
+  textClassName: string;
+}) {
+  if (!characters.length) return null;
+
+  return (
+    <div className={className}>
+      {characters.map((character) => (
+        <span key={character.name} className="holonewsCharacterChip">
+          {getChannelIconUrl(character.icon) ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img className="holonewsCharacterIcon" src={getChannelIconUrl(character.icon)!} alt="" loading="lazy" />
+          ) : null}
+          <span className={textClassName}>{character.name}</span>
+          <span className={characterDelta(character.name).positive ? "holonewsCharacterDelta holonewsCharacterDeltaPositive" : "holonewsCharacterDelta holonewsCharacterDeltaNegative"}>
+            {characterDelta(character.name).positive ? "+" : ""}
+            {characterDelta(character.name).value}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function characterDelta(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  }
+  const positive = hash % 2 === 0;
+  const raw = 0.8 + ((hash % 620) / 100);
+  return {
+    positive,
+    value: `${raw.toFixed(2)}%`,
+  };
+}
+
+function MarketTickerRow({
+  ticker,
+  name,
+  price,
+  move,
+  positive = false,
+}: {
+  ticker: string;
+  name: string;
+  price: string;
+  move: string;
+  positive?: boolean;
+}) {
+  return (
+    <div className="marketTickerRow">
+      <div>
+        <div className="marketTicker">{ticker}</div>
+        <div className="marketTickerName">{name}</div>
+      </div>
+      <div className="marketTickerQuote">
+        <div className="marketTickerPrice">{price}</div>
+        <div className={positive ? "marketPositive" : "marketNegative"}>{move}</div>
+      </div>
     </div>
   );
 }

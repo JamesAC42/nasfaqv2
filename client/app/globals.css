@@ -71,10 +71,18 @@ a {
   grid-template-columns: repeat(auto-fit, minmax(32rem, 1fr));
 }
 
+.frontpageSplit {
+  display: grid;
+  grid-template-columns: minmax(0, 3.35fr) minmax(17rem, 1.65fr);
+  gap: 1.5rem;
+  align-items: start;
+  margin-bottom: 2rem;
+}
+
 .holonewsSection {
   display: grid;
   gap: 1.2rem;
-  margin-bottom: 2rem;
+  margin-bottom: 0;
   padding-bottom: 1.25rem;
   border-bottom: 0.0625rem solid rgba(231, 238, 252, 0.08);
 }
@@ -126,8 +134,8 @@ a {
 }
 
 .holonewsCardFeatured {
-  border-color: rgba(247, 178, 103, 0.35);
-  box-shadow: 0 0 1.25rem rgba(247, 178, 103, 0.08);
+  border-color: rgba(92, 200, 255, 0.35);
+  box-shadow: 0 0 1.25rem rgba(92, 200, 255, 0.08);
 }
 
 .holonewsThumbWrap {
@@ -164,8 +172,8 @@ a {
   top: 0.6rem;
   left: 0.6rem;
   background: rgba(11, 15, 23, 0.86);
-  border: 0.0625rem solid rgba(247, 178, 103, 0.45);
-  color: #f7b267;
+  border: 0.0625rem solid rgba(92, 200, 255, 0.45);
+  color: #5cc8ff;
   border-radius: 999rem;
   padding: 0.25rem 0.5rem;
   font-size: 0.78rem;
@@ -176,6 +184,7 @@ a {
   display: grid;
   gap: 0.45rem;
   padding: 1rem 1.1rem 1.15rem 1.1rem;
+  min-width: 0;
 }
 
 .holonewsHeadline {
@@ -183,12 +192,19 @@ a {
   font-size: 1.02rem;
   line-height: 1.4;
   letter-spacing: -0.01em;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
 }
 
 .holonewsHeadlineBlock {
   display: grid;
   gap: 0.45rem;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .holonewsHeadlineLead {
@@ -202,6 +218,11 @@ a {
   font-size: 0.92rem;
   line-height: 1.45;
   color: rgba(231, 238, 252, 0.68);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
 }
 
 .holonewsSubheadLead {
@@ -213,9 +234,40 @@ a {
   margin: 0;
   font-size: 0.8rem;
   line-height: 1.35;
-  color: rgba(247, 178, 103, 0.84);
+  color: rgba(92, 200, 255, 0.88);
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+.holonewsCharactersRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.75rem;
+}
+
+.holonewsCharactersRowCompact {
+  gap: 0.45rem 0.6rem;
+}
+
+.holonewsCharacterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.35rem 0.55rem;
+  border-radius: 999rem;
+  border: 0.0625rem solid rgba(92, 200, 255, 0.16);
+  background: rgba(92, 200, 255, 0.07);
+}
+
+.holonewsCharacterIcon {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999rem;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.08);
+  flex: 0 0 auto;
 }
 
 .holonewsCardMeta {
@@ -231,7 +283,7 @@ a {
   text-transform: uppercase;
   letter-spacing: 0.1em;
   font-size: 0.7rem;
-  color: #f7b267;
+  color: #5cc8ff;
   font-weight: 700;
 }
 
@@ -269,6 +321,11 @@ a {
   line-height: 1.45;
   letter-spacing: -0.01em;
   color: rgba(231, 238, 252, 0.92);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
 }
 
 .holonewsListSubhead {
@@ -276,18 +333,172 @@ a {
   font-size: 0.84rem;
   line-height: 1.45;
   color: rgba(231, 238, 252, 0.58);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
 }
 
 .holonewsListCharacters {
   margin: 0.35rem 0 0 0;
   font-size: 0.72rem;
   line-height: 1.35;
-  color: rgba(247, 178, 103, 0.76);
+  color: rgba(92, 200, 255, 0.76);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
+.holonewsCharacterDelta {
+  margin-left: 0.1rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.holonewsCharacterDeltaPositive {
+  color: #5cc8ff;
+}
+
+.holonewsCharacterDeltaNegative {
+  color: #ff7b96;
+}
+
+.marketSidebar {
+  display: grid;
+  gap: 1rem;
+}
+
+.marketPanel {
+  border: 0.0625rem solid rgba(231, 238, 252, 0.1);
+  background: linear-gradient(180deg, rgba(16, 24, 36, 0.96) 0%, rgba(8, 12, 20, 0.96) 100%);
+  border-radius: 1rem;
+  padding: 1rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.marketPanelHero {
+  padding-top: 1.1rem;
+}
+
+.marketLabel {
+  margin: 0;
+  font-size: 0.76rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(92, 200, 255, 0.9);
+  font-weight: 700;
+}
+
+.marketSearchShell {
+  border: 0.0625rem solid rgba(92, 200, 255, 0.2);
+  background: rgba(4, 10, 18, 0.76);
+  border-radius: 0.85rem;
+  padding: 0.2rem;
+}
+
+.marketSearchInput {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  padding: 0.7rem 0.8rem;
+  outline: none;
+}
+
+.marketPanelHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.marketTitle {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+
+.marketStamp,
+.marketValue {
+  font-size: 0.82rem;
+  color: rgba(92, 200, 255, 0.88);
+}
+
+.marketTickerList {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.marketTickerRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 0.0625rem solid rgba(231, 238, 252, 0.08);
+}
+
+.marketTicker {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.marketTickerName,
+.marketPortfolioLabel {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.marketTickerQuote {
+  text-align: right;
+}
+
+.marketTickerPrice,
+.marketPortfolioValue {
+  font-variant-numeric: tabular-nums;
+}
+
+.marketMiniList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.marketMiniPill {
+  border: 0.0625rem solid rgba(92, 200, 255, 0.18);
+  background: rgba(92, 200, 255, 0.08);
+  border-radius: 999rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+}
+
+.marketPortfolioGrid {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.marketPortfolioRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.marketPositive {
+  color: #5cc8ff;
+}
+
+.marketNegative {
+  color: #ff7b96;
+}
+
 @media (max-width: 960px) {
+  .frontpageSplit {
+    grid-template-columns: 1fr;
+  }
+
   .holonewsLayout {
     grid-template-columns: 1fr;
   }

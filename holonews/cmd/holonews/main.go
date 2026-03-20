@@ -89,10 +89,10 @@ type post struct {
 }
 
 type storedHeadline struct {
-	Headline       string  `json:"headline"`
+	Headline       string   `json:"headline"`
 	Characters     []string `json:"characters,omitempty"`
-	Rank           *int    `json:"rank,omitempty"`
-	ThumbnailS3Key *string `json:"thumbnail_s3_key,omitempty"`
+	Rank           *int     `json:"rank,omitempty"`
+	ThumbnailS3Key *string  `json:"thumbnail_s3_key,omitempty"`
 }
 
 type storedPayload struct {
@@ -389,6 +389,20 @@ func scrapeOnce(ctx context.Context, fetchClient, geminiClient *http.Client, s3C
 		byHeadline[headline] = &items[len(items)-1]
 	}
 
+	for _, headline := range extraction.Headlines {
+		entry := byHeadline[headline]
+		if entry == nil {
+			continue
+		}
+
+		characters, err := extractHeadlineCharacters(ctx, geminiClient, cfg, headline, memberNames)
+		if err != nil {
+			log.Printf("holonews: character extraction failed for headline=%q: %v", headline, err)
+			continue
+		}
+		entry.Characters = characters
+	}
+
 	for _, rankedItem := range ranked {
 		entry := byHeadline[rankedItem.Headline]
 		if entry == nil {
@@ -402,7 +416,9 @@ func scrapeOnce(ctx context.Context, fetchClient, geminiClient *http.Client, s3C
 			log.Printf("holonews: prompt generation failed for rank=%d headline=%q: %v", rankedItem.Rank, rankedItem.Headline, err)
 			continue
 		}
-		entry.Characters = append([]string(nil), promptData.Characters...)
+		if len(promptData.Characters) > 0 {
+			entry.Characters = append([]string(nil), promptData.Characters...)
+		}
 
 		if skipThumbnailGeneration {
 			if entry.ThumbnailS3Key != nil {
@@ -871,6 +887,7 @@ func generateThumbnailPrompt(ctx context.Context, client *http.Client, cfg Confi
 	b.WriteString("4. DYNAMIC CAMERA & POSING (CRITICAL): Do not let the characters just 'stand' there. Force dynamic compositions using terms like: 'extreme close-up on face', 'Dutch angle', 'leaning aggressively into the camera', 'foreshortening', 'fisheye lens effect', or 'dynamic action pose'. Make it feel like an intense anime opening.\n")
 	b.WriteString("5. EXAGGERATED EMOTIONS: Go extreme with the faces. Instead of 'smug', use 'unhinged maniacal grinning'. Instead of 'shocked', use 'eyes popping out, screaming in pure terror, anime sweat drops flying'.\n")
 	b.WriteString("6. ACTION WITH PROPS: Don't just place props in the background. Make the characters actively interact with them (e.g., desperately hugging a giant gold bar, violently swinging an oversized cartoon pickaxe).\n\n")
+	b.WriteString("7. SAFE ANATOMY ANCHORING: To prevent AI anatomy errors, strictly favor 'upper body shot' or 'cowboy shot' (hips up) to avoid rendering complex leg poses. When interacting with props, strictly use phrases like 'holding [prop] firmly with BOTH hands' or 'hands resting on desk' to anchor the limbs and prevent extra arms.\n")
 	b.WriteString("Here is the headline: ")
 	b.WriteString(headline)
 	b.WriteString("\n\nValid members:\n")
@@ -906,6 +923,49 @@ func generateThumbnailPrompt(ctx context.Context, client *http.Client, cfg Confi
 	}
 	parsed.Characters = dedupeStrings(filtered)
 	return parsed, nil
+}
+
+func extractHeadlineCharacters(ctx context.Context, client *http.Client, cfg Config, headline string, validMembers []string) ([]string, error) {
+	var b strings.Builder
+	b.WriteString("Return JSON only in this shape: {\"characters\":[\"Exact Member Name\"]}\n")
+	b.WriteString("Identify which Hololive member names are clearly relevant to the headline.\n")
+	b.WriteString("Rules:\n")
+	b.WriteString("- Use only exact names from the valid member list below.\n")
+	b.WriteString("- Return an empty array if no member is clearly referenced.\n")
+	b.WriteString("- Do not guess beyond what is clearly implied by the headline.\n")
+	b.WriteString("- Output JSON only, no markdown or commentary.\n")
+	b.WriteString("Headline: ")
+	b.WriteString(headline)
+	b.WriteString("\nValid members:\n")
+	for _, name := range validMembers {
+		b.WriteString("- ")
+		b.WriteString(name)
+		b.WriteString("\n")
+	}
+
+	text, err := callGeminiText(ctx, client, cfg.GeminiAPIKey, cfg.GeminiTextModel, b.String())
+	if err != nil {
+		return nil, err
+	}
+
+	var parsed struct {
+		Characters []string `json:"characters"`
+	}
+	if err := json.Unmarshal([]byte(extractJSON(text)), &parsed); err != nil {
+		return nil, fmt.Errorf("parse character JSON: %w", err)
+	}
+
+	validSet := make(map[string]struct{}, len(validMembers))
+	for _, name := range validMembers {
+		validSet[name] = struct{}{}
+	}
+	filtered := make([]string, 0, len(parsed.Characters))
+	for _, name := range parsed.Characters {
+		if _, ok := validSet[name]; ok {
+			filtered = append(filtered, name)
+		}
+	}
+	return dedupeStrings(filtered), nil
 }
 
 type referenceImage struct {

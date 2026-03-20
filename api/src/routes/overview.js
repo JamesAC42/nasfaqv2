@@ -55,11 +55,21 @@ router.get("/holonews", async (req, res, next) => {
       };
     }
 
+    const channels = await db.listChannels(req.ctx.pool, { activeOnly: true });
+    const iconByEnglishName = new Map(
+      channels
+        .filter((channel) => channel?.name_english)
+        .map((channel) => [String(channel.name_english).trim().toLowerCase(), channel.icon || null])
+    );
+
     const items = sortHoloNewsItems(
       Array.isArray(payload.items) ? payload.items : []
     ).map((item) => ({
       headline: item.headline || "",
-      characters: Array.isArray(item.characters) ? item.characters.filter(Boolean) : [],
+      characters: (Array.isArray(item.characters) ? item.characters.filter(Boolean) : []).map((name) => ({
+        name,
+        icon: iconByEnglishName.get(String(name).trim().toLowerCase()) || null
+      })),
       rank: Number.isFinite(item.rank) ? item.rank : null,
       thumbnail_s3_key: item.thumbnail_s3_key || null,
       thumbnail_url: toThumbnailUrl(item.thumbnail_s3_key || null)
