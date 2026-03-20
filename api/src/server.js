@@ -44,6 +44,7 @@ function toListStream(item) {
     thumbnail_url: item.thumbnail_url,
     channel_name: item.channel_name,
     channel_icon: item.channel_icon,
+    channel_color: item.channel_color,
     scheduled_start_time: item.scheduled_start_time,
     actual_start_time: item.actual_start_time,
     concurrent_viewers: item.concurrent_viewers,
@@ -60,6 +61,7 @@ function signatureForStreamDiff(stream) {
     thumbnail_url: stream.thumbnail_url,
     channel_name: stream.channel_name,
     channel_icon: stream.channel_icon,
+    channel_color: stream.channel_color,
     scheduled_start_time: stream.scheduled_start_time,
     actual_start_time: stream.actual_start_time,
   });

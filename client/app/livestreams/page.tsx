@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { getChannelIconUrl } from "../lib/channelIcons";
 import { LivestreamModal, type ModalStream } from "./LivestreamModal";
@@ -42,6 +43,7 @@ type CurrentStream = {
   thumbnail_url: string;
   channel_name: string;
   channel_icon?: string | null;
+  channel_color?: string | null;
   scheduled_start_time?: string | null;
   actual_start_time?: string | null;
   concurrent_viewers?: number | null;
@@ -55,6 +57,7 @@ type PastStreamResponse = {
   thumbnail_url: string | null;
   channel_name: string;
   channel_icon: string | null;
+  channel_color: string | null;
   scheduled_start_at: string | null;
   actual_start_at: string | null;
   ended_at: string | null;
@@ -81,6 +84,7 @@ type PastPayload = {
 
 const EMPTY_CURRENT_STREAMS: CurrentStream[] = [];
 const EMPTY_PAST_STREAMS: PastStream[] = [];
+const DEFAULT_LIVE_ACCENT = "#ff5c7a";
 
 function toNum(v: unknown): number | null {
   if (v === null || v === undefined) return null;
@@ -88,6 +92,17 @@ function toNum(v: unknown): number | null {
   if (typeof v === "string" && v.trim() !== "") {
     const n = Number(v);
     return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function normalizeHexColor(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed;
+  if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
+    const [, r, g, b] = trimmed;
+    return `#${r}${r}${g}${g}${b}${b}`;
   }
   return null;
 }
@@ -206,6 +221,7 @@ function normalizePastStream(stream: PastStreamResponse): PastStream {
     thumbnail_url: stream.thumbnail_url || "",
     channel_name: stream.channel_name,
     channel_icon: stream.channel_icon,
+    channel_color: stream.channel_color,
     scheduled_start_time: stream.scheduled_start_at,
     actual_start_time: stream.actual_start_at,
     ended_at: stream.ended_at,
@@ -694,11 +710,14 @@ function StreamRow({
   const timeText = kind === "upcoming" ? fmtDate(stream.scheduled_start_time) : null;
   const liveViewers = kind === "live" ? getDisplayViewerCount(stream as CurrentStream) : null;
   const pastStream = kind === "past" ? (stream as PastStream) : null;
+  const accentColor = normalizeHexColor(stream.channel_color) || DEFAULT_LIVE_ACCENT;
+  const streamStyle = { "--stream-accent": accentColor } as CSSProperties;
 
   return (
     <button
       type="button"
       className="streamItem"
+      style={streamStyle}
       onClick={() => {
         if (kind === "live") {
           onOpenCurrent?.(stream as CurrentStream);

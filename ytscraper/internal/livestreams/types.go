@@ -20,6 +20,7 @@ type Stream struct {
 	ChannelID   string  `json:"channel_id"`
 	ChannelName string  `json:"channel_name"`
 	ChannelIcon *string `json:"channel_icon,omitempty"`
+	ChannelColor *string `json:"channel_color,omitempty"`
 
 	ScheduledStartTime *time.Time `json:"scheduled_start_time,omitempty"`
 	ActualStartTime    *time.Time `json:"actual_start_time,omitempty"`

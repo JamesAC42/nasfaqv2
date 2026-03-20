@@ -250,6 +250,7 @@ a {
 }
 
 .streamItem {
+  --stream-accent: var(--bad);
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -286,8 +287,10 @@ a {
 }
 
 .thumbWrapLive {
-  border: 0.125rem solid rgba(255, 92, 122, 0.35);
-  box-shadow: 0 0 0.8rem rgba(255, 92, 122, 0.2), 0 0 1.6rem rgba(255, 92, 122, 0.12);
+  border: 0.125rem solid color-mix(in srgb, var(--stream-accent) 42%, transparent);
+  box-shadow:
+    0 0 0.8rem color-mix(in srgb, var(--stream-accent) 24%, transparent),
+    0 0 1.6rem color-mix(in srgb, var(--stream-accent) 14%, transparent);
 }
 
 .thumbWrapLive::after {
@@ -296,7 +299,9 @@ a {
   inset: -0.125rem;
   border-radius: inherit;
   pointer-events: none;
-  box-shadow: 0 0 1.1rem rgba(255, 74, 108, 0.18), 0 0 2rem rgba(255, 74, 108, 0.08);
+  box-shadow:
+    0 0 1.1rem color-mix(in srgb, var(--stream-accent) 20%, transparent),
+    0 0 2rem color-mix(in srgb, var(--stream-accent) 10%, transparent);
   opacity: 0.9;
 }
 
@@ -643,7 +648,7 @@ a {
 }
 
 .watchersNumber {
-  color: var(--bad);
+  color: var(--stream-accent);
   font-weight: 800;
   font-size: 1.15rem;
   line-height: 1.1;
@@ -653,7 +658,7 @@ a {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  color: var(--bad);
+  color: var(--stream-accent);
   font-weight: 700;
   font-size: 0.92rem;
   letter-spacing: 0.01em;
@@ -663,12 +668,12 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  color: var(--bad);
+  color: var(--stream-accent);
   font-weight: 750;
 }
 
 .modalWatchingNumber {
-  color: var(--bad);
+  color: var(--stream-accent);
   font-weight: 800;
   font-size: 1.1rem;
   margin-left: 0.35rem;

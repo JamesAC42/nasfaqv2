@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS yt.youtube_channels (
   name_japanese TEXT NULL,
   symbol TEXT NULL,
   icon TEXT NULL,
+  color TEXT NULL,
   twitter_id TEXT NULL,
   profile_id TEXT NULL,
   birthday DATE NULL,
@@ -49,6 +50,7 @@ END $$;
 ALTER TABLE yt.youtube_channels
   ADD COLUMN IF NOT EXISTS name_english TEXT NULL,
   ADD COLUMN IF NOT EXISTS name_japanese TEXT NULL,
+  ADD COLUMN IF NOT EXISTS color TEXT NULL,
   ADD COLUMN IF NOT EXISTS twitter_id TEXT NULL,
   ADD COLUMN IF NOT EXISTS profile_id TEXT NULL,
   ADD COLUMN IF NOT EXISTS birthday DATE NULL,

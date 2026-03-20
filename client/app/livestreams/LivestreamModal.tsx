@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { startTransition, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { getChannelIconUrl } from "../lib/channelIcons";
 
@@ -48,6 +49,7 @@ export type ModalStream = {
   thumbnail_url: string;
   channel_name: string;
   channel_icon?: string | null;
+  channel_color?: string | null;
   scheduled_start_time?: string | null;
   actual_start_time?: string | null;
   started_at?: string | null;
@@ -79,6 +81,7 @@ type Session = {
   duration_seconds: number | null;
   channel_name: string;
   channel_icon: string | null;
+  channel_color: string | null;
 };
 
 type Bucket = {
@@ -155,9 +158,55 @@ function getDisplayViewerCount(stream: ModalStream | null | undefined): number |
   return null;
 }
 
-function buildOption(buckets: Bucket[]) {
+function normalizeHexColor(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed;
+  if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
+    const [, r, g, b] = trimmed;
+    return `#${r}${r}${g}${g}${b}${b}`;
+  }
+  return null;
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const normalized = normalizeHexColor(hex) || "#ff5c7a";
+  return {
+    r: Number.parseInt(normalized.slice(1, 3), 16),
+    g: Number.parseInt(normalized.slice(3, 5), 16),
+    b: Number.parseInt(normalized.slice(5, 7), 16),
+  };
+}
+
+function rgba(hex: string, alpha: number): string {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function mixHex(hex: string, target: string, amount: number): string {
+  const sourceRgb = hexToRgb(hex);
+  const targetRgb = hexToRgb(target);
+  const mix = (a: number, b: number) => Math.round(a + (b - a) * amount);
+  const next = {
+    r: mix(sourceRgb.r, targetRgb.r),
+    g: mix(sourceRgb.g, targetRgb.g),
+    b: mix(sourceRgb.b, targetRgb.b),
+  };
+  return `#${next.r.toString(16).padStart(2, "0")}${next.g.toString(16).padStart(2, "0")}${next.b
+    .toString(16)
+    .padStart(2, "0")}`;
+}
+
+function getContrastingTextColor(hex: string): "#000000" | "#ffffff" {
+  const { r, g, b } = hexToRgb(hex);
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return luminance > 0.62 ? "#000000" : "#ffffff";
+}
+
+function buildOption(buckets: Bucket[], accentColor: string) {
   const avg = buckets.map((b) => [new Date(b.bucket_end).getTime(), b.avg_viewers ?? null]);
   const mx = buckets.map((b) => [new Date(b.bucket_end).getTime(), b.max_viewers ?? null]);
+  const avgColor = mixHex(accentColor, "#9aa6bf", 0.42);
 
   return {
     backgroundColor: "transparent",
@@ -192,8 +241,8 @@ function buildOption(buckets: Bucket[]) {
         type: "line",
         smooth: true,
         showSymbol: false,
-        lineStyle: { width: 2, color: "#5cc8ff" },
-        areaStyle: { color: "#5cc8ff22" },
+        lineStyle: { width: 2, color: avgColor },
+        areaStyle: { color: rgba(avgColor, 0.16) },
         data: avg,
       },
       {
@@ -201,7 +250,7 @@ function buildOption(buckets: Bucket[]) {
         type: "line",
         smooth: true,
         showSymbol: false,
-        lineStyle: { width: 2, color: "#f7b267" },
+        lineStyle: { width: 2, color: accentColor },
         data: mx,
       },
     ],
@@ -242,6 +291,10 @@ export function LivestreamModal({
   const [nowTickMs, setNowTickMs] = useState(() => Date.now());
   const [entered, setEntered] = useState(false);
   const [watchingDotAnimating, setWatchingDotAnimating] = useState(false);
+  const accentColor = useMemo(() => normalizeHexColor(session?.channel_color || stream?.channel_color) || "#ff5c7a", [
+    session?.channel_color,
+    stream?.channel_color,
+  ]);
 
   useLayoutEffect(() => {
     if (!open) {
@@ -383,6 +436,7 @@ export function LivestreamModal({
     const thumb = session?.thumbnail_url || stream?.thumbnail_url || "";
     const channelName = session?.channel_name || stream?.channel_name || "—";
     const channelIcon = session?.channel_icon || stream?.channel_icon || null;
+    const channelColor = session?.channel_color || stream?.channel_color || null;
     const scheduled = session?.scheduled_start_at || stream?.scheduled_start_time || null;
     const actual = session?.actual_start_at || stream?.actual_start_time || null;
     const startedAt = session?.started_at || stream?.started_at || actual || scheduled || null;
@@ -400,6 +454,7 @@ export function LivestreamModal({
       thumb,
       channelName,
       channelIcon,
+      channelColor,
       scheduled,
       actual,
       startedAt,
@@ -421,10 +476,14 @@ export function LivestreamModal({
     return { avg, max };
   }, [buckets]);
 
-  const option = useMemo(() => buildOption(buckets), [buckets]);
+  const option = useMemo(() => buildOption(buckets, accentColor), [accentColor, buckets]);
   const isPast = mode === "past" || session?.status === "ended";
   const rightPanelAvg = isPast ? (display.avgViewers ?? stats.avg) : stats.avg;
   const rightPanelMax = isPast ? (display.maxViewers ?? stats.max) : stats.max;
+  const closeButtonTextColor = useMemo(() => getContrastingTextColor(accentColor), [accentColor]);
+  const modalStyle = {
+    "--stream-accent": accentColor,
+  } as CSSProperties;
 
   if (!open || !stream) return null;
 
@@ -449,6 +508,7 @@ export function LivestreamModal({
         className="card"
         onClick={(e) => e.stopPropagation()}
         style={{
+          ...modalStyle,
           width: "min(70rem, 100%)",
           maxHeight: "min(46rem, 90vh)",
           overflow: "auto",
@@ -458,6 +518,11 @@ export function LivestreamModal({
           transition: "transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 220ms ease",
           willChange: "transform, opacity",
           minHeight: "36rem",
+          borderColor: rgba(accentColor, 0.36),
+          boxShadow: `0 0 1.2rem ${rgba(accentColor, 0.16)}, 0 0 2.5rem ${rgba(accentColor, 0.08)}`,
+          background: `linear-gradient(180deg, ${rgba(accentColor, 0.1)} 0%, rgba(18, 26, 39, 0.96) 14%, rgba(18, 26, 39, 1) 100%)`,
+          backdropFilter: "blur(18px) saturate(135%)",
+          WebkitBackdropFilter: "blur(18px) saturate(135%)",
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "flex-start" }}>
@@ -520,13 +585,15 @@ export function LivestreamModal({
                       <span style={{ color: "rgba(231, 238, 252, 0.55)", fontWeight: 650 }}>Length</span>{" "}
                       <span className="muted">{fmtDurationSince(display.actual, nowTickMs)}</span>
                       <span className="dot">·</span>
-                      <span className="modalWatchingInline">
+                      <span className="modalWatchingInline" style={{ color: "var(--bad)" }}>
                         <span>Watching</span>
                         <span
                           className={`recordingDot${watchingDotAnimating ? " recordingDotAnimating" : ""}`}
                           aria-hidden="true"
                         />
-                        <span className="modalWatchingNumber">{fmtNum(display.currentViewers)}</span>
+                        <span className="modalWatchingNumber" style={{ color: "var(--bad)" }}>
+                          {fmtNum(display.currentViewers)}
+                        </span>
                       </span>
                     </div>
                   </>
@@ -542,7 +609,19 @@ export function LivestreamModal({
               </div>
             </div>
           </div>
-          <button type="button" className="pill" onClick={onClose} style={{ cursor: "pointer", alignSelf: "flex-start" }}>
+          <button
+            type="button"
+            className="pill"
+            onClick={onClose}
+            style={{
+              cursor: "pointer",
+              alignSelf: "flex-start",
+              background: accentColor,
+              borderColor: rgba(accentColor, 0.75),
+              color: closeButtonTextColor,
+              boxShadow: `0 0 0.8rem ${rgba(accentColor, 0.22)}`,
+            }}
+          >
             Close
           </button>
         </div>

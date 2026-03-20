@@ -20,6 +20,7 @@ const CHANNEL_SELECT_COLUMNS = `
       name_japanese,
       symbol,
       icon,
+      color,
       twitter_id,
       profile_id,
       birthday,
@@ -188,6 +189,7 @@ async function upsertChannel(pool, {
   name_japanese = null,
   symbol,
   icon,
+  color = null,
   twitter_id = null,
   profile_id = null,
   birthday = null,
@@ -204,6 +206,7 @@ async function upsertChannel(pool, {
       name_japanese,
       symbol,
       icon,
+      color,
       twitter_id,
       profile_id,
       birthday,
@@ -211,7 +214,7 @@ async function upsertChannel(pool, {
       unit,
       is_active,
       updated_at
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now())
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now())
     ON CONFLICT (youtube_channel_id)
     DO UPDATE SET
       name_short = EXCLUDED.name_short,
@@ -219,6 +222,7 @@ async function upsertChannel(pool, {
       name_japanese = EXCLUDED.name_japanese,
       symbol = EXCLUDED.symbol,
       icon = EXCLUDED.icon,
+      color = EXCLUDED.color,
       twitter_id = EXCLUDED.twitter_id,
       profile_id = EXCLUDED.profile_id,
       birthday = EXCLUDED.birthday,
@@ -229,7 +233,7 @@ async function upsertChannel(pool, {
     RETURNING
 ${CHANNEL_SELECT_COLUMNS}
   `,
-    [youtube_channel_id, name_short, name_english, name_japanese, symbol, icon, twitter_id, profile_id, birthday, height, unit, is_active]
+    [youtube_channel_id, name_short, name_english, name_japanese, symbol, icon, color, twitter_id, profile_id, birthday, height, unit, is_active]
   );
   return rows[0];
 }
@@ -241,6 +245,7 @@ async function insertChannel(pool, {
   name_japanese = null,
   symbol,
   icon,
+  color = null,
   twitter_id = null,
   profile_id = null,
   birthday = null,
@@ -257,6 +262,7 @@ async function insertChannel(pool, {
       name_japanese,
       symbol,
       icon,
+      color,
       twitter_id,
       profile_id,
       birthday,
@@ -264,11 +270,11 @@ async function insertChannel(pool, {
       unit,
       is_active,
       updated_at
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now())
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now())
     RETURNING
 ${CHANNEL_SELECT_COLUMNS}
   `,
-    [youtube_channel_id, name_short, name_english, name_japanese, symbol, icon, twitter_id, profile_id, birthday, height, unit, is_active]
+    [youtube_channel_id, name_short, name_english, name_japanese, symbol, icon, color, twitter_id, profile_id, birthday, height, unit, is_active]
   );
   return rows[0];
 }
@@ -279,6 +285,7 @@ async function updateChannel(pool, channelId, {
   name_japanese = null,
   symbol,
   icon,
+  color = null,
   twitter_id = null,
   profile_id = null,
   birthday = null,
@@ -295,18 +302,19 @@ async function updateChannel(pool, channelId, {
       name_japanese = $4,
       symbol = $5,
       icon = $6,
-      twitter_id = $7,
-      profile_id = $8,
-      birthday = $9,
-      height = $10,
-      unit = $11,
-      is_active = $12,
+      color = $7,
+      twitter_id = $8,
+      profile_id = $9,
+      birthday = $10,
+      height = $11,
+      unit = $12,
+      is_active = $13,
       updated_at = now()
     WHERE youtube_channel_id = $1
     RETURNING
 ${CHANNEL_SELECT_COLUMNS}
   `,
-    [channelId, name_short, name_english, name_japanese, symbol, icon, twitter_id, profile_id, birthday, height, unit, is_active]
+    [channelId, name_short, name_english, name_japanese, symbol, icon, color, twitter_id, profile_id, birthday, height, unit, is_active]
   );
   return rows[0] || null;
 }
@@ -339,4 +347,3 @@ module.exports = {
   updateChannel,
   deleteChannel
 };
-

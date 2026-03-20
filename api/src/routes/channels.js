@@ -30,6 +30,12 @@ function optionalTrimmedString(value) {
   return trimmed ? trimmed : null;
 }
 
+function optionalHexColor(value) {
+  const trimmed = optionalTrimmedString(value);
+  if (!trimmed) return null;
+  return /^#[0-9a-fA-F]{6}$/.test(trimmed) ? trimmed.toLowerCase() : INVALID_COLOR;
+}
+
 function getIconUrl(iconName) {
   if (!iconName) return null;
   return `${ICON_CDN_BASE_URL}/${encodeURIComponent(iconName)}.svg`;
@@ -41,6 +47,7 @@ function getReferenceImageUrl(filename) {
 }
 
 const INVALID_DATE = Symbol("invalid_date");
+const INVALID_COLOR = Symbol("invalid_color");
 
 function optionalIsoDate(value) {
   if (value === null || value === undefined) return null;
@@ -150,6 +157,7 @@ function normalizeChannelInput(body, { currentIsActive = true, useDefaultIcon = 
     name_japanese: optionalTrimmedString(body?.name_japanese),
     symbol,
     icon,
+    color: optionalHexColor(body?.color),
     twitter_id: optionalTrimmedString(body?.twitter_id),
     profile_id: optionalTrimmedString(body?.profile_id),
     birthday: optionalIsoDate(body?.birthday),
@@ -461,6 +469,14 @@ async function insertDetectedChannels(pool, rawChannels) {
         });
         continue;
       }
+      if (input.color === INVALID_COLOR) {
+        skipped.push({
+          youtube_channel_id: input.youtube_channel_id,
+          name_short: input.name_short,
+          reason: "color_invalid"
+        });
+        continue;
+      }
       if (existingYouTubeIds.has(input.youtube_channel_id)) {
         skipped.push({
           youtube_channel_id: input.youtube_channel_id,
@@ -524,12 +540,13 @@ router.get("/", async (req, res, next) => {
 router.post("/", async (req, res, next) => {
   try {
     const input = normalizeChannelInput(req.body, { currentIsActive: false, useDefaultSymbol: true });
-    const { youtube_channel_id, name_short, birthday } = input;
+    const { youtube_channel_id, name_short, birthday, color } = input;
     const referenceImageUrl = normalizeReferenceImageUrl(req.body?.reference_image_url);
 
     if (!youtube_channel_id) return res.status(400).json({ error: "youtube_channel_id_required" });
     if (!name_short) return res.status(400).json({ error: "name_required" });
     if (birthday === INVALID_DATE) return res.status(400).json({ error: "birthday_invalid" });
+    if (color === INVALID_COLOR) return res.status(400).json({ error: "color_invalid" });
 
     const hasConflict = await rejectConflicts(res, req.ctx.pool, { youtube_channel_id, name_short });
     if (hasConflict) return;
@@ -683,13 +700,14 @@ router.put("/:id", async (req, res, next) => {
 
     const youtube_channel_id = optionalTrimmedString(req.body?.youtube_channel_id);
     const input = normalizeChannelInput(req.body, { currentIsActive: current.is_active });
-    const { name_short, birthday } = input;
+    const { name_short, birthday, color } = input;
 
     if (youtube_channel_id && youtube_channel_id !== req.params.id) {
       return res.status(400).json({ error: "youtube_channel_id_immutable" });
     }
     if (!name_short) return res.status(400).json({ error: "name_required" });
     if (birthday === INVALID_DATE) return res.status(400).json({ error: "birthday_invalid" });
+    if (color === INVALID_COLOR) return res.status(400).json({ error: "color_invalid" });
 
     const hasConflict = await rejectConflicts(res, req.ctx.pool, {
       name_short,

@@ -248,6 +248,10 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 		if ch.Icon != nil && *ch.Icon != "" {
 			icon = ch.Icon
 		}
+		var color *string
+		if ch.Color != nil && *ch.Color != "" {
+			color = ch.Color
+		}
 
 		out := make([]livestreams.Stream, 0, len(videos))
 		for _, v := range videos {
@@ -269,6 +273,7 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 				ChannelID:    ch.YouTubeChannelID,
 				ChannelName:  ch.NameShort,
 				ChannelIcon:  icon,
+				ChannelColor: color,
 				UpdatedAt:    now,
 			}
 

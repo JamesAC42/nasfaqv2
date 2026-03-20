@@ -25,6 +25,7 @@ function toListStream(item) {
     thumbnail_url: item.thumbnail_url,
     channel_name: item.channel_name,
     channel_icon: item.channel_icon,
+    channel_color: item.channel_color,
     scheduled_start_time: item.scheduled_start_time,
     actual_start_time: item.actual_start_time,
     concurrent_viewers: item.concurrent_viewers,
@@ -72,7 +73,8 @@ const SESSION_SELECT = `
       )::BIGINT
     END AS duration_seconds,
     c.name_short AS channel_name,
-    c.icon AS channel_icon
+    c.icon AS channel_icon,
+    c.color AS channel_color
   FROM yt.livestream_sessions s
   JOIN yt.youtube_channels c ON c.youtube_channel_id = s.youtube_channel_id
 `;
@@ -220,4 +222,3 @@ router.get("/:videoId/buckets", async (req, res, next) => {
 });
 
 module.exports = router;
-

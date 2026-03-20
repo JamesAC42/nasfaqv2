@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getChannelIconUrl } from "../lib/channelIcons";
 
 type SavedChannel = {
@@ -11,6 +11,7 @@ type SavedChannel = {
   name_japanese?: string | null;
   symbol: string | null;
   icon: string | null;
+  color?: string | null;
   twitter_id?: string | null;
   profile_id?: string | null;
   birthday?: string | null;
@@ -29,6 +30,7 @@ type ChannelFormState = {
   name_japanese: string;
   symbol: string;
   icon: string;
+  color: string;
   twitter_id: string;
   profile_id: string;
   birthday: string;
@@ -57,6 +59,7 @@ type DetectedChannel = {
   name_japanese: string | null;
   symbol: string | null;
   icon: string | null;
+  color?: string | null;
   twitter_id: string | null;
   profile_id: string | null;
   birthday: string | null;
@@ -102,6 +105,7 @@ export default function AddChannelPage() {
   const trimmedChannelId = form.youtube_channel_id.trim();
   const trimmedName = form.name.trim();
   const iconPreviewUrl = getChannelIconUrl(form.icon);
+  const normalizedColor = normalizeHexColorValue(form.color);
 
   const loadChannels = useCallback(async () => {
     setLoadingChannels(true);
@@ -267,6 +271,7 @@ export default function AddChannelPage() {
         name_japanese: form.name_japanese.trim() ? form.name_japanese.trim() : null,
         symbol: form.symbol.trim() ? form.symbol.trim() : null,
         icon: form.icon.trim() ? form.icon.trim() : null,
+        color: normalizedColor,
         twitter_id: form.twitter_id.trim() ? form.twitter_id.trim() : null,
         profile_id: form.profile_id.trim() ? form.profile_id.trim() : null,
         birthday: form.birthday.trim() ? form.birthday.trim() : null,
@@ -501,6 +506,13 @@ export default function AddChannelPage() {
               }}
               placeholder="ame"
               style={inputStyle}
+            />
+          </Field>
+
+          <Field label="Color (optional)" hint="Hex color saved on the channel, with a picker for quick selection">
+            <ColorField
+              value={form.color}
+              onCommit={(color) => setForm((prev) => ({ ...prev, color }))}
             />
           </Field>
 
@@ -777,6 +789,10 @@ export default function AddChannelPage() {
             <div className="v">{saved.channel.symbol || "—"}</div>
             <div className="k">Icon</div>
             <div className="v">{saved.channel.icon || "—"}</div>
+            <div className="k">Color</div>
+            <div className="v">
+              <ColorValue color={saved.channel.color} />
+            </div>
             <div className="k">Twitter</div>
             <div className="v">{saved.channel.twitter_id || "—"}</div>
             <div className="k">Profile ID</div>
@@ -886,6 +902,7 @@ export default function AddChannelPage() {
                   <div style={detailListStyle}>
                     <Detail label="EN" value={channel.name_english} />
                     <Detail label="JP" value={channel.name_japanese} />
+                    <Detail label="Color" value={channel.color} swatchColor={channel.color} />
                     <Detail label="Twitter" value={channel.twitter_id} />
                     <Detail label="Profile" value={channel.profile_id} />
                     <Detail label="Birthday" value={channel.birthday} />
@@ -933,24 +950,106 @@ export default function AddChannelPage() {
 
 function Field({ label, hint, children }: { label: string; hint: string; children: React.ReactNode }) {
   return (
-    <label style={{ display: "grid", gap: "0.35rem" }}>
-      <span style={{ fontWeight: 650 }}>{label}</span>
-      <span className="muted" style={{ fontSize: "0.9rem" }}>
+    <div style={{ display: "grid", gap: "0.35rem" }}>
+      <div style={{ fontWeight: 650 }}>{label}</div>
+      <div className="muted" style={{ fontSize: "0.9rem" }}>
         {hint}
-      </span>
+      </div>
       {children}
-    </label>
+    </div>
   );
 }
 
-function Detail({ label, value }: { label: string; value?: string | null }) {
+function Detail({ label, value, swatchColor }: { label: string; value?: string | null; swatchColor?: string | null }) {
   return (
     <div style={detailRowStyle}>
       <span className="muted" style={detailLabelStyle}>
         {label}
       </span>
-      <span style={detailValueStyle}>{value || "—"}</span>
+      <span style={detailValueStyle}>{swatchColor ? <ColorValue color={swatchColor} /> : value || "—"}</span>
     </div>
+  );
+}
+
+function ColorField({ value, onCommit }: { value: string; onCommit: (value: string) => void }) {
+  const pickerRef = useRef<HTMLInputElement | null>(null);
+  const textRef = useRef<HTMLInputElement | null>(null);
+  const normalizedValue = normalizeHexColorValue(value);
+
+  useEffect(() => {
+    const picker = pickerRef.current;
+    const text = textRef.current;
+    if (picker) {
+      picker.value = normalizedValue || defaultColorPickerValue;
+    }
+    if (text && text.value !== value) {
+      text.value = value;
+    }
+  }, [normalizedValue, value]);
+
+  function commit(nextValue: string) {
+    onCommit(nextValue.trim());
+  }
+
+  return (
+    <div style={colorFieldRowStyle}>
+      <input
+        ref={pickerRef}
+        type="color"
+        defaultValue={normalizedValue || defaultColorPickerValue}
+        onInput={(e) => {
+          if (textRef.current) {
+            textRef.current.value = e.currentTarget.value;
+          }
+        }}
+        onBlur={(e) => commit(e.currentTarget.value)}
+        onKeyUp={(e) => {
+          if (e.key === "Enter") {
+            commit(e.currentTarget.value);
+          }
+        }}
+        onPointerUp={(e) => commit(e.currentTarget.value)}
+        style={colorPickerStyle}
+      />
+      <input
+        ref={textRef}
+        defaultValue={value}
+        onBlur={(e) => commit(e.currentTarget.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit(e.currentTarget.value);
+          }
+        }}
+        placeholder="#ffffff"
+        style={{ ...inputStyle, flex: "1 1 10rem" }}
+      />
+      <button
+        className="btn"
+        type="button"
+        onClick={() => {
+          if (pickerRef.current) {
+            pickerRef.current.value = defaultColorPickerValue;
+          }
+          if (textRef.current) {
+            textRef.current.value = "";
+          }
+          onCommit("");
+        }}
+      >
+        Clear
+      </button>
+    </div>
+  );
+}
+
+function ColorValue({ color }: { color?: string | null }) {
+  if (!color) return <>—</>;
+  return (
+    <span style={colorValueStyle}>
+      <span style={{ ...colorSwatchStyle, background: color }} />
+      <span>{color}</span>
+    </span>
   );
 }
 
@@ -962,6 +1061,7 @@ function toFormState(channel: SavedChannel): ChannelFormState {
     name_japanese: channel.name_japanese || "",
     symbol: channel.symbol || "",
     icon: channel.icon || "",
+    color: channel.color || "",
     twitter_id: channel.twitter_id || "",
     profile_id: channel.profile_id || "",
     birthday: normalizeDateInputValue(channel.birthday),
@@ -987,6 +1087,7 @@ function normalizeDetectedChannel(channel: DetectedChannel): DetectedChannel {
     name_japanese: channel.name_japanese || null,
     symbol: channel.symbol || null,
     icon: channel.icon || null,
+    color: channel.color || null,
     twitter_id: channel.twitter_id || null,
     profile_id: channel.profile_id || null,
     birthday: channel.birthday || null,
@@ -1004,6 +1105,7 @@ function toDetectedPayload(channel: DetectedChannel) {
     name_japanese: channel.name_japanese,
     symbol: channel.symbol,
     icon: channel.icon,
+    color: channel.color || null,
     twitter_id: channel.twitter_id,
     profile_id: channel.profile_id,
     birthday: channel.birthday,
@@ -1016,6 +1118,11 @@ function toDetectedPayload(channel: DetectedChannel) {
 
 function normalizeName(value: string) {
   return value.trim().toLowerCase();
+}
+
+function normalizeHexColorValue(value?: string | null) {
+  const trimmed = (value || "").trim();
+  return /^#[0-9a-fA-F]{6}$/.test(trimmed) ? trimmed.toLowerCase() : null;
 }
 
 function sortChannels(channels: SavedChannel[]) {
@@ -1069,6 +1176,8 @@ function toChannelErrorMessage(data: unknown, status: number) {
       return "Channel name is required.";
     case "birthday_invalid":
       return "Birthday must use YYYY-MM-DD.";
+    case "color_invalid":
+      return "Color must use a full hex code like #3fa9f5.";
     case "detect_failed":
       return "Detecting new channels failed.";
     case "channels_required":
@@ -1107,6 +1216,7 @@ const emptyForm: ChannelFormState = {
   name_japanese: "",
   symbol: "",
   icon: "",
+  color: "",
   twitter_id: "",
   profile_id: "",
   birthday: "",
@@ -1157,6 +1267,21 @@ const iconPreviewPanelStyle: React.CSSProperties = {
   border: "0.0625rem solid var(--border)",
   borderRadius: "0.9rem",
   background: "rgba(255, 255, 255, 0.02)",
+};
+
+const colorFieldRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "0.75rem",
+  flexWrap: "wrap",
+};
+
+const colorPickerStyle: React.CSSProperties = {
+  ...inputStyle,
+  width: "3.5rem",
+  minWidth: "3.5rem",
+  height: "3rem",
+  padding: "0.25rem",
 };
 
 const iconPreviewHeaderStyle: React.CSSProperties = {
@@ -1274,9 +1399,26 @@ const detailValueStyle: React.CSSProperties = {
   overflowWrap: "anywhere",
 };
 
+const colorValueStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "0.5rem",
+  flexWrap: "wrap",
+};
+
+const colorSwatchStyle: React.CSSProperties = {
+  width: "0.9rem",
+  height: "0.9rem",
+  borderRadius: "999rem",
+  border: "0.0625rem solid rgba(255, 255, 255, 0.18)",
+  flexShrink: 0,
+};
+
 const editingPanelStyle: React.CSSProperties = {
   borderColor: "rgba(55, 214, 122, 0.6)",
   boxShadow: "0 0 0 0.125rem rgba(55, 214, 122, 0.18), 0 0 2.5rem rgba(55, 214, 122, 0.12)",
 };
+
+const defaultColorPickerValue = "#ffffff";
 
 
