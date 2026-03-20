@@ -19,7 +19,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -44,24 +43,25 @@ const (
 )
 
 type Config struct {
-	DatabaseURL        string
-	RedisURL           string
-	RedisPassword      string
-	GeminiAPIKey       string
-	GeminiTextModel    string
-	GeminiImageModel   string
-	AWSAccessKeyID     string
-	AWSSecretAccessKey string
-	AWSRegion          string
-	AWSBucket          string
-	Board              string
-	PollInterval       time.Duration
-	RequestTimeout     time.Duration
-	GeminiTimeout      time.Duration
-	SectionSearchPosts int
-	TopNewsCount       int
-	ReferenceImagesDir string
-	ThumbnailS3Prefix  string
+	DatabaseURL             string
+	RedisURL                string
+	RedisPassword           string
+	GeminiAPIKey            string
+	GeminiTextModel         string
+	GeminiImageModel        string
+	AWSAccessKeyID          string
+	AWSSecretAccessKey      string
+	AWSRegion               string
+	AWSBucket               string
+	Board                   string
+	PollInterval            time.Duration
+	RequestTimeout          time.Duration
+	GeminiTimeout           time.Duration
+	SectionSearchPosts      int
+	TopNewsCount            int
+	ReferenceImagesS3Prefix string
+	ReferenceImagesBaseURL  string
+	ThumbnailS3Prefix       string
 }
 
 type catalogPage struct {
@@ -90,6 +90,7 @@ type post struct {
 
 type storedHeadline struct {
 	Headline       string  `json:"headline"`
+	Characters     []string `json:"characters,omitempty"`
 	Rank           *int    `json:"rank,omitempty"`
 	ThumbnailS3Key *string `json:"thumbnail_s3_key,omitempty"`
 }
@@ -104,7 +105,6 @@ type storedPayload struct {
 type rankedHeadline struct {
 	Rank     int    `json:"rank"`
 	Headline string `json:"headline"`
-	Reason   string `json:"reason,omitempty"`
 }
 
 type promptResult struct {
@@ -118,9 +118,9 @@ type geminiResponse struct {
 			Parts []struct {
 				Text       string `json:"text,omitempty"`
 				InlineData *struct {
-					MIMEType string `json:"mime_type"`
+					MIMEType string `json:"mimeType"`
 					Data     string `json:"data"`
-				} `json:"inline_data,omitempty"`
+				} `json:"inlineData,omitempty"`
 			} `json:"parts"`
 		} `json:"content"`
 	} `json:"candidates"`
@@ -160,6 +160,7 @@ func main() {
 	geminiClient := &http.Client{Timeout: cfg.GeminiTimeout}
 
 	resetAll := flag.Bool("reset-all", false, "Clear stored holonews state in Redis")
+	skipThumbnailGeneration := flag.Bool("skip-thumbnail-generation", false, "Reuse existing thumbnails for matching headlines and skip new thumbnail generation")
 	flag.Parse()
 	if *resetAll {
 		if err := resetRedisState(ctx, rdb); err != nil {
@@ -170,7 +171,7 @@ func main() {
 	}
 
 	run := func() {
-		if err := scrapeOnce(ctx, fetchClient, geminiClient, s3Client, pool, rdb, cfg); err != nil {
+		if err := scrapeOnce(ctx, fetchClient, geminiClient, s3Client, pool, rdb, cfg, *skipThumbnailGeneration); err != nil {
 			log.Printf("scrape: %v", err)
 		}
 	}
@@ -216,24 +217,25 @@ func mustLoadConfig() Config {
 	}
 
 	cfg := Config{
-		DatabaseURL:        getEnv("DATABASE_URL", ""),
-		RedisURL:           getEnv("REDIS_URL", ""),
-		RedisPassword:      getEnv("REDIS_PASSWORD", ""),
-		GeminiAPIKey:       getEnv("GEMINI_API_KEY", ""),
-		GeminiTextModel:    getEnv("GEMINI_TEXT_MODEL", "gemini-3.1-flash"),
-		GeminiImageModel:   getEnv("GEMINI_IMAGE_MODEL", "gemini-3.1-flash-image-preview"),
-		AWSAccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
-		AWSSecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
-		AWSRegion:          getEnv("AWS_REGION", ""),
-		AWSBucket:          getEnv("AWS_SW_BUCKET", ""),
-		Board:              getEnv("FOURCHAN_BOARD", "vt"),
-		PollInterval:       time.Duration(parseEnvInt("POLL_INTERVAL_SECONDS", 600)) * time.Second,
-		RequestTimeout:     time.Duration(parseEnvInt("REQUEST_TIMEOUT_SECONDS", 20)) * time.Second,
-		GeminiTimeout:      time.Duration(parseEnvInt("GEMINI_TIMEOUT_SECONDS", 90)) * time.Second,
-		SectionSearchPosts: parseEnvInt("SECTION_SEARCH_POSTS", 5),
-		TopNewsCount:       parseEnvInt("TOP_NEWS_COUNT", 3),
-		ReferenceImagesDir: getEnv("REFERENCE_IMAGES_DIR", "reference_image_scraper/reference_images"),
-		ThumbnailS3Prefix:  strings.Trim(getEnv("THUMBNAIL_S3_PREFIX", "thumbnails"), "/"),
+		DatabaseURL:             getEnv("DATABASE_URL", ""),
+		RedisURL:                getEnv("REDIS_URL", ""),
+		RedisPassword:           getEnv("REDIS_PASSWORD", ""),
+		GeminiAPIKey:            getEnv("GEMINI_API_KEY", ""),
+		GeminiTextModel:         getEnv("GEMINI_TEXT_MODEL", "gemini-3-flash-preview"),
+		GeminiImageModel:        getEnv("GEMINI_IMAGE_MODEL", "gemini-3.1-flash-image-preview"),
+		AWSAccessKeyID:          getEnv("AWS_ACCESS_KEY_ID", ""),
+		AWSSecretAccessKey:      getEnv("AWS_SECRET_ACCESS_KEY", ""),
+		AWSRegion:               getEnv("AWS_REGION", ""),
+		AWSBucket:               getEnv("AWS_SW_BUCKET", ""),
+		Board:                   getEnv("FOURCHAN_BOARD", "vt"),
+		PollInterval:            time.Duration(parseEnvInt("POLL_INTERVAL_SECONDS", 600)) * time.Second,
+		RequestTimeout:          time.Duration(parseEnvInt("REQUEST_TIMEOUT_SECONDS", 20)) * time.Second,
+		GeminiTimeout:           time.Duration(parseEnvInt("GEMINI_TIMEOUT_SECONDS", 90)) * time.Second,
+		SectionSearchPosts:      parseEnvInt("SECTION_SEARCH_POSTS", 5),
+		TopNewsCount:            parseEnvInt("TOP_NEWS_COUNT", 3),
+		ReferenceImagesS3Prefix: strings.Trim(getEnv("REFERENCE_IMAGES_S3_PREFIX", "reference-images"), "/"),
+		ReferenceImagesBaseURL:  strings.TrimRight(getEnv("REFERENCE_IMAGES_BASE_URL", "https://images.nasfaq.biz/reference-images"), "/"),
+		ThumbnailS3Prefix:       strings.Trim(getEnv("THUMBNAIL_S3_PREFIX", "thumbnails"), "/"),
 	}
 
 	if cfg.SectionSearchPosts < 1 {
@@ -245,13 +247,13 @@ func mustLoadConfig() Config {
 
 	var missing []string
 	for key, value := range map[string]string{
-		"DATABASE_URL":           cfg.DatabaseURL,
-		"REDIS_URL":              cfg.RedisURL,
-		"GEMINI_API_KEY":         cfg.GeminiAPIKey,
-		"AWS_ACCESS_KEY_ID":      cfg.AWSAccessKeyID,
-		"AWS_SECRET_ACCESS_KEY":  cfg.AWSSecretAccessKey,
-		"AWS_REGION":             cfg.AWSRegion,
-		"AWS_SW_BUCKET":          cfg.AWSBucket,
+		"DATABASE_URL":          cfg.DatabaseURL,
+		"REDIS_URL":             cfg.RedisURL,
+		"GEMINI_API_KEY":        cfg.GeminiAPIKey,
+		"AWS_ACCESS_KEY_ID":     cfg.AWSAccessKeyID,
+		"AWS_SECRET_ACCESS_KEY": cfg.AWSSecretAccessKey,
+		"AWS_REGION":            cfg.AWSRegion,
+		"AWS_SW_BUCKET":         cfg.AWSBucket,
 	} {
 		if value == "" {
 			missing = append(missing, key)
@@ -321,7 +323,7 @@ func newS3Client(ctx context.Context, cfg Config) (*s3.Client, error) {
 	}), nil
 }
 
-func scrapeOnce(ctx context.Context, fetchClient, geminiClient *http.Client, s3Client *s3.Client, pool *pgxpool.Pool, rdb *redis.Client, cfg Config) error {
+func scrapeOnce(ctx context.Context, fetchClient, geminiClient *http.Client, s3Client *s3.Client, pool *pgxpool.Pool, rdb *redis.Client, cfg Config, skipThumbnailGeneration bool) error {
 	threadID, err := findNewsThread(ctx, fetchClient, rdb, cfg.Board)
 	if err != nil {
 		return err
@@ -335,6 +337,7 @@ func scrapeOnce(ctx context.Context, fetchClient, geminiClient *http.Client, s3C
 	if err != nil {
 		return fmt.Errorf("fetch thread %d: %w", threadID, err)
 	}
+	log.Printf("holonews: fetched thread %d with %d posts", threadID, len(posts))
 
 	extraction, err := extractHeadlines(posts, cfg.SectionSearchPosts)
 	if err != nil {
@@ -364,6 +367,11 @@ func scrapeOnce(ctx context.Context, fetchClient, geminiClient *http.Client, s3C
 		return fmt.Errorf("load valid members: %w", err)
 	}
 
+	existingItems, err := loadExistingHeadlineMap(ctx, rdb)
+	if err != nil {
+		return fmt.Errorf("load existing holonews state: %w", err)
+	}
+
 	ranked, err := rankHeadlines(ctx, geminiClient, cfg, extraction.Headlines)
 	if err != nil {
 		return fmt.Errorf("rank headlines: %w", err)
@@ -373,6 +381,10 @@ func scrapeOnce(ctx context.Context, fetchClient, geminiClient *http.Client, s3C
 	byHeadline := make(map[string]*storedHeadline, len(extraction.Headlines))
 	for _, headline := range extraction.Headlines {
 		item := storedHeadline{Headline: headline}
+		if existing, ok := existingItems[headline]; ok {
+			item.Characters = append([]string(nil), existing.Characters...)
+			item.ThumbnailS3Key = existing.ThumbnailS3Key
+		}
 		items = append(items, item)
 		byHeadline[headline] = &items[len(items)-1]
 	}
@@ -390,10 +402,20 @@ func scrapeOnce(ctx context.Context, fetchClient, geminiClient *http.Client, s3C
 			log.Printf("holonews: prompt generation failed for rank=%d headline=%q: %v", rankedItem.Rank, rankedItem.Headline, err)
 			continue
 		}
+		entry.Characters = append([]string(nil), promptData.Characters...)
+
+		if skipThumbnailGeneration {
+			if entry.ThumbnailS3Key != nil {
+				log.Printf("holonews: skip thumbnail generation rank=%d headline=%q reusing s3_key=%s", rankedItem.Rank, rankedItem.Headline, *entry.ThumbnailS3Key)
+			} else {
+				log.Printf("holonews: skip thumbnail generation rank=%d headline=%q no existing thumbnail to reuse", rankedItem.Rank, rankedItem.Headline)
+			}
+			continue
+		}
 
 		log.Printf("holonews: thumbnail prompt rank=%d headline=%q prompt=%s", rankedItem.Rank, rankedItem.Headline, promptData.ImagePrompt)
 
-		refImages, err := loadReferenceImages(cfg.ReferenceImagesDir, promptData.Characters)
+		refImages, err := loadReferenceImagesFromCDN(ctx, fetchClient, cfg, promptData.Characters)
 		if err != nil {
 			log.Printf("holonews: reference image loading failed for rank=%d headline=%q: %v", rankedItem.Rank, rankedItem.Headline, err)
 		}
@@ -425,10 +447,10 @@ func scrapeOnce(ctx context.Context, fetchClient, geminiClient *http.Client, s3C
 	log.Printf("holonews: stored %d headlines", len(payload.Items))
 	for _, item := range payload.Items {
 		if item.ThumbnailS3Key != nil {
-			log.Printf("holonews: stored headline=%q rank=%d s3_key=%s", item.Headline, derefInt(item.Rank), *item.ThumbnailS3Key)
+			log.Printf("holonews: stored headline=%q rank=%d characters=%v s3_key=%s", item.Headline, derefInt(item.Rank), item.Characters, *item.ThumbnailS3Key)
 			continue
 		}
-		log.Printf("holonews: stored headline=%q rank=%d s3_key=", item.Headline, derefInt(item.Rank))
+		log.Printf("holonews: stored headline=%q rank=%d characters=%v s3_key=", item.Headline, derefInt(item.Rank), item.Characters)
 	}
 
 	return nil
@@ -445,6 +467,7 @@ func findNewsThread(ctx context.Context, client *http.Client, rdb *redis.Client,
 		for _, thread := range page.Threads {
 			subject := strings.ToLower(html.UnescapeString(strings.TrimSpace(thread.Sub)))
 			if strings.Contains(subject, "/news/") {
+				log.Printf("holonews: matched /news/ thread id=%d subject=%q page=%d", thread.No, thread.Sub, page.Page)
 				threadID = thread.No
 				break
 			}
@@ -517,10 +540,12 @@ func extractHeadlines(posts []post, maxPosts int) (headlineExtraction, error) {
 		maxPosts = len(posts)
 	}
 	for i := 0; i < maxPosts; i++ {
+		logPostInspection(posts[i], i)
 		headlines := extractHeadlinesFromPost(posts[i])
 		if len(headlines) == 0 {
 			continue
 		}
+		log.Printf("holonews: extracted %d headlines from post %d", len(headlines), posts[i].No)
 		return headlineExtraction{
 			PostID:     posts[i].No,
 			SectionKey: defaultSectionHeader,
@@ -541,24 +566,53 @@ func extractHeadlinesFromPost(p post) []string {
 
 	lines := splitLines(text)
 	for i, line := range lines {
+		if strings.Contains(strings.ToLower(strings.TrimSpace(line)), defaultSectionHeader) {
+			log.Printf("holonews: post %d candidate section line %d raw=%q", p.No, i+1, line)
+		}
 		if !strings.EqualFold(strings.TrimSpace(line), defaultSectionHeader) {
 			continue
 		}
 
+		start := i + 1
+		for start < len(lines) && strings.TrimSpace(lines[start]) == "" {
+			start++
+		}
+		if start >= len(lines) {
+			log.Printf("holonews: post %d found HoloPro but no lines followed it", p.No)
+			return nil
+		}
+
+		mode := "plain"
+		if strings.HasPrefix(strings.TrimSpace(lines[start]), ">") {
+			mode = "quoted"
+		}
+		log.Printf("holonews: post %d parsing HoloPro section in %s mode starting at line %d", p.No, mode, start+1)
+
 		var headlines []string
-		for _, next := range lines[i+1:] {
+		for _, next := range lines[start:] {
 			trimmed := strings.TrimSpace(next)
 			if trimmed == "" {
 				if len(headlines) > 0 {
+					log.Printf("holonews: post %d stopping section parse on blank line after %d headlines", p.No, len(headlines))
 					break
 				}
 				continue
 			}
-			if !strings.HasPrefix(trimmed, ">") {
+
+			if mode == "quoted" {
+				if !strings.HasPrefix(trimmed, ">") {
+					log.Printf("holonews: post %d stopping quoted section parse on non-headline line %q", p.No, trimmed)
+					break
+				}
+			} else if looksLikeSectionHeader(trimmed) {
+				log.Printf("holonews: post %d stopping plain section parse on likely section header %q", p.No, trimmed)
 				break
 			}
 
-			headline := strings.TrimSpace(strings.TrimPrefix(trimmed, ">"))
+			headline := trimmed
+			if mode == "quoted" {
+				headline = strings.TrimSpace(strings.TrimPrefix(trimmed, ">"))
+			}
 			if headline == "" {
 				continue
 			}
@@ -570,6 +624,43 @@ func extractHeadlinesFromPost(p post) []string {
 	}
 
 	return nil
+}
+
+func looksLikeSectionHeader(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" {
+		return false
+	}
+	if strings.Contains(trimmed, " ANCHOR") {
+		return true
+	}
+	if strings.HasSuffix(trimmed, ":") && len(trimmed) <= 80 {
+		return true
+	}
+	if strings.EqualFold(trimmed, "HoloPro") {
+		return true
+	}
+	return false
+}
+
+func logPostInspection(p post, index int) {
+	text := normalizePostText(p.Com)
+	source := "com"
+	if text == "" {
+		text = normalizePostText(p.Sub)
+		source = "sub"
+	}
+	if text == "" {
+		log.Printf("holonews: inspect post index=%d id=%d source=empty", index, p.No)
+		return
+	}
+
+	lines := splitLines(text)
+	previewCount := len(lines)
+	if previewCount > 12 {
+		previewCount = 12
+	}
+	log.Printf("holonews: inspect post index=%d id=%d source=%s total_lines=%d preview=%q", index, p.No, source, len(lines), strings.Join(lines[:previewCount], " | "))
 }
 
 func normalizePostText(raw string) string {
@@ -682,34 +773,57 @@ func loadValidMemberNames(ctx context.Context, pool *pgxpool.Pool) ([]string, er
 
 func rankHeadlines(ctx context.Context, client *http.Client, cfg Config, headlines []string) ([]rankedHeadline, error) {
 	var b strings.Builder
-	b.WriteString("You are ranking Hololive-related headlines for a current, non-historical news roundup.\n")
-	b.WriteString("Choose the ")
+	b.WriteString("Task: select and rank the most newsworthy Hololive headlines.\n")
+	b.WriteString("Select exactly ")
 	b.WriteString(strconv.Itoa(cfg.TopNewsCount))
-	b.WriteString(" most newsworthy headlines from the list.\n")
-	b.WriteString("Rank them 1 to ")
+	b.WriteString(" headlines from the list below.\n")
+	b.WriteString("Assign ranks 1 through ")
 	b.WriteString(strconv.Itoa(cfg.TopNewsCount))
-	b.WriteString(" where 1 is the most newsworthy.\n")
-	b.WriteString("You must only choose headlines exactly from the provided list.\n")
-	b.WriteString("Return JSON only in this shape:\n")
-	b.WriteString("{\"ranked\":[{\"rank\":1,\"headline\":\"exact headline from list\",\"reason\":\"short reason\"}]}\n")
-	b.WriteString("Headlines:\n")
+	b.WriteString(", where 1 is the most newsworthy.\n")
+	b.WriteString("Hard rules:\n")
+	b.WriteString("- Use only headlines exactly as written in the provided list.\n")
+	b.WriteString("- Do not rewrite, summarize, explain, or comment.\n")
+	b.WriteString("- Output JSON only.\n")
+	b.WriteString("- Output one single line.\n")
+	b.WriteString("- Output exactly this schema and no extra fields:\n")
+	b.WriteString("{\"ranked\":[{\"rank\":1,\"headline\":\"exact headline from list\"},{\"rank\":2,\"headline\":\"exact headline from list\"},{\"rank\":3,\"headline\":\"exact headline from list\"}]}\n")
+	b.WriteString("Available headlines:\n")
 	for i, headline := range headlines {
 		b.WriteString(strconv.Itoa(i + 1))
 		b.WriteString(". ")
 		b.WriteString(headline)
 		b.WriteString("\n")
 	}
-
-	text, err := callGeminiText(ctx, client, cfg.GeminiAPIKey, cfg.GeminiTextModel, b.String())
-	if err != nil {
-		return nil, err
-	}
+	basePrompt := b.String()
 
 	var parsed struct {
 		Ranked []rankedHeadline `json:"ranked"`
 	}
-	if err := json.Unmarshal([]byte(extractJSON(text)), &parsed); err != nil {
-		return nil, fmt.Errorf("parse ranking JSON: %w", err)
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		prompt := basePrompt
+		if attempt > 1 {
+			prompt += "\nIMPORTANT RETRY INSTRUCTION: Your previous response was invalid. Return one single line of valid JSON only. No markdown. No prose. No code fences. No explanation. Use exactly this shape: {\"ranked\":[{\"rank\":1,\"headline\":\"exact headline from list\"},{\"rank\":2,\"headline\":\"exact headline from list\"},{\"rank\":3,\"headline\":\"exact headline from list\"}]}"
+		}
+
+		text, err := callGeminiText(ctx, client, cfg.GeminiAPIKey, cfg.GeminiTextModel, prompt)
+		if err != nil {
+			lastErr = err
+			log.Printf("holonews: rank headlines attempt=%d failed: %v", attempt, err)
+			continue
+		}
+
+		if err := json.Unmarshal([]byte(extractJSON(text)), &parsed); err != nil {
+			lastErr = fmt.Errorf("parse ranking JSON: %w", err)
+			log.Printf("holonews: rank headlines attempt=%d returned invalid JSON: %v raw=%q", attempt, err, text)
+			continue
+		}
+
+		lastErr = nil
+		break
+	}
+	if lastErr != nil {
+		return nil, lastErr
 	}
 
 	valid := make(map[string]struct{}, len(headlines))
@@ -749,13 +863,14 @@ func generateThumbnailPrompt(ctx context.Context, client *http.Client, cfg Confi
 	b.WriteString("Return JSON only in this shape: {\"image_prompt\":\"...\",\"characters\":[\"Exact Member Name\"]}\n")
 	b.WriteString("The character names array must contain only exact values from the valid member list below.\n")
 	b.WriteString("Use an empty array if the headline does not clearly refer to a member.\n\n")
-	b.WriteString("Act as an expert YouTube Thumbnail Designer and AI Prompt Engineer. I am going to give you a video headline. I need you to translate the core concept of this headline into a highly descriptive, visual-only prompt for an AI image generator (like Midjourney or Stable Diffusion).\n")
+	b.WriteString("Act as an expert VTuber Thumbnail Illustrator. I will give you a video headline. You must translate the core concept into a high-energy, visual-only prompt for an image generator.\n")
 	b.WriteString("CRITICAL RULES YOU MUST FOLLOW:\n")
-	b.WriteString("NO TEXT: Never include the headline, words, or quotes in the final prompt.\n")
-	b.WriteString("VISUAL METAPHORS: Translate abstract concepts (like 'quitting,' 'goals,' or 'no time') into physical props (e.g., scissors cutting a tie, a giant glowing mountain, a melting hourglass).\n")
-	b.WriteString("EXAGGERATED EXPRESSIONS: Specifically describe the main character's face using anime tropes (e.g., 'sweating profusely,' 'eyes wide in panic,' 'smug Anya face').\n")
-	b.WriteString("SAFE ANATOMY: Avoid complex hand interactions. Keep hands resting on desks, holding single large objects, or framing the face.\n")
-	b.WriteString("VIBE: Make it look like a high-contrast, chaotic, clickbait anime thumbnail.\n")
+	b.WriteString("1. NO TEXT OR LABELS: You are strictly forbidden from asking for words, letters, logos, or signs. Represent concepts with physical props only.\n")
+	b.WriteString("2. STRICT ART STYLE FORMULA: Your 'image_prompt' MUST ALWAYS begin with this exact phrase: '2D flat anime illustration, cel-shaded, official studio key visual, clean crisp lineart, vibrant colors, aesthetic anime screencap, '\n")
+	b.WriteString("3. BANNED WORDS: Never use the words: 3D, realistic, hyper-detailed, cinematic, text, negative space, empty space. We are NOT adding text to these images. Fill the entire frame with action.\n")
+	b.WriteString("4. DYNAMIC CAMERA & POSING (CRITICAL): Do not let the characters just 'stand' there. Force dynamic compositions using terms like: 'extreme close-up on face', 'Dutch angle', 'leaning aggressively into the camera', 'foreshortening', 'fisheye lens effect', or 'dynamic action pose'. Make it feel like an intense anime opening.\n")
+	b.WriteString("5. EXAGGERATED EMOTIONS: Go extreme with the faces. Instead of 'smug', use 'unhinged maniacal grinning'. Instead of 'shocked', use 'eyes popping out, screaming in pure terror, anime sweat drops flying'.\n")
+	b.WriteString("6. ACTION WITH PROPS: Don't just place props in the background. Make the characters actively interact with them (e.g., desperately hugging a giant gold bar, violently swinging an oversized cartoon pickaxe).\n\n")
 	b.WriteString("Here is the headline: ")
 	b.WriteString(headline)
 	b.WriteString("\n\nValid members:\n")
@@ -799,7 +914,7 @@ type referenceImage struct {
 	Data     []byte
 }
 
-func loadReferenceImages(baseDir string, names []string) ([]referenceImage, error) {
+func loadReferenceImagesFromCDN(ctx context.Context, client *http.Client, cfg Config, names []string) ([]referenceImage, error) {
 	if len(names) == 0 {
 		return nil, nil
 	}
@@ -807,15 +922,30 @@ func loadReferenceImages(baseDir string, names []string) ([]referenceImage, erro
 	var errs []string
 	for _, name := range names {
 		slug := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
-		path := filepath.Join(baseDir, slug+".png")
-		data, err := os.ReadFile(path)
+		imageURL := fmt.Sprintf("%s/%s.jpg", cfg.ReferenceImagesBaseURL, slug)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil)
 		if err != nil {
-			errs = append(errs, fmt.Sprintf("%s (%v)", path, err))
+			errs = append(errs, fmt.Sprintf("%s (%v)", imageURL, err))
+			continue
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("%s (%v)", imageURL, err))
+			continue
+		}
+		data, readErr := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			errs = append(errs, fmt.Sprintf("%s (http %d)", imageURL, resp.StatusCode))
+			continue
+		}
+		if readErr != nil {
+			errs = append(errs, fmt.Sprintf("%s (%v)", imageURL, readErr))
 			continue
 		}
 		out = append(out, referenceImage{
 			Name:     name,
-			MIMEType: "image/png",
+			MIMEType: "image/jpeg",
 			Data:     data,
 		})
 	}
@@ -828,7 +958,7 @@ func loadReferenceImages(baseDir string, names []string) ([]referenceImage, erro
 func generateThumbnail(ctx context.Context, client *http.Client, cfg Config, imagePrompt string, characters []string, refs []referenceImage) ([]byte, string, error) {
 	prompt := imagePrompt
 	if len(characters) > 0 {
-		prompt = prompt + "\nUse these attached reference images only for facial identity and hair design consistency for: " + strings.Join(characters, ", ") + "."
+		prompt = prompt + "\nUse these attached reference images only for character design consistency for: " + strings.Join(characters, ", ") + "."
 	}
 
 	parts := make([]map[string]any, 0, len(refs)+1)
@@ -850,8 +980,12 @@ func generateThumbnail(ctx context.Context, client *http.Client, cfg Config, ima
 			},
 		},
 		"generationConfig": map[string]any{
-			"temperature":        0.8,
-			"responseModalities": []string{"TEXT", "IMAGE"},
+			"temperature":        0.9,
+			"responseModalities": []string{"IMAGE"},
+			"imageConfig": map[string]any{
+				"aspectRatio": "16:9",
+				"imageSize":   "2K",
+			},
 		},
 	}
 
@@ -859,9 +993,13 @@ func generateThumbnail(ctx context.Context, client *http.Client, cfg Config, ima
 	if err != nil {
 		return nil, "", err
 	}
+	var textParts []string
 	for _, candidate := range resp.Candidates {
 		for _, part := range candidate.Content.Parts {
 			if part.InlineData == nil || part.InlineData.Data == "" {
+				if strings.TrimSpace(part.Text) != "" {
+					textParts = append(textParts, strings.TrimSpace(part.Text))
+				}
 				continue
 			}
 			data, err := base64.StdEncoding.DecodeString(part.InlineData.Data)
@@ -871,18 +1009,27 @@ func generateThumbnail(ctx context.Context, client *http.Client, cfg Config, ima
 			return data, part.InlineData.MIMEType, nil
 		}
 	}
+	if len(textParts) > 0 {
+		log.Printf("holonews: gemini image response contained text only: %s", strings.Join(textParts, " | "))
+	}
 	return nil, "", fmt.Errorf("gemini image response missing inline image data")
 }
 
 func uploadThumbnail(ctx context.Context, client *s3.Client, cfg Config, headline string, rank int, data []byte, mimeType string) (string, error) {
 	ext := mimeExtension(mimeType)
-	key := fmt.Sprintf("%s/%s-rank-%d%s", cfg.ThumbnailS3Prefix, slugify(headline), rank, ext)
+	timestampKey := time.Now().UTC().Format("2006-01-02-150405")
+	dataHash := sha256.Sum256(data)
+	shortHash := hex.EncodeToString(dataHash[:])[:12]
+	key := fmt.Sprintf("%s/%s-%d-%s%s", cfg.ThumbnailS3Prefix, timestampKey, rank, shortHash, ext)
 
 	_, err := client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(cfg.AWSBucket),
 		Key:         aws.String(key),
 		Body:        bytes.NewReader(data),
 		ContentType: aws.String(mimeType),
+		Metadata: map[string]string{
+			"headline": headline,
+		},
 	})
 	if err != nil {
 		return "", err
@@ -906,28 +1053,6 @@ func mimeExtension(mimeType string) string {
 	}
 }
 
-func slugify(s string) string {
-	s = strings.ToLower(s)
-	var b strings.Builder
-	lastDash := false
-	for _, r := range s {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-			b.WriteRune(r)
-			lastDash = false
-			continue
-		}
-		if !lastDash {
-			b.WriteByte('-')
-			lastDash = true
-		}
-	}
-	out := strings.Trim(b.String(), "-")
-	if out == "" {
-		out = strconv.FormatInt(time.Now().UTC().Unix(), 10)
-	}
-	return out
-}
-
 func replaceRedisState(ctx context.Context, rdb *redis.Client, payload storedPayload) error {
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
@@ -948,6 +1073,39 @@ func replaceRedisState(ctx context.Context, rdb *redis.Client, payload storedPay
 	pipe.Set(ctx, redisThreadKey, payload.ThreadID, 0)
 	_, err = pipe.Exec(ctx)
 	return err
+}
+
+func loadExistingHeadlineMap(ctx context.Context, rdb *redis.Client) (map[string]storedHeadline, error) {
+	rawMeta, err := rdb.Get(ctx, redisMetaKey).Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return nil, err
+	}
+
+	var payload storedPayload
+	if strings.TrimSpace(rawMeta) != "" {
+		if err := json.Unmarshal([]byte(rawMeta), &payload); err == nil {
+			out := make(map[string]storedHeadline, len(payload.Items))
+			for _, item := range payload.Items {
+				out[item.Headline] = item
+			}
+			return out, nil
+		}
+	}
+
+	rawItems, err := rdb.LRange(ctx, redisItemsKey, 0, -1).Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return nil, err
+	}
+
+	out := make(map[string]storedHeadline, len(rawItems))
+	for _, raw := range rawItems {
+		var item storedHeadline
+		if err := json.Unmarshal([]byte(raw), &item); err != nil {
+			continue
+		}
+		out[item.Headline] = item
+	}
+	return out, nil
 }
 
 func callGeminiText(ctx context.Context, client *http.Client, apiKey, model, prompt string) (string, error) {

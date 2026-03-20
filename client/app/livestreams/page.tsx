@@ -107,6 +107,20 @@ function normalizeHexColor(value: string | null | undefined): string | null {
   return null;
 }
 
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const normalized = normalizeHexColor(hex) || DEFAULT_LIVE_ACCENT;
+  return {
+    r: Number.parseInt(normalized.slice(1, 3), 16),
+    g: Number.parseInt(normalized.slice(3, 5), 16),
+    b: Number.parseInt(normalized.slice(5, 7), 16),
+  };
+}
+
+function rgba(hex: string, alpha: number): string {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 function getVideoUrl(videoId: string) {
   return `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
 }
@@ -712,6 +726,14 @@ function StreamRow({
   const pastStream = kind === "past" ? (stream as PastStream) : null;
   const accentColor = normalizeHexColor(stream.channel_color) || DEFAULT_LIVE_ACCENT;
   const streamStyle = { "--stream-accent": accentColor } as CSSProperties;
+  const liveThumbStyle =
+    kind === "live"
+      ? ({
+          "--stream-accent": accentColor,
+          border: `0.125rem solid ${accentColor}`,
+          boxShadow: `0 0 0.6rem ${rgba(accentColor, 0.26)}, 0 0 1.2rem ${rgba(accentColor, 0.16)}`,
+        } as CSSProperties)
+      : undefined;
 
   return (
     <button
@@ -730,7 +752,7 @@ function StreamRow({
         window.open(getVideoUrl(stream.video_id), "_blank", "noreferrer");
       }}
     >
-      <div className={kind === "live" ? "thumbWrap thumbWrapLive" : "thumbWrap"}>
+      <div className={kind === "live" ? "thumbWrap thumbWrapLive" : "thumbWrap"} style={liveThumbStyle}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img className="thumbImg" src={stream.thumbnail_url} alt="" />
         {kind === "live" ? <span className="liveBadge">LIVE</span> : null}

@@ -38,6 +38,21 @@ type OverviewRow = {
   series: TimeSeriesPoint[];
 };
 
+type HoloNewsItem = {
+  headline: string;
+  characters: string[];
+  rank: number | null;
+  thumbnail_s3_key: string | null;
+  thumbnail_url: string | null;
+};
+
+type HoloNewsPayload = {
+  thread_id: number | null;
+  source_post: number | null;
+  updated_at: string | null;
+  items: HoloNewsItem[];
+};
+
 type MetricKey = "subscriber_count" | "view_count" | "video_count";
 
 const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
@@ -79,10 +94,27 @@ function fmtMarketDayShort(v: string | number | Date | null | undefined) {
   return marketDayShortFormatter.format(d);
 }
 
+function splitHeadline(headline: string) {
+  const trimmed = headline.trim();
+  if (!trimmed) return { title: "", subhead: null as string | null };
+
+  const match = trimmed.match(/^(.+?[.!?])(?:\s+)(.+)$/);
+  if (!match) {
+    return { title: trimmed, subhead: null as string | null };
+  }
+
+  return {
+    title: match[1].trim(),
+    subhead: match[2].trim() || null,
+  };
+}
+
 export default function Home() {
   const searchParams = useSearchParams();
   const [rows, setRows] = useState<OverviewRow[] | null>(null);
+  const [holoNews, setHoloNews] = useState<HoloNewsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [holoNewsError, setHoloNewsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [days, setDays] = useState(90);
   const [metricByChannel, setMetricByChannel] = useState<Record<string, MetricKey>>({});
@@ -102,11 +134,34 @@ export default function Home() {
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setHoloNewsError(null);
     try {
-      const res = await fetch(`/api/overview/timeseries?days=${days}&limit=500`, { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as OverviewRow[];
+      const [timeseriesResult, holoNewsResult] = await Promise.allSettled([
+        fetch(`/api/overview/timeseries?days=${days}&limit=500`, { cache: "no-store" }),
+        fetch(`/api/overview/holonews`, { cache: "no-store" }),
+      ]);
+
+      if (timeseriesResult.status === "rejected") {
+        throw timeseriesResult.reason;
+      }
+
+      if (!timeseriesResult.value.ok) {
+        throw new Error(`HTTP ${timeseriesResult.value.status}`);
+      }
+
+      const data = (await timeseriesResult.value.json()) as OverviewRow[];
       setRows(data);
+
+      if (holoNewsResult.status === "rejected") {
+        setHoloNews(null);
+        setHoloNewsError(String((holoNewsResult.reason as Error)?.message || holoNewsResult.reason));
+      } else if (!holoNewsResult.value.ok) {
+        setHoloNews(null);
+        setHoloNewsError(`HoloNews HTTP ${holoNewsResult.value.status}`);
+      } else {
+        const holoNewsData = (await holoNewsResult.value.json()) as HoloNewsPayload;
+        setHoloNews(holoNewsData);
+      }
     } catch (e) {
       setError(String((e as Error)?.message || e));
       setRows(null);
@@ -118,6 +173,10 @@ export default function Home() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const leadStory = holoNews?.items.find((item) => item.rank === 1) ?? null;
+  const secondaryStories = holoNews?.items.filter((item) => item.rank === 2 || item.rank === 3) ?? [];
+  const otherStories = holoNews?.items.filter((item) => item.rank !== 1 && item.rank !== 2 && item.rank !== 3) ?? [];
 
   return (
     <div className="container">
@@ -148,6 +207,99 @@ export default function Home() {
           </p>
         </div>
       ) : null}
+
+      <section className="holonewsSection">
+        <div className="sectionHead">
+          <div>
+            <h2 className="sectionTitle">HoloNews</h2>
+            <p className="subtitle">
+              Latest scraped /vt/ roundup. Ranked items with thumbnails appear first.
+            </p>
+            <p className="subtitle">
+              Updated: <span className="muted">{fmtDate(holoNews?.updated_at)}</span>
+            </p>
+          </div>
+        </div>
+
+        {holoNewsError ? (
+          <div className="card">
+            <p className="name">Failed to load HoloNews</p>
+            <p className="muted">{holoNewsError}</p>
+          </div>
+        ) : null}
+
+        {!holoNews && !holoNewsError ? (
+          <div className="card">
+            <p className="name">Loading HoloNews…</p>
+          </div>
+        ) : null}
+
+        {holoNews && holoNews.items.length > 0 ? (
+          <div className="holonewsLayout">
+            <div className="holonewsMainColumn">
+              {leadStory ? (
+                <article className="holonewsLeadCard">
+                  {leadStory.thumbnail_url ? (
+                    <div className="holonewsThumbWrap holonewsThumbWrapLead">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img className="holonewsThumb" src={leadStory.thumbnail_url} alt={leadStory.headline} loading="lazy" />
+                      <span className="holonewsRank">#1</span>
+                    </div>
+                  ) : null}
+                    <div className="holonewsLeadBody">
+                      <span className="holonewsKicker">Lead Story</span>
+                      <HeadlineBlock headline={leadStory.headline} titleClassName="holonewsHeadline holonewsHeadlineLead" subheadClassName="holonewsSubhead holonewsSubheadLead" />
+                      {leadStory.characters.length > 0 ? <p className="holonewsCharacters">{leadStory.characters.join(" • ")}</p> : null}
+                    </div>
+                  </article>
+              ) : null}
+
+              {secondaryStories.length > 0 ? (
+                <div className="holonewsSecondaryRow">
+                  {secondaryStories.map((item) => (
+                    <article key={`${item.headline}-${item.rank ?? "secondary"}`} className="holonewsCard holonewsCardFeatured">
+                      {item.thumbnail_url ? (
+                        <div className="holonewsThumbWrap">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img className="holonewsThumb" src={item.thumbnail_url} alt={item.headline} loading="lazy" />
+                          {item.rank ? <span className="holonewsRank">#{item.rank}</span> : null}
+                        </div>
+                      ) : null}
+                      <div className="holonewsCardMeta">
+                        <span className="holonewsKicker">Featured</span>
+                      </div>
+                      <HeadlineBlock headline={item.headline} titleClassName="holonewsHeadline" subheadClassName="holonewsSubhead" />
+                      {item.characters.length > 0 ? <p className="holonewsCharacters">{item.characters.join(" • ")}</p> : null}
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            {otherStories.length > 0 ? (
+              <aside className="holonewsSidebar">
+                <div className="holonewsSidebarHeader">
+                  <span className="holonewsKicker">More Headlines</span>
+                </div>
+                <div className="holonewsList">
+                  {otherStories.map((item, index) => (
+                    <article key={`${item.headline}-${index}`} className="holonewsListItem">
+                      <HeadlineBlock headline={item.headline} titleClassName="holonewsListHeadline" subheadClassName="holonewsListSubhead" />
+                      {item.characters.length > 0 ? <p className="holonewsListCharacters">{item.characters.join(" • ")}</p> : null}
+                    </article>
+                  ))}
+                </div>
+              </aside>
+            ) : null}
+          </div>
+        ) : null}
+
+        {holoNews && holoNews.items.length === 0 ? (
+          <div className="card">
+            <p className="name">No HoloNews headlines yet.</p>
+          </div>
+        ) : null}
+      </section>
 
       {!rows && !error ? (
         <div className="card">
@@ -251,6 +403,25 @@ export default function Home() {
           </div>
         </>
       ) : null}
+    </div>
+  );
+}
+
+function HeadlineBlock({
+  headline,
+  titleClassName,
+  subheadClassName,
+}: {
+  headline: string;
+  titleClassName: string;
+  subheadClassName: string;
+}) {
+  const { title, subhead } = splitHeadline(headline);
+
+  return (
+    <div className="holonewsHeadlineBlock">
+      <h3 className={titleClassName}>{title}</h3>
+      {subhead ? <p className={subheadClassName}>{subhead}</p> : null}
     </div>
   );
 }
