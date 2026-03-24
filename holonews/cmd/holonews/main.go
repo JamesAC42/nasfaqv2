@@ -29,6 +29,7 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
@@ -40,7 +41,34 @@ const (
 	redisMetaKey         = "nasfaq_holonews:meta"
 	redisThreadKey       = "nasfaq_holonews:active_thread"
 	defaultSectionHeader = "holopro"
+	defaultThumbnailCDN  = "https://images.nasfaq.biz"
 )
+
+const memberNewsSchemaSQL = `
+CREATE SCHEMA IF NOT EXISTS info;
+
+CREATE TABLE IF NOT EXISTS info.member_news (
+  id BIGSERIAL PRIMARY KEY,
+  headline TEXT NOT NULL,
+  thumbnail_url TEXT NULL,
+  date DATE NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS member_news_headline_date_uidx
+  ON info.member_news (headline, date);
+
+CREATE INDEX IF NOT EXISTS member_news_date_desc_idx
+  ON info.member_news (date DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS info.member_news_channels (
+  news_id BIGINT NOT NULL REFERENCES info.member_news(id) ON DELETE CASCADE,
+  youtube_channel_id TEXT NOT NULL REFERENCES yt.youtube_channels(youtube_channel_id) ON DELETE CASCADE,
+  PRIMARY KEY (news_id, youtube_channel_id)
+);
+
+CREATE INDEX IF NOT EXISTS member_news_channels_channel_idx
+  ON info.member_news_channels (youtube_channel_id, news_id DESC);
+`
 
 type Config struct {
 	DatabaseURL             string
@@ -62,6 +90,7 @@ type Config struct {
 	ReferenceImagesS3Prefix string
 	ReferenceImagesBaseURL  string
 	ThumbnailS3Prefix       string
+	ThumbnailCDNBaseURL     string
 }
 
 type catalogPage struct {
@@ -150,6 +179,9 @@ func main() {
 		log.Fatalf("postgres: %v", err)
 	}
 	defer pool.Close()
+	if err := applyMemberNewsSchema(ctx, pool); err != nil {
+		log.Fatalf("postgres schema: %v", err)
+	}
 
 	s3Client, err := newS3Client(ctx, cfg)
 	if err != nil {
@@ -168,6 +200,10 @@ func main() {
 		}
 		log.Printf("reset: completed")
 		return
+	}
+
+	if err := backfillRedisNewsToDB(ctx, pool, rdb, cfg); err != nil {
+		log.Fatalf("startup redis backfill: %v", err)
 	}
 
 	run := func() {
@@ -236,6 +272,7 @@ func mustLoadConfig() Config {
 		ReferenceImagesS3Prefix: strings.Trim(getEnv("REFERENCE_IMAGES_S3_PREFIX", "reference-images"), "/"),
 		ReferenceImagesBaseURL:  strings.TrimRight(getEnv("REFERENCE_IMAGES_BASE_URL", "https://images.nasfaq.biz/reference-images"), "/"),
 		ThumbnailS3Prefix:       strings.Trim(getEnv("THUMBNAIL_S3_PREFIX", "thumbnails"), "/"),
+		ThumbnailCDNBaseURL:     strings.TrimRight(getEnv("THUMBNAIL_CDN_BASE_URL", defaultThumbnailCDN), "/"),
 	}
 
 	if cfg.SectionSearchPosts < 1 {
@@ -302,7 +339,15 @@ func newDBPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse DATABASE_URL: %w", err)
 	}
+	cfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 	return pgxpool.NewWithConfig(ctx, cfg)
+}
+
+func applyMemberNewsSchema(ctx context.Context, pool *pgxpool.Pool) error {
+	if _, err := pool.Exec(ctx, memberNewsSchemaSQL); err != nil {
+		return fmt.Errorf("apply member_news schema: %w", err)
+	}
+	return nil
 }
 
 func newS3Client(ctx context.Context, cfg Config) (*s3.Client, error) {
@@ -455,6 +500,9 @@ func scrapeOnce(ctx context.Context, fetchClient, geminiClient *http.Client, s3C
 		SourcePost: extraction.PostID,
 		UpdatedAt:  time.Now().UTC().Format(time.RFC3339),
 		Items:      items,
+	}
+	if err := upsertStoredPayloadToDB(ctx, pool, cfg, payload); err != nil {
+		return fmt.Errorf("database store: %w", err)
 	}
 	if err := replaceRedisState(ctx, rdb, payload); err != nil {
 		return fmt.Errorf("redis store: %w", err)
@@ -780,6 +828,49 @@ func loadValidMemberNames(ctx context.Context, pool *pgxpool.Pool) ([]string, er
 			return nil, err
 		}
 		out = append(out, name)
+	}
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+	return out, nil
+}
+
+func loadChannelIDsByEnglishName(ctx context.Context, pool *pgxpool.Pool) (map[string][]string, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT btrim(name_english), youtube_channel_id
+		FROM yt.youtube_channels
+		WHERE name_english IS NOT NULL
+		  AND btrim(name_english) <> ''
+		ORDER BY btrim(name_english) ASC, youtube_channel_id ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[string][]string{}
+	for rows.Next() {
+		var name string
+		var channelID string
+		if err := rows.Scan(&name, &channelID); err != nil {
+			return nil, err
+		}
+		key := strings.ToLower(strings.TrimSpace(name))
+		if key == "" {
+			continue
+		}
+		existing := out[key]
+		alreadyPresent := false
+		for _, current := range existing {
+			if current == channelID {
+				alreadyPresent = true
+				break
+			}
+		}
+		if alreadyPresent {
+			continue
+		}
+		out[key] = append(existing, channelID)
 	}
 	if rows.Err() != nil {
 		return nil, rows.Err()
@@ -1135,37 +1226,160 @@ func replaceRedisState(ctx context.Context, rdb *redis.Client, payload storedPay
 	return err
 }
 
-func loadExistingHeadlineMap(ctx context.Context, rdb *redis.Client) (map[string]storedHeadline, error) {
+func loadStoredPayloadFromRedis(ctx context.Context, rdb *redis.Client) (storedPayload, bool, error) {
 	rawMeta, err := rdb.Get(ctx, redisMetaKey).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
-		return nil, err
+		return storedPayload{}, false, err
 	}
 
 	var payload storedPayload
 	if strings.TrimSpace(rawMeta) != "" {
 		if err := json.Unmarshal([]byte(rawMeta), &payload); err == nil {
-			out := make(map[string]storedHeadline, len(payload.Items))
-			for _, item := range payload.Items {
-				out[item.Headline] = item
-			}
-			return out, nil
+			return payload, len(payload.Items) > 0, nil
 		}
 	}
 
 	rawItems, err := rdb.LRange(ctx, redisItemsKey, 0, -1).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
-		return nil, err
+		return storedPayload{}, false, err
 	}
 
-	out := make(map[string]storedHeadline, len(rawItems))
+	payload.Items = make([]storedHeadline, 0, len(rawItems))
 	for _, raw := range rawItems {
 		var item storedHeadline
 		if err := json.Unmarshal([]byte(raw), &item); err != nil {
 			continue
 		}
+		payload.Items = append(payload.Items, item)
+	}
+	return payload, len(payload.Items) > 0, nil
+}
+
+func loadExistingHeadlineMap(ctx context.Context, rdb *redis.Client) (map[string]storedHeadline, error) {
+	payload, _, err := loadStoredPayloadFromRedis(ctx, rdb)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(map[string]storedHeadline, len(payload.Items))
+	for _, item := range payload.Items {
 		out[item.Headline] = item
 	}
 	return out, nil
+}
+
+func backfillRedisNewsToDB(ctx context.Context, pool *pgxpool.Pool, rdb *redis.Client, cfg Config) error {
+	payload, ok, err := loadStoredPayloadFromRedis(ctx, rdb)
+	if err != nil {
+		return fmt.Errorf("load redis payload: %w", err)
+	}
+	if !ok {
+		return nil
+	}
+	if err := upsertStoredPayloadToDB(ctx, pool, cfg, payload); err != nil {
+		return fmt.Errorf("upsert redis payload to db: %w", err)
+	}
+	log.Printf("holonews: backfilled %d redis headlines into database state", len(payload.Items))
+	return nil
+}
+
+func upsertStoredPayloadToDB(ctx context.Context, pool *pgxpool.Pool, cfg Config, payload storedPayload) error {
+	if len(payload.Items) == 0 {
+		return nil
+	}
+
+	newsDate := payloadDate(payload)
+	channelIDsByName, err := loadChannelIDsByEnglishName(ctx, pool)
+	if err != nil {
+		return fmt.Errorf("load channel ids by english name: %w", err)
+	}
+
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	for _, item := range payload.Items {
+		headline := strings.TrimSpace(item.Headline)
+		if headline == "" {
+			continue
+		}
+
+		var newsID int64
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO info.member_news (headline, thumbnail_url, date)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (headline, date)
+			DO UPDATE SET
+				thumbnail_url = COALESCE(EXCLUDED.thumbnail_url, info.member_news.thumbnail_url)
+			RETURNING id
+		`, headline, thumbnailURL(cfg, item.ThumbnailS3Key), newsDate).Scan(&newsID); err != nil {
+			return fmt.Errorf("upsert member_news headline=%q: %w", headline, err)
+		}
+
+		for _, channelID := range channelIDsForItem(item, channelIDsByName) {
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO info.member_news_channels (news_id, youtube_channel_id)
+				VALUES ($1, $2)
+				ON CONFLICT DO NOTHING
+			`, newsID, channelID); err != nil {
+				return fmt.Errorf("upsert member_news_channels headline=%q channel=%s: %w", headline, channelID, err)
+			}
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit member_news tx: %w", err)
+	}
+	return nil
+}
+
+func payloadDate(payload storedPayload) time.Time {
+	updatedAt := strings.TrimSpace(payload.UpdatedAt)
+	if updatedAt != "" {
+		if parsed, err := time.Parse(time.RFC3339, updatedAt); err == nil {
+			utc := parsed.UTC()
+			return time.Date(utc.Year(), utc.Month(), utc.Day(), 0, 0, 0, 0, time.UTC)
+		}
+	}
+	now := time.Now().UTC()
+	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+func thumbnailURL(cfg Config, s3Key *string) *string {
+	if s3Key == nil {
+		return nil
+	}
+	key := strings.TrimSpace(*s3Key)
+	if key == "" {
+		return nil
+	}
+	segments := strings.Split(key, "/")
+	for i, segment := range segments {
+		segments[i] = url.PathEscape(segment)
+	}
+	url := fmt.Sprintf("%s/%s", cfg.ThumbnailCDNBaseURL, strings.Join(segments, "/"))
+	return &url
+}
+
+func channelIDsForItem(item storedHeadline, channelIDsByName map[string][]string) []string {
+	var out []string
+	seen := map[string]struct{}{}
+	for _, character := range item.Characters {
+		key := strings.ToLower(strings.TrimSpace(character))
+		if key == "" {
+			continue
+		}
+		for _, channelID := range channelIDsByName[key] {
+			if _, ok := seen[channelID]; ok {
+				continue
+			}
+			seen[channelID] = struct{}{}
+			out = append(out, channelID)
+		}
+	}
+	return out
 }
 
 func callGeminiText(ctx context.Context, client *http.Client, apiKey, model, prompt string) (string, error) {

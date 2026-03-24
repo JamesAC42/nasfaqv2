@@ -1,26 +1,466 @@
-@import "tailwindcss";
-
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #f5f5f5;
+  --panel: #ffffff;
+  --border: #d4d4d8;
+  --text: #111827;
+  --muted: #4b5563;
+  --accent: #1d4ed8;
+  --error: #b91c1c;
+  --success: #166534;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  font-size: 0.92rem;
+}
+
+th {
+  background: #f8fafc;
+}
+
+.page {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.pageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.pageHeader h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.8rem;
+}
+
+.pageHeader p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.panel,
+.subPanel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 1rem;
+}
+
+.panel {
+  margin-bottom: 1rem;
+}
+
+.panel h2,
+.subPanel h3 {
+  margin-top: 0;
+}
+
+.twoColumn {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.chartGrid,
+.reportGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.chartBox {
+  border: 1px solid color-mix(in srgb, var(--border) 78%, #94a3b8 22%);
+  padding: 0.85rem;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 34%),
+    linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 1));
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.05);
+}
+
+.chartCanvas {
+  width: 100%;
+  height: 320px;
+}
+
+.chartEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  border: 1px dashed color-mix(in srgb, var(--border) 72%, #94a3b8 28%);
+  border-radius: 14px;
+  color: var(--muted);
+  background: rgba(248, 250, 252, 0.6);
+}
+
+.chartTitleRow,
+.authRow,
+.formActions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.chartTitleRow {
+  margin-bottom: 0.5rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.chartTitleRow strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: #0f172a;
+  font-size: 1rem;
+}
+
+.chartLegend {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.chartPill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.28rem 0.6rem;
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.chartPillCandle {
+  border-color: rgba(15, 118, 110, 0.3);
+  color: #0f766e;
+}
+
+.chartPillLine {
+  border-color: rgba(37, 99, 235, 0.3);
+  color: #2563eb;
+}
+
+.chartBoxCandles {
+  background:
+    radial-gradient(circle at top right, rgba(15, 118, 110, 0.12), transparent 32%),
+    linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 1));
+}
+
+.chartBoxTrend {
+  background:
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.1), transparent 32%),
+    linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 1));
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.statsGrid div {
+  border: 1px solid var(--border);
+  padding: 0.7rem;
+}
+
+.statsGrid span {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.formGrid,
+.tradeForm {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.formGrid label,
+.tradeForm label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+input,
+select,
+button {
+  border: 1px solid var(--border);
+  padding: 0.55rem 0.7rem;
+  background: #fff;
+}
+
+button {
+  background: #f8fafc;
+}
+
+.message {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+.message.error {
+  border-color: #fecaca;
+  color: var(--error);
+}
+
+.message.success {
+  border-color: #bbf7d0;
+  color: var(--success);
+}
+
+.helperText {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.chartAttribution {
+  margin: -0.2rem 0 1rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.selectedRow {
+  background: #eff6ff;
+}
+
+.sparklineCanvas,
+.sparklineEmpty {
+  width: 92px;
+  height: 34px;
+}
+
+.sparklineEmpty {
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.08), rgba(148, 163, 184, 0.02));
+}
+
+.marketHeatmapPanel {
+  margin-top: 1rem;
+}
+
+.marketHeatmapPanel h3 {
+  margin: 0;
+}
+
+.heatmapFilter {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 160px;
+}
+
+.heatmapFilter span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.heatmapWrap {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-auto-rows: 88px;
+  gap: 0;
+  margin-top: 0.85rem;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.heatmapTile {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+  min-height: 88px;
+  padding: 0.75rem;
+  border-radius: 0;
+  border: 0;
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+}
+
+.heatmapTile::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.04));
+  pointer-events: none;
+}
+
+.heatmapTile-up {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04)),
+    linear-gradient(180deg, rgba(20, 83, 45, 0.82), rgba(22, 101, 52, 0.92));
+  color: #ecfdf5;
+}
+
+.heatmapTile-down {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03)),
+    linear-gradient(180deg, rgba(153, 27, 27, 0.84), rgba(185, 28, 28, 0.94));
+  color: #fef2f2;
+}
+
+.heatmapSpan-1 {
+  grid-column: span 1;
+  grid-row: span 1;
+}
+
+.heatmapSpan-2 {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+.heatmapSpan-3 {
+  grid-column: span 3;
+  grid-row: span 2;
+}
+
+.heatmapTileHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.95rem;
+  position: relative;
+  z-index: 1;
+}
+
+.heatmapIcon,
+.heatmapIconFallback {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  object-fit: cover;
+  flex: 0 0 auto;
+  padding: 2px;
+}
+
+.heatmapIconFallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.heatmapTilePrice {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  position: relative;
+  z-index: 1;
+}
+
+.heatmapTileChange {
+  font-size: 0.88rem;
+  opacity: 0.92;
+  position: relative;
+  z-index: 1;
+}
+
+.plainList {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.plainList li {
+  margin-bottom: 0.45rem;
+}
+
+@media (max-width: 980px) {
+  .twoColumn,
+  .chartGrid,
+  .reportGrid,
+  .statsGrid,
+  .formGrid,
+  .tradeForm {
+    grid-template-columns: 1fr;
+  }
+
+  .pageHeader,
+  .authRow,
+  .chartTitleRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .chartLegend {
+    justify-content: flex-start;
+  }
+
+  .heatmapWrap {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .heatmapSpan-3 {
+    grid-column: span 3;
+  }
+}
+
+@media (max-width: 640px) {
+  .heatmapWrap {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: 82px;
+  }
+
+  .heatmapSpan-2,
+  .heatmapSpan-3 {
+    grid-column: span 2;
+    grid-row: span 1;
+  }
 }

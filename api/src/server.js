@@ -7,11 +7,16 @@ const { loadEnv, getConfig } = require("./config");
 const { createPool } = require("./db");
 const { applySchema } = require("./migrations");
 const { createRedis } = require("./redis");
+const authService = require("./services/auth");
 
 const channelsRoutes = require("./routes/channels");
 const overviewRoutes = require("./routes/overview");
 const livestreamsRoutes = require("./routes/livestreams");
 const analysisRoutes = require("./routes/analysis");
+const marketRoutes = require("./routes/market");
+const internalMarketRoutes = require("./routes/internalMarket");
+const portfolioRoutes = require("./routes/portfolio");
+const authRoutes = require("./routes/auth");
 
 const LIVESTREAM_VIEWER_UPDATES_CHANNEL = "nasfaq_livestreams:viewer_updates";
 const LIVESTREAM_BUCKET_UPDATES_CHANNEL = "nasfaq_livestreams:bucket_updates";
@@ -153,15 +158,26 @@ api.get("/health", async (_req, res) => {
   }
 });
 
-app.use((req, _res, next) => {
-  req.ctx = { pool, redis };
-  next();
+app.use(async (req, _res, next) => {
+  try {
+    const user = await authService.getAuthenticatedUser(pool, req);
+    req.ctx = { pool, redis, user };
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
+
+api.use("/auth", authRoutes);
+
+app.use("/internal/market", internalMarketRoutes);
 
 api.use("/channels", channelsRoutes);
 api.use("/overview", overviewRoutes);
 api.use("/livestreams", livestreamsRoutes);
 api.use("/analysis", analysisRoutes);
+api.use("/market", marketRoutes);
+api.use("/portfolio", portfolioRoutes);
 
 app.use("/api", api);
 
