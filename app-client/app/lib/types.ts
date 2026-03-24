@@ -43,6 +43,37 @@ export type MarketStatPoint = {
   fundamental_value_smoothed: number | null;
 };
 
+export type MarketIndexPoint = {
+  bucket: string;
+  value: number | null;
+  day_return_pct: number | null;
+  total_volume_cash: number | null;
+  avg_premium_pct: number | null;
+  constituent_count: number | null;
+};
+
+export type MarketIndexSummary = {
+  market_date: string | null;
+  index_value: number | null;
+  day_return_pct: number | null;
+  total_return_pct: number | null;
+  total_volume_cash: number | null;
+  avg_premium_pct: number | null;
+  constituent_count: number | null;
+  advancers: number | null;
+  decliners: number | null;
+  unchanged: number | null;
+};
+
+export type MarketIndexBundle = {
+  group_by: string;
+  group: string;
+  range: string;
+  weighting: string;
+  summary: MarketIndexSummary | null;
+  series: MarketIndexPoint[];
+};
+
 export type TradeRow = {
   id: number;
   ts: string;

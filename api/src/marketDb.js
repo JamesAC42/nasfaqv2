@@ -30,6 +30,16 @@ function parseCandleBucket(interval) {
   }
 }
 
+function parseIndexWeighting(weighting) {
+  switch ((weighting || "").toLowerCase()) {
+    case "market_cap":
+      return "market_cap";
+    case "equal":
+    default:
+      return "equal";
+  }
+}
+
 async function listAssets(pool) {
   const { rows } = await pool.query(
     `
@@ -446,6 +456,221 @@ async function getDailyReportByDate(pool, marketDate) {
   return rows[0] || null;
 }
 
+async function getGroupIndex(pool, { groupBy = "unit", group = "all", range = "1y", weighting = "equal" } = {}) {
+  if (groupBy !== "unit") {
+    const error = new Error("unsupported_group_by");
+    error.code = "unsupported_group_by";
+    throw error;
+  }
+
+  const windowInterval = parseRangeToInterval(range);
+  const normalizedGroup = String(group || "all").trim() || "all";
+  const normalizedWeighting = parseIndexWeighting(weighting);
+
+  const { rows } = await pool.query(
+    `
+    WITH filtered AS (
+      SELECT
+        d.market_date,
+        a.id AS asset_id,
+        a.symbol,
+        c.unit,
+        COALESCE(d.mid_close, d.mid_open) AS close_price,
+        COALESCE(d.volume_cash, 0) AS volume_cash,
+        d.premium_close_pct,
+        GREATEST(COALESCE(d.circulating_supply_end, d.circulating_supply_start, a.circulating_supply, 0), 0) AS circulating_supply
+      FROM market.asset_daily_market_state d
+      JOIN market.market_assets a ON a.id = d.asset_id
+      JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
+      WHERE a.status = 'active'
+        AND d.market_date >= current_date - $1::interval
+        AND ($2 = 'all' OR c.unit = $2)
+    ),
+    asset_bases AS (
+      SELECT DISTINCT ON (asset_id)
+        asset_id,
+        close_price AS base_close,
+        NULLIF(close_price * circulating_supply, 0) AS base_market_cap
+      FROM filtered
+      WHERE close_price IS NOT NULL
+        AND close_price > 0
+      ORDER BY asset_id, market_date ASC
+    ),
+    normalized AS (
+      SELECT
+        f.market_date,
+        f.asset_id,
+        f.symbol,
+        f.close_price,
+        f.volume_cash,
+        f.premium_close_pct,
+        CASE
+          WHEN b.base_close IS NULL OR b.base_close = 0 THEN NULL
+          ELSE (f.close_price / b.base_close) * 100.0
+        END AS normalized_index_value,
+        CASE
+          WHEN $3 = 'market_cap' THEN COALESCE(b.base_market_cap, 0)
+          ELSE 1::numeric
+        END AS weight
+      FROM filtered f
+      JOIN asset_bases b ON b.asset_id = f.asset_id
+      WHERE f.close_price IS NOT NULL
+    ),
+    daily_index AS (
+      SELECT
+        market_date,
+        CASE
+          WHEN SUM(weight) = 0 THEN NULL
+          ELSE SUM(normalized_index_value * weight) / SUM(weight)
+        END AS index_value,
+        SUM(volume_cash) AS total_volume_cash,
+        AVG(premium_close_pct) AS avg_premium_pct,
+        COUNT(*)::integer AS constituent_count
+      FROM normalized
+      GROUP BY market_date
+    ),
+    daily_returns AS (
+      SELECT
+        market_date,
+        index_value,
+        total_volume_cash,
+        avg_premium_pct,
+        constituent_count,
+        CASE
+          WHEN LAG(index_value) OVER (ORDER BY market_date) IS NULL OR LAG(index_value) OVER (ORDER BY market_date) = 0 THEN NULL
+          ELSE (index_value - LAG(index_value) OVER (ORDER BY market_date)) / LAG(index_value) OVER (ORDER BY market_date)
+        END AS day_return_pct
+      FROM daily_index
+    ),
+    asset_day_returns AS (
+      SELECT
+        market_date,
+        asset_id,
+        CASE
+          WHEN LAG(close_price) OVER (PARTITION BY asset_id ORDER BY market_date) IS NULL
+            OR LAG(close_price) OVER (PARTITION BY asset_id ORDER BY market_date) = 0 THEN NULL
+          ELSE (close_price - LAG(close_price) OVER (PARTITION BY asset_id ORDER BY market_date))
+            / LAG(close_price) OVER (PARTITION BY asset_id ORDER BY market_date)
+        END AS asset_return_pct
+      FROM filtered
+      WHERE close_price IS NOT NULL
+    ),
+    latest_day AS (
+      SELECT MAX(market_date) AS market_date
+      FROM daily_index
+    ),
+    index_bounds AS (
+      SELECT
+        FIRST_VALUE(dr.market_date) OVER (ORDER BY dr.market_date DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS latest_market_date,
+        FIRST_VALUE(dr.index_value) OVER (ORDER BY dr.market_date DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS latest_index_value,
+        FIRST_VALUE(dr.day_return_pct) OVER (ORDER BY dr.market_date DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS latest_day_return_pct,
+        FIRST_VALUE(dr.total_volume_cash) OVER (ORDER BY dr.market_date DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS latest_total_volume_cash,
+        FIRST_VALUE(dr.avg_premium_pct) OVER (ORDER BY dr.market_date DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS latest_avg_premium_pct,
+        FIRST_VALUE(dr.constituent_count) OVER (ORDER BY dr.market_date DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS latest_constituent_count,
+        FIRST_VALUE(dr.index_value) OVER (ORDER BY dr.market_date ASC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS first_index_value
+      FROM daily_returns dr
+    ),
+    latest_summary AS (
+      SELECT DISTINCT ON (ib.latest_market_date)
+        ib.latest_market_date AS market_date,
+        ib.latest_index_value AS index_value,
+        ib.latest_day_return_pct AS day_return_pct,
+        ib.latest_total_volume_cash AS total_volume_cash,
+        ib.latest_avg_premium_pct AS avg_premium_pct,
+        ib.latest_constituent_count AS constituent_count,
+        CASE
+          WHEN ib.first_index_value IS NULL OR ib.first_index_value = 0 THEN NULL
+          ELSE (ib.latest_index_value - ib.first_index_value) / ib.first_index_value
+        END AS total_return_pct
+      FROM index_bounds ib
+      ORDER BY ib.latest_market_date DESC
+    ),
+    breadth AS (
+      SELECT
+        COUNT(*) FILTER (WHERE adr.asset_return_pct > 0)::integer AS advancers,
+        COUNT(*) FILTER (WHERE adr.asset_return_pct < 0)::integer AS decliners,
+        COUNT(*) FILTER (WHERE adr.asset_return_pct = 0)::integer AS unchanged
+      FROM asset_day_returns adr
+      JOIN latest_day ld ON ld.market_date = adr.market_date
+    )
+    SELECT jsonb_build_object(
+      'group_by', $4::text,
+      'group', $2,
+      'range', $5::text,
+      'weighting', $3::text,
+      'summary', jsonb_build_object(
+        'market_date', ls.market_date,
+        'index_value', ls.index_value,
+        'day_return_pct', ls.day_return_pct,
+        'total_return_pct', ls.total_return_pct,
+        'total_volume_cash', ls.total_volume_cash,
+        'avg_premium_pct', ls.avg_premium_pct,
+        'constituent_count', ls.constituent_count,
+        'advancers', COALESCE(b.advancers, 0),
+        'decliners', COALESCE(b.decliners, 0),
+        'unchanged', COALESCE(b.unchanged, 0)
+      ),
+      'series', COALESCE(
+        (
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'bucket', dr.market_date::text,
+              'value', dr.index_value,
+              'day_return_pct', dr.day_return_pct,
+              'total_volume_cash', dr.total_volume_cash,
+              'avg_premium_pct', dr.avg_premium_pct,
+              'constituent_count', dr.constituent_count
+            )
+            ORDER BY dr.market_date ASC
+          )
+          FROM daily_returns dr
+        ),
+        '[]'::jsonb
+      )
+    ) AS payload
+    FROM latest_summary ls
+    CROSS JOIN breadth b
+  `,
+    [windowInterval, normalizedGroup, normalizedWeighting, groupBy, range]
+  );
+
+  return rows[0]?.payload || {
+    group_by: groupBy,
+    group: normalizedGroup,
+    range,
+    weighting: normalizedWeighting,
+    summary: null,
+    series: [],
+  };
+}
+
+async function listGroupIndexes(pool, { groupBy = "unit", range = "1y", weighting = "equal" } = {}) {
+  if (groupBy !== "unit") {
+    const error = new Error("unsupported_group_by");
+    error.code = "unsupported_group_by";
+    throw error;
+  }
+
+  const { rows } = await pool.query(
+    `
+    SELECT DISTINCT c.unit
+    FROM market.market_assets a
+    JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
+    WHERE a.status = 'active'
+      AND c.unit IS NOT NULL
+      AND btrim(c.unit) <> ''
+    ORDER BY c.unit ASC
+  `
+  );
+
+  const groups = ["all", ...rows.map((row) => String(row.unit))];
+  const indexes = await Promise.all(
+    groups.map((group) => getGroupIndex(pool, { groupBy, group, range, weighting }))
+  );
+
+  return indexes;
+}
+
 module.exports = {
   listAssets,
   getAssetBySymbol,
@@ -455,4 +680,6 @@ module.exports = {
   getAssetTreasury,
   getLatestDailyReport,
   getDailyReportByDate,
+  getGroupIndex,
+  listGroupIndexes,
 };

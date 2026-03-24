@@ -1,10 +1,88 @@
 "use client";
 
-import { SparklineChart } from "@/app/components/charts/market-charts";
-import { fmtNumber, fmtPct } from "@/app/lib/format";
+import { SparklineChart, TrendChartCard } from "@/app/components/charts/market-charts";
+import { fmtInteger, fmtNumber, fmtPct } from "@/app/lib/format";
 import { computeHeatmapMarketCap, getIconUrl } from "@/app/lib/normalizers";
-import type { MarketAsset } from "@/app/lib/types";
+import type { MarketAsset, MarketIndexBundle } from "@/app/lib/types";
 import styles from "@/app/components/home/market-overview-section.module.scss";
+
+function formatIndexTitle(group: string) {
+  return group === "all" ? "All Market" : group;
+}
+
+function IndexCard({
+  index,
+  selectedUnit,
+  isLoading,
+  onSelectUnit,
+}: {
+  index: MarketIndexBundle;
+  selectedUnit: string;
+  isLoading: boolean;
+  onSelectUnit: (unit: string) => void;
+}) {
+  const summary = index.summary;
+  const groupValue = index.group === "all" ? "all" : index.group;
+  const title = formatIndexTitle(index.group);
+  const isSelected = selectedUnit === groupValue;
+
+  return (
+    <button
+      type="button"
+      className={`${styles.indexCard} ${isSelected ? styles.indexCardSelected : ""}`}
+      onClick={() => onSelectUnit(groupValue)}
+    >
+      <TrendChartCard
+        title={`${title} Index`}
+        subtitle={`Equal-weight rebased index for ${title === "All Market" ? "all active assets" : `${title} assets`}`}
+        series={[
+          {
+            name: "Index",
+            color: "#2563eb",
+            kind: "area",
+            values: index.series.map((item) => ({ time: item.bucket, value: item.value })),
+          },
+        ]}
+      />
+      <div className={styles.indexStats}>
+        <div className={styles.indexStatCard}>
+          <span className={styles.label}>Index Level</span>
+          <strong>{fmtNumber(summary?.index_value)}</strong>
+        </div>
+        <div className={styles.indexStatCard}>
+          <span className={styles.label}>1D Return</span>
+          <strong>{fmtPct(summary?.day_return_pct)}</strong>
+        </div>
+        <div className={styles.indexStatCard}>
+          <span className={styles.label}>Range Return</span>
+          <strong>{fmtPct(summary?.total_return_pct)}</strong>
+        </div>
+        <div className={styles.indexStatCard}>
+          <span className={styles.label}>Constituents</span>
+          <strong>{fmtInteger(summary?.constituent_count)}</strong>
+        </div>
+        <div className={styles.indexStatCard}>
+          <span className={styles.label}>Advancers / Decliners</span>
+          <strong>
+            {fmtInteger(summary?.advancers)} / {fmtInteger(summary?.decliners)}
+          </strong>
+        </div>
+        <div className={styles.indexStatCard}>
+          <span className={styles.label}>Volume Cash</span>
+          <strong>{fmtNumber(summary?.total_volume_cash)}</strong>
+        </div>
+        <div className={styles.indexStatCard}>
+          <span className={styles.label}>Avg Premium</span>
+          <strong>{fmtPct(summary?.avg_premium_pct)}</strong>
+        </div>
+        <div className={styles.indexStatCard}>
+          <span className={styles.label}>Market Date</span>
+          <strong>{summary?.market_date || (isLoading ? "Loading…" : "—")}</strong>
+        </div>
+      </div>
+    </button>
+  );
+}
 
 function AssetHeatmap({
   assets,
@@ -56,16 +134,20 @@ function AssetHeatmap({
 
 export function MarketOverviewSection({
   assets,
+  marketIndexes,
   selectedSymbol,
   selectedUnit,
   unitOptions,
+  isLoadingIndex,
   onSelectSymbol,
   onSelectUnit,
 }: {
   assets: MarketAsset[];
+  marketIndexes: MarketIndexBundle[];
   selectedSymbol: string;
   selectedUnit: string;
   unitOptions: string[];
+  isLoadingIndex: boolean;
   onSelectSymbol: (symbol: string) => void;
   onSelectUnit: (unit: string) => void;
 }) {
@@ -81,6 +163,23 @@ export function MarketOverviewSection({
           <h2 className={styles.title}>Market Assets</h2>
           <p className={styles.copy}>Overview table, selection state, and heatmap are now isolated behind the market store.</p>
         </div>
+      </div>
+      <div className={styles.indexHeader}>
+        <div>
+          <h3 className={styles.title}>Market Indexes</h3>
+          <p className={styles.copy}>All Market plus one equal-weight index per unit. Selecting a card also drives the heatmap filter below.</p>
+        </div>
+      </div>
+      <div className={styles.indexGrid}>
+        {marketIndexes.map((index) => (
+          <IndexCard
+            key={`${index.group_by}:${index.group}`}
+            index={index}
+            selectedUnit={selectedUnit}
+            isLoading={isLoadingIndex}
+            onSelectUnit={onSelectUnit}
+          />
+        ))}
       </div>
       <div className={styles.tableWrap}>
         <table className={styles.table}>

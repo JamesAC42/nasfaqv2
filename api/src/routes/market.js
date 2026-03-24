@@ -56,6 +56,39 @@ router.get("/report/daily/:date", async (req, res, next) => {
   }
 });
 
+router.get("/indexes/candles", async (req, res, next) => {
+  try {
+    const groupBy = String(req.query.group_by || "unit");
+    const group = String(req.query.group || "all");
+    const range = String(req.query.range || "1y");
+    const weighting = String(req.query.weighting || "equal");
+
+    const result = await marketDb.getGroupIndex(req.ctx.pool, { groupBy, group, range, weighting });
+    res.json(result);
+  } catch (e) {
+    if (e?.code === "unsupported_group_by") {
+      return res.status(400).json({ error: "unsupported_group_by" });
+    }
+    next(e);
+  }
+});
+
+router.get("/indexes/overview", async (req, res, next) => {
+  try {
+    const groupBy = String(req.query.group_by || "unit");
+    const range = String(req.query.range || "1y");
+    const weighting = String(req.query.weighting || "equal");
+
+    const result = await marketDb.listGroupIndexes(req.ctx.pool, { groupBy, range, weighting });
+    res.json(result);
+  } catch (e) {
+    if (e?.code === "unsupported_group_by") {
+      return res.status(400).json({ error: "unsupported_group_by" });
+    }
+    next(e);
+  }
+});
+
 router.get("/assets/:symbol/candles", async (req, res, next) => {
   try {
     const symbol = normalizeSymbol(req.params.symbol);

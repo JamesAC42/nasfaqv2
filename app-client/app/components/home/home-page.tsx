@@ -25,11 +25,14 @@ export function HomePage() {
   const selectedSymbol = useMarketStore((state) => state.selectedSymbol);
   const selectedUnit = useMarketStore((state) => state.selectedUnit);
   const detail = useMarketStore((state) => state.detail);
+  const marketIndexes = useMarketStore((state) => state.marketIndexes);
   const isLoadingOverview = useMarketStore((state) => state.isLoadingOverview);
+  const isLoadingIndex = useMarketStore((state) => state.isLoadingIndex);
   const error = useMarketStore((state) => state.error);
   const setSelectedSymbol = useMarketStore((state) => state.setSelectedSymbol);
   const setSelectedUnit = useMarketStore((state) => state.setSelectedUnit);
   const refreshOverview = useMarketStore((state) => state.refreshOverview);
+  const fetchMarketIndexes = useMarketStore((state) => state.fetchMarketIndexes);
   const fetchAssetDetail = useMarketStore((state) => state.fetchAssetDetail);
 
   const channels = useChannelStore((state) => state.channels);
@@ -55,6 +58,7 @@ export function HomePage() {
       const nextUser = await refreshSession();
       await Promise.allSettled([
         refreshOverview(),
+        fetchMarketIndexes(),
         fetchChannels(),
         fetchLivestreams(),
         fetchLeaderboard(),
@@ -81,6 +85,7 @@ export function HomePage() {
   async function refreshAll() {
     await Promise.allSettled([
       refreshOverview(),
+      fetchMarketIndexes(),
       fetchChannels(),
       fetchLivestreams(),
       fetchLeaderboard(),
@@ -103,17 +108,17 @@ export function HomePage() {
         </div>
       </div>
 
-      <div className={styles.grid}>
-        <MarketOverviewSection
-          assets={assets}
-          selectedSymbol={selectedSymbol}
-          selectedUnit={selectedUnit}
-          unitOptions={unitOptions}
-          onSelectSymbol={setSelectedSymbol}
-          onSelectUnit={setSelectedUnit}
-        />
-        <AssetDetailSection asset={selectedAsset} detail={detail} canTrade={Boolean(user)} onTradeComplete={refreshAll} />
-      </div>
+      <MarketOverviewSection
+        assets={assets}
+        marketIndexes={marketIndexes}
+        selectedSymbol={selectedSymbol}
+        selectedUnit={selectedUnit}
+        unitOptions={unitOptions}
+        isLoadingIndex={isLoadingIndex}
+        onSelectSymbol={setSelectedSymbol}
+        onSelectUnit={setSelectedUnit}
+      />
+      <AssetDetailSection asset={selectedAsset} detail={detail} canTrade={Boolean(user)} onTradeComplete={refreshAll} />
 
       <MarketReportSection report={report} />
       <ChannelOverviewSection channels={channels} />

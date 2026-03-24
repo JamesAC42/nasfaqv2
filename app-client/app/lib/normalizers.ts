@@ -5,6 +5,9 @@ import type {
   LeaderboardEntry,
   LivestreamItem,
   MarketAsset,
+  MarketIndexBundle,
+  MarketIndexPoint,
+  MarketIndexSummary,
   MarketStatPoint,
   NewsItem,
   PortfolioSummary,
@@ -57,6 +60,44 @@ export function normalizeStats(stats: Array<Record<string, unknown>>): MarketSta
     fundamental_value_raw: toNumber(item.fundamental_value_raw),
     fundamental_value_smoothed: toNumber(item.fundamental_value_smoothed),
   }));
+}
+
+export function normalizeMarketIndexPoint(value: Record<string, unknown>): MarketIndexPoint {
+  return {
+    bucket: String(value.bucket || ""),
+    value: toNumber(value.value),
+    day_return_pct: toNumber(value.day_return_pct),
+    total_volume_cash: toNumber(value.total_volume_cash),
+    avg_premium_pct: toNumber(value.avg_premium_pct),
+    constituent_count: toNumber(value.constituent_count),
+  };
+}
+
+export function normalizeMarketIndexSummary(value: Record<string, unknown> | null): MarketIndexSummary | null {
+  if (!value) return null;
+  return {
+    market_date: value.market_date ? String(value.market_date) : null,
+    index_value: toNumber(value.index_value),
+    day_return_pct: toNumber(value.day_return_pct),
+    total_return_pct: toNumber(value.total_return_pct),
+    total_volume_cash: toNumber(value.total_volume_cash),
+    avg_premium_pct: toNumber(value.avg_premium_pct),
+    constituent_count: toNumber(value.constituent_count),
+    advancers: toNumber(value.advancers),
+    decliners: toNumber(value.decliners),
+    unchanged: toNumber(value.unchanged),
+  };
+}
+
+export function normalizeMarketIndex(value: Record<string, unknown>): MarketIndexBundle {
+  return {
+    group_by: String(value.group_by || "unit"),
+    group: String(value.group || "all"),
+    range: String(value.range || "1y"),
+    weighting: String(value.weighting || "equal"),
+    summary: normalizeMarketIndexSummary((value.summary as Record<string, unknown> | null) || null),
+    series: ((value.series || []) as Array<Record<string, unknown>>).map(normalizeMarketIndexPoint),
+  };
 }
 
 export function normalizeTrades(trades: Array<Record<string, unknown>>): TradeRow[] {

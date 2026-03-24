@@ -2,8 +2,15 @@
 
 import { create } from "zustand";
 import { apiFetch } from "@/app/lib/api";
-import { normalizeAsset, normalizeCandles, normalizeStats, normalizeTrades, normalizeTreasury } from "@/app/lib/normalizers";
-import type { AssetDetailBundle, DailyReport, MarketAsset } from "@/app/lib/types";
+import {
+  normalizeAsset,
+  normalizeCandles,
+  normalizeMarketIndex,
+  normalizeStats,
+  normalizeTrades,
+  normalizeTreasury,
+} from "@/app/lib/normalizers";
+import type { AssetDetailBundle, DailyReport, MarketAsset, MarketIndexBundle } from "@/app/lib/types";
 
 type MarketState = {
   assets: MarketAsset[];
@@ -11,12 +18,15 @@ type MarketState = {
   selectedSymbol: string;
   selectedUnit: string;
   detail: AssetDetailBundle | null;
+  marketIndexes: MarketIndexBundle[];
   isLoadingOverview: boolean;
   isLoadingDetail: boolean;
+  isLoadingIndex: boolean;
   error: string | null;
   setSelectedSymbol: (symbol: string) => void;
   setSelectedUnit: (unit: string) => void;
   refreshOverview: () => Promise<void>;
+  fetchMarketIndexes: () => Promise<void>;
   fetchAssetDetail: (symbol: string) => Promise<void>;
   clearDetail: () => void;
 };
@@ -27,8 +37,10 @@ export const useMarketStore = create<MarketState>((set, get) => ({
   selectedSymbol: "",
   selectedUnit: "all",
   detail: null,
+  marketIndexes: [],
   isLoadingOverview: true,
   isLoadingDetail: false,
+  isLoadingIndex: false,
   error: null,
   setSelectedSymbol: (symbol) => set({ selectedSymbol: symbol }),
   setSelectedUnit: (unit) => set({ selectedUnit: unit }),
@@ -52,6 +64,22 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       set({ error: String((error as Error).message || error) });
     } finally {
       set({ isLoadingOverview: false });
+    }
+  },
+  fetchMarketIndexes: async () => {
+    set({ isLoadingIndex: true, error: null });
+    try {
+      const result = await apiFetch<Record<string, unknown>[]>(
+        "/api/market/indexes/overview?group_by=unit&range=1y&weighting=equal"
+      );
+      set({ marketIndexes: result.map(normalizeMarketIndex) });
+    } catch (error) {
+      set({
+        marketIndexes: [],
+        error: String((error as Error).message || error),
+      });
+    } finally {
+      set({ isLoadingIndex: false });
     }
   },
   fetchAssetDetail: async (symbol) => {
