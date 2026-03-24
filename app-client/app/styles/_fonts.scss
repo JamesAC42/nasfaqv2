@@ -1,0 +1,20 @@
+@font-face {
+  font-family: "Chicago";
+  src: url("/fonts/ChicagoFLF.ttf") format("truetype");
+  font-display: swap;
+  font-weight: 700;
+}
+
+@font-face {
+  font-family: "Mukta";
+  src: url("/fonts/Mukta_Mahee/MuktaMahee-Regular.ttf") format("truetype");
+  font-display: swap;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "Red Hat Mono";
+  src: url("/fonts/Red_Hat_Mono/RedHatMono-VariableFont_wght.ttf") format("truetype");
+  font-variation-settings: "wght" 400;
+  font-weight: 400 700;
+}

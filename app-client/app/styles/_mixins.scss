@@ -1,0 +1,92 @@
+@mixin panel {
+  background:var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+}
+
+@mixin section-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.35rem, 2vw, 1.9rem);
+  letter-spacing: 0.02em;
+}
+
+@mixin subtle-copy {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+@mixin button-base {
+  appearance: none;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  padding: 0.72rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+}
+
+@mixin button-primary {
+  @include button-base;
+  background: var(--accent);
+  color: var(--button-primary-text);
+  border-color: var(--button-primary-border);
+}
+
+@mixin button-secondary {
+  @include button-base;
+  background: var(--button-secondary-bg);
+  color: var(--text);
+}
+
+@mixin input-base {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  padding: 0.78rem 0.9rem;
+  font: inherit;
+  color: var(--text);
+}
+
+@mixin table-shell {
+  width: 100%;
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: 0.8rem 0.9rem;
+    border-bottom: 1px solid var(--table-border);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th {
+    color: var(--muted);
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+}
+
+@mixin empty-state {
+  border: 1px dashed var(--empty-border);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  color: var(--muted);
+  background: var(--empty-bg);
+}

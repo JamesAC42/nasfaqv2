@@ -9,15 +9,8 @@ import {
   createChart,
   type Time,
 } from "lightweight-charts";
-
-type CandlePoint = {
-  bucket: string;
-  open: number | null;
-  high: number | null;
-  low: number | null;
-  close: number | null;
-  close_mark?: number | null;
-};
+import type { CandlePoint } from "@/app/lib/types";
+import styles from "@/app/components/charts/market-charts.module.scss";
 
 type TrendPoint = {
   time: string;
@@ -33,10 +26,7 @@ type TrendSeries = {
 
 function toChartTime(value: string): Time | null {
   if (!value) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return value as Time;
-  }
-
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value as Time;
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
   return Math.floor(parsed.getTime() / 1000) as Time;
@@ -58,17 +48,17 @@ function createBaseChart(container: HTMLDivElement) {
     height: 320,
     layout: {
       background: { type: ColorType.Solid, color: "transparent" },
-      textColor: "#475569",
-      fontFamily: "Arial, Helvetica, sans-serif",
+      textColor: "#6b5d4c",
+      fontFamily: "'Nasfaq Sans', 'Avenir Next', 'Segoe UI', sans-serif",
       attributionLogo: false,
     },
     grid: {
-      vertLines: { color: "rgba(148, 163, 184, 0.16)" },
-      horzLines: { color: "rgba(148, 163, 184, 0.16)" },
+      vertLines: { color: "rgba(107, 93, 76, 0.12)" },
+      horzLines: { color: "rgba(107, 93, 76, 0.12)" },
     },
     crosshair: {
-      vertLine: { color: "rgba(15, 23, 42, 0.2)", width: 1 },
-      horzLine: { color: "rgba(15, 23, 42, 0.12)", width: 1 },
+      vertLine: { color: "rgba(31, 26, 20, 0.2)", width: 1 },
+      horzLine: { color: "rgba(31, 26, 20, 0.12)", width: 1 },
     },
     rightPriceScale: {
       borderVisible: false,
@@ -82,17 +72,6 @@ function createBaseChart(container: HTMLDivElement) {
     localization: {
       locale: "en-US",
     },
-    handleScroll: {
-      mouseWheel: true,
-      pressedMouseMove: true,
-      horzTouchDrag: true,
-      vertTouchDrag: false,
-    },
-    handleScale: {
-      axisPressedMouseMove: true,
-      mouseWheel: true,
-      pinch: true,
-    },
   });
 }
 
@@ -103,9 +82,7 @@ function formatValue(value: number | null) {
 
 function formatRangeLabel(values: string[]) {
   if (!values.length) return "No data";
-  const first = values[0];
-  const last = values[values.length - 1];
-  return `${first.slice(0, 10)} to ${last.slice(0, 10)}`;
+  return `${values[0].slice(0, 10)} to ${values[values.length - 1].slice(0, 10)}`;
 }
 
 export function CandleChartCard({
@@ -120,13 +97,7 @@ export function CandleChartCard({
   showMarkClose?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const hasData = candles.some(
-    (item) =>
-      item.open !== null &&
-      item.high !== null &&
-      item.low !== null &&
-      item.close !== null
-  );
+  const hasData = candles.some((item) => item.open !== null && item.high !== null && item.low !== null && item.close !== null);
 
   useEffect(() => {
     if (!containerRef.current || !hasData) return;
@@ -146,16 +117,8 @@ export function CandleChartCard({
       candles
         .map((item) => {
           const time = toChartTime(item.bucket);
-          if (!time || item.open === null || item.high === null || item.low === null || item.close === null) {
-            return null;
-          }
-          return {
-            time,
-            open: item.open,
-            high: item.high,
-            low: item.low,
-            close: item.close,
-          };
+          if (!time || item.open === null || item.high === null || item.low === null || item.close === null) return null;
+          return { time, open: item.open, high: item.high, low: item.low, close: item.close };
         })
         .filter(Boolean) as Array<{ time: Time; open: number; high: number; low: number; close: number }>
     );
@@ -183,22 +146,21 @@ export function CandleChartCard({
     return () => chart.remove();
   }, [candles, hasData, showMarkClose]);
 
-  const latestClose = latestValue(candles.map((item) => ({ value: item.close })));
-  const latestMark = latestValue(candles.map((item) => ({ value: item.close_mark ?? null })));
-
   return (
-    <div className="chartBox chartBoxCandles">
-      <div className="chartTitleRow">
+    <div className={`${styles.chartBox} ${styles.chartBoxCandles}`}>
+      <div className={styles.header}>
         <div>
-          <strong>{title}</strong>
-          <span>{subtitle || formatRangeLabel(candles.map((item) => item.bucket))}</span>
+          <strong className={styles.title}>{title}</strong>
+          <span className={styles.subtitle}>{subtitle || formatRangeLabel(candles.map((item) => item.bucket))}</span>
         </div>
-        <div className="chartLegend">
-          <span className="chartPill chartPillCandle">Candles {formatValue(latestClose)}</span>
-          {showMarkClose ? <span className="chartPill chartPillLine">Mark {formatValue(latestMark)}</span> : null}
+        <div className={styles.legend}>
+          <span className={`${styles.pill} ${styles.candlePill}`}>Candles {formatValue(latestValue(candles.map((item) => ({ value: item.close }))))}</span>
+          {showMarkClose ? (
+            <span className={`${styles.pill} ${styles.linePill}`}>Mark {formatValue(latestValue(candles.map((item) => ({ value: item.close_mark ?? null }))))}</span>
+          ) : null}
         </div>
       </div>
-      {hasData ? <div ref={containerRef} className="chartCanvas" /> : <div className="chartEmpty">No candle data</div>}
+      {hasData ? <div ref={containerRef} className={styles.canvas} /> : <div className={styles.empty}>No candle data</div>}
     </div>
   );
 }
@@ -228,7 +190,6 @@ export function TrendChartCard({
           priceLineVisible: false,
           lastValueVisible: true,
         });
-
         lineSeries.setData(
           item.values
             .map((point) => {
@@ -238,27 +199,25 @@ export function TrendChartCard({
             })
             .filter(Boolean) as Array<{ time: Time; value: number }>
         );
-        continue;
+      } else {
+        const areaSeries = chart.addSeries(AreaSeries, {
+          lineColor: item.color,
+          topColor: `${item.color}44`,
+          bottomColor: `${item.color}06`,
+          lineWidth: 3,
+          priceLineVisible: false,
+          lastValueVisible: true,
+        });
+        areaSeries.setData(
+          item.values
+            .map((point) => {
+              const time = toChartTime(point.time);
+              if (!time || point.value === null) return null;
+              return { time, value: point.value };
+            })
+            .filter(Boolean) as Array<{ time: Time; value: number }>
+        );
       }
-
-      const areaSeries = chart.addSeries(AreaSeries, {
-        lineColor: item.color,
-        topColor: `${item.color}44`,
-        bottomColor: `${item.color}06`,
-        lineWidth: 3,
-        priceLineVisible: false,
-        lastValueVisible: true,
-      });
-
-      areaSeries.setData(
-        item.values
-          .map((point) => {
-            const time = toChartTime(point.time);
-            if (!time || point.value === null) return null;
-            return { time, value: point.value };
-          })
-          .filter(Boolean) as Array<{ time: Time; value: number }>
-      );
     }
 
     chart.timeScale().fitContent();
@@ -268,34 +227,28 @@ export function TrendChartCard({
   const rangeValues = series[0]?.values.map((item) => item.time) || [];
 
   return (
-    <div className="chartBox chartBoxTrend">
-      <div className="chartTitleRow">
+    <div className={`${styles.chartBox} ${styles.chartBoxTrend}`}>
+      <div className={styles.header}>
         <div>
-          <strong>{title}</strong>
-          <span>{subtitle || formatRangeLabel(rangeValues)}</span>
+          <strong className={styles.title}>{title}</strong>
+          <span className={styles.subtitle}>{subtitle || formatRangeLabel(rangeValues)}</span>
         </div>
-        <div className="chartLegend">
+        <div className={styles.legend}>
           {series.map((item) => (
-            <span key={item.name} className="chartPill" style={{ borderColor: `${item.color}55`, color: item.color }}>
+            <span key={item.name} className={styles.pill} style={{ borderColor: `${item.color}55`, color: item.color }}>
               {item.name} {formatValue(latestValue(item.values))}
             </span>
           ))}
         </div>
       </div>
-      {hasData ? <div ref={containerRef} className="chartCanvas" /> : <div className="chartEmpty">No trend data</div>}
+      {hasData ? <div ref={containerRef} className={styles.canvas} /> : <div className={styles.empty}>No trend data</div>}
     </div>
   );
 }
 
-export function SparklineChart({
-  candles,
-}: {
-  candles: CandlePoint[];
-}) {
+export function SparklineChart({ candles }: { candles: CandlePoint[] }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const hasData = candles.some(
-    (item) => (item.close_mark ?? item.close) !== null && Number.isFinite(item.close_mark ?? item.close)
-  );
+  const hasData = candles.some((item) => (item.close_mark ?? item.close) !== null && Number.isFinite(item.close_mark ?? item.close));
 
   useEffect(() => {
     if (!containerRef.current || !hasData) return;
@@ -312,15 +265,9 @@ export function SparklineChart({
         vertLines: { visible: false },
         horzLines: { visible: false },
       },
-      rightPriceScale: {
-        visible: false,
-      },
-      leftPriceScale: {
-        visible: false,
-      },
-      timeScale: {
-        visible: false,
-      },
+      rightPriceScale: { visible: false },
+      leftPriceScale: { visible: false },
+      timeScale: { visible: false },
       crosshair: {
         vertLine: { visible: false, labelVisible: false },
         horzLine: { visible: false, labelVisible: false },
@@ -332,11 +279,7 @@ export function SparklineChart({
     const sparklineValues = candles
       .map((item) => item.close_mark ?? item.close)
       .filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value));
-    const tone =
-      sparklineValues.length >= 2 && sparklineValues[sparklineValues.length - 1] < sparklineValues[0]
-        ? "down"
-        : "up";
-
+    const tone = sparklineValues.length >= 2 && sparklineValues[sparklineValues.length - 1] < sparklineValues[0] ? "down" : "up";
     const palette =
       tone === "up"
         ? { line: "#0f766e", top: "rgba(15, 118, 110, 0.24)", bottom: "rgba(15, 118, 110, 0.02)" }
@@ -366,5 +309,5 @@ export function SparklineChart({
     return () => chart.remove();
   }, [candles, hasData]);
 
-  return hasData ? <div ref={containerRef} className="sparklineCanvas" /> : <div className="sparklineEmpty" />;
+  return hasData ? <div ref={containerRef} className={styles.sparklineCanvas} /> : <div className={styles.sparklineEmpty} />;
 }

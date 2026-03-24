@@ -1,0 +1,131 @@
+@use "../../styles/mixins" as *;
+
+.section {
+  @include panel;
+  padding: 1.2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: end;
+}
+
+.title {
+  @include section-title;
+}
+
+.copy {
+  @include subtle-copy;
+  margin: 0.35rem 0 0;
+}
+
+.tableWrap {
+  overflow: auto;
+}
+
+.table {
+  @include table-shell;
+}
+
+.rowButton {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  text-align: inherit;
+}
+
+.selectedRow {
+  background: var(--selected-row);
+}
+
+.filter {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 180px;
+}
+
+.filterSelect {
+  @include input-base;
+}
+
+.heatmapHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.heatmapWrap {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.tile {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.8rem;
+  min-height: 110px;
+  display: grid;
+  align-content: space-between;
+  gap: 0.6rem;
+}
+
+.tileUp {
+  background:var(--bg);
+}
+
+.tileDown {
+  background:var(--bg);
+}
+
+.span1 {
+  grid-column: span 1;
+}
+
+.span2 {
+  grid-column: span 2;
+}
+
+.span3 {
+  grid-column: span 3;
+}
+
+.tileHeader {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.icon,
+.iconFallback {
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-card-highlight);
+}
+
+.empty {
+  @include empty-state;
+}
+
+@media (max-width: 1100px) {
+  .heatmapWrap {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .heatmapWrap {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

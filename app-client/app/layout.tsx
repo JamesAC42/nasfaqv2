@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import "./globals.css";
+import "./globals.scss";
+import { AppProviders } from "@/app/providers/app-providers";
 
 export const metadata: Metadata = {
   title: "NASFAQ",
@@ -13,7 +14,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <AppProviders>{children}</AppProviders>
+      </body>
     </html>
   );
 }

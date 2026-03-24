@@ -1,0 +1,29 @@
+@use "../../styles/mixins" as *;
+
+.section {
+  @include panel;
+  padding: 1.2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.title {
+  @include section-title;
+}
+
+.copy {
+  @include subtle-copy;
+  margin: 0.35rem 0 0;
+}
+
+.tableWrap {
+  overflow: auto;
+}
+
+.table {
+  @include table-shell;
+}
+
+.empty {
+  @include empty-state;
+}

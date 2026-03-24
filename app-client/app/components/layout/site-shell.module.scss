@@ -1,0 +1,83 @@
+@use "../../styles/mixins" as *;
+
+.shell {
+  width: min(calc(100% - 2rem), var(--container));
+  margin: 0 auto;
+  padding: 1.25rem 0 2rem;
+}
+
+.header {
+  @include panel;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem 1.2rem;
+  margin-bottom: 1.2rem;
+}
+
+.brand {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  color: var(--accent);
+  font-size: clamp(1.3rem, 2.4vw, 2.2rem);
+}
+
+.subtitle {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.nav {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.navLink {
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 0.55rem 0.85rem;
+  color: var(--muted);
+}
+
+.navLinkActive {
+  border-color: var(--border);
+  background: var(--surface-nav-active);
+  color: var(--text);
+}
+
+.authBlock {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.userText {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.action {
+  @include button-secondary;
+}
+
+.main {
+  display: grid;
+  gap: 1.25rem;
+}
+
+@media (max-width: 900px) {
+  .header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

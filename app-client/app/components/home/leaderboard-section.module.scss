@@ -1,0 +1,23 @@
+@use "../../styles/mixins" as *;
+
+.section {
+  @include panel;
+  padding: 1.2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.title {
+  @include section-title;
+}
+
+.list {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.empty {
+  @include empty-state;
+}

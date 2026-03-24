@@ -1,0 +1,33 @@
+@use "../../styles/mixins" as *;
+
+.section {
+  @include panel;
+  padding: 1.2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.title {
+  @include section-title;
+}
+
+.list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.item {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem;
+  background: var(--surface-card-soft);
+}
+
+.meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.empty {
+  @include empty-state;
+}

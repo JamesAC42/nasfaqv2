@@ -1,0 +1,82 @@
+@use "../../styles/mixins" as *;
+
+.chartBox {
+  @include panel;
+  padding: 1rem;
+}
+
+.chartBoxCandles {
+  background: var(--bg);
+}
+
+.chartBoxTrend {
+  background:var(--bg);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+}
+
+.title {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.subtitle {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.legend {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.28rem 0.6rem;
+  background: var(--surface-pill);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.candlePill {
+  border-color: var(--border-positive);
+  color: var(--trend-up);
+}
+
+.linePill {
+  border-color: var(--border-info);
+  color: var(--trend-line);
+}
+
+.canvas {
+  width: 100%;
+  height: 320px;
+}
+
+.empty {
+  @include empty-state;
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+}
+
+.sparklineCanvas {
+  width: 100%;
+  height: 44px;
+}
+
+.sparklineEmpty {
+  height: 44px;
+}

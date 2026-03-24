@@ -1,0 +1,45 @@
+@use "../../styles/mixins" as *;
+
+.section {
+  @include panel;
+  padding: 1.2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.title {
+  @include section-title;
+}
+
+.copy {
+  @include subtle-copy;
+  margin: 0.35rem 0 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.listCard {
+  @include panel;
+  padding: 1rem;
+}
+
+.list {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.empty {
+  @include empty-state;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
