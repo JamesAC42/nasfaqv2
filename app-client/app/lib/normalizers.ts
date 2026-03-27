@@ -185,7 +185,7 @@ export function normalizePortfolio(value: Record<string, unknown>): PortfolioSum
 
 export function normalizeLivestreams(rows: Array<Record<string, unknown>>): LivestreamItem[] {
   return rows.map((row, index) => ({
-    id: String(row.id || row.stream_id || index),
+    id: String(row.id || row.video_id || row.stream_id || index),
     title: String(row.title || row.name || "Untitled livestream"),
     creator: String(row.creator || row.channel || row.channel_name || "Unknown creator"),
     viewer_count: toNumber(row.viewer_count || row.concurrent_viewers),

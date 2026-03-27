@@ -57,13 +57,22 @@ type bucketAccumulator struct {
 	Max         int64
 }
 
+type upcomingStreamState struct {
+	VideoID            string
+	ChannelID          string
+	ScheduledStartTime time.Time
+	LastPriorityPollAt time.Time
+}
+
 // liveTracker holds the current set of live streams and their viewer-count accumulators.
 // Updated by the detection loop; read by the viewer poll loop.
 type liveTracker struct {
 	mu           sync.RWMutex
+	pollMu       sync.Mutex
 	channels     []db.Channel
 	live         map[string]*livestreams.Stream // videoID -> stream (for Redis update)
 	accumulators map[string]*bucketAccumulator   // videoID -> current 5-min bucket
+	upcoming     map[string]*upcomingStreamState // videoID -> scheduled upcoming state
 }
 
 func main() {
@@ -112,7 +121,11 @@ func main() {
 	}
 
 	// Livestream: detection loop (every N min) + viewer poll loop (every 10s).
-	tracker := &liveTracker{live: make(map[string]*livestreams.Stream), accumulators: make(map[string]*bucketAccumulator)}
+	tracker := &liveTracker{
+		live:         make(map[string]*livestreams.Stream),
+		accumulators: make(map[string]*bucketAccumulator),
+		upcoming:     make(map[string]*upcomingStreamState),
+	}
 	if cfg.EnableLivePoll {
 		bootstrapFreshCutoff := time.Now().UTC().Add(-time.Duration(cfg.LiveRedisFreshMinutes) * time.Minute)
 		hasFreshRedisData := bootstrapFromRedis(ctx, pool, yt, liveStore, tracker, cfg, bootstrapFreshCutoff)
@@ -124,6 +137,7 @@ func main() {
 		}
 
 		go pollLivestreamsLoop(ctx, pool, yt, liveStore, tracker, cfg, runImmediately)
+		go pollScheduledUpcomingLoop(ctx, pool, yt, liveStore, tracker, cfg)
 		go viewerPollLoop(ctx, pool, yt, liveStore, tracker, cfg)
 	} else {
 		log.Printf("livestreams: polling disabled via LIVE_POLL_ENABLED")
@@ -186,9 +200,41 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 	if err != nil {
 		return err
 	}
+	return pollLivestreamsForChannels(ctx, pool, yt, store, tracker, cfg, channels)
+}
+
+func pollScheduledUpcomingLoop(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, store *livestreams.RedisStore, tracker *liveTracker, cfg Config) {
+	const checkInterval = time.Minute
+
+	if cfg.LiveDetectionPollLogEnabled {
+		log.Printf("livestreams: scheduled-start polling enabled (check interval=%s)", checkInterval)
+	}
+
+	t := time.NewTicker(checkInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			dueChannels := tracker.priorityPollChannels(time.Now().UTC())
+			if len(dueChannels) == 0 {
+				continue
+			}
+			if err := pollLivestreamsForChannels(ctx, pool, yt, store, tracker, cfg, dueChannels); err != nil {
+				log.Printf("livestreams: scheduled-start poll failed: %v", err)
+			}
+		}
+	}
+}
+
+func pollLivestreamsForChannels(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, store *livestreams.RedisStore, tracker *liveTracker, cfg Config, channels []db.Channel) error {
 	if len(channels) == 0 {
 		return nil
 	}
+
+	tracker.pollMu.Lock()
+	defer tracker.pollMu.Unlock()
 
 	now := time.Now().UTC()
 	var fail int
@@ -196,6 +242,8 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 	newLiveSet := make(map[string]*livestreams.Stream)
 	detectedEndedChannels := make(map[string]string)
 	detectedEndedAt := make(map[string]time.Time)
+	polledChannels := make(map[string]struct{}, len(channels))
+	channelStreams := make(map[string][]livestreams.Stream, len(channels))
 
 	for i, ch := range channels {
 		if ctx.Err() != nil {
@@ -326,6 +374,8 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 			log.Printf("livestreams: channel=%s redis error: %v", ch.YouTubeChannelID, err)
 			continue
 		}
+		polledChannels[ch.YouTubeChannelID] = struct{}{}
+		channelStreams[ch.YouTubeChannelID] = out
 
 		if cfg.LiveChannelScrapeLogEnabled {
 			log.Printf("livestreams: ok (%d/%d) channel=%s live=%d upcoming=%d", i+1, len(channels), ch.YouTubeChannelID, len(liveIDs), len(upcomingIDs))
@@ -336,10 +386,13 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 		}
 	}
 
-	// Detect ended streams: were live before but not in newLiveSet. Flush bucket, end session, update channel stats.
+	// Detect ended streams: were live before but are no longer live for channels that were successfully polled.
 	tracker.mu.Lock()
 	prevLive := make(map[string]string) // videoID -> channelID
 	for vid, st := range tracker.live {
+		if _, ok := polledChannels[st.ChannelID]; !ok {
+			continue
+		}
 		prevLive[vid] = st.ChannelID
 	}
 	endCandidates := make(map[string]string, len(prevLive)+len(detectedEndedChannels))
@@ -352,6 +405,9 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 		endTimes[videoID] = now
 	}
 	for videoID, channelID := range detectedEndedChannels {
+		if _, ok := polledChannels[channelID]; !ok {
+			continue
+		}
 		if _, stillLive := newLiveSet[videoID]; stillLive {
 			continue
 		}
@@ -427,12 +483,34 @@ func pollLivestreamsOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Cl
 			log.Printf("livestreams: stop polling stream video_id=%s channel=%s (ended)", videoID, channelID)
 		}
 	}
-	tracker.channels = channels
-	tracker.live = newLiveSet
+
+	for videoID, st := range tracker.live {
+		if _, ok := polledChannels[st.ChannelID]; ok {
+			delete(tracker.live, videoID)
+		}
+	}
+	for channelID, streams := range channelStreams {
+		tracker.replaceUpcomingForChannel(channelID, streams)
+		tracker.markPriorityPollForChannel(channelID, now)
+	}
+	for videoID, st := range newLiveSet {
+		if _, ok := polledChannels[st.ChannelID]; !ok {
+			continue
+		}
+		tracker.live[videoID] = st
+	}
+	tracker.upsertChannels(channels)
 	for videoID := range newLiveSet {
+		st := newLiveSet[videoID]
+		if st == nil {
+			continue
+		}
+		if _, ok := polledChannels[st.ChannelID]; !ok {
+			continue
+		}
 		if tracker.accumulators[videoID] == nil {
 			if _, wasAlreadyLive := prevLive[videoID]; !wasAlreadyLive {
-				if st := newLiveSet[videoID]; st != nil {
+				if st != nil {
 					if cfg.LiveStreamStateLogEnabled {
 						log.Printf("livestreams: start polling stream video_id=%s channel=%s", videoID, st.ChannelID)
 					}
@@ -471,6 +549,105 @@ func uniqueIDs(groups ...[]string) []string {
 		}
 	}
 	return out
+}
+
+func (t *liveTracker) priorityPollChannels(now time.Time) []db.Channel {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	if len(t.upcoming) == 0 || len(t.channels) == 0 {
+		return nil
+	}
+
+	channelByID := make(map[string]db.Channel, len(t.channels))
+	for _, ch := range t.channels {
+		channelByID[ch.YouTubeChannelID] = ch
+	}
+
+	dueByChannel := make(map[string]db.Channel)
+	for _, st := range t.upcoming {
+		if st == nil || st.ScheduledStartTime.IsZero() {
+			continue
+		}
+
+		overdue := now.Sub(st.ScheduledStartTime)
+		if overdue < 0 || overdue > time.Hour {
+			continue
+		}
+
+		interval := 5 * time.Minute
+		if overdue < 5*time.Minute {
+			interval = time.Minute
+		}
+		if !st.LastPriorityPollAt.IsZero() && now.Sub(st.LastPriorityPollAt) < interval {
+			continue
+		}
+
+		ch, ok := channelByID[st.ChannelID]
+		if !ok {
+			continue
+		}
+		dueByChannel[st.ChannelID] = ch
+	}
+
+	out := make([]db.Channel, 0, len(dueByChannel))
+	for _, ch := range dueByChannel {
+		out = append(out, ch)
+	}
+	return out
+}
+
+func (t *liveTracker) replaceUpcomingForChannel(channelID string, streams []livestreams.Stream) {
+	for videoID, st := range t.upcoming {
+		if st != nil && st.ChannelID == channelID {
+			delete(t.upcoming, videoID)
+		}
+	}
+
+	for _, st := range streams {
+		if st.Status != livestreams.StatusUpcoming || st.ScheduledStartTime == nil {
+			continue
+		}
+		t.upcoming[st.VideoID] = &upcomingStreamState{
+			VideoID:            st.VideoID,
+			ChannelID:          channelID,
+			ScheduledStartTime: st.ScheduledStartTime.UTC(),
+		}
+	}
+}
+
+func (t *liveTracker) markPriorityPollForChannel(channelID string, polledAt time.Time) {
+	for _, st := range t.upcoming {
+		if st == nil || st.ChannelID != channelID {
+			continue
+		}
+
+		overdue := polledAt.Sub(st.ScheduledStartTime)
+		if overdue < 0 || overdue > time.Hour {
+			continue
+		}
+		st.LastPriorityPollAt = polledAt
+	}
+}
+
+func (t *liveTracker) upsertChannels(channels []db.Channel) {
+	if len(channels) == 0 {
+		return
+	}
+
+	byID := make(map[string]db.Channel, len(t.channels)+len(channels))
+	for _, ch := range t.channels {
+		byID[ch.YouTubeChannelID] = ch
+	}
+	for _, ch := range channels {
+		byID[ch.YouTubeChannelID] = ch
+	}
+
+	out := make([]db.Channel, 0, len(byID))
+	for _, ch := range byID {
+		out = append(out, ch)
+	}
+	t.channels = out
 }
 
 func maxInt(a, b int) int {
@@ -519,6 +696,7 @@ func bootstrapFromRedis(
 
 	live := make(map[string]*livestreams.Stream)
 	acc := make(map[string]*bucketAccumulator)
+	upcoming := make(map[string]*upcomingStreamState)
 	hasFreshRedisData := false
 
 	for _, ch := range channels {
@@ -531,6 +709,14 @@ func bootstrapFromRedis(
 				continue
 			}
 			hasFreshRedisData = true
+
+			if st.Status == livestreams.StatusUpcoming && st.ScheduledStartTime != nil {
+				upcoming[st.VideoID] = &upcomingStreamState{
+					VideoID:            st.VideoID,
+					ChannelID:          ch.YouTubeChannelID,
+					ScheduledStartTime: st.ScheduledStartTime.UTC(),
+				}
+			}
 
 			// Only live streams are used for 10-second viewer polling.
 			if st.Status != livestreams.StatusLive {
@@ -553,6 +739,7 @@ func bootstrapFromRedis(
 	tracker.channels = channels
 	tracker.live = live
 	tracker.accumulators = acc
+	tracker.upcoming = upcoming
 	tracker.mu.Unlock()
 
 	if cfg.LiveDetectionPollLogEnabled {

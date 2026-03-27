@@ -175,6 +175,12 @@ export type LivestreamItem = {
   url?: string | null;
 };
 
+export type ChannelLivestreamBundle = {
+  channel_id: string;
+  live: LivestreamItem[];
+  upcoming: LivestreamItem[];
+};
+
 export type LeaderboardEntry = {
   id: string;
   rank: number;

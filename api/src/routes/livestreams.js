@@ -22,6 +22,7 @@ function toListStream(item) {
     video_id: item.video_id,
     status: item.status,
     title: item.title,
+    url: item.video_url || null,
     thumbnail_url: item.thumbnail_url,
     channel_name: item.channel_name,
     channel_icon: item.channel_icon,
@@ -30,6 +31,40 @@ function toListStream(item) {
     actual_start_time: item.actual_start_time,
     concurrent_viewers: item.concurrent_viewers,
   };
+}
+
+function sortStreams(live, upcoming) {
+  upcoming.sort((a, b) => {
+    const at = a.scheduled_start_time || a.updated_at;
+    const bt = b.scheduled_start_time || b.updated_at;
+    return cmpAsc(String(at), String(bt));
+  });
+  live.sort((a, b) => {
+    const at = a.actual_start_time || a.updated_at;
+    const bt = b.actual_start_time || b.updated_at;
+    return cmpAsc(String(bt), String(at));
+  });
+}
+
+async function getChannelStreamsFromRedis(redis, channelID) {
+  if (!redis || !channelID) {
+    return { live: [], upcoming: [] };
+  }
+
+  const key = `nasfaq_livestreams:{${channelID}}`;
+  const hash = await redis.hGetAll(key);
+  const live = [];
+  const upcoming = [];
+
+  for (const [, val] of Object.entries(hash)) {
+    const item = safeParseJSON(val);
+    if (!item || !item.video_id) continue;
+    if (item.status === "live") live.push(item);
+    else if (item.status === "upcoming") upcoming.push(item);
+  }
+
+  sortStreams(live, upcoming);
+  return { live, upcoming };
 }
 
 function parsePage(value) {
@@ -89,33 +124,44 @@ router.get("/", async (req, res, next) => {
     const live = [];
     const upcoming = [];
 
-    // Aggregate all per-channel hashes: nasfaq_livestreams:{channelId}
-    const match = channelFilter ? `nasfaq_livestreams:{${channelFilter}}` : "nasfaq_livestreams:{*}";
-    for await (const key of redis.scanIterator({ MATCH: match, COUNT: 200 })) {
-      const h = await redis.hGetAll(key);
-      for (const [, val] of Object.entries(h)) {
-        const item = safeParseJSON(val);
-        if (!item || !item.video_id) continue;
-        if (item.status === "live") live.push(item);
-        else if (item.status === "upcoming") upcoming.push(item);
+    if (channelFilter) {
+      const streams = await getChannelStreamsFromRedis(redis, channelFilter);
+      live.push(...streams.live);
+      upcoming.push(...streams.upcoming);
+    } else {
+      // Aggregate all per-channel hashes: nasfaq_livestreams:{channelId}
+      for await (const key of redis.scanIterator({ MATCH: "nasfaq_livestreams:{*}", COUNT: 200 })) {
+        const h = await redis.hGetAll(key);
+        for (const [, val] of Object.entries(h)) {
+          const item = safeParseJSON(val);
+          if (!item || !item.video_id) continue;
+          if (item.status === "live") live.push(item);
+          else if (item.status === "upcoming") upcoming.push(item);
+        }
       }
+      sortStreams(live, upcoming);
     }
 
-    // Sort:
-    // - upcoming by scheduled_start_time ascending (fallback updated_at)
-    // - live by actual_start_time descending (fallback updated_at)
-    upcoming.sort((a, b) => {
-      const at = a.scheduled_start_time || a.updated_at;
-      const bt = b.scheduled_start_time || b.updated_at;
-      return cmpAsc(String(at), String(bt));
-    });
-    live.sort((a, b) => {
-      const at = a.actual_start_time || a.updated_at;
-      const bt = b.actual_start_time || b.updated_at;
-      return cmpAsc(String(bt), String(at));
-    });
-
     res.json({ live: live.map(toListStream), upcoming: upcoming.map(toListStream) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/channel/:channelId", async (req, res, next) => {
+  try {
+    const redis = req.ctx.redis;
+    if (!redis) return res.status(500).json({ error: "redis_not_configured" });
+
+    const channelID = req.params.channelId ? req.params.channelId.toString().trim() : "";
+    if (!channelID) return res.status(400).json({ error: "missing_channel_id" });
+
+    const streams = await getChannelStreamsFromRedis(redis, channelID);
+    res.json({
+      channel_id: channelID,
+      live: streams.live.map(toListStream),
+      upcoming: streams.upcoming.map(toListStream),
+    });
   } catch (e) {
     next(e);
   }
