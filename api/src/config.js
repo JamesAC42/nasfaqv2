@@ -23,7 +23,8 @@ function getConfig() {
     redisUrl: process.env.REDIS_URL,
     redisPassword: process.env.REDIS_PASSWORD,
     corsOrigin: process.env.CORS_ORIGIN || "http://localhost:3010",
-    enableMigrations: (process.env.ENABLE_MIGRATIONS || "").toLowerCase() === "true"
+    enableMigrations: (process.env.ENABLE_MIGRATIONS || "").toLowerCase() === "true",
+    enableMarketSettlementScheduler: (process.env.MARKET_SETTLEMENT_SCHEDULER_ENABLED || "true").toLowerCase() !== "false",
   };
 }
 

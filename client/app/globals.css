@@ -409,6 +409,35 @@ a {
   outline: none;
 }
 
+.marketSearchResults {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.marketSearchResult {
+  border: 0.0625rem solid rgba(231, 238, 252, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text);
+  border-radius: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.marketSearchTicker {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.marketSearchName {
+  color: var(--muted);
+  min-width: 0;
+  text-align: right;
+}
+
 .marketPanelHead {
   display: flex;
   align-items: baseline;
@@ -436,9 +465,20 @@ a {
 .marketTickerRow {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 1rem;
   padding-bottom: 0.75rem;
   border-bottom: 0.0625rem solid rgba(231, 238, 252, 0.08);
+}
+
+.marketTickerRowButton {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding-top: 0;
+  cursor: pointer;
 }
 
 .marketTicker {
@@ -473,6 +513,95 @@ a {
   border-radius: 999rem;
   padding: 0.35rem 0.65rem;
   font-size: 0.8rem;
+}
+
+.marketMiniPillButton {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.marketSparkline {
+  width: 4.5rem;
+  height: 2rem;
+  flex: 0 0 auto;
+}
+
+.marketSparkline polyline {
+  fill: none;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.marketSparklineUp polyline {
+  stroke: #5cc8ff;
+}
+
+.marketSparklineDown polyline {
+  stroke: #ff7b96;
+}
+
+.marketSparklineEmpty {
+  width: 4.5rem;
+  height: 2rem;
+  flex: 0 0 auto;
+}
+
+.marketLivestreamList {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.marketLivestreamCard {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 0.75rem;
+  text-decoration: none;
+  align-items: start;
+}
+
+.marketLivestreamThumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.marketLivestreamBody {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.marketLivestreamTitle {
+  font-size: 0.9rem;
+  line-height: 1.35;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.marketLivestreamMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.marketLivestreamIcon {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999rem;
+  object-fit: contain;
+}
+
+.marketLivestreamViewers {
+  color: #5cc8ff;
+  font-weight: 600;
 }
 
 .marketPortfolioGrid {
@@ -615,7 +744,21 @@ a {
   padding: 0.35rem 0.65rem;
   text-decoration: none;
 }
+
+.pillButton {
+  border: 0.0625rem solid var(--border);
+  border-radius: 999rem;
+  padding: 0.35rem 0.65rem;
+  text-decoration: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
 .pill:hover {
+  border-color: rgba(231, 238, 252, 0.25);
+}
+.pillButton:hover {
   border-color: rgba(231, 238, 252, 0.25);
 }
 

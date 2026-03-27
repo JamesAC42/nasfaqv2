@@ -6,15 +6,17 @@ import {
   normalizeAsset,
   normalizeCandles,
   normalizeMarketIndex,
+  normalizeMarketStatus,
   normalizeStats,
   normalizeTrades,
   normalizeTreasury,
 } from "@/app/lib/normalizers";
-import type { AssetDetailBundle, DailyReport, MarketAsset, MarketIndexBundle } from "@/app/lib/types";
+import type { AssetDetailBundle, DailyReport, MarketAsset, MarketIndexBundle, MarketStatus } from "@/app/lib/types";
 
 type MarketState = {
   assets: MarketAsset[];
   report: DailyReport | null;
+  marketStatus: MarketStatus | null;
   selectedSymbol: string;
   selectedUnit: string;
   detail: AssetDetailBundle | null;
@@ -34,6 +36,7 @@ type MarketState = {
 export const useMarketStore = create<MarketState>((set, get) => ({
   assets: [],
   report: null,
+  marketStatus: null,
   selectedSymbol: "",
   selectedUnit: "all",
   detail: null,
@@ -47,17 +50,26 @@ export const useMarketStore = create<MarketState>((set, get) => ({
   refreshOverview: async () => {
     set({ isLoadingOverview: true, error: null });
     try {
-      const [assetsResult, reportResult] = await Promise.all([
+      const [assetsResult, reportResult, statusResult] = await Promise.allSettled([
         apiFetch<Record<string, unknown>[]>("/api/market/assets"),
         apiFetch<DailyReport>("/api/market/report/daily/latest"),
+        apiFetch<Record<string, unknown>>("/api/market/status"),
       ]);
 
-      const assets = assetsResult.map(normalizeAsset);
+      if (assetsResult.status !== "fulfilled") {
+        throw assetsResult.reason;
+      }
+      if (statusResult.status !== "fulfilled") {
+        throw statusResult.reason;
+      }
+
+      const assets = assetsResult.value.map(normalizeAsset);
       const nextSymbol = get().selectedSymbol || assets[0]?.symbol || "";
 
       set({
         assets,
-        report: reportResult,
+        report: reportResult.status === "fulfilled" ? reportResult.value : null,
+        marketStatus: normalizeMarketStatus(statusResult.value),
         selectedSymbol: assets.some((asset) => asset.symbol === nextSymbol) ? nextSymbol : assets[0]?.symbol || "",
       });
     } catch (error) {

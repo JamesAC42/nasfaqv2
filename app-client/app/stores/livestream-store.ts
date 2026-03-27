@@ -19,8 +19,8 @@ export const useLivestreamStore = create<LivestreamState>((set) => ({
   fetchLivestreams: async () => {
     set({ isLoading: true, error: null });
     try {
-      const result = await apiFetch<Record<string, unknown>[]>("/api/livestreams");
-      set({ items: normalizeLivestreams(result) });
+      const result = await apiFetch<{ live?: Array<Record<string, unknown>> }>("/api/livestreams");
+      set({ items: normalizeLivestreams(result.live || []) });
     } catch (error) {
       set({ items: [], error: String((error as Error).message || error) });
     } finally {

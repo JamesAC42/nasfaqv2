@@ -148,6 +148,21 @@ export type DailyReport = {
   top_volume?: ReportRow[];
 };
 
+export type MarketStatus = {
+  trading_status: "open" | "settling" | "manual_closed";
+  is_trading_open: boolean;
+  active_phase: "idle" | "fundamentals" | "settlement";
+  trading_message: string | null;
+  current_market_date: string | null;
+  current_cycle_started_at: string | null;
+  current_cycle_updated_at: string | null;
+  last_settlement_market_date: string | null;
+  last_settlement_completed_at: string | null;
+  next_scheduled_settlement_at: string | null;
+  last_cycle_error: string | null;
+  updated_at: string | null;
+};
+
 export type LivestreamItem = {
   id: string;
   title: string;
@@ -155,6 +170,7 @@ export type LivestreamItem = {
   viewer_count: number | null;
   started_at: string | null;
   status: string;
+  creator_icon?: string | null;
   thumbnail_url?: string | null;
   url?: string | null;
 };
@@ -172,6 +188,8 @@ export type NewsItem = {
   headline: string;
   source: string;
   published_at: string | null;
+  thumbnail_url?: string | null;
   url?: string | null;
   summary?: string | null;
+  related_names?: string[];
 };

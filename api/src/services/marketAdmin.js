@@ -4,6 +4,17 @@ const DEFAULT_MAX_SUPPLY = 10_000;
 const DEFAULT_INITIAL_CIRCULATING_SUPPLY = 2_000;
 const DEFAULT_BASE_EMISSION = 10;
 const DEFAULT_SPREAD_BPS = 400;
+const DEFAULT_MARKET_DATA_TIME_ZONE = "America/New_York";
+
+function getQueryTimeZone() {
+  const candidate = String(process.env.MARKET_DATA_TIMEZONE || process.env.SCRAPE_TIMEZONE || DEFAULT_MARKET_DATA_TIME_ZONE).trim();
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: candidate }).format(new Date());
+    return candidate;
+  } catch {
+    return DEFAULT_MARKET_DATA_TIME_ZONE;
+  }
+}
 
 function normalizeLetters(value) {
   return String(value || "")
@@ -326,16 +337,17 @@ async function checkInvariants(pool) {
 }
 
 async function getHistoricalMarketDateRange(pool, { activeOnly = true } = {}) {
+  const queryTimeZone = getQueryTimeZone();
   const { rows } = await pool.query(
     `
     SELECT
-      MIN(s.time::date)::text AS min_date,
-      MAX(s.time::date)::text AS max_date
+      MIN(timezone($2, s.time)::date)::text AS min_date,
+      MAX(timezone($2, s.time)::date)::text AS max_date
     FROM yt.youtube_channel_daily_stats s
     JOIN yt.youtube_channels c ON c.youtube_channel_id = s.youtube_channel_id
     WHERE ($1::boolean IS FALSE OR c.is_active = true)
   `,
-    [activeOnly]
+    [activeOnly, queryTimeZone]
   );
 
   return {
@@ -361,6 +373,22 @@ async function resetMarketState(pool) {
     await client.query(`DELETE FROM market.fundamental_calculation_runs`);
     await client.query(`DELETE FROM market.market_assets`);
     await client.query(`DELETE FROM market.channel_daily_snapshots`);
+    await client.query(
+      `
+      UPDATE market.market_runtime_state
+      SET
+        trading_status = 'open',
+        active_phase = 'idle',
+        trading_message = NULL,
+        current_market_date = NULL,
+        current_cycle_started_at = NULL,
+        current_cycle_updated_at = NULL,
+        last_settlement_market_date = NULL,
+        last_settlement_completed_at = NULL,
+        last_cycle_error = NULL,
+        updated_at = now()
+    `
+    );
 
     const starterCash = getStarterCash();
     await client.query(`DELETE FROM market.portfolio_cash_balances`);

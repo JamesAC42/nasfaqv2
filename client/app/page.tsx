@@ -56,6 +56,44 @@ type HoloNewsPayload = {
   items: HoloNewsItem[];
 };
 
+type MarketCandlePoint = {
+  bucket: string;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number | null;
+  close_mark?: number | null;
+};
+
+type MarketAsset = {
+  symbol: string;
+  display_name: string;
+  youtube_channel_id: string;
+  icon: string | null;
+  unit: string | null;
+  current_mid_price: number | null;
+  current_fair_value: number | null;
+  current_premium_pct: number | null;
+  volume_24h: number | null;
+  move_24h_pct: number | null;
+  sparkline_candles: MarketCandlePoint[];
+};
+
+type CurrentLivestream = {
+  video_id: string;
+  status: "live" | "upcoming";
+  title: string;
+  thumbnail_url: string | null;
+  channel_name: string;
+  channel_icon?: string | null;
+  concurrent_viewers?: number | null;
+};
+
+type LivestreamPayload = {
+  live: CurrentLivestream[];
+  upcoming: CurrentLivestream[];
+};
+
 type MetricKey = "subscriber_count" | "view_count" | "video_count";
 
 const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
@@ -81,6 +119,21 @@ function fmtDate(v: string | null | undefined) {
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString();
+}
+
+function fmtCompactNum(v: number | null | undefined) {
+  if (v === null || v === undefined) return "—";
+  return new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(v);
+}
+
+function fmtPrice(v: number | null | undefined) {
+  if (v === null || v === undefined) return "—";
+  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+}
+
+function fmtPct(v: number | null | undefined) {
+  if (v === null || v === undefined) return "—";
+  return `${v >= 0 ? "+" : ""}${(v * 100).toFixed(2)}%`;
 }
 
 function fmtMarketDay(v: string | number | Date | null | undefined) {
@@ -116,11 +169,17 @@ export default function Home() {
   const searchParams = useSearchParams();
   const [rows, setRows] = useState<OverviewRow[] | null>(null);
   const [holoNews, setHoloNews] = useState<HoloNewsPayload | null>(null);
+  const [marketAssets, setMarketAssets] = useState<MarketAsset[]>([]);
+  const [livestreams, setLivestreams] = useState<CurrentLivestream[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [holoNewsError, setHoloNewsError] = useState<string | null>(null);
+  const [marketError, setMarketError] = useState<string | null>(null);
+  const [livestreamError, setLivestreamError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [days, setDays] = useState(90);
   const [metricByChannel, setMetricByChannel] = useState<Record<string, MetricKey>>({});
+  const [marketSearch, setMarketSearch] = useState("");
+  const [recentSymbols, setRecentSymbols] = useState<string[]>([]);
   const showCharts = searchParams.has("charts");
 
   const lastScrapedAt = useMemo(() => {
@@ -138,10 +197,14 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setHoloNewsError(null);
+    setMarketError(null);
+    setLivestreamError(null);
     try {
-      const [timeseriesResult, holoNewsResult] = await Promise.allSettled([
+      const [timeseriesResult, holoNewsResult, marketAssetsResult, livestreamsResult] = await Promise.allSettled([
         fetch(`/api/overview/timeseries?days=${days}&limit=500`, { cache: "no-store" }),
         fetch(`/api/overview/holonews`, { cache: "no-store" }),
+        fetch("/api/market/assets", { cache: "no-store" }),
+        fetch("/api/livestreams", { cache: "no-store" }),
       ]);
 
       if (timeseriesResult.status === "rejected") {
@@ -165,6 +228,28 @@ export default function Home() {
         const holoNewsData = (await holoNewsResult.value.json()) as HoloNewsPayload;
         setHoloNews(holoNewsData);
       }
+
+      if (marketAssetsResult.status === "rejected") {
+        setMarketAssets([]);
+        setMarketError(String((marketAssetsResult.reason as Error)?.message || marketAssetsResult.reason));
+      } else if (!marketAssetsResult.value.ok) {
+        setMarketAssets([]);
+        setMarketError(`Market HTTP ${marketAssetsResult.value.status}`);
+      } else {
+        const marketData = (await marketAssetsResult.value.json()) as MarketAsset[];
+        setMarketAssets(marketData || []);
+      }
+
+      if (livestreamsResult.status === "rejected") {
+        setLivestreams([]);
+        setLivestreamError(String((livestreamsResult.reason as Error)?.message || livestreamsResult.reason));
+      } else if (!livestreamsResult.value.ok) {
+        setLivestreams([]);
+        setLivestreamError(`Livestreams HTTP ${livestreamsResult.value.status}`);
+      } else {
+        const livestreamData = (await livestreamsResult.value.json()) as LivestreamPayload;
+        setLivestreams(Array.isArray(livestreamData.live) ? livestreamData.live : []);
+      }
     } catch (e) {
       setError(String((e as Error)?.message || e));
       setRows(null);
@@ -177,9 +262,78 @@ export default function Home() {
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem("nasfaq:recent-assets");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as string[];
+      if (Array.isArray(parsed)) {
+        setRecentSymbols(parsed.filter((item) => typeof item === "string").slice(0, 8));
+      }
+    } catch {}
+  }, []);
+
   const leadStory = holoNews?.items.find((item) => item.rank === 1) ?? null;
   const secondaryStories = holoNews?.items.filter((item) => item.rank === 2 || item.rank === 3) ?? [];
   const otherStories = holoNews?.items.filter((item) => item.rank !== 1 && item.rank !== 2 && item.rank !== 3) ?? [];
+  const marketAssetsBySymbol = useMemo(
+    () => new Map(marketAssets.map((asset) => [formatTicker(asset.symbol), asset])),
+    [marketAssets]
+  );
+  const trendingAssets = useMemo(
+    () =>
+      [...marketAssets]
+        .sort((a, b) => (toNum(b.volume_24h) ?? 0) - (toNum(a.volume_24h) ?? 0))
+        .slice(0, 5),
+    [marketAssets]
+  );
+  const filteredAssetResults = useMemo(() => {
+    const query = marketSearch.trim().toLowerCase();
+    if (!query) return marketAssets.slice(0, 8);
+    return marketAssets
+      .filter((asset) => {
+        const symbol = formatTicker(asset.symbol).toLowerCase();
+        const name = (asset.display_name || "").toLowerCase();
+        const unit = (asset.unit || "").toLowerCase();
+        return symbol.includes(query) || name.includes(query) || unit.includes(query);
+      })
+      .slice(0, 8);
+  }, [marketAssets, marketSearch]);
+  const recentAssets = useMemo(
+    () => recentSymbols.map((symbol) => marketAssetsBySymbol.get(symbol)).filter((asset): asset is MarketAsset => Boolean(asset)),
+    [marketAssetsBySymbol, recentSymbols]
+  );
+  const topLiveStreams = useMemo(
+    () =>
+      [...livestreams]
+        .sort((a, b) => (toNum(b.concurrent_viewers) ?? 0) - (toNum(a.concurrent_viewers) ?? 0))
+        .slice(0, 5),
+    [livestreams]
+  );
+
+  function rememberAsset(symbol: string) {
+    const normalized = formatTicker(symbol);
+    if (!normalized) return;
+    setRecentSymbols((prev) => {
+      const next = [normalized, ...prev.filter((item) => item !== normalized)].slice(0, 8);
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem("nasfaq:recent-assets", JSON.stringify(next));
+        } catch {}
+      }
+      return next;
+    });
+  }
+
+  function focusAsset(symbol: string) {
+    const normalized = formatTicker(symbol);
+    if (!normalized) return;
+    rememberAsset(normalized);
+    setMarketSearch(normalized);
+    const target = typeof document !== "undefined" ? document.getElementById(`asset-card-${normalized}`) : null;
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   return (
     <div className="container">
@@ -215,7 +369,7 @@ export default function Home() {
         <section className="holonewsSection">
           <div className="sectionHead">
             <div>
-              <h2 className="sectionTitle">HoloNews</h2>
+              <h2 className="sectionTitle">News</h2>
               <p className="subtitle">
                 Latest scraped /vt/ roundup. Ranked items with thumbnails appear first.
               </p>
@@ -307,56 +461,87 @@ export default function Home() {
 
         <aside className="marketSidebar">
           <section className="marketPanel marketPanelHero">
-            <p className="marketLabel">Quote Lookup</p>
+            <p className="marketLabel">Market Search</p>
             <div className="marketSearchShell">
-              <input className="marketSearchInput" type="text" value="SUIS, KROI, FBKX" readOnly aria-label="Quote Lookup" />
+              <input
+                className="marketSearchInput"
+                type="text"
+                value={marketSearch}
+                onChange={(event) => setMarketSearch(event.target.value)}
+                placeholder="Search by symbol, name, or unit"
+                aria-label="Market Search"
+              />
+            </div>
+            <div className="marketSearchResults">
+              {filteredAssetResults.map((asset) => (
+                <button key={asset.symbol} type="button" className="marketSearchResult" onClick={() => focusAsset(asset.symbol)}>
+                  <span className="marketSearchTicker">{formatTicker(asset.symbol)}</span>
+                  <span className="marketSearchName">{asset.display_name}</span>
+                </button>
+              ))}
             </div>
           </section>
 
           <section className="marketPanel">
             <div className="marketPanelHead">
-              <h3 className="marketTitle">Trending Tickers</h3>
-              <span className="marketStamp">Live</span>
+              <h3 className="marketTitle">Top Volume</h3>
+              <span className="marketStamp">24H</span>
             </div>
+            {marketError ? <p className="muted">{marketError}</p> : null}
             <div className="marketTickerList">
-              <MarketTickerRow ticker="SUIS" name="Suisei Holdings" price="$482.16" move="+8.42%" positive />
-              <MarketTickerRow ticker="KROI" name="Kronii Index" price="$211.09" move="+3.18%" positive />
-              <MarketTickerRow ticker="FWMC" name="FuwaMoco Group" price="$94.80" move="+2.74%" positive />
-              <MarketTickerRow ticker="AKIR" name="Aki Retail" price="$57.31" move="-1.22%" />
+              {trendingAssets.map((asset) => (
+                <MarketTickerRow key={asset.symbol} asset={asset} onSelect={focusAsset} />
+              ))}
             </div>
           </section>
 
           <section className="marketPanel">
             <div className="marketPanelHead">
-              <h3 className="marketTitle">Recently Viewed Stocks</h3>
+              <h3 className="marketTitle">Recently Viewed Assets</h3>
             </div>
             <div className="marketMiniList">
-              <span className="marketMiniPill">BOTN</span>
-              <span className="marketMiniPill">SHIO</span>
-              <span className="marketMiniPill">ANYA</span>
-              <span className="marketMiniPill">MATS</span>
-              <span className="marketMiniPill">IRYS</span>
+              {recentAssets.length ? (
+                recentAssets.map((asset) => (
+                  <button key={asset.symbol} type="button" className="marketMiniPillButton" onClick={() => focusAsset(asset.symbol)}>
+                    <span className="marketMiniPill">{formatTicker(asset.symbol)}</span>
+                  </button>
+                ))
+              ) : (
+                <span className="muted">Search or tap an asset to keep it here.</span>
+              )}
             </div>
           </section>
 
           <section className="marketPanel">
             <div className="marketPanelHead">
-              <h3 className="marketTitle">My Portfolio</h3>
-              <span className="marketValue">$124,812.44</span>
+              <h3 className="marketTitle">Top Livestreams</h3>
+              <span className="marketValue">Live</span>
             </div>
-            <div className="marketPortfolioGrid">
-              <div className="marketPortfolioRow">
-                <span className="marketPortfolioLabel">Day Change</span>
-                <span className="marketPositive">+$2,418.71</span>
-              </div>
-              <div className="marketPortfolioRow">
-                <span className="marketPortfolioLabel">Top Holding</span>
-                <span className="marketPortfolioValue">SUIS 28%</span>
-              </div>
-              <div className="marketPortfolioRow">
-                <span className="marketPortfolioLabel">Risk</span>
-                <span className="marketPortfolioValue">Aggressive Growth</span>
-              </div>
+            {livestreamError ? <p className="muted">{livestreamError}</p> : null}
+            <div className="marketLivestreamList">
+              {topLiveStreams.map((stream) => (
+                <a
+                  key={stream.video_id}
+                  className="marketLivestreamCard"
+                  href={`/livestreams?video=${encodeURIComponent(stream.video_id)}`}
+                >
+                  {stream.thumbnail_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img className="marketLivestreamThumb" src={stream.thumbnail_url} alt={stream.title} loading="lazy" />
+                  ) : null}
+                  <div className="marketLivestreamBody">
+                    <div className="marketLivestreamTitle">{stream.title}</div>
+                    <div className="marketLivestreamMeta">
+                      {getChannelIconUrl(stream.channel_icon) ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img className="marketLivestreamIcon" src={getChannelIconUrl(stream.channel_icon)!} alt="" loading="lazy" />
+                      ) : null}
+                      <span>{stream.channel_name}</span>
+                      <span className="marketLivestreamViewers">{fmtCompactNum(toNum(stream.concurrent_viewers))} viewers</span>
+                    </div>
+                  </div>
+                </a>
+              ))}
             </div>
           </section>
         </aside>
@@ -378,7 +563,11 @@ export default function Home() {
               const metric = metricByChannel[c.youtube_channel_id] || "subscriber_count";
               const chartOption = showCharts ? buildChartOption(series, metric) : null;
               return (
-                <div key={c.youtube_channel_id} className="chartCard">
+                <div
+                  key={c.youtube_channel_id}
+                  className="chartCard"
+                  id={formatTicker(c.symbol) ? `asset-card-${formatTicker(c.symbol)}` : undefined}
+                >
                   <div className="cardHeader">
                     <div>
                       <p className="name">
@@ -443,6 +632,11 @@ export default function Home() {
                         <a className="pill" href={`https://www.youtube.com/channel/${c.youtube_channel_id}`} target="_blank" rel="noreferrer">
                           Channel
                         </a>
+                        {formatTicker(c.symbol) ? (
+                          <button className="pillButton" type="button" onClick={() => rememberAsset(formatTicker(c.symbol))}>
+                            Save Asset
+                          </button>
+                        ) : null}
                         {latest.last_upload_video_id ? (
                           <a className="pill" href={`https://www.youtube.com/watch?v=${latest.last_upload_video_id}`} target="_blank" rel="noreferrer">
                             Last upload
@@ -531,29 +725,55 @@ function characterDelta(name: string) {
 }
 
 function MarketTickerRow({
-  ticker,
-  name,
-  price,
-  move,
-  positive = false,
+  asset,
+  onSelect,
 }: {
-  ticker: string;
-  name: string;
-  price: string;
-  move: string;
-  positive?: boolean;
+  asset: MarketAsset;
+  onSelect: (symbol: string) => void;
 }) {
+  const ticker = formatTicker(asset.symbol);
+  const positive = (asset.move_24h_pct ?? 0) >= 0;
   return (
-    <div className="marketTickerRow">
+    <button type="button" className="marketTickerRow marketTickerRowButton" onClick={() => onSelect(asset.symbol)}>
       <div>
         <div className="marketTicker">{ticker}</div>
-        <div className="marketTickerName">{name}</div>
+        <div className="marketTickerName">{asset.display_name}</div>
       </div>
+      <MiniSparkline candles={asset.sparkline_candles} />
       <div className="marketTickerQuote">
-        <div className="marketTickerPrice">{price}</div>
-        <div className={positive ? "marketPositive" : "marketNegative"}>{move}</div>
+        <div className="marketTickerPrice">{fmtPrice(asset.current_mid_price)}</div>
+        <div className={positive ? "marketPositive" : "marketNegative"}>{fmtPct(asset.move_24h_pct)}</div>
+        <div className="marketTickerName">{fmtCompactNum(asset.volume_24h)} vol</div>
       </div>
-    </div>
+    </button>
+  );
+}
+
+function MiniSparkline({ candles }: { candles: MarketCandlePoint[] }) {
+  const values = candles
+    .map((item) => toNum(item.close_mark ?? item.close))
+    .filter((value): value is number => value !== null);
+
+  if (values.length < 2) {
+    return <div className="marketSparklineEmpty" />;
+  }
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const points = values
+    .map((value, index) => {
+      const x = (index / (values.length - 1)) * 100;
+      const y = 100 - ((value - min) / span) * 100;
+      return `${x},${y}`;
+    })
+    .join(" ");
+  const tone = values[values.length - 1] >= values[0] ? "marketSparklineUp" : "marketSparklineDown";
+
+  return (
+    <svg className={`marketSparkline ${tone}`} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <polyline points={points} />
+    </svg>
   );
 }
 

@@ -67,3 +67,8 @@ main {
   color: var(--success);
   border-color: var(--success-soft-border);
 }
+
+.statusMessageWarn {
+  color: var(--accent-strong);
+  border-color: var(--button-primary-border);
+}

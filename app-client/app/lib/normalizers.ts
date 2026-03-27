@@ -8,6 +8,7 @@ import type {
   MarketIndexBundle,
   MarketIndexPoint,
   MarketIndexSummary,
+  MarketStatus,
   MarketStatPoint,
   NewsItem,
   PortfolioSummary,
@@ -100,6 +101,24 @@ export function normalizeMarketIndex(value: Record<string, unknown>): MarketInde
   };
 }
 
+export function normalizeMarketStatus(value: Record<string, unknown> | null): MarketStatus | null {
+  if (!value) return null;
+  return {
+    trading_status: String(value.trading_status || "open") as MarketStatus["trading_status"],
+    is_trading_open: Boolean(value.is_trading_open),
+    active_phase: String(value.active_phase || "idle") as MarketStatus["active_phase"],
+    trading_message: value.trading_message ? String(value.trading_message) : null,
+    current_market_date: value.current_market_date ? String(value.current_market_date) : null,
+    current_cycle_started_at: value.current_cycle_started_at ? String(value.current_cycle_started_at) : null,
+    current_cycle_updated_at: value.current_cycle_updated_at ? String(value.current_cycle_updated_at) : null,
+    last_settlement_market_date: value.last_settlement_market_date ? String(value.last_settlement_market_date) : null,
+    last_settlement_completed_at: value.last_settlement_completed_at ? String(value.last_settlement_completed_at) : null,
+    next_scheduled_settlement_at: value.next_scheduled_settlement_at ? String(value.next_scheduled_settlement_at) : null,
+    last_cycle_error: value.last_cycle_error ? String(value.last_cycle_error) : null,
+    updated_at: value.updated_at ? String(value.updated_at) : null,
+  };
+}
+
 export function normalizeTrades(trades: Array<Record<string, unknown>>): TradeRow[] {
   return trades.map((item) => ({
     id: Number(item.id),
@@ -169,9 +188,10 @@ export function normalizeLivestreams(rows: Array<Record<string, unknown>>): Live
     id: String(row.id || row.stream_id || index),
     title: String(row.title || row.name || "Untitled livestream"),
     creator: String(row.creator || row.channel || row.channel_name || "Unknown creator"),
-    viewer_count: toNumber(row.viewer_count),
-    started_at: row.started_at ? String(row.started_at) : null,
+    viewer_count: toNumber(row.viewer_count || row.concurrent_viewers),
+    started_at: row.started_at ? String(row.started_at) : row.actual_start_time ? String(row.actual_start_time) : row.scheduled_start_time ? String(row.scheduled_start_time) : null,
     status: String(row.status || "live"),
+    creator_icon: row.creator_icon ? String(row.creator_icon) : row.channel_icon ? String(row.channel_icon) : null,
     thumbnail_url: row.thumbnail_url ? String(row.thumbnail_url) : null,
     url: row.url ? String(row.url) : null,
   }));
@@ -193,9 +213,39 @@ export function normalizeNews(rows: Array<Record<string, unknown>>): NewsItem[] 
     headline: String(row.headline || row.title || "Untitled story"),
     source: String(row.source || row.publisher || "Unknown source"),
     published_at: row.published_at ? String(row.published_at) : null,
+    thumbnail_url: row.thumbnail_url ? String(row.thumbnail_url) : null,
     url: row.url ? String(row.url) : null,
     summary: row.summary ? String(row.summary) : null,
+    related_names: Array.isArray(row.related_names) ? row.related_names.map((item) => String(item)) : [],
   }));
+}
+
+export function normalizeHoloNewsFeed(value: Record<string, unknown>): NewsItem[] {
+  const updatedAt = value.updated_at ? String(value.updated_at) : null;
+  const items = Array.isArray(value.items) ? (value.items as Array<Record<string, unknown>>) : [];
+
+  return items.map((item, index) => {
+    const characters = Array.isArray(item.characters) ? item.characters as Array<Record<string, unknown>> : [];
+    const summary = characters.length
+      ? characters
+          .map((character) => String(character.name || "").trim())
+          .filter(Boolean)
+          .join(", ")
+      : null;
+
+    return {
+      id: String(item.headline || index),
+      headline: String(item.headline || "Untitled story"),
+      source: "HoloNews",
+      published_at: updatedAt,
+      thumbnail_url: item.thumbnail_url ? String(item.thumbnail_url) : null,
+      summary,
+      url: null,
+      related_names: characters
+        .map((character) => String(character.name || "").trim())
+        .filter(Boolean),
+    };
+  });
 }
 
 export function computeHeatmapMarketCap(asset: MarketAsset) {

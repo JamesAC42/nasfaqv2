@@ -4,12 +4,19 @@ function createPool(databaseUrl) {
   if (!databaseUrl) {
     throw new Error("Missing DATABASE_URL");
   }
-  return new Pool({
+  const pool = new Pool({
     connectionString: databaseUrl,
+    options: process.env.PG_OPTIONS || "-c timezone=UTC",
     max: Number(process.env.PG_POOL_MAX || 10),
     idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 30000),
     connectionTimeoutMillis: Number(process.env.PG_CONN_TIMEOUT_MS || 10000)
   });
+
+  pool.on("connect", (client) => {
+    client.query("SET TIME ZONE 'UTC'").catch(() => {});
+  });
+
+  return pool;
 }
 
 const CHANNEL_SELECT_COLUMNS = `

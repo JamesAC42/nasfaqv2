@@ -2,7 +2,9 @@ const express = require("express");
 const { invalidateMarketAssetsCache } = require("../marketCache");
 const fundamentals = require("../services/fundamentals");
 const marketAdmin = require("../services/marketAdmin");
+const marketState = require("../services/marketState");
 const settlement = require("../services/settlement");
+const { computeNextScheduledAt, loadSchedulerConfig, runScheduledCycle } = require("../services/marketScheduler");
 
 const router = express.Router();
 
@@ -16,6 +18,58 @@ router.get("/jobs", async (req, res, next) => {
   try {
     const jobs = await fundamentals.listFundamentalsJobs(req.ctx.pool);
     res.json(jobs);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/status", async (req, res, next) => {
+  try {
+    const status = await marketState.getMarketStatus(req.ctx.pool);
+    res.json(status || {});
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/close", async (req, res, next) => {
+  const client = await req.ctx.pool.connect();
+  try {
+    const schedulerConfig = loadSchedulerConfig();
+    const status = await marketState.setMarketManualClosed(client, {
+      message: req.body?.message ? String(req.body.message) : "Market manually closed for maintenance.",
+      nextScheduledSettlementAt: computeNextScheduledAt(new Date(), schedulerConfig).toISOString(),
+    });
+    res.json({ ok: true, status });
+  } catch (e) {
+    next(e);
+  } finally {
+    client.release();
+  }
+});
+
+router.post("/open", async (req, res, next) => {
+  const client = await req.ctx.pool.connect();
+  try {
+    const schedulerConfig = loadSchedulerConfig();
+    const status = await marketState.setMarketOpen(client, {
+      message: req.body?.message ? String(req.body.message) : "Market reopened.",
+      nextScheduledSettlementAt: computeNextScheduledAt(new Date(), schedulerConfig).toISOString(),
+    });
+    res.json({ ok: true, status });
+  } catch (e) {
+    next(e);
+  } finally {
+    client.release();
+  }
+});
+
+router.post("/run-daily-cycle", async (req, res, next) => {
+  try {
+    const schedulerConfig = loadSchedulerConfig();
+    const result = await runScheduledCycle(req.ctx.pool, schedulerConfig, console);
+    await invalidateMarketAssetsCache(req.ctx.redis);
+    res.json({ ok: true, result });
   } catch (e) {
     next(e);
   }

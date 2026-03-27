@@ -565,3 +565,29 @@ CREATE TABLE IF NOT EXISTS market.daily_market_reports (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS market.market_runtime_state (
+  state_key TEXT PRIMARY KEY,
+  trading_status TEXT NOT NULL DEFAULT 'open',
+  active_phase TEXT NOT NULL DEFAULT 'idle',
+  trading_message TEXT NULL,
+  current_market_date DATE NULL,
+  current_cycle_started_at TIMESTAMPTZ NULL,
+  current_cycle_updated_at TIMESTAMPTZ NULL,
+  last_settlement_market_date DATE NULL,
+  last_settlement_completed_at TIMESTAMPTZ NULL,
+  next_scheduled_settlement_at TIMESTAMPTZ NULL,
+  last_cycle_error TEXT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT market_runtime_state_status_check CHECK (
+    trading_status IN ('open', 'settling', 'manual_closed')
+  ),
+  CONSTRAINT market_runtime_state_phase_check CHECK (
+    active_phase IN ('idle', 'fundamentals', 'settlement')
+  )
+);
+
+INSERT INTO market.market_runtime_state (state_key)
+VALUES ('primary')
+ON CONFLICT (state_key) DO NOTHING;
+

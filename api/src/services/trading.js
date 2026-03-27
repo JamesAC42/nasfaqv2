@@ -4,6 +4,7 @@ const DEFAULT_TRANSIENT_HALF_LIFE_MINUTES = 60;
 const DEFAULT_TRANSIENT_IMPACT_WEIGHT = 0.7;
 const DEFAULT_PERSISTENT_IMPACT_WEIGHT = 0.15;
 const DEFAULT_EXECUTION_SLIPPAGE_WEIGHT = 0.5;
+const marketState = require("./marketState");
 
 function getTradingFeeRate() {
   const parsed = Number(process.env.MARKET_TRADING_FEE_RATE || DEFAULT_TRADING_FEE_RATE);
@@ -371,6 +372,14 @@ async function executeOrder(pool, { userId, symbol, side, quantity }) {
 
   try {
     await client.query("BEGIN");
+
+    const status = await marketState.getMarketStatusWithClient(client);
+    if (status && !status.is_trading_open) {
+      const error = new Error("market_closed");
+      error.code = "market_closed";
+      error.marketStatus = status;
+      throw error;
+    }
 
     const parsedQuantity = requirePositiveQuantity(quantity);
     const asset = await getLockedAssetBySymbol(client, symbol);

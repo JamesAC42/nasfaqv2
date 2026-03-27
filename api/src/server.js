@@ -8,6 +8,8 @@ const { createPool } = require("./db");
 const { applySchema } = require("./migrations");
 const { createRedis } = require("./redis");
 const authService = require("./services/auth");
+const marketState = require("./services/marketState");
+const { startMarketScheduler, loadSchedulerConfig, computeNextScheduledAt } = require("./services/marketScheduler");
 
 const channelsRoutes = require("./routes/channels");
 const overviewRoutes = require("./routes/overview");
@@ -192,6 +194,24 @@ async function main() {
     await applySchema(pool);
   }
 
+  const schedulerConfig = loadSchedulerConfig();
+  const stateClient = await pool.connect();
+  try {
+    await marketState.ensureMarketRuntimeState(stateClient);
+    const existingStatus = await marketState.getMarketStatusWithClient(stateClient);
+    const nextScheduledAt = computeNextScheduledAt(new Date(), schedulerConfig).toISOString();
+    if (existingStatus?.trading_status === "manual_closed") {
+      await marketState.setNextScheduledSettlementAt(stateClient, nextScheduledAt);
+    } else {
+      await marketState.setMarketOpen(stateClient, {
+        message: existingStatus?.trading_status === "settling" ? "API restarted. Trading reopened on the last committed market state." : existingStatus?.trading_message || null,
+        nextScheduledSettlementAt: nextScheduledAt,
+      });
+    }
+  } finally {
+    stateClient.release();
+  }
+
   // Redis is required for livestream endpoints.
   redis = await createRedis(cfg.redisUrl, cfg.redisPassword);
 
@@ -308,6 +328,10 @@ async function main() {
       `API listening on http://localhost:${cfg.port} (HTTP + WebSocket /api/livestreams/ws + /api/livestreams/buckets/ws)`
     );
   });
+
+  if (cfg.enableMarketSettlementScheduler) {
+    startMarketScheduler(pool, console);
+  }
 }
 
 main().catch((e) => {

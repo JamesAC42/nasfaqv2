@@ -72,6 +72,7 @@
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
   background: var(--surface-card);
+  color: var(--text);
   padding: 0.8rem 0.9rem;
   display: grid;
   gap: 0.25rem;
@@ -92,6 +93,12 @@
   border: 0;
   padding: 0;
   text-align: inherit;
+}
+
+.rowLink {
+  display: block;
+  width: 100%;
+  color: inherit;
 }
 
 .selectedRow {

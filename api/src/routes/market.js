@@ -2,6 +2,7 @@ const express = require("express");
 const marketDb = require("../marketDb");
 const { getCachedAssets, invalidateMarketAssetsCache, setCachedAssets } = require("../marketCache");
 const trading = require("../services/trading");
+const marketState = require("../services/marketState");
 const { requireUserId } = require("../userContext");
 
 const router = express.Router();
@@ -51,6 +52,15 @@ router.get("/report/daily/:date", async (req, res, next) => {
     const report = await marketDb.getDailyReportByDate(req.ctx.pool, marketDate);
     if (!report) return res.status(404).json({ error: "report_not_found" });
     res.json(report);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/status", async (req, res, next) => {
+  try {
+    const status = await marketState.getMarketStatus(req.ctx.pool);
+    res.json(status || {});
   } catch (e) {
     next(e);
   }
@@ -180,6 +190,7 @@ router.post("/orders/buy", async (req, res, next) => {
     if (e?.code === "invalid_quantity") return res.status(400).json({ error: "invalid_quantity" });
     if (e?.code === "asset_not_found") return res.status(404).json({ error: "asset_not_found" });
     if (e?.code === "asset_not_active") return res.status(409).json({ error: "asset_not_active" });
+    if (e?.code === "market_closed") return res.status(409).json({ error: "market_closed", market_status: e.marketStatus || null });
     if (e?.code === "insufficient_cash") return res.status(409).json({ error: "insufficient_cash" });
     if (e?.code === "invalid_quote") return res.status(409).json({ error: "invalid_quote" });
     next(e);
@@ -207,6 +218,7 @@ router.post("/orders/sell", async (req, res, next) => {
     if (e?.code === "invalid_quantity") return res.status(400).json({ error: "invalid_quantity" });
     if (e?.code === "asset_not_found") return res.status(404).json({ error: "asset_not_found" });
     if (e?.code === "asset_not_active") return res.status(409).json({ error: "asset_not_active" });
+    if (e?.code === "market_closed") return res.status(409).json({ error: "market_closed", market_status: e.marketStatus || null });
     if (e?.code === "insufficient_holdings") return res.status(409).json({ error: "insufficient_holdings" });
     if (e?.code === "invalid_quote") return res.status(409).json({ error: "invalid_quote" });
     next(e);

@@ -440,7 +440,12 @@ async function getLatestDailyReport(pool) {
     LIMIT 1
   `
   );
-  return rows[0] || null;
+  if (!rows[0]) return null;
+  return {
+    created_at: rows[0].created_at,
+    market_date: rows[0].market_date,
+    ...(rows[0].report_json || {}),
+  };
 }
 
 async function getDailyReportByDate(pool, marketDate) {
@@ -453,7 +458,12 @@ async function getDailyReportByDate(pool, marketDate) {
   `,
     [marketDate]
   );
-  return rows[0] || null;
+  if (!rows[0]) return null;
+  return {
+    created_at: rows[0].created_at,
+    market_date: rows[0].market_date,
+    ...(rows[0].report_json || {}),
+  };
 }
 
 async function getGroupIndex(pool, { groupBy = "unit", group = "all", range = "1y", weighting = "equal" } = {}) {

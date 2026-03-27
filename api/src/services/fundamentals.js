@@ -1,5 +1,16 @@
 const { bootstrapAssetsWithClient } = require("./marketAdmin");
 const FAIR_VALUE_SCALE_MULTIPLIER = Number(process.env.MARKET_PRICE_SCALE_MULTIPLIER || 100);
+const DEFAULT_MARKET_DATA_TIME_ZONE = "America/New_York";
+
+function getQueryTimeZone() {
+  const candidate = String(process.env.MARKET_DATA_TIMEZONE || process.env.SCRAPE_TIMEZONE || DEFAULT_MARKET_DATA_TIME_ZONE).trim();
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: candidate }).format(new Date());
+    return candidate;
+  } catch {
+    return DEFAULT_MARKET_DATA_TIME_ZONE;
+  }
+}
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -142,16 +153,17 @@ function computeDerivedSnapshot(current, historyByDate, previousDerived, version
 }
 
 async function loadHistoricalDailyStats(client, { from = null, to = null, channelId = null, activeOnly = false } = {}) {
-  const params = [];
+  const params = [getQueryTimeZone()];
   const where = [];
+  const dayExpr = `timezone($1, s.time)::date`;
 
   if (from) {
     params.push(from);
-    where.push(`s.time::date >= $${params.length}::date`);
+    where.push(`${dayExpr} >= $${params.length}::date`);
   }
   if (to) {
     params.push(to);
-    where.push(`s.time::date <= $${params.length}::date`);
+    where.push(`${dayExpr} <= $${params.length}::date`);
   }
   if (channelId) {
     params.push(channelId);
@@ -165,16 +177,16 @@ async function loadHistoricalDailyStats(client, { from = null, to = null, channe
   const { rows } = await client.query(
     `
     WITH ranked AS (
-      SELECT DISTINCT ON (s.youtube_channel_id, s.time::date)
+      SELECT DISTINCT ON (s.youtube_channel_id, ${dayExpr})
         s.youtube_channel_id,
-        s.time::date AS day,
+        ${dayExpr} AS day,
         s.subscriber_count,
         s.view_count,
         s.video_count
       FROM yt.youtube_channel_daily_stats s
       JOIN yt.youtube_channels c ON c.youtube_channel_id = s.youtube_channel_id
       ${whereSql}
-      ORDER BY s.youtube_channel_id, s.time::date, s.time DESC
+      ORDER BY s.youtube_channel_id, ${dayExpr}, s.time DESC
     )
     SELECT
       youtube_channel_id,

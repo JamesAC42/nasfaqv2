@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { SparklineChart, TrendChartCard } from "@/app/components/charts/market-charts";
 import { fmtInteger, fmtNumber, fmtPct } from "@/app/lib/format";
 import { computeHeatmapMarketCap, getIconUrl } from "@/app/lib/normalizers";
@@ -141,6 +142,10 @@ export function MarketOverviewSection({
   isLoadingIndex,
   onSelectSymbol,
   onSelectUnit,
+  assetHrefBase,
+  showIndexes = true,
+  showAssetTable = true,
+  showHeatmap = true,
 }: {
   assets: MarketAsset[];
   marketIndexes: MarketIndexBundle[];
@@ -150,6 +155,10 @@ export function MarketOverviewSection({
   isLoadingIndex: boolean;
   onSelectSymbol: (symbol: string) => void;
   onSelectUnit: (unit: string) => void;
+  assetHrefBase?: string;
+  showIndexes?: boolean;
+  showAssetTable?: boolean;
+  showHeatmap?: boolean;
 }) {
   const heatmapAssets = [...assets]
     .filter((asset) => selectedUnit === "all" || asset.unit === selectedUnit)
@@ -164,75 +173,95 @@ export function MarketOverviewSection({
           <p className={styles.copy}>Overview table, selection state, and heatmap are now isolated behind the market store.</p>
         </div>
       </div>
-      <div className={styles.indexHeader}>
-        <div>
-          <h3 className={styles.title}>Market Indexes</h3>
-          <p className={styles.copy}>All Market plus one equal-weight index per unit. Selecting a card also drives the heatmap filter below.</p>
-        </div>
-      </div>
-      <div className={styles.indexGrid}>
-        {marketIndexes.map((index) => (
-          <IndexCard
-            key={`${index.group_by}:${index.group}`}
-            index={index}
-            selectedUnit={selectedUnit}
-            isLoading={isLoadingIndex}
-            onSelectUnit={onSelectUnit}
-          />
-        ))}
-      </div>
-      <div className={styles.tableWrap}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>Symbol</th>
-              <th>Name</th>
-              <th>Trend</th>
-              <th>Mid</th>
-              <th>Fair</th>
-              <th>Premium</th>
-              <th>24h Move</th>
-              <th>24h Volume</th>
-            </tr>
-          </thead>
-          <tbody>
-            {assets.map((asset) => (
-              <tr key={asset.symbol} className={asset.symbol === selectedSymbol ? styles.selectedRow : undefined}>
-                <td>
-                  <button type="button" className={styles.rowButton} onClick={() => onSelectSymbol(asset.symbol)}>
-                    {asset.symbol}
-                  </button>
-                </td>
-                <td>{asset.display_name}</td>
-                <td><SparklineChart candles={asset.sparkline_candles} /></td>
-                <td>{fmtNumber(asset.current_mid_price)}</td>
-                <td>{fmtNumber(asset.current_fair_value)}</td>
-                <td>{fmtPct(asset.current_premium_pct)}</td>
-                <td>{fmtPct(asset.move_24h_pct)}</td>
-                <td>{fmtNumber(asset.volume_24h)}</td>
+      {showIndexes ? (
+        <>
+          <div className={styles.indexHeader}>
+            <div>
+              <h3 className={styles.title}>Market Indexes</h3>
+              <p className={styles.copy}>All Market plus one equal-weight index per unit. Selecting a card also drives the heatmap filter below.</p>
+            </div>
+          </div>
+          <div className={styles.indexGrid}>
+            {marketIndexes.map((index) => (
+              <IndexCard
+                key={`${index.group_by}:${index.group}`}
+                index={index}
+                selectedUnit={selectedUnit}
+                isLoading={isLoadingIndex}
+                onSelectUnit={onSelectUnit}
+              />
+            ))}
+          </div>
+        </>
+      ) : null}
+      {showAssetTable ? (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Name</th>
+                <th>Trend</th>
+                <th>Mid</th>
+                <th>Fair</th>
+                <th>Premium</th>
+                <th>24h Move</th>
+                <th>24h Volume</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className={styles.heatmapHeader}>
-        <div>
-          <h3 className={styles.title}>Asset Heatmap</h3>
-          <p className={styles.copy}>Top 25 by price × max(24h volume, 1). Tile size and selection remain presentational.</p>
+            </thead>
+            <tbody>
+              {assets.map((asset) => (
+                <tr key={asset.symbol} className={asset.symbol === selectedSymbol ? styles.selectedRow : undefined}>
+                  <td>
+                    {assetHrefBase ? (
+                      <Link
+                        href={`${assetHrefBase}/${encodeURIComponent(asset.symbol)}`}
+                        className={styles.rowLink}
+                        onClick={() => onSelectSymbol(asset.symbol)}
+                      >
+                        {asset.symbol}
+                      </Link>
+                    ) : (
+                      <button type="button" className={styles.rowButton} onClick={() => onSelectSymbol(asset.symbol)}>
+                        {asset.symbol}
+                      </button>
+                    )}
+                  </td>
+                  <td>{asset.display_name}</td>
+                  <td><SparklineChart candles={asset.sparkline_candles} /></td>
+                  <td>{fmtNumber(asset.current_mid_price)}</td>
+                  <td>{fmtNumber(asset.current_fair_value)}</td>
+                  <td>{fmtPct(asset.current_premium_pct)}</td>
+                  <td>{fmtPct(asset.move_24h_pct)}</td>
+                  <td>{fmtNumber(asset.volume_24h)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        <label className={styles.filter}>
-          <span>Generation</span>
-          <select className={styles.filterSelect} value={selectedUnit} onChange={(event) => onSelectUnit(event.target.value)}>
-            <option value="all">All</option>
-            {unitOptions.map((unit) => (
-              <option key={unit} value={unit}>
-                {unit}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <AssetHeatmap assets={heatmapAssets} onSelect={onSelectSymbol} />
+      ) : null}
+      {showHeatmap ? (
+        <>
+          <div className={styles.heatmapHeader}>
+            <div>
+              <h3 className={styles.title}>Asset Heatmap</h3>
+              <p className={styles.copy}>Top 25 by price × max(24h volume, 1). Tile size and selection remain presentational.</p>
+            </div>
+            <label className={styles.filter}>
+              <span>Generation</span>
+              <select className={styles.filterSelect} value={selectedUnit} onChange={(event) => onSelectUnit(event.target.value)}>
+                <option value="all">All</option>
+                {unitOptions.map((unit) => (
+                  <option key={unit} value={unit}>
+                    {unit}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <AssetHeatmap assets={heatmapAssets} onSelect={onSelectSymbol} />
+        </>
+      ) : null}
     </section>
   );
 }

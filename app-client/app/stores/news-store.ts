@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { apiFetch } from "@/app/lib/api";
-import { normalizeNews } from "@/app/lib/normalizers";
+import { normalizeHoloNewsFeed } from "@/app/lib/normalizers";
 import type { NewsItem } from "@/app/lib/types";
 
 type NewsState = {
@@ -19,8 +19,8 @@ export const useNewsStore = create<NewsState>((set) => ({
   fetchNews: async () => {
     set({ isLoading: true, error: null });
     try {
-      const result = await apiFetch<Record<string, unknown>[]>("/api/news");
-      set({ items: normalizeNews(result) });
+      const result = await apiFetch<Record<string, unknown>>("/api/overview/holonews");
+      set({ items: normalizeHoloNewsFeed(result) });
     } catch (error) {
       set({ items: [], error: String((error as Error).message || error) });
     } finally {

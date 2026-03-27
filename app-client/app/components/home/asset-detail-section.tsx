@@ -5,18 +5,20 @@ import { FormEvent, useState } from "react";
 import { CandleChartCard, TrendChartCard } from "@/app/components/charts/market-charts";
 import { apiFetch } from "@/app/lib/api";
 import { fmtDate, fmtNumber, fmtPct } from "@/app/lib/format";
-import type { AssetDetailBundle, MarketAsset } from "@/app/lib/types";
+import type { AssetDetailBundle, MarketAsset, MarketStatus } from "@/app/lib/types";
 import styles from "@/app/components/home/asset-detail-section.module.scss";
 
 export function AssetDetailSection({
   asset,
   detail,
   canTrade,
+  marketStatus,
   onTradeComplete,
 }: {
   asset: MarketAsset | null;
   detail: AssetDetailBundle | null;
   canTrade: boolean;
+  marketStatus: MarketStatus | null;
   onTradeComplete: () => Promise<void>;
 }) {
   const [tradeSide, setTradeSide] = useState<"buy" | "sell">("buy");
@@ -27,6 +29,11 @@ export function AssetDetailSection({
   async function handleTrade(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!asset) return;
+    if (marketStatus && !marketStatus.is_trading_open) {
+      setTradeError(marketStatus.trading_message || "market_closed");
+      setTradeResult(null);
+      return;
+    }
     setTradeError(null);
     setTradeResult(null);
 
@@ -53,6 +60,9 @@ export function AssetDetailSection({
     return <section className={styles.section}><div className={styles.empty}>No asset loaded.</div></section>;
   }
 
+  const tradingOpen = marketStatus?.is_trading_open ?? true;
+  const marketClosedMessage = marketStatus?.trading_message || "Trading is temporarily unavailable while the market settles.";
+
   return (
     <section className={styles.section}>
       <div>
@@ -75,22 +85,35 @@ export function AssetDetailSection({
         <form className={styles.tradeForm} onSubmit={(event) => void handleTrade(event)}>
           <label>
             <span className={styles.label}>Side</span>
-            <select className={styles.select} value={tradeSide} onChange={(event) => setTradeSide(event.target.value as "buy" | "sell")}>
+            <select
+              className={styles.select}
+              value={tradeSide}
+              disabled={!tradingOpen}
+              onChange={(event) => setTradeSide(event.target.value as "buy" | "sell")}
+            >
               <option value="buy">Buy</option>
               <option value="sell">Sell</option>
             </select>
           </label>
           <label>
             <span className={styles.label}>Quantity</span>
-            <input className={styles.input} value={tradeQuantity} onChange={(event) => setTradeQuantity(event.target.value)} />
+            <input className={styles.input} value={tradeQuantity} disabled={!tradingOpen} onChange={(event) => setTradeQuantity(event.target.value)} />
           </label>
-          <button type="submit" className={styles.submit}>Submit Trade</button>
+          <button type="submit" className={styles.submit} disabled={!tradingOpen}>
+            {tradingOpen ? "Submit Trade" : "Market Closed"}
+          </button>
         </form>
       ) : (
         <div className={styles.loginCta}>
           <Link href="/login">Sign in</Link> or <Link href="/register">create an account</Link> to test buy and sell flows.
         </div>
       )}
+
+      {canTrade && !tradingOpen ? (
+        <div className="statusMessage statusMessageWarn">
+          <strong>Trading paused.</strong> {marketClosedMessage}
+        </div>
+      ) : null}
 
       {tradeError ? <div className="statusMessage statusMessageError">Trade error: {tradeError}</div> : null}
       {tradeResult ? <div className="statusMessage statusMessageSuccess">{tradeResult}</div> : null}
