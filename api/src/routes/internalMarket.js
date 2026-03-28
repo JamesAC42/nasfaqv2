@@ -163,7 +163,6 @@ router.post("/rebuild-full", async (req, res, next) => {
   try {
     const activeOnly = req.body?.active_only === undefined ? true : Boolean(req.body.active_only);
     const fillMissingDates = req.body?.fill_missing_dates === undefined ? true : Boolean(req.body.fill_missing_dates);
-    const force = req.body?.force === undefined ? true : Boolean(req.body.force);
     const version = Number.parseInt(String(req.body?.version ?? "1"), 10);
     if (!Number.isFinite(version) || version < 1) return res.status(400).json({ error: "invalid_version" });
 
@@ -186,7 +185,7 @@ router.post("/rebuild-full", async (req, res, next) => {
     const settlementResult = await settlement.settleMarketRange(req.ctx.pool, {
       from: range.from,
       to: range.to,
-      force,
+      force: true,
     });
     await invalidateMarketAssetsCache(req.ctx.redis);
 

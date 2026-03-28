@@ -204,7 +204,7 @@ async function listSettleableDates(client, { from, to }) {
 async function getPreviousDailyState(client, assetId, marketDate) {
   const { rows } = await client.query(
     `
-    SELECT market_date, mid_close, fair_value, premium_close_pct
+    SELECT market_date, mid_close, mid_close_mark, fair_value, premium_close_pct
     FROM market.asset_daily_market_state
     WHERE asset_id = $1
       AND market_date < $2
@@ -214,6 +214,24 @@ async function getPreviousDailyState(client, assetId, marketDate) {
     [assetId, marketDate]
   );
   return rows[0] || null;
+}
+
+function derivePreviousOffsets(previousState) {
+  if (!previousState) {
+    return {
+      persistentOffset: 0,
+      transientOffset: 0,
+    };
+  }
+
+  const fairValue = Math.max(toNumber(previousState.fair_value, 0), 0.000001);
+  const midCloseMark = Math.max(toNumber(previousState.mid_close_mark, fairValue), 0.000001);
+  const midClose = Math.max(toNumber(previousState.mid_close, midCloseMark), 0.000001);
+
+  return {
+    persistentOffset: Math.log(midCloseMark / fairValue),
+    transientOffset: Math.log(midClose / midCloseMark),
+  };
 }
 
 function buildSettledAssetState(assetRow, previousState) {
@@ -233,9 +251,10 @@ function buildSettledAssetState(assetRow, previousState) {
   }
 
   const priorMidPrice = previousState?.mid_close ?? assetRow.current_mid_price ?? assetRow.current_fair_value ?? null;
+  const previousOffsets = derivePreviousOffsets(previousState);
   const opening = computeOpeningState({
-    previousPersistentOffset: assetRow.current_persistent_offset,
-    previousTransientOffset: assetRow.current_transient_offset,
+    previousPersistentOffset: previousOffsets.persistentOffset,
+    previousTransientOffset: previousOffsets.transientOffset,
     fairValue,
   });
   const midOpen = opening.midOpen;
