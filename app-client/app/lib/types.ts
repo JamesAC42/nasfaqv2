@@ -20,6 +20,7 @@ export type MarketAsset = {
   youtube_channel_id: string;
   unit?: string | null;
   icon?: string | null;
+  color?: string | null;
   current_fair_value: number | null;
   current_mid_price: number | null;
   current_bid_price: number | null;
@@ -97,6 +98,38 @@ export type AssetDetailBundle = {
   } | null;
 };
 
+export type SuperchatCurrencySummary = {
+  currency_name: string;
+  donation_count: number | null;
+  total_in_currency: number | null;
+  total_in_yen: number | null;
+};
+
+export type AssetSuperchatSummaryBundle = {
+  symbol: string;
+  youtube_channel_id: string;
+  range: string;
+  week_start: string | null;
+  week_end: string | null;
+  currencies: SuperchatCurrencySummary[];
+};
+
+export type SuperchatTimeseriesPoint = {
+  bucket: string;
+  currency_name: string;
+  total_in_yen: number | null;
+};
+
+export type AssetSuperchatTimeseriesBundle = {
+  symbol: string;
+  youtube_channel_id: string;
+  range: string;
+  bucket_unit: "day" | "week" | "month";
+  start_date: string | null;
+  end_date: string | null;
+  points: SuperchatTimeseriesPoint[];
+};
+
 export type ChannelOverviewRow = {
   channel: {
     youtube_channel_id: string;
@@ -171,6 +204,7 @@ export type LivestreamItem = {
   started_at: string | null;
   status: string;
   creator_icon?: string | null;
+  channel_color?: string | null;
   thumbnail_url?: string | null;
   url?: string | null;
 };

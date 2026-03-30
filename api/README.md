@@ -43,6 +43,8 @@ npm run dev
 - `GET /api/channels/:id/timeseries?start=ISO&end=ISO`
 - `GET /api/channels/:id/timeseries?bucket=7%20days&start=ISO&end=ISO` (bucketed)
 - `GET /api/overview/latest`
+- `GET /api/market/assets/:symbol/superchats?range=7d`
+- `GET /api/market/assets/:symbol/superchats/timeseries?range=7d|14d|1m|1y`
 - `GET /api/livestreams` (aggregated from Redis)
 - `WebSocket /api/livestreams/ws` — live viewer count updates (JSON: `{ at, live: Stream[] }`) pushed when the scraper polls; clients should set `NEXT_PUBLIC_WS_API_BASE=ws://localhost:PORT` when the API is on a different origin (e.g. proxy mode).
 

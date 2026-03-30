@@ -90,6 +90,12 @@ function formatDateKey(parts) {
   return `${year}-${month}-${day}`;
 }
 
+function shiftDateKey(dateKey, days) {
+  const date = new Date(`${dateKey}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 function normalizeDateOnly(value) {
   if (!value) return null;
   if (value instanceof Date) {
@@ -158,6 +164,10 @@ function shouldRunScheduledCycle(now, { timeZone, hour, minute }) {
   return zoned.hour > hour || (zoned.hour === hour && zoned.minute >= minute);
 }
 
+function getCurrentDateKey(now, timeZone) {
+  return formatDateKey(getZonedParts(now, timeZone));
+}
+
 async function listReadyRawSnapshotDates(client, { after = null, through = null } = {}) {
   const params = [getQueryTimeZone()];
   const where = ["c.is_active = true"];
@@ -196,11 +206,6 @@ async function listReadyRawSnapshotDates(client, { after = null, through = null 
 }
 
 async function getLatestCompletedSettlementDate(client) {
-  const state = await marketState.getMarketStatusWithClient(client);
-  if (state?.last_settlement_market_date) {
-    return normalizeDateOnly(state.last_settlement_market_date);
-  }
-
   const { rows } = await client.query(
     `
     SELECT market_date
@@ -252,9 +257,12 @@ async function runScheduledCycle(pool, schedulerConfig, logger = console) {
 
     const now = new Date();
     const nextScheduledAt = computeNextScheduledAt(now, schedulerConfig);
-    const currentDateKey = formatDateKey(getZonedParts(now, schedulerConfig.timeZone));
+    const currentDateKey = getCurrentDateKey(now, schedulerConfig.timeZone);
     const lastCompletedDate = await getLatestCompletedSettlementDate(lockClient);
-    const readyDates = await listReadyRawSnapshotDates(lockClient, { after: lastCompletedDate, through: currentDateKey });
+    const readyDates = await listReadyRawSnapshotDates(lockClient, {
+      after: lastCompletedDate,
+      through: currentDateKey,
+    });
 
     if (readyDates.length === 0) {
       await marketState.setMarketOpen(lockClient, {
@@ -291,7 +299,11 @@ async function runScheduledCycle(pool, schedulerConfig, logger = console) {
       message: buildCycleMessage({ from, to, phase: "settlement" }),
     });
 
-    const settlementResult = await settlement.settleMarketRange(pool, { from, to, force: false });
+    const settlementResult = await settlement.settleMarketRange(pool, {
+      from,
+      to,
+      force: false,
+    });
     if ((settlementResult.skipped_dates || []).length > 0 || settlementResult.settled_count !== readyDates.length) {
       const error = new Error(`scheduled_settlement_incomplete:${JSON.stringify(settlementResult.skipped_dates || [])}`);
       error.code = "scheduled_settlement_incomplete";
@@ -364,8 +376,11 @@ function startMarketScheduler(pool, logger = console) {
 }
 
 module.exports = {
+  acquireSchedulerLock,
   computeNextScheduledAt,
+  getCurrentDateKey,
   loadSchedulerConfig,
+  releaseSchedulerLock,
   runScheduledCycle,
   startMarketScheduler,
 };

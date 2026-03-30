@@ -3,10 +3,19 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { CandleChartCard, TrendChartCard } from "@/app/components/charts/market-charts";
+import type { ChannelChartTheme } from "@/app/lib/chart-theme";
 import { apiFetch } from "@/app/lib/api";
 import { fmtDate, fmtNumber, fmtPct } from "@/app/lib/format";
 import type { AssetDetailBundle, MarketAsset, MarketStatus } from "@/app/lib/types";
 import styles from "@/app/components/home/asset-detail-section.module.scss";
+
+const DETAIL_CHART_START_DATE = "2025-10-09";
+
+function toTimestamp(value: string | null | undefined) {
+  if (!value) return null;
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? null : parsed;
+}
 
 export function AssetDetailSection({
   asset,
@@ -14,12 +23,14 @@ export function AssetDetailSection({
   canTrade,
   marketStatus,
   onTradeComplete,
+  chartTheme,
 }: {
   asset: MarketAsset | null;
   detail: AssetDetailBundle | null;
   canTrade: boolean;
   marketStatus: MarketStatus | null;
   onTradeComplete: () => Promise<void>;
+  chartTheme?: ChannelChartTheme | null;
 }) {
   const [tradeSide, setTradeSide] = useState<"buy" | "sell">("buy");
   const [tradeQuantity, setTradeQuantity] = useState("10");
@@ -62,6 +73,17 @@ export function AssetDetailSection({
 
   const tradingOpen = marketStatus?.is_trading_open ?? true;
   const marketClosedMessage = marketStatus?.trading_message || "Trading is temporarily unavailable while the market settles.";
+  const chartStartTs = toTimestamp(DETAIL_CHART_START_DATE);
+  const filteredDailyCandles =
+    detail?.daily_candles.filter((item) => {
+      const ts = toTimestamp(item.bucket);
+      return chartStartTs !== null && ts !== null && ts >= chartStartTs;
+    }) || [];
+  const filteredStats =
+    detail?.stats.filter((item) => {
+      const ts = toTimestamp(item.snapshot_date);
+      return chartStartTs !== null && ts !== null && ts >= chartStartTs;
+    }) || [];
 
   return (
     <section className={styles.section}>
@@ -119,47 +141,63 @@ export function AssetDetailSection({
       {tradeResult ? <div className="statusMessage statusMessageSuccess">{tradeResult}</div> : null}
 
       <div className={styles.chartGrid}>
-        <CandleChartCard title="24H Market" subtitle="Hourly candles from executed trades" candles={detail?.intraday_candles || []} />
-        <CandleChartCard title="1Y Daily Price" subtitle="Daily candles with mark-close overlay" candles={detail?.daily_candles || []} showMarkClose />
+        <CandleChartCard title="24H Market" subtitle="Hourly candles from executed trades" candles={detail?.intraday_candles || []} theme={chartTheme} />
+        <CandleChartCard title="1Y Daily Price" subtitle="Daily candles with mark-close overlay" candles={filteredDailyCandles} showMarkClose theme={chartTheme} />
         <TrendChartCard
           title="Fundamental Signal"
           subtitle="Smoothed anchor with raw signal overlay"
+          theme={chartTheme}
           series={[
             {
               name: "Smoothed",
-              color: "#2563eb",
+              color: chartTheme?.baseDeep || "#2563eb",
               kind: "area",
-              values: detail?.stats.map((item) => ({ time: item.snapshot_date, value: item.fundamental_value_smoothed })) || [],
+              values: filteredStats.map((item) => ({ time: item.snapshot_date, value: item.fundamental_value_smoothed })),
             },
             {
               name: "Raw",
-              color: "#94a3b8",
+              color: chartTheme?.baseMuted || "#94a3b8",
               kind: "line",
-              values: detail?.stats.map((item) => ({ time: item.snapshot_date, value: item.fundamental_value_raw })) || [],
+              values: filteredStats.map((item) => ({ time: item.snapshot_date, value: item.fundamental_value_raw })),
             },
           ]}
         />
         <TrendChartCard
           title="Subscribers"
           subtitle="One-year audience trajectory"
+          theme={chartTheme}
           series={[
             {
               name: "Subscribers",
-              color: "#7c3aed",
+              color: chartTheme?.base || "#7c3aed",
               kind: "area",
-              values: detail?.stats.map((item) => ({ time: item.snapshot_date, value: item.subscriber_count })) || [],
+              values: filteredStats.map((item) => ({ time: item.snapshot_date, value: item.subscriber_count })),
             },
           ]}
         />
         <TrendChartCard
           title="Views"
           subtitle="Cumulative channel views"
+          theme={chartTheme}
           series={[
             {
               name: "Views",
-              color: "#ea580c",
+              color: chartTheme?.complement || "#ea580c",
               kind: "area",
-              values: detail?.stats.map((item) => ({ time: item.snapshot_date, value: item.view_count })) || [],
+              values: filteredStats.map((item) => ({ time: item.snapshot_date, value: item.view_count })),
+            },
+          ]}
+        />
+        <TrendChartCard
+          title="Video Count"
+          subtitle="Published video total over time"
+          theme={chartTheme}
+          series={[
+            {
+              name: "Videos",
+              color: chartTheme?.complementSoft || "#f97316",
+              kind: "area",
+              values: filteredStats.map((item) => ({ time: item.snapshot_date, value: item.video_count })),
             },
           ]}
         />

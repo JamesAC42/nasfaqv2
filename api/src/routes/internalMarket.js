@@ -4,7 +4,14 @@ const fundamentals = require("../services/fundamentals");
 const marketAdmin = require("../services/marketAdmin");
 const marketState = require("../services/marketState");
 const settlement = require("../services/settlement");
-const { computeNextScheduledAt, loadSchedulerConfig, runScheduledCycle } = require("../services/marketScheduler");
+const {
+  acquireSchedulerLock,
+  computeNextScheduledAt,
+  getCurrentDateKey,
+  loadSchedulerConfig,
+  releaseSchedulerLock,
+  runScheduledCycle,
+} = require("../services/marketScheduler");
 
 const router = express.Router();
 
@@ -112,12 +119,19 @@ router.post("/reset", async (req, res, next) => {
 });
 
 router.post("/settle/:date", async (req, res, next) => {
+  const client = await req.ctx.pool.connect();
   try {
     const marketDate = optionalDate(req.params.date);
     if (!marketDate) return res.status(400).json({ error: "invalid_market_date" });
 
     const force = Boolean(req.body?.force);
     const result = await settlement.settleMarketDay(req.ctx.pool, { marketDate, force });
+    const schedulerConfig = loadSchedulerConfig();
+    await marketState.setMarketOpen(client, {
+      nextScheduledSettlementAt: computeNextScheduledAt(new Date(), schedulerConfig).toISOString(),
+      lastSettlementMarketDate: result.market_date,
+      clearError: true,
+    });
     await invalidateMarketAssetsCache(req.ctx.redis);
     res.json(result);
   } catch (e) {
@@ -131,10 +145,13 @@ router.post("/settle/:date", async (req, res, next) => {
       return res.status(409).json({ error: "invalid_fair_value" });
     }
     next(e);
+  } finally {
+    client.release();
   }
 });
 
 router.post("/settle-range", async (req, res, next) => {
+  const client = await req.ctx.pool.connect();
   try {
     const from = optionalDate(req.body?.from);
     const to = optionalDate(req.body?.to);
@@ -143,6 +160,13 @@ router.post("/settle-range", async (req, res, next) => {
 
     const force = Boolean(req.body?.force);
     const result = await settlement.settleMarketRange(req.ctx.pool, { from, to, force });
+    const latestSettled = result.settled_dates[result.settled_dates.length - 1]?.market_date || null;
+    const schedulerConfig = loadSchedulerConfig();
+    await marketState.setMarketOpen(client, {
+      nextScheduledSettlementAt: computeNextScheduledAt(new Date(), schedulerConfig).toISOString(),
+      lastSettlementMarketDate: latestSettled,
+      clearError: true,
+    });
     await invalidateMarketAssetsCache(req.ctx.redis);
     res.json(result);
   } catch (e) {
@@ -156,11 +180,19 @@ router.post("/settle-range", async (req, res, next) => {
       return res.status(409).json({ error: "invalid_fair_value" });
     }
     next(e);
+  } finally {
+    client.release();
   }
 });
 
 router.post("/rebuild-full", async (req, res, next) => {
+  const lockClient = await req.ctx.pool.connect();
   try {
+    const locked = await acquireSchedulerLock(lockClient);
+    if (!locked) {
+      return res.status(409).json({ error: "scheduler_running" });
+    }
+
     const activeOnly = req.body?.active_only === undefined ? true : Boolean(req.body.active_only);
     const fillMissingDates = req.body?.fill_missing_dates === undefined ? true : Boolean(req.body.fill_missing_dates);
     const version = Number.parseInt(String(req.body?.version ?? "1"), 10);
@@ -171,32 +203,50 @@ router.post("/rebuild-full", async (req, res, next) => {
       return res.status(409).json({ error: "no_historical_data" });
     }
 
+    const schedulerConfig = loadSchedulerConfig();
+    const latestReadyDate = getCurrentDateKey(new Date(), schedulerConfig.timeZone);
+    if (!latestReadyDate || latestReadyDate < range.from) {
+      return res.status(409).json({ error: "no_ready_historical_data" });
+    }
+
     const bootstrap = await marketAdmin.bootstrapAssets(req.ctx.pool, {
       activeOnly,
       syncExisting: true,
     });
     const fundamentalsResult = await fundamentals.recalculateFundamentals(req.ctx.pool, {
       from: range.from,
-      to: range.to,
+      to: latestReadyDate,
       version,
       activeOnly,
       fillMissingDates,
     });
     const settlementResult = await settlement.settleMarketRange(req.ctx.pool, {
       from: range.from,
-      to: range.to,
+      to: latestReadyDate,
       force: true,
+    });
+    const latestSettled = settlementResult.settled_dates[settlementResult.settled_dates.length - 1]?.market_date || null;
+    await marketState.setMarketOpen(lockClient, {
+      nextScheduledSettlementAt: computeNextScheduledAt(new Date(), schedulerConfig).toISOString(),
+      lastSettlementMarketDate: latestSettled,
+      clearError: true,
     });
     await invalidateMarketAssetsCache(req.ctx.redis);
 
     res.json({
       ok: true,
-      range,
+      range: {
+        from: range.from,
+        to: latestReadyDate,
+      },
       bootstrap,
       fundamentals: fundamentalsResult,
       settlement: settlementResult,
     });
   } catch (e) {
+    if (e?.code === "scheduler_running") {
+      return res.status(409).json({ error: "scheduler_running" });
+    }
     if (e?.code === "settlement_already_completed") {
       return res.status(409).json({ error: "settlement_already_completed" });
     }
@@ -207,6 +257,9 @@ router.post("/rebuild-full", async (req, res, next) => {
       return res.status(409).json({ error: "invalid_fair_value" });
     }
     next(e);
+  } finally {
+    await releaseSchedulerLock(lockClient);
+    lockClient.release();
   }
 });
 

@@ -820,7 +820,7 @@ a {
 }
 
 .segmentedButton.active {
-  background: rgba(231, 238, 252, 0.12);
+  background: rgba(62, 53, 93, 0.12);
   color: var(--text);
 }
 

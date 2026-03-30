@@ -304,6 +304,7 @@ async function updateAssetAfterTrade(client, asset, {
   executionPrice,
   fairPrice,
   now,
+  marketDate,
   persistentOffset,
   transientOffset,
 }) {
@@ -335,7 +336,7 @@ async function updateAssetAfterTrade(client, asset, {
     [asset.id, nextMid, quotes.bidPrice, quotes.askPrice, nextPremium, nextOffsets.persistentOffset, nextOffsets.transientOffset, now]
   );
 
-  if (asset.latest_snapshot_id && asset.latest_snapshot_date) {
+  if (asset.latest_snapshot_id && marketDate) {
     await client.query(
       `
       UPDATE market.asset_daily_market_state
@@ -353,7 +354,7 @@ async function updateAssetAfterTrade(client, asset, {
       WHERE asset_id = $1
         AND market_date = $2
     `,
-      [asset.id, asset.latest_snapshot_date, nextMid, quotes.bidPrice, quotes.askPrice, nextPremium, quantity, executionPrice * quantity]
+      [asset.id, marketDate, nextMid, quotes.bidPrice, quotes.askPrice, nextPremium, quantity, executionPrice * quantity]
     );
   }
 
@@ -546,6 +547,7 @@ async function executeOrder(pool, { userId, symbol, side, quantity }) {
       executionPrice: executablePrice,
       fairPrice,
       now,
+      marketDate: status?.last_settlement_market_date || null,
       persistentOffset,
       transientOffset,
     });

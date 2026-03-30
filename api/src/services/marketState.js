@@ -168,7 +168,14 @@ async function setNextScheduledSettlementAt(client, nextScheduledSettlementAt) {
   });
 }
 
+async function clearMarketCycleError(client) {
+  return updateMarketRuntimeState(client, {
+    last_cycle_error: null,
+  });
+}
+
 module.exports = {
+  clearMarketCycleError,
   ensureMarketRuntimeState,
   getMarketStatus,
   getMarketStatusWithClient,

@@ -16,6 +16,19 @@ async function applySchema(pool) {
     ALTER TABLE market.asset_daily_market_state
       ADD COLUMN IF NOT EXISTS mid_close_mark NUMERIC NULL
   `);
+  await pool.query(`
+    ALTER TABLE market.channel_daily_snapshots
+      ALTER COLUMN video_count DROP NOT NULL
+  `);
+  await pool.query(`
+    ALTER TABLE market.market_settlement_runs
+      ADD COLUMN IF NOT EXISTS source_market_date DATE NULL
+  `);
+  await pool.query(`
+    UPDATE market.market_settlement_runs
+    SET source_market_date = market_date
+    WHERE source_market_date IS NULL
+  `);
 }
 
 module.exports = { applySchema };

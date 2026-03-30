@@ -1,5 +1,7 @@
 import type {
   AssetDetailBundle,
+  AssetSuperchatSummaryBundle,
+  AssetSuperchatTimeseriesBundle,
   CandlePoint,
   ChannelOverviewRow,
   LeaderboardEntry,
@@ -12,6 +14,7 @@ import type {
   MarketStatPoint,
   NewsItem,
   PortfolioSummary,
+  SuperchatCurrencySummary,
   TradeRow,
 } from "@/app/lib/types";
 import { toNumber } from "@/app/lib/format";
@@ -35,6 +38,7 @@ export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
     youtube_channel_id: String(asset.youtube_channel_id || ""),
     unit: asset.unit ? String(asset.unit) : null,
     icon: asset.icon ? String(asset.icon) : null,
+    color: asset.color ? String(asset.color) : null,
     current_fair_value: toNumber(asset.current_fair_value),
     current_mid_price: toNumber(asset.current_mid_price),
     current_bid_price: toNumber(asset.current_bid_price),
@@ -141,6 +145,38 @@ export function normalizeTreasury(treasury: Record<string, unknown> | null): Ass
   };
 }
 
+export function normalizeAssetSuperchatSummary(value: Record<string, unknown>): AssetSuperchatSummaryBundle {
+  return {
+    symbol: String(value.symbol || ""),
+    youtube_channel_id: String(value.youtube_channel_id || ""),
+    range: String(value.range || "7d"),
+    week_start: value.week_start ? String(value.week_start) : null,
+    week_end: value.week_end ? String(value.week_end) : null,
+    currencies: ((value.currencies || []) as Array<Record<string, unknown>>).map((item): SuperchatCurrencySummary => ({
+      currency_name: String(item.currency_name || ""),
+      donation_count: toNumber(item.donation_count),
+      total_in_currency: toNumber(item.total_in_currency),
+      total_in_yen: toNumber(item.total_in_yen),
+    })),
+  };
+}
+
+export function normalizeAssetSuperchatTimeseries(value: Record<string, unknown>): AssetSuperchatTimeseriesBundle {
+  return {
+    symbol: String(value.symbol || ""),
+    youtube_channel_id: String(value.youtube_channel_id || ""),
+    range: String(value.range || "7d"),
+    bucket_unit: String(value.bucket_unit || "day") as AssetSuperchatTimeseriesBundle["bucket_unit"],
+    start_date: value.start_date ? String(value.start_date) : null,
+    end_date: value.end_date ? String(value.end_date) : null,
+    points: ((value.points || []) as Array<Record<string, unknown>>).map((item) => ({
+      bucket: String(item.bucket || ""),
+      currency_name: String(item.currency_name || ""),
+      total_in_yen: toNumber(item.total_in_yen),
+    })),
+  };
+}
+
 export function normalizeChannels(rows: Array<Record<string, unknown>>): ChannelOverviewRow[] {
   return rows.map((row) => {
     const channel = row.channel as Record<string, unknown>;
@@ -192,8 +228,9 @@ export function normalizeLivestreams(rows: Array<Record<string, unknown>>): Live
     started_at: row.started_at ? String(row.started_at) : row.actual_start_time ? String(row.actual_start_time) : row.scheduled_start_time ? String(row.scheduled_start_time) : null,
     status: String(row.status || "live"),
     creator_icon: row.creator_icon ? String(row.creator_icon) : row.channel_icon ? String(row.channel_icon) : null,
+    channel_color: row.channel_color ? String(row.channel_color) : null,
     thumbnail_url: row.thumbnail_url ? String(row.thumbnail_url) : null,
-    url: row.url ? String(row.url) : null,
+    url: row.url ? String(row.url) : row.video_id ? `https://www.youtube.com/watch?v=${encodeURIComponent(String(row.video_id))}` : null,
   }));
 }
 

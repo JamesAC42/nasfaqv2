@@ -30,6 +30,53 @@
   gap: 1rem;
 }
 
+.tableWrap {
+  overflow: auto;
+}
+
+.stockTable {
+  @include table-shell;
+  min-width: 1480px;
+}
+
+.stockRow {
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    transform 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.stockRow:hover {
+  background: color-mix(in srgb, var(--surface-card-highlight) 58%, transparent);
+}
+
+.stockRow:focus-visible {
+  outline: 2px solid var(--button-primary-border);
+  outline-offset: -2px;
+}
+
+.stockRowSelected {
+  background: var(--selected-row);
+}
+
+.symbolCell {
+  font-weight: 700;
+}
+
+.sparklineCell {
+  width: min(100%, 7rem);
+  min-width: 5.5rem;
+}
+
+.positive {
+  color: var(--success);
+}
+
+.negative {
+  color: var(--danger);
+}
+
 .streamSection {
   display: grid;
   gap: 0.75rem;
@@ -149,8 +196,110 @@
   @include empty-state;
 }
 
+.superchatLegend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.8rem;
+}
+
+.superchatLegendItem {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  padding: 0.8rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: start;
+}
+
+.superchatLegendSwatch {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 999px;
+  background: var(--superchat-bar-color);
+  margin-top: 0.2rem;
+}
+
+.superchatLegendBody {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.superchatLegendTitle {
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-family: var(--font-body);
+}
+
+.superchatLegendLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.superchatLegendFlag {
+  width: 1rem;
+  height: 0.75rem;
+  border-radius: 2px;
+  object-fit: cover;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  flex: 0 0 auto;
+}
+
+.superchatLegendMeta {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.superchatSubsection {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.superchatChartGrid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.superchatToolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.rangeSelector {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.rangeChip,
+.rangeChipActive {
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  padding: 0.38rem 0.72rem;
+  background: var(--surface-card);
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.rangeChipActive {
+  color: var(--text);
+  border-color: var(--button-primary-border);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-card));
+}
+
 @media (max-width: 1100px) {
   .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .superchatChartGrid {
     grid-template-columns: 1fr;
   }
 }

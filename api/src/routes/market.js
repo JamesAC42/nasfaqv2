@@ -130,6 +130,39 @@ router.get("/assets/:symbol/trades", async (req, res, next) => {
   }
 });
 
+router.get("/assets/:symbol/superchats", async (req, res, next) => {
+  try {
+    const symbol = normalizeSymbol(req.params.symbol);
+    if (!symbol) return res.status(400).json({ error: "missing_symbol" });
+
+    const range = String(req.query.range || "7d");
+    const summary = await marketDb.getAssetSuperchatSummary(req.ctx.pool, symbol, { range });
+    if (!summary) return res.status(404).json({ error: "asset_not_found" });
+
+    res.json(summary);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/assets/:symbol/superchats/timeseries", async (req, res, next) => {
+  try {
+    const symbol = normalizeSymbol(req.params.symbol);
+    if (!symbol) return res.status(400).json({ error: "missing_symbol" });
+
+    const range = String(req.query.range || "7d");
+    const series = await marketDb.getAssetSuperchatTimeseries(req.ctx.pool, symbol, { range });
+    if (!series) return res.status(404).json({ error: "asset_not_found" });
+
+    res.json(series);
+  } catch (e) {
+    if (e?.code === "unsupported_superchat_range") {
+      return res.status(400).json({ error: "unsupported_superchat_range" });
+    }
+    next(e);
+  }
+});
+
 router.get("/assets/:symbol/stats", async (req, res, next) => {
   try {
     const symbol = normalizeSymbol(req.params.symbol);

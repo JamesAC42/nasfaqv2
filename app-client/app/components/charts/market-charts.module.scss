@@ -65,6 +65,54 @@
   height: 320px;
 }
 
+.chartTooltipWrap {
+  position: relative;
+}
+
+.chartTooltip {
+  position: absolute;
+  z-index: 2;
+  min-width: 9rem;
+  max-width: 11rem;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-100%);
+  transition: opacity 120ms ease;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--surface-card) 92%, white 8%);
+  box-shadow: 0 14px 32px rgba(31, 26, 20, 0.16);
+  padding: 0.55rem 0.7rem;
+  display: grid;
+  gap: 0.18rem;
+  font-family: var(--font-body);
+}
+
+.chartTooltip strong {
+  font-size: 0.86rem;
+  color: var(--text);
+}
+
+.chartTooltipLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.chartTooltipFlag {
+  width: 1rem;
+  height: 0.75rem;
+  border-radius: 2px;
+  object-fit: cover;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  flex: 0 0 auto;
+}
+
+.chartTooltip span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 .empty {
   @include empty-state;
   min-height: 320px;
@@ -79,4 +127,135 @@
 
 .sparklineEmpty {
   height: 44px;
+}
+
+.rankedBars {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.rankedBarRow {
+  display: grid;
+  gap: 0.38rem;
+}
+
+.rankedBarHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: baseline;
+}
+
+.rankedBarLabel {
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.rankedBarValue {
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.rankedBarTrack {
+  width: 100%;
+  height: 0.8rem;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--surface-card) 86%, white 14%), var(--surface-card));
+  overflow: hidden;
+}
+
+.rankedBarFill {
+  width: var(--ranked-bar-width);
+  height: 100%;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--ranked-bar-color) 72%, white 28%), var(--ranked-bar-color));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ranked-bar-color) 35%, transparent);
+}
+
+.rankedBarMeta {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.heatmap {
+  overflow-x: auto;
+}
+
+.heatmapGrid {
+  display: grid;
+  gap: 0.55rem;
+  min-width: min(100%, 44rem);
+}
+
+.heatmapCorner,
+.heatmapColumnLabel {
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.heatmapCorner {
+  padding-left: 0.2rem;
+}
+
+.heatmapRowGroup {
+  display: grid;
+  grid-template-columns: minmax(8rem, 11rem) repeat(var(--heatmap-columns), minmax(3.75rem, 1fr));
+  gap: 0.4rem;
+  align-items: stretch;
+}
+
+.heatmapColumnLabel {
+  text-align: center;
+  padding: 0.2rem 0.1rem;
+}
+
+.heatmapRowLabel {
+  display: flex;
+  align-items: center;
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 0 0.2rem;
+}
+
+.heatmapCell {
+  min-height: 3.7rem;
+  border-radius: 0.9rem;
+  padding: 0.55rem 0.4rem;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--heatmap-start, #f97316) calc(var(--heatmap-cell-opacity) * 100%), transparent),
+      color-mix(in srgb, var(--heatmap-end, #ef4444) calc(var(--heatmap-cell-opacity) * 82%), transparent)
+    ),
+    color-mix(in srgb, var(--surface-card) 82%, white 18%);
+  border: 1px solid color-mix(in srgb, var(--heatmap-border, #f97316) calc(var(--heatmap-cell-opacity) * 42%), var(--border-soft));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.heatmapCell span {
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+@media (max-width: 760px) {
+  .heatmapRowGroup {
+    grid-template-columns: minmax(7rem, 9rem) repeat(var(--heatmap-columns), minmax(3.25rem, 1fr));
+  }
+
+  .heatmapCell {
+    min-height: 3.25rem;
+    padding: 0.45rem 0.25rem;
+  }
 }

@@ -23,6 +23,15 @@ export function fmtDate(value: string | null | undefined) {
   return date.toLocaleString();
 }
 
+export function fmtDurationSeconds(value: number | null | undefined) {
+  if (value === null || value === undefined || Number.isNaN(value) || value < 0) return "—";
+  const whole = Math.floor(value);
+  const hours = Math.floor(whole / 3600);
+  const minutes = Math.floor((whole % 3600) / 60);
+  const seconds = whole % 60;
+  return [hours, minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
+}
+
 export function toNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);

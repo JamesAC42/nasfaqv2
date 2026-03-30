@@ -1,0 +1,31 @@
+.coin {
+  --coin-accent: var(--border-soft);
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0.28rem;
+  border: 1px solid var(--coin-accent);
+  border-bottom-width: 3px;
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--surface-card-highlight) 72%, transparent);
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+}
+
+.image,
+.fallback {
+  width: 100%;
+  height: 100%;
+  border-radius: 0.52rem;
+  display: grid;
+  place-items: center;
+  object-fit: contain;
+}
+
+.fallback {
+  background: color-mix(in srgb, var(--coin-accent) 12%, transparent);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1;
+}

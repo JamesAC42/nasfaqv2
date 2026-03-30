@@ -1,6 +1,10 @@
 const { bootstrapAssetsWithClient } = require("./marketAdmin");
 const FAIR_VALUE_SCALE_MULTIPLIER = Number(process.env.MARKET_PRICE_SCALE_MULTIPLIER || 100);
 const DEFAULT_MARKET_DATA_TIME_ZONE = "America/New_York";
+const SMOOTHING_PREVIOUS_WEIGHT = 0.4;
+const SMOOTHING_RAW_WEIGHT = 0.6;
+const FAIR_VALUE_MOVE_CAP_MIN = 0.75;
+const FAIR_VALUE_MOVE_CAP_MAX = 1.25;
 
 function getQueryTimeZone() {
   const candidate = String(process.env.MARKET_DATA_TIMEZONE || process.env.SCRAPE_TIMEZONE || DEFAULT_MARKET_DATA_TIME_ZONE).trim();
@@ -65,7 +69,7 @@ function normalizeFundamentalToPrice(fundamentalValue, maxSupply) {
 
 function clampFairValueMove(nextValue, previousValue) {
   if (!(previousValue > 0) || !(nextValue > 0)) return nextValue;
-  return clamp(nextValue, previousValue * 0.9, previousValue * 1.1);
+  return clamp(nextValue, previousValue * FAIR_VALUE_MOVE_CAP_MIN, previousValue * FAIR_VALUE_MOVE_CAP_MAX);
 }
 
 function toSnapshotPoint(row) {
@@ -75,17 +79,130 @@ function toSnapshotPoint(row) {
     subscriber_count: row.subscriber_count === null ? null : Number(row.subscriber_count),
     view_count: row.view_count === null ? null : Number(row.view_count),
     video_count: row.video_count === null ? null : Number(row.video_count),
+    has_video_count_data: row.video_count !== null && row.video_count !== undefined,
   };
 }
 
 function validateRawSnapshot(point) {
-  if (point.subscriber_count === null || point.view_count === null || point.video_count === null) {
+  if (point.subscriber_count === null || point.view_count === null) {
     return "missing_raw_counts";
   }
-  if (point.subscriber_count < 0 || point.view_count < 0 || point.video_count < 0) {
+  if (
+    point.subscriber_count < 0 ||
+    point.view_count < 0 ||
+    (point.video_count !== null && point.video_count !== undefined && point.video_count < 0)
+  ) {
     return "negative_raw_counts";
   }
   return null;
+}
+
+function computeSubscriberSignal(current, prev7, prev30) {
+  if (!current || !prev7) return 0;
+  const delta7d = current.subscriber_count - prev7.subscriber_count;
+  const baseSubscribers = Math.max(prev7.subscriber_count, 10_000);
+  const recentRate = delta7d / baseSubscribers;
+
+  if (!prev30) {
+    return clamp(recentRate * 36, -0.5, 0.5);
+  }
+
+  const priorDelta = prev7.subscriber_count - prev30.subscriber_count;
+  const priorBaseSubscribers = Math.max(prev30.subscriber_count, 10_000);
+  const priorRate = priorDelta / priorBaseSubscribers;
+  return clamp((recentRate * 34) + ((recentRate - priorRate) * 14), -0.5, 0.5);
+}
+
+function computeStagnationSignal(current, prev7, prev30) {
+  if (!current || !prev7 || !prev30) return 0;
+
+  const subDelta30d = current.subscriber_count - prev30.subscriber_count;
+  const viewDelta30d = current.view_count - prev30.view_count;
+  const subBase = Math.max(prev30.subscriber_count, 10_000);
+  const viewBase = Math.max(prev30.view_count, 100_000);
+
+  const subTrend = subDelta30d / subBase;
+  const viewTrend = viewDelta30d / viewBase;
+
+  if (subTrend > 0.002 || viewTrend > 0.015) {
+    return 0;
+  }
+
+  return -clamp((Math.abs(subTrend) * 20) + (Math.max(0, 0.01 - viewTrend) * 2.5) + 0.06, 0, 0.32);
+}
+
+function computeUploadSignal(currentDate, historyByDate) {
+  const current = historyByDate.get(currentDate) || null;
+  const prev1 = historyByDate.get(shiftDateKey(currentDate, -1)) || null;
+  if (!current?.has_video_count_data || !prev1?.has_video_count_data) {
+    return {
+      videoDelta7d: null,
+      videoDelta30d: null,
+      uploadSignal: 0,
+    };
+  }
+
+  const videoDelta1d = current.video_count - prev1.video_count;
+  const prev7 = historyByDate.get(shiftDateKey(currentDate, -7)) || null;
+  const prev30 = historyByDate.get(shiftDateKey(currentDate, -30)) || null;
+  const videoDelta7d =
+    prev7?.has_video_count_data ? current.video_count - prev7.video_count : null;
+  const videoDelta30d =
+    prev30?.has_video_count_data ? current.video_count - prev30.video_count : null;
+
+  if (videoDelta1d < 0) {
+    return {
+      videoDelta7d,
+      videoDelta30d,
+      uploadSignal: 0,
+    };
+  }
+
+  let streakDays = 0;
+  let inactiveDays = 0;
+
+  if (videoDelta1d > 0) {
+    streakDays = 1;
+    let cursor = currentDate;
+    while (streakDays < 7) {
+      const day = historyByDate.get(cursor) || null;
+      const prevDayDate = shiftDateKey(cursor, -1);
+      const prevDay = historyByDate.get(prevDayDate) || null;
+      if (!day?.has_video_count_data || !prevDay?.has_video_count_data) break;
+      const delta = day.video_count - prevDay.video_count;
+      if (delta <= 0) break;
+      if (cursor !== currentDate) {
+        streakDays += 1;
+      }
+      cursor = prevDayDate;
+    }
+    return {
+      videoDelta7d,
+      videoDelta30d,
+      uploadSignal: clamp((streakDays / 4) * 0.18, 0, 0.18),
+    };
+  }
+
+  inactiveDays = 1;
+  let cursor = currentDate;
+  while (inactiveDays < 14) {
+    const day = historyByDate.get(cursor) || null;
+    const prevDayDate = shiftDateKey(cursor, -1);
+    const prevDay = historyByDate.get(prevDayDate) || null;
+    if (!day?.has_video_count_data || !prevDay?.has_video_count_data) break;
+    const delta = day.video_count - prevDay.video_count;
+    if (delta !== 0) break;
+    if (cursor !== currentDate) {
+      inactiveDays += 1;
+    }
+    cursor = prevDayDate;
+  }
+
+  return {
+    videoDelta7d,
+    videoDelta30d,
+    uploadSignal: -clamp(((inactiveDays - 1) / 8) * 0.28, 0, 0.28),
+  };
 }
 
 function computeDerivedSnapshot(current, historyByDate, previousDerived, version) {
@@ -98,16 +215,13 @@ function computeDerivedSnapshot(current, historyByDate, previousDerived, version
   const viewDelta1d = prev1 ? current.view_count - prev1.view_count : null;
   const viewDelta7d = prev7 ? current.view_count - prev7.view_count : null;
   const viewDelta30d = prev30 ? current.view_count - prev30.view_count : null;
-  const videoDelta7d = prev7 ? current.video_count - prev7.video_count : null;
-  const videoDelta30d = prev30 ? current.video_count - prev30.video_count : null;
+  const { videoDelta7d, videoDelta30d, uploadSignal } = computeUploadSignal(currentDate, historyByDate);
 
   const estimatedSubDelta7d = prev7 ? current.subscriber_count - prev7.subscriber_count : null;
   const estimatedSubDelta30d = prev30 ? current.subscriber_count - prev30.subscriber_count : null;
 
   const viewRecent = viewDelta7d !== null ? viewDelta7d / 7 : 0;
   const viewBase = prev7 && prev35 ? Math.max((prev7.view_count - prev35.view_count) / 28, 100) : 100;
-  const uploadRecent = videoDelta7d !== null ? videoDelta7d / 7 : 0;
-  const uploadBase = prev7 && prev35 ? Math.max((prev7.video_count - prev35.video_count) / 28, 0.05) : 0.05;
 
   const sizeAnchorRaw =
     Math.pow(Math.max(current.subscriber_count, 1), 0.42) *
@@ -115,10 +229,10 @@ function computeDerivedSnapshot(current, historyByDate, previousDerived, version
 
   const viewSignalRaw = Math.log(Math.max(viewRecent, 100) / Math.max(viewBase, 100));
   const viewSignal = clamp(viewSignalRaw, -0.4, 0.4);
-  const uploadSignal = Math.log(Math.max(uploadRecent, 0.05) / Math.max(uploadBase, 0.05));
-  const subSignal = null;
+  const subSignal = computeSubscriberSignal(current, prev7, prev30);
+  const stagnationSignal = computeStagnationSignal(current, prev7, prev30);
 
-  const rawMomentum = 0.92 * viewSignal + 0.08 * uploadSignal;
+  const rawMomentum = 0.58 * viewSignal + 0.3 * subSignal + 0.12 * uploadSignal + stagnationSignal;
   const momentumRaw = clamp(rawMomentum, -1.35, 1.35);
   const momentumMultiplier = Math.exp(0.35 * momentumRaw);
   const fundamentalValueRaw = sizeAnchorRaw * momentumMultiplier;
@@ -126,7 +240,7 @@ function computeDerivedSnapshot(current, historyByDate, previousDerived, version
   const uncappedFundamentalValueSmoothed =
     previousSmoothed === null
       ? fundamentalValueRaw
-      : 0.8 * previousSmoothed + 0.2 * fundamentalValueRaw;
+      : (SMOOTHING_PREVIOUS_WEIGHT * previousSmoothed) + (SMOOTHING_RAW_WEIGHT * fundamentalValueRaw);
   const fundamentalValueSmoothed = clampFairValueMove(uncappedFundamentalValueSmoothed, previousSmoothed);
 
   return {
@@ -229,6 +343,8 @@ function densifyDailyStats(rows, { from = null, to = null, fillMissingDates = tr
     dense.push({
       ...lastKnown,
       snapshot_date: dateKey,
+      video_count: null,
+      has_video_count_data: false,
     });
   }
 
@@ -447,7 +563,7 @@ async function listFundamentalsJobs(pool) {
     ),
     pool.query(
       `
-      SELECT id, market_date, status, started_at, completed_at, error_text
+      SELECT id, market_date, source_market_date, status, started_at, completed_at, error_text
       FROM market.market_settlement_runs
       ORDER BY market_date DESC
       LIMIT 20

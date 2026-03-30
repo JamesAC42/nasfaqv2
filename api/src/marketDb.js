@@ -40,6 +40,69 @@ function parseIndexWeighting(weighting) {
   }
 }
 
+function parseRangeToMilliseconds(range) {
+  switch ((range || "").toLowerCase()) {
+    case "24h":
+      return 24 * 60 * 60 * 1000;
+    case "7d":
+      return 7 * 24 * 60 * 60 * 1000;
+    case "30d":
+      return 30 * 24 * 60 * 60 * 1000;
+    case "90d":
+      return 90 * 24 * 60 * 60 * 1000;
+    case "1y":
+      return 365 * 24 * 60 * 60 * 1000;
+    default:
+      return 30 * 24 * 60 * 60 * 1000;
+  }
+}
+
+function getSuperchatTimeseriesConfig(range) {
+  switch ((range || "").toLowerCase()) {
+    case "7d":
+      return {
+        range: "7d",
+        bucketUnit: "day",
+        startExpr: "current_date - interval '6 days'",
+        endExpr: "current_date",
+        stepInterval: "1 day",
+        bucketExpr: "date_trunc('day', started_at)::date",
+      };
+    case "14d":
+      return {
+        range: "14d",
+        bucketUnit: "day",
+        startExpr: "current_date - interval '13 days'",
+        endExpr: "current_date",
+        stepInterval: "1 day",
+        bucketExpr: "date_trunc('day', started_at)::date",
+      };
+    case "1m":
+      return {
+        range: "1m",
+        bucketUnit: "week",
+        startExpr: "date_trunc('week', current_date - interval '27 days')::date",
+        endExpr: "date_trunc('week', current_date)::date",
+        stepInterval: "1 week",
+        bucketExpr: "date_trunc('week', started_at)::date",
+      };
+    case "1y":
+      return {
+        range: "1y",
+        bucketUnit: "month",
+        startExpr: "date_trunc('month', current_date - interval '11 months')::date",
+        endExpr: "date_trunc('month', current_date)::date",
+        stepInterval: "1 month",
+        bucketExpr: "date_trunc('month', started_at)::date",
+      };
+    default: {
+      const error = new Error("unsupported_superchat_range");
+      error.code = "unsupported_superchat_range";
+      throw error;
+    }
+  }
+}
+
 async function listAssets(pool) {
   const { rows } = await pool.query(
     `
@@ -288,6 +351,152 @@ async function getAssetTrades(pool, symbol, { limit = 50 } = {}) {
     [symbol, limit]
   );
   return rows;
+}
+
+async function getAssetSuperchatSummary(pool, symbol, { range = "7d" } = {}) {
+  const assetResult = await pool.query(
+    `
+    SELECT symbol, youtube_channel_id
+    FROM market.market_assets
+    WHERE symbol = $1
+    LIMIT 1
+  `,
+    [symbol]
+  );
+
+  const asset = assetResult.rows[0] || null;
+  if (!asset) return null;
+
+  const interval = parseRangeToInterval(range);
+  const weekEnd = new Date();
+  const weekStart = new Date(weekEnd.getTime() - parseRangeToMilliseconds(range));
+  const { rows } = await pool.query(
+    `
+    WITH bounds AS (
+      SELECT now() - $2::interval AS week_start, now() AS week_end
+    ),
+    windowed_streams AS (
+      SELECT s.video_id
+      FROM yt.livestream_sessions s
+      CROSS JOIN bounds b
+      WHERE s.youtube_channel_id = $1
+        AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) >= b.week_start
+        AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) <= b.week_end
+    )
+    SELECT
+      b.week_start,
+      b.week_end,
+      sc.currency_name,
+      SUM(sc.donation_count)::BIGINT AS donation_count,
+      SUM(sc.total_in_currency)::TEXT AS total_in_currency,
+      SUM(sc.total_in_yen)::BIGINT AS total_in_yen
+    FROM bounds b
+    LEFT JOIN windowed_streams ws ON true
+    LEFT JOIN yt.youtube_superchat_currency_breakdowns sc ON sc.video_id = ws.video_id
+    GROUP BY b.week_start, b.week_end, sc.currency_name
+    HAVING sc.currency_name IS NOT NULL
+    ORDER BY SUM(sc.total_in_yen) DESC, sc.currency_name ASC
+  `,
+    [asset.youtube_channel_id, interval]
+  );
+
+  return {
+    symbol: asset.symbol,
+    youtube_channel_id: asset.youtube_channel_id,
+    range,
+    week_start: rows[0]?.week_start || weekStart,
+    week_end: rows[0]?.week_end || weekEnd,
+    currencies: rows.map((row) => ({
+      currency_name: row.currency_name,
+      donation_count: row.donation_count,
+      total_in_currency: row.total_in_currency,
+      total_in_yen: row.total_in_yen,
+    })),
+  };
+}
+
+async function getAssetSuperchatTimeseries(pool, symbol, { range = "7d" } = {}) {
+  const assetResult = await pool.query(
+    `
+    SELECT symbol, youtube_channel_id
+    FROM market.market_assets
+    WHERE symbol = $1
+    LIMIT 1
+  `,
+    [symbol]
+  );
+
+  const asset = assetResult.rows[0] || null;
+  if (!asset) return null;
+
+  const config = getSuperchatTimeseriesConfig(range);
+  const { rows } = await pool.query(
+    `
+    WITH bounds AS (
+      SELECT
+        ${config.startExpr} AS start_date,
+        ${config.endExpr} AS end_date
+    ),
+    buckets AS (
+      SELECT generate_series(
+        (SELECT start_date FROM bounds),
+        (SELECT end_date FROM bounds),
+        '${config.stepInterval}'::interval
+      )::date AS bucket
+    ),
+    source_rows AS (
+      SELECT
+        COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) AS started_at,
+        sc.currency_name,
+        sc.total_in_yen
+      FROM yt.livestream_sessions s
+      JOIN yt.youtube_superchat_currency_breakdowns sc ON sc.video_id = s.video_id
+      CROSS JOIN bounds b
+      WHERE s.youtube_channel_id = $1
+        AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) >= b.start_date
+        AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) < (b.end_date + interval '1 day')
+    ),
+    aggregated AS (
+      SELECT
+        ${config.bucketExpr} AS bucket,
+        currency_name,
+        SUM(total_in_yen)::BIGINT AS total_in_yen
+      FROM source_rows
+      GROUP BY 1, 2
+    ),
+    currencies AS (
+      SELECT DISTINCT currency_name
+      FROM aggregated
+    )
+    SELECT
+      b.bucket::text AS bucket,
+      c.currency_name,
+      COALESCE(a.total_in_yen, 0)::BIGINT AS total_in_yen,
+      (SELECT start_date::text FROM bounds) AS start_date,
+      (SELECT end_date::text FROM bounds) AS end_date
+    FROM buckets b
+    CROSS JOIN currencies c
+    LEFT JOIN aggregated a
+      ON a.bucket = b.bucket
+     AND a.currency_name = c.currency_name
+    ORDER BY b.bucket ASC, c.currency_name ASC
+  `,
+    [asset.youtube_channel_id]
+  );
+
+  return {
+    symbol: asset.symbol,
+    youtube_channel_id: asset.youtube_channel_id,
+    range: config.range,
+    bucket_unit: config.bucketUnit,
+    start_date: rows[0]?.start_date || null,
+    end_date: rows[0]?.end_date || null,
+    points: rows.map((row) => ({
+      bucket: row.bucket,
+      currency_name: row.currency_name,
+      total_in_yen: row.total_in_yen,
+    })),
+  };
 }
 
 async function getAssetTreasury(pool, symbol) {
@@ -687,6 +896,8 @@ module.exports = {
   getAssetCandles,
   getAssetStats,
   getAssetTrades,
+  getAssetSuperchatSummary,
+  getAssetSuperchatTimeseries,
   getAssetTreasury,
   getLatestDailyReport,
   getDailyReportByDate,

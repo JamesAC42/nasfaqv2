@@ -1,83 +1,411 @@
-@use "../../styles/mixins" as *;
-
 .shell {
-  width: min(calc(100% - 2rem), var(--container));
-  margin: 0 auto;
-  padding: 1.25rem 0 2rem;
+  min-height: 100vh;
 }
 
 .header {
-  @include panel;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  width: 100%;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  background:
+    linear-gradient(180deg, rgba(11, 14, 18, 0.98), rgba(15, 18, 22, 0.95)),
+    color-mix(in srgb, var(--bg) 94%, black);
+  backdrop-filter: blur(18px);
+}
+
+.navbarRow {
   display: flex;
-  justify-content: space-between;
-  gap: 1rem;
   align-items: center;
-  padding: 1rem 1.2rem;
-  margin-bottom: 1.2rem;
+  justify-content: space-between;
+  gap: 1.25rem;
+  min-height: 4.5rem;
+  padding: 0 3rem;
+}
+
+.navbarStart {
+  display: flex;
+  align-items: center;
+  gap: 2.5rem;
+  min-width: 0;
+}
+
+.categoryRail {
+  display: flex;
+  align-items: center;
+  gap: 1.35rem;
+  flex-wrap: wrap;
+}
+
+.categoryTrigger {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 0.35rem 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  transition: color 0.18s ease;
+}
+
+.categoryTrigger:hover,
+.categoryTriggerActive {
+  color: var(--accent);
 }
 
 .brand {
-  display: grid;
-  gap: 0.2rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex: 0 0 auto;
+  transform: translateY(-0.125rem);
+}
+
+.brandLogo {
+  width: 1.1rem;
+  height: 1.1rem;
+  image-rendering: auto;
 }
 
 .title {
   margin: 0;
   font-family: var(--font-display);
   color: var(--accent);
-  font-size: clamp(1.3rem, 2.4vw, 2.2rem);
+  font-size: clamp(1rem, 1.4vw, 1.35rem);
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
 }
 
-.subtitle {
+.navbarEnd {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-card-soft) 72%, transparent);
+  color: var(--text);
+}
+
+.icon {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.profileLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 2.75rem;
+  padding: 0.3rem 0.95rem 0.3rem 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-card) 78%, transparent);
+  color: var(--text);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.profileAvatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 80%, white), color-mix(in srgb, var(--accent) 36%, black));
+  color: #071318;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.dropdownPanel {
+  max-height: 0;
+  overflow: clip;
+  opacity: 0;
+  border-top: 1px solid transparent;
+  transition: max-height 0.26s ease, opacity 0.2s ease, border-color 0.2s ease;
+}
+
+.dropdownPanelOpen {
+  max-height: 14rem;
+  opacity: 1;
+  border-top-color: color-mix(in srgb, var(--border) 88%, transparent);
+}
+
+.dropdownSection {
+  transform: translateY(-0.7rem);
+  opacity: 0;
+  transition: transform 0.26s ease, opacity 0.2s ease;
+}
+
+.dropdownSectionVisible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.dropdownInner {
+  display: flex;
+  align-items: stretch;
+  gap: 2rem;
+  padding: 1.35rem 3rem 1.5rem 4.5rem;
+}
+
+.dropdownLabel {
+  display: flex;
+  align-items: center;
+  min-width: 10rem;
+  color: var(--accent-strong);
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  line-height: 1;
+  text-transform: lowercase;
+  padding-right: 1.5rem;
+  border-right: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+}
+
+.dropdownLinks {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+}
+
+.dropdownLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: 0.45rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+  transition: color 0.18s ease;
+}
+
+.dropdownLink:hover,
+.dropdownLinkActive {
+  color: var(--accent);
+}
+
+.ribbon {
+  border-top: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  background:
+    linear-gradient(180deg, rgba(7, 10, 13, 0.98), rgba(10, 12, 16, 0.96)),
+    color-mix(in srgb, black 82%, var(--bg));
+  overflow: hidden;
+  overflow-y: hidden;
+}
+
+.ribbonMarquee {
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+}
+
+.ribbonMarqueeAnimated {
+  animation: ribbonScroll 95s linear infinite;
+}
+
+.ribbonTrack {
+  display: flex;
+  align-items: stretch;
+  gap: 1rem;
+  flex: 0 0 auto;
+  min-width: max-content;
+  padding: 0.85rem 3rem 0.45rem;
+}
+
+.ribbonDivider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 0.5rem 1.5rem 0.2rem 0.6rem;
+}
+
+.ribbonDividerImage {
+  width: 6.4rem;
+  height: auto;
+  object-fit: contain;
+  opacity: 0.96;
+}
+
+.ribbonItem {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 14rem;
+  padding-right: 1rem;
+  border-right: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.ribbonItemUp {
+  color: var(--trend-up);
+}
+
+.ribbonItemDown {
+  color: var(--trend-down);
+}
+
+.ribbonInfo {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.ribbonName {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.ribbonValue {
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.ribbonChangeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ribbonChange {
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.ribbonChartWrap {
+  display: flex;
+  align-items: center;
+  width: 4.15rem;
+  min-width: 4.15rem;
+}
+
+.ribbonChart {
+  width: 100%;
+  height: 1.75rem;
+}
+
+.ribbonChartEmpty {
+  width: 100%;
+  height: 1.75rem;
+}
+
+.ribbonFallback {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.8rem;
+  padding: 0.85rem 3rem 0.45rem;
   color: var(--muted);
   font-size: 0.92rem;
 }
 
-.nav {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  align-items: center;
+@keyframes ribbonScroll {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
 }
 
-.navLink {
-  border-radius: 999px;
-  border: 1px solid transparent;
-  padding: 0.55rem 0.85rem;
-  color: var(--muted);
-}
-
-.navLinkActive {
-  border-color: var(--border);
-  background: var(--surface-nav-active);
-  color: var(--text);
-}
-
-.authBlock {
-  display: flex;
-  gap: 0.6rem;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.userText {
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.action {
-  @include button-secondary;
+@media (prefers-reduced-motion: reduce) {
+  .ribbonMarqueeAnimated {
+    animation: none;
+  }
 }
 
 .main {
   display: grid;
   gap: 1.25rem;
+  padding: 2rem 3rem 2.5rem;
 }
 
 @media (max-width: 900px) {
-  .header {
+  .navbarRow {
+    min-height: auto;
+    padding-top: 0.9rem;
+    padding-bottom: 0.9rem;
+  }
+
+  .navbarRow,
+  .dropdownInner {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+
+  .navbarRow,
+  .navbarStart {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .navbarStart {
+    gap: 0.9rem;
+  }
+
+  .categoryRail {
+    gap: 1rem;
+  }
+
+  .brand {
+    transform: none;
+  }
+
+  .navbarEnd {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .dropdownInner {
+    flex-direction: column;
+    gap: 0.8rem;
+    padding-left: 1.25rem;
+  }
+
+  .dropdownLabel {
+    min-width: 0;
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  .ribbonTrack {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+
+  .ribbonDivider {
+    padding-left: 0.5rem;
+    padding-right: 1rem;
+  }
+
+  .ribbonFallback {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+
+  .ribbonItem {
+    width: 13rem;
+  }
+
+  .main {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
   }
 }

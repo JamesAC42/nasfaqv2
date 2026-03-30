@@ -72,3 +72,34 @@ main {
   color: var(--accent-strong);
   border-color: var(--button-primary-border);
 }
+
+.sectionToolbar {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.segmentedControl {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 0.0625rem solid color-mix(in srgb, var(--text) 12%, transparent);
+  border-radius: 999rem;
+  background: color-mix(in srgb, var(--surface-card-soft) 88%, transparent);
+}
+
+.segmentedButton {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 650;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999rem;
+  cursor: pointer;
+}
+
+.segmentedButton.active {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--text);
+}

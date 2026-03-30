@@ -67,10 +67,16 @@ function computeQuotes(midPrice, spreadBps) {
   };
 }
 
+function shiftDateKey(dateKey, days) {
+  const date = new Date(`${dateKey}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 async function getSettlementRun(client, marketDate) {
   const { rows } = await client.query(
     `
-    SELECT id, market_date, status, started_at, completed_at, error_text
+    SELECT id, market_date, source_market_date, status, started_at, completed_at, error_text
     FROM market.market_settlement_runs
     WHERE market_date = $1
     LIMIT 1
@@ -80,14 +86,14 @@ async function getSettlementRun(client, marketDate) {
   return rows[0] || null;
 }
 
-async function createSettlementRun(client, marketDate) {
+async function createSettlementRun(client, marketDate, sourceMarketDate) {
   const { rows } = await client.query(
     `
-    INSERT INTO market.market_settlement_runs (market_date, status)
-    VALUES ($1, 'started')
+    INSERT INTO market.market_settlement_runs (market_date, source_market_date, status)
+    VALUES ($1, $2, 'started')
     RETURNING id
   `,
-    [marketDate]
+    [marketDate, sourceMarketDate]
   );
   return rows[0].id;
 }
@@ -129,7 +135,7 @@ async function resetSettlementArtifacts(client, marketDate) {
   await client.query(`DELETE FROM market.market_settlement_runs WHERE market_date = $1`, [marketDate]);
 }
 
-async function listAssetsForSettlement(client, marketDate) {
+async function listAssetsForSettlement(client, sourceMarketDate) {
   const { rows } = await client.query(
     `
     SELECT
@@ -171,7 +177,7 @@ async function listAssetsForSettlement(client, marketDate) {
     WHERE a.status = 'active'
     ORDER BY a.symbol ASC
   `,
-    [marketDate]
+    [sourceMarketDate]
   );
   return rows;
 }
@@ -474,9 +480,10 @@ async function persistDailyReport(client, marketDate, report) {
   );
 }
 
-async function settleMarketDay(pool, { marketDate, force = false } = {}) {
+async function settleMarketDay(pool, { marketDate, sourceMarketDate = null, force = false } = {}) {
   const client = await pool.connect();
   let runId = null;
+  const resolvedSourceMarketDate = sourceMarketDate || marketDate;
 
   try {
     await client.query("BEGIN");
@@ -503,10 +510,10 @@ async function settleMarketDay(pool, { marketDate, force = false } = {}) {
     }
 
     if (!runId) {
-      runId = await createSettlementRun(client, marketDate);
+      runId = await createSettlementRun(client, marketDate, resolvedSourceMarketDate);
     }
 
-    const assets = await listAssetsForSettlement(client, marketDate);
+    const assets = await listAssetsForSettlement(client, resolvedSourceMarketDate);
     const settledStates = [];
     const previousStatesByAssetId = new Map();
 
@@ -527,6 +534,7 @@ async function settleMarketDay(pool, { marketDate, force = false } = {}) {
     return {
       ok: true,
       market_date: marketDate,
+      source_market_date: resolvedSourceMarketDate,
       run_id: runId,
       asset_count: settledStates.length,
       report,
@@ -542,7 +550,7 @@ async function settleMarketDay(pool, { marketDate, force = false } = {}) {
 
 module.exports = {
   settleMarketDay,
-  async settleMarketRange(pool, { from, to, force = false } = {}) {
+  async settleMarketRange(pool, { from, to, force = false, marketDateOffsetDays = 0 } = {}) {
     const client = await pool.connect();
     let datesResult;
     try {
@@ -554,19 +562,22 @@ module.exports = {
     const settled = [];
     const skipped = [];
     for (const row of datesResult) {
-      const marketDate = row.snapshot_date instanceof Date
+      const sourceMarketDate = row.snapshot_date instanceof Date
         ? row.snapshot_date.toISOString().slice(0, 10)
         : String(row.snapshot_date);
+      const marketDate = shiftDateKey(sourceMarketDate, marketDateOffsetDays);
       try {
-        const result = await settleMarketDay(pool, { marketDate, force });
+        const result = await settleMarketDay(pool, { marketDate, sourceMarketDate, force });
         settled.push({
           market_date: result.market_date,
+          source_market_date: result.source_market_date,
           run_id: result.run_id,
           asset_count: result.asset_count,
         });
       } catch (error) {
         skipped.push({
           market_date: marketDate,
+          source_market_date: sourceMarketDate,
           error: String(error?.code || error?.message || error),
         });
       }

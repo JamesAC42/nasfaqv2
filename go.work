@@ -4,5 +4,6 @@ use (
 	./4chanscraper
 	./channelscraper
 	./holonews
+	./superchatscraper
 	./ytscraper
 )
