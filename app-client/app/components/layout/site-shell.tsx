@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Time } from "lightweight-charts";
 import type { MarketIndexBundle } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -36,6 +36,24 @@ const CATEGORY_ITEMS = [
     ],
   },
 ] as const;
+
+const RIBBON_SCROLL_DURATION_SECONDS = 95;
+const RIBBON_SCROLL_DURATION_MS = RIBBON_SCROLL_DURATION_SECONDS * 1000;
+const RIBBON_EPOCH_STORAGE_KEY = "nasfaq.ribbonAnimationEpoch";
+
+function getRibbonAnimationEpoch() {
+  if (typeof window === "undefined") return Date.now();
+
+  const existing = window.sessionStorage.getItem(RIBBON_EPOCH_STORAGE_KEY);
+  if (existing) {
+    const parsed = Number(existing);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+
+  const epoch = Date.now();
+  window.sessionStorage.setItem(RIBBON_EPOCH_STORAGE_KEY, String(epoch));
+  return epoch;
+}
 
 function toChartTime(value: string): Time | null {
   if (!value) return null;
@@ -169,6 +187,8 @@ const MarketRibbon = memo(function MarketRibbon({
   marketIndexes: MarketIndexBundle[];
   isLoadingIndex: boolean;
 }) {
+  const [animationEpoch] = useState(getRibbonAnimationEpoch);
+  const marqueeRef = useRef<HTMLDivElement | null>(null);
   const ribbonEntries = useMemo<RibbonEntry[]>(() => {
     return marketIndexes.map((bundle) => {
       const ribbonPoints = buildRibbonPoints(bundle);
@@ -193,9 +213,23 @@ const MarketRibbon = memo(function MarketRibbon({
 
   const shouldAnimateRibbon = ribbonEntries.length > 1;
 
+  useLayoutEffect(() => {
+    if (!marqueeRef.current) return;
+    if (!shouldAnimateRibbon) {
+      marqueeRef.current.style.removeProperty("animation-delay");
+      return;
+    }
+
+    const elapsed = (Date.now() - animationEpoch) % RIBBON_SCROLL_DURATION_MS;
+    marqueeRef.current.style.animationDelay = `${-(elapsed / 1000)}s`;
+  }, [animationEpoch, shouldAnimateRibbon]);
+
   return (
     <div className={styles.ribbon}>
-      <div className={`${styles.ribbonMarquee} ${shouldAnimateRibbon ? styles.ribbonMarqueeAnimated : ""}`.trim()}>
+      <div
+        ref={marqueeRef}
+        className={`${styles.ribbonMarquee} ${shouldAnimateRibbon ? styles.ribbonMarqueeAnimated : ""}`.trim()}
+      >
         {[0, ...(shouldAnimateRibbon ? [1] : [])].map((loopIndex) => (
           <Fragment key={`loop:${loopIndex}`}>
             <div key={`track:${loopIndex}`} className={styles.ribbonTrack} aria-hidden={loopIndex === 1}>

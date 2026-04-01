@@ -225,6 +225,7 @@
 
 .ribbonMarqueeAnimated {
   animation: ribbonScroll 95s linear infinite;
+  animation-fill-mode: both;
 }
 
 .ribbonTrack {
