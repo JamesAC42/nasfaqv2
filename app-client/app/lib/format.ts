@@ -1,10 +1,19 @@
 const nf = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
 const intf = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
-export function fmtNumber(value: number | null | undefined) {
+export function fmtNumber(value: number | null | undefined, prefix?: string) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return nf.format(value);
+  const absValue = Math.abs(value);
+  const formatted = nf.format(absValue);
+  if (value < 0) {
+    // Negative number: put prefix after the "-"
+    return `-${prefix ?? ""}${formatted}`;
+  } else {
+    // Positive or zero
+    return `${prefix ?? ""}${formatted}`;
+  }
 }
+
 
 export function fmtInteger(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";

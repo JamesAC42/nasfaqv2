@@ -12,6 +12,8 @@ import type {
   MarketIndexSummary,
   MarketStatus,
   MarketStatPoint,
+  NewsCharacter,
+  NewsFeedResponse,
   NewsItem,
   PortfolioSummary,
   SuperchatCurrencySummary,
@@ -27,6 +29,7 @@ export function normalizeCandles(candles: Array<Record<string, unknown>>): Candl
     low: toNumber(item.low),
     close: toNumber(item.close),
     close_mark: toNumber(item.close_mark),
+    volume_shares: toNumber(item.volume_shares),
   }));
 }
 
@@ -244,17 +247,58 @@ export function normalizeLeaderboard(rows: Array<Record<string, unknown>>): Lead
   }));
 }
 
+function normalizeNewsCharacters(value: unknown): NewsCharacter[] {
+  if (!Array.isArray(value)) return [];
+
+  const rows: Array<NewsCharacter | null> = value.map((item) => {
+      if (typeof item === "string") {
+        const name = item.trim();
+        return name ? { name, icon: null } : null;
+      }
+
+      if (item && typeof item === "object") {
+        const row = item as Record<string, unknown>;
+        const name = String(row.name || "").trim();
+        if (!name) return null;
+        return {
+          name,
+          icon: row.icon ? String(row.icon) : null,
+          youtube_channel_id: row.youtube_channel_id ? String(row.youtube_channel_id) : undefined,
+          symbol: row.symbol ? String(row.symbol) : null,
+          unit: row.unit ? String(row.unit) : null,
+        };
+      }
+
+      return null;
+    });
+
+  return rows.filter((item): item is NewsCharacter => item !== null);
+}
+
 export function normalizeNews(rows: Array<Record<string, unknown>>): NewsItem[] {
-  return rows.map((row, index) => ({
-    id: String(row.id || row.url || index),
-    headline: String(row.headline || row.title || "Untitled story"),
-    source: String(row.source || row.publisher || "Unknown source"),
-    published_at: row.published_at ? String(row.published_at) : null,
-    thumbnail_url: row.thumbnail_url ? String(row.thumbnail_url) : null,
-    url: row.url ? String(row.url) : null,
-    summary: row.summary ? String(row.summary) : null,
-    related_names: Array.isArray(row.related_names) ? row.related_names.map((item) => String(item)) : [],
-  }));
+  return rows.map((row, index) => {
+    const characters = normalizeNewsCharacters(row.characters);
+    const relatedNames = Array.isArray(row.related_names)
+      ? row.related_names.map((item) => String(item))
+      : characters.map((item) => item.name);
+
+    return {
+      id: String(row.id || row.url || index),
+      headline: String(row.headline || row.title || "Untitled story"),
+      source: String(row.source || row.publisher || "Unknown source"),
+      published_at: row.published_at ? String(row.published_at) : null,
+      thumbnail_url: row.thumbnail_url ? String(row.thumbnail_url) : null,
+      url: row.url ? String(row.url) : null,
+      summary: row.summary ? String(row.summary) : null,
+      characters,
+      related_names: relatedNames,
+      channel_ids: Array.isArray(row.channel_ids) ? row.channel_ids.map((item) => String(item)) : characters.map((item) => item.youtube_channel_id || "").filter(Boolean),
+      stock_symbols: Array.isArray(row.stock_symbols) ? row.stock_symbols.map((item) => String(item)) : characters.map((item) => item.symbol || "").filter(Boolean),
+      units: Array.isArray(row.units) ? row.units.map((item) => String(item)) : characters.map((item) => item.unit || "").filter(Boolean),
+      like_count: toNumber(row.like_count ?? row.likes ?? row.likeCount),
+      comment_count: toNumber(row.comment_count ?? row.comments ?? row.commentCount),
+    };
+  });
 }
 
 export function normalizeHoloNewsFeed(value: Record<string, unknown>): NewsItem[] {
@@ -262,13 +306,7 @@ export function normalizeHoloNewsFeed(value: Record<string, unknown>): NewsItem[
   const items = Array.isArray(value.items) ? (value.items as Array<Record<string, unknown>>) : [];
 
   return items.map((item, index) => {
-    const characters = Array.isArray(item.characters) ? item.characters as Array<Record<string, unknown>> : [];
-    const summary = characters.length
-      ? characters
-          .map((character) => String(character.name || "").trim())
-          .filter(Boolean)
-          .join(", ")
-      : null;
+    const characters = normalizeNewsCharacters(item.characters);
 
     return {
       id: String(item.headline || index),
@@ -276,13 +314,30 @@ export function normalizeHoloNewsFeed(value: Record<string, unknown>): NewsItem[
       source: "HoloNews",
       published_at: updatedAt,
       thumbnail_url: item.thumbnail_url ? String(item.thumbnail_url) : null,
-      summary,
+      summary: item.summary ? String(item.summary) : null,
       url: null,
-      related_names: characters
-        .map((character) => String(character.name || "").trim())
-        .filter(Boolean),
+      characters,
+      related_names: characters.map((character) => character.name),
+      like_count: toNumber(item.like_count ?? item.likes ?? item.likeCount),
+      comment_count: toNumber(item.comment_count ?? item.comments ?? item.commentCount),
     };
   });
+}
+
+export function normalizeNewsFeedResponse(value: Record<string, unknown>): NewsFeedResponse {
+  const pagination = (value.pagination || null) as Record<string, unknown> | null;
+
+  return {
+    items: normalizeNews(Array.isArray(value.items) ? (value.items as Array<Record<string, unknown>>) : []),
+    pagination: {
+      total: Number(pagination?.total || 0),
+      page: Number(pagination?.page || 1),
+      limit: Number(pagination?.limit || 20),
+      page_count: Number(pagination?.page_count || 1),
+      has_previous_page: Boolean(pagination?.has_previous_page),
+      has_next_page: Boolean(pagination?.has_next_page),
+    },
+  };
 }
 
 export function computeHeatmapMarketCap(asset: MarketAsset) {

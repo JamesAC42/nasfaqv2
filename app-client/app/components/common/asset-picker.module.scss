@@ -1,0 +1,134 @@
+@use "../../styles/mixins" as *;
+
+.root {
+  position: relative;
+  min-width: 0;
+}
+
+.trigger {
+  @include input-base;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.62rem;
+  text-align: left;
+  background: var(--bg);
+  position: relative;
+  z-index: 1;
+  min-height: 2.55rem;
+}
+
+.triggerOpen {
+  border-color: var(--button-primary-border);
+}
+
+.triggerValue {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 auto;
+}
+
+.triggerText {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  overflow: hidden;
+}
+
+.triggerName,
+.optionName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.triggerName {
+  font-size: 0.8rem;
+  line-height: 1.1;
+}
+
+.triggerSymbol,
+.optionMeta,
+.placeholder,
+.optionTextOnly {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.1;
+}
+
+.coin {
+  width: 1.35rem;
+  height: 1.35rem;
+  min-width: 1.35rem;
+}
+
+.chevron {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 0.28rem);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.32);
+  padding: 0.55rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.search {
+  @include input-base;
+  padding: 0.46rem 0.58rem;
+  font-size: 0.82rem;
+}
+
+.list {
+  display: grid;
+  gap: 0.2rem;
+  max-height: 18rem;
+  overflow-y: auto;
+  padding-right: 0.12rem;
+}
+
+.option {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.38rem 0.34rem;
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+
+.option:hover,
+.optionActive {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.optionText {
+  min-width: 0;
+  display: grid;
+  gap: 0.04rem;
+}
+
+.optionName {
+  font-size: 0.8rem;
+}
+
+.optionTextOnly {
+  font-size: 0.8rem;
+}

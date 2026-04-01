@@ -14,11 +14,13 @@ const { startMarketScheduler, loadSchedulerConfig, computeNextScheduledAt } = re
 const channelsRoutes = require("./routes/channels");
 const overviewRoutes = require("./routes/overview");
 const livestreamsRoutes = require("./routes/livestreams");
+const newsRoutes = require("./routes/news");
 const analysisRoutes = require("./routes/analysis");
 const marketRoutes = require("./routes/market");
 const internalMarketRoutes = require("./routes/internalMarket");
 const portfolioRoutes = require("./routes/portfolio");
 const authRoutes = require("./routes/auth");
+const statsRoutes = require("./routes/stats");
 
 const LIVESTREAM_VIEWER_UPDATES_CHANNEL = "nasfaq_livestreams:viewer_updates";
 const LIVESTREAM_BUCKET_UPDATES_CHANNEL = "nasfaq_livestreams:bucket_updates";
@@ -177,9 +179,11 @@ app.use("/internal/market", internalMarketRoutes);
 api.use("/channels", channelsRoutes);
 api.use("/overview", overviewRoutes);
 api.use("/livestreams", livestreamsRoutes);
+api.use("/news", newsRoutes);
 api.use("/analysis", analysisRoutes);
 api.use("/market", marketRoutes);
 api.use("/portfolio", portfolioRoutes);
+api.use("/stats", statsRoutes);
 
 app.use("/api", api);
 
@@ -218,6 +222,17 @@ async function main() {
   const server = http.createServer(app);
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
   const bucketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
+  const statsWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
+
+  const broadcastOnlineUserCount = () => {
+    const payload = JSON.stringify({
+      type: "online_count",
+      online_users: statsWss.clients.size,
+    });
+    statsWss.clients.forEach((client) => {
+      sendWsText(client, payload);
+    });
+  };
 
   let lastSnapshot = { type: "snapshot", at: new Date().toISOString(), live: [], upcoming: [] };
   let snapshotRefreshing = false;
@@ -274,6 +289,12 @@ async function main() {
   bucketWss.on("connection", (ws) => {
     ws.on("close", () => {});
   });
+  statsWss.on("connection", (ws) => {
+    broadcastOnlineUserCount();
+    ws.on("close", () => {
+      broadcastOnlineUserCount();
+    });
+  });
 
   server.on("upgrade", (req, socket, head) => {
     let pathname = "";
@@ -289,6 +310,8 @@ async function main() {
         ? wss
         : pathname === "/api/livestreams/buckets/ws"
           ? bucketWss
+          : pathname === "/api/stats/ws"
+            ? statsWss
           : null;
 
     if (!target) {
@@ -325,7 +348,7 @@ async function main() {
   server.listen(cfg.port, () => {
     // eslint-disable-next-line no-console
     console.log(
-      `API listening on http://localhost:${cfg.port} (HTTP + WebSocket /api/livestreams/ws + /api/livestreams/buckets/ws)`
+      `API listening on http://localhost:${cfg.port} (HTTP + WebSocket /api/livestreams/ws + /api/livestreams/buckets/ws + /api/stats/ws)`
     );
   });
 

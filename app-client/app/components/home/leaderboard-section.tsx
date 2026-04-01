@@ -10,7 +10,7 @@ export function LeaderboardSection({ entries, error }: { entries: LeaderboardEnt
         <ol className={styles.list}>
           {entries.slice(0, 8).map((entry) => (
             <li key={entry.id}>
-              #{entry.rank} <strong>{entry.label}</strong> {fmtNumber(entry.value)} {entry.change_pct !== null && entry.change_pct !== undefined ? `(${fmtPct(entry.change_pct)})` : ""}
+              #{entry.rank} <strong>{entry.label}</strong> {fmtNumber(entry.value, "$")} {entry.change_pct !== null && entry.change_pct !== undefined ? `(${fmtPct(entry.change_pct)})` : ""}
             </li>
           ))}
         </ol>

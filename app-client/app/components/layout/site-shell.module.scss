@@ -1,5 +1,7 @@
 .shell {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .header {
@@ -7,11 +9,15 @@
   top: 0;
   z-index: 30;
   width: 100%;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   background:
     linear-gradient(180deg, rgba(11, 14, 18, 0.98), rgba(15, 18, 22, 0.95)),
     color-mix(in srgb, var(--bg) 94%, black);
   backdrop-filter: blur(18px);
+}
+
+.ribbonShell {
+  position: relative;
+  z-index: 20;
 }
 
 .navbarRow {
@@ -131,19 +137,19 @@
   overflow: clip;
   opacity: 0;
   border-top: 1px solid transparent;
-  transition: max-height 0.26s ease, opacity 0.2s ease, border-color 0.2s ease;
+  transition: max-height 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.1s ease-out, border-color 0.1s ease-out;
 }
 
 .dropdownPanelOpen {
-  max-height: 14rem;
+  max-height: 6rem;
   opacity: 1;
   border-top-color: color-mix(in srgb, var(--border) 88%, transparent);
 }
 
 .dropdownSection {
-  transform: translateY(-0.7rem);
+  transform: translateY(-0.35rem);
   opacity: 0;
-  transition: transform 0.26s ease, opacity 0.2s ease;
+  transition: transform 0.14s ease-out, opacity 0.1s ease-out;
 }
 
 .dropdownSectionVisible {
@@ -155,19 +161,19 @@
   display: flex;
   align-items: stretch;
   gap: 2rem;
-  padding: 1.35rem 3rem 1.5rem 4.5rem;
+  padding: 1.35rem 3rem 1.5rem 3.2rem;
 }
 
 .dropdownLabel {
   display: flex;
   align-items: center;
-  min-width: 10rem;
+  margin-right:1rem;
   color: var(--accent-strong);
   font-family: var(--font-display);
   font-size: 1.4rem;
   line-height: 1;
   text-transform: lowercase;
-  padding-right: 1.5rem;
+  padding-right: 3rem;
   border-right: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
 }
 
@@ -175,7 +181,7 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.8rem;
+  gap: 1.5rem;
 }
 
 .dropdownLink {
@@ -196,6 +202,7 @@
 }
 
 .ribbon {
+  position: relative;
   border-top: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   background:
@@ -203,12 +210,17 @@
     color-mix(in srgb, black 82%, var(--bg));
   overflow: hidden;
   overflow-y: hidden;
+  isolation: isolate;
 }
 
 .ribbonMarquee {
   display: flex;
   width: max-content;
   min-width: 100%;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
 }
 
 .ribbonMarqueeAnimated {
@@ -222,6 +234,7 @@
   flex: 0 0 auto;
   min-width: max-content;
   padding: 0.85rem 3rem 0.45rem;
+  contain: layout paint;
 }
 
 .ribbonDivider {
@@ -237,13 +250,16 @@
   height: auto;
   object-fit: contain;
   opacity: 0.96;
+  transform: translateY(-7px);
+  img {
+  }
 }
 
 .ribbonItem {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  width: 14rem;
+  //width: 14rem;
   padding-right: 1rem;
   border-right: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
 }
@@ -271,10 +287,15 @@
   color: var(--accent);
 }
 
+.ribbonValue,
+.ribbonChangeRow {
+  font-family: var(--font-mono);
+}
+
 .ribbonValue {
   color: var(--text);
   font-size: 1rem;
-  font-weight: 800;
+  font-weight: 900;
   line-height: 1.1;
 }
 
@@ -285,8 +306,8 @@
 }
 
 .ribbonChange {
-  font-size: 0.74rem;
-  font-weight: 700;
+  font-size: 0.9rem;
+  font-weight: 800;
 }
 
 .ribbonChartWrap {
@@ -297,8 +318,10 @@
 }
 
 .ribbonChart {
+  display: block;
   width: 100%;
   height: 1.75rem;
+  contain: layout paint size;
 }
 
 .ribbonChartEmpty {
@@ -334,7 +357,59 @@
 .main {
   display: grid;
   gap: 1.25rem;
+  flex: 1 0 auto;
   padding: 2rem 3rem 2.5rem;
+}
+
+.footer {
+  margin-top: auto;
+  border-top: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  background:
+    linear-gradient(180deg, rgba(10, 12, 16, 0.92), rgba(7, 9, 12, 0.98)),
+    color-mix(in srgb, black 86%, var(--bg));
+}
+
+.footerInner {
+  display: grid;
+  justify-items: center;
+  gap: 0.7rem;
+  padding: 2rem 3rem 2.25rem;
+  text-align: center;
+}
+
+.footerTitle {
+  margin: 0;
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+
+.footerLinks {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.85rem 1.25rem;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.footerLinks a:hover,
+.footerLinks a:focus-visible,
+.footerContact:hover,
+.footerContact:focus-visible {
+  color: var(--accent);
+}
+
+.footerMeta {
+  margin: 0;
+  color: color-mix(in srgb, var(--text) 74%, transparent);
+  font-size: 0.92rem;
+}
+
+.footerContact {
+  color: var(--accent-strong);
 }
 
 @media (max-width: 900px) {
@@ -405,6 +480,11 @@
   }
 
   .main {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+
+  .footerInner {
     padding-left: 1.25rem;
     padding-right: 1.25rem;
   }

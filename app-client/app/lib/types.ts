@@ -11,6 +11,7 @@ export type CandlePoint = {
   low: number | null;
   close: number | null;
   close_mark?: number | null;
+  volume_shares?: number | null;
 };
 
 export type MarketAsset = {
@@ -165,20 +166,37 @@ export type PortfolioSummary = {
 };
 
 export type ReportRow = {
+  asset_id?: number;
   symbol: string;
   display_name: string;
+  fair_value?: number | null;
+  fair_value_change_pct?: number | null;
   premium_pct?: number | null;
+  emission?: number | null;
+  treasury_supply_end?: number | null;
+  circulating_supply_end?: number | null;
   move_pct?: number | null;
+  volume_change_pct?: number | null;
+  volume_shares?: number | null;
   volume_cash?: number | null;
+  volume_cash_change_pct?: number | null;
 };
 
 export type DailyReport = {
   market_date: string;
+  generated_at?: string;
   asset_count: number;
+  biggest_fair_value_increases?: ReportRow[];
+  biggest_fair_value_decreases?: ReportRow[];
   largest_premiums?: ReportRow[];
   largest_discounts?: ReportRow[];
+  biggest_winners?: ReportRow[];
+  biggest_losers?: ReportRow[];
   top_price_movers?: ReportRow[];
+  volume_winners?: ReportRow[];
+  volume_losers?: ReportRow[];
   top_volume?: ReportRow[];
+  notable_treasury_emissions?: ReportRow[];
 };
 
 export type MarketStatus = {
@@ -223,6 +241,14 @@ export type LeaderboardEntry = {
   change_pct?: number | null;
 };
 
+export type NewsCharacter = {
+  name: string;
+  icon: string | null;
+  youtube_channel_id?: string;
+  symbol?: string | null;
+  unit?: string | null;
+};
+
 export type NewsItem = {
   id: string;
   headline: string;
@@ -231,5 +257,30 @@ export type NewsItem = {
   thumbnail_url?: string | null;
   url?: string | null;
   summary?: string | null;
+  characters?: NewsCharacter[];
   related_names?: string[];
+  channel_ids?: string[];
+  stock_symbols?: string[];
+  units?: string[];
+  like_count?: number | null;
+  comment_count?: number | null;
+};
+
+export type NewsFeedPagination = {
+  total: number;
+  page: number;
+  limit: number;
+  page_count: number;
+  has_previous_page: boolean;
+  has_next_page: boolean;
+};
+
+export type NewsFeedResponse = {
+  items: NewsItem[];
+  pagination: NewsFeedPagination;
+};
+
+export type SiteStats = {
+  user_count: number;
+  channel_count: number;
 };

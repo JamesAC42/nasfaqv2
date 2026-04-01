@@ -40,6 +40,13 @@ type ChannelInfo struct {
 	UploadsPlaylistID string
 }
 
+type ChannelMetadata struct {
+	ChannelID   string
+	IconURL     *string
+	BannerURL   *string
+	Description *string
+}
+
 type RecentPointer struct {
 	VideoID      string
 	PublishedAt  time.Time
@@ -161,6 +168,58 @@ func (c *Client) FetchChannelInfos(ctx context.Context, channelIDs []string) (ma
 		}
 	}
 
+	return out, nil
+}
+
+func (c *Client) FetchChannelMetadataBatch(ctx context.Context, channelIDs []string) (map[string]ChannelMetadata, error) {
+	if len(channelIDs) == 0 {
+		return map[string]ChannelMetadata{}, nil
+	}
+	if len(channelIDs) > 50 {
+		return nil, fmt.Errorf("FetchChannelMetadataBatch expects <=50 channel IDs, got %d", len(channelIDs))
+	}
+
+	u, _ := url.Parse("https://www.googleapis.com/youtube/v3/channels")
+	q := u.Query()
+	q.Set("part", "snippet,brandingSettings")
+	q.Set("id", strings.Join(channelIDs, ","))
+	q.Set("key", c.APIKey)
+	u.RawQuery = q.Encode()
+
+	var resp struct {
+		Items []struct {
+			ID      string `json:"id"`
+			Snippet struct {
+				Description string `json:"description"`
+				Thumbnails  struct {
+					High    struct{ URL string `json:"url"` } `json:"high"`
+					Medium  struct{ URL string `json:"url"` } `json:"medium"`
+					Default struct{ URL string `json:"url"` } `json:"default"`
+				} `json:"thumbnails"`
+			} `json:"snippet"`
+			BrandingSettings struct {
+				Image struct {
+					BannerExternalURL string `json:"bannerExternalUrl"`
+				} `json:"image"`
+			} `json:"brandingSettings"`
+		} `json:"items"`
+	}
+	if err := c.getJSON(ctx, u.String(), &resp); err != nil {
+		return nil, err
+	}
+
+	out := make(map[string]ChannelMetadata, len(resp.Items))
+	for _, item := range resp.Items {
+		if item.ID == "" {
+			continue
+		}
+		out[item.ID] = ChannelMetadata{
+			ChannelID:   item.ID,
+			IconURL:     normalizeStringPtr(pickChannelThumb(item.Snippet.Thumbnails)),
+			BannerURL:   normalizeStringPtr(item.BrandingSettings.Image.BannerExternalURL),
+			Description: normalizeStringPtr(item.Snippet.Description),
+		}
+	}
 	return out, nil
 }
 
@@ -512,4 +571,26 @@ func pickThumb(t struct {
 		return t.Medium.URL
 	}
 	return t.Default.URL
+}
+
+func pickChannelThumb(t struct {
+	High    struct{ URL string `json:"url"` } `json:"high"`
+	Medium  struct{ URL string `json:"url"` } `json:"medium"`
+	Default struct{ URL string `json:"url"` } `json:"default"`
+}) string {
+	if t.High.URL != "" {
+		return t.High.URL
+	}
+	if t.Medium.URL != "" {
+		return t.Medium.URL
+	}
+	return t.Default.URL
+}
+
+func normalizeStringPtr(value string) *string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	return &value
 }

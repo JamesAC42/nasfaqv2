@@ -210,7 +210,7 @@ async function listSettleableDates(client, { from, to }) {
 async function getPreviousDailyState(client, assetId, marketDate) {
   const { rows } = await client.query(
     `
-    SELECT market_date, mid_close, mid_close_mark, fair_value, premium_close_pct
+    SELECT market_date, mid_close, mid_close_mark, fair_value, premium_close_pct, volume_shares, volume_cash
     FROM market.asset_daily_market_state
     WHERE asset_id = $1
       AND market_date < $2
@@ -426,6 +426,8 @@ function buildDailyReport(marketDate, settledStates, previousStatesByAssetId) {
   const fairValueChanges = settledStates.map((state) => {
     const prev = previousStatesByAssetId.get(state.assetId) || null;
     const prevFairValue = prev ? toNumber(prev.fair_value, 0) : null;
+    const prevVolumeShares = prev ? toNumber(prev.volume_shares, 0) : null;
+    const prevVolumeCash = prev ? toNumber(prev.volume_cash, 0) : null;
     return {
       asset_id: state.assetId,
       symbol: state.symbol,
@@ -439,8 +441,12 @@ function buildDailyReport(marketDate, settledStates, previousStatesByAssetId) {
       circulating_supply_end: roundMetric(state.circulatingSupplyEnd),
       move_pct:
         state.priorMidPrice && state.priorMidPrice > 0 ? roundMetric((state.midOpen - state.priorMidPrice) / state.priorMidPrice) : null,
+      volume_change_pct:
+        prevVolumeShares && prevVolumeShares > 0 ? roundMetric((state.volumeShares - prevVolumeShares) / prevVolumeShares) : null,
       volume_shares: roundMetric(state.volumeShares),
       volume_cash: roundMetric(state.volumeCash),
+      volume_cash_change_pct:
+        prevVolumeCash && prevVolumeCash > 0 ? roundMetric((state.volumeCash - prevVolumeCash) / prevVolumeCash) : null,
     };
   });
 
@@ -462,7 +468,11 @@ function buildDailyReport(marketDate, settledStates, previousStatesByAssetId) {
     biggest_fair_value_decreases: topBy(fairValueChanges, "fair_value_change_pct", "asc"),
     largest_premiums: topBy(fairValueChanges, "premium_pct", "desc"),
     largest_discounts: topBy(fairValueChanges, "premium_pct", "asc"),
+    biggest_winners: topBy(fairValueChanges, "move_pct", "desc"),
+    biggest_losers: topBy(fairValueChanges, "move_pct", "asc"),
     top_price_movers: topBy(fairValueChanges, "move_pct", "desc"),
+    volume_winners: topBy(fairValueChanges, "volume_change_pct", "desc"),
+    volume_losers: topBy(fairValueChanges, "volume_change_pct", "asc"),
     top_volume: topBy(fairValueChanges, "volume_cash", "desc"),
     notable_treasury_emissions: topBy(fairValueChanges, "emission", "desc"),
   };

@@ -2,32 +2,136 @@
 
 .section {
   @include panel;
-  padding: 1.2rem;
+  padding: 1.25rem;
   display: grid;
   gap: 1rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
 }
 
 .title {
   @include section-title;
 }
 
-.list {
+.copy {
+  @include subtle-copy;
+  margin: 0.35rem 0 0;
+  max-width: 60ch;
+}
+
+.viewAllLink {
+  color: var(--accent-strong);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.card {
   display: grid;
   gap: 0.75rem;
+  padding: 0.8rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-card);
+  background:
+    linear-gradient(180deg, rgba(7, 10, 13, 0.98), rgba(10, 12, 16, 0.96)),
+    color-mix(in srgb, black 82%, var(--bg));
 }
 
-.item {
-  border: 1px solid var(--border-soft);
+.thumb,
+.thumbFallback {
+  width: 100%;
+  aspect-ratio: 16 / 9;
   border-radius: var(--radius-sm);
-  padding: 0.85rem;
-  background: var(--surface-card-soft);
+  object-fit: cover;
+  background:
+    linear-gradient(160deg, var(--surface-card-highlight), var(--surface-card-soft)),
+    var(--bg-highlight);
 }
 
-.meta {
+.body {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.row,
+.creatorRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.livePill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.48rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger) 16%, var(--bg));
+  color: var(--danger);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.viewerCount {
+  color: var(--accent-strong);
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.streamTitle {
+  line-height: 1.35;
+}
+
+.creatorRow {
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
+}
+
+.creatorIcon {
+  width: 1.15rem;
+  height: 1.15rem;
+  min-width: 1.15rem;
+  padding: 0.1rem;
+  border-width: 1px;
+  border-bottom-width: 1px;
+  background: transparent;
 }
 
 .empty {
   @include empty-state;
+}
+
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .header,
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .header {
+    display: grid;
+  }
+
+  .grid {
+    display: grid;
+  }
 }

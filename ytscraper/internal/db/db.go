@@ -12,18 +12,21 @@ import (
 )
 
 type Channel struct {
-	YouTubeChannelID string
-	NameShort        string
-	NameEnglish      *string
-	NameJapanese     *string
-	Symbol           *string
-	Icon             *string
-	Color            *string
-	TwitterID        *string
-	ProfileID        *string
-	Birthday         *time.Time
-	Height           *string
-	Unit             *string
+	YouTubeChannelID   string
+	NameShort          string
+	NameEnglish        *string
+	NameJapanese       *string
+	Symbol             *string
+	Icon               *string
+	YouTubeIconURL     *string
+	YouTubeBannerURL   *string
+	YouTubeDescription *string
+	Color              *string
+	TwitterID          *string
+	ProfileID          *string
+	Birthday           *time.Time
+	Height             *string
+	Unit               *string
 }
 
 type DailyStats struct {
@@ -128,6 +131,31 @@ func ListActiveChannels(ctx context.Context, pool *pgxpool.Pool) ([]Channel, err
 	return out, nil
 }
 
+func ListChannels(ctx context.Context, pool *pgxpool.Pool) ([]Channel, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT youtube_channel_id, name_short
+		FROM yt.youtube_channels
+		ORDER BY name_short ASC, youtube_channel_id ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query channels: %w", err)
+	}
+	defer rows.Close()
+
+	var out []Channel
+	for rows.Next() {
+		var c Channel
+		if err := rows.Scan(&c.YouTubeChannelID, &c.NameShort); err != nil {
+			return nil, fmt.Errorf("scan channel: %w", err)
+		}
+		out = append(out, c)
+	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("iterate channels: %w", rows.Err())
+	}
+	return out, nil
+}
+
 func UpsertDailyStats(ctx context.Context, pool *pgxpool.Pool, s DailyStats) error {
 	_, err := pool.Exec(ctx, `
 		INSERT INTO yt.youtube_channel_daily_stats (
@@ -175,6 +203,9 @@ func UpsertChannel(ctx context.Context, pool *pgxpool.Pool, c Channel) error {
 			name_japanese,
 			symbol,
 			icon,
+			youtube_channel_icon_url,
+			youtube_channel_banner_url,
+			youtube_channel_description,
 			color,
 			twitter_id,
 			profile_id,
@@ -183,7 +214,7 @@ func UpsertChannel(ctx context.Context, pool *pgxpool.Pool, c Channel) error {
 			unit,
 			is_active,
 			updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,TRUE,now())
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,TRUE,now())
 		ON CONFLICT (youtube_channel_id)
 		DO UPDATE SET
 			name_short = EXCLUDED.name_short,
@@ -191,6 +222,9 @@ func UpsertChannel(ctx context.Context, pool *pgxpool.Pool, c Channel) error {
 			name_japanese = EXCLUDED.name_japanese,
 			symbol = EXCLUDED.symbol,
 			icon = EXCLUDED.icon,
+			youtube_channel_icon_url = EXCLUDED.youtube_channel_icon_url,
+			youtube_channel_banner_url = EXCLUDED.youtube_channel_banner_url,
+			youtube_channel_description = EXCLUDED.youtube_channel_description,
 			color = EXCLUDED.color,
 			twitter_id = EXCLUDED.twitter_id,
 			profile_id = EXCLUDED.profile_id,
@@ -199,9 +233,25 @@ func UpsertChannel(ctx context.Context, pool *pgxpool.Pool, c Channel) error {
 			unit = EXCLUDED.unit,
 			is_active = TRUE,
 			updated_at = now()
-	`, c.YouTubeChannelID, c.NameShort, c.NameEnglish, c.NameJapanese, c.Symbol, c.Icon, c.Color, c.TwitterID, c.ProfileID, c.Birthday, c.Height, c.Unit)
+	`, c.YouTubeChannelID, c.NameShort, c.NameEnglish, c.NameJapanese, c.Symbol, c.Icon, c.YouTubeIconURL, c.YouTubeBannerURL, c.YouTubeDescription, c.Color, c.TwitterID, c.ProfileID, c.Birthday, c.Height, c.Unit)
 	if err != nil {
 		return fmt.Errorf("upsert channel (id=%s): %w", c.YouTubeChannelID, err)
+	}
+	return nil
+}
+
+func UpdateChannelYouTubeMetadata(ctx context.Context, pool *pgxpool.Pool, channelID string, iconURL, bannerURL, description *string) error {
+	_, err := pool.Exec(ctx, `
+		UPDATE yt.youtube_channels
+		SET
+			youtube_channel_icon_url = $2,
+			youtube_channel_banner_url = $3,
+			youtube_channel_description = $4,
+			updated_at = now()
+		WHERE youtube_channel_id = $1
+	`, channelID, iconURL, bannerURL, description)
+	if err != nil {
+		return fmt.Errorf("update youtube channel metadata (id=%s): %w", channelID, err)
 	}
 	return nil
 }

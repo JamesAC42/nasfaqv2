@@ -9,7 +9,11 @@
 }
 
 .title {
-  @include section-title;
+  @include section-title-row(0.8rem);
+}
+
+.titleIcon {
+  @include section-title-icon(1.1rem);
 }
 
 .featuredList,
@@ -18,11 +22,77 @@
   gap: 0.8rem;
 }
 
+.topLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(18rem, 0.7fr);
+  gap: 0.85rem;
+  align-items: stretch;
+}
+
+.mainColumn,
+.sideRail {
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+}
+
+.sideRail {
+  grid-template-rows: auto 1fr auto;
+}
+
+.sideRailHeader {
+  font-size:1.2rem;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-family: var(--font-display);
+  color: var(--accent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+}
+
+.sideContent {
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+}
+
+.sideFooterImage {
+  width: 13.5rem;
+  height:auto;
+  justify-self: center;
+  align-self: end;
+  display: block;
+}
+
 .item {
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
   background: var(--surface-card-soft);
-  overflow: hidden;
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(7, 10, 13, 0.98), rgba(10, 12, 16, 0.96)),
+    color-mix(in srgb, black 82%, var(--bg));
+
+  transition: border 0.1s linear;
+  cursor: pointer;
+  z-index: 1;
+
+  &:hover {
+    box-shadow: 0 0 16px 3px var(--accoent-soft);
+    outline: 3px solid var(--bg-accent);
+    &::before {
+      content: "";
+      z-index: -1;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: calc(100% + 8px);
+      height: calc(100% + 8px);
+      background: var(--bg-highlight);
+      border-radius: var(--radius-md);
+      box-shadow: 0 0 10px 0 var(--accent-soft);
+    }
+  }
 }
 
 .itemLead {
@@ -33,6 +103,11 @@
 .itemFeatured {
   display: grid;
   grid-template-columns: 14rem minmax(0, 1fr);
+  gap: 0;
+}
+
+.itemFeaturedCompact {
+  display: grid;
   gap: 0;
 }
 
@@ -49,10 +124,11 @@
   display: block;
   object-fit: cover;
   background: var(--surface-card-highlight);
+  border-radius: var(--radius-md);
 }
 
 .leadThumb {
-  aspect-ratio: 16 / 8.5;
+  aspect-ratio: 16 / 8;
 }
 
 .thumb {
@@ -62,24 +138,28 @@
 
 .leadKicker,
 .featuredKicker {
-  font-size: 0.75rem;
+  font-size: 0.9rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .leadKicker {
-  color: var(--accent-strong);
+  color: var(--accent);
 }
 
 .featuredKicker {
-  color: #d97706;
+  color: #ff9a26;
 }
 
 .leadHeadline {
-  font-size: 1.6rem;
+  font-size: 2.2rem;
   line-height: 1.12;
   font-weight: 800;
+}
+
+.leadHeadlineWithSubhead {
+  font-size: 1.9rem;
 }
 
 .headline {
@@ -88,9 +168,35 @@
   font-size: 1.08rem;
 }
 
+.headlineBlock {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.leadSubhead,
+.subhead {
+  color: color-mix(in srgb, var(--muted) 68%, var(--text));
+  line-height: 1.45;
+}
+
+.leadSubhead {
+  font-size: 0.98rem;
+}
+
+.subhead {
+  font-size: 0.88rem;
+}
+
 .summary {
   color: var(--muted);
   font-size: 0.92rem;
+}
+
+.metaRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.85rem;
 }
 
 .pillRow {
@@ -99,29 +205,42 @@
   gap: 0.45rem;
 }
 
-.tickerPill {
+.engagementRow {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.35rem 0.55rem;
-  border-radius: 999px;
-  border: 1px solid var(--border-soft);
-  background: var(--surface-card-highlight);
-  font-size: 0.8rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.05rem;
 }
 
-.pillUp {
-  color: var(--success);
+.engagementStat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
 }
 
-.pillDown {
-  color: var(--danger);
+.engagementIcon {
+  width: 0.9rem;
+  height: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+}
+
+.engagementIcon :global(svg) {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .meta {
   color: var(--muted);
   font-size: 0.9rem;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0;
 }
 
 .empty {
@@ -129,7 +248,12 @@
 }
 
 @media (max-width: 800px) {
+  .topLayout,
   .itemFeatured {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .topLayout {
     grid-template-columns: minmax(0, 1fr);
   }
 

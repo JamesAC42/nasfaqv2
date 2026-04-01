@@ -7,6 +7,7 @@ This service scrapes **daily** time-series stats for YouTube channels and stores
 - Channel list/config in `yt.youtube_channels`
   - `youtube_channel_id`, `name_short`, `name_english`, `name_japanese`
   - `symbol`, `icon`, `twitter_id`, `profile_id`, `birthday`, `height`, `unit`
+  - `youtube_channel_icon_url`, `youtube_channel_banner_url`, `youtube_channel_description`
 - Daily time-series metrics in `yt.youtube_channel_daily_stats` (Timescale hypertable)
   - `subscriber_count`, `view_count`, `video_count`
   - `last_upload_at` + `last_upload_video_id`
@@ -87,6 +88,19 @@ go run ./cmd/ytscraper
 cd brokerbot/ytscraper
 go run ./cmd/ytchannels
 ```
+
+### CLI: one-off backfill for YouTube channel metadata
+
+This command fetches the current YouTube-hosted icon URL, banner URL, and channel description for every row already in `yt.youtube_channels`, then writes them back to the table.
+
+```bash
+cd brokerbot/ytscraper
+go run ./cmd/backfill-channel-metadata
+```
+
+Optional:
+
+- `go run ./cmd/backfill-channel-metadata --dry-run`
 
 Behavior:
 

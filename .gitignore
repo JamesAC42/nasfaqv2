@@ -25,6 +25,8 @@ coverage/
 .turbo/
 .cache/
 
+temp-images/
+
 holosymbols/
 training_data/
 reference_images/

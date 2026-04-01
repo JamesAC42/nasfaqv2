@@ -126,6 +126,26 @@ async function getLatestStatsAll(pool) {
   return rows;
 }
 
+async function countUsers(pool) {
+  const { rows } = await pool.query(`
+    SELECT COUNT(*)::int AS count
+    FROM market.users
+  `);
+  return rows[0]?.count ?? 0;
+}
+
+async function countChannels(pool, { activeOnly = true } = {}) {
+  const { rows } = await pool.query(
+    `
+    SELECT COUNT(*)::int AS count
+    FROM yt.youtube_channels
+    WHERE ($1::boolean IS FALSE) OR (is_active = true)
+  `,
+    [activeOnly]
+  );
+  return rows[0]?.count ?? 0;
+}
+
 async function getTimeSeries(pool, channelId, { start, end, limit = 2000 } = {}) {
   const params = [channelId];
   let where = "youtube_channel_id = $1";
@@ -339,8 +359,159 @@ ${CHANNEL_SELECT_COLUMNS}
   return rows[0] || null;
 }
 
+function normalizeNewsSort(sort) {
+  switch (String(sort || "").toLowerCase()) {
+    case "oldest":
+      return "oldest";
+    case "headline_asc":
+      return "headline_asc";
+    case "headline_desc":
+      return "headline_desc";
+    default:
+      return "newest";
+  }
+}
+
+async function listNewsFeed(pool, {
+  headlineQuery = null,
+  channelQuery = null,
+  stockQuery = null,
+  unit = null,
+  sort = "newest",
+  page = 1,
+  limit = 20,
+} = {}) {
+  const normalizedSort = normalizeNewsSort(sort);
+  const safePage = Math.max(1, Number(page) || 1);
+  const safeLimit = Math.min(100, Math.max(1, Number(limit) || 20));
+  const offset = (safePage - 1) * safeLimit;
+  const params = [
+    headlineQuery?.trim() || null,
+    channelQuery?.trim() || null,
+    stockQuery?.trim() || null,
+    unit?.trim() || null,
+  ];
+
+  const whereClause = `
+    WHERE ($1::text IS NULL OR mn.headline ILIKE '%' || $1 || '%')
+      AND (
+        $2::text IS NULL
+        OR EXISTS (
+          SELECT 1
+          FROM info.member_news_channels mnc
+          JOIN yt.youtube_channels yc
+            ON yc.youtube_channel_id = mnc.youtube_channel_id
+          LEFT JOIN market.market_assets ma
+            ON ma.youtube_channel_id = yc.youtube_channel_id
+          WHERE mnc.news_id = mn.id
+            AND (
+              lower(yc.youtube_channel_id) = lower($2)
+              OR yc.name_short ILIKE '%' || $2 || '%'
+              OR COALESCE(yc.name_english, '') ILIKE '%' || $2 || '%'
+              OR COALESCE(yc.symbol, '') ILIKE '%' || $2 || '%'
+              OR COALESCE(ma.symbol, '') ILIKE '%' || $2 || '%'
+            )
+        )
+      )
+      AND (
+        $3::text IS NULL
+        OR EXISTS (
+          SELECT 1
+          FROM info.member_news_channels mnc
+          JOIN market.market_assets ma
+            ON ma.youtube_channel_id = mnc.youtube_channel_id
+          WHERE mnc.news_id = mn.id
+            AND ma.symbol ILIKE '%' || $3 || '%'
+        )
+      )
+      AND (
+        $4::text IS NULL
+        OR EXISTS (
+          SELECT 1
+          FROM info.member_news_channels mnc
+          JOIN yt.youtube_channels yc
+            ON yc.youtube_channel_id = mnc.youtube_channel_id
+          WHERE mnc.news_id = mn.id
+            AND lower(COALESCE(yc.unit, '')) = lower($4)
+        )
+      )
+  `;
+
+  let orderClause = "ORDER BY mn.date DESC, mn.id DESC";
+  if (normalizedSort === "oldest") {
+    orderClause = "ORDER BY mn.date ASC, mn.id ASC";
+  } else if (normalizedSort === "headline_asc") {
+    orderClause = "ORDER BY lower(mn.headline) ASC, mn.id DESC";
+  } else if (normalizedSort === "headline_desc") {
+    orderClause = "ORDER BY lower(mn.headline) DESC, mn.id DESC";
+  }
+
+  const countResult = await pool.query(
+    `
+    SELECT COUNT(*)::int AS total
+    FROM info.member_news mn
+    ${whereClause}
+  `,
+    params
+  );
+
+  const itemsResult = await pool.query(
+    `
+    SELECT
+      mn.id,
+      mn.headline,
+      'HoloNews'::text AS source,
+      mn.date::text AS published_at,
+      mn.thumbnail_url,
+      COALESCE(rel.characters, '[]'::json) AS characters,
+      COALESCE(rel.related_names, ARRAY[]::text[]) AS related_names,
+      COALESCE(rel.channel_ids, ARRAY[]::text[]) AS channel_ids,
+      COALESCE(rel.stock_symbols, ARRAY[]::text[]) AS stock_symbols,
+      COALESCE(rel.units, ARRAY[]::text[]) AS units
+    FROM info.member_news mn
+    LEFT JOIN LATERAL (
+      SELECT
+        json_agg(
+          DISTINCT jsonb_build_object(
+            'name', yc.name_short,
+            'icon', yc.icon,
+            'youtube_channel_id', yc.youtube_channel_id,
+            'symbol', ma.symbol,
+            'unit', yc.unit
+          )
+        ) FILTER (WHERE yc.youtube_channel_id IS NOT NULL) AS characters,
+        array_agg(DISTINCT yc.name_short) FILTER (WHERE yc.name_short IS NOT NULL) AS related_names,
+        array_agg(DISTINCT yc.youtube_channel_id) FILTER (WHERE yc.youtube_channel_id IS NOT NULL) AS channel_ids,
+        array_agg(DISTINCT ma.symbol) FILTER (WHERE ma.symbol IS NOT NULL) AS stock_symbols,
+        array_agg(DISTINCT yc.unit) FILTER (WHERE yc.unit IS NOT NULL) AS units
+      FROM info.member_news_channels mnc
+      JOIN yt.youtube_channels yc
+        ON yc.youtube_channel_id = mnc.youtube_channel_id
+      LEFT JOIN market.market_assets ma
+        ON ma.youtube_channel_id = yc.youtube_channel_id
+      WHERE mnc.news_id = mn.id
+    ) rel ON TRUE
+    ${whereClause}
+    ${orderClause}
+    LIMIT $5
+    OFFSET $6
+  `,
+    [...params, safeLimit, offset]
+  );
+
+  return {
+    items: itemsResult.rows,
+    total: countResult.rows[0]?.total ?? 0,
+    page: safePage,
+    limit: safeLimit,
+    sort: normalizedSort,
+  };
+}
+
 module.exports = {
   createPool,
+  countUsers,
+  countChannels,
   listChannels,
   listChannelIdentifiers,
   getChannel,
@@ -349,6 +520,7 @@ module.exports = {
   getLatestStatsAll,
   getTimeSeries,
   getTimeSeriesBucketed,
+  listNewsFeed,
   upsertChannel,
   insertChannel,
   updateChannel,

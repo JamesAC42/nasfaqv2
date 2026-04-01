@@ -294,9 +294,12 @@ export function TrendChartCard({
   );
 }
 
-export function SparklineChart({ candles }: { candles: CandlePoint[] }) {
+export function SparklineChart({ candles, mode = "price" }: { candles: CandlePoint[]; mode?: "price" | "volume" }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const hasData = candles.some((item) => (item.close_mark ?? item.close) !== null && Number.isFinite(item.close_mark ?? item.close));
+  const hasData = candles.some((item) => {
+    const value = mode === "volume" ? item.volume_shares : item.close_mark ?? item.close;
+    return value !== null && value !== undefined && Number.isFinite(value);
+  });
 
   useEffect(() => {
     if (!containerRef.current || !hasData) return;
@@ -325,7 +328,7 @@ export function SparklineChart({ candles }: { candles: CandlePoint[] }) {
     });
 
     const sparklineValues = candles
-      .map((item) => item.close_mark ?? item.close)
+      .map((item) => (mode === "volume" ? item.volume_shares : item.close_mark ?? item.close))
       .filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value));
     const tone = sparklineValues.length >= 2 && sparklineValues[sparklineValues.length - 1] < sparklineValues[0] ? "down" : "up";
     const palette =
@@ -346,7 +349,7 @@ export function SparklineChart({ candles }: { candles: CandlePoint[] }) {
       candles
         .map((item) => {
           const time = toChartTime(item.bucket);
-          const value = item.close_mark ?? item.close;
+          const value = mode === "volume" ? item.volume_shares : item.close_mark ?? item.close;
           if (!time || value === null || value === undefined) return null;
           return { time, value };
         })
@@ -355,7 +358,7 @@ export function SparklineChart({ candles }: { candles: CandlePoint[] }) {
 
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [candles, hasData]);
+  }, [candles, hasData, mode]);
 
   return hasData ? <div ref={containerRef} className={styles.sparklineCanvas} /> : <div className={styles.sparklineEmpty} />;
 }

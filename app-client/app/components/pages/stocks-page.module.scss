@@ -1,0 +1,307 @@
+@use "../../styles/mixins" as *;
+
+.filtersPanel {
+  @include panel;
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.filtersHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.sectionCopy {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.filtersGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.fieldLabel {
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.select {
+  @include input-base;
+  padding: 0.5rem 0.62rem;
+  font-size: 0.84rem;
+}
+
+.resetButton {
+  @include button-secondary;
+  padding: 0.5rem 0.72rem;
+  font-size: 0.8rem;
+}
+
+.resultsMeta {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.sortButton {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.stockTableCompact {
+  width: 100%;
+  min-width: 1160px;
+  font-size: 0.9rem;
+}
+
+.stockTableCompact :global(th),
+.stockTableCompact :global(td) {
+  padding: 0.42rem 0.48rem;
+  white-space: nowrap;
+}
+
+.stockTableCompact :global(thead th) {
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+}
+
+.sortHint {
+  color: var(--muted);
+  font-size: 0.92rem;
+  flex: 0 0 auto;
+}
+
+.cardList {
+  display: none;
+}
+
+.desktopTable {
+  display: block;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.2rem;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent) 28%, var(--border-soft)) transparent;
+}
+
+.desktopTable::-webkit-scrollbar {
+  height: 10px;
+}
+
+.desktopTable::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--surface-card) 82%, transparent);
+  border-radius: 999px;
+}
+
+.desktopTable::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--accent) 24%, var(--border-soft));
+  border: 2px solid color-mix(in srgb, var(--surface-card) 82%, transparent);
+  border-radius: 999px;
+}
+
+.desktopTable::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--accent) 38%, var(--border-soft));
+}
+
+.stockCard {
+  border: 1px solid color-mix(in srgb, var(--border-soft) 72%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-card) 96%, #000 4%);
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.65rem;
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    transform 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.stockCard:hover {
+  background: color-mix(in srgb, var(--surface-card-highlight) 58%, transparent);
+}
+
+.stockCard:focus-visible {
+  outline: 2px solid var(--button-primary-border);
+  outline-offset: 2px;
+}
+
+.stockCardSelected {
+  background: var(--selected-row);
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.cardIdentity {
+  min-width: 0;
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.cardIdentityText {
+  min-width: 0;
+  display: grid;
+  gap: 0.08rem;
+}
+
+.cardSymbolRow {
+  display: flex;
+  gap: 0.45rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.cardSymbol {
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.cardUnit {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.cardName {
+  min-width: 0;
+  color: color-mix(in srgb, var(--text) 84%, transparent);
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.cardPriceBlock {
+  display: grid;
+  gap: 0.1rem;
+  justify-items: end;
+  text-align: right;
+}
+
+.cardPrice {
+  font-family: var(--font-mono);
+  font-size: 0.94rem;
+}
+
+.cardSparkline {
+  display: flex;
+  justify-content: center;
+}
+
+.cardSparkline :global(*) {
+  margin-inline: auto;
+}
+
+.cardDelta {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.dataGrid {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem 0.75rem;
+}
+
+.dataItem {
+  margin: 0;
+  display: grid;
+  gap: 0.06rem;
+}
+
+.dataLabel {
+  margin: 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.dataValue {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  font-family: var(--font-mono);
+}
+
+.empty {
+  @include empty-state;
+}
+
+.mobileSortField {
+  display: none;
+}
+
+@media (max-width: 1240px) {
+  .filtersGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1380px) {
+  .mobileSortField {
+    display: grid;
+  }
+
+  .desktopTable {
+    display: none;
+  }
+
+  .cardList {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .dataGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .filtersGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cardHeader {
+    align-items: center;
+  }
+
+  .cardPriceBlock {
+    gap: 0.02rem;
+  }
+}

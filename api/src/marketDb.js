@@ -138,7 +138,8 @@ async function listAssets(pool) {
             'high', COALESCE(d.mid_high, GREATEST(d.mid_open, COALESCE(d.mid_close, d.mid_open))),
             'low', COALESCE(d.mid_low, LEAST(d.mid_open, COALESCE(d.mid_close, d.mid_open))),
             'close', COALESCE(d.mid_close, d.mid_open),
-            'close_mark', d.mid_close_mark
+            'close_mark', d.mid_close_mark,
+            'volume_shares', d.volume_shares
           )
           ORDER BY d.market_date ASC
         ) AS sparkline_candles

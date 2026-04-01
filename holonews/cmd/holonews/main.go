@@ -25,6 +25,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/JamesAC42/nasfaqv2/holonews/internal/thumbs"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -1173,19 +1174,48 @@ func uploadThumbnail(ctx context.Context, client *s3.Client, cfg Config, headlin
 	shortHash := hex.EncodeToString(dataHash[:])[:12]
 	key := fmt.Sprintf("%s/%s-%d-%s%s", cfg.ThumbnailS3Prefix, timestampKey, rank, shortHash, ext)
 
+	metadata := map[string]string{
+		"headline": headline,
+	}
+	if err := putImageObject(ctx, client, cfg.AWSBucket, key, data, mimeType, metadata); err != nil {
+		return "", err
+	}
+
+	thumbnailData, thumbnailMIMEType, err := thumbs.SquareJPEG(data, thumbs.DefaultSize)
+	if err != nil {
+		return "", fmt.Errorf("build thumbnail resize: %w", err)
+	}
+
+	thumbnailKey := thumbs.VariantKey(key)
+	thumbnailMetadata := copyMetadata(metadata)
+	thumbnailMetadata["source-key"] = key
+	thumbnailMetadata["variant"] = "thumbnail"
+	if err := putImageObject(ctx, client, cfg.AWSBucket, thumbnailKey, thumbnailData, thumbnailMIMEType, thumbnailMetadata); err != nil {
+		return "", fmt.Errorf("upload thumbnail resize: %w", err)
+	}
+	return key, nil
+}
+
+func putImageObject(ctx context.Context, client *s3.Client, bucket, key string, data []byte, mimeType string, metadata map[string]string) error {
 	_, err := client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:      aws.String(cfg.AWSBucket),
+		Bucket:      aws.String(bucket),
 		Key:         aws.String(key),
 		Body:        bytes.NewReader(data),
 		ContentType: aws.String(mimeType),
-		Metadata: map[string]string{
-			"headline": headline,
-		},
+		Metadata:    metadata,
 	})
-	if err != nil {
-		return "", err
+	return err
+}
+
+func copyMetadata(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return map[string]string{}
 	}
-	return key, nil
+	out := make(map[string]string, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
 }
 
 func mimeExtension(mimeType string) string {
