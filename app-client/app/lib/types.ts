@@ -1,6 +1,7 @@
 export type AuthUser = {
   id: number;
   username: string;
+  is_admin: boolean;
   created_at: string;
 };
 
@@ -137,6 +138,10 @@ export type ChannelOverviewRow = {
     name: string;
     name_short?: string;
     symbol: string | null;
+    unit?: string | null;
+    channel_asset_icon_url?: string | null;
+    channel_asset_banner_url?: string | null;
+    youtube_channel_description?: string | null;
   };
   latest: {
     subscriber_count: number | null;
@@ -262,7 +267,11 @@ export type NewsItem = {
   channel_ids?: string[];
   stock_symbols?: string[];
   units?: string[];
+  article_id?: number | null;
+  article_slug?: string | null;
+  is_news?: boolean;
   like_count?: number | null;
+  save_count?: number | null;
   comment_count?: number | null;
 };
 
@@ -277,6 +286,80 @@ export type NewsFeedPagination = {
 
 export type NewsFeedResponse = {
   items: NewsItem[];
+  pagination: NewsFeedPagination;
+};
+
+export type ArticleAuthor = {
+  id: number;
+  username: string;
+};
+
+export type ArticleAsset = {
+  id: number;
+  symbol: string;
+  display_name: string;
+  icon: string | null;
+  color: string | null;
+};
+
+export type ArticleSummary = {
+  id: number;
+  slug: string;
+  title: string;
+  subtitle: string | null;
+  tags: string[];
+  thumbnail_url: string | null;
+  preview: string | null;
+  author: ArticleAuthor | null;
+  likes: number;
+  saves: number;
+  is_news: boolean;
+  status: string;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+  comment_count: number;
+  related_assets: ArticleAsset[];
+  viewer_has_liked: boolean;
+  viewer_has_saved: boolean;
+  news_item?: {
+    id: number;
+    headline: string;
+    published_at: string | null;
+  } | null;
+};
+
+export type ArticleComment = {
+  id: number;
+  body: string;
+  created_at: string;
+  updated_at: string;
+  author: ArticleAuthor;
+};
+
+export type ArticleProposal = {
+  id: number;
+  title: string | null;
+  subtitle: string | null;
+  tags: string[];
+  thumbnail_url: string | null;
+  content: string;
+  status: "pending" | "approved" | "rejected";
+  created_at: string;
+  updated_at: string;
+  reviewed_at: string | null;
+  author: ArticleAuthor;
+  reviewer: ArticleAuthor | null;
+};
+
+export type ArticleDetail = ArticleSummary & {
+  content: string;
+  comments: ArticleComment[];
+  proposals: ArticleProposal[];
+};
+
+export type ArticleListResponse = {
+  items: ArticleSummary[];
   pagination: NewsFeedPagination;
 };
 

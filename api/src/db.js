@@ -28,6 +28,9 @@ const CHANNEL_SELECT_COLUMNS = `
       symbol,
       icon,
       color,
+      COALESCE(to_jsonb(youtube_channels)->>'channel_asset_icon_url', youtube_channel_icon_url) AS youtube_channel_icon_url,
+      COALESCE(to_jsonb(youtube_channels)->>'channel_asset_banner_url', youtube_channel_banner_url) AS youtube_channel_banner_url,
+      youtube_channel_description,
       twitter_id,
       profile_id,
       birthday,
@@ -463,12 +466,20 @@ async function listNewsFeed(pool, {
       'HoloNews'::text AS source,
       mn.date::text AS published_at,
       mn.thumbnail_url,
+      COALESCE(a.id, NULL) AS article_id,
+      COALESCE(a.slug, 'news-' || mn.id::text) AS article_slug,
+      COALESCE(a.is_news, TRUE) AS is_news,
+      COALESCE(a.likes, 0)::int AS like_count,
+      COALESCE(a.saves, 0)::int AS save_count,
+      COALESCE(comment_rel.comment_count, 0)::int AS comment_count,
       COALESCE(rel.characters, '[]'::json) AS characters,
       COALESCE(rel.related_names, ARRAY[]::text[]) AS related_names,
       COALESCE(rel.channel_ids, ARRAY[]::text[]) AS channel_ids,
       COALESCE(rel.stock_symbols, ARRAY[]::text[]) AS stock_symbols,
       COALESCE(rel.units, ARRAY[]::text[]) AS units
     FROM info.member_news mn
+    LEFT JOIN content.articles a
+      ON a.news_id = mn.id
     LEFT JOIN LATERAL (
       SELECT
         json_agg(
@@ -491,6 +502,11 @@ async function listNewsFeed(pool, {
         ON ma.youtube_channel_id = yc.youtube_channel_id
       WHERE mnc.news_id = mn.id
     ) rel ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*)::int AS comment_count
+      FROM content.article_comments ac
+      WHERE ac.article_id = a.id
+    ) comment_rel ON TRUE
     ${whereClause}
     ${orderClause}
     LIMIT $5

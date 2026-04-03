@@ -1,0 +1,524 @@
+@use "../../styles/mixins" as *;
+
+.page {
+  display: grid;
+  gap: 1rem;
+  padding: 0 0 2rem;
+}
+
+.hero,
+.summaryCardLarge,
+.reportCard,
+.heatmapPanel,
+.tablePanel,
+.indexCard,
+.heroStat,
+.statusCard {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  box-shadow: var(--shadow);
+}
+
+.hero {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.6fr) minmax(16rem, 0.9fr);
+  padding: 1.25rem;
+}
+
+.heroCopy {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.heroEyebrow,
+.indexEyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: fit-content;
+  color: var(--accent);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.hero h1 {
+  @include section-title;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+}
+
+.hero p {
+  @include subtle-copy;
+  margin: 0;
+  max-width: 60ch;
+}
+
+.heroStats {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.heroStat,
+.statusCard,
+.summaryCardLarge,
+.reportCard,
+.heatmapPanel,
+.tablePanel,
+.indexCard {
+  padding: 1rem;
+}
+
+.heroStat span,
+.statusCard span,
+.summaryStat span,
+.indexStat span,
+.reportSnapshotItem span,
+.highlightCard > span,
+.returnBadge span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.heroStat strong,
+.statusCard strong,
+.reportSnapshotItem strong {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--text);
+  font-size: 1.3rem;
+}
+
+.loadingPanel {
+  @include empty-state;
+}
+
+.statusStrip,
+.summaryGrid,
+.marketDesk,
+.summaryHighlights,
+.summaryStats,
+.reportSnapshot,
+.reportGrid,
+.indexGrid,
+.indexStatsGrid {
+  display: grid;
+  gap: 1rem;
+}
+
+.statusStrip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.statusCard p,
+.cardTitle p,
+.sectionHeader p,
+.iconStripMeta span,
+.heatmapTileHeader span,
+.heatmapMeta span,
+.table td em,
+.reportAsset span {
+  @include subtle-copy;
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.summaryGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cardHeader,
+.sectionHeader,
+.indexCardHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.cardTitle {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.cardIcon {
+  display: inline-grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-info);
+  background: var(--surface-card-highlight);
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.cardTitle h2,
+.cardTitle h3,
+.sectionHeader h2,
+.indexCardHeader h3 {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+}
+
+.summaryHighlights {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.highlightCard,
+.summaryStat,
+.reportSnapshotItem,
+.indexStat,
+.reportRow,
+.returnBadge {
+  padding: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card-soft);
+}
+
+.highlightCard strong,
+.summaryStat strong,
+.indexStat strong,
+.heatmapNumbers strong {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--text);
+}
+
+.highlightCard strong {
+  font-size: clamp(1.4rem, 2vw, 2rem);
+}
+
+.assetMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 0.55rem;
+}
+
+.inlineAssetIcon,
+.reportAssetIcon,
+.tableCoin,
+.heatmapIcon,
+.indexChannelIcon {
+  width: 2rem;
+  height: 2rem;
+}
+
+.summaryStats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.summaryStat em,
+.table td em {
+  display: block;
+  margin-top: 0.25rem;
+  font-style: normal;
+}
+
+.reportSnapshot {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.reportGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.reportRows {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.reportRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.reportRank {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.reportAsset {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.reportAsset strong,
+.heatmapTileHeader strong,
+.table td strong {
+  display: block;
+  color: var(--text);
+}
+
+.reportAsset span,
+.table td em,
+.heatmapTileHeader span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.indexesSection {
+  display: grid;
+  gap: 1rem;
+}
+
+.filterPill {
+  display: inline-flex;
+  gap: 0.7rem;
+  align-items: center;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-pill);
+  color: var(--text);
+  font-size: 0.86rem;
+}
+
+.filterPill select {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+
+.indexGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.indexCard {
+  display: grid;
+  gap: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.indexCardSelected {
+  border-color: var(--border-info);
+  box-shadow: inset 0 0 0 1px var(--border-info), var(--shadow);
+}
+
+.returnBadge {
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  min-width: 4.75rem;
+  color: var(--text);
+}
+
+.indexChart :global(.chartBox) {
+  min-height: 0;
+}
+
+.indexChart :global(.canvas) {
+  height: 220px;
+}
+
+.iconStrip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
+.iconStack {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.iconStack > * + * {
+  margin-left: -0.35rem;
+}
+
+.indexChannelIcon {
+  border: 2px solid var(--surface-card);
+}
+
+.iconStripMeta {
+  display: grid;
+  justify-items: end;
+}
+
+.iconStripMeta strong {
+  color: var(--text);
+}
+
+.iconStripEmpty {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--muted);
+}
+
+.indexStatsGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.positive {
+  color: var(--trend-up) !important;
+}
+
+.negative {
+  color: var(--trend-down) !important;
+}
+
+.neutral {
+  color: var(--text) !important;
+}
+
+.marketDesk {
+  grid-template-columns: minmax(0, 1.15fr) minmax(22rem, 0.85fr);
+}
+
+.heatmap {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-auto-rows: 7rem;
+  margin-top: 1rem;
+}
+
+.heatmapTile {
+  display: grid;
+  gap: 0.6rem;
+  align-content: space-between;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tileUp {
+  background: color-mix(in srgb, var(--surface-card) 88%, var(--tile-up-tint));
+}
+
+.tileDown {
+  background: color-mix(in srgb, var(--surface-card) 88%, var(--tile-down-tint));
+}
+
+.tileSelected {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.tileLg {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+.tileMd {
+  grid-column: span 2;
+}
+
+.tileSm {
+  grid-column: span 1;
+}
+
+.heatmapTileHeader,
+.heatmapNumbers,
+.heatmapMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.heatmapTileHeader {
+  align-items: flex-start;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.table {
+  @include table-shell;
+}
+
+.selectedRow {
+  background: var(--selected-row);
+}
+
+.assetLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+
+@media (max-width: 1180px) {
+  .hero,
+  .statusStrip,
+  .summaryGrid,
+  .reportGrid,
+  .indexGrid,
+  .marketDesk {
+    grid-template-columns: 1fr;
+  }
+
+  .summaryStats,
+  .reportSnapshot,
+  .indexStatsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .heatmap {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .summaryHighlights,
+  .summaryStats,
+  .reportSnapshot,
+  .indexStatsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .heatmap {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: 6.5rem;
+  }
+
+  .tileLg,
+  .tileMd,
+  .tileSm {
+    grid-column: span 1;
+    grid-row: span 1;
+  }
+
+  .cardHeader,
+  .sectionHeader,
+  .indexCardHeader,
+  .iconStrip,
+  .heatmapTileHeader,
+  .heatmapNumbers,
+  .heatmapMeta {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .returnBadge,
+  .iconStripMeta {
+    justify-items: start;
+  }
+}

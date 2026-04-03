@@ -125,9 +125,10 @@ async function createUser(pool, { username, password }) {
         password_hash,
         password_salt,
         password_params_json,
+        is_admin,
         updated_at
-      ) VALUES ($1,$2,$3,$4,$5::jsonb,now())
-      RETURNING id, username, created_at
+      ) VALUES ($1,$2,$3,$4,$5::jsonb,false,now())
+      RETURNING id, username, is_admin, created_at
     `,
       [safeUsername, normalized, hashed.hash, hashed.salt, JSON.stringify(hashed.params)]
     );
@@ -146,7 +147,7 @@ async function findUserByUsername(pool, username) {
   const normalized = normalizeUsername(username);
   const { rows } = await pool.query(
     `
-    SELECT id, username, username_normalized, password_hash, password_salt, password_params_json, created_at
+    SELECT id, username, username_normalized, password_hash, password_salt, password_params_json, is_admin, created_at
     FROM market.users
     WHERE username_normalized = $1
     LIMIT 1
@@ -202,6 +203,7 @@ async function getAuthenticatedUser(pool, req) {
     SELECT
       u.id,
       u.username,
+      u.is_admin,
       u.created_at,
       s.id AS session_id,
       s.expires_at
@@ -252,6 +254,7 @@ async function loginWithPassword(pool, { username, password }) {
     user: {
       id: user.id,
       username: user.username,
+      is_admin: Boolean(user.is_admin),
       created_at: user.created_at,
     },
     session,

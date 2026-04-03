@@ -3,6 +3,7 @@
 .chartBox {
   @include panel;
   padding: 1rem;
+  font-family: var(--chart-font-family, var(--font-mono));
 }
 
 .chartBoxCandles {
@@ -26,11 +27,13 @@
   margin-bottom: 0.25rem;
   color: var(--text);
   font-size: 1rem;
+  font-family: inherit;
 }
 
 .subtitle {
   color: var(--muted);
   font-size: 0.88rem;
+  font-family: inherit;
 }
 
 .legend {
@@ -48,6 +51,7 @@
   background: var(--surface-pill);
   font-size: 0.78rem;
   font-weight: 700;
+  font-family: inherit;
 }
 
 .candlePill {
@@ -85,7 +89,7 @@
   padding: 0.55rem 0.7rem;
   display: grid;
   gap: 0.18rem;
-  font-family: var(--font-body);
+  font-family: var(--font-mono);
 }
 
 .chartTooltip strong {

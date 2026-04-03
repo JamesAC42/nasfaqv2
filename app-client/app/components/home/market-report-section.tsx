@@ -1,6 +1,12 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { TrendChartCard } from "@/app/components/charts/market-charts";
+import { apiFetch } from "@/app/lib/api";
+import { ensureReadableColorOnDarkBackground } from "@/app/lib/color";
 import { fmtPct } from "@/app/lib/format";
+import { normalizeCandles } from "@/app/lib/normalizers";
 import type { DailyReport, MarketAsset, ReportRow } from "@/app/lib/types";
 import styles from "@/app/components/home/market-report-section.module.scss";
 
@@ -25,18 +31,28 @@ function toTimestamp(value: string | null | undefined) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
-function buildMonthPriceSeries(assets: MarketAsset[]) {
+function getMonthsAgoFromTimestamp(timestamp: number, months: number) {
+  const cutoff = new Date(timestamp);
+  cutoff.setHours(0, 0, 0, 0);
+  cutoff.setMonth(cutoff.getMonth() - months);
+  return cutoff.getTime();
+}
+
+function buildMonthPriceSeries(
+  assets: MarketAsset[],
+  candleHistoryBySymbol: Record<string, Array<{ bucket: string; close_mark?: number | null; close: number | null }>>
+) {
   const fallbackColors = ["#f97316", "#0ea5e9", "#22c55e", "#eab308", "#ec4899"];
 
   return [...assets]
     .sort((a, b) => (b.current_mid_price ?? 0) - (a.current_mid_price ?? 0))
     .slice(0, 15)
     .map((asset, index) => {
-      const candles = [...(asset.sparkline_candles || [])]
+      const candles = [...(candleHistoryBySymbol[asset.symbol] || asset.sparkline_candles || [])]
         .filter((point) => toTimestamp(point.bucket) !== null)
         .sort((a, b) => (toTimestamp(a.bucket) ?? 0) - (toTimestamp(b.bucket) ?? 0));
       const latestTs = toTimestamp(candles[candles.length - 1]?.bucket);
-      const startTs = latestTs === null ? null : latestTs - 90 * 24 * 60 * 60 * 1000;
+      const startTs = latestTs === null ? null : getMonthsAgoFromTimestamp(latestTs, 4);
 
       const values = candles
         .filter((point) => {
@@ -52,7 +68,7 @@ function buildMonthPriceSeries(assets: MarketAsset[]) {
 
       return {
         name: asset.symbol,
-        color: asset.color || fallbackColors[index % fallbackColors.length],
+        color: ensureReadableColorOnDarkBackground(asset.color) || fallbackColors[index % fallbackColors.length],
         kind: "line" as const,
         values,
       };
@@ -115,11 +131,55 @@ export function MarketReportSection({
   report: DailyReport | null;
   assets: MarketAsset[];
 }) {
+  const [dailyCandleHistoryBySymbol, setDailyCandleHistoryBySymbol] = useState<Record<string, ReturnType<typeof normalizeCandles>>>({});
+
+  const topAssets = useMemo(
+    () => [...assets].sort((a, b) => (b.current_mid_price ?? 0) - (a.current_mid_price ?? 0)).slice(0, 15),
+    [assets]
+  );
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadDailyCandleHistory() {
+      if (!topAssets.length) {
+        if (!isCancelled) setDailyCandleHistoryBySymbol({});
+        return;
+      }
+
+      const results = await Promise.allSettled(
+        topAssets.map(async (asset) => {
+          const response = await apiFetch<{ candles: Array<Record<string, unknown>> }>(
+            `/api/market/assets/${asset.symbol}/candles?interval=1d&range=1y`,
+            { cache: "no-store" }
+          );
+          return [asset.symbol, normalizeCandles(response.candles)] as const;
+        })
+      );
+
+      if (isCancelled) return;
+
+      const nextHistory: Record<string, ReturnType<typeof normalizeCandles>> = {};
+      for (const result of results) {
+        if (result.status !== "fulfilled") continue;
+        const [symbol, candles] = result.value;
+        nextHistory[symbol] = candles;
+      }
+      setDailyCandleHistoryBySymbol(nextHistory);
+    }
+
+    void loadDailyCandleHistory();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [topAssets]);
+
   if (!report) {
     return <section className={styles.section}><div className={styles.empty}>No daily report found yet.</div></section>;
   }
 
-  const monthPriceSeries = buildMonthPriceSeries(assets);
+  const monthPriceSeries = buildMonthPriceSeries(assets, dailyCandleHistoryBySymbol);
 
   return (
     <section className={styles.section}>
@@ -155,8 +215,8 @@ export function MarketReportSection({
 
       <div className={styles.trendWrap}>
         <TrendChartCard
-          title="Top 15 Coin Prices (90D)"
-          subtitle="Past 3 months of price trend for the highest-priced coins."
+          title="Top 15 Coin Prices (4M)"
+          subtitle="Past 4 months of price trend for the highest-priced coins."
           series={monthPriceSeries}
         />
       </div>

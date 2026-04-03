@@ -22,6 +22,12 @@
   gap: 0.8rem;
 }
 
+.compactGrid {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .topLayout {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(18rem, 0.7fr);
@@ -116,6 +122,17 @@
   display: grid;
   gap: 0.35rem;
   align-content: start;
+}
+
+.storyLink,
+.mediaLink {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.compactItem {
+  min-height: 100%;
 }
 
 .leadThumb,
@@ -249,7 +266,8 @@
 
 @media (max-width: 800px) {
   .topLayout,
-  .itemFeatured {
+  .itemFeatured,
+  .compactGrid {
     grid-template-columns: minmax(0, 1fr);
   }
 

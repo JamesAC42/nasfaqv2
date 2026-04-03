@@ -101,6 +101,14 @@ function toChartTime(value: string): Time | null {
   return Math.floor(parsed.getTime() / 1000) as Time;
 }
 
+function resolveChartFontFamily() {
+  if (typeof window !== "undefined") {
+    const computed = getComputedStyle(document.documentElement).getPropertyValue("--font-mono").trim();
+    if (computed) return computed;
+  }
+  return "'Nasfaq Mono', 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace";
+}
+
 function mergeBucketsByStart(prev: Bucket[], incoming: Bucket[]) {
   if (!prev.length) return incoming;
   if (!incoming.length) return prev;
@@ -205,6 +213,7 @@ function ViewerBucketsChart({ buckets, accentColor }: { buckets: Bucket[]; accen
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "#d7dce5",
+        fontFamily: resolveChartFontFamily(),
         attributionLogo: false,
       },
       grid: {
@@ -450,92 +459,95 @@ export function LivestreamModal({
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} style={modalStyle} onClick={(event) => event.stopPropagation()}>
-        <button type="button" className={styles.closeX} onClick={onClose} aria-label="Close popup">
-          ×
-        </button>
+        <div className={styles.modalBackdrop} aria-hidden="true" />
+        <div className={styles.modalSurface}>
+          <button type="button" className={styles.closeX} onClick={onClose} aria-label="Close popup">
+            ×
+          </button>
 
-        <div className={styles.hero}>
-          <div className={styles.mediaColumn}>
-            <div className={styles.thumbWrap} style={thumbStyle}>
-              {display.thumbnail ? <img src={display.thumbnail} alt="" className={styles.thumb} /> : <div className={styles.thumbFallback} />}
-            </div>
+          <div className={styles.hero}>
+            <div className={styles.mediaColumn}>
+              <div className={styles.thumbWrap} style={thumbStyle}>
+                {display.thumbnail ? <img src={display.thumbnail} alt="" className={styles.thumb} /> : <div className={styles.thumbFallback} />}
+              </div>
 
-            <div className={styles.actions}>
-              <Link href={youtubeUrl} target="_blank" rel="noreferrer" className={styles.actionButton}>
-                Open on YouTube
-              </Link>
-              {stockAsset ? (
-                <Link href={`/stocks/${encodeURIComponent(stockAsset.symbol)}`} className={styles.actionButton}>
-                  Open stock page
+              <div className={styles.actions}>
+                <Link href={youtubeUrl} target="_blank" rel="noreferrer" className={styles.actionButton}>
+                  Open on YouTube
                 </Link>
-              ) : (
-                <button type="button" className={styles.actionButton} disabled>
-                  Stock unavailable
+                {stockAsset ? (
+                  <Link href={`/stocks/${encodeURIComponent(stockAsset.symbol)}`} className={styles.actionButton}>
+                    Open stock page
+                  </Link>
+                ) : (
+                  <button type="button" className={styles.actionButton} disabled>
+                    Stock unavailable
+                  </button>
+                )}
+                <button type="button" className={styles.actionButton} onClick={onClose}>
+                  Close
                 </button>
-              )}
-              <button type="button" className={styles.actionButton} onClick={onClose}>
-                Close
-              </button>
+              </div>
             </div>
-          </div>
 
-          <div className={styles.info}>
-            <h2 className={styles.title}>{display.title}</h2>
-            <div className={styles.channelRow}>
-              {getIconUrl(display.creatorIcon) ? <img src={getIconUrl(display.creatorIcon) || ""} alt="" className={styles.channelIcon} /> : <div className={styles.channelIconFallback} />}
-              <span className={styles.channelName}>{display.creator}</span>
-            </div>
-            <div className={styles.infoPanel}>
-              <div className={styles.metaGrid}>
-                <div className={styles.metaRow}>
-                  <span className={styles.metaLabel}>Started:</span>
-                  <span>{fmtDate(display.started)}</span>
-                </div>
-                <div className={styles.metaRow}>
-                  <span className={styles.metaLabel}>Actual live start:</span>
-                  <span>{fmtDate(display.actual)}</span>
-                </div>
-                <div className={styles.metaRow}>
-                  <span className={styles.metaLabel}>Ended:</span>
-                  <span>{display.status === "ended" ? fmtDate(display.ended) : "—"}</span>
-                </div>
-                <div className={styles.metaRow}>
-                  <span className={styles.metaLabel}>Duration:</span>
-                  <span>{fmtDurationSeconds(display.duration)}</span>
-                </div>
-                {display.status === "live" ? (
-                  <div className={`${styles.metaRow} ${styles.metaRowFull} ${styles.liveWatching}`}>
-                    <span className={styles.liveLabel}>LIVE</span>
-                    <span className={styles.liveDot} aria-hidden="true" />
-                    <span>{fmtInteger(display.currentViewers)} currently watching</span>
+            <div className={styles.info}>
+              <h2 className={styles.title}>{display.title}</h2>
+              <div className={styles.channelRow}>
+                {getIconUrl(display.creatorIcon) ? <img src={getIconUrl(display.creatorIcon) || ""} alt="" className={styles.channelIcon} /> : <div className={styles.channelIconFallback} />}
+                <span className={styles.channelName}>{display.creator}</span>
+              </div>
+              <div className={styles.infoPanel}>
+                <div className={styles.metaGrid}>
+                  <div className={styles.metaRow}>
+                    <span className={styles.metaLabel}>Started:</span>
+                    <span>{fmtDate(display.started)}</span>
                   </div>
-                ) : null}
+                  <div className={styles.metaRow}>
+                    <span className={styles.metaLabel}>Actual live start:</span>
+                    <span>{fmtDate(display.actual)}</span>
+                  </div>
+                  <div className={styles.metaRow}>
+                    <span className={styles.metaLabel}>Ended:</span>
+                    <span>{display.status === "ended" ? fmtDate(display.ended) : "—"}</span>
+                  </div>
+                  <div className={styles.metaRow}>
+                    <span className={styles.metaLabel}>Duration:</span>
+                    <span>{fmtDurationSeconds(display.duration)}</span>
+                  </div>
+                  {display.status === "live" ? (
+                    <div className={`${styles.metaRow} ${styles.metaRowFull} ${styles.liveWatching}`}>
+                      <span className={styles.liveLabel}>LIVE</span>
+                      <span className={styles.liveDot} aria-hidden="true" />
+                      <span>{fmtInteger(display.currentViewers)} currently watching</span>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div className={styles.chartSection}>
-          <div className={styles.chartHeader}>
-            <strong>Viewers over time</strong>
-            <div className={styles.legend}>
-              <span className={styles.legendItem} style={{ "--legend-color": mixHex(accentColor, "#d7dce5", 0.35) } as CSSProperties}>
-                Avg viewers
-              </span>
-              <span className={styles.legendItem} style={{ "--legend-color": accentColor } as CSSProperties}>
-                Max viewers
-              </span>
+          <div className={styles.chartSection}>
+            <div className={styles.chartHeader}>
+              <strong>Viewers over time</strong>
+              <div className={styles.legend}>
+                <span className={styles.legendItem} style={{ "--legend-color": mixHex(accentColor, "#d7dce5", 0.35) } as CSSProperties}>
+                  Avg viewers
+                </span>
+                <span className={styles.legendItem} style={{ "--legend-color": accentColor } as CSSProperties}>
+                  Max viewers
+                </span>
+              </div>
             </div>
+            {loading ? (
+              <div className={styles.chartLoading}>
+                <div className={styles.chartSkeleton} />
+              </div>
+            ) : error ? (
+              <div className={styles.chartEmpty}>Graph unavailable: {error}</div>
+            ) : (
+              <ViewerBucketsChart buckets={buckets} accentColor={accentColor} />
+            )}
           </div>
-          {loading ? (
-            <div className={styles.chartLoading}>
-              <div className={styles.chartSkeleton} />
-            </div>
-          ) : error ? (
-            <div className={styles.chartEmpty}>Graph unavailable: {error}</div>
-          ) : (
-            <ViewerBucketsChart buckets={buckets} accentColor={accentColor} />
-          )}
         </div>
       </div>
     </div>

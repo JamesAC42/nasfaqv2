@@ -73,7 +73,16 @@ function resolveTheme(theme?: ChannelChartTheme | null) {
   return theme || createChannelChartTheme(null);
 }
 
-function createBaseChart(container: HTMLDivElement, theme?: ChannelChartTheme | null) {
+function resolveChartFontFamily(fontFamily?: string) {
+  if (fontFamily?.trim()) return fontFamily.trim();
+  if (typeof window !== "undefined") {
+    const computed = getComputedStyle(document.documentElement).getPropertyValue("--font-mono").trim();
+    if (computed) return computed;
+  }
+  return "'Nasfaq Mono', 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace";
+}
+
+function createBaseChart(container: HTMLDivElement, theme?: ChannelChartTheme | null, fontFamily?: string) {
   const palette = resolveTheme(theme);
   return createChart(container, {
     autoSize: true,
@@ -81,7 +90,7 @@ function createBaseChart(container: HTMLDivElement, theme?: ChannelChartTheme | 
     layout: {
       background: { type: ColorType.Solid, color: "transparent" },
       textColor: palette.text,
-      fontFamily: "'Nasfaq Sans', 'Avenir Next', 'Segoe UI', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', sans-serif",
+      fontFamily: resolveChartFontFamily(fontFamily),
       attributionLogo: false,
     },
     grid: {
@@ -123,12 +132,14 @@ export function CandleChartCard({
   candles,
   showMarkClose = false,
   theme,
+  fontFamily,
 }: {
   title: string;
   subtitle?: string;
   candles: CandlePoint[];
   showMarkClose?: boolean;
   theme?: ChannelChartTheme | null;
+  fontFamily?: string;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hasData = candles.some((item) => item.open !== null && item.high !== null && item.low !== null && item.close !== null);
@@ -137,7 +148,7 @@ export function CandleChartCard({
   useEffect(() => {
     if (!containerRef.current || !hasData) return;
 
-    const chart = createBaseChart(containerRef.current, palette);
+    const chart = createBaseChart(containerRef.current, palette, fontFamily);
     const candleSeries = chart.addSeries(CandlestickSeries, {
       upColor: palette.baseDeep,
       downColor: palette.complementDeep,
@@ -179,10 +190,13 @@ export function CandleChartCard({
 
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [candles, hasData, palette, showMarkClose]);
+  }, [candles, fontFamily, hasData, palette, showMarkClose]);
 
   return (
-    <div className={`${styles.chartBox} ${styles.chartBoxCandles}`}>
+    <div
+      className={`${styles.chartBox} ${styles.chartBoxCandles}`}
+      style={fontFamily ? ({ "--chart-font-family": fontFamily } as CSSProperties) : undefined}
+    >
       <div className={styles.header}>
         <div>
           <strong className={styles.title}>{title}</strong>
@@ -215,11 +229,13 @@ export function TrendChartCard({
   subtitle,
   series,
   theme,
+  fontFamily,
 }: {
   title: string;
   subtitle?: string;
   series: TrendSeries[];
   theme?: ChannelChartTheme | null;
+  fontFamily?: string;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hasData = series.some((item) => item.values.some((point) => point.value !== null && Number.isFinite(point.value)));
@@ -228,7 +244,7 @@ export function TrendChartCard({
   useEffect(() => {
     if (!containerRef.current || !hasData) return;
 
-    const chart = createBaseChart(containerRef.current, palette);
+    const chart = createBaseChart(containerRef.current, palette, fontFamily);
 
     for (const item of series) {
       if (item.kind === "line") {
@@ -270,12 +286,15 @@ export function TrendChartCard({
 
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [hasData, palette, series]);
+  }, [fontFamily, hasData, palette, series]);
 
   const rangeValues = series[0]?.values.map((item) => item.time) || [];
 
   return (
-    <div className={`${styles.chartBox} ${styles.chartBoxTrend}`}>
+    <div
+      className={`${styles.chartBox} ${styles.chartBoxTrend}`}
+      style={fontFamily ? ({ "--chart-font-family": fontFamily } as CSSProperties) : undefined}
+    >
       <div className={styles.header}>
         <div>
           <strong className={styles.title}>{title}</strong>
@@ -310,6 +329,7 @@ export function SparklineChart({ candles, mode = "price" }: { candles: CandlePoi
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "transparent",
+        fontFamily: resolveChartFontFamily(),
         attributionLogo: false,
       },
       grid: {
@@ -388,7 +408,7 @@ export function SuperchatHistogramCard({
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: palette.text,
-        fontFamily: "'Nasfaq Sans', 'Avenir Next', 'Segoe UI', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', sans-serif",
+        fontFamily: resolveChartFontFamily(),
         attributionLogo: false,
       },
       grid: {

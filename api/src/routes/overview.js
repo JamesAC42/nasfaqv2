@@ -1,5 +1,6 @@
 const express = require("express");
 const db = require("../db");
+const articleDb = require("../articleDb");
 
 const router = express.Router();
 const HOLO_NEWS_META_KEY = "nasfaq_holonews:meta";
@@ -61,11 +62,15 @@ router.get("/holonews", async (req, res, next) => {
         .filter((channel) => channel?.name_english)
         .map((channel) => [String(channel.name_english).trim().toLowerCase(), channel.icon || null])
     );
+    const rawItems = sortHoloNewsItems(Array.isArray(payload.items) ? payload.items : []);
+    const slugByHeadline = await articleDb.ensureNewsArticlesByHeadlines(
+      req.ctx.pool,
+      rawItems.map((item) => item.headline || "")
+    );
 
-    const items = sortHoloNewsItems(
-      Array.isArray(payload.items) ? payload.items : []
-    ).map((item) => ({
+    const items = rawItems.map((item) => ({
       headline: item.headline || "",
+      article_slug: slugByHeadline.get(String(item.headline || ""))?.slug || articleDb.buildNewsSlugBase(item.headline || ""),
       characters: (Array.isArray(item.characters) ? item.characters.filter(Boolean) : []).map((name) => ({
         name,
         icon: iconByEnglishName.get(String(name).trim().toLowerCase()) || null

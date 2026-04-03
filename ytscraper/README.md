@@ -68,6 +68,9 @@ Create a local `.env` file (you can start from `env.example`) or set environment
 - `YOUTUBE_API_KEY`: YouTube Data API v3 key
 - `REDIS_URL`: Redis connection string, e.g. `redis://localhost:6379/0`
 - `REDIS_PASSWORD` (optional): Redis password for AUTH
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_SW_BUCKET`: required for channel asset backfill uploads to S3
+- `CHANNEL_ASSETS_S3_PREFIX` (optional, default `channel-assets`)
+- `CHANNEL_ASSETS_PUBLIC_BASE_URL` (optional, default `https://images.nasfaq.biz`): public base URL for uploaded objects
 - `SCRAPE_TIMEZONE` (optional, default `America/New_York`)
 - `SCRAPE_AT_LOCAL_HOUR` (optional, default `0`)
 - `SCRAPE_AT_LOCAL_MIN` (optional, default `5`)
@@ -101,6 +104,33 @@ go run ./cmd/backfill-channel-metadata
 Optional:
 
 - `go run ./cmd/backfill-channel-metadata --dry-run`
+
+### CLI: backfill channel profile/banner assets into S3
+
+This command reads the saved YouTube-hosted icon/banner URLs from `yt.youtube_channels`, downloads the images, uploads them to your shared S3 bucket under `channel-assets/`, stores the new public URLs in dedicated asset columns, and lets the API prefer those URLs over the raw YouTube ones.
+
+```bash
+cd brokerbot/ytscraper
+go run ./cmd/backfill-channel-assets
+```
+
+Optional:
+
+- `go run ./cmd/backfill-channel-assets --dry-run`
+- `go run ./cmd/backfill-channel-assets --force`
+
+### CLI: rewrite stored channel asset URLs to the CDN host
+
+If channel asset URLs were already written with the bucket hostname, this command rewrites the saved URLs to `https://images.nasfaq.biz/channel-assets/{image}` using the existing filenames already stored in the database.
+
+```bash
+cd brokerbot/ytscraper
+go run ./cmd/rewrite-channel-asset-urls
+```
+
+Optional:
+
+- `go run ./cmd/rewrite-channel-asset-urls --dry-run`
 
 Behavior:
 

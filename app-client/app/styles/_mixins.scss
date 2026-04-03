@@ -13,6 +13,7 @@
     width: 100%;
     height: 100%;
     background: var(--accent);
+    background: linear-gradient(to bottom, var(--accent), var(--accent-gradient));
     border-radius: var(--radius-lg);
     box-shadow: var(--accent-glow);
     transform:translate(-8px, 8px);

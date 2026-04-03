@@ -8,6 +8,16 @@ function requireUserId(req) {
   return userId;
 }
 
+function requireAdmin(req) {
+  if (!req.ctx?.user?.is_admin) {
+    const error = new Error("forbidden");
+    error.code = "forbidden";
+    throw error;
+  }
+  return req.ctx.user;
+}
+
 module.exports = {
   requireUserId,
+  requireAdmin,
 };

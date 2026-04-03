@@ -12,21 +12,23 @@ import (
 )
 
 type Channel struct {
-	YouTubeChannelID   string
-	NameShort          string
-	NameEnglish        *string
-	NameJapanese       *string
-	Symbol             *string
-	Icon               *string
-	YouTubeIconURL     *string
-	YouTubeBannerURL   *string
-	YouTubeDescription *string
-	Color              *string
-	TwitterID          *string
-	ProfileID          *string
-	Birthday           *time.Time
-	Height             *string
-	Unit               *string
+	YouTubeChannelID      string
+	NameShort             string
+	NameEnglish           *string
+	NameJapanese          *string
+	Symbol                *string
+	Icon                  *string
+	YouTubeIconURL        *string
+	YouTubeBannerURL      *string
+	ChannelAssetIconURL   *string
+	ChannelAssetBannerURL *string
+	YouTubeDescription    *string
+	Color                 *string
+	TwitterID             *string
+	ProfileID             *string
+	Birthday              *time.Time
+	Height                *string
+	Unit                  *string
 }
 
 type DailyStats struct {
@@ -156,6 +158,44 @@ func ListChannels(ctx context.Context, pool *pgxpool.Pool) ([]Channel, error) {
 	return out, nil
 }
 
+func ListChannelsForAssetBackfill(ctx context.Context, pool *pgxpool.Pool) ([]Channel, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT
+			youtube_channel_id,
+			name_short,
+			youtube_channel_icon_url,
+			youtube_channel_banner_url,
+			channel_asset_icon_url,
+			channel_asset_banner_url
+		FROM yt.youtube_channels
+		ORDER BY name_short ASC, youtube_channel_id ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query channels for asset backfill: %w", err)
+	}
+	defer rows.Close()
+
+	var out []Channel
+	for rows.Next() {
+		var c Channel
+		if err := rows.Scan(
+			&c.YouTubeChannelID,
+			&c.NameShort,
+			&c.YouTubeIconURL,
+			&c.YouTubeBannerURL,
+			&c.ChannelAssetIconURL,
+			&c.ChannelAssetBannerURL,
+		); err != nil {
+			return nil, fmt.Errorf("scan channel for asset backfill: %w", err)
+		}
+		out = append(out, c)
+	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("iterate channels for asset backfill: %w", rows.Err())
+	}
+	return out, nil
+}
+
 func UpsertDailyStats(ctx context.Context, pool *pgxpool.Pool, s DailyStats) error {
 	_, err := pool.Exec(ctx, `
 		INSERT INTO yt.youtube_channel_daily_stats (
@@ -252,6 +292,21 @@ func UpdateChannelYouTubeMetadata(ctx context.Context, pool *pgxpool.Pool, chann
 	`, channelID, iconURL, bannerURL, description)
 	if err != nil {
 		return fmt.Errorf("update youtube channel metadata (id=%s): %w", channelID, err)
+	}
+	return nil
+}
+
+func UpdateChannelAssetURLs(ctx context.Context, pool *pgxpool.Pool, channelID string, iconURL, bannerURL *string) error {
+	_, err := pool.Exec(ctx, `
+		UPDATE yt.youtube_channels
+		SET
+			channel_asset_icon_url = COALESCE($2, channel_asset_icon_url),
+			channel_asset_banner_url = COALESCE($3, channel_asset_banner_url),
+			updated_at = now()
+		WHERE youtube_channel_id = $1
+	`, channelID, iconURL, bannerURL)
+	if err != nil {
+		return fmt.Errorf("update channel asset urls (id=%s): %w", channelID, err)
 	}
 	return nil
 }

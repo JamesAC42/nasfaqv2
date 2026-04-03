@@ -1,0 +1,331 @@
+@use "../../styles/mixins" as *;
+
+.stack {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.hero,
+.panel,
+.detailCard,
+.editorCard,
+.proposalCard,
+.commentCard {
+  @include panel;
+}
+
+.panel,
+.detailCard,
+.editorCard {
+  display: grid;
+  gap: 1rem;
+}
+
+.hero,
+.panel,
+.detailCard,
+.editorCard {
+  padding: 1.2rem;
+}
+
+.hero {
+  display: grid;
+  gap: 0.7rem;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--surface-card-highlight) 70%, transparent), transparent 40%),
+    linear-gradient(145deg, color-mix(in srgb, var(--surface-card) 92%, #101624), color-mix(in srgb, var(--surface-card-soft) 86%, #05070d));
+}
+
+.eyebrow {
+  font-size: 0.74rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.title {
+  @include section-title;
+  margin: 0;
+}
+
+.copy {
+  @include subtle-copy;
+  margin: 0;
+  max-width: 72ch;
+}
+
+.metaRow,
+.actionRow,
+.tagRow,
+.assetRow,
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.toolbar {
+  justify-content: space-between;
+}
+
+.toolbarActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.toolbarLink,
+.actionButton,
+.secondaryButton,
+.primaryButton,
+.dangerButton {
+  border-radius: 999px;
+  padding: 0.62rem 0.95rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.toolbarLink,
+.secondaryButton {
+  border: 1px solid var(--border-soft);
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--surface-card) 88%, transparent);
+}
+
+.primaryButton,
+.actionButton {
+  border: 1px solid color-mix(in srgb, var(--button-primary-border) 72%, transparent);
+  color: var(--button-primary-text);
+  background: linear-gradient(135deg, var(--button-primary-bg), color-mix(in srgb, var(--button-primary-bg) 64%, white 36%));
+}
+
+.dangerButton {
+  border: 1px solid color-mix(in srgb, var(--danger) 72%, transparent);
+  color: white;
+  background: color-mix(in srgb, var(--danger) 72%, #12090a);
+}
+
+.toolbarLink:hover,
+.actionButton:hover,
+.secondaryButton:hover,
+.primaryButton:hover,
+.dangerButton:hover {
+  transform: translateY(-1px);
+}
+
+.toolbarLink:disabled,
+.actionButton:disabled,
+.secondaryButton:disabled,
+.primaryButton:disabled,
+.dangerButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.pill,
+.assetPill,
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface-card-highlight) 44%, transparent);
+  font-size: 0.82rem;
+}
+
+.statusPublished {
+  color: var(--success);
+}
+
+.statusDraft {
+  color: var(--warning);
+}
+
+.grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+}
+
+.cardLink {
+  text-decoration: none;
+  color: inherit;
+}
+
+.articleCard {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-card) 92%, white 8%), color-mix(in srgb, var(--surface-card-soft) 90%, transparent));
+  overflow: hidden;
+  min-height: 100%;
+}
+
+.thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  display: block;
+  background: var(--surface-card-soft);
+}
+
+.cardBody {
+  padding: 1rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 1.06rem;
+  line-height: 1.3;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.detailLayout {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.7fr) minmax(18rem, 0.9fr);
+}
+
+.detailMain {
+  display: grid;
+  gap: 1rem;
+}
+
+.detailAside {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+.articleBody {
+  white-space: pre-wrap;
+  line-height: 1.7;
+  font-size: 0.98rem;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.sectionCopy {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.proposalList,
+.commentList {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.proposalCard,
+.commentCard {
+  padding: 0.95rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.proposalHeader,
+.commentHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: flex-start;
+}
+
+.proposalMeta,
+.commentMeta {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.proposalContent {
+  white-space: pre-wrap;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  max-height: 12rem;
+  overflow: auto;
+}
+
+.fieldGrid {
+  display: grid;
+  gap: 1rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.fieldLabel {
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.input,
+.textarea {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface-card) 88%, #09111a);
+  color: var(--text-primary);
+  padding: 0.8rem 0.9rem;
+  font: inherit;
+}
+
+.textarea {
+  min-height: 12rem;
+  resize: vertical;
+}
+
+.helperText {
+  color: var(--muted);
+  font-size: 0.83rem;
+}
+
+.inlinePicker {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.assetSelectRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.assetRemoveButton {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}
+
+.empty {
+  @include empty-state;
+}
+
+@media (max-width: 960px) {
+  .detailLayout {
+    grid-template-columns: 1fr;
+  }
+}

@@ -15,6 +15,8 @@ const channelsRoutes = require("./routes/channels");
 const overviewRoutes = require("./routes/overview");
 const livestreamsRoutes = require("./routes/livestreams");
 const newsRoutes = require("./routes/news");
+const articleRoutes = require("./routes/articles");
+const articleDb = require("./articleDb");
 const analysisRoutes = require("./routes/analysis");
 const marketRoutes = require("./routes/market");
 const internalMarketRoutes = require("./routes/internalMarket");
@@ -180,6 +182,7 @@ api.use("/channels", channelsRoutes);
 api.use("/overview", overviewRoutes);
 api.use("/livestreams", livestreamsRoutes);
 api.use("/news", newsRoutes);
+api.use("/articles", articleRoutes);
 api.use("/analysis", analysisRoutes);
 api.use("/market", marketRoutes);
 api.use("/portfolio", portfolioRoutes);
@@ -190,12 +193,26 @@ app.use("/api", api);
 app.use((err, _req, res, _next) => {
   // eslint-disable-next-line no-console
   console.error(err);
-  res.status(500).json({ error: "internal_error" });
+  if (err?.code === "unauthenticated") return res.status(401).json({ error: "unauthenticated" });
+  if (err?.code === "forbidden") return res.status(403).json({ error: "forbidden" });
+  if (err?.code === "article_not_found" || err?.code === "proposal_not_found") return res.status(404).json({ error: err.code });
+  if (
+    err?.code === "invalid_article"
+    || err?.code === "invalid_comment"
+    || err?.code === "invalid_proposal"
+    || err?.code === "invalid_news_id"
+    || err?.code === "proposal_not_allowed"
+    || err?.code === "cannot_edit_news_article"
+  ) {
+    return res.status(400).json({ error: err.code });
+  }
+  return res.status(500).json({ error: "internal_error" });
 });
 
 async function main() {
   if (cfg.enableMigrations) {
     await applySchema(pool);
+    await articleDb.backfillAllNewsArticles(pool);
   }
 
   const schedulerConfig = loadSchedulerConfig();

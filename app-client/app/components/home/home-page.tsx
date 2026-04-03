@@ -3,15 +3,17 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { AssetCoin } from "@/app/components/common/asset-coin";
-import { HomeSidebarSection } from "@/app/components/home/home-sidebar-section";
+import { TrendChartCard } from "@/app/components/charts/market-charts";
+import { MarketSidebar } from "@/app/components/common/market-sidebar";
 import { LivestreamSection } from "@/app/components/home/livestream-section";
 import { MarketReportSection } from "@/app/components/home/market-report-section";
-import { NewsSection } from "@/app/components/home/news-section";
+import { CompactNewsGrid, NewsSection, partitionHomepageNewsItems } from "@/app/components/home/news-section";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
+import { ensureReadableColorOnDarkBackground } from "@/app/lib/color";
 import { fmtInteger, fmtNumber, fmtPct } from "@/app/lib/format";
 import { computeDailyPriceChangePct } from "@/app/lib/market-metrics";
-import type { SiteStats } from "@/app/lib/types";
+import { normalizeArticleListResponse } from "@/app/lib/normalizers";
 import { getSiteStatsWsUrl } from "@/app/lib/ws";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useChannelStore } from "@/app/stores/channel-store";
@@ -24,7 +26,16 @@ import styles from "@/app/components/home/home-page.module.scss";
 import Image from "next/image";
 import { MdPerson } from "react-icons/md";
 import { BsRecordCircle, BsYoutube } from "react-icons/bs";
-import type { ChannelOverviewRow, MarketAsset } from "@/app/lib/types";
+import type { ArticleSummary, ChannelOverviewRow, MarketAsset, SiteStats } from "@/app/lib/types";
+import {
+  FaArrowTrendDown,
+  FaArrowTrendUp,
+  FaChartLine,
+  FaGaugeHigh,
+  FaMoneyBillTrendUp,
+  FaRegCalendar,
+} from "react-icons/fa6";
+import { HiSparkles } from "react-icons/hi2";
 
 function renderAssetLabel(
   asset: {
@@ -48,6 +59,20 @@ function renderAssetLabel(
       <span>{asset.display_name || asset.symbol || fallbackName}</span>
     </strong>
   );
+}
+
+function getToneClass(value: number | null | undefined) {
+  if (value === null || value === undefined || Number.isNaN(value)) return styles.neutral;
+  if (value > 0) return styles.positive;
+  if (value < 0) return styles.negative;
+  return styles.neutral;
+}
+
+function getMonthsAgoDate(months: number) {
+  const cutoff = new Date();
+  cutoff.setHours(0, 0, 0, 0);
+  cutoff.setMonth(cutoff.getMonth() - months);
+  return cutoff;
 }
 
 type OverviewTimeSeriesPoint = {
@@ -266,7 +291,10 @@ function ChannelRankChart({
                 <div className={styles.channelBarTrack}>
                   <div
                     className={styles.channelBarFill}
-                    style={{ "--channel-bar-width": width, "--channel-bar-color": row.color || "#f97316" } as CSSProperties}
+                    style={{
+                      "--channel-bar-width": width,
+                      "--channel-bar-color": ensureReadableColorOnDarkBackground(row.color) || "#f97316",
+                    } as CSSProperties}
                   />
                 </div>
                 <span className={styles.channelBarMeta}>{row.meta}</span>
@@ -287,13 +315,18 @@ export function HomePage() {
   const [onlineUsers, setOnlineUsers] = useState<number | null>(null);
   const [channelOverviewRows, setChannelOverviewRows] = useState<OverviewRow[]>([]);
   const [channelOverviewError, setChannelOverviewError] = useState<string | null>(null);
+  const [accentColor, setAccentColor] = useState("#f97316");
+  const [monoFontFamily, setMonoFontFamily] = useState<string | undefined>(undefined);
   const assets = useMarketStore((state) => state.assets);
+  const marketIndexes = useMarketStore((state) => state.marketIndexes);
   const report = useMarketStore((state) => state.report);
   const marketStatus = useMarketStore((state) => state.marketStatus);
   const isLoadingOverview = useMarketStore((state) => state.isLoadingOverview);
+  const isLoadingIndex = useMarketStore((state) => state.isLoadingIndex);
   const error = useMarketStore((state) => state.error);
   const setSelectedSymbol = useMarketStore((state) => state.setSelectedSymbol);
   const refreshOverview = useMarketStore((state) => state.refreshOverview);
+  const fetchMarketIndexes = useMarketStore((state) => state.fetchMarketIndexes);
 
   const livestreamItems = useLivestreamStore((state) => state.items);
   const livestreamError = useLivestreamStore((state) => state.error);
@@ -315,6 +348,8 @@ export function HomePage() {
   const portfolio = useProfileStore((state) => state.portfolio);
   const isLoadingPortfolio = useProfileStore((state) => state.isLoadingPortfolio);
   const portfolioError = useProfileStore((state) => state.portfolioError);
+  const [communityArticles, setCommunityArticles] = useState<ArticleSummary[]>([]);
+  const homepageNewsLayout = useMemo(() => partitionHomepageNewsItems(newsItems), [newsItems]);
 
   const featuredHoldings = [...(portfolio?.holdings || [])]
     .sort((a, b) => b.market_value - a.market_value)
@@ -331,29 +366,6 @@ export function HomePage() {
         value: (asset.current_mid_price ?? 0) * (125000 - index * 11000),
         change_pct: computeDailyPriceChangePct(asset.current_mid_price, asset.sparkline_candles),
       }));
-  const mockArticles = [
-    {
-      id: `article-${assets[0]?.symbol || "alpha"}`,
-      title: `${assets[0]?.symbol || "AZK"} breakout thesis after the latest volume rotation`,
-      copy: `A community-style longform setup on ${assets[0]?.display_name || "the current market leader"}, valuation expansion, and where momentum could stall.`,
-      tag: "Creator Thesis",
-      asset: assets[0] || null,
-    },
-    {
-      id: `article-${assets[1]?.symbol || "beta"}`,
-      title: `Why ${assets[1]?.symbol || "MNR"} is showing up on every watchlist this week`,
-      copy: "Short-form desk notes combining catalyst timing, trend strength, and risk levels for active traders.",
-      tag: "Watchlist Note",
-      asset: assets[1] || null,
-    },
-    {
-      id: `article-${assets[2]?.symbol || "gamma"}`,
-      title: "Underdog channel basket: three names compounding quietly beneath the front page",
-      copy: "A mock community article card for the future articles feed, styled to look native on the dashboard.",
-      tag: "Community Draft",
-      asset: assets[2] || null,
-    },
-  ];
   const topSubscribers = [...channels].sort((a, b) => (b.latest?.subscriber_count ?? 0) - (a.latest?.subscriber_count ?? 0))[0] || null;
   const topViews = [...channels].sort((a, b) => (b.latest?.view_count ?? 0) - (a.latest?.view_count ?? 0))[0] || null;
   const topVideos = [...channels].sort((a, b) => (b.latest?.video_count ?? 0) - (a.latest?.video_count ?? 0))[0] || null;
@@ -367,6 +379,17 @@ export function HomePage() {
   const marketUnderdog = [...assets]
     .filter((asset) => asset.current_mid_price !== null)
     .sort((a, b) => (a.current_mid_price ?? 0) - (b.current_mid_price ?? 0))[0] || null;
+  const marketSummaryIcons = useMemo(() => {
+    const seenSymbols = new Set<string>();
+
+    return [marketTopPrice, marketTopVolume, marketTopMover, marketUnderdog].filter((asset): asset is MarketAsset => {
+      if (!asset?.symbol) return false;
+      const symbol = asset.symbol.trim().toUpperCase();
+      if (!symbol || seenSymbols.has(symbol)) return false;
+      seenSymbols.add(symbol);
+      return true;
+    });
+  }, [marketTopMover, marketTopPrice, marketTopVolume, marketUnderdog]);
   const topSubscribersAsset = topSubscribers ? findAssetForChannel(topSubscribers, assets) : null;
   const topViewsAsset = topViews ? findAssetForChannel(topViews, assets) : null;
   const topVideosAsset = topVideos ? findAssetForChannel(topVideos, assets) : null;
@@ -440,6 +463,20 @@ export function HomePage() {
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
   }, [assets, channelOverviewRows, channels]);
+  const allMarketIndex = useMemo(
+    () => marketIndexes.find((index) => index.group === "all") || marketIndexes[0] || null,
+    [marketIndexes]
+  );
+  const recentAllMarketSeries = useMemo(() => {
+    if (!allMarketIndex) return [];
+    const cutoffTime = getMonthsAgoDate(4).getTime();
+
+    return allMarketIndex.series.filter((point) => {
+      if (!point.bucket) return false;
+      const timestamp = new Date(point.bucket).getTime();
+      return Number.isFinite(timestamp) && timestamp >= cutoffTime;
+    });
+  }, [allMarketIndex]);
 
   useEffect(() => {
     void (async () => {
@@ -467,8 +504,20 @@ export function HomePage() {
       } else {
         clearPortfolio();
       }
+
+      try {
+        const articleResult = await apiFetch<Record<string, unknown>>("/api/articles?type=community&limit=3");
+        setCommunityArticles(normalizeArticleListResponse(articleResult).items);
+      } catch {
+        setCommunityArticles([]);
+      }
     })();
   }, [clearPortfolio, fetchChannels, fetchLeaderboard, fetchLivestreams, fetchNews, fetchPortfolio, refreshOverview, refreshSession]);
+
+  useEffect(() => {
+    if (marketIndexes.length || isLoadingIndex) return;
+    void fetchMarketIndexes();
+  }, [fetchMarketIndexes, isLoadingIndex, marketIndexes.length]);
 
   useEffect(() => {
     let cancelled = false;
@@ -537,6 +586,21 @@ export function HomePage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const styles = getComputedStyle(document.documentElement);
+    const nextAccent = styles.getPropertyValue("--accent").trim();
+    const nextMono = styles.getPropertyValue("--font-mono").trim();
+
+    if (nextAccent) {
+      setAccentColor(nextAccent);
+    }
+    if (nextMono) {
+      setMonoFontFamily(nextMono);
+    }
+  }, []);
+
   return (
     <SiteShell>
       <div className={styles.pageHeader}>
@@ -575,18 +639,6 @@ export function HomePage() {
             <div className={styles.sectionHeader}>
               <div>
                 <h2 className={styles.title}>Market Summary</h2>
-                <p className={styles.copy}>A matching executive snapshot for the current market tape using live asset overview data.</p>
-              </div>
-              <div className={styles.iconGrid} aria-hidden="true">
-                {[marketTopPrice, marketTopVolume, marketTopMover, marketUnderdog].filter(Boolean).map((asset) => (
-                  <AssetCoin
-                    key={`market-summary-${asset?.symbol}`}
-                    symbol={asset?.symbol || "—"}
-                    icon={asset?.icon ?? null}
-                    color={asset?.color ?? null}
-                    className={styles.headerIcon}
-                  />
-                ))}
               </div>
             </div>
             <div className={styles.summaryHeroGrid}>
@@ -647,27 +699,85 @@ export function HomePage() {
                 <span>Average absolute move across tracked assets</span>
               </div>
             </div>
+            <div className={styles.marketIndexStrip}>
+              <div className={styles.marketIndexChart}>
+                <TrendChartCard
+                  title="All Market Index"
+                  subtitle={
+                    allMarketIndex?.summary?.market_date
+                      ? `${allMarketIndex.summary.market_date} · last 4 months`
+                      : "Last 4 months"
+                  }
+                  fontFamily={monoFontFamily}
+                  series={[
+                    {
+                      name: "All Index",
+                      color: accentColor,
+                      kind: "area",
+                      values: recentAllMarketSeries.map((point) => ({ time: point.bucket, value: point.value })),
+                    },
+                  ]}
+                />
+              </div>
+              <div className={styles.marketIndexStats} aria-label="All market index stats">
+                <div className={styles.marketIndexStatCard}>
+                  <span><FaGaugeHigh /></span>
+                  <div>
+                    <small>Level</small>
+                    <strong>{fmtNumber(allMarketIndex?.summary?.index_value)}</strong>
+                  </div>
+                </div>
+                <div className={styles.marketIndexStatCard}>
+                  <span className={getToneClass(allMarketIndex?.summary?.total_return_pct)}><FaChartLine /></span>
+                  <div>
+                    <small>Range</small>
+                    <strong className={getToneClass(allMarketIndex?.summary?.total_return_pct)}>
+                      {fmtPct(allMarketIndex?.summary?.total_return_pct)}
+                    </strong>
+                  </div>
+                </div>
+                <div className={styles.marketIndexStatCard}>
+                  <span><FaMoneyBillTrendUp /></span>
+                  <div>
+                    <small>Volume</small>
+                    <strong>{fmtNumber(allMarketIndex?.summary?.total_volume_cash, "$")}</strong>
+                  </div>
+                </div>
+                <div className={styles.marketIndexStatCard}>
+                  <span className={getToneClass(allMarketIndex?.summary?.avg_premium_pct)}><HiSparkles /></span>
+                  <div>
+                    <small>Premium</small>
+                    <strong className={getToneClass(allMarketIndex?.summary?.avg_premium_pct)}>
+                      {fmtPct(allMarketIndex?.summary?.avg_premium_pct)}
+                    </strong>
+                  </div>
+                </div>
+                <div className={styles.marketIndexStatCard}>
+                  <span className={getToneClass((allMarketIndex?.summary?.advancers ?? 0) - (allMarketIndex?.summary?.decliners ?? 0))}>
+                    {(allMarketIndex?.summary?.day_return_pct ?? 0) >= 0 ? <FaArrowTrendUp /> : <FaArrowTrendDown />}
+                  </span>
+                  <div>
+                    <small>Breadth</small>
+                    <strong>
+                      {fmtInteger(allMarketIndex?.summary?.advancers)} / {fmtInteger(allMarketIndex?.summary?.decliners)}
+                    </strong>
+                  </div>
+                </div>
+                <div className={styles.marketIndexStatCard}>
+                  <span><FaRegCalendar /></span>
+                  <div>
+                    <small>Date</small>
+                    <strong>{allMarketIndex?.summary?.market_date || (isLoadingIndex ? "Loading…" : "—")}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
           </section>
           
           <section className={styles.dashboardSection}>
             <div className={styles.sectionHeader}>
               <div>
                 <h2 className={styles.title}>YouTube Channel Summary</h2>
-                <p className={styles.copy}>Real latest-channel snapshots with larger headline metrics and a more useful creator desk view.</p>
-              </div>
-              <div className={styles.iconGrid} aria-hidden="true">
-                {channels.slice(0, 4).map((channel) => {
-                  const asset = findAssetForChannel(channel, assets);
-                  return (
-                    <AssetCoin
-                      key={channel.channel.youtube_channel_id}
-                      symbol={channel.channel.symbol || channel.channel.name.slice(0, 1)}
-                      icon={asset?.icon ?? null}
-                      color={asset?.color ?? null}
-                      className={styles.headerIcon}
-                    />
-                  );
-                })}
               </div>
             </div>
             <div className={styles.summaryHeroGrid}>
@@ -818,31 +928,43 @@ export function HomePage() {
           <section className={styles.dashboardSection}>
             <div className={styles.sectionHeader}>
               <div>
-                <h2 className={styles.title}>Mock Community Articles</h2>
-                <p className={styles.copy}>A preview of how community-authored theses and watchlist notes can sit inside the home feed.</p>
+                <h2 className={styles.title}>Recent Community Articles</h2>
               </div>
               <Link href="/articles" className={styles.sectionLink}>Browse articles</Link>
             </div>
             <div className={styles.articleGrid}>
-              {mockArticles.map((article) => (
-                <article key={article.id} className={styles.articleCard}>
+              {communityArticles.map((article) => (
+                <Link key={article.id} href={`/articles/${encodeURIComponent(article.slug)}`} className={styles.articleCard}>
                   <div className={styles.articleTopRow}>
-                    <span className={styles.articleTag}>{article.tag}</span>
-                    {article.asset ? (
+                    <span className={styles.articleTag}>{article.tags[0] || "Article"}</span>
+                    {article.related_assets[0] ? (
                       <AssetCoin
-                        symbol={article.asset.symbol}
-                        icon={article.asset.icon ?? null}
-                        color={article.asset.color ?? null}
+                        symbol={article.related_assets[0].symbol}
+                        icon={article.related_assets[0].icon ?? null}
+                        color={article.related_assets[0].color ?? null}
                         className={styles.articleIcon}
                       />
                     ) : null}
                   </div>
                   <strong className={styles.articleTitle}>{article.title}</strong>
-                  <p className={styles.articleCopy}>{article.copy}</p>
-                </article>
+                  <p className={styles.articleCopy}>{article.preview || article.subtitle || "Open the article to read the full writeup."}</p>
+                </Link>
               ))}
             </div>
           </section>
+
+          {homepageNewsLayout.overflowItems.length ? (
+            <section className={styles.dashboardSection}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2 className={styles.title}>More Recent News</h2>
+                  <p className={styles.copy}>Additional recent headlines in a denser three-column layout.</p>
+                </div>
+                <Link href="/news" className={styles.sectionLink}>Full archive</Link>
+              </div>
+              <CompactNewsGrid items={homepageNewsLayout.overflowItems} />
+            </section>
+          ) : null}
 
           <section className={styles.walletSection}>
             <div className={styles.walletHeader}>
@@ -850,7 +972,7 @@ export function HomePage() {
                 <h2 className={styles.title}>Wallet Summary</h2>
                 <p className={styles.copy}>
                   {user
-                    ? "A compact account view pulled from the same profile portfolio state used on the profile page."
+                    ? ""
                     : "Sign in to load your balance, exposure, and live holdings on the home dashboard."}
                 </p>
               </div>
@@ -925,22 +1047,6 @@ export function HomePage() {
                 <div className={styles.walletHoldingsCard}>
                   <div className={styles.walletHoldingsHeader}>
                     <h3 className={styles.walletSubheading}>Top Holdings</h3>
-                    {featuredHoldings.length ? (
-                      <div className={styles.iconGrid} aria-hidden="true">
-                        {featuredHoldings.map((holding) => {
-                          const asset = assets.find((item) => item.symbol === holding.symbol);
-                          return (
-                            <AssetCoin
-                              key={`holding-${holding.asset_id}`}
-                              symbol={holding.symbol}
-                              icon={asset?.icon ?? null}
-                              color={asset?.color ?? null}
-                              className={styles.headerIcon}
-                            />
-                          );
-                        })}
-                      </div>
-                    ) : null}
                   </div>
 
                   <div className={styles.walletHoldingsList}>
@@ -989,7 +1095,7 @@ export function HomePage() {
         </div>
 
         <div className={styles.rightColumn}>
-          <HomeSidebarSection
+          <MarketSidebar
             assets={assets}
             onSelectSymbol={setSelectedSymbol}
           />

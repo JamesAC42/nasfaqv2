@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { BsDashLg } from "react-icons/bs";
 import { FaArrowTrendDown, FaArrowTrendUp } from "react-icons/fa6";
 import { AssetCoin } from "@/app/components/common/asset-coin";
-import { SparklineChart } from "@/app/components/charts/market-charts";
 import { ChannelTickerPill } from "@/app/components/common/channel-ticker-pill";
+import { SparklineChart } from "@/app/components/charts/market-charts";
 import { fmtInteger, fmtNumber, fmtPct } from "@/app/lib/format";
 import { computeDailyPriceChangePct, computeDailyVolumeChange, getCandleClose } from "@/app/lib/market-metrics";
 import type { MarketAsset } from "@/app/lib/types";
@@ -65,20 +65,21 @@ function formatSignedPct(value: number | null) {
 function formatSignedNumber(value: number | null, prefix?: string) {
   if (value === null) return "—";
   if (value < 0) {
-    // Negative: put prefix after "-"
     return `-${prefix ?? ""}${fmtNumber(Math.abs(value))}`;
   }
-  // Positive or zero: prefix (if any) before number, and add "+" if positive
   return `${value > 0 ? "+" : ""}${prefix ?? ""}${fmtNumber(Math.abs(value))}`;
 }
 
-
-export function HomeSidebarSection({
+export const MarketSidebar = memo(function MarketSidebar({
   assets,
   onSelectSymbol,
+  className,
+  showSparklines = true,
 }: {
   assets: MarketAsset[];
   onSelectSymbol: (symbol: string) => void;
+  className?: string;
+  showSparklines?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [recentSymbols, setRecentSymbols] = useState<string[]>(() => {
@@ -150,7 +151,7 @@ export function HomeSidebarSection({
   }
 
   return (
-    <aside className={styles.sidebar}>
+    <aside className={[styles.sidebar, className].filter(Boolean).join(" ")}>
       <section className={styles.panel}>
         <div>
           <h2 className={styles.title}>Market Search</h2>
@@ -226,19 +227,24 @@ export function HomeSidebarSection({
                     <span>{asset.display_name}</span>
                   </div>
                 </div>
-                <div className={styles.assetSparkline}>
-                  <SparklineChart candles={asset.sparkline_candles} />
-                </div>
                 <div className={styles.assetQuote}>
                   <strong>{fmtNumber(asset.current_mid_price, "$")}</strong>
-                  <span className={(priceChangePct ?? 0) >= 0 ? styles.positive : styles.negative}>{formatSignedPct(priceChangePct)}</span>
-                  <span>{fmtInteger(asset.volume_24h)} shares</span>
+                  <span>{asset.unit || "No unit"}</span>
                 </div>
                 <div className={styles.volumeDeltaColumn}>
-                  <TrendIcon className={`${styles.volumeDeltaIcon} ${priceChangeToneClass}`} aria-hidden="true" />
-                  <strong className={styles.volumeDeltaAbsolute}>{formatSignedNumber(priceChangeAbsolute, "$")}</strong>
-                  <span className={`${styles.volumeDeltaPct} ${priceChangeToneClass}`}>{formatSignedPct(priceChangePct)}</span>
+                  <TrendIcon className={`${styles.volumeDeltaIcon} ${priceChangeToneClass}`} />
+                  <strong className={`${styles.volumeDeltaAbsolute} ${priceChangeToneClass}`}>
+                    {formatSignedNumber(priceChangeAbsolute, "$")}
+                  </strong>
+                  <span className={`${styles.volumeDeltaPct} ${priceChangeToneClass}`}>
+                    {formatSignedPct(priceChangePct)}
+                  </span>
                 </div>
+                {showSparklines ? (
+                  <div className={styles.assetSparkline}>
+                    <SparklineChart candles={asset.sparkline_candles} />
+                  </div>
+                ) : null}
               </Link>
             );
           })}
@@ -248,32 +254,19 @@ export function HomeSidebarSection({
       <section className={styles.panel}>
         <div className={styles.headerRow}>
           <div>
-            <h2 className={styles.title}>Top Volume</h2>
+            <h2 className={styles.title}>Volume Leaders</h2>
             <p className={styles.headerCopy}>Most heavily traded names by current 24-hour share volume.</p>
           </div>
           <div className={styles.headerMeta}>
-            <span className={styles.badge}>24H</span>
+            <span className={styles.badge}>Flow</span>
           </div>
         </div>
         <div className={styles.assetList}>
           {trendingAssets.map((asset) => {
-            const priceChangePct = computeDailyPriceChangePct(asset.current_mid_price, asset.sparkline_candles);
-            const volumeChange = computeDailyVolumeChange(asset.volume_24h, asset.sparkline_candles);
-            const TrendIcon = volumeChange.absolute === null
-              ? BsDashLg
-              : volumeChange.absolute > 0
-                ? FaArrowTrendUp
-                : volumeChange.absolute < 0
-                  ? FaArrowTrendDown
-                  : BsDashLg;
-            const volumeChangeToneClass = volumeChange.absolute === null
-              ? styles.volumeDeltaNeutral
-              : volumeChange.absolute > 0
-                ? styles.volumeDeltaUp
-                : volumeChange.absolute < 0
-                  ? styles.volumeDeltaDown
-                  : styles.volumeDeltaNeutral;
-
+            const volumeDelta = computeDailyVolumeChange(asset.volume_24h ?? null, asset.sparkline_candles);
+            const volumeDeltaClass = volumeDelta.absolute !== null && volumeDelta.absolute >= 0
+              ? styles.volumeDeltaUp
+              : styles.volumeDeltaDown;
             return (
               <Link
                 key={asset.symbol}
@@ -288,23 +281,20 @@ export function HomeSidebarSection({
                     <span>{asset.display_name}</span>
                   </div>
                 </div>
-                <div className={styles.assetSparkline}>
-                  <SparklineChart candles={asset.sparkline_candles} mode="volume" />
-                </div>
                 <div className={styles.assetQuote}>
-                  <strong>{fmtNumber(asset.current_mid_price, "$")}</strong>
-                  <span className={(priceChangePct ?? 0) >= 0 ? styles.positive : styles.negative}>{formatSignedPct(priceChangePct)}</span>
-                  <span>{fmtInteger(asset.volume_24h)} shares</span>
+                  <strong>{fmtInteger(asset.volume_24h)}</strong>
+                  <span>shares</span>
                 </div>
                 <div className={styles.volumeDeltaColumn}>
-                  <TrendIcon className={`${styles.volumeDeltaIcon} ${volumeChangeToneClass}`} aria-hidden="true" />
-                  <strong className={styles.volumeDeltaAbsolute}>
-                    {volumeChange.absolute === null ? "—" : `${volumeChange.absolute > 0 ? "+" : ""}${fmtInteger(volumeChange.absolute)} shares`}
+                  <strong className={`${styles.volumeDeltaAbsolute} ${volumeDeltaClass}`}>
+                    {formatSignedNumber(volumeDelta.absolute)}
                   </strong>
-                  <span className={`${styles.volumeDeltaPct} ${volumeChangeToneClass}`}>
-                    {volumeChange.pct === null ? "—" : formatSignedPct(volumeChange.pct)}
-                  </span>
                 </div>
+                {showSparklines ? (
+                  <div className={styles.assetSparkline}>
+                    <SparklineChart candles={asset.sparkline_candles} />
+                  </div>
+                ) : null}
               </Link>
             );
           })}
@@ -312,48 +302,54 @@ export function HomeSidebarSection({
       </section>
 
       <section className={styles.panel}>
-        <div className={styles.headerRow}>
-          <div>
-            <h2 className={styles.title}>Recently Viewed Assets</h2>
-            <p className={styles.headerCopy}>Quick return points for the last symbols you opened.</p>
-          </div>
+        <div>
+          <h2 className={styles.title}>Recent Views</h2>
         </div>
-        <div className={styles.recentList}>
-          {recentAssets.length ? (
-            recentAssets.map((asset) => (
+        {recentAssets.length ? (
+          <div className={styles.recentList}>
+            {recentAssets.map((asset) => (
               <ChannelTickerPill
                 key={asset.symbol}
-                channel={{ name: asset.display_name, icon: asset.icon ?? null }}
+                channel={{
+                  name: asset.display_name,
+                  icon: asset.icon ?? null,
+                  symbol: asset.symbol,
+                  unit: asset.unit ?? null,
+                  youtube_channel_id: asset.youtube_channel_id,
+                }}
                 onClick={() => rememberAndSelect(asset.symbol)}
               />
-            ))
-          ) : (
-            <div className={styles.empty}>Selected assets will appear here.</div>
-          )}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className={styles.empty}>Open a few assets to build a local watch trail.</div>
+        )}
       </section>
 
       <section className={styles.panel}>
-        <div className={styles.headerRow}>
-          <div>
-            <h2 className={styles.title}>Most Viewed Assets</h2>
-            <p className={styles.headerCopy}>Your most-opened symbols on this device, tracked locally in the browser.</p>
-          </div>
+        <div>
+          <h2 className={styles.title}>Most Viewed</h2>
         </div>
-        <div className={styles.recentList}>
-          {mostViewedAssets.length ? (
-            mostViewedAssets.map((asset) => (
+        {mostViewedAssets.length ? (
+          <div className={styles.recentList}>
+            {mostViewedAssets.map((asset) => (
               <ChannelTickerPill
                 key={asset.symbol}
-                channel={{ name: asset.display_name, icon: asset.icon ?? null }}
+                channel={{
+                  name: asset.display_name,
+                  icon: asset.icon ?? null,
+                  symbol: asset.symbol,
+                  unit: asset.unit ?? null,
+                  youtube_channel_id: asset.youtube_channel_id,
+                }}
                 onClick={() => rememberAndSelect(asset.symbol)}
               />
-            ))
-          ) : (
-            <div className={styles.empty}>Opened assets will be ranked here over time.</div>
-          )}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className={styles.empty}>View counts will appear here after a few visits.</div>
+        )}
       </section>
     </aside>
   );
-}
+});

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Image from "next/image";
 import { fmtInteger } from "@/app/lib/format";
 import { ChannelTickerPill } from "@/app/components/common/channel-ticker-pill";
@@ -124,6 +125,10 @@ function RelatedTickerPills({ item }: { item: NewsItem }) {
   );
 }
 
+function getArticleHref(item: NewsItem) {
+  return item.article_slug ? `/articles/${encodeURIComponent(item.article_slug)}` : "/news";
+}
+
 function EngagementStat({
   kind,
   value,
@@ -157,6 +162,20 @@ function HeadlineBlock({ headline, isLead }: { headline: string; isLead: boolean
   );
 }
 
+function StoryHeadingLink({
+  item,
+  isLead,
+}: {
+  item: NewsItem;
+  isLead: boolean;
+}) {
+  return (
+    <Link href={getArticleHref(item)} className={styles.storyLink}>
+      <HeadlineBlock headline={item.headline} isLead={isLead} />
+    </Link>
+  );
+}
+
 function ArticleMeta({ publishedAt, source }: { publishedAt: string | null; source: string }) {
   const timestamp = formatRelativeTime(publishedAt);
 
@@ -169,15 +188,37 @@ function ArticleMeta({ publishedAt, source }: { publishedAt: string | null; sour
   );
 }
 
-export function NewsSection({ items, error }: { items: NewsItem[]; error: string | null }) {
+export type HomepageNewsPartition = {
+  leadStory: NewsItem | null;
+  mainFeatureItems: NewsItem[];
+  sideFeature: NewsItem | null;
+  mainHeadlineItems: NewsItem[];
+  sideHeadlineItems: NewsItem[];
+  overflowItems: NewsItem[];
+};
+
+export function partitionHomepageNewsItems(items: NewsItem[]): HomepageNewsPartition {
   const featured = items.filter((item) => item.thumbnail_url);
   const headlines = items.filter((item) => !item.thumbnail_url);
-  const leadStory = featured[0] || null;
-  const sideFeature = featured[1] || null;
-  const lowerFeatures = featured.slice(2, 3);
-  const sideHeadlineCount = Math.ceil(headlines.length / 2);
-  const sideHeadlines = headlines.slice(0, sideHeadlineCount);
-  const lowerHeadlines = headlines.slice(sideHeadlineCount);
+
+  return {
+    leadStory: featured[0] || null,
+    mainFeatureItems: featured.slice(1, 2),
+    sideFeature: featured[2] || null,
+    mainHeadlineItems: headlines.slice(0, 4),
+    sideHeadlineItems: headlines.slice(4, 9),
+    overflowItems: [...featured.slice(3), ...headlines.slice(9)],
+  };
+}
+
+export function NewsSection({ items, error }: { items: NewsItem[]; error: string | null }) {
+  const {
+    leadStory,
+    mainFeatureItems,
+    sideFeature,
+    mainHeadlineItems,
+    sideHeadlineItems,
+  } = partitionHomepageNewsItems(items);
 
   return (
     <section className={styles.section}>
@@ -193,11 +234,15 @@ export function NewsSection({ items, error }: { items: NewsItem[]; error: string
             <div className={styles.topLayout}>
               <div className={styles.mainColumn}>
                 <article className={`${styles.item} ${styles.itemLead}`}>
-                  {leadStory.thumbnail_url ? <img src={leadStory.thumbnail_url} alt="" className={styles.leadThumb} /> : null}
+                  {leadStory.thumbnail_url ? (
+                    <Link href={getArticleHref(leadStory)} className={styles.mediaLink}>
+                      <img src={leadStory.thumbnail_url} alt="" className={styles.leadThumb} />
+                    </Link>
+                  ) : null}
                   <div className={styles.itemBody}>
-                  <div className={styles.leadKicker}>Lead Story</div>
-                  <HeadlineBlock headline={leadStory.headline} isLead />
-                  <ArticleMeta publishedAt={leadStory.published_at} source={leadStory.source} />
+                    <div className={styles.leadKicker}>Lead Story</div>
+                    <StoryHeadingLink item={leadStory} isLead />
+                    <ArticleMeta publishedAt={leadStory.published_at} source={leadStory.source} />
                     <div className={styles.engagementRow}>
                       <EngagementStat kind="likes" value={leadStory.like_count} />
                       <EngagementStat kind="comments" value={leadStory.comment_count} />
@@ -207,14 +252,18 @@ export function NewsSection({ items, error }: { items: NewsItem[]; error: string
                   </div>
                 </article>
 
-                {lowerFeatures.length ? (
+                {mainFeatureItems.length ? (
                   <div className={styles.featuredList}>
-                    {lowerFeatures.map((item) => (
+                    {mainFeatureItems.map((item) => (
                       <article key={item.id} className={`${styles.item} ${styles.itemFeatured}`}>
-                        {item.thumbnail_url ? <img src={getCompactThumbnailUrl(item.thumbnail_url) || item.thumbnail_url} alt="" className={styles.thumb} /> : null}
+                        {item.thumbnail_url ? (
+                          <Link href={getArticleHref(item)} className={styles.mediaLink}>
+                            <img src={getCompactThumbnailUrl(item.thumbnail_url) || item.thumbnail_url} alt="" className={styles.thumb} />
+                          </Link>
+                        ) : null}
                         <div className={styles.itemBody}>
                           <div className={styles.featuredKicker}>Featured</div>
-                          <HeadlineBlock headline={item.headline} isLead={false} />
+                          <StoryHeadingLink item={item} isLead={false} />
                           <ArticleMeta publishedAt={item.published_at} source={item.source} />
                           <div className={styles.engagementRow}>
                             <EngagementStat kind="likes" value={item.like_count} />
@@ -228,12 +277,12 @@ export function NewsSection({ items, error }: { items: NewsItem[]; error: string
                   </div>
                 ) : null}
 
-                {lowerHeadlines.length ? (
+                {mainHeadlineItems.length ? (
                   <div className={styles.list}>
-                    {lowerHeadlines.map((item) => (
+                    {mainHeadlineItems.map((item) => (
                       <article key={item.id} className={styles.item}>
                         <div className={styles.itemBody}>
-                          <HeadlineBlock headline={item.headline} isLead={false} />
+                          <StoryHeadingLink item={item} isLead={false} />
                           <ArticleMeta publishedAt={item.published_at} source={item.source} />
                           <div className={styles.engagementRow}>
                             <EngagementStat kind="likes" value={item.like_count} />
@@ -254,11 +303,15 @@ export function NewsSection({ items, error }: { items: NewsItem[]; error: string
                 </div>
                 <div className={styles.sideContent}>
                   {sideFeature ? (
-                    <article key={sideFeature.id} className={`${styles.item} ${styles.itemFeaturedCompact}`}>
-                      {sideFeature.thumbnail_url ? <img src={getCompactThumbnailUrl(sideFeature.thumbnail_url) || sideFeature.thumbnail_url} alt="" className={styles.thumb} /> : null}
+                    <article className={`${styles.item} ${styles.itemFeaturedCompact}`}>
+                      {sideFeature.thumbnail_url ? (
+                        <Link href={getArticleHref(sideFeature)} className={styles.mediaLink}>
+                          <img src={getCompactThumbnailUrl(sideFeature.thumbnail_url) || sideFeature.thumbnail_url} alt="" className={styles.thumb} />
+                        </Link>
+                      ) : null}
                       <div className={styles.itemBody}>
                         <div className={styles.featuredKicker}>Featured</div>
-                        <HeadlineBlock headline={sideFeature.headline} isLead={false} />
+                        <StoryHeadingLink item={sideFeature} isLead={false} />
                         <ArticleMeta publishedAt={sideFeature.published_at} source={sideFeature.source} />
                         <div className={styles.engagementRow}>
                           <EngagementStat kind="likes" value={sideFeature.like_count} />
@@ -270,12 +323,12 @@ export function NewsSection({ items, error }: { items: NewsItem[]; error: string
                     </article>
                   ) : null}
 
-                  {sideHeadlines.length ? (
+                  {sideHeadlineItems.length ? (
                     <div className={styles.list}>
-                      {sideHeadlines.map((item) => (
+                      {sideHeadlineItems.map((item) => (
                         <article key={item.id} className={styles.item}>
                           <div className={styles.itemBody}>
-                            <HeadlineBlock headline={item.headline} isLead={false} />
+                            <StoryHeadingLink item={item} isLead={false} />
                             <ArticleMeta publishedAt={item.published_at} source={item.source} />
                             <div className={styles.engagementRow}>
                               <EngagementStat kind="likes" value={item.like_count} />
@@ -299,5 +352,28 @@ export function NewsSection({ items, error }: { items: NewsItem[]; error: string
         <div className={styles.empty}>{error ? `News feed unavailable: ${error}` : "News store scaffolded and ready for a real feed."}</div>
       )}
     </section>
+  );
+}
+
+export function CompactNewsGrid({ items }: { items: NewsItem[] }) {
+  if (!items.length) return null;
+
+  return (
+    <div className={styles.compactGrid}>
+      {items.map((item) => (
+        <article key={item.id} className={`${styles.item} ${styles.compactItem}`}>
+          <div className={styles.itemBody}>
+            <StoryHeadingLink item={item} isLead={false} />
+            <ArticleMeta publishedAt={item.published_at} source={item.source} />
+            <div className={styles.engagementRow}>
+              <EngagementStat kind="likes" value={item.like_count} />
+              <EngagementStat kind="comments" value={item.comment_count} />
+            </div>
+            {hasDistinctSummary(item) ? <div className={styles.summary}>{item.summary}</div> : null}
+            <RelatedTickerPills item={item} />
+          </div>
+        </article>
+      ))}
+    </div>
   );
 }

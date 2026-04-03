@@ -1,4 +1,11 @@
 import type {
+  ArticleAsset,
+  ArticleAuthor,
+  ArticleComment,
+  ArticleDetail,
+  ArticleListResponse,
+  ArticleProposal,
+  ArticleSummary,
   AssetDetailBundle,
   AssetSuperchatSummaryBundle,
   AssetSuperchatTimeseriesBundle,
@@ -190,6 +197,18 @@ export function normalizeChannels(rows: Array<Record<string, unknown>>): Channel
         name: String(channel.name || channel.name_short || ""),
         name_short: channel.name_short ? String(channel.name_short) : undefined,
         symbol: channel.symbol ? String(channel.symbol) : null,
+        unit: channel.unit ? String(channel.unit) : null,
+        channel_asset_icon_url: channel.channel_asset_icon_url
+          ? String(channel.channel_asset_icon_url)
+          : channel.youtube_channel_icon_url
+            ? String(channel.youtube_channel_icon_url)
+            : null,
+        channel_asset_banner_url: channel.channel_asset_banner_url
+          ? String(channel.channel_asset_banner_url)
+          : channel.youtube_channel_banner_url
+            ? String(channel.youtube_channel_banner_url)
+            : null,
+        youtube_channel_description: channel.youtube_channel_description ? String(channel.youtube_channel_description) : null,
       },
       latest: latest
         ? {
@@ -295,7 +314,11 @@ export function normalizeNews(rows: Array<Record<string, unknown>>): NewsItem[] 
       channel_ids: Array.isArray(row.channel_ids) ? row.channel_ids.map((item) => String(item)) : characters.map((item) => item.youtube_channel_id || "").filter(Boolean),
       stock_symbols: Array.isArray(row.stock_symbols) ? row.stock_symbols.map((item) => String(item)) : characters.map((item) => item.symbol || "").filter(Boolean),
       units: Array.isArray(row.units) ? row.units.map((item) => String(item)) : characters.map((item) => item.unit || "").filter(Boolean),
+      article_id: toNumber(row.article_id),
+      article_slug: row.article_slug ? String(row.article_slug) : null,
+      is_news: Boolean(row.is_news ?? true),
       like_count: toNumber(row.like_count ?? row.likes ?? row.likeCount),
+      save_count: toNumber(row.save_count ?? row.saves ?? row.saveCount),
       comment_count: toNumber(row.comment_count ?? row.comments ?? row.commentCount),
     };
   });
@@ -316,8 +339,10 @@ export function normalizeHoloNewsFeed(value: Record<string, unknown>): NewsItem[
       thumbnail_url: item.thumbnail_url ? String(item.thumbnail_url) : null,
       summary: item.summary ? String(item.summary) : null,
       url: null,
+      article_slug: item.article_slug ? String(item.article_slug) : null,
       characters,
       related_names: characters.map((character) => character.name),
+      is_news: true,
       like_count: toNumber(item.like_count ?? item.likes ?? item.likeCount),
       comment_count: toNumber(item.comment_count ?? item.comments ?? item.commentCount),
     };
@@ -329,6 +354,146 @@ export function normalizeNewsFeedResponse(value: Record<string, unknown>): NewsF
 
   return {
     items: normalizeNews(Array.isArray(value.items) ? (value.items as Array<Record<string, unknown>>) : []),
+    pagination: {
+      total: Number(pagination?.total || 0),
+      page: Number(pagination?.page || 1),
+      limit: Number(pagination?.limit || 20),
+      page_count: Number(pagination?.page_count || 1),
+      has_previous_page: Boolean(pagination?.has_previous_page),
+      has_next_page: Boolean(pagination?.has_next_page),
+    },
+  };
+}
+
+function normalizeArticleAuthor(value: unknown): ArticleAuthor | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  const id = toNumber(row.id);
+  const username = String(row.username || "").trim();
+  if (!id || !username) return null;
+  return {
+    id,
+    username,
+  };
+}
+
+function normalizeArticleAssets(value: unknown): ArticleAsset[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as Record<string, unknown>;
+      const id = toNumber(row.id);
+      const symbol = String(row.symbol || "").trim();
+      const displayName = String(row.display_name || "").trim();
+      if (!id || !symbol || !displayName) return null;
+      return {
+        id,
+        symbol,
+        display_name: displayName,
+        icon: row.icon ? String(row.icon) : null,
+        color: row.color ? String(row.color) : null,
+      };
+    })
+    .filter((item): item is ArticleAsset => item !== null);
+}
+
+export function normalizeArticleSummary(value: Record<string, unknown>): ArticleSummary {
+  const newsItem = value.news_item && typeof value.news_item === "object"
+    ? value.news_item as Record<string, unknown>
+    : null;
+
+  return {
+    id: Number(value.id || 0),
+    slug: String(value.slug || ""),
+    title: String(value.title || "Untitled article"),
+    subtitle: value.subtitle ? String(value.subtitle) : null,
+    tags: Array.isArray(value.tags) ? value.tags.map((item) => String(item)) : [],
+    thumbnail_url: value.thumbnail_url ? String(value.thumbnail_url) : null,
+    preview: value.preview ? String(value.preview) : null,
+    author: normalizeArticleAuthor(value.author),
+    likes: Number(toNumber(value.likes) || 0),
+    saves: Number(toNumber(value.saves) || 0),
+    is_news: Boolean(value.is_news),
+    status: String(value.status || "published"),
+    published_at: value.published_at ? String(value.published_at) : null,
+    created_at: String(value.created_at || ""),
+    updated_at: String(value.updated_at || ""),
+    comment_count: Number(toNumber(value.comment_count) || 0),
+    related_assets: normalizeArticleAssets(value.related_assets),
+    viewer_has_liked: Boolean(value.viewer_has_liked),
+    viewer_has_saved: Boolean(value.viewer_has_saved),
+    news_item: newsItem
+      ? {
+          id: Number(newsItem.id || 0),
+          headline: String(newsItem.headline || ""),
+          published_at: newsItem.published_at ? String(newsItem.published_at) : null,
+        }
+      : null,
+  };
+}
+
+function normalizeArticleComments(value: unknown): ArticleComment[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as Record<string, unknown>;
+      const id = toNumber(row.id);
+      const body = String(row.body || "").trim();
+      const author = normalizeArticleAuthor(row.author);
+      if (!id || !body || !author) return null;
+      return {
+        id,
+        body,
+        created_at: String(row.created_at || ""),
+        updated_at: String(row.updated_at || ""),
+        author,
+      };
+    })
+    .filter((item): item is ArticleComment => item !== null);
+}
+
+function normalizeArticleProposals(value: unknown): ArticleProposal[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as Record<string, unknown>;
+      const id = toNumber(row.id);
+      const author = normalizeArticleAuthor(row.author);
+      if (!id || !author) return null;
+      return {
+        id,
+        title: row.title ? String(row.title) : null,
+        subtitle: row.subtitle ? String(row.subtitle) : null,
+        tags: Array.isArray(row.tags) ? row.tags.map((entry) => String(entry)) : [],
+        thumbnail_url: row.thumbnail_url ? String(row.thumbnail_url) : null,
+        content: String(row.content || ""),
+        status: String(row.status || "pending") as ArticleProposal["status"],
+        created_at: String(row.created_at || ""),
+        updated_at: String(row.updated_at || ""),
+        reviewed_at: row.reviewed_at ? String(row.reviewed_at) : null,
+        author,
+        reviewer: normalizeArticleAuthor(row.reviewer),
+      };
+    })
+    .filter((item): item is ArticleProposal => item !== null);
+}
+
+export function normalizeArticleDetail(value: Record<string, unknown>): ArticleDetail {
+  return {
+    ...normalizeArticleSummary(value),
+    content: String(value.content || ""),
+    comments: normalizeArticleComments(value.comments),
+    proposals: normalizeArticleProposals(value.proposals),
+  };
+}
+
+export function normalizeArticleListResponse(value: Record<string, unknown>): ArticleListResponse {
+  const pagination = (value.pagination || null) as Record<string, unknown> | null;
+  return {
+    items: Array.isArray(value.items) ? (value.items as Array<Record<string, unknown>>).map(normalizeArticleSummary) : [],
     pagination: {
       total: Number(pagination?.total || 0),
       page: Number(pagination?.page || 1),

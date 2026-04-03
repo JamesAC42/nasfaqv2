@@ -12,6 +12,16 @@
   box-sizing: border-box;
 }
 
+.circle {
+  border-radius: 999px;
+  border-bottom-width: 1px;
+}
+
+.circle .image,
+.circle .fallback {
+  border-radius: 999px;
+}
+
 .image,
 .fallback {
   width: 100%;

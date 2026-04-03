@@ -50,6 +50,7 @@ export function ChannelTickerPill({
         icon={asset?.icon ?? channel.icon ?? null}
         color={asset?.color ?? null}
         className={styles.iconCoin}
+        shape="circle"
       />
       <span className={styles.symbol}>{label}</span>
       <span className={changeClassName}>

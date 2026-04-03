@@ -5,7 +5,7 @@
 }
 
 .pill {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 0.45rem;
   padding: 0.4rem 0.65rem;
@@ -20,12 +20,11 @@
 }
 
 .iconCoin {
-  width: 1.5rem;
-  height: 1.5rem;
-  min-width: 1.5rem;
+  width: 1.7rem;
+  height: 1.7rem;
+  min-width: 1rem;
   flex: 0 0 auto;
   align-self: center;
-  border-radius: 999px;
   padding: 0.2rem;
   border-width: 1px;
   border-bottom-width: 1px;
@@ -35,6 +34,7 @@
 .symbol {
   font-weight: 700;
   color: inherit;
+  transform: translateY(1px);
 }
 
 .change {
@@ -43,6 +43,7 @@
   gap: 0.28rem;
   font-variant-numeric: tabular-nums;
   font-weight: 800;
+  transform: translateY(1px);
 }
 
 .trendIcon {

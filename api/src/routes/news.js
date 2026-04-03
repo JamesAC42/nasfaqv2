@@ -1,5 +1,6 @@
 const express = require("express");
 const db = require("../db");
+const articleDb = require("../articleDb");
 
 const router = express.Router();
 
@@ -15,10 +16,27 @@ router.get("/", async (req, res, next) => {
       limit: req.query.limit,
     });
 
+    const ensuredArticles = await articleDb.ensureNewsArticles(
+      req.ctx.pool,
+      result.items.map((item) => item.id)
+    );
+    const items = result.items.map((item) => {
+      const ensured = ensuredArticles.get(Number(item.id)) || null;
+      return {
+        ...item,
+        article_id: ensured?.id ?? item.article_id ?? null,
+        article_slug: ensured?.slug ?? item.article_slug ?? articleDb.buildNewsSlugBase(item.headline),
+        is_news: true,
+        like_count: item.like_count ?? 0,
+        save_count: item.save_count ?? 0,
+        comment_count: item.comment_count ?? 0,
+      };
+    });
+
     const pageCount = result.total > 0 ? Math.ceil(result.total / result.limit) : 1;
 
     res.json({
-      items: result.items,
+      items,
       pagination: {
         total: result.total,
         page: result.page,

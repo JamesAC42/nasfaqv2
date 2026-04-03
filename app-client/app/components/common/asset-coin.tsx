@@ -10,18 +10,24 @@ export function AssetCoin({
   icon,
   color,
   className,
+  shape = "default",
 }: {
   symbol: string;
   icon?: string | null;
   color?: string | null;
   className?: string;
+  shape?: "default" | "circle";
 }) {
   const accentColor = normalizeHexColor(color);
   const style = (accentColor ? { "--coin-accent": accentColor } : undefined) as CSSProperties | undefined;
   const iconUrl = getIconUrl(icon);
 
   return (
-    <div className={[styles.coin, className].filter(Boolean).join(" ")} style={style} aria-hidden="true">
+    <div
+      className={[styles.coin, shape === "circle" ? styles.circle : "", className].filter(Boolean).join(" ")}
+      style={style}
+      aria-hidden="true"
+    >
       {iconUrl ? (
         <img src={iconUrl} alt="" className={styles.image} />
       ) : (

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useDeferredValue, useEffect, useState } from "react";
 import { AssetPicker } from "@/app/components/common/asset-picker";
 import { ChannelTickerPill } from "@/app/components/common/channel-ticker-pill";
@@ -227,14 +228,26 @@ export function NewsPage() {
             <div className={styles.list}>
               {items.map((item) => (
                 <article key={item.id} className={`${styles.item} ${item.thumbnail_url ? "" : styles.itemNoThumb}`.trim()}>
-                  {item.thumbnail_url ? <img src={getCompactThumbnailUrl(item.thumbnail_url) || item.thumbnail_url} alt="" className={styles.thumb} /> : null}
+                  {item.thumbnail_url ? (
+                    <Link
+                      href={item.article_slug ? `/articles/${encodeURIComponent(item.article_slug)}` : "/articles"}
+                      className={styles.mediaLink}
+                    >
+                      <img src={getCompactThumbnailUrl(item.thumbnail_url) || item.thumbnail_url} alt="" className={styles.thumb} />
+                    </Link>
+                  ) : null}
 
                   <div className={styles.itemBody}>
                     <div className={styles.itemMeta}>
                       <span>{item.source}</span>
                       <span>{formatPublishedDate(item.published_at)}</span>
                     </div>
-                    <h3 className={styles.itemHeadline}>{item.headline}</h3>
+                    <Link
+                      href={item.article_slug ? `/articles/${encodeURIComponent(item.article_slug)}` : "/articles"}
+                      className={styles.headlineLink}
+                    >
+                      <h3 className={styles.itemHeadline}>{item.headline}</h3>
+                    </Link>
                     {item.summary ? <p className={styles.itemSummary}>{item.summary}</p> : null}
                     {item.characters?.length ? (
                       <div className={styles.pillRow}>

@@ -12,6 +12,7 @@ router.get("/me", async (req, res) => {
     user: {
       id: req.ctx.user.id,
       username: req.ctx.user.username,
+      is_admin: Boolean(req.ctx.user.is_admin),
       created_at: req.ctx.user.created_at,
     },
   });

@@ -1,0 +1,956 @@
+@use "../../styles/mixins" as *;
+
+.pageLayout {
+  display: grid;
+  //grid-template-columns: minmax(27rem, 21rem) minmax(1fr, 0);
+  grid-template-columns: minmax(21rem, 27rem) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.sidebarRail {
+  min-width: 0;
+  width: 100%;
+}
+
+.contentRail {
+  min-width: 0;
+  display: grid;
+  gap: 1.25rem;
+}
+
+.hero,
+.liveNowCard,
+.sectionCard,
+.emptyState {
+  @include panel;
+}
+
+.hero {
+  position: relative;
+  overflow: visible;
+  z-index: 0;
+  background: none;
+  border-color: color-mix(in srgb, var(--hero-accent) 28%, var(--border-soft));
+  isolation: isolate;
+  border-radius: var(--radius-lg);
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  transform: translate(-0.4375rem, 0.4375rem);
+  background-image: linear-gradient(
+    -190deg,
+    color-mix(in srgb, var(--hero-accent) 60%, rgba(255, 255, 255, 0.539)),
+    color-mix(in srgb, var(--hero-accent) 35%, #2d0ddf)
+  );
+  opacity: 0.66;
+  pointer-events: none;
+  border-radius: var(--radius-lg);
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background-image:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--hero-accent) 24%, rgba(6, 12, 23, 0.845)),
+      rgba(8, 17, 33, 0.78)
+    ),
+    var(--hero-surface-image, none);
+  background-position: center, top center;
+  /* Fill width, tile downwards (repeat-y) for hero-surface-image */
+  background-size: cover, 100% auto;
+  background-repeat: no-repeat, repeat-y;
+  pointer-events: none;
+  overflow:hidden;
+  border: 1.5px solid color-mix(in srgb, var(--hero-accent) 78%, #fff);
+  border-radius: var(--radius-lg);
+}
+
+.heroOverlay {
+  position: relative;
+  z-index: 2;
+  padding: 1.4rem;
+  display: grid;
+  gap: 1.2rem;
+  border-radius: 3rem;
+}
+
+.heroPrice {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  position: absolute;
+  top:0;
+  right:0;
+  margin:1rem;
+  margin-right:1.5rem;
+  font-family: var(--font-mono);
+}
+
+.heroPriceValue {
+  font-size: 2.5rem;
+  font-weight: 1000;
+}
+
+.heroPriceChange {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  align-items: center;
+  justify-content: center;
+  &.up {
+    color: var(--trend-up);
+  }
+  &.down {
+    color: var(--trend-down);
+  }
+  .heroPriceChangeIcon,
+  .heroPriceChangeValue {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .heroPriceChangeIcon {
+    font-size: 1.1rem;
+    svg {
+      transform:translateY(40%);
+    }
+  }
+  .heroPriceChangeValue {
+    font-size: 1rem;
+  }
+}
+.heroIdentity {
+  display: flex;
+  gap: 1rem;
+  align-items: start;
+}
+
+.channelAvatar,
+.assetAvatar {
+  width: 5.6rem;
+  height: 5.6rem;
+  min-width: 5.25rem;
+  border-radius: 1.2rem;
+  object-fit: cover;
+  border: 1px solid color-mix(in srgb, var(--hero-accent) 38%, rgba(255, 255, 255, 0.2));
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+}
+
+.assetAvatar {
+  padding: 0.55rem;
+  background: rgba(9, 11, 15, 0.9);
+}
+
+.heroCopy {
+  min-width: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.heroEyebrowRow {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.heroEyebrow,
+.heroPill,
+.mockBadge,
+.articleTag,
+.commentTone {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.28rem 0.58rem;
+}
+
+.heroEyebrow {
+  background: color-mix(in srgb, var(--hero-accent) 20%, rgba(255, 255, 255, 0.04));
+  color: color-mix(in srgb, white 84%, var(--hero-accent));
+}
+
+.heroPill,
+.mockBadge,
+.articleTag,
+.commentTone {
+  background: rgba(255, 255, 255, 0.07);
+  color: color-mix(in srgb, white 76%, var(--hero-accent));
+}
+
+.heroLink,
+.inlineLink {
+  color: color-mix(in srgb, white 86%, var(--accent));
+  text-decoration: none;
+  font-size: 0.84rem;
+
+}
+
+.heroLink {
+  font-size: 1.2rem;
+  margin-left: 0.5rem;
+  font-weight: 200;
+  svg {
+    font-size:1.1rem;
+    margin-left: 0.5rem;
+    transform: translate(0, 15%);
+  }
+}
+
+.heroTitle {
+  margin: 0;
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+  font-size: clamp(2rem, 4.2vw, 3.4rem);
+  line-height: 0.98;
+  margin-top:0.5rem;
+}
+
+.heroSymbol {
+  font-size: 1.5rem;
+  font-family: var(--font-mono);
+  color: color-mix(in srgb, rgb(218, 218, 218) 90%, var(--accent));
+}
+
+.heroDescription,
+.sectionCopy,
+.sectionMeta,
+.quickStatMeta,
+.articleCopy,
+.commentCard p,
+.emptyCopy {
+  color: var(--muted);
+}
+
+.heroDescription {
+  --hero-description-line-height: 1.5rem;
+  margin: 0;
+  width: 100%;
+  max-width: none;
+  color: rgba(255, 255, 255, 0.82);
+  font: inherit;
+  font-size: 1.1rem;
+  line-height: var(--hero-description-line-height);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.heroDescriptionLink {
+  color: color-mix(in srgb, white 90%, var(--hero-accent));
+  text-decoration: underline;
+  text-underline-offset: 0.14em;
+}
+
+.heroDescriptionBlock {
+  width: 100%;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.heroDescriptionSkeletonWrap {
+  width: 100%;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.heroDescriptionCollapsed {
+  max-height: calc(var(--hero-description-line-height) * 4);
+  overflow: hidden;
+  mask-image: linear-gradient(180deg, #000 72%, transparent);
+}
+
+.heroDescriptionToggle {
+  justify-self: start;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: color-mix(in srgb, white 82%, var(--hero-accent));
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.skeletonBlock {
+  display: inline-block;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.18) 50%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeletonPulse 1.4s ease-in-out infinite;
+}
+
+.skeletonLine {
+  height: 0.92rem;
+  width: 100%;
+  border-radius: 0.45rem;
+}
+
+.heroTitleSkeleton {
+  width: min(24rem, 62vw);
+  max-width: 100%;
+  height: 2.7rem;
+  border-radius: 0.85rem;
+}
+
+.heroPillSkeleton {
+  width: 4.2rem;
+  min-height: 1.45rem;
+}
+
+.heroDescriptionSkeleton {
+  display: block;
+}
+
+.heroDescriptionSkeleton:nth-child(1) {
+  width: min(42rem, 92%);
+}
+
+.heroDescriptionSkeleton:nth-child(2) {
+  width: min(34rem, 76%);
+}
+
+.heroDescriptionSkeleton:nth-child(3) {
+  width: min(18rem, 42%);
+}
+
+.quickStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.quickStatCard,
+.portfolioStat,
+.infoCard {
+  border: 1px solid color-mix(in srgb, var(--border-soft) 72%, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, rgba(8, 10, 14, 0.92) 84%, var(--hero-accent));
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.22rem;
+}
+
+.quickStatLabel,
+.portfolioStat span,
+.infoCard span,
+.tradeSummary span {
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.quickStatValue,
+.portfolioStat strong,
+.infoCard strong,
+.tradeSummary strong {
+  font-size: 1.02rem;
+}
+
+.quickStatValueSkeleton {
+  width: 78%;
+  height: 1.08rem;
+  border-radius: 0.5rem;
+}
+
+.quickStatMetaSkeleton {
+  width: 2.9rem;
+  height: 0.78rem;
+  border-radius: 0.4rem;
+}
+
+.valueUp {
+  color: var(--trend-up);
+}
+
+.valueDown {
+  color: var(--trend-down);
+}
+
+.topGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(18rem, 24rem);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.primaryColumn,
+.tradeColumn {
+  min-width: 0;
+  display: grid;
+  gap: 1.25rem;
+}
+
+.tradeColumn { 
+  @include panel;
+}
+
+.sectionCard,
+.tradePanel {
+  position: relative;
+  padding: 1.15rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.sectionTitle,
+.emptyTitle {
+  @include section-title;
+  margin: 0;
+}
+
+.sectionCopy,
+.sectionMeta,
+.emptyCopy {
+  margin: 0.28rem 0 0;
+  font-size: 0.9rem;
+}
+
+.articleGrid,
+.sameUnitGrid,
+.commentList,
+.portfolioGrid,
+.infoGrid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.articleGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.articleCard,
+.sameUnitCard,
+.commentCard,
+.tradeTapeRow,
+.authCta,
+.commentComposer {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-card) 96%, #000 4%);
+}
+
+.articleCard,
+.commentCard {
+  padding: 1rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.articleCard {
+  color: inherit;
+  text-decoration: none;
+}
+
+.articleTopRow,
+.commentHeader,
+.commentComposerFooter,
+.authLinks {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.articleAuthor,
+.commentHeader span,
+.sameUnitIdentity span,
+.sameUnitMetrics span,
+.tradeTapeRow span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.articleTitle {
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.sameUnitGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sameUnitCard {
+  padding: 0.9rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.sameUnitIdentity {
+  min-width: 0;
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.sameUnitIdentity strong,
+.sameUnitMetrics strong {
+  display: block;
+}
+
+.sameUnitMetrics {
+  display: grid;
+  justify-items: end;
+  text-align: right;
+}
+
+.sameUnitIcon {
+  width: 2rem;
+  height: 2rem;
+  min-width: 2rem;
+  padding: 0.25rem;
+}
+
+.commentComposer {
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.commentInput,
+.tradeInput {
+  @include input-base;
+}
+
+.commentInput {
+  min-height: 6.5rem;
+  resize: vertical;
+}
+
+.commentButton,
+.presetButton {
+  @include button-secondary;
+}
+
+.tradePanel {
+  position: sticky;
+  top: 1rem;
+  gap: 1rem;
+  //: 0;
+  z-index: 10;
+  isolation: isolate;
+  background: color-mix(in srgb, #070b12 92%, var(--bg-accent));
+}
+
+.tradePanel::before {
+  //z-index: -2;
+  pointer-events: none;
+}
+
+.tradePanel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.liveNowCard {
+  padding: 1.15rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.liveNowGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.liveInfoColumn,
+.liveChartColumn {
+  min-width: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-card) 96%, #000 4%);
+  padding: 0.95rem;
+}
+
+.liveThumb,
+.liveThumbFallback {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-card-soft) 88%, transparent);
+}
+
+.liveMetaStack {
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+  margin-top: 0.85rem;
+}
+
+.livePillRow {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.liveNowPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.56rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  color: var(--danger);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.liveViewers {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-family: var(--font-body);
+}
+
+.liveTitle {
+  font-size: 1.02rem;
+  line-height: 1.35;
+}
+
+.liveMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.liveMetaCard {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card-soft) 82%, transparent);
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.liveMetaCard span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.liveChartColumn {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.liveChartHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: start;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+}
+
+.liveLegend {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.liveLegendItem {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-family: var(--font-mono);
+}
+
+.liveLegendItem::before {
+  content: "";
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: var(--legend-color);
+}
+
+.liveChartCanvas {
+  min-height: 15.5rem;
+}
+
+.liveChartEmpty,
+.liveChartLoading {
+  @include empty-state;
+}
+
+.liveWatchLink {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.portfolioGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tradeForm {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.sideToggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0.35rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-card-soft) 88%, black);
+  border: 1px solid var(--border-soft);
+}
+
+.sideToggleButton,
+.sideToggleActiveBuy,
+.sideToggleActiveSell {
+  border: 0;
+  min-height: 2.4rem;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.sideToggleActiveBuy {
+  background: color-mix(in srgb, var(--trend-up) 16%, transparent);
+  color: var(--trend-up);
+}
+
+.sideToggleActiveSell {
+  background: color-mix(in srgb, var(--trend-down) 16%, transparent);
+  color: var(--trend-down);
+}
+
+.tradeField {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.tradeField span {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.tradeInput {
+  min-height: 2.85rem;
+}
+
+.tradePresets {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.tradeSummary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.tradeSummary > div {
+  padding: 0.8rem;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-card-soft) 82%, transparent);
+  border: 1px solid var(--border-soft);
+  display: grid;
+  gap: 0.16rem;
+}
+
+.tradeSubmitBuy,
+.tradeSubmitSell {
+  @include button-base;
+  min-height: 2.9rem;
+  position: relative;
+  //z-index: 0;
+  overflow: visible;
+  border-width: 2px;
+  font-weight: 800;
+  background: color-mix(in srgb, var(--surface-card) 96%, #02040a);
+  box-shadow: none;
+  z-index: 0;
+}
+
+.tradeSubmitBuy::before,
+.tradeSubmitSell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  transform: translate(-7px, 7px);
+  transition: transform 140ms ease;
+  z-index: -1;
+}
+
+.tradeSubmitBuy:hover:not(:disabled),
+.tradeSubmitSell:hover:not(:disabled) {
+  transform: translate(-2px, 2px);
+}
+
+.tradeSubmitBuy:active:not(:disabled),
+.tradeSubmitSell:active:not(:disabled) {
+  transform: translate(-7px, 7px);
+}
+
+.tradeSubmitBuy:active:not(:disabled)::before,
+.tradeSubmitSell:active:not(:disabled)::before {
+  transform: translate(0, 0);
+}
+
+.tradeSubmitBuy {
+  color: var(--trend-up);
+  border-color: color-mix(in srgb, var(--trend-up) 72%, black);
+}
+
+.tradeSubmitBuy::before {
+  background: color-mix(in srgb, var(--trend-up) 42%, #04110a);
+}
+
+.tradeSubmitSell {
+  color: var(--trend-down);
+  border-color: color-mix(in srgb, var(--trend-down) 68%, black);
+}
+
+.tradeSubmitSell::before {
+  background: color-mix(in srgb, var(--trend-down) 40%, #120606);
+}
+
+.authCta,
+.emptyState {
+  padding: 1rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.authLinks a {
+  text-decoration: none;
+}
+
+.chartGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.utilityGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+.infoGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tradeTape {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.tradeTapeRow {
+  padding: 0.9rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.tradeTapeRow strong {
+  display: block;
+}
+
+.mockEmpty {
+  @include empty-state;
+}
+
+@keyframes skeletonPulse {
+  0% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+@media (max-width: 1380px) {
+  .pageLayout {
+    grid-template-columns: minmax(18rem, 23rem) minmax(0, 1fr);
+  }
+
+  .quickStatsGrid,
+  .articleGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1160px) {
+  .pageLayout,
+  .topGrid,
+  .utilityGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .tradePanel {
+    position: static;
+  }
+
+  .liveNowGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .heroIdentity,
+  .sectionHeader {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .quickStatsGrid,
+  .sameUnitGrid,
+  .portfolioGrid,
+  .chartGrid,
+  .tradeSummary,
+  .articleGrid,
+  .infoGrid,
+  .tradeTapeRow,
+  .liveMetaGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .sameUnitCard {
+    display: grid;
+  }
+}
