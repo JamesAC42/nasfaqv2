@@ -10,9 +10,15 @@ function loadEnv() {
   }
 
   // Load local .env if present (don't override real env vars).
-  const candidate = path.join(process.cwd(), ".env");
-  if (fs.existsSync(candidate)) {
-    dotenv.config({ path: candidate, override: false });
+  const candidates = [
+    path.join(process.cwd(), ".env"),
+    path.join(__dirname, "..", ".env"),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      dotenv.config({ path: candidate, override: false });
+    }
   }
 }
 

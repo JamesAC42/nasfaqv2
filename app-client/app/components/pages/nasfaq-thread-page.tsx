@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import shellStyles from "@/app/components/pages/page-shell.module.scss";
@@ -17,6 +17,7 @@ type NasfaqThreadPost = {
 };
 
 type NasfaqThreadResponse = {
+  key: string;
   board: string;
   thread_id: number;
   subject: string | null;
@@ -29,6 +30,62 @@ type QuotePreviewState = {
   x: number;
   y: number;
 };
+
+type ThreadTabKey = "nasfaq" | "hlg" | "numbers" | "news";
+
+type ThreadTabDefinition = {
+  key: ThreadTabKey;
+  label: string;
+  endpoint: string;
+  notFoundError: string;
+  emptyCopy: string;
+};
+
+type ThreadLoadState = {
+  data: NasfaqThreadResponse | null;
+  error: string | null;
+  isLoading: boolean;
+};
+
+const DEFAULT_THREAD_TAB: ThreadTabKey = "nasfaq";
+
+const THREAD_TABS: ThreadTabDefinition[] = [
+  {
+    key: "nasfaq",
+    label: "/nasfaq/",
+    endpoint: "/api/getNasfaqThread",
+    notFoundError: "nasfaq_thread_not_found",
+    emptyCopy: "No current NASFAQ thread found.",
+  },
+  {
+    key: "hlg",
+    label: "/hlg/",
+    endpoint: "/api/getHlgThread",
+    notFoundError: "hlg_thread_not_found",
+    emptyCopy: "No current HLG thread found.",
+  },
+  {
+    key: "numbers",
+    label: "/#/",
+    endpoint: "/api/getNumbersThread",
+    notFoundError: "numbers_thread_not_found",
+    emptyCopy: "No current Numbers thread found.",
+  },
+  {
+    key: "news",
+    label: "/news/",
+    endpoint: "/api/getNewsThread",
+    notFoundError: "news_thread_not_found",
+    emptyCopy: "No current /news/ thread found.",
+  },
+];
+
+function buildInitialThreadState() {
+  return THREAD_TABS.reduce<Record<ThreadTabKey, ThreadLoadState>>((acc, tab) => {
+    acc[tab.key] = { data: null, error: null, isLoading: tab.key === DEFAULT_THREAD_TAB };
+    return acc;
+  }, {} as Record<ThreadTabKey, ThreadLoadState>);
+}
 
 function formatThreadTimestamp(value: number | null) {
   if (!value) return "Unknown time";
@@ -88,7 +145,8 @@ function buildReplyIndex(posts: NasfaqThreadPost[]) {
 function renderInlinePostText(
   text: string,
   availablePostIds: Set<number>,
-  setQuotePreview: Dispatch<SetStateAction<QuotePreviewState | null>>
+  showQuotePreview: (postId: number, clientX: number, clientY: number) => void,
+  hideQuotePreview: () => void
 ) {
   const parts = text.split(/(>>\d+|https?:\/\/[^\s<]+)/g);
 
@@ -106,14 +164,12 @@ function renderInlinePostText(
           href={`#post-${targetPostId}`}
           className={styles.replyLink}
           onMouseEnter={(event) => {
-            const position = getQuotePreviewPosition(event.clientX, event.clientY);
-            setQuotePreview({ postId: targetPostId, x: position.x, y: position.y });
+            showQuotePreview(targetPostId, event.clientX, event.clientY);
           }}
           onMouseMove={(event) => {
-            const position = getQuotePreviewPosition(event.clientX, event.clientY);
-            setQuotePreview((current) => (current ? { ...current, x: position.x, y: position.y } : null));
+            showQuotePreview(targetPostId, event.clientX, event.clientY);
           }}
-          onMouseLeave={() => setQuotePreview(null)}
+          onMouseLeave={hideQuotePreview}
         >
           {part}
         </a>
@@ -132,20 +188,17 @@ function renderInlinePostText(
   });
 }
 
-function getPostCardClassName(baseClass: string, opClass: string, isOp: boolean) {
-  return [baseClass, isOp ? opClass : ""].filter(Boolean).join(" ");
-}
-
 function renderPostText(
   text: string,
   availablePostIds: Set<number>,
   isOp: boolean,
-  setQuotePreview: Dispatch<SetStateAction<QuotePreviewState | null>>
+  showQuotePreview: (postId: number, clientX: number, clientY: number) => void,
+  hideQuotePreview: () => void
 ) {
   const lines = text ? text.split("\n") : [];
 
   if (!lines.length) {
-    return <div className={styles.postLine}>(no text)</div>;
+    return null;
   }
 
   return lines.map((line, index) => {
@@ -158,77 +211,231 @@ function renderPostText(
         key={`${index}:${line}`}
         className={`${styles.postLine} ${isQuotedLine ? styles.postLineQuoted : ""} ${isOpLeadLine ? styles.postLineLead : ""}`.trim()}
       >
-        {line ? renderInlinePostText(line, availablePostIds, setQuotePreview) : "\u00A0"}
+        {line ? renderInlinePostText(line, availablePostIds, showQuotePreview, hideQuotePreview) : "\u00A0"}
       </div>
     );
   });
 }
 
 export function NasfaqThreadPage() {
-  const [thread, setThread] = useState<NasfaqThreadResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<ThreadTabKey>(DEFAULT_THREAD_TAB);
+  const [threadStateByKey, setThreadStateByKey] = useState<Record<ThreadTabKey, ThreadLoadState>>(buildInitialThreadState);
   const [quotePreview, setQuotePreview] = useState<QuotePreviewState | null>(null);
+  const activeTabDefinition = THREAD_TABS.find((tab) => tab.key === activeTab) || THREAD_TABS[0];
+  const activeState = threadStateByKey[activeTab];
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function loadThread() {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const result = await apiFetch<NasfaqThreadResponse>("/api/getNasfaqThread", {
-          signal: controller.signal,
-          cache: "no-store",
-        });
-        setThread(result);
-      } catch (nextError) {
-        if ((nextError as Error).name === "AbortError") return;
-        setThread(null);
-        setError(String((nextError as Error).message || nextError));
-      } finally {
-        if (!controller.signal.aborted) {
-          setIsLoading(false);
-        }
+  const activateTab = useCallback((tabKey: ThreadTabKey) => {
+    setQuotePreview(null);
+    setThreadStateByKey((current) => {
+      const nextState = current[tabKey];
+      if (nextState.data || nextState.error || nextState.isLoading) {
+        return current;
       }
-    }
 
-    void loadThread();
-    return () => controller.abort();
+      return {
+        ...current,
+        [tabKey]: {
+          ...nextState,
+          isLoading: true,
+          error: null,
+        },
+      };
+    });
+    setActiveTab(tabKey);
   }, []);
 
-  const posts = thread?.posts || [];
-  const availablePostIds = new Set(posts.map((post) => post.post_id));
-  const replyIndex = buildReplyIndex(posts);
-  const postById = new Map(posts.map((post) => [post.post_id, post]));
+  useEffect(() => {
+    if (!activeState.isLoading || activeState.data) return undefined;
+
+    const controller = new AbortController();
+
+    void apiFetch<NasfaqThreadResponse>(activeTabDefinition.endpoint, {
+      signal: controller.signal,
+      cache: "no-store",
+    })
+      .then((result) => {
+        setThreadStateByKey((current) => ({
+          ...current,
+          [activeTab]: {
+            data: result,
+            error: null,
+            isLoading: false,
+          },
+        }));
+      })
+      .catch((nextError) => {
+        if ((nextError as Error).name === "AbortError") return;
+        setThreadStateByKey((current) => ({
+          ...current,
+          [activeTab]: {
+            data: null,
+            error: String((nextError as Error).message || nextError),
+            isLoading: false,
+          },
+        }));
+      });
+
+    return () => controller.abort();
+  }, [activeState.data, activeState.isLoading, activeTab, activeTabDefinition.endpoint]);
+
+  const thread = activeState.data;
+  const posts = useMemo(() => thread?.posts || [], [thread]);
+  const availablePostIds = useMemo(() => new Set(posts.map((post) => post.post_id)), [posts]);
+  const replyIndex = useMemo(() => buildReplyIndex(posts), [posts]);
+  const postById = useMemo(() => new Map(posts.map((post) => [post.post_id, post])), [posts]);
   const previewPost = quotePreview ? postById.get(quotePreview.postId) || null : null;
+  const isNotFound = activeState.error === activeTabDefinition.notFoundError;
+  const hideQuotePreview = useCallback(() => {
+    setQuotePreview(null);
+  }, []);
+  const showQuotePreview = useCallback((postId: number, clientX: number, clientY: number) => {
+    const position = getQuotePreviewPosition(clientX, clientY);
+    setQuotePreview({ postId, x: position.x, y: position.y });
+  }, []);
+
+  useEffect(() => {
+    if (!quotePreview) return undefined;
+
+    let frame = 0;
+    const handleMouseMove = (event: MouseEvent) => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        const position = getQuotePreviewPosition(event.clientX, event.clientY);
+        setQuotePreview((current) => (current ? { ...current, x: position.x, y: position.y } : current));
+      });
+    };
+
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [quotePreview]);
+
+  const renderedPosts = useMemo(
+    () =>
+      posts.map((post, index) => {
+        const isOp = index === 0;
+        const mediaUrl = post.image_url || "";
+
+        return (
+          <article
+            key={post.post_id}
+            id={`post-${post.post_id}`}
+            className={`${styles.postCard} ${isOp ? styles.postCardOp : ""}`.trim()}
+          >
+            <div className={styles.postHeader}>
+              <div className={styles.postIdentity}>
+                <span className={styles.postAuthor}>{post.author || "Anonymous"}</span>
+                <span className={styles.postId}>No. {post.post_id}</span>
+                {(replyIndex.get(post.post_id) || []).length ? (
+                  <span className={styles.postReplies}>
+                    {(replyIndex.get(post.post_id) || []).map((replyPostId) => (
+                      <a
+                        key={`${post.post_id}:${replyPostId}`}
+                        href={`#post-${replyPostId}`}
+                        className={styles.replyLink}
+                        onMouseEnter={(event) => {
+                          showQuotePreview(replyPostId, event.clientX, event.clientY);
+                        }}
+                        onMouseMove={(event) => {
+                          showQuotePreview(replyPostId, event.clientX, event.clientY);
+                        }}
+                        onMouseLeave={hideQuotePreview}
+                      >
+                        {`>>${replyPostId}`}
+                      </a>
+                    ))}
+                  </span>
+                ) : null}
+              </div>
+              <time className={styles.postTimestamp}>{formatThreadTimestamp(post.timestamp)}</time>
+            </div>
+
+            {isOp ? (
+              post.op_cdn_image_url ? (
+                <div className={styles.imageSlot}>
+                  <a href={mediaUrl} target="_blank" rel="noreferrer" className={styles.imageLink}>
+                    <img src={post.op_cdn_image_url} alt="" className={`${styles.imageThumb} ${styles.imageThumbExpanded}`.trim()} />
+                  </a>
+                </div>
+              ) : null
+            ) : post.thumbnail_url && post.image_url ? (
+              <div className={styles.imageSlot}>
+                <a href={mediaUrl} target="_blank" rel="noreferrer" className={styles.imageLink}>
+                  <img src={post.thumbnail_url} alt="" className={styles.imageThumb} />
+                </a>
+              </div>
+            ) : null}
+
+            <div className={styles.postBody}>
+              {renderPostText(
+                post.text_content || "",
+                availablePostIds,
+                isOp,
+                showQuotePreview,
+                hideQuotePreview
+              )}
+            </div>
+          </article>
+        );
+      }),
+    [availablePostIds, hideQuotePreview, posts, replyIndex, showQuotePreview]
+  );
 
   return (
     <SiteShell>
       <div className={shellStyles.stack}>
         <section className={styles.hero}>
           <div className={styles.heroEyebrow}>Community Watch</div>
-          <h1 className={styles.title}>NASFAQ Thread</h1>
-          <p className={styles.copy}>Live snapshot of the current `/vt/` NASFAQ thread, refreshed from the API with a one-minute Redis cache.</p>
+          <h1 className={styles.title}>/vt/ Threads</h1>
+          <p className={styles.copy}>Market relevant threads active on /vt/.</p>
           <div className={styles.heroMeta}>
             <span>{thread ? `${thread.posts.length} posts` : "Thread unavailable"}</span>
             <span>Last refresh {formatUpdatedAt(thread?.updated_at || null)}</span>
           </div>
         </section>
 
-        {error ? <div className="statusMessage statusMessageError">Thread request error: {error}</div> : null}
-        {isLoading ? <div className={shellStyles.panel}>Loading NASFAQ thread…</div> : null}
+        {activeState.error && !isNotFound ? <div className="statusMessage statusMessageError">Thread request error: {activeState.error}</div> : null}
+        {activeState.isLoading ? <div className={shellStyles.panel}>Loading {activeTabDefinition.label} thread…</div> : null}
+
+        {isNotFound ? (
+          <section className={styles.threadPanel}>
+            <div className={styles.tabBarConnected}>
+              {THREAD_TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  className={`${styles.tabButtonConnected} ${activeTab === tab.key ? styles.tabButtonConnectedActive : ""}`.trim()}
+                  onClick={() => activateTab(tab.key)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <div className={styles.threadEmptyState}>{activeTabDefinition.emptyCopy}</div>
+          </section>
+        ) : null}
 
         {thread ? (
-          <>
-            <section className={styles.metaPanel}>
-              <div>
-                <div className={styles.metaLabel}>Board</div>
-                <div className={styles.metaValue}>/{thread.board}/</div>
-              </div>
-              <div>
-                <div className={styles.metaLabel}>Thread</div>
+          <section className={styles.threadPanel}>
+            <div className={styles.tabBarConnected}>
+              {THREAD_TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  className={`${styles.tabButtonConnected} ${activeTab === tab.key ? styles.tabButtonConnectedActive : ""}`.trim()}
+                  onClick={() => activateTab(tab.key)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className={styles.sectionHeader}>
+              <div className={styles.threadMeta}>
+                <h2 className={styles.sectionTitle}>{activeTabDefinition.label}</h2>
                 <a
                   href={`https://boards.4channel.org/${encodeURIComponent(thread.board)}/thread/${thread.thread_id}`}
                   target="_blank"
@@ -237,80 +444,12 @@ export function NasfaqThreadPage() {
                 >
                   No. {thread.thread_id}
                 </a>
+                {thread.subject ? <span className={styles.threadSubject}>{thread.subject}</span> : null}
               </div>
-              <div>
-                <div className={styles.metaLabel}>Subject</div>
-                <div className={styles.metaValue}>{thread.subject || "Untitled thread"}</div>
-              </div>
-            </section>
+            </div>
 
-            <section className={styles.threadPanel}>
-              <div className={styles.sectionHeader}>
-                <h2 className={styles.sectionTitle}>Posts</h2>
-              </div>
-
-              <div className={styles.postList}>
-                {thread.posts.map((post, index) => {
-                  const isOp = index === 0;
-                  const mediaUrl = post.image_url || "";
-
-                  return (
-                    <article
-                      key={post.post_id}
-                      id={`post-${post.post_id}`}
-                      className={getPostCardClassName(styles.postCard, styles.postCardOp, isOp)}
-                    >
-                      <div className={styles.postHeader}>
-                        <div className={styles.postIdentity}>
-                          <span className={styles.postAuthor}>{post.author || "Anonymous"}</span>
-                          <span className={styles.postId}>No. {post.post_id}</span>
-                          {(replyIndex.get(post.post_id) || []).length ? (
-                            <span className={styles.postReplies}>
-                              {(replyIndex.get(post.post_id) || []).map((replyPostId) => (
-                                <a
-                                  key={`${post.post_id}:${replyPostId}`}
-                                  href={`#post-${replyPostId}`}
-                                  className={styles.replyLink}
-                                  onMouseEnter={(event) => {
-                                    const position = getQuotePreviewPosition(event.clientX, event.clientY);
-                                    setQuotePreview({ postId: replyPostId, x: position.x, y: position.y });
-                                  }}
-                                  onMouseMove={(event) => {
-                                    const position = getQuotePreviewPosition(event.clientX, event.clientY);
-                                    setQuotePreview((current) => (current ? { ...current, x: position.x, y: position.y } : null));
-                                  }}
-                                  onMouseLeave={() => setQuotePreview(null)}
-                                >
-                                  {`>>${replyPostId}`}
-                                </a>
-                              ))}
-                            </span>
-                          ) : null}
-                        </div>
-                        <time className={styles.postTimestamp}>{formatThreadTimestamp(post.timestamp)}</time>
-                      </div>
-
-                      {isOp && post.op_cdn_image_url ? (
-                        <div className={styles.imageSlot}>
-                          <a href={mediaUrl} target="_blank" rel="noreferrer" className={styles.imageLink}>
-                            <img src={post.op_cdn_image_url} alt="" className={`${styles.imageThumb} ${styles.imageThumbExpanded}`.trim()} />
-                          </a>
-                        </div>
-                      ) : post.thumbnail_url && post.image_url ? (
-                        <div className={styles.imageSlot}>
-                          <a href={mediaUrl} target="_blank" rel="noreferrer" className={styles.imageLink}>
-                            <img src={post.thumbnail_url} alt="" className={styles.imageThumb} />
-                          </a>
-                        </div>
-                      ) : null}
-
-                      <div className={styles.postBody}>{renderPostText(post.text_content || "", availablePostIds, isOp, setQuotePreview)}</div>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-          </>
+            <div className={styles.postList}>{renderedPosts}</div>
+          </section>
         ) : null}
 
         {previewPost && quotePreview ? (

@@ -5,7 +5,6 @@ const { HeadObjectCommand, PutObjectCommand, S3Client } = require("@aws-sdk/clie
 const router = express.Router();
 
 const FOURCHAN_BOARD = "vt";
-const THREAD_CACHE_KEY = "nasfaq_4chan:vt:nasfaq_thread:payload";
 const THREAD_CACHE_TTL_SECONDS = 60;
 const FOURCHAN_API_BASE = "https://a.4cdn.org";
 const FOURCHAN_IMAGE_BASE = "https://i.4cdn.org";
@@ -15,6 +14,42 @@ const THREAD_OPS_CDN_BASE_URL = "https://images.nasfaq.biz/thread-ops";
 const MAX_THREAD_OP_IMAGE_BYTES = 20 * 1024 * 1024;
 const ALLOWED_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif"]);
 const ALLOWED_IMAGE_CONTENT_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+
+const THREAD_DEFINITIONS = {
+  nasfaq: {
+    key: "nasfaq",
+    routePath: "/getNasfaqThread",
+    cacheKey: "nasfaq_4chan:vt:nasfaq_thread:payload",
+    notFoundError: "nasfaq_thread_not_found",
+    matcher: (thread) => normalizeSearchableText(thread.sub).includes("nasfaq"),
+  },
+  hlg: {
+    key: "hlg",
+    routePath: "/getHlgThread",
+    cacheKey: "nasfaq_4chan:vt:hlg_thread:payload",
+    notFoundError: "hlg_thread_not_found",
+    matcher: (thread) => {
+      const subject = normalizeSearchableText(thread.sub);
+      const comment = normalizeSearchableText(thread.com);
+      return subject.includes("hololive global") || comment.includes("hololive global");
+    },
+  },
+  numbers: {
+    key: "numbers",
+    routePath: "/getNumbersThread",
+    aliasRoutePaths: ["/getPoundThread"],
+    cacheKey: "nasfaq_4chan:vt:numbers_thread:payload",
+    notFoundError: "numbers_thread_not_found",
+    matcher: (thread) => normalizeSearchableText(thread.sub).includes("#"),
+  },
+  news: {
+    key: "news",
+    routePath: "/getNewsThread",
+    cacheKey: "nasfaq_4chan:vt:news_thread:payload",
+    notFoundError: "news_thread_not_found",
+    matcher: (thread) => normalizeSearchableText(thread.sub).includes("/news/"),
+  },
+};
 
 function decodeHtmlEntities(value) {
   if (!value) return "";
@@ -35,6 +70,10 @@ function decodeHtmlEntities(value) {
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
     .replace(/&amp;/gi, "&");
+}
+
+function normalizeSearchableText(value) {
+  return decodeHtmlEntities(String(value || "")).trim().toLowerCase();
 }
 
 function toPlainText(html) {
@@ -60,12 +99,9 @@ function buildImageUrls(board, post) {
     return { image_url: null, thumbnail_url: null };
   }
 
-  const imageURL = `${FOURCHAN_IMAGE_BASE}/${board}/${post.tim}${post.ext}`;
-  const thumbnailURL = `${FOURCHAN_IMAGE_BASE}/${board}/${post.tim}s.jpg`;
-
   return {
-    image_url: imageURL,
-    thumbnail_url: thumbnailURL,
+    image_url: `${FOURCHAN_IMAGE_BASE}/${board}/${post.tim}${post.ext}`,
+    thumbnail_url: `${FOURCHAN_IMAGE_BASE}/${board}/${post.tim}s.jpg`,
   };
 }
 
@@ -100,6 +136,12 @@ function optionalTrimmedString(value) {
   if (value === null || value === undefined) return null;
   const trimmed = value.toString().trim();
   return trimmed ? trimmed : null;
+}
+
+function normalizeImageExtension(value) {
+  const trimmed = optionalTrimmedString(value);
+  if (!trimmed) return null;
+  return trimmed.startsWith(".") ? trimmed.toLowerCase() : `.${trimmed.toLowerCase()}`;
 }
 
 function getS3Client() {
@@ -145,16 +187,17 @@ async function ensureOpImageOnCdn(post) {
   }
 
   const sourceUrl = `${FOURCHAN_IMAGE_BASE}/${FOURCHAN_BOARD}/${post.tim}${post.ext}`;
-  const fallbackExt = path.extname(String(post.ext || "")).toLowerCase() || null;
+  const fallbackExt = normalizeImageExtension(post.ext);
   if (!fallbackExt || !ALLOWED_IMAGE_EXTENSIONS.has(fallbackExt)) {
     return null;
   }
-  let objectKey = `${THREAD_OPS_PREFIX}/${post.tim}${fallbackExt || ""}`;
 
+  let objectKey = `${THREAD_OPS_PREFIX}/${post.tim}${fallbackExt}`;
   try {
     await s3.client.send(new HeadObjectCommand({ Bucket: s3.bucket, Key: objectKey }));
     return `${THREAD_OPS_CDN_BASE_URL}/${encodeURIComponent(path.basename(objectKey))}`;
-  } catch {}
+  } catch (error) {
+  }
 
   const response = await fetch(sourceUrl, {
     headers: {
@@ -164,14 +207,13 @@ async function ensureOpImageOnCdn(post) {
     },
   });
 
-  if (!response.ok) {
-    return null;
-  }
+  if (!response.ok) return null;
 
   const contentType = (response.headers.get("content-type") || "application/octet-stream").toLowerCase().split(";")[0].trim();
   if (!ALLOWED_IMAGE_CONTENT_TYPES.has(contentType)) {
     return null;
   }
+
   const contentLength = Number(response.headers.get("content-length") || 0);
   if (contentLength > MAX_THREAD_OP_IMAGE_BYTES) {
     return null;
@@ -188,40 +230,43 @@ async function ensureOpImageOnCdn(post) {
   }
 
   objectKey = `${THREAD_OPS_PREFIX}/${post.tim}${resolvedExt}`;
-  await s3.client.send(
-    new PutObjectCommand({
-      Bucket: s3.bucket,
-      Key: objectKey,
-      Body: bytes,
-      ContentType: contentType,
-      CacheControl: "public, max-age=31536000, immutable",
-    })
-  );
+  try {
+    await s3.client.send(
+      new PutObjectCommand({
+        Bucket: s3.bucket,
+        Key: objectKey,
+        Body: bytes,
+        ContentType: contentType,
+        CacheControl: "public, max-age=31536000, immutable",
+      })
+    );
+  } catch (error) {
+    return null;
+  }
 
   return `${THREAD_OPS_CDN_BASE_URL}/${encodeURIComponent(path.basename(objectKey))}`;
 }
 
-function findNasfaqThreadId(catalog) {
+function findThread(catalog, definition) {
   for (const page of Array.isArray(catalog) ? catalog : []) {
     for (const thread of Array.isArray(page?.threads) ? page.threads : []) {
-      const subject = decodeHtmlEntities(String(thread?.sub || "")).trim().toLowerCase();
-      if (subject.includes("nasfaq")) {
-        return {
-          threadId: Number(thread.no) || 0,
-          subject: decodeHtmlEntities(String(thread.sub || "")).trim() || null,
-        };
-      }
+      if (!definition.matcher(thread)) continue;
+      return {
+        threadId: Number(thread.no) || 0,
+        subject: decodeHtmlEntities(String(thread.sub || "")).trim() || null,
+      };
     }
   }
 
   return { threadId: 0, subject: null };
 }
 
-async function normalizeThreadPayload(threadId, subject, threadResponse) {
+async function normalizeThreadPayload(definition, threadId, subject, threadResponse) {
   const posts = Array.isArray(threadResponse?.posts) ? threadResponse.posts : [];
   const opCdnImageUrl = posts[0] ? await ensureOpImageOnCdn(posts[0]) : null;
 
   return {
+    key: definition.key,
     board: FOURCHAN_BOARD,
     thread_id: threadId,
     subject,
@@ -241,48 +286,56 @@ async function normalizeThreadPayload(threadId, subject, threadResponse) {
   };
 }
 
-router.get("/getNasfaqThread", async (req, res, next) => {
-  try {
-    const redis = req.ctx.redis;
-    if (!redis) return res.status(500).json({ error: "redis_not_configured" });
+async function handleThreadRequest(req, res, definition) {
+  const redis = req.ctx.redis;
+  if (!redis) return res.status(500).json({ error: "redis_not_configured" });
 
-    const cachedPayload = await redis.get(THREAD_CACHE_KEY);
-    if (cachedPayload) {
-      res.type("application/json");
-      return res.send(cachedPayload);
-    }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15_000);
-
-    try {
-      const catalog = await fetchCatalog(FOURCHAN_BOARD, controller.signal);
-      const { threadId, subject } = findNasfaqThreadId(catalog);
-
-      if (!threadId) {
-        return res.status(404).json({ error: "nasfaq_thread_not_found" });
-      }
-
-      const threadResponse = await fetchThread(FOURCHAN_BOARD, threadId, controller.signal);
-      const payload = await normalizeThreadPayload(threadId, subject, threadResponse);
-      const serialized = JSON.stringify(payload);
-
-      await redis.set(THREAD_CACHE_KEY, serialized, { EX: THREAD_CACHE_TTL_SECONDS });
-
-      res.type("application/json");
-      return res.send(serialized);
-    } finally {
-      clearTimeout(timeout);
-    }
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      return res.status(504).json({ error: "fourchan_timeout" });
-    }
-    if (error?.statusCode === 404) {
-      return res.status(404).json({ error: "nasfaq_thread_not_found" });
-    }
-    return next(error);
+  const cachedPayload = await redis.get(definition.cacheKey);
+  if (cachedPayload) {
+    res.type("application/json");
+    return res.send(cachedPayload);
   }
-});
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+
+  try {
+    const catalog = await fetchCatalog(FOURCHAN_BOARD, controller.signal);
+    const { threadId, subject } = findThread(catalog, definition);
+
+    if (!threadId) {
+      return res.status(404).json({ error: definition.notFoundError });
+    }
+
+    const threadResponse = await fetchThread(FOURCHAN_BOARD, threadId, controller.signal);
+    const payload = await normalizeThreadPayload(definition, threadId, subject, threadResponse);
+    const serialized = JSON.stringify(payload);
+
+    await redis.set(definition.cacheKey, serialized, { EX: THREAD_CACHE_TTL_SECONDS });
+    res.type("application/json");
+    return res.send(serialized);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+for (const definition of Object.values(THREAD_DEFINITIONS)) {
+  const routePaths = [definition.routePath, ...(definition.aliasRoutePaths || [])];
+  for (const routePath of routePaths) {
+    router.get(routePath, async (req, res, next) => {
+      try {
+        return await handleThreadRequest(req, res, definition);
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          return res.status(504).json({ error: "fourchan_timeout" });
+        }
+        if (error?.statusCode === 404) {
+          return res.status(404).json({ error: definition.notFoundError });
+        }
+        return next(error);
+      }
+    });
+  }
+}
 
 module.exports = router;
