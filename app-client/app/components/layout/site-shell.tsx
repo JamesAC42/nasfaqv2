@@ -18,7 +18,6 @@ const CATEGORY_ITEMS = [
     label: "News",
     links: [
       { href: "/news", label: "News" },
-      { href: "/nasfaq-thread", label: "NASFAQ Thread" },
       { href: "/livestreams", label: "Livestreams" },
     ],
   },
@@ -35,6 +34,7 @@ const CATEGORY_ITEMS = [
     label: "Community",
     links: [
       { href: "/articles", label: "Articles" },
+      { href: "/threads", label: "/vt/" },
       { href: "/leaderboard", label: "Leaderboard" },
     ],
   },
