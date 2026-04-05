@@ -5,18 +5,26 @@
 }
 
 .pill {
+  --ticker-pill-accent: var(--border);
+  --ticker-pill-accent-soft: var(--surface-card-soft);
   display: flex;
   align-items: center;
   gap: 0.45rem;
   padding: 0.4rem 0.65rem;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--border) 88%, var(--text));
-  background: var(--surface-card-soft);
+  border: 1px solid color-mix(in srgb, var(--ticker-pill-accent) 62%, var(--border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--ticker-pill-accent-soft) 72%, var(--surface-card-soft)), color-mix(in srgb, var(--surface-card-soft) 92%, transparent));
   color: var(--text);
   font-size: 0.8rem;
   line-height: 1;
   white-space: nowrap;
   font-family: var(--font-mono);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--ticker-pill-accent-soft) 35%, transparent);
+}
+
+.warning {
+  color: color-mix(in srgb, var(--warning) 88%, var(--text));
 }
 
 .iconCoin {

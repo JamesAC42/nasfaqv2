@@ -3,10 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { FiMoon, FiSun } from "react-icons/fi";
 import { Fragment, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Time } from "lightweight-charts";
 import type { MarketIndexBundle } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
+import { useTheme } from "@/app/providers/theme-provider";
 import { useMarketStore } from "@/app/stores/market-store";
 import styles from "@/app/components/layout/site-shell.module.scss";
 
@@ -16,6 +18,7 @@ const CATEGORY_ITEMS = [
     label: "News",
     links: [
       { href: "/news", label: "News" },
+      { href: "/nasfaq-thread", label: "NASFAQ Thread" },
       { href: "/livestreams", label: "Livestreams" },
     ],
   },
@@ -269,6 +272,7 @@ const MarketRibbon = memo(function MarketRibbon({
 export function SiteShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, isLoading } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const assets = useMarketStore((state) => state.assets);
   const refreshOverview = useMarketStore((state) => state.refreshOverview);
   const marketIndexes = useMarketStore((state) => state.marketIndexes);
@@ -329,6 +333,15 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className={styles.navbarEnd}>
+            <button
+              type="button"
+              className={styles.iconButton}
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              onClick={toggleTheme}
+            >
+              {theme === "dark" ? <FiSun className={styles.icon} /> : <FiMoon className={styles.icon} />}
+            </button>
+
             <button type="button" className={styles.iconButton} aria-label="Notifications">
               <BellIcon />
             </button>

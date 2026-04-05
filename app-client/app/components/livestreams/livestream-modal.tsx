@@ -109,6 +109,14 @@ function resolveChartFontFamily() {
   return "'Nasfaq Mono', 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace";
 }
 
+function resolveCssVar(name: string, fallback: string) {
+  if (typeof window !== "undefined") {
+    const computed = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    if (computed) return computed;
+  }
+  return fallback;
+}
+
 function mergeBucketsByStart(prev: Bucket[], incoming: Bucket[]) {
   if (!prev.length) return incoming;
   if (!incoming.length) return prev;
@@ -154,7 +162,7 @@ function smoothSeriesData(points: ChartPoint[]) {
           (-p0.value + 3 * p1.value - 3 * p2.value + p3.value) * t3);
       const rawTime = Number(p1.time) + (Number(p2.time) - Number(p1.time)) * t;
       const roundedTime = Math.round(rawTime) as Time;
-      const nextTime = roundedTime > Number(smoothed[smoothed.length - 1]?.time ?? 0) ? roundedTime : ((Number(smoothed[smoothed.length - 1]?.time ?? 0) + 1) as Time);
+      const nextTime = Number(roundedTime) > Number(smoothed[smoothed.length - 1]?.time ?? 0) ? roundedTime : ((Number(smoothed[smoothed.length - 1]?.time ?? 0) + 1) as Time);
 
       smoothed.push({
         time: nextTime,
@@ -173,6 +181,15 @@ function ViewerBucketsChart({ buckets, accentColor }: { buckets: Bucket[]; accen
   const chartRef = useRef<IChartApi | null>(null);
   const avgSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const maxSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+
+  const chartTheme = useMemo(
+    () => ({
+      textColor: resolveCssVar("--text", "#112033"),
+      gridColor: resolveCssVar("--border", "rgba(96, 178, 229, 0.644)"),
+      crosshairColor: resolveCssVar("--muted", "#4d6986"),
+    }),
+    []
+  );
 
   const avgData = useMemo(
     () => {
@@ -212,13 +229,13 @@ function ViewerBucketsChart({ buckets, accentColor }: { buckets: Bucket[]; accen
       height: 280,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#d7dce5",
+        textColor: chartTheme.textColor,
         fontFamily: resolveChartFontFamily(),
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: "rgba(215, 220, 229, 0.08)" },
-        horzLines: { color: "rgba(215, 220, 229, 0.08)" },
+        vertLines: { color: chartTheme.gridColor },
+        horzLines: { color: chartTheme.gridColor },
       },
       timeScale: {
         borderVisible: false,
@@ -229,8 +246,8 @@ function ViewerBucketsChart({ buckets, accentColor }: { buckets: Bucket[]; accen
         borderVisible: false,
       },
       crosshair: {
-        vertLine: { color: "rgba(255,255,255,0.18)" },
-        horzLine: { color: "rgba(255,255,255,0.12)" },
+        vertLine: { color: chartTheme.crosshairColor },
+        horzLine: { color: chartTheme.crosshairColor },
       },
     });
 
@@ -256,7 +273,7 @@ function ViewerBucketsChart({ buckets, accentColor }: { buckets: Bucket[]; accen
       maxSeriesRef.current = null;
       chart.remove();
     };
-  }, []);
+  }, [chartTheme]);
 
   useEffect(() => {
     if (!avgSeriesRef.current || !maxSeriesRef.current) return;

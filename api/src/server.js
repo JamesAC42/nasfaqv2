@@ -23,6 +23,7 @@ const internalMarketRoutes = require("./routes/internalMarket");
 const portfolioRoutes = require("./routes/portfolio");
 const authRoutes = require("./routes/auth");
 const statsRoutes = require("./routes/stats");
+const nasfaqThreadRoutes = require("./routes/nasfaqThread");
 
 const LIVESTREAM_VIEWER_UPDATES_CHANNEL = "nasfaq_livestreams:viewer_updates";
 const LIVESTREAM_BUCKET_UPDATES_CHANNEL = "nasfaq_livestreams:bucket_updates";
@@ -187,6 +188,7 @@ api.use("/analysis", analysisRoutes);
 api.use("/market", marketRoutes);
 api.use("/portfolio", portfolioRoutes);
 api.use("/stats", statsRoutes);
+api.use("/", nasfaqThreadRoutes);
 
 app.use("/api", api);
 

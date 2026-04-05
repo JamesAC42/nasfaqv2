@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { FaArrowTrendDown, FaArrowTrendUp } from "react-icons/fa6";
 import { fmtPct } from "@/app/lib/format";
 import { AssetCoin } from "@/app/components/common/asset-coin";
@@ -21,9 +22,13 @@ function formatSignedPct(value: number | null) {
 export function ChannelTickerPill({
   channel,
   onClick,
+  tone = "default",
+  className,
 }: {
   channel: NewsCharacter;
   onClick?: () => void;
+  tone?: "default" | "warning";
+  className?: string;
 }) {
   const assets = useMarketStore((state) => state.assets);
   const normalizedChannelName = normalizeName(channel.name);
@@ -42,9 +47,16 @@ export function ChannelTickerPill({
     : `${styles.change} ${changePct >= 0 ? styles.changeUp : styles.changeDown}`;
   const TrendIcon = changePct === null ? null : changePct >= 0 ? FaArrowTrendUp : FaArrowTrendDown;
   const href = asset ? `/stocks/${encodeURIComponent(asset.symbol)}` : null;
+  const pillClassName = [styles.pill, tone === "warning" ? styles.warning : "", className].filter(Boolean).join(" ");
+  const pillStyle = (tone === "warning"
+    ? {
+        "--ticker-pill-accent": "var(--warning)",
+        "--ticker-pill-accent-soft": "var(--warning-soft)",
+      }
+    : undefined) as CSSProperties | undefined;
 
   const content = (
-    <span className={styles.pill}>
+    <span className={pillClassName} style={pillStyle}>
       <AssetCoin
         symbol={label}
         icon={asset?.icon ?? channel.icon ?? null}

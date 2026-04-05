@@ -47,9 +47,7 @@
   padding: 0.8rem;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
-  background:
-    linear-gradient(180deg, rgba(7, 10, 13, 0.98), rgba(10, 12, 16, 0.96)),
-    color-mix(in srgb, black 82%, var(--bg));
+  background: var(--bg-darker);
   color: inherit;
   text-align: left;
   cursor: pointer;
@@ -167,7 +165,7 @@
 }
 
 .viewerCount {
-  color: color-mix(in srgb, var(--stream-accent) 72%, white);
+  color: var(--text);
   font-size: 1.45rem;
   font-weight: 700;
   font-family: inherit;
@@ -189,17 +187,16 @@
 
 @keyframes viewerCountFlash {
   0% {
-    color: color-mix(in srgb, var(--stream-accent) 72%, white);
+    color: color-mix(in srgb, var(--stream-accent) 12%, rgba(255, 255, 255, 0.228));
     text-shadow: 0 0 0 transparent;
   }
 
   30% {
-    color: #fff;
-    text-shadow: 0 0 0.9rem color-mix(in srgb, var(--stream-accent) 65%, white);
+    text-shadow: 0 0 0.9rem color-mix(in srgb, var(--stream-accent) 15%, rgba(255, 255, 255, 0.228));
   }
 
   100% {
-    color: color-mix(in srgb, var(--stream-accent) 72%, white);
+    color: color-mix(in srgb, var(--stream-accent) 12%, rgba(255, 255, 255, 0.228));
     text-shadow: 0 0 0 transparent;
   }
 }

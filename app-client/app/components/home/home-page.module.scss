@@ -30,11 +30,11 @@
       // Give the header background image a top half circle mask with extra-rounded top corners
       // Further soften and increase the fade of the bottom inset shadow, and slightly increase the lower curve
       mask-image:
-        radial-gradient(ellipse 120% 88% at 50% 0%, black 56%, transparent 100%),
-        linear-gradient(to bottom, black 46px, transparent 92%);
+        radial-gradient(ellipse 120% 88% at 50% 0%, var(--page-header-mask-solid) 56%, transparent 100%),
+        linear-gradient(to bottom, var(--page-header-mask-solid) 46px, transparent 92%);
       -webkit-mask-image:
-        radial-gradient(ellipse 120% 88% at 50% 0%, black 56%, transparent 100%),
-        linear-gradient(to bottom, black 46px, transparent 92%);
+        radial-gradient(ellipse 120% 88% at 50% 0%, var(--page-header-mask-solid) 56%, transparent 100%),
+        linear-gradient(to bottom, var(--page-header-mask-solid) 46px, transparent 92%);
       mask-composite: intersect;
       -webkit-mask-composite: source-in;
       mask-repeat: no-repeat;
@@ -198,9 +198,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface-card);
-  background:
-    linear-gradient(180deg, rgba(7, 10, 13, 0.98), rgba(10, 12, 16, 0.96)),
-    color-mix(in srgb, black 82%, var(--bg));
+  background: var(--bg-darker);
 }
 
 .rankRow {
@@ -311,9 +309,7 @@
   display: grid;
   gap: 0.45rem;
   padding: 1rem 1.05rem;
-  background:
-    linear-gradient(180deg, rgba(7, 10, 13, 0.98), rgba(10, 12, 16, 0.96)),
-    color-mix(in srgb, black 82%, var(--bg));
+  background: var(--bg-darker);
 }
 
 .summaryHeroValue,
@@ -402,9 +398,7 @@
   padding: 0.72rem 0.8rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background:
-    linear-gradient(180deg, rgba(7, 10, 13, 0.98), rgba(10, 12, 16, 0.96)),
-    color-mix(in srgb, black 82%, var(--bg));
+  background: var(--bg-darker);
 }
 
 .marketIndexStatCard > span {
@@ -452,9 +446,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 1rem;
-  background:
-    linear-gradient(180deg, rgba(7, 10, 13, 0.98), rgba(10, 12, 16, 0.96)),
-    color-mix(in srgb, black 82%, var(--bg));
+  background: var(--bg-darker);
   display: grid;
   gap: 0.85rem;
 }
@@ -569,9 +561,7 @@
   background:
     linear-gradient(145deg, var(--surface-card-highlight), var(--surface-card-strong)),
     var(--bg-accent);
-  background:
-    linear-gradient(180deg, rgba(7, 10, 13, 0.98), rgba(10, 12, 16, 0.96)),
-    color-mix(in srgb, black 82%, var(--bg));
+  background: var(--bg-darker);
 }
 
 .walletEyebrow,
@@ -599,9 +589,7 @@
   display: grid;
   gap: 0.3rem;
   padding: 0.85rem 0.95rem;
-  background:
-    linear-gradient(180deg, rgba(7, 10, 13, 0.98), rgba(10, 12, 16, 0.96)),
-    color-mix(in srgb, black 82%, var(--bg));
+  background: var(--bg-darker);
 }
 
 .walletStats {
@@ -614,9 +602,7 @@
   display: grid;
   gap: 0.85rem;
   padding: 1rem;
-  background:
-    linear-gradient(180deg, rgba(7, 10, 13, 0.98), rgba(10, 12, 16, 0.96)),
-    color-mix(in srgb, black 82%, var(--bg));
+  background: var(--bg-darker);
 }
 
 .walletSubheading {
@@ -639,9 +625,7 @@
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--bg-highlight);
-  background:
-    linear-gradient(180deg, rgba(7, 10, 13, 0.98), rgba(10, 12, 16, 0.96)),
-    color-mix(in srgb, black 82%, var(--bg));
+  background: var(--bg-darker);
 }
 
 .walletHoldingMeta,

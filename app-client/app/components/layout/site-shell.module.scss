@@ -9,10 +9,9 @@
   top: 0;
   z-index: 30;
   width: 100%;
-  background:
-    linear-gradient(180deg, rgba(11, 14, 18, 0.98), rgba(15, 18, 22, 0.95)),
-    color-mix(in srgb, var(--bg) 94%, black);
+  background: var(--bg-darker);
   backdrop-filter: blur(18px);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
 }
 
 .ribbonShell {
@@ -98,6 +97,22 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-card-soft) 72%, transparent);
   color: var(--text);
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.iconButton:hover,
+.iconButton:focus-visible {
+  background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface-card));
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  color: var(--accent-strong);
+}
+
+.iconButton:focus-visible {
+  outline: none;
+}
+
+.iconButton:active {
+  transform: translateY(1px);
 }
 
 .icon {
@@ -205,9 +220,7 @@
   position: relative;
   border-top: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
-  background:
-    linear-gradient(180deg, rgba(7, 10, 13, 0.98), rgba(10, 12, 16, 0.96)),
-    color-mix(in srgb, black 82%, var(--bg));
+  background: var(--bg-darkest);
   overflow: hidden;
   overflow-y: hidden;
   isolation: isolate;
@@ -285,7 +298,7 @@
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--accent-strong);
 }
 
 .ribbonValue,
@@ -366,8 +379,12 @@
   margin-top: auto;
   border-top: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   background:
-    linear-gradient(180deg, rgba(10, 12, 16, 0.92), rgba(7, 9, 12, 0.98)),
-    color-mix(in srgb, black 86%, var(--bg));
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--panel-gradient-top) 92%, transparent),
+      color-mix(in srgb, var(--panel-gradient-bottom) 98%, transparent)
+    ),
+    color-mix(in srgb, var(--bg) 94%, var(--bg-accent));
 }
 
 .footerInner {

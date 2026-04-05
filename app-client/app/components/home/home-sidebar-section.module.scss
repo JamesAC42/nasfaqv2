@@ -78,14 +78,16 @@
 .assetRow {
   border: 1px solid color-mix(in srgb, var(--border) 88%, var(--text));
   background: var(--surface-card-soft);
+  background: var(--bg-darker);
   color: inherit;
   border-radius: var(--radius-sm);
   cursor: pointer;
   text-decoration: none;
   font-family: var(--font-mono);
-  background:
-    linear-gradient(180deg, rgba(7, 10, 13, 0.98), rgba(10, 12, 16, 0.96)),
-    color-mix(in srgb, black 82%, var(--bg));
+  background: var(--bg-darker);
+  &:hover {
+    background: var(--bg-highlight);
+  }
 }
 
 .searchResult {

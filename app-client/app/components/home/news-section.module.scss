@@ -74,30 +74,15 @@
   border-radius: var(--radius-sm);
   background: var(--surface-card-soft);
   position: relative;
-  background:
-    linear-gradient(180deg, rgba(7, 10, 13, 0.98), rgba(10, 12, 16, 0.96)),
-    color-mix(in srgb, black 82%, var(--bg));
+  background: var(--bg-darker);
+  border: 1px solid var(--border-info);
 
   transition: border 0.1s linear;
   cursor: pointer;
   z-index: 1;
 
   &:hover {
-    box-shadow: 0 0 16px 3px var(--accoent-soft);
-    outline: 3px solid var(--bg-accent);
-    &::before {
-      content: "";
-      z-index: -1;
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: calc(100% + 8px);
-      height: calc(100% + 8px);
-      background: var(--bg-highlight);
-      border-radius: var(--radius-md);
-      box-shadow: 0 0 10px 0 var(--accent-soft);
-    }
+    background: var(--bg-highlight);
   }
 }
 

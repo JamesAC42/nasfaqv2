@@ -91,6 +91,9 @@
   padding: 0.78rem 0.9rem;
   font: inherit;
   color: var(--text);
+  &:focus {
+    outline: 2px solid var(--accent-soft);
+  }
 }
 
 @mixin table-shell {
