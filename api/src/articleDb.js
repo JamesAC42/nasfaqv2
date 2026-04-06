@@ -482,6 +482,7 @@ async function listArticles(pool, {
   assetSymbol = null,
   isNews = null,
   query = null,
+  authorId = null,
   viewerUserId = null,
   includeDrafts = false,
 } = {}) {
@@ -493,6 +494,7 @@ async function listArticles(pool, {
     typeof isNews === "boolean" ? isNews : null,
     normalizeNullableString(query, { maxLength: 120 }),
     includeDrafts,
+    Number.isInteger(Number(authorId)) && Number(authorId) > 0 ? Number(authorId) : null,
   ];
 
   const whereClause = `
@@ -516,6 +518,7 @@ async function listArticles(pool, {
         )
       )
       AND ($4::boolean IS TRUE OR a.status = 'published')
+      AND ($5::bigint IS NULL OR a.author_id = $5)
   `;
 
   const countResult = await pool.query(
@@ -581,8 +584,8 @@ async function listArticles(pool, {
     ) asset_rel ON TRUE
     ${whereClause}
     ORDER BY a.published_at DESC, a.id DESC
-    LIMIT $5
-    OFFSET $6
+    LIMIT $6
+    OFFSET $7
   `,
     [...params, safeLimit, offset]
   );

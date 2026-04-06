@@ -367,3 +367,84 @@ export type SiteStats = {
   user_count: number;
   channel_count: number;
 };
+
+export type ProfileRelationUser = {
+  id: number;
+  username: string;
+  profile_picture_url: string | null;
+  profile_color: string | null;
+  created_at?: string;
+};
+
+export type ProfileOshiCoin = {
+  id: number;
+  symbol: string;
+  display_name: string;
+  icon: string | null;
+  color: string | null;
+};
+
+export type ProfileViewerContext = {
+  is_authenticated: boolean;
+  is_self: boolean;
+  friendship_status: "none" | "self" | "accepted" | "pending_outgoing" | "pending_incoming";
+  can_send_friend_request: boolean;
+  is_rival: boolean;
+  is_rivaled_by_profile: boolean;
+};
+
+export type ProfileNetworthPoint = {
+  recorded_at: string;
+  cash_balance: number;
+  total_market_value: number;
+  total_equity: number;
+};
+
+export type ProfileTrade = {
+  id: number;
+  ts: string;
+  side: string;
+  price: number;
+  quantity: number;
+  gross_cash: number;
+  fee_cash: number;
+  net_cash: number;
+  symbol: string;
+  display_name: string;
+};
+
+export type ProfileBundle = {
+  profile: {
+    id: number;
+    username: string;
+    created_at: string;
+    bio: string | null;
+    profile_picture_url: string | null;
+    profile_color: string | null;
+    oshi_coin: ProfileOshiCoin | null;
+    stats: {
+      cash_balance: number;
+      total_market_value: number;
+      total_unrealized_pnl: number;
+      total_equity: number;
+      article_count: number;
+      trade_count: number;
+      friend_count: number;
+      rival_count: number;
+    };
+    networth_history: ProfileNetworthPoint[];
+    friends: ProfileRelationUser[];
+    rivals: ProfileRelationUser[];
+    pending_friend_requests: {
+      incoming: ProfileRelationUser[];
+      outgoing: ProfileRelationUser[];
+    } | null;
+    holdings: PortfolioHolding[];
+  };
+  viewer_context: ProfileViewerContext;
+  articles: ArticleListResponse;
+  trades: {
+    items: ProfileTrade[];
+    pagination: NewsFeedPagination;
+  };
+};

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useDeferredValue, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { AssetPicker } from "@/app/components/common/asset-picker";
 import { ChannelTickerPill } from "@/app/components/common/channel-ticker-pill";
 import { OptionPicker } from "@/app/components/common/option-picker";
@@ -20,6 +20,14 @@ const DEFAULT_PAGINATION: NewsFeedPagination = {
   page_count: 1,
   has_previous_page: false,
   has_next_page: false,
+};
+
+type NewsFilters = {
+  headlineQuery: string;
+  stockQuery: string;
+  unit: string;
+  sort: string;
+  limit: number;
 };
 
 function formatPublishedDate(value: string | null | undefined) {
@@ -41,23 +49,49 @@ export function NewsPage() {
   const isLoadingOverview = useMarketStore((state) => state.isLoadingOverview);
   const assets = useMarketStore((state) => state.assets);
 
-  const [headlineQuery, setHeadlineQuery] = useState("");
-  const [stockQuery, setStockQuery] = useState("");
-  const [unit, setUnit] = useState("all");
-  const [sort, setSort] = useState("newest");
-  const [limit, setLimit] = useState(20);
+  const [draftFilters, setDraftFilters] = useState<NewsFilters>({
+    headlineQuery: "",
+    stockQuery: "",
+    unit: "all",
+    sort: "newest",
+    limit: 20,
+  });
+  const [appliedFilters, setAppliedFilters] = useState<NewsFilters>({
+    headlineQuery: "",
+    stockQuery: "",
+    unit: "all",
+    sort: "newest",
+    limit: 20,
+  });
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<NewsItem[]>([]);
   const [pagination, setPagination] = useState<NewsFeedPagination>(DEFAULT_PAGINATION);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const deferredHeadlineQuery = useDeferredValue(headlineQuery.trim());
-  const deferredStockQuery = useDeferredValue(stockQuery.trim());
-
-  useEffect(() => {
+  function applyFilters() {
     setPage(1);
-  }, [deferredHeadlineQuery, deferredStockQuery, unit, sort, limit]);
+    setAppliedFilters({
+      headlineQuery: draftFilters.headlineQuery.trim(),
+      stockQuery: draftFilters.stockQuery.trim(),
+      unit: draftFilters.unit,
+      sort: draftFilters.sort,
+      limit: draftFilters.limit,
+    });
+  }
+
+  function resetFilters() {
+    const nextFilters: NewsFilters = {
+      headlineQuery: "",
+      stockQuery: "",
+      unit: "all",
+      sort: "newest",
+      limit: 20,
+    };
+    setDraftFilters(nextFilters);
+    setAppliedFilters(nextFilters);
+    setPage(1);
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -68,11 +102,11 @@ export function NewsPage() {
 
       try {
         const params = new URLSearchParams();
-        if (deferredHeadlineQuery) params.set("q", deferredHeadlineQuery);
-        if (deferredStockQuery) params.set("stock", deferredStockQuery);
-        if (unit !== "all") params.set("unit", unit);
-        params.set("sort", sort);
-        params.set("limit", String(limit));
+        if (appliedFilters.headlineQuery) params.set("q", appliedFilters.headlineQuery);
+        if (appliedFilters.stockQuery) params.set("stock", appliedFilters.stockQuery);
+        if (appliedFilters.unit !== "all") params.set("unit", appliedFilters.unit);
+        params.set("sort", appliedFilters.sort);
+        params.set("limit", String(appliedFilters.limit));
         params.set("page", String(page));
 
         const result = await apiFetch<Record<string, unknown>>(`/api/news?${params.toString()}`, {
@@ -95,7 +129,7 @@ export function NewsPage() {
 
     void fetchNewsPage();
     return () => controller.abort();
-  }, [deferredHeadlineQuery, deferredStockQuery, limit, page, sort, unit]);
+  }, [appliedFilters, page]);
 
   const unitOptions = Array.from(new Set(assets.map((asset) => asset.unit).filter((value): value is string => Boolean(value)))).sort((a, b) => a.localeCompare(b));
   const unitPickerOptions = [
@@ -145,73 +179,82 @@ export function NewsPage() {
             <button
               type="button"
               className={styles.resetButton}
-              onClick={() => {
-                setHeadlineQuery("");
-                setStockQuery("");
-                setUnit("all");
-                setSort("newest");
-                setLimit(20);
-                setPage(1);
-              }}
+              onClick={resetFilters}
             >
               Reset filters
             </button>
           </div>
 
-          <div className={styles.filtersGrid}>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Headline search</span>
-              <input
-                value={headlineQuery}
-                onChange={(event) => setHeadlineQuery(event.target.value)}
-                className={styles.input}
-                placeholder="Search headline text"
-              />
-            </label>
+          <form
+            className={styles.filterForm}
+            onSubmit={(event) => {
+              event.preventDefault();
+              applyFilters();
+            }}
+          >
+            <div className={styles.filtersGrid}>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Headline search</span>
+                <input
+                  value={draftFilters.headlineQuery}
+                  onChange={(event) => setDraftFilters((current) => ({ ...current, headlineQuery: event.target.value }))}
+                  className={styles.input}
+                  placeholder="Search headline text"
+                />
+              </label>
 
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Stock</span>
-              <AssetPicker
-                assets={assets}
-                value={stockQuery}
-                onChange={setStockQuery}
-                placeholder="Filter by stock"
-                emptyLabel="All stocks"
-              />
-            </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Stock</span>
+                <AssetPicker
+                  assets={assets}
+                  value={draftFilters.stockQuery}
+                  onChange={(value) => setDraftFilters((current) => ({ ...current, stockQuery: value }))}
+                  placeholder="Filter by stock"
+                  emptyLabel="All stocks"
+                />
+              </label>
 
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Unit</span>
-              <OptionPicker
-                value={unit}
-                onChange={setUnit}
-                options={unitPickerOptions}
-                placeholder="All units"
-                searchable
-                searchPlaceholder="Search units"
-              />
-            </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Unit</span>
+                <OptionPicker
+                  value={draftFilters.unit}
+                  onChange={(value) => setDraftFilters((current) => ({ ...current, unit: value }))}
+                  options={unitPickerOptions}
+                  placeholder="All units"
+                  searchable
+                  searchPlaceholder="Search units"
+                />
+              </label>
 
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Sort</span>
-              <OptionPicker
-                value={sort}
-                onChange={setSort}
-                options={sortOptions}
-                placeholder="Newest first"
-              />
-            </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Sort</span>
+                <OptionPicker
+                  value={draftFilters.sort}
+                  onChange={(value) => setDraftFilters((current) => ({ ...current, sort: value }))}
+                  options={sortOptions}
+                  placeholder="Newest first"
+                />
+              </label>
 
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Items per page</span>
-              <OptionPicker
-                value={String(limit)}
-                onChange={(value) => setLimit(Number(value))}
-                options={limitOptions}
-                placeholder="20 per page"
-              />
-            </label>
-          </div>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Items per page</span>
+                <OptionPicker
+                  value={String(draftFilters.limit)}
+                  onChange={(value) => setDraftFilters((current) => ({ ...current, limit: Number(value) }))}
+                  options={limitOptions}
+                  placeholder="20 per page"
+                />
+              </label>
+            </div>
+            <div className={styles.filtersHeader}>
+              <div className={styles.paginationMeta}>
+                <span>Filters apply when you search</span>
+              </div>
+              <button type="submit" className={styles.resetButton} disabled={isLoading}>
+                Search
+              </button>
+            </div>
+          </form>
         </section>
 
         {isLoading && !items.length ? <div className={shellStyles.panel}>Loading news feed…</div> : null}

@@ -126,6 +126,32 @@ function formatRangeLabel(values: string[]) {
   return `${values[0].slice(0, 10)} to ${values[values.length - 1].slice(0, 10)}`;
 }
 
+function chartTimeKey(time: Time) {
+  return typeof time === "string" ? time : String(time);
+}
+
+function compareChartTime(left: Time, right: Time) {
+  if (typeof left === "string" && typeof right === "string") {
+    return left.localeCompare(right);
+  }
+  if (typeof left === "number" && typeof right === "number") {
+    return left - right;
+  }
+  return chartTimeKey(left).localeCompare(chartTimeKey(right));
+}
+
+function normalizeTrendData(points: TrendPoint[]) {
+  const deduped = new Map<string, { time: Time; value: number }>();
+
+  for (const point of points) {
+    const time = toChartTime(point.time);
+    if (!time || point.value === null || !Number.isFinite(point.value)) continue;
+    deduped.set(chartTimeKey(time), { time, value: point.value });
+  }
+
+  return Array.from(deduped.values()).sort((left, right) => compareChartTime(left.time, right.time));
+}
+
 export function CandleChartCard({
   title,
   subtitle,
@@ -247,6 +273,9 @@ export function TrendChartCard({
     const chart = createBaseChart(containerRef.current, palette, fontFamily);
 
     for (const item of series) {
+      const data = normalizeTrendData(item.values);
+      if (!data.length) continue;
+
       if (item.kind === "line") {
         const lineSeries = chart.addSeries(LineSeries, {
           color: item.color,
@@ -254,15 +283,7 @@ export function TrendChartCard({
           priceLineVisible: false,
           lastValueVisible: true,
         });
-        lineSeries.setData(
-          item.values
-            .map((point) => {
-              const time = toChartTime(point.time);
-              if (!time || point.value === null) return null;
-              return { time, value: point.value };
-            })
-            .filter(Boolean) as Array<{ time: Time; value: number }>
-        );
+        lineSeries.setData(data);
       } else {
         const areaSeries = chart.addSeries(AreaSeries, {
           lineColor: item.color,
@@ -272,15 +293,7 @@ export function TrendChartCard({
           priceLineVisible: false,
           lastValueVisible: true,
         });
-        areaSeries.setData(
-          item.values
-            .map((point) => {
-              const time = toChartTime(point.time);
-              if (!time || point.value === null) return null;
-              return { time, value: point.value };
-            })
-            .filter(Boolean) as Array<{ time: Time; value: number }>
-        );
+        areaSeries.setData(data);
       }
     }
 

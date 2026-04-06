@@ -1,76 +1,303 @@
 @use "../../styles/mixins" as *;
 
-.grid {
+.page {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   gap: 1.25rem;
 }
 
-.panel {
-  @include panel;
+.topGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  gap: 1.25rem;
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+  gap: 1.25rem;
+}
+
+.mainColumn,
+.sideColumn {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.identityPanel,
+.sectionPanel {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-section);
+  box-shadow: var(--shadow);
+}
+
+.identityPanel {
+  display: grid;
+  gap: 1rem;
   padding: 1.25rem;
+  --profile-accent: var(--accent);
+}
+
+.identityTop {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.avatarImage,
+.avatarFallback {
+  width: 6rem;
+  height: 6rem;
+  border-radius: 50%;
+  border: 2px solid var(--profile-accent);
+}
+
+.avatarImage {
+  object-fit: cover;
+  background: var(--surface-section-strong);
+}
+
+.avatarFallback {
+  display: grid;
+  place-items: center;
+  background: var(--surface-section-soft);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 2rem;
+}
+
+.identityCopy {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.eyebrow {
+  color: var(--muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1.05;
+}
+
+.metaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  color: var(--muted);
+}
+
+.bio {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.65;
+}
+
+.oshiCard {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-section-soft);
+}
+
+.sectionPanel {
+  padding: 1.15rem;
   display: grid;
   gap: 1rem;
 }
 
-.title {
-  @include section-title;
+.sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
-.copy {
-  @include subtle-copy;
-  margin: 0.35rem 0 0;
+.sectionTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
 }
 
-.stats {
+.sectionLabel,
+.sectionCount,
+.muted {
+  color: var(--muted);
+}
+
+.statsGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
 }
 
 .statCard {
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-sm);
-  padding: 0.8rem;
-  background: var(--surface-card);
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.9rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-section-soft);
+
+  span {
+    color: var(--muted);
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  strong {
+    font-size: 1.1rem;
+  }
 }
 
-.label {
-  display: block;
-  margin-bottom: 0.35rem;
-  color: var(--muted);
-  font-size: 0.82rem;
+.actions,
+.paginationRow,
+.articleFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.primaryButton {
+  @include button-primary;
+}
+
+.secondaryButton {
+  @include button-secondary;
+}
+
+.peopleGrid,
+.articleGrid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.personCard,
+.articleCard {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.9rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-section-soft);
+  color: inherit;
+  text-decoration: none;
+}
+
+.personCard {
+  grid-template-columns: 2.8rem minmax(0, 1fr);
+  align-items: center;
+}
+
+.personAvatarImage,
+.personAvatar {
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: 50%;
+}
+
+.personAvatarImage {
+  object-fit: cover;
+}
+
+.personAvatar {
+  display: grid;
+  place-items: center;
+  background: var(--surface-section-strong);
+  border: 1px solid var(--border);
+  font-weight: 700;
+}
+
+.personBody {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+
+  strong,
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.articleCard {
+  h3,
+  p {
+    margin: 0;
+  }
+
+  h3 {
+    font-size: 1.05rem;
+  }
+
+  p {
+    color: var(--muted);
+    line-height: 1.55;
+  }
+}
+
+.articleMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.85rem;
+  padding: 0 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-pill);
+  color: var(--text);
+  font-size: 0.8rem;
 }
 
 .tableWrap {
-  overflow: auto;
+  overflow-x: auto;
 }
 
 .table {
   @include table-shell;
 }
 
-.actions {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.primary {
-  @include button-primary;
-}
-
-.secondary {
-  @include button-secondary;
-}
-
 .empty {
   @include empty-state;
 }
 
-@media (max-width: 1050px) {
-  .grid,
-  .stats {
+@media (max-width: 1100px) {
+  .topGrid,
+  .contentGrid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .identityTop,
+  .personCard {
+    grid-template-columns: 1fr;
+  }
+
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .avatarImage,
+  .avatarFallback {
+    width: 5rem;
+    height: 5rem;
   }
 }

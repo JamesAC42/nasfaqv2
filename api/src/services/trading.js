@@ -98,6 +98,43 @@ function computeQuotes(midPrice, spreadBps) {
   };
 }
 
+async function recordNetworthSnapshot(client, userId, cashBalanceOverride = null) {
+  const { rows } = await client.query(
+    `
+    SELECT
+      COALESCE(pcb.cash_balance, 0) AS cash_balance,
+      COALESCE(SUM(h.quantity * COALESCE(a.current_mid_price, 0)), 0) AS total_market_value
+    FROM market.users u
+    LEFT JOIN market.portfolio_cash_balances pcb
+      ON pcb.user_id = u.id
+    LEFT JOIN market.portfolio_holdings h
+      ON h.user_id = u.id
+    LEFT JOIN market.market_assets a
+      ON a.id = h.asset_id
+    WHERE u.id = $1
+    GROUP BY u.id, pcb.cash_balance
+  `,
+    [userId]
+  );
+
+  const row = rows[0] || { cash_balance: 0, total_market_value: 0 };
+  const cashBalance = cashBalanceOverride === null ? toNumber(row.cash_balance, 0) : toNumber(cashBalanceOverride, 0);
+  const totalMarketValue = toNumber(row.total_market_value, 0);
+
+  await client.query(
+    `
+    INSERT INTO market.user_networth_history (
+      user_id,
+      recorded_at,
+      cash_balance,
+      total_market_value,
+      total_equity
+    ) VALUES ($1, now(), $2, $3, $4)
+  `,
+    [userId, cashBalance, totalMarketValue, cashBalance + totalMarketValue]
+  );
+}
+
 async function ensureUserCashAccount(client, userId) {
   const existing = await client.query(
     `
@@ -551,6 +588,7 @@ async function executeOrder(pool, { userId, symbol, side, quantity }) {
       persistentOffset,
       transientOffset,
     });
+    await recordNetworthSnapshot(client, userId, nextCash);
 
     await client.query("COMMIT");
 
@@ -605,6 +643,7 @@ async function getPortfolioSummary(pool, userId) {
     `,
       [userId]
     );
+    await recordNetworthSnapshot(client, userId, cashAccount.cash_balance);
 
     await client.query("COMMIT");
 

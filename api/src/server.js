@@ -21,6 +21,7 @@ const analysisRoutes = require("./routes/analysis");
 const marketRoutes = require("./routes/market");
 const internalMarketRoutes = require("./routes/internalMarket");
 const portfolioRoutes = require("./routes/portfolio");
+const profileRoutes = require("./routes/profiles");
 const authRoutes = require("./routes/auth");
 const statsRoutes = require("./routes/stats");
 const nasfaqThreadRoutes = require("./routes/nasfaqThread");
@@ -187,6 +188,7 @@ api.use("/articles", articleRoutes);
 api.use("/analysis", analysisRoutes);
 api.use("/market", marketRoutes);
 api.use("/portfolio", portfolioRoutes);
+api.use("/profiles", profileRoutes);
 api.use("/stats", statsRoutes);
 api.use("/", nasfaqThreadRoutes);
 
@@ -197,7 +199,14 @@ app.use((err, _req, res, _next) => {
   console.error(err);
   if (err?.code === "unauthenticated") return res.status(401).json({ error: "unauthenticated" });
   if (err?.code === "forbidden") return res.status(403).json({ error: "forbidden" });
-  if (err?.code === "article_not_found" || err?.code === "proposal_not_found") return res.status(404).json({ error: err.code });
+  if (err?.code === "article_not_found" || err?.code === "proposal_not_found" || err?.code === "profile_not_found") return res.status(404).json({ error: err.code });
+  if (
+    err?.code === "already_friends"
+    || err?.code === "friend_request_pending"
+    || err?.code === "friend_request_needs_response"
+  ) {
+    return res.status(409).json({ error: err.code });
+  }
   if (
     err?.code === "invalid_article"
     || err?.code === "invalid_comment"
@@ -205,6 +214,8 @@ app.use((err, _req, res, _next) => {
     || err?.code === "invalid_news_id"
     || err?.code === "proposal_not_allowed"
     || err?.code === "cannot_edit_news_article"
+    || err?.code === "invalid_profile_target"
+    || err?.code === "friend_request_not_found"
   ) {
     return res.status(400).json({ error: err.code });
   }

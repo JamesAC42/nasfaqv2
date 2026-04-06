@@ -23,6 +23,10 @@ import type {
   NewsFeedResponse,
   NewsItem,
   PortfolioSummary,
+  ProfileBundle,
+  ProfileNetworthPoint,
+  ProfileRelationUser,
+  ProfileTrade,
   SuperchatCurrencySummary,
   TradeRow,
 } from "@/app/lib/types";
@@ -501,6 +505,153 @@ export function normalizeArticleListResponse(value: Record<string, unknown>): Ar
       page_count: Number(pagination?.page_count || 1),
       has_previous_page: Boolean(pagination?.has_previous_page),
       has_next_page: Boolean(pagination?.has_next_page),
+    },
+  };
+}
+
+function normalizeProfileRelationUsers(value: unknown): ProfileRelationUser[] {
+  if (!Array.isArray(value)) return [];
+  const rows: ProfileRelationUser[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    const id = toNumber(row.id);
+    const username = String(row.username || "").trim();
+    if (!id || !username) continue;
+    rows.push({
+      id,
+      username,
+      profile_picture_url: row.profile_picture_url ? String(row.profile_picture_url) : null,
+      profile_color: row.profile_color ? String(row.profile_color) : null,
+      created_at: row.created_at ? String(row.created_at) : undefined,
+    });
+  }
+  return rows;
+}
+
+function normalizeProfileNetworth(value: unknown): ProfileNetworthPoint[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as Record<string, unknown>;
+      const recordedAt = String(row.recorded_at || "").trim();
+      if (!recordedAt) return null;
+      return {
+        recorded_at: recordedAt,
+        cash_balance: Number(toNumber(row.cash_balance) || 0),
+        total_market_value: Number(toNumber(row.total_market_value) || 0),
+        total_equity: Number(toNumber(row.total_equity) || 0),
+      };
+    })
+    .filter((item): item is ProfileNetworthPoint => item !== null);
+}
+
+function normalizeProfileTrades(value: unknown): ProfileTrade[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as Record<string, unknown>;
+      const id = toNumber(row.id);
+      const ts = String(row.ts || "").trim();
+      const symbol = String(row.symbol || "").trim();
+      if (!id || !ts || !symbol) return null;
+      return {
+        id,
+        ts,
+        side: String(row.side || ""),
+        price: Number(toNumber(row.price) || 0),
+        quantity: Number(toNumber(row.quantity) || 0),
+        gross_cash: Number(toNumber(row.gross_cash) || 0),
+        fee_cash: Number(toNumber(row.fee_cash) || 0),
+        net_cash: Number(toNumber(row.net_cash) || 0),
+        symbol,
+        display_name: String(row.display_name || symbol),
+      };
+    })
+    .filter((item): item is ProfileTrade => item !== null);
+}
+
+export function normalizeProfileBundle(value: Record<string, unknown>): ProfileBundle {
+  const profile = (value.profile || null) as Record<string, unknown> | null;
+  const stats = (profile?.stats || null) as Record<string, unknown> | null;
+  const viewer = (value.viewer_context || null) as Record<string, unknown> | null;
+  const articles = (value.articles || null) as Record<string, unknown> | null;
+  const trades = (value.trades || null) as Record<string, unknown> | null;
+  const tradesPagination = (trades?.pagination || null) as Record<string, unknown> | null;
+  const oshiCoin = profile?.oshi_coin && typeof profile.oshi_coin === "object"
+    ? profile.oshi_coin as Record<string, unknown>
+    : null;
+  const pending = profile?.pending_friend_requests && typeof profile.pending_friend_requests === "object"
+    ? profile.pending_friend_requests as Record<string, unknown>
+    : null;
+
+  return {
+    profile: {
+      id: Number(profile?.id || 0),
+      username: String(profile?.username || ""),
+      created_at: String(profile?.created_at || ""),
+      bio: profile?.bio ? String(profile.bio) : null,
+      profile_picture_url: profile?.profile_picture_url ? String(profile.profile_picture_url) : null,
+      profile_color: profile?.profile_color ? String(profile.profile_color) : null,
+      oshi_coin: oshiCoin
+        ? {
+            id: Number(oshiCoin.id || 0),
+            symbol: String(oshiCoin.symbol || ""),
+            display_name: String(oshiCoin.display_name || ""),
+            icon: oshiCoin.icon ? String(oshiCoin.icon) : null,
+            color: oshiCoin.color ? String(oshiCoin.color) : null,
+          }
+        : null,
+      stats: {
+        cash_balance: Number(toNumber(stats?.cash_balance) || 0),
+        total_market_value: Number(toNumber(stats?.total_market_value) || 0),
+        total_unrealized_pnl: Number(toNumber(stats?.total_unrealized_pnl) || 0),
+        total_equity: Number(toNumber(stats?.total_equity) || 0),
+        article_count: Number(toNumber(stats?.article_count) || 0),
+        trade_count: Number(toNumber(stats?.trade_count) || 0),
+        friend_count: Number(toNumber(stats?.friend_count) || 0),
+        rival_count: Number(toNumber(stats?.rival_count) || 0),
+      },
+      networth_history: normalizeProfileNetworth(profile?.networth_history),
+      friends: normalizeProfileRelationUsers(profile?.friends),
+      rivals: normalizeProfileRelationUsers(profile?.rivals),
+      pending_friend_requests: pending
+        ? {
+            incoming: normalizeProfileRelationUsers(pending.incoming),
+            outgoing: normalizeProfileRelationUsers(pending.outgoing),
+          }
+        : null,
+      holdings: Array.isArray(profile?.holdings)
+        ? normalizePortfolio({
+            cash_balance: 0,
+            total_market_value: 0,
+            total_unrealized_pnl: 0,
+            total_equity: 0,
+            holdings: profile.holdings,
+          }).holdings
+        : [],
+    },
+    viewer_context: {
+      is_authenticated: Boolean(viewer?.is_authenticated),
+      is_self: Boolean(viewer?.is_self),
+      friendship_status: String(viewer?.friendship_status || "none") as ProfileBundle["viewer_context"]["friendship_status"],
+      can_send_friend_request: Boolean(viewer?.can_send_friend_request),
+      is_rival: Boolean(viewer?.is_rival),
+      is_rivaled_by_profile: Boolean(viewer?.is_rivaled_by_profile),
+    },
+    articles: normalizeArticleListResponse(articles || {}),
+    trades: {
+      items: normalizeProfileTrades(trades?.items),
+      pagination: {
+        total: Number(tradesPagination?.total || 0),
+        page: Number(tradesPagination?.page || 1),
+        limit: Number(tradesPagination?.limit || 10),
+        page_count: Number(tradesPagination?.page_count || 1),
+        has_previous_page: Boolean(tradesPagination?.has_previous_page),
+        has_next_page: Boolean(tradesPagination?.has_next_page),
+      },
     },
   };
 }

@@ -41,6 +41,79 @@ async function applySchema(pool) {
       ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false
   `);
   await pool.query(`
+    ALTER TABLE market.users
+      ADD COLUMN IF NOT EXISTS bio TEXT NULL,
+      ADD COLUMN IF NOT EXISTS profile_picture_url TEXT NULL,
+      ADD COLUMN IF NOT EXISTS profile_color TEXT NULL,
+      ADD COLUMN IF NOT EXISTS oshi_coin_asset_id BIGINT NULL REFERENCES market.market_assets(id) ON DELETE SET NULL
+  `);
+  await pool.query(`
+    ALTER TABLE market.users
+      DROP CONSTRAINT IF EXISTS users_bio_length_check
+  `);
+  await pool.query(`
+    ALTER TABLE market.users
+      ADD CONSTRAINT users_bio_length_check CHECK (bio IS NULL OR char_length(btrim(bio)) <= 1000)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.user_friendships (
+      id BIGSERIAL PRIMARY KEY,
+      requester_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      addressee_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      accepted_at TIMESTAMPTZ NULL,
+      CONSTRAINT user_friendships_status_check CHECK (status IN ('pending', 'accepted', 'declined', 'canceled')),
+      CONSTRAINT user_friendships_distinct_users_check CHECK (requester_id <> addressee_id)
+    )
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS market_user_friendships_pair_uidx
+      ON market.user_friendships (
+        LEAST(requester_id, addressee_id),
+        GREATEST(requester_id, addressee_id)
+      )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_user_friendships_requester_status_idx
+      ON market.user_friendships (requester_id, status, created_at DESC)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_user_friendships_addressee_status_idx
+      ON market.user_friendships (addressee_id, status, created_at DESC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.user_rivals (
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      rival_user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (user_id, rival_user_id),
+      CONSTRAINT user_rivals_distinct_users_check CHECK (user_id <> rival_user_id)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_user_rivals_rival_idx
+      ON market.user_rivals (rival_user_id, created_at DESC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.user_networth_history (
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      recorded_at TIMESTAMPTZ NOT NULL,
+      cash_balance NUMERIC NOT NULL DEFAULT 0,
+      total_market_value NUMERIC NOT NULL DEFAULT 0,
+      total_equity NUMERIC NOT NULL DEFAULT 0,
+      PRIMARY KEY (user_id, recorded_at)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_user_networth_history_user_recorded_desc_idx
+      ON market.user_networth_history (user_id, recorded_at DESC)
+  `);
+  await pool.query(`
+    SELECT create_hypertable('market.user_networth_history', 'recorded_at', if_not_exists => TRUE, migrate_data => TRUE)
+  `);
+  await pool.query(`
     CREATE SCHEMA IF NOT EXISTS content
   `);
   await pool.query(`

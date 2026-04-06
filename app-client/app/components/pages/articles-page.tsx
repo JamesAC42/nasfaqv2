@@ -21,6 +21,12 @@ const DEFAULT_PAGINATION: NewsFeedPagination = {
   has_next_page: false,
 };
 
+type ArticleFilters = {
+  type: string;
+  asset: string;
+  query: string;
+};
+
 function formatDate(value: string | null) {
   if (!value) return "Unpublished";
   const parsed = new Date(value);
@@ -28,11 +34,18 @@ function formatDate(value: string | null) {
   return parsed.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
+function getCompactThumbnailUrl(url: string | null | undefined) {
+  if (!url) return null;
+  const lastSlashIndex = url.lastIndexOf("/");
+  if (lastSlashIndex < 0 || lastSlashIndex === url.length - 1) return url;
+  return `${url.slice(0, lastSlashIndex + 1)}thumbnail-${url.slice(lastSlashIndex + 1)}`;
+}
+
 function ArticleCard({ article }: { article: ArticleSummary }) {
   return (
     <Link href={`/articles/${encodeURIComponent(article.slug)}`} className={styles.cardLink}>
       <article className={styles.articleCard}>
-        {article.thumbnail_url ? <img src={article.thumbnail_url} alt="" className={styles.thumb} /> : null}
+        {article.thumbnail_url ? <img src={getCompactThumbnailUrl(article.thumbnail_url) || article.thumbnail_url} alt="" className={styles.thumb} /> : null}
         <div className={styles.cardBody}>
           <div className={styles.metaRow}>
             <span className={styles.pill}>{article.is_news ? "News" : "Community"}</span>
@@ -67,12 +80,39 @@ export function ArticlesPage() {
 
   const [items, setItems] = useState<ArticleSummary[]>([]);
   const [pagination, setPagination] = useState<NewsFeedPagination>(DEFAULT_PAGINATION);
-  const [type, setType] = useState("all");
-  const [asset, setAsset] = useState("");
-  const [query, setQuery] = useState("");
+  const [draftFilters, setDraftFilters] = useState<ArticleFilters>({
+    type: "all",
+    asset: "",
+    query: "",
+  });
+  const [appliedFilters, setAppliedFilters] = useState<ArticleFilters>({
+    type: "all",
+    asset: "",
+    query: "",
+  });
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function applyFilters() {
+    setPage(1);
+    setAppliedFilters({
+      type: draftFilters.type,
+      asset: draftFilters.asset,
+      query: draftFilters.query.trim(),
+    });
+  }
+
+  function resetFilters() {
+    const nextFilters: ArticleFilters = {
+      type: "all",
+      asset: "",
+      query: "",
+    };
+    setDraftFilters(nextFilters);
+    setAppliedFilters(nextFilters);
+    setPage(1);
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -83,9 +123,9 @@ export function ArticlesPage() {
         const params = new URLSearchParams();
         params.set("limit", "12");
         params.set("page", String(page));
-        if (type !== "all") params.set("type", type);
-        if (asset) params.set("asset", asset);
-        if (query.trim()) params.set("q", query.trim());
+        if (appliedFilters.type !== "all") params.set("type", appliedFilters.type);
+        if (appliedFilters.asset) params.set("asset", appliedFilters.asset);
+        if (appliedFilters.query) params.set("q", appliedFilters.query);
         const result = await apiFetch<Record<string, unknown>>(`/api/articles?${params.toString()}`, {
           signal: controller.signal,
         });
@@ -103,11 +143,7 @@ export function ArticlesPage() {
     }
     void loadArticles();
     return () => controller.abort();
-  }, [asset, page, query, type]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [asset, query, type]);
+  }, [appliedFilters, page]);
 
   return (
     <SiteShell>
@@ -134,40 +170,61 @@ export function ArticlesPage() {
         {isLoadingOverview ? <div className={styles.panel}>Loading asset metadata…</div> : null}
 
         <section className={styles.panel}>
-          <div className={styles.fieldGrid}>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Search</span>
-              <input
-                className={styles.input}
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search titles, subtitles, or tags"
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Type</span>
-              <OptionPicker
-                value={type}
-                onChange={setType}
-                placeholder="All article types"
-                options={[
-                  { value: "all", label: "All article types" },
-                  { value: "community", label: "Community articles" },
-                  { value: "news", label: "News articles" },
-                ]}
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Related asset</span>
-              <AssetPicker
-                assets={assets}
-                value={asset}
-                onChange={setAsset}
-                placeholder="Filter by asset"
-                emptyLabel="All assets"
-              />
-            </label>
-          </div>
+          <form
+            className={styles.filterForm}
+            onSubmit={(event) => {
+              event.preventDefault();
+              applyFilters();
+            }}
+          >
+            <div className={styles.toolbar}>
+              <div className={styles.metaRow}>
+                <span className={styles.muted}>Filters apply when you search</span>
+              </div>
+              <div className={styles.toolbarActions}>
+                <button type="button" className={styles.secondaryButton} onClick={resetFilters} disabled={isLoading}>
+                  Reset filters
+                </button>
+                <button type="submit" className={styles.primaryButton} disabled={isLoading}>
+                  Search
+                </button>
+              </div>
+            </div>
+            <div className={styles.fieldGrid}>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Search</span>
+                <input
+                  className={styles.input}
+                  value={draftFilters.query}
+                  onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))}
+                  placeholder="Search titles, subtitles, or tags"
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Type</span>
+                <OptionPicker
+                  value={draftFilters.type}
+                  onChange={(value) => setDraftFilters((current) => ({ ...current, type: value }))}
+                  placeholder="All article types"
+                  options={[
+                    { value: "all", label: "All article types" },
+                    { value: "community", label: "Community articles" },
+                    { value: "news", label: "News articles" },
+                  ]}
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Related asset</span>
+                <AssetPicker
+                  assets={assets}
+                  value={draftFilters.asset}
+                  onChange={(value) => setDraftFilters((current) => ({ ...current, asset: value }))}
+                  placeholder="Filter by asset"
+                  emptyLabel="All assets"
+                />
+              </label>
+            </div>
+          </form>
         </section>
 
         <section className={styles.panel}>
