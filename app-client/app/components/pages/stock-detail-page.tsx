@@ -969,7 +969,7 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     { label: "Mid Price", value: currentMidPrice, accent: false },
     { label: "24H Move", value: current24hMove, accent: isPositive, tone: isPositive ? "up" : "down" },
     { label: "Fair Value", value: fmtNumber(selectedAsset?.current_fair_value, "$"), accent: false },
-    { label: "24H Volume", value: fmtInteger(selectedAsset?.volume_24h), meta: "shares", accent: false },
+    { label: "24H Volume", value: fmtNumber(selectedAsset?.volume_24h), meta: "shares", accent: false },
     { label: "Subscribers", value: fmtInteger(selectedChannel?.latest?.subscriber_count ?? null), accent: false },
     { label: "Views", value: fmtInteger(selectedChannel?.latest?.view_count ?? null), accent: false },
     { label: "Videos", value: fmtInteger(selectedChannel?.latest?.video_count ?? null), accent: false },

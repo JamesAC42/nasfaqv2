@@ -1,4 +1,5 @@
 const articleDb = require("./articleDb");
+const netWorth = require("./services/netWorth");
 const trading = require("./services/trading");
 
 function toInt(value, fallback, { min = 1, max = 100 } = {}) {
@@ -96,35 +97,13 @@ async function getUserById(pool, userId) {
 }
 
 async function getPublicPortfolioSummary(pool, userId) {
-  const { rows } = await pool.query(
-    `
-    SELECT
-      COALESCE(pcb.cash_balance, 0) AS cash_balance,
-      COALESCE(SUM(h.quantity * COALESCE(a.current_mid_price, 0)), 0) AS total_market_value,
-      COALESCE(SUM(h.quantity * (COALESCE(a.current_mid_price, 0) - h.avg_cost_basis)), 0) AS total_unrealized_pnl
-    FROM market.users u
-    LEFT JOIN market.portfolio_cash_balances pcb
-      ON pcb.user_id = u.id
-    LEFT JOIN market.portfolio_holdings h
-      ON h.user_id = u.id
-    LEFT JOIN market.market_assets a
-      ON a.id = h.asset_id
-    WHERE u.id = $1
-    GROUP BY u.id, pcb.cash_balance
-  `,
-    [userId]
-  );
-
-  const row = rows[0] || { cash_balance: 0, total_market_value: 0, total_unrealized_pnl: 0 };
-  const cashBalance = Number(row.cash_balance || 0);
-  const totalMarketValue = Number(row.total_market_value || 0);
-  const totalUnrealizedPnl = Number(row.total_unrealized_pnl || 0);
+  const currentNetWorth = await netWorth.getCurrentNetWorth(pool, userId);
 
   return {
-    cash_balance: cashBalance,
-    total_market_value: totalMarketValue,
-    total_unrealized_pnl: totalUnrealizedPnl,
-    total_equity: cashBalance + totalMarketValue,
+    cash_balance: currentNetWorth.cash_balance,
+    total_market_value: currentNetWorth.total_market_value,
+    total_unrealized_pnl: currentNetWorth.total_unrealized_pnl,
+    total_equity: currentNetWorth.total_equity,
     holdings: [],
   };
 }
@@ -287,18 +266,7 @@ async function getProfileStats(pool, userId) {
 }
 
 async function getNetworthHistory(pool, userId, { limit = 60 } = {}) {
-  const safeLimit = Math.max(1, Math.min(365, Number(limit) || 60));
-  const { rows } = await pool.query(
-    `
-    SELECT recorded_at, cash_balance, total_market_value, total_equity
-    FROM market.user_networth_history
-    WHERE user_id = $1
-    ORDER BY recorded_at DESC
-    LIMIT $2
-  `,
-    [userId, safeLimit]
-  );
-  return rows.reverse();
+  return netWorth.listDailyNetWorthHistory(pool, userId, { limit });
 }
 
 async function listProfileTrades(pool, userId, { page = 1, limit = 10 } = {}) {

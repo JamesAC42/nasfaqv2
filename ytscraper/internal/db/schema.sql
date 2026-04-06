@@ -529,6 +529,25 @@ CREATE TABLE IF NOT EXISTS market.portfolio_cash_balances (
   CONSTRAINT portfolio_cash_balances_nonnegative_check CHECK (cash_balance >= 0)
 );
 
+CREATE TABLE IF NOT EXISTS market.user_daily_net_worth (
+  user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+  market_date DATE NOT NULL,
+  cash_balance NUMERIC NOT NULL DEFAULT 0,
+  holdings_market_value NUMERIC NOT NULL DEFAULT 0,
+  total_equity NUMERIC NOT NULL DEFAULT 0,
+  priced_position_count INTEGER NOT NULL DEFAULT 0,
+  unpriced_position_count INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, market_date)
+);
+
+CREATE INDEX IF NOT EXISTS market_user_daily_net_worth_user_date_desc_idx
+  ON market.user_daily_net_worth (user_id, market_date DESC);
+
+CREATE INDEX IF NOT EXISTS market_user_daily_net_worth_date_equity_desc_idx
+  ON market.user_daily_net_worth (market_date DESC, total_equity DESC, user_id ASC);
+
 CREATE TABLE IF NOT EXISTS market.asset_daily_market_state (
   id BIGSERIAL PRIMARY KEY,
   asset_id BIGINT NOT NULL REFERENCES market.market_assets(id) ON DELETE CASCADE,

@@ -652,7 +652,7 @@ export function HomePage() {
               </div>
               <div className={styles.summaryHeroCard}>
                 <span className={styles.walletLabel}>Highest Flow</span>
-                <strong className={styles.summaryHeroValueAlt}>{fmtInteger(marketTopVolume?.volume_24h ?? null)}</strong>
+                <strong className={styles.summaryHeroValueAlt}>{fmtNumber(marketTopVolume?.volume_24h ?? null)}</strong>
                 <div className={styles.summaryHeroMeta}>
                   {renderAssetLabel(marketTopVolume)}
                   <span className={styles.neutral}>shares traded</span>
@@ -668,7 +668,7 @@ export function HomePage() {
               <div className={styles.summaryStatCard}>
                 <span className={styles.walletLabel}>Top Volume</span>
                 {renderAssetLabel(marketTopVolume, marketTopVolume?.symbol || "—")}
-                <span>{fmtInteger(marketTopVolume?.volume_24h ?? null)} shares</span>
+                <span>{fmtNumber(marketTopVolume?.volume_24h ?? null)} shares</span>
               </div>
               <div className={styles.summaryStatCard}>
                 <span className={styles.walletLabel}>Top Mover</span>

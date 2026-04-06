@@ -282,7 +282,7 @@ export const MarketSidebar = memo(function MarketSidebar({
                   </div>
                 </div>
                 <div className={styles.assetQuote}>
-                  <strong>{fmtInteger(asset.volume_24h)}</strong>
+                  <strong>{fmtNumber(asset.volume_24h)}</strong>
                   <span>shares</span>
                 </div>
                 <div className={styles.volumeDeltaColumn}>

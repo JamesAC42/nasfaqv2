@@ -232,7 +232,7 @@ export function HomeSidebarSection({
                 <div className={styles.assetQuote}>
                   <strong>{fmtNumber(asset.current_mid_price, "$")}</strong>
                   <span className={(priceChangePct ?? 0) >= 0 ? styles.positive : styles.negative}>{formatSignedPct(priceChangePct)}</span>
-                  <span>{fmtInteger(asset.volume_24h)} shares</span>
+                  <span>{fmtNumber(asset.volume_24h)} shares</span>
                 </div>
                 <div className={styles.volumeDeltaColumn}>
                   <TrendIcon className={`${styles.volumeDeltaIcon} ${priceChangeToneClass}`} aria-hidden="true" />
@@ -294,7 +294,7 @@ export function HomeSidebarSection({
                 <div className={styles.assetQuote}>
                   <strong>{fmtNumber(asset.current_mid_price, "$")}</strong>
                   <span className={(priceChangePct ?? 0) >= 0 ? styles.positive : styles.negative}>{formatSignedPct(priceChangePct)}</span>
-                  <span>{fmtInteger(asset.volume_24h)} shares</span>
+                  <span>{fmtNumber(asset.volume_24h)} shares</span>
                 </div>
                 <div className={styles.volumeDeltaColumn}>
                   <TrendIcon className={`${styles.volumeDeltaIcon} ${volumeChangeToneClass}`} aria-hidden="true" />

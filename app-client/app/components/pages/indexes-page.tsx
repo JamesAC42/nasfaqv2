@@ -442,7 +442,7 @@ export function IndexesPage() {
               </div>
               <div className={styles.highlightCard}>
                 <span>Highest flow</span>
-                <strong>{fmtInteger(marketTopVolume?.volume_24h)}</strong>
+                <strong>{fmtNumber(marketTopVolume?.volume_24h)}</strong>
                 {marketTopVolume ? (
                   <div className={styles.assetMeta}>
                     <AssetCoin symbol={marketTopVolume.symbol} icon={marketTopVolume.icon} color={marketTopVolume.color} className={styles.inlineAssetIcon} />
@@ -582,7 +582,7 @@ export function IndexesPage() {
                       <span className={getToneClass(asset.move_24h_pct)}>{fmtPct(asset.move_24h_pct)}</span>
                     </div>
                     <div className={styles.heatmapMeta}>
-                      <span>Vol {fmtInteger(asset.volume_24h)}</span>
+                      <span>Vol {fmtNumber(asset.volume_24h)}</span>
                       <span>Prem {fmtPct(asset.current_premium_pct)}</span>
                     </div>
                   </button>
@@ -625,7 +625,7 @@ export function IndexesPage() {
                       <td>{fmtNumber(asset.current_mid_price, "$")}</td>
                       <td className={getToneClass(asset.move_24h_pct)}>{fmtPct(asset.move_24h_pct)}</td>
                       <td className={getToneClass(asset.current_premium_pct)}>{fmtPct(asset.current_premium_pct)}</td>
-                      <td>{fmtInteger(asset.volume_24h)}</td>
+                      <td>{fmtNumber(asset.volume_24h)}</td>
                       <td>{asset.unit || "—"}</td>
                     </tr>
                   ))}

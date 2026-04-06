@@ -1,4 +1,5 @@
 const { normalizeFundamentalToPrice } = require("./fundamentals");
+const netWorth = require("./netWorth");
 const DEFAULT_PERSISTENT_DAILY_DECAY = 0.9;
 const DEFAULT_TRANSIENT_SETTLEMENT_DECAY = 0.1;
 const DEFAULT_LIQUIDITY_DEPTH_FLOOR = 2000;
@@ -71,6 +72,16 @@ function shiftDateKey(dateKey, days) {
   const date = new Date(`${dateKey}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+function normalizeDateKey(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString().slice(0, 10);
+  }
+  const text = String(value).trim();
+  const match = text.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : text || null;
 }
 
 async function getSettlementRun(client, marketDate) {
@@ -207,7 +218,7 @@ async function listSettleableDates(client, { from, to }) {
   return rows;
 }
 
-async function getPreviousDailyState(client, assetId, marketDate) {
+async function listPreviousDailyStates(client, assetId, marketDate, limit = 1) {
   const { rows } = await client.query(
     `
     SELECT market_date, mid_close, mid_close_mark, fair_value, premium_close_pct, volume_shares, volume_cash
@@ -215,11 +226,27 @@ async function getPreviousDailyState(client, assetId, marketDate) {
     WHERE asset_id = $1
       AND market_date < $2
     ORDER BY market_date DESC
+    LIMIT $3
+  `,
+    [assetId, marketDate, limit]
+  );
+  return rows;
+}
+
+async function getPreviousCompletedSettlementDate(client, marketDate) {
+  const { rows } = await client.query(
+    `
+    SELECT market_date
+    FROM market.market_settlement_runs
+    WHERE status = 'completed'
+      AND market_date < $1
+    ORDER BY market_date DESC
     LIMIT 1
   `,
-    [assetId, marketDate]
+    [marketDate]
   );
-  return rows[0] || null;
+
+  return normalizeDateKey(rows[0]?.market_date);
 }
 
 function derivePreviousOffsets(previousState) {
@@ -422,12 +449,17 @@ async function persistSettledAssetState(client, marketDate, state) {
   );
 }
 
-function buildDailyReport(marketDate, settledStates, previousStatesByAssetId) {
+function buildDailyReport(marketDate, settledStates, previousStatesByAssetId, priorStatesByAssetId) {
   const fairValueChanges = settledStates.map((state) => {
     const prev = previousStatesByAssetId.get(state.assetId) || null;
+    const prevForVolume = priorStatesByAssetId.get(state.assetId) || null;
     const prevFairValue = prev ? toNumber(prev.fair_value, 0) : null;
-    const prevVolumeShares = prev ? toNumber(prev.volume_shares, 0) : null;
-    const prevVolumeCash = prev ? toNumber(prev.volume_cash, 0) : null;
+    // Settlement creates the next trading day's row with zero volume, so report flow
+    // should describe the most recently completed trading day instead.
+    const reportVolumeShares = prev ? toNumber(prev.volume_shares, 0) : toNumber(state.volumeShares, 0);
+    const reportVolumeCash = prev ? toNumber(prev.volume_cash, 0) : toNumber(state.volumeCash, 0);
+    const prevVolumeShares = prevForVolume ? toNumber(prevForVolume.volume_shares, 0) : null;
+    const prevVolumeCash = prevForVolume ? toNumber(prevForVolume.volume_cash, 0) : null;
     return {
       asset_id: state.assetId,
       symbol: state.symbol,
@@ -442,11 +474,11 @@ function buildDailyReport(marketDate, settledStates, previousStatesByAssetId) {
       move_pct:
         state.priorMidPrice && state.priorMidPrice > 0 ? roundMetric((state.midOpen - state.priorMidPrice) / state.priorMidPrice) : null,
       volume_change_pct:
-        prevVolumeShares && prevVolumeShares > 0 ? roundMetric((state.volumeShares - prevVolumeShares) / prevVolumeShares) : null,
-      volume_shares: roundMetric(state.volumeShares),
-      volume_cash: roundMetric(state.volumeCash),
+        prevVolumeShares && prevVolumeShares > 0 ? roundMetric((reportVolumeShares - prevVolumeShares) / prevVolumeShares) : null,
+      volume_shares: roundMetric(reportVolumeShares),
+      volume_cash: roundMetric(reportVolumeCash),
       volume_cash_change_pct:
-        prevVolumeCash && prevVolumeCash > 0 ? roundMetric((state.volumeCash - prevVolumeCash) / prevVolumeCash) : null,
+        prevVolumeCash && prevVolumeCash > 0 ? roundMetric((reportVolumeCash - prevVolumeCash) / prevVolumeCash) : null,
     };
   });
 
@@ -473,7 +505,7 @@ function buildDailyReport(marketDate, settledStates, previousStatesByAssetId) {
     top_price_movers: topBy(fairValueChanges, "move_pct", "desc"),
     volume_winners: topBy(fairValueChanges, "volume_change_pct", "desc"),
     volume_losers: topBy(fairValueChanges, "volume_change_pct", "asc"),
-    top_volume: topBy(fairValueChanges, "volume_cash", "desc"),
+    top_volume: topBy(fairValueChanges, "volume_shares", "desc"),
     notable_treasury_emissions: topBy(fairValueChanges, "emission", "desc"),
   };
 }
@@ -523,19 +555,28 @@ async function settleMarketDay(pool, { marketDate, sourceMarketDate = null, forc
       runId = await createSettlementRun(client, marketDate, resolvedSourceMarketDate);
     }
 
+    const previousCompletedMarketDate = await getPreviousCompletedSettlementDate(client, marketDate);
+    if (previousCompletedMarketDate) {
+      await netWorth.recordDailyNetWorthSnapshot(client, previousCompletedMarketDate);
+    }
+
     const assets = await listAssetsForSettlement(client, resolvedSourceMarketDate);
     const settledStates = [];
     const previousStatesByAssetId = new Map();
+    const priorStatesByAssetId = new Map();
 
     for (const asset of assets) {
-      const previousState = await getPreviousDailyState(client, asset.id, marketDate);
+      const previousStates = await listPreviousDailyStates(client, asset.id, marketDate, 2);
+      const previousState = previousStates[0] || null;
+      const priorState = previousStates[1] || null;
       previousStatesByAssetId.set(asset.id, previousState);
+      priorStatesByAssetId.set(asset.id, priorState);
       const state = buildSettledAssetState(asset, previousState);
       await persistSettledAssetState(client, marketDate, state);
       settledStates.push(state);
     }
 
-    const report = buildDailyReport(marketDate, settledStates, previousStatesByAssetId);
+    const report = buildDailyReport(marketDate, settledStates, previousStatesByAssetId, priorStatesByAssetId);
     await persistDailyReport(client, marketDate, report);
     await markSettlementRunComplete(client, runId);
 

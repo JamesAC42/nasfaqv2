@@ -103,6 +103,58 @@ function getSuperchatTimeseriesConfig(range) {
   }
 }
 
+function toNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function roundMetric(value) {
+  if (value === null || value === undefined) return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return Number(parsed.toFixed(6));
+}
+
+function sortByBucketAsc(points) {
+  return [...points].sort((a, b) => String(a.bucket || "").localeCompare(String(b.bucket || "")));
+}
+
+function buildLiveVolumeSections(assets, limit = 5) {
+  const rows = assets.map((asset) => {
+    const candles = sortByBucketAsc(Array.isArray(asset.sparkline_candles) ? asset.sparkline_candles : [])
+      .filter((point) => point && point.volume_shares !== null && point.volume_shares !== undefined);
+    const previousVolume = candles.length >= 2 ? toNumber(candles[candles.length - 2].volume_shares, 0) : null;
+    const currentVolume = toNumber(asset.volume_24h, 0);
+    const volumeChangePct =
+      previousVolume !== null && previousVolume > 0 ? roundMetric((currentVolume - previousVolume) / previousVolume) : null;
+
+    return {
+      asset_id: asset.id,
+      symbol: asset.symbol,
+      display_name: asset.display_name,
+      volume_shares: roundMetric(currentVolume),
+      volume_cash: roundMetric(asset.volume_cash_24h),
+      volume_change_pct: volumeChangePct,
+    };
+  });
+
+  const topBy = (items, metric, direction = "desc") =>
+    [...items]
+      .filter((item) => item[metric] !== null && item[metric] !== undefined)
+      .sort((a, b) => {
+        const av = toNumber(a[metric], 0);
+        const bv = toNumber(b[metric], 0);
+        return direction === "asc" ? av - bv : bv - av;
+      })
+      .slice(0, limit);
+
+  return {
+    volume_winners: topBy(rows, "volume_change_pct", "desc"),
+    volume_losers: topBy(rows, "volume_change_pct", "asc"),
+    top_volume: topBy(rows, "volume_shares", "desc"),
+  };
+}
+
 async function listAssets(pool) {
   const { rows } = await pool.query(
     `
@@ -651,10 +703,13 @@ async function getLatestDailyReport(pool) {
   `
   );
   if (!rows[0]) return null;
+  const assets = await listAssets(pool);
+  const liveVolumeSections = buildLiveVolumeSections(assets);
   return {
     created_at: rows[0].created_at,
     market_date: rows[0].market_date,
     ...(rows[0].report_json || {}),
+    ...liveVolumeSections,
   };
 }
 
