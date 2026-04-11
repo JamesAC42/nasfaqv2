@@ -4,6 +4,21 @@
   text-decoration: none;
 }
 
+.popoverWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.triggerButton {
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
 .pill {
   --ticker-pill-accent: var(--border);
   --ticker-pill-accent-soft: var(--surface-card-soft);
@@ -66,4 +81,203 @@
 
 .changeDown {
   color: var(--trend-down);
+}
+
+.popoverPanel {
+  position: absolute;
+  left: calc(100% + 0.75rem);
+  top: 50%;
+  z-index: 30;
+  width: min(28rem, calc(100vw - 2rem));
+  padding: 1rem;
+  display: grid;
+  gap: 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border-soft));
+  border-radius: calc(var(--radius-lg) + 0.15rem);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-card-highlight) 24%, transparent), transparent 20%),
+    color-mix(in srgb, var(--surface-card) 96%, white 4%);
+  box-shadow:
+    0 1.2rem 2.8rem color-mix(in srgb, var(--panel-accent-glow) 22%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
+  transform: translateY(-50%);
+  transform-origin: left center;
+  animation: popoverIn 180ms ease;
+}
+
+.popoverPanel::after {
+  content: "";
+  position: absolute;
+  left: -0.4rem;
+  top: calc(50% - 0.4rem);
+  width: 0.8rem;
+  height: 0.8rem;
+  border-left: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border-soft));
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border-soft));
+  background: color-mix(in srgb, var(--surface-card) 96%, white 4%);
+  transform: rotate(45deg);
+}
+
+.popoverHeader,
+.popoverActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.popoverHeaderMain {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.popoverTitleBlock {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.popoverCoin {
+  width: 2.2rem;
+  height: 2.2rem;
+  min-width: 2.2rem;
+  padding: 0.2rem;
+  border-width: 1px;
+}
+
+.popoverTitleBlock strong {
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.popoverTitleBlock span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.closeButton {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--surface-card) 88%, transparent);
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.closeButton:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border-soft));
+}
+
+.statGrid {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.statCard {
+  min-width: 0;
+  padding: 0.8rem 0.9rem;
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 90%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-card-highlight) 16%, transparent);
+}
+
+.statCard span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.statCard strong {
+  color: var(--text);
+  font-size: 0.92rem;
+}
+
+.chartSurface {
+  min-width: 0;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.glanceEmpty {
+  min-height: 8rem;
+  display: grid;
+  place-items: center;
+  border: 1px dashed color-mix(in srgb, var(--border-soft) 88%, transparent);
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  font-size: 0.84rem;
+  background: color-mix(in srgb, var(--surface-card-highlight) 10%, transparent);
+}
+
+.openButton {
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border-soft));
+  border-radius: 999px;
+  padding: 0.62rem 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-card));
+  color: var(--accent-strong);
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition:
+    transform 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.openButton:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border-soft));
+}
+
+@keyframes popoverIn {
+  0% {
+    opacity: 0;
+    transform: translate(0.45rem, -50%) scale(0.98);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate(0, -50%) scale(1);
+  }
+}
+
+@media (max-width: 640px) {
+  .popoverPanel {
+    left: auto;
+    right: 0;
+    top: calc(100% + 0.75rem);
+    width: min(24rem, calc(100vw - 1.5rem));
+    transform: none;
+    transform-origin: top right;
+  }
+
+  .popoverPanel::after {
+    left: auto;
+    right: 1.3rem;
+    top: -0.4rem;
+    border-left: none;
+    border-right: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border-soft));
+    border-bottom: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border-soft));
+  }
+
+  .statGrid {
+    grid-template-columns: 1fr;
+  }
 }

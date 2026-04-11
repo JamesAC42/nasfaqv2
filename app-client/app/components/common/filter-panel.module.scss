@@ -1,0 +1,196 @@
+@use "../../styles/mixins" as *;
+
+.panel {
+  @include panel;
+  position: relative;
+  padding: 0;
+  overflow: visible;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 12%, transparent), transparent 42%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-card) 94%, transparent), color-mix(in srgb, var(--surface-card-soft) 90%, #08111b));
+}
+
+.header {
+  width: 100%;
+  border: 0;
+  padding: 0.9rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.header:hover {
+  background: color-mix(in srgb, var(--surface-card-highlight) 24%, transparent);
+}
+
+.header:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 0.125rem color-mix(in srgb, var(--accent) 34%, transparent);
+}
+
+.headerMain,
+.headerMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.headerMeta {
+  margin-left: auto;
+}
+
+.iconWrap {
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border-soft));
+  background: color-mix(in srgb, var(--surface-card-highlight) 44%, transparent);
+  color: color-mix(in srgb, var(--accent) 72%, white 12%);
+  box-shadow: inset 0 0.0625rem 0 color-mix(in srgb, white 18%, transparent);
+}
+
+.iconWrap :global(svg),
+.chevron :global(svg) {
+  width: 1rem;
+  height: 1rem;
+  display: block;
+}
+
+.headerText {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.status,
+.summary {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.summary {
+  white-space: nowrap;
+}
+
+.chevron {
+  width: 1.8rem;
+  height: 1.8rem;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  transition: transform 180ms cubic-bezier(0.2, 0.9, 0.2, 1.15);
+}
+
+.panel[data-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+
+.bodyShell {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 180ms cubic-bezier(0.2, 0.9, 0.2, 1.05);
+}
+
+.panel[data-expanded="true"] .bodyShell {
+  grid-template-rows: 1fr;
+}
+
+.bodyViewport {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.body {
+  display: grid;
+  gap: 0.9rem;
+  padding: 0 1rem 1rem;
+  opacity: 0;
+  transform: translateY(-0.2rem) scale(0.992);
+  transform-origin: top center;
+  transition:
+    opacity 120ms ease,
+    transform 180ms cubic-bezier(0.2, 0.9, 0.2, 1.05);
+}
+
+.panel[data-expanded="true"] .body {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.form {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.fieldsGrid {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.meta {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+@media (max-width: 44rem) {
+  .header {
+    padding: 0.82rem 0.9rem;
+  }
+
+  .body {
+    padding: 0 0.9rem 0.9rem;
+  }
+
+  .header,
+  .footer {
+    gap: 0.6rem;
+  }
+
+  .headerMeta,
+  .footer {
+    align-items: flex-start;
+  }
+
+  .summary {
+    white-space: normal;
+    text-align: right;
+  }
+}

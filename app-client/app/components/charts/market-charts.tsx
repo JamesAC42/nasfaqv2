@@ -82,15 +82,22 @@ function resolveChartFontFamily(fontFamily?: string) {
   return "'Nasfaq Mono', 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace";
 }
 
-function createBaseChart(container: HTMLDivElement, theme?: ChannelChartTheme | null, fontFamily?: string) {
+function createBaseChart(
+  container: HTMLDivElement,
+  theme?: ChannelChartTheme | null,
+  fontFamily?: string,
+  height = 320,
+  fontSize = 12
+) {
   const palette = resolveTheme(theme);
   return createChart(container, {
     autoSize: true,
-    height: 320,
+    height,
     layout: {
       background: { type: ColorType.Solid, color: "transparent" },
       textColor: palette.text,
       fontFamily: resolveChartFontFamily(fontFamily),
+      fontSize,
       attributionLogo: false,
     },
     grid: {
@@ -140,6 +147,11 @@ function compareChartTime(left: Time, right: Time) {
   return chartTimeKey(left).localeCompare(chartTimeKey(right));
 }
 
+function syntheticChartTime(index: number): Time {
+  const base = Date.UTC(2026, 0, 1);
+  return Math.floor((base + index * 24 * 60 * 60 * 1000) / 1000) as Time;
+}
+
 function normalizeTrendData(points: TrendPoint[]) {
   const deduped = new Map<string, { time: Time; value: number }>();
 
@@ -159,6 +171,8 @@ export function CandleChartCard({
   showMarkClose = false,
   theme,
   fontFamily,
+  height = 320,
+  compact = false,
 }: {
   title: string;
   subtitle?: string;
@@ -166,6 +180,8 @@ export function CandleChartCard({
   showMarkClose?: boolean;
   theme?: ChannelChartTheme | null;
   fontFamily?: string;
+  height?: number;
+  compact?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hasData = candles.some((item) => item.open !== null && item.high !== null && item.low !== null && item.close !== null);
@@ -174,7 +190,7 @@ export function CandleChartCard({
   useEffect(() => {
     if (!containerRef.current || !hasData) return;
 
-    const chart = createBaseChart(containerRef.current, palette, fontFamily);
+    const chart = createBaseChart(containerRef.current, palette, fontFamily, height, compact ? 11 : 12);
     const candleSeries = chart.addSeries(CandlestickSeries, {
       upColor: palette.baseDeep,
       downColor: palette.complementDeep,
@@ -216,12 +232,15 @@ export function CandleChartCard({
 
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [candles, fontFamily, hasData, palette, showMarkClose]);
+  }, [candles, compact, fontFamily, hasData, height, palette, showMarkClose]);
 
   return (
     <div
-      className={`${styles.chartBox} ${styles.chartBoxCandles}`}
-      style={fontFamily ? ({ "--chart-font-family": fontFamily } as CSSProperties) : undefined}
+      className={`${styles.chartBox} ${styles.chartBoxCandles} ${compact ? styles.chartBoxCompact : ""}`.trim()}
+      style={{
+        ...(fontFamily ? ({ "--chart-font-family": fontFamily } as CSSProperties) : {}),
+        "--chart-height": `${height}px`,
+      } as CSSProperties}
     >
       <div className={styles.header}>
         <div>
@@ -460,7 +479,7 @@ export function SuperchatHistogramCard({
 
     series.setData(
       bars.map((item, index) => ({
-        time: `2026-01-${String(index + 1).padStart(2, "0")}` as Time,
+        time: syntheticChartTime(index),
         value: item.value,
         color: item.color,
       }))

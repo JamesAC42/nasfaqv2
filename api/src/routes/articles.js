@@ -87,6 +87,27 @@ router.get("/:slug", async (req, res, next) => {
   }
 });
 
+router.post("/:slug/view", async (req, res, next) => {
+  try {
+    const article = await articleDb.getArticleBySlug(
+      req.ctx.pool,
+      req.params.slug,
+      req.ctx.user?.id || null,
+      Boolean(req.ctx.user),
+      true
+    );
+    if (!article) {
+      return res.status(404).json({ error: "article_not_found" });
+    }
+    if (article.status !== "published" && (!req.ctx.user || (!req.ctx.user.is_admin && req.ctx.user.id !== article.author?.id))) {
+      return res.status(404).json({ error: "article_not_found" });
+    }
+    res.json({ article });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.put("/:slug", async (req, res, next) => {
   try {
     const userId = requireUserId(req);
@@ -114,7 +135,7 @@ router.put("/:slug", async (req, res, next) => {
 router.post("/:slug/comments", async (req, res, next) => {
   try {
     const userId = requireUserId(req);
-    await articleDb.createComment(req.ctx.pool, req.params.slug, userId, req.body?.body);
+    await articleDb.createComment(req.ctx.pool, req.params.slug, userId, req.body?.body, req.body?.mood);
     const article = await articleDb.getArticleBySlug(req.ctx.pool, req.params.slug, userId, true);
     res.status(201).json({ article });
   } catch (error) {
@@ -166,6 +187,17 @@ router.post("/:slug/proposals/:proposalId/approve", async (req, res, next) => {
     const admin = requireAdmin(req);
     await articleDb.approveProposal(req.ctx.pool, req.params.slug, req.params.proposalId, admin.id);
     const article = await articleDb.getArticleBySlug(req.ctx.pool, req.params.slug, req.ctx.user?.id || null, true);
+    res.json({ article });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/:slug/proposals/:proposalId/vote", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    await articleDb.setProposalVote(req.ctx.pool, req.params.slug, req.params.proposalId, userId, req.body?.value);
+    const article = await articleDb.getArticleBySlug(req.ctx.pool, req.params.slug, userId, true);
     res.json({ article });
   } catch (error) {
     next(error);

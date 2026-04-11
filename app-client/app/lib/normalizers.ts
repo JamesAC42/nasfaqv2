@@ -1,34 +1,37 @@
-import type {
-  ArticleAsset,
-  ArticleAuthor,
-  ArticleComment,
-  ArticleDetail,
-  ArticleListResponse,
-  ArticleProposal,
-  ArticleSummary,
-  AssetDetailBundle,
-  AssetSuperchatSummaryBundle,
-  AssetSuperchatTimeseriesBundle,
-  CandlePoint,
-  ChannelOverviewRow,
-  LeaderboardEntry,
-  LivestreamItem,
-  MarketAsset,
-  MarketIndexBundle,
-  MarketIndexPoint,
-  MarketIndexSummary,
-  MarketStatus,
-  MarketStatPoint,
-  NewsCharacter,
-  NewsFeedResponse,
-  NewsItem,
-  PortfolioSummary,
-  ProfileBundle,
-  ProfileNetworthPoint,
-  ProfileRelationUser,
-  ProfileTrade,
-  SuperchatCurrencySummary,
-  TradeRow,
+import {
+  ARTICLE_COMMENT_MOODS,
+  type ArticleAsset,
+  type ArticleAuthor,
+  type ArticleComment,
+  type ArticleDetail,
+  type ArticleListResponse,
+  type ArticleProposal,
+  type ArticleSummary,
+  type AssetDetailBundle,
+  type AssetSuperchatSummaryBundle,
+  type ChatChannel,
+  type ChatMessage,
+  type AssetSuperchatTimeseriesBundle,
+  type CandlePoint,
+  type ChannelOverviewRow,
+  type LeaderboardEntry,
+  type LivestreamItem,
+  type MarketAsset,
+  type MarketIndexBundle,
+  type MarketIndexPoint,
+  type MarketIndexSummary,
+  type MarketStatus,
+  type MarketStatPoint,
+  type NewsCharacter,
+  type NewsFeedResponse,
+  type NewsItem,
+  type PortfolioSummary,
+  type ProfileBundle,
+  type ProfileNetworthPoint,
+  type ProfileRelationUser,
+  type ProfileTrade,
+  type SuperchatCurrencySummary,
+  type TradeRow,
 } from "@/app/lib/types";
 import { toNumber } from "@/app/lib/format";
 
@@ -226,6 +229,75 @@ export function normalizeChannels(rows: Array<Record<string, unknown>>): Channel
   });
 }
 
+export function normalizeChatChannel(value: Record<string, unknown>): ChatChannel {
+  const metadata = (value.metadata || {}) as Record<string, unknown>;
+  return {
+    id: Number(value.id || 0),
+    channel_key: String(value.channel_key || ""),
+    scope_type: String(value.scope_type || "market") as ChatChannel["scope_type"],
+    scope_key: String(value.scope_key || ""),
+    display_name: String(value.display_name || ""),
+    description: value.description ? String(value.description) : null,
+    is_active: Boolean(value.is_active),
+    posting_policy: String(value.posting_policy || "authenticated") as ChatChannel["posting_policy"],
+    metadata: {
+      asset_id: toNumber(metadata.asset_id) ?? undefined,
+      symbol: metadata.symbol ? String(metadata.symbol) : null,
+      display_name: metadata.display_name ? String(metadata.display_name) : null,
+      asset_status: metadata.asset_status ? String(metadata.asset_status) : null,
+      youtube_channel_id: metadata.youtube_channel_id ? String(metadata.youtube_channel_id) : null,
+      channel_name: metadata.channel_name ? String(metadata.channel_name) : null,
+      unit: metadata.unit ? String(metadata.unit) : null,
+      icon: metadata.icon ? String(metadata.icon) : null,
+      color: metadata.color ? String(metadata.color) : null,
+      asset_count: toNumber(metadata.asset_count),
+    },
+    last_message_id: toNumber(value.last_message_id),
+    last_message_at: value.last_message_at ? String(value.last_message_at) : null,
+    last_message_preview: value.last_message_preview ? String(value.last_message_preview) : null,
+    message_count: Number(value.message_count || 0),
+    last_read_message_id: toNumber(value.last_read_message_id),
+    unread_count: Number(value.unread_count || 0),
+    muted_until: value.muted_until ? String(value.muted_until) : null,
+    created_at: String(value.created_at || ""),
+    updated_at: String(value.updated_at || ""),
+  };
+}
+
+export function normalizeChatMessage(value: Record<string, unknown>): ChatMessage {
+  const author = (value.author || null) as Record<string, unknown> | null;
+  return {
+    id: Number(value.id || 0),
+    channel_id: Number(value.channel_id || 0),
+    channel_key: String(value.channel_key || ""),
+    body: String(value.body || ""),
+    status: String(value.status || "active") as ChatMessage["status"],
+    reply_to_message_id: toNumber(value.reply_to_message_id),
+    created_at: String(value.created_at || ""),
+    edited_at: value.edited_at ? String(value.edited_at) : null,
+    moderated_at: value.moderated_at ? String(value.moderated_at) : null,
+    author: author
+      ? {
+          id: Number(author.id || 0),
+          username: String(author.username || ""),
+          profile_picture_url: author.profile_picture_url ? String(author.profile_picture_url) : null,
+          profile_color: author.profile_color ? String(author.profile_color) : null,
+          oshi_coin:
+            author.oshi_coin && typeof author.oshi_coin === "object"
+              ? {
+                  id: Number((author.oshi_coin as Record<string, unknown>).id || 0),
+                  symbol: String((author.oshi_coin as Record<string, unknown>).symbol || ""),
+                  display_name: String((author.oshi_coin as Record<string, unknown>).display_name || ""),
+                  icon: (author.oshi_coin as Record<string, unknown>).icon ? String((author.oshi_coin as Record<string, unknown>).icon) : null,
+                  color: (author.oshi_coin as Record<string, unknown>).color ? String((author.oshi_coin as Record<string, unknown>).color) : null,
+                }
+              : null,
+        }
+      : null,
+    is_mine: Boolean(value.is_mine),
+  };
+}
+
 export function normalizePortfolio(value: Record<string, unknown>): PortfolioSummary {
   return {
     cash_balance: Number(toNumber(value.cash_balance) || 0),
@@ -418,6 +490,7 @@ export function normalizeArticleSummary(value: Record<string, unknown>): Article
     author: normalizeArticleAuthor(value.author),
     likes: Number(toNumber(value.likes) || 0),
     saves: Number(toNumber(value.saves) || 0),
+    views: Number(toNumber(value.views) || 0),
     is_news: Boolean(value.is_news),
     status: String(value.status || "published"),
     published_at: value.published_at ? String(value.published_at) : null,
@@ -439,17 +512,20 @@ export function normalizeArticleSummary(value: Record<string, unknown>): Article
 
 function normalizeArticleComments(value: unknown): ArticleComment[] {
   if (!Array.isArray(value)) return [];
+  const moodSet = new Set<string>(ARTICLE_COMMENT_MOODS);
   return value
     .map((item) => {
       if (!item || typeof item !== "object") return null;
       const row = item as Record<string, unknown>;
       const id = toNumber(row.id);
       const body = String(row.body || "").trim();
+      const mood = row.mood ? String(row.mood).trim() : null;
       const author = normalizeArticleAuthor(row.author);
       if (!id || !body || !author) return null;
       return {
         id,
         body,
+        mood: mood && moodSet.has(mood) ? mood : null,
         created_at: String(row.created_at || ""),
         updated_at: String(row.updated_at || ""),
         author,
@@ -480,6 +556,15 @@ function normalizeArticleProposals(value: unknown): ArticleProposal[] {
         reviewed_at: row.reviewed_at ? String(row.reviewed_at) : null,
         author,
         reviewer: normalizeArticleAuthor(row.reviewer),
+        upvotes: Number(toNumber(row.upvotes) || 0),
+        downvotes: Number(toNumber(row.downvotes) || 0),
+        viewer_vote: (
+          toNumber(row.viewer_vote) === 1
+            ? 1
+            : toNumber(row.viewer_vote) === -1
+              ? -1
+              : 0
+        ) as ArticleProposal["viewer_vote"],
       };
     })
     .filter((item): item is ArticleProposal => item !== null);

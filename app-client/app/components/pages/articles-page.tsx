@@ -2,10 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { FaComment, FaEye, FaHeart } from "react-icons/fa6";
 import { AssetPicker } from "@/app/components/common/asset-picker";
+import { ChannelTickerPill } from "@/app/components/common/channel-ticker-pill";
+import { FilterPanel } from "@/app/components/common/filter-panel";
 import { OptionPicker } from "@/app/components/common/option-picker";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
+import { fmtInteger } from "@/app/lib/format";
 import { normalizeArticleListResponse } from "@/app/lib/normalizers";
 import type { ArticleListResponse, ArticleSummary, NewsFeedPagination } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -41,35 +45,86 @@ function getCompactThumbnailUrl(url: string | null | undefined) {
   return `${url.slice(0, lastSlashIndex + 1)}thumbnail-${url.slice(lastSlashIndex + 1)}`;
 }
 
+function formatCountLabel(count: number, singular: string, plural = `${singular}s`) {
+  return `${fmtInteger(count)} ${count === 1 ? singular : plural}`;
+}
+
+function normalizeSummaryText(value: string | null | undefined) {
+  return value?.trim().replace(/\s+/g, " ").toLowerCase() || "";
+}
+
+function EngagementStat({
+  kind,
+  value,
+}: {
+  kind: "views" | "likes" | "comments";
+  value: number;
+}) {
+  const label = kind === "views" ? "view" : kind === "likes" ? "like" : "comment";
+  const Icon = kind === "views" ? FaEye : kind === "likes" ? FaHeart : FaComment;
+
+  return (
+    <span
+      className={styles.engagementStat}
+      aria-label={formatCountLabel(value, label)}
+      title={formatCountLabel(value, label)}
+    >
+      <span className={styles.engagementIcon} aria-hidden="true">
+        <Icon />
+      </span>
+      <span>{fmtInteger(value)}</span>
+    </span>
+  );
+}
+
 function ArticleCard({ article }: { article: ArticleSummary }) {
+  const subtitle = article.subtitle?.trim() || null;
+  const preview = article.preview?.trim() || null;
+  const showPreview = Boolean(preview) && normalizeSummaryText(preview) !== normalizeSummaryText(subtitle);
+
   return (
     <Link href={`/articles/${encodeURIComponent(article.slug)}`} className={styles.cardLink}>
-      <article className={styles.articleCard}>
+      <article className={`${styles.articleCard} ${article.thumbnail_url ? "" : styles.articleCardNoThumb}`.trim()}>
         {article.thumbnail_url ? <img src={getCompactThumbnailUrl(article.thumbnail_url) || article.thumbnail_url} alt="" className={styles.thumb} /> : null}
         <div className={styles.cardBody}>
           <div className={styles.metaRow}>
             <span className={styles.pill}>{article.is_news ? "News" : "Community"}</span>
-            <span className={styles.statusPill}>{formatDate(article.published_at)}</span>
-          </div>
-          <h2 className={styles.cardTitle}>{article.title}</h2>
-          {article.subtitle ? <p className={styles.copy}>{article.subtitle}</p> : null}
-          {article.preview ? <p className={styles.copy}>{article.preview}</p> : null}
-          <div className={styles.metaRow}>
+            <span className={styles.muted}>{formatDate(article.published_at)}</span>
             <span className={styles.muted}>{article.author ? `By ${article.author.username}` : "Imported news item"}</span>
-            <span className={styles.muted}>{article.likes} likes</span>
-            <span className={styles.muted}>{article.comment_count} comments</span>
           </div>
           {article.related_assets.length ? (
             <div className={styles.assetRow}>
               {article.related_assets.slice(0, 4).map((asset) => (
-                <span key={asset.id} className={styles.assetPill}>{asset.symbol}</span>
+                <ChannelTickerPill
+                  key={asset.id}
+                  channel={{
+                    name: asset.display_name,
+                    symbol: asset.symbol,
+                    icon: asset.icon,
+                  }}
+                  className={styles.compactPill}
+                  disableLink
+                />
               ))}
             </div>
           ) : null}
+          <h2 className={styles.cardTitle}>{article.title}</h2>
+          {subtitle ? <p className={styles.cardSubtitle}>{subtitle}</p> : null}
+          {showPreview ? <p className={styles.cardPreview}>{preview}</p> : null}
+          <div className={styles.engagementRow}>
+            <EngagementStat kind="views" value={article.views} />
+            <EngagementStat kind="likes" value={article.likes} />
+            <EngagementStat kind="comments" value={article.comment_count} />
+          </div>
         </div>
       </article>
     </Link>
   );
+}
+
+function hasApprovedArticleBody(article: ArticleSummary) {
+  if (!article.is_news) return true;
+  return Boolean(article.preview?.trim());
 }
 
 export function ArticlesPage() {
@@ -93,6 +148,14 @@ export function ArticlesPage() {
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const visibleItems = items.filter(hasApprovedArticleBody);
+  const activeFilterCount =
+    (draftFilters.type !== "all" ? 1 : 0) +
+    (draftFilters.asset ? 1 : 0) +
+    (draftFilters.query.trim() ? 1 : 0);
+  const filterSummary = activeFilterCount
+    ? `${activeFilterCount} active filter${activeFilterCount === 1 ? "" : "s"}`
+    : "All articles";
 
   function applyFilters() {
     setPage(1);
@@ -169,7 +232,7 @@ export function ArticlesPage() {
         {error ? <div className="statusMessage statusMessageError">Article request error: {error}</div> : null}
         {isLoadingOverview ? <div className={styles.panel}>Loading asset metadata…</div> : null}
 
-        <section className={styles.panel}>
+        <FilterPanel summary={filterSummary} description="Search titles, types, and related assets">
           <form
             className={styles.filterForm}
             onSubmit={(event) => {
@@ -177,19 +240,6 @@ export function ArticlesPage() {
               applyFilters();
             }}
           >
-            <div className={styles.toolbar}>
-              <div className={styles.metaRow}>
-                <span className={styles.muted}>Filters apply when you search</span>
-              </div>
-              <div className={styles.toolbarActions}>
-                <button type="button" className={styles.secondaryButton} onClick={resetFilters} disabled={isLoading}>
-                  Reset filters
-                </button>
-                <button type="submit" className={styles.primaryButton} disabled={isLoading}>
-                  Search
-                </button>
-              </div>
-            </div>
             <div className={styles.fieldGrid}>
               <label className={styles.field}>
                 <span className={styles.fieldLabel}>Search</span>
@@ -224,15 +274,26 @@ export function ArticlesPage() {
                 />
               </label>
             </div>
+            <div className={styles.filterActions}>
+              <span className={styles.filterMeta}>Filters apply when you search</span>
+              <div className={styles.toolbarActions}>
+                <button type="button" className={styles.secondaryButton} onClick={resetFilters} disabled={isLoading}>
+                  Reset filters
+                </button>
+                <button type="submit" className={styles.primaryButton} disabled={isLoading}>
+                  Search
+                </button>
+              </div>
+            </div>
           </form>
-        </section>
+        </FilterPanel>
 
         <section className={styles.panel}>
-          {isLoading && !items.length ? <div className={styles.empty}>Loading articles…</div> : null}
-          {!isLoading && !items.length ? <div className={styles.empty}>No articles matched the current filters.</div> : null}
-          {items.length ? (
+          {isLoading && !visibleItems.length ? <div className={styles.empty}>Loading articles…</div> : null}
+          {!isLoading && !visibleItems.length ? <div className={styles.empty}>No articles matched the current filters.</div> : null}
+          {visibleItems.length ? (
             <div className={styles.grid}>
-              {items.map((article) => <ArticleCard key={article.id} article={article} />)}
+              {visibleItems.map((article) => <ArticleCard key={article.id} article={article} />)}
             </div>
           ) : null}
           <div className={styles.toolbar}>

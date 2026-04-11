@@ -8,6 +8,18 @@ function slugify(value) {
 }
 
 const MAX_SLUG_LENGTH = 80;
+const ARTICLE_COMMENT_MOODS = new Set([
+  "Bullish",
+  "Bearish",
+  "Neutral",
+  "Hodling",
+  "Dump Eet",
+  "He Bought?",
+  "He Sold?",
+  "Diamond Hands",
+  "Watching",
+  "Accumulating",
+]);
 
 function buildNewsSlugBase(headline) {
   return slugify(headline || "news").slice(0, MAX_SLUG_LENGTH).replace(/-+$/g, "") || "news";
@@ -57,6 +69,12 @@ function normalizeAssetIds(value) {
 
 function normalizeStatus(value) {
   return String(value || "").toLowerCase() === "draft" ? "draft" : "published";
+}
+
+function normalizeCommentMood(value) {
+  const normalized = normalizeNullableString(value, { maxLength: 40 });
+  if (!normalized) return null;
+  return ARTICLE_COMMENT_MOODS.has(normalized) ? normalized : null;
 }
 
 function getPreview(content, subtitle) {
@@ -308,6 +326,7 @@ async function getArticleRowBySlug(client, slug, { includeDrafts = false } = {})
       a.author_id,
       a.likes,
       a.saves,
+      a.views,
       a.is_news,
       a.status,
       a.published_at,
@@ -365,6 +384,7 @@ async function hydrateArticleDetail(client, articleRow, viewerUserId = null) {
       SELECT
         c.id,
         c.body,
+        c.mood,
         c.created_at,
         c.updated_at,
         jsonb_build_object(
@@ -402,19 +422,38 @@ async function hydrateArticleDetail(client, articleRow, viewerUserId = null) {
             'id', reviewer.id,
             'username', reviewer.username
           )
-        END AS reviewer
+        END AS reviewer,
+        COALESCE(vote_counts.upvotes, 0)::int AS upvotes,
+        COALESCE(vote_counts.downvotes, 0)::int AS downvotes,
+        COALESCE(viewer_vote.value, 0)::int AS viewer_vote
       FROM content.news_article_proposals p
       JOIN market.users author_user
         ON author_user.id = p.author_id
       LEFT JOIN market.users reviewer
         ON reviewer.id = p.reviewed_by
+      LEFT JOIN LATERAL (
+        SELECT
+          COUNT(*) FILTER (WHERE value = 1)::int AS upvotes,
+          COUNT(*) FILTER (WHERE value = -1)::int AS downvotes
+        FROM content.news_article_proposal_votes pv
+        WHERE pv.proposal_id = p.id
+      ) vote_counts ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT pv.value
+        FROM content.news_article_proposal_votes pv
+        WHERE pv.proposal_id = p.id
+          AND pv.user_id = $2
+        LIMIT 1
+      ) viewer_vote ON TRUE
       WHERE p.article_id = $1
       ORDER BY
         CASE p.status WHEN 'approved' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+        COALESCE(vote_counts.upvotes, 0) DESC,
+        COALESCE(vote_counts.downvotes, 0) ASC,
         p.created_at DESC,
         p.id DESC
     `,
-      [articleRow.id]
+      [articleRow.id, viewerUserId]
     ),
     viewerUserId
       ? client.query(
@@ -455,6 +494,7 @@ async function hydrateArticleDetail(client, articleRow, viewerUserId = null) {
       : null,
     likes: Number(articleRow.likes || 0),
     saves: Number(articleRow.saves || 0),
+    views: Number(articleRow.views || 0),
     is_news: Boolean(articleRow.is_news),
     status: articleRow.status,
     published_at: articleRow.published_at,
@@ -543,6 +583,7 @@ async function listArticles(pool, {
       a.content,
       a.likes,
       a.saves,
+      a.views,
       a.is_news,
       a.status,
       a.published_at,
@@ -631,6 +672,7 @@ async function listArticles(pool, {
     author: row.author_id ? { id: row.author_id, username: row.author_username } : null,
     likes: Number(row.likes || 0),
     saves: Number(row.saves || 0),
+    views: Number(row.views || 0),
     is_news: Boolean(row.is_news),
     status: row.status,
     published_at: row.published_at,
@@ -657,7 +699,20 @@ async function listArticles(pool, {
   };
 }
 
-async function getArticleBySlug(pool, slug, viewerUserId = null, includeDrafts = false) {
+async function incrementArticleViews(client, articleId) {
+  const { rows } = await client.query(
+    `
+    UPDATE content.articles
+    SET views = views + 1
+    WHERE id = $1
+    RETURNING views
+  `,
+    [articleId]
+  );
+  return rows[0]?.views ?? null;
+}
+
+async function getArticleBySlug(pool, slug, viewerUserId = null, includeDrafts = false, incrementViews = false) {
   const safeSlug = normalizeString(slug, { maxLength: 220, allowEmpty: false });
   if (!safeSlug) return null;
 
@@ -677,6 +732,13 @@ async function getArticleBySlug(pool, slug, viewerUserId = null, includeDrafts =
     }
     if (!articleRow) return null;
     if (!includeDrafts && articleRow.status !== "published") return null;
+    if (incrementViews) {
+      const nextViews = await incrementArticleViews(client, articleRow.id);
+      articleRow = {
+        ...articleRow,
+        views: nextViews ?? articleRow.views,
+      };
+    }
     return await hydrateArticleDetail(client, articleRow, viewerUserId);
   } finally {
     client.release();
@@ -854,9 +916,10 @@ async function updateArticle(pool, slug, {
   }
 }
 
-async function createComment(pool, slug, authorId, body) {
+async function createComment(pool, slug, authorId, body, mood) {
   const safeBody = normalizeString(body, { maxLength: 4000, allowEmpty: false });
-  if (!safeBody) {
+  const safeMood = normalizeCommentMood(mood);
+  if (!safeBody || (mood != null && !safeMood)) {
     const error = new Error("invalid_comment");
     error.code = "invalid_comment";
     throw error;
@@ -869,10 +932,10 @@ async function createComment(pool, slug, authorId, body) {
   }
   await pool.query(
     `
-    INSERT INTO content.article_comments (article_id, author_id, body, created_at, updated_at)
-    VALUES ($1,$2,$3,now(),now())
+    INSERT INTO content.article_comments (article_id, author_id, body, mood, created_at, updated_at)
+    VALUES ($1,$2,$3,$4,now(),now())
   `,
-    [article.id, authorId, safeBody]
+    [article.id, authorId, safeBody, safeMood]
   );
 }
 
@@ -1078,6 +1141,88 @@ async function approveProposal(pool, slug, proposalId, reviewerId) {
   }
 }
 
+async function setProposalVote(pool, slug, proposalId, userId, value) {
+  const safeProposalId = Number(proposalId);
+  const safeValue = Number(value);
+  if (!Number.isInteger(safeProposalId) || safeProposalId <= 0) {
+    const error = new Error("invalid_proposal");
+    error.code = "invalid_proposal";
+    throw error;
+  }
+  if (![1, 0, -1].includes(safeValue)) {
+    const error = new Error("invalid_vote");
+    error.code = "invalid_vote";
+    throw error;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const article = await getArticleOwnership(client, slug);
+    if (!article) {
+      const error = new Error("article_not_found");
+      error.code = "article_not_found";
+      throw error;
+    }
+    if (!article.is_news) {
+      const error = new Error("proposal_not_allowed");
+      error.code = "proposal_not_allowed";
+      throw error;
+    }
+
+    const proposalResult = await client.query(
+      `
+      SELECT id
+      FROM content.news_article_proposals
+      WHERE id = $1
+        AND article_id = $2
+      LIMIT 1
+    `,
+      [safeProposalId, article.id]
+    );
+    if (!proposalResult.rows[0]) {
+      const error = new Error("proposal_not_found");
+      error.code = "proposal_not_found";
+      throw error;
+    }
+
+    if (safeValue === 0) {
+      await client.query(
+        `
+        DELETE FROM content.news_article_proposal_votes
+        WHERE proposal_id = $1
+          AND user_id = $2
+      `,
+        [safeProposalId, userId]
+      );
+    } else {
+      await client.query(
+        `
+        INSERT INTO content.news_article_proposal_votes (
+          proposal_id,
+          user_id,
+          value,
+          created_at,
+          updated_at
+        ) VALUES ($1,$2,$3,now(),now())
+        ON CONFLICT (proposal_id, user_id) DO UPDATE
+        SET
+          value = EXCLUDED.value,
+          updated_at = now()
+      `,
+        [safeProposalId, userId, safeValue]
+      );
+    }
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   slugify,
   buildNewsSlugBase,
@@ -1094,4 +1239,5 @@ module.exports = {
   toggleArticlePreference,
   createProposal,
   approveProposal,
+  setProposalVote,
 };

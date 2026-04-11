@@ -26,6 +26,8 @@ coverage/
 .cache/
 
 temp-images/
+profile-pictures/
+emojis/
 
 holosymbols/
 training_data/

@@ -33,6 +33,7 @@ const CATEGORY_ITEMS = [
     key: "community",
     label: "Community",
     links: [
+      { href: "/chat", label: "Chat" },
       { href: "/articles", label: "Articles" },
       { href: "/threads", label: "/vt/" },
       { href: "/leaderboard", label: "Leaderboard" },
@@ -269,7 +270,15 @@ const MarketRibbon = memo(function MarketRibbon({
   );
 });
 
-export function SiteShell({ children }: { children: React.ReactNode }) {
+export function SiteShell({
+  children,
+  fullBleed = false,
+  hideFooter = false,
+}: {
+  children: React.ReactNode;
+  fullBleed?: boolean;
+  hideFooter?: boolean;
+}) {
   const pathname = usePathname();
   const { user, isLoading } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -281,6 +290,9 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [lastCategory, setLastCategory] = useState<string | null>(null);
   const hasRequestedOverviewRef = useRef(false);
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const headerRef = useRef<HTMLElement | null>(null);
+  const ribbonShellRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (assets.length || hasRequestedOverviewRef.current) return;
@@ -293,6 +305,34 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
     void fetchMarketIndexes();
   }, [fetchMarketIndexes, isLoadingIndex, marketIndexes.length]);
 
+  useLayoutEffect(() => {
+    const shell = shellRef.current;
+    const header = headerRef.current;
+    const ribbonShell = ribbonShellRef.current;
+    if (!shell || !header || !ribbonShell || typeof ResizeObserver === "undefined") return;
+
+    function updateShellChromeHeight() {
+      if (!shell || !header || !ribbonShell) return;
+      const chromeHeight = header.offsetHeight + ribbonShell.offsetHeight;
+      shell.style.setProperty("--site-shell-chrome-height", `${chromeHeight}px`);
+    }
+
+    updateShellChromeHeight();
+
+    const observer = new ResizeObserver(() => {
+      updateShellChromeHeight();
+    });
+    observer.observe(header);
+    observer.observe(ribbonShell);
+    window.addEventListener("resize", updateShellChromeHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateShellChromeHeight);
+      shell.style.removeProperty("--site-shell-chrome-height");
+    };
+  }, []);
+
   const profileHref = user ? "/profile" : "/login";
   const profileInitial = user?.username?.trim()?.charAt(0)?.toUpperCase() || "N";
   const activeDropdownKey = openCategory || lastCategory;
@@ -300,8 +340,8 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
   const currentYear = new Date().getFullYear();
 
   return (
-    <div className={styles.shell}>
-      <header className={styles.header}>
+    <div ref={shellRef} className={styles.shell}>
+      <header ref={headerRef} className={styles.header}>
         <div className={styles.navbarRow}>
           <div className={styles.navbarStart}>
             <Link href="/" className={styles.brand} aria-label="NASFAQ home">
@@ -381,31 +421,34 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
 
       </header>
 
-      <div className={styles.ribbonShell}>
+      <div ref={ribbonShellRef} className={styles.ribbonShell}>
         <MarketRibbon marketIndexes={marketIndexes} isLoadingIndex={isLoadingIndex} />
       </div>
 
-      <main className={styles.main}>{children}</main>
+      <main className={[styles.main, fullBleed ? styles.mainFullBleed : ""].filter(Boolean).join(" ")}>{children}</main>
 
-      <footer className={styles.footer}>
-        <div className={styles.footerInner}>
-          <h2 className={styles.footerTitle}>NASFAQ</h2>
-          <nav className={styles.footerLinks} aria-label="Footer">
-            <Link href="/">Home</Link>
-            <Link href="/news">News</Link>
-            <Link href="/stocks">Stocks</Link>
-            <Link href="/privacy">Privacy Policy</Link>
-            <Link href="/terms">Usage Policy</Link>
-          </nav>
-          <p className={styles.footerMeta}>© {currentYear} NASFAQ. All rights reserved.</p>
-          <p className={styles.footerMeta}>
-            Contact:{" "}
-            <a href="mailto:nasfaqsite@gmail.com" className={styles.footerContact}>
-              nasfaqsite@gmail.com
-            </a>
-          </p>
-        </div>
-      </footer>
+      {!hideFooter ? (
+        <footer className={styles.footer}>
+          <div className={styles.footerInner}>
+            <h2 className={styles.footerTitle}>NASFAQ</h2>
+            <nav className={styles.footerLinks} aria-label="Footer">
+              <Link href="/">Home</Link>
+              <Link href="/news">News</Link>
+              <Link href="/stocks">Stocks</Link>
+              <Link href="/chat">Chat</Link>
+              <Link href="/privacy">Privacy Policy</Link>
+              <Link href="/terms">Usage Policy</Link>
+            </nav>
+            <p className={styles.footerMeta}>© {currentYear} NASFAQ. All rights reserved.</p>
+            <p className={styles.footerMeta}>
+              Contact:{" "}
+              <a href="mailto:nasfaqsite@gmail.com" className={styles.footerContact}>
+                nasfaqsite@gmail.com
+              </a>
+            </p>
+          </div>
+        </footer>
+      ) : null}
     </div>
   );
 }

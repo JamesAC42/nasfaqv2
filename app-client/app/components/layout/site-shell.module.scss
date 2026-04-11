@@ -372,7 +372,14 @@
   display: grid;
   gap: 1.25rem;
   flex: 1 0 auto;
+  min-height: 0;
   padding: 2rem 3rem 2.5rem;
+  overflow: hidden;
+}
+
+.mainFullBleed {
+  gap: 0;
+  padding: 0;
 }
 
 .footer {

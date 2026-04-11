@@ -1,0 +1,192 @@
+@use "../../styles/mixins" as *;
+
+.page {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.hero {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 18%, transparent), transparent 32%),
+    linear-gradient(145deg, var(--surface-section-strong), var(--surface-section));
+  box-shadow: var(--shadow);
+}
+
+.eyebrow {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--muted);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3rem);
+}
+
+.copy {
+  margin: 0;
+  max-width: 60rem;
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.section {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-section);
+  box-shadow: var(--shadow);
+}
+
+.sectionHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+}
+
+.sectionNote {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.formGrid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: end;
+}
+
+.field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.field label {
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.input,
+.fileInput {
+  @include input-base;
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.92rem;
+  color: var(--text);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.createRow {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.createAction {
+  display: flex;
+  align-items: end;
+}
+
+.primaryButton,
+.secondaryButton {
+  font-weight: 700;
+}
+
+.primaryButton {
+  @include button-secondary;
+}
+
+.secondaryButton {
+  @include button-secondary;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  @include table-shell;
+  min-width: 820px;
+  
+  td {
+    vertical-align: middle;
+  }
+}
+
+.previewCell {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.previewImage {
+  width: 3rem;
+  height: 3rem;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--surface-section-strong);
+  border: 1px solid var(--border);
+}
+
+.filename {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.statusDeleted {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.statusActive {
+  color: var(--success);
+  font-weight: 700;
+}
+
+.empty {
+  @include empty-state;
+}
+
+@media (max-width: 900px) {
+  .sectionHead {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .table {
+    min-width: 640px;
+  }
+}
+
+@media (max-width: 720px) {
+  .createRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -1,0 +1,16 @@
+- prediction market
+- volume graphs
+- better profile
+    - profile pictures, profile editing, friends, rivals
+- better index page
+- better chat
+    - emotes
+- oekaki
+- minigames
+- pages with lots of socket updates like livestreams lags the ticker scroller
+- trade history page / market activity
+- bot? AI commentator? 
+- notifications
+- achievements/ streaks
+- leaderboard
+- add leaderboard current networth and rank to the chat user display

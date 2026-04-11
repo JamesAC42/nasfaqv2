@@ -1,6 +1,7 @@
 const articleDb = require("./articleDb");
 const netWorth = require("./services/netWorth");
 const trading = require("./services/trading");
+const PROFILE_PICTURE_CDN_BASE_URL = "https://images.nasfaq.biz/profile-pictures";
 
 function toInt(value, fallback, { min = 1, max = 100 } = {}) {
   const parsed = Number.parseInt(String(value ?? fallback), 10);
@@ -24,6 +25,24 @@ function normalizeUsername(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function optionalTrimmedString(value) {
+  if (value === null || value === undefined) return null;
+  const trimmed = value.toString().trim();
+  return trimmed ? trimmed : null;
+}
+
+function optionalHexColor(value) {
+  const trimmed = optionalTrimmedString(value);
+  if (!trimmed) return null;
+  return /^#[0-9a-fA-F]{6}$/.test(trimmed) ? trimmed.toLowerCase() : null;
+}
+
+function profilePictureUrlSql(size, alias = "pp") {
+  const field = size === "large" ? "filename_large" : "filename_small";
+  const folder = size === "large" ? "large" : "small";
+  return `CASE WHEN ${alias}.id IS NULL OR ${alias}.is_deleted THEN NULL ELSE '${PROFILE_PICTURE_CDN_BASE_URL}/${folder}/' || ${alias}.${field} END`;
+}
+
 async function getUserByUsername(pool, username) {
   const safeUsername = normalizeUsername(username);
   if (!safeUsername) return null;
@@ -34,7 +53,7 @@ async function getUserByUsername(pool, username) {
       u.username,
       u.created_at,
       u.bio,
-      u.profile_picture_url,
+      ${profilePictureUrlSql("large")} AS profile_picture_url,
       u.profile_color,
       u.oshi_coin_asset_id,
       CASE
@@ -48,6 +67,8 @@ async function getUserByUsername(pool, username) {
         )
       END AS oshi_coin
     FROM market.users u
+    LEFT JOIN market.profile_pictures pp
+      ON pp.id = u.profile_picture_id
     LEFT JOIN market.market_assets ma
       ON ma.id = u.oshi_coin_asset_id
     LEFT JOIN yt.youtube_channels yc
@@ -70,7 +91,7 @@ async function getUserById(pool, userId) {
       u.username,
       u.created_at,
       u.bio,
-      u.profile_picture_url,
+      ${profilePictureUrlSql("large")} AS profile_picture_url,
       u.profile_color,
       u.oshi_coin_asset_id,
       CASE
@@ -84,6 +105,8 @@ async function getUserById(pool, userId) {
         )
       END AS oshi_coin
     FROM market.users u
+    LEFT JOIN market.profile_pictures pp
+      ON pp.id = u.profile_picture_id
     LEFT JOIN market.market_assets ma
       ON ma.id = u.oshi_coin_asset_id
     LEFT JOIN yt.youtube_channels yc
@@ -114,7 +137,7 @@ async function listAcceptedFriends(pool, userId) {
     SELECT
       friend.id,
       friend.username,
-      friend.profile_picture_url,
+      ${profilePictureUrlSql("small", "pp")} AS profile_picture_url,
       friend.profile_color
     FROM market.user_friendships f
     JOIN market.users friend
@@ -122,6 +145,8 @@ async function listAcceptedFriends(pool, userId) {
         WHEN f.requester_id = $1 THEN f.addressee_id
         ELSE f.requester_id
       END
+    LEFT JOIN market.profile_pictures pp
+      ON pp.id = friend.profile_picture_id
     WHERE f.status = 'accepted'
       AND ($1 IN (f.requester_id, f.addressee_id))
     ORDER BY COALESCE(f.accepted_at, f.created_at) DESC, friend.username ASC
@@ -137,11 +162,13 @@ async function listRivals(pool, userId) {
     SELECT
       u.id,
       u.username,
-      u.profile_picture_url,
+      ${profilePictureUrlSql("small", "pp")} AS profile_picture_url,
       u.profile_color
     FROM market.user_rivals r
     JOIN market.users u
       ON u.id = r.rival_user_id
+    LEFT JOIN market.profile_pictures pp
+      ON pp.id = u.profile_picture_id
     WHERE r.user_id = $1
     ORDER BY r.created_at DESC, u.username ASC
   `,
@@ -157,12 +184,14 @@ async function listPendingFriendRequests(pool, userId, direction) {
     SELECT
       u.id,
       u.username,
-      u.profile_picture_url,
+      ${profilePictureUrlSql("small", "pp")} AS profile_picture_url,
       u.profile_color,
       f.created_at
     FROM market.user_friendships f
     JOIN market.users u
       ON u.id = ${isIncoming ? "f.requester_id" : "f.addressee_id"}
+    LEFT JOIN market.profile_pictures pp
+      ON pp.id = u.profile_picture_id
     WHERE f.status = 'pending'
       AND ${isIncoming ? "f.addressee_id" : "f.requester_id"} = $1
     ORDER BY f.created_at DESC, u.username ASC
@@ -416,6 +445,121 @@ async function resolveTargetUser(pool, username, viewerUserId) {
   return target;
 }
 
+async function setProfilePicture(pool, userId, profilePictureId) {
+  const safeUserId = Number(userId);
+  if (!Number.isInteger(safeUserId) || safeUserId <= 0) {
+    const error = new Error("invalid_profile_picture");
+    error.code = "invalid_profile_picture";
+    throw error;
+  }
+
+  if (profilePictureId === null || profilePictureId === undefined) {
+    await pool.query(
+      `
+      UPDATE market.users
+      SET profile_picture_id = NULL
+      WHERE id = $1
+    `,
+      [safeUserId]
+    );
+    return;
+  }
+
+  const safeProfilePictureId = Number(profilePictureId);
+  if (!Number.isInteger(safeProfilePictureId) || safeProfilePictureId <= 0) {
+    const error = new Error("invalid_profile_picture");
+    error.code = "invalid_profile_picture";
+    throw error;
+  }
+
+  const exists = await pool.query(
+    `
+    SELECT id
+    FROM market.profile_pictures
+    WHERE id = $1
+      AND is_deleted = false
+    LIMIT 1
+  `,
+    [safeProfilePictureId]
+  );
+
+  if (!exists.rows[0]) {
+    const error = new Error("profile_picture_not_found");
+    error.code = "profile_picture_not_found";
+    throw error;
+  }
+
+  await pool.query(
+    `
+    UPDATE market.users
+    SET profile_picture_id = $2
+    WHERE id = $1
+  `,
+    [safeUserId, safeProfilePictureId]
+  );
+}
+
+async function updateProfileSettings(pool, userId, { bio, profileColor, oshiCoinAssetId }) {
+  const safeUserId = Number(userId);
+  if (!Number.isInteger(safeUserId) || safeUserId <= 0) {
+    const error = new Error("invalid_profile_update");
+    error.code = "invalid_profile_update";
+    throw error;
+  }
+
+  const safeBio = optionalTrimmedString(bio);
+  if (safeBio && safeBio.length > 250) {
+    const error = new Error("invalid_profile_update");
+    error.code = "invalid_profile_update";
+    throw error;
+  }
+
+  const safeProfileColor = profileColor === null || profileColor === undefined || profileColor === ""
+    ? null
+    : optionalHexColor(profileColor);
+  if (profileColor !== null && profileColor !== undefined && profileColor !== "" && !safeProfileColor) {
+    const error = new Error("invalid_profile_update");
+    error.code = "invalid_profile_update";
+    throw error;
+  }
+
+  let safeOshiCoinAssetId = null;
+  if (oshiCoinAssetId !== null && oshiCoinAssetId !== undefined && oshiCoinAssetId !== "") {
+    safeOshiCoinAssetId = Number(oshiCoinAssetId);
+    if (!Number.isInteger(safeOshiCoinAssetId) || safeOshiCoinAssetId <= 0) {
+      const error = new Error("invalid_profile_update");
+      error.code = "invalid_profile_update";
+      throw error;
+    }
+
+    const assetResult = await pool.query(
+      `
+      SELECT id
+      FROM market.market_assets
+      WHERE id = $1
+      LIMIT 1
+    `,
+      [safeOshiCoinAssetId]
+    );
+    if (!assetResult.rows[0]) {
+      const error = new Error("invalid_profile_update");
+      error.code = "invalid_profile_update";
+      throw error;
+    }
+  }
+
+  await pool.query(
+    `
+    UPDATE market.users
+    SET bio = $2,
+        profile_color = $3,
+        oshi_coin_asset_id = $4
+    WHERE id = $1
+  `,
+    [safeUserId, safeBio, safeProfileColor, safeOshiCoinAssetId]
+  );
+}
+
 async function sendFriendRequest(pool, viewerUserId, username) {
   const target = await resolveTargetUser(pool, username, viewerUserId);
   const pairResult = await pool.query(
@@ -524,6 +668,8 @@ module.exports = {
   listProfileTrades,
   removeFriendship,
   resolveProfileUser,
+  setProfilePicture,
+  updateProfileSettings,
   sendFriendRequest,
   setRival,
 };

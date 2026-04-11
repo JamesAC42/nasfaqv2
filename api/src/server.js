@@ -7,11 +7,13 @@ const { loadEnv, getConfig } = require("./config");
 const { createPool } = require("./db");
 const { applySchema } = require("./migrations");
 const { createRedis } = require("./redis");
+const chatDb = require("./chatDb");
 const authService = require("./services/auth");
 const marketState = require("./services/marketState");
 const { startMarketScheduler, loadSchedulerConfig, computeNextScheduledAt } = require("./services/marketScheduler");
 
 const channelsRoutes = require("./routes/channels");
+const { router: chatRoutes, CHAT_EVENTS_REDIS_CHANNEL } = require("./routes/chat");
 const overviewRoutes = require("./routes/overview");
 const livestreamsRoutes = require("./routes/livestreams");
 const newsRoutes = require("./routes/news");
@@ -26,6 +28,9 @@ const profileRoutes = require("./routes/profiles");
 const authRoutes = require("./routes/auth");
 const statsRoutes = require("./routes/stats");
 const nasfaqThreadRoutes = require("./routes/nasfaqThread");
+const adminAssetsRoutes = require("./routes/adminAssets");
+const assetsRoutes = require("./routes/assets");
+const mediaCatalog = require("./services/mediaCatalog");
 
 const LIVESTREAM_VIEWER_UPDATES_CHANNEL = "nasfaq_livestreams:viewer_updates";
 const LIVESTREAM_BUCKET_UPDATES_CHANNEL = "nasfaq_livestreams:bucket_updates";
@@ -46,6 +51,20 @@ function safeParseJSON(s) {
 
 function cmpAsc(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function normalizeChannelKeyList(value) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(
+    new Set(
+      value
+        .map((item) => {
+          const parsed = chatDb.parseChannelKey(item);
+          return parsed?.channelKey || null;
+        })
+        .filter(Boolean)
+    )
+  );
 }
 
 function toListStream(item) {
@@ -145,7 +164,7 @@ loadEnv();
 const cfg = getConfig();
 
 const app = express();
-app.use(express.json({ limit: "5mb" }));
+app.use(express.json({ limit: "25mb" }));
 app.use(
   cors({
     origin: cfg.corsOrigin,
@@ -182,6 +201,7 @@ api.use("/auth", authRoutes);
 app.use("/internal/market", internalMarketRoutes);
 
 api.use("/channels", channelsRoutes);
+api.use("/chat", chatRoutes);
 api.use("/overview", overviewRoutes);
 api.use("/livestreams", livestreamsRoutes);
 api.use("/news", newsRoutes);
@@ -192,6 +212,8 @@ api.use("/market", marketRoutes);
 api.use("/portfolio", portfolioRoutes);
 api.use("/profiles", profileRoutes);
 api.use("/stats", statsRoutes);
+api.use("/admin/assets", adminAssetsRoutes);
+api.use("/assets", assetsRoutes);
 api.use("/", nasfaqThreadRoutes);
 
 app.use("/api", api);
@@ -202,6 +224,7 @@ app.use((err, _req, res, _next) => {
   if (err?.code === "unauthenticated") return res.status(401).json({ error: "unauthenticated" });
   if (err?.code === "forbidden") return res.status(403).json({ error: "forbidden" });
   if (err?.code === "article_not_found" || err?.code === "proposal_not_found" || err?.code === "profile_not_found") return res.status(404).json({ error: err.code });
+  if (err?.code === "profile_picture_not_found") return res.status(404).json({ error: err.code });
   if (
     err?.code === "already_friends"
     || err?.code === "friend_request_pending"
@@ -214,12 +237,39 @@ app.use((err, _req, res, _next) => {
     || err?.code === "invalid_comment"
     || err?.code === "invalid_proposal"
     || err?.code === "invalid_news_id"
+    || err?.code === "invalid_chat_channel"
+    || err?.code === "invalid_chat_message"
+    || err?.code === "invalid_chat_report"
+    || err?.code === "invalid_chat_moderation"
     || err?.code === "proposal_not_allowed"
     || err?.code === "cannot_edit_news_article"
     || err?.code === "invalid_profile_target"
     || err?.code === "friend_request_not_found"
+    || err?.code === "invalid_profile_picture"
+    || err?.code === "invalid_profile_update"
+    || err?.code === "invalid_admin_asset"
   ) {
     return res.status(400).json({ error: err.code });
+  }
+  if (
+    err?.code === "chat_channel_locked"
+    || err?.code === "chat_user_muted"
+    || err?.code === "chat_user_banned"
+    || err?.code === "chat_rate_limited"
+  ) {
+    return res.status(409).json({
+      error: err.code,
+      retry_after_ms: err.retry_after_ms || null,
+      expires_at: err.expires_at || null,
+    });
+  }
+  if (
+    err?.code === "chat_channel_not_found"
+    || err?.code === "chat_message_not_found"
+    || err?.code === "chat_report_not_found"
+    || err?.code === "admin_asset_not_found"
+  ) {
+    return res.status(404).json({ error: err.code });
   }
   return res.status(500).json({ error: "internal_error" });
 });
@@ -229,6 +279,8 @@ async function main() {
     await applySchema(pool);
     await articleDb.backfillAllNewsArticles(pool);
   }
+  await mediaCatalog.syncMediaCatalog(pool, console);
+  await chatDb.ensureChatTopology(pool);
 
   const schedulerConfig = loadSchedulerConfig();
   const stateClient = await pool.connect();
@@ -255,6 +307,7 @@ async function main() {
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
   const bucketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
   const statsWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
+  const chatWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
 
   const broadcastOnlineUserCount = () => {
     const payload = JSON.stringify({
@@ -327,8 +380,89 @@ async function main() {
       broadcastOnlineUserCount();
     });
   });
+  chatWss.on("connection", (ws, req) => {
+    ws.chatSubscriptions = new Set();
 
-  server.on("upgrade", (req, socket, head) => {
+    sendWsText(
+      ws,
+      JSON.stringify({
+        type: "chat.hello",
+        authenticated: Boolean(req.chatUser),
+        user: req.chatUser
+          ? {
+              id: Number(req.chatUser.id),
+              username: req.chatUser.username,
+              is_admin: Boolean(req.chatUser.is_admin),
+            }
+          : null,
+        channels: [],
+      })
+    );
+
+    ws.on("message", async (raw) => {
+      const payload = safeParseJSON(String(raw || ""));
+      if (!payload || typeof payload !== "object") {
+        sendWsText(ws, JSON.stringify({ type: "chat.error", error: "invalid_payload" }));
+        return;
+      }
+
+      const action = String(payload.action || "").trim().toLowerCase();
+      if (action === "subscribe") {
+        const requestedChannelKeys = normalizeChannelKeyList(payload.channel_keys);
+        const subscribed = [];
+        const rejected = [];
+
+        for (const channelKey of requestedChannelKeys) {
+          try {
+            await chatDb.ensureChatTopology(pool);
+            const channel = await chatDb.getChannelByKey(pool, channelKey, {
+              viewerUserId: req.chatUser?.id || null,
+              includeInactive: Boolean(req.chatUser?.is_admin),
+            });
+            if (!channel) {
+              rejected.push(channelKey);
+              continue;
+            }
+            ws.chatSubscriptions.add(channel.channel_key);
+            subscribed.push(channel.channel_key);
+          } catch {
+            rejected.push(channelKey);
+          }
+        }
+
+        sendWsText(
+          ws,
+          JSON.stringify({
+            type: "chat.subscribed",
+            channel_keys: subscribed,
+            rejected_channel_keys: rejected,
+          })
+        );
+        return;
+      }
+
+      if (action === "unsubscribe") {
+        const channelKeys = normalizeChannelKeyList(payload.channel_keys);
+        channelKeys.forEach((channelKey) => ws.chatSubscriptions.delete(channelKey));
+        sendWsText(
+          ws,
+          JSON.stringify({
+            type: "chat.unsubscribed",
+            channel_keys: channelKeys,
+          })
+        );
+        return;
+      }
+
+      sendWsText(ws, JSON.stringify({ type: "chat.error", error: "unsupported_action" }));
+    });
+
+    ws.on("close", () => {
+      ws.chatSubscriptions.clear();
+    });
+  });
+
+  server.on("upgrade", async (req, socket, head) => {
     let pathname = "";
     try {
       pathname = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`).pathname;
@@ -344,6 +478,8 @@ async function main() {
           ? bucketWss
           : pathname === "/api/stats/ws"
             ? statsWss
+            : pathname === "/api/chat/ws"
+              ? chatWss
           : null;
 
     if (!target) {
@@ -351,9 +487,16 @@ async function main() {
       return;
     }
 
-    target.handleUpgrade(req, socket, head, (ws) => {
-      target.emit("connection", ws, req);
-    });
+    try {
+      if (target === chatWss) {
+        req.chatUser = await authService.getAuthenticatedUser(pool, req);
+      }
+      target.handleUpgrade(req, socket, head, (ws) => {
+        target.emit("connection", ws, req);
+      });
+    } catch {
+      socket.destroy();
+    }
   });
 
   // Dedicated Redis client for pub/sub (subscriber mode can't run other commands).
@@ -370,8 +513,18 @@ async function main() {
       sendWsText(client, payload);
     });
   });
+  await redisSub.subscribe(CHAT_EVENTS_REDIS_CHANNEL, (message) => {
+    const payload = String(message);
+    const parsed = safeParseJSON(payload);
+    if (!parsed?.channel_key) return;
+
+    chatWss.clients.forEach((client) => {
+      if (!client.chatSubscriptions?.has(parsed.channel_key)) return;
+      sendWsText(client, payload);
+    });
+  });
   // eslint-disable-next-line no-console
-  console.log("Subscribed to Redis channels:", LIVESTREAM_VIEWER_UPDATES_CHANNEL, LIVESTREAM_BUCKET_UPDATES_CHANNEL);
+  console.log("Subscribed to Redis channels:", LIVESTREAM_VIEWER_UPDATES_CHANNEL, LIVESTREAM_BUCKET_UPDATES_CHANNEL, CHAT_EVENTS_REDIS_CHANNEL);
 
   // One server-side refresh timer replaces client polling.
   await refreshSnapshot();
@@ -380,7 +533,7 @@ async function main() {
   server.listen(cfg.port, () => {
     // eslint-disable-next-line no-console
     console.log(
-      `API listening on http://localhost:${cfg.port} (HTTP + WebSocket /api/livestreams/ws + /api/livestreams/buckets/ws + /api/stats/ws)`
+      `API listening on http://localhost:${cfg.port} (HTTP + WebSocket /api/livestreams/ws + /api/livestreams/buckets/ws + /api/stats/ws + /api/chat/ws)`
     );
   });
 
@@ -394,5 +547,3 @@ main().catch((e) => {
   console.error("fatal:", e);
   process.exit(1);
 });
-
-

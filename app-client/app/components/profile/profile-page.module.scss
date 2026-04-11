@@ -53,6 +53,19 @@
   border: 2px solid var(--profile-accent);
 }
 
+.avatarPickerButton {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 50%;
+  line-height: 0;
+}
+
+.avatarPickerButton:hover .avatarImage,
+.avatarPickerButton:hover .avatarFallback {
+  box-shadow: 0 0 0 0.35rem color-mix(in srgb, var(--profile-accent) 18%, transparent);
+}
+
 .avatarImage {
   object-fit: cover;
   background: var(--surface-section-strong);
@@ -99,13 +112,19 @@
   line-height: 1.65;
 }
 
-.oshiCard {
-  display: grid;
-  gap: 0.2rem;
-  padding: 0.9rem 1rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--surface-section-soft);
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.titleOshiCoin {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .sectionPanel {
@@ -168,6 +187,52 @@
   align-items: center;
 }
 
+.settingsGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 1rem;
+}
+
+.settingsSide,
+.fieldStack {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.fieldLabel {
+  color: var(--muted);
+  font-size: 0.86rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.textarea {
+  @include input-base;
+  min-height: 8.5rem;
+  resize: vertical;
+}
+
+.colorRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.colorInput {
+  width: 3.4rem;
+  height: 3rem;
+  padding: 0.2rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+}
+
+.colorValue {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+
 .primaryButton {
   @include button-primary;
 }
@@ -180,6 +245,137 @@
 .articleGrid {
   display: grid;
   gap: 0.75rem;
+}
+
+.profilePicturePreview,
+.profilePictureFallbackPreview {
+  width: 5rem;
+  height: 5rem;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+}
+
+.profilePicturePreview {
+  object-fit: cover;
+  background: var(--surface-section-strong);
+}
+
+.profilePictureFallbackPreview {
+  display: grid;
+  place-items: center;
+  background: var(--surface-section-soft);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+}
+
+.profilePictureOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: color-mix(in srgb, var(--bg-darkest) 56%, transparent);
+  backdrop-filter: blur(10px);
+  animation: profileModalOverlayIn 140ms ease-out;
+}
+
+.profilePictureModal {
+  width: min(40rem, 100%);
+  max-height: min(40rem, 90vh);
+  display: grid;
+  gap: 1rem;
+  padding: 1.2rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-section);
+  box-shadow: var(--shadow);
+  animation: profileModalEnter 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform-origin: center;
+}
+
+.profilePictureModalHead {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.modalCloseButton {
+  @include button-secondary;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.profilePictureModalBody {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 0.9rem;
+  max-height: min(29rem, 68vh);
+  overflow: auto;
+  padding-right: 0.35rem;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent) 42%, transparent) color-mix(in srgb, var(--surface-card-soft) 68%, transparent);
+}
+
+.profilePictureModalBody::-webkit-scrollbar {
+  width: 0.7rem;
+}
+
+.profilePictureModalBody::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-card-soft) 70%, transparent);
+}
+
+.profilePictureModalBody::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--surface-card-soft) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.profilePictureModalBody::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--accent) 68%, transparent);
+}
+
+.profilePictureCircle {
+  padding: 0.25rem;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: transparent;
+  display: grid;
+  place-items: center;
+}
+
+.profilePictureCircleActive {
+  border-color: var(--button-primary-border);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+@keyframes profileModalOverlayIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes profileModalEnter {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .personCard,
@@ -281,6 +477,10 @@
 @media (max-width: 1100px) {
   .topGrid,
   .contentGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .settingsGrid {
     grid-template-columns: 1fr;
   }
 }

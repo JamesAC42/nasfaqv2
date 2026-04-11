@@ -98,6 +98,7 @@
 .heroPriceValue {
   font-size: 2.5rem;
   font-weight: 1000;
+  color: white;
 }
 
 .heroPriceChange {
@@ -217,6 +218,7 @@
   align-items: baseline;
   font-size: clamp(2rem, 4.2vw, 3.4rem);
   line-height: 0.98;
+  color: white;
   margin-top:0.5rem;
 }
 
@@ -364,6 +366,7 @@
 .infoCard strong,
 .tradeSummary strong {
   font-size: 1.02rem;
+  color: white;
 }
 
 .quickStatValueSkeleton {
@@ -400,16 +403,15 @@
   gap: 1.25rem;
 }
 
-.tradeColumn { 
-  @include panel;
-}
-
-.sectionCard,
-.tradePanel {
+.sectionCard {
   position: relative;
   padding: 1.15rem;
   display: grid;
   gap: 1rem;
+}
+
+.sectionCard {
+  overflow: hidden;
 }
 
 .sectionHeader {
@@ -553,23 +555,8 @@
 }
 
 .tradePanel {
-  position: sticky;
-  top: 1rem;
-  gap: 1rem;
-  //: 0;
-  z-index: 10;
-  isolation: isolate;
-  background: color-mix(in srgb, #070b12 92%, var(--bg-accent));
-}
-
-.tradePanel::before {
-  //z-index: -2;
-  pointer-events: none;
-}
-
-.tradePanel > * {
-  position: relative;
-  z-index: 1;
+  @include panel;
+  padding:1rem;
 }
 
 .liveNowCard {
@@ -794,24 +781,20 @@
   @include button-base;
   min-height: 2.9rem;
   position: relative;
-  //z-index: 0;
-  overflow: visible;
   border-width: 2px;
   font-weight: 800;
   background: color-mix(in srgb, var(--surface-card) 96%, #02040a);
   box-shadow: none;
-  z-index: 0;
 }
 
 .tradeSubmitBuy::before,
 .tradeSubmitSell::before {
   content: "";
   position: absolute;
-  inset: 0;
+  z-index: -1;
   border-radius: 999px;
   transform: translate(-7px, 7px);
   transition: transform 140ms ease;
-  z-index: -1;
 }
 
 .tradeSubmitBuy:hover:not(:disabled),
@@ -921,11 +904,6 @@
   .utilityGrid {
     grid-template-columns: 1fr;
   }
-
-  .tradePanel {
-    position: static;
-  }
-
   .liveNowGrid {
     grid-template-columns: 1fr;
   }

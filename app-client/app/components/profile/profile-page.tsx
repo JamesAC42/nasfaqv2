@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { TrendChartCard } from "@/app/components/charts/market-charts";
+import { AssetCoin } from "@/app/components/common/asset-coin";
+import { AssetPicker } from "@/app/components/common/asset-picker";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { createChannelChartTheme } from "@/app/lib/chart-theme";
@@ -13,6 +15,13 @@ import { useAuth } from "@/app/providers/auth-provider";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/profile/profile-page.module.scss";
+
+type SelectableProfilePicture = {
+  id: number;
+  name: string;
+  url_large: string;
+  url_small: string;
+};
 
 function formatDate(value: string | null) {
   if (!value) return "—";
@@ -37,12 +46,26 @@ function relationInitial(user: { username: string }) {
   return user.username.trim().charAt(0).toUpperCase() || "N";
 }
 
+function detectSelectedProfilePictureId(profilePictureUrl: string | null, options: SelectableProfilePicture[]) {
+  if (!profilePictureUrl) return null;
+  const match = options.find((item) => item.url_large === profilePictureUrl || item.url_small === profilePictureUrl);
+  return match?.id ?? null;
+}
+
 function ProfileIdentity({
   profile,
   isSelf,
+  onOpenProfilePicturePicker,
+  onOpenProfileSettings,
+  onLogout,
+  logoutBusy = false,
 }: {
   profile: ProfileBundle["profile"];
   isSelf: boolean;
+  onOpenProfilePicturePicker?: () => void;
+  onOpenProfileSettings?: () => void;
+  onLogout?: () => void;
+  logoutBusy?: boolean;
 }) {
   return (
     <section
@@ -50,29 +73,172 @@ function ProfileIdentity({
       style={profile.profile_color ? ({ "--profile-accent": profile.profile_color } as CSSProperties) : undefined}
     >
       <div className={styles.identityTop}>
-        {profile.profile_picture_url ? (
-          <img src={profile.profile_picture_url} alt="" className={styles.avatarImage} />
+        {isSelf ? (
+          <button type="button" className={styles.avatarPickerButton} onClick={onOpenProfilePicturePicker}>
+            {profile.profile_picture_url ? (
+              <img src={profile.profile_picture_url} alt="" className={styles.avatarImage} />
+            ) : (
+              <div className={styles.avatarFallback} aria-hidden="true">{relationInitial(profile)}</div>
+            )}
+          </button>
         ) : (
-          <div className={styles.avatarFallback} aria-hidden="true">{relationInitial(profile)}</div>
+          <>
+            {profile.profile_picture_url ? (
+              <img src={profile.profile_picture_url} alt="" className={styles.avatarImage} />
+            ) : (
+              <div className={styles.avatarFallback} aria-hidden="true">{relationInitial(profile)}</div>
+            )}
+          </>
         )}
         <div className={styles.identityCopy}>
           <div className={styles.eyebrow}>{isSelf ? "Your Public Profile" : "Public Profile"}</div>
-          <h1 className={styles.title}>{profile.username}</h1>
+          <div className={styles.titleRow}>
+            <h1 className={styles.title}>{profile.username}</h1>
+            {profile.oshi_coin ? (
+              <AssetCoin
+                symbol={profile.oshi_coin.symbol}
+                icon={profile.oshi_coin.icon}
+                color={profile.oshi_coin.color}
+                className={styles.titleOshiCoin}
+                shape="circle"
+              />
+            ) : null}
+          </div>
           <div className={styles.metaRow}>
             <span>Joined {formatDate(profile.created_at)}</span>
             {profile.oshi_coin ? <span>Oshi coin: {profile.oshi_coin.symbol}</span> : null}
           </div>
-          <p className={styles.bio}>{profile.bio || (isSelf ? "Add a bio to tell other traders what matters to you." : "No bio has been added yet.")}</p>
+          {profile.bio ? <p className={styles.bio}>{profile.bio}</p> : null}
+          {isSelf ? (
+            <div className={styles.actions}>
+              <button type="button" className={styles.secondaryButton} onClick={onOpenProfileSettings}>
+                Edit profile
+              </button>
+              <button type="button" className={styles.secondaryButton} onClick={onLogout} disabled={logoutBusy}>
+                {logoutBusy ? "Logging out…" : "Log out"}
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
-      {profile.oshi_coin ? (
-        <div className={styles.oshiCard}>
-          <span className={styles.sectionLabel}>Favorite Channel</span>
-          <strong>{profile.oshi_coin.display_name}</strong>
-          <span className={styles.muted}>{profile.oshi_coin.symbol}</span>
-        </div>
-      ) : null}
     </section>
+  );
+}
+
+function ProfileSettingsModal({
+  open,
+  profile,
+  assets,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  profile: ProfileBundle["profile"] | null;
+  assets: ReturnType<typeof useMarketStore.getState>["assets"];
+  onClose: () => void;
+  onSave: (payload: { bio: string; profile_color: string | null; oshi_coin_asset_id: number | null }) => Promise<void>;
+}) {
+  const [bioDraft, setBioDraft] = useState("");
+  const [profileColorDraft, setProfileColorDraft] = useState("#1aacbc");
+  const [oshiSymbolDraft, setOshiSymbolDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open || !profile) return;
+    setBioDraft(profile.bio || "");
+    setProfileColorDraft(profile.profile_color || "#1aacbc");
+    setOshiSymbolDraft(profile.oshi_coin?.symbol || "");
+    setError(null);
+    setBusy(false);
+  }, [open, profile]);
+
+  if (!open || !profile) return null;
+
+  async function handleSave() {
+    setBusy(true);
+    setError(null);
+    try {
+      const selectedAsset = assets.find((asset) => asset.symbol === oshiSymbolDraft) || null;
+      await onSave({
+        bio: bioDraft,
+        profile_color: profileColorDraft || null,
+        oshi_coin_asset_id: selectedAsset?.id || null,
+      });
+      onClose();
+    } catch (nextError) {
+      setError(String((nextError as Error).message || nextError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className={styles.profilePictureOverlay} onClick={onClose}>
+      <div
+        className={styles.profilePictureModal}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Edit profile"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className={styles.profilePictureModalHead}>
+          <div>
+            <div className={styles.eyebrow}>Profile Settings</div>
+            <h2 className={styles.sectionTitle}>Edit Your Profile</h2>
+          </div>
+          <button type="button" className={styles.modalCloseButton} onClick={onClose}>
+            ×
+          </button>
+        </div>
+
+        <div className={styles.settingsGrid}>
+          <div className={styles.fieldStack}>
+            <label className={styles.fieldLabel} htmlFor="profile-bio">Bio</label>
+            <textarea
+              id="profile-bio"
+              className={styles.textarea}
+              maxLength={250}
+              value={bioDraft}
+              onChange={(event) => setBioDraft(event.target.value)}
+              placeholder="Tell other traders what matters to you."
+            />
+            <span className={styles.sectionCount}>{bioDraft.length}/250</span>
+          </div>
+          <div className={styles.settingsSide}>
+            <div className={styles.fieldStack}>
+              <label className={styles.fieldLabel} htmlFor="profile-color">Profile color</label>
+              <div className={styles.colorRow}>
+                <input
+                  id="profile-color"
+                  className={styles.colorInput}
+                  type="color"
+                  defaultValue={profile.profile_color || "#1aacbc"}
+                  onInput={(event) => setProfileColorDraft((event.target as HTMLInputElement).value)}
+                />
+                <span className={styles.colorValue}>{profileColorDraft}</span>
+              </div>
+            </div>
+            <div className={styles.fieldStack}>
+              <label className={styles.fieldLabel}>Oshi coin</label>
+              <AssetPicker
+                assets={assets}
+                value={oshiSymbolDraft}
+                onChange={setOshiSymbolDraft}
+                placeholder="Select oshi coin"
+                emptyLabel="No oshi coin"
+              />
+            </div>
+            <div className={styles.actions}>
+              <button type="button" className={styles.secondaryButton} disabled={busy} onClick={handleSave}>
+                {busy ? "Saving…" : "Save profile"}
+              </button>
+            </div>
+            {error ? <div className="statusMessage statusMessageError">{error}</div> : null}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -132,13 +298,14 @@ function ArticleCard({ article }: { article: ArticleSummary }) {
 }
 
 export function ProfilePage({ username }: { username?: string | null }) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const adminBusy = useProfileStore((state) => state.adminBusy);
   const adminStatus = useProfileStore((state) => state.adminStatus);
   const adminError = useProfileStore((state) => state.adminError);
   const resetMarket = useProfileStore((state) => state.resetMarket);
   const rebuildMarket = useProfileStore((state) => state.rebuildMarket);
   const refreshMarketOverview = useMarketStore((state) => state.refreshOverview);
+  const assets = useMarketStore((state) => state.assets);
 
   const [bundle, setBundle] = useState<ProfileBundle | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -146,6 +313,11 @@ export function ProfilePage({ username }: { username?: string | null }) {
   const [articlesPage, setArticlesPage] = useState(1);
   const [tradesPage, setTradesPage] = useState(1);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
+  const [profilePictures, setProfilePictures] = useState<SelectableProfilePicture[]>([]);
+  const [profilePictureBusy, setProfilePictureBusy] = useState<number | "none" | null>(null);
+  const [isProfilePictureModalOpen, setIsProfilePictureModalOpen] = useState(false);
+  const [isProfileSettingsModalOpen, setIsProfileSettingsModalOpen] = useState(false);
+  const [logoutBusy, setLogoutBusy] = useState(false);
 
   function baseProfilePath() {
     return username
@@ -184,6 +356,31 @@ export function ProfilePage({ username }: { username?: string | null }) {
     }
 
     void loadProfile();
+    return () => controller.abort();
+  }, [username]);
+
+  useEffect(() => {
+    if (username) return;
+    const controller = new AbortController();
+
+    async function loadProfilePictures() {
+      try {
+        const result = await apiFetch<{ profile_pictures: Array<Record<string, unknown>> }>("/api/assets/profile-pictures", {
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        setProfilePictures(
+          (result.profile_pictures || []).map((item) => ({
+            id: Number(item.id || 0),
+            name: String(item.name || ""),
+            url_large: String(item.url_large || ""),
+            url_small: String(item.url_small || ""),
+          })).filter((item) => item.id > 0 && item.url_large && item.url_small)
+        );
+      } catch {}
+    }
+
+    void loadProfilePictures();
     return () => controller.abort();
   }, [username]);
 
@@ -301,9 +498,39 @@ export function ProfilePage({ username }: { username?: string | null }) {
     await Promise.allSettled([reloadBundle(), refreshMarketOverview()]);
   }
 
+  async function handleSelectProfilePicture(profilePictureId: number | null) {
+    setProfilePictureBusy(profilePictureId === null ? "none" : profilePictureId);
+    setError(null);
+    try {
+      const result = await apiFetch<Record<string, unknown>>("/api/profiles/me/profile-picture", {
+        method: "PUT",
+        body: JSON.stringify({ profile_picture_id: profilePictureId }),
+      });
+      setBundle(normalizeProfileBundle(result));
+    } catch (nextError) {
+      setError(String((nextError as Error).message || nextError));
+    } finally {
+      setProfilePictureBusy(null);
+    }
+  }
+
+  async function handleLogout() {
+    setLogoutBusy(true);
+    setError(null);
+    try {
+      await logout();
+    } catch (nextError) {
+      setError(String((nextError as Error).message || nextError));
+    } finally {
+      setLogoutBusy(false);
+    }
+  }
+
   const profile = bundle?.profile || null;
   const viewer = bundle?.viewer_context || null;
   const isSelf = Boolean(viewer?.is_self);
+  const selectedProfilePictureId = detectSelectedProfilePictureId(profile?.profile_picture_url || null, profilePictures);
+
   const chartTheme = useMemo(
     () => createChannelChartTheme(profile?.profile_color || profile?.oshi_coin?.color || null),
     [profile?.oshi_coin?.color, profile?.profile_color]
@@ -339,6 +566,7 @@ export function ProfilePage({ username }: { username?: string | null }) {
           </div>
         </section>
       ) : (
+        <>
         <div className={styles.page}>
           {error && error !== "unauthenticated" ? <div className="statusMessage statusMessageError">Profile error: {error}</div> : null}
           {isLoading && !bundle ? <div className={styles.sectionPanel}>Loading profile…</div> : null}
@@ -347,7 +575,14 @@ export function ProfilePage({ username }: { username?: string | null }) {
           {bundle && profile && viewer ? (
             <>
               <div className={styles.topGrid}>
-                <ProfileIdentity profile={profile} isSelf={isSelf} />
+                <ProfileIdentity
+                  profile={profile}
+                  isSelf={isSelf}
+                  onOpenProfilePicturePicker={() => setIsProfilePictureModalOpen(true)}
+                  onOpenProfileSettings={() => setIsProfileSettingsModalOpen(true)}
+                  onLogout={() => void handleLogout()}
+                  logoutBusy={logoutBusy}
+                />
 
                 <section className={styles.sectionPanel}>
                   <div className={styles.sectionHead}>
@@ -524,6 +759,9 @@ export function ProfilePage({ username }: { username?: string | null }) {
                       </div>
                       <p className={styles.muted}>Reset clears derived market and portfolio state. Rebuild recalculates assets, fundamentals, and settlement history.</p>
                       <div className={styles.actions}>
+                        <Link href="/admin/assets" className={styles.secondaryButton}>Manage assets</Link>
+                      </div>
+                      <div className={styles.actions}>
                         <button type="button" className={styles.secondaryButton} onClick={() => void handleReset()} disabled={adminBusy !== false}>
                           {adminBusy === "reset" ? "Resetting…" : "Reset market"}
                         </button>
@@ -540,6 +778,65 @@ export function ProfilePage({ username }: { username?: string | null }) {
             </>
           ) : null}
         </div>
+        {bundle && profile && isSelf && isProfilePictureModalOpen ? (
+          <div className={styles.profilePictureOverlay} onClick={() => setIsProfilePictureModalOpen(false)}>
+            <div
+              className={styles.profilePictureModal}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Choose profile picture"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className={styles.profilePictureModalHead}>
+                <div>
+                  <div className={styles.eyebrow}>Profile Picture</div>
+                  <h2 className={styles.sectionTitle}>Choose Your Icon</h2>
+                </div>
+                <button type="button" className={styles.modalCloseButton} onClick={() => setIsProfilePictureModalOpen(false)}>
+                  ×
+                </button>
+              </div>
+              <div className={styles.profilePictureModalBody}>
+                <button
+                  type="button"
+                  className={`${styles.profilePictureCircle} ${selectedProfilePictureId === null ? styles.profilePictureCircleActive : ""}`.trim()}
+                  onClick={() => void handleSelectProfilePicture(null)}
+                  disabled={profilePictureBusy !== null}
+                  aria-label="Use letter fallback"
+                >
+                  <div className={styles.profilePictureFallbackPreview} aria-hidden="true">{relationInitial(profile)}</div>
+                </button>
+                {profilePictures.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`${styles.profilePictureCircle} ${selectedProfilePictureId === item.id ? styles.profilePictureCircleActive : ""}`.trim()}
+                    onClick={() => void handleSelectProfilePicture(item.id)}
+                    disabled={profilePictureBusy !== null}
+                    aria-label={`Choose ${item.name}`}
+                  >
+                    <img src={item.url_large} alt="" className={styles.profilePicturePreview} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+        <ProfileSettingsModal
+          open={Boolean(bundle && profile && isSelf && isProfileSettingsModalOpen)}
+          profile={profile}
+          assets={assets}
+          onClose={() => setIsProfileSettingsModalOpen(false)}
+          onSave={async (payload) => {
+            setError(null);
+            const result = await apiFetch<Record<string, unknown>>("/api/profiles/me", {
+              method: "PUT",
+              body: JSON.stringify(payload),
+            });
+            setBundle(normalizeProfileBundle(result));
+          }}
+        />
+        </>
       )}
     </SiteShell>
   );

@@ -48,12 +48,57 @@ async function applySchema(pool) {
       ADD COLUMN IF NOT EXISTS oshi_coin_asset_id BIGINT NULL REFERENCES market.market_assets(id) ON DELETE SET NULL
   `);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.emojis (
+      id BIGSERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      filename TEXT NOT NULL,
+      is_deleted BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS market_emojis_filename_uidx
+      ON market.emojis (filename)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.profile_pictures (
+      id BIGSERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      filename_large TEXT NOT NULL,
+      filename_small TEXT NOT NULL,
+      is_deleted BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS market_profile_pictures_large_uidx
+      ON market.profile_pictures (filename_large)
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS market_profile_pictures_small_uidx
+      ON market.profile_pictures (filename_small)
+  `);
+  await pool.query(`
+    ALTER TABLE market.users
+      ADD COLUMN IF NOT EXISTS profile_picture_id BIGINT NULL REFERENCES market.profile_pictures(id) ON DELETE SET NULL
+  `);
+  await pool.query(`
     ALTER TABLE market.users
       DROP CONSTRAINT IF EXISTS users_bio_length_check
   `);
   await pool.query(`
     ALTER TABLE market.users
       ADD CONSTRAINT users_bio_length_check CHECK (bio IS NULL OR char_length(btrim(bio)) <= 1000)
+  `);
+  await pool.query(`
+    ALTER TABLE market.users
+      DROP CONSTRAINT IF EXISTS users_bio_length_check
+  `);
+  await pool.query(`
+    ALTER TABLE market.users
+      ADD CONSTRAINT users_bio_length_check CHECK (bio IS NULL OR char_length(btrim(bio)) <= 250)
   `);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS market.user_friendships (
@@ -129,6 +174,7 @@ async function applySchema(pool) {
       author_id BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL,
       likes INTEGER NOT NULL DEFAULT 0,
       saves INTEGER NOT NULL DEFAULT 0,
+      views INTEGER NOT NULL DEFAULT 0,
       is_news BOOLEAN NOT NULL DEFAULT false,
       status TEXT NOT NULL DEFAULT 'published',
       published_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -150,6 +196,10 @@ async function applySchema(pool) {
       ON content.articles (is_news, published_at DESC, id DESC)
   `);
   await pool.query(`
+    ALTER TABLE content.articles
+      ADD COLUMN IF NOT EXISTS views INTEGER NOT NULL DEFAULT 0
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS content.article_assets (
       article_id BIGINT NOT NULL REFERENCES content.articles(id) ON DELETE CASCADE,
       asset_id BIGINT NOT NULL REFERENCES market.market_assets(id) ON DELETE CASCADE,
@@ -166,10 +216,58 @@ async function applySchema(pool) {
       article_id BIGINT NOT NULL REFERENCES content.articles(id) ON DELETE CASCADE,
       author_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
       body TEXT NOT NULL,
+      mood TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-      CONSTRAINT content_article_comments_body_check CHECK (char_length(btrim(body)) BETWEEN 1 AND 4000)
+      CONSTRAINT content_article_comments_body_check CHECK (char_length(btrim(body)) BETWEEN 1 AND 4000),
+      CONSTRAINT content_article_comments_mood_check CHECK (
+        mood IS NULL
+        OR mood IN (
+          'Bullish',
+          'Bearish',
+          'Neutral',
+          'Hodling',
+          'Dump Eet',
+          'He Bought?',
+          'He Sold?',
+          'Diamond Hands',
+          'Watching',
+          'Accumulating'
+        )
+      )
     )
+  `);
+  await pool.query(`
+    ALTER TABLE content.article_comments
+    ADD COLUMN IF NOT EXISTS mood TEXT
+  `);
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'content_article_comments_mood_check'
+      ) THEN
+        ALTER TABLE content.article_comments
+        ADD CONSTRAINT content_article_comments_mood_check CHECK (
+          mood IS NULL
+          OR mood IN (
+            'Bullish',
+            'Bearish',
+            'Neutral',
+            'Hodling',
+            'Dump Eet',
+            'He Bought?',
+            'He Sold?',
+            'Diamond Hands',
+            'Watching',
+            'Accumulating'
+          )
+        );
+      END IF;
+    END
+    $$;
   `);
   await pool.query(`
     CREATE INDEX IF NOT EXISTS content_article_comments_article_idx
@@ -223,6 +321,159 @@ async function applySchema(pool) {
       ON content.news_article_proposals (article_id, created_at DESC, id DESC)
   `);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS content.news_article_proposal_votes (
+      proposal_id BIGINT NOT NULL REFERENCES content.news_article_proposals(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      value SMALLINT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (proposal_id, user_id),
+      CONSTRAINT content_news_article_proposal_votes_value_check CHECK (value IN (-1, 1))
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS content_news_article_proposal_votes_user_idx
+      ON content.news_article_proposal_votes (user_id, updated_at DESC)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS content_news_article_proposal_votes_proposal_idx
+      ON content.news_article_proposal_votes (proposal_id, updated_at DESC)
+  `);
+  await pool.query(`
+    CREATE SCHEMA IF NOT EXISTS chat
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chat.channels (
+      id BIGSERIAL PRIMARY KEY,
+      scope_type TEXT NOT NULL,
+      scope_key TEXT NOT NULL,
+      display_name TEXT NOT NULL,
+      description TEXT NULL,
+      posting_policy TEXT NOT NULL DEFAULT 'authenticated',
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT chat_channels_scope_type_check CHECK (scope_type IN ('asset', 'unit', 'market', 'meta')),
+      CONSTRAINT chat_channels_posting_policy_check CHECK (posting_policy IN ('authenticated', 'admins_only', 'read_only'))
+    )
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS chat_channels_scope_uidx
+      ON chat.channels (scope_type, scope_key)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS chat_channels_scope_type_idx
+      ON chat.channels (scope_type, is_active, display_name)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chat.messages (
+      id BIGSERIAL PRIMARY KEY,
+      channel_id BIGINT NOT NULL REFERENCES chat.channels(id) ON DELETE CASCADE,
+      author_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      body TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      reply_to_message_id BIGINT NULL REFERENCES chat.messages(id) ON DELETE SET NULL,
+      edited_at TIMESTAMPTZ NULL,
+      moderated_by BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL,
+      moderated_reason TEXT NULL,
+      moderated_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT chat_messages_status_check CHECK (status IN ('active', 'deleted', 'moderated')),
+      CONSTRAINT chat_messages_body_check CHECK (char_length(btrim(body)) BETWEEN 1 AND 1000)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS chat_messages_channel_message_idx
+      ON chat.messages (channel_id, id DESC)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS chat_messages_author_created_idx
+      ON chat.messages (author_id, created_at DESC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chat.user_channel_state (
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      channel_id BIGINT NOT NULL REFERENCES chat.channels(id) ON DELETE CASCADE,
+      last_read_message_id BIGINT NULL REFERENCES chat.messages(id) ON DELETE SET NULL,
+      followed BOOLEAN NOT NULL DEFAULT true,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (user_id, channel_id)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS chat_user_channel_state_channel_idx
+      ON chat.user_channel_state (channel_id, updated_at DESC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chat.user_moderation_actions (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      channel_id BIGINT NULL REFERENCES chat.channels(id) ON DELETE CASCADE,
+      action_type TEXT NOT NULL,
+      reason TEXT NULL,
+      created_by BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL,
+      expires_at TIMESTAMPTZ NULL,
+      revoked_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT chat_user_moderation_action_type_check CHECK (action_type IN ('mute', 'ban'))
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS chat_user_moderation_actions_active_idx
+      ON chat.user_moderation_actions (user_id, channel_id, created_at DESC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chat.message_reports (
+      id BIGSERIAL PRIMARY KEY,
+      message_id BIGINT NOT NULL REFERENCES chat.messages(id) ON DELETE CASCADE,
+      reporter_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      reason TEXT NOT NULL,
+      details TEXT NULL,
+      status TEXT NOT NULL DEFAULT 'open',
+      reviewed_by BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL,
+      reviewed_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT chat_message_reports_status_check CHECK (status IN ('open', 'resolved', 'dismissed'))
+    )
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS chat_message_reports_message_reporter_uidx
+      ON chat.message_reports (message_id, reporter_id)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS chat_message_reports_status_idx
+      ON chat.message_reports (status, created_at DESC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chat.archived_messages (
+      id BIGINT PRIMARY KEY,
+      channel_id BIGINT NOT NULL REFERENCES chat.channels(id) ON DELETE CASCADE,
+      author_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      body TEXT NOT NULL,
+      status TEXT NOT NULL,
+      reply_to_message_id BIGINT NULL,
+      edited_at TIMESTAMPTZ NULL,
+      moderated_by BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL,
+      moderated_reason TEXT NULL,
+      moderated_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL,
+      archived_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT chat_archived_messages_status_check CHECK (status IN ('active', 'deleted', 'moderated'))
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS chat_archived_messages_channel_message_idx
+      ON chat.archived_messages (channel_id, id DESC)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS chat_archived_messages_channel_created_idx
+      ON chat.archived_messages (channel_id, created_at DESC)
+  `);
+  await pool.query(`
     ALTER TABLE market.market_assets
       ADD COLUMN IF NOT EXISTS current_persistent_offset NUMERIC NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS current_transient_offset NUMERIC NOT NULL DEFAULT 0,
@@ -248,7 +499,3 @@ async function applySchema(pool) {
 }
 
 module.exports = { applySchema };
-
-
-
-

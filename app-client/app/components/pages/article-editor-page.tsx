@@ -20,7 +20,7 @@ export function ArticleEditorPage({
   mode: "create" | "edit";
 }) {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, initialized, isLoading: isAuthLoading } = useAuth();
   const assets = useMarketStore((state) => state.assets);
 
   const [title, setTitle] = useState("");
@@ -110,6 +110,20 @@ export function ArticleEditorPage({
     } finally {
       setIsSaving(false);
     }
+  }
+
+  if (!initialized || isAuthLoading) {
+    return (
+      <SiteShell>
+        <div className={styles.stack}>
+          <section className={styles.hero}>
+            <div className={styles.eyebrow}>Publishing Desk</div>
+            <h1 className={styles.title}>Loading session</h1>
+            <p className={styles.copy}>Checking your account session before opening the editor.</p>
+          </section>
+        </div>
+      </SiteShell>
+    );
   }
 
   if (!user) {

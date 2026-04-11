@@ -5,6 +5,64 @@ export type AuthUser = {
   created_at: string;
 };
 
+export type ChatChannel = {
+  id: number;
+  channel_key: string;
+  scope_type: "asset" | "unit" | "market" | "meta";
+  scope_key: string;
+  display_name: string;
+  description: string | null;
+  is_active: boolean;
+  posting_policy: "authenticated" | "admins_only" | "read_only";
+  metadata: {
+    asset_id?: number;
+    symbol?: string | null;
+    display_name?: string | null;
+    asset_status?: string | null;
+    youtube_channel_id?: string | null;
+    channel_name?: string | null;
+    unit?: string | null;
+    icon?: string | null;
+    color?: string | null;
+    asset_count?: number | null;
+  };
+  last_message_id: number | null;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+  message_count: number;
+  last_read_message_id: number | null;
+  unread_count: number;
+  muted_until: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ChatMessage = {
+  id: number;
+  channel_id: number;
+  channel_key: string;
+  body: string;
+  status: "active" | "deleted" | "moderated";
+  reply_to_message_id: number | null;
+  created_at: string;
+  edited_at: string | null;
+  moderated_at: string | null;
+  author: {
+    id: number;
+    username: string;
+    profile_picture_url: string | null;
+    profile_color: string | null;
+    oshi_coin: {
+      id: number;
+      symbol: string;
+      display_name: string;
+      icon: string | null;
+      color: string | null;
+    } | null;
+  } | null;
+  is_mine: boolean;
+};
+
 export type CandlePoint = {
   bucket: string;
   open: number | null;
@@ -313,6 +371,7 @@ export type ArticleSummary = {
   author: ArticleAuthor | null;
   likes: number;
   saves: number;
+  views: number;
   is_news: boolean;
   status: string;
   published_at: string | null;
@@ -329,9 +388,25 @@ export type ArticleSummary = {
   } | null;
 };
 
+export const ARTICLE_COMMENT_MOODS = [
+  "Bullish",
+  "Bearish",
+  "Neutral",
+  "Hodling",
+  "Dump Eet",
+  "He Bought?",
+  "He Sold?",
+  "Diamond Hands",
+  "Watching",
+  "Accumulating",
+] as const;
+
+export type ArticleCommentMood = typeof ARTICLE_COMMENT_MOODS[number];
+
 export type ArticleComment = {
   id: number;
   body: string;
+  mood: ArticleCommentMood | null;
   created_at: string;
   updated_at: string;
   author: ArticleAuthor;
@@ -350,6 +425,9 @@ export type ArticleProposal = {
   reviewed_at: string | null;
   author: ArticleAuthor;
   reviewer: ArticleAuthor | null;
+  upvotes: number;
+  downvotes: number;
+  viewer_vote: -1 | 0 | 1;
 };
 
 export type ArticleDetail = ArticleSummary & {

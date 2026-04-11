@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { FaComment, FaHeart } from "react-icons/fa6";
 import { AssetPicker } from "@/app/components/common/asset-picker";
 import { ChannelTickerPill } from "@/app/components/common/channel-ticker-pill";
+import { FilterPanel } from "@/app/components/common/filter-panel";
 import { OptionPicker } from "@/app/components/common/option-picker";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
+import { fmtInteger } from "@/app/lib/format";
 import { normalizeNewsFeedResponse } from "@/app/lib/normalizers";
 import type { NewsFeedPagination, NewsFeedResponse, NewsItem } from "@/app/lib/types";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -42,6 +45,27 @@ function getCompactThumbnailUrl(url: string | null | undefined) {
   const lastSlashIndex = url.lastIndexOf("/");
   if (lastSlashIndex < 0 || lastSlashIndex === url.length - 1) return url;
   return `${url.slice(0, lastSlashIndex + 1)}thumbnail-${url.slice(lastSlashIndex + 1)}`;
+}
+
+function getArticleHref(item: NewsItem) {
+  return item.article_slug ? `/articles/${encodeURIComponent(item.article_slug)}` : "/articles";
+}
+
+function EngagementStat({
+  kind,
+  value,
+}: {
+  kind: "likes" | "comments";
+  value: number | null | undefined;
+}) {
+  return (
+    <span className={styles.engagementStat}>
+      <span className={styles.engagementIcon} aria-hidden="true">
+        {kind === "likes" ? <FaHeart /> : <FaComment />}
+      </span>
+      <span>{fmtInteger(value ?? 0)}</span>
+    </span>
+  );
 }
 
 export function NewsPage() {
@@ -146,6 +170,15 @@ export function NewsPage() {
     value: String(option),
     label: `${option} per page`,
   }));
+  const activeFilterCount =
+    (draftFilters.headlineQuery.trim() ? 1 : 0) +
+    (draftFilters.stockQuery ? 1 : 0) +
+    (draftFilters.unit !== "all" ? 1 : 0) +
+    (draftFilters.sort !== "newest" ? 1 : 0) +
+    (draftFilters.limit !== 20 ? 1 : 0);
+  const filterSummary = activeFilterCount
+    ? `${activeFilterCount} active filter${activeFilterCount === 1 ? "" : "s"}`
+    : "All stories";
 
   const resultSummary = pagination.total
     ? `Showing ${items.length} of ${pagination.total} stories`
@@ -170,21 +203,7 @@ export function NewsPage() {
         {error ? <div className="statusMessage statusMessageError">News request error: {error}</div> : null}
         {isLoadingOverview ? <div className={shellStyles.panel}>Loading market metadata…</div> : null}
 
-        <section className={styles.filtersPanel}>
-          <div className={styles.filtersHeader}>
-            <div>
-              <h2 className={styles.sectionTitle}>Filter Feed</h2>
-              <p className={styles.sectionCopy}>Search across headlines and narrow the feed to specific creators, stocks, and units.</p>
-            </div>
-            <button
-              type="button"
-              className={styles.resetButton}
-              onClick={resetFilters}
-            >
-              Reset filters
-            </button>
-          </div>
-
+        <FilterPanel summary={filterSummary} description="Search headlines and narrow the news feed">
           <form
             className={styles.filterForm}
             onSubmit={(event) => {
@@ -246,16 +265,26 @@ export function NewsPage() {
                 />
               </label>
             </div>
-            <div className={styles.filtersHeader}>
+            <div className={styles.filterActions}>
               <div className={styles.paginationMeta}>
                 <span>Filters apply when you search</span>
               </div>
-              <button type="submit" className={styles.resetButton} disabled={isLoading}>
-                Search
-              </button>
+              <div className={styles.filterActionButtons}>
+                <button
+                  type="button"
+                  className={styles.resetButton}
+                  onClick={resetFilters}
+                  disabled={isLoading}
+                >
+                  Reset filters
+                </button>
+                <button type="submit" className={styles.searchButton} disabled={isLoading}>
+                  Search
+                </button>
+              </div>
             </div>
           </form>
-        </section>
+        </FilterPanel>
 
         {isLoading && !items.length ? <div className={shellStyles.panel}>Loading news feed…</div> : null}
 
@@ -271,33 +300,40 @@ export function NewsPage() {
             <div className={styles.list}>
               {items.map((item) => (
                 <article key={item.id} className={`${styles.item} ${item.thumbnail_url ? "" : styles.itemNoThumb}`.trim()}>
-                  {item.thumbnail_url ? (
-                    <Link
-                      href={item.article_slug ? `/articles/${encodeURIComponent(item.article_slug)}` : "/articles"}
-                      className={styles.mediaLink}
-                    >
-                      <img src={getCompactThumbnailUrl(item.thumbnail_url) || item.thumbnail_url} alt="" className={styles.thumb} />
-                    </Link>
-                  ) : null}
-
-                  <div className={styles.itemBody}>
-                    <div className={styles.itemMeta}>
-                      <span>{item.source}</span>
-                      <span>{formatPublishedDate(item.published_at)}</span>
-                    </div>
-                    <Link
-                      href={item.article_slug ? `/articles/${encodeURIComponent(item.article_slug)}` : "/articles"}
-                      className={styles.headlineLink}
-                    >
-                      <h3 className={styles.itemHeadline}>{item.headline}</h3>
-                    </Link>
-                    {item.summary ? <p className={styles.itemSummary}>{item.summary}</p> : null}
-                    {item.characters?.length ? (
-                      <div className={styles.pillRow}>
-                        {item.characters.map((character) => <ChannelTickerPill key={`${item.id}-${character.name}`} channel={character} />)}
+                  <Link href={getArticleHref(item)} className={styles.itemLink}>
+                    {item.thumbnail_url ? (
+                      <div className={styles.mediaLink}>
+                        <img src={getCompactThumbnailUrl(item.thumbnail_url) || item.thumbnail_url} alt="" className={styles.thumb} />
                       </div>
                     ) : null}
-                  </div>
+
+                    <div className={styles.itemBody}>
+                      <div className={styles.itemMeta}>
+                        <span>{item.source}</span>
+                        <span>{formatPublishedDate(item.published_at)}</span>
+                      </div>
+                      {item.characters?.length ? (
+                        <div className={styles.pillRow}>
+                          {item.characters.map((character) => (
+                            <ChannelTickerPill
+                              key={`${item.id}-${character.name}`}
+                              channel={character}
+                              className={styles.compactPill}
+                              disableLink
+                            />
+                          ))}
+                        </div>
+                      ) : null}
+                      <div className={styles.headlineLink}>
+                        <h3 className={styles.itemHeadline}>{item.headline}</h3>
+                      </div>
+                      {item.summary ? <p className={styles.itemSummary}>{item.summary}</p> : null}
+                      <div className={styles.engagementRow}>
+                        <EngagementStat kind="likes" value={item.like_count} />
+                        <EngagementStat kind="comments" value={item.comment_count} />
+                      </div>
+                    </div>
+                  </Link>
                 </article>
               ))}
             </div>

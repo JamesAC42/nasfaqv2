@@ -63,6 +63,52 @@ router.get("/me/trades", async (req, res, next) => {
   }
 });
 
+router.put("/me/profile-picture", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    await profileDb.setProfilePicture(req.ctx.pool, userId, req.body?.profile_picture_id ?? null);
+    const bundle = await profileDb.getProfileBundle(req.ctx.pool, {
+      viewerUserId: userId,
+      selfOnly: true,
+      articlesPage: parsePositiveInt(req.query.articles_page, 1, { min: 1, max: 1000 }),
+      articlesLimit: parsePositiveInt(req.query.articles_limit, 6, { min: 1, max: 24 }),
+      tradesPage: parsePositiveInt(req.query.trades_page, 1, { min: 1, max: 1000 }),
+      tradesLimit: parsePositiveInt(req.query.trades_limit, 10, { min: 1, max: 25 }),
+    });
+    res.json(bundle);
+  } catch (error) {
+    if (error?.code === "unauthenticated") {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    next(error);
+  }
+});
+
+router.put("/me", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    await profileDb.updateProfileSettings(req.ctx.pool, userId, {
+      bio: req.body?.bio,
+      profileColor: req.body?.profile_color,
+      oshiCoinAssetId: req.body?.oshi_coin_asset_id,
+    });
+    const bundle = await profileDb.getProfileBundle(req.ctx.pool, {
+      viewerUserId: userId,
+      selfOnly: true,
+      articlesPage: parsePositiveInt(req.query.articles_page, 1, { min: 1, max: 1000 }),
+      articlesLimit: parsePositiveInt(req.query.articles_limit, 6, { min: 1, max: 24 }),
+      tradesPage: parsePositiveInt(req.query.trades_page, 1, { min: 1, max: 1000 }),
+      tradesLimit: parsePositiveInt(req.query.trades_limit, 10, { min: 1, max: 25 }),
+    });
+    res.json(bundle);
+  } catch (error) {
+    if (error?.code === "unauthenticated") {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    next(error);
+  }
+});
+
 router.get("/:username", async (req, res, next) => {
   try {
     const bundle = await profileDb.getProfileBundle(req.ctx.pool, {

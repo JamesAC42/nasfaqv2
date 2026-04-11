@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from "react";
 import { apiFetch } from "@/app/lib/api";
 import type { AuthUser } from "@/app/lib/types";
 import { useAuthStore } from "@/app/stores/auth-store";
@@ -29,6 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const setLoading = useAuthStore((state) => state.setLoading);
   const setError = useAuthStore((state) => state.setError);
   const clearPortfolio = useProfileStore((state) => state.clearPortfolio);
+  const hasBootstrappedRef = useRef(false);
 
   const refreshSession = useCallback(async () => {
     setLoading(true);
@@ -111,6 +112,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     }
   }, [clearPortfolio, setError, setLoading, setUser]);
+
+  useEffect(() => {
+    if (initialized || isLoading || hasBootstrappedRef.current) return;
+    hasBootstrappedRef.current = true;
+    void refreshSession();
+  }, [initialized, isLoading, refreshSession]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

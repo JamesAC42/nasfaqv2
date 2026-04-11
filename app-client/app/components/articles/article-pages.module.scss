@@ -41,6 +41,77 @@
     linear-gradient(145deg, color-mix(in srgb, var(--surface-card) 92%, #101624), color-mix(in srgb, var(--surface-card-soft) 86%, #05070d));
 }
 
+.storyHero,
+.coverageWorkspace,
+.proposalViewer {
+  @include panel;
+}
+
+.storyHero,
+.coverageWorkspace {
+  padding: 1.4rem;
+}
+
+.storyHero {
+  display: grid;
+  gap: 1.1rem;
+  width: min(100%, 62rem);
+  margin: 0 auto;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--surface-card-highlight) 78%, transparent), transparent 36%),
+    linear-gradient(145deg, color-mix(in srgb, var(--surface-card) 94%, #111723), color-mix(in srgb, var(--surface-card-soft) 90%, #05070d));
+}
+
+.storyTopRow,
+.storyFooter,
+.coverageIntro,
+.proposalSummaryFooter,
+.proposalActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.storyHeader,
+.emptyStoryHeader,
+.proposalRailHeader {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.storyTitle {
+  margin: 0;
+  max-width: 18ch;
+  font-size: clamp(2.2rem, 4vw, 3.6rem);
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+}
+
+.storyDek {
+  margin: 0;
+  max-width: 42rem;
+  color: var(--text-secondary, var(--text));
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+
+.storyByline {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.storyBylineBlock {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 88%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-card-highlight) 22%, transparent);
+}
+
 .eyebrow {
   font-size: 0.74rem;
   letter-spacing: 0.14em;
@@ -141,7 +212,7 @@
 .primaryButton,
 .actionButton {
   border: 1px solid color-mix(in srgb, var(--button-primary-border) 72%, transparent);
-  color: var(--button-primary-text);
+  color: var(--text);
   background: linear-gradient(135deg, var(--button-primary-bg), color-mix(in srgb, var(--button-primary-bg) 64%, white 36%));
 }
 
@@ -239,45 +310,166 @@
 
 .grid {
   display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 0.5rem;
 }
 
 .cardLink {
+  display: block;
   text-decoration: none;
   color: inherit;
 }
 
+.cardLink:focus-visible {
+  outline: none;
+}
+
 .articleCard {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr);
+  gap: 0.55rem;
+  padding: 0.48rem 0.55rem;
   border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-card) 92%, white 8%), color-mix(in srgb, var(--surface-card-soft) 90%, transparent));
-  overflow: hidden;
-  min-height: 100%;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 92%, transparent);
+  align-items: start;
+  min-height: 6.5rem;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 180ms ease;
+}
+
+.cardLink:hover .articleCard,
+.cardLink:focus-visible .articleCard {
+  transform: translateY(-0.0625rem);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border-soft));
+  background: color-mix(in srgb, var(--surface-card-highlight) 52%, transparent);
+  box-shadow: 0 0.875rem 1.75rem color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.articleCardNoThumb {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .thumb {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  height: 100%;
+  min-height: 6rem;
+  border-radius: var(--radius-sm);
   object-fit: cover;
   display: block;
-  background: var(--surface-card-soft);
+  background: color-mix(in srgb, var(--surface-card-soft) 92%, transparent);
 }
 
 .cardBody {
-  padding: 1rem;
+  min-width: 0;
   display: grid;
-  gap: 0.7rem;
+  gap: 0.28rem;
+  align-self: start;
+  padding-top: 0.02rem;
 }
 
 .cardTitle {
   margin: 0;
-  font-size: 1.06rem;
-  line-height: 1.3;
+  font-size: 1.12rem;
+  line-height: 1.24;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.cardSubtitle,
+.cardPreview {
+  margin: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cardSubtitle {
+  color: color-mix(in srgb, var(--text) 84%, transparent);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  -webkit-line-clamp: 2;
+}
+
+.cardPreview {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.32;
+  -webkit-line-clamp: 2;
 }
 
 .muted {
   color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.assetRow {
+  gap: 0;
+}
+
+.compactPill {
+  gap: 0.32rem;
+  padding: 0;
+  padding-right: 0.5rem;
+  font-size: 0.9rem;
+  box-shadow: 0 0.25rem 0.75rem color-mix(in srgb, var(--surface-card-soft) 20%, transparent);
+  transform: scale(0.8);
+  transform-origin: left center;
+}
+
+.engagementRow {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.05rem;
+}
+
+.engagementStat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.engagementIcon {
+  width: 1rem;
+  height: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+}
+
+.engagementIcon :global(svg) {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+@media (max-width: 60rem) {
+  .articleCard {
+    grid-template-columns: 7.5rem minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 45rem) {
+  .articleCard,
+  .articleCardNoThumb {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .thumb {
+    aspect-ratio: 16 / 9;
+    min-height: 0;
+  }
 }
 
 .detailLayout {
@@ -289,6 +481,22 @@
 .detailMain {
   display: grid;
   gap: 1.4rem;
+}
+
+.commentsSection {
+  width: min(100%, 62rem);
+  margin: 2.2rem auto 0;
+}
+
+.storyFrame,
+.emptyStoryCard {
+  width: min(100%, 56rem);
+  margin: 0 auto;
+}
+
+.storyFrame {
+  display: grid;
+  gap: 1.1rem;
 }
 
 .articleBody {
@@ -323,11 +531,46 @@
   margin: 0 auto;
 }
 
+.storyArticle {
+  width: min(100%, 46rem);
+  margin: 0 auto;
+  padding: 2rem 0 0.5rem;
+}
+
+.storyArticleMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
 .markdownBody {
   display: grid;
   gap: 1rem;
   line-height: 1.8;
   font-size: 1rem;
+}
+
+.storyArticle .markdownBody {
+  gap: 1.35rem;
+  font-size: 1.09rem;
+  line-height: 1.95;
+  color: var(--text-primary, var(--text));
+}
+
+.storyArticle .markdownBody h1,
+.storyArticle .markdownBody h2,
+.storyArticle .markdownBody h3,
+.storyArticle .markdownBody h4 {
+  margin-top: 1.6rem;
+  letter-spacing: -0.02em;
+}
+
+.storyArticle .markdownBody p,
+.storyArticle .markdownBody li,
+.storyArticle .markdownBody blockquote {
+  max-width: 42rem;
 }
 
 .markdownBody > :first-child {
@@ -434,6 +677,40 @@
   font-size: 0.9rem;
 }
 
+.emptyStoryCard {
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+  border: 1px dashed color-mix(in srgb, var(--accent) 42%, var(--border-soft));
+  border-radius: calc(var(--radius-lg) + 0.1rem);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-card-highlight) 26%, transparent), transparent 42%),
+    color-mix(in srgb, var(--surface-card) 92%, #0b1119);
+}
+
+.emptyStoryTitle {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.2vw, 2.1rem);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+
+.coverageWorkspace {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.proposalWorkspaceGrid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.35fr);
+}
+
+.proposalRail {
+  display: grid;
+  gap: 0.85rem;
+}
+
 .proposalList,
 .commentList {
   display: grid;
@@ -445,6 +722,33 @@
   padding: 0.95rem;
   display: grid;
   gap: 0.6rem;
+}
+
+.proposalSummaryCard {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-card) 92%, transparent), color-mix(in srgb, var(--surface-card-soft) 90%, #09101a));
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--panel-accent-glow) 16%, transparent);
+}
+
+.proposalSummaryCardActive {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-soft));
+  box-shadow:
+    0 18px 40px color-mix(in srgb, var(--panel-accent-glow) 22%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.proposalSelectButton {
+  width: 100%;
+  border: none;
+  padding: 1rem;
+  display: grid;
+  gap: 0.75rem;
+  text-align: left;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
 }
 
 .proposalHeader,
@@ -461,6 +765,228 @@
   gap: 0.18rem;
 }
 
+.commentMoodBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0.4rem 0.72rem;
+  border-radius: 999px;
+  color: var(--comment-mood-fg, var(--text-primary));
+  background: var(--comment-mood-bg, color-mix(in srgb, var(--surface-card) 94%, transparent));
+  border: 1px solid color-mix(in srgb, var(--comment-mood-fg, currentColor) 28%, transparent);
+  font-size: 0.77rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 18%, transparent);
+}
+
+.commentMoodBadge svg,
+.commentMoodOption svg {
+  flex: 0 0 auto;
+}
+
+.commentMoodBadgeBullish,
+.commentMoodOptionBullish {
+  --comment-mood-fg: color-mix(in srgb, #2dbd6e 78%, #143b2b);
+  --comment-mood-bg: color-mix(in srgb, #2dbd6e 18%, var(--surface-card) 82%);
+}
+
+.commentMoodBadgeBearish,
+.commentMoodOptionBearish {
+  --comment-mood-fg: color-mix(in srgb, #d94b64 80%, #4b1820);
+  --comment-mood-bg: color-mix(in srgb, #d94b64 18%, var(--surface-card) 82%);
+}
+
+.commentMoodBadgeNeutral,
+.commentMoodOptionNeutral {
+  --comment-mood-fg: color-mix(in srgb, #b88709 82%, #584400);
+  --comment-mood-bg: color-mix(in srgb, #d4aa2a 18%, var(--surface-card) 82%);
+}
+
+.commentMoodBadgeHodling,
+.commentMoodOptionHodling {
+  --comment-mood-fg: color-mix(in srgb, #3f8fe8 80%, #163e68);
+  --comment-mood-bg: color-mix(in srgb, #3f8fe8 18%, var(--surface-card) 82%);
+}
+
+.commentMoodBadgeDumpEet,
+.commentMoodOptionDumpEet {
+  --comment-mood-fg: color-mix(in srgb, #d96534 80%, #5a2413);
+  --comment-mood-bg: color-mix(in srgb, #e4723f 18%, var(--surface-card) 82%);
+}
+
+.commentMoodBadgeHeBought,
+.commentMoodOptionHeBought {
+  --comment-mood-fg: color-mix(in srgb, #29b89a 80%, #12453d);
+  --comment-mood-bg: color-mix(in srgb, #29b89a 18%, var(--surface-card) 82%);
+}
+
+.commentMoodBadgeHeSold,
+.commentMoodOptionHeSold {
+  --comment-mood-fg: color-mix(in srgb, #c84f99 80%, #4b1b37);
+  --comment-mood-bg: color-mix(in srgb, #d35ca7 18%, var(--surface-card) 82%);
+}
+
+.commentMoodBadgeDiamondHands,
+.commentMoodOptionDiamondHands {
+  --comment-mood-fg: color-mix(in srgb, #4f97e0 80%, #1d4468);
+  --comment-mood-bg: color-mix(in srgb, #5fa4ea 18%, var(--surface-card) 82%);
+}
+
+.commentMoodBadgeWatching,
+.commentMoodOptionWatching {
+  --comment-mood-fg: color-mix(in srgb, #64788d 78%, #394654);
+  --comment-mood-bg: color-mix(in srgb, #8ca0b5 18%, var(--surface-card) 82%);
+}
+
+.commentMoodBadgeAccumulating,
+.commentMoodOptionAccumulating {
+  --comment-mood-fg: color-mix(in srgb, #6f56d6 80%, #352868);
+  --comment-mood-bg: color-mix(in srgb, #7d63df 18%, var(--surface-card) 82%);
+}
+
+.proposalActions {
+  padding: 0 1rem 1rem;
+  justify-content: flex-start;
+}
+
+.proposalViewerPane {
+  min-width: 0;
+}
+
+.proposalViewer {
+  display: grid;
+  gap: 1rem;
+  min-height: 100%;
+  padding: 1.3rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border-soft));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent 26%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-card) 96%, white 4%), color-mix(in srgb, var(--surface-card-soft) 92%, #08111b));
+}
+
+.proposalViewerHeader {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.proposalViewerTitle {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.4vw, 2.2rem);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+}
+
+.proposalViewerMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.proposalViewerBody {
+  display: grid;
+  gap: 1rem;
+  padding-top: 0.35rem;
+  line-height: 1.8;
+  font-size: 1rem;
+}
+
+.proposalViewerBody > :first-child {
+  margin-top: 0;
+}
+
+.proposalViewerBody > :last-child {
+  margin-bottom: 0;
+}
+
+.proposalViewerBody p,
+.proposalViewerBody ul,
+.proposalViewerBody ol,
+.proposalViewerBody blockquote,
+.proposalViewerBody pre,
+.proposalViewerBody table {
+  margin: 0;
+}
+
+.proposalViewerBody h1,
+.proposalViewerBody h2,
+.proposalViewerBody h3,
+.proposalViewerBody h4 {
+  margin: 1rem 0 0;
+  line-height: 1.2;
+}
+
+.proposalViewerBody ul,
+.proposalViewerBody ol {
+  padding-left: 1.35rem;
+}
+
+.proposalViewerBody li + li {
+  margin-top: 0.3rem;
+}
+
+.proposalViewerBody a {
+  color: var(--accent);
+}
+
+.proposalViewerBody code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  padding: 0.14rem 0.34rem;
+  border-radius: 0.45rem;
+  background: color-mix(in srgb, var(--surface-card-highlight) 40%, transparent);
+}
+
+.proposalViewerBody pre {
+  overflow: auto;
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface-card) 92%, #09111a);
+}
+
+.proposalViewerBody pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.proposalViewerBody blockquote {
+  padding: 0.9rem 1rem;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 44%, transparent);
+  background: color-mix(in srgb, var(--surface-card-highlight) 20%, transparent);
+  color: var(--text-secondary, var(--text));
+}
+
+.proposalViewerBody img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+}
+
+.proposalViewerBody hr {
+  width: 100%;
+  height: 1px;
+  border: 0;
+  background: var(--border-soft);
+}
+
+.proposalViewerBody table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+}
+
+.proposalViewerBody th,
+.proposalViewerBody td {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border-soft);
+  text-align: left;
+}
+
 .proposalContent {
   white-space: pre-wrap;
   line-height: 1.6;
@@ -473,11 +999,25 @@
 .fieldGrid {
   display: grid;
   gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .field {
   display: grid;
   gap: 0.42rem;
+}
+
+.filterActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.filterMeta {
+  color: var(--muted);
+  font-size: 0.84rem;
 }
 
 .fieldLabel {
@@ -505,6 +1045,59 @@
 .helperText {
   color: var(--muted);
   font-size: 0.83rem;
+}
+
+.commentMoodPicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.commentMoodOption {
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-card) 94%, transparent);
+  color: var(--text-primary);
+  padding: 0.62rem 0.82rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background 140ms ease,
+    color 140ms ease,
+    opacity 140ms ease;
+}
+
+.commentMoodOption:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--border-soft));
+}
+
+.commentMoodOption:not(.commentMoodOptionSelected) {
+  opacity: 0.88;
+}
+
+.commentMoodOptionSelected {
+  color: var(--comment-mood-fg, var(--text-primary));
+  background: var(--comment-mood-bg, color-mix(in srgb, var(--surface-card) 94%, transparent));
+  border-color: color-mix(in srgb, var(--comment-mood-fg, currentColor) 28%, transparent);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--surface-card) 72%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--comment-mood-fg, currentColor) 18%, transparent),
+    0 10px 24px color-mix(in srgb, var(--panel-accent-glow) 16%, transparent);
+  transform: translateY(-1px);
+  opacity: 1;
+}
+
+.commentMoodOptionSelected svg {
+  filter: drop-shadow(0 0 0.2rem color-mix(in srgb, currentColor 28%, transparent));
 }
 
 .inlinePicker {
@@ -560,6 +1153,14 @@
   .detailLayout {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  .proposalWorkspaceGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .fieldGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .empty {
@@ -569,5 +1170,11 @@
 @media (max-width: 960px) {
   .detailLayout {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 44rem) {
+  .fieldGrid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

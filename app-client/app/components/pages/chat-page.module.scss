@@ -1,0 +1,876 @@
+@use "../../styles/mixins" as *;
+
+.appShell {
+  height: calc(100dvh - var(--site-shell-chrome-height, 0px));
+  max-height: calc(100dvh - var(--site-shell-chrome-height, 0px));
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 20rem minmax(0, 1fr);
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent-soft) 42%, transparent), transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-darkest) 96%, transparent), color-mix(in srgb, var(--bg) 98%, transparent));
+}
+
+.drawerBackdrop {
+  display: none;
+}
+
+.sidebar {
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border-right: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  background: color-mix(in srgb, var(--bg-darkest) 94%, transparent);
+}
+
+.sidebarScroll {
+  height: 100%;
+  max-height: 100%;
+  overflow: auto;
+  padding: 1rem;
+  display: grid;
+  gap: 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent) color-mix(in srgb, var(--surface-card-soft) 72%, transparent);
+}
+
+.sidebarScroll::-webkit-scrollbar {
+  width: 0.75rem;
+}
+
+.sidebarScroll::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--surface-card-soft) 72%, transparent);
+  border-radius: 999px;
+}
+
+.sidebarScroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 72%, transparent), color-mix(in srgb, var(--accent-strong) 42%, transparent));
+  border: 0.14rem solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+
+.mobileSidebarBar {
+  display: none;
+}
+
+.mobileSidebarClose,
+.mobileMenuButton {
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--surface-card-soft) 82%, transparent);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebarHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sidebarTitle,
+.chatTitle,
+.chatSectionTitle,
+.topbarTitle {
+  margin: 0;
+}
+
+.sidebarTitle {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sidebarMeta {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.chatSections {
+  display: grid;
+  gap: 1rem;
+}
+
+.chatSection {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.chatSectionTitle {
+  color: var(--accent-strong);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.chatList {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.chatButton {
+  width: 100%;
+  border: 0;
+  border-radius: 0.85rem;
+  background: transparent;
+  padding: 0.7rem 0.75rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.7rem;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+
+.chatButton:hover {
+  background: color-mix(in srgb, var(--surface-card-highlight) 44%, transparent);
+}
+
+.chatButtonActive {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 24%, transparent),
+    color-mix(in srgb, var(--accent-strong) 10%, var(--surface-card-soft))
+  );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 48%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.chatButtonActive:hover {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 24%, transparent),
+    color-mix(in srgb, var(--accent-strong) 10%, var(--surface-card-soft))
+  );
+}
+
+.chatCoin {
+  width: 2.6rem;
+  height: 2.6rem;
+}
+
+.chatButtonBody {
+  min-width: 0;
+  display: grid;
+  gap: 0.14rem;
+}
+
+.chatButtonTopline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.chatButtonActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+
+.chatTicker {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.unreadBadge {
+  min-width: 1.3rem;
+  height: 1.3rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #f04747;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.pinButton {
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.72;
+}
+
+.pinButton:hover {
+  background: color-mix(in srgb, var(--surface-card-highlight) 52%, transparent);
+  color: #f5c451;
+  opacity: 1;
+}
+
+.pinButtonActive {
+  color: #f5c451;
+  opacity: 1;
+}
+
+.chatLabel {
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.chatPreview {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chatPanel {
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: color-mix(in srgb, var(--bg) 98%, transparent);
+  overflow: hidden;
+}
+
+.topbar {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.topbarStart {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.mobileMenuButton {
+  display: none;
+}
+
+.topbarTitle {
+  font-size: 1.1rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.topbarMeta {
+  margin: 0.1rem 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.socketBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  background: color-mix(in srgb, var(--surface-card-soft) 88%, transparent);
+  color: var(--accent-strong);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.chatSurface {
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  padding: 0.9rem 1.1rem 0.9rem;
+  overflow: visible;
+}
+
+.chatHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.chatIdentity {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.headerCoin {
+  width: 2.9rem;
+  height: 2.9rem;
+}
+
+.chatIdentityBody {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.chatEyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-strong);
+}
+
+.chatTitle {
+  font-size: 1.2rem;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.chatSubtitle {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.chatMeta {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.chatMeta span {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-card-soft) 86%, transparent);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.messageViewport {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  gap: 0.15rem;
+  padding-right: 0.25rem;
+  padding-bottom: 1rem;
+  align-content: start;
+  position: relative;
+  z-index: 1;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent) 42%, transparent) color-mix(in srgb, var(--surface-card-soft) 68%, transparent);
+}
+
+.messageViewport::-webkit-scrollbar {
+  width: 0.75rem;
+}
+
+.messageViewport::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--surface-card-soft) 68%, transparent);
+  border-radius: 999px;
+}
+
+.messageViewport::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 58%, transparent), color-mix(in srgb, var(--accent-strong) 28%, transparent));
+  border: 0.14rem solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+
+.skeletonBlock {
+  display: inline-block;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.18) 50%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeletonPulse 1.4s ease-in-out infinite;
+}
+
+.messageSkeletonList {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.messageSkeletonRow {
+  display: grid;
+  grid-template-columns: 2.8rem minmax(0, 1fr);
+  gap: 0.85rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.75rem;
+}
+
+.messageSkeletonAvatar {
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: 50%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.18) 50%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeletonPulse 1.4s ease-in-out infinite;
+}
+
+.messageSkeletonContent {
+  display: grid;
+  gap: 0.42rem;
+  align-content: center;
+}
+
+.messageSkeletonTopline {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.messageSkeletonAuthor {
+  width: 7rem;
+  max-width: 40%;
+  height: 0.92rem;
+  border-radius: 0.45rem;
+}
+
+.messageSkeletonTime {
+  width: 3.8rem;
+  height: 0.76rem;
+  border-radius: 0.45rem;
+  opacity: 0.8;
+}
+
+.messageSkeletonLine {
+  width: 100%;
+  height: 0.92rem;
+  border-radius: 0.45rem;
+}
+
+.messageSkeletonLineShort {
+  width: 72%;
+  height: 0.92rem;
+  border-radius: 0.45rem;
+}
+
+.historyLoader {
+  justify-self: center;
+  margin: 0.6rem 0;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-card-soft) 88%, transparent);
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.messageRow {
+  display: grid;
+  grid-template-columns: 2.8rem minmax(0, 1fr);
+  gap: 0.85rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.75rem;
+}
+
+.messageRowMentioned {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #f5c451 12%, transparent),
+    color-mix(in srgb, var(--surface-card-soft) 92%, transparent)
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #f5c451 26%, transparent);
+}
+
+.messageRow:hover {
+  background: color-mix(in srgb, var(--surface-card-soft) 52%, transparent);
+}
+
+.messageAvatar {
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: 50%;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface-card-soft));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.messageAvatarImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.messageAvatarFallback {
+  font-weight: 900;
+  color: var(--accent-strong);
+}
+
+.messageContent {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.messageTopline {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.messageAuthor {
+  font-weight: 900;
+  color: var(--text);
+}
+
+.messageAuthorCoin {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 auto;
+  object-fit: cover;
+  border-radius: 0;
+  background: transparent;
+}
+
+.messageTime {
+  color: var(--muted);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.messageBody {
+  margin: 0;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.inlineEmoji {
+  width: 1.6rem;
+  height: 1.6rem;
+  display: inline-block;
+  vertical-align: middle;
+  transform: translateY(-0.05rem);
+}
+
+.messageBottomSpacer {
+  height: 5.75rem;
+}
+
+.composer {
+  display: grid;
+  gap: 0.6rem;
+  padding-top: 0.3rem;
+  min-height: 0;
+  overflow: visible;
+  align-self: end;
+  position: relative;
+  z-index: 3;
+}
+
+.composerLabel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+}
+
+.composerBox {
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 1rem;
+  background: var(--surface-card);
+  padding: 0.8rem 0.95rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.9rem;
+}
+
+.composerInputWrap {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+  cursor: text;
+}
+
+.composerInput {
+  width: 100%;
+  min-height: 2.3rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 0.42rem 0.1rem;
+  resize: none;
+  outline: none;
+  overflow-y: hidden;
+  line-height: 1.45rem;
+  box-sizing: border-box;
+}
+
+.composerInput::placeholder {
+  color: color-mix(in srgb, var(--muted) 90%, transparent);
+}
+
+.composerInput:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.composerPrompt {
+  min-width: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.composerSuggestions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 0.55rem);
+  max-height: 16rem;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--bg-darkest) 98%, transparent);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.3);
+  padding: 0.35rem;
+  display: grid;
+  gap: 0.2rem;
+  z-index: 4;
+}
+
+.composerSuggestion {
+  width: 100%;
+  border: 0;
+  border-radius: 0.7rem;
+  background: transparent;
+  color: inherit;
+  padding: 0.55rem 0.65rem;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  text-align: left;
+}
+
+.composerSuggestion:hover,
+.composerSuggestion:focus-visible {
+  background: color-mix(in srgb, var(--surface-card-highlight) 48%, transparent);
+  outline: none;
+}
+
+.composerSuggestionActive {
+  background: color-mix(in srgb, var(--surface-card-highlight) 48%, transparent);
+}
+
+.suggestionPrimary {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.suggestionSecondary {
+  display: block;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.suggestionEmoji {
+  width: 1.8rem;
+  height: 1.8rem;
+  flex: 0 0 auto;
+}
+
+.suggestionEmojiBody {
+  min-width: 0;
+}
+
+.composerFooter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-bottom: 0.1rem;
+}
+
+.composerHint {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.sendButton {
+  border: 0;
+  border-radius: 0.8rem;
+  background: #5865f2;
+  color: #fff;
+  padding: 0.62rem 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 800;
+}
+
+.sendButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@keyframes skeletonPulse {
+  0% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+@media (max-width: 980px) {
+  .appShell {
+    grid-template-columns: 1fr;
+  }
+
+  .drawerBackdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.46);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 140ms ease;
+    z-index: 40;
+  }
+
+  .drawerBackdropVisible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(88vw, 21rem);
+    transform: translateX(-100%);
+    transition: transform 180ms ease;
+    z-index: 50;
+    border-right: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  }
+
+  .sidebarOpen {
+    transform: translateX(0);
+  }
+
+  .mobileSidebarBar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.9rem 1rem 0;
+  }
+
+  .mobileMenuButton {
+    display: inline-flex;
+  }
+
+  .chatPanel {
+    height: 100%;
+    min-height: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar,
+  .chatHeader {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .chatSurface {
+    padding: 0.75rem 1rem 1rem;
+  }
+
+  .socketBadge {
+    font-size: 0.72rem;
+    padding: 0.45rem 0.65rem;
+  }
+
+  .chatHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .chatMeta {
+    justify-content: flex-start;
+  }
+
+  .messageRow {
+    grid-template-columns: 2.4rem minmax(0, 1fr);
+    gap: 0.7rem;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+  }
+
+  .messageAvatar {
+    width: 2.4rem;
+    height: 2.4rem;
+  }
+
+  .composerFooter {
+    flex-wrap: wrap;
+  }
+}
+.newMessagesBanner {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  justify-self: center;
+  margin: 0 0 0.45rem;
+  padding: 0.48rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-darkest) 92%, transparent);
+  color: var(--accent-strong);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
+}
+
+.newMessagesBanner:hover {
+  background: color-mix(in srgb, var(--surface-card-highlight) 78%, transparent);
+}

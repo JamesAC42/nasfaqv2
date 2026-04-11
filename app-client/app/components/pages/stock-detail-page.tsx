@@ -1141,7 +1141,6 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                 )}
                 <div className={styles.heroCopy}>
                   <div className={styles.heroEyebrowRow}>
-                    <span className={styles.heroEyebrow}>Channel Market</span>
                     {selectedAsset?.unit ? <span className={styles.heroPill}>{selectedAsset.unit}</span> : null}
                     {showHeroSkeleton ? <span className={`${styles.heroPill} ${styles.skeletonBlock} ${styles.heroPillSkeleton}`} aria-hidden="true" /> : null}
                   </div>
@@ -1386,120 +1385,122 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
               </section>
             </div>
 
-            <aside className={styles.tradeColumn}>
+            <div className={styles.tradeColumn}>
               <section className={styles.tradePanel}>
-                <div className={styles.sectionHeader}>
-                  <div>
-                    <h2 className={styles.sectionTitle}>Trade {selectedAsset?.symbol || normalizedSymbol}</h2>
-                    <p className={styles.sectionCopy}>A tighter order ticket with account context relevant to this position.</p>
-                  </div>
-                </div>
-
-                {!user ? (
-                  <div className={styles.authCta}>
-                    <span>Sign in to trade and load your portfolio context.</span>
-                    <div className={styles.authLinks}>
-                      <Link href="/login">Login</Link>
-                      <Link href="/register">Register</Link>
+                <div className={styles.tradePanelContent}>
+                  <div className={styles.sectionHeader}>
+                    <div>
+                      <h2 className={styles.sectionTitle}>Trade {selectedAsset?.symbol || normalizedSymbol}</h2>
+                      <p className={styles.sectionCopy}>A tighter order ticket with account context relevant to this position.</p>
                     </div>
                   </div>
-                ) : (
-                  <>
-                    <div className={styles.portfolioGrid}>
-                      <div className={styles.portfolioStat}>
-                        <span>Cash</span>
-                        <strong>{isLoadingPortfolio ? "Loading…" : fmtNumber(portfolio?.cash_balance ?? null, "$")}</strong>
-                      </div>
-                      <div className={styles.portfolioStat}>
-                        <span>Shares Owned</span>
-                        <strong>{isLoadingPortfolio ? "Loading…" : fmtNumber(ownedShares)}</strong>
-                      </div>
-                      <div className={styles.portfolioStat}>
-                        <span>Position Value</span>
-                        <strong>{isLoadingPortfolio ? "Loading…" : fmtNumber(estimatedPositionValue, "$")}</strong>
-                      </div>
-                      <div className={styles.portfolioStat}>
-                        <span>Avg Cost</span>
-                        <strong>{isLoadingPortfolio ? "Loading…" : fmtNumber(selectedHolding?.avg_cost_basis ?? null, "$")}</strong>
-                      </div>
-                      <div className={styles.portfolioStat}>
-                        <span>Unrealized PnL</span>
-                        <strong className={(selectedHolding?.unrealized_pnl ?? 0) >= 0 ? styles.valueUp : styles.valueDown}>
-                          {isLoadingPortfolio ? "Loading…" : formatSignedCurrency(selectedHolding?.unrealized_pnl ?? null)}
-                        </strong>
-                      </div>
-                      <div className={styles.portfolioStat}>
-                        <span>Order Value</span>
-                        <strong>{fmtNumber(estimatedTradeNotional, "$")}</strong>
+
+                  {!user ? (
+                    <div className={styles.authCta}>
+                      <span>Sign in to trade and load your portfolio context.</span>
+                      <div className={styles.authLinks}>
+                        <Link href="/login">Login</Link>
+                        <Link href="/register">Register</Link>
                       </div>
                     </div>
-
-                    <form className={styles.tradeForm} onSubmit={(event) => void handleTrade(event)}>
-                      <div className={styles.sideToggle}>
-                        <button
-                          type="button"
-                          className={tradeSide === "buy" ? styles.sideToggleActiveBuy : styles.sideToggleButton}
-                          onClick={() => setTradeSide("buy")}
-                        >
-                          Buy
-                        </button>
-                        <button
-                          type="button"
-                          className={tradeSide === "sell" ? styles.sideToggleActiveSell : styles.sideToggleButton}
-                          onClick={() => setTradeSide("sell")}
-                        >
-                          Sell
-                        </button>
+                  ) : (
+                    <>
+                      <div className={styles.portfolioGrid}>
+                        <div className={styles.portfolioStat}>
+                          <span>Cash</span>
+                          <strong>{isLoadingPortfolio ? "Loading…" : fmtNumber(portfolio?.cash_balance ?? null, "$")}</strong>
+                        </div>
+                        <div className={styles.portfolioStat}>
+                          <span>Shares Owned</span>
+                          <strong>{isLoadingPortfolio ? "Loading…" : fmtNumber(ownedShares)}</strong>
+                        </div>
+                        <div className={styles.portfolioStat}>
+                          <span>Position Value</span>
+                          <strong>{isLoadingPortfolio ? "Loading…" : fmtNumber(estimatedPositionValue, "$")}</strong>
+                        </div>
+                        <div className={styles.portfolioStat}>
+                          <span>Avg Cost</span>
+                          <strong>{isLoadingPortfolio ? "Loading…" : fmtNumber(selectedHolding?.avg_cost_basis ?? null, "$")}</strong>
+                        </div>
+                        <div className={styles.portfolioStat}>
+                          <span>Unrealized PnL</span>
+                          <strong className={(selectedHolding?.unrealized_pnl ?? 0) >= 0 ? styles.valueUp : styles.valueDown}>
+                            {isLoadingPortfolio ? "Loading…" : formatSignedCurrency(selectedHolding?.unrealized_pnl ?? null)}
+                          </strong>
+                        </div>
+                        <div className={styles.portfolioStat}>
+                          <span>Order Value</span>
+                          <strong>{fmtNumber(estimatedTradeNotional, "$")}</strong>
+                        </div>
                       </div>
 
-                      <label className={styles.tradeField}>
-                        <span>Quantity</span>
-                        <input
-                          className={styles.tradeInput}
-                          value={tradeQuantity}
-                          inputMode="decimal"
-                          disabled={!tradingOpen}
-                          onChange={(event) => setTradeQuantity(event.target.value)}
-                        />
-                      </label>
-
-                      <div className={styles.tradePresets}>
-                        {["10", "25", "50", "100"].map((preset) => (
-                          <button key={preset} type="button" className={styles.presetButton} onClick={() => setTradeQuantity(preset)}>
-                            {preset}
+                      <form className={styles.tradeForm} onSubmit={(event) => void handleTrade(event)}>
+                        <div className={styles.sideToggle}>
+                          <button
+                            type="button"
+                            className={tradeSide === "buy" ? styles.sideToggleActiveBuy : styles.sideToggleButton}
+                            onClick={() => setTradeSide("buy")}
+                          >
+                            Buy
                           </button>
-                        ))}
-                      </div>
-
-                      <div className={styles.tradeSummary}>
-                        <div>
-                          <span>Mid</span>
-                          <strong>{fmtNumber(selectedAsset?.current_mid_price, "$")}</strong>
+                          <button
+                            type="button"
+                            className={tradeSide === "sell" ? styles.sideToggleActiveSell : styles.sideToggleButton}
+                            onClick={() => setTradeSide("sell")}
+                          >
+                            Sell
+                          </button>
                         </div>
-                        <div>
-                          <span>Bid / Ask</span>
-                          <strong>{fmtNumber(selectedAsset?.current_bid_price, "$")} / {fmtNumber(selectedAsset?.current_ask_price, "$")}</strong>
-                        </div>
-                        <div>
-                          <span>Premium</span>
-                          <strong>{fmtPct(selectedAsset?.current_premium_pct)}</strong>
-                        </div>
-                      </div>
 
-                      <button type="submit" className={tradeSide === "buy" ? styles.tradeSubmitBuy : styles.tradeSubmitSell} disabled={!tradingOpen}>
-                        {tradingOpen ? `${tradeSide === "buy" ? "Submit Buy" : "Submit Sell"} Order` : "Market Closed"}
-                      </button>
-                    </form>
+                        <label className={styles.tradeField}>
+                          <span>Quantity</span>
+                          <input
+                            className={styles.tradeInput}
+                            value={tradeQuantity}
+                            inputMode="decimal"
+                            disabled={!tradingOpen}
+                            onChange={(event) => setTradeQuantity(event.target.value)}
+                          />
+                        </label>
 
-                    {!tradingOpen ? (
-                      <div className="statusMessage statusMessageWarn">
-                        <strong>Trading paused.</strong> {marketClosedMessage}
-                      </div>
-                    ) : null}
-                  </>
-                )}
+                        <div className={styles.tradePresets}>
+                          {["10", "25", "50", "100"].map((preset) => (
+                            <button key={preset} type="button" className={styles.presetButton} onClick={() => setTradeQuantity(preset)}>
+                              {preset}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className={styles.tradeSummary}>
+                          <div>
+                            <span>Mid</span>
+                            <strong>{fmtNumber(selectedAsset?.current_mid_price, "$")}</strong>
+                          </div>
+                          <div>
+                            <span>Bid / Ask</span>
+                            <strong>{fmtNumber(selectedAsset?.current_bid_price, "$")} / {fmtNumber(selectedAsset?.current_ask_price, "$")}</strong>
+                          </div>
+                          <div>
+                            <span>Premium</span>
+                            <strong>{fmtPct(selectedAsset?.current_premium_pct)}</strong>
+                          </div>
+                        </div>
+
+                        <button type="submit" className={tradeSide === "buy" ? styles.tradeSubmitBuy : styles.tradeSubmitSell} disabled={!tradingOpen}>
+                          {tradingOpen ? `${tradeSide === "buy" ? "Submit Buy" : "Submit Sell"} Order` : "Market Closed"}
+                        </button>
+                      </form>
+
+                      {!tradingOpen ? (
+                        <div className="statusMessage statusMessageWarn">
+                          <strong>Trading paused.</strong> {marketClosedMessage}
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </div>
               </section>
-            </aside>
+            </div>
           </div>
 
           {showDeferredSections ? (
