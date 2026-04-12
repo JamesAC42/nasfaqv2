@@ -442,6 +442,11 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                 </section>
               ) : article.is_news ? (
                 <section className={styles.emptyStoryCard}>
+                  {article.thumbnail_url ? (
+                    <div className={styles.flatMedia}>
+                      <img src={article.thumbnail_url} alt="" className={styles.featureThumb} />
+                    </div>
+                  ) : null}
                   <div className={styles.emptyStoryHeader}>
                     <span className={styles.eyebrow}>Waiting for coverage</span>
                     <h2 className={styles.emptyStoryTitle}>This news item does not have an approved article yet.</h2>

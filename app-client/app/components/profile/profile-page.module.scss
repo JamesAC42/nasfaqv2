@@ -260,6 +260,12 @@
   background: var(--surface-section-strong);
 }
 
+.profilePictureCircleActive .profilePicturePreview {
+  outline: 3px solid var(--accent-strong);
+  filter: brightness(0.97);
+  box-shadow: 0 0 5px 5px var(--accent);
+}
+
 .profilePictureFallbackPreview {
   display: grid;
   place-items: center;
@@ -352,8 +358,7 @@
 }
 
 .profilePictureCircleActive {
-  border-color: var(--button-primary-border);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  position: relative;
 }
 
 @keyframes profileModalOverlayIn {

@@ -174,6 +174,8 @@ export function CandleChartCard({
   subtitle,
   candles,
   showMarkClose = false,
+  chartType = "candles",
+  showSubtitle = true,
   theme,
   fontFamily,
   height = 320,
@@ -183,40 +185,67 @@ export function CandleChartCard({
   subtitle?: string;
   candles: CandlePoint[];
   showMarkClose?: boolean;
+  chartType?: "candles" | "line";
+  showSubtitle?: boolean;
   theme?: ChannelChartTheme | null;
   fontFamily?: string;
   height?: number;
   compact?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const hasData = candles.some((item) => item.open !== null && item.high !== null && item.low !== null && item.close !== null);
+  const hasData = chartType === "line"
+    ? candles.some((item) => {
+        const value = item.close_mark ?? item.close ?? item.open ?? item.high ?? item.low;
+        return value !== null && value !== undefined && Number.isFinite(value);
+      })
+    : candles.some((item) => item.open !== null && item.high !== null && item.low !== null && item.close !== null);
   const palette = resolveTheme(theme);
 
   useEffect(() => {
     if (!containerRef.current || !hasData) return;
 
     const chart = createBaseChart(containerRef.current, palette, fontFamily, height, compact ? 11 : 12);
-    const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: palette.baseDeep,
-      downColor: palette.complementDeep,
-      wickUpColor: palette.baseDeep,
-      wickDownColor: palette.complementDeep,
-      borderVisible: false,
-      priceLineVisible: false,
-      lastValueVisible: true,
-    });
+    if (chartType === "line") {
+      const lineSeries = chart.addSeries(LineSeries, {
+        color: palette.highlight,
+        lineWidth: compact ? 2 : 3,
+        priceLineVisible: false,
+        lastValueVisible: true,
+      });
 
-    candleSeries.setData(
-      candles
-        .map((item) => {
-          const time = toChartTime(item.bucket);
-          if (!time || item.open === null || item.high === null || item.low === null || item.close === null) return null;
-          return { time, open: item.open, high: item.high, low: item.low, close: item.close };
-        })
-        .filter(Boolean) as Array<{ time: Time; open: number; high: number; low: number; close: number }>
-    );
+      lineSeries.setData(
+        candles
+          .map((item) => {
+            const time = toChartTime(item.bucket);
+            const value = item.close_mark ?? item.close ?? item.open ?? item.high ?? item.low;
+            if (!time || value === null || value === undefined || !Number.isFinite(value)) return null;
+            return { time, value };
+          })
+          .filter(Boolean) as Array<{ time: Time; value: number }>
+      );
+    } else {
+      const candleSeries = chart.addSeries(CandlestickSeries, {
+        upColor: palette.baseDeep,
+        downColor: palette.complementDeep,
+        wickUpColor: palette.baseDeep,
+        wickDownColor: palette.complementDeep,
+        borderVisible: false,
+        priceLineVisible: false,
+        lastValueVisible: true,
+      });
 
-    if (showMarkClose) {
+      candleSeries.setData(
+        candles
+          .map((item) => {
+            const time = toChartTime(item.bucket);
+            if (!time || item.open === null || item.high === null || item.low === null || item.close === null) return null;
+            return { time, open: item.open, high: item.high, low: item.low, close: item.close };
+          })
+          .filter(Boolean) as Array<{ time: Time; open: number; high: number; low: number; close: number }>
+      );
+    }
+
+    if (showMarkClose && chartType === "candles") {
       const markSeries = chart.addSeries(LineSeries, {
         color: palette.highlight,
         lineWidth: 2,
@@ -237,7 +266,7 @@ export function CandleChartCard({
 
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [candles, compact, fontFamily, hasData, height, palette, showMarkClose]);
+  }, [candles, chartType, compact, fontFamily, hasData, height, palette, showMarkClose]);
 
   return (
     <div
@@ -250,16 +279,23 @@ export function CandleChartCard({
       <div className={styles.header}>
         <div>
           <strong className={styles.title}>{title}</strong>
-          <span className={styles.subtitle}>{subtitle || formatRangeLabel(candles.map((item) => item.bucket))}</span>
+          {showSubtitle ? <span className={styles.subtitle}>{subtitle || formatRangeLabel(candles.map((item) => item.bucket))}</span> : null}
         </div>
         <div className={styles.legend}>
           <span
-            className={`${styles.pill} ${styles.candlePill}`}
-            style={{ borderColor: withAlpha(palette.baseDeep, 0.35), color: palette.baseDeep }}
+            className={`${styles.pill} ${chartType === "line" ? styles.linePill : styles.candlePill}`}
+            style={{
+              borderColor: withAlpha(chartType === "line" ? palette.highlight : palette.baseDeep, 0.35),
+              color: chartType === "line" ? palette.highlight : palette.baseDeep,
+            }}
           >
-            Candles {formatValue(latestValue(candles.map((item) => ({ value: item.close }))))}
+            {chartType === "line" ? "Price" : "Candles"} {formatValue(latestValue(candles.map((item) => ({
+              value: chartType === "line"
+                ? (item.close_mark ?? item.close ?? item.open ?? item.high ?? item.low)
+                : item.close,
+            }))))}
           </span>
-          {showMarkClose ? (
+          {showMarkClose && chartType === "candles" ? (
             <span
               className={`${styles.pill} ${styles.linePill}`}
               style={{ borderColor: withAlpha(palette.highlight, 0.35), color: palette.highlight }}
@@ -269,7 +305,7 @@ export function CandleChartCard({
           ) : null}
         </div>
       </div>
-      {hasData ? <div ref={containerRef} className={styles.canvas} /> : <div className={styles.empty}>No candle data</div>}
+      {hasData ? <div ref={containerRef} className={styles.canvas} /> : <div className={styles.empty}>No {chartType === "line" ? "price" : "candle"} data</div>}
     </div>
   );
 }

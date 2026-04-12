@@ -235,7 +235,13 @@ export function ChannelTickerPill({
                   <strong>{asset.symbol}</strong>
                   <span>{asset.display_name}</span>
                 </div>
+                <div className={styles.popoverActions}>
+                  <Link href={href} className={styles.openButton}>
+                    Open stock page
+                  </Link>
+                </div>
               </div>
+
               <button
                 type="button"
                 className={styles.closeButton}
@@ -275,9 +281,9 @@ export function ChannelTickerPill({
                   {glanceData?.intradayCandles.length ? (
                     <CandleChartCard
                       title="24H Market"
-                      subtitle="Hourly candles from executed trades"
                       candles={glanceData.intradayCandles}
-                      height={160}
+                      height={136}
+                      showSubtitle={false}
                       compact
                     />
                   ) : (
@@ -286,9 +292,10 @@ export function ChannelTickerPill({
                   {recentDailyCandles.length ? (
                     <CandleChartCard
                       title="3M Daily Price"
-                      subtitle="Daily price history for the last 3 months"
                       candles={recentDailyCandles}
-                      height={160}
+                      chartType="line"
+                      height={136}
+                      showSubtitle={false}
                       compact
                     />
                   ) : (
@@ -296,12 +303,6 @@ export function ChannelTickerPill({
                   )}
                 </>
               )}
-            </div>
-
-            <div className={styles.popoverActions}>
-              <Link href={href} className={styles.openButton}>
-                Open stock page
-              </Link>
             </div>
           </div>
         ) : null}
