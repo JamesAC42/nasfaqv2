@@ -10,12 +10,13 @@ import { MarketReportSection } from "@/app/components/home/market-report-section
 import { CompactNewsGrid, NewsSection, partitionHomepageNewsItems } from "@/app/components/home/news-section";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
-import { ensureReadableColorOnDarkBackground } from "@/app/lib/color";
+import { getUsableChannelColor } from "@/app/lib/color";
 import { fmtInteger, fmtNumber, fmtPct } from "@/app/lib/format";
 import { computeDailyPriceChangePct } from "@/app/lib/market-metrics";
 import { normalizeArticleListResponse } from "@/app/lib/normalizers";
 import { getSiteStatsWsUrl } from "@/app/lib/ws";
 import { useAuth } from "@/app/providers/auth-provider";
+import { useTheme } from "@/app/providers/theme-provider";
 import { useChannelStore } from "@/app/stores/channel-store";
 import { useLeaderboardStore } from "@/app/stores/leaderboard-store";
 import { useLivestreamStore } from "@/app/stores/livestream-store";
@@ -259,6 +260,7 @@ function ChannelRankChart({
   subtitle: string;
   rows: ChannelChartRow[];
 }) {
+  const { theme } = useTheme();
   const maxValue = Math.max(...rows.map((row) => row.value), 0);
 
   return (
@@ -293,7 +295,7 @@ function ChannelRankChart({
                     className={styles.channelBarFill}
                     style={{
                       "--channel-bar-width": width,
-                      "--channel-bar-color": ensureReadableColorOnDarkBackground(row.color) || "#f97316",
+                      "--channel-bar-color": getUsableChannelColor(row.color, theme) || "#f97316",
                     } as CSSProperties}
                   />
                 </div>
@@ -354,7 +356,7 @@ export function HomePage() {
   const featuredHoldings = [...(portfolio?.holdings || [])]
     .sort((a, b) => b.market_value - a.market_value)
     .slice(0, 4);
-  const mockLeaderboard = leaderboardEntries.length
+  const homepageLeaderboard = leaderboardEntries.length
     ? leaderboardEntries.slice(0, 5)
     : [...assets]
       .sort((a, b) => (b.current_mid_price ?? 0) - (a.current_mid_price ?? 0))
@@ -363,9 +365,22 @@ export function HomePage() {
         id: asset.symbol,
         rank: index + 1,
         label: `${asset.symbol} Syndicate`,
-        value: (asset.current_mid_price ?? 0) * (125000 - index * 11000),
+        username: `${asset.symbol} Syndicate`,
+        profile_picture_url: null,
+        profile_color: asset.color || null,
+        total_equity: (asset.current_mid_price ?? 0) * (125000 - index * 11000),
+        cash_balance: (asset.current_mid_price ?? 0) * (22000 - index * 1200),
         change_pct: computeDailyPriceChangePct(asset.current_mid_price, asset.sparkline_candles),
+        largest_position: {
+          symbol: asset.symbol,
+          value: (asset.current_mid_price ?? 0) * (86000 - index * 9000),
+        },
+        best_asset: {
+          symbol: asset.symbol,
+        },
+        badges: index === 0 ? ["Whale", "On Fire"] : index === 1 ? ["Diamond Hands"] : [],
       }));
+  const leaderboardLeader = homepageLeaderboard[0] || null;
   const topSubscribers = [...channels].sort((a, b) => (b.latest?.subscriber_count ?? 0) - (a.latest?.subscriber_count ?? 0))[0] || null;
   const topViews = [...channels].sort((a, b) => (b.latest?.view_count ?? 0) - (a.latest?.view_count ?? 0))[0] || null;
   const topVideos = [...channels].sort((a, b) => (b.latest?.video_count ?? 0) - (a.latest?.video_count ?? 0))[0] || null;
@@ -900,28 +915,72 @@ export function HomePage() {
           <section className={styles.dashboardSection}>
             <div className={styles.sectionHeader}>
               <div>
-                <h2 className={styles.title}>Mock Leaderboard</h2>
-                <p className={styles.copy}>A leaderboard preview for top community portfolios and desk-style performance snapshots.</p>
+                <h2 className={styles.title}>Leaderboard</h2>
+                <p className={styles.copy}>A live preview of the richest portfolios on the exchange.</p>
               </div>
               <Link href="/leaderboard" className={styles.sectionLink}>View leaderboard</Link>
             </div>
             {leaderboardError && !leaderboardEntries.length ? <div className={styles.sectionEmpty}>Leaderboard unavailable: {leaderboardError}</div> : null}
+            {leaderboardLeader ? (
+              <div className={styles.rankHero}>
+                <div className={styles.rankHeroLabel}>Top desk right now</div>
+                <div className={styles.rankHeroValue}>{fmtNumber(leaderboardLeader.total_equity, "$")}</div>
+                <div className={styles.rankHeroMeta}>
+                  <span>#{leaderboardLeader.rank} {leaderboardLeader.label}</span>
+                  <span className={(leaderboardLeader.change_pct ?? 0) >= 0 ? styles.positive : styles.negative}>
+                    {leaderboardLeader.change_pct === null || leaderboardLeader.change_pct === undefined
+                      ? "—"
+                      : `${leaderboardLeader.change_pct > 0 ? "+" : ""}${fmtPct(leaderboardLeader.change_pct)}`}
+                  </span>
+                </div>
+              </div>
+            ) : null}
             <div className={styles.rankList}>
-              {mockLeaderboard.map((entry) => (
+              {homepageLeaderboard.map((entry) => (
                 <div key={entry.id} className={styles.rankRow}>
                   <div className={styles.rankBadge}>#{entry.rank}</div>
                   <div className={styles.rankMeta}>
-                    <strong>{entry.label}</strong>
-                    <span>Model portfolio</span>
+                    <div className={styles.rankIdentity}>
+                      <div
+                        className={styles.rankAvatar}
+                        style={entry.profile_color ? ({ "--rank-avatar-accent": entry.profile_color } as CSSProperties) : undefined}
+                      >
+                        {entry.profile_picture_url ? (
+                          <img src={entry.profile_picture_url} alt="" className={styles.rankAvatarImage} />
+                        ) : (
+                          entry.label.slice(0, 2).toUpperCase()
+                        )}
+                      </div>
+                      <strong>{entry.label}</strong>
+                    </div>
+                    <span>
+                      {entry.largest_position
+                        ? `Largest bag ${entry.largest_position.symbol} · ${fmtNumber(entry.largest_position.value, "$")}`
+                        : entry.best_asset
+                          ? `Best pick ${entry.best_asset.symbol}`
+                          : "Portfolio preview"}
+                    </span>
+                    {entry.badges?.length ? (
+                      <div className={styles.rankBadgeRow}>
+                        {entry.badges.slice(0, 2).map((badge) => (
+                          <span key={badge} className={styles.rankTag}>{badge}</span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                   <div className={styles.rankMetrics}>
-                    <strong>{fmtNumber(entry.value, "$")}</strong>
+                    <strong>{fmtNumber(entry.total_equity, "$")}</strong>
+                    <span>{fmtNumber(entry.cash_balance, "$")} cash</span>
                     <span className={(entry.change_pct ?? 0) >= 0 ? styles.positive : styles.negative}>
                       {entry.change_pct === null || entry.change_pct === undefined ? "—" : `${entry.change_pct > 0 ? "+" : ""}${fmtPct(entry.change_pct)}`}
                     </span>
                   </div>
                 </div>
               ))}
+            </div>
+            <div className={styles.rankPreviewFooter}>
+              <span>Top 5 snapshot</span>
+              <span>Open the full board for friends, rivals, podiums, and your exact rank.</span>
             </div>
           </section>
 

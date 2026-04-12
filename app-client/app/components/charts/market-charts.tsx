@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   AreaSeries,
   CandlestickSeries,
@@ -10,8 +10,11 @@ import {
   createChart,
   type Time,
 } from "lightweight-charts";
+import { AssetCoin } from "@/app/components/common/asset-coin";
+import { getUsableChannelColor } from "@/app/lib/color";
 import { createChannelChartTheme, withAlpha, type ChannelChartTheme } from "@/app/lib/chart-theme";
 import type { CandlePoint } from "@/app/lib/types";
+import { useTheme } from "@/app/providers/theme-provider";
 import styles from "@/app/components/charts/market-charts.module.scss";
 
 type TrendPoint = {
@@ -21,6 +24,8 @@ type TrendPoint = {
 
 type TrendSeries = {
   name: string;
+  symbol?: string;
+  icon?: string | null;
   color: string;
   kind?: "area" | "line";
   values: TrendPoint[];
@@ -283,8 +288,11 @@ export function TrendChartCard({
   fontFamily?: string;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const { theme: colorMode } = useTheme();
+  const [selectedSeriesNames, setSelectedSeriesNames] = useState<string[]>([]);
   const hasData = series.some((item) => item.values.some((point) => point.value !== null && Number.isFinite(point.value)));
   const palette = resolveTheme(theme);
+  const hasActiveSelection = selectedSeriesNames.length > 0;
 
   useEffect(() => {
     if (!containerRef.current || !hasData) return;
@@ -294,10 +302,12 @@ export function TrendChartCard({
     for (const item of series) {
       const data = normalizeTrendData(item.values);
       if (!data.length) continue;
+      const isActive = !hasActiveSelection || selectedSeriesNames.includes(item.name);
+      const strokeColor = isActive ? item.color : withAlpha(item.color, 0.18);
 
       if (item.kind === "line") {
         const lineSeries = chart.addSeries(LineSeries, {
-          color: item.color,
+          color: strokeColor,
           lineWidth: 2,
           priceLineVisible: false,
           lastValueVisible: true,
@@ -305,9 +315,9 @@ export function TrendChartCard({
         lineSeries.setData(data);
       } else {
         const areaSeries = chart.addSeries(AreaSeries, {
-          lineColor: item.color,
-          topColor: withAlpha(item.color, 0.26),
-          bottomColor: withAlpha(item.color, 0.04),
+          lineColor: strokeColor,
+          topColor: isActive ? withAlpha(item.color, 0.26) : withAlpha(item.color, 0.06),
+          bottomColor: isActive ? withAlpha(item.color, 0.04) : withAlpha(item.color, 0.01),
           lineWidth: 3,
           priceLineVisible: false,
           lastValueVisible: true,
@@ -318,9 +328,18 @@ export function TrendChartCard({
 
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [fontFamily, hasData, palette, series]);
+  }, [fontFamily, hasActiveSelection, hasData, palette, selectedSeriesNames, series]);
 
   const rangeValues = series[0]?.values.map((item) => item.time) || [];
+
+  function toggleSeries(name: string) {
+    setSelectedSeriesNames((current) => {
+      const isSelected = current.includes(name);
+      if (!isSelected) return [...current, name];
+      if (current.length === 1) return [];
+      return current.filter((item) => item !== name);
+    });
+  }
 
   return (
     <div
@@ -333,11 +352,39 @@ export function TrendChartCard({
           <span className={styles.subtitle}>{subtitle || formatRangeLabel(rangeValues)}</span>
         </div>
         <div className={styles.legend}>
-          {series.map((item) => (
-            <span key={item.name} className={styles.pill} style={{ borderColor: `${item.color}55`, color: item.color }}>
-              {item.name} {formatValue(latestValue(item.values))}
-            </span>
-          ))}
+          {series.map((item) => {
+            const legendColor =
+              getUsableChannelColor(item.color, colorMode, colorMode === "light" ? { maxLightLuminance: 0.34 } : undefined) || item.color;
+            const isActive = !hasActiveSelection || selectedSeriesNames.includes(item.name);
+
+            return (
+              <button
+                key={item.name}
+                type="button"
+                className={`${styles.pill} ${isActive ? styles.pillActive : styles.pillMuted}`}
+                style={
+                  {
+                    "--pill-color": legendColor,
+                    borderColor: withAlpha(legendColor, 0.35),
+                    color: legendColor,
+                  } as CSSProperties
+                }
+                onClick={() => toggleSeries(item.name)}
+                aria-pressed={hasActiveSelection && isActive}
+              >
+                <AssetCoin
+                  symbol={item.symbol || item.name}
+                  icon={item.icon ?? null}
+                  color={legendColor}
+                  appearance="plain"
+                  className={styles.pillIcon}
+                />
+                <span className={styles.pillText}>
+                  {item.name} {formatValue(latestValue(item.values))}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
       {hasData ? <div ref={containerRef} className={styles.canvas} /> : <div className={styles.empty}>No trend data</div>}

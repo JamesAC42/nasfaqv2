@@ -42,22 +42,64 @@ function mixWithWhite(hex: string, amount: number) {
   });
 }
 
-export function ensureReadableColorOnDarkBackground(
+function mixWithBlack(hex: string, amount: number) {
+  const { r, g, b } = hexToRgb(hex);
+  const factor = Math.max(0, 1 - amount);
+  return rgbToHex({
+    r: r * factor,
+    g: g * factor,
+    b: b * factor,
+  });
+}
+
+export type ColorMode = "dark" | "light";
+
+export function getUsableChannelColor(
   value: string | null | undefined,
-  minLuminance = 0.24
+  mode: ColorMode,
+  {
+    minDarkLuminance = 0.24,
+    maxLightLuminance = 0.58,
+  }: {
+    minDarkLuminance?: number;
+    maxLightLuminance?: number;
+  } = {}
 ) {
   const normalized = normalizeHexColor(value);
   if (!normalized) return null;
 
-  if (relativeLuminance(normalized) >= minLuminance) return normalized;
+  const luminance = relativeLuminance(normalized);
+
+  if (mode === "dark") {
+    if (luminance >= minDarkLuminance) return normalized;
+
+    let adjusted = normalized;
+    for (let step = 1; step <= 8; step += 1) {
+      adjusted = mixWithWhite(normalized, step * 0.12);
+      if (relativeLuminance(adjusted) >= minDarkLuminance) {
+        return adjusted;
+      }
+    }
+
+    return adjusted;
+  }
+
+  if (luminance <= maxLightLuminance) return normalized;
 
   let adjusted = normalized;
   for (let step = 1; step <= 8; step += 1) {
-    adjusted = mixWithWhite(normalized, step * 0.12);
-    if (relativeLuminance(adjusted) >= minLuminance) {
+    adjusted = mixWithBlack(normalized, step * 0.1);
+    if (relativeLuminance(adjusted) <= maxLightLuminance) {
       return adjusted;
     }
   }
 
   return adjusted;
+}
+
+export function ensureReadableColorOnDarkBackground(
+  value: string | null | undefined,
+  minLuminance = 0.24
+) {
+  return getUsableChannelColor(value, "dark", { minDarkLuminance: minLuminance });
 }

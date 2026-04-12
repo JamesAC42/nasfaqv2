@@ -36,10 +36,6 @@
   padding: 0.85rem 0.95rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-info);
-  background: var(--surface-card);
-  background:
-    linear-gradient(180deg, rgba(7, 10, 13, 0.98), rgba(10, 12, 16, 0.96)),
-    color-mix(in srgb, black 82%, var(--bg));
 }
 
 .summaryLabel {
@@ -65,12 +61,6 @@
   padding: 1rem;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
-  background:
-    linear-gradient(180deg, var(--surface-card-highlight), var(--surface-card-soft)),
-    var(--surface-card);
-  background:
-    linear-gradient(180deg, rgba(7, 10, 13, 0.98), rgba(10, 12, 16, 0.96)),
-    color-mix(in srgb, black 82%, var(--bg));
 }
 
 .listHeader {

@@ -83,7 +83,6 @@
 
 .storyTitle {
   margin: 0;
-  max-width: 18ch;
   font-size: clamp(2.2rem, 4vw, 3.6rem);
   line-height: 0.98;
   letter-spacing: -0.03em;
@@ -1035,6 +1034,12 @@
   color: var(--text-primary);
   padding: 0.8rem 0.9rem;
   font: inherit;
+}
+
+.filterInput {
+  @include input-base;
+  padding: 0.5rem 0.62rem;
+  font-size: 0.84rem;
 }
 
 .textarea {

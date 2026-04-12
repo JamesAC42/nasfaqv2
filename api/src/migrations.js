@@ -159,6 +159,41 @@ async function applySchema(pool) {
     SELECT create_hypertable('market.user_networth_history', 'recorded_at', if_not_exists => TRUE, migrate_data => TRUE)
   `);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.user_leaderboard_current (
+      user_id BIGINT PRIMARY KEY REFERENCES market.users(id) ON DELETE CASCADE,
+      username_snapshot TEXT NOT NULL,
+      profile_picture_url TEXT NULL,
+      profile_color TEXT NULL,
+      cash_balance NUMERIC NOT NULL DEFAULT 0,
+      holdings_market_value NUMERIC NOT NULL DEFAULT 0,
+      total_unrealized_pnl NUMERIC NOT NULL DEFAULT 0,
+      total_equity NUMERIC NOT NULL DEFAULT 0,
+      daily_change_abs NUMERIC NOT NULL DEFAULT 0,
+      daily_change_pct NUMERIC NULL,
+      weekly_change_abs NUMERIC NOT NULL DEFAULT 0,
+      weekly_change_pct NUMERIC NULL,
+      largest_position_asset_id BIGINT NULL REFERENCES market.market_assets(id) ON DELETE SET NULL,
+      largest_position_symbol TEXT NULL,
+      largest_position_value NUMERIC NULL,
+      best_asset_id BIGINT NULL REFERENCES market.market_assets(id) ON DELETE SET NULL,
+      best_asset_symbol TEXT NULL,
+      best_asset_unrealized_pnl NUMERIC NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_user_leaderboard_current_equity_idx
+      ON market.user_leaderboard_current (total_equity DESC, user_id ASC)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_user_leaderboard_current_daily_change_idx
+      ON market.user_leaderboard_current (daily_change_pct DESC NULLS LAST, user_id ASC)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_user_leaderboard_current_updated_idx
+      ON market.user_leaderboard_current (updated_at DESC)
+  `);
+  await pool.query(`
     CREATE SCHEMA IF NOT EXISTS content
   `);
   await pool.query(`

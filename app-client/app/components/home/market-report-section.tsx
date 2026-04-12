@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { TrendChartCard } from "@/app/components/charts/market-charts";
 import { apiFetch } from "@/app/lib/api";
-import { ensureReadableColorOnDarkBackground } from "@/app/lib/color";
+import { getUsableChannelColor, type ColorMode } from "@/app/lib/color";
 import { fmtPct } from "@/app/lib/format";
 import { normalizeCandles } from "@/app/lib/normalizers";
 import type { DailyReport, MarketAsset, ReportRow } from "@/app/lib/types";
+import { useTheme } from "@/app/providers/theme-provider";
 import styles from "@/app/components/home/market-report-section.module.scss";
 
 function findAsset(assets: MarketAsset[], symbol: string) {
@@ -40,7 +41,8 @@ function getMonthsAgoFromTimestamp(timestamp: number, months: number) {
 
 function buildMonthPriceSeries(
   assets: MarketAsset[],
-  candleHistoryBySymbol: Record<string, Array<{ bucket: string; close_mark?: number | null; close: number | null }>>
+  candleHistoryBySymbol: Record<string, Array<{ bucket: string; close_mark?: number | null; close: number | null }>>,
+  theme: ColorMode
 ) {
   const fallbackColors = ["#f97316", "#0ea5e9", "#22c55e", "#eab308", "#ec4899"];
 
@@ -68,7 +70,9 @@ function buildMonthPriceSeries(
 
       return {
         name: asset.symbol,
-        color: ensureReadableColorOnDarkBackground(asset.color) || fallbackColors[index % fallbackColors.length],
+        symbol: asset.symbol,
+        icon: asset.icon ?? null,
+        color: getUsableChannelColor(asset.color, theme) || fallbackColors[index % fallbackColors.length],
         kind: "line" as const,
         values,
       };
@@ -131,6 +135,7 @@ export function MarketReportSection({
   report: DailyReport | null;
   assets: MarketAsset[];
 }) {
+  const { theme } = useTheme();
   const [dailyCandleHistoryBySymbol, setDailyCandleHistoryBySymbol] = useState<Record<string, ReturnType<typeof normalizeCandles>>>({});
 
   const topAssets = useMemo(
@@ -179,7 +184,7 @@ export function MarketReportSection({
     return <section className={styles.section}><div className={styles.empty}>No daily report found yet.</div></section>;
   }
 
-  const monthPriceSeries = buildMonthPriceSeries(assets, dailyCandleHistoryBySymbol);
+  const monthPriceSeries = buildMonthPriceSeries(assets, dailyCandleHistoryBySymbol, theme);
 
   return (
     <section className={styles.section}>

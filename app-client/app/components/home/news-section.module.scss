@@ -23,9 +23,8 @@
 }
 
 .compactGrid {
-  display: grid;
-  gap: 0.8rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-count: 3;
+  column-gap: 0.8rem;
 }
 
 .topLayout {
@@ -117,7 +116,11 @@
 }
 
 .compactItem {
-  min-height: 100%;
+  break-inside: avoid;
+  display: inline-block;
+  width: 100%;
+  margin-bottom: 0.8rem;
+  min-height: 0;
 }
 
 .leadThumb,
@@ -249,15 +252,20 @@
   @include empty-state;
 }
 
-@media (max-width: 800px) {
-  .topLayout,
-  .itemFeatured,
+@media (max-width: 1100px) {
   .compactGrid {
+    column-count: 2;
+  }
+}
+
+@media (max-width: 800px) {
+  .topLayout {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .topLayout {
-    grid-template-columns: minmax(0, 1fr);
+  .compactGrid,
+  .compactGrid {
+    column-count: 1;
   }
 
   .thumb {

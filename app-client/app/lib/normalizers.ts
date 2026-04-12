@@ -15,6 +15,10 @@ import {
   type CandlePoint,
   type ChannelOverviewRow,
   type LeaderboardEntry,
+  type LeaderboardMe,
+  type LeaderboardNeighbor,
+  type LeaderboardResponse,
+  type LeaderboardStats,
   type LivestreamItem,
   type MarketAsset,
   type MarketIndexBundle,
@@ -334,12 +338,96 @@ export function normalizeLivestreams(rows: Array<Record<string, unknown>>): Live
 
 export function normalizeLeaderboard(rows: Array<Record<string, unknown>>): LeaderboardEntry[] {
   return rows.map((row, index) => ({
-    id: String(row.id || row.symbol || row.username || index),
+    user_id: Number(row.user_id || row.id || 0),
+    id: String(row.user_id || row.id || row.username || index),
+    username: String(row.username || row.label || "user"),
+    profile_picture_url: row.profile_picture_url ? String(row.profile_picture_url) : null,
+    profile_color: row.profile_color ? String(row.profile_color) : null,
     rank: Number(row.rank || index + 1),
-    label: String(row.label || row.username || row.symbol || "Entry"),
-    value: toNumber(row.value || row.total_equity || row.score),
+    label: String(row.label || row.username || "Entry"),
+    value: Number(toNumber(row.total_equity || row.value || row.score) || 0),
+    total_equity: Number(toNumber(row.total_equity || row.value || row.score) || 0),
+    cash_balance: Number(toNumber(row.cash_balance) || 0),
+    holdings_market_value: Number(toNumber(row.holdings_market_value || row.total_market_value) || 0),
+    total_unrealized_pnl: Number(toNumber(row.total_unrealized_pnl) || 0),
+    change_abs: toNumber(row.change_abs),
     change_pct: toNumber(row.change_pct),
+    daily_change_abs: toNumber(row.daily_change_abs),
+    daily_change_pct: toNumber(row.daily_change_pct),
+    weekly_change_abs: toNumber(row.weekly_change_abs),
+    weekly_change_pct: toNumber(row.weekly_change_pct),
+    largest_position:
+      row.largest_position && typeof row.largest_position === "object"
+        ? {
+            asset_id: toNumber((row.largest_position as Record<string, unknown>).asset_id),
+            symbol: String((row.largest_position as Record<string, unknown>).symbol || ""),
+            value: Number(toNumber((row.largest_position as Record<string, unknown>).value) || 0),
+          }
+        : null,
+    best_asset:
+      row.best_asset && typeof row.best_asset === "object"
+        ? {
+            asset_id: toNumber((row.best_asset as Record<string, unknown>).asset_id),
+            symbol: String((row.best_asset as Record<string, unknown>).symbol || ""),
+            unrealized_pnl: Number(toNumber((row.best_asset as Record<string, unknown>).unrealized_pnl) || 0),
+          }
+        : null,
+    badges: Array.isArray(row.badges) ? row.badges.map((badge) => String(badge)) : [],
+    is_me: Boolean(row.is_me),
+    is_friend: Boolean(row.is_friend),
+    is_rival: Boolean(row.is_rival),
   }));
+}
+
+function normalizeLeaderboardNeighbor(value: Record<string, unknown>): LeaderboardNeighbor {
+  return {
+    user_id: Number(value.user_id || 0),
+    username: String(value.username || ""),
+    rank: Number(value.rank || 0),
+    total_equity: Number(toNumber(value.total_equity) || 0),
+    gap_abs: toNumber(value.gap_abs),
+    profile_picture_url: value.profile_picture_url ? String(value.profile_picture_url) : null,
+    profile_color: value.profile_color ? String(value.profile_color) : null,
+  };
+}
+
+function normalizeLeaderboardMe(value: Record<string, unknown> | null): LeaderboardMe | null {
+  if (!value) return null;
+  const [entry] = normalizeLeaderboard([value]);
+  return {
+    ...entry,
+    percentile: Number(toNumber(value.percentile) || 0),
+    neighbors: Array.isArray(value.neighbors)
+      ? (value.neighbors as Array<Record<string, unknown>>).map(normalizeLeaderboardNeighbor)
+      : [],
+  };
+}
+
+function normalizeLeaderboardStats(value: Record<string, unknown> | null): LeaderboardStats {
+  return {
+    user_count: Number(value?.user_count || 0),
+    cutoff_equity_top_10: toNumber(value?.cutoff_equity_top_10),
+    cutoff_equity_top_100: toNumber(value?.cutoff_equity_top_100),
+    last_updated_at: value?.last_updated_at ? String(value.last_updated_at) : null,
+  };
+}
+
+export function normalizeLeaderboardResponse(value: Record<string, unknown>): LeaderboardResponse {
+  return {
+    scope: String(value.scope || "global") as LeaderboardResponse["scope"],
+    window: String(value.window || "1d") as LeaderboardResponse["window"],
+    pagination: {
+      total: Number((value.pagination as Record<string, unknown> | undefined)?.total || 0),
+      page: Number((value.pagination as Record<string, unknown> | undefined)?.page || 1),
+      limit: Number((value.pagination as Record<string, unknown> | undefined)?.limit || 25),
+      page_count: Number((value.pagination as Record<string, unknown> | undefined)?.page_count || 1),
+      has_previous_page: Boolean((value.pagination as Record<string, unknown> | undefined)?.has_previous_page),
+      has_next_page: Boolean((value.pagination as Record<string, unknown> | undefined)?.has_next_page),
+    },
+    stats: normalizeLeaderboardStats((value.stats as Record<string, unknown> | null) || null),
+    entries: normalizeLeaderboard(((value.entries || []) as Array<Record<string, unknown>>)),
+    me: normalizeLeaderboardMe((value.me as Record<string, unknown> | null) || null),
+  };
 }
 
 function normalizeNewsCharacters(value: unknown): NewsCharacter[] {

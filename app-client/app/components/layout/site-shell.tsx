@@ -335,6 +335,7 @@ export function SiteShell({
 
   const profileHref = user ? "/profile" : "/login";
   const profileInitial = user?.username?.trim()?.charAt(0)?.toUpperCase() || "N";
+  const profileImageUrl = user?.profile_picture_url?.trim() || null;
   const activeDropdownKey = openCategory || lastCategory;
   const activeDropdownItem = activeDropdownKey ? CATEGORY_ITEMS.find((entry) => entry.key === activeDropdownKey) ?? null : null;
   const currentYear = new Date().getFullYear();
@@ -386,10 +387,19 @@ export function SiteShell({
               <BellIcon />
             </button>
 
-            <Link href={profileHref} className={styles.profileLink}>
-              <span className={styles.profileAvatar} aria-hidden="true">
-                {profileInitial}
-              </span>
+            <Link
+              href={profileHref}
+              className={[styles.profileLink, !user ? styles.profileLinkSignedOut : ""].filter(Boolean).join(" ")}
+            >
+              {user ? (
+                <span className={styles.profileAvatar} aria-hidden="true">
+                  {profileImageUrl ? (
+                    <img src={profileImageUrl} alt="" className={styles.profileAvatarImage} />
+                  ) : (
+                    profileInitial
+                  )}
+                </span>
+              ) : null}
               <span>{user ? "Profile" : isLoading ? "Loading" : "Sign In"}</span>
             </Link>
           </div>

@@ -5,6 +5,13 @@ const scryptAsync = promisify(crypto.scrypt);
 const SESSION_COOKIE_NAME = process.env.AUTH_SESSION_COOKIE_NAME || "nasfaq_session";
 const SESSION_TTL_DAYS = Number(process.env.AUTH_SESSION_TTL_DAYS || 30);
 const PASSWORD_KEYLEN = 64;
+const PROFILE_PICTURE_CDN_BASE_URL = "https://images.nasfaq.biz/profile-pictures";
+
+function profilePictureUrlSql(size, alias = "pp") {
+  const field = size === "large" ? "filename_large" : "filename_small";
+  const folder = size === "large" ? "large" : "small";
+  return `CASE WHEN ${alias}.id IS NULL OR ${alias}.is_deleted THEN NULL ELSE '${PROFILE_PICTURE_CDN_BASE_URL}/${folder}/' || ${alias}.${field} END`;
+}
 
 function normalizeUsername(username) {
   return String(username || "").trim().toLowerCase();
@@ -128,7 +135,7 @@ async function createUser(pool, { username, password }) {
         is_admin,
         updated_at
       ) VALUES ($1,$2,$3,$4,$5::jsonb,false,now())
-      RETURNING id, username, is_admin, created_at
+      RETURNING id, username, NULL::TEXT AS profile_picture_url, profile_color, is_admin, created_at
     `,
       [safeUsername, normalized, hashed.hash, hashed.salt, JSON.stringify(hashed.params)]
     );
@@ -147,9 +154,21 @@ async function findUserByUsername(pool, username) {
   const normalized = normalizeUsername(username);
   const { rows } = await pool.query(
     `
-    SELECT id, username, username_normalized, password_hash, password_salt, password_params_json, is_admin, created_at
-    FROM market.users
-    WHERE username_normalized = $1
+    SELECT
+      u.id,
+      u.username,
+      u.username_normalized,
+      u.password_hash,
+      u.password_salt,
+      u.password_params_json,
+      ${profilePictureUrlSql("small")} AS profile_picture_url,
+      u.profile_color,
+      u.is_admin,
+      u.created_at
+    FROM market.users u
+    LEFT JOIN market.profile_pictures pp
+      ON pp.id = u.profile_picture_id
+    WHERE u.username_normalized = $1
     LIMIT 1
   `,
     [normalized]
@@ -203,12 +222,16 @@ async function getAuthenticatedUser(pool, req) {
     SELECT
       u.id,
       u.username,
+      ${profilePictureUrlSql("small")} AS profile_picture_url,
+      u.profile_color,
       u.is_admin,
       u.created_at,
       s.id AS session_id,
       s.expires_at
     FROM market.user_sessions s
     JOIN market.users u ON u.id = s.user_id
+    LEFT JOIN market.profile_pictures pp
+      ON pp.id = u.profile_picture_id
     WHERE s.session_token_hash = $1
       AND s.revoked_at IS NULL
       AND s.expires_at > now()
@@ -254,6 +277,8 @@ async function loginWithPassword(pool, { username, password }) {
     user: {
       id: user.id,
       username: user.username,
+      profile_picture_url: user.profile_picture_url || null,
+      profile_color: user.profile_color || null,
       is_admin: Boolean(user.is_admin),
       created_at: user.created_at,
     },

@@ -5,6 +5,7 @@ const DEFAULT_TRANSIENT_IMPACT_WEIGHT = 0.7;
 const DEFAULT_PERSISTENT_IMPACT_WEIGHT = 0.15;
 const DEFAULT_EXECUTION_SLIPPAGE_WEIGHT = 0.5;
 const marketState = require("./marketState");
+const netWorth = require("./netWorth");
 
 function getTradingFeeRate() {
   const parsed = Number(process.env.MARKET_TRADING_FEE_RATE || DEFAULT_TRADING_FEE_RATE);
@@ -551,6 +552,8 @@ async function executeOrder(pool, { userId, symbol, side, quantity }) {
       persistentOffset,
       transientOffset,
     });
+
+    await netWorth.refreshCurrentLeaderboardForAssetWithClient(client, asset.id, { extraUserIds: [userId] });
 
     await client.query("COMMIT");
 

@@ -12,6 +12,8 @@ router.get("/me", async (req, res) => {
     user: {
       id: req.ctx.user.id,
       username: req.ctx.user.username,
+      profile_picture_url: req.ctx.user.profile_picture_url || null,
+      profile_color: req.ctx.user.profile_color || null,
       is_admin: Boolean(req.ctx.user.is_admin),
       created_at: req.ctx.user.created_at,
     },

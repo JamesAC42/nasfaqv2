@@ -258,6 +258,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+
+  display:none;
 }
 
 .topbarStart {
@@ -816,6 +818,10 @@
   .chatHeader {
     padding-left: 1rem;
     padding-right: 1rem;
+  }
+  
+  .topbar {
+    display: flex;
   }
 
   .chatSurface {

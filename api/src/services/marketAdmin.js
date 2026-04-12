@@ -368,6 +368,7 @@ async function resetMarketState(pool) {
     await client.query(`DELETE FROM market.portfolio_holdings`);
     await client.query(`DELETE FROM market.user_daily_net_worth`);
     await client.query(`DELETE FROM market.user_networth_history`);
+    await client.query(`DELETE FROM market.user_leaderboard_current`);
     await client.query(`DELETE FROM market.asset_price_events`);
     await client.query(`DELETE FROM market.asset_daily_market_state`);
     await client.query(`DELETE FROM market.daily_market_reports`);

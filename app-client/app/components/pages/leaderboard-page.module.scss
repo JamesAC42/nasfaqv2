@@ -1,0 +1,282 @@
+@use "../../styles/mixins" as *;
+
+.heroMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.controlRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.controlGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.controlButton,
+.controlActive {
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  padding: 0.5rem 0.85rem;
+  background: var(--surface-card);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.controlActive {
+  background: color-mix(in srgb, var(--accent, #2563eb) 18%, var(--surface-card));
+  border-color: color-mix(in srgb, var(--accent, #2563eb) 52%, var(--border-soft));
+}
+
+.inlineNotice {
+  @include empty-state;
+}
+
+.meCard {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.eyebrow {
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.meRank {
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  font-weight: 800;
+  line-height: 1;
+  margin-top: 0.35rem;
+}
+
+.meMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  margin-top: 0.7rem;
+}
+
+.neighbors {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.neighbor {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  padding: 0.85rem 0.95rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.podiumGrid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.podiumCard {
+  @include panel;
+  padding: 1rem;
+  display: grid;
+  gap: 0.85rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.podiumCard::after {
+  content: "";
+  position: absolute;
+  inset: auto -10% -35% auto;
+  width: 9rem;
+  height: 9rem;
+  border-radius: 999px;
+  opacity: 0.28;
+  background: radial-gradient(circle, currentColor, transparent 70%);
+}
+
+.gold {
+  color: #d9a11e;
+}
+
+.silver {
+  color: #93a0b8;
+}
+
+.bronze {
+  color: #c77b41;
+}
+
+.podiumRank {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.podiumValue {
+  font-size: 1.15rem;
+}
+
+.podiumMeta {
+  display: grid;
+  gap: 0.2rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.identity {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.avatar {
+  --leaderboard-accent: var(--accent, #2563eb);
+  width: 2.7rem;
+  height: 2.7rem;
+  border-radius: 999px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--leaderboard-accent) 45%, var(--border-soft));
+  background:
+    radial-gradient(circle at top, color-mix(in srgb, var(--leaderboard-accent) 48%, white), transparent 64%),
+    color-mix(in srgb, var(--leaderboard-accent) 15%, var(--surface-card));
+  font-weight: 800;
+  font-size: 0.8rem;
+}
+
+.avatarImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.identityMeta {
+  min-width: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.profileLink {
+  color: inherit;
+  text-decoration: none;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.identityFlags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.badgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.badge,
+.badgeMuted {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  padding: 0.18rem 0.48rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--surface-card) 88%, transparent);
+}
+
+.badgeMuted {
+  color: var(--muted);
+}
+
+.tableHeader {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.sectionTitle {
+  @include section-title;
+  margin: 0;
+}
+
+.sectionCopy {
+  @include subtle-copy;
+  margin: 0.25rem 0 0;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.tableWrap {
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 0.9rem 0.75rem;
+  border-bottom: 1px solid var(--border-soft);
+  vertical-align: middle;
+}
+
+.table th {
+  font-size: 0.84rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.metricCell {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.metricCell span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.rowHighlight {
+  background: color-mix(in srgb, var(--accent, #2563eb) 10%, transparent);
+}
+
+@media (max-width: 980px) {
+  .meCard,
+  .podiumGrid {
+    grid-template-columns: 1fr;
+  }
+}

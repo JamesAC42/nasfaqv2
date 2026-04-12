@@ -578,6 +578,7 @@ async function settleMarketDay(pool, { marketDate, sourceMarketDate = null, forc
 
     const report = buildDailyReport(marketDate, settledStates, previousStatesByAssetId, priorStatesByAssetId);
     await persistDailyReport(client, marketDate, report);
+    await netWorth.refreshCurrentLeaderboardWithClient(client);
     await markSettlementRunComplete(client, runId);
 
     await client.query("COMMIT");

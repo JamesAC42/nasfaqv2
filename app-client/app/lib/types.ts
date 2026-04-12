@@ -1,6 +1,8 @@
 export type AuthUser = {
   id: number;
   username: string;
+  profile_picture_url: string | null;
+  profile_color: string | null;
   is_admin: boolean;
   created_at: string;
 };
@@ -297,11 +299,81 @@ export type ChannelLivestreamBundle = {
 };
 
 export type LeaderboardEntry = {
+  user_id: number;
   id: string;
+  username: string;
+  profile_picture_url: string | null;
+  profile_color: string | null;
   rank: number;
   label: string;
   value: number | null;
-  change_pct?: number | null;
+  total_equity: number;
+  cash_balance: number;
+  holdings_market_value: number;
+  total_unrealized_pnl: number;
+  change_abs: number | null;
+  change_pct: number | null;
+  daily_change_abs: number | null;
+  daily_change_pct: number | null;
+  weekly_change_abs: number | null;
+  weekly_change_pct: number | null;
+  largest_position: {
+    asset_id: number | null;
+    symbol: string;
+    value: number;
+  } | null;
+  best_asset: {
+    asset_id: number | null;
+    symbol: string;
+    unrealized_pnl: number;
+  } | null;
+  badges: string[];
+  is_me: boolean;
+  is_friend: boolean;
+  is_rival: boolean;
+};
+
+export type LeaderboardPagination = {
+  total: number;
+  page: number;
+  limit: number;
+  page_count: number;
+  has_previous_page: boolean;
+  has_next_page: boolean;
+};
+
+export type LeaderboardScope = "global" | "friends" | "rivals";
+export type LeaderboardWindow = "1d" | "7d" | "all";
+
+export type LeaderboardNeighbor = {
+  user_id: number;
+  username: string;
+  rank: number;
+  total_equity: number;
+  gap_abs: number | null;
+  profile_picture_url: string | null;
+  profile_color: string | null;
+};
+
+export type LeaderboardMe = LeaderboardEntry & {
+  percentile: number;
+  neighbors: LeaderboardNeighbor[];
+};
+
+export type LeaderboardStats = {
+  user_count: number;
+  cutoff_equity_top_10: number | null;
+  cutoff_equity_top_100: number | null;
+  last_updated_at: string | null;
+};
+
+export type LeaderboardResponse = {
+  scope: LeaderboardScope;
+  window: LeaderboardWindow;
+  pagination: LeaderboardPagination;
+  stats: LeaderboardStats;
+  entries: LeaderboardEntry[];
+  me: LeaderboardMe | null;
 };
 
 export type NewsCharacter = {

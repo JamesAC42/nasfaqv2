@@ -244,7 +244,7 @@ export function ArticlesPage() {
               <label className={styles.field}>
                 <span className={styles.fieldLabel}>Search</span>
                 <input
-                  className={styles.input}
+                  className={styles.filterInput}
                   value={draftFilters.query}
                   onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))}
                   placeholder="Search titles, subtitles, or tags"

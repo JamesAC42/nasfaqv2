@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { TrendChartCard } from "@/app/components/charts/market-charts";
 import { AssetCoin } from "@/app/components/common/asset-coin";
@@ -299,6 +300,7 @@ function ArticleCard({ article }: { article: ArticleSummary }) {
 
 export function ProfilePage({ username }: { username?: string | null }) {
   const { user, logout } = useAuth();
+  const router = useRouter();
   const adminBusy = useProfileStore((state) => state.adminBusy);
   const adminStatus = useProfileStore((state) => state.adminStatus);
   const adminError = useProfileStore((state) => state.adminError);
@@ -519,6 +521,9 @@ export function ProfilePage({ username }: { username?: string | null }) {
     setError(null);
     try {
       await logout();
+      setBundle(null);
+      router.replace("/");
+      router.refresh();
     } catch (nextError) {
       setError(String((nextError as Error).message || nextError));
     } finally {

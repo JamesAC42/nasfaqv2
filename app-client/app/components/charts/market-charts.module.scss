@@ -57,6 +57,7 @@
 .pill {
   display: inline-flex;
   align-items: center;
+  gap: 0.42rem;
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 0.28rem 0.6rem;
@@ -64,11 +65,48 @@
   font-size: 0.78rem;
   font-weight: 700;
   font-family: inherit;
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    opacity 140ms ease,
+    transform 140ms ease;
 }
 
 .chartBoxCompact .pill {
   padding: 0.22rem 0.48rem;
   font-size: 0.68rem;
+}
+
+.pill:hover,
+.pill:focus-visible {
+  background: var(--pill-color, var(--surface-pill));
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.pillText {
+  transition:
+    color 140ms ease,
+    -webkit-text-stroke-color 140ms ease;
+}
+
+.pill:hover .pillText,
+.pill:focus-visible .pillText {
+  color: transparent;
+  -webkit-text-stroke: 0.8px var(--surface-card);
+}
+
+.pillIcon {
+  flex: 0 0 auto;
+}
+
+.pillActive {
+  opacity: 1;
+}
+
+.pillMuted {
+  opacity: 0.42;
 }
 
 .candlePill {
