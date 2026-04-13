@@ -2,13 +2,13 @@
 
 .pageLayout {
   display: grid;
-  //grid-template-columns: minmax(27rem, 21rem) minmax(1fr, 0);
-  grid-template-columns: minmax(21rem, 27rem) minmax(0, 1fr);
+  grid-template-columns: minmax(13.5rem, 17rem) minmax(0, 1fr) minmax(13.5rem, 17rem);
   gap: 1.25rem;
   align-items: start;
 }
 
-.sidebarRail {
+.sidebarRail,
+.sidebarRailRight {
   min-width: 0;
   width: 100%;
 }
@@ -335,6 +335,45 @@
 }
 
 .quickStatsGrid {
+  --hero-chart-height: 320px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  align-content: start;
+}
+
+.heroMarketGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(12rem, 1fr);
+  gap: 0.9rem;
+  align-items: stretch;
+}
+
+.heroChartFrame {
+  min-width: 0;
+  padding: 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--hero-accent) 54%, var(--border-soft));
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--hero-accent) 16%, rgba(255, 255, 255, 0.06)), rgba(8, 14, 24, 0.18)),
+    color-mix(in srgb, rgba(8, 12, 18, 0.88) 88%, var(--hero-accent));
+  box-shadow: 0 16px 30px color-mix(in srgb, var(--hero-accent) 18%, transparent);
+}
+
+.heroChartSlot {
+  min-width: 0;
+}
+
+.heroChartCard {
+  --text: white;
+  --muted: color-mix(in srgb, white 68%, var(--hero-accent));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--hero-accent) 18%, rgba(255, 255, 255, 0.06)), rgba(5, 10, 18, 0.92)),
+    color-mix(in srgb, #07111d 86%, var(--hero-accent));
+  border-color: color-mix(in srgb, var(--hero-accent) 44%, rgba(255, 255, 255, 0.14));
+}
+
+.heroMetaGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.75rem;
@@ -351,22 +390,41 @@
   gap: 0.22rem;
 }
 
+.quickStatsGrid .quickStatCard {
+  min-height: calc((var(--hero-chart-height) - (0.75rem * 3)) / 4);
+  align-content: center;
+}
+
 .quickStatLabel,
 .portfolioStat span,
 .infoCard span,
 .tradeSummary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
   font-size: 0.76rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--muted);
 }
 
+.quickStatLabelIcon {
+  width: 0.84rem;
+  height: 0.84rem;
+  color: color-mix(in srgb, white 82%, var(--hero-accent));
+  flex: 0 0 auto;
+}
+
 .quickStatValue,
 .portfolioStat strong,
-.infoCard strong,
 .tradeSummary strong {
   font-size: 1.02rem;
   color: white;
+}
+
+.infoCard strong {
+  font-size: 1.02rem;
+  color: var(--text);
 }
 
 .quickStatValueSkeleton {
@@ -435,6 +493,7 @@
 }
 
 .articleGrid,
+.articleList,
 .sameUnitGrid,
 .commentList,
 .portfolioGrid,
@@ -445,6 +504,10 @@
 
 .articleGrid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.articleList {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .articleCard,
@@ -466,6 +529,7 @@
 }
 
 .articleCard {
+  min-width: 0;
   color: inherit;
   text-decoration: none;
 }
@@ -493,6 +557,16 @@
 .articleTitle {
   font-size: 1rem;
   line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.articleCopy {
+  margin: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 .sameUnitGrid {
@@ -847,10 +921,16 @@
   gap: 1rem;
 }
 
+.chartGridWide {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
 .utilityGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1.25rem;
+  align-items: start;
 }
 
 .infoGrid {
@@ -860,6 +940,7 @@
 .tradeTape {
   display: grid;
   gap: 0.7rem;
+  align-content: start;
 }
 
 .tradeTapeRow {
@@ -867,14 +948,290 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.75rem;
+  align-items: start;
 }
 
 .tradeTapeRow strong {
   display: block;
 }
 
+.tradeTapeRow > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+  align-content: start;
+}
+
 .mockEmpty {
   @include empty-state;
+}
+
+.tradeConfirmationOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: var(--trade-confirmation-overlay-bg);
+  backdrop-filter: blur(10px);
+  animation: tradeConfirmationOverlayFadeIn 280ms ease forwards;
+}
+
+.tradeConfirmationOverlayClosing {
+  animation: tradeConfirmationOverlayFadeOut 280ms ease forwards;
+}
+
+.tradeConfirmationModal {
+  width: min(100%, 58rem);
+  max-height: min(90vh, 56rem);
+  overflow: auto;
+  border-radius: 1.5rem;
+  border: 1px solid var(--border-soft);
+  background: var(--trade-confirmation-surface);
+  box-shadow: var(--trade-confirmation-shadow);
+  animation: tradeConfirmationSlideIn 280ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.tradeConfirmationModalClosing {
+  animation: tradeConfirmationSlideOut 280ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.tradeConfirmationHero {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+  padding: 1.35rem 1.35rem 1.1rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.tradeConfirmationHeroBuy {
+  background: var(--trade-confirmation-hero-buy);
+}
+
+.tradeConfirmationHeroSell {
+  background: var(--trade-confirmation-hero-sell);
+}
+
+.tradeConfirmationEyebrow {
+  display: inline-flex;
+  margin-bottom: 0.5rem;
+  padding: 0.28rem 0.58rem;
+  border-radius: 999px;
+  background: var(--trade-confirmation-pill-bg);
+  color: var(--trade-confirmation-pill-text);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tradeConfirmationTitle {
+  margin: 0;
+  font-size: clamp(1.7rem, 3vw, 2.3rem);
+  color: var(--text);
+}
+
+.tradeConfirmationSubheader {
+  margin-top: 0.6rem;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.tradeConfirmationTickerIcon {
+  width: 3.4rem;
+  height: 3.4rem;
+  min-width: 3.4rem;
+  padding: 0.5rem;
+  overflow: hidden;
+}
+
+.tradeConfirmationCopy {
+  margin: 0;
+  color: var(--trade-confirmation-copy);
+  display: grid;
+  gap: 0.12rem;
+}
+
+.tradeConfirmationTicker {
+  color: var(--accent-strong);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+}
+
+.tradeConfirmationClose {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--trade-confirmation-close-border);
+  border-radius: 999px;
+  background: var(--trade-confirmation-close-bg);
+  color: var(--text);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tradeConfirmationBody {
+  padding: 1.2rem 1.35rem 1.35rem;
+}
+
+.tradeConfirmationLayout,
+.tradeConfirmationGrid,
+.tradeConfirmationColumns,
+.tradeConfirmationContent {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.tradeConfirmationLayout {
+  grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr);
+  align-items: start;
+}
+
+.tradeConfirmationContent {
+  min-width: 0;
+}
+
+.tradeConfirmationGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.tradeConfirmationCard,
+.tradeConfirmationSection {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface-card-soft);
+}
+
+.tradeConfirmationCard {
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.tradeConfirmationCard span,
+.tradeConfirmationMetric span {
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.tradeConfirmationCard strong,
+.tradeConfirmationMetric strong {
+  color: var(--text);
+}
+
+.tradeConfirmationColumns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tradeConfirmationSection {
+  padding: 1rem;
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+}
+
+.tradeConfirmationSection h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.tradeConfirmationMetricList {
+  display: grid;
+  gap: 0.65rem;
+  align-content: start;
+}
+
+.tradeConfirmationMetric {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: baseline;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.tradeConfirmationMetric:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.tradeConfirmationImageSlot {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--trade-confirmation-image-bg);
+  padding: 0.4rem;
+  align-self: start;
+}
+
+.tradeConfirmationImage {
+  width: 100%;
+  height: auto;
+  min-height: 18rem;
+  max-height: 26rem;
+  border: 1px solid var(--border-soft);
+  border-radius: calc(var(--radius-md) - 0.15rem);
+  object-fit: cover;
+  display: block;
+}
+
+.tradeConfirmationActions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+}
+
+.tradeConfirmationPrimary {
+  @include button-base;
+  min-height: 2.9rem;
+}
+
+@keyframes tradeConfirmationOverlayFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes tradeConfirmationOverlayFadeOut {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes tradeConfirmationSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(calc(-100vw + 4rem));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes tradeConfirmationSlideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(calc(100vw + 4rem));
+  }
 }
 
 @keyframes skeletonPulse {
@@ -889,10 +1246,9 @@
 
 @media (max-width: 1380px) {
   .pageLayout {
-    grid-template-columns: minmax(18rem, 23rem) minmax(0, 1fr);
+    grid-template-columns: minmax(12.5rem, 15rem) minmax(0, 1fr) minmax(12.5rem, 15rem);
   }
 
-  .quickStatsGrid,
   .articleGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -904,8 +1260,21 @@
   .utilityGrid {
     grid-template-columns: 1fr;
   }
+
+  .sidebarRailRight {
+    order: 3;
+  }
+
   .liveNowGrid {
     grid-template-columns: 1fr;
+  }
+
+  .heroMarketGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .heroMetaGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -920,6 +1289,8 @@
   .sameUnitGrid,
   .portfolioGrid,
   .chartGrid,
+  .heroMarketGrid,
+  .heroMetaGrid,
   .tradeSummary,
   .articleGrid,
   .infoGrid,
@@ -930,5 +1301,27 @@
 
   .sameUnitCard {
     display: grid;
+  }
+
+  .tradeConfirmationOverlay {
+    padding: 0.75rem;
+  }
+
+  .tradeConfirmationGrid,
+  .tradeConfirmationColumns,
+  .tradeConfirmationLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .tradeConfirmationMetric {
+    display: grid;
+  }
+
+  .tradeConfirmationActions {
+    justify-content: stretch;
+  }
+
+  .tradeConfirmationPrimary {
+    width: 100%;
   }
 }

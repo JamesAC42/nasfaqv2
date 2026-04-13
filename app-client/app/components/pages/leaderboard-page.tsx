@@ -28,6 +28,37 @@ function initialsFor(username: string) {
   return username.trim().slice(0, 2).toUpperCase() || "NA";
 }
 
+function AchievementRow({ entry }: { entry: LeaderboardEntry }) {
+  const chips = entry.achievements.length
+    ? entry.achievements.slice(0, 3).map((achievement) => ({
+        key: achievement.key,
+        label: achievement.name,
+        color: achievement.badge_color,
+      }))
+    : entry.badges.slice(0, 3).map((badge) => ({
+        key: badge,
+        label: badge,
+        color: null,
+      }));
+
+  return (
+    <div className={styles.badgeRow}>
+      {entry.streaks.current_streak_days > 0 ? (
+        <span className={styles.streakBadge}>{entry.streaks.current_streak_days}d streak</span>
+      ) : null}
+      {chips.length ? chips.map((chip) => (
+        <span
+          key={chip.key}
+          className={styles.badge}
+          style={chip.color ? ({ "--leaderboard-badge-accent": chip.color } as CSSProperties) : undefined}
+        >
+          {chip.label}
+        </span>
+      )) : <span className={styles.badgeMuted}>No badge</span>}
+    </div>
+  );
+}
+
 function LeaderboardIdentity({ entry }: { entry: LeaderboardEntry }) {
   return (
     <div className={styles.identity}>
@@ -65,9 +96,12 @@ function PodiumCard({ entry, tone }: { entry: LeaderboardEntry; tone: "gold" | "
         {entry.change_pct === null ? "—" : `${entry.change_pct > 0 ? "+" : ""}${fmtPct(entry.change_pct)}`}
       </span>
       <div className={styles.podiumMeta}>
+        <span>{entry.streaks.current_streak_days > 0 ? `${fmtInteger(entry.streaks.current_streak_days)} day current streak` : "No active streak"}</span>
+        <span>{entry.streaks.longest_streak_days > 0 ? `Best streak ${fmtInteger(entry.streaks.longest_streak_days)} days` : "No recorded streak"}</span>
         <span>{entry.largest_position ? `Largest bag ${entry.largest_position.symbol}` : "No concentrated bag yet"}</span>
         <span>{entry.best_asset ? `Best pick ${entry.best_asset.symbol}` : "Still flat across picks"}</span>
       </div>
+      <AchievementRow entry={entry} />
     </article>
   );
 }
@@ -149,6 +183,8 @@ export function LeaderboardPage() {
                   {me.change_pct === null ? "—" : `${me.change_pct > 0 ? "+" : ""}${fmtPct(me.change_pct)}`}
                 </span>
                 <span>{(Math.max(0, me.percentile) * 100).toFixed(1)} percentile</span>
+                <span>{me.streaks.current_streak_days}d current streak</span>
+                <span>{me.streaks.longest_streak_days}d best streak</span>
               </div>
             </div>
             <div className={styles.neighbors}>
@@ -247,11 +283,7 @@ export function LeaderboardPage() {
                     <td>{entry.largest_position ? `${entry.largest_position.symbol} · ${fmtNumber(entry.largest_position.value, "$")}` : "—"}</td>
                     <td>{entry.best_asset ? `${entry.best_asset.symbol} · ${fmtNumber(entry.best_asset.unrealized_pnl, "$")}` : "—"}</td>
                     <td>
-                      <div className={styles.badgeRow}>
-                        {entry.badges.length ? entry.badges.map((badge) => (
-                          <span key={badge} className={styles.badge}>{badge}</span>
-                        )) : <span className={styles.badgeMuted}>No badge</span>}
-                      </div>
+                      <AchievementRow entry={entry} />
                     </td>
                   </tr>
                 ))}

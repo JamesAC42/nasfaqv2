@@ -2,25 +2,21 @@
 
 .page {
   display: grid;
-  gap: 1.25rem;
+  gap: 0.9rem;
 }
 
-.topGrid {
+.profileLayout {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
-  gap: 1.25rem;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.55fr) minmax(260px, 0.85fr);
+  gap: 0.9rem;
 }
 
-.contentGrid {
+.leftColumn,
+.centerColumn,
+.rightColumn {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
-  gap: 1.25rem;
-}
-
-.mainColumn,
-.sideColumn {
-  display: grid;
-  gap: 1.25rem;
+  gap: 0.9rem;
+  align-content: start;
 }
 
 .identityPanel,
@@ -34,23 +30,44 @@
 .identityPanel {
   display: grid;
   gap: 1rem;
-  padding: 1.25rem;
+  padding: 1.05rem;
   --profile-accent: var(--accent);
+  background:
+    radial-gradient(circle at top center, color-mix(in srgb, var(--profile-accent) 18%, transparent), transparent 50%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-section-soft) 65%, transparent), transparent 40%),
+    var(--surface-section);
 }
 
 .identityTop {
   display: grid;
-  grid-template-columns: 6rem minmax(0, 1fr);
-  gap: 1rem;
-  align-items: start;
+  justify-items: center;
+  gap: 0.8rem;
+  position: relative;
+  text-align: center;
+}
+
+.editProfileIconButton {
+  @include button-secondary;
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 2.75rem;
+  min-width: 2.75rem;
+  height: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+  border-radius: 50%;
 }
 
 .avatarImage,
 .avatarFallback {
-  width: 6rem;
-  height: 6rem;
+  width: clamp(8.5rem, 18vw, 11rem);
+  height: clamp(8.5rem, 18vw, 11rem);
   border-radius: 50%;
-  border: 2px solid var(--profile-accent);
+  border: 3px solid color-mix(in srgb, var(--profile-accent) 65%, var(--border));
+  box-shadow:
+    0 0 0 0.35rem color-mix(in srgb, var(--profile-accent) 14%, transparent),
+    0 1.2rem 2.5rem color-mix(in srgb, var(--profile-accent) 14%, transparent);
 }
 
 .avatarPickerButton {
@@ -63,7 +80,9 @@
 
 .avatarPickerButton:hover .avatarImage,
 .avatarPickerButton:hover .avatarFallback {
-  box-shadow: 0 0 0 0.35rem color-mix(in srgb, var(--profile-accent) 18%, transparent);
+  box-shadow:
+    0 0 0 0.4rem color-mix(in srgb, var(--profile-accent) 18%, transparent),
+    0 1.2rem 2.5rem color-mix(in srgb, var(--profile-accent) 18%, transparent);
 }
 
 .avatarImage {
@@ -77,12 +96,13 @@
   background: var(--surface-section-soft);
   color: var(--text);
   font-family: var(--font-display);
-  font-size: 2rem;
+  font-size: clamp(2.6rem, 5vw, 3.7rem);
 }
 
 .identityCopy {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.55rem;
+  justify-items: center;
 }
 
 .eyebrow {
@@ -95,42 +115,54 @@
 .title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(2rem, 4vw, 3rem);
+  font-size: clamp(2.2rem, 4.4vw, 3.2rem);
   line-height: 1.05;
-}
-
-.metaRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  color: var(--muted);
 }
 
 .bio {
   margin: 0;
   color: var(--text);
   line-height: 1.65;
+  max-width: 30rem;
 }
 
-.titleRow {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
+.profileBadgeStack {
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+}
+
+.profileBadge {
+  display: inline-flex;
   flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.1rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--profile-accent) 24%, var(--border));
+  background: color-mix(in srgb, var(--surface-pill) 78%, transparent);
+  color: var(--text);
+  font-size: 0.9rem;
+
+  strong {
+    font-weight: 700;
+  }
 }
 
 .titleOshiCoin {
-  width: 2rem;
-  height: 2rem;
+  width: 1.35rem;
+  height: 1.35rem;
   padding: 0;
   border: 0;
   background: transparent;
 }
 
 .sectionPanel {
-  padding: 1.15rem;
+  padding: 0.9rem;
   display: grid;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .sectionHead {
@@ -152,30 +184,91 @@
   color: var(--muted);
 }
 
-.statsGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
+.sectionCount,
+.muted,
+.numericValue,
+.summaryValue,
+.numericCell,
+.tradeMetrics strong,
+.tradeMetrics span,
+.achievementReward,
+.colorValue {
+  font-family: var(--font-mono);
 }
 
-.statCard {
+.summaryGrid {
   display: grid;
-  gap: 0.25rem;
-  padding: 0.9rem;
+  grid-template-columns: minmax(0, 1.25fr) repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  align-items: stretch;
+}
+
+.summaryStrip {
+  --profile-accent: var(--accent);
+}
+
+.summaryCard {
+  display: grid;
+  gap: 0.4rem;
+  align-content: center;
+  min-height: 6.1rem;
+  padding: 0.72rem 0.82rem;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--surface-section-soft);
+  border: 1px solid transparent;
+  background: transparent;
+}
 
-  span {
-    color: var(--muted);
-    font-size: 0.82rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
+.summaryCardHero {
+  min-height: 7rem;
+  border-color: color-mix(in srgb, var(--profile-accent) 42%, var(--border));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--profile-accent) 16%, transparent), transparent 58%),
+    color-mix(in srgb, var(--surface-section-soft) 55%, transparent);
+}
 
-  strong {
-    font-size: 1.1rem;
-  }
+.summaryLabel {
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.summaryValue {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 1.28rem;
+  line-height: 1.1;
+}
+
+.summaryCardHero .summaryValue,
+.summaryCardHero .trendValue {
+  font-size: clamp(1.4rem, 1.8vw, 1.8rem);
+}
+
+.trendValue {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.22rem;
+  line-height: 1.1;
+}
+
+.trendValue svg,
+.summaryValue svg {
+  flex: 0 0 auto;
+}
+
+.positive {
+  color: var(--trend-up);
+}
+
+.negative {
+  color: var(--trend-down);
+}
+
+.neutral {
+  color: var(--trend-line);
 }
 
 .actions,
@@ -241,10 +334,223 @@
   @include button-secondary;
 }
 
+.tradeList,
 .peopleGrid,
-.articleGrid {
+.articleGrid,
+.achievementGrid {
   display: grid;
+  gap: 0.6rem;
+}
+
+.tradeRow,
+.personCard,
+.articleCard {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.8rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-section-soft);
+}
+
+.tradeRow {
+  grid-template-columns: minmax(0, 1.2fr) auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.tradeAsset,
+.holdingAsset {
+  display: flex;
+  align-items: center;
   gap: 0.75rem;
+  min-width: 0;
+}
+
+.holdingAssetLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.holdingAssetLink:hover strong,
+.holdingAssetLink:focus-visible strong {
+  color: var(--accent);
+}
+
+.inlineAssetIcon {
+  width: 2.2rem;
+  height: 2.2rem;
+  flex: 0 0 auto;
+}
+
+.tradeAssetCopy,
+.holdingAssetCopy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+
+  strong,
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  span {
+    color: var(--muted);
+    font-size: 0.84rem;
+  }
+}
+
+.tradeAssetLink {
+  color: inherit;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.tradeAssetLink:hover,
+.tradeAssetLink:focus-visible {
+  color: var(--accent);
+}
+
+.sideBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.5rem;
+  min-height: 2rem;
+  padding: 0 0.8rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.sideBadgeBuy {
+  color: var(--trend-up);
+  border-color: color-mix(in srgb, var(--trend-up) 34%, var(--border));
+  background: color-mix(in srgb, var(--tile-up-tint) 90%, transparent);
+}
+
+.sideBadgeSell {
+  color: var(--trend-down);
+  border-color: color-mix(in srgb, var(--trend-down) 34%, var(--border));
+  background: color-mix(in srgb, var(--tile-down-tint) 100%, transparent);
+}
+
+.tradeMetrics {
+  display: grid;
+  gap: 0.2rem;
+  justify-items: end;
+  text-align: right;
+
+  strong,
+  span {
+    font-size: 0.9rem;
+  }
+}
+
+.paginationCompact {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+
+  > span {
+    justify-self: center;
+    text-align: center;
+  }
+}
+
+.smallPaginationButton {
+  @include button-secondary;
+  min-height: 2rem;
+  padding: 0.32rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.chartPanel {
+  --profile-accent: var(--accent);
+  --holdings-weight: 50%;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.allocationPanel {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0;
+}
+
+.allocationRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--muted);
+  font-size: 0.84rem;
+
+  strong {
+    color: var(--text);
+  }
+}
+
+.allocationBar {
+  display: grid;
+  grid-template-columns: var(--holdings-weight) minmax(0, 1fr);
+  min-height: 0.75rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-section-strong);
+  border: 1px solid color-mix(in srgb, var(--profile-accent) 22%, var(--border));
+}
+
+.allocationHoldings {
+  background: var(--profile-accent);
+}
+
+.allocationCash {
+  background: color-mix(in srgb, var(--profile-accent) 34%, var(--surface-section-strong));
+}
+
+.achievementCard {
+  --achievement-accent: var(--accent);
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.9rem;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--achievement-accent) 38%, var(--border));
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--achievement-accent) 22%, transparent), transparent 56%),
+    var(--surface-section-soft);
+}
+
+.achievementTop {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.achievementReward {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.achievementDescription {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.achievementMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.75rem;
+  color: var(--muted);
+  font-size: 0.82rem;
 }
 
 .profilePicturePreview,
@@ -383,21 +689,11 @@
   }
 }
 
-.personCard,
-.articleCard {
-  display: grid;
-  gap: 0.65rem;
-  padding: 0.9rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--surface-section-soft);
-  color: inherit;
-  text-decoration: none;
-}
-
 .personCard {
   grid-template-columns: 2.8rem minmax(0, 1fr);
   align-items: center;
+  color: inherit;
+  text-decoration: none;
 }
 
 .personAvatarImage,
@@ -433,6 +729,9 @@
 }
 
 .articleCard {
+  color: inherit;
+  text-decoration: none;
+
   h3,
   p {
     margin: 0;
@@ -473,36 +772,75 @@
 
 .table {
   @include table-shell;
+
+  th {
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    transition: background 140ms ease, transform 140ms ease;
+  }
+
+  tbody tr:hover {
+    background: color-mix(in srgb, var(--surface-section-soft) 60%, var(--accent-soft));
+  }
+}
+
+.numericCell {
+  font-variant-numeric: tabular-nums;
 }
 
 .empty {
   @include empty-state;
 }
 
-@media (max-width: 1100px) {
-  .topGrid,
-  .contentGrid {
+@media (max-width: 1260px) {
+  .profileLayout {
+    grid-template-columns: minmax(240px, 0.9fr) minmax(0, 1.3fr);
+  }
+
+  .rightColumn {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .profileLayout,
+  .rightColumn,
+  .summaryGrid,
+  .settingsGrid {
     grid-template-columns: 1fr;
   }
 
-  .settingsGrid {
+  .tradeRow {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .tradeMetrics {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .paginationCompact {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 760px) {
-  .identityTop,
   .personCard {
     grid-template-columns: 1fr;
   }
 
-  .statsGrid {
-    grid-template-columns: 1fr;
+  .editProfileIconButton {
+    position: static;
+    order: -1;
   }
 
   .avatarImage,
   .avatarFallback {
-    width: 5rem;
-    height: 5rem;
+    width: 8rem;
+    height: 8rem;
   }
 }

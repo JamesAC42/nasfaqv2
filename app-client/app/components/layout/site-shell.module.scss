@@ -415,6 +415,7 @@
 .footer {
   margin-top: auto;
   border-top: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  z-index: -1;
   background:
     linear-gradient(
       180deg,

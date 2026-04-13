@@ -498,6 +498,10 @@
   gap: 1.1rem;
 }
 
+.emptyStoryCard {
+  margin-top: 2rem;
+}
+
 .articleBody {
   white-space: pre-wrap;
   line-height: 1.7;
@@ -699,6 +703,241 @@
   gap: 1.1rem;
 }
 
+.coverageOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+}
+
+.coverageOverlayBackdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  padding: 0;
+  background: color-mix(in srgb, #071018 56%, transparent);
+  backdrop-filter: blur(12px);
+  opacity: 0;
+  transition: opacity 220ms ease;
+  cursor: pointer;
+}
+
+.coverageOverlayPanel {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: min(82rem, 100vw);
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1.35rem;
+  border-radius: 0;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-card);
+  box-shadow: 0 40px 100px color-mix(in srgb, var(--shadow) 40%, transparent);
+  overflow: hidden;
+  opacity: 0;
+  transform: translate3d(3rem, 0, 0) scale(0.98);
+  transition:
+    opacity 240ms ease,
+    transform 360ms cubic-bezier(.2, .86, .2, 1);
+}
+
+.coverageOverlayOpen {
+  pointer-events: auto;
+}
+
+.coverageOverlayOpen .coverageOverlayBackdrop {
+  opacity: 1;
+}
+
+.coverageOverlayOpen .coverageOverlayPanel {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.coverageOverlayChrome {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.coverageOverlayClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--border) 38%, transparent);
+  background: color-mix(in srgb, var(--surface-section-strong) 92%, transparent);
+  color: color-mix(in srgb, var(--text) 82%, var(--surface) 18%);
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.coverageOverlayClose:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--border-positive) 62%, transparent);
+  background: color-mix(in srgb, var(--surface-section) 96%, transparent);
+}
+
+.coverageOverlayHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.35rem;
+  border-radius: 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 48%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface-section-soft) 94%, transparent), color-mix(in srgb, var(--surface-section-strong) 98%, transparent)),
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-strong) 6%, transparent), transparent);
+  color: var(--text);
+}
+
+.coverageOverlayHeading {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.coverageOverlayTitle {
+  margin: 0;
+  font-size: clamp(1.9rem, 3vw, 3rem);
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+  max-width: 40ch;
+}
+
+.coverageOverlayCopy {
+  margin: 0;
+  max-width: 200ch;
+  color: color-mix(in srgb, var(--text) 74%, var(--muted) 26%);
+  line-height: 1.6;
+}
+
+.coverageOverlayStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: flex-end;
+}
+
+.coverageOverlayTabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.coverageOverlayTab {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--border-info) 50%, transparent);
+  border-radius: 0.2rem;
+  @include panel;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  padding: 0.5rem 1rem;
+  &:first-child {
+    margin-left:0.5rem;
+  }
+}
+
+.coverageOverlayTabActive {
+  background: linear-gradient(135deg, var(--bg-gradient-top), var(--bg-gradient-bottom));
+}
+
+.coverageOverlayBody {
+  min-height: 0;
+  display: grid;
+  /* Custom scrollbar styles */
+  &::-webkit-scrollbar {
+    width: 0.72rem;
+    background: color-mix(in srgb, var(--surface-card) 85%, transparent);
+    border-radius: 0.7rem;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--accent) 18%, var(--border-soft) 60%);
+    border-radius: 0.7rem;
+    min-height: 2rem;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--accent) 36%, var(--border-soft) 64%);
+  }
+
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent) 18%, var(--border-soft) 60%) color-mix(in srgb, var(--surface-card) 85%, transparent);
+}
+
+.coverageOverlayWorkspace,
+.coverageOverlayDraftPane {
+  min-height: 0;
+  display: grid;
+  gap: 1rem;
+  padding: 1.1rem;
+  border-radius: 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--border) 22%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-card-soft) 94%, var(--surface-card) 6%), color-mix(in srgb, var(--surface-card-soft) 88%, var(--surface-section))),
+    repeating-linear-gradient(180deg, color-mix(in srgb, var(--border-soft) 7%, transparent) 0 2px, transparent 2px 2.1rem);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 62%, transparent),
+    0 24px 48px color-mix(in srgb, var(--shadow) 18%, transparent);
+}
+
+.coverageOverlayWorkspace {
+  grid-template-columns: minmax(18rem, 0.9fr) minmax(0, 1.35fr);
+  align-items: start;
+}
+
+.coverageOverlayDraftPane {
+  align-content: start;
+  overflow: auto;
+}
+
+.coverageOverlayDraftIntro {
+  display: grid;
+  gap: 0.45rem;
+  padding-bottom: 0.2rem;
+}
+
+.coverageOverlayWorkspace .sectionTitle,
+.coverageOverlayDraftPane .sectionTitle,
+.coverageOverlayWorkspace .proposalViewerTitle,
+.coverageOverlayWorkspace .proposalMeta strong,
+.coverageOverlayWorkspace .eyebrow,
+.coverageOverlayDraftPane .fieldLabel {
+  color: var(--accent-strong);
+}
+
+.coverageOverlayWorkspace .sectionCopy,
+.coverageOverlayDraftPane .sectionCopy,
+.coverageOverlayWorkspace .muted,
+.coverageOverlayWorkspace .proposalViewerMeta {
+  color: color-mix(in srgb, var(--muted) 85%, var(--accent-dark) 15%);
+}
+
+.coverageOverlayDraftPane .input,
+.coverageOverlayDraftPane .textarea {
+  border: 1px solid color-mix(in srgb, var(--border) 24%, var(--border-soft));
+  background: color-mix(in srgb, var(--surface-card-soft) 92%, var(--surface-section));
+  color: var(--text);
+}
+
+.coverageOverlayDraftPane .textarea {
+  min-height: 18rem;
+}
+
+.coverageOverlayBodyField {
+  grid-column: 1 / -1;
+}
+
 .proposalWorkspaceGrid {
   display: grid;
   gap: 1rem;
@@ -725,16 +964,16 @@
 
 .proposalSummaryCard {
   border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-card) 92%, transparent), color-mix(in srgb, var(--surface-card-soft) 90%, #09101a));
-  box-shadow: 0 12px 30px color-mix(in srgb, var(--panel-accent-glow) 16%, transparent);
+  border-radius: 0.75rem;
+  background: linear-gradient(180deg, color-mix(in srgb, #fffdf7 88%, transparent), color-mix(in srgb, #efe2c3 94%, #dbc79d));
+  box-shadow: 0 12px 30px color-mix(in srgb, #6e5334 12%, transparent);
 }
 
 .proposalSummaryCardActive {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-soft));
+  border-color: color-mix(in srgb, #8b5a32 52%, var(--border-soft));
   box-shadow:
-    0 18px 40px color-mix(in srgb, var(--panel-accent-glow) 22%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+    0 18px 40px color-mix(in srgb, #8b5a32 18%, transparent),
+    0 0 0 1px color-mix(in srgb, #b07f47 24%, transparent);
 }
 
 .proposalSelectButton {
@@ -852,6 +1091,7 @@
 
 .proposalViewerPane {
   min-width: 0;
+  display: flex;
 }
 
 .proposalViewer {
@@ -859,10 +1099,11 @@
   gap: 1rem;
   min-height: 100%;
   padding: 1.3rem;
-  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border-soft));
+  border-radius: 0.8rem;
+  border: 1px solid color-mix(in srgb, #8d6436 22%, var(--border-soft));
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent 26%),
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-card) 96%, white 4%), color-mix(in srgb, var(--surface-card-soft) 92%, #08111b));
+    linear-gradient(180deg, color-mix(in srgb, #f3d397 18%, transparent), transparent 26%),
+    linear-gradient(180deg, color-mix(in srgb, #fffdf7 98%, white 2%), color-mix(in srgb, #f1e4c8 92%, #ead8b1));
 }
 
 .proposalViewerHeader {
@@ -881,7 +1122,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.65rem 1rem;
-  color: var(--muted);
+  color: color-mix(in srgb, #5e4831 76%, var(--muted));
   font-size: 0.9rem;
 }
 
@@ -936,7 +1177,7 @@
   font-size: 0.92em;
   padding: 0.14rem 0.34rem;
   border-radius: 0.45rem;
-  background: color-mix(in srgb, var(--surface-card-highlight) 40%, transparent);
+  background: color-mix(in srgb, #d4bb88 22%, transparent);
 }
 
 .proposalViewerBody pre {
@@ -944,7 +1185,7 @@
   padding: 1rem;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-soft);
-  background: color-mix(in srgb, var(--surface-card) 92%, #09111a);
+  background: color-mix(in srgb, #f5ecd8 92%, #eadcc1);
 }
 
 .proposalViewerBody pre code {
@@ -954,9 +1195,9 @@
 
 .proposalViewerBody blockquote {
   padding: 0.9rem 1rem;
-  border-left: 3px solid color-mix(in srgb, var(--accent) 44%, transparent);
-  background: color-mix(in srgb, var(--surface-card-highlight) 20%, transparent);
-  color: var(--text-secondary, var(--text));
+  border-left: 3px solid color-mix(in srgb, #a36a37 44%, transparent);
+  background: color-mix(in srgb, #d5b88b 16%, transparent);
+  color: color-mix(in srgb, #473321 82%, var(--text));
 }
 
 .proposalViewerBody img {
@@ -1004,6 +1245,37 @@
 .field {
   display: grid;
   gap: 0.42rem;
+}
+
+.commentComposer {
+  display: grid;
+  gap: 1rem;
+}
+
+.commentComposerMoodField {
+  width: 100%;
+}
+
+.commentComposerBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.commentComposerInputField {
+  min-width: 0;
+}
+
+.commentComposerActions {
+  display: flex;
+  align-items: flex-start;
+  padding-top: calc(0.84rem + 0.42rem);
+}
+
+.commentComposerTextarea {
+  min-height: 9.5rem;
+  background: var(--surface);
 }
 
 .filterActions {
@@ -1163,6 +1435,17 @@
     grid-template-columns: 1fr;
   }
 
+  .coverageOverlayPanel {
+    inset: 0;
+    width: 100vw;
+    max-height: 100vh;
+    transform: translate3d(0, 3rem, 0) scale(0.98);
+  }
+
+  .coverageOverlayWorkspace {
+    grid-template-columns: 1fr;
+  }
+
   .fieldGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1172,6 +1455,41 @@
   @include empty-state;
 }
 
+.proposalViewerEmptyState {
+  flex: 1;
+  position:relative;
+  min-height: 50dvh;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 1rem;
+  padding: 2rem 1.5rem;
+  border: 1px dashed color-mix(in srgb, var(--accent) 38%, var(--border-soft));
+  border-radius: 0.8rem;
+  text-align: center;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-card-highlight) 18%, transparent), transparent 45%),
+    color-mix(in srgb, var(--surface-card) 92%, #0b1119);
+}
+
+.proposalViewerEmptyCopy {
+  margin: 0;
+  position:relative;
+  max-width: 24rem;
+}
+
+.proposalViewerEmptyImage {
+  width: 12rem;
+  height: auto;
+  aspect-ratio: 420 / 549;
+  object-fit: contain;
+  position: absolute;
+  bottom:0;
+  left:0;
+  transform: translate(-5px, 0);
+  border-radius: 1.3rem;
+}
+
 @media (max-width: 960px) {
   .detailLayout {
     grid-template-columns: 1fr;
@@ -1179,7 +1497,40 @@
 }
 
 @media (max-width: 44rem) {
+  .coverageOverlayPanel {
+    inset: 0;
+    padding: 1rem;
+    border-radius: 0;
+  }
+
+  .coverageOverlayPanel::before {
+    inset: auto 0 -1rem 0;
+    width: auto;
+    height: 1.8rem;
+  }
+
+  .coverageOverlayHeader {
+    display: grid;
+  }
+
+  .coverageOverlayTitle {
+    max-width: 100%;
+  }
+
+  .coverageOverlayWorkspace,
+  .coverageOverlayDraftPane {
+    padding: 0.85rem;
+  }
+
   .fieldGrid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .commentComposerBody {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .commentComposerActions {
+    padding-top: 0;
   }
 }

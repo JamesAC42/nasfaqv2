@@ -55,14 +55,26 @@ function normalizeWindow(window) {
   return window === "7d" ? "7d" : window === "all" ? "all" : "1d";
 }
 
-function buildBadges(entry, userCount) {
+function buildBadges(entry, userCount, decoration = null) {
   const badges = [];
+  const achievementBadges = Array.isArray(decoration?.achievements)
+    ? decoration.achievements.map((achievement) => achievement.name).filter(Boolean)
+    : [];
+  for (const badge of achievementBadges) {
+    if (!badges.includes(badge)) badges.push(badge);
+  }
+
+  const currentStreakDays = toInt(decoration?.streaks?.current_streak_days, 0);
+  if (currentStreakDays >= 3) {
+    badges.push(`${currentStreakDays}d Streak`);
+  }
+
   const cashRatio = toRatio(entry.cash_balance, entry.total_equity);
   if (entry.rank <= Math.max(1, Math.ceil(userCount * 0.01))) badges.push("Whale");
   if ((entry.daily_change_pct ?? 0) >= 0.05) badges.push("On Fire");
   if ((entry.total_unrealized_pnl ?? 0) > 0 && (entry.holdings_market_value ?? 0) > 0) badges.push("Diamond Hands");
   if ((cashRatio ?? 0) >= 0.6) badges.push("Cash Gang");
-  return badges.slice(0, 3);
+  return Array.from(new Set(badges)).slice(0, 4);
 }
 
 function selectWindowChange(row, window) {
@@ -89,15 +101,24 @@ function selectWindowChange(row, window) {
   };
 }
 
-function mapLeaderboardEntry(row, { window, userCount, viewerId = null, friendIds = new Set(), rivalIds = new Set() }) {
+function mapLeaderboardEntry(row, {
+  window,
+  userCount,
+  viewerId = null,
+  friendIds = new Set(),
+  rivalIds = new Set(),
+  decorationByUserId = new Map(),
+}) {
   const selectedChange = selectWindowChange(row, window);
   const totalEquity = toNumber(row.total_equity, 0);
   const cashBalance = toNumber(row.cash_balance, 0);
   const holdingsMarketValue = toNumber(row.holdings_market_value, 0);
   const totalUnrealizedPnl = toNumber(row.total_unrealized_pnl, 0);
+  const userId = toInt(row.user_id);
+  const decoration = decorationByUserId.get(userId) || null;
 
   const entry = {
-    user_id: toInt(row.user_id),
+    user_id: userId,
     username: String(row.username_snapshot || ""),
     profile_picture_url: row.profile_picture_url ? String(row.profile_picture_url) : null,
     profile_color: row.profile_color ? String(row.profile_color) : null,
@@ -126,14 +147,101 @@ function mapLeaderboardEntry(row, { window, userCount, viewerId = null, friendId
           unrealized_pnl: toNumber(row.best_asset_unrealized_pnl, 0),
         }
       : null,
+    achievements: decoration?.achievements || [],
+    streaks: decoration?.streaks || {
+      current_streak_days: 0,
+      longest_streak_days: 0,
+      last_trade_day: null,
+    },
     is_me: viewerId ? toInt(row.user_id) === toInt(viewerId) : false,
-    is_friend: friendIds.has(toInt(row.user_id)),
-    is_rival: rivalIds.has(toInt(row.user_id)),
+    is_friend: friendIds.has(userId),
+    is_rival: rivalIds.has(userId),
     badges: [],
   };
 
-  entry.badges = buildBadges(entry, userCount);
+  entry.badges = buildBadges(entry, userCount, decoration);
   return entry;
+}
+
+async function loadLeaderboardDecorations(pool, userIds) {
+  const safeUserIds = Array.isArray(userIds)
+    ? Array.from(new Set(userIds.map((value) => toInt(value, 0)).filter((value) => value > 0)))
+    : [];
+  const decorationByUserId = new Map();
+  if (!safeUserIds.length) return decorationByUserId;
+
+  const [achievementResult, streakResult] = await Promise.all([
+    pool.query(
+      `
+      SELECT
+        ua.user_id,
+        ua.achievement_key AS key,
+        ua.earned_at,
+        ua.reward_cash,
+        ad.name,
+        ad.description,
+        ad.badge_icon,
+        ad.badge_color
+      FROM market.user_achievements ua
+      JOIN market.achievement_definitions ad
+        ON ad.id = ua.achievement_definition_id
+      WHERE ua.user_id = ANY($1::bigint[])
+      ORDER BY ua.user_id ASC, ua.earned_at DESC, ua.id DESC
+    `,
+      [safeUserIds]
+    ),
+    pool.query(
+      `
+      SELECT
+        user_id,
+        current_streak_days,
+        longest_streak_days,
+        last_trade_day
+      FROM market.user_trade_streaks
+      WHERE user_id = ANY($1::bigint[])
+    `,
+      [safeUserIds]
+    ),
+  ]);
+
+  for (const userId of safeUserIds) {
+    decorationByUserId.set(userId, {
+      achievements: [],
+      streaks: {
+        current_streak_days: 0,
+        longest_streak_days: 0,
+        last_trade_day: null,
+      },
+    });
+  }
+
+  for (const row of achievementResult.rows) {
+    const userId = toInt(row.user_id, 0);
+    if (!decorationByUserId.has(userId)) continue;
+    const decoration = decorationByUserId.get(userId);
+    if (decoration.achievements.length >= 4) continue;
+    decoration.achievements.push({
+      key: String(row.key || ""),
+      name: String(row.name || row.key || ""),
+      description: row.description ? String(row.description) : null,
+      badge_icon: row.badge_icon ? String(row.badge_icon) : null,
+      badge_color: row.badge_color ? String(row.badge_color) : null,
+      earned_at: row.earned_at ? new Date(row.earned_at).toISOString() : null,
+      reward_cash: toNumber(row.reward_cash, 0),
+    });
+  }
+
+  for (const row of streakResult.rows) {
+    const userId = toInt(row.user_id, 0);
+    if (!decorationByUserId.has(userId)) continue;
+    decorationByUserId.get(userId).streaks = {
+      current_streak_days: toInt(row.current_streak_days, 0),
+      longest_streak_days: toInt(row.longest_streak_days, 0),
+      last_trade_day: row.last_trade_day ? String(row.last_trade_day) : null,
+    };
+  }
+
+  return decorationByUserId;
 }
 
 async function getCurrentNetWorth(pool, userId) {
@@ -524,16 +632,10 @@ async function listLeaderboardBundle(pool, { viewerUserId = null, scope = "globa
 
   const statsRow = statsResult.rows[0] || {};
   const userCount = toInt(statsRow.user_count, 0);
-  const entries = entriesResult.rows.map((row) =>
-    mapLeaderboardEntry(row, { window: safeWindow, userCount, viewerId: viewerUserId, friendIds, rivalIds })
-  );
 
   const meRow = meResult.rows[0] || null;
-  const meEntry = meRow
-    ? mapLeaderboardEntry(meRow, { window: safeWindow, userCount, viewerId: viewerUserId, friendIds, rivalIds })
-    : null;
 
-  const neighborsResult = meEntry
+  const neighborsResult = meRow
     ? await pool.query(
       `
       ${rankedSql}
@@ -542,20 +644,58 @@ async function listLeaderboardBundle(pool, { viewerUserId = null, scope = "globa
       WHERE rank BETWEEN $2 AND $3
       ORDER BY rank ASC
     `,
-      [scopedUserIds, Math.max(1, meEntry.rank - 1), meEntry.rank + 1]
+      [scopedUserIds, Math.max(1, toInt(meRow.rank, 0) - 1), toInt(meRow.rank, 0) + 1]
     )
     : { rows: [] };
+
+  const decorationByUserId = await loadLeaderboardDecorations(
+    pool,
+    [
+      ...entriesResult.rows.map((row) => toInt(row.user_id, 0)),
+      ...neighborsResult.rows.map((row) => toInt(row.user_id, 0)),
+      meRow ? toInt(meRow.user_id, 0) : 0,
+    ]
+  );
+
+  const entries = entriesResult.rows.map((row) =>
+    mapLeaderboardEntry(row, {
+      window: safeWindow,
+      userCount,
+      viewerId: viewerUserId,
+      friendIds,
+      rivalIds,
+      decorationByUserId,
+    })
+  );
+
+  const mappedMeEntry = meRow
+    ? mapLeaderboardEntry(meRow, {
+      window: safeWindow,
+      userCount,
+      viewerId: viewerUserId,
+      friendIds,
+      rivalIds,
+      decorationByUserId,
+    })
+    : null;
 
   const neighbors = neighborsResult.rows
     .filter((row) => toInt(row.user_id, 0) !== toInt(viewerUserId, 0))
     .map((row) => {
-      const entry = mapLeaderboardEntry(row, { window: safeWindow, userCount, viewerId: viewerUserId, friendIds, rivalIds });
+      const entry = mapLeaderboardEntry(row, {
+        window: safeWindow,
+        userCount,
+        viewerId: viewerUserId,
+        friendIds,
+        rivalIds,
+        decorationByUserId,
+      });
       return {
         user_id: entry.user_id,
         username: entry.username,
         rank: entry.rank,
         total_equity: entry.total_equity,
-        gap_abs: meEntry ? entry.total_equity - meEntry.total_equity : null,
+        gap_abs: mappedMeEntry ? entry.total_equity - mappedMeEntry.total_equity : null,
         profile_picture_url: entry.profile_picture_url,
         profile_color: entry.profile_color,
       };
@@ -585,14 +725,56 @@ async function listLeaderboardBundle(pool, { viewerUserId = null, scope = "globa
       last_updated_at: statsRow.last_updated_at ? new Date(statsRow.last_updated_at).toISOString() : null,
     },
     entries,
-    me: meEntry
+    me: mappedMeEntry
       ? {
-          ...meEntry,
-          percentile: userCount > 1 ? (userCount - meEntry.rank) / (userCount - 1) : 1,
+          ...mappedMeEntry,
+          percentile: userCount > 1 ? (userCount - mappedMeEntry.rank) / (userCount - 1) : 1,
           neighbors,
         }
       : null,
   };
+}
+
+async function listCurrentNetWorthByUserIds(pool, userIds) {
+  await ensureCurrentLeaderboardReady(pool);
+  const safeUserIds = Array.isArray(userIds)
+    ? Array.from(new Set(userIds.map((value) => toInt(value, 0)).filter((value) => value > 0)))
+    : [];
+  if (!safeUserIds.length) return [];
+
+  const { rows } = await pool.query(
+    `
+    WITH ranked AS (
+      SELECT
+        l.user_id,
+        l.username_snapshot,
+        l.total_equity,
+        l.updated_at,
+        ROW_NUMBER() OVER (
+          ORDER BY l.total_equity DESC, l.username_snapshot ASC, l.user_id ASC
+        )::INTEGER AS rank
+      FROM market.user_leaderboard_current l
+    )
+    SELECT
+      user_id,
+      username_snapshot,
+      total_equity,
+      updated_at,
+      rank
+    FROM ranked
+    WHERE user_id = ANY($1::bigint[])
+    ORDER BY rank ASC
+  `,
+    [safeUserIds]
+  );
+
+  return rows.map((row) => ({
+    user_id: toInt(row.user_id, 0),
+    username: String(row.username_snapshot || ""),
+    total_equity: toNumber(row.total_equity, 0),
+    rank: toInt(row.rank, 0),
+    updated_at: row.updated_at ? new Date(row.updated_at).toISOString() : null,
+  }));
 }
 
 async function listCurrentNetWorthLeaderboard(pool, { limit = 100 } = {}) {
@@ -689,6 +871,7 @@ module.exports = {
   getCurrentNetWorth,
   getStarterCash,
   listCurrentNetWorthLeaderboard,
+  listCurrentNetWorthByUserIds,
   listDailyNetWorthHistory,
   listLeaderboardBundle,
   recordDailyNetWorthSnapshot,

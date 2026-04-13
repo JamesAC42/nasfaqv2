@@ -320,8 +320,7 @@
 }
 
 .chatIdentity {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  display: flex;
   gap: 0.8rem;
   align-items: center;
   min-width: 0;
@@ -556,6 +555,66 @@
   color: var(--text);
 }
 
+.messageNetWorth {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.18rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--success) 42%, var(--border-soft));
+  background: color-mix(in srgb, var(--success) 10%, var(--surface-card));
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.messageNetWorthTopTen {
+  box-shadow: 0 0 0.6rem color-mix(in srgb, #f3cd5a 22%, transparent);
+}
+
+.messageNetWorthPodium {
+  border-color: color-mix(in srgb, #b8860b 55%, var(--border-soft));
+  background: color-mix(in srgb, #b8860b 16%, var(--surface-card));
+}
+
+.messageNetWorthFirst {
+  border-color: color-mix(in srgb, #ffe48a 72%, #d9a11e);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #ffe48a 24%, var(--surface-card)), color-mix(in srgb, #d9a11e 18%, var(--surface-card)));
+  box-shadow:
+    0 0 0.85rem color-mix(in srgb, #ffe48a 44%, transparent),
+    0 0 1.35rem color-mix(in srgb, #d9a11e 28%, transparent);
+}
+
+.messageNetWorthRank {
+  color: var(--muted);
+}
+
+.messageNetWorthRankTopTen {
+  color: #f3cd5a;
+  text-shadow: 0 0 0.45rem color-mix(in srgb, #f3cd5a 45%, transparent);
+}
+
+.messageNetWorthRankPodium {
+  color: #b8860b;
+  text-shadow:
+    0 0 0.5rem color-mix(in srgb, #b8860b 42%, transparent),
+    0 0 0.15rem color-mix(in srgb, #f6d272 55%, transparent);
+}
+
+.messageNetWorthRankFirst {
+  color: #ffe48a;
+  text-shadow:
+    0 0 0.72rem color-mix(in srgb, #ffe48a 82%, transparent),
+    0 0 1.15rem color-mix(in srgb, #d9a11e 52%, transparent);
+}
+
+.messageNetWorthValue {
+  color: var(--success);
+}
+
 .messageAuthorCoin {
   width: 1.15rem;
   height: 1.15rem;
@@ -563,6 +622,7 @@
   object-fit: cover;
   border-radius: 0;
   background: transparent;
+  transform: translateY(0.4rem);
 }
 
 .messageTime {

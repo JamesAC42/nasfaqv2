@@ -1,4 +1,3 @@
-const DEFAULT_STARTER_CASH = 10000;
 const DEFAULT_TRADING_FEE_RATE = 0.01;
 const DEFAULT_TRANSIENT_HALF_LIFE_MINUTES = 60;
 const DEFAULT_TRANSIENT_IMPACT_WEIGHT = 0.7;
@@ -6,15 +5,12 @@ const DEFAULT_PERSISTENT_IMPACT_WEIGHT = 0.15;
 const DEFAULT_EXECUTION_SLIPPAGE_WEIGHT = 0.5;
 const marketState = require("./marketState");
 const netWorth = require("./netWorth");
+const achievements = require("./achievements");
+const { ensureUserCashAccount, getStarterCash } = require("./portfolioCash");
 
 function getTradingFeeRate() {
   const parsed = Number(process.env.MARKET_TRADING_FEE_RATE || DEFAULT_TRADING_FEE_RATE);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_TRADING_FEE_RATE;
-}
-
-function getStarterCash() {
-  const parsed = Number(process.env.MARKET_STARTER_CASH || DEFAULT_STARTER_CASH);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_STARTER_CASH;
 }
 
 const TRANSIENT_HALF_LIFE_MINUTES = Number(process.env.MARKET_TRANSIENT_HALF_LIFE_MINUTES || DEFAULT_TRANSIENT_HALF_LIFE_MINUTES);
@@ -97,48 +93,6 @@ function computeQuotes(midPrice, spreadBps) {
     bidPrice: midPrice * (1 - spreadPct / 2),
     askPrice: midPrice * (1 + spreadPct / 2),
   };
-}
-
-async function ensureUserCashAccount(client, userId) {
-  const existing = await client.query(
-    `
-    SELECT user_id, cash_balance
-    FROM market.portfolio_cash_balances
-    WHERE user_id = $1
-    FOR UPDATE
-  `,
-    [userId]
-  );
-
-  if (existing.rowCount > 0) {
-    return existing.rows[0];
-  }
-
-  const starterCash = getStarterCash();
-  await client.query(
-    `
-    INSERT INTO market.portfolio_cash_balances (user_id, cash_balance, updated_at)
-    VALUES ($1, $2, now())
-  `,
-    [userId, starterCash]
-  );
-
-  await client.query(
-    `
-    INSERT INTO market.ledger_entries (
-      user_id,
-      asset_id,
-      entry_type,
-      quantity_delta,
-      cash_delta,
-      reference_type,
-      reference_id
-    ) VALUES ($1, NULL, 'starter_cash_grant', 0, $2, 'system', 0)
-  `,
-    [userId, starterCash]
-  );
-
-  return { user_id: userId, cash_balance: starterCash };
 }
 
 async function getLockedAssetBySymbol(client, symbol) {
@@ -460,6 +414,7 @@ async function executeOrder(pool, { userId, symbol, side, quantity }) {
     const currentCash = toNumber(cashAccount.cash_balance, 0);
     const currentQuantity = toNumber(holding?.quantity, 0);
     const currentAvgCost = toNumber(holding?.avg_cost_basis, 0);
+    const costBasisSold = side === "sell" ? currentAvgCost * parsedQuantity : null;
 
     let nextCash = currentCash;
     let nextQuantity = currentQuantity;
@@ -557,6 +512,14 @@ async function executeOrder(pool, { userId, symbol, side, quantity }) {
 
     await client.query("COMMIT");
 
+    achievements.handleTradeFill(pool, {
+      userId,
+      fillId: fillRow.id,
+    }).catch((error) => {
+      // eslint-disable-next-line no-console
+      console.error("achievement evaluation failed:", String(error?.message || error));
+    });
+
     return {
       order_id: orderId,
       fill_id: fillRow.id,
@@ -565,6 +528,8 @@ async function executeOrder(pool, { userId, symbol, side, quantity }) {
       fee: feeCash,
       total_cost: side === "buy" ? grossCash + feeCash : null,
       total_proceeds: side === "sell" ? grossCash - feeCash : null,
+      cost_basis_sold: costBasisSold,
+      realized_pnl: side === "sell" ? (grossCash - feeCash) - (costBasisSold || 0) : null,
       side,
       symbol: asset.symbol,
       updated_holdings: {

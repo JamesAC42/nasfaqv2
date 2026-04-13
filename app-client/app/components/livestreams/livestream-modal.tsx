@@ -4,9 +4,12 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ColorType, LineSeries, createChart, type IChartApi, type ISeriesApi, type Time } from "lightweight-charts";
 import { apiFetch } from "@/app/lib/api";
+import { createChannelChartTheme } from "@/app/lib/chart-theme";
+import { getUsableChannelColor, normalizeHexColor } from "@/app/lib/color";
 import { fmtDate, fmtDurationSeconds, fmtInteger } from "@/app/lib/format";
 import { getIconUrl } from "@/app/lib/normalizers";
 import { getBucketWsUrl } from "@/app/lib/ws";
+import { useTheme } from "@/app/providers/theme-provider";
 import { useMarketStore } from "@/app/stores/market-store";
 import styles from "@/app/components/livestreams/livestream-modal.module.scss";
 
@@ -65,34 +68,6 @@ function toNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
-}
-
-function normalizeHexColor(value: string | null | undefined) {
-  if (!value) return null;
-  const trimmed = value.trim();
-  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed;
-  if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
-    const [, r, g, b] = trimmed;
-    return `#${r}${r}${g}${g}${b}${b}`;
-  }
-  return null;
-}
-
-function hexToRgb(hex: string) {
-  return {
-    r: Number.parseInt(hex.slice(1, 3), 16),
-    g: Number.parseInt(hex.slice(3, 5), 16),
-    b: Number.parseInt(hex.slice(5, 7), 16),
-  };
-}
-
-function mixHex(hex: string, target: string, amount: number) {
-  const source = hexToRgb(hex);
-  const to = hexToRgb(target);
-  const mix = (a: number, b: number) => Math.round(a + (b - a) * amount);
-  return `#${mix(source.r, to.r).toString(16).padStart(2, "0")}${mix(source.g, to.g)
-    .toString(16)
-    .padStart(2, "0")}${mix(source.b, to.b).toString(16).padStart(2, "0")}`;
 }
 
 function toChartTime(value: string): Time | null {
@@ -181,14 +156,29 @@ function ViewerBucketsChart({ buckets, accentColor }: { buckets: Bucket[]; accen
   const chartRef = useRef<IChartApi | null>(null);
   const avgSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const maxSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const { theme: colorMode } = useTheme();
+  const channelChartTheme = useMemo(() => createChannelChartTheme(accentColor), [accentColor]);
+  const maxLineColor = useMemo(
+    () => getUsableChannelColor(accentColor, colorMode) || accentColor,
+    [accentColor, colorMode]
+  );
+  const avgLineColor = useMemo(
+    () =>
+      getUsableChannelColor(
+        channelChartTheme.baseMuted,
+        colorMode,
+        colorMode === "light" ? { maxLightLuminance: 0.34 } : undefined
+      ) || channelChartTheme.baseMuted,
+    [channelChartTheme.baseMuted, colorMode]
+  );
 
   const chartTheme = useMemo(
     () => ({
-      textColor: resolveCssVar("--text", "#112033"),
-      gridColor: resolveCssVar("--border", "rgba(96, 178, 229, 0.644)"),
-      crosshairColor: resolveCssVar("--muted", "#4d6986"),
+      textColor: resolveCssVar("--text", channelChartTheme.text),
+      gridColor: channelChartTheme.grid,
+      crosshairColor: channelChartTheme.crosshairSoft,
     }),
-    []
+    [channelChartTheme.crosshairSoft, channelChartTheme.grid, channelChartTheme.text]
   );
 
   const avgData = useMemo(
@@ -252,13 +242,13 @@ function ViewerBucketsChart({ buckets, accentColor }: { buckets: Bucket[]; accen
     });
 
     const avgSeries = chart.addSeries(LineSeries, {
-      color: mixHex(accentColor, "#d7dce5", 0.35),
+      color: avgLineColor,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: true,
     });
     const maxSeries = chart.addSeries(LineSeries, {
-      color: accentColor,
+      color: maxLineColor,
       lineWidth: 3,
       priceLineVisible: false,
       lastValueVisible: true,
@@ -273,20 +263,20 @@ function ViewerBucketsChart({ buckets, accentColor }: { buckets: Bucket[]; accen
       maxSeriesRef.current = null;
       chart.remove();
     };
-  }, [chartTheme]);
+  }, [avgLineColor, chartTheme, maxLineColor]);
 
   useEffect(() => {
     if (!avgSeriesRef.current || !maxSeriesRef.current) return;
-    avgSeriesRef.current.applyOptions({ color: mixHex(accentColor, "#d7dce5", 0.35) });
-    maxSeriesRef.current.applyOptions({ color: accentColor });
-  }, [accentColor]);
+    avgSeriesRef.current.applyOptions({ color: avgLineColor });
+    maxSeriesRef.current.applyOptions({ color: maxLineColor });
+  }, [avgLineColor, maxLineColor]);
 
   useEffect(() => {
     if (!avgSeriesRef.current || !maxSeriesRef.current || !chartRef.current) return;
     avgSeriesRef.current.setData(avgData);
     maxSeriesRef.current.setData(maxData);
     chartRef.current.timeScale().fitContent();
-  }, [avgData, maxData]);
+  }, [avgData, avgLineColor, maxData, maxLineColor]);
 
   return buckets.length ? <div ref={containerRef} className={styles.chartCanvas} /> : <div className={styles.chartEmpty}>No bucket data yet.</div>;
 }
@@ -308,6 +298,7 @@ export function LivestreamModal({
   const [isCompact, setIsCompact] = useState(false);
   const assets = useMarketStore((state) => state.assets);
   const activeSession = session?.video_id === item?.id ? session : null;
+  const { theme: colorMode } = useTheme();
 
   useEffect(() => {
     if (!open) return;
@@ -437,6 +428,20 @@ export function LivestreamModal({
   }, [activeSession?.status, item?.id, open]);
 
   const accentColor = normalizeHexColor(activeSession?.channel_color || item?.channel_color) || "#ff5c7a";
+  const viewerChartTheme = useMemo(() => createChannelChartTheme(accentColor), [accentColor]);
+  const avgLegendColor = useMemo(
+    () =>
+      getUsableChannelColor(
+        viewerChartTheme.baseMuted,
+        colorMode,
+        colorMode === "light" ? { maxLightLuminance: 0.34 } : undefined
+      ) || viewerChartTheme.baseMuted,
+    [colorMode, viewerChartTheme.baseMuted]
+  );
+  const maxLegendColor = useMemo(
+    () => getUsableChannelColor(accentColor, colorMode) || accentColor,
+    [accentColor, colorMode]
+  );
   const modalStyle = { "--stream-accent": accentColor } as CSSProperties;
   const youtubeUrl = item?.url || (item ? `https://www.youtube.com/watch?v=${encodeURIComponent(item.id)}` : "/livestreams");
   const channelId = activeSession?.youtube_channel_id || null;
@@ -547,10 +552,10 @@ export function LivestreamModal({
             <div className={styles.chartHeader}>
               <strong>Viewers over time</strong>
               <div className={styles.legend}>
-                <span className={styles.legendItem} style={{ "--legend-color": mixHex(accentColor, "#d7dce5", 0.35) } as CSSProperties}>
+                <span className={styles.legendItem} style={{ "--legend-color": avgLegendColor } as CSSProperties}>
                   Avg viewers
                 </span>
-                <span className={styles.legendItem} style={{ "--legend-color": accentColor } as CSSProperties}>
+                <span className={styles.legendItem} style={{ "--legend-color": maxLegendColor } as CSSProperties}>
                   Max viewers
                 </span>
               </div>

@@ -7,7 +7,7 @@ import { FiChevronDown, FiMenu, FiRadio, FiSend, FiStar, FiWifi, FiWifiOff, FiX 
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
-import { fmtInteger } from "@/app/lib/format";
+import { fmtInteger, fmtNumber } from "@/app/lib/format";
 import { getIconUrl, normalizeChatChannel, normalizeChatMessage } from "@/app/lib/normalizers";
 import type { ChatChannel, ChatMessage, MarketAsset } from "@/app/lib/types";
 import { getChatWsUrl } from "@/app/lib/ws";
@@ -43,6 +43,14 @@ type MessageListResponse = {
   history_limited: boolean;
   visible_days: number | null;
   oldest_visible_at: string | null;
+};
+
+type AuthorNetWorthEntry = {
+  user_id: number;
+  username: string;
+  total_equity: number;
+  rank: number;
+  updated_at: string | null;
 };
 
 type EmojiAsset = {
@@ -290,6 +298,7 @@ export function ChatPage() {
   const [isLoadingChannels, setIsLoadingChannels] = useState(true);
   const [channelsError, setChannelsError] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [authorNetWorthByUserId, setAuthorNetWorthByUserId] = useState<Record<number, AuthorNetWorthEntry>>({});
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [messagesError, setMessagesError] = useState<string | null>(null);
@@ -318,6 +327,20 @@ export function ChatPage() {
   const suggestionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const shouldScrollToBottomRef = useRef(false);
   const previousLastMessageIdRef = useRef<number | null>(null);
+
+  function netWorthBadgeClassName(rank: number | null | undefined) {
+    if (rank === 1) return [styles.messageNetWorth, styles.messageNetWorthTopTen, styles.messageNetWorthFirst].join(" ");
+    if (rank === 2 || rank === 3) return [styles.messageNetWorth, styles.messageNetWorthTopTen, styles.messageNetWorthPodium].join(" ");
+    if ((rank || 0) > 0 && (rank || 0) <= 10) return [styles.messageNetWorth, styles.messageNetWorthTopTen].join(" ");
+    return styles.messageNetWorth;
+  }
+
+  function netWorthRankClassName(rank: number | null | undefined) {
+    if (rank === 1) return [styles.messageNetWorthRank, styles.messageNetWorthRankTopTen, styles.messageNetWorthRankFirst].join(" ");
+    if (rank === 2 || rank === 3) return [styles.messageNetWorthRank, styles.messageNetWorthRankTopTen, styles.messageNetWorthRankPodium].join(" ");
+    if ((rank || 0) > 0 && (rank || 0) <= 10) return [styles.messageNetWorthRank, styles.messageNetWorthRankTopTen].join(" ");
+    return styles.messageNetWorthRank;
+  }
   const shouldRestoreComposerFocusRef = useRef(false);
 
   const requestedChannelKey = searchParams.get("channel") || "market:global";
@@ -450,6 +473,7 @@ export function ChatPage() {
       setVisibleDays(null);
       setPendingNewMessageCount(0);
       setIsAtBottom(true);
+      setAuthorNetWorthByUserId({});
       previousLastMessageIdRef.current = null;
       return;
     }
@@ -504,6 +528,52 @@ export function ChatPage() {
       cancelled = true;
     };
   }, [selectedChannelKey, user]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const missingAuthorIds = Array.from(
+      new Set(
+        messages
+          .map((message) => message.author?.id || null)
+          .filter((userId): userId is number => typeof userId === "number" && userId > 0)
+          .filter((userId) => !authorNetWorthByUserId[userId])
+      )
+    );
+
+    if (!missingAuthorIds.length) return;
+
+    async function fetchAuthorNetWorth() {
+      try {
+        const query = new URLSearchParams();
+        query.set("user_ids", missingAuthorIds.join(","));
+        const result = await apiFetch<{ entries: Array<Record<string, unknown>> }>(
+          `/api/leaderboard/net-worth?${query.toString()}`
+        );
+        if (cancelled) return;
+        const nextEntries = (result.entries || []).map((item) => ({
+          user_id: Number(item.user_id || 0),
+          username: String(item.username || ""),
+          total_equity: Number(item.total_equity || 0),
+          rank: Number(item.rank || 0),
+          updated_at: item.updated_at ? String(item.updated_at) : null,
+        }));
+        setAuthorNetWorthByUserId((current) => {
+          const next = { ...current };
+          for (const entry of nextEntries) {
+            if (entry.user_id > 0) next[entry.user_id] = entry;
+          }
+          return next;
+        });
+      } catch {
+        if (cancelled) return;
+      }
+    }
+
+    void fetchAuthorNetWorth();
+    return () => {
+      cancelled = true;
+    };
+  }, [authorNetWorthByUserId, messages]);
 
   useEffect(() => {
     if (!suggestions.length) {
@@ -1053,10 +1123,10 @@ export function ChatPage() {
                       <h2 className={styles.chatTitle}>{selectedEntry.label}</h2>
                       <p className={styles.chatSubtitle}>{selectedEntry.subtitle || selectedEntry.channel.description || "Live room"}</p>
                     </div>
-                  </div>
-                  <div className={styles.chatMeta}>
-                    <span>{fmtInteger(displayedMessageCount)} messages</span>
-                    <span>{selectedEntry.channel.posting_policy === "read_only" ? "Read only" : "Open"}</span>
+                    <div className={styles.chatMeta}>
+                      <span>{fmtInteger(displayedMessageCount)} messages</span>
+                      <span>{selectedEntry.channel.posting_policy === "read_only" ? "Read only" : "Open"}</span>
+                    </div>
                   </div>
             <div className={styles.socketBadge}>
               {socketState === "open" ? <FiWifi aria-hidden="true" /> : socketState === "connecting" ? <FiRadio aria-hidden="true" /> : <FiWifiOff aria-hidden="true" />}
@@ -1093,6 +1163,12 @@ export function ChatPage() {
                   ) : null}
                   {!isLoadingMessages && !messages.length ? <div className={shellStyles.empty}>No one has posted here yet.</div> : null}
 
+                  {!isLoadingMessages && !isLoadingOlder && historyLimited && messages.length ? (
+                    <div className={styles.historyLoader}>
+                      {visibleDays ? `Visible history limited to the last ${visibleDays} days.` : "Visible history is limited in this room."}
+                    </div>
+                  ) : null}
+                  
                   {!isLoadingMessages && messages.length
                     ? messages.map((message) => (
                         <article
@@ -1118,6 +1194,14 @@ export function ChatPage() {
                               >
                                 {message.author?.username || "Unknown"}
                               </span>
+                              {message.author?.id && authorNetWorthByUserId[message.author.id] ? (
+                                <span className={netWorthBadgeClassName(authorNetWorthByUserId[message.author.id]?.rank)}>
+                                  <span className={netWorthRankClassName(authorNetWorthByUserId[message.author.id]?.rank)}>
+                                    #{fmtInteger(authorNetWorthByUserId[message.author.id]?.rank)}
+                                  </span>
+                                  <span className={styles.messageNetWorthValue}>{fmtNumber(authorNetWorthByUserId[message.author.id]?.total_equity, "$")}</span>
+                                </span>
+                              ) : null}
                               {authorCoinIconUrl && message.author?.oshi_coin ? (
                                 <img
                                   src={authorCoinIconUrl}
@@ -1137,11 +1221,6 @@ export function ChatPage() {
                         </article>
                       ))
                     : null}
-                  {!isLoadingMessages && !isLoadingOlder && historyLimited && messages.length ? (
-                    <div className={styles.historyLoader}>
-                      {visibleDays ? `Visible history limited to the last ${visibleDays} days.` : "Visible history is limited in this room."}
-                    </div>
-                  ) : null}
                   <div className={styles.messageBottomSpacer} aria-hidden="true" />
                 </div>
 

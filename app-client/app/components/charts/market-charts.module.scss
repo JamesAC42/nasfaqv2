@@ -6,6 +6,19 @@
   font-family: var(--chart-font-family, var(--font-mono));
 }
 
+.chartBoxBare {
+  padding: 1rem;
+  font-family: var(--chart-font-family, var(--font-mono));
+  position: relative;
+  border: 0;
+  border-radius: var(--radius-md);
+  box-shadow: none;
+
+  &::before {
+    content: none;
+  }
+}
+
 .chartBoxCompact {
   padding: 0.7rem;
 }

@@ -159,6 +159,85 @@ async function applySchema(pool) {
     SELECT create_hypertable('market.user_networth_history', 'recorded_at', if_not_exists => TRUE, migrate_data => TRUE)
   `);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.achievement_definitions (
+      id BIGSERIAL PRIMARY KEY,
+      key TEXT NOT NULL UNIQUE,
+      version INTEGER NOT NULL DEFAULT 1,
+      category TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      badge_icon TEXT NULL,
+      badge_color TEXT NULL,
+      reward_cash NUMERIC NOT NULL DEFAULT 0,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      is_backfill_enabled BOOLEAN NOT NULL DEFAULT true,
+      trigger_events TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+      rule_json JSONB NOT NULL DEFAULT '{}'::JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT achievement_definitions_reward_nonnegative_check CHECK (reward_cash >= 0)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_achievement_definitions_active_idx
+      ON market.achievement_definitions (is_active, key)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.user_achievements (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      achievement_definition_id BIGINT NOT NULL REFERENCES market.achievement_definitions(id) ON DELETE CASCADE,
+      achievement_key TEXT NOT NULL,
+      achievement_version INTEGER NOT NULL,
+      earned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      reward_cash NUMERIC NOT NULL DEFAULT 0,
+      source_event_type TEXT NOT NULL,
+      source_event_id BIGINT NULL,
+      evaluation_run_id BIGINT NULL,
+      progress_json JSONB NOT NULL DEFAULT '{}'::JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (user_id, achievement_key, achievement_version),
+      CONSTRAINT user_achievements_reward_nonnegative_check CHECK (reward_cash >= 0)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_user_achievements_user_earned_desc_idx
+      ON market.user_achievements (user_id, earned_at DESC, id DESC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.user_trade_streaks (
+      user_id BIGINT PRIMARY KEY REFERENCES market.users(id) ON DELETE CASCADE,
+      current_streak_days INTEGER NOT NULL DEFAULT 0,
+      longest_streak_days INTEGER NOT NULL DEFAULT 0,
+      last_trade_day DATE NULL,
+      last_trade_fill_id BIGINT NULL,
+      streak_started_day DATE NULL,
+      longest_streak_started_day DATE NULL,
+      longest_streak_ended_day DATE NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT user_trade_streaks_current_nonnegative_check CHECK (current_streak_days >= 0),
+      CONSTRAINT user_trade_streaks_longest_nonnegative_check CHECK (longest_streak_days >= 0)
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.achievement_evaluation_runs (
+      id BIGSERIAL PRIMARY KEY,
+      run_type TEXT NOT NULL,
+      trigger_event_type TEXT NOT NULL,
+      trigger_event_id BIGINT NULL,
+      target_user_id BIGINT NULL,
+      status TEXT NOT NULL DEFAULT 'started',
+      started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      completed_at TIMESTAMPTZ NULL,
+      error_text TEXT NULL,
+      metadata_json JSONB NOT NULL DEFAULT '{}'::JSONB
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_achievement_evaluation_runs_target_idx
+      ON market.achievement_evaluation_runs (target_user_id, started_at DESC)
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS market.user_leaderboard_current (
       user_id BIGINT PRIMARY KEY REFERENCES market.users(id) ON DELETE CASCADE,
       username_snapshot TEXT NOT NULL,

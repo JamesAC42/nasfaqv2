@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { FaArrowTrendDown, FaArrowTrendUp, FaMoneyBillWave, FaPencil } from "react-icons/fa6";
 import { TrendChartCard } from "@/app/components/charts/market-charts";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { AssetPicker } from "@/app/components/common/asset-picker";
@@ -28,7 +29,7 @@ function formatDate(value: string | null) {
   if (!value) return "—";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return parsed.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
 }
 
 function formatDateTime(value: string | null) {
@@ -53,6 +54,42 @@ function detectSelectedProfilePictureId(profilePictureUrl: string | null, option
   return match?.id ?? null;
 }
 
+function valueToneClass(value: number | null | undefined) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "";
+  if (value > 0) return styles.positive;
+  if (value < 0) return styles.negative;
+  return styles.neutral;
+}
+
+function TrendValue({
+  value,
+  toneFrom,
+  iconPosition = "left",
+  icon,
+}: {
+  value: string;
+  toneFrom?: number | null | undefined;
+  iconPosition?: "left" | "right";
+  icon?: ReactNode;
+}) {
+  const toneClass = valueToneClass(toneFrom);
+  const TrendIcon = toneFrom === null || toneFrom === undefined || Number.isNaN(toneFrom)
+    ? null
+    : toneFrom >= 0
+      ? FaArrowTrendUp
+      : FaArrowTrendDown;
+
+  return (
+    <span className={[styles.trendValue, toneClass].filter(Boolean).join(" ")}>
+      {iconPosition === "left" ? icon : null}
+      {iconPosition === "left" && TrendIcon ? <TrendIcon aria-hidden="true" /> : null}
+      <span className={styles.numericValue}>{value}</span>
+      {iconPosition === "right" && TrendIcon ? <TrendIcon aria-hidden="true" /> : null}
+      {iconPosition === "right" ? icon : null}
+    </span>
+  );
+}
+
 function ProfileIdentity({
   profile,
   isSelf,
@@ -75,7 +112,17 @@ function ProfileIdentity({
     >
       <div className={styles.identityTop}>
         {isSelf ? (
-          <button type="button" className={styles.avatarPickerButton} onClick={onOpenProfilePicturePicker}>
+          <button
+            type="button"
+            className={styles.editProfileIconButton}
+            onClick={onOpenProfileSettings}
+            aria-label="Edit profile"
+          >
+            <FaPencil aria-hidden="true" />
+          </button>
+        ) : null}
+        {isSelf ? (
+          <button type="button" className={styles.avatarPickerButton} onClick={onOpenProfilePicturePicker} aria-label="Change profile picture">
             {profile.profile_picture_url ? (
               <img src={profile.profile_picture_url} alt="" className={styles.avatarImage} />
             ) : (
@@ -93,28 +140,26 @@ function ProfileIdentity({
         )}
         <div className={styles.identityCopy}>
           <div className={styles.eyebrow}>{isSelf ? "Your Public Profile" : "Public Profile"}</div>
-          <div className={styles.titleRow}>
-            <h1 className={styles.title}>{profile.username}</h1>
+          <h1 className={styles.title}>{profile.username}</h1>
+          <div className={styles.profileBadgeStack}>
+            <span className={styles.profileBadge}>Joined {formatDate(profile.created_at)}</span>
             {profile.oshi_coin ? (
-              <AssetCoin
-                symbol={profile.oshi_coin.symbol}
-                icon={profile.oshi_coin.icon}
-                color={profile.oshi_coin.color}
-                className={styles.titleOshiCoin}
-                shape="circle"
-              />
+              <span className={styles.profileBadge}>
+                <AssetCoin
+                  symbol={profile.oshi_coin.symbol}
+                  icon={profile.oshi_coin.icon}
+                  color={profile.oshi_coin.color}
+                  className={styles.titleOshiCoin}
+                  shape="circle"
+                />
+                <span>Oshi coin:</span>
+                <strong>{profile.oshi_coin.symbol}</strong>
+              </span>
             ) : null}
-          </div>
-          <div className={styles.metaRow}>
-            <span>Joined {formatDate(profile.created_at)}</span>
-            {profile.oshi_coin ? <span>Oshi coin: {profile.oshi_coin.symbol}</span> : null}
           </div>
           {profile.bio ? <p className={styles.bio}>{profile.bio}</p> : null}
           {isSelf ? (
             <div className={styles.actions}>
-              <button type="button" className={styles.secondaryButton} onClick={onOpenProfileSettings}>
-                Edit profile
-              </button>
               <button type="button" className={styles.secondaryButton} onClick={onLogout} disabled={logoutBusy}>
                 {logoutBusy ? "Logging out…" : "Log out"}
               </button>
@@ -243,6 +288,38 @@ function ProfileSettingsModal({
   );
 }
 
+function ProfileStatCard({
+  label,
+  value,
+  emphasis = "default",
+  tone,
+  showTrend = false,
+  iconPosition = "left",
+  icon,
+}: {
+  label: string;
+  value: string;
+  emphasis?: "default" | "hero";
+  tone?: number | null | undefined;
+  showTrend?: boolean;
+  iconPosition?: "left" | "right";
+  icon?: ReactNode;
+}) {
+  return (
+    <article className={[styles.summaryCard, emphasis === "hero" ? styles.summaryCardHero : ""].filter(Boolean).join(" ")}>
+      <span className={styles.summaryLabel}>{label}</span>
+      {showTrend ? (
+        <TrendValue value={value} toneFrom={tone} iconPosition={iconPosition} icon={icon} />
+      ) : (
+        <strong className={styles.summaryValue}>
+          <span className={styles.numericValue}>{value}</span>
+          {icon}
+        </strong>
+      )}
+    </article>
+  );
+}
+
 function RelationList({
   title,
   emptyLabel,
@@ -295,6 +372,152 @@ function ArticleCard({ article }: { article: ArticleSummary }) {
         <span>{article.comment_count} comments</span>
       </div>
     </Link>
+  );
+}
+
+function TradeList({
+  trades,
+  assets,
+}: {
+  trades: ProfileBundle["trades"]["items"];
+  assets: ReturnType<typeof useMarketStore.getState>["assets"];
+}) {
+  return (
+    <div className={styles.tradeList}>
+      {trades.map((trade) => {
+        const asset = assets.find((item) => item.symbol === trade.symbol) || null;
+        const isBuy = trade.side.toLowerCase() === "buy";
+        return (
+          <article key={trade.id} className={styles.tradeRow}>
+            <div className={styles.tradeAsset}>
+              <AssetCoin
+                symbol={trade.symbol}
+                icon={asset?.icon ?? null}
+                color={asset?.color ?? null}
+                className={styles.inlineAssetIcon}
+                shape="circle"
+              />
+              <div className={styles.tradeAssetCopy}>
+                <Link href={`/stocks/${encodeURIComponent(trade.symbol)}`} className={styles.tradeAssetLink}>
+                  {trade.symbol}
+                </Link>
+                <span>{trade.display_name || formatDateTime(trade.ts)}</span>
+              </div>
+            </div>
+            <div>
+              <span className={[styles.sideBadge, isBuy ? styles.sideBadgeBuy : styles.sideBadgeSell].join(" ")}>
+                {trade.side.toUpperCase()}
+              </span>
+            </div>
+            <div className={styles.tradeMetrics}>
+              <strong className={styles.numericValue}>{fmtNumber(trade.quantity)} @ {fmtNumber(trade.price, "$")}</strong>
+              <span className={styles.numericValue}>Gross {fmtNumber(trade.gross_cash, "$")}</span>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function AchievementBadgeList({
+  achievements,
+  emptyLabel,
+}: {
+  achievements: ProfileBundle["profile"]["achievements"];
+  emptyLabel: string;
+}) {
+  return (
+    <section className={styles.sectionPanel}>
+      <div className={styles.sectionHead}>
+        <h2 className={styles.sectionTitle}>Achievements</h2>
+        <span className={styles.sectionCount}>{achievements.length}</span>
+      </div>
+      {achievements.length ? (
+        <div className={styles.achievementGrid}>
+          {achievements.map((achievement) => (
+            <article
+              key={`${achievement.key}:${achievement.earned_at || "earned"}`}
+              className={styles.achievementCard}
+              style={achievement.badge_color ? ({ "--achievement-accent": achievement.badge_color } as CSSProperties) : undefined}
+            >
+              <div className={styles.achievementTop}>
+                <strong>{achievement.name}</strong>
+                {achievement.reward_cash > 0 ? <span className={styles.achievementReward}>+{fmtNumber(achievement.reward_cash, "$")}</span> : null}
+              </div>
+              {achievement.description ? <p className={styles.achievementDescription}>{achievement.description}</p> : null}
+              <div className={styles.achievementMeta}>
+                <span>{achievement.earned_at ? `Earned ${formatDate(achievement.earned_at)}` : "Earned"}</span>
+                {achievement.badge_icon ? <span>{achievement.badge_icon}</span> : null}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className={styles.empty}>{emptyLabel}</div>
+      )}
+    </section>
+  );
+}
+
+function HoldingsTable({
+  holdings,
+  assets,
+  totalEquity,
+}: {
+  holdings: ProfileBundle["profile"]["holdings"];
+  assets: ReturnType<typeof useMarketStore.getState>["assets"];
+  totalEquity: number;
+}) {
+  return (
+    <div className={styles.tableWrap}>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th>Asset</th>
+            <th>Qty</th>
+            <th>Avg Cost</th>
+            <th>Mid</th>
+            <th>Value</th>
+            <th>%</th>
+            <th>PnL</th>
+          </tr>
+        </thead>
+        <tbody>
+          {holdings.map((holding) => {
+            const asset = assets.find((item) => item.symbol === holding.symbol) || null;
+            const weight = totalEquity > 0 ? (holding.market_value / totalEquity) * 100 : null;
+            return (
+              <tr key={holding.asset_id}>
+                <td>
+                  <Link href={`/stocks/${encodeURIComponent(holding.symbol)}`} className={styles.holdingAssetLink}>
+                    <div className={styles.holdingAsset}>
+                      <AssetCoin
+                        symbol={holding.symbol}
+                        icon={asset?.icon ?? null}
+                        color={asset?.color ?? null}
+                        className={styles.inlineAssetIcon}
+                        shape="circle"
+                      />
+                      <div className={styles.holdingAssetCopy}>
+                        <strong>{holding.symbol}</strong>
+                        <span>{holding.display_name}</span>
+                      </div>
+                    </div>
+                  </Link>
+                </td>
+                <td className={styles.numericCell}>{fmtNumber(holding.quantity)}</td>
+                <td className={styles.numericCell}>{fmtNumber(holding.avg_cost_basis, "$")}</td>
+                <td className={styles.numericCell}>{fmtNumber(holding.current_mid_price, "$")}</td>
+                <td className={styles.numericCell}>{fmtNumber(holding.market_value, "$")}</td>
+                <td className={styles.numericCell}>{weight === null ? "—" : `${weight.toFixed(1)}%`}</td>
+                <td className={[styles.numericCell, valueToneClass(holding.unrealized_pnl)].filter(Boolean).join(" ")}>{formatSignedCurrency(holding.unrealized_pnl)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -535,6 +758,22 @@ export function ProfilePage({ username }: { username?: string | null }) {
   const viewer = bundle?.viewer_context || null;
   const isSelf = Boolean(viewer?.is_self);
   const selectedProfilePictureId = detectSelectedProfilePictureId(profile?.profile_picture_url || null, profilePictures);
+  const accentColor = profile?.profile_color || profile?.oshi_coin?.color || "var(--accent)";
+  const networthDelta = useMemo(() => {
+    if (!profile?.networth_history?.length) return null;
+    const first = profile.networth_history[0]?.total_equity ?? null;
+    const last = profile.networth_history[profile.networth_history.length - 1]?.total_equity ?? null;
+    if (first === null || last === null) return null;
+    return last - first;
+  }, [profile?.networth_history]);
+  const holdingsSorted = useMemo(
+    () => [...(profile?.holdings || [])].sort((a, b) => b.quantity - a.quantity),
+    [profile?.holdings]
+  );
+  const holdingsWeightPct = profile && profile.stats.total_equity > 0
+    ? Math.max(0, Math.min(100, (profile.stats.total_market_value / profile.stats.total_equity) * 100))
+    : 0;
+  const cashWeightPct = Math.max(0, 100 - holdingsWeightPct);
 
   const chartTheme = useMemo(
     () => createChannelChartTheme(profile?.profile_color || profile?.oshi_coin?.color || null),
@@ -579,69 +818,144 @@ export function ProfilePage({ username }: { username?: string | null }) {
 
           {bundle && profile && viewer ? (
             <>
-              <div className={styles.topGrid}>
-                <ProfileIdentity
-                  profile={profile}
-                  isSelf={isSelf}
-                  onOpenProfilePicturePicker={() => setIsProfilePictureModalOpen(true)}
-                  onOpenProfileSettings={() => setIsProfileSettingsModalOpen(true)}
-                  onLogout={() => void handleLogout()}
-                  logoutBusy={logoutBusy}
-                />
-
-                <section className={styles.sectionPanel}>
-                  <div className={styles.sectionHead}>
-                    <h2 className={styles.sectionTitle}>Overview</h2>
-                    {viewer.is_self ? <span className={styles.sectionCount}>Private extras enabled</span> : null}
-                  </div>
-                  <div className={styles.statsGrid}>
-                    <div className={styles.statCard}><span>Net worth</span><strong>{fmtNumber(profile.stats.total_equity, "$")}</strong></div>
-                    <div className={styles.statCard}><span>Cash</span><strong>{fmtNumber(profile.stats.cash_balance, "$")}</strong></div>
-                    <div className={styles.statCard}><span>Market value</span><strong>{fmtNumber(profile.stats.total_market_value, "$")}</strong></div>
-                    <div className={styles.statCard}><span>Unrealized PnL</span><strong>{formatSignedCurrency(profile.stats.total_unrealized_pnl)}</strong></div>
-                    <div className={styles.statCard}><span>Articles</span><strong>{fmtNumber(profile.stats.article_count)}</strong></div>
-                    <div className={styles.statCard}><span>Trades</span><strong>{fmtNumber(profile.stats.trade_count)}</strong></div>
-                    <div className={styles.statCard}><span>Friends</span><strong>{fmtNumber(profile.stats.friend_count)}</strong></div>
-                    <div className={styles.statCard}><span>Rivals</span><strong>{fmtNumber(profile.stats.rival_count)}</strong></div>
-                  </div>
-                  {!viewer.is_self ? (
-                    <div className={styles.actions}>
-                      {viewer.friendship_status === "none" ? (
-                        <button type="button" className={styles.primaryButton} disabled={actionBusy !== null || !viewer.is_authenticated} onClick={() => void handleProfileAction("friend")}>
-                          {actionBusy === "friend" ? "Sending…" : "Send friend request"}
-                        </button>
-                      ) : null}
-                      {viewer.friendship_status === "pending_incoming" ? (
-                        <button type="button" className={styles.primaryButton} disabled={actionBusy !== null} onClick={() => void handleProfileAction("accept")}>
-                          {actionBusy === "accept" ? "Accepting…" : "Accept friend request"}
-                        </button>
-                      ) : null}
-                      {viewer.friendship_status === "accepted" || viewer.friendship_status === "pending_outgoing" || viewer.friendship_status === "pending_incoming" ? (
-                        <button type="button" className={styles.secondaryButton} disabled={actionBusy !== null} onClick={() => void handleProfileAction("removeFriend")}>
-                          {actionBusy === "removeFriend" ? "Updating…" : viewer.friendship_status === "accepted" ? "Remove friend" : "Clear request"}
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        className={styles.secondaryButton}
-                        disabled={actionBusy !== null || !viewer.is_authenticated}
-                        onClick={() => void handleProfileAction("toggleRival", !viewer.is_rival)}
-                      >
-                        {actionBusy === "toggleRival" ? "Updating…" : viewer.is_rival ? "Remove rival" : "Mark rival"}
-                      </button>
-                    </div>
-                  ) : null}
-                </section>
-              </div>
-
-              <div className={styles.contentGrid}>
-                <div className={styles.mainColumn}>
-                  <TrendChartCard
-                    title="Net Worth"
-                    subtitle="Tracked snapshots of equity and cash over time"
-                    series={networthSeries}
-                    theme={chartTheme}
+              <div className={styles.profileLayout}>
+                <div className={styles.leftColumn}>
+                  <ProfileIdentity
+                    profile={profile}
+                    isSelf={isSelf}
+                    onOpenProfilePicturePicker={() => setIsProfilePictureModalOpen(true)}
+                    onOpenProfileSettings={() => setIsProfileSettingsModalOpen(true)}
+                    onLogout={() => void handleLogout()}
+                    logoutBusy={logoutBusy}
                   />
+
+                  {!viewer.is_self ? (
+                    <section className={styles.sectionPanel}>
+                      <div className={styles.sectionHead}>
+                        <h2 className={styles.sectionTitle}>Connect</h2>
+                        <span className={styles.sectionCount}>{viewer.is_authenticated ? "Live" : "Sign in required"}</span>
+                      </div>
+                      <div className={styles.actions}>
+                        {viewer.friendship_status === "none" ? (
+                          <button type="button" className={styles.primaryButton} disabled={actionBusy !== null || !viewer.is_authenticated} onClick={() => void handleProfileAction("friend")}>
+                            {actionBusy === "friend" ? "Sending…" : "Send friend request"}
+                          </button>
+                        ) : null}
+                        {viewer.friendship_status === "pending_incoming" ? (
+                          <button type="button" className={styles.primaryButton} disabled={actionBusy !== null} onClick={() => void handleProfileAction("accept")}>
+                            {actionBusy === "accept" ? "Accepting…" : "Accept friend request"}
+                          </button>
+                        ) : null}
+                        {viewer.friendship_status === "accepted" || viewer.friendship_status === "pending_outgoing" || viewer.friendship_status === "pending_incoming" ? (
+                          <button type="button" className={styles.secondaryButton} disabled={actionBusy !== null} onClick={() => void handleProfileAction("removeFriend")}>
+                            {actionBusy === "removeFriend" ? "Updating…" : viewer.friendship_status === "accepted" ? "Remove friend" : "Clear request"}
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className={styles.secondaryButton}
+                          disabled={actionBusy !== null || !viewer.is_authenticated}
+                          onClick={() => void handleProfileAction("toggleRival", !viewer.is_rival)}
+                        >
+                          {actionBusy === "toggleRival" ? "Updating…" : viewer.is_rival ? "Remove rival" : "Mark rival"}
+                        </button>
+                      </div>
+                    </section>
+                  ) : null}
+
+                  <section className={styles.sectionPanel}>
+                    <div className={styles.sectionHead}>
+                      <h2 className={styles.sectionTitle}>Recent Trades</h2>
+                      <span className={styles.sectionCount}>Page {bundle.trades.pagination.page} of {bundle.trades.pagination.page_count}</span>
+                    </div>
+                    {bundle.trades.items.length ? (
+                      <TradeList trades={bundle.trades.items} assets={assets} />
+                    ) : (
+                      <div className={styles.empty}>No trades have been recorded yet.</div>
+                    )}
+                    <div className={styles.paginationCompact}>
+                      <button type="button" className={styles.smallPaginationButton} disabled={!bundle.trades.pagination.has_previous_page || isLoading} onClick={() => setTradesPage((current) => Math.max(1, current - 1))}>Previous</button>
+                      <span className={styles.muted}>Page {bundle.trades.pagination.page} of {bundle.trades.pagination.page_count}</span>
+                      <button type="button" className={styles.smallPaginationButton} disabled={!bundle.trades.pagination.has_next_page || isLoading} onClick={() => setTradesPage((current) => current + 1)}>Next</button>
+                    </div>
+                  </section>
+                </div>
+
+                <div className={styles.centerColumn}>
+                  <section
+                    className={styles.summaryStrip}
+                    style={{ "--profile-accent": accentColor } as CSSProperties}
+                  >
+                    <div className={styles.summaryGrid}>
+                      <ProfileStatCard
+                        label="Net worth"
+                        value={fmtNumber(profile.stats.total_equity, "$")}
+                        emphasis="hero"
+                        tone={networthDelta}
+                        showTrend
+                        iconPosition="right"
+                      />
+                      <ProfileStatCard
+                        label="Cash"
+                        value={fmtNumber(profile.stats.cash_balance, "$")}
+                        icon={<FaMoneyBillWave aria-hidden="true" />}
+                      />
+                      <ProfileStatCard
+                        label="Unrealized PnL"
+                        value={formatSignedCurrency(profile.stats.total_unrealized_pnl)}
+                        tone={profile.stats.total_unrealized_pnl}
+                        showTrend
+                        iconPosition="right"
+                      />
+                    </div>
+                  </section>
+
+                  <section
+                    className={styles.chartPanel}
+                    style={{ "--profile-accent": accentColor, "--holdings-weight": `${holdingsWeightPct}%`, "--cash-weight": `${cashWeightPct}%` } as CSSProperties}
+                  >
+                    <div className={styles.allocationPanel}>
+                      <div className={styles.allocationRow}>
+                        <span>Holdings <strong className={styles.numericValue}>{holdingsWeightPct.toFixed(1)}%</strong></span>
+                        <span><strong className={styles.numericValue}>{cashWeightPct.toFixed(1)}%</strong> Cash</span>
+                      </div>
+                      <div className={styles.allocationBar} aria-hidden="true">
+                        <span className={styles.allocationHoldings} />
+                        <span className={styles.allocationCash} />
+                      </div>
+                    </div>
+                    <TrendChartCard
+                      title="Net Worth"
+                      subtitle="Tracked snapshots of equity and cash over time"
+                      series={networthSeries}
+                      theme={chartTheme}
+                      bare
+                    />
+                  </section>
+
+                  <AchievementBadgeList
+                    achievements={profile.achievements}
+                    emptyLabel={isSelf ? "You have not earned any achievements yet." : "No achievements are visible yet."}
+                  />
+
+                  {isSelf ? (
+                    <section className={styles.sectionPanel}>
+                      <div className={styles.sectionHead}>
+                        <h2 className={styles.sectionTitle}>Holdings</h2>
+                        <span className={styles.sectionCount}>{holdingsSorted.length}</span>
+                      </div>
+                      {holdingsSorted.length ? (
+                        <HoldingsTable holdings={holdingsSorted} assets={assets} totalEquity={profile.stats.total_equity} />
+                      ) : (
+                        <div className={styles.empty}>You do not hold any positions yet.</div>
+                      )}
+                    </section>
+                  ) : null}
+                </div>
+
+                <div className={styles.rightColumn}>
+                  <RelationList title="Friends" emptyLabel={isSelf ? "You have no confirmed friends yet." : "No friends are visible yet."} people={profile.friends} />
+                  <RelationList title="Rivals" emptyLabel={isSelf ? "You have not marked any rivals yet." : "No rivals are visible yet."} people={profile.rivals} />
 
                   <section className={styles.sectionPanel}>
                     <div className={styles.sectionHead}>
@@ -655,100 +969,12 @@ export function ProfilePage({ username }: { username?: string | null }) {
                     ) : (
                       <div className={styles.empty}>No published articles yet.</div>
                     )}
-                    <div className={styles.paginationRow}>
-                      <button type="button" className={styles.secondaryButton} disabled={!bundle.articles.pagination.has_previous_page || isLoading} onClick={() => setArticlesPage((current) => Math.max(1, current - 1))}>Previous</button>
-                      <span className={styles.muted}>{bundle.articles.pagination.total} total</span>
-                      <button type="button" className={styles.secondaryButton} disabled={!bundle.articles.pagination.has_next_page || isLoading} onClick={() => setArticlesPage((current) => current + 1)}>Next</button>
+                    <div className={styles.paginationCompact}>
+                      <button type="button" className={styles.smallPaginationButton} disabled={!bundle.articles.pagination.has_previous_page || isLoading} onClick={() => setArticlesPage((current) => Math.max(1, current - 1))}>Previous</button>
+                      <span className={styles.muted}>Page {bundle.articles.pagination.page} of {bundle.articles.pagination.page_count}</span>
+                      <button type="button" className={styles.smallPaginationButton} disabled={!bundle.articles.pagination.has_next_page || isLoading} onClick={() => setArticlesPage((current) => current + 1)}>Next</button>
                     </div>
                   </section>
-
-                  <section className={styles.sectionPanel}>
-                    <div className={styles.sectionHead}>
-                      <h2 className={styles.sectionTitle}>Recent Trades</h2>
-                      <span className={styles.sectionCount}>Page {bundle.trades.pagination.page} of {bundle.trades.pagination.page_count}</span>
-                    </div>
-                    {bundle.trades.items.length ? (
-                      <div className={styles.tableWrap}>
-                        <table className={styles.table}>
-                          <thead>
-                            <tr>
-                              <th>When</th>
-                              <th>Asset</th>
-                              <th>Side</th>
-                              <th>Qty</th>
-                              <th>Price</th>
-                              <th>Gross</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {bundle.trades.items.map((trade) => (
-                              <tr key={trade.id}>
-                                <td>{formatDateTime(trade.ts)}</td>
-                                <td>
-                                  <Link href={`/stocks/${encodeURIComponent(trade.symbol)}`}>{trade.symbol}</Link>
-                                </td>
-                                <td>{trade.side.toUpperCase()}</td>
-                                <td>{fmtNumber(trade.quantity)}</td>
-                                <td>{fmtNumber(trade.price, "$")}</td>
-                                <td>{fmtNumber(trade.gross_cash, "$")}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <div className={styles.empty}>No trades have been recorded yet.</div>
-                    )}
-                    <div className={styles.paginationRow}>
-                      <button type="button" className={styles.secondaryButton} disabled={!bundle.trades.pagination.has_previous_page || isLoading} onClick={() => setTradesPage((current) => Math.max(1, current - 1))}>Previous</button>
-                      <span className={styles.muted}>{bundle.trades.pagination.total} total</span>
-                      <button type="button" className={styles.secondaryButton} disabled={!bundle.trades.pagination.has_next_page || isLoading} onClick={() => setTradesPage((current) => current + 1)}>Next</button>
-                    </div>
-                  </section>
-
-                  {isSelf ? (
-                    <section className={styles.sectionPanel}>
-                      <div className={styles.sectionHead}>
-                        <h2 className={styles.sectionTitle}>Holdings</h2>
-                        <span className={styles.sectionCount}>{profile.holdings.length}</span>
-                      </div>
-                      {profile.holdings.length ? (
-                        <div className={styles.tableWrap}>
-                          <table className={styles.table}>
-                            <thead>
-                              <tr>
-                                <th>Symbol</th>
-                                <th>Qty</th>
-                                <th>Avg Cost</th>
-                                <th>Mid</th>
-                                <th>Value</th>
-                                <th>PnL</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {profile.holdings.map((holding) => (
-                                <tr key={holding.asset_id}>
-                                  <td>{holding.symbol}</td>
-                                  <td>{fmtNumber(holding.quantity)}</td>
-                                  <td>{fmtNumber(holding.avg_cost_basis, "$")}</td>
-                                  <td>{fmtNumber(holding.current_mid_price, "$")}</td>
-                                  <td>{fmtNumber(holding.market_value, "$")}</td>
-                                  <td>{formatSignedCurrency(holding.unrealized_pnl)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : (
-                        <div className={styles.empty}>You do not hold any positions yet.</div>
-                      )}
-                    </section>
-                  ) : null}
-                </div>
-
-                <div className={styles.sideColumn}>
-                  <RelationList title="Friends" emptyLabel={isSelf ? "You have no confirmed friends yet." : "No friends are visible yet."} people={profile.friends} />
-                  <RelationList title="Rivals" emptyLabel={isSelf ? "You have not marked any rivals yet." : "No rivals are visible yet."} people={profile.rivals} />
 
                   {isSelf && profile.pending_friend_requests ? (
                     <>

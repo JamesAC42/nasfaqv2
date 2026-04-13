@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { startTransition, useDeferredValue, useEffect, useMemo, type ReactNode } from "react";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { TrendChartCard } from "@/app/components/charts/market-charts";
 import { SiteShell } from "@/app/components/layout/site-shell";
@@ -41,6 +41,10 @@ function getToneClass(value: number | null | undefined) {
 
 function findAsset(assets: MarketAsset[], symbol: string) {
   return assets.find((asset) => asset.symbol === symbol) || null;
+}
+
+function getIndexGroupValue(index: MarketIndexBundle) {
+  return index.group === "all" ? "all" : index.group;
 }
 
 function topAssetBy(
@@ -153,38 +157,71 @@ function IndexConstituentRow({
   );
 }
 
-function IndexCard({
+function IndexSelectorMemberStrip({
+  index,
+  assets,
+}: {
+  index: MarketIndexBundle;
+  assets: MarketAsset[];
+}) {
+  if (index.group === "all") return null;
+
+  const members = assets
+    .filter((asset) => asset.unit === index.group)
+    .sort((a, b) => (b.volume_24h ?? 0) - (a.volume_24h ?? 0))
+    .slice(0, 6);
+
+  if (!members.length) return null;
+
+  return (
+    <div className={styles.indexSelectorMembers} aria-hidden="true">
+      {members.map((asset) => (
+        <AssetCoin
+          key={`${index.group}-selector-${asset.symbol}`}
+          symbol={asset.symbol}
+          icon={asset.icon ?? null}
+          color={asset.color ?? null}
+          className={styles.indexSelectorMemberIcon}
+        />
+      ))}
+    </div>
+  );
+}
+
+function IndexSelectorCard({
   index,
   assets,
   selectedUnit,
   onSelectUnit,
-  indexChartColor,
 }: {
   index: MarketIndexBundle;
   assets: MarketAsset[];
   selectedUnit: string;
   onSelectUnit: (unit: string) => void;
-  indexChartColor: string;
 }) {
   const summary = index.summary;
-  const groupValue = index.group === "all" ? "all" : index.group;
+  const groupValue = getIndexGroupValue(index);
   const isSelected = selectedUnit === groupValue;
   const title = formatIndexTitle(index.group);
 
   return (
     <button
       type="button"
-      className={`${styles.indexCard} ${isSelected ? styles.indexCardSelected : ""}`}
+      className={`${styles.indexSelectorCard} ${isSelected ? styles.indexSelectorCardSelected : ""}`}
       onClick={() => onSelectUnit(groupValue)}
+      aria-pressed={isSelected}
     >
-      <div className={styles.indexCardHeader}>
+      <div className={styles.indexSelectorHeader}>
         <div>
           <div className={styles.indexEyebrow}>
             <FaLayerGroup />
             <span>{index.weighting} weight</span>
           </div>
-          <h3>{title}</h3>
-          <p>{title === "All Market" ? "Cross-market baseline" : "Unit-level market tape"} with equal-weight performance and breadth.</p>
+          <div className={styles.indexSelectorTitleRow}>
+            <h3>{title}</h3>
+            <IndexSelectorMemberStrip index={index} assets={assets} />
+          </div>
+          <p>{title === "All Market" ? "Cross-market baseline" : "Unit-level market tape"} with equal-weight breadth.</p>
         </div>
         <div className={`${styles.returnBadge} ${getToneClass(summary?.day_return_pct)}`}>
           {summary?.day_return_pct !== null && (summary?.day_return_pct ?? 0) >= 0 ? <FaArrowTrendUp /> : <FaArrowTrendDown />}
@@ -192,23 +229,98 @@ function IndexCard({
           <span>1D</span>
         </div>
       </div>
-
-      <div className={styles.indexChart}>
-        <TrendChartCard
-          title={`${title} Index`}
-          subtitle={`${summary?.market_date || "Latest"} · ${fmtInteger(summary?.constituent_count)} constituents`}
-          series={[
-            {
-              name: "Index",
-              color: indexChartColor,
-              kind: "area",
-              values: index.series.map((point) => ({ time: point.bucket, value: point.value })),
-            },
-          ]}
-        />
+      <div className={styles.indexSelectorStats}>
+        <div className={styles.indexSelectorStat}>
+          <span><FaGaugeHigh /> Level</span>
+          <strong>{fmtNumber(summary?.index_value)}</strong>
+        </div>
+        <div className={styles.indexSelectorStat}>
+          <span><FaChartLine /> Range</span>
+          <strong className={getToneClass(summary?.total_return_pct)}>{fmtPct(summary?.total_return_pct)}</strong>
+        </div>
+        <div className={styles.indexSelectorStat}>
+          <span><FaArrowTrendUp /> Breadth</span>
+          <strong>
+            {fmtInteger(summary?.advancers)} / {fmtInteger(summary?.decliners)}
+          </strong>
+        </div>
       </div>
+    </button>
+  );
+}
 
-      <IndexConstituentRow index={index} assets={assets} />
+function IndexDetailPanel({
+  index,
+  assets,
+  indexChartColor,
+  selectedSymbol,
+  setSelectedSymbol,
+  heatmapAssets,
+  assetTableRows,
+}: {
+  index: MarketIndexBundle;
+  assets: MarketAsset[];
+  indexChartColor: string;
+  selectedSymbol: string | null;
+  setSelectedSymbol: (symbol: string) => void;
+  heatmapAssets: MarketAsset[];
+  assetTableRows: MarketAsset[];
+}) {
+  const summary = index.summary;
+  const title = formatIndexTitle(index.group);
+
+  return (
+    <div className={styles.indexDetailPane}>
+      <div className={styles.indexDetailTop}>
+        <div className={styles.indexDetailChart}>
+          <div className={styles.indexDetailHeader}>
+            <div>
+              <div className={styles.indexEyebrow}>
+                <FaLayerGroup />
+                <span>{index.weighting} weight</span>
+              </div>
+              <h3>{title}</h3>
+              <p>
+                {title === "All Market" ? "Cross-market baseline" : "Unit-level market tape"} with performance, breadth, and constituent read-through.
+              </p>
+            </div>
+            <div className={`${styles.returnBadge} ${getToneClass(summary?.day_return_pct)}`}>
+              {summary?.day_return_pct !== null && (summary?.day_return_pct ?? 0) >= 0 ? <FaArrowTrendUp /> : <FaArrowTrendDown />}
+              <strong>{fmtPct(summary?.day_return_pct)}</strong>
+              <span>1D</span>
+            </div>
+          </div>
+
+          <div className={styles.detailChart}>
+            <TrendChartCard
+              title={`${title} Index`}
+              subtitle={`${summary?.market_date || "Latest"} · ${fmtInteger(summary?.constituent_count)} constituents`}
+              series={[
+                {
+                  name: "Index",
+                  color: indexChartColor,
+                  kind: "area",
+                  values: index.series.map((point) => ({ time: point.bucket, value: point.value })),
+                },
+              ]}
+            />
+          </div>
+        </div>
+
+        <div className={styles.indexDetailAside}>
+          <div className={styles.indexDetailCallout}>
+            <span><FaMoneyBillTrendUp /> Indexed flow</span>
+            <strong>{fmtNumber(summary?.total_volume_cash, "$")}</strong>
+            <p>Notional volume moving through this basket on the latest settled session.</p>
+          </div>
+          <div className={styles.indexDetailCallout}>
+            <span><HiSparkles /> Average premium</span>
+            <strong className={getToneClass(summary?.avg_premium_pct)}>{fmtPct(summary?.avg_premium_pct)}</strong>
+            <p>Mean premium across the currently indexed constituents.</p>
+          </div>
+          <IndexConstituentRow index={index} assets={assets} />
+        </div>
+      </div>
 
       <div className={styles.indexStatsGrid}>
         <div className={styles.indexStat}>
@@ -238,7 +350,91 @@ function IndexCard({
           <strong>{summary?.market_date || "—"}</strong>
         </div>
       </div>
-    </button>
+
+      <div className={styles.indexDetailMarketDesk}>
+        <div className={styles.heatmapPanel}>
+          <div className={styles.sectionHeader}>
+            <div>
+              <h2>Heatmap</h2>
+              <p>Tile size scales with price-volume footprint for the selected basket.</p>
+            </div>
+          </div>
+          <div className={styles.heatmap}>
+            {heatmapAssets.map((asset) => {
+              const strength = Math.max(0, Math.min(1, computeHeatmapMarketCap(asset) / Math.max(computeHeatmapMarketCap(heatmapAssets[0] || asset), 1)));
+              const spanClass = strength > 0.66 ? styles.tileLg : strength > 0.33 ? styles.tileMd : styles.tileSm;
+              return (
+                <button
+                  key={asset.symbol}
+                  type="button"
+                  className={`${styles.heatmapTile} ${spanClass} ${(asset.move_24h_pct ?? 0) >= 0 ? styles.tileUp : styles.tileDown} ${selectedSymbol === asset.symbol ? styles.tileSelected : ""}`}
+                  onClick={() => setSelectedSymbol(asset.symbol)}
+                >
+                  <div className={styles.heatmapTileHeader}>
+                    <AssetCoin symbol={asset.symbol} icon={asset.icon ?? null} color={asset.color ?? null} className={styles.heatmapIcon} />
+                    <div>
+                      <strong>{asset.symbol}</strong>
+                      <span>{asset.display_name}</span>
+                    </div>
+                  </div>
+                  <div className={styles.heatmapNumbers}>
+                    <strong>{fmtNumber(asset.current_mid_price, "$")}</strong>
+                    <span className={getToneClass(asset.move_24h_pct)}>{fmtPct(asset.move_24h_pct)}</span>
+                  </div>
+                  <div className={styles.heatmapMeta}>
+                    <span>Vol {fmtNumber(asset.volume_24h)}</span>
+                    <span>Prem {fmtPct(asset.current_premium_pct)}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className={styles.tablePanel}>
+          <div className={styles.sectionHeader}>
+            <div>
+              <h2>Asset Tape</h2>
+              <p>Compact sortable-style readout for the currently selected index basket.</p>
+            </div>
+          </div>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Asset</th>
+                  <th>Mid</th>
+                  <th>24h</th>
+                  <th>Premium</th>
+                  <th>Volume</th>
+                  <th>Desk</th>
+                </tr>
+              </thead>
+              <tbody>
+                {assetTableRows.map((asset) => (
+                  <tr key={asset.symbol} className={selectedSymbol === asset.symbol ? styles.selectedRow : undefined}>
+                    <td>
+                      <Link href={`/stocks/${encodeURIComponent(asset.symbol)}`} className={styles.assetLink} onClick={() => setSelectedSymbol(asset.symbol)}>
+                        <AssetCoin symbol={asset.symbol} icon={asset.icon ?? null} color={asset.color ?? null} className={styles.tableCoin} />
+                        <span>
+                          <strong>{asset.symbol}</strong>
+                          <em>{asset.display_name}</em>
+                        </span>
+                      </Link>
+                    </td>
+                    <td>{fmtNumber(asset.current_mid_price, "$")}</td>
+                    <td className={getToneClass(asset.move_24h_pct)}>{fmtPct(asset.move_24h_pct)}</td>
+                    <td className={getToneClass(asset.current_premium_pct)}>{fmtPct(asset.current_premium_pct)}</td>
+                    <td>{fmtNumber(asset.volume_24h)}</td>
+                    <td>{asset.unit || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -307,16 +503,15 @@ export function IndexesPage() {
   const setSelectedUnit = useMarketStore((state) => state.setSelectedUnit);
   const refreshOverview = useMarketStore((state) => state.refreshOverview);
   const fetchMarketIndexes = useMarketStore((state) => state.fetchMarketIndexes);
-  const [indexChartColor, setIndexChartColor] = useState("var(--trend-line)");
+  const deferredSelectedUnit = useDeferredValue(selectedUnit);
+  const indexChartColor = useMemo(() => {
+    if (typeof document === "undefined") return "#4f8cff";
+    return getComputedStyle(document.documentElement).getPropertyValue("--trend-line").trim() || "#4f8cff";
+  }, []);
 
   useEffect(() => {
     void Promise.allSettled([refreshOverview(), fetchMarketIndexes()]);
   }, [fetchMarketIndexes, refreshOverview]);
-
-  useEffect(() => {
-    const nextColor = getComputedStyle(document.documentElement).getPropertyValue("--trend-line").trim();
-    if (nextColor) setIndexChartColor(nextColor);
-  }, []);
 
   const marketTopPrice = useMemo(() => topAssetBy(assets, (asset) => asset.current_mid_price), [assets]);
   const marketTopVolume = useMemo(() => topAssetBy(assets, (asset) => asset.volume_24h), [assets]);
@@ -347,9 +542,24 @@ export function IndexesPage() {
 
   const reportGroups = useMemo(() => buildReportGroups(report), [report]);
 
+  const activeIndex = useMemo(() => {
+    if (!marketIndexes.length) return null;
+    return marketIndexes.find((index) => getIndexGroupValue(index) === selectedUnit) || allMarketIndex || marketIndexes[0] || null;
+  }, [allMarketIndex, marketIndexes, selectedUnit]);
+
+  useEffect(() => {
+    if (!marketIndexes.length) return;
+    if (marketIndexes.some((index) => getIndexGroupValue(index) === selectedUnit)) return;
+
+    const fallbackUnit = getIndexGroupValue(allMarketIndex || marketIndexes[0]);
+    startTransition(() => {
+      setSelectedUnit(fallbackUnit);
+    });
+  }, [allMarketIndex, marketIndexes, selectedUnit, setSelectedUnit]);
+
   const filteredAssets = useMemo(
-    () => assets.filter((asset) => selectedUnit === "all" || asset.unit === selectedUnit),
-    [assets, selectedUnit]
+    () => assets.filter((asset) => deferredSelectedUnit === "all" || asset.unit === deferredSelectedUnit),
+    [assets, deferredSelectedUnit]
   );
 
   const heatmapAssets = useMemo(
@@ -414,9 +624,9 @@ export function IndexesPage() {
           <div className={styles.statusCard}>
             <span><FaChartColumn /> Coverage</span>
             <strong>{fmtInteger(assets.length)} active assets</strong>
-            <p>{selectedUnit === "all" ? "Full market universe visible." : `${selectedUnit} subset selected.`}</p>
-          </div>
-        </section>
+              <p>{selectedUnit === "all" ? "Full market universe visible." : `${selectedUnit} subset selected.`}</p>
+            </div>
+          </section>
 
         <section className={styles.summaryGrid}>
           <div className={styles.summaryCardLarge}>
@@ -522,116 +732,42 @@ export function IndexesPage() {
         <section className={styles.indexesSection}>
           <div className={styles.sectionHeader}>
             <div>
-              <h2>Index Matrix</h2>
-              <p>Selecting an index also filters the heatmap and compact asset tape below.</p>
+              <h2>Index Desk</h2>
+              <p>Select an index from the left rail to inspect its chart, breadth, and constituent basket. The heatmap and asset tape below follow that selection.</p>
             </div>
-            <label className={styles.filterPill}>
-              <span>Desk view</span>
-              <select value={selectedUnit} onChange={(event) => setSelectedUnit(event.target.value)}>
-                <option value="all">All</option>
-                {unitOptions.map((unit) => (
-                  <option key={unit} value={unit}>
-                    {unit}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className={styles.filterPill}>
+              <span>Indexes visible</span>
+              <strong>{fmtInteger(unitOptions.length + 1)}</strong>
+            </div>
           </div>
-          <div className={styles.indexGrid}>
-            {marketIndexes.map((index) => (
-              <IndexCard
-                key={`${index.group_by}:${index.group}`}
-                index={index}
+          <div className={styles.indexSplitPane}>
+            <div className={styles.indexSelectorPane}>
+              {marketIndexes.map((index) => (
+                <IndexSelectorCard
+                  key={`${index.group_by}:${index.group}`}
+                  index={index}
+                  assets={assets}
+                  selectedUnit={selectedUnit}
+                  onSelectUnit={(unit) => {
+                    startTransition(() => {
+                      setSelectedUnit(unit);
+                    });
+                  }}
+                />
+              ))}
+            </div>
+            {activeIndex ? (
+              <IndexDetailPanel
+                key={`${activeIndex.group_by}:${activeIndex.group}`}
+                index={activeIndex}
                 assets={assets}
-                selectedUnit={selectedUnit}
-                onSelectUnit={setSelectedUnit}
                 indexChartColor={indexChartColor}
+                selectedSymbol={selectedSymbol}
+                setSelectedSymbol={setSelectedSymbol}
+                heatmapAssets={heatmapAssets}
+                assetTableRows={assetTableRows}
               />
-            ))}
-          </div>
-        </section>
-
-        <section className={styles.marketDesk}>
-          <div className={styles.heatmapPanel}>
-            <div className={styles.sectionHeader}>
-              <div>
-                <h2>Heatmap</h2>
-                <p>Tile size scales with price-volume footprint for the selected basket.</p>
-              </div>
-            </div>
-            <div className={styles.heatmap}>
-              {heatmapAssets.map((asset) => {
-                const strength = Math.max(0, Math.min(1, computeHeatmapMarketCap(asset) / Math.max(computeHeatmapMarketCap(heatmapAssets[0] || asset), 1)));
-                const spanClass = strength > 0.66 ? styles.tileLg : strength > 0.33 ? styles.tileMd : styles.tileSm;
-                return (
-                  <button
-                    key={asset.symbol}
-                    type="button"
-                    className={`${styles.heatmapTile} ${spanClass} ${(asset.move_24h_pct ?? 0) >= 0 ? styles.tileUp : styles.tileDown} ${selectedSymbol === asset.symbol ? styles.tileSelected : ""}`}
-                    onClick={() => setSelectedSymbol(asset.symbol)}
-                  >
-                    <div className={styles.heatmapTileHeader}>
-                      <AssetCoin symbol={asset.symbol} icon={asset.icon ?? null} color={asset.color ?? null} className={styles.heatmapIcon} />
-                      <div>
-                        <strong>{asset.symbol}</strong>
-                        <span>{asset.display_name}</span>
-                      </div>
-                    </div>
-                    <div className={styles.heatmapNumbers}>
-                      <strong>{fmtNumber(asset.current_mid_price, "$")}</strong>
-                      <span className={getToneClass(asset.move_24h_pct)}>{fmtPct(asset.move_24h_pct)}</span>
-                    </div>
-                    <div className={styles.heatmapMeta}>
-                      <span>Vol {fmtNumber(asset.volume_24h)}</span>
-                      <span>Prem {fmtPct(asset.current_premium_pct)}</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className={styles.tablePanel}>
-            <div className={styles.sectionHeader}>
-              <div>
-                <h2>Asset Tape</h2>
-                <p>Compact sortable-style readout for the currently selected index basket.</p>
-              </div>
-            </div>
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Asset</th>
-                    <th>Mid</th>
-                    <th>24h</th>
-                    <th>Premium</th>
-                    <th>Volume</th>
-                    <th>Desk</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assetTableRows.map((asset) => (
-                    <tr key={asset.symbol} className={selectedSymbol === asset.symbol ? styles.selectedRow : undefined}>
-                      <td>
-                        <Link href={`/stocks/${encodeURIComponent(asset.symbol)}`} className={styles.assetLink} onClick={() => setSelectedSymbol(asset.symbol)}>
-                          <AssetCoin symbol={asset.symbol} icon={asset.icon ?? null} color={asset.color ?? null} className={styles.tableCoin} />
-                          <span>
-                            <strong>{asset.symbol}</strong>
-                            <em>{asset.display_name}</em>
-                          </span>
-                        </Link>
-                      </td>
-                      <td>{fmtNumber(asset.current_mid_price, "$")}</td>
-                      <td className={getToneClass(asset.move_24h_pct)}>{fmtPct(asset.move_24h_pct)}</td>
-                      <td className={getToneClass(asset.current_premium_pct)}>{fmtPct(asset.current_premium_pct)}</td>
-                      <td>{fmtNumber(asset.volume_24h)}</td>
-                      <td>{asset.unit || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            ) : null}
           </div>
         </section>
       </div>

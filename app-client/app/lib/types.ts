@@ -327,6 +327,8 @@ export type LeaderboardEntry = {
     symbol: string;
     unrealized_pnl: number;
   } | null;
+  achievements: AchievementBadge[];
+  streaks: TradeStreak;
   badges: string[];
   is_me: boolean;
   is_friend: boolean;
@@ -563,6 +565,25 @@ export type ProfileTrade = {
   display_name: string;
 };
 
+export type AchievementBadge = {
+  key: string;
+  name: string;
+  description: string | null;
+  badge_icon: string | null;
+  badge_color: string | null;
+  earned_at: string | null;
+  reward_cash: number;
+};
+
+export type TradeStreak = {
+  current_streak_days: number;
+  longest_streak_days: number;
+  last_trade_day: string | null;
+  streak_started_day?: string | null;
+  longest_streak_started_day?: string | null;
+  longest_streak_ended_day?: string | null;
+};
+
 export type ProfileBundle = {
   profile: {
     id: number;
@@ -582,6 +603,8 @@ export type ProfileBundle = {
       friend_count: number;
       rival_count: number;
     };
+    achievements: AchievementBadge[];
+    streaks: TradeStreak;
     networth_history: ProfileNetworthPoint[];
     friends: ProfileRelationUser[];
     rivals: ProfileRelationUser[];

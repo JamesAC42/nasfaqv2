@@ -196,18 +196,32 @@
 
 .badge,
 .badgeMuted {
+  --leaderboard-badge-accent: var(--accent, #2563eb);
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid color-mix(in srgb, var(--leaderboard-badge-accent) 35%, var(--border-soft));
   padding: 0.18rem 0.48rem;
   font-size: 0.74rem;
   font-weight: 700;
-  background: color-mix(in srgb, var(--surface-card) 88%, transparent);
+  background: color-mix(in srgb, var(--leaderboard-badge-accent) 12%, var(--surface-card));
 }
 
 .badgeMuted {
   color: var(--muted);
+  border-color: var(--border-soft);
+  background: color-mix(in srgb, var(--surface-card) 88%, transparent);
+}
+
+.streakBadge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, #ff7b00 45%, var(--border-soft));
+  background: color-mix(in srgb, #ff7b00 14%, var(--surface-card));
+  padding: 0.18rem 0.48rem;
+  font-size: 0.74rem;
+  font-weight: 800;
 }
 
 .tableHeader {

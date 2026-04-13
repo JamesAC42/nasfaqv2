@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { CandleChartCard, TrendChartCard } from "@/app/components/charts/market-charts";
+import { CandleChartCard, TrendChartCard, VolumeChartCard } from "@/app/components/charts/market-charts";
 import type { ChannelChartTheme } from "@/app/lib/chart-theme";
 import { apiFetch } from "@/app/lib/api";
 import { fmtDate, fmtNumber, fmtPct } from "@/app/lib/format";
@@ -143,6 +143,7 @@ export function AssetDetailSection({
       <div className={styles.chartGrid}>
         <CandleChartCard title="24H Market" subtitle="Hourly candles from executed trades" candles={detail?.intraday_candles || []} theme={chartTheme} />
         <CandleChartCard title="1Y Daily Price" subtitle="Daily candles with mark-close overlay" candles={filteredDailyCandles} showMarkClose theme={chartTheme} />
+        <VolumeChartCard title="1Y Daily Volume" subtitle="Settled daily coin volume in shares" candles={filteredDailyCandles} theme={chartTheme} />
         <TrendChartCard
           title="Fundamental Signal"
           subtitle="Smoothed anchor with raw signal overlay"

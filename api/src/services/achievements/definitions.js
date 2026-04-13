@@ -1,0 +1,122 @@
+const DEFINITIONS = [
+  {
+    key: "first_trade",
+    version: 1,
+    category: "trading",
+    name: "First Fill",
+    description: "Complete your first trade.",
+    badge_icon: "spark",
+    badge_color: "#1982C4",
+    reward_cash: 100,
+    trigger_events: ["trade_fill", "backfill"],
+    rule_json: { type: "trade_count", threshold: 1 },
+    evaluate: ({ facts }) => ({
+      earned: facts.trade_count >= 1,
+      progress: { current: facts.trade_count, target: 1 },
+    }),
+  },
+  {
+    key: "trade_count_10",
+    version: 1,
+    category: "trading",
+    name: "Regular Trader",
+    description: "Complete 10 trades.",
+    badge_icon: "ticker",
+    badge_color: "#3A7D44",
+    reward_cash: 250,
+    trigger_events: ["trade_fill", "backfill"],
+    rule_json: { type: "trade_count", threshold: 10 },
+    evaluate: ({ facts }) => ({
+      earned: facts.trade_count >= 10,
+      progress: { current: facts.trade_count, target: 10 },
+    }),
+  },
+  {
+    key: "trade_count_100",
+    version: 1,
+    category: "trading",
+    name: "Century Trader",
+    description: "Complete 100 trades.",
+    badge_icon: "laurel",
+    badge_color: "#C97C00",
+    reward_cash: 1000,
+    trigger_events: ["trade_fill", "backfill"],
+    rule_json: { type: "trade_count", threshold: 100 },
+    evaluate: ({ facts }) => ({
+      earned: facts.trade_count >= 100,
+      progress: { current: facts.trade_count, target: 100 },
+    }),
+  },
+  {
+    key: "trade_3_assets",
+    version: 1,
+    category: "trading",
+    name: "Diversified",
+    description: "Trade 3 different assets.",
+    badge_icon: "cluster",
+    badge_color: "#7B2CBF",
+    reward_cash: 300,
+    trigger_events: ["trade_fill", "backfill"],
+    rule_json: { type: "distinct_assets_traded", threshold: 3 },
+    evaluate: ({ facts }) => ({
+      earned: facts.distinct_assets_traded >= 3,
+      progress: { current: facts.distinct_assets_traded, target: 3 },
+    }),
+  },
+  {
+    key: "streak_3",
+    version: 1,
+    category: "streak",
+    name: "Warming Up",
+    description: "Trade 3 days in a row.",
+    badge_icon: "flame",
+    badge_color: "#FF7B00",
+    reward_cash: 150,
+    trigger_events: ["trade_fill", "backfill"],
+    rule_json: { type: "current_streak_days", threshold: 3 },
+    evaluate: ({ facts }) => ({
+      earned: facts.current_streak_days >= 3 || facts.longest_streak_days >= 3,
+      progress: { current: Math.max(facts.current_streak_days, facts.longest_streak_days), target: 3 },
+    }),
+  },
+  {
+    key: "streak_7",
+    version: 1,
+    category: "streak",
+    name: "On Fire",
+    description: "Trade 7 days in a row.",
+    badge_icon: "flame_ring",
+    badge_color: "#E85D04",
+    reward_cash: 500,
+    trigger_events: ["trade_fill", "backfill"],
+    rule_json: { type: "current_streak_days", threshold: 7 },
+    evaluate: ({ facts }) => ({
+      earned: facts.current_streak_days >= 7 || facts.longest_streak_days >= 7,
+      progress: { current: Math.max(facts.current_streak_days, facts.longest_streak_days), target: 7 },
+    }),
+  },
+  {
+    key: "streak_30",
+    version: 1,
+    category: "streak",
+    name: "Iron Discipline",
+    description: "Trade 30 days in a row.",
+    badge_icon: "crown",
+    badge_color: "#9D0208",
+    reward_cash: 2500,
+    trigger_events: ["trade_fill", "backfill"],
+    rule_json: { type: "current_streak_days", threshold: 30 },
+    evaluate: ({ facts }) => ({
+      earned: facts.current_streak_days >= 30 || facts.longest_streak_days >= 30,
+      progress: { current: Math.max(facts.current_streak_days, facts.longest_streak_days), target: 30 },
+    }),
+  },
+];
+
+function listDefinitions() {
+  return DEFINITIONS.map((definition) => ({ ...definition }));
+}
+
+module.exports = {
+  listDefinitions,
+};

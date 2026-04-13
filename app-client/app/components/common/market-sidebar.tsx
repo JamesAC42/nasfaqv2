@@ -75,11 +75,23 @@ export const MarketSidebar = memo(function MarketSidebar({
   onSelectSymbol,
   className,
   showSparklines = true,
+  compact = false,
+  showSearch = true,
+  showTopMovers = true,
+  showVolumeLeaders = true,
+  showRecentViews = true,
+  showMostViewed = true,
 }: {
   assets: MarketAsset[];
   onSelectSymbol: (symbol: string) => void;
   className?: string;
   showSparklines?: boolean;
+  compact?: boolean;
+  showSearch?: boolean;
+  showTopMovers?: boolean;
+  showVolumeLeaders?: boolean;
+  showRecentViews?: boolean;
+  showMostViewed?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [recentSymbols, setRecentSymbols] = useState<string[]>(() => {
@@ -151,8 +163,9 @@ export const MarketSidebar = memo(function MarketSidebar({
   }
 
   return (
-    <aside className={[styles.sidebar, className].filter(Boolean).join(" ")}>
-      <section className={styles.panel}>
+    <aside className={[styles.sidebar, compact ? styles.sidebarCompact : "", className].filter(Boolean).join(" ")}>
+      {showSearch ? (
+      <section className={[styles.panel, compact ? styles.panelCompact : ""].filter(Boolean).join(" ")}>
         <div>
           <h2 className={styles.title}>Market Search</h2>
           <p className={styles.copy}>Search by symbol, name, or unit.</p>
@@ -183,8 +196,10 @@ export const MarketSidebar = memo(function MarketSidebar({
           ))}
         </div>
       </section>
+      ) : null}
 
-      <section className={styles.panel}>
+      {showTopMovers ? (
+      <section className={[styles.panel, compact ? styles.panelCompact : ""].filter(Boolean).join(" ")}>
         <div className={styles.headerRow}>
           <div>
             <h2 className={styles.title}>Top Movers</h2>
@@ -250,8 +265,10 @@ export const MarketSidebar = memo(function MarketSidebar({
           })}
         </div>
       </section>
+      ) : null}
 
-      <section className={styles.panel}>
+      {showVolumeLeaders ? (
+      <section className={[styles.panel, compact ? styles.panelCompact : ""].filter(Boolean).join(" ")}>
         <div className={styles.headerRow}>
           <div>
             <h2 className={styles.title}>Volume Leaders</h2>
@@ -300,8 +317,10 @@ export const MarketSidebar = memo(function MarketSidebar({
           })}
         </div>
       </section>
+      ) : null}
 
-      <section className={styles.panel}>
+      {showRecentViews ? (
+      <section className={[styles.panel, compact ? styles.panelCompact : ""].filter(Boolean).join(" ")}>
         <div>
           <h2 className={styles.title}>Recent Views</h2>
         </div>
@@ -310,6 +329,7 @@ export const MarketSidebar = memo(function MarketSidebar({
             {recentAssets.map((asset) => (
               <ChannelTickerPill
                 key={asset.symbol}
+                className={styles.recentPill}
                 channel={{
                   name: asset.display_name,
                   icon: asset.icon ?? null,
@@ -325,8 +345,10 @@ export const MarketSidebar = memo(function MarketSidebar({
           <div className={styles.empty}>Open a few assets to build a local watch trail.</div>
         )}
       </section>
+      ) : null}
 
-      <section className={styles.panel}>
+      {showMostViewed ? (
+      <section className={[styles.panel, compact ? styles.panelCompact : ""].filter(Boolean).join(" ")}>
         <div>
           <h2 className={styles.title}>Most Viewed</h2>
         </div>
@@ -335,6 +357,7 @@ export const MarketSidebar = memo(function MarketSidebar({
             {mostViewedAssets.map((asset) => (
               <ChannelTickerPill
                 key={asset.symbol}
+                className={styles.recentPill}
                 channel={{
                   name: asset.display_name,
                   icon: asset.icon ?? null,
@@ -350,6 +373,7 @@ export const MarketSidebar = memo(function MarketSidebar({
           <div className={styles.empty}>View counts will appear here after a few visits.</div>
         )}
       </section>
+      ) : null}
     </aside>
   );
 });

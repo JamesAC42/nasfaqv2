@@ -21,6 +21,7 @@ import {
   FaRegBookmark,
   FaRegHeart,
   FaScaleBalanced,
+  FaXmark,
   FaThumbsDown,
   FaThumbsUp,
 } from "react-icons/fa6";
@@ -143,6 +144,8 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
   const [activeEffect, setActiveEffect] = useState<"like" | "save" | null>(null);
   const [commentBody, setCommentBody] = useState("");
   const [commentMood, setCommentMood] = useState<ArticleCommentMood | null>(null);
+  const [coverageOverlayTab, setCoverageOverlayTab] = useState<"proposals" | "write">("proposals");
+  const [isCoverageOverlayOpen, setIsCoverageOverlayOpen] = useState(false);
   const [proposalTitle, setProposalTitle] = useState("");
   const [proposalSubtitle, setProposalSubtitle] = useState("");
   const [proposalTags, setProposalTags] = useState("");
@@ -161,6 +164,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
     [article, user]
   );
   const hasPublishedBody = useMemo(() => hasText(article?.content), [article?.content]);
+  const shouldUseCoverageOverlay = Boolean(article?.is_news && !hasPublishedBody);
   const estimatedReadMinutes = useMemo(() => estimateReadingTimeMinutes(article?.content), [article?.content]);
   const selectedProposal = useMemo(() => {
     if (!article?.proposals.length) return null;
@@ -206,6 +210,35 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
         : (article.proposals.find((proposal) => proposal.status === "approved")?.id ?? article.proposals[0].id)
     ));
   }, [article]);
+
+  useEffect(() => {
+    if (!shouldUseCoverageOverlay && isCoverageOverlayOpen) {
+      setIsCoverageOverlayOpen(false);
+    }
+  }, [isCoverageOverlayOpen, shouldUseCoverageOverlay]);
+
+  useEffect(() => {
+    if (!isCoverageOverlayOpen) return;
+
+    const { overflow } = document.body.style;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsCoverageOverlayOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = overflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isCoverageOverlayOpen]);
+
+  function openCoverageOverlay(tab: "proposals" | "write") {
+    setCoverageOverlayTab(tab);
+    setIsCoverageOverlayOpen(true);
+  }
 
   function triggerEffect(kind: "like" | "save") {
     setActiveEffect(kind);
@@ -276,7 +309,15 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
           content: proposalContent,
         }),
       });
-      setArticle(normalizeArticleDetail(result.article));
+      const nextArticle = normalizeArticleDetail(result.article);
+      setArticle(nextArticle);
+      const newestProposal = [...nextArticle.proposals].sort((left, right) => (
+        new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
+      ))[0];
+      if (newestProposal) {
+        setSelectedProposalId(newestProposal.id);
+      }
+      setCoverageOverlayTab("proposals");
       setProposalTitle("");
       setProposalSubtitle("");
       setProposalTags("");
@@ -455,8 +496,10 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                     The headline is live in the archive, but nobody has written the long-form article body yet. You can submit the first draft below, or vote on existing proposals to help surface the strongest one for approval.
                   </p>
                   <div className={styles.actionRow}>
-                    <a href="#write-proposal" className={styles.primaryButton}>Write a proposal</a>
-                    {article.proposals.length ? <a href="#proposal-preview" className={styles.secondaryButton}>Review proposals</a> : null}
+                    <button type="button" className={styles.primaryButton} onClick={() => openCoverageOverlay("write")}>Open draft room</button>
+                    {article.proposals.length ? (
+                      <button type="button" className={styles.secondaryButton} onClick={() => openCoverageOverlay("proposals")}>Review proposals</button>
+                    ) : null}
                   </div>
                 </section>
               ) : (
@@ -470,7 +513,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                 </section>
               )}
 
-              {article.is_news ? (
+              {article.is_news && !shouldUseCoverageOverlay ? (
                 <section className={styles.coverageWorkspace}>
                   <div className={styles.coverageIntro}>
                     <div>
@@ -652,8 +695,8 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                   <p className={styles.sectionCopy}>{formatCountLabel(article.comment_count, "comment")} total</p>
                 </div>
                 {user ? (
-                  <form className={styles.fieldGrid} onSubmit={handleCommentSubmit}>
-                    <div className={styles.field}>
+                  <form className={styles.commentComposer} onSubmit={handleCommentSubmit}>
+                    <div className={`${styles.field} ${styles.commentComposerMoodField}`}>
                       <span className={styles.fieldLabel}>Mood</span>
                       <div className={styles.commentMoodPicker}>
                         {ARTICLE_COMMENT_MOODS.map((mood) => {
@@ -684,14 +727,21 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                         </button>
                       </div>
                     </div>
-                    <label className={styles.field}>
-                      <span className={styles.fieldLabel}>Add comment</span>
-                      <textarea className={styles.textarea} value={commentBody} onChange={(event) => setCommentBody(event.target.value)} placeholder="Add your take on this article." />
-                    </label>
-                    <div className={styles.actionRow}>
-                      <button type="submit" className={styles.primaryButton} disabled={isSubmittingComment || !commentBody.trim()}>
-                        {isSubmittingComment ? "Posting…" : "Post comment"}
-                      </button>
+                    <div className={styles.commentComposerBody}>
+                      <label className={`${styles.field} ${styles.commentComposerInputField}`}>
+                        <span className={styles.fieldLabel}>Add comment</span>
+                        <textarea
+                          className={`${styles.textarea} ${styles.commentComposerTextarea}`}
+                          value={commentBody}
+                          onChange={(event) => setCommentBody(event.target.value)}
+                          placeholder="Add your take on this article."
+                        />
+                      </label>
+                      <div className={styles.commentComposerActions}>
+                        <button type="submit" className={styles.primaryButton} disabled={isSubmittingComment || !commentBody.trim()}>
+                          {isSubmittingComment ? "Posting…" : "Post comment"}
+                        </button>
+                      </div>
                     </div>
                   </form>
                 ) : (
@@ -718,6 +768,244 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                 )}
               </section>
             </div>
+
+            {shouldUseCoverageOverlay ? (
+              <div
+                className={`${styles.coverageOverlay} ${isCoverageOverlayOpen ? styles.coverageOverlayOpen : ""}`.trim()}
+                aria-hidden={!isCoverageOverlayOpen}
+              >
+                <button
+                  type="button"
+                  className={styles.coverageOverlayBackdrop}
+                  onClick={() => setIsCoverageOverlayOpen(false)}
+                  tabIndex={isCoverageOverlayOpen ? 0 : -1}
+                  aria-label="Close draft room"
+                />
+                <section
+                  className={styles.coverageOverlayPanel}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="coverage-overlay-title"
+                >
+                  <div className={styles.coverageOverlayChrome}>
+                    <button
+                      type="button"
+                      className={styles.coverageOverlayClose}
+                      onClick={() => setIsCoverageOverlayOpen(false)}
+                      aria-label="Close draft room"
+                    >
+                      <FaXmark aria-hidden="true" />
+                    </button>
+                  </div>
+
+                  <div className={styles.coverageOverlayHeader}>
+                    <div className={styles.coverageOverlayHeading}>
+                      <span className={styles.eyebrow}>Writers draft room</span>
+                      <h2 id="coverage-overlay-title" className={styles.coverageOverlayTitle}>Build the first approved version of this story.</h2>
+                      <p className={styles.coverageOverlayCopy}>
+                        Review the room&apos;s current drafts or write a new take for editorial approval. The source headline stays live while this coverage board fills up.
+                      </p>
+                    </div>
+                    <div className={styles.coverageOverlayStats}>
+                      <span className={styles.pill}>{fmtInteger(article.proposals.length)} proposals</span>
+                      <span className={styles.statusPill}>No approved body yet</span>
+                    </div>
+                  </div>
+
+                  <div className={styles.coverageOverlayTabs} role="tablist" aria-label="Coverage workspace">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={coverageOverlayTab === "proposals"}
+                      className={`${styles.coverageOverlayTab} ${coverageOverlayTab === "proposals" ? styles.coverageOverlayTabActive : ""}`.trim()}
+                      onClick={() => setCoverageOverlayTab("proposals")}
+                    >
+                      Current proposals
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={coverageOverlayTab === "write"}
+                      className={`${styles.coverageOverlayTab} ${coverageOverlayTab === "write" ? styles.coverageOverlayTabActive : ""}`.trim()}
+                      onClick={() => setCoverageOverlayTab("write")}
+                    >
+                      Write a proposal
+                    </button>
+                  </div>
+
+                  <div className={styles.coverageOverlayBody}>
+                    {coverageOverlayTab === "proposals" ? (
+                      <div className={styles.coverageOverlayWorkspace}>
+                        <div className={styles.proposalRail}>
+                          <div className={styles.proposalRailHeader}>
+                            <h3 className={styles.sectionTitle}>Draft queue</h3>
+                            <p className={styles.sectionCopy}>Select a proposal to preview the full draft.</p>
+                          </div>
+                          {article.proposals.length ? (
+                            <div className={styles.proposalList}>
+                              {article.proposals.map((proposal) => {
+                                const isSelected = selectedProposal?.id === proposal.id;
+                                const voteIsBusy = proposalVoteBusyId === proposal.id;
+                                return (
+                                  <article
+                                    key={proposal.id}
+                                    className={`${styles.proposalSummaryCard} ${isSelected ? styles.proposalSummaryCardActive : ""}`.trim()}
+                                  >
+                                    <button
+                                      type="button"
+                                      className={styles.proposalSelectButton}
+                                      onClick={() => setSelectedProposalId(proposal.id)}
+                                    >
+                                      <div className={styles.proposalHeader}>
+                                        <div className={styles.proposalMeta}>
+                                          <strong>{getProposalTitle(proposal, article)}</strong>
+                                          <span className={styles.muted}>
+                                            {proposal.author.username} · {formatDateTime(proposal.created_at)}
+                                          </span>
+                                        </div>
+                                        <span className={`${styles.statusPill} ${proposal.status === "approved" ? styles.statusPublished : styles.statusDraft}`}>
+                                          {proposal.status}
+                                        </span>
+                                      </div>
+                                      {proposal.subtitle ? <p className={styles.sectionCopy}>{proposal.subtitle}</p> : null}
+                                      {proposal.tags.length ? (
+                                        <div className={styles.tagRow}>
+                                          {proposal.tags.map((tag) => <span key={`${proposal.id}:${tag}`} className={styles.pill}>{tag}</span>)}
+                                        </div>
+                                      ) : null}
+                                      <div className={styles.proposalSummaryFooter}>
+                                        <span className={styles.muted}>{fmtInteger(proposal.upvotes)} upvotes</span>
+                                        <span className={styles.muted}>{fmtInteger(proposal.downvotes)} downvotes</span>
+                                      </div>
+                                    </button>
+                                    <div className={styles.proposalActions}>
+                                      <button
+                                        type="button"
+                                        className={`${styles.secondaryButton} ${proposal.viewer_vote === 1 ? styles.secondaryButtonOn : ""}`.trim()}
+                                        onClick={() => void handleProposalVote(proposal, 1)}
+                                        disabled={!user || voteIsBusy}
+                                      >
+                                        <FaThumbsUp aria-hidden="true" />
+                                        <span>{fmtInteger(proposal.upvotes)}</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className={`${styles.secondaryButton} ${proposal.viewer_vote === -1 ? styles.secondaryButtonOn : ""}`.trim()}
+                                        onClick={() => void handleProposalVote(proposal, -1)}
+                                        disabled={!user || voteIsBusy}
+                                      >
+                                        <FaThumbsDown aria-hidden="true" />
+                                        <span>{fmtInteger(proposal.downvotes)}</span>
+                                      </button>
+                                      {user?.is_admin && proposal.status !== "approved" ? (
+                                        <button type="button" className={styles.primaryButton} onClick={() => void handleApproveProposal(proposal.id)}>
+                                          Approve
+                                        </button>
+                                      ) : null}
+                                    </div>
+                                  </article>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className={styles.empty}>No proposals yet. Be the first to draft coverage for this item.</div>
+                          )}
+                        </div>
+
+                        <div className={styles.proposalViewerPane}>
+                          {selectedProposal ? (
+                            <article className={styles.proposalViewer}>
+                              <div className={styles.proposalViewerHeader}>
+                                <div>
+                                  <div className={styles.metaRow}>
+                                    <span className={styles.eyebrow}>Proposal preview</span>
+                                    <span className={`${styles.statusPill} ${selectedProposal.status === "approved" ? styles.statusPublished : styles.statusDraft}`}>
+                                      {selectedProposal.status}
+                                    </span>
+                                  </div>
+                                  <h3 className={styles.proposalViewerTitle}>{getProposalTitle(selectedProposal, article)}</h3>
+                                  {selectedProposal.subtitle ? <p className={styles.storyDek}>{selectedProposal.subtitle}</p> : null}
+                                </div>
+                                <div className={styles.proposalViewerMeta}>
+                                  <span>By {selectedProposal.author.username}</span>
+                                  <span>{formatDateTime(selectedProposal.created_at)}</span>
+                                  <span>{fmtInteger(selectedProposal.upvotes - selectedProposal.downvotes)} net score</span>
+                                </div>
+                              </div>
+                              {selectedProposal.tags.length ? (
+                                <div className={styles.tagRow}>
+                                  {selectedProposal.tags.map((tag) => <span key={`${selectedProposal.id}:preview:${tag}`} className={styles.pill}>{tag}</span>)}
+                                </div>
+                              ) : null}
+                              {selectedProposal.thumbnail_url ? (
+                                <div className={styles.flatMedia}>
+                                  <img src={selectedProposal.thumbnail_url} alt="" className={styles.featureThumb} />
+                                </div>
+                              ) : null}
+                              <div className={styles.proposalViewerBody}>
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {selectedProposal.content}
+                                </ReactMarkdown>
+                              </div>
+                            </article>
+                          ) : (
+                            <div className={`${styles.empty} ${styles.proposalViewerEmptyState}`.trim()}>
+                              <p className={styles.proposalViewerEmptyCopy}>Select a proposal from the queue to preview it here.</p>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src="https://images.nasfaq.biz/site-assets/moona.png"
+                                alt="Moona illustration"
+                                className={styles.proposalViewerEmptyImage}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : user ? (
+                      <section className={styles.coverageOverlayDraftPane}>
+                        <div className={styles.coverageOverlayDraftIntro}>
+                          <h3 className={styles.sectionTitle}>Write the first draft</h3>
+                          <p className={styles.sectionCopy}>
+                            Your submission stays in review until an admin approves it as the official article body.
+                          </p>
+                        </div>
+                        <form className={styles.fieldGrid} onSubmit={handleProposalSubmit}>
+                          <label className={styles.field}>
+                            <span className={styles.fieldLabel}>Proposed title</span>
+                            <input className={styles.input} value={proposalTitle} onChange={(event) => setProposalTitle(event.target.value)} placeholder="Optional replacement title" />
+                          </label>
+                          <label className={styles.field}>
+                            <span className={styles.fieldLabel}>Proposed subtitle</span>
+                            <input className={styles.input} value={proposalSubtitle} onChange={(event) => setProposalSubtitle(event.target.value)} placeholder="Optional subtitle" />
+                          </label>
+                          <label className={styles.field}>
+                            <span className={styles.fieldLabel}>Tags</span>
+                            <input className={styles.input} value={proposalTags} onChange={(event) => setProposalTags(event.target.value)} placeholder="Comma-separated tags" />
+                          </label>
+                          <label className={styles.field}>
+                            <span className={styles.fieldLabel}>Thumbnail URL</span>
+                            <input className={styles.input} value={proposalThumbnailUrl} onChange={(event) => setProposalThumbnailUrl(event.target.value)} placeholder="Optional thumbnail override" />
+                          </label>
+                          <label className={`${styles.field} ${styles.coverageOverlayBodyField}`.trim()}>
+                            <span className={styles.fieldLabel}>Proposal body</span>
+                            <textarea className={styles.textarea} value={proposalContent} onChange={(event) => setProposalContent(event.target.value)} placeholder="Write the article body you want the admin to approve." />
+                          </label>
+                          <div className={styles.actionRow}>
+                            <button type="submit" className={styles.primaryButton} disabled={isSubmittingProposal || !proposalContent.trim()}>
+                              {isSubmittingProposal ? "Submitting…" : "Submit proposal"}
+                            </button>
+                          </div>
+                        </form>
+                      </section>
+                    ) : (
+                      <div className={styles.coverageOverlayDraftPane}>
+                        <div className={styles.empty}>Sign in to submit a proposed article for this news item.</div>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              </div>
+            ) : null}
           </>
         ) : null}
       </div>

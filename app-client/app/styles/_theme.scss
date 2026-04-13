@@ -31,8 +31,8 @@
   --bg-highlight: #11141e;
   --accent-strong: #cafaff;
   --accent-soft: rgba(52, 52, 104, 0.715);
-  --trend-up: #43ef7c;
-  --trend-down: #f95b5b;
+  --trend-up: #2cff84;
+  --trend-down: #ff4d6d;
   --trend-down-light: #fb8989;
   --trend-line: #4980f5;
   --tile-up-tint: rgba(15, 118, 110, 0.12);
@@ -56,6 +56,17 @@
   --table-border: rgba(20, 20, 28, 0.1);
   --empty-border: rgba(17, 17, 23, 0.18);
   --empty-bg: rgba(26, 21, 47, 0.45);
+  --trade-confirmation-overlay-bg: rgba(14, 15, 19, 0.8);
+  --trade-confirmation-surface: rgba(21, 24, 30, 0.96);
+  --trade-confirmation-hero-buy: rgba(15, 118, 110, 0.14);
+  --trade-confirmation-hero-sell: rgba(185, 28, 28, 0.14);
+  --trade-confirmation-pill-bg: rgba(37, 37, 49, 0.9);
+  --trade-confirmation-pill-text: #cafaff;
+  --trade-confirmation-copy: #578da8;
+  --trade-confirmation-close-bg: rgba(50, 50, 50, 0.68);
+  --trade-confirmation-close-border: rgba(95, 120, 145, 0.42);
+  --trade-confirmation-image-bg: rgba(28, 31, 37, 0.8);
+  --trade-confirmation-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
   --page-header-mask-solid: #000000;
   --shadow: 0 18px 40px rgba(33, 42, 71, 0.228);
   --radius-sm: 8px;
@@ -99,8 +110,8 @@
   --bg-highlight: #dfe8f4;
   --accent-strong: #0f5f88;
   --accent-soft: rgba(120, 161, 214, 0.2);
-  --trend-up: #108f67;
-  --trend-down: #d64545;
+  --trend-up: #00b978;
+  --trend-down: #e03a55;
   --trend-down-light: #ea7676;
   --trend-line: #356ee6;
   --tile-up-tint: rgba(15, 118, 110, 0.1);
@@ -124,6 +135,17 @@
   --table-border: rgba(142, 162, 187, 0.18);
   --empty-border: rgba(142, 162, 187, 0.2);
   --empty-bg: rgba(222, 232, 247, 0.65);
+  --trade-confirmation-overlay-bg: rgba(17, 32, 51, 0.18);
+  --trade-confirmation-surface: rgba(255, 255, 255, 0.96);
+  --trade-confirmation-hero-buy: rgba(16, 143, 103, 0.12);
+  --trade-confirmation-hero-sell: rgba(196, 48, 48, 0.12);
+  --trade-confirmation-pill-bg: rgba(225, 235, 248, 0.95);
+  --trade-confirmation-pill-text: #0f5f88;
+  --trade-confirmation-copy: #4d6986;
+  --trade-confirmation-close-bg: rgba(232, 240, 250, 0.78);
+  --trade-confirmation-close-border: rgba(96, 133, 177, 0.38);
+  --trade-confirmation-image-bg: rgba(240, 245, 251, 0.92);
+  --trade-confirmation-shadow: 0 18px 40px rgba(108, 132, 166, 0.18);
   --page-header-mask-solid: #ffffff;
   --shadow: 0 18px 40px rgba(108, 132, 166, 0.18);
 }

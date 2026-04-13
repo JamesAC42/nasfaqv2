@@ -133,6 +133,11 @@ function formatValue(value: number | null) {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
 }
 
+function formatVolumeValue(value: number | null) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
+}
+
 function formatRangeLabel(values: string[]) {
   if (!values.length) return "No data";
   return `${values[0].slice(0, 10)} to ${values[values.length - 1].slice(0, 10)}`;
@@ -180,6 +185,8 @@ export function CandleChartCard({
   fontFamily,
   height = 320,
   compact = false,
+  candlePalette = "theme",
+  className,
 }: {
   title: string;
   subtitle?: string;
@@ -191,6 +198,8 @@ export function CandleChartCard({
   fontFamily?: string;
   height?: number;
   compact?: boolean;
+  candlePalette?: "theme" | "market";
+  className?: string;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hasData = chartType === "line"
@@ -224,11 +233,13 @@ export function CandleChartCard({
           .filter(Boolean) as Array<{ time: Time; value: number }>
       );
     } else {
+      const upColor = candlePalette === "market" ? "#16a34a" : palette.baseDeep;
+      const downColor = candlePalette === "market" ? "#dc2626" : palette.complementDeep;
       const candleSeries = chart.addSeries(CandlestickSeries, {
-        upColor: palette.baseDeep,
-        downColor: palette.complementDeep,
-        wickUpColor: palette.baseDeep,
-        wickDownColor: palette.complementDeep,
+        upColor,
+        downColor,
+        wickUpColor: upColor,
+        wickDownColor: downColor,
         borderVisible: false,
         priceLineVisible: false,
         lastValueVisible: true,
@@ -266,11 +277,11 @@ export function CandleChartCard({
 
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [candles, chartType, compact, fontFamily, hasData, height, palette, showMarkClose]);
+  }, [candles, candlePalette, chartType, compact, fontFamily, hasData, height, palette, showMarkClose]);
 
   return (
     <div
-      className={`${styles.chartBox} ${styles.chartBoxCandles} ${compact ? styles.chartBoxCompact : ""}`.trim()}
+      className={[styles.chartBox, styles.chartBoxCandles, compact ? styles.chartBoxCompact : "", className].filter(Boolean).join(" ")}
       style={{
         ...(fontFamily ? ({ "--chart-font-family": fontFamily } as CSSProperties) : {}),
         "--chart-height": `${height}px`,
@@ -316,12 +327,14 @@ export function TrendChartCard({
   series,
   theme,
   fontFamily,
+  bare = false,
 }: {
   title: string;
   subtitle?: string;
   series: TrendSeries[];
   theme?: ChannelChartTheme | null;
   fontFamily?: string;
+  bare?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const { theme: colorMode } = useTheme();
@@ -379,7 +392,7 @@ export function TrendChartCard({
 
   return (
     <div
-      className={`${styles.chartBox} ${styles.chartBoxTrend}`}
+      className={`${bare ? styles.chartBoxBare : styles.chartBox} ${styles.chartBoxTrend}`}
       style={fontFamily ? ({ "--chart-font-family": fontFamily } as CSSProperties) : undefined}
     >
       <div className={styles.header}>
@@ -424,6 +437,90 @@ export function TrendChartCard({
         </div>
       </div>
       {hasData ? <div ref={containerRef} className={styles.canvas} /> : <div className={styles.empty}>No trend data</div>}
+    </div>
+  );
+}
+
+export function VolumeChartCard({
+  title,
+  subtitle,
+  candles,
+  theme,
+  fontFamily,
+  height = 320,
+}: {
+  title: string;
+  subtitle?: string;
+  candles: CandlePoint[];
+  theme?: ChannelChartTheme | null;
+  fontFamily?: string;
+  height?: number;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const palette = resolveTheme(theme);
+  const volumeCandles = candles
+    .map((item) => {
+      const time = toChartTime(item.bucket);
+      const value = item.volume_shares;
+      if (!time || value === null || value === undefined || !Number.isFinite(value)) return null;
+
+      const toneColor =
+        item.close !== null && item.open !== null
+          ? item.close >= item.open
+            ? palette.baseDeep
+            : palette.complementDeep
+          : palette.highlight;
+
+      return {
+        time,
+        value,
+        color: withAlpha(toneColor, 0.72),
+      };
+    })
+    .filter(Boolean) as Array<{ time: Time; value: number; color: string }>;
+  const hasData = volumeCandles.length > 0;
+
+  useEffect(() => {
+    if (!containerRef.current || !hasData) return;
+
+    const chart = createBaseChart(containerRef.current, palette, fontFamily, height);
+    const series = chart.addSeries(HistogramSeries, {
+      priceFormat: {
+        type: "volume",
+      },
+      base: 0,
+      priceLineVisible: false,
+      lastValueVisible: true,
+    });
+
+    series.setData(volumeCandles);
+    chart.timeScale().fitContent();
+    return () => chart.remove();
+  }, [fontFamily, hasData, height, palette, volumeCandles]);
+
+  return (
+    <div
+      className={`${styles.chartBox} ${styles.chartBoxTrend}`}
+      style={{
+        ...(fontFamily ? ({ "--chart-font-family": fontFamily } as CSSProperties) : {}),
+        "--chart-height": `${height}px`,
+      } as CSSProperties}
+    >
+      <div className={styles.header}>
+        <div>
+          <strong className={styles.title}>{title}</strong>
+          <span className={styles.subtitle}>{subtitle || formatRangeLabel(candles.map((item) => item.bucket))}</span>
+        </div>
+        <div className={styles.legend}>
+          <span
+            className={`${styles.pill} ${styles.linePill}`}
+            style={{ borderColor: withAlpha(palette.highlight, 0.35), color: palette.highlight }}
+          >
+            Volume {formatVolumeValue(latestValue(candles.map((item) => ({ value: item.volume_shares ?? null }))))}
+          </span>
+        </div>
+      </div>
+      {hasData ? <div ref={containerRef} className={styles.canvas} /> : <div className={styles.empty}>No volume data</div>}
     </div>
   );
 }

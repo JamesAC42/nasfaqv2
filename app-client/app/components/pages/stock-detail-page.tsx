@@ -9,12 +9,14 @@ import {
   SuperchatHeatmapCard,
   SuperchatHistogramCard,
   TrendChartCard,
+  VolumeChartCard,
 } from "@/app/components/charts/market-charts";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { MarketSidebar } from "@/app/components/common/market-sidebar";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { createChannelChartTheme } from "@/app/lib/chart-theme";
+import { getUsableChannelColor, normalizeHexColor } from "@/app/lib/color";
 import { fmtDate, fmtDurationSeconds, fmtInteger, fmtNumber, fmtPct } from "@/app/lib/format";
 import { normalizeArticleListResponse, normalizeAssetSuperchatSummary, normalizeAssetSuperchatTimeseries, normalizeLivestreams } from "@/app/lib/normalizers";
 import { getBucketWsUrl } from "@/app/lib/ws";
@@ -25,8 +27,10 @@ import type {
   ChannelOverviewRow,
   LivestreamItem,
   MarketAsset,
+  PortfolioHolding,
 } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
+import { useTheme } from "@/app/providers/theme-provider";
 import { useChannelStore } from "@/app/stores/channel-store";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useProfileStore } from "@/app/stores/profile-store";
@@ -37,6 +41,30 @@ import { GoLinkExternal } from "react-icons/go";
 import { FaArrowTrendDown, FaArrowTrendUp } from "react-icons/fa6";
 
 const DETAIL_CHART_START_DATE = "2025-10-09";
+const TRADE_CONFIRMATION_ANIMATION_MS = 280;
+const TRADE_CONFIRMATION_BUY_IMAGES = [
+  "/emojis/azki.jpg",
+  "/emojis/nenethinking.jpg",
+  "/emojis/polkaglove.jpg",
+  "/emojis/watamehat.png",
+] as const;
+const TRADE_CONFIRMATION_SELL_LOSS_IMAGES = [
+  "/emojis/ina.png",
+  "/emojis/kroniiok.jpg",
+  "/emojis/marineomg.jpg",
+  "/emojis/miotired.jpg",
+  "/emojis/ogey.jpg",
+  "/emojis/pekorasad.jpg",
+  "/emojis/suiseigun.jpg",
+] as const;
+const TRADE_CONFIRMATION_SELL_GAIN_IMAGES = [
+  "/emojis/amemoney.jpg",
+  "/emojis/fubukidab.jpg",
+  "/emojis/kaijiwin.jpg",
+  "/emojis/mikomoney.png",
+  "/emojis/moriwine.jpg",
+  "/emojis/pekoraboing.png",
+] as const;
 const SUPERCHAT_TIMESERIES_OPTIONS = [
   { value: "7d", label: "Past 7 days" },
   { value: "14d", label: "Past 14 days" },
@@ -123,6 +151,59 @@ type BucketUpdate = {
   max_viewers?: number | string | null;
 };
 
+type TradeExecutionResult = {
+  filled_quantity: number;
+  executed_price: number;
+  fee: number;
+  total_cost?: number | null;
+  total_proceeds?: number | null;
+  cost_basis_sold?: number | null;
+  realized_pnl?: number | null;
+  side: "buy" | "sell";
+  symbol: string;
+  updated_holdings?: {
+    quantity: number;
+    avg_cost_basis: number;
+  } | null;
+  updated_cash_balance?: number | null;
+  filled_at?: string | null;
+};
+
+type TradeConfirmation = {
+  side: "buy" | "sell";
+  symbol: string;
+  filledQuantity: number;
+  executedPrice: number;
+  fee: number;
+  grossValue: number;
+  netCashImpact: number;
+  totalCost: number | null;
+  totalProceeds: number | null;
+  costBasisSold: number | null;
+  previousQuantity: number;
+  previousAvgCost: number;
+  nextQuantity: number;
+  nextAvgCost: number;
+  nextCashBalance: number | null;
+  currentMidPrice: number | null;
+  filledAt: string | null;
+  realizedPnl: number | null;
+  unrealizedPnl: number | null;
+  imageSrc: string;
+};
+
+type HeroStat = {
+  label: string;
+  value: string;
+  accent: boolean;
+  tone?: "up" | "down";
+  meta?: string;
+};
+
+function pickRandomItem<T>(items: readonly T[]): T {
+  return items[Math.floor(Math.random() * items.length)] as T;
+}
+
 function toTimestamp(value: string | null | undefined) {
   if (!value) return null;
   const parsed = new Date(value).getTime();
@@ -148,6 +229,60 @@ function formatSignedCurrency(value: number | null | undefined) {
 function formatSignedNumber(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   return `${value >= 0 ? "+" : "-"}${fmtNumber(Math.abs(value))}`;
+}
+
+function buildTradeConfirmation(args: {
+  result: TradeExecutionResult;
+  currentMidPrice: number | null | undefined;
+  previousHolding: PortfolioHolding | null;
+}): TradeConfirmation {
+  const { result, currentMidPrice, previousHolding } = args;
+  const previousQuantity = previousHolding?.quantity ?? 0;
+  const previousAvgCost = previousHolding?.avg_cost_basis ?? 0;
+  const grossValue = result.filled_quantity * result.executed_price;
+  const nextQuantity = result.updated_holdings?.quantity ?? (result.side === "buy" ? previousQuantity + result.filled_quantity : previousQuantity - result.filled_quantity);
+  const nextAvgCost = result.updated_holdings?.avg_cost_basis ?? (nextQuantity > 0 ? previousAvgCost : 0);
+  const totalCost = result.total_cost ?? (result.side === "buy" ? grossValue + result.fee : null);
+  const totalProceeds = result.total_proceeds ?? (result.side === "sell" ? grossValue - result.fee : null);
+  const costBasisSold = result.cost_basis_sold ?? (result.side === "sell" ? previousAvgCost * result.filled_quantity : null);
+  const netCashImpact = result.side === "buy" ? -(totalCost ?? (grossValue + result.fee)) : (totalProceeds ?? (grossValue - result.fee));
+  const realizedPnl =
+    result.side === "sell"
+      ? (result.realized_pnl ?? ((totalProceeds ?? (grossValue - result.fee)) - (costBasisSold ?? 0)))
+      : null;
+  const unrealizedPnl =
+    currentMidPrice !== null && currentMidPrice !== undefined && nextQuantity > 0
+      ? nextQuantity * (currentMidPrice - nextAvgCost)
+      : null;
+  const imageSrc =
+    result.side === "buy"
+      ? pickRandomItem(TRADE_CONFIRMATION_BUY_IMAGES)
+      : (realizedPnl ?? 0) >= 0
+        ? pickRandomItem(TRADE_CONFIRMATION_SELL_GAIN_IMAGES)
+        : pickRandomItem(TRADE_CONFIRMATION_SELL_LOSS_IMAGES);
+
+  return {
+    side: result.side,
+    symbol: result.symbol,
+    filledQuantity: result.filled_quantity,
+    executedPrice: result.executed_price,
+    fee: result.fee,
+    grossValue,
+    netCashImpact,
+    totalCost,
+    totalProceeds,
+    costBasisSold,
+    previousQuantity,
+    previousAvgCost,
+    nextQuantity,
+    nextAvgCost,
+    nextCashBalance: result.updated_cash_balance ?? null,
+    currentMidPrice: currentMidPrice ?? null,
+    filledAt: result.filled_at ?? null,
+    realizedPnl,
+    unrealizedPnl,
+    imageSrc,
+  };
 }
 
 function formatCurrencyLabel(currencyCode: string) {
@@ -191,34 +326,6 @@ function formatBucketLabel(bucket: string, bucketUnit: AssetSuperchatTimeseriesB
         ? { month: "short", day: "numeric" }
         : { month: "short", day: "numeric" };
   return new Intl.DateTimeFormat("en-US", options).format(parsed);
-}
-
-function normalizeHexColor(value: string | null | undefined) {
-  if (!value) return null;
-  const trimmed = value.trim();
-  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed;
-  if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
-    const [, r, g, b] = trimmed;
-    return `#${r}${r}${g}${g}${b}${b}`;
-  }
-  return null;
-}
-
-function hexToRgb(hex: string) {
-  return {
-    r: Number.parseInt(hex.slice(1, 3), 16),
-    g: Number.parseInt(hex.slice(3, 5), 16),
-    b: Number.parseInt(hex.slice(5, 7), 16),
-  };
-}
-
-function mixHex(hex: string, target: string, amount: number) {
-  const source = hexToRgb(hex);
-  const to = hexToRgb(target);
-  const mix = (a: number, b: number) => Math.round(a + (b - a) * amount);
-  return `#${mix(source.r, to.r).toString(16).padStart(2, "0")}${mix(source.g, to.g)
-    .toString(16)
-    .padStart(2, "0")}${mix(source.b, to.b).toString(16).padStart(2, "0")}`;
 }
 
 function toChartTime(value: string): Time | null {
@@ -291,11 +398,34 @@ function resolveChartFontFamily() {
   return "'Nasfaq Mono', 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace";
 }
 
+function resolveCssVar(name: string, fallback: string) {
+  if (typeof window !== "undefined") {
+    const computed = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    if (computed) return computed;
+  }
+  return fallback;
+}
+
 function LiveViewerChart({ buckets, accentColor }: { buckets: ViewerBucket[]; accentColor: string }) {
   const chartRef = useRef<IChartApi | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const avgSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const maxSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const { theme: colorMode } = useTheme();
+  const channelChartTheme = useMemo(() => createChannelChartTheme(accentColor), [accentColor]);
+  const maxLineColor = useMemo(
+    () => getUsableChannelColor(accentColor, colorMode) || accentColor,
+    [accentColor, colorMode]
+  );
+  const avgLineColor = useMemo(
+    () =>
+      getUsableChannelColor(
+        channelChartTheme.baseMuted,
+        colorMode,
+        colorMode === "light" ? { maxLightLuminance: 0.34 } : undefined
+      ) || channelChartTheme.baseMuted,
+    [channelChartTheme.baseMuted, colorMode]
+  );
 
   const avgData = useMemo(() => {
     const points = buckets
@@ -327,13 +457,13 @@ function LiveViewerChart({ buckets, accentColor }: { buckets: ViewerBucket[]; ac
       height: 250,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#d7dce5",
+        textColor: resolveCssVar("--text", channelChartTheme.text),
         fontFamily: resolveChartFontFamily(),
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: "rgba(215, 220, 229, 0.08)" },
-        horzLines: { color: "rgba(215, 220, 229, 0.08)" },
+        vertLines: { color: channelChartTheme.grid },
+        horzLines: { color: channelChartTheme.grid },
       },
       timeScale: {
         borderVisible: false,
@@ -343,16 +473,20 @@ function LiveViewerChart({ buckets, accentColor }: { buckets: ViewerBucket[]; ac
       rightPriceScale: {
         borderVisible: false,
       },
+      crosshair: {
+        vertLine: { color: channelChartTheme.crosshairSoft, width: 1 },
+        horzLine: { color: channelChartTheme.crosshairSoft, width: 1 },
+      },
     });
 
     const avgSeries = chart.addSeries(LineSeries, {
-      color: mixHex(accentColor, "#d7dce5", 0.35),
+      color: avgLineColor,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: true,
     });
     const maxSeries = chart.addSeries(LineSeries, {
-      color: accentColor,
+      color: maxLineColor,
       lineWidth: 3,
       priceLineVisible: false,
       lastValueVisible: true,
@@ -368,20 +502,20 @@ function LiveViewerChart({ buckets, accentColor }: { buckets: ViewerBucket[]; ac
       maxSeriesRef.current = null;
       chart.remove();
     };
-  }, []);
+  }, [avgLineColor, channelChartTheme.crosshairSoft, channelChartTheme.grid, channelChartTheme.text, maxLineColor]);
 
   useEffect(() => {
     if (!avgSeriesRef.current || !maxSeriesRef.current) return;
-    avgSeriesRef.current.applyOptions({ color: mixHex(accentColor, "#d7dce5", 0.35) });
-    maxSeriesRef.current.applyOptions({ color: accentColor });
-  }, [accentColor]);
+    avgSeriesRef.current.applyOptions({ color: avgLineColor });
+    maxSeriesRef.current.applyOptions({ color: maxLineColor });
+  }, [avgLineColor, maxLineColor]);
 
   useEffect(() => {
     if (!avgSeriesRef.current || !maxSeriesRef.current || !chartRef.current) return;
     avgSeriesRef.current.setData(avgData);
     maxSeriesRef.current.setData(maxData);
     chartRef.current.timeScale().fitContent();
-  }, [avgData, maxData]);
+  }, [avgData, avgLineColor, maxData, maxLineColor]);
 
   return buckets.length
     ? <div ref={containerRef} className={styles.liveChartCanvas} />
@@ -455,6 +589,7 @@ function LiveDurationValue({
 
 export function StockDetailPage({ symbol }: { symbol: string }) {
   const normalizedSymbol = symbol.trim().toUpperCase();
+  const { theme: colorMode } = useTheme();
   const { user, refreshSession } = useAuth();
   const assets = useMarketStore((state) => state.assets);
   const detail = useMarketStore((state) => state.detail);
@@ -476,7 +611,8 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   const [tradeSide, setTradeSide] = useState<"buy" | "sell">("buy");
   const [tradeQuantity, setTradeQuantity] = useState("10");
   const [tradeError, setTradeError] = useState<string | null>(null);
-  const [tradeResult, setTradeResult] = useState<string | null>(null);
+  const [tradeConfirmation, setTradeConfirmation] = useState<TradeConfirmation | null>(null);
+  const [isTradeConfirmationClosing, setIsTradeConfirmationClosing] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [channelStreams, setChannelStreams] = useState<{ live: LivestreamItem[]; upcoming: LivestreamItem[] }>({
     live: [],
@@ -497,6 +633,37 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   const [superchatTimeseriesError, setSuperchatTimeseriesError] = useState<string | null>(null);
   const [isLoadingSuperchatTimeseries, setIsLoadingSuperchatTimeseries] = useState(false);
   const [deferredReadySymbol, setDeferredReadySymbol] = useState<string | null>(null);
+  const tradeConfirmationCloseTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!tradeConfirmation && !isTradeConfirmationClosing) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeTradeConfirmation();
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isTradeConfirmationClosing, tradeConfirmation]);
+
+  useEffect(() => () => {
+    if (tradeConfirmationCloseTimerRef.current !== null) {
+      globalThis.clearTimeout(tradeConfirmationCloseTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     void refreshSession();
@@ -573,7 +740,11 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   );
   const ownedShares = selectedHolding?.quantity ?? 0;
   const estimatedPositionValue = selectedHolding?.market_value ?? ((selectedAsset?.current_mid_price ?? 0) * ownedShares);
-  const chartTheme = useMemo(() => createChannelChartTheme(selectedAsset?.color), [selectedAsset?.color]);
+  const themeSafeAssetColor = useMemo(
+    () => getUsableChannelColor(selectedAsset?.color, colorMode) || selectedAsset?.color || null,
+    [colorMode, selectedAsset?.color]
+  );
+  const chartTheme = useMemo(() => createChannelChartTheme(themeSafeAssetColor), [themeSafeAssetColor]);
   const chartPalette = chartTheme.categorical;
   const channelProfileImage = selectedChannel?.channel.channel_asset_icon_url?.trim() || null;
   const channelBannerImage = selectedChannel?.channel.channel_asset_banner_url?.trim() || null;
@@ -827,31 +998,52 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     }
   }
 
+  function closeTradeConfirmation() {
+    if (!tradeConfirmation || isTradeConfirmationClosing) return;
+    setIsTradeConfirmationClosing(true);
+    if (tradeConfirmationCloseTimerRef.current !== null) {
+      globalThis.clearTimeout(tradeConfirmationCloseTimerRef.current);
+    }
+    tradeConfirmationCloseTimerRef.current = globalThis.setTimeout(() => {
+      setTradeConfirmation(null);
+      setIsTradeConfirmationClosing(false);
+      tradeConfirmationCloseTimerRef.current = null;
+    }, TRADE_CONFIRMATION_ANIMATION_MS);
+  }
+
   async function handleTrade(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedAsset) return;
     if (marketStatus && !marketStatus.is_trading_open) {
       setTradeError(marketStatus.trading_message || "market_closed");
-      setTradeResult(null);
+      setTradeConfirmation(null);
+      setIsTradeConfirmationClosing(false);
       return;
     }
 
     setTradeError(null);
-    setTradeResult(null);
+    if (tradeConfirmationCloseTimerRef.current !== null) {
+      globalThis.clearTimeout(tradeConfirmationCloseTimerRef.current);
+      tradeConfirmationCloseTimerRef.current = null;
+    }
+    setTradeConfirmation(null);
+    setIsTradeConfirmationClosing(false);
 
     try {
-      const result = await apiFetch<{
-        filled_quantity: number;
-        executed_price: number;
-        fee: number;
-      }>(`/api/market/orders/${tradeSide}`, {
+      const previousHolding = selectedHolding;
+      const result = await apiFetch<TradeExecutionResult>(`/api/market/orders/${tradeSide}`, {
         method: "POST",
         body: JSON.stringify({ symbol: selectedAsset.symbol, quantity: Number(tradeQuantity) }),
       });
 
-      setTradeResult(
-        `${tradeSide.toUpperCase()} ${fmtNumber(result.filled_quantity)} ${selectedAsset.symbol} at ${fmtNumber(result.executed_price)} fee ${fmtNumber(result.fee)}`
+      setTradeConfirmation(
+        buildTradeConfirmation({
+          result,
+          currentMidPrice: selectedAsset.current_mid_price,
+          previousHolding,
+        })
       );
+      setIsTradeConfirmationClosing(false);
       await refreshAll();
     } catch (nextError) {
       setTradeError(String((nextError as Error).message || nextError));
@@ -909,6 +1101,20 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   const marketClosedMessage = marketStatus?.trading_message || "Trading is temporarily unavailable while the market settles.";
   const tradingOpen = marketStatus?.is_trading_open ?? true;
   const liveAccentColor = normalizeHexColor(liveSession?.channel_color || selectedAsset?.color) || "#ff5c7a";
+  const liveViewerChartTheme = useMemo(() => createChannelChartTheme(liveAccentColor), [liveAccentColor]);
+  const liveAvgLegendColor = useMemo(
+    () =>
+      getUsableChannelColor(
+        liveViewerChartTheme.baseMuted,
+        colorMode,
+        colorMode === "light" ? { maxLightLuminance: 0.34 } : undefined
+      ) || liveViewerChartTheme.baseMuted,
+    [colorMode, liveViewerChartTheme.baseMuted]
+  );
+  const liveMaxLegendColor = useMemo(
+    () => getUsableChannelColor(liveAccentColor, colorMode) || liveAccentColor,
+    [colorMode, liveAccentColor]
+  );
   const activeLiveStream = channelStreams.live[0] || null;
   const latestLiveBucket = liveBuckets.at(-1) || null;
   const liveCurrentViewers = latestLiveBucket?.max_viewers ?? activeLiveStream?.viewer_count ?? liveSession?.max_concurrent_viewers ?? null;
@@ -935,6 +1141,14 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
       .sort((a, b) => (b.current_mid_price ?? 0) - (a.current_mid_price ?? 0))
       .slice(0, 6);
   }, [assets, selectedAsset?.symbol, selectedAsset?.unit]);
+  const relatedCommunityArticles = useMemo(
+    () => relatedArticles.filter((article) => !article.is_news),
+    [relatedArticles]
+  );
+  const relatedNewsItems = useMemo(
+    () => relatedArticles.filter((article) => article.is_news),
+    [relatedArticles]
+  );
   const mockComments = useMemo(() => {
     const displayName = selectedChannel?.channel.name || selectedAsset?.display_name || normalizedSymbol;
     return [
@@ -965,11 +1179,13 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   const current24hMove = formatSignedPct(selectedAsset?.move_24h_pct);
   const isPositive = selectedAsset?.move_24h_pct !== null && selectedAsset?.move_24h_pct !== undefined && selectedAsset?.move_24h_pct >= 0;
   
-  const quickStats = [
+  const heroPrimaryStats: HeroStat[] = [
     { label: "Mid Price", value: currentMidPrice, accent: false },
     { label: "24H Move", value: current24hMove, accent: isPositive, tone: isPositive ? "up" : "down" },
     { label: "Fair Value", value: fmtNumber(selectedAsset?.current_fair_value, "$"), accent: false },
     { label: "24H Volume", value: fmtNumber(selectedAsset?.volume_24h), meta: "shares", accent: false },
+  ];
+  const heroMetaStats: HeroStat[] = [
     { label: "Subscribers", value: fmtInteger(selectedChannel?.latest?.subscriber_count ?? null), accent: false },
     { label: "Views", value: fmtInteger(selectedChannel?.latest?.view_count ?? null), accent: false },
     { label: "Videos", value: fmtInteger(selectedChannel?.latest?.video_count ?? null), accent: false },
@@ -1085,14 +1301,32 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     return (
       <SiteShell>
         <div className={styles.pageLayout}>
+          <div className={styles.sidebarRail}>
+            <MarketSidebar
+              assets={assets}
+              onSelectSymbol={setSelectedSymbol}
+              showSparklines={false}
+              compact
+              showTopMovers={false}
+              showVolumeLeaders={false}
+            />
+          </div>
           <div className={styles.contentRail}>
             <section className={styles.emptyState}>
               <h1 className={styles.emptyTitle}>Unknown asset</h1>
               <p className={styles.emptyCopy}>No stock matched `{normalizedSymbol}` in the current market cache.</p>
             </section>
           </div>
-          <div className={styles.sidebarRail}>
-            <MarketSidebar assets={assets} onSelectSymbol={setSelectedSymbol} showSparklines={false} />
+          <div className={styles.sidebarRailRight}>
+            <MarketSidebar
+              assets={assets}
+              onSelectSymbol={setSelectedSymbol}
+              showSparklines={false}
+              compact
+              showSearch={false}
+              showRecentViews={false}
+              showMostViewed={false}
+            />
           </div>
         </div>
       </SiteShell>
@@ -1103,7 +1337,14 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     <SiteShell>
       <div className={styles.pageLayout}>
         <div className={styles.sidebarRail}>
-          <MarketSidebar assets={assets} onSelectSymbol={setSelectedSymbol} showSparklines={false} />
+          <MarketSidebar
+            assets={assets}
+            onSelectSymbol={setSelectedSymbol}
+            showSparklines={false}
+            compact
+            showTopMovers={false}
+            showVolumeLeaders={false}
+          />
         </div>
 
         <div className={styles.contentRail}>
@@ -1111,7 +1352,6 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
           {channelError ? <div className="statusMessage statusMessageWarn">Channel metadata warning: {channelError}</div> : null}
           {portfolioError && user ? <div className="statusMessage statusMessageWarn">Portfolio warning: {portfolioError}</div> : null}
           {tradeError ? <div className="statusMessage statusMessageError">Trade error: {tradeError}</div> : null}
-          {tradeResult ? <div className="statusMessage statusMessageSuccess">{tradeResult}</div> : null}
 
           <section className={styles.hero} style={heroStyle}>
             <div className={styles.heroOverlay}>
@@ -1190,10 +1430,51 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                 )}
               </div>
 
-              <div className={styles.quickStatsGrid}>
-                {quickStats.map((item) => (
+              <div className={styles.heroMarketGrid}>
+                <div className={styles.heroChartFrame}>
+                  <div className={styles.heroChartSlot}>
+                    <CandleChartCard
+                      title="24H Market"
+                      subtitle="Hourly candles from executed trades"
+                      candles={detail?.intraday_candles || []}
+                      theme={chartTheme}
+                      height={320}
+                      compact
+                      candlePalette="market"
+                      className={styles.heroChartCard}
+                    />
+                  </div>
+                </div>
+                <div className={styles.quickStatsGrid}>
+                  {heroPrimaryStats.map((item) => (
+                    <div key={item.label} className={styles.quickStatCard}>
+                      <span className={styles.quickStatLabel}>{item.label}</span>
+                      <strong
+                        className={[
+                          styles.quickStatValue,
+                          item.accent && item.tone === "up" ? styles.valueUp : "",
+                          item.accent && item.tone === "down" ? styles.valueDown : "",
+                        ].filter(Boolean).join(" ")}
+                      >
+                        {showHeroSkeleton ? <span className={`${styles.skeletonBlock} ${styles.quickStatValueSkeleton}`} aria-hidden="true" /> : item.value}
+                      </strong>
+                      {item.meta ? (
+                        <span className={styles.quickStatMeta}>
+                          {showHeroSkeleton ? <span className={`${styles.skeletonBlock} ${styles.quickStatMetaSkeleton}`} aria-hidden="true" /> : item.meta}
+                        </span>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className={styles.heroMetaGrid}>
+                {heroMetaStats.map((item) => (
                   <div key={item.label} className={styles.quickStatCard}>
-                    <span className={styles.quickStatLabel}>{item.label}</span>
+                    <span className={styles.quickStatLabel}>
+                      {item.label === "Subscribers" || item.label === "Views" || item.label === "Videos" ? <BsYoutube className={styles.quickStatLabelIcon} aria-hidden="true" /> : null}
+                      {item.label}
+                    </span>
                     <strong
                       className={[
                         styles.quickStatValue,
@@ -1274,10 +1555,10 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                   <div className={styles.liveChartHeader}>
                     <strong>Viewers Over Time</strong>
                     <div className={styles.liveLegend}>
-                      <span className={styles.liveLegendItem} style={{ "--legend-color": mixHex(liveAccentColor, "#d7dce5", 0.35) } as CSSProperties}>
+                      <span className={styles.liveLegendItem} style={{ "--legend-color": liveAvgLegendColor } as CSSProperties}>
                         Avg viewers
                       </span>
-                      <span className={styles.liveLegendItem} style={{ "--legend-color": liveAccentColor } as CSSProperties}>
+                      <span className={styles.liveLegendItem} style={{ "--legend-color": liveMaxLegendColor } as CSSProperties}>
                         Max viewers
                       </span>
                     </div>
@@ -1303,25 +1584,54 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                   </div>
                   <Link href="/articles" className={styles.inlineLink}>Browse articles</Link>
                 </div>
-                <div className={styles.articleGrid}>
-                  {relatedArticles.map((article) => (
-                    <Link key={article.id} href={`/articles/${encodeURIComponent(article.slug)}`} className={styles.articleCard}>
-                      <div className={styles.articleTopRow}>
-                        <span className={styles.articleTag}>{article.tags[0] || (article.is_news ? "News" : "Article")}</span>
-                        <span className={styles.articleAuthor}>{article.author?.username || "Imported"}</span>
-                      </div>
-                      <strong className={styles.articleTitle}>{article.title}</strong>
-                      <p className={styles.articleCopy}>{article.preview || article.subtitle || "Open the article to read the full writeup."}</p>
-                    </Link>
-                  ))}
-                </div>
+                {relatedCommunityArticles.length ? (
+                  <div className={styles.articleList}>
+                    {relatedCommunityArticles.map((article) => (
+                      <Link key={article.id} href={`/articles/${encodeURIComponent(article.slug)}`} className={styles.articleCard}>
+                        <div className={styles.articleTopRow}>
+                          <span className={styles.articleTag}>{article.tags[0] || "Article"}</span>
+                          <span className={styles.articleAuthor}>{article.author?.username || "Imported"}</span>
+                        </div>
+                        <strong className={styles.articleTitle}>{article.title}</strong>
+                        <p className={styles.articleCopy}>{article.preview || article.subtitle || "Open the article to read the full writeup."}</p>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div className={styles.mockEmpty}>No community articles are associated with this asset yet.</div>
+                )}
               </section>
 
               <section className={styles.sectionCard}>
                 <div className={styles.sectionHeader}>
                   <div>
-                    <h2 className={styles.sectionTitle}>Same Unit</h2>
-                    <p className={styles.sectionCopy}>Quick links to other channels trading in the same unit bucket.</p>
+                    <h2 className={styles.sectionTitle}>News Items</h2>
+                    <p className={styles.sectionCopy}>Imported news coverage associated with this asset.</p>
+                  </div>
+                  <Link href="/news" className={styles.inlineLink}>Browse news</Link>
+                </div>
+                {relatedNewsItems.length ? (
+                  <div className={styles.articleList}>
+                    {relatedNewsItems.map((article) => (
+                      <Link key={article.id} href={`/articles/${encodeURIComponent(article.slug)}`} className={styles.articleCard}>
+                        <div className={styles.articleTopRow}>
+                          <span className={styles.articleTag}>{article.tags[0] || (article.is_news ? "News" : "Article")}</span>
+                          <span className={styles.articleAuthor}>{article.author?.username || "Imported"}</span>
+                        </div>
+                        <strong className={styles.articleTitle}>{article.title}</strong>
+                        <p className={styles.articleCopy}>{article.preview || article.subtitle || "Open the article to read the full writeup."}</p>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div className={styles.mockEmpty}>No news items are associated with this asset yet.</div>
+                )}
+              </section>
+
+              <section className={styles.sectionCard}>
+                <div className={styles.sectionHeader}>
+                  <div>
+                    <h2 className={styles.sectionTitle}>Other members of {selectedAsset?.unit || "this unit"}</h2>
                   </div>
                 </div>
                 {sameUnitAssets.length ? (
@@ -1349,40 +1659,6 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                 )}
               </section>
 
-              <section className={styles.sectionCard}>
-                <div className={styles.sectionHeader}>
-                  <div>
-                    <h2 className={styles.sectionTitle}>Channel Board</h2>
-                    <p className={styles.sectionCopy}>UI mockup for a future per-channel discussion board.</p>
-                  </div>
-                  <span className={styles.mockBadge}>Mockup</span>
-                </div>
-                <div className={styles.commentComposer}>
-                  <textarea
-                    className={styles.commentInput}
-                    placeholder={`What is your current read on ${selectedAsset?.symbol || normalizedSymbol}?`}
-                    disabled
-                  />
-                  <div className={styles.commentComposerFooter}>
-                    <span>Posting disabled until channel comments are backed by a table.</span>
-                    <button type="button" className={styles.commentButton} disabled>Post Comment</button>
-                  </div>
-                </div>
-                <div className={styles.commentList}>
-                  {mockComments.map((comment) => (
-                    <article key={comment.id} className={styles.commentCard}>
-                      <div className={styles.commentHeader}>
-                        <div>
-                          <strong>{comment.author}</strong>
-                          <span>{comment.age}</span>
-                        </div>
-                        <span className={styles.commentTone}>{comment.tone}</span>
-                      </div>
-                      <p>{comment.body}</p>
-                    </article>
-                  ))}
-                </div>
-              </section>
             </div>
 
             <div className={styles.tradeColumn}>
@@ -1503,6 +1779,41 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
             </div>
           </div>
 
+          <section className={styles.sectionCard}>
+            <div className={styles.sectionHeader}>
+              <div>
+                <h2 className={styles.sectionTitle}>Channel Board</h2>
+                <p className={styles.sectionCopy}>UI mockup for a future per-channel discussion board.</p>
+              </div>
+              <span className={styles.mockBadge}>Mockup</span>
+            </div>
+            <div className={styles.commentComposer}>
+              <textarea
+                className={styles.commentInput}
+                placeholder={`What is your current read on ${selectedAsset?.symbol || normalizedSymbol}?`}
+                disabled
+              />
+              <div className={styles.commentComposerFooter}>
+                <span>Posting disabled until channel comments are backed by a table.</span>
+                <button type="button" className={styles.commentButton} disabled>Post Comment</button>
+              </div>
+            </div>
+            <div className={styles.commentList}>
+              {mockComments.map((comment) => (
+                <article key={comment.id} className={styles.commentCard}>
+                  <div className={styles.commentHeader}>
+                    <div>
+                      <strong>{comment.author}</strong>
+                      <span>{comment.age}</span>
+                    </div>
+                    <span className={styles.commentTone}>{comment.tone}</span>
+                  </div>
+                  <p>{comment.body}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+
           {showDeferredSections ? (
             <>
               <section className={styles.sectionCard}>
@@ -1513,8 +1824,11 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                   </div>
                 </div>
                 <div className={styles.chartGrid}>
-                  <CandleChartCard title="24H Market" subtitle="Hourly candles from executed trades" candles={detail?.intraday_candles || []} theme={chartTheme} />
+                  <div className={styles.chartGridWide}>
+                    <CandleChartCard title="24H Market" subtitle="Hourly candles from executed trades" candles={detail?.intraday_candles || []} theme={chartTheme} candlePalette="market" />
+                  </div>
                   <CandleChartCard title="1Y Daily Price" subtitle="Daily candles with mark-close overlay" candles={filteredDailyCandles} showMarkClose theme={chartTheme} />
+                  <VolumeChartCard title="1Y Daily Volume" subtitle="Settled daily coin volume in shares" candles={filteredDailyCandles} theme={chartTheme} />
                   <TrendChartCard
                     title="Fundamental Signal"
                     subtitle="Smoothed anchor with raw signal overlay"
@@ -1637,7 +1951,7 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                 {livestreamError ? <div className="statusMessage statusMessageError">Livestream error: {livestreamError}</div> : null}
                 {isLoadingLivestreams ? <div className={shellStyles.empty}>Loading livestreams…</div> : null}
                 {!isLoadingLivestreams && !livestreamError && channelStreams.live.length === 0 && channelStreams.upcoming.length === 0 ? (
-                  <div className={shellStyles.empty}>No live or upcoming streams in cache for this channel.</div>
+                  <div className={shellStyles.empty}>No live or upcoming streams for this channel.</div>
                 ) : null}
 
                 {channelStreams.live.length > 0 ? (
@@ -1818,7 +2132,194 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
             </section>
           )}
         </div>
+
+        <div className={styles.sidebarRailRight}>
+          <MarketSidebar
+            assets={assets}
+            onSelectSymbol={setSelectedSymbol}
+            showSparklines={false}
+            compact
+            showSearch={false}
+            showRecentViews={false}
+            showMostViewed={false}
+          />
+        </div>
       </div>
+
+      {tradeConfirmation ? (
+        <div
+          className={[
+            styles.tradeConfirmationOverlay,
+            isTradeConfirmationClosing ? styles.tradeConfirmationOverlayClosing : "",
+          ].filter(Boolean).join(" ")}
+          onClick={closeTradeConfirmation}
+        >
+          <div
+            className={[
+              styles.tradeConfirmationModal,
+              isTradeConfirmationClosing ? styles.tradeConfirmationModalClosing : "",
+            ].filter(Boolean).join(" ")}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="trade-confirmation-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div
+              className={[
+                styles.tradeConfirmationHero,
+                tradeConfirmation.side === "buy" ? styles.tradeConfirmationHeroBuy : styles.tradeConfirmationHeroSell,
+              ].join(" ")}
+            >
+              <div>
+                <span className={styles.tradeConfirmationEyebrow}>
+                  {tradeConfirmation.side === "buy" ? "Buy Filled" : "Sell Filled"}
+                </span>
+                <h2 id="trade-confirmation-title" className={styles.tradeConfirmationTitle}>
+                  {tradeConfirmation.side === "buy"
+                    ? "Position updated"
+                    : (tradeConfirmation.realizedPnl ?? 0) >= 0
+                      ? `Nice! Capital gains = ${fmtNumber(tradeConfirmation.realizedPnl, "$")}`
+                      : `Tough break. Capital loss = ${fmtNumber(Math.abs(tradeConfirmation.realizedPnl ?? 0), "$")}`}
+                </h2>
+                <div className={styles.tradeConfirmationSubheader}>
+                  <AssetCoin
+                    symbol={tradeConfirmation.symbol}
+                    icon={selectedAsset?.icon ?? null}
+                    color={selectedAsset?.color ?? null}
+                    className={styles.tradeConfirmationTickerIcon}
+                  />
+                  <p className={styles.tradeConfirmationCopy}>
+                    <strong className={styles.tradeConfirmationTicker}>${tradeConfirmation.symbol}</strong>
+                    <span>
+                      {fmtNumber(tradeConfirmation.filledQuantity)} shares executed at {fmtNumber(tradeConfirmation.executedPrice, "$")} per share.
+                    </span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className={styles.tradeConfirmationClose}
+                onClick={closeTradeConfirmation}
+                aria-label="Close trade confirmation"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className={styles.tradeConfirmationBody}>
+              <div className={styles.tradeConfirmationLayout}>
+                <div className={styles.tradeConfirmationImageSlot}>
+                  <img
+                    src={tradeConfirmation.imageSrc}
+                    alt="Moona illustration"
+                    className={styles.tradeConfirmationImage}
+                  />
+                </div>
+
+                <div className={styles.tradeConfirmationContent}>
+                  <div className={styles.tradeConfirmationGrid}>
+                    <div className={styles.tradeConfirmationCard}>
+                      <span>{tradeConfirmation.side === "buy" ? "Total Cost" : "Gross Value"}</span>
+                      <strong>{fmtNumber(tradeConfirmation.side === "buy" ? tradeConfirmation.totalCost : tradeConfirmation.grossValue, "$")}</strong>
+                    </div>
+                    <div className={styles.tradeConfirmationCard}>
+                      <span>Fee</span>
+                      <strong>{fmtNumber(tradeConfirmation.fee, "$")}</strong>
+                    </div>
+                    <div className={styles.tradeConfirmationCard}>
+                      <span>{tradeConfirmation.side === "buy" ? "Cash Change" : "Net Proceeds"}</span>
+                      <strong className={tradeConfirmation.netCashImpact >= 0 ? styles.valueUp : styles.valueDown}>
+                        {formatSignedCurrency(tradeConfirmation.netCashImpact)}
+                      </strong>
+                    </div>
+                    <div className={styles.tradeConfirmationCard}>
+                      <span>New Cash Balance</span>
+                      <strong>{fmtNumber(tradeConfirmation.nextCashBalance, "$")}</strong>
+                    </div>
+                  </div>
+
+                  <div className={styles.tradeConfirmationColumns}>
+                    <section className={styles.tradeConfirmationSection}>
+                      <h3>Position</h3>
+                      <div className={styles.tradeConfirmationMetricList}>
+                        <div className={styles.tradeConfirmationMetric}>
+                          <span>Shares owned</span>
+                          <strong>{fmtNumber(tradeConfirmation.previousQuantity)} → {fmtNumber(tradeConfirmation.nextQuantity)}</strong>
+                        </div>
+                        <div className={styles.tradeConfirmationMetric}>
+                          <span>Average cost</span>
+                          <strong>{fmtNumber(tradeConfirmation.previousAvgCost, "$")} → {fmtNumber(tradeConfirmation.nextAvgCost, "$")}</strong>
+                        </div>
+                        <div className={styles.tradeConfirmationMetric}>
+                          <span>Marked at</span>
+                          <strong>{fmtNumber(tradeConfirmation.currentMidPrice, "$")}</strong>
+                        </div>
+                        <div className={styles.tradeConfirmationMetric}>
+                          <span>{tradeConfirmation.side === "buy" ? "Estimated unrealized P/L" : "Actual realized P/L"}</span>
+                          <strong
+                            className={((tradeConfirmation.side === "buy" ? tradeConfirmation.unrealizedPnl : tradeConfirmation.realizedPnl) ?? 0) >= 0 ? styles.valueUp : styles.valueDown}
+                          >
+                            {formatSignedCurrency(tradeConfirmation.side === "buy" ? tradeConfirmation.unrealizedPnl : tradeConfirmation.realizedPnl)}
+                          </strong>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className={styles.tradeConfirmationSection}>
+                      <h3>{tradeConfirmation.side === "buy" ? "What changed" : "Remaining position"}</h3>
+                      <div className={styles.tradeConfirmationMetricList}>
+                        {tradeConfirmation.side === "buy" ? (
+                          <>
+                            <div className={styles.tradeConfirmationMetric}>
+                              <span>Shares added</span>
+                              <strong className={styles.valueUp}>+{fmtNumber(tradeConfirmation.filledQuantity)}</strong>
+                            </div>
+                            <div className={styles.tradeConfirmationMetric}>
+                              <span>New weighted average</span>
+                              <strong>{fmtNumber(tradeConfirmation.nextAvgCost, "$")}</strong>
+                            </div>
+                            <div className={styles.tradeConfirmationMetric}>
+                              <span>Fill time</span>
+                              <strong>{fmtDate(tradeConfirmation.filledAt)}</strong>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className={styles.tradeConfirmationMetric}>
+                              <span>Cost basis sold</span>
+                              <strong>{fmtNumber(tradeConfirmation.costBasisSold, "$")}</strong>
+                            </div>
+                            <div className={styles.tradeConfirmationMetric}>
+                              <span>Shares remaining</span>
+                              <strong>{fmtNumber(tradeConfirmation.nextQuantity)}</strong>
+                            </div>
+                            <div className={styles.tradeConfirmationMetric}>
+                              <span>Remaining unrealized P/L</span>
+                              <strong className={(tradeConfirmation.unrealizedPnl ?? 0) >= 0 ? styles.valueUp : styles.valueDown}>
+                                {formatSignedCurrency(tradeConfirmation.unrealizedPnl)}
+                              </strong>
+                            </div>
+                            <div className={styles.tradeConfirmationMetric}>
+                              <span>Fill time</span>
+                              <strong>{fmtDate(tradeConfirmation.filledAt)}</strong>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </section>
+                  </div>
+
+                  <div className={styles.tradeConfirmationActions}>
+                    <button type="button" className={styles.tradeConfirmationPrimary} onClick={closeTradeConfirmation}>
+                      Back to chart
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </SiteShell>
   );
 }

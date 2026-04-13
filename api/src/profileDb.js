@@ -1,5 +1,6 @@
 const articleDb = require("./articleDb");
 const netWorth = require("./services/netWorth");
+const achievements = require("./services/achievements");
 const trading = require("./services/trading");
 const PROFILE_PICTURE_CDN_BASE_URL = "https://images.nasfaq.biz/profile-pictures";
 
@@ -23,6 +24,11 @@ function paginationShape({ total, page, limit }) {
 
 function normalizeUsername(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function normalizeUserId(value) {
+  const parsed = Number.parseInt(String(value || "").trim(), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 function optionalTrimmedString(value) {
@@ -202,7 +208,10 @@ async function listPendingFriendRequests(pool, userId, direction) {
 }
 
 async function getViewerContext(pool, profileUserId, viewerUserId) {
-  if (!viewerUserId) {
+  const safeProfileUserId = normalizeUserId(profileUserId);
+  const safeViewerUserId = normalizeUserId(viewerUserId);
+
+  if (!safeProfileUserId || !safeViewerUserId) {
     return {
       is_authenticated: false,
       is_self: false,
@@ -213,7 +222,7 @@ async function getViewerContext(pool, profileUserId, viewerUserId) {
     };
   }
 
-  if (Number(viewerUserId) === Number(profileUserId)) {
+  if (safeViewerUserId === safeProfileUserId) {
     return {
       is_authenticated: true,
       is_self: true,
@@ -229,31 +238,31 @@ async function getViewerContext(pool, profileUserId, viewerUserId) {
       `
       SELECT requester_id, addressee_id, status
       FROM market.user_friendships
-      WHERE LEAST(requester_id, addressee_id) = LEAST($1, $2)
-        AND GREATEST(requester_id, addressee_id) = GREATEST($1, $2)
+      WHERE LEAST(requester_id, addressee_id) = LEAST($1::bigint, $2::bigint)
+        AND GREATEST(requester_id, addressee_id) = GREATEST($1::bigint, $2::bigint)
       LIMIT 1
     `,
-      [viewerUserId, profileUserId]
+      [safeViewerUserId, safeProfileUserId]
     ),
     pool.query(
       `
       SELECT 1
       FROM market.user_rivals
-      WHERE user_id = $1
-        AND rival_user_id = $2
+      WHERE user_id = $1::bigint
+        AND rival_user_id = $2::bigint
       LIMIT 1
     `,
-      [viewerUserId, profileUserId]
+      [safeViewerUserId, safeProfileUserId]
     ),
     pool.query(
       `
       SELECT 1
       FROM market.user_rivals
-      WHERE user_id = $1
-        AND rival_user_id = $2
+      WHERE user_id = $1::bigint
+        AND rival_user_id = $2::bigint
       LIMIT 1
     `,
-      [profileUserId, viewerUserId]
+      [safeProfileUserId, safeViewerUserId]
     ),
   ]);
 
@@ -262,7 +271,7 @@ async function getViewerContext(pool, profileUserId, viewerUserId) {
   if (friendship?.status === "accepted") {
     friendshipStatus = "accepted";
   } else if (friendship?.status === "pending") {
-    friendshipStatus = Number(friendship.requester_id) === Number(viewerUserId) ? "pending_outgoing" : "pending_incoming";
+    friendshipStatus = Number(friendship.requester_id) === safeViewerUserId ? "pending_outgoing" : "pending_incoming";
   }
 
   return {
@@ -378,7 +387,7 @@ async function getProfileBundle(pool, {
   const profileUser = await resolveProfileUser(pool, { username, viewerUserId, selfOnly });
 
   const isSelf = Boolean(viewerUserId) && Number(profileUser.id) === Number(viewerUserId);
-  const [viewerContext, stats, friends, rivals, networth, articleResult, tradeResult, portfolio] = await Promise.all([
+  const [viewerContext, stats, friends, rivals, networth, articleResult, tradeResult, portfolio, userAchievements, streaks] = await Promise.all([
     getViewerContext(pool, profileUser.id, viewerUserId),
     getProfileStats(pool, profileUser.id),
     listAcceptedFriends(pool, profileUser.id),
@@ -387,6 +396,8 @@ async function getProfileBundle(pool, {
     listProfileArticles(pool, profileUser.id, { page: articlesPage, limit: articlesLimit, viewerUserId }),
     listProfileTrades(pool, profileUser.id, { page: tradesPage, limit: tradesLimit }),
     isSelf ? trading.getPortfolioSummary(pool, profileUser.id) : getPublicPortfolioSummary(pool, profileUser.id),
+    achievements.listUserAchievements(pool, profileUser.id, { limit: 100 }),
+    achievements.getUserTradeStreak(pool, profileUser.id),
   ]);
 
   const pending = isSelf
@@ -416,6 +427,15 @@ async function getProfileBundle(pool, {
         rival_count: Number(stats.rival_count || 0),
       },
       networth_history: networth,
+      achievements: userAchievements,
+      streaks: {
+        current_streak_days: Number(streaks.current_streak_days || 0),
+        longest_streak_days: Number(streaks.longest_streak_days || 0),
+        last_trade_day: streaks.last_trade_day || null,
+        streak_started_day: streaks.streak_started_day || null,
+        longest_streak_started_day: streaks.longest_streak_started_day || null,
+        longest_streak_ended_day: streaks.longest_streak_ended_day || null,
+      },
       friends,
       rivals,
       pending_friend_requests: pending,
@@ -561,16 +581,23 @@ async function updateProfileSettings(pool, userId, { bio, profileColor, oshiCoin
 }
 
 async function sendFriendRequest(pool, viewerUserId, username) {
-  const target = await resolveTargetUser(pool, username, viewerUserId);
+  const safeViewerUserId = normalizeUserId(viewerUserId);
+  if (!safeViewerUserId) {
+    const error = new Error("unauthenticated");
+    error.code = "unauthenticated";
+    throw error;
+  }
+
+  const target = await resolveTargetUser(pool, username, safeViewerUserId);
   const pairResult = await pool.query(
     `
     SELECT id, requester_id, addressee_id, status
     FROM market.user_friendships
-    WHERE LEAST(requester_id, addressee_id) = LEAST($1, $2)
-      AND GREATEST(requester_id, addressee_id) = GREATEST($1, $2)
+    WHERE LEAST(requester_id, addressee_id) = LEAST($1::bigint, $2::bigint)
+      AND GREATEST(requester_id, addressee_id) = GREATEST($1::bigint, $2::bigint)
     LIMIT 1
   `,
-    [viewerUserId, target.id]
+    [safeViewerUserId, target.id]
   );
   const existing = pairResult.rows[0] || null;
 
@@ -580,7 +607,7 @@ async function sendFriendRequest(pool, viewerUserId, username) {
     throw error;
   }
   if (existing?.status === "pending") {
-    const error = new Error(Number(existing.requester_id) === Number(viewerUserId) ? "friend_request_pending" : "friend_request_needs_response");
+    const error = new Error(Number(existing.requester_id) === safeViewerUserId ? "friend_request_pending" : "friend_request_needs_response");
     error.code = error.message;
     throw error;
   }
@@ -598,12 +625,19 @@ async function sendFriendRequest(pool, viewerUserId, username) {
       updated_at
     ) VALUES ($1, $2, 'pending', now(), now())
   `,
-    [viewerUserId, target.id]
+    [safeViewerUserId, target.id]
   );
 }
 
 async function acceptFriendRequest(pool, viewerUserId, username) {
-  const target = await resolveTargetUser(pool, username, viewerUserId);
+  const safeViewerUserId = normalizeUserId(viewerUserId);
+  if (!safeViewerUserId) {
+    const error = new Error("unauthenticated");
+    error.code = "unauthenticated";
+    throw error;
+  }
+
+  const target = await resolveTargetUser(pool, username, safeViewerUserId);
   const result = await pool.query(
     `
     UPDATE market.user_friendships
@@ -611,12 +645,12 @@ async function acceptFriendRequest(pool, viewerUserId, username) {
       status = 'accepted',
       accepted_at = now(),
       updated_at = now()
-    WHERE requester_id = $1
-      AND addressee_id = $2
+    WHERE requester_id = $1::bigint
+      AND addressee_id = $2::bigint
       AND status = 'pending'
     RETURNING id
   `,
-    [target.id, viewerUserId]
+    [target.id, safeViewerUserId]
   );
   if (!result.rows[0]) {
     const error = new Error("friend_request_not_found");
@@ -626,19 +660,33 @@ async function acceptFriendRequest(pool, viewerUserId, username) {
 }
 
 async function removeFriendship(pool, viewerUserId, username) {
-  const target = await resolveTargetUser(pool, username, viewerUserId);
+  const safeViewerUserId = normalizeUserId(viewerUserId);
+  if (!safeViewerUserId) {
+    const error = new Error("unauthenticated");
+    error.code = "unauthenticated";
+    throw error;
+  }
+
+  const target = await resolveTargetUser(pool, username, safeViewerUserId);
   await pool.query(
     `
     DELETE FROM market.user_friendships
-    WHERE LEAST(requester_id, addressee_id) = LEAST($1, $2)
-      AND GREATEST(requester_id, addressee_id) = GREATEST($1, $2)
+    WHERE LEAST(requester_id, addressee_id) = LEAST($1::bigint, $2::bigint)
+      AND GREATEST(requester_id, addressee_id) = GREATEST($1::bigint, $2::bigint)
   `,
-    [viewerUserId, target.id]
+    [safeViewerUserId, target.id]
   );
 }
 
 async function setRival(pool, viewerUserId, username, active) {
-  const target = await resolveTargetUser(pool, username, viewerUserId);
+  const safeViewerUserId = normalizeUserId(viewerUserId);
+  if (!safeViewerUserId) {
+    const error = new Error("unauthenticated");
+    error.code = "unauthenticated";
+    throw error;
+  }
+
+  const target = await resolveTargetUser(pool, username, safeViewerUserId);
   if (active) {
     await pool.query(
       `
@@ -646,7 +694,7 @@ async function setRival(pool, viewerUserId, username, active) {
       VALUES ($1, $2, now())
       ON CONFLICT (user_id, rival_user_id) DO NOTHING
     `,
-      [viewerUserId, target.id]
+      [safeViewerUserId, target.id]
     );
     return;
   }
@@ -654,10 +702,10 @@ async function setRival(pool, viewerUserId, username, active) {
   await pool.query(
     `
     DELETE FROM market.user_rivals
-    WHERE user_id = $1
-      AND rival_user_id = $2
+    WHERE user_id = $1::bigint
+      AND rival_user_id = $2::bigint
   `,
-    [viewerUserId, target.id]
+    [safeViewerUserId, target.id]
   );
 }
 

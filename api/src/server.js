@@ -31,6 +31,7 @@ const nasfaqThreadRoutes = require("./routes/nasfaqThread");
 const adminAssetsRoutes = require("./routes/adminAssets");
 const assetsRoutes = require("./routes/assets");
 const mediaCatalog = require("./services/mediaCatalog");
+const achievements = require("./services/achievements");
 
 const LIVESTREAM_VIEWER_UPDATES_CHANNEL = "nasfaq_livestreams:viewer_updates";
 const LIVESTREAM_BUCKET_UPDATES_CHANNEL = "nasfaq_livestreams:bucket_updates";
@@ -279,6 +280,7 @@ async function main() {
     await applySchema(pool);
     await articleDb.backfillAllNewsArticles(pool);
   }
+  await achievements.syncDefinitions(pool);
   await mediaCatalog.syncMediaCatalog(pool, console);
   await chatDb.ensureChatTopology(pool);
 

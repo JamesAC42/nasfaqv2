@@ -372,6 +372,8 @@ export function normalizeLeaderboard(rows: Array<Record<string, unknown>>): Lead
             unrealized_pnl: Number(toNumber((row.best_asset as Record<string, unknown>).unrealized_pnl) || 0),
           }
         : null,
+    achievements: normalizeAchievementBadges(row.achievements),
+    streaks: normalizeTradeStreak(row.streaks),
     badges: Array.isArray(row.badges) ? row.badges.map((badge) => String(badge)) : [],
     is_me: Boolean(row.is_me),
     is_friend: Boolean(row.is_friend),
@@ -746,6 +748,40 @@ function normalizeProfileTrades(value: unknown): ProfileTrade[] {
     .filter((item): item is ProfileTrade => item !== null);
 }
 
+function normalizeAchievementBadges(value: unknown): ProfileBundle["profile"]["achievements"] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as Record<string, unknown>;
+      const key = String(row.key || "").trim();
+      const name = String(row.name || key).trim();
+      if (!key || !name) return null;
+      return {
+        key,
+        name,
+        description: row.description ? String(row.description) : null,
+        badge_icon: row.badge_icon ? String(row.badge_icon) : null,
+        badge_color: row.badge_color ? String(row.badge_color) : null,
+        earned_at: row.earned_at ? String(row.earned_at) : null,
+        reward_cash: Number(toNumber(row.reward_cash) || 0),
+      };
+    })
+    .filter((item): item is ProfileBundle["profile"]["achievements"][number] => item !== null);
+}
+
+function normalizeTradeStreak(value: unknown): ProfileBundle["profile"]["streaks"] {
+  const row = value && typeof value === "object" ? value as Record<string, unknown> : null;
+  return {
+    current_streak_days: Number(toNumber(row?.current_streak_days) || 0),
+    longest_streak_days: Number(toNumber(row?.longest_streak_days) || 0),
+    last_trade_day: row?.last_trade_day ? String(row.last_trade_day) : null,
+    streak_started_day: row?.streak_started_day ? String(row.streak_started_day) : null,
+    longest_streak_started_day: row?.longest_streak_started_day ? String(row.longest_streak_started_day) : null,
+    longest_streak_ended_day: row?.longest_streak_ended_day ? String(row.longest_streak_ended_day) : null,
+  };
+}
+
 export function normalizeProfileBundle(value: Record<string, unknown>): ProfileBundle {
   const profile = (value.profile || null) as Record<string, unknown> | null;
   const stats = (profile?.stats || null) as Record<string, unknown> | null;
@@ -787,6 +823,8 @@ export function normalizeProfileBundle(value: Record<string, unknown>): ProfileB
         friend_count: Number(toNumber(stats?.friend_count) || 0),
         rival_count: Number(toNumber(stats?.rival_count) || 0),
       },
+      achievements: normalizeAchievementBadges(profile?.achievements),
+      streaks: normalizeTradeStreak(profile?.streaks),
       networth_history: normalizeProfileNetworth(profile?.networth_history),
       friends: normalizeProfileRelationUsers(profile?.friends),
       rivals: normalizeProfileRelationUsers(profile?.rivals),
