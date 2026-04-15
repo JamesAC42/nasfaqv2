@@ -362,6 +362,7 @@ export function normalizeLeaderboard(rows: Array<Record<string, unknown>>): Lead
             asset_id: toNumber((row.largest_position as Record<string, unknown>).asset_id),
             symbol: String((row.largest_position as Record<string, unknown>).symbol || ""),
             value: Number(toNumber((row.largest_position as Record<string, unknown>).value) || 0),
+            quantity: toNumber((row.largest_position as Record<string, unknown>).quantity),
           }
         : null,
     best_asset:
@@ -370,6 +371,7 @@ export function normalizeLeaderboard(rows: Array<Record<string, unknown>>): Lead
             asset_id: toNumber((row.best_asset as Record<string, unknown>).asset_id),
             symbol: String((row.best_asset as Record<string, unknown>).symbol || ""),
             unrealized_pnl: Number(toNumber((row.best_asset as Record<string, unknown>).unrealized_pnl) || 0),
+            quantity: toNumber((row.best_asset as Record<string, unknown>).quantity),
           }
         : null,
     achievements: normalizeAchievementBadges(row.achievements),
@@ -804,6 +806,7 @@ export function normalizeProfileBundle(value: Record<string, unknown>): ProfileB
       bio: profile?.bio ? String(profile.bio) : null,
       profile_picture_url: profile?.profile_picture_url ? String(profile.profile_picture_url) : null,
       profile_color: profile?.profile_color ? String(profile.profile_color) : null,
+      rank: Number(toNumber(profile?.rank) || 0),
       oshi_coin: oshiCoin
         ? {
             id: Number(oshiCoin.id || 0),

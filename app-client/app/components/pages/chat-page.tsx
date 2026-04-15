@@ -2,7 +2,18 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { startTransition, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import {
+  memo,
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from "react";
 import { FiChevronDown, FiMenu, FiRadio, FiSend, FiStar, FiWifi, FiWifiOff, FiX } from "react-icons/fi";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { SiteShell } from "@/app/components/layout/site-shell";
@@ -19,6 +30,7 @@ import styles from "@/app/components/pages/chat-page.module.scss";
 type ChatEntry = {
   channel: ChatChannel;
   section: "global" | "unit" | "asset";
+  avatarSymbol: string;
   ticker: string;
   label: string;
   icon: string | null;
@@ -86,6 +98,31 @@ function normalizeUnitKey(value: string | null | undefined) {
   return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+function buildUnitTicker(unit: string | null | undefined) {
+  const normalized = normalizeUnitKey(unit);
+  if (!normalized) return "UNIT";
+  const compact = normalized.replace(/[^a-z0-9]/g, "");
+
+  if (/^(gen|generation)\s*[0-5]$/.test(normalized)) {
+    return normalized.replace(/\D/g, "");
+  }
+  if (/^(gen|generation)[0-5]$/.test(compact)) {
+    return compact.replace(/\D/g, "");
+  }
+
+  if (compact.includes("flowglow")) return "F";
+  if (compact.includes("advent")) return "A";
+  if (compact.includes("council")) return "C";
+  if (compact.includes("justice")) return "J";
+  if (compact.includes("myth")) return "M";
+  if (compact.includes("promise")) return "P";
+  if (compact.includes("holox")) return "X";
+  if (compact.includes("regloss")) return "R";
+  if (compact.includes("indonesia")) return "I";
+
+  return String(unit).trim().slice(0, 1).toUpperCase() || "UNIT";
+}
+
 function buildPreview(body: string | null | undefined) {
   const text = String(body || "").replace(/\s+/g, " ").trim();
   if (!text) return "No messages yet.";
@@ -126,6 +163,7 @@ function buildChatEntries(channels: ChatChannel[], assets: MarketAsset[]) {
       entries.push({
         channel,
         section: "global",
+        avatarSymbol: "ALL",
         ticker: "ALL",
         label: "Global Chat",
         icon: null,
@@ -136,15 +174,15 @@ function buildChatEntries(channels: ChatChannel[], assets: MarketAsset[]) {
     }
 
     if (channel.scope_type === "unit") {
-      const representative = (assetByUnit.get(channel.scope_key) || [])[0] || null;
       const unitLabel = channel.metadata.unit || channel.display_name.replace(/\s+Unit Chat$/i, "");
       entries.push({
         channel,
         section: "unit",
+        avatarSymbol: buildUnitTicker(channel.metadata.unit || channel.scope_key || unitLabel),
         ticker: unitLabel || "UNIT",
         label: channel.display_name,
-        icon: representative?.icon || null,
-        color: representative?.color || null,
+        icon: null,
+        color: null,
         subtitle:
           channel.metadata.asset_count && channel.metadata.asset_count > 0
             ? `${fmtInteger(channel.metadata.asset_count)} active chats in this unit`
@@ -158,6 +196,7 @@ function buildChatEntries(channels: ChatChannel[], assets: MarketAsset[]) {
       entries.push({
         channel,
         section: "asset",
+        avatarSymbol: channel.metadata.symbol || asset?.symbol || "CHAT",
         ticker: channel.metadata.symbol || asset?.symbol || "CHAT",
         label: channel.metadata.display_name || asset?.display_name || channel.display_name,
         icon: channel.metadata.icon || asset?.icon || null,
@@ -288,6 +327,273 @@ function renderMessageBody(body: string, emojiMap: Map<string, EmojiAsset>) {
   return parts;
 }
 
+type ChatComposerProps = {
+  user: ReturnType<typeof useAuth>["user"];
+  selectedEntry: ChatEntry;
+  canPost: boolean;
+  emojis: EmojiAsset[];
+  knownUsernames: string[];
+  onSend: (body: string) => Promise<void>;
+};
+
+const ChatComposer = memo(function ChatComposer({
+  user,
+  selectedEntry,
+  canPost,
+  emojis,
+  knownUsernames,
+  onSend,
+}: ChatComposerProps) {
+  const [draft, setDraft] = useState("");
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const [composerSelection, setComposerSelection] = useState(0);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
+  const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const suggestionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const composerMaxHeightRef = useRef<number | null>(null);
+
+  const composerTrigger = useMemo(() => findComposerTrigger(draft, composerSelection), [composerSelection, draft]);
+  const suggestions = useMemo<ComposerSuggestion[]>(() => {
+    if (!composerTrigger) return [];
+    const query = composerTrigger.query.toLowerCase();
+
+    if (composerTrigger.type === "mention") {
+      return knownUsernames
+        .filter((username) => !query || username.toLowerCase().includes(query))
+        .slice(0, 8)
+        .map((username) => ({ key: `mention-${username.toLowerCase()}`, type: "mention", username }));
+    }
+
+    return emojis
+      .filter((emoji) => !query || emoji.name.toLowerCase().includes(query))
+      .slice(0, 12)
+      .map((emoji) => ({ key: `emoji-${emoji.id}`, type: "emoji", emoji }));
+  }, [composerTrigger, emojis, knownUsernames]);
+
+  useEffect(() => {
+    setSendError(null);
+    setActiveSuggestionIndex(0);
+    suggestionRefs.current = [];
+  }, [selectedEntry.channel.channel_key]);
+
+  useEffect(() => {
+    if (!suggestions.length) {
+      setActiveSuggestionIndex(0);
+      suggestionRefs.current = [];
+      return;
+    }
+
+    setActiveSuggestionIndex(0);
+  }, [suggestions]);
+
+  useEffect(() => {
+    if (!suggestions.length) return;
+    suggestionRefs.current[activeSuggestionIndex]?.scrollIntoView({
+      block: "nearest",
+    });
+  }, [activeSuggestionIndex, suggestions]);
+
+  useEffect(() => {
+    const input = composerInputRef.current;
+    if (!input) return;
+
+    if (composerMaxHeightRef.current === null) {
+      const computed = window.getComputedStyle(input);
+      const lineHeight = Number.parseFloat(computed.lineHeight || "22") || 22;
+      const paddingTop = Number.parseFloat(computed.paddingTop || "0") || 0;
+      const paddingBottom = Number.parseFloat(computed.paddingBottom || "0") || 0;
+      composerMaxHeightRef.current = lineHeight * MESSAGE_MAX_LINES + paddingTop + paddingBottom;
+    }
+
+    const maxHeight = composerMaxHeightRef.current || input.scrollHeight;
+    input.style.height = "0px";
+    const nextHeight = Math.min(input.scrollHeight, maxHeight);
+    input.style.height = `${nextHeight}px`;
+    input.style.overflowY = input.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [draft]);
+
+  function syncComposerSelection() {
+    const input = composerInputRef.current;
+    if (!input) return;
+    setComposerSelection(input.selectionStart || 0);
+  }
+
+  function restoreComposerFocus(nextSelection = composerSelection) {
+    window.requestAnimationFrame(() => {
+      window.setTimeout(() => {
+        const input = composerInputRef.current;
+        if (!input) return;
+        input.focus();
+        const safeSelection = Math.min(nextSelection, input.value.length);
+        input.setSelectionRange(safeSelection, safeSelection);
+      }, 0);
+    });
+  }
+
+  function applySuggestion(suggestion: ComposerSuggestion) {
+    const trigger = composerTrigger;
+    if (!trigger) return;
+
+    const insertedText = suggestion.type === "mention" ? `@${suggestion.username} ` : `:${suggestion.emoji.name}: `;
+    const nextDraft = `${draft.slice(0, trigger.start)}${insertedText}${draft.slice(trigger.end)}`;
+    const nextSelection = trigger.start + insertedText.length;
+    setDraft(nextDraft);
+    setComposerSelection(nextSelection);
+    setActiveSuggestionIndex(0);
+
+    window.requestAnimationFrame(() => {
+      const input = composerInputRef.current;
+      if (!input) return;
+      input.focus();
+      input.setSelectionRange(nextSelection, nextSelection);
+    });
+  }
+
+  async function submitDraft() {
+    if (!canPost || isSending) return;
+
+    const body = draft.trim();
+    if (!body) return;
+
+    setIsSending(true);
+    setSendError(null);
+    try {
+      await onSend(body);
+      setDraft("");
+      setComposerSelection(0);
+      setActiveSuggestionIndex(0);
+      restoreComposerFocus(0);
+    } catch (error) {
+      setSendError(String((error as Error).message || error));
+      restoreComposerFocus();
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  function handleSendMessage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void submitDraft();
+  }
+
+  function handleComposerKeyDown(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
+    if (suggestions.length && (event.key === "Enter" || event.key === "Tab") && !event.shiftKey) {
+      event.preventDefault();
+      if (event.key === "Enter") {
+        applySuggestion(suggestions[activeSuggestionIndex] || suggestions[0]);
+        return;
+      }
+      const nextIndex = (activeSuggestionIndex + 1) % suggestions.length;
+      setActiveSuggestionIndex(nextIndex);
+      return;
+    }
+
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      if (!isSending && canPost && draft.trim()) {
+        void submitDraft();
+      }
+    }
+  }
+
+  return (
+    <form className={styles.composer} onSubmit={handleSendMessage}>
+      {user && selectedEntry.channel.muted_until ? (
+        <div className="statusMessage statusMessageWarn">
+          You are muted in this room until {formatMessageTime(selectedEntry.channel.muted_until)}.
+        </div>
+      ) : null}
+      {user && selectedEntry.channel.posting_policy === "admins_only" && !user.is_admin ? (
+        <div className="statusMessage statusMessageWarn">This room is currently limited to admins.</div>
+      ) : null}
+      {sendError ? <div className="statusMessage statusMessageError">Send failed: {sendError}</div> : null}
+      <label className={styles.composerLabel} htmlFor="chat-message">
+        Message
+      </label>
+      <div className={styles.composerBox}>
+        {!user ? (
+          <div className={styles.composerPrompt}>
+            Sign in to chat.{" "}
+            <Link href="/login" className="appLink">
+              Login
+            </Link>
+          </div>
+        ) : (
+          <>
+            <div
+              className={styles.composerInputWrap}
+              onClick={() => {
+                composerInputRef.current?.focus();
+              }}
+            >
+              <textarea
+                id="chat-message"
+                ref={composerInputRef}
+                className={styles.composerInput}
+                value={draft}
+                onChange={(event) => {
+                  setDraft(event.target.value);
+                  setComposerSelection(event.target.selectionStart || 0);
+                }}
+                onClick={syncComposerSelection}
+                onKeyUp={syncComposerSelection}
+                onSelect={syncComposerSelection}
+                onKeyDown={handleComposerKeyDown}
+                placeholder={canPost ? `Message #${selectedEntry.ticker.toLowerCase()}` : "Posting is unavailable in this room"}
+                rows={1}
+                maxLength={1000}
+                disabled={!canPost || isSending}
+              />
+              {composerTrigger && suggestions.length ? (
+                <div className={styles.composerSuggestions} role="listbox">
+                  {suggestions.map((suggestion, index) => (
+                    <button
+                      key={suggestion.key}
+                      type="button"
+                      ref={(element) => {
+                        suggestionRefs.current[index] = element;
+                      }}
+                      className={[styles.composerSuggestion, index === activeSuggestionIndex ? styles.composerSuggestionActive : ""].filter(Boolean).join(" ")}
+                      onMouseDown={(event) => event.preventDefault()}
+                      tabIndex={-1}
+                      aria-selected={index === activeSuggestionIndex}
+                      onMouseEnter={() => setActiveSuggestionIndex(index)}
+                      onClick={() => applySuggestion(suggestion)}
+                    >
+                      {suggestion.type === "mention" ? (
+                        <>
+                          <span className={styles.suggestionPrimary}>@{suggestion.username}</span>
+                          <span className={styles.suggestionSecondary}>mention</span>
+                        </>
+                      ) : (
+                        <>
+                          <img src={suggestion.emoji.url} alt={suggestion.emoji.name} className={styles.suggestionEmoji} />
+                          <div className={styles.suggestionEmojiBody}>
+                            <span className={styles.suggestionPrimary}>{suggestion.emoji.name}</span>
+                            <span className={styles.suggestionSecondary}>:{suggestion.emoji.name}:</span>
+                          </div>
+                        </>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className={styles.composerFooter}>
+              <span className={styles.composerHint}>{draft.trim().length}/1000</span>
+              <button type="submit" className={styles.sendButton} disabled={!canPost || isSending || !draft.trim()}>
+                <FiSend aria-hidden="true" />
+                <span>{isSending ? "Sending" : "Send"}</span>
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </form>
+  );
+});
+
 export function ChatPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -307,24 +613,19 @@ export function ChatPage() {
   const [historyLimited, setHistoryLimited] = useState(false);
   const [visibleDays, setVisibleDays] = useState<number | null>(null);
   const [pinnedChannelKeys, setPinnedChannelKeys] = useState<string[]>([]);
-  const [draft, setDraft] = useState("");
   const [emojis, setEmojis] = useState<EmojiAsset[]>([]);
-  const [sendError, setSendError] = useState<string | null>(null);
-  const [isSending, setIsSending] = useState(false);
   const [socketState, setSocketState] = useState<"connecting" | "open" | "closed">("connecting");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [pendingNewMessageCount, setPendingNewMessageCount] = useState(0);
-  const [composerSelection, setComposerSelection] = useState(0);
-  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
+  const [loadedChannelKey, setLoadedChannelKey] = useState<string | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const subscribedChannelRef = useRef<string | null>(null);
   const selectedChannelKeyRef = useRef<string | null>(null);
+  const loadedChannelKeyRef = useRef<string | null>(null);
   const messageViewportRef = useRef<HTMLDivElement | null>(null);
   const loadingOlderRef = useRef(false);
-  const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
-  const suggestionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const shouldScrollToBottomRef = useRef(false);
   const previousLastMessageIdRef = useRef<number | null>(null);
 
@@ -341,9 +642,8 @@ export function ChatPage() {
     if ((rank || 0) > 0 && (rank || 0) <= 10) return [styles.messageNetWorthRank, styles.messageNetWorthRankTopTen].join(" ");
     return styles.messageNetWorthRank;
   }
-  const shouldRestoreComposerFocusRef = useRef(false);
-
   const requestedChannelKey = searchParams.get("channel") || "market:global";
+  const [activeChannelKey, setActiveChannelKey] = useState(requestedChannelKey);
   const chatEntries = useMemo(() => buildChatEntries(channels, assets), [assets, channels]);
   const emojiMap = useMemo(() => new Map(emojis.map((emoji) => [emoji.name.toLowerCase(), emoji])), [emojis]);
   const pinnedChannelKeySet = useMemo(() => new Set(pinnedChannelKeys), [pinnedChannelKeys]);
@@ -351,39 +651,29 @@ export function ChatPage() {
     () => chatEntries.filter((entry) => pinnedChannelKeySet.has(entry.channel.channel_key)),
     [chatEntries, pinnedChannelKeySet]
   );
-  const selectedEntry = useMemo(
-    () => chatEntries.find((entry) => entry.channel.channel_key === requestedChannelKey) || chatEntries[0] || null,
+  const requestedEntry = useMemo(
+    () => chatEntries.find((entry) => entry.channel.channel_key === requestedChannelKey) || null,
     [chatEntries, requestedChannelKey]
   );
+  const selectedEntry = useMemo(
+    () => chatEntries.find((entry) => entry.channel.channel_key === activeChannelKey) || chatEntries[0] || null,
+    [activeChannelKey, chatEntries]
+  );
+  const selectedChannelKey = selectedEntry?.channel.channel_key || null;
   const knownUsernames = useMemo(() => {
     const usernames = new Set<string>();
-    for (const message of messages) {
+    const visibleMessages = selectedChannelKey === loadedChannelKey ? messages : [];
+    for (const message of visibleMessages) {
       const username = String(message.author?.username || "").trim();
       if (username) {
         usernames.add(username);
       }
     }
     return Array.from(usernames).sort((left, right) => left.localeCompare(right, undefined, { sensitivity: "base" }));
-  }, [messages]);
-  const composerTrigger = useMemo(() => findComposerTrigger(draft, composerSelection), [composerSelection, draft]);
-  const suggestions = useMemo<ComposerSuggestion[]>(() => {
-    if (!composerTrigger) return [];
-    const query = composerTrigger.query.toLowerCase();
-
-    if (composerTrigger.type === "mention") {
-      return knownUsernames
-        .filter((username) => !query || username.toLowerCase().includes(query))
-        .slice(0, 8)
-        .map((username) => ({ key: `mention-${username.toLowerCase()}`, type: "mention", username }));
-    }
-
-    return emojis
-      .filter((emoji) => !query || emoji.name.toLowerCase().includes(query))
-      .slice(0, 12)
-      .map((emoji) => ({ key: `emoji-${emoji.id}`, type: "emoji", emoji }));
-  }, [composerTrigger, emojis, knownUsernames]);
-  const displayedMessageCount = selectedEntry ? Math.max(selectedEntry.channel.message_count, messages.length) : 0;
-  const selectedChannelKey = selectedEntry?.channel.channel_key || null;
+  }, [loadedChannelKey, messages, selectedChannelKey]);
+  const displayedMessages = selectedChannelKey === loadedChannelKey ? messages : [];
+  const isShowingSkeleton = Boolean(selectedChannelKey) && (isLoadingMessages || selectedChannelKey !== loadedChannelKey);
+  const displayedMessageCount = selectedEntry ? Math.max(selectedEntry.channel.message_count, displayedMessages.length) : 0;
 
   useEffect(() => {
     if (assets.length) return;
@@ -393,6 +683,11 @@ export function ChatPage() {
   useEffect(() => {
     setPinnedChannelKeys(readPinnedChannels());
   }, []);
+
+  useEffect(() => {
+    if (!requestedEntry) return;
+    setActiveChannelKey((current) => (current === requestedChannelKey ? current : requestedChannelKey));
+  }, [requestedChannelKey, requestedEntry]);
 
   useEffect(() => {
     let cancelled = false;
@@ -435,12 +730,13 @@ export function ChatPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedEntry) return;
-    if (selectedEntry.channel.channel_key === requestedChannelKey) return;
+    if (isLoadingChannels || requestedEntry || !chatEntries.length) return;
+    const fallbackChannelKey = chatEntries[0]?.channel.channel_key || null;
+    if (!fallbackChannelKey || fallbackChannelKey === requestedChannelKey) return;
     startTransition(() => {
-      router.replace(`/chat?channel=${encodeURIComponent(selectedEntry.channel.channel_key)}`, { scroll: false });
+      router.replace(`/chat?channel=${encodeURIComponent(fallbackChannelKey)}`, { scroll: false });
     });
-  }, [requestedChannelKey, router, selectedEntry]);
+  }, [chatEntries, isLoadingChannels, requestedChannelKey, requestedEntry, router]);
 
   useEffect(() => {
     selectedChannelKeyRef.current = selectedEntry?.channel.channel_key || null;
@@ -450,7 +746,38 @@ export function ChatPage() {
     setIsDrawerOpen(false);
   }, [selectedEntry?.channel.channel_key]);
 
+  const selectChannel = useCallback(
+    (channelKey: string) => {
+      if (!channelKey) return;
+      if (channelKey === selectedChannelKeyRef.current && channelKey === requestedChannelKey) {
+        setIsDrawerOpen(false);
+        return;
+      }
+
+      setIsDrawerOpen(false);
+      selectedChannelKeyRef.current = channelKey;
+      setActiveChannelKey(channelKey);
+      setMessagesError(null);
+      setIsLoadingMessages(true);
+      setPendingNewMessageCount(0);
+      setIsAtBottom(true);
+      shouldScrollToBottomRef.current = false;
+      previousLastMessageIdRef.current = null;
+
+      if (channelKey !== requestedChannelKey) {
+        window.setTimeout(() => {
+          startTransition(() => {
+            router.replace(`/chat?channel=${encodeURIComponent(channelKey)}`, { scroll: false });
+          });
+        }, 0);
+      }
+    },
+    [requestedChannelKey, router]
+  );
+
   useEffect(() => {
+    if (isLoadingChannels) return;
+
     setPinnedChannelKeys((current) => {
       const valid = current.filter((channelKey) => chatEntries.some((entry) => entry.channel.channel_key === channelKey));
       if (valid.length !== current.length) {
@@ -458,12 +785,14 @@ export function ChatPage() {
       }
       return valid;
     });
-  }, [chatEntries]);
+  }, [chatEntries, isLoadingChannels]);
 
   useEffect(() => {
     let cancelled = false;
     if (!selectedChannelKey) {
       setMessages([]);
+      setLoadedChannelKey(null);
+      loadedChannelKeyRef.current = null;
       setMessagesError(null);
       setIsLoadingMessages(false);
       setIsLoadingOlder(false);
@@ -484,6 +813,12 @@ export function ChatPage() {
       setIsLoadingMessages(true);
       setIsLoadingOlder(false);
       setMessagesError(null);
+      setHasMoreMessages(false);
+      setNextCursor(null);
+      setHistoryLimited(false);
+      setVisibleDays(null);
+      setPendingNewMessageCount(0);
+      setIsAtBottom(true);
       try {
         const result = await apiFetch<MessageListResponse>(
           `/api/chat/channels/${encodeURIComponent(channelKey)}/messages?limit=50`
@@ -492,9 +827,11 @@ export function ChatPage() {
 
         const normalized = (result.messages || []).map(normalizeChatMessage);
         previousLastMessageIdRef.current = normalized[normalized.length - 1]?.id || null;
+        loadedChannelKeyRef.current = channelKey;
         shouldScrollToBottomRef.current = true;
         setPendingNewMessageCount(0);
         setIsAtBottom(true);
+        setLoadedChannelKey(channelKey);
         setMessages(normalized);
         setHasMoreMessages(Boolean(result.has_more));
         setNextCursor(result.next_cursor || null);
@@ -510,6 +847,8 @@ export function ChatPage() {
         }
       } catch (error) {
         if (cancelled) return;
+        loadedChannelKeyRef.current = channelKey;
+        setLoadedChannelKey(channelKey);
         setMessages([]);
         setHasMoreMessages(false);
         setNextCursor(null);
@@ -576,36 +915,6 @@ export function ChatPage() {
   }, [authorNetWorthByUserId, messages]);
 
   useEffect(() => {
-    if (!suggestions.length) {
-      setActiveSuggestionIndex(0);
-      suggestionRefs.current = [];
-      return;
-    }
-
-    setActiveSuggestionIndex(0);
-  }, [suggestions]);
-
-  useEffect(() => {
-    if (!suggestions.length) return;
-    suggestionRefs.current[activeSuggestionIndex]?.scrollIntoView({
-      block: "nearest",
-    });
-  }, [activeSuggestionIndex, suggestions]);
-
-  useEffect(() => {
-    const input = composerInputRef.current;
-    if (!input) return;
-    input.style.height = "auto";
-    const computed = window.getComputedStyle(input);
-    const lineHeight = Number.parseFloat(computed.lineHeight || "22") || 22;
-    const paddingTop = Number.parseFloat(computed.paddingTop || "0") || 0;
-    const paddingBottom = Number.parseFloat(computed.paddingBottom || "0") || 0;
-    const maxHeight = lineHeight * MESSAGE_MAX_LINES + paddingTop + paddingBottom;
-    input.style.height = `${Math.min(input.scrollHeight, maxHeight)}px`;
-    input.style.overflowY = input.scrollHeight > maxHeight ? "auto" : "hidden";
-  }, [draft]);
-
-  useEffect(() => {
     const viewport = messageViewportRef.current;
     if (!viewport || !shouldScrollToBottomRef.current) return;
 
@@ -618,12 +927,6 @@ export function ChatPage() {
       setIsAtBottom(true);
     });
   }, [messages, selectedChannelKey]);
-
-  useEffect(() => {
-    if (!shouldRestoreComposerFocusRef.current) return;
-    restoreComposerFocus(0);
-    shouldRestoreComposerFocusRef.current = false;
-  }, [messages]);
 
   useEffect(() => {
     const lastMessageId = messages[messages.length - 1]?.id || null;
@@ -649,7 +952,7 @@ export function ChatPage() {
   }, [isAtBottom, messages]);
 
   async function loadOlderMessages() {
-    if (!selectedChannelKey || !nextCursor || !hasMoreMessages || loadingOlderRef.current) return;
+    if (!selectedChannelKey || selectedChannelKey !== loadedChannelKey || !nextCursor || !hasMoreMessages || loadingOlderRef.current) return;
     const channelKey = selectedChannelKey;
     const viewport = messageViewportRef.current;
     loadingOlderRef.current = true;
@@ -752,7 +1055,7 @@ export function ChatPage() {
         if (!payload) return;
         if (payload.type === "chat.message.created" || payload.type === "chat.message.updated") {
           const message = normalizeChatMessage(payload.message);
-          setMessages((current) => (message.channel_key === selectedChannelKeyRef.current ? upsertMessage(current, message) : current));
+          setMessages((current) => (message.channel_key === loadedChannelKeyRef.current ? upsertMessage(current, message) : current));
           setChannels((current) =>
             current.map((channel) =>
               channel.channel_key === message.channel_key
@@ -833,13 +1136,10 @@ export function ChatPage() {
     (selectedEntry.channel.posting_policy !== "admins_only" || user.is_admin) &&
     !selectedEntry.channel.muted_until;
 
-  async function sendMessage() {
-    if (!selectedEntry || !canPost || !draft.trim()) return;
+  const sendMessage = useCallback(
+    async (body: string) => {
+      if (!selectedEntry || !canPost) return;
 
-    setIsSending(true);
-    setSendError(null);
-    try {
-      const body = draft.trim();
       const result = await apiFetch<{ message: Record<string, unknown>; channel: Record<string, unknown> }>(
         `/api/chat/channels/${encodeURIComponent(selectedEntry.channel.channel_key)}/messages`,
         {
@@ -848,35 +1148,15 @@ export function ChatPage() {
         }
       );
       const nextMessage = normalizeChatMessage(result.message);
-      shouldRestoreComposerFocusRef.current = true;
       shouldScrollToBottomRef.current = true;
       setMessages((current) => upsertMessage(current, nextMessage));
-      setDraft("");
-      setComposerSelection(0);
-      setActiveSuggestionIndex(0);
       await apiFetch(`/api/chat/channels/${encodeURIComponent(selectedEntry.channel.channel_key)}/read`, {
         method: "POST",
         body: JSON.stringify({ last_read_message_id: nextMessage.id }),
       });
-    } catch (error) {
-      setSendError(String((error as Error).message || error));
-    } finally {
-      setIsSending(false);
-      shouldRestoreComposerFocusRef.current = true;
-      restoreComposerFocus(0);
-    }
-  }
-
-  function handleSendMessage(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void sendMessage();
-  }
-
-  function syncComposerSelection() {
-    const input = composerInputRef.current;
-    if (!input) return;
-    setComposerSelection(input.selectionStart || 0);
-  }
+    },
+    [canPost, selectedEntry]
+  );
 
   function scrollToBottom() {
     const viewport = messageViewportRef.current;
@@ -884,57 +1164,6 @@ export function ChatPage() {
     viewport.scrollTop = viewport.scrollHeight;
     setPendingNewMessageCount(0);
     setIsAtBottom(true);
-  }
-
-  function applySuggestion(suggestion: ComposerSuggestion) {
-    const trigger = composerTrigger;
-    if (!trigger) return;
-
-    const insertedText = suggestion.type === "mention" ? `@${suggestion.username} ` : `:${suggestion.emoji.name}: `;
-    const nextDraft = `${draft.slice(0, trigger.start)}${insertedText}${draft.slice(trigger.end)}`;
-    const nextSelection = trigger.start + insertedText.length;
-    setDraft(nextDraft);
-    setComposerSelection(nextSelection);
-    setActiveSuggestionIndex(0);
-
-    window.requestAnimationFrame(() => {
-      const input = composerInputRef.current;
-      if (!input) return;
-      input.focus();
-      input.setSelectionRange(nextSelection, nextSelection);
-    });
-  }
-
-  function restoreComposerFocus(nextSelection = composerSelection) {
-    window.requestAnimationFrame(() => {
-      window.setTimeout(() => {
-        const input = composerInputRef.current;
-        if (!input) return;
-        input.focus();
-        const safeSelection = Math.min(nextSelection, input.value.length);
-        input.setSelectionRange(safeSelection, safeSelection);
-      }, 0);
-    });
-  }
-
-  function handleComposerKeyDown(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
-    if (suggestions.length && (event.key === "Enter" || event.key === "Tab") && !event.shiftKey) {
-      event.preventDefault();
-      if (event.key === "Enter") {
-        applySuggestion(suggestions[activeSuggestionIndex] || suggestions[0]);
-        return;
-      }
-      const nextIndex = (activeSuggestionIndex + 1) % suggestions.length;
-      setActiveSuggestionIndex(nextIndex);
-      return;
-    }
-
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      if (!isSending && canPost && draft.trim()) {
-        void sendMessage();
-      }
-    }
   }
 
   function togglePinnedChannel(channelKey: string) {
@@ -983,22 +1212,14 @@ export function ChatPage() {
                             role="button"
                             tabIndex={0}
                             className={[styles.chatButton, isActive ? styles.chatButtonActive : ""].filter(Boolean).join(" ")}
-                            onClick={() => {
-                              setIsDrawerOpen(false);
-                              startTransition(() => {
-                                router.replace(`/chat?channel=${encodeURIComponent(entry.channel.channel_key)}`, { scroll: false });
-                              });
-                            }}
+                            onClick={() => selectChannel(entry.channel.channel_key)}
                             onKeyDown={(event) =>
                               activateChatRow(event, () => {
-                                setIsDrawerOpen(false);
-                                startTransition(() => {
-                                  router.replace(`/chat?channel=${encodeURIComponent(entry.channel.channel_key)}`, { scroll: false });
-                                });
+                                selectChannel(entry.channel.channel_key);
                               })
                             }
                           >
-                            <AssetCoin symbol={entry.ticker} icon={entry.icon} color={entry.color} className={styles.chatCoin} shape="circle" />
+                            <AssetCoin symbol={entry.avatarSymbol} icon={entry.icon} color={entry.color} className={styles.chatCoin} shape="circle" />
                             <div className={styles.chatButtonBody}>
                               <div className={styles.chatButtonTopline}>
                                 <span className={styles.chatTicker}>{entry.ticker}</span>
@@ -1048,22 +1269,14 @@ export function ChatPage() {
                               role="button"
                               tabIndex={0}
                               className={[styles.chatButton, isActive ? styles.chatButtonActive : ""].filter(Boolean).join(" ")}
-                              onClick={() => {
-                                setIsDrawerOpen(false);
-                                startTransition(() => {
-                                  router.replace(`/chat?channel=${encodeURIComponent(entry.channel.channel_key)}`, { scroll: false });
-                                });
-                              }}
+                              onClick={() => selectChannel(entry.channel.channel_key)}
                               onKeyDown={(event) =>
                                 activateChatRow(event, () => {
-                                  setIsDrawerOpen(false);
-                                  startTransition(() => {
-                                    router.replace(`/chat?channel=${encodeURIComponent(entry.channel.channel_key)}`, { scroll: false });
-                                  });
+                                  selectChannel(entry.channel.channel_key);
                                 })
                               }
                             >
-                              <AssetCoin symbol={entry.ticker} icon={entry.icon} color={entry.color} className={styles.chatCoin} shape="circle" />
+                              <AssetCoin symbol={entry.avatarSymbol} icon={entry.icon} color={entry.color} className={styles.chatCoin} shape="circle" />
                               <div className={styles.chatButtonBody}>
                                 <div className={styles.chatButtonTopline}>
                                   <span className={styles.chatTicker}>{entry.ticker}</span>
@@ -1112,7 +1325,7 @@ export function ChatPage() {
                 <header className={styles.chatHeader}>
                   <div className={styles.chatIdentity}>
                     <AssetCoin
-                      symbol={selectedEntry.ticker}
+                      symbol={selectedEntry.avatarSymbol}
                       icon={selectedEntry.icon}
                       color={selectedEntry.color}
                       className={styles.headerCoin}
@@ -1144,7 +1357,7 @@ export function ChatPage() {
                     </button>
                   ) : null}
                   {isLoadingOlder ? <div className={styles.historyLoader}>Loading older messages…</div> : null}
-                  {isLoadingMessages ? (
+                  {isShowingSkeleton ? (
                     <div className={styles.messageSkeletonList} aria-hidden="true">
                       {Array.from({ length: 7 }, (_, index) => (
                         <div key={`message-skeleton-${index}`} className={styles.messageSkeletonRow}>
@@ -1161,16 +1374,16 @@ export function ChatPage() {
                       ))}
                     </div>
                   ) : null}
-                  {!isLoadingMessages && !messages.length ? <div className={shellStyles.empty}>No one has posted here yet.</div> : null}
+                  {!isShowingSkeleton && !displayedMessages.length ? <div className={shellStyles.empty}>No one has posted here yet.</div> : null}
 
-                  {!isLoadingMessages && !isLoadingOlder && historyLimited && messages.length ? (
+                  {!isShowingSkeleton && !isLoadingOlder && historyLimited && displayedMessages.length ? (
                     <div className={styles.historyLoader}>
                       {visibleDays ? `Visible history limited to the last ${visibleDays} days.` : "Visible history is limited in this room."}
                     </div>
                   ) : null}
                   
-                  {!isLoadingMessages && messages.length
-                    ? messages.map((message) => (
+                  {!isShowingSkeleton && displayedMessages.length
+                    ? displayedMessages.map((message) => (
                         <article
                           key={message.id}
                           className={[styles.messageRow, messageMentionsUser(message.body, user?.username) ? styles.messageRowMentioned : ""].filter(Boolean).join(" ")}
@@ -1224,99 +1437,14 @@ export function ChatPage() {
                   <div className={styles.messageBottomSpacer} aria-hidden="true" />
                 </div>
 
-                <form className={styles.composer} onSubmit={handleSendMessage}>
-                  {user && selectedEntry.channel.muted_until ? (
-                    <div className="statusMessage statusMessageWarn">
-                      You are muted in this room until {formatMessageTime(selectedEntry.channel.muted_until)}.
-                    </div>
-                  ) : null}
-                  {user && selectedEntry.channel.posting_policy === "admins_only" && !user.is_admin ? (
-                    <div className="statusMessage statusMessageWarn">This room is currently limited to admins.</div>
-                  ) : null}
-                  {sendError ? <div className="statusMessage statusMessageError">Send failed: {sendError}</div> : null}
-                  <label className={styles.composerLabel} htmlFor="chat-message">
-                    Message
-                  </label>
-                  <div className={styles.composerBox}>
-                    {!user ? (
-                      <div className={styles.composerPrompt}>
-                        Sign in to chat.{" "}
-                        <Link href="/login" className="appLink">
-                          Login
-                        </Link>
-                      </div>
-                    ) : (
-                      <>
-                        <div
-                          className={styles.composerInputWrap}
-                          onClick={() => {
-                            composerInputRef.current?.focus();
-                          }}
-                        >
-                          <textarea
-                            id="chat-message"
-                            ref={composerInputRef}
-                            className={styles.composerInput}
-                            value={draft}
-                            onChange={(event) => {
-                              setDraft(event.target.value);
-                              setComposerSelection(event.target.selectionStart || 0);
-                            }}
-                            onClick={syncComposerSelection}
-                            onKeyUp={syncComposerSelection}
-                            onSelect={syncComposerSelection}
-                            onKeyDown={handleComposerKeyDown}
-                            placeholder={canPost ? `Message #${selectedEntry.ticker.toLowerCase()}` : "Posting is unavailable in this room"}
-                            rows={1}
-                            maxLength={1000}
-                            disabled={!canPost || isSending}
-                          />
-                          {composerTrigger && suggestions.length ? (
-                            <div className={styles.composerSuggestions} role="listbox">
-                              {suggestions.map((suggestion, index) => (
-                                <button
-                                  key={suggestion.key}
-                                  type="button"
-                                  ref={(element) => {
-                                    suggestionRefs.current[index] = element;
-                                  }}
-                                  className={[styles.composerSuggestion, index === activeSuggestionIndex ? styles.composerSuggestionActive : ""].filter(Boolean).join(" ")}
-                                  onMouseDown={(event) => event.preventDefault()}
-                                  tabIndex={-1}
-                                  aria-selected={index === activeSuggestionIndex}
-                                  onMouseEnter={() => setActiveSuggestionIndex(index)}
-                                  onClick={() => applySuggestion(suggestion)}
-                                >
-                                  {suggestion.type === "mention" ? (
-                                    <>
-                                      <span className={styles.suggestionPrimary}>@{suggestion.username}</span>
-                                      <span className={styles.suggestionSecondary}>mention</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <img src={suggestion.emoji.url} alt={suggestion.emoji.name} className={styles.suggestionEmoji} />
-                                      <div className={styles.suggestionEmojiBody}>
-                                        <span className={styles.suggestionPrimary}>{suggestion.emoji.name}</span>
-                                        <span className={styles.suggestionSecondary}>:{suggestion.emoji.name}:</span>
-                                      </div>
-                                    </>
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-                          ) : null}
-                        </div>
-                        <div className={styles.composerFooter}>
-                          <span className={styles.composerHint}>{draft.trim().length}/1000</span>
-                          <button type="submit" className={styles.sendButton} disabled={!canPost || isSending || !draft.trim()}>
-                            <FiSend aria-hidden="true" />
-                            <span>{isSending ? "Sending" : "Send"}</span>
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </form>
+                <ChatComposer
+                  user={user}
+                  selectedEntry={selectedEntry}
+                  canPost={canPost}
+                  emojis={emojis}
+                  knownUsernames={knownUsernames}
+                  onSend={sendMessage}
+                />
               </>
             ) : (
               <div className={shellStyles.empty}>No chat rooms are available.</div>

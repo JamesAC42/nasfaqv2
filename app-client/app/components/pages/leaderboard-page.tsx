@@ -1,21 +1,30 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { FaArrowTrendDown, FaArrowTrendUp, FaEarthAmericas, FaFlagCheckered, FaRegCalendar, FaUserGroup, FaUserSlash } from "react-icons/fa6";
+import { AssetCoin } from "@/app/components/common/asset-coin";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { LoadingSpinner } from "@/app/components/common/loading-spinner";
 import { fmtDate, fmtInteger, fmtNumber, fmtPct } from "@/app/lib/format";
-import type { LeaderboardEntry, LeaderboardScope, LeaderboardWindow } from "@/app/lib/types";
+import { getIconUrl } from "@/app/lib/normalizers";
+import type { MarketAsset } from "@/app/lib/types";
+import type { LeaderboardEntry, LeaderboardNeighbor, LeaderboardScope, LeaderboardWindow } from "@/app/lib/types";
 import { useAuthStore } from "@/app/stores/auth-store";
-import { useLeaderboardStore } from "@/app/stores/leaderboard-store";
+  import { useLeaderboardStore } from "@/app/stores/leaderboard-store";
+import { useMarketStore } from "@/app/stores/market-store";
 import pageStyles from "@/app/components/pages/page-shell.module.scss";
 import styles from "@/app/components/pages/leaderboard-page.module.scss";
 
-const SCOPE_OPTIONS: Array<{ value: LeaderboardScope; label: string }> = [
-  { value: "global", label: "Global" },
-  { value: "friends", label: "Friends" },
-  { value: "rivals", label: "Rivals" },
+const SCOPE_OPTIONS: Array<{
+  value: LeaderboardScope;
+  label: string;
+  icon: typeof FaEarthAmericas;
+}> = [
+  { value: "global", label: "Global", icon: FaEarthAmericas },
+  { value: "friends", label: "Friends", icon: FaUserGroup },
+  { value: "rivals", label: "Rivals", icon: FaUserSlash },
 ];
 
 const WINDOW_OPTIONS: Array<{ value: LeaderboardWindow; label: string }> = [
@@ -26,6 +35,79 @@ const WINDOW_OPTIONS: Array<{ value: LeaderboardWindow; label: string }> = [
 
 function initialsFor(username: string) {
   return username.trim().slice(0, 2).toUpperCase() || "NA";
+}
+
+function scopeThemeClass(scope: LeaderboardScope) {
+  if (scope === "friends") return styles.scopeFriends;
+  if (scope === "rivals") return styles.scopeRivals;
+  return styles.scopeGlobal;
+}
+
+function trendTone(changePct: number | null) {
+  if (changePct === null) return styles.trendFlat;
+  return changePct >= 0 ? pageStyles.positive : pageStyles.negative;
+}
+
+function formatSignedNumber(value: number | null, formatter: (input: number | null) => string) {
+  if (value === null) return "—";
+  return `${value > 0 ? "+" : ""}${formatter(value)}`;
+}
+
+function TrendValue({
+  changePct,
+  changeAbs,
+  compact = false,
+}: {
+  changePct: number | null;
+  changeAbs?: number | null;
+  compact?: boolean;
+}) {
+  const TrendIcon = changePct === null ? FaFlagCheckered : changePct >= 0 ? FaArrowTrendUp : FaArrowTrendDown;
+
+  return (
+    <div className={`${styles.trendBlock} ${compact ? styles.trendCompact : ""}`.trim()}>
+      <strong className={`${styles.trendValue} ${trendTone(changePct)}`.trim()}>
+        <TrendIcon aria-hidden="true" />
+        <span>{changePct === null ? "No move data" : `${changePct > 0 ? "+" : ""}${fmtPct(changePct)}`}</span>
+      </strong>
+      {changeAbs !== undefined ? (
+        <span className={`${styles.trendSubtext} ${styles.valueMono}`.trim()}>
+          {changeAbs === null ? "Absolute move unavailable" : `${changeAbs > 0 ? "+" : ""}${fmtNumber(changeAbs, "$")}`}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function AssetMetaPill({
+  label,
+  asset,
+  shares,
+}: {
+  label: string;
+  asset: MarketAsset | null;
+  shares: number | null;
+}) {
+  if (!asset) {
+    return <span className={styles.podiumMetaFallback}>{label}</span>;
+  }
+
+  const isPositive = (asset.move_24h_pct ?? 0) >= 0;
+
+  return (
+    <div className={styles.assetMetaRow}>
+      <span className={styles.assetMetaLabel}>{label}</span>
+      <Link
+        href={`/stocks/${encodeURIComponent(asset.symbol)}`}
+        className={`${styles.assetMetaPill} ${isPositive ? styles.assetMetaPositive : styles.assetMetaNegative}`.trim()}
+      >
+        <AssetCoin symbol={asset.symbol} icon={asset.icon} color={asset.color} className={styles.assetMetaCoin} />
+        <strong>{asset.symbol}</strong>
+        <span className={styles.assetMetaPrice}>{fmtNumber(asset.current_mid_price, "$")}</span>
+      </Link>
+      {shares !== null ? <span className={styles.assetMetaShares}>x{fmtInteger(Math.round(shares))}</span> : null}
+    </div>
+  );
 }
 
 function AchievementRow({ entry }: { entry: LeaderboardEntry }) {
@@ -44,7 +126,7 @@ function AchievementRow({ entry }: { entry: LeaderboardEntry }) {
   return (
     <div className={styles.badgeRow}>
       {entry.streaks.current_streak_days > 0 ? (
-        <span className={styles.streakBadge}>{entry.streaks.current_streak_days}d streak</span>
+        <span className={styles.streakBadge}>🔥 {entry.streaks.current_streak_days}d streak</span>
       ) : null}
       {chips.length ? chips.map((chip) => (
         <span
@@ -86,22 +168,92 @@ function LeaderboardIdentity({ entry }: { entry: LeaderboardEntry }) {
   );
 }
 
-function PodiumCard({ entry, tone }: { entry: LeaderboardEntry; tone: "gold" | "silver" | "bronze" }) {
+function NeighborCard({ meRank, neighbor }: { meRank: number; neighbor: LeaderboardNeighbor }) {
+  const isAbove = neighbor.rank < meRank;
+
   return (
-    <article className={`${styles.podiumCard} ${styles[tone]}`}>
-      <div className={styles.podiumRank}>#{entry.rank}</div>
-      <LeaderboardIdentity entry={entry} />
-      <strong className={styles.podiumValue}>{fmtNumber(entry.total_equity, "$")}</strong>
-      <span className={(entry.change_pct ?? 0) >= 0 ? pageStyles.positive : pageStyles.negative}>
-        {entry.change_pct === null ? "—" : `${entry.change_pct > 0 ? "+" : ""}${fmtPct(entry.change_pct)}`}
-      </span>
-      <div className={styles.podiumMeta}>
-        <span>{entry.streaks.current_streak_days > 0 ? `${fmtInteger(entry.streaks.current_streak_days)} day current streak` : "No active streak"}</span>
-        <span>{entry.streaks.longest_streak_days > 0 ? `Best streak ${fmtInteger(entry.streaks.longest_streak_days)} days` : "No recorded streak"}</span>
-        <span>{entry.largest_position ? `Largest bag ${entry.largest_position.symbol}` : "No concentrated bag yet"}</span>
-        <span>{entry.best_asset ? `Best pick ${entry.best_asset.symbol}` : "Still flat across picks"}</span>
+    <div className={styles.neighbor}>
+      <div
+        className={styles.avatar}
+        style={neighbor.profile_color ? ({ "--leaderboard-accent": neighbor.profile_color } as CSSProperties) : undefined}
+      >
+        {neighbor.profile_picture_url ? (
+          <img src={neighbor.profile_picture_url} alt="" className={styles.avatarImage} />
+        ) : (
+          initialsFor(neighbor.username)
+        )}
       </div>
-      <AchievementRow entry={entry} />
+      <div className={styles.neighborBody}>
+        <span className={styles.neighborLabel}>
+          {isAbove ? <FaArrowTrendUp aria-hidden="true" /> : <FaArrowTrendDown aria-hidden="true" />}
+          <span>{isAbove ? "Above you" : "Below you"}</span>
+        </span>
+        <strong className={styles.neighborName}>#{neighbor.rank} {neighbor.username}</strong>
+        <span className={styles.neighborMeta}>{fmtNumber(neighbor.total_equity, "$")} net worth</span>
+      </div>
+      <div className={styles.neighborGap}>
+        <span className={styles.neighborGapLabel}>{isAbove ? "Need to pass" : "Lead over"}</span>
+        <strong>{neighbor.gap_abs === null ? "—" : fmtNumber(Math.abs(neighbor.gap_abs), "$")}</strong>
+      </div>
+    </div>
+  );
+}
+
+function PodiumCard({ entry, tone }: { entry: LeaderboardEntry; tone: "gold" | "silver" | "bronze" }) {
+  const assets = useMarketStore((state) => state.assets);
+  const largestAsset = useMemo(
+    () => assets.find((asset) => asset.symbol === entry.largest_position?.symbol) || null,
+    [assets, entry.largest_position?.symbol]
+  );
+  const bestAsset = useMemo(
+    () => assets.find((asset) => asset.symbol === entry.best_asset?.symbol) || null,
+    [assets, entry.best_asset?.symbol]
+  );
+
+  return (
+    <article
+      className={`${styles.podiumCard} ${styles[tone]}`}
+      style={entry.profile_color ? ({ "--podium-user-color": entry.profile_color } as CSSProperties) : undefined}
+    >
+      <div className={styles.podiumStage}>
+        <div className={styles.podiumAvatarWrap}>
+          <div
+            className={`${styles.avatar} ${styles.podiumAvatar}`}
+            style={entry.profile_color ? ({ "--leaderboard-accent": entry.profile_color } as CSSProperties) : undefined}
+          >
+            {entry.profile_picture_url ? (
+              <img src={entry.profile_picture_url} alt="" className={styles.avatarImage} />
+            ) : (
+              initialsFor(entry.username)
+            )}
+          </div>
+        </div>
+        <div className={styles.podiumBar}>
+          {largestAsset?.icon ? <img src={getIconUrl(largestAsset.icon) || ""} alt="" className={styles.podiumWatermark} /> : null}
+          <div className={styles.podiumRank}>#{entry.rank}</div>
+        </div>
+      </div>
+      <div className={styles.podiumInfo}>
+        <Link href={`/profile/${encodeURIComponent(entry.username)}`} className={styles.podiumName}>
+          {entry.username}
+        </Link>
+        <strong className={`${styles.podiumValue} ${styles.valueMono}`.trim()}>{fmtNumber(entry.total_equity, "$")}</strong>
+        <TrendValue changePct={entry.change_pct} changeAbs={entry.change_abs} compact />
+        <div className={styles.podiumMeta}>
+          <span className={styles.streakBadge}>🔥 {entry.streaks.current_streak_days > 0 ? `${fmtInteger(entry.streaks.current_streak_days)} day streak` : "No streak"}</span>
+          <AssetMetaPill
+            label="Largest bag"
+            asset={largestAsset}
+            shares={entry.largest_position?.quantity ?? null}
+          />
+          <AssetMetaPill
+            label="Best pick"
+            asset={bestAsset}
+            shares={entry.best_asset?.quantity ?? null}
+          />
+        </div>
+        <AchievementRow entry={entry} />
+      </div>
     </article>
   );
 }
@@ -115,6 +267,9 @@ export function LeaderboardPage() {
   const error = useLeaderboardStore((state) => state.error);
   const isLoading = useLeaderboardStore((state) => state.isLoading);
   const fetchLeaderboard = useLeaderboardStore((state) => state.fetchLeaderboard);
+  const assets = useMarketStore((state) => state.assets);
+  const isLoadingOverview = useMarketStore((state) => state.isLoadingOverview);
+  const refreshOverview = useMarketStore((state) => state.refreshOverview);
   const [scope, setScope] = useState<LeaderboardScope>("global");
   const [window, setWindow] = useState<LeaderboardWindow>("1d");
 
@@ -122,8 +277,16 @@ export function LeaderboardPage() {
     void fetchLeaderboard({ scope, window, page: 1, limit: 25 });
   }, [fetchLeaderboard, scope, window]);
 
+  useEffect(() => {
+    if (!assets.length && !isLoadingOverview) {
+      void refreshOverview();
+    }
+  }, [assets.length, isLoadingOverview, refreshOverview]);
+
   const topThree = entries.slice(0, 3);
   const tableRows = entries.slice(3);
+  const scopeClassName = scopeThemeClass(scope);
+  const windowIndex = Math.max(0, WINDOW_OPTIONS.findIndex((option) => option.value === window));
 
   return (
     <SiteShell>
@@ -140,8 +303,8 @@ export function LeaderboardPage() {
           </div>
         </section>
 
-        <section className={pageStyles.panel}>
-          <div className={styles.controlRow}>
+        <section className={styles.controlSection}>
+          <div className={`${styles.controlRow} ${scopeClassName}`.trim()}>
             <div className={styles.controlGroup}>
               {SCOPE_OPTIONS.map((option) => (
                 <button
@@ -149,22 +312,46 @@ export function LeaderboardPage() {
                   type="button"
                   className={scope === option.value ? styles.controlActive : styles.controlButton}
                   onClick={() => setScope(option.value)}
+                  data-scope={option.value}
                 >
-                  {option.label}
+                  <option.icon aria-hidden="true" />
+                  <span>{option.label}</span>
                 </button>
               ))}
             </div>
-            <div className={styles.controlGroup}>
-              {WINDOW_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  className={window === option.value ? styles.controlActive : styles.controlButton}
-                  onClick={() => setWindow(option.value)}
-                >
-                  {option.label}
-                </button>
-              ))}
+            <div className={styles.rangeControl}>
+              <div className={styles.rangeLabel}>
+                <span className={styles.rangeLabelText}>
+                  <FaRegCalendar aria-hidden="true" />
+                  <span>Time range</span>
+                </span>
+                <strong>{WINDOW_OPTIONS[windowIndex]?.label ?? "1D"}</strong>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={WINDOW_OPTIONS.length - 1}
+                step={1}
+                value={windowIndex}
+                className={styles.rangeSlider}
+                aria-label="Leaderboard time range"
+                onChange={(event) => {
+                  const nextOption = WINDOW_OPTIONS[Number(event.target.value)]?.value;
+                  if (nextOption) setWindow(nextOption);
+                }}
+              />
+              <div className={styles.rangeMarks}>
+                {WINDOW_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={window === option.value ? styles.rangeMarkActive : styles.rangeMark}
+                    onClick={() => setWindow(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
           {scope !== "global" && !user ? (
@@ -173,27 +360,46 @@ export function LeaderboardPage() {
         </section>
 
         {me ? (
-          <section className={`${pageStyles.panel} ${styles.meCard}`}>
-            <div>
-              <div className={styles.eyebrow}>Your position</div>
-              <div className={styles.meRank}>#{me.rank}</div>
-              <div className={styles.meMeta}>
-                <span>{fmtNumber(me.total_equity, "$")} net worth</span>
-                <span className={(me.change_pct ?? 0) >= 0 ? pageStyles.positive : pageStyles.negative}>
-                  {me.change_pct === null ? "—" : `${me.change_pct > 0 ? "+" : ""}${fmtPct(me.change_pct)}`}
-                </span>
-                <span>{(Math.max(0, me.percentile) * 100).toFixed(1)} percentile</span>
-                <span>{me.streaks.current_streak_days}d current streak</span>
-                <span>{me.streaks.longest_streak_days}d best streak</span>
+          <section className={`${pageStyles.panel} ${styles.meCard} ${scopeClassName}`.trim()}>
+            <div className={styles.meSummary}>
+              <div className={styles.meHeading}>
+                <div className={styles.eyebrow}>Your position</div>
+                <div
+                  className={`${styles.avatar} ${styles.meAvatar}`}
+                  style={me.profile_color ? ({ "--leaderboard-accent": me.profile_color } as CSSProperties) : undefined}
+                >
+                  {me.profile_picture_url ? (
+                    <img src={me.profile_picture_url} alt="" className={styles.avatarImage} />
+                  ) : (
+                    initialsFor(me.username)
+                  )}
+                </div>
+                <div className={styles.meRankSentence}>You are ranked <strong>#{me.rank}</strong> of <strong>{fmtInteger(stats.user_count)}</strong> players</div>
+              </div>
+              <div className={styles.meMetaGrid}>
+                <div className={styles.meStat}>
+                  <span className={styles.meStatLabel}>Net worth</span>
+                  <strong className={styles.valueMono}>{fmtNumber(me.total_equity, "$")}</strong>
+                </div>
+                <div className={styles.meStat}>
+                  <span className={styles.meStatLabel}>Window move</span>
+                  <TrendValue changePct={me.change_pct} changeAbs={me.change_abs} />
+                </div>
+                <div className={styles.meStat}>
+                  <span className={styles.meStatLabel}>Standing</span>
+                  <strong>{(Math.max(0, me.percentile) * 100).toFixed(1)} percentile</strong>
+                </div>
+                <div className={styles.meStat}>
+                  <span className={styles.meStatLabel}>Streak</span>
+                  <strong>{me.streaks.current_streak_days}d current</strong>
+                  <span className={styles.meStatSubtle}>{me.streaks.longest_streak_days}d best</span>
+                </div>
               </div>
             </div>
             <div className={styles.neighbors}>
+              <div className={styles.neighborsTitle}>Closest ranks</div>
               {me.neighbors.length ? me.neighbors.map((neighbor) => (
-                <div key={neighbor.user_id} className={styles.neighbor}>
-                  <span>#{neighbor.rank} {neighbor.username}</span>
-                  <strong>{fmtNumber(neighbor.total_equity, "$")}</strong>
-                  <span>{neighbor.gap_abs === null ? "—" : `${neighbor.gap_abs > 0 ? "+" : ""}${fmtNumber(neighbor.gap_abs, "$")}`}</span>
-                </div>
+                <NeighborCard key={neighbor.user_id} meRank={me.rank} neighbor={neighbor} />
               )) : <div className={styles.inlineNotice}>No nearby users in this scope yet.</div>}
             </div>
           </section>
@@ -274,10 +480,7 @@ export function LeaderboardPage() {
                     </td>
                     <td>
                       <div className={styles.metricCell}>
-                        <strong className={(entry.change_pct ?? 0) >= 0 ? pageStyles.positive : pageStyles.negative}>
-                          {entry.change_pct === null ? "—" : `${entry.change_pct > 0 ? "+" : ""}${fmtPct(entry.change_pct)}`}
-                        </strong>
-                        <span>{entry.change_abs === null ? "—" : `${entry.change_abs > 0 ? "+" : ""}${fmtNumber(entry.change_abs, "$")}`}</span>
+                        <TrendValue changePct={entry.change_pct} changeAbs={entry.change_abs} compact />
                       </div>
                     </td>
                     <td>{entry.largest_position ? `${entry.largest_position.symbol} · ${fmtNumber(entry.largest_position.value, "$")}` : "—"}</td>

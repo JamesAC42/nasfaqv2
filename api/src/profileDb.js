@@ -387,7 +387,7 @@ async function getProfileBundle(pool, {
   const profileUser = await resolveProfileUser(pool, { username, viewerUserId, selfOnly });
 
   const isSelf = Boolean(viewerUserId) && Number(profileUser.id) === Number(viewerUserId);
-  const [viewerContext, stats, friends, rivals, networth, articleResult, tradeResult, portfolio, userAchievements, streaks] = await Promise.all([
+  const [viewerContext, stats, friends, rivals, networth, articleResult, tradeResult, portfolio, userAchievements, streaks, leaderboardEntries] = await Promise.all([
     getViewerContext(pool, profileUser.id, viewerUserId),
     getProfileStats(pool, profileUser.id),
     listAcceptedFriends(pool, profileUser.id),
@@ -398,7 +398,9 @@ async function getProfileBundle(pool, {
     isSelf ? trading.getPortfolioSummary(pool, profileUser.id) : getPublicPortfolioSummary(pool, profileUser.id),
     achievements.listUserAchievements(pool, profileUser.id, { limit: 100 }),
     achievements.getUserTradeStreak(pool, profileUser.id),
+    netWorth.listCurrentNetWorthByUserIds(pool, [profileUser.id]),
   ]);
+  const leaderboardEntry = leaderboardEntries[0] || null;
 
   const pending = isSelf
     ? {
@@ -415,6 +417,7 @@ async function getProfileBundle(pool, {
       bio: profileUser.bio,
       profile_picture_url: profileUser.profile_picture_url,
       profile_color: profileUser.profile_color,
+      rank: Number(leaderboardEntry?.rank || 0),
       oshi_coin: profileUser.oshi_coin,
       stats: {
         cash_balance: portfolio.cash_balance,

@@ -108,6 +108,7 @@ function mapLeaderboardEntry(row, {
   friendIds = new Set(),
   rivalIds = new Set(),
   decorationByUserId = new Map(),
+  holdingQuantityByKey = new Map(),
 }) {
   const selectedChange = selectWindowChange(row, window);
   const totalEquity = toNumber(row.total_equity, 0);
@@ -116,6 +117,8 @@ function mapLeaderboardEntry(row, {
   const totalUnrealizedPnl = toNumber(row.total_unrealized_pnl, 0);
   const userId = toInt(row.user_id);
   const decoration = decorationByUserId.get(userId) || null;
+  const largestPositionKey = `${userId}:${toInt(row.largest_position_asset_id, 0)}`;
+  const bestAssetKey = `${userId}:${toInt(row.best_asset_id, 0)}`;
 
   const entry = {
     user_id: userId,
@@ -138,6 +141,7 @@ function mapLeaderboardEntry(row, {
           asset_id: row.largest_position_asset_id === null || row.largest_position_asset_id === undefined ? null : toInt(row.largest_position_asset_id),
           symbol: String(row.largest_position_symbol),
           value: toNumber(row.largest_position_value, 0),
+          quantity: holdingQuantityByKey.has(largestPositionKey) ? toNumber(holdingQuantityByKey.get(largestPositionKey), 0) : null,
         }
       : null,
     best_asset: row.best_asset_symbol
@@ -145,6 +149,7 @@ function mapLeaderboardEntry(row, {
           asset_id: row.best_asset_id === null || row.best_asset_id === undefined ? null : toInt(row.best_asset_id),
           symbol: String(row.best_asset_symbol),
           unrealized_pnl: toNumber(row.best_asset_unrealized_pnl, 0),
+          quantity: holdingQuantityByKey.has(bestAssetKey) ? toNumber(holdingQuantityByKey.get(bestAssetKey), 0) : null,
         }
       : null,
     achievements: decoration?.achievements || [],
@@ -161,6 +166,36 @@ function mapLeaderboardEntry(row, {
 
   entry.badges = buildBadges(entry, userCount, decoration);
   return entry;
+}
+
+async function loadLeaderboardHoldingQuantities(pool, rows) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const userIds = Array.from(new Set(safeRows.map((row) => toInt(row.user_id, 0)).filter((value) => value > 0)));
+  const assetIds = Array.from(new Set(
+    safeRows.flatMap((row) => [
+      toInt(row.largest_position_asset_id, 0),
+      toInt(row.best_asset_id, 0),
+    ]).filter((value) => value > 0)
+  ));
+  const quantityByKey = new Map();
+  if (!userIds.length || !assetIds.length) return quantityByKey;
+
+  const { rows: holdingRows } = await pool.query(
+    `
+    SELECT user_id, asset_id, quantity
+    FROM market.portfolio_holdings
+    WHERE user_id = ANY($1::bigint[])
+      AND asset_id = ANY($2::bigint[])
+      AND quantity > 0
+  `,
+    [userIds, assetIds]
+  );
+
+  for (const row of holdingRows) {
+    quantityByKey.set(`${toInt(row.user_id, 0)}:${toInt(row.asset_id, 0)}`, toNumber(row.quantity, 0));
+  }
+
+  return quantityByKey;
 }
 
 async function loadLeaderboardDecorations(pool, userIds) {
@@ -656,6 +691,11 @@ async function listLeaderboardBundle(pool, { viewerUserId = null, scope = "globa
       meRow ? toInt(meRow.user_id, 0) : 0,
     ]
   );
+  const holdingQuantityByKey = await loadLeaderboardHoldingQuantities(pool, [
+    ...entriesResult.rows,
+    ...neighborsResult.rows,
+    ...(meRow ? [meRow] : []),
+  ]);
 
   const entries = entriesResult.rows.map((row) =>
     mapLeaderboardEntry(row, {
@@ -665,6 +705,7 @@ async function listLeaderboardBundle(pool, { viewerUserId = null, scope = "globa
       friendIds,
       rivalIds,
       decorationByUserId,
+      holdingQuantityByKey,
     })
   );
 
@@ -676,6 +717,7 @@ async function listLeaderboardBundle(pool, { viewerUserId = null, scope = "globa
       friendIds,
       rivalIds,
       decorationByUserId,
+      holdingQuantityByKey,
     })
     : null;
 
@@ -689,6 +731,7 @@ async function listLeaderboardBundle(pool, { viewerUserId = null, scope = "globa
         friendIds,
         rivalIds,
         decorationByUserId,
+        holdingQuantityByKey,
       });
       return {
         user_id: entry.user_id,

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { FormEvent, Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ColorType, LineSeries, createChart, type IChartApi, type ISeriesApi, type Time } from "lightweight-charts";
 import {
   CandleChartCard,
@@ -38,7 +38,7 @@ import shellStyles from "@/app/components/pages/page-shell.module.scss";
 import styles from "@/app/components/pages/stock-detail-page.module.scss";
 import { BsArrowDown, BsArrowUp, BsYoutube } from "react-icons/bs";
 import { GoLinkExternal } from "react-icons/go";
-import { FaArrowTrendDown, FaArrowTrendUp } from "react-icons/fa6";
+import { FaArrowTrendDown, FaArrowTrendUp, FaChartColumn, FaDollarSign, FaEye, FaUsers, FaVideo, FaYenSign } from "react-icons/fa6";
 
 const DETAIL_CHART_START_DATE = "2025-10-09";
 const TRADE_CONFIRMATION_ANIMATION_MS = 280;
@@ -200,6 +200,26 @@ type HeroStat = {
   meta?: string;
 };
 
+type AssetSuperchatRank = {
+  symbol: string;
+  youtube_channel_id: string;
+  range: string;
+  total_in_yen: number | null;
+  rank: number | null;
+};
+
+type RankSpotlight = {
+  label: string;
+  rank: number | null;
+  value: string;
+  icon: ReactNode;
+};
+
+type TradeFailureNotice = {
+  title: string;
+  message: string;
+};
+
 function pickRandomItem<T>(items: readonly T[]): T {
   return items[Math.floor(Math.random() * items.length)] as T;
 }
@@ -229,6 +249,118 @@ function formatSignedCurrency(value: number | null | undefined) {
 function formatSignedNumber(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   return `${value >= 0 ? "+" : "-"}${fmtNumber(Math.abs(value))}`;
+}
+
+function findAssetForChannel(channel: ChannelOverviewRow, assets: MarketAsset[]) {
+  const channelId = channel.channel.youtube_channel_id?.trim();
+  if (channelId) {
+    const byChannelId = assets.find((asset) => asset.youtube_channel_id?.trim() === channelId) || null;
+    if (byChannelId) return byChannelId;
+  }
+
+  const symbol = channel.channel.symbol?.trim().toUpperCase();
+  if (symbol) {
+    return assets.find((asset) => asset.symbol?.trim().toUpperCase() === symbol) || null;
+  }
+
+  return null;
+}
+
+function buildRankMap<T extends { key: string; value: number }>(items: T[]) {
+  return new Map(
+    [...items]
+      .sort((a, b) => (b.value - a.value) || a.key.localeCompare(b.key))
+      .map((item, index) => [item.key, index + 1] as const)
+  );
+}
+
+function splitHeadline(headline: string) {
+  const trimmed = headline.trim();
+  if (!trimmed) return { title: "", subhead: null as string | null };
+
+  const sentenceBreak = trimmed.match(/^(.{1,200}?[.!?])(?:\s+)(.+)$/);
+  if (sentenceBreak) {
+    return {
+      title: sentenceBreak[1].trim(),
+      subhead: sentenceBreak[2].trim() || null,
+    };
+  }
+
+  if (trimmed.length <= 200) {
+    return { title: trimmed, subhead: null as string | null };
+  }
+
+  const slice = trimmed.slice(0, 200);
+  const naturalBreak = Math.max(
+    slice.lastIndexOf(". "),
+    slice.lastIndexOf("! "),
+    slice.lastIndexOf("? "),
+    slice.lastIndexOf(": "),
+    slice.lastIndexOf("; "),
+    slice.lastIndexOf(", "),
+    slice.lastIndexOf(" - "),
+    slice.lastIndexOf(" ")
+  );
+
+  if (naturalBreak > 40) {
+    return {
+      title: slice.slice(0, naturalBreak + 1).trim(),
+      subhead: trimmed.slice(naturalBreak + 1).trim() || null,
+    };
+  }
+
+  return {
+    title: slice.trim(),
+    subhead: trimmed.slice(200).trim() || null,
+  };
+}
+
+function computePriceDelta(value: number | null | undefined, movePct: number | null | undefined) {
+  if (
+    value === null ||
+    value === undefined ||
+    movePct === null ||
+    movePct === undefined ||
+    Number.isNaN(value) ||
+    Number.isNaN(movePct) ||
+    movePct <= -1
+  ) {
+    return null;
+  }
+
+  const previous = value / (1 + movePct);
+  if (!Number.isFinite(previous)) return null;
+  return value - previous;
+}
+
+function getTradeFailureNotice(errorCode: string, side: "buy" | "sell", symbol: string) {
+  switch (errorCode) {
+    case "insufficient_cash":
+      return {
+        title: "Not enough cash",
+        message: `You do not have enough cash available to buy ${symbol}. Reduce the share count or add funds to your account balance.`,
+      };
+    case "insufficient_holdings":
+      return {
+        title: "Not enough shares",
+        message: `You tried to sell more ${symbol} shares than you currently own. Lower the order size and try again.`,
+      };
+    case "market_closed":
+      return {
+        title: "Market is closed",
+        message: "Trading is unavailable right now. Wait for the market to reopen, then submit the order again.",
+      };
+    case "invalid_quantity":
+      return {
+        title: "Invalid order size",
+        message: `Enter a valid number of ${symbol} shares before submitting this ${side} order.`,
+      };
+    default:
+      return {
+        title: "Trade failed",
+        message: `This ${side} order for ${symbol} could not be completed. Please try again.`,
+      };
+  }
 }
 
 function buildTradeConfirmation(args: {
@@ -611,6 +743,7 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   const [tradeSide, setTradeSide] = useState<"buy" | "sell">("buy");
   const [tradeQuantity, setTradeQuantity] = useState("10");
   const [tradeError, setTradeError] = useState<string | null>(null);
+  const [tradeFailureNotice, setTradeFailureNotice] = useState<TradeFailureNotice | null>(null);
   const [tradeConfirmation, setTradeConfirmation] = useState<TradeConfirmation | null>(null);
   const [isTradeConfirmationClosing, setIsTradeConfirmationClosing] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
@@ -625,6 +758,7 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   const [liveSessionError, setLiveSessionError] = useState<string | null>(null);
   const [isLoadingLiveSession, setIsLoadingLiveSession] = useState(false);
   const [superchatSummary, setSuperchatSummary] = useState<AssetSuperchatSummaryBundle | null>(null);
+  const [superchatRank, setSuperchatRank] = useState<AssetSuperchatRank | null>(null);
   const [superchatError, setSuperchatError] = useState<string | null>(null);
   const [isLoadingSuperchats, setIsLoadingSuperchats] = useState(false);
   const [superchatTimeseriesRange, setSuperchatTimeseriesRange] = useState<(typeof SUPERCHAT_TIMESERIES_OPTIONS)[number]["value"]>("7d");
@@ -756,6 +890,7 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
       setLivestreamError(null);
       setIsLoadingLivestreams(false);
       setSuperchatSummary(null);
+      setSuperchatRank(null);
       setSuperchatError(null);
       setIsLoadingSuperchats(false);
       return;
@@ -792,14 +927,27 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
       setIsLoadingSuperchats(true);
       setSuperchatError(null);
       try {
-        const result = await apiFetch<Record<string, unknown>>(
-          `/api/market/assets/${encodeURIComponent(normalizedSymbol)}/superchats?range=7d`
-        );
+        const [summaryResult, rankResult] = await Promise.all([
+          apiFetch<Record<string, unknown>>(
+            `/api/market/assets/${encodeURIComponent(normalizedSymbol)}/superchats?range=7d`
+          ),
+          apiFetch<AssetSuperchatRank>(
+            `/api/market/assets/${encodeURIComponent(normalizedSymbol)}/superchat-rank?range=7d`
+          ),
+        ]);
         if (cancelled) return;
-        setSuperchatSummary(normalizeAssetSuperchatSummary(result));
+        setSuperchatSummary(normalizeAssetSuperchatSummary(summaryResult));
+        setSuperchatRank({
+          symbol: String(rankResult.symbol || normalizedSymbol),
+          youtube_channel_id: String(rankResult.youtube_channel_id || channelId),
+          range: String(rankResult.range || "7d"),
+          total_in_yen: toNumber(rankResult.total_in_yen),
+          rank: toNumber(rankResult.rank),
+        });
       } catch (nextError) {
         if (cancelled) return;
         setSuperchatSummary(null);
+        setSuperchatRank(null);
         setSuperchatError(String((nextError as Error).message || nextError));
       } finally {
         if (!cancelled) {
@@ -1015,13 +1163,18 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     event.preventDefault();
     if (!selectedAsset) return;
     if (marketStatus && !marketStatus.is_trading_open) {
-      setTradeError(marketStatus.trading_message || "market_closed");
+      setTradeError("market_closed");
+      setTradeFailureNotice({
+        title: "Market is closed",
+        message: marketStatus.trading_message || "Trading is unavailable right now. Wait for the market to reopen, then submit the order again.",
+      });
       setTradeConfirmation(null);
       setIsTradeConfirmationClosing(false);
       return;
     }
 
     setTradeError(null);
+    setTradeFailureNotice(null);
     if (tradeConfirmationCloseTimerRef.current !== null) {
       globalThis.clearTimeout(tradeConfirmationCloseTimerRef.current);
       tradeConfirmationCloseTimerRef.current = null;
@@ -1046,7 +1199,9 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
       setIsTradeConfirmationClosing(false);
       await refreshAll();
     } catch (nextError) {
-      setTradeError(String((nextError as Error).message || nextError));
+      const errorCode = String((nextError as Error).message || nextError);
+      setTradeError(errorCode);
+      setTradeFailureNotice(getTradeFailureNotice(errorCode, tradeSide, selectedAsset.symbol));
     }
   }
 
@@ -1191,6 +1346,74 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     { label: "Videos", value: fmtInteger(selectedChannel?.latest?.video_count ?? null), accent: false },
     { label: "Unit", value: selectedAsset?.unit || selectedChannel?.channel.unit || "—", accent: false },
   ];
+  const subscriberRankMap = useMemo(
+    () =>
+      buildRankMap(
+        channels
+          .map((channel) => {
+            const asset = findAssetForChannel(channel, assets);
+            const value = channel.latest?.subscriber_count ?? null;
+            if (!asset || value === null || !Number.isFinite(value)) return null;
+            return { key: asset.symbol.toUpperCase(), value };
+          })
+          .filter((item): item is { key: string; value: number } => Boolean(item))
+      ),
+    [assets, channels]
+  );
+  const viewRankMap = useMemo(
+    () =>
+      buildRankMap(
+        channels
+          .map((channel) => {
+            const asset = findAssetForChannel(channel, assets);
+            const value = channel.latest?.view_count ?? null;
+            if (!asset || value === null || !Number.isFinite(value)) return null;
+            return { key: asset.symbol.toUpperCase(), value };
+          })
+          .filter((item): item is { key: string; value: number } => Boolean(item))
+      ),
+    [assets, channels]
+  );
+  const videoRankMap = useMemo(
+    () =>
+      buildRankMap(
+        channels
+          .map((channel) => {
+            const asset = findAssetForChannel(channel, assets);
+            const value = channel.latest?.video_count ?? null;
+            if (!asset || value === null || !Number.isFinite(value)) return null;
+            return { key: asset.symbol.toUpperCase(), value };
+          })
+          .filter((item): item is { key: string; value: number } => Boolean(item))
+      ),
+    [assets, channels]
+  );
+  const priceRankMap = useMemo(
+    () =>
+      buildRankMap(
+        assets
+          .map((asset) => {
+            const value = asset.current_mid_price ?? null;
+            if (value === null || !Number.isFinite(value)) return null;
+            return { key: asset.symbol.toUpperCase(), value };
+          })
+          .filter((item): item is { key: string; value: number } => Boolean(item))
+      ),
+    [assets]
+  );
+  const volumeRankMap = useMemo(
+    () =>
+      buildRankMap(
+        assets
+          .map((asset) => {
+            const value = asset.volume_24h ?? null;
+            if (value === null || !Number.isFinite(value)) return null;
+            return { key: asset.symbol.toUpperCase(), value };
+          })
+          .filter((item): item is { key: string; value: number } => Boolean(item))
+      ),
+    [assets]
+  );
   const isAssetLoading = isLoadingOverview || isLoadingDetail;
   const showHeroSkeleton = isAssetLoading && !selectedAsset;
 
@@ -1257,6 +1480,61 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     () => sortedSuperchatCurrencies.filter((item) => (item.total_in_yen || 0) > 0).length,
     [sortedSuperchatCurrencies]
   );
+  const rankSpotlights: RankSpotlight[] = useMemo(() => {
+    const symbolKey = normalizedSymbol.toUpperCase();
+    return [
+      {
+        label: "Subscribers",
+        rank: subscriberRankMap.get(symbolKey) ?? null,
+        value: fmtInteger(selectedChannel?.latest?.subscriber_count ?? null),
+        icon: <FaUsers aria-hidden="true" />,
+      },
+      {
+        label: "Views",
+        rank: viewRankMap.get(symbolKey) ?? null,
+        value: fmtInteger(selectedChannel?.latest?.view_count ?? null),
+        icon: <FaEye aria-hidden="true" />,
+      },
+      {
+        label: "Weekly Yen Superchat",
+        rank: superchatRank?.rank ?? null,
+        value: `¥${fmtInteger(superchatRank?.total_in_yen ?? totalSuperchatYen)}`,
+        icon: <FaYenSign aria-hidden="true" />,
+      },
+      {
+        label: "Price",
+        rank: priceRankMap.get(symbolKey) ?? null,
+        value: fmtNumber(selectedAsset?.current_mid_price, "$"),
+        icon: <FaDollarSign aria-hidden="true" />,
+      },
+      {
+        label: "Volume",
+        rank: volumeRankMap.get(symbolKey) ?? null,
+        value: fmtNumber(selectedAsset?.volume_24h),
+        icon: <FaChartColumn aria-hidden="true" />,
+      },
+      {
+        label: "Videos",
+        rank: videoRankMap.get(symbolKey) ?? null,
+        value: fmtInteger(selectedChannel?.latest?.video_count ?? null),
+        icon: <FaVideo aria-hidden="true" />,
+      },
+    ];
+  }, [
+    normalizedSymbol,
+    priceRankMap,
+    selectedAsset?.current_mid_price,
+    selectedAsset?.volume_24h,
+    selectedChannel?.latest?.subscriber_count,
+    selectedChannel?.latest?.video_count,
+    subscriberRankMap,
+    superchatRank?.rank,
+    superchatRank?.total_in_yen,
+    totalSuperchatYen,
+    videoRankMap,
+    viewRankMap,
+    volumeRankMap,
+  ]);
 
   const superchatHeatmap = useMemo(() => {
     if (!showDeferredSections || !superchatTimeseries) {
@@ -1351,8 +1629,6 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
           {error ? <div className="statusMessage statusMessageError">Request error: {error}</div> : null}
           {channelError ? <div className="statusMessage statusMessageWarn">Channel metadata warning: {channelError}</div> : null}
           {portfolioError && user ? <div className="statusMessage statusMessageWarn">Portfolio warning: {portfolioError}</div> : null}
-          {tradeError ? <div className="statusMessage statusMessageError">Trade error: {tradeError}</div> : null}
-
           <section className={styles.hero} style={heroStyle}>
             <div className={styles.heroOverlay}>
 
@@ -1441,6 +1717,13 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                       height={320}
                       compact
                       candlePalette="market"
+                      fillHeight
+                      bare
+                      surfaceStyle={{
+                        backgroundColor: "#07111d",
+                        backgroundImage: "linear-gradient(180deg, rgba(24, 36, 54, 0.98), rgba(8, 12, 20, 0.96))",
+                        borderColor: "color-mix(in srgb, var(--hero-accent) 34%, rgba(255, 255, 255, 0.16))",
+                      }}
                       className={styles.heroChartCard}
                     />
                   </div>
@@ -1492,6 +1775,29 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                   </div>
                 ))}
               </div>
+            </div>
+          </section>
+
+          <section className={styles.rankSection}>
+            <div className={styles.sectionHeader}>
+              <div>
+                <h2 className={styles.sectionTitle}>Ranking Snapshot</h2>
+                <p className={styles.sectionCopy}>Current placement across the market for channel size, weekly superchats, and trading activity.</p>
+              </div>
+            </div>
+            <div className={styles.rankSpotlightGrid}>
+              {rankSpotlights.map((item) => (
+                <div key={item.label} className={styles.rankSpotlightCard}>
+                  <strong className={styles.rankSpotlightValue}>
+                    {item.rank !== null && Number.isFinite(item.rank) ? `#${item.rank}` : "—"}
+                  </strong>
+                  <span className={styles.rankSpotlightLabel}>
+                    <span className={styles.rankSpotlightIcon}>{item.icon}</span>
+                    {item.label}
+                  </span>
+                  <span className={styles.rankSpotlightMeta}>{item.value}</span>
+                </div>
+              ))}
             </div>
           </section>
 
@@ -1613,14 +1919,19 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                 {relatedNewsItems.length ? (
                   <div className={styles.articleList}>
                     {relatedNewsItems.map((article) => (
-                      <Link key={article.id} href={`/articles/${encodeURIComponent(article.slug)}`} className={styles.articleCard}>
-                        <div className={styles.articleTopRow}>
-                          <span className={styles.articleTag}>{article.tags[0] || (article.is_news ? "News" : "Article")}</span>
-                          <span className={styles.articleAuthor}>{article.author?.username || "Imported"}</span>
-                        </div>
-                        <strong className={styles.articleTitle}>{article.title}</strong>
-                        <p className={styles.articleCopy}>{article.preview || article.subtitle || "Open the article to read the full writeup."}</p>
-                      </Link>
+                      (() => {
+                        const heading = splitHeadline(article.title);
+                        return (
+                          <Link key={article.id} href={`/articles/${encodeURIComponent(article.slug)}`} className={styles.articleCard}>
+                            <div className={styles.articleTopRow}>
+                              <span className={styles.articleTag}>{article.tags[0] || (article.is_news ? "News" : "Article")}</span>
+                              <span className={styles.articleAuthor}>{article.author?.username || "Imported"}</span>
+                            </div>
+                            <strong className={styles.articleTitle}>{heading.title}</strong>
+                            <p className={styles.articleCopy}>{heading.subhead || article.preview || article.subtitle || "Open the article to read the full writeup."}</p>
+                          </Link>
+                        );
+                      })()
                     ))}
                   </div>
                 ) : (
@@ -1637,21 +1948,28 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                 {sameUnitAssets.length ? (
                   <div className={styles.sameUnitGrid}>
                     {sameUnitAssets.map((asset) => (
-                      <Link key={asset.symbol} href={`/stocks/${encodeURIComponent(asset.symbol)}`} className={styles.sameUnitCard}>
-                        <div className={styles.sameUnitIdentity}>
-                          <AssetCoin symbol={asset.symbol} icon={asset.icon ?? null} color={asset.color ?? null} className={styles.sameUnitIcon} />
-                          <div>
-                            <strong>{asset.symbol}</strong>
-                            <span>{asset.display_name}</span>
-                          </div>
-                        </div>
-                        <div className={styles.sameUnitMetrics}>
-                          <strong>{fmtNumber(asset.current_mid_price, "$")}</strong>
-                          <span className={(asset.move_24h_pct ?? 0) >= 0 ? styles.valueUp : styles.valueDown}>
-                            {formatSignedPct(asset.move_24h_pct)}
-                          </span>
-                        </div>
-                      </Link>
+                      (() => {
+                        const deltaValue = computePriceDelta(asset.current_mid_price, asset.move_24h_pct);
+                        const isPositiveDelta = (deltaValue ?? 0) >= 0;
+                        return (
+                          <Link key={asset.symbol} href={`/stocks/${encodeURIComponent(asset.symbol)}`} className={styles.sameUnitCard}>
+                            <div className={styles.sameUnitIdentity}>
+                              <AssetCoin symbol={asset.symbol} icon={asset.icon ?? null} color={asset.color ?? null} className={styles.sameUnitIcon} />
+                              <div>
+                                <strong>{asset.symbol}</strong>
+                                <span>{asset.display_name}</span>
+                              </div>
+                            </div>
+                            <div className={styles.sameUnitMetrics}>
+                              <strong>{fmtNumber(asset.current_mid_price, "$")}</strong>
+                              <span className={isPositiveDelta ? styles.valueUp : styles.valueDown}>
+                                {formatSignedCurrency(deltaValue)}
+                                {isPositiveDelta ? <FaArrowTrendUp aria-hidden="true" /> : <FaArrowTrendDown aria-hidden="true" />}
+                              </span>
+                            </div>
+                          </Link>
+                        );
+                      })()
                     ))}
                   </div>
                 ) : (
@@ -1918,20 +2236,30 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                   <div className={styles.tradeTape}>
                     {(detail?.trades || []).length ? (
                       (detail?.trades || []).map((trade) => (
-                        <div key={trade.id} className={styles.tradeTapeRow}>
-                          <div>
-                            <strong>{trade.side.toUpperCase()}</strong>
-                            <span>{fmtDate(trade.ts)}</span>
+                        <article key={trade.id} className={styles.tradeTapeRow}>
+                          <div className={styles.tradeAsset}>
+                            <AssetCoin
+                              symbol={selectedAsset?.symbol || normalizedSymbol}
+                              icon={selectedAsset?.icon ?? null}
+                              color={selectedAsset?.color ?? null}
+                              className={styles.inlineAssetIcon}
+                              shape="circle"
+                            />
+                            <div className={styles.tradeAssetCopy}>
+                              <strong className={styles.tradeAssetLink}>{selectedAsset?.symbol || normalizedSymbol}</strong>
+                              <span>{fmtDate(trade.ts)}</span>
+                            </div>
                           </div>
                           <div>
-                            <strong>{fmtNumber(trade.price, "$")}</strong>
-                            <span>{fmtNumber(trade.quantity)} shares</span>
+                            <span className={[styles.sideBadge, trade.side.toLowerCase() === "buy" ? styles.sideBadgeBuy : styles.sideBadgeSell].join(" ")}>
+                              {trade.side.toUpperCase()}
+                            </span>
                           </div>
-                          <div>
-                            <strong>{fmtNumber(trade.gross_cash, "$")}</strong>
-                            <span>{formatSignedNumber(trade.quantity)}</span>
+                          <div className={styles.tradeMetrics}>
+                            <strong className={styles.numericValue}>{fmtNumber(trade.quantity)} @ {fmtNumber(trade.price, "$")}</strong>
+                            <span className={styles.numericValue}>Gross {fmtNumber(trade.gross_cash, "$")}</span>
                           </div>
-                        </div>
+                        </article>
                       ))
                     ) : (
                       <div className={styles.mockEmpty}>No recent trades were returned for this symbol.</div>
@@ -2147,6 +2475,9 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
       </div>
 
       {tradeConfirmation ? (
+        (() => {
+          const isPositiveTradeTheme = tradeConfirmation.side === "buy" || (tradeConfirmation.realizedPnl ?? 0) >= 0;
+          return (
         <div
           className={[
             styles.tradeConfirmationOverlay,
@@ -2154,20 +2485,27 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
           ].filter(Boolean).join(" ")}
           onClick={closeTradeConfirmation}
         >
-          <div
-            className={[
-              styles.tradeConfirmationModal,
-              isTradeConfirmationClosing ? styles.tradeConfirmationModalClosing : "",
-            ].filter(Boolean).join(" ")}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="trade-confirmation-title"
-            onClick={(event) => event.stopPropagation()}
-          >
+            <div
+              className={[
+                styles.tradeConfirmationFrame,
+                isPositiveTradeTheme ? styles.tradeConfirmationFrameBuy : styles.tradeConfirmationFrameSell,
+              ].join(" ")}
+            >
+              <div
+                className={[
+                  styles.tradeConfirmationModal,
+                  isPositiveTradeTheme ? styles.tradeConfirmationModalBuy : styles.tradeConfirmationModalSell,
+                  isTradeConfirmationClosing ? styles.tradeConfirmationModalClosing : "",
+                ].filter(Boolean).join(" ")}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="trade-confirmation-title"
+                onClick={(event) => event.stopPropagation()}
+              >
             <div
               className={[
                 styles.tradeConfirmationHero,
-                tradeConfirmation.side === "buy" ? styles.tradeConfirmationHeroBuy : styles.tradeConfirmationHeroSell,
+                isPositiveTradeTheme ? styles.tradeConfirmationHeroBuy : styles.tradeConfirmationHeroSell,
               ].join(" ")}
             >
               <div>
@@ -2315,6 +2653,34 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+              </div>
+            </div>
+        </div>
+          );
+        })()
+      ) : null}
+      {tradeFailureNotice ? (
+        <div className={styles.tradeFailureOverlay} onClick={() => setTradeFailureNotice(null)}>
+          <div className={styles.tradeFailureModal} role="alertdialog" aria-modal="true" aria-labelledby="trade-failure-title" onClick={(event) => event.stopPropagation()}>
+            <div className={styles.tradeFailureHeader}>
+              <h2 id="trade-failure-title" className={styles.tradeFailureTitle}>{tradeFailureNotice.title}</h2>
+              <button
+                type="button"
+                className={styles.tradeConfirmationClose}
+                onClick={() => setTradeFailureNotice(null)}
+                aria-label="Close trade failure notice"
+              >
+                ×
+              </button>
+            </div>
+            <div className={styles.tradeFailureBody}>
+              <p className={styles.tradeFailureCopy}>{tradeFailureNotice.message}</p>
+              <div className={styles.tradeConfirmationActions}>
+                <button type="button" className={styles.tradeFailurePrimary} onClick={() => setTradeFailureNotice(null)}>
+                  Back to order ticket
+                </button>
               </div>
             </div>
           </div>

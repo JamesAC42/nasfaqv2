@@ -1,6 +1,14 @@
 const express = require("express");
 const marketDb = require("../marketDb");
-const { getCachedAssets, invalidateMarketAssetsCache, setCachedAssets } = require("../marketCache");
+const {
+  getCachedAssets,
+  invalidateMarketAssetsCache,
+  setCachedAssets,
+  getCachedJson,
+  setCachedJson,
+  buildAssetSuperchatRankCacheKey,
+  MARKET_ASSET_SUPERCHAT_RANK_CACHE_TTL_SECONDS,
+} = require("../marketCache");
 const trading = require("../services/trading");
 const marketState = require("../services/marketState");
 const { requireUserId } = require("../userContext");
@@ -159,6 +167,28 @@ router.get("/assets/:symbol/superchats/timeseries", async (req, res, next) => {
     if (e?.code === "unsupported_superchat_range") {
       return res.status(400).json({ error: "unsupported_superchat_range" });
     }
+    next(e);
+  }
+});
+
+router.get("/assets/:symbol/superchat-rank", async (req, res, next) => {
+  try {
+    const symbol = normalizeSymbol(req.params.symbol);
+    if (!symbol) return res.status(400).json({ error: "missing_symbol" });
+
+    const range = String(req.query.range || "7d");
+    const cacheKey = buildAssetSuperchatRankCacheKey(symbol, range);
+    const cached = await getCachedJson(req.ctx.redis, cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+
+    const rank = await marketDb.getAssetSuperchatRank(req.ctx.pool, symbol, { range });
+    if (!rank) return res.status(404).json({ error: "asset_not_found" });
+
+    await setCachedJson(req.ctx.redis, cacheKey, rank, MARKET_ASSET_SUPERCHAT_RANK_CACHE_TTL_SECONDS);
+    res.json(rank);
+  } catch (e) {
     next(e);
   }
 });

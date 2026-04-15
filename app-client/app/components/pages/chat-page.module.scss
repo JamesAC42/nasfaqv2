@@ -158,6 +158,7 @@
 .chatCoin {
   width: 2.6rem;
   height: 2.6rem;
+  transform:translateY(0.3rem);
 }
 
 .chatButtonBody {
@@ -244,9 +245,7 @@
 .chatPanel {
   min-width: 0;
   height: 100%;
-  min-height: 0;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  position: relative;
   background: color-mix(in srgb, var(--bg) 98%, transparent);
   overflow: hidden;
 }
@@ -303,10 +302,11 @@
   min-height: 0;
   min-width: 0;
   height: 100%;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
-  gap: 0.65rem;
-  padding: 0.9rem 1.1rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.1rem;
+  padding: 0.9rem;
   overflow: visible;
 }
 
@@ -381,10 +381,12 @@
   display: grid;
   gap: 0.15rem;
   padding-right: 0.25rem;
-  padding-bottom: 1rem;
+  padding-bottom: 0.1rem;
   align-content: start;
   position: relative;
   z-index: 1;
+  flex: 1;
+  height:100%;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--accent) 42%, transparent) color-mix(in srgb, var(--surface-card-soft) 68%, transparent);
 }
@@ -416,6 +418,7 @@
   );
   background-size: 200% 100%;
   animation: skeletonPulse 1.4s ease-in-out infinite;
+  opacity: 0.3;
 }
 
 .messageSkeletonList {
@@ -524,6 +527,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-top: 0.3rem;
 }
 
 .messageAvatarImage {
@@ -568,6 +572,7 @@
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
+  transform:translateY(-1px);
 }
 
 .messageNetWorthTopTen {
@@ -622,17 +627,19 @@
   object-fit: cover;
   border-radius: 0;
   background: transparent;
-  transform: translateY(0.4rem);
+  transform: translateY(0.3rem);
 }
 
 .messageTime {
   color: var(--muted);
   font-size: 0.76rem;
   white-space: nowrap;
+  transform:translateY(-1px);
 }
 
 .messageBody {
   margin: 0;
+  margin-top: 0.2rem;
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
@@ -647,16 +654,15 @@
 }
 
 .messageBottomSpacer {
-  height: 5.75rem;
+  height: 0rem;
 }
 
 .composer {
   display: grid;
   gap: 0.6rem;
-  padding-top: 0.3rem;
+  padding-top: 0rem;
   min-height: 0;
   overflow: visible;
-  align-self: end;
   position: relative;
   z-index: 3;
 }
@@ -685,20 +691,25 @@
   position: relative;
   min-width: 0;
   width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
   cursor: text;
 }
 
 .composerInput {
+  display: block;
   width: 100%;
-  min-height: 2.3rem;
+  min-height: 1.5rem;
   border: 0;
   background: transparent;
   color: var(--text);
-  padding: 0.42rem 0.1rem;
+  padding: 0;
+  padding-left: 0.6rem;
+  font: inherit;
   resize: none;
   outline: none;
   overflow-y: hidden;
-  line-height: 1.45rem;
   box-sizing: border-box;
 }
 
@@ -714,7 +725,6 @@
 .composerPrompt {
   min-width: 0;
   color: var(--muted);
-  line-height: 1.45;
 }
 
 .composerSuggestions {

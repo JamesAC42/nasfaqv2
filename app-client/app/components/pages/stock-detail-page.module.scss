@@ -335,11 +335,13 @@
 }
 
 .quickStatsGrid {
-  --hero-chart-height: 320px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: repeat(4, minmax(0, 1fr));
   gap: 0.75rem;
-  align-content: start;
+  align-content: stretch;
+  height: 100%;
+  min-height: 0;
 }
 
 .heroMarketGrid {
@@ -351,26 +353,41 @@
 
 .heroChartFrame {
   min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
   padding: 0.55rem;
   border: 1px solid color-mix(in srgb, var(--hero-accent) 54%, var(--border-soft));
   border-radius: var(--radius-lg);
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--hero-accent) 16%, rgba(255, 255, 255, 0.06)), rgba(8, 14, 24, 0.18)),
-    color-mix(in srgb, rgba(8, 12, 18, 0.88) 88%, var(--hero-accent));
-  box-shadow: 0 16px 30px color-mix(in srgb, var(--hero-accent) 18%, transparent);
+    linear-gradient(180deg, rgba(20, 30, 45, 0.96), rgba(7, 11, 18, 0.94)),
+    #07111d;
+  box-shadow: 0 16px 30px rgba(2, 6, 12, 0.32);
 }
 
 .heroChartSlot {
   min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
 }
 
 .heroChartCard {
   --text: white;
-  --muted: color-mix(in srgb, white 68%, var(--hero-accent));
+  --muted: rgba(227, 234, 244, 0.72);
+  width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  background-color: #07111d;
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--hero-accent) 18%, rgba(255, 255, 255, 0.06)), rgba(5, 10, 18, 0.92)),
-    color-mix(in srgb, #07111d 86%, var(--hero-accent));
-  border-color: color-mix(in srgb, var(--hero-accent) 44%, rgba(255, 255, 255, 0.14));
+    linear-gradient(180deg, rgba(24, 36, 54, 0.98), rgba(8, 12, 20, 0.96)),
+    #07111d;
+  border-color: color-mix(in srgb, var(--hero-accent) 34%, rgba(255, 255, 255, 0.16));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.heroChartCard::before {
+  content: none;
 }
 
 .heroMetaGrid {
@@ -391,7 +408,7 @@
 }
 
 .quickStatsGrid .quickStatCard {
-  min-height: calc((var(--hero-chart-height) - (0.75rem * 3)) / 4);
+  min-height: 0;
   align-content: center;
 }
 
@@ -405,21 +422,34 @@
   font-size: 0.76rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.quickStatLabel {
+  color: color-mix(in srgb, white 78%, var(--hero-accent) 22%);
+}
+
+.portfolioStat span,
+.infoCard span,
+.tradeSummary span {
   color: var(--muted);
 }
 
 .quickStatLabelIcon {
   width: 0.84rem;
   height: 0.84rem;
-  color: color-mix(in srgb, white 82%, var(--hero-accent));
+  color: color-mix(in srgb, white 88%, var(--hero-accent) 12%);
   flex: 0 0 auto;
 }
 
-.quickStatValue,
+.quickStatValue {
+  font-size: 1.02rem;
+  color: white;
+}
+
 .portfolioStat strong,
 .tradeSummary strong {
   font-size: 1.02rem;
-  color: white;
+  color: var(--text);
 }
 
 .infoCard strong {
@@ -445,6 +475,61 @@
 
 .valueDown {
   color: var(--trend-down);
+}
+
+.rankSection {
+  @include panel;
+  padding: 1.15rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.rankSpotlightGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.rankSpotlightCard {
+  border: 1px solid color-mix(in srgb, var(--border-soft) 74%, var(--hero-accent) 26%);
+  border-radius: var(--radius-lg);
+  padding: 1.1rem 0.95rem;
+  background:
+    radial-gradient(circle at top, color-mix(in srgb, var(--hero-accent) 14%, transparent), transparent 68%),
+    color-mix(in srgb, var(--surface-card) 92%, var(--hero-accent) 8%);
+  display: grid;
+  gap: 0.35rem;
+  justify-items: center;
+  text-align: center;
+}
+
+.rankSpotlightValue {
+  font-size: clamp(1.9rem, 4vw, 2.6rem);
+  line-height: 1;
+  color: var(--text);
+}
+
+.rankSpotlightLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+}
+
+.rankSpotlightIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in srgb, var(--hero-accent) 58%, var(--text));
+}
+
+.rankSpotlightMeta {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  color: var(--text-soft);
 }
 
 .topGrid {
@@ -554,6 +639,83 @@
   font-size: 0.84rem;
 }
 
+.tradeAsset {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.inlineAssetIcon {
+  width: 2.2rem;
+  height: 2.2rem;
+  flex: 0 0 auto;
+}
+
+.tradeAssetCopy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.tradeAssetCopy strong,
+.tradeAssetCopy span,
+.tradeMetrics strong,
+.tradeMetrics span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tradeAssetLink {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.tradeAssetLink:hover,
+.tradeAssetLink:focus-visible {
+  color: var(--accent);
+}
+
+.tradeMetrics {
+  display: grid;
+  gap: 0.2rem;
+  justify-items: end;
+  text-align: right;
+}
+
+.numericValue {
+  color: var(--text);
+}
+
+.sideBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.5rem;
+  min-height: 2rem;
+  padding: 0 0.8rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.sideBadgeBuy {
+  color: var(--trend-up);
+  border-color: color-mix(in srgb, var(--trend-up) 34%, var(--border));
+  background: color-mix(in srgb, var(--tile-up-tint) 90%, transparent);
+}
+
+.sideBadgeSell {
+  color: var(--trend-down);
+  border-color: color-mix(in srgb, var(--trend-down) 34%, var(--border));
+  background: color-mix(in srgb, var(--tile-down-tint) 100%, transparent);
+}
+
 .articleTitle {
   font-size: 1rem;
   line-height: 1.35;
@@ -598,6 +760,12 @@
   display: grid;
   justify-items: end;
   text-align: right;
+}
+
+.sameUnitMetrics span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
 }
 
 .sameUnitIcon {
@@ -782,6 +950,7 @@
 .tradeForm {
   display: grid;
   gap: 0.9rem;
+  margin-top: 1rem;
 }
 
 .sideToggle {
@@ -806,13 +975,23 @@
 }
 
 .sideToggleActiveBuy {
-  background: color-mix(in srgb, var(--trend-up) 16%, transparent);
+  background: color-mix(in srgb, var(--trend-up) 22%, transparent);
   color: var(--trend-up);
 }
 
 .sideToggleActiveSell {
-  background: color-mix(in srgb, var(--trend-down) 16%, transparent);
+  background: color-mix(in srgb, var(--trend-down) 22%, transparent);
   color: var(--trend-down);
+}
+
+[data-theme="light"] .sideToggleActiveBuy {
+  background: color-mix(in srgb, var(--trend-up) 18%, white);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--trend-up) 42%, white 58%);
+}
+
+[data-theme="light"] .sideToggleActiveSell {
+  background: color-mix(in srgb, var(--trend-down) 18%, white);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--trend-down) 42%, white 58%);
 }
 
 .tradeField {
@@ -944,26 +1123,47 @@
 }
 
 .tradeTapeRow {
-  padding: 0.9rem;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
-  align-items: start;
-}
-
-.tradeTapeRow strong {
-  display: block;
-}
-
-.tradeTapeRow > div {
-  min-width: 0;
-  display: grid;
-  gap: 0.2rem;
-  align-content: start;
+  grid-template-columns: minmax(0, 1.2fr) auto minmax(0, 1fr);
+  gap: 0.65rem;
+  padding: 0.8rem;
+  align-items: center;
 }
 
 .mockEmpty {
   @include empty-state;
+}
+
+.tradeConfirmationFrame {
+  --trade-confirmation-border-color: var(--border-strong);
+  position: relative;
+  padding: 0.55rem;
+  border-radius: calc(1.5rem + 0.55rem);
+  filter: drop-shadow(0 0 18px color-mix(in srgb, var(--trade-confirmation-border-color) 22%, transparent));
+}
+
+.tradeConfirmationFrame::before {
+  content: "";
+  position: absolute;
+  inset: -0.55rem;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 18% 24%, color-mix(in srgb, var(--trade-confirmation-border-color) 72%, white 28%) 0, transparent 18%),
+    radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--trade-confirmation-border-color) 64%, white 36%) 0, transparent 16%),
+    radial-gradient(circle at 72% 84%, color-mix(in srgb, var(--trade-confirmation-border-color) 70%, white 30%) 0, transparent 18%),
+    radial-gradient(circle at 22% 78%, color-mix(in srgb, var(--trade-confirmation-border-color) 48%, white 52%) 0, transparent 14%);
+  filter: blur(12px);
+  opacity: 0.72;
+  animation: tradeConfirmationHaloPulse 1.9s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+.tradeConfirmationFrameBuy {
+  --trade-confirmation-border-color: var(--trade-confirmation-hero-buy-border);
+}
+
+.tradeConfirmationFrameSell {
+  --trade-confirmation-border-color: var(--trade-confirmation-hero-sell-border);
 }
 
 .tradeConfirmationOverlay {
@@ -975,35 +1175,122 @@
   padding: 1.5rem;
   background: var(--trade-confirmation-overlay-bg);
   backdrop-filter: blur(10px);
-  animation: tradeConfirmationOverlayFadeIn 280ms ease forwards;
+  animation: tradeConfirmationOverlayFadeIn 180ms ease-out forwards;
+}
+
+.tradeFailureOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: color-mix(in srgb, var(--trade-confirmation-overlay-bg) 92%, rgba(120, 8, 32, 0.18));
+  backdrop-filter: blur(10px);
+}
+
+.tradeFailureModal {
+  width: min(100%, 31rem);
+  border-radius: 1.35rem;
+  border: 2px solid color-mix(in srgb, var(--trend-down) 72%, white 28%);
+  background: var(--trade-confirmation-surface);
+  box-shadow: 0 20px 44px color-mix(in srgb, var(--trend-down) 18%, transparent);
+  overflow: hidden;
+}
+
+.tradeFailureHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+  padding: 1.1rem 1.2rem 1rem;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--trend-down) 18%, transparent), transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--trend-down) 26%, var(--border-soft));
+}
+
+.tradeFailureTitle {
+  margin: 0;
+  font-size: 1.35rem;
+  color: var(--text);
+}
+
+.tradeFailureBody {
+  padding: 1.15rem 1.2rem 1.2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.tradeFailureCopy {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.tradeFailurePrimary {
+  @include button-base;
+  min-height: 2.9rem;
+  color: var(--trend-down);
+  border-color: color-mix(in srgb, var(--trend-down) 58%, var(--border));
+  background: color-mix(in srgb, var(--trend-down) 10%, var(--surface-card-soft));
 }
 
 .tradeConfirmationOverlayClosing {
-  animation: tradeConfirmationOverlayFadeOut 280ms ease forwards;
+  animation: tradeConfirmationOverlayFadeOut 180ms ease-in forwards;
 }
 
 .tradeConfirmationModal {
+  --trade-confirmation-border-color: var(--border-strong);
   width: min(100%, 58rem);
   max-height: min(90vh, 56rem);
-  overflow: auto;
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
   border-radius: 1.5rem;
-  border: 1px solid var(--border-soft);
+  border: 3px solid var(--trade-confirmation-border-color);
   background: var(--trade-confirmation-surface);
   box-shadow: var(--trade-confirmation-shadow);
-  animation: tradeConfirmationSlideIn 280ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  animation: tradeConfirmationSlideIn 220ms cubic-bezier(0.18, 1.22, 0.32, 1) forwards;
+}
+
+.tradeConfirmationModal::before {
+  content: none;
+}
+
+.tradeConfirmationModal::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--trade-confirmation-border-color) 72%, white 28%),
+    0 0 24px color-mix(in srgb, var(--trade-confirmation-border-color) 24%, transparent);
+  pointer-events: none;
+}
+
+.tradeConfirmationModalBuy {
+  --trade-confirmation-border-color: var(--trade-confirmation-hero-buy-border);
+}
+
+.tradeConfirmationModalSell {
+  --trade-confirmation-border-color: var(--trade-confirmation-hero-sell-border);
 }
 
 .tradeConfirmationModalClosing {
-  animation: tradeConfirmationSlideOut 280ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: tradeConfirmationSlideOut 180ms cubic-bezier(0.55, 0, 0.9, 0.35) forwards;
 }
 
 .tradeConfirmationHero {
+  position: relative;
+  z-index: 1;
   display: flex;
   justify-content: space-between;
   gap: 1rem;
   align-items: start;
   padding: 1.35rem 1.35rem 1.1rem;
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 2px solid color-mix(in srgb, var(--trade-confirmation-border-color) 64%, transparent);
 }
 
 .tradeConfirmationHeroBuy {
@@ -1074,6 +1361,11 @@
 }
 
 .tradeConfirmationBody {
+  position: relative;
+  z-index: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+  flex: 1 1 auto;
   padding: 1.2rem 1.35rem 1.35rem;
 }
 
@@ -1213,24 +1505,50 @@
 @keyframes tradeConfirmationSlideIn {
   from {
     opacity: 0;
-    transform: translateX(calc(-100vw + 4rem));
+    transform: translate3d(calc(-100vw + 4rem), 0, 0) scale(0.94);
   }
 
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
 @keyframes tradeConfirmationSlideOut {
   from {
     opacity: 1;
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0) scale(1);
   }
 
   to {
     opacity: 0;
-    transform: translateX(calc(100vw + 4rem));
+    transform: translate3d(calc(100vw + 4rem), 0, 0) scale(0.96);
+  }
+}
+
+@keyframes tradeConfirmationFlameOrbit {
+  from {
+    transform: rotate(0deg) scale(1);
+  }
+
+  50% {
+    transform: rotate(180deg) scale(1.015);
+  }
+
+  to {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+@keyframes tradeConfirmationHaloPulse {
+  from {
+    transform: scale(0.992);
+    opacity: 0.56;
+  }
+
+  to {
+    transform: scale(1.012);
+    opacity: 0.82;
   }
 }
 
@@ -1276,6 +1594,10 @@
   .heroMetaGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .rankSpotlightGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
@@ -1291,6 +1613,7 @@
   .chartGrid,
   .heroMarketGrid,
   .heroMetaGrid,
+  .rankSpotlightGrid,
   .tradeSummary,
   .articleGrid,
   .infoGrid,

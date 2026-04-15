@@ -54,8 +54,96 @@ function hasText(value: string | null | undefined) {
   return Boolean(value && value.trim());
 }
 
+function splitHeadline(headline: string) {
+  const trimmed = headline.trim();
+  if (!trimmed) return { title: "", subhead: null as string | null };
+
+  const sentenceBreak = trimmed.match(/^(.{1,200}?[.!?])(?:\s+)(.+)$/);
+  if (sentenceBreak) {
+    return {
+      title: sentenceBreak[1].trim(),
+      subhead: sentenceBreak[2].trim() || null,
+    };
+  }
+
+  if (trimmed.length <= 200) {
+    return { title: trimmed, subhead: null as string | null };
+  }
+
+  const slice = trimmed.slice(0, 200);
+  const naturalBreak = Math.max(
+    slice.lastIndexOf(". "),
+    slice.lastIndexOf("! "),
+    slice.lastIndexOf("? "),
+    slice.lastIndexOf(": "),
+    slice.lastIndexOf("; "),
+    slice.lastIndexOf(", "),
+    slice.lastIndexOf(" - "),
+    slice.lastIndexOf(" ")
+  );
+  const cutoff = naturalBreak > 80 ? naturalBreak + 1 : 200;
+
+  return {
+    title: trimmed.slice(0, cutoff).trim(),
+    subhead: trimmed.slice(cutoff).trim() || null,
+  };
+}
+
+function getArticleStoryHeading(article: ArticleDetail | null) {
+  if (!article) {
+    return { title: "", subtitle: null as string | null };
+  }
+
+  if (!article.is_news) {
+    return {
+      title: article.title,
+      subtitle: article.subtitle?.trim() || null,
+    };
+  }
+
+  const { title, subhead } = splitHeadline(article.title);
+  const subtitle = article.subtitle?.trim() || null;
+
+  if (subhead && subtitle && subhead.localeCompare(subtitle, undefined, { sensitivity: "accent" }) === 0) {
+    return { title, subtitle };
+  }
+
+  return {
+    title,
+    subtitle: subhead || subtitle,
+  };
+}
+
 function getProposalTitle(proposal: ArticleProposal, article: ArticleDetail) {
   return proposal.title?.trim() || `${article.title} draft`;
+}
+
+function getProposalPreviewHeading(proposal: ArticleProposal, article: ArticleDetail) {
+  const customTitle = proposal.title?.trim() || null;
+  const customSubtitle = proposal.subtitle?.trim() || null;
+
+  if (customTitle || customSubtitle) {
+    return {
+      title: customTitle || article.title,
+      subtitle: customSubtitle || article.subtitle?.trim() || null,
+    };
+  }
+
+  return getArticleStoryHeading(article);
+}
+
+function getProposalSummaryHeading(proposal: ArticleProposal, article: ArticleDetail) {
+  const customTitle = proposal.title?.trim() || null;
+  const customSubtitle = proposal.subtitle?.trim() || null;
+
+  if (customTitle || customSubtitle) {
+    return {
+      title: customTitle || article.title,
+      subtitle: customSubtitle || article.subtitle?.trim() || null,
+    };
+  }
+
+  return getArticleStoryHeading(article);
 }
 
 function loadArticleRecord(slug: string) {
@@ -166,12 +254,17 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
   const hasPublishedBody = useMemo(() => hasText(article?.content), [article?.content]);
   const shouldUseCoverageOverlay = Boolean(article?.is_news && !hasPublishedBody);
   const estimatedReadMinutes = useMemo(() => estimateReadingTimeMinutes(article?.content), [article?.content]);
+  const storyHeading = useMemo(() => getArticleStoryHeading(article), [article]);
   const selectedProposal = useMemo(() => {
     if (!article?.proposals.length) return null;
     return article.proposals.find((proposal) => proposal.id === selectedProposalId)
       || article.proposals.find((proposal) => proposal.status === "approved")
       || article.proposals[0];
   }, [article, selectedProposalId]);
+  const selectedProposalHeading = useMemo(
+    () => (article && selectedProposal ? getProposalPreviewHeading(selectedProposal, article) : null),
+    [article, selectedProposal]
+  );
 
   const loadArticle = useCallback(async () => {
     setIsLoading(true);
@@ -363,8 +456,8 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                   {article.is_news && !hasPublishedBody ? <span className={styles.pill}>Open for coverage</span> : null}
                   {article.news_item ? <span className={styles.pill}>Source headline archived</span> : null}
                 </div>
-                <h1 className={styles.storyTitle}>{article.title}</h1>
-                {article.subtitle ? <p className={styles.storyDek}>{article.subtitle}</p> : null}
+                <h1 className={styles.storyTitle}>{storyHeading.title}</h1>
+                {storyHeading.subtitle ? <p className={styles.storyDek}>{storyHeading.subtitle}</p> : null}
               </div>
 
               <div className={styles.storyByline}>
@@ -846,6 +939,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                               {article.proposals.map((proposal) => {
                                 const isSelected = selectedProposal?.id === proposal.id;
                                 const voteIsBusy = proposalVoteBusyId === proposal.id;
+                                const proposalSummaryHeading = getProposalSummaryHeading(proposal, article);
                                 return (
                                   <article
                                     key={proposal.id}
@@ -858,7 +952,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                                     >
                                       <div className={styles.proposalHeader}>
                                         <div className={styles.proposalMeta}>
-                                          <strong>{getProposalTitle(proposal, article)}</strong>
+                                          <strong>{proposalSummaryHeading.title}</strong>
                                           <span className={styles.muted}>
                                             {proposal.author.username} · {formatDateTime(proposal.created_at)}
                                           </span>
@@ -867,7 +961,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                                           {proposal.status}
                                         </span>
                                       </div>
-                                      {proposal.subtitle ? <p className={styles.sectionCopy}>{proposal.subtitle}</p> : null}
+                                      {proposalSummaryHeading.subtitle ? <p className={styles.sectionCopy}>{proposalSummaryHeading.subtitle}</p> : null}
                                       {proposal.tags.length ? (
                                         <div className={styles.tagRow}>
                                           {proposal.tags.map((tag) => <span key={`${proposal.id}:${tag}`} className={styles.pill}>{tag}</span>)}
@@ -923,8 +1017,8 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                                       {selectedProposal.status}
                                     </span>
                                   </div>
-                                  <h3 className={styles.proposalViewerTitle}>{getProposalTitle(selectedProposal, article)}</h3>
-                                  {selectedProposal.subtitle ? <p className={styles.storyDek}>{selectedProposal.subtitle}</p> : null}
+                                  <h3 className={styles.proposalViewerTitle}>{selectedProposalHeading?.title || getProposalTitle(selectedProposal, article)}</h3>
+                                  {selectedProposalHeading?.subtitle ? <p className={styles.storyDek}>{selectedProposalHeading.subtitle}</p> : null}
                                 </div>
                                 <div className={styles.proposalViewerMeta}>
                                   <span>By {selectedProposal.author.username}</span>
@@ -937,9 +1031,9 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                                   {selectedProposal.tags.map((tag) => <span key={`${selectedProposal.id}:preview:${tag}`} className={styles.pill}>{tag}</span>)}
                                 </div>
                               ) : null}
-                              {selectedProposal.thumbnail_url ? (
+                              {selectedProposal.thumbnail_url || article.thumbnail_url ? (
                                 <div className={styles.flatMedia}>
-                                  <img src={selectedProposal.thumbnail_url} alt="" className={styles.featureThumb} />
+                                  <img src={selectedProposal.thumbnail_url || article.thumbnail_url || ""} alt="" className={styles.featureThumb} />
                                 </div>
                               ) : null}
                               <div className={styles.proposalViewerBody}>

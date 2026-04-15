@@ -321,11 +321,13 @@ export type LeaderboardEntry = {
     asset_id: number | null;
     symbol: string;
     value: number;
+    quantity: number | null;
   } | null;
   best_asset: {
     asset_id: number | null;
     symbol: string;
     unrealized_pnl: number;
+    quantity: number | null;
   } | null;
   achievements: AchievementBadge[];
   streaks: TradeStreak;
@@ -592,6 +594,7 @@ export type ProfileBundle = {
     bio: string | null;
     profile_picture_url: string | null;
     profile_color: string | null;
+    rank: number;
     oshi_coin: ProfileOshiCoin | null;
     stats: {
       cash_balance: number;

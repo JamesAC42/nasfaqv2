@@ -468,6 +468,55 @@ async function getAssetSuperchatSummary(pool, symbol, { range = "7d" } = {}) {
   };
 }
 
+async function getAssetSuperchatRank(pool, symbol, { range = "7d" } = {}) {
+  const interval = parseRangeToInterval(range);
+  const { rows } = await pool.query(
+    `
+    WITH asset_totals AS (
+      SELECT
+        a.symbol,
+        a.youtube_channel_id,
+        COALESCE(SUM(sc.total_in_yen), 0)::BIGINT AS total_in_yen
+      FROM market.market_assets a
+      LEFT JOIN yt.livestream_sessions s
+        ON s.youtube_channel_id = a.youtube_channel_id
+       AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) >= now() - $2::interval
+       AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) <= now()
+      LEFT JOIN yt.youtube_superchat_currency_breakdowns sc ON sc.video_id = s.video_id
+      GROUP BY a.symbol, a.youtube_channel_id
+    ),
+    ranked AS (
+      SELECT
+        symbol,
+        youtube_channel_id,
+        total_in_yen,
+        ROW_NUMBER() OVER (ORDER BY total_in_yen DESC, symbol ASC)::INTEGER AS rank
+      FROM asset_totals
+    )
+    SELECT
+      symbol,
+      youtube_channel_id,
+      total_in_yen,
+      rank
+    FROM ranked
+    WHERE symbol = $1
+    LIMIT 1
+  `,
+    [symbol, interval]
+  );
+
+  const row = rows[0] || null;
+  if (!row) return null;
+
+  return {
+    symbol: row.symbol,
+    youtube_channel_id: row.youtube_channel_id,
+    range,
+    total_in_yen: row.total_in_yen,
+    rank: row.rank,
+  };
+}
+
 async function getAssetSuperchatTimeseries(pool, symbol, { range = "7d" } = {}) {
   const assetResult = await pool.query(
     `
@@ -953,6 +1002,7 @@ module.exports = {
   getAssetStats,
   getAssetTrades,
   getAssetSuperchatSummary,
+  getAssetSuperchatRank,
   getAssetSuperchatTimeseries,
   getAssetTreasury,
   getLatestDailyReport,

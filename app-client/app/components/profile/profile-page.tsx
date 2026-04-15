@@ -3,7 +3,24 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { FaArrowTrendDown, FaArrowTrendUp, FaMoneyBillWave, FaPencil } from "react-icons/fa6";
+import {
+  FaArrowTrendDown,
+  FaArrowTrendUp,
+  FaAward,
+  FaBookOpen,
+  FaBullseye,
+  FaCoins,
+  FaCrown,
+  FaFire,
+  FaGem,
+  FaMoneyBillWave,
+  FaPencil,
+  FaRocket,
+  FaStar,
+  FaTrophy,
+  FaUsers,
+} from "react-icons/fa6";
+import type { IconType } from "react-icons";
 import { TrendChartCard } from "@/app/components/charts/market-charts";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { AssetPicker } from "@/app/components/common/asset-picker";
@@ -61,6 +78,22 @@ function valueToneClass(value: number | null | undefined) {
   return styles.neutral;
 }
 
+function achievementIconFor(achievement: ProfileBundle["profile"]["achievements"][number]): IconType {
+  const signal = `${achievement.key} ${achievement.name} ${achievement.description || ""}`.toLowerCase();
+  if (signal.includes("streak") || signal.includes("fire")) return FaFire;
+  if (signal.includes("friend") || signal.includes("rival") || signal.includes("social")) return FaUsers;
+  if (signal.includes("article") || signal.includes("writer") || signal.includes("publish")) return FaBookOpen;
+  if (signal.includes("trade") || signal.includes("volume") || signal.includes("coin")) return FaCoins;
+  if (signal.includes("profit") || signal.includes("pnl") || signal.includes("cash")) return FaMoneyBillWave;
+  if (signal.includes("diamond") || signal.includes("gem")) return FaGem;
+  if (signal.includes("leader") || signal.includes("rank") || signal.includes("top")) return FaCrown;
+  if (signal.includes("winner") || signal.includes("trophy")) return FaTrophy;
+  if (signal.includes("target") || signal.includes("goal")) return FaBullseye;
+  if (signal.includes("launch") || signal.includes("moon") || signal.includes("rocket")) return FaRocket;
+  if (signal.includes("star")) return FaStar;
+  return FaAward;
+}
+
 function TrendValue({
   value,
   toneFrom,
@@ -105,6 +138,8 @@ function ProfileIdentity({
   onLogout?: () => void;
   logoutBusy?: boolean;
 }) {
+  const currentStreakDays = profile.streaks.current_streak_days;
+
   return (
     <section
       className={styles.identityPanel}
@@ -156,6 +191,13 @@ function ProfileIdentity({
                 <strong>{profile.oshi_coin.symbol}</strong>
               </span>
             ) : null}
+          </div>
+          <div className={styles.profileMetaBadgeRow}>
+            {profile.rank > 0 ? <span className={styles.profileBadge}>Rank #{profile.rank}</span> : null}
+            <span className={styles.profileBadge}>
+              <FaFire aria-hidden="true" className={styles.profileBadgeIcon} />
+              <span>{currentStreakDays > 0 ? `${currentStreakDays} day streak` : "No active streak"}</span>
+            </span>
           </div>
           {profile.bio ? <p className={styles.bio}>{profile.bio}</p> : null}
           {isSelf ? (
@@ -435,23 +477,28 @@ function AchievementBadgeList({
       </div>
       {achievements.length ? (
         <div className={styles.achievementGrid}>
-          {achievements.map((achievement) => (
-            <article
-              key={`${achievement.key}:${achievement.earned_at || "earned"}`}
-              className={styles.achievementCard}
-              style={achievement.badge_color ? ({ "--achievement-accent": achievement.badge_color } as CSSProperties) : undefined}
-            >
-              <div className={styles.achievementTop}>
-                <strong>{achievement.name}</strong>
-                {achievement.reward_cash > 0 ? <span className={styles.achievementReward}>+{fmtNumber(achievement.reward_cash, "$")}</span> : null}
-              </div>
-              {achievement.description ? <p className={styles.achievementDescription}>{achievement.description}</p> : null}
-              <div className={styles.achievementMeta}>
-                <span>{achievement.earned_at ? `Earned ${formatDate(achievement.earned_at)}` : "Earned"}</span>
-                {achievement.badge_icon ? <span>{achievement.badge_icon}</span> : null}
-              </div>
-            </article>
-          ))}
+          {achievements.map((achievement) => {
+            const AchievementIcon = achievementIconFor(achievement);
+            return (
+              <article
+                key={`${achievement.key}:${achievement.earned_at || "earned"}`}
+                className={styles.achievementCard}
+                style={achievement.badge_color ? ({ "--achievement-accent": achievement.badge_color } as CSSProperties) : undefined}
+              >
+                <div className={styles.achievementIconBadge} aria-hidden="true">
+                  <AchievementIcon />
+                </div>
+                <div className={styles.achievementTop}>
+                  <strong>{achievement.name}</strong>
+                  {achievement.reward_cash > 0 ? <span className={styles.achievementReward}>+{fmtNumber(achievement.reward_cash, "$")}</span> : null}
+                </div>
+                {achievement.description ? <p className={styles.achievementDescription}>{achievement.description}</p> : null}
+                <div className={styles.achievementMeta}>
+                  <span>{achievement.earned_at ? `Earned ${formatDate(achievement.earned_at)}` : "Earned"}</span>
+                </div>
+              </article>
+            );
+          })}
         </div>
       ) : (
         <div className={styles.empty}>{emptyLabel}</div>
@@ -469,6 +516,8 @@ function HoldingsTable({
   assets: ReturnType<typeof useMarketStore.getState>["assets"];
   totalEquity: number;
 }) {
+  const router = useRouter();
+
   return (
     <div className={styles.tableWrap}>
       <table className={styles.table}>
@@ -487,10 +536,27 @@ function HoldingsTable({
           {holdings.map((holding) => {
             const asset = assets.find((item) => item.symbol === holding.symbol) || null;
             const weight = totalEquity > 0 ? (holding.market_value / totalEquity) * 100 : null;
+            const href = `/stocks/${encodeURIComponent(holding.symbol)}`;
             return (
-              <tr key={holding.asset_id}>
+              <tr
+                key={holding.asset_id}
+                className={styles.holdingRow}
+                tabIndex={0}
+                role="link"
+                onClick={() => router.push(href)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    router.push(href);
+                  }
+                }}
+              >
                 <td>
-                  <Link href={`/stocks/${encodeURIComponent(holding.symbol)}`} className={styles.holdingAssetLink}>
+                  <Link
+                    href={href}
+                    className={styles.holdingAssetLink}
+                    onClick={(event) => event.stopPropagation()}
+                  >
                     <div className={styles.holdingAsset}>
                       <AssetCoin
                         symbol={holding.symbol}

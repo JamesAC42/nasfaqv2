@@ -13,4 +13,23 @@
 - notifications
 - achievements/ streaks
 - leaderboard
+- recent trades page
 - add leaderboard current networth and rank to the chat user display
+
+- stats page where you can see ranking by different metrics
+    - youtube data
+    - stream total time by different time ranges
+
+
+clean up things:
+- profile page:
+    - show rank on user profile
+    - show streak
+    - dedicated page for 
+- home page:
+    - 
+- coin pages:
+    - make sure the graph renders with the right background color on load every time
+    - fix label of quick stats in light mode to be readable
+    - show the rank next to quick stats
+    - have the graph match the height of the stats to the right

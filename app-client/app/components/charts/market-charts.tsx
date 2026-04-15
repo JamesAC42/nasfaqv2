@@ -187,6 +187,9 @@ export function CandleChartCard({
   compact = false,
   candlePalette = "theme",
   className,
+  fillHeight = false,
+  bare = false,
+  surfaceStyle,
 }: {
   title: string;
   subtitle?: string;
@@ -200,6 +203,9 @@ export function CandleChartCard({
   compact?: boolean;
   candlePalette?: "theme" | "market";
   className?: string;
+  fillHeight?: boolean;
+  bare?: boolean;
+  surfaceStyle?: CSSProperties;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hasData = chartType === "line"
@@ -281,10 +287,17 @@ export function CandleChartCard({
 
   return (
     <div
-      className={[styles.chartBox, styles.chartBoxCandles, compact ? styles.chartBoxCompact : "", className].filter(Boolean).join(" ")}
+      className={[
+        bare ? styles.chartBoxBare : styles.chartBox,
+        styles.chartBoxCandles,
+        compact ? styles.chartBoxCompact : "",
+        fillHeight ? styles.chartBoxFill : "",
+        className,
+      ].filter(Boolean).join(" ")}
       style={{
         ...(fontFamily ? ({ "--chart-font-family": fontFamily } as CSSProperties) : {}),
         "--chart-height": `${height}px`,
+        ...(surfaceStyle || {}),
       } as CSSProperties}
     >
       <div className={styles.header}>

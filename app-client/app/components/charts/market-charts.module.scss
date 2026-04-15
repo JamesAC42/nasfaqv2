@@ -27,6 +27,19 @@
   background: var(--bg);
 }
 
+.chartBoxFill {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.chartBoxFill .canvas,
+.chartBoxFill .empty {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+
 .chartBoxTrend {
   background:var(--bg);
 }
