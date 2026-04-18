@@ -7,6 +7,7 @@ const marketState = require("./marketState");
 const netWorth = require("./netWorth");
 const achievements = require("./achievements");
 const { ensureUserCashAccount, getStarterCash } = require("./portfolioCash");
+const MARKET_EVENTS_REDIS_CHANNEL = "nasfaq_market:events";
 
 function getTradingFeeRate() {
   const parsed = Number(process.env.MARKET_TRADING_FEE_RATE || DEFAULT_TRADING_FEE_RATE);
@@ -253,6 +254,30 @@ async function upsertHolding(client, { userId, assetId, quantity, avgCostBasis }
   );
 }
 
+async function getUserTradeIdentity(client, userId) {
+  const { rows } = await client.query(
+    `
+    SELECT id, username, profile_color
+    FROM market.users
+    WHERE id = $1
+    LIMIT 1
+  `,
+    [userId]
+  );
+
+  return rows[0] || null;
+}
+
+async function publishMarketEvent(redis, payload) {
+  if (!redis) return;
+  try {
+    await redis.publish(MARKET_EVENTS_REDIS_CHANNEL, JSON.stringify(payload));
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error("market event publish failed:", String(error?.message || error));
+  }
+}
+
 async function updateAssetAfterTrade(client, asset, {
   side,
   quantity,
@@ -323,7 +348,7 @@ async function updateAssetAfterTrade(client, asset, {
   };
 }
 
-async function executeOrder(pool, { userId, symbol, side, quantity }) {
+async function executeOrder(pool, { userId, symbol, side, quantity, redis = null }) {
   const client = await pool.connect();
 
   try {
@@ -508,9 +533,47 @@ async function executeOrder(pool, { userId, symbol, side, quantity }) {
       transientOffset,
     });
 
+    const userIdentity = await getUserTradeIdentity(client, userId);
     await netWorth.refreshCurrentLeaderboardForAssetWithClient(client, asset.id, { extraUserIds: [userId] });
 
     await client.query("COMMIT");
+
+    void publishMarketEvent(redis, {
+      type: "market.trade_fill",
+      trade: {
+        id: fillRow.id,
+        order_id: orderId,
+        user_id: userId,
+        username: userIdentity?.username || null,
+        profile_color: userIdentity?.profile_color || null,
+        asset_id: asset.id,
+        symbol: asset.symbol,
+        display_name: asset.display_name,
+        ts: fillRow.ts,
+        side,
+        price: executablePrice,
+        quantity: parsedQuantity,
+        gross_cash: grossCash,
+        fee_cash: feeCash,
+        net_cash: side === "buy" ? -(grossCash + feeCash) : grossCash - feeCash,
+        counterparty_type: "treasury",
+      },
+      quote: {
+        asset_id: asset.id,
+        symbol: asset.symbol,
+        display_name: asset.display_name,
+        mid_price: updatedQuote.mid_price,
+        bid_price: updatedQuote.bid_price,
+        ask_price: updatedQuote.ask_price,
+        premium_pct: updatedQuote.premium_pct,
+        updated_at: fillRow.ts,
+      },
+      market_status: {
+        current_market_date: status?.current_market_date || null,
+        last_settlement_market_date: status?.last_settlement_market_date || null,
+        is_trading_open: Boolean(status?.is_trading_open),
+      },
+    });
 
     achievements.handleTradeFill(pool, {
       userId,
@@ -651,6 +714,7 @@ async function getPortfolioOrders(pool, userId, { limit = 100 } = {}) {
 }
 
 module.exports = {
+  MARKET_EVENTS_REDIS_CHANNEL,
   executeOrder,
   getStarterCash,
   getPortfolioSummary,

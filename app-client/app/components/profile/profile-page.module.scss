@@ -56,6 +56,9 @@
   height: 2.75rem;
   min-height: 2.75rem;
   padding: 0;
+  svg {
+    transform:translateY(0.2rem);
+  }
   border-radius: 50%;
 }
 

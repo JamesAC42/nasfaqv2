@@ -1,0 +1,360 @@
+@use "../../styles/mixins" as *;
+
+.page {
+  display: grid;
+  gap: 1rem;
+}
+
+.hero {
+  @include panel;
+  padding: 1.4rem;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.5fr) minmax(18rem, 0.9fr);
+  align-items: end;
+}
+
+.heroEyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.heroTitle {
+  @include section-title;
+  margin: 0.2rem 0 0;
+}
+
+.heroText {
+  @include subtle-copy;
+  margin: 0.4rem 0 0;
+  max-width: 64ch;
+}
+
+.heroStatus {
+  display: grid;
+  gap: 0.45rem;
+  justify-items: end;
+  text-align: right;
+}
+
+.connectionRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.connectionDot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent);
+}
+
+.connectionOpen {
+  background: var(--success);
+  color: var(--success);
+}
+
+.connectionConnecting {
+  background: #f59e0b;
+  color: #f59e0b;
+}
+
+.connectionClosed {
+  background: var(--danger);
+  color: var(--danger);
+}
+
+.heroMeta {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.loading {
+  @include panel;
+  padding: 1rem 1.2rem;
+}
+
+.statsGrid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.statCard {
+  @include panel;
+  padding: 1rem 1.1rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.statLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--muted);
+  font-size: 0.84rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.statIcon {
+  color: var(--accent);
+}
+
+.statValue {
+  font-size: clamp(1.2rem, 2vw, 1.9rem);
+  font-weight: 800;
+}
+
+.statMeta {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.mainGrid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+}
+
+.boardGrid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.panel {
+  @include panel;
+  padding: 1.15rem;
+  display: grid;
+  gap: 0.95rem;
+}
+
+.chartPanel {
+  min-width: 0;
+}
+
+.tapePanel {
+  min-width: 0;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.sectionCopy {
+  @include subtle-copy;
+  margin: 0.25rem 0 0;
+  font-size: 0.94rem;
+}
+
+.sectionMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.tradeTape,
+.assetList,
+.traderList {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.tradeRow,
+.assetRow,
+.traderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-card) 88%, transparent);
+  color: inherit;
+  text-decoration: none;
+}
+
+.tradeIdentity,
+.assetMain,
+.traderIdentity {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.tradeCopy,
+.assetMain > div,
+.traderIdentity > div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.tradeHeadline {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.tradeMeta,
+.assetMain span,
+.traderIdentity span {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.tradeNumbers,
+.assetMetric,
+.traderMetrics {
+  display: grid;
+  gap: 0.15rem;
+  justify-items: end;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.tradeNumbers span,
+.assetMetric span,
+.traderMetrics span {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.assetIcon {
+  width: 2.2rem;
+  height: 2.2rem;
+  flex: 0 0 auto;
+}
+
+.sidePill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.sideBuy {
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+  color: var(--success);
+}
+
+.sideSell {
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  color: var(--danger);
+}
+
+.inlineLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.inlineLink:hover {
+  text-decoration: underline;
+}
+
+.actionsRow {
+  display: flex;
+  justify-content: center;
+}
+
+.loadMoreButton {
+  @include button-secondary;
+}
+
+.traderBadge {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--button-primary-text);
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+
+.clockGrid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.clockCard {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  padding: 0.95rem 1rem;
+  background: color-mix(in srgb, var(--surface-card) 86%, transparent);
+  display: grid;
+  gap: 0.25rem;
+}
+
+.clockCard span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.clockCard p {
+  @include subtle-copy;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.empty {
+  @include empty-state;
+}
+
+@media (max-width: 1080px) {
+  .hero,
+  .mainGrid,
+  .boardGrid,
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .heroStatus {
+    justify-items: start;
+    text-align: left;
+  }
+}
+
+@media (max-width: 720px) {
+  .tradeRow,
+  .assetRow,
+  .traderRow,
+  .sectionHead {
+    display: grid;
+  }
+
+  .tradeNumbers,
+  .assetMetric,
+  .traderMetrics {
+    justify-items: start;
+    text-align: left;
+  }
+}

@@ -1,3 +1,5 @@
+const marketState = require("./services/marketState");
+
 function parseRangeToInterval(range) {
   switch ((range || "").toLowerCase()) {
     case "24h":
@@ -106,6 +108,32 @@ function getSuperchatTimeseriesConfig(range) {
 function toNumber(value, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+const ASSET_COMMENT_MOODS = new Set([
+  "Bullish",
+  "Bearish",
+  "Neutral",
+  "Hodling",
+  "Dump Eet",
+  "He Bought?",
+  "He Sold?",
+  "Diamond Hands",
+  "Watching",
+  "Accumulating",
+]);
+
+function normalizeTrimmedString(value, { maxLength = null, allowEmpty = false } = {}) {
+  const trimmed = String(value || "").trim();
+  const limited = maxLength ? trimmed.slice(0, maxLength) : trimmed;
+  if (!allowEmpty && !limited) return null;
+  return limited;
+}
+
+function normalizeAssetCommentMood(value) {
+  const normalized = normalizeTrimmedString(value, { maxLength: 40, allowEmpty: false });
+  if (!normalized) return null;
+  return ASSET_COMMENT_MOODS.has(normalized) ? normalized : null;
 }
 
 function roundMetric(value) {
@@ -406,6 +434,346 @@ async function getAssetTrades(pool, symbol, { limit = 50 } = {}) {
   return rows;
 }
 
+async function listRecentMarketTrades(pool, { limit = 50, beforeTs = null, beforeId = null } = {}) {
+  const safeLimit = Math.max(1, Math.min(200, Number.parseInt(String(limit || 50), 10) || 50));
+  const hasCursor = beforeTs && beforeId;
+  const params = hasCursor ? [beforeTs, beforeId, safeLimit + 1] : [safeLimit + 1];
+
+  const { rows } = await pool.query(
+    `
+    SELECT
+      tf.id,
+      tf.order_id,
+      tf.user_id,
+      u.username,
+      u.profile_color,
+      tf.asset_id,
+      ma.symbol,
+      ma.display_name,
+      tf.ts,
+      tf.side,
+      tf.price,
+      tf.quantity,
+      tf.gross_cash,
+      tf.fee_cash,
+      tf.net_cash,
+      tf.counterparty_type
+    FROM market.trade_fills tf
+    JOIN market.market_assets ma
+      ON ma.id = tf.asset_id
+    JOIN market.users u
+      ON u.id = tf.user_id
+    ${hasCursor ? "WHERE (tf.ts, tf.id) < ($1::timestamptz, $2::bigint)" : ""}
+    ORDER BY tf.ts DESC, tf.id DESC
+    LIMIT $${hasCursor ? 3 : 1}
+  `,
+    params
+  );
+
+  const hasMore = rows.length > safeLimit;
+  const items = hasMore ? rows.slice(0, safeLimit) : rows;
+
+  return {
+    items,
+    next_cursor: hasMore
+      ? {
+          ts: items[items.length - 1]?.ts || null,
+          id: items[items.length - 1]?.id || null,
+        }
+      : null,
+  };
+}
+
+async function getMarketActivityStats(pool) {
+  const [windowResult, traderResult] = await Promise.all([
+    pool.query(
+      `
+      WITH windows AS (
+        SELECT '5m'::text AS key, interval '5 minutes' AS lookback
+        UNION ALL
+        SELECT '1h'::text AS key, interval '1 hour' AS lookback
+        UNION ALL
+        SELECT '24h'::text AS key, interval '24 hours' AS lookback
+      )
+      SELECT
+        w.key,
+        COUNT(tf.id)::int AS trade_count,
+        COUNT(DISTINCT tf.user_id)::int AS trader_count,
+        COUNT(DISTINCT tf.asset_id)::int AS asset_count,
+        COALESCE(SUM(tf.quantity), 0) AS volume_shares,
+        COALESCE(SUM(tf.gross_cash), 0) AS volume_cash,
+        MAX(tf.ts) AS latest_trade_at
+      FROM windows w
+      LEFT JOIN market.trade_fills tf
+        ON tf.ts >= now() - w.lookback
+      GROUP BY w.key
+      ORDER BY w.key ASC
+    `
+    ),
+    pool.query(
+      `
+      SELECT
+        tf.user_id,
+        u.username,
+        u.profile_color,
+        COUNT(*)::int AS trade_count,
+        COUNT(DISTINCT tf.asset_id)::int AS distinct_assets,
+        COALESCE(SUM(tf.gross_cash), 0) AS volume_cash,
+        COALESCE(SUM(tf.quantity), 0) AS volume_shares,
+        MAX(tf.ts) AS latest_trade_at
+      FROM market.trade_fills tf
+      JOIN market.users u
+        ON u.id = tf.user_id
+      WHERE tf.ts >= now() - interval '24 hours'
+      GROUP BY tf.user_id, u.username, u.profile_color
+      ORDER BY trade_count DESC, volume_cash DESC, latest_trade_at DESC, tf.user_id DESC
+      LIMIT 8
+    `
+    ),
+  ]);
+
+  const windows = {
+    "5m": {
+      trade_count: 0,
+      trader_count: 0,
+      asset_count: 0,
+      volume_shares: 0,
+      volume_cash: 0,
+      latest_trade_at: null,
+    },
+    "1h": {
+      trade_count: 0,
+      trader_count: 0,
+      asset_count: 0,
+      volume_shares: 0,
+      volume_cash: 0,
+      latest_trade_at: null,
+    },
+    "24h": {
+      trade_count: 0,
+      trader_count: 0,
+      asset_count: 0,
+      volume_shares: 0,
+      volume_cash: 0,
+      latest_trade_at: null,
+    },
+  };
+
+  for (const row of windowResult.rows) {
+    windows[String(row.key)] = {
+      trade_count: Number(row.trade_count || 0),
+      trader_count: Number(row.trader_count || 0),
+      asset_count: Number(row.asset_count || 0),
+      volume_shares: roundMetric(row.volume_shares) || 0,
+      volume_cash: roundMetric(row.volume_cash) || 0,
+      latest_trade_at: row.latest_trade_at || null,
+    };
+  }
+
+  return {
+    windows,
+    most_active_traders_24h: traderResult.rows.map((row) => ({
+      user_id: Number(row.user_id),
+      username: row.username,
+      profile_color: row.profile_color || null,
+      trade_count: Number(row.trade_count || 0),
+      distinct_assets: Number(row.distinct_assets || 0),
+      volume_cash: roundMetric(row.volume_cash) || 0,
+      volume_shares: roundMetric(row.volume_shares) || 0,
+      latest_trade_at: row.latest_trade_at || null,
+    })),
+  };
+}
+
+async function getMarketHub(pool, { tradeLimit = 20 } = {}) {
+  const [assets, report, status, indexes, recentTrades, activity] = await Promise.all([
+    listAssets(pool),
+    getLatestDailyReport(pool),
+    marketState.getMarketStatus(pool),
+    listGroupIndexes(pool, { groupBy: "unit", range: "1y", weighting: "equal" }),
+    listRecentMarketTrades(pool, { limit: tradeLimit }),
+    getMarketActivityStats(pool),
+  ]);
+
+  const topBy = (rows, metric, direction = "desc", limit = 5) =>
+    [...rows]
+      .filter((row) => row[metric] !== null && row[metric] !== undefined)
+      .sort((a, b) => {
+        const av = toNumber(a[metric], 0);
+        const bv = toNumber(b[metric], 0);
+        return direction === "asc" ? av - bv : bv - av;
+      })
+      .slice(0, limit);
+
+  const volumeSections = buildLiveVolumeSections(assets, 5);
+
+  return {
+    generated_at: new Date().toISOString(),
+    status: status || {},
+    report: report || null,
+    indexes,
+    activity,
+    leaders: {
+      top_price: topBy(assets, "current_mid_price", "desc", 5),
+      top_volume: topBy(assets, "volume_24h", "desc", 5),
+      top_movers: topBy(assets, "move_24h_pct", "desc", 5),
+      top_losers: topBy(assets, "move_24h_pct", "asc", 5),
+      top_premiums: topBy(assets, "current_premium_pct", "desc", 5),
+      top_discounts: topBy(assets, "current_premium_pct", "asc", 5),
+      volume_winners: volumeSections.volume_winners,
+      volume_losers: volumeSections.volume_losers,
+    },
+    recent_trades: recentTrades,
+  };
+}
+
+async function listAssetRankingCore(pool) {
+  const { rows } = await pool.query(
+    `
+    WITH volume_24h AS (
+      SELECT
+        tf.asset_id,
+        COALESCE(SUM(tf.quantity), 0) AS volume_24h
+      FROM market.trade_fills tf
+      WHERE tf.ts >= now() - interval '24 hours'
+      GROUP BY tf.asset_id
+    ),
+    latest_daily AS (
+      SELECT DISTINCT ON (d.asset_id)
+        d.asset_id,
+        d.mid_open,
+        d.mid_close
+      FROM market.asset_daily_market_state d
+      ORDER BY d.asset_id, d.market_date DESC
+    ),
+    latest_stats AS (
+      SELECT DISTINCT ON (s.youtube_channel_id)
+        s.youtube_channel_id,
+        s.subscriber_count,
+        s.view_count,
+        s.video_count
+      FROM yt.youtube_channel_daily_stats s
+      ORDER BY s.youtube_channel_id, s.time DESC
+    )
+    SELECT
+      a.id,
+      a.symbol,
+      a.display_name,
+      a.status,
+      a.youtube_channel_id,
+      c.unit,
+      c.icon,
+      c.color,
+      a.current_mid_price,
+      COALESCE(v.volume_24h, 0) AS volume_24h,
+      CASE
+        WHEN ld.mid_open IS NULL OR ld.mid_open = 0 OR ld.mid_close IS NULL THEN NULL
+        ELSE (ld.mid_close - ld.mid_open) / ld.mid_open
+      END AS move_24h_pct,
+      ls.subscriber_count AS subscribers,
+      ls.view_count AS views,
+      ls.video_count AS videos
+    FROM market.market_assets a
+    JOIN yt.youtube_channels c
+      ON c.youtube_channel_id = a.youtube_channel_id
+    LEFT JOIN volume_24h v
+      ON v.asset_id = a.id
+    LEFT JOIN latest_daily ld
+      ON ld.asset_id = a.id
+    LEFT JOIN latest_stats ls
+      ON ls.youtube_channel_id = a.youtube_channel_id
+    ORDER BY a.symbol ASC
+  `
+  );
+
+  return rows;
+}
+
+async function listAssetRankingWeeklyActivity(pool, { superchatRange = "7d" } = {}) {
+  const interval = parseRangeToInterval(superchatRange);
+  const { rows } = await pool.query(
+    `
+    WITH superchat_totals AS (
+      SELECT
+        a.id AS asset_id,
+        a.symbol,
+        COALESCE(SUM(sc.total_in_yen), 0)::DOUBLE PRECISION AS superchat_earnings
+      FROM market.market_assets a
+      LEFT JOIN yt.livestream_sessions s
+        ON s.youtube_channel_id = a.youtube_channel_id
+       AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) >= now() - $1::interval
+       AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) <= now()
+      LEFT JOIN yt.youtube_superchat_currency_breakdowns sc
+        ON sc.video_id = s.video_id
+      GROUP BY a.id, a.symbol
+    ),
+    stream_duration_totals AS (
+      SELECT
+        a.id AS asset_id,
+        a.symbol,
+        COALESCE(
+          SUM(
+            CASE
+              WHEN COALESCE(s.ended_at, s.last_seen_at) IS NULL
+                OR COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) IS NULL
+              THEN 0
+              ELSE GREATEST(
+                0,
+                EXTRACT(
+                  EPOCH FROM (
+                    COALESCE(s.ended_at, s.last_seen_at)
+                    - COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at)
+                  )
+                )
+              )
+            END
+          ),
+          0
+        )::BIGINT AS stream_duration_seconds_7d
+      FROM market.market_assets a
+      LEFT JOIN yt.livestream_sessions s
+        ON s.youtube_channel_id = a.youtube_channel_id
+       AND s.status = 'ended'
+       AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) >= now() - interval '7 days'
+       AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) <= now()
+      GROUP BY a.id, a.symbol
+    )
+    SELECT
+      a.id AS asset_id,
+      a.symbol,
+      COALESCE(st.superchat_earnings, 0) AS superchat_earnings,
+      COALESCE(sd.stream_duration_seconds_7d, 0) AS stream_duration_seconds_7d
+    FROM market.market_assets a
+    LEFT JOIN superchat_totals st
+      ON st.asset_id = a.id
+    LEFT JOIN stream_duration_totals sd
+      ON sd.asset_id = a.id
+    ORDER BY a.symbol ASC
+  `,
+    [interval]
+  );
+
+  return rows;
+}
+
+async function listAssetRankingOshicoinUsers(pool) {
+  const { rows } = await pool.query(
+    `
+    SELECT
+      a.id AS asset_id,
+      a.symbol,
+      COUNT(u.id)::INTEGER AS oshicoin_users
+    FROM market.market_assets a
+    LEFT JOIN market.users u
+      ON u.oshi_coin_asset_id = a.id
+    GROUP BY a.id, a.symbol
+    ORDER BY a.symbol ASC
+  `
+  );
+
+  return rows;
+}
+
 async function getAssetSuperchatSummary(pool, symbol, { range = "7d" } = {}) {
   const assetResult = await pool.query(
     `
@@ -597,6 +965,94 @@ async function getAssetSuperchatTimeseries(pool, symbol, { range = "7d" } = {}) 
       bucket: row.bucket,
       currency_name: row.currency_name,
       total_in_yen: row.total_in_yen,
+    })),
+  };
+}
+
+async function getAssetStreamTimeTimeseries(pool, symbol, { range = "7d" } = {}) {
+  const assetResult = await pool.query(
+    `
+    SELECT symbol, youtube_channel_id
+    FROM market.market_assets
+    WHERE symbol = $1
+    LIMIT 1
+  `,
+    [symbol]
+  );
+
+  const asset = assetResult.rows[0] || null;
+  if (!asset) return null;
+
+  if (String(range || "7d").toLowerCase() !== "7d") {
+    const error = new Error("unsupported_stream_time_range");
+    error.code = "unsupported_stream_time_range";
+    throw error;
+  }
+
+  const { rows } = await pool.query(
+    `
+    WITH bounds AS (
+      SELECT
+        (current_date - interval '6 days')::date AS start_date,
+        current_date::date AS end_date
+    ),
+    buckets AS (
+      SELECT generate_series(
+        (SELECT start_date FROM bounds),
+        (SELECT end_date FROM bounds),
+        interval '1 day'
+      )::date AS bucket
+    ),
+    aggregated AS (
+      SELECT
+        date_trunc('day', COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at))::date AS bucket,
+        SUM(
+          CASE
+            WHEN COALESCE(s.ended_at, s.last_seen_at) IS NULL
+              OR COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) IS NULL
+            THEN 0
+            ELSE GREATEST(
+              0,
+              EXTRACT(
+                EPOCH FROM (
+                  COALESCE(s.ended_at, s.last_seen_at)
+                  - COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at)
+                )
+              )
+            )
+          END
+        )::BIGINT AS duration_seconds
+      FROM yt.livestream_sessions s
+      CROSS JOIN bounds b
+      WHERE s.youtube_channel_id = $1
+        AND s.status = 'ended'
+        AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) >= b.start_date
+        AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) < (b.end_date + interval '1 day')
+      GROUP BY 1
+    )
+    SELECT
+      b.bucket::text AS bucket,
+      COALESCE(a.duration_seconds, 0)::BIGINT AS duration_seconds,
+      (SELECT start_date::text FROM bounds) AS start_date,
+      (SELECT end_date::text FROM bounds) AS end_date
+    FROM buckets b
+    LEFT JOIN aggregated a
+      ON a.bucket = b.bucket
+    ORDER BY b.bucket ASC
+  `,
+    [asset.youtube_channel_id]
+  );
+
+  return {
+    symbol: asset.symbol,
+    youtube_channel_id: asset.youtube_channel_id,
+    range: "7d",
+    bucket_unit: "day",
+    start_date: rows[0]?.start_date || null,
+    end_date: rows[0]?.end_date || null,
+    points: rows.map((row) => ({
+      bucket: row.bucket,
+      duration_seconds: row.duration_seconds,
     })),
   };
 }
@@ -995,15 +1451,287 @@ async function listGroupIndexes(pool, { groupBy = "unit", range = "1y", weightin
   return indexes;
 }
 
+async function getAssetCommentViewerContext(client, symbol, viewerUserId = null) {
+  const { rows } = await client.query(
+    `
+    SELECT
+      a.id,
+      a.symbol,
+      a.display_name,
+      COALESCE(h.quantity, 0) AS viewer_shares
+    FROM market.market_assets a
+    LEFT JOIN market.portfolio_holdings h
+      ON h.asset_id = a.id
+     AND h.user_id = $2
+    WHERE a.symbol = $1
+    LIMIT 1
+  `,
+    [symbol, viewerUserId]
+  );
+
+  const asset = rows[0] || null;
+  if (!asset) {
+    const error = new Error("asset_not_found");
+    error.code = "asset_not_found";
+    throw error;
+  }
+
+  const ownedShares = toNumber(asset.viewer_shares, 0);
+  return {
+    assetId: Number(asset.id),
+    symbol: String(asset.symbol),
+    displayName: String(asset.display_name || asset.symbol),
+    ownedShares,
+    canPost: Boolean(viewerUserId && ownedShares > 0),
+  };
+}
+
+async function listAssetComments(pool, symbol, { page = 1, limit = 6, viewerUserId = null } = {}) {
+  const safePage = Math.max(1, Number(page) || 1);
+  const safeLimit = Math.min(24, Math.max(1, Number(limit) || 6));
+  const offset = (safePage - 1) * safeLimit;
+
+  const client = await pool.connect();
+  try {
+    const viewerContext = await getAssetCommentViewerContext(client, symbol, viewerUserId);
+    const countResult = await client.query(
+      `
+      SELECT COUNT(*)::int AS total
+      FROM content.asset_comments
+      WHERE asset_id = $1
+    `,
+      [viewerContext.assetId]
+    );
+
+    const commentsResult = await client.query(
+      `
+      SELECT
+        c.id,
+        c.body,
+        c.mood,
+        c.upvotes,
+        c.downvotes,
+        c.created_at,
+        c.updated_at,
+        COALESCE(viewer_vote.value, 0)::int AS viewer_vote,
+        COALESCE(author_holding.quantity, 0) AS author_share_quantity,
+        jsonb_build_object(
+          'id', u.id,
+          'username', u.username,
+          'profile_picture_url', u.profile_picture_url,
+          'profile_color', u.profile_color
+        ) AS author
+      FROM content.asset_comments c
+      JOIN market.users u
+        ON u.id = c.author_id
+      LEFT JOIN market.portfolio_holdings author_holding
+        ON author_holding.user_id = c.author_id
+       AND author_holding.asset_id = c.asset_id
+      LEFT JOIN LATERAL (
+        SELECT value
+        FROM content.asset_comment_votes v
+        WHERE v.comment_id = c.id
+          AND v.user_id = $2
+        LIMIT 1
+      ) viewer_vote ON TRUE
+      WHERE c.asset_id = $1
+      ORDER BY c.created_at DESC, c.id DESC
+      LIMIT $3
+      OFFSET $4
+    `,
+      [viewerContext.assetId, viewerUserId, safeLimit, offset]
+    );
+
+    return {
+      symbol: viewerContext.symbol,
+      comments: commentsResult.rows,
+      total: Number(countResult.rows[0]?.total || 0),
+      page: safePage,
+      limit: safeLimit,
+      viewer_context: {
+        is_authenticated: Boolean(viewerUserId),
+        owned_shares: viewerContext.ownedShares,
+        can_post: viewerContext.canPost,
+      },
+    };
+  } finally {
+    client.release();
+  }
+}
+
+async function createAssetComment(pool, symbol, authorId, { body, mood }) {
+  const safeBody = normalizeTrimmedString(body, { maxLength: 4000, allowEmpty: false });
+  const safeMood = normalizeAssetCommentMood(mood);
+  if (!safeBody || (mood != null && !safeMood)) {
+    const error = new Error("invalid_asset_comment");
+    error.code = "invalid_asset_comment";
+    throw error;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const viewerContext = await getAssetCommentViewerContext(client, symbol, authorId);
+    if (!viewerContext.canPost) {
+      const error = new Error("asset_comment_requires_holding");
+      error.code = "asset_comment_requires_holding";
+      throw error;
+    }
+
+    await client.query(
+      `
+      INSERT INTO content.asset_comments (asset_id, author_id, body, mood, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, now(), now())
+    `,
+      [viewerContext.assetId, authorId, safeBody, safeMood]
+    );
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+function voteCountDeltas(previousValue, nextValue) {
+  const previousUp = previousValue === 1 ? 1 : 0;
+  const previousDown = previousValue === -1 ? 1 : 0;
+  const nextUp = nextValue === 1 ? 1 : 0;
+  const nextDown = nextValue === -1 ? 1 : 0;
+  return {
+    upvotes: nextUp - previousUp,
+    downvotes: nextDown - previousDown,
+  };
+}
+
+async function setAssetCommentVote(pool, symbol, commentId, userId, value) {
+  const safeCommentId = Number(commentId);
+  const safeValue = Number(value);
+  if (!Number.isInteger(safeCommentId) || safeCommentId <= 0) {
+    const error = new Error("asset_comment_not_found");
+    error.code = "asset_comment_not_found";
+    throw error;
+  }
+  if (![ -1, 0, 1 ].includes(safeValue)) {
+    const error = new Error("invalid_asset_comment_vote");
+    error.code = "invalid_asset_comment_vote";
+    throw error;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const viewerContext = await getAssetCommentViewerContext(client, symbol, userId);
+    const commentResult = await client.query(
+      `
+      SELECT id, asset_id, author_id
+      FROM content.asset_comments
+      WHERE id = $1
+        AND asset_id = $2
+      LIMIT 1
+      FOR UPDATE
+    `,
+      [safeCommentId, viewerContext.assetId]
+    );
+    const comment = commentResult.rows[0] || null;
+    if (!comment) {
+      const error = new Error("asset_comment_not_found");
+      error.code = "asset_comment_not_found";
+      throw error;
+    }
+    if (Number(comment.author_id) === userId) {
+      const error = new Error("asset_comment_self_vote");
+      error.code = "asset_comment_self_vote";
+      throw error;
+    }
+
+    const voteResult = await client.query(
+      `
+      SELECT value
+      FROM content.asset_comment_votes
+      WHERE comment_id = $1
+        AND user_id = $2
+      LIMIT 1
+      FOR UPDATE
+    `,
+      [safeCommentId, userId]
+    );
+    const previousValue = voteResult.rows[0] ? Number(voteResult.rows[0].value) : 0;
+    const deltas = voteCountDeltas(previousValue, safeValue);
+
+    if (safeValue === 0) {
+      await client.query(
+        `
+        DELETE FROM content.asset_comment_votes
+        WHERE comment_id = $1
+          AND user_id = $2
+      `,
+        [safeCommentId, userId]
+      );
+    } else if (voteResult.rows[0]) {
+      await client.query(
+        `
+        UPDATE content.asset_comment_votes
+        SET value = $3, updated_at = now()
+        WHERE comment_id = $1
+          AND user_id = $2
+      `,
+        [safeCommentId, userId, safeValue]
+      );
+    } else {
+      await client.query(
+        `
+        INSERT INTO content.asset_comment_votes (comment_id, user_id, value, created_at, updated_at)
+        VALUES ($1, $2, $3, now(), now())
+      `,
+        [safeCommentId, userId, safeValue]
+      );
+    }
+
+    if (deltas.upvotes !== 0 || deltas.downvotes !== 0) {
+      await client.query(
+        `
+        UPDATE content.asset_comments
+        SET
+          upvotes = GREATEST(upvotes + $2, 0),
+          downvotes = GREATEST(downvotes + $3, 0),
+          updated_at = now()
+        WHERE id = $1
+      `,
+        [safeCommentId, deltas.upvotes, deltas.downvotes]
+      );
+    }
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   listAssets,
+  listAssetRankingCore,
+  listAssetRankingWeeklyActivity,
+  listAssetRankingOshicoinUsers,
   getAssetBySymbol,
+  listAssetComments,
+  createAssetComment,
+  setAssetCommentVote,
   getAssetCandles,
   getAssetStats,
   getAssetTrades,
+  listRecentMarketTrades,
+  getMarketActivityStats,
+  getMarketHub,
   getAssetSuperchatSummary,
   getAssetSuperchatRank,
   getAssetSuperchatTimeseries,
+  getAssetStreamTimeTimeseries,
   getAssetTreasury,
   getLatestDailyReport,
   getDailyReportByDate,

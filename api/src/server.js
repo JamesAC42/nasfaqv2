@@ -32,6 +32,7 @@ const adminAssetsRoutes = require("./routes/adminAssets");
 const assetsRoutes = require("./routes/assets");
 const mediaCatalog = require("./services/mediaCatalog");
 const achievements = require("./services/achievements");
+const { MARKET_EVENTS_REDIS_CHANNEL } = require("./services/trading");
 
 const LIVESTREAM_VIEWER_UPDATES_CHANNEL = "nasfaq_livestreams:viewer_updates";
 const LIVESTREAM_BUCKET_UPDATES_CHANNEL = "nasfaq_livestreams:bucket_updates";
@@ -224,7 +225,12 @@ app.use((err, _req, res, _next) => {
   console.error(err);
   if (err?.code === "unauthenticated") return res.status(401).json({ error: "unauthenticated" });
   if (err?.code === "forbidden") return res.status(403).json({ error: "forbidden" });
-  if (err?.code === "article_not_found" || err?.code === "proposal_not_found" || err?.code === "profile_not_found") return res.status(404).json({ error: err.code });
+  if (
+    err?.code === "article_not_found"
+    || err?.code === "proposal_not_found"
+    || err?.code === "profile_not_found"
+    || err?.code === "asset_comment_not_found"
+  ) return res.status(404).json({ error: err.code });
   if (err?.code === "profile_picture_not_found") return res.status(404).json({ error: err.code });
   if (
     err?.code === "already_friends"
@@ -249,8 +255,16 @@ app.use((err, _req, res, _next) => {
     || err?.code === "invalid_profile_picture"
     || err?.code === "invalid_profile_update"
     || err?.code === "invalid_admin_asset"
+    || err?.code === "invalid_asset_comment"
+    || err?.code === "invalid_asset_comment_vote"
   ) {
     return res.status(400).json({ error: err.code });
+  }
+  if (
+    err?.code === "asset_comment_requires_holding"
+    || err?.code === "asset_comment_self_vote"
+  ) {
+    return res.status(403).json({ error: err.code });
   }
   if (
     err?.code === "chat_channel_locked"
@@ -310,6 +324,7 @@ async function main() {
   const bucketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
   const statsWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
   const chatWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
+  const marketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
 
   const broadcastOnlineUserCount = () => {
     const payload = JSON.stringify({
@@ -463,6 +478,9 @@ async function main() {
       ws.chatSubscriptions.clear();
     });
   });
+  marketWss.on("connection", (ws) => {
+    ws.on("close", () => {});
+  });
 
   server.on("upgrade", async (req, socket, head) => {
     let pathname = "";
@@ -482,6 +500,8 @@ async function main() {
             ? statsWss
             : pathname === "/api/chat/ws"
               ? chatWss
+              : pathname === "/api/market/ws"
+                ? marketWss
           : null;
 
     if (!target) {
@@ -525,8 +545,14 @@ async function main() {
       sendWsText(client, payload);
     });
   });
+  await redisSub.subscribe(MARKET_EVENTS_REDIS_CHANNEL, (message) => {
+    const payload = String(message);
+    marketWss.clients.forEach((client) => {
+      sendWsText(client, payload);
+    });
+  });
   // eslint-disable-next-line no-console
-  console.log("Subscribed to Redis channels:", LIVESTREAM_VIEWER_UPDATES_CHANNEL, LIVESTREAM_BUCKET_UPDATES_CHANNEL, CHAT_EVENTS_REDIS_CHANNEL);
+  console.log("Subscribed to Redis channels:", LIVESTREAM_VIEWER_UPDATES_CHANNEL, LIVESTREAM_BUCKET_UPDATES_CHANNEL, CHAT_EVENTS_REDIS_CHANNEL, MARKET_EVENTS_REDIS_CHANNEL);
 
   // One server-side refresh timer replaces client polling.
   await refreshSnapshot();
@@ -535,7 +561,7 @@ async function main() {
   server.listen(cfg.port, () => {
     // eslint-disable-next-line no-console
     console.log(
-      `API listening on http://localhost:${cfg.port} (HTTP + WebSocket /api/livestreams/ws + /api/livestreams/buckets/ws + /api/stats/ws + /api/chat/ws)`
+      `API listening on http://localhost:${cfg.port} (HTTP + WebSocket /api/livestreams/ws + /api/livestreams/buckets/ws + /api/stats/ws + /api/chat/ws + /api/market/ws)`
     );
   });
 

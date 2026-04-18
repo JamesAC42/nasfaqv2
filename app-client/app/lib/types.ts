@@ -160,6 +160,37 @@ export type AssetDetailBundle = {
   } | null;
 };
 
+export type AssetCommentAuthor = {
+  id: number;
+  username: string;
+  profile_picture_url: string | null;
+  profile_color: string | null;
+};
+
+export type AssetComment = {
+  id: number;
+  body: string;
+  mood: ArticleCommentMood | null;
+  created_at: string;
+  updated_at: string;
+  upvotes: number;
+  downvotes: number;
+  viewer_vote: -1 | 0 | 1;
+  author_share_quantity: number;
+  author: AssetCommentAuthor;
+};
+
+export type AssetCommentListResponse = {
+  symbol: string;
+  comments: AssetComment[];
+  pagination: NewsFeedPagination;
+  viewer_context: {
+    is_authenticated: boolean;
+    owned_shares: number;
+    can_post: boolean;
+  };
+};
+
 export type SuperchatCurrencySummary = {
   currency_name: string;
   donation_count: number | null;
@@ -277,6 +308,107 @@ export type MarketStatus = {
   next_scheduled_settlement_at: string | null;
   last_cycle_error: string | null;
   updated_at: string | null;
+};
+
+export type MarketHubTrade = {
+  id: number;
+  order_id: number | null;
+  user_id: number;
+  username: string | null;
+  profile_color: string | null;
+  asset_id: number;
+  symbol: string;
+  display_name: string;
+  ts: string;
+  side: string;
+  price: number;
+  quantity: number;
+  gross_cash: number;
+  fee_cash: number;
+  net_cash: number;
+  counterparty_type: string | null;
+};
+
+export type MarketHubVolumeLeader = {
+  asset_id: number;
+  symbol: string;
+  display_name: string;
+  volume_shares: number;
+  volume_cash: number;
+  volume_change_pct: number | null;
+};
+
+export type MarketActivityWindow = {
+  trade_count: number;
+  trader_count: number;
+  asset_count: number;
+  volume_shares: number;
+  volume_cash: number;
+  latest_trade_at: string | null;
+};
+
+export type MarketActivityTrader = {
+  user_id: number;
+  username: string;
+  profile_color: string | null;
+  trade_count: number;
+  distinct_assets: number;
+  volume_cash: number;
+  volume_shares: number;
+  latest_trade_at: string | null;
+};
+
+export type MarketActivity = {
+  windows: {
+    "5m": MarketActivityWindow;
+    "1h": MarketActivityWindow;
+    "24h": MarketActivityWindow;
+  };
+  most_active_traders_24h: MarketActivityTrader[];
+};
+
+export type MarketHubLeaders = {
+  top_price: MarketAsset[];
+  top_volume: MarketAsset[];
+  top_movers: MarketAsset[];
+  top_losers: MarketAsset[];
+  top_premiums: MarketAsset[];
+  top_discounts: MarketAsset[];
+  volume_winners: MarketHubVolumeLeader[];
+  volume_losers: MarketHubVolumeLeader[];
+};
+
+export type MarketHubResponse = {
+  generated_at: string;
+  status: MarketStatus | null;
+  report: DailyReport | null;
+  indexes: MarketIndexBundle[];
+  activity: MarketActivity;
+  leaders: MarketHubLeaders;
+  recent_trades: {
+    items: MarketHubTrade[];
+    next_cursor: string | null;
+  };
+};
+
+export type MarketTradeEvent = {
+  type: "market.trade_fill";
+  trade: MarketHubTrade;
+  quote: {
+    asset_id: number;
+    symbol: string;
+    display_name: string;
+    mid_price: number | null;
+    bid_price: number | null;
+    ask_price: number | null;
+    premium_pct: number | null;
+    updated_at: string | null;
+  };
+  market_status: {
+    current_market_date: string | null;
+    last_settlement_market_date: string | null;
+    is_trading_open: boolean;
+  };
 };
 
 export type LivestreamItem = {

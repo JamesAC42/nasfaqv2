@@ -9,7 +9,7 @@ Environment variables:
 - `API_MODE`:
   - `proxy`: rewrite `/api/:path*` to `API_PROXY_BASE_URL/api/:path*`
   - `direct`: do not rewrite (requests remain `[base]/api/:path*`)
-- `API_PROXY_BASE_URL` (default: `http://localhost:4001`)
+- `API_PROXY_BASE_URL` (default: `http://192.168.144.1:4001`)
 
 Defaults:
 

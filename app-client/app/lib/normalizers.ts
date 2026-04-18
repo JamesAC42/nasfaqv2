@@ -7,10 +7,14 @@ import {
   type ArticleListResponse,
   type ArticleProposal,
   type ArticleSummary,
+  type AssetComment,
+  type AssetCommentAuthor,
+  type AssetCommentListResponse,
   type AssetDetailBundle,
   type AssetSuperchatSummaryBundle,
   type ChatChannel,
   type ChatMessage,
+  type DailyReport,
   type AssetSuperchatTimeseriesBundle,
   type CandlePoint,
   type ChannelOverviewRow,
@@ -21,6 +25,12 @@ import {
   type LeaderboardStats,
   type LivestreamItem,
   type MarketAsset,
+  type MarketActivity,
+  type MarketActivityTrader,
+  type MarketActivityWindow,
+  type MarketHubResponse,
+  type MarketHubTrade,
+  type MarketHubVolumeLeader,
   type MarketIndexBundle,
   type MarketIndexPoint,
   type MarketIndexSummary,
@@ -144,6 +154,111 @@ export function normalizeMarketStatus(value: Record<string, unknown> | null): Ma
   };
 }
 
+export function normalizeMarketHubTrade(value: Record<string, unknown>): MarketHubTrade {
+  return {
+    id: Number(value.id || 0),
+    order_id: toNumber(value.order_id),
+    user_id: Number(value.user_id || 0),
+    username: value.username ? String(value.username) : null,
+    profile_color: value.profile_color ? String(value.profile_color) : null,
+    asset_id: Number(value.asset_id || 0),
+    symbol: String(value.symbol || ""),
+    display_name: String(value.display_name || ""),
+    ts: String(value.ts || ""),
+    side: String(value.side || ""),
+    price: Number(toNumber(value.price) || 0),
+    quantity: Number(toNumber(value.quantity) || 0),
+    gross_cash: Number(toNumber(value.gross_cash) || 0),
+    fee_cash: Number(toNumber(value.fee_cash) || 0),
+    net_cash: Number(toNumber(value.net_cash) || 0),
+    counterparty_type: value.counterparty_type ? String(value.counterparty_type) : null,
+  };
+}
+
+function normalizeMarketHubVolumeLeader(value: Record<string, unknown>): MarketHubVolumeLeader {
+  return {
+    asset_id: Number(value.asset_id || 0),
+    symbol: String(value.symbol || ""),
+    display_name: String(value.display_name || ""),
+    volume_shares: Number(toNumber(value.volume_shares) || 0),
+    volume_cash: Number(toNumber(value.volume_cash) || 0),
+    volume_change_pct: toNumber(value.volume_change_pct),
+  };
+}
+
+function normalizeMarketActivityWindow(value: Record<string, unknown> | null): MarketActivityWindow {
+  return {
+    trade_count: Number(toNumber(value?.trade_count) || 0),
+    trader_count: Number(toNumber(value?.trader_count) || 0),
+    asset_count: Number(toNumber(value?.asset_count) || 0),
+    volume_shares: Number(toNumber(value?.volume_shares) || 0),
+    volume_cash: Number(toNumber(value?.volume_cash) || 0),
+    latest_trade_at: value?.latest_trade_at ? String(value.latest_trade_at) : null,
+  };
+}
+
+function normalizeMarketActivityTrader(value: Record<string, unknown>): MarketActivityTrader {
+  return {
+    user_id: Number(value.user_id || 0),
+    username: String(value.username || ""),
+    profile_color: value.profile_color ? String(value.profile_color) : null,
+    trade_count: Number(toNumber(value.trade_count) || 0),
+    distinct_assets: Number(toNumber(value.distinct_assets) || 0),
+    volume_cash: Number(toNumber(value.volume_cash) || 0),
+    volume_shares: Number(toNumber(value.volume_shares) || 0),
+    latest_trade_at: value.latest_trade_at ? String(value.latest_trade_at) : null,
+  };
+}
+
+function normalizeMarketActivity(value: Record<string, unknown> | null): MarketActivity {
+  const windows = (value?.windows || null) as Record<string, unknown> | null;
+  return {
+    windows: {
+      "5m": normalizeMarketActivityWindow((windows?.["5m"] as Record<string, unknown> | null) || null),
+      "1h": normalizeMarketActivityWindow((windows?.["1h"] as Record<string, unknown> | null) || null),
+      "24h": normalizeMarketActivityWindow((windows?.["24h"] as Record<string, unknown> | null) || null),
+    },
+    most_active_traders_24h: Array.isArray(value?.most_active_traders_24h)
+      ? (value?.most_active_traders_24h as Array<Record<string, unknown>>).map(normalizeMarketActivityTrader)
+      : [],
+  };
+}
+
+export function normalizeMarketHubResponse(value: Record<string, unknown>): MarketHubResponse {
+  const leaders = (value.leaders || null) as Record<string, unknown> | null;
+  const recentTrades = (value.recent_trades || null) as Record<string, unknown> | null;
+
+  return {
+    generated_at: String(value.generated_at || ""),
+    status: normalizeMarketStatus((value.status as Record<string, unknown> | null) || null),
+    report: value.report ? value.report as DailyReport : null,
+    indexes: Array.isArray(value.indexes)
+      ? (value.indexes as Array<Record<string, unknown>>).map(normalizeMarketIndex)
+      : [],
+    activity: normalizeMarketActivity((value.activity as Record<string, unknown> | null) || null),
+    leaders: {
+      top_price: Array.isArray(leaders?.top_price) ? (leaders.top_price as Array<Record<string, unknown>>).map(normalizeAsset) : [],
+      top_volume: Array.isArray(leaders?.top_volume) ? (leaders.top_volume as Array<Record<string, unknown>>).map(normalizeAsset) : [],
+      top_movers: Array.isArray(leaders?.top_movers) ? (leaders.top_movers as Array<Record<string, unknown>>).map(normalizeAsset) : [],
+      top_losers: Array.isArray(leaders?.top_losers) ? (leaders.top_losers as Array<Record<string, unknown>>).map(normalizeAsset) : [],
+      top_premiums: Array.isArray(leaders?.top_premiums) ? (leaders.top_premiums as Array<Record<string, unknown>>).map(normalizeAsset) : [],
+      top_discounts: Array.isArray(leaders?.top_discounts) ? (leaders.top_discounts as Array<Record<string, unknown>>).map(normalizeAsset) : [],
+      volume_winners: Array.isArray(leaders?.volume_winners)
+        ? (leaders.volume_winners as Array<Record<string, unknown>>).map(normalizeMarketHubVolumeLeader)
+        : [],
+      volume_losers: Array.isArray(leaders?.volume_losers)
+        ? (leaders.volume_losers as Array<Record<string, unknown>>).map(normalizeMarketHubVolumeLeader)
+        : [],
+    },
+    recent_trades: {
+      items: Array.isArray(recentTrades?.items)
+        ? (recentTrades.items as Array<Record<string, unknown>>).map(normalizeMarketHubTrade)
+        : [],
+      next_cursor: recentTrades?.next_cursor ? String(recentTrades.next_cursor) : null,
+    },
+  };
+}
+
 export function normalizeTrades(trades: Array<Record<string, unknown>>): TradeRow[] {
   return trades.map((item) => ({
     id: Number(item.id),
@@ -163,6 +278,76 @@ export function normalizeTreasury(treasury: Record<string, unknown> | null): Ass
     treasury_supply: toNumber(treasury.treasury_supply),
     current_daily_emission: toNumber(treasury.current_daily_emission),
     current_premium_pct: toNumber(treasury.current_premium_pct),
+  };
+}
+
+function normalizeAssetCommentAuthor(value: unknown): AssetCommentAuthor | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  const id = toNumber(row.id);
+  const username = String(row.username || "").trim();
+  if (!id || !username) return null;
+  return {
+    id,
+    username,
+    profile_picture_url: row.profile_picture_url ? String(row.profile_picture_url) : null,
+    profile_color: row.profile_color ? String(row.profile_color) : null,
+  };
+}
+
+function normalizeAssetComments(value: unknown): AssetComment[] {
+  if (!Array.isArray(value)) return [];
+  const moodSet = new Set<string>(ARTICLE_COMMENT_MOODS);
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as Record<string, unknown>;
+      const id = toNumber(row.id);
+      const body = String(row.body || "").trim();
+      const mood = row.mood ? String(row.mood).trim() : null;
+      const author = normalizeAssetCommentAuthor(row.author);
+      if (!id || !body || !author) return null;
+      return {
+        id,
+        body,
+        mood: mood && moodSet.has(mood) ? mood : null,
+        created_at: String(row.created_at || ""),
+        updated_at: String(row.updated_at || ""),
+        upvotes: Number(toNumber(row.upvotes) || 0),
+        downvotes: Number(toNumber(row.downvotes) || 0),
+        viewer_vote: (
+          toNumber(row.viewer_vote) === 1
+            ? 1
+            : toNumber(row.viewer_vote) === -1
+              ? -1
+              : 0
+        ) as AssetComment["viewer_vote"],
+        author_share_quantity: Number(toNumber(row.author_share_quantity) || 0),
+        author,
+      };
+    })
+    .filter((item): item is AssetComment => item !== null);
+}
+
+export function normalizeAssetCommentListResponse(value: Record<string, unknown>): AssetCommentListResponse {
+  const pagination = (value.pagination || null) as Record<string, unknown> | null;
+  const viewerContext = (value.viewer_context || null) as Record<string, unknown> | null;
+  return {
+    symbol: String(value.symbol || ""),
+    comments: normalizeAssetComments(value.comments),
+    pagination: {
+      total: Number(pagination?.total || 0),
+      page: Number(pagination?.page || 1),
+      limit: Number(pagination?.limit || 6),
+      page_count: Number(pagination?.page_count || 1),
+      has_previous_page: Boolean(pagination?.has_previous_page),
+      has_next_page: Boolean(pagination?.has_next_page),
+    },
+    viewer_context: {
+      is_authenticated: Boolean(viewerContext?.is_authenticated),
+      owned_shares: Number(toNumber(viewerContext?.owned_shares) || 0),
+      can_post: Boolean(viewerContext?.can_post),
+    },
   };
 }
 

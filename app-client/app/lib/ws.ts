@@ -2,6 +2,7 @@ const LIVESTREAM_WS_PATH = "/api/livestreams/ws";
 const BUCKET_WS_PATH = "/api/livestreams/buckets/ws";
 const SITE_STATS_WS_PATH = "/api/stats/ws";
 const CHAT_WS_PATH = "/api/chat/ws";
+const MARKET_WS_PATH = "/api/market/ws";
 
 function toWsBase(base: string) {
   const trimmed = base.trim().replace(/\/+$/, "");
@@ -34,4 +35,10 @@ export function getChatWsUrl() {
   const explicitBase = process.env.NEXT_PUBLIC_WS_API_BASE ? toWsBase(process.env.NEXT_PUBLIC_WS_API_BASE) : "";
   const base = explicitBase || (typeof window !== "undefined" ? window.location.origin.replace(/^http/, "ws") : "");
   return base ? `${base}${CHAT_WS_PATH}` : "";
+}
+
+export function getMarketWsUrl() {
+  const explicitBase = process.env.NEXT_PUBLIC_WS_API_BASE ? toWsBase(process.env.NEXT_PUBLIC_WS_API_BASE) : "";
+  const base = explicitBase || (typeof window !== "undefined" ? window.location.origin.replace(/^http/, "ws") : "");
+  return base ? `${base}${MARKET_WS_PATH}` : "";
 }

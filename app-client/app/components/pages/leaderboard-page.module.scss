@@ -337,6 +337,7 @@
   align-items: end;
   justify-items: center;
   justify-content: center;
+  margin-top: 7rem;
 }
 
 .podiumCard {
@@ -363,7 +364,6 @@
 
 .podiumStage {
   position: relative;
-  height: var(--podium-stage-height);
   display: flex;
   justify-content: center;
   align-items: end;
@@ -372,8 +372,8 @@
 .podiumAvatarWrap {
   position: absolute;
   left: 50%;
-  bottom: calc(var(--podium-height) - 4.6rem);
-  transform: translateX(-50%);
+  top:0;
+  transform: translate(-50%, -90%);
   z-index: 3;
 }
 
@@ -400,30 +400,29 @@
   justify-items: center;
   padding: 1.2rem 1rem 1rem;
   position: relative;
-  overflow: hidden;
   align-self: end;
 }
 
-.podiumBar::after {
-  content: "";
-  position: absolute;
-  inset: auto -10% 0;
-  height: 42%;
-  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.14));
-}
+// .podiumBar::after {
+//   content: "";
+//   position: absolute;
+//   inset: auto -10% 0;
+//   height: 42%;
+//   background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.14));
+// }
 
-.podiumBar::before {
-  content: "";
-  position: absolute;
-  inset: auto 10% -24% 10%;
-  height: 52%;
-  background:
-    radial-gradient(circle at center top, rgba(255, 255, 255, 0.16), transparent 58%),
-    color-mix(in srgb, var(--podium-user-color) 72%, transparent);
-  opacity: 0.46;
-  border-radius: 999px 999px 0 0;
-  filter: saturate(1.15) brightness(1.05);
-}
+// .podiumBar::before {
+//   content: "";
+//   position: absolute;
+//   inset: auto 10% -24% 10%;
+//   height: 52%;
+//   background:
+//     radial-gradient(circle at center top, rgba(255, 255, 255, 0.16), transparent 58%),
+//     color-mix(in srgb, var(--podium-user-color) 72%, transparent);
+//   opacity: 0.46;
+//   border-radius: 999px 999px 0 0;
+//   filter: saturate(1.15) brightness(1.05);
+// }
 
 .podiumWatermark {
   position: absolute;
@@ -555,8 +554,8 @@
 
 .avatar {
   --leaderboard-accent: var(--accent, #2563eb);
-  width: 2.7rem;
-  height: 2.7rem;
+  width: 5rem;
+  height: 5rem;
   border-radius: 999px;
   overflow: hidden;
   display: grid;

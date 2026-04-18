@@ -35,6 +35,7 @@ type HistogramBar = {
   label: string;
   color: string;
   value: number;
+  valueLabel?: string;
   subtitle?: string;
   flagUrl?: string | null;
 };
@@ -739,6 +740,139 @@ export function SuperchatHistogramCard({
   );
 }
 
+export function MetricHistogramCard({
+  title,
+  subtitle,
+  bars,
+  theme,
+  emptyLabel = "No data",
+}: {
+  title: string;
+  subtitle?: string;
+  bars: HistogramBar[];
+  theme?: ChannelChartTheme | null;
+  emptyLabel?: string;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const hasData = bars.some((item) => Number.isFinite(item.value) && item.value > 0);
+  const palette = resolveTheme(theme);
+
+  useEffect(() => {
+    if (!containerRef.current || !tooltipRef.current || !hasData) return;
+
+    const chart = createChart(containerRef.current, {
+      autoSize: true,
+      height: 320,
+      layout: {
+        background: { type: ColorType.Solid, color: "transparent" },
+        textColor: palette.text,
+        fontFamily: resolveChartFontFamily(),
+        attributionLogo: false,
+      },
+      grid: {
+        vertLines: { color: withAlpha(palette.baseDeep, 0.08) },
+        horzLines: { color: palette.grid },
+      },
+      crosshair: {
+        vertLine: { visible: false, labelVisible: false },
+        horzLine: { color: palette.crosshairSoft, width: 1 },
+      },
+      rightPriceScale: {
+        borderVisible: false,
+        scaleMargins: { top: 0.16, bottom: 0.08 },
+      },
+      timeScale: {
+        borderVisible: false,
+        timeVisible: false,
+        secondsVisible: false,
+        tickMarkFormatter: () => "",
+      },
+      localization: {
+        locale: "en-US",
+      },
+      handleScroll: false,
+      handleScale: false,
+    });
+
+    const series = chart.addSeries(HistogramSeries, {
+      priceFormat: {
+        type: "volume",
+      },
+      base: 0,
+      priceLineVisible: false,
+      lastValueVisible: false,
+    });
+
+    series.setData(
+      bars.map((item, index) => ({
+        time: syntheticChartTime(index),
+        value: item.value,
+        color: item.color,
+      }))
+    );
+
+    const tooltip = tooltipRef.current;
+    chart.subscribeCrosshairMove((param) => {
+      if (!tooltip) return;
+
+      const point = param.point;
+      const logical = typeof param.logical === "number" ? Math.round(param.logical) : null;
+      const bar = logical !== null && logical >= 0 && logical < bars.length ? bars[logical] : null;
+
+      if (
+        !bar ||
+        !point ||
+        point.x < 0 ||
+        point.y < 0 ||
+        !containerRef.current ||
+        point.x > containerRef.current.clientWidth ||
+        point.y > containerRef.current.clientHeight
+      ) {
+        tooltip.style.opacity = "0";
+        return;
+      }
+
+      tooltip.innerHTML = `
+        <strong class="${styles.chartTooltipLabel}">
+          ${bar.flagUrl ? `<img src="${bar.flagUrl}" alt="" class="${styles.chartTooltipFlag}" />` : ""}
+          <span>${bar.label}</span>
+        </strong>
+        <span>${bar.valueLabel || formatValue(bar.value)}</span>
+        ${bar.subtitle ? `<span>${bar.subtitle}</span>` : ""}
+      `;
+
+      const left = Math.min(Math.max(point.x + 14, 12), containerRef.current.clientWidth - 180);
+      const top = Math.max(point.y - 18, 12);
+      tooltip.style.left = `${left}px`;
+      tooltip.style.top = `${top}px`;
+      tooltip.style.opacity = "1";
+    });
+
+    chart.timeScale().fitContent();
+    return () => chart.remove();
+  }, [bars, hasData, palette]);
+
+  return (
+    <div className={`${styles.chartBox} ${styles.chartBoxTrend}`}>
+      <div className={styles.header}>
+        <div>
+          <strong className={styles.title}>{title}</strong>
+          <span className={styles.subtitle}>{subtitle || "Recent activity"}</span>
+        </div>
+      </div>
+      {hasData ? (
+        <div className={styles.chartTooltipWrap}>
+          <div ref={containerRef} className={styles.canvas} />
+          <div ref={tooltipRef} className={styles.chartTooltip} />
+        </div>
+      ) : (
+        <div className={styles.empty}>{emptyLabel}</div>
+      )}
+    </div>
+  );
+}
+
 export function RankedBarChartCard({
   title,
   subtitle,
@@ -825,12 +959,14 @@ export function SuperchatHeatmapCard({
               } as CSSProperties
             }
           >
-            <div className={styles.heatmapCorner}>Currency</div>
-            {columns.map((column) => (
-              <div key={column} className={styles.heatmapColumnLabel}>
-                {column}
-              </div>
-            ))}
+            <div className={styles.heatmapHeaderRow}>
+              <div className={styles.heatmapCorner}>Currency</div>
+              {columns.map((column) => (
+                <div key={column} className={styles.heatmapColumnLabel}>
+                  {column}
+                </div>
+              ))}
+            </div>
             {rows.map((row) => (
               <div key={row.label} className={styles.heatmapRowGroup}>
                 <div className={styles.heatmapRowLabel}>{row.label}</div>

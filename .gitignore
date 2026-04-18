@@ -25,6 +25,8 @@ coverage/
 .turbo/
 .cache/
 
+.tmuxinator.yml
+
 temp-images/
 profile-pictures/
 emojis/

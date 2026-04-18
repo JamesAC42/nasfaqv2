@@ -631,7 +631,7 @@
 }
 
 .articleAuthor,
-.commentHeader span,
+.commentAuthorMeta span,
 .sameUnitIdentity span,
 .sameUnitMetrics span,
 .tradeTapeRow span {
@@ -791,9 +791,247 @@
   resize: vertical;
 }
 
+.commentMoodPicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.commentMoodOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface-card) 92%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    opacity 120ms ease;
+}
+
+.commentMoodOption:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--border-soft));
+}
+
+.commentMoodOption:not(.commentMoodOptionSelected) {
+  opacity: 0.88;
+}
+
+.commentMoodOptionSelected {
+  color: var(--comment-mood-fg, var(--text-primary));
+  background: var(--comment-mood-bg, color-mix(in srgb, var(--surface-card) 94%, transparent));
+  border-color: color-mix(in srgb, var(--comment-mood-fg, currentColor) 28%, transparent);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--surface-card) 72%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--comment-mood-fg, currentColor) 18%, transparent),
+    0 10px 24px color-mix(in srgb, var(--panel-accent-glow) 16%, transparent);
+  transform: translateY(-1px);
+  opacity: 1;
+}
+
+.commentMoodBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0.4rem 0.72rem;
+  border-radius: 999px;
+  color: var(--comment-mood-fg, var(--text-primary));
+  background: var(--comment-mood-bg, color-mix(in srgb, var(--surface-card) 94%, transparent));
+  border: 1px solid color-mix(in srgb, var(--comment-mood-fg, currentColor) 28%, transparent);
+  font-size: 0.77rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 18%, transparent);
+}
+
+.commentMoodBadge svg,
+.commentMoodOption svg {
+  flex: 0 0 auto;
+}
+
+.commentMoodBadgeBullish,
+.commentMoodOptionBullish {
+  --comment-mood-fg: color-mix(in srgb, #2dbd6e 78%, #143b2b);
+  --comment-mood-bg: color-mix(in srgb, #2dbd6e 18%, var(--surface-card) 82%);
+}
+
+.commentMoodBadgeBearish,
+.commentMoodOptionBearish {
+  --comment-mood-fg: color-mix(in srgb, #d94b64 80%, #4b1820);
+  --comment-mood-bg: color-mix(in srgb, #d94b64 18%, var(--surface-card) 82%);
+}
+
+.commentMoodBadgeNeutral,
+.commentMoodOptionNeutral {
+  --comment-mood-fg: color-mix(in srgb, #b88709 82%, #584400);
+  --comment-mood-bg: color-mix(in srgb, #d4aa2a 18%, var(--surface-card) 82%);
+}
+
+.commentMoodBadgeHodling,
+.commentMoodOptionHodling {
+  --comment-mood-fg: color-mix(in srgb, #3f8fe8 80%, #163e68);
+  --comment-mood-bg: color-mix(in srgb, #3f8fe8 18%, var(--surface-card) 82%);
+}
+
+.commentMoodBadgeDumpEet,
+.commentMoodOptionDumpEet {
+  --comment-mood-fg: color-mix(in srgb, #d96534 80%, #5a2413);
+  --comment-mood-bg: color-mix(in srgb, #e4723f 18%, var(--surface-card) 82%);
+}
+
+.commentMoodBadgeHeBought,
+.commentMoodOptionHeBought {
+  --comment-mood-fg: color-mix(in srgb, #29b89a 80%, #12453d);
+  --comment-mood-bg: color-mix(in srgb, #29b89a 18%, var(--surface-card) 82%);
+}
+
+.commentMoodBadgeHeSold,
+.commentMoodOptionHeSold {
+  --comment-mood-fg: color-mix(in srgb, #c84f99 80%, #4b1b37);
+  --comment-mood-bg: color-mix(in srgb, #d35ca7 18%, var(--surface-card) 82%);
+}
+
+.commentMoodBadgeDiamondHands,
+.commentMoodOptionDiamondHands {
+  --comment-mood-fg: color-mix(in srgb, #4f97e0 80%, #1d4468);
+  --comment-mood-bg: color-mix(in srgb, #5fa4ea 18%, var(--surface-card) 82%);
+}
+
+.commentMoodBadgeWatching,
+.commentMoodOptionWatching {
+  --comment-mood-fg: color-mix(in srgb, #64788d 78%, #394654);
+  --comment-mood-bg: color-mix(in srgb, #8ca0b5 18%, var(--surface-card) 82%);
+}
+
+.commentMoodBadgeAccumulating,
+.commentMoodOptionAccumulating {
+  --comment-mood-fg: color-mix(in srgb, #6f56d6 80%, #352868);
+  --comment-mood-bg: color-mix(in srgb, #7d63df 18%, var(--surface-card) 82%);
+}
+
 .commentButton,
 .presetButton {
   @include button-secondary;
+}
+
+.commentBoardStatus,
+.commentSharePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface-card-soft) 88%, transparent);
+  color: var(--muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.commentAuthor {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.commentAuthorAvatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  min-width: 2.5rem;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  text-decoration: none;
+  background: color-mix(in srgb, var(--surface-card-soft) 88%, transparent);
+}
+
+.commentAuthorAvatarImage,
+.commentAuthorAvatarFallback {
+  width: 100%;
+  height: 100%;
+}
+
+.commentAuthorAvatarImage {
+  display: block;
+  object-fit: cover;
+}
+
+.commentAuthorAvatarFallback {
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.commentAuthorMeta {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.commentAuthorRow {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.commentAuthorName {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.commentAuthorName:hover,
+.commentAuthorName:focus-visible {
+  color: var(--accent);
+}
+
+.commentBody {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.commentVoteRow,
+.commentPagination {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.commentVoteButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.72rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface-card) 96%, #000 4%);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.commentVoteButton:disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
+}
+
+.commentVoteButtonActive {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border-soft));
+  background: color-mix(in srgb, var(--accent-soft) 22%, var(--surface-card) 78%);
 }
 
 .tradePanel {

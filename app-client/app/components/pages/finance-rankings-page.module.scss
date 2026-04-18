@@ -1,0 +1,402 @@
+@use "../../styles/mixins" as *;
+
+.page {
+  width: min(1120px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 1.2rem 0 2rem;
+  display: grid;
+  gap: 1.15rem;
+}
+
+.hero {
+  @include panel;
+  padding: 1.35rem 1rem 1.1rem;
+  display: grid;
+  gap: 0.95rem;
+  justify-items: center;
+  text-align: center;
+}
+
+.title {
+  @include section-title;
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3rem);
+}
+
+.copy {
+  @include subtle-copy;
+  margin: 0;
+  max-width: 52rem;
+}
+
+.metricBubbleRow {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.metricBubble {
+  @include button-secondary;
+  --metric-accent: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  border-color: color-mix(in srgb, var(--metric-accent) 36%, var(--border-soft));
+  background: color-mix(in srgb, var(--metric-accent) 10%, var(--surface-card));
+  color: var(--text);
+}
+
+.metricBubbleActive {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--metric-accent) 18%, var(--surface-card)),
+      color-mix(in srgb, var(--metric-accent) 10%, var(--surface-card))
+    );
+  border-color: color-mix(in srgb, var(--metric-accent) 56%, var(--border-soft));
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--metric-accent) 16%, transparent);
+}
+
+.metricBubbleIcon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--metric-accent);
+  background: color-mix(in srgb, var(--metric-accent) 16%, transparent);
+  flex: 0 0 auto;
+}
+
+.metricBubbleLabel {
+  font-size: 0.92rem;
+}
+
+.metricPrice {
+  --metric-accent: var(--accent);
+}
+
+.metricVolume {
+  --metric-accent: var(--trend-line);
+}
+
+.metricMove {
+  --metric-accent: var(--success);
+}
+
+.metricSubscribers {
+  --metric-accent: var(--leaderboard-global-accent);
+}
+
+.metricViews {
+  --metric-accent: var(--leaderboard-friends-accent);
+}
+
+.metricSuperchat {
+  --metric-accent: var(--leaderboard-podium-gold);
+}
+
+.metricStreamTime {
+  --metric-accent: var(--leaderboard-podium-silver);
+}
+
+.metricVideos {
+  --metric-accent: var(--warning);
+}
+
+.metricOshicoin {
+  --metric-accent: var(--leaderboard-rivals-accent);
+}
+
+.rankingsPanel {
+  @include panel;
+  padding: 1rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.panelCopy {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.resultMeta {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-family: var(--font-mono);
+}
+
+.listHeader {
+  display: grid;
+  grid-template-columns: 5.25rem minmax(0, 1.15fr) minmax(5rem, 0.6fr) minmax(9.25rem, 0.95fr);
+  gap: 0.4rem;
+  padding: 0 0.25rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  align-items: center;
+}
+
+.listHeaderRank {
+  text-align: center;
+}
+
+.listHeaderMetric {
+  text-align: center;
+}
+
+.list {
+  display: grid;
+  gap: 0.72rem;
+}
+
+.rowGroup {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 5.25rem minmax(0, 1.15fr) minmax(5rem, 0.6fr) minmax(9.25rem, 0.95fr);
+  gap: 0.4rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.78rem 0.9rem;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 76%, transparent);
+  background: color-mix(in srgb, var(--surface-card) 94%, transparent);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.row:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 44%, var(--border-soft));
+  background: color-mix(in srgb, var(--surface-card-highlight) 52%, transparent);
+}
+
+.rowExpanded {
+  border-color: color-mix(in srgb, var(--accent) 54%, var(--border-soft));
+  background: color-mix(in srgb, var(--surface-card-highlight) 58%, transparent);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--button-primary-border);
+  outline-offset: 2px;
+}
+
+.rankBadge {
+  justify-self: center;
+  min-width: 4rem;
+  padding: 0.42rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border-soft));
+  background: color-mix(in srgb, var(--accent-soft) 42%, var(--surface-pill));
+  font-weight: 800;
+  font-family: var(--font-mono);
+  text-align: center;
+}
+
+.assetCell {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.assetCoin {
+  width: 2.45rem;
+  height: 2.45rem;
+  flex: 0 0 auto;
+}
+
+.assetCopy {
+  min-width: 0;
+  display: grid;
+  gap: 0.08rem;
+}
+
+.assetTicker {
+  font-size: 0.98rem;
+}
+
+.assetName {
+  color: var(--muted);
+  font-size: 0.83rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.priceCell {
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--text) 90%, transparent);
+}
+
+.metricValue {
+  justify-self: center;
+  width: 100%;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.metricPositive {
+  color: var(--trend-up);
+}
+
+.metricNegative {
+  color: var(--trend-down);
+}
+
+.detailPanel {
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border-soft));
+  background: color-mix(in srgb, var(--surface-card) 96%, transparent);
+  padding: 0.95rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.detailTopRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.85rem;
+  align-items: start;
+  flex-wrap: wrap;
+}
+
+.detailTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.detailCopy {
+  margin: 0.18rem 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.detailLink {
+  @include button-secondary;
+  padding: 0.5rem 0.8rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.detailEmpty {
+  @include empty-state;
+}
+
+.oshiDetailCard {
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--leaderboard-rivals-accent) 24%, var(--border-soft));
+  background: color-mix(in srgb, var(--leaderboard-rivals-soft) 18%, var(--surface-card));
+  padding: 1rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.oshiDetailHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: center;
+  font-weight: 700;
+}
+
+.oshiMeterTrack {
+  height: 0.9rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--leaderboard-rivals-soft) 32%, var(--surface-pill));
+  overflow: hidden;
+}
+
+.oshiMeterFill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--leaderboard-rivals-accent) 88%, white 12%),
+    color-mix(in srgb, var(--leaderboard-rivals-strong) 84%, white 16%)
+  );
+}
+
+.oshiMetaRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.empty {
+  @include empty-state;
+}
+
+@media (max-width: 820px) {
+  .page {
+    width: min(100%, calc(100% - 1rem));
+  }
+
+  .listHeader {
+    display: none;
+  }
+
+  .row {
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "rank asset"
+      "price metric";
+    align-items: center;
+    gap: 0.55rem 0.8rem;
+  }
+
+  .rankBadge {
+    grid-area: rank;
+  }
+
+  .assetCell {
+    grid-area: asset;
+  }
+
+  .priceCell {
+    grid-area: price;
+  }
+
+  .metricValue {
+    grid-area: metric;
+    justify-self: end;
+    text-align: right;
+  }
+}

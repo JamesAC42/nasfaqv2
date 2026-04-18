@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ColorType, LineSeries, createChart, type IChartApi, type ISeriesApi, type Time } from "lightweight-charts";
+import type { IconType } from "react-icons";
 import {
   CandleChartCard,
   RankedBarChartCard,
@@ -18,12 +19,22 @@ import { apiFetch } from "@/app/lib/api";
 import { createChannelChartTheme } from "@/app/lib/chart-theme";
 import { getUsableChannelColor, normalizeHexColor } from "@/app/lib/color";
 import { fmtDate, fmtDurationSeconds, fmtInteger, fmtNumber, fmtPct } from "@/app/lib/format";
-import { normalizeArticleListResponse, normalizeAssetSuperchatSummary, normalizeAssetSuperchatTimeseries, normalizeLivestreams } from "@/app/lib/normalizers";
+import {
+  normalizeArticleListResponse,
+  normalizeAssetCommentListResponse,
+  normalizeAssetSuperchatSummary,
+  normalizeAssetSuperchatTimeseries,
+  normalizeLivestreams,
+} from "@/app/lib/normalizers";
 import { getBucketWsUrl } from "@/app/lib/ws";
+import { ARTICLE_COMMENT_MOODS } from "@/app/lib/types";
 import type {
   ArticleSummary,
+  AssetComment,
+  AssetCommentListResponse,
   AssetSuperchatSummaryBundle,
   AssetSuperchatTimeseriesBundle,
+  ArticleCommentMood,
   ChannelOverviewRow,
   LivestreamItem,
   MarketAsset,
@@ -38,7 +49,26 @@ import shellStyles from "@/app/components/pages/page-shell.module.scss";
 import styles from "@/app/components/pages/stock-detail-page.module.scss";
 import { BsArrowDown, BsArrowUp, BsYoutube } from "react-icons/bs";
 import { GoLinkExternal } from "react-icons/go";
-import { FaArrowTrendDown, FaArrowTrendUp, FaChartColumn, FaDollarSign, FaEye, FaUsers, FaVideo, FaYenSign } from "react-icons/fa6";
+import {
+  FaArrowTrendDown,
+  FaArrowTrendUp,
+  FaBinoculars,
+  FaBoxesStacked,
+  FaChartColumn,
+  FaChartSimple,
+  FaCircleDown,
+  FaCircleQuestion,
+  FaCircleUp,
+  FaDollarSign,
+  FaEye,
+  FaGem,
+  FaScaleBalanced,
+  FaThumbsDown,
+  FaThumbsUp,
+  FaUsers,
+  FaVideo,
+  FaYenSign,
+} from "react-icons/fa6";
 
 const DETAIL_CHART_START_DATE = "2025-10-09";
 const TRADE_CONFIRMATION_ANIMATION_MS = 280;
@@ -220,6 +250,19 @@ type TradeFailureNotice = {
   message: string;
 };
 
+const COMMENT_MOOD_META: Record<ArticleCommentMood, { icon: IconType; badgeClassName: string; optionClassName: string }> = {
+  Bullish: { icon: FaArrowTrendUp, badgeClassName: styles.commentMoodBadgeBullish, optionClassName: styles.commentMoodOptionBullish },
+  Bearish: { icon: FaArrowTrendDown, badgeClassName: styles.commentMoodBadgeBearish, optionClassName: styles.commentMoodOptionBearish },
+  Neutral: { icon: FaScaleBalanced, badgeClassName: styles.commentMoodBadgeNeutral, optionClassName: styles.commentMoodOptionNeutral },
+  Hodling: { icon: FaChartSimple, badgeClassName: styles.commentMoodBadgeHodling, optionClassName: styles.commentMoodOptionHodling },
+  "Dump Eet": { icon: FaArrowTrendDown, badgeClassName: styles.commentMoodBadgeDumpEet, optionClassName: styles.commentMoodOptionDumpEet },
+  "He Bought?": { icon: FaCircleUp, badgeClassName: styles.commentMoodBadgeHeBought, optionClassName: styles.commentMoodOptionHeBought },
+  "He Sold?": { icon: FaCircleDown, badgeClassName: styles.commentMoodBadgeHeSold, optionClassName: styles.commentMoodOptionHeSold },
+  "Diamond Hands": { icon: FaGem, badgeClassName: styles.commentMoodBadgeDiamondHands, optionClassName: styles.commentMoodOptionDiamondHands },
+  Watching: { icon: FaBinoculars, badgeClassName: styles.commentMoodBadgeWatching, optionClassName: styles.commentMoodOptionWatching },
+  Accumulating: { icon: FaBoxesStacked, badgeClassName: styles.commentMoodBadgeAccumulating, optionClassName: styles.commentMoodOptionAccumulating },
+};
+
 function pickRandomItem<T>(items: readonly T[]): T {
   return items[Math.floor(Math.random() * items.length)] as T;
 }
@@ -234,6 +277,80 @@ function toNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatRelativeTime(value: string | null | undefined) {
+  if (!value) return { relative: "Unknown time", absolute: "Unknown time" };
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return { relative: value, absolute: value };
+  }
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs <= 0) {
+    return { relative: "just now", absolute: date.toLocaleString() };
+  }
+  const seconds = Math.floor(diffMs / 1000);
+  if (seconds < 60) {
+    return { relative: `${seconds} second${seconds === 1 ? "" : "s"} ago`, absolute: date.toLocaleString() };
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return { relative: `${minutes} minute${minutes === 1 ? "" : "s"} ago`, absolute: date.toLocaleString() };
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return { relative: `${hours} hour${hours === 1 ? "" : "s"} ago`, absolute: date.toLocaleString() };
+  }
+  const days = Math.floor(hours / 24);
+  return { relative: `${days} day${days === 1 ? "" : "s"} ago`, absolute: date.toLocaleString() };
+}
+
+function getCommentMoodMeta(mood: ArticleCommentMood | null) {
+  return mood ? COMMENT_MOOD_META[mood] : null;
+}
+
+function profileInitial(username: string) {
+  return username.trim().charAt(0).toUpperCase() || "?";
+}
+
+function commentFailureMessage(error: unknown) {
+  const code = String((error as Error).message || error);
+  switch (code) {
+    case "asset_comment_requires_holding":
+      return "You need to own shares of this coin before you can post on the channel board.";
+    case "invalid_asset_comment":
+      return "Comments must include text and use a valid mood selection.";
+    case "unauthenticated":
+      return "Sign in to join the channel board.";
+    default:
+      return code;
+  }
+}
+
+function voteFailureMessage(error: unknown) {
+  const code = String((error as Error).message || error);
+  switch (code) {
+    case "asset_comment_self_vote":
+      return "You cannot vote on your own comment.";
+    case "invalid_asset_comment_vote":
+      return "That vote could not be saved.";
+    case "unauthenticated":
+      return "Sign in to vote on comments.";
+    default:
+      return code;
+  }
+}
+
+function CommentMoodBadge({ comment }: { comment: AssetComment }) {
+  const meta = getCommentMoodMeta(comment.mood);
+  if (!meta || !comment.mood) return null;
+  const Icon = meta.icon;
+  return (
+    <span className={`${styles.commentMoodBadge} ${meta.badgeClassName}`}>
+      <Icon aria-hidden="true" />
+      <span>{comment.mood}</span>
+    </span>
+  );
 }
 
 function formatSignedPct(value: number | null | undefined) {
@@ -746,6 +863,14 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   const [tradeFailureNotice, setTradeFailureNotice] = useState<TradeFailureNotice | null>(null);
   const [tradeConfirmation, setTradeConfirmation] = useState<TradeConfirmation | null>(null);
   const [isTradeConfirmationClosing, setIsTradeConfirmationClosing] = useState(false);
+  const [assetCommentBoard, setAssetCommentBoard] = useState<AssetCommentListResponse | null>(null);
+  const [assetCommentBoardError, setAssetCommentBoardError] = useState<string | null>(null);
+  const [assetCommentPage, setAssetCommentPage] = useState(1);
+  const [commentBody, setCommentBody] = useState("");
+  const [commentMood, setCommentMood] = useState<ArticleCommentMood | null>(null);
+  const [isLoadingAssetComments, setIsLoadingAssetComments] = useState(false);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [commentVoteBusyId, setCommentVoteBusyId] = useState<number | null>(null);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [channelStreams, setChannelStreams] = useState<{ live: LivestreamItem[]; upcoming: LivestreamItem[] }>({
     live: [],
@@ -817,6 +942,41 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     setSelectedSymbol(normalizedSymbol);
     void fetchAssetDetail(normalizedSymbol);
   }, [fetchAssetDetail, normalizedSymbol, setSelectedSymbol]);
+
+  useEffect(() => {
+    setAssetCommentPage(1);
+    setCommentBody("");
+    setCommentMood(null);
+  }, [normalizedSymbol]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchAssetComments() {
+      setIsLoadingAssetComments(true);
+      setAssetCommentBoardError(null);
+      try {
+        const result = await apiFetch<Record<string, unknown>>(
+          `/api/market/assets/${encodeURIComponent(normalizedSymbol)}/comments?page=${assetCommentPage}&limit=6`
+        );
+        if (cancelled) return;
+        setAssetCommentBoard(normalizeAssetCommentListResponse(result));
+      } catch (nextError) {
+        if (cancelled) return;
+        setAssetCommentBoard(null);
+        setAssetCommentBoardError(String((nextError as Error).message || nextError));
+      } finally {
+        if (!cancelled) {
+          setIsLoadingAssetComments(false);
+        }
+      }
+    }
+
+    void fetchAssetComments();
+    return () => {
+      cancelled = true;
+    };
+  }, [assetCommentPage, normalizedSymbol]);
 
   useEffect(() => {
     setIsDescriptionExpanded(false);
@@ -1140,6 +1300,11 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     await fetchChannels();
     if (selectedAsset?.symbol) {
       await fetchAssetDetail(selectedAsset.symbol);
+      const commentResult = await apiFetch<Record<string, unknown>>(
+        `/api/market/assets/${encodeURIComponent(selectedAsset.symbol)}/comments?page=${assetCommentPage}&limit=6`
+      );
+      setAssetCommentBoard(normalizeAssetCommentListResponse(commentResult));
+      setAssetCommentBoardError(null);
     }
     if (user) {
       await fetchPortfolio();
@@ -1202,6 +1367,53 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
       const errorCode = String((nextError as Error).message || nextError);
       setTradeError(errorCode);
       setTradeFailureNotice(getTradeFailureNotice(errorCode, tradeSide, selectedAsset.symbol));
+    }
+  }
+
+  async function handleCommentSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedAsset || !commentBody.trim()) return;
+
+    setIsSubmittingComment(true);
+    setAssetCommentBoardError(null);
+    try {
+      const result = await apiFetch<Record<string, unknown>>(`/api/market/assets/${encodeURIComponent(selectedAsset.symbol)}/comments`, {
+        method: "POST",
+        body: JSON.stringify({
+          body: commentBody,
+          mood: commentMood,
+        }),
+      });
+      const nextBoard = normalizeAssetCommentListResponse(result);
+      setAssetCommentBoard(nextBoard);
+      setAssetCommentPage(1);
+      setCommentBody("");
+      setCommentMood(null);
+    } catch (nextError) {
+      setAssetCommentBoardError(commentFailureMessage(nextError));
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  }
+
+  async function handleCommentVote(comment: AssetComment, value: 1 | -1) {
+    if (!selectedAsset || !user) return;
+
+    setCommentVoteBusyId(comment.id);
+    setAssetCommentBoardError(null);
+    try {
+      const result = await apiFetch<Record<string, unknown>>(
+        `/api/market/assets/${encodeURIComponent(selectedAsset.symbol)}/comments/${comment.id}/vote?page=${assetCommentPage}`,
+        {
+          method: "POST",
+          body: JSON.stringify({ value: comment.viewer_vote === value ? 0 : value }),
+        }
+      );
+      setAssetCommentBoard(normalizeAssetCommentListResponse(result));
+    } catch (nextError) {
+      setAssetCommentBoardError(voteFailureMessage(nextError));
+    } finally {
+      setCommentVoteBusyId((current) => (current === comment.id ? null : current));
     }
   }
 
@@ -1304,32 +1516,10 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     () => relatedArticles.filter((article) => article.is_news),
     [relatedArticles]
   );
-  const mockComments = useMemo(() => {
-    const displayName = selectedChannel?.channel.name || selectedAsset?.display_name || normalizedSymbol;
-    return [
-      {
-        id: `${normalizedSymbol}-comment-1`,
-        author: "AquaDesk",
-        age: "2h ago",
-        tone: "Bullish",
-        body: `Mock board post: ${displayName} has the kind of schedule consistency that usually matters more than one noisy session.`,
-      },
-      {
-        id: `${normalizedSymbol}-comment-2`,
-        author: "ValueClipper",
-        age: "5h ago",
-        tone: "Neutral",
-        body: "Mock board post: waiting for the next upload and a cleaner premium reset before adding more size.",
-      },
-      {
-        id: `${normalizedSymbol}-comment-3`,
-        author: "LateNightTape",
-        age: "1d ago",
-        tone: "Bearish",
-        body: "Mock board post: strong channel, but the tape may need a better entry after the recent squeeze.",
-      },
-    ];
-  }, [normalizedSymbol, selectedAsset?.display_name, selectedChannel?.channel.name]);
+  const viewerOwnedShares = assetCommentBoard?.viewer_context.owned_shares ?? ownedShares;
+  const canPostAssetComment = user ? (assetCommentBoard?.viewer_context.can_post ?? ownedShares > 0) : false;
+  const assetCommentPagination = assetCommentBoard?.pagination || null;
+  const totalAssetComments = assetCommentPagination?.total ?? 0;
   const currentMidPrice = fmtNumber(selectedAsset?.current_mid_price, "$");
   const current24hMove = formatSignedPct(selectedAsset?.move_24h_pct);
   const isPositive = selectedAsset?.move_24h_pct !== null && selectedAsset?.move_24h_pct !== undefined && selectedAsset?.move_24h_pct >= 0;
@@ -2101,35 +2291,171 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
             <div className={styles.sectionHeader}>
               <div>
                 <h2 className={styles.sectionTitle}>Channel Board</h2>
-                <p className={styles.sectionCopy}>UI mockup for a future per-channel discussion board.</p>
+                <p className={styles.sectionCopy}>
+                  {fmtInteger(totalAssetComments)} total comments. Only shareholders can post; votes are open to other signed-in users.
+                </p>
               </div>
-              <span className={styles.mockBadge}>Mockup</span>
+              {user ? (
+                <span className={styles.commentBoardStatus}>
+                  {isLoadingPortfolio && !assetCommentBoard ? "Checking holdings…" : `${fmtNumber(viewerOwnedShares)} shares owned`}
+                </span>
+              ) : null}
             </div>
-            <div className={styles.commentComposer}>
-              <textarea
-                className={styles.commentInput}
-                placeholder={`What is your current read on ${selectedAsset?.symbol || normalizedSymbol}?`}
-                disabled
-              />
-              <div className={styles.commentComposerFooter}>
-                <span>Posting disabled until channel comments are backed by a table.</span>
-                <button type="button" className={styles.commentButton} disabled>Post Comment</button>
+            {assetCommentBoardError ? <div className="statusMessage statusMessageError">Board error: {assetCommentBoardError}</div> : null}
+            {user ? (
+              <form className={styles.commentComposer} onSubmit={handleCommentSubmit}>
+                <div className={styles.commentMoodPicker}>
+                  {ARTICLE_COMMENT_MOODS.map((mood) => {
+                    const meta = COMMENT_MOOD_META[mood];
+                    const Icon = meta.icon;
+                    const isSelected = commentMood === mood;
+                    return (
+                      <button
+                        key={mood}
+                        type="button"
+                        className={`${styles.commentMoodOption} ${meta.optionClassName} ${isSelected ? styles.commentMoodOptionSelected : ""}`}
+                        onClick={() => setCommentMood((current) => (current === mood ? null : mood))}
+                        aria-pressed={isSelected}
+                      >
+                        <Icon aria-hidden="true" />
+                        <span>{mood}</span>
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    className={`${styles.commentMoodOption} ${commentMood === null ? styles.commentMoodOptionSelected : ""}`}
+                    onClick={() => setCommentMood(null)}
+                    aria-pressed={commentMood === null}
+                  >
+                    <FaCircleQuestion aria-hidden="true" />
+                    <span>No mood</span>
+                  </button>
+                </div>
+                <textarea
+                  className={styles.commentInput}
+                  placeholder={
+                    canPostAssetComment
+                      ? `What is your current read on ${selectedAsset?.symbol || normalizedSymbol}?`
+                      : `Buy shares of ${selectedAsset?.symbol || normalizedSymbol} to unlock posting.`
+                  }
+                  value={commentBody}
+                  onChange={(event) => setCommentBody(event.target.value)}
+                  disabled={!canPostAssetComment}
+                />
+                <div className={styles.commentComposerFooter}>
+                  <span>
+                    {!user
+                      ? "Sign in to join the channel board."
+                      : canPostAssetComment
+                        ? `You can post because you currently own ${fmtNumber(viewerOwnedShares)} shares of ${selectedAsset?.symbol || normalizedSymbol}.`
+                        : `Posting is limited to shareholders. You currently own ${fmtNumber(viewerOwnedShares)} shares of ${selectedAsset?.symbol || normalizedSymbol}.`}
+                  </span>
+                  <button
+                    type="submit"
+                    className={styles.commentButton}
+                    disabled={!canPostAssetComment || isSubmittingComment || !commentBody.trim()}
+                  >
+                    {isSubmittingComment ? "Posting…" : "Post Comment"}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className={styles.authCta}>
+                <p className={styles.sectionCopy}>Sign in to vote, and own shares of this coin to post on the board.</p>
+                <div className={styles.authLinks}>
+                  <Link href="/login">Sign in</Link>
+                  <Link href="/register">Create account</Link>
+                </div>
               </div>
-            </div>
-            <div className={styles.commentList}>
-              {mockComments.map((comment) => (
-                <article key={comment.id} className={styles.commentCard}>
-                  <div className={styles.commentHeader}>
-                    <div>
-                      <strong>{comment.author}</strong>
-                      <span>{comment.age}</span>
-                    </div>
-                    <span className={styles.commentTone}>{comment.tone}</span>
+            )}
+            {isLoadingAssetComments ? <div className={styles.empty}>Loading channel board…</div> : null}
+            {!isLoadingAssetComments && assetCommentBoard?.comments.length ? (
+              <>
+                <div className={styles.commentList}>
+                  {assetCommentBoard.comments.map((comment) => {
+                    const timeLabel = formatRelativeTime(comment.created_at);
+                    const isOwnComment = user?.id === comment.author.id;
+                    return (
+                      <article key={comment.id} className={styles.commentCard}>
+                        <div className={styles.commentHeader}>
+                          <div className={styles.commentAuthor}>
+                            <Link href={`/profile/${encodeURIComponent(comment.author.username)}`} className={styles.commentAuthorAvatar}>
+                              {comment.author.profile_picture_url ? (
+                                <img src={comment.author.profile_picture_url} alt="" className={styles.commentAuthorAvatarImage} />
+                              ) : (
+                                <span className={styles.commentAuthorAvatarFallback} aria-hidden="true">
+                                  {profileInitial(comment.author.username)}
+                                </span>
+                              )}
+                            </Link>
+                            <div className={styles.commentAuthorMeta}>
+                              <div className={styles.commentAuthorRow}>
+                                <Link href={`/profile/${encodeURIComponent(comment.author.username)}`} className={styles.commentAuthorName}>
+                                  {comment.author.username}
+                                </Link>
+                                <span className={styles.commentSharePill}>{fmtNumber(comment.author_share_quantity)} shares</span>
+                              </div>
+                              <span title={timeLabel.absolute}>{timeLabel.relative}</span>
+                            </div>
+                          </div>
+                          <CommentMoodBadge comment={comment} />
+                        </div>
+                        <p className={styles.commentBody}>{comment.body}</p>
+                        <div className={styles.commentVoteRow}>
+                          <button
+                            type="button"
+                            className={`${styles.commentVoteButton} ${comment.viewer_vote === 1 ? styles.commentVoteButtonActive : ""}`.trim()}
+                            onClick={() => void handleCommentVote(comment, 1)}
+                            disabled={!user || isOwnComment || commentVoteBusyId === comment.id}
+                            aria-pressed={comment.viewer_vote === 1}
+                          >
+                            <FaThumbsUp aria-hidden="true" />
+                            <span>{fmtInteger(comment.upvotes)}</span>
+                          </button>
+                          <button
+                            type="button"
+                            className={`${styles.commentVoteButton} ${comment.viewer_vote === -1 ? styles.commentVoteButtonActive : ""}`.trim()}
+                            onClick={() => void handleCommentVote(comment, -1)}
+                            disabled={!user || isOwnComment || commentVoteBusyId === comment.id}
+                            aria-pressed={comment.viewer_vote === -1}
+                          >
+                            <FaThumbsDown aria-hidden="true" />
+                            <span>{fmtInteger(comment.downvotes)}</span>
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+                {assetCommentPagination && assetCommentPagination.page_count > 1 ? (
+                  <div className={styles.commentPagination}>
+                    <button
+                      type="button"
+                      className={styles.commentButton}
+                      onClick={() => setAssetCommentPage((current) => Math.max(1, current - 1))}
+                      disabled={!assetCommentPagination.has_previous_page}
+                    >
+                      Newer
+                    </button>
+                    <span>
+                      Page {assetCommentPagination.page} of {assetCommentPagination.page_count}
+                    </span>
+                    <button
+                      type="button"
+                      className={styles.commentButton}
+                      onClick={() => setAssetCommentPage((current) => current + 1)}
+                      disabled={!assetCommentPagination.has_next_page}
+                    >
+                      Older
+                    </button>
                   </div>
-                  <p>{comment.body}</p>
-                </article>
-              ))}
-            </div>
+                ) : null}
+              </>
+            ) : null}
+            {!isLoadingAssetComments && !assetCommentBoard?.comments.length ? (
+              <div className={styles.empty}>No comments yet. Shareholders can start the first thread for this coin.</div>
+            ) : null}
           </section>
 
           {showDeferredSections ? (

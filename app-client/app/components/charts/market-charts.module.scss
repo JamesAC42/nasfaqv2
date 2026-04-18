@@ -272,8 +272,17 @@
 
 .heatmapGrid {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.5rem;
   min-width: min(100%, 44rem);
+}
+
+.heatmapHeaderRow,
+.heatmapRowGroup {
+  display: grid;
+  grid-template-columns: minmax(8rem, 11rem) repeat(var(--heatmap-columns), minmax(3.75rem, 1fr));
+  column-gap: 0;
+  row-gap: 0;
+  align-items: stretch;
 }
 
 .heatmapCorner,
@@ -285,17 +294,15 @@
 }
 
 .heatmapCorner {
+  display: flex;
+  align-items: center;
   padding-left: 0.2rem;
 }
 
-.heatmapRowGroup {
-  display: grid;
-  grid-template-columns: minmax(8rem, 11rem) repeat(var(--heatmap-columns), minmax(3.75rem, 1fr));
-  gap: 0.4rem;
-  align-items: stretch;
-}
-
 .heatmapColumnLabel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   padding: 0.2rem 0.1rem;
 }
@@ -310,8 +317,9 @@
 }
 
 .heatmapCell {
-  min-height: 3.7rem;
-  border-radius: 0.9rem;
+  aspect-ratio: 1 / 1;
+  min-height: 0;
+  border-radius: 0;
   padding: 0.55rem 0.4rem;
   display: grid;
   place-items: center;
@@ -335,12 +343,12 @@
 }
 
 @media (max-width: 760px) {
+  .heatmapHeaderRow,
   .heatmapRowGroup {
     grid-template-columns: minmax(7rem, 9rem) repeat(var(--heatmap-columns), minmax(3.25rem, 1fr));
   }
 
   .heatmapCell {
-    min-height: 3.25rem;
     padding: 0.45rem 0.25rem;
   }
 }

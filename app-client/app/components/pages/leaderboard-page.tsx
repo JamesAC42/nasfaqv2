@@ -216,19 +216,20 @@ function PodiumCard({ entry, tone }: { entry: LeaderboardEntry; tone: "gold" | "
       style={entry.profile_color ? ({ "--podium-user-color": entry.profile_color } as CSSProperties) : undefined}
     >
       <div className={styles.podiumStage}>
-        <div className={styles.podiumAvatarWrap}>
-          <div
-            className={`${styles.avatar} ${styles.podiumAvatar}`}
-            style={entry.profile_color ? ({ "--leaderboard-accent": entry.profile_color } as CSSProperties) : undefined}
-          >
-            {entry.profile_picture_url ? (
-              <img src={entry.profile_picture_url} alt="" className={styles.avatarImage} />
-            ) : (
-              initialsFor(entry.username)
-            )}
-          </div>
-        </div>
+        
         <div className={styles.podiumBar}>
+          <div className={styles.podiumAvatarWrap}>
+            <div
+              className={`${styles.avatar} ${styles.podiumAvatar}`}
+              style={entry.profile_color ? ({ "--leaderboard-accent": entry.profile_color } as CSSProperties) : undefined}
+            >
+              {entry.profile_picture_url ? (
+                <img src={entry.profile_picture_url} alt="" className={styles.avatarImage} />
+              ) : (
+                initialsFor(entry.username)
+              )}
+            </div>
+          </div>
           {largestAsset?.icon ? <img src={getIconUrl(largestAsset.icon) || ""} alt="" className={styles.podiumWatermark} /> : null}
           <div className={styles.podiumRank}>#{entry.rank}</div>
         </div>

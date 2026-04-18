@@ -388,6 +388,59 @@ async function applySchema(pool) {
       ON content.article_comments (article_id, created_at ASC, id ASC)
   `);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS content.asset_comments (
+      id BIGSERIAL PRIMARY KEY,
+      asset_id BIGINT NOT NULL REFERENCES market.market_assets(id) ON DELETE CASCADE,
+      author_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      body TEXT NOT NULL,
+      mood TEXT,
+      upvotes INTEGER NOT NULL DEFAULT 0,
+      downvotes INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT content_asset_comments_body_check CHECK (char_length(btrim(body)) BETWEEN 1 AND 4000),
+      CONSTRAINT content_asset_comments_vote_counts_check CHECK (upvotes >= 0 AND downvotes >= 0),
+      CONSTRAINT content_asset_comments_mood_check CHECK (
+        mood IS NULL
+        OR mood IN (
+          'Bullish',
+          'Bearish',
+          'Neutral',
+          'Hodling',
+          'Dump Eet',
+          'He Bought?',
+          'He Sold?',
+          'Diamond Hands',
+          'Watching',
+          'Accumulating'
+        )
+      )
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS content_asset_comments_asset_idx
+      ON content.asset_comments (asset_id, created_at DESC, id DESC)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS content_asset_comments_author_idx
+      ON content.asset_comments (author_id, created_at DESC, id DESC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content.asset_comment_votes (
+      comment_id BIGINT NOT NULL REFERENCES content.asset_comments(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      value SMALLINT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (comment_id, user_id),
+      CONSTRAINT content_asset_comment_votes_value_check CHECK (value IN (-1, 1))
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS content_asset_comment_votes_user_idx
+      ON content.asset_comment_votes (user_id, updated_at DESC)
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS content.article_likes (
       article_id BIGINT NOT NULL REFERENCES content.articles(id) ON DELETE CASCADE,
       user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
