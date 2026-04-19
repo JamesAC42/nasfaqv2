@@ -37,8 +37,16 @@ const CATEGORY_ITEMS = [
     links: [
       { href: "/chat", label: "Chat" },
       { href: "/articles", label: "Articles" },
+      { href: "/predictions", label: "Predictions" },
       { href: "/threads", label: "/vt/" },
       { href: "/leaderboard", label: "Leaderboard" },
+    ],
+  },
+  {
+    key: "games",
+    label: "Games",
+    links: [
+      { href: "/games", label: "Games Hub" },
     ],
   },
 ] as const;
@@ -448,6 +456,7 @@ export function SiteShell({
               <Link href="/news">News</Link>
               <Link href="/stocks">Stocks</Link>
               <Link href="/chat">Chat</Link>
+              <Link href="/games">Games</Link>
               <Link href="/privacy">Privacy Policy</Link>
               <Link href="/terms">Usage Policy</Link>
             </nav>

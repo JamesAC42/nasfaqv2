@@ -663,3 +663,24 @@ Do not include these in the initial implementation:
 
 These are all valid later, but they would slow down the first correct release substantially.
 
+## Regression Check
+
+There is now a DB-backed canonical market exercise script at:
+
+- `api/scripts/exercise-prediction-market-canonical.js`
+
+Run it with:
+
+```bash
+cd api
+DATABASE_URL='postgres://...' npm run prediction:canonical-check
+```
+
+The script now asserts canonical behavior and exits non-zero on regression. It covers:
+
+- trusted creator -> submit -> approver -> open
+- `buy yes` + `buy no` mint flow
+- `sell yes` + `sell no` redeem flow
+- complementary candles
+- open interest updates
+- final positions and cash balances

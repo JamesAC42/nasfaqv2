@@ -135,7 +135,17 @@ async function createUser(pool, { username, password }) {
         is_admin,
         updated_at
       ) VALUES ($1,$2,$3,$4,$5::jsonb,false,now())
-      RETURNING id, username, NULL::TEXT AS profile_picture_url, profile_color, is_admin, created_at
+      RETURNING
+        id,
+        username,
+        NULL::TEXT AS profile_picture_url,
+        profile_color,
+        is_admin,
+        can_create_prediction_markets,
+        can_approve_prediction_markets,
+        can_resolve_prediction_markets,
+        can_void_prediction_markets,
+        created_at
     `,
       [safeUsername, normalized, hashed.hash, hashed.salt, JSON.stringify(hashed.params)]
     );
@@ -164,6 +174,10 @@ async function findUserByUsername(pool, username) {
       ${profilePictureUrlSql("small")} AS profile_picture_url,
       u.profile_color,
       u.is_admin,
+      u.can_create_prediction_markets,
+      u.can_approve_prediction_markets,
+      u.can_resolve_prediction_markets,
+      u.can_void_prediction_markets,
       u.created_at
     FROM market.users u
     LEFT JOIN market.profile_pictures pp
@@ -225,6 +239,10 @@ async function getAuthenticatedUser(pool, req) {
       ${profilePictureUrlSql("small")} AS profile_picture_url,
       u.profile_color,
       u.is_admin,
+      u.can_create_prediction_markets,
+      u.can_approve_prediction_markets,
+      u.can_resolve_prediction_markets,
+      u.can_void_prediction_markets,
       u.created_at,
       s.id AS session_id,
       s.expires_at
@@ -280,6 +298,10 @@ async function loginWithPassword(pool, { username, password }) {
       profile_picture_url: user.profile_picture_url || null,
       profile_color: user.profile_color || null,
       is_admin: Boolean(user.is_admin),
+      can_create_prediction_markets: Boolean(user.can_create_prediction_markets),
+      can_approve_prediction_markets: Boolean(user.can_approve_prediction_markets),
+      can_resolve_prediction_markets: Boolean(user.can_resolve_prediction_markets),
+      can_void_prediction_markets: Boolean(user.can_void_prediction_markets),
       created_at: user.created_at,
     },
     session,

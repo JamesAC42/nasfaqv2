@@ -1,0 +1,552 @@
+@use "../../styles/mixins" as *;
+
+.stack {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.hero {
+  @include panel;
+  position: relative;
+  overflow: hidden;
+  padding: 1.35rem;
+  display: grid;
+  gap: 1rem;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--hero-accent) 22%, transparent), transparent 36%),
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--surface-card) 92%, transparent),
+      color-mix(in srgb, var(--surface-card-soft) 86%, var(--bg-accent))
+    );
+}
+
+.heroTop {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.backLink:hover {
+  color: var(--hero-accent);
+}
+
+.badgeRow {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.typePill,
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.7rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.typePill {
+  background: color-mix(in srgb, var(--hero-accent) 14%, transparent);
+  color: var(--hero-accent);
+}
+
+.statusActive {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+
+.statusDraft {
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  color: var(--warning);
+}
+
+.statusDisabled {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+}
+
+.heroTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1;
+}
+
+.heroCopy {
+  @include subtle-copy;
+  margin: 0;
+  max-width: 62ch;
+}
+
+.heroMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.metaCard {
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 0.9rem;
+  background: color-mix(in srgb, var(--surface-card) 82%, transparent);
+  display: grid;
+  gap: 0.25rem;
+}
+
+.metaLabel {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.metaValue {
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.metaHint {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(19rem, 0.9fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.panel {
+  @include panel;
+  padding: 1.2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sectionTitle {
+  @include section-title;
+  margin: 0;
+}
+
+.sectionCopy {
+  @include subtle-copy;
+  margin: 0.35rem 0 0;
+}
+
+.console {
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  display: grid;
+  gap: 1rem;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--hero-accent) 16%, transparent), transparent 34%),
+    color-mix(in srgb, var(--surface-card-soft) 90%, transparent);
+}
+
+.priceRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 1.45rem;
+  font-weight: 900;
+}
+
+.consoleCopy {
+  color: var(--muted);
+  font-size: 0.94rem;
+}
+
+.actionButton,
+.actionLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 3rem;
+  padding: 0.82rem 1.2rem;
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: 900;
+}
+
+.actionButton {
+  border: 1px solid color-mix(in srgb, var(--hero-accent) 38%, var(--border));
+  background: color-mix(in srgb, var(--hero-accent) 18%, var(--surface-card));
+  color: var(--hero-accent);
+}
+
+.actionButton:disabled {
+  opacity: 0.55;
+}
+
+.actionLink {
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface-card-soft) 88%, transparent);
+  color: var(--text);
+}
+
+.resultCard {
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  background: color-mix(in srgb, var(--surface-card) 95%, transparent);
+  display: grid;
+  gap: 0.9rem;
+}
+
+.rewardHero {
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  display: grid;
+  gap: 0.35rem;
+  background:
+    linear-gradient(155deg, color-mix(in srgb, var(--reward-accent) 24%, transparent), transparent 62%),
+    color-mix(in srgb, var(--surface-card-soft) 84%, transparent);
+  border: 1px solid color-mix(in srgb, var(--reward-accent) 24%, var(--border));
+}
+
+.rewardKicker {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--reward-accent);
+}
+
+.rewardTitle {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 900;
+}
+
+.rewardMeta {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.resultLine,
+.miniRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.resultLabel,
+.miniLabel {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.resultValue,
+.miniValue {
+  font-weight: 800;
+}
+
+.lockerList,
+.sessionList {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.lockerItem,
+.sessionItem,
+.boardItem {
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 0.78rem 0.8rem;
+  background: color-mix(in srgb, var(--surface-card-soft) 78%, transparent);
+  display: grid;
+  gap: 0.22rem;
+}
+
+.boardList {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.boardHeading {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.boardRank {
+  font-size: 0.8rem;
+  font-weight: 900;
+  color: var(--hero-accent);
+}
+
+.boardName {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 800;
+}
+
+.boardScore {
+  font-weight: 900;
+}
+
+.itemTitle {
+  font-weight: 800;
+}
+
+.itemMeta {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.placeholder {
+  @include panel;
+  padding: 1.4rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.tickerStatGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.tickerStatCard {
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  padding: 0.8rem;
+  background: color-mix(in srgb, var(--surface-card) 92%, transparent);
+  display: grid;
+  gap: 0.22rem;
+}
+
+.tickerStatLabel {
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.tickerStatValue {
+  font-size: 1.18rem;
+  font-weight: 900;
+}
+
+.tickerArena {
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  display: grid;
+  gap: 1rem;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--hero-accent) 12%, transparent), transparent 34%),
+    color-mix(in srgb, var(--surface-card) 94%, transparent);
+}
+
+.tickerLaneGrid {
+  display: grid;
+  grid-template-columns: repeat(var(--lane-count), minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.tickerLane {
+  position: relative;
+  min-height: 20rem;
+  border-radius: 1.25rem;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-card-soft) 96%, transparent), color-mix(in srgb, var(--surface-card) 88%, transparent)),
+    linear-gradient(180deg, color-mix(in srgb, var(--hero-accent) 8%, transparent), transparent 36%);
+  display: block;
+  padding: 0.8rem;
+  text-align: left;
+  overflow: hidden;
+}
+
+.tickerLane:disabled {
+  opacity: 0.7;
+}
+
+.tickerLaneActive {
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hero-accent) 20%, transparent);
+}
+
+.tickerLaneTop,
+.tickerLaneFooter {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.tickerLaneLabel {
+  font-weight: 900;
+}
+
+.tickerLaneHotkey {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.85rem;
+  min-height: 1.85rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--hero-accent) 18%, transparent);
+  color: var(--hero-accent);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.tickerLaneFooter {
+  position: absolute;
+  inset: auto 0.8rem 0.8rem;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.tickerTarget {
+  position: absolute;
+  left: 0.8rem;
+  right: 0.8rem;
+  top: calc(3.5rem + (100% - 7rem) * var(--target-progress));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--hero-accent) 88%, white 6%), color-mix(in srgb, var(--hero-accent) 55%, black 10%));
+  color: white;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  box-shadow: 0 0.8rem 1.75rem color-mix(in srgb, var(--hero-accent) 24%, transparent);
+  transform: translateY(-50%);
+}
+
+.scoreHero {
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  display: grid;
+  gap: 0.35rem;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--hero-accent) 18%, transparent), transparent 36%),
+    color-mix(in srgb, var(--surface-card-soft) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hero-accent) 22%, var(--border));
+}
+
+.scoreKicker {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hero-accent);
+}
+
+.scoreValue {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3rem);
+  line-height: 1;
+  font-weight: 900;
+}
+
+.scoreMeta {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.statusMessage {
+  border-radius: var(--radius-sm);
+  padding: 0.85rem 0.95rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.statusError {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
+.statusWarn {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+}
+
+.statusNeutral {
+  background: color-mix(in srgb, var(--surface-card-soft) 84%, transparent);
+  color: var(--muted);
+}
+
+.empty {
+  @include empty-state;
+}
+
+@media (max-width: 1080px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .tickerLaneGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 780px) {
+  .heroMetaGrid,
+  .tickerStatGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .hero,
+  .panel,
+  .placeholder {
+    padding: 1rem;
+  }
+
+  .heroTop,
+  .sectionHead,
+  .resultLine,
+  .miniRow,
+  .boardHeading {
+    flex-direction: column;
+    align-items: start;
+  }
+
+  .heroMetaGrid,
+  .tickerStatGrid,
+  .tickerLaneGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .tickerLane {
+    min-height: 14rem;
+  }
+}

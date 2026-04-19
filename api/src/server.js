@@ -21,10 +21,12 @@ const articleRoutes = require("./routes/articles");
 const articleDb = require("./articleDb");
 const analysisRoutes = require("./routes/analysis");
 const leaderboardRoutes = require("./routes/leaderboard");
+const gamesRoutes = require("./routes/games");
 const marketRoutes = require("./routes/market");
 const internalMarketRoutes = require("./routes/internalMarket");
 const portfolioRoutes = require("./routes/portfolio");
 const profileRoutes = require("./routes/profiles");
+const predictionMarketsRoutes = require("./routes/predictionMarkets");
 const authRoutes = require("./routes/auth");
 const statsRoutes = require("./routes/stats");
 const nasfaqThreadRoutes = require("./routes/nasfaqThread");
@@ -32,6 +34,7 @@ const adminAssetsRoutes = require("./routes/adminAssets");
 const assetsRoutes = require("./routes/assets");
 const mediaCatalog = require("./services/mediaCatalog");
 const achievements = require("./services/achievements");
+const gamesCatalog = require("./services/games/catalog");
 const { MARKET_EVENTS_REDIS_CHANNEL } = require("./services/trading");
 
 const LIVESTREAM_VIEWER_UPDATES_CHANNEL = "nasfaq_livestreams:viewer_updates";
@@ -210,8 +213,10 @@ api.use("/news", newsRoutes);
 api.use("/articles", articleRoutes);
 api.use("/analysis", analysisRoutes);
 api.use("/leaderboard", leaderboardRoutes);
+api.use("/games", gamesRoutes);
 api.use("/market", marketRoutes);
 api.use("/portfolio", portfolioRoutes);
+api.use("/prediction-markets", predictionMarketsRoutes);
 api.use("/profiles", profileRoutes);
 api.use("/stats", statsRoutes);
 api.use("/admin/assets", adminAssetsRoutes);
@@ -230,6 +235,9 @@ app.use((err, _req, res, _next) => {
     || err?.code === "proposal_not_found"
     || err?.code === "profile_not_found"
     || err?.code === "asset_comment_not_found"
+    || err?.code === "game_not_found"
+    || err?.code === "cosmetic_not_found"
+    || err?.code === "game_session_not_found"
   ) return res.status(404).json({ error: err.code });
   if (err?.code === "profile_picture_not_found") return res.status(404).json({ error: err.code });
   if (
@@ -257,6 +265,12 @@ app.use((err, _req, res, _next) => {
     || err?.code === "invalid_admin_asset"
     || err?.code === "invalid_asset_comment"
     || err?.code === "invalid_asset_comment_vote"
+    || err?.code === "invalid_prediction_market"
+    || err?.code === "invalid_prediction_market_order"
+    || err?.code === "invalid_game_inventory"
+    || err?.code === "invalid_game_wallet"
+    || err?.code === "invalid_game_gacha"
+    || err?.code === "invalid_game_session"
   ) {
     return res.status(400).json({ error: err.code });
   }
@@ -283,8 +297,22 @@ app.use((err, _req, res, _next) => {
     || err?.code === "chat_message_not_found"
     || err?.code === "chat_report_not_found"
     || err?.code === "admin_asset_not_found"
+    || err?.code === "prediction_market_not_found"
   ) {
     return res.status(404).json({ error: err.code });
+  }
+  if (
+    err?.code === "prediction_market_slug_taken"
+    || err?.code === "prediction_market_transition_invalid"
+    || err?.code === "prediction_market_self_approval_forbidden"
+    || err?.code === "prediction_market_closed"
+    || err?.code === "prediction_insufficient_cash"
+    || err?.code === "prediction_insufficient_holdings"
+    || err?.code === "prediction_order_not_found"
+    || err?.code === "prediction_order_not_cancellable"
+    || err?.code === "game_session_not_active"
+  ) {
+    return res.status(409).json({ error: err.code });
   }
   return res.status(500).json({ error: "internal_error" });
 });
@@ -295,6 +323,7 @@ async function main() {
     await articleDb.backfillAllNewsArticles(pool);
   }
   await achievements.syncDefinitions(pool);
+  await gamesCatalog.syncCatalog(pool);
   await mediaCatalog.syncMediaCatalog(pool, console);
   await chatDb.ensureChatTopology(pool);
 

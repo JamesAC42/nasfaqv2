@@ -61,6 +61,10 @@ async function getUserByUsername(pool, username) {
       u.bio,
       ${profilePictureUrlSql("large")} AS profile_picture_url,
       u.profile_color,
+      u.can_create_prediction_markets,
+      u.can_approve_prediction_markets,
+      u.can_resolve_prediction_markets,
+      u.can_void_prediction_markets,
       u.oshi_coin_asset_id,
       CASE
         WHEN ma.id IS NULL THEN NULL
@@ -99,6 +103,10 @@ async function getUserById(pool, userId) {
       u.bio,
       ${profilePictureUrlSql("large")} AS profile_picture_url,
       u.profile_color,
+      u.can_create_prediction_markets,
+      u.can_approve_prediction_markets,
+      u.can_resolve_prediction_markets,
+      u.can_void_prediction_markets,
       u.oshi_coin_asset_id,
       CASE
         WHEN ma.id IS NULL THEN NULL
@@ -417,6 +425,12 @@ async function getProfileBundle(pool, {
       bio: profileUser.bio,
       profile_picture_url: profileUser.profile_picture_url,
       profile_color: profileUser.profile_color,
+      permissions: {
+        can_create_prediction_markets: Boolean(profileUser.can_create_prediction_markets),
+        can_approve_prediction_markets: Boolean(profileUser.can_approve_prediction_markets),
+        can_resolve_prediction_markets: Boolean(profileUser.can_resolve_prediction_markets),
+        can_void_prediction_markets: Boolean(profileUser.can_void_prediction_markets),
+      },
       rank: Number(leaderboardEntry?.rank || 0),
       oshi_coin: profileUser.oshi_coin,
       stats: {

@@ -15,6 +15,14 @@ import {
   type ChatChannel,
   type ChatMessage,
   type DailyReport,
+  type GameCatalogEntry,
+  type GameCatalogResponse,
+  type GameCosmetic,
+  type GameEquippedCosmetic,
+  type GameInventoryResponse,
+  type GameSessionSummary,
+  type GamesSummary,
+  type GachaPullResult,
   type AssetSuperchatTimeseriesBundle,
   type CandlePoint,
   type ChannelOverviewRow,
@@ -40,11 +48,28 @@ import {
   type NewsFeedResponse,
   type NewsItem,
   type PortfolioSummary,
+  type PredictionCandlesResponse,
+  type PredictionCandlePoint,
+  type PredictionMarket,
+  type PredictionMarketDetailResponse,
+  type PredictionMarketListResponse,
+  type PredictionOrderBook,
+  type PredictionOrderBookLevel,
+  type PredictionOrderBookResponse,
+  type PredictionTrade,
+  type PredictionTradeResponse,
   type ProfileBundle,
   type ProfileNetworthPoint,
   type ProfileRelationUser,
   type ProfileTrade,
   type SuperchatCurrencySummary,
+  type TickerTapLeaderboardEntry,
+  type TickerTapLeaderboardResponse,
+  type TickerTapSessionConfig,
+  type TickerTapSessionCreateResponse,
+  type TickerTapSessionResponse,
+  type TickerTapSessionResult,
+  type TickerTapSubmitResponse,
   type TradeRow,
 } from "@/app/lib/types";
 import { toNumber } from "@/app/lib/format";
@@ -59,6 +84,237 @@ export function normalizeCandles(candles: Array<Record<string, unknown>>): Candl
     close_mark: toNumber(item.close_mark),
     volume_shares: toNumber(item.volume_shares),
   }));
+}
+
+function normalizePredictionOrderBookLevels(value: unknown): PredictionOrderBookLevel[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((level) => {
+      const row = level && typeof level === "object" ? level as Record<string, unknown> : null;
+      if (!row) return null;
+      return {
+        price: Number(toNumber(row.price) || 0),
+        quantity: Number(toNumber(row.quantity) || 0),
+      };
+    })
+    .filter((level): level is PredictionOrderBookLevel => level !== null);
+}
+
+function normalizePredictionMarket(value: unknown): PredictionMarket {
+  const row = value && typeof value === "object" ? value as Record<string, unknown> : null;
+  const category = row?.category && typeof row.category === "object" ? row.category as Record<string, unknown> : null;
+  const creator = row?.creator && typeof row.creator === "object" ? row.creator as Record<string, unknown> : null;
+  const approver = row?.approver && typeof row.approver === "object" ? row.approver as Record<string, unknown> : null;
+  const resolver = row?.resolver && typeof row.resolver === "object" ? row.resolver as Record<string, unknown> : null;
+  const viewerPermissions = row?.viewer_permissions && typeof row.viewer_permissions === "object"
+    ? row.viewer_permissions as Record<string, unknown>
+    : null;
+
+  return {
+    id: Number(row?.id || 0),
+    slug: String(row?.slug || ""),
+    title: String(row?.title || ""),
+    subtitle: row?.subtitle ? String(row.subtitle) : null,
+    description: row?.description ? String(row.description) : null,
+    rules_text: String(row?.rules_text || ""),
+    resolution_source_text: String(row?.resolution_source_text || ""),
+    status: String(row?.status || "draft"),
+    trading_status: String(row?.trading_status || "pending_open"),
+    visibility: String(row?.visibility || "public"),
+    market_type: String(row?.market_type || "binary"),
+    resolution_outcome: row?.resolution_outcome ? String(row.resolution_outcome) : null,
+    resolution_notes: row?.resolution_notes ? String(row.resolution_notes) : null,
+    featured_image_url: row?.featured_image_url ? String(row.featured_image_url) : null,
+    metadata_json: row?.metadata_json && typeof row.metadata_json === "object" ? row.metadata_json as Record<string, unknown> : {},
+    opens_at: String(row?.opens_at || ""),
+    closes_at: String(row?.closes_at || ""),
+    resolves_after: row?.resolves_after ? String(row.resolves_after) : null,
+    approved_at: row?.approved_at ? String(row.approved_at) : null,
+    trading_opened_at: row?.trading_opened_at ? String(row.trading_opened_at) : null,
+    trading_closed_at: row?.trading_closed_at ? String(row.trading_closed_at) : null,
+    resolved_at: row?.resolved_at ? String(row.resolved_at) : null,
+    voided_at: row?.voided_at ? String(row.voided_at) : null,
+    last_traded_probability: toNumber(row?.last_traded_probability),
+    last_trade_at: row?.last_trade_at ? String(row.last_trade_at) : null,
+    total_volume_cash: Number(toNumber(row?.total_volume_cash) || 0),
+    open_interest_shares: Number(toNumber(row?.open_interest_shares) || 0),
+    created_at: String(row?.created_at || ""),
+    updated_at: String(row?.updated_at || ""),
+    category: category
+      ? {
+          id: Number(category.id || 0),
+          slug: category.slug ? String(category.slug) : null,
+          display_name: category.display_name ? String(category.display_name) : null,
+        }
+      : null,
+    creator: creator
+      ? {
+          id: Number(creator.id || 0),
+          username: creator.username ? String(creator.username) : null,
+          profile_color: creator.profile_color ? String(creator.profile_color) : null,
+        }
+      : null,
+    approver: approver
+      ? {
+          id: Number(approver.id || 0),
+          username: approver.username ? String(approver.username) : null,
+          profile_color: approver.profile_color ? String(approver.profile_color) : null,
+        }
+      : null,
+    resolver: resolver
+      ? {
+          id: Number(resolver.id || 0),
+          username: resolver.username ? String(resolver.username) : null,
+          profile_color: resolver.profile_color ? String(resolver.profile_color) : null,
+        }
+      : null,
+    outcomes: Array.isArray(row?.outcomes)
+      ? row.outcomes
+        .map((outcome) => {
+          const outcomeRow = outcome && typeof outcome === "object" ? outcome as Record<string, unknown> : null;
+          if (!outcomeRow) return null;
+          return {
+            id: Number(outcomeRow.id || 0),
+            outcome_code: String(outcomeRow.outcome_code || ""),
+            label: String(outcomeRow.label || ""),
+            sort_order: Number(outcomeRow.sort_order || 0),
+            is_winner: Boolean(outcomeRow.is_winner),
+          };
+        })
+        .filter((outcome): outcome is PredictionMarket["outcomes"][number] => outcome !== null)
+      : [],
+    viewer_permissions: viewerPermissions
+      ? {
+          can_submit_for_approval: Boolean(viewerPermissions.can_submit_for_approval),
+          can_approve: Boolean(viewerPermissions.can_approve),
+          can_resolve: Boolean(viewerPermissions.can_resolve),
+          can_void: Boolean(viewerPermissions.can_void),
+          is_creator: Boolean(viewerPermissions.is_creator),
+        }
+      : undefined,
+  };
+}
+
+export function normalizePredictionMarketListResponse(value: Record<string, unknown>): PredictionMarketListResponse {
+  const pagination = value.pagination && typeof value.pagination === "object"
+    ? value.pagination as Record<string, unknown>
+    : null;
+  return {
+    items: Array.isArray(value.items) ? value.items.map((item) => normalizePredictionMarket(item)) : [],
+    pagination: {
+      total: Number(pagination?.total || 0),
+      page: Number(pagination?.page || 1),
+      limit: Number(pagination?.limit || 20),
+      page_count: Number(pagination?.page_count || 1),
+      has_previous_page: Boolean(pagination?.has_previous_page),
+      has_next_page: Boolean(pagination?.has_next_page),
+    },
+  };
+}
+
+export function normalizePredictionMarketDetailResponse(value: Record<string, unknown>): PredictionMarketDetailResponse {
+  return {
+    market: normalizePredictionMarket(value.market),
+  };
+}
+
+export function normalizePredictionOrderBookResponse(value: Record<string, unknown>): PredictionOrderBookResponse {
+  const bookValue = value.orderbook && typeof value.orderbook === "object"
+    ? value.orderbook as Record<string, unknown>
+    : null;
+  const yes = bookValue?.yes && typeof bookValue.yes === "object" ? bookValue.yes as Record<string, unknown> : null;
+  const no = bookValue?.no && typeof bookValue.no === "object" ? bookValue.no as Record<string, unknown> : null;
+  const orderbook: PredictionOrderBook = {
+    yes: {
+      buy: normalizePredictionOrderBookLevels(yes?.buy),
+      sell: normalizePredictionOrderBookLevels(yes?.sell),
+    },
+    no: {
+      buy: normalizePredictionOrderBookLevels(no?.buy),
+      sell: normalizePredictionOrderBookLevels(no?.sell),
+    },
+  };
+  return {
+    slug: String(value.slug || ""),
+    orderbook,
+  };
+}
+
+export function normalizePredictionTradeResponse(value: Record<string, unknown>): PredictionTradeResponse {
+  return {
+    slug: String(value.slug || ""),
+    trades: Array.isArray(value.trades)
+      ? value.trades
+        .map((trade) => {
+          const row = trade && typeof trade === "object" ? trade as Record<string, unknown> : null;
+          if (!row) return null;
+          return {
+            id: Number(row.id || 0),
+            market_id: Number(row.market_id || 0),
+            outcome_id: Number(row.outcome_id || 0),
+            outcome_code: String(row.outcome_code || ""),
+            outcome_label: String(row.outcome_label || ""),
+            trade_kind: String(row.trade_kind || "secondary"),
+            maker_order_id: toNumber(row.maker_order_id),
+            taker_order_id: toNumber(row.taker_order_id),
+            maker_user_id: toNumber(row.maker_user_id),
+            maker_username: row.maker_username ? String(row.maker_username) : null,
+            taker_user_id: toNumber(row.taker_user_id),
+            taker_username: row.taker_username ? String(row.taker_username) : null,
+            maker_outcome_id: toNumber(row.maker_outcome_id),
+            maker_outcome_code: row.maker_outcome_code ? String(row.maker_outcome_code) : null,
+            taker_outcome_id: toNumber(row.taker_outcome_id),
+            taker_outcome_code: row.taker_outcome_code ? String(row.taker_outcome_code) : null,
+            maker_side: row.maker_side ? String(row.maker_side) : null,
+            taker_side: row.taker_side ? String(row.taker_side) : null,
+            buy_order_id: toNumber(row.buy_order_id),
+            sell_order_id: toNumber(row.sell_order_id),
+            buy_user_id: toNumber(row.buy_user_id),
+            buy_username: row.buy_username ? String(row.buy_username) : null,
+            sell_user_id: toNumber(row.sell_user_id),
+            sell_username: row.sell_username ? String(row.sell_username) : null,
+            price: Number(toNumber(row.price) || 0),
+            quantity: Number(toNumber(row.quantity) || 0),
+            notional_cash: Number(toNumber(row.notional_cash) || 0),
+            fee_cash_buy: Number(toNumber(row.fee_cash_buy) || 0),
+            fee_cash_sell: Number(toNumber(row.fee_cash_sell) || 0),
+            matched_at: String(row.matched_at || ""),
+          };
+        })
+        .filter((trade): trade is PredictionTrade => trade !== null)
+      : [],
+  };
+}
+
+export function normalizePredictionCandlesResponse(value: Record<string, unknown>): PredictionCandlesResponse {
+  return {
+    slug: String(value.slug || ""),
+    interval: String(value.interval || "1h"),
+    outcome: String(value.outcome || "yes"),
+    candles: Array.isArray(value.candles)
+      ? value.candles
+        .map((candle) => {
+          const row = candle && typeof candle === "object" ? candle as Record<string, unknown> : null;
+          if (!row) return null;
+          const normalized: PredictionCandlePoint = {
+            bucket: String(row.bucket || ""),
+            open: toNumber(row.open),
+            high: toNumber(row.high),
+            low: toNumber(row.low),
+            close: toNumber(row.close),
+            close_mark: toNumber(row.close_mark),
+            volume_shares: toNumber(row.volume_shares),
+            last: toNumber(row.last),
+            volume_cash: toNumber(row.volume_cash),
+            trade_count: toNumber(row.trade_count),
+            best_bid: toNumber(row.best_bid),
+            best_ask: toNumber(row.best_ask),
+          };
+          return normalized;
+        })
+        .filter((candle): candle is PredictionCandlePoint => candle !== null)
+      : [],
+  };
 }
 
 export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
@@ -503,6 +759,301 @@ export function normalizePortfolio(value: Record<string, unknown>): PortfolioSum
       market_value: Number(toNumber(item.market_value) || 0),
       unrealized_pnl: Number(toNumber(item.unrealized_pnl) || 0),
     })),
+  };
+}
+
+function normalizeGamesConfig(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? value as Record<string, unknown> : {};
+}
+
+export function normalizeGameCatalogEntry(value: Record<string, unknown>): GameCatalogEntry {
+  return {
+    id: Number(value.id || 0),
+    key: String(value.key || ""),
+    name: String(value.name || ""),
+    description: String(value.description || ""),
+    game_type: String(value.game_type || "single_player") as GameCatalogEntry["game_type"],
+    status: String(value.status || "draft") as GameCatalogEntry["status"],
+    entry_fee_cash: Number(toNumber(value.entry_fee_cash) || 0),
+    min_stake_cash: toNumber(value.min_stake_cash),
+    max_stake_cash: toNumber(value.max_stake_cash),
+    sort_order: Number(value.sort_order || 0),
+    icon_key: value.icon_key ? String(value.icon_key) : null,
+    banner_key: value.banner_key ? String(value.banner_key) : null,
+    config: normalizeGamesConfig(value.config),
+  };
+}
+
+export function normalizeGameCatalogResponse(value: Record<string, unknown>): GameCatalogResponse {
+  return {
+    games: Array.isArray(value.games)
+      ? (value.games as Array<Record<string, unknown>>).map(normalizeGameCatalogEntry)
+      : [],
+  };
+}
+
+export function normalizeGameCosmetic(value: Record<string, unknown>): GameCosmetic {
+  return {
+    id: Number(value.id || 0),
+    user_id: Number(value.user_id || 0),
+    cosmetic_key: String(value.cosmetic_key || ""),
+    cosmetic_type: String(value.cosmetic_type || ""),
+    rarity: String(value.rarity || "common"),
+    source_type: String(value.source_type || ""),
+    source_reference_id: value.source_reference_id === null ? null : Number(toNumber(value.source_reference_id) || 0),
+    metadata: normalizeGamesConfig(value.metadata),
+    granted_at: String(value.granted_at || ""),
+  };
+}
+
+export function normalizeGameEquippedCosmetic(value: Record<string, unknown>): GameEquippedCosmetic {
+  return {
+    slot_key: String(value.slot_key || ""),
+    cosmetic: normalizeGameCosmetic(((value.cosmetic || {}) as Record<string, unknown>)),
+    updated_at: String(value.updated_at || ""),
+  };
+}
+
+function normalizeGameSessionSummary(value: Record<string, unknown>): GameSessionSummary {
+  return {
+    id: Number(value.id || 0),
+    game_id: Number(value.game_id || 0),
+    game_key: String(value.game_key || ""),
+    game_name: String(value.game_name || ""),
+    game_type: String(value.game_type || "single_player") as GameSessionSummary["game_type"],
+    status: String(value.status || ""),
+    entry_fee_cash: Number(toNumber(value.entry_fee_cash) || 0),
+    payout_cash: Number(toNumber(value.payout_cash) || 0),
+    score: toNumber(value.score),
+    started_at: String(value.started_at || ""),
+    completed_at: value.completed_at ? String(value.completed_at) : null,
+    created_at: String(value.created_at || ""),
+  };
+}
+
+export function normalizeGamesSummary(value: Record<string, unknown>): GamesSummary {
+  const inventory = (value.inventory || {}) as Record<string, unknown>;
+  const countsByType = inventory.counts_by_type && typeof inventory.counts_by_type === "object"
+    ? Object.fromEntries(
+        Object.entries(inventory.counts_by_type as Record<string, unknown>).map(([key, itemValue]) => [
+          key,
+          Number(toNumber(itemValue) || 0),
+        ])
+      )
+    : {};
+
+  return {
+    user_id: Number(value.user_id || 0),
+    cash_balance: Number(toNumber(value.cash_balance) || 0),
+    inventory: {
+      total_cosmetics: Number(toNumber(inventory.total_cosmetics) || 0),
+      counts_by_type: countsByType,
+      equipped: Array.isArray(inventory.equipped)
+        ? (inventory.equipped as Array<Record<string, unknown>>).map(normalizeGameEquippedCosmetic)
+        : [],
+    },
+    recent_sessions: Array.isArray(value.recent_sessions)
+      ? (value.recent_sessions as Array<Record<string, unknown>>).map(normalizeGameSessionSummary)
+      : [],
+  };
+}
+
+export function normalizeGameInventoryResponse(value: Record<string, unknown>): GameInventoryResponse {
+  const summary = (value.summary || {}) as Record<string, unknown>;
+  const countsByType = summary.counts_by_type && typeof summary.counts_by_type === "object"
+    ? Object.fromEntries(
+        Object.entries(summary.counts_by_type as Record<string, unknown>).map(([key, itemValue]) => [
+          key,
+          Number(toNumber(itemValue) || 0),
+        ])
+      )
+    : {};
+
+  return {
+    user_id: Number(value.user_id || 0),
+    cosmetics: Array.isArray(value.cosmetics)
+      ? (value.cosmetics as Array<Record<string, unknown>>).map(normalizeGameCosmetic)
+      : [],
+    equipped: Array.isArray(value.equipped)
+      ? (value.equipped as Array<Record<string, unknown>>).map(normalizeGameEquippedCosmetic)
+      : [],
+    summary: {
+      total_cosmetics: Number(toNumber(summary.total_cosmetics) || 0),
+      counts_by_type: countsByType,
+    },
+  };
+}
+
+export function normalizeGachaPullResult(value: Record<string, unknown>): GachaPullResult {
+  const session = (value.session || {}) as Record<string, unknown>;
+  const wallet = (value.wallet || {}) as Record<string, unknown>;
+  const pull = (value.pull || {}) as Record<string, unknown>;
+  const reward = (pull.reward || {}) as Record<string, unknown>;
+
+  return {
+    game: normalizeGameCatalogEntry(((value.game || {}) as Record<string, unknown>)),
+    session: {
+      id: Number(session.id || 0),
+      entry_fee_cash: Number(toNumber(session.entry_fee_cash) || 0),
+      payout_cash: Number(toNumber(session.payout_cash) || 0),
+      created_at: String(session.created_at || ""),
+    },
+    wallet: {
+      debited_cash: Number(toNumber(wallet.debited_cash) || 0),
+      duplicate_compensation_cash: Number(toNumber(wallet.duplicate_compensation_cash) || 0),
+      cash_balance_after: Number(toNumber(wallet.cash_balance_after) || 0),
+    },
+    pull: {
+      id: Number(pull.id || 0),
+      created_at: String(pull.created_at || ""),
+      reward: {
+        key: String(reward.key || ""),
+        type: String(reward.type || ""),
+        rarity: String(reward.rarity || "common"),
+        display_name: String(reward.display_name || ""),
+        slot_key: reward.slot_key ? String(reward.slot_key) : null,
+        metadata: normalizeGamesConfig(reward.metadata),
+      },
+      duplicate: Boolean(pull.duplicate),
+      granted_cosmetic:
+        pull.granted_cosmetic && typeof pull.granted_cosmetic === "object"
+          ? normalizeGameCosmetic(pull.granted_cosmetic as Record<string, unknown>)
+          : null,
+    },
+  };
+}
+
+function normalizeTickerTapSessionConfig(value: Record<string, unknown>): TickerTapSessionConfig {
+  return {
+    run_duration_seconds: Number(toNumber(value.run_duration_seconds) || 0),
+    lane_count: Number(toNumber(value.lane_count) || 0),
+    target_lifetime_ms: Number(toNumber(value.target_lifetime_ms) || 0),
+    spawn_interval_ms: Number(toNumber(value.spawn_interval_ms) || 0),
+    max_targets: Number(toNumber(value.max_targets) || 0),
+    leaderboard_window_days: toNumber(value.leaderboard_window_days) ?? undefined,
+    leaderboard_limit: toNumber(value.leaderboard_limit) ?? undefined,
+    seed_hint: String(value.seed_hint || ""),
+    timeline: Array.isArray(value.timeline)
+      ? value.timeline
+        .map((target) => {
+          const row = target && typeof target === "object" ? target as Record<string, unknown> : null;
+          if (!row) return null;
+          return {
+            index: Number(row.index || 0),
+            lane: Number(row.lane || 0),
+            start_ms: Number(toNumber(row.start_ms) || 0),
+          };
+        })
+        .filter((target): target is TickerTapSessionConfig["timeline"][number] => target !== null)
+      : [],
+  };
+}
+
+function normalizeTickerTapSessionResult(value: Record<string, unknown>): TickerTapSessionResult {
+  const submission = value.submission && typeof value.submission === "object"
+    ? value.submission as Record<string, unknown>
+    : {};
+
+  return {
+    type: String(value.type || ""),
+    phase: String(value.phase || ""),
+    config: normalizeTickerTapSessionConfig(((value.config || {}) as Record<string, unknown>)),
+    submission: {
+      hits: Number(toNumber(submission.hits) || 0),
+      misses: Number(toNumber(submission.misses) || 0),
+      max_streak: Number(toNumber(submission.max_streak) || 0),
+      duration_ms: Number(toNumber(submission.duration_ms) || 0),
+      taps: Number(toNumber(submission.taps) || 0),
+      accuracy: Number(toNumber(submission.accuracy) || 0),
+    },
+    score: Number(toNumber(value.score) || 0),
+  };
+}
+
+export function normalizeTickerTapSessionCreateResponse(value: Record<string, unknown>): TickerTapSessionCreateResponse {
+  const session = (value.session || {}) as Record<string, unknown>;
+  const wallet = (value.wallet || {}) as Record<string, unknown>;
+
+  return {
+    game: normalizeGameCatalogEntry(((value.game || {}) as Record<string, unknown>)),
+    session: {
+      id: Number(session.id || 0),
+      status: String(session.status || ""),
+      entry_fee_cash: Number(toNumber(session.entry_fee_cash) || 0),
+      started_at: String(session.started_at || ""),
+      config: normalizeTickerTapSessionConfig(((session.config || {}) as Record<string, unknown>)),
+    },
+    wallet: {
+      cash_balance_after: Number(toNumber(wallet.cash_balance_after) || 0),
+    },
+  };
+}
+
+export function normalizeTickerTapSessionResponse(value: Record<string, unknown>): TickerTapSessionResponse {
+  const session = (value.session || {}) as Record<string, unknown>;
+  const result = session.result && typeof session.result === "object"
+    ? session.result as Record<string, unknown>
+    : {};
+
+  return {
+    session: {
+      id: Number(session.id || 0),
+      status: String(session.status || ""),
+      score: toNumber(session.score),
+      entry_fee_cash: Number(toNumber(session.entry_fee_cash) || 0),
+      payout_cash: Number(toNumber(session.payout_cash) || 0),
+      started_at: String(session.started_at || ""),
+      completed_at: session.completed_at ? String(session.completed_at) : null,
+      result: Object.keys(result).length ? normalizeTickerTapSessionResult(result) : {},
+    },
+  };
+}
+
+export function normalizeTickerTapSubmitResponse(value: Record<string, unknown>): TickerTapSubmitResponse {
+  const session = (value.session || {}) as Record<string, unknown>;
+  return {
+    session: {
+      id: Number(session.id || 0),
+      status: String(session.status || ""),
+      score: Number(toNumber(session.score) || 0),
+      payout_cash: Number(toNumber(session.payout_cash) || 0),
+      completed_at: String(session.completed_at || ""),
+    },
+    result: normalizeTickerTapSessionResult(((value.result || {}) as Record<string, unknown>)),
+  };
+}
+
+export function normalizeTickerTapLeaderboardResponse(value: Record<string, unknown>): TickerTapLeaderboardResponse {
+  return {
+    game:
+      value.game && typeof value.game === "object"
+        ? normalizeGameCatalogEntry(value.game as Record<string, unknown>)
+        : null,
+    leaderboard: Array.isArray(value.leaderboard)
+      ? value.leaderboard
+        .map((entry) => {
+          const row = entry && typeof entry === "object" ? entry as Record<string, unknown> : null;
+          const stats = row?.stats && typeof row.stats === "object" ? row.stats as Record<string, unknown> : null;
+          if (!row) return null;
+          const normalized: TickerTapLeaderboardEntry = {
+            rank: Number(row.rank || 0),
+            session_id: Number(row.session_id || 0),
+            user_id: Number(row.user_id || 0),
+            username: String(row.username || ""),
+            profile_color: row.profile_color ? String(row.profile_color) : null,
+            score: Number(toNumber(row.score) || 0),
+            completed_at: String(row.completed_at || ""),
+            stats: {
+              hits: Number(toNumber(stats?.hits) || 0),
+              misses: Number(toNumber(stats?.misses) || 0),
+              max_streak: Number(toNumber(stats?.max_streak) || 0),
+              duration_ms: Number(toNumber(stats?.duration_ms) || 0),
+            },
+          };
+          return normalized;
+        })
+        .filter((entry): entry is TickerTapLeaderboardEntry => entry !== null)
+      : [],
   };
 }
 
@@ -991,6 +1542,12 @@ export function normalizeProfileBundle(value: Record<string, unknown>): ProfileB
       bio: profile?.bio ? String(profile.bio) : null,
       profile_picture_url: profile?.profile_picture_url ? String(profile.profile_picture_url) : null,
       profile_color: profile?.profile_color ? String(profile.profile_color) : null,
+      permissions: {
+        can_create_prediction_markets: Boolean(profile?.permissions && typeof profile.permissions === "object" && (profile.permissions as Record<string, unknown>).can_create_prediction_markets),
+        can_approve_prediction_markets: Boolean(profile?.permissions && typeof profile.permissions === "object" && (profile.permissions as Record<string, unknown>).can_approve_prediction_markets),
+        can_resolve_prediction_markets: Boolean(profile?.permissions && typeof profile.permissions === "object" && (profile.permissions as Record<string, unknown>).can_resolve_prediction_markets),
+        can_void_prediction_markets: Boolean(profile?.permissions && typeof profile.permissions === "object" && (profile.permissions as Record<string, unknown>).can_void_prediction_markets),
+      },
       rank: Number(toNumber(profile?.rank) || 0),
       oshi_coin: oshiCoin
         ? {

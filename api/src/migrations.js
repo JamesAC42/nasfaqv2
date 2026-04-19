@@ -42,6 +42,13 @@ async function applySchema(pool) {
   `);
   await pool.query(`
     ALTER TABLE market.users
+      ADD COLUMN IF NOT EXISTS can_create_prediction_markets BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS can_approve_prediction_markets BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS can_resolve_prediction_markets BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS can_void_prediction_markets BOOLEAN NOT NULL DEFAULT false
+  `);
+  await pool.query(`
+    ALTER TABLE market.users
       ADD COLUMN IF NOT EXISTS bio TEXT NULL,
       ADD COLUMN IF NOT EXISTS profile_picture_url TEXT NULL,
       ADD COLUMN IF NOT EXISTS profile_color TEXT NULL,
@@ -236,6 +243,480 @@ async function applySchema(pool) {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS market_achievement_evaluation_runs_target_idx
       ON market.achievement_evaluation_runs (target_user_id, started_at DESC)
+  `);
+  await pool.query(`
+    CREATE SCHEMA IF NOT EXISTS games
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS games.game_catalog (
+      id BIGSERIAL PRIMARY KEY,
+      key TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      game_type TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'draft',
+      entry_fee_cash NUMERIC NOT NULL DEFAULT 0,
+      min_stake_cash NUMERIC NULL,
+      max_stake_cash NUMERIC NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      icon_key TEXT NULL,
+      banner_key TEXT NULL,
+      config_json JSONB NOT NULL DEFAULT '{}'::JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT games_game_catalog_type_check CHECK (game_type IN ('single_player', 'gacha', 'pvp', 'idle')),
+      CONSTRAINT games_game_catalog_status_check CHECK (status IN ('draft', 'active', 'disabled')),
+      CONSTRAINT games_game_catalog_entry_fee_nonnegative_check CHECK (entry_fee_cash >= 0),
+      CONSTRAINT games_game_catalog_min_stake_nonnegative_check CHECK (min_stake_cash IS NULL OR min_stake_cash >= 0),
+      CONSTRAINT games_game_catalog_max_stake_nonnegative_check CHECK (max_stake_cash IS NULL OR max_stake_cash >= 0),
+      CONSTRAINT games_game_catalog_stake_order_check CHECK (
+        min_stake_cash IS NULL OR max_stake_cash IS NULL OR max_stake_cash >= min_stake_cash
+      )
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS games_game_catalog_status_sort_idx
+      ON games.game_catalog (status, sort_order ASC, id ASC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS games.game_sessions (
+      id BIGSERIAL PRIMARY KEY,
+      game_id BIGINT NOT NULL REFERENCES games.game_catalog(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'created',
+      entry_fee_cash NUMERIC NOT NULL DEFAULT 0,
+      payout_cash NUMERIC NOT NULL DEFAULT 0,
+      seed TEXT NULL,
+      score NUMERIC NULL,
+      result_json JSONB NOT NULL DEFAULT '{}'::JSONB,
+      started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      completed_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT games_game_sessions_status_check CHECK (status IN ('created', 'active', 'completed', 'cancelled', 'refunded')),
+      CONSTRAINT games_game_sessions_entry_fee_nonnegative_check CHECK (entry_fee_cash >= 0),
+      CONSTRAINT games_game_sessions_payout_nonnegative_check CHECK (payout_cash >= 0)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS games_game_sessions_user_created_idx
+      ON games.game_sessions (user_id, created_at DESC, id DESC)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS games_game_sessions_game_created_idx
+      ON games.game_sessions (game_id, created_at DESC, id DESC)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS games_game_sessions_status_created_idx
+      ON games.game_sessions (status, created_at DESC, id DESC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS games.user_cosmetics (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      cosmetic_key TEXT NOT NULL,
+      cosmetic_type TEXT NOT NULL,
+      rarity TEXT NOT NULL DEFAULT 'common',
+      source_type TEXT NOT NULL,
+      source_reference_id BIGINT NULL,
+      metadata_json JSONB NOT NULL DEFAULT '{}'::JSONB,
+      granted_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS games_user_cosmetics_user_granted_idx
+      ON games.user_cosmetics (user_id, granted_at DESC, id DESC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS games.user_equipped_cosmetics (
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      slot_key TEXT NOT NULL,
+      user_cosmetic_id BIGINT NOT NULL REFERENCES games.user_cosmetics(id) ON DELETE CASCADE,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (user_id, slot_key)
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS games.gacha_pulls (
+      id BIGSERIAL PRIMARY KEY,
+      game_id BIGINT NOT NULL REFERENCES games.game_catalog(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      game_session_id BIGINT NULL REFERENCES games.game_sessions(id) ON DELETE SET NULL,
+      cost_cash NUMERIC NOT NULL DEFAULT 0,
+      rng_seed_hash TEXT NOT NULL,
+      reward_type TEXT NOT NULL,
+      reward_key TEXT NOT NULL,
+      duplicate_compensation_cash NUMERIC NOT NULL DEFAULT 0,
+      metadata_json JSONB NOT NULL DEFAULT '{}'::JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT games_gacha_pulls_cost_nonnegative_check CHECK (cost_cash >= 0),
+      CONSTRAINT games_gacha_pulls_duplicate_comp_nonnegative_check CHECK (duplicate_compensation_cash >= 0)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS games_gacha_pulls_user_created_idx
+      ON games.gacha_pulls (user_id, created_at DESC, id DESC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS games.pvp_matches (
+      id BIGSERIAL PRIMARY KEY,
+      game_id BIGINT NOT NULL REFERENCES games.game_catalog(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'queued',
+      stake_cash NUMERIC NOT NULL DEFAULT 0,
+      prize_pool_cash NUMERIC NOT NULL DEFAULT 0,
+      result_json JSONB NOT NULL DEFAULT '{}'::JSONB,
+      started_at TIMESTAMPTZ NULL,
+      completed_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT games_pvp_matches_status_check CHECK (status IN ('queued', 'active', 'completed', 'cancelled')),
+      CONSTRAINT games_pvp_matches_stake_nonnegative_check CHECK (stake_cash >= 0),
+      CONSTRAINT games_pvp_matches_prize_pool_nonnegative_check CHECK (prize_pool_cash >= 0)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS games_pvp_matches_status_created_idx
+      ON games.pvp_matches (status, created_at DESC, id DESC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS games.pvp_match_players (
+      id BIGSERIAL PRIMARY KEY,
+      match_id BIGINT NOT NULL REFERENCES games.pvp_matches(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'joined',
+      outcome TEXT NULL,
+      payout_cash NUMERIC NOT NULL DEFAULT 0,
+      submitted_at TIMESTAMPTZ NULL,
+      joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT games_pvp_match_players_status_check CHECK (status IN ('joined', 'submitted', 'forfeited', 'removed')),
+      CONSTRAINT games_pvp_match_players_outcome_check CHECK (outcome IS NULL OR outcome IN ('win', 'loss', 'draw', 'forfeit')),
+      CONSTRAINT games_pvp_match_players_payout_nonnegative_check CHECK (payout_cash >= 0),
+      CONSTRAINT games_pvp_match_players_match_user_unique UNIQUE (match_id, user_id)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS games_pvp_match_players_user_joined_idx
+      ON games.pvp_match_players (user_id, joined_at DESC, id DESC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.prediction_market_categories (
+      id BIGSERIAL PRIMARY KEY,
+      slug TEXT NOT NULL UNIQUE,
+      display_name TEXT NOT NULL,
+      description TEXT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT prediction_market_categories_slug_check CHECK (char_length(btrim(slug)) BETWEEN 1 AND 80),
+      CONSTRAINT prediction_market_categories_display_name_check CHECK (char_length(btrim(display_name)) BETWEEN 1 AND 120)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS prediction_market_categories_active_sort_idx
+      ON market.prediction_market_categories (is_active, sort_order ASC, id ASC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.prediction_markets (
+      id BIGSERIAL PRIMARY KEY,
+      slug TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      subtitle TEXT NULL,
+      description TEXT NULL,
+      rules_text TEXT NOT NULL,
+      resolution_source_text TEXT NOT NULL,
+      category_id BIGINT NULL REFERENCES market.prediction_market_categories(id) ON DELETE SET NULL,
+      status TEXT NOT NULL DEFAULT 'draft',
+      trading_status TEXT NOT NULL DEFAULT 'pending_open',
+      visibility TEXT NOT NULL DEFAULT 'public',
+      market_type TEXT NOT NULL DEFAULT 'binary',
+      creator_user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE RESTRICT,
+      approver_user_id BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL,
+      resolver_user_id BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL,
+      resolution_outcome TEXT NULL,
+      resolution_notes TEXT NULL,
+      featured_image_url TEXT NULL,
+      metadata_json JSONB NOT NULL DEFAULT '{}'::JSONB,
+      opens_at TIMESTAMPTZ NOT NULL,
+      closes_at TIMESTAMPTZ NOT NULL,
+      resolves_after TIMESTAMPTZ NULL,
+      approved_at TIMESTAMPTZ NULL,
+      trading_opened_at TIMESTAMPTZ NULL,
+      trading_closed_at TIMESTAMPTZ NULL,
+      resolved_at TIMESTAMPTZ NULL,
+      voided_at TIMESTAMPTZ NULL,
+      last_traded_probability NUMERIC NULL,
+      last_trade_at TIMESTAMPTZ NULL,
+      total_volume_cash NUMERIC NOT NULL DEFAULT 0,
+      open_interest_shares NUMERIC NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT prediction_markets_status_check CHECK (status IN ('draft', 'pending_approval', 'open', 'closed', 'resolving', 'resolved', 'voided', 'rejected')),
+      CONSTRAINT prediction_markets_trading_status_check CHECK (trading_status IN ('pending_open', 'open', 'halted', 'closed', 'resolved', 'voided')),
+      CONSTRAINT prediction_markets_visibility_check CHECK (visibility IN ('public', 'unlisted', 'private')),
+      CONSTRAINT prediction_markets_market_type_check CHECK (market_type IN ('binary')),
+      CONSTRAINT prediction_markets_resolution_outcome_check CHECK (resolution_outcome IS NULL OR resolution_outcome IN ('yes', 'no', 'void')),
+      CONSTRAINT prediction_markets_slug_check CHECK (char_length(btrim(slug)) BETWEEN 1 AND 120),
+      CONSTRAINT prediction_markets_title_check CHECK (char_length(btrim(title)) BETWEEN 1 AND 200),
+      CONSTRAINT prediction_markets_rules_check CHECK (char_length(btrim(rules_text)) BETWEEN 1 AND 10000),
+      CONSTRAINT prediction_markets_resolution_source_check CHECK (char_length(btrim(resolution_source_text)) BETWEEN 1 AND 5000),
+      CONSTRAINT prediction_markets_time_order_check CHECK (closes_at > opens_at),
+      CONSTRAINT prediction_markets_resolves_after_check CHECK (resolves_after IS NULL OR resolves_after >= closes_at),
+      CONSTRAINT prediction_markets_probability_bounds_check CHECK (
+        last_traded_probability IS NULL OR (last_traded_probability >= 0.01 AND last_traded_probability <= 0.99)
+      )
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS prediction_markets_status_opens_idx
+      ON market.prediction_markets (status, opens_at ASC, id ASC)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS prediction_markets_status_closes_idx
+      ON market.prediction_markets (status, closes_at ASC, id ASC)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS prediction_markets_creator_created_idx
+      ON market.prediction_markets (creator_user_id, created_at DESC, id DESC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.prediction_market_outcomes (
+      id BIGSERIAL PRIMARY KEY,
+      market_id BIGINT NOT NULL REFERENCES market.prediction_markets(id) ON DELETE CASCADE,
+      outcome_code TEXT NOT NULL,
+      label TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      is_winner BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT prediction_market_outcomes_code_check CHECK (outcome_code IN ('yes', 'no')),
+      CONSTRAINT prediction_market_outcomes_label_check CHECK (char_length(btrim(label)) BETWEEN 1 AND 80),
+      UNIQUE (market_id, outcome_code),
+      UNIQUE (market_id, sort_order)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS prediction_market_outcomes_market_idx
+      ON market.prediction_market_outcomes (market_id, sort_order ASC, id ASC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.prediction_market_orders (
+      id BIGSERIAL PRIMARY KEY,
+      market_id BIGINT NOT NULL REFERENCES market.prediction_markets(id) ON DELETE CASCADE,
+      outcome_id BIGINT NOT NULL REFERENCES market.prediction_market_outcomes(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      side TEXT NOT NULL,
+      order_type TEXT NOT NULL DEFAULT 'limit',
+      time_in_force TEXT NOT NULL DEFAULT 'gtc',
+      funding_type TEXT NOT NULL DEFAULT 'cash',
+      price NUMERIC NOT NULL,
+      original_quantity NUMERIC NOT NULL,
+      open_quantity NUMERIC NOT NULL,
+      matched_quantity NUMERIC NOT NULL DEFAULT 0,
+      cash_reserved NUMERIC NOT NULL DEFAULT 0,
+      coin_collateral_reserved NUMERIC NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'open',
+      cancelled_at TIMESTAMPTZ NULL,
+      expires_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT prediction_market_orders_side_check CHECK (side IN ('buy', 'sell')),
+      CONSTRAINT prediction_market_orders_type_check CHECK (order_type IN ('limit')),
+      CONSTRAINT prediction_market_orders_tif_check CHECK (time_in_force IN ('gtc')),
+      CONSTRAINT prediction_market_orders_funding_check CHECK (funding_type IN ('cash', 'cash_and_collateral')),
+      CONSTRAINT prediction_market_orders_status_check CHECK (status IN ('open', 'partially_filled', 'filled', 'cancelled', 'rejected', 'expired')),
+      CONSTRAINT prediction_market_orders_price_check CHECK (price >= 0.01 AND price <= 0.99),
+      CONSTRAINT prediction_market_orders_original_qty_check CHECK (original_quantity > 0),
+      CONSTRAINT prediction_market_orders_open_qty_check CHECK (open_quantity >= 0),
+      CONSTRAINT prediction_market_orders_matched_qty_check CHECK (matched_quantity >= 0),
+      CONSTRAINT prediction_market_orders_cash_reserved_check CHECK (cash_reserved >= 0),
+      CONSTRAINT prediction_market_orders_coin_reserved_check CHECK (coin_collateral_reserved >= 0)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS prediction_market_orders_book_idx
+      ON market.prediction_market_orders (market_id, outcome_id, status, price DESC, created_at ASC, id ASC)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS prediction_market_orders_user_idx
+      ON market.prediction_market_orders (user_id, created_at DESC, id DESC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.prediction_market_trades (
+      id BIGSERIAL PRIMARY KEY,
+      market_id BIGINT NOT NULL REFERENCES market.prediction_markets(id) ON DELETE CASCADE,
+      outcome_id BIGINT NOT NULL REFERENCES market.prediction_market_outcomes(id) ON DELETE CASCADE,
+      trade_kind TEXT NOT NULL DEFAULT 'secondary',
+      maker_order_id BIGINT NULL REFERENCES market.prediction_market_orders(id) ON DELETE SET NULL,
+      taker_order_id BIGINT NULL REFERENCES market.prediction_market_orders(id) ON DELETE SET NULL,
+      maker_user_id BIGINT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      taker_user_id BIGINT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      maker_outcome_id BIGINT NULL REFERENCES market.prediction_market_outcomes(id) ON DELETE SET NULL,
+      taker_outcome_id BIGINT NULL REFERENCES market.prediction_market_outcomes(id) ON DELETE SET NULL,
+      maker_side TEXT NULL,
+      taker_side TEXT NULL,
+      buy_order_id BIGINT NULL REFERENCES market.prediction_market_orders(id) ON DELETE SET NULL,
+      sell_order_id BIGINT NULL REFERENCES market.prediction_market_orders(id) ON DELETE SET NULL,
+      buy_user_id BIGINT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      sell_user_id BIGINT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      price NUMERIC NOT NULL,
+      quantity NUMERIC NOT NULL,
+      notional_cash NUMERIC NOT NULL,
+      fee_cash_buy NUMERIC NOT NULL DEFAULT 0,
+      fee_cash_sell NUMERIC NOT NULL DEFAULT 0,
+      matched_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT prediction_market_trades_kind_check CHECK (trade_kind IN ('secondary', 'mint', 'redeem')),
+      CONSTRAINT prediction_market_trades_maker_side_check CHECK (maker_side IS NULL OR maker_side IN ('buy', 'sell')),
+      CONSTRAINT prediction_market_trades_taker_side_check CHECK (taker_side IS NULL OR taker_side IN ('buy', 'sell')),
+      CONSTRAINT prediction_market_trades_price_check CHECK (price >= 0.01 AND price <= 0.99),
+      CONSTRAINT prediction_market_trades_quantity_check CHECK (quantity > 0),
+      CONSTRAINT prediction_market_trades_notional_check CHECK (notional_cash >= 0),
+      CONSTRAINT prediction_market_trades_fee_buy_check CHECK (fee_cash_buy >= 0),
+      CONSTRAINT prediction_market_trades_fee_sell_check CHECK (fee_cash_sell >= 0),
+      CONSTRAINT prediction_market_trades_user_distinct_check CHECK (
+        buy_user_id IS NULL OR sell_user_id IS NULL OR buy_user_id <> sell_user_id
+      )
+    )
+  `);
+  await pool.query(`
+    ALTER TABLE market.prediction_market_trades
+      ADD COLUMN IF NOT EXISTS trade_kind TEXT NOT NULL DEFAULT 'secondary',
+      ADD COLUMN IF NOT EXISTS maker_order_id BIGINT NULL REFERENCES market.prediction_market_orders(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS taker_order_id BIGINT NULL REFERENCES market.prediction_market_orders(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS maker_user_id BIGINT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      ADD COLUMN IF NOT EXISTS taker_user_id BIGINT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      ADD COLUMN IF NOT EXISTS maker_outcome_id BIGINT NULL REFERENCES market.prediction_market_outcomes(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS taker_outcome_id BIGINT NULL REFERENCES market.prediction_market_outcomes(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS maker_side TEXT NULL,
+      ADD COLUMN IF NOT EXISTS taker_side TEXT NULL
+  `);
+  await pool.query(`
+    ALTER TABLE market.prediction_market_trades
+      ALTER COLUMN buy_user_id DROP NOT NULL,
+      ALTER COLUMN sell_user_id DROP NOT NULL
+  `);
+  await pool.query(`
+    ALTER TABLE market.prediction_market_trades
+      DROP CONSTRAINT IF EXISTS prediction_market_trades_kind_check
+  `);
+  await pool.query(`
+    ALTER TABLE market.prediction_market_trades
+      ADD CONSTRAINT prediction_market_trades_kind_check CHECK (trade_kind IN ('secondary', 'mint', 'redeem'))
+  `);
+  await pool.query(`
+    ALTER TABLE market.prediction_market_trades
+      DROP CONSTRAINT IF EXISTS prediction_market_trades_maker_side_check
+  `);
+  await pool.query(`
+    ALTER TABLE market.prediction_market_trades
+      ADD CONSTRAINT prediction_market_trades_maker_side_check CHECK (maker_side IS NULL OR maker_side IN ('buy', 'sell'))
+  `);
+  await pool.query(`
+    ALTER TABLE market.prediction_market_trades
+      DROP CONSTRAINT IF EXISTS prediction_market_trades_taker_side_check
+  `);
+  await pool.query(`
+    ALTER TABLE market.prediction_market_trades
+      ADD CONSTRAINT prediction_market_trades_taker_side_check CHECK (taker_side IS NULL OR taker_side IN ('buy', 'sell'))
+  `);
+  await pool.query(`
+    ALTER TABLE market.prediction_market_trades
+      DROP CONSTRAINT IF EXISTS prediction_market_trades_user_distinct_check
+  `);
+  await pool.query(`
+    ALTER TABLE market.prediction_market_trades
+      ADD CONSTRAINT prediction_market_trades_user_distinct_check CHECK (
+        buy_user_id IS NULL OR sell_user_id IS NULL OR buy_user_id <> sell_user_id
+      )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS prediction_market_trades_market_matched_idx
+      ON market.prediction_market_trades (market_id, matched_at DESC, id DESC)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS prediction_market_trades_user_matched_idx
+      ON market.prediction_market_trades (buy_user_id, matched_at DESC, id DESC)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS prediction_market_trades_counterparty_matched_idx
+      ON market.prediction_market_trades (sell_user_id, matched_at DESC, id DESC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.prediction_market_positions (
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      market_id BIGINT NOT NULL REFERENCES market.prediction_markets(id) ON DELETE CASCADE,
+      outcome_id BIGINT NOT NULL REFERENCES market.prediction_market_outcomes(id) ON DELETE CASCADE,
+      shares NUMERIC NOT NULL DEFAULT 0,
+      avg_entry_price NUMERIC NOT NULL DEFAULT 0,
+      realized_pnl_cash NUMERIC NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (user_id, market_id, outcome_id),
+      CONSTRAINT prediction_market_positions_shares_check CHECK (shares >= 0),
+      CONSTRAINT prediction_market_positions_avg_entry_check CHECK (avg_entry_price >= 0 AND avg_entry_price <= 0.99),
+      CONSTRAINT prediction_market_positions_realized_pnl_check CHECK (realized_pnl_cash = realized_pnl_cash)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS prediction_market_positions_market_idx
+      ON market.prediction_market_positions (market_id, outcome_id, shares DESC, user_id ASC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.prediction_market_price_history (
+      market_id BIGINT NOT NULL REFERENCES market.prediction_markets(id) ON DELETE CASCADE,
+      outcome_id BIGINT NOT NULL REFERENCES market.prediction_market_outcomes(id) ON DELETE CASCADE,
+      bucket_interval TEXT NOT NULL,
+      bucket_ts TIMESTAMPTZ NOT NULL,
+      open NUMERIC NULL,
+      high NUMERIC NULL,
+      low NUMERIC NULL,
+      close NUMERIC NULL,
+      last NUMERIC NULL,
+      volume_shares NUMERIC NOT NULL DEFAULT 0,
+      volume_cash NUMERIC NOT NULL DEFAULT 0,
+      trade_count INTEGER NOT NULL DEFAULT 0,
+      best_bid NUMERIC NULL,
+      best_ask NUMERIC NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (market_id, outcome_id, bucket_interval, bucket_ts),
+      CONSTRAINT prediction_market_price_history_interval_check CHECK (bucket_interval IN ('1m', '5m', '1h', '1d')),
+      CONSTRAINT prediction_market_price_history_trade_count_check CHECK (trade_count >= 0),
+      CONSTRAINT prediction_market_price_history_volume_shares_check CHECK (volume_shares >= 0),
+      CONSTRAINT prediction_market_price_history_volume_cash_check CHECK (volume_cash >= 0)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS prediction_market_price_history_lookup_idx
+      ON market.prediction_market_price_history (market_id, outcome_id, bucket_interval, bucket_ts DESC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.prediction_market_events (
+      id BIGSERIAL PRIMARY KEY,
+      market_id BIGINT NOT NULL REFERENCES market.prediction_markets(id) ON DELETE CASCADE,
+      actor_user_id BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL,
+      event_type TEXT NOT NULL,
+      event_data JSONB NOT NULL DEFAULT '{}'::JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT prediction_market_events_type_check CHECK (
+        event_type IN (
+          'market_created',
+          'market_updated',
+          'submitted_for_approval',
+          'market_approved',
+          'market_rejected',
+          'market_opened',
+          'market_closed',
+          'resolution_proposed',
+          'market_resolved',
+          'market_voided',
+          'order_placed',
+          'order_cancelled',
+          'trade_matched'
+        )
+      )
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS prediction_market_events_market_created_idx
+      ON market.prediction_market_events (market_id, created_at DESC, id DESC)
   `);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS market.user_leaderboard_current (

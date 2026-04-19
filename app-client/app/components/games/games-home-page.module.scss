@@ -1,0 +1,589 @@
+@use "../../styles/mixins" as *;
+
+.stack {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.hero {
+  @include panel;
+  position: relative;
+  overflow: hidden;
+  padding: 1.5rem;
+  display: grid;
+  gap: 1.4rem;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 24%, transparent), transparent 34%),
+    radial-gradient(circle at 18% 24%, color-mix(in srgb, var(--success) 18%, transparent), transparent 28%),
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--surface-card) 92%, transparent),
+      color-mix(in srgb, var(--surface-card-soft) 82%, var(--bg-accent))
+    );
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: auto -8% -42% auto;
+  width: clamp(16rem, 28vw, 24rem);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--accent) 30%, transparent), transparent 68%);
+  pointer-events: none;
+}
+
+.heroHeader {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-strong);
+}
+
+.heroTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 5vw, 3.6rem);
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+  max-width: 11ch;
+}
+
+.heroCopy {
+  @include subtle-copy;
+  margin: 0;
+  max-width: 64ch;
+  color: color-mix(in srgb, var(--text) 90%, var(--muted));
+}
+
+.heroActions {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.heroButton,
+.heroButtonMuted {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.85rem;
+  padding: 0.72rem 1.15rem;
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: 800;
+  transition:
+    transform 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.heroButton {
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-card));
+  color: var(--accent-strong);
+}
+
+.heroButtonMuted {
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface-card-soft) 88%, transparent);
+  color: var(--text);
+}
+
+.heroButton:hover,
+.heroButtonMuted:hover {
+  transform: translateY(-1px);
+}
+
+.heroMetrics {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.metricCard {
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  display: grid;
+  gap: 0.28rem;
+  background: color-mix(in srgb, var(--surface-card) 82%, transparent);
+}
+
+.metricLabel {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.metricValue {
+  font-size: clamp(1.2rem, 2vw, 1.6rem);
+  font-weight: 800;
+}
+
+.metricMeta {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(19rem, 0.95fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.panel {
+  @include panel;
+  padding: 1.2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sectionTitle {
+  @include section-title;
+  margin: 0;
+}
+
+.sectionCopy {
+  @include subtle-copy;
+  margin: 0.35rem 0 0;
+}
+
+.catalogGrid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.gameCard {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-card-soft) 88%, transparent), color-mix(in srgb, var(--surface-card) 96%, transparent)),
+    var(--surface-card);
+  display: grid;
+  gap: 0.9rem;
+  min-height: 16.5rem;
+}
+
+.gameCard::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 0.28rem;
+  background: linear-gradient(90deg, var(--card-accent), color-mix(in srgb, var(--card-accent) 35%, white));
+}
+
+.gameCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.badgeRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.typePill,
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.7rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.typePill {
+  background: color-mix(in srgb, var(--card-accent) 14%, transparent);
+  color: var(--card-accent);
+}
+
+.statusPillActive {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+
+.statusPillDraft {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning);
+}
+
+.statusPillDisabled {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+}
+
+.gameSignal {
+  color: var(--card-accent);
+  font-size: 1rem;
+}
+
+.gameTitle {
+  margin: 0;
+  font-size: 1.08rem;
+  font-weight: 800;
+}
+
+.gameDescription {
+  @include subtle-copy;
+  margin: 0;
+}
+
+.metaGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.metaCard {
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.75rem;
+  background: color-mix(in srgb, var(--bg-darkest) 55%, transparent);
+  display: grid;
+  gap: 0.2rem;
+}
+
+.metaLabel {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.metaValue {
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.metaHint {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.cardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: auto;
+}
+
+.cardNote {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.cardAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--card-accent);
+  font-weight: 800;
+}
+
+.sidebar {
+  display: grid;
+  gap: 1rem;
+}
+
+.walletValue {
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.walletMeta {
+  color: var(--muted);
+  font-size: 0.94rem;
+}
+
+.miniGrid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.miniRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.miniLabel {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.miniValue {
+  font-weight: 800;
+}
+
+.equippedList,
+.sessionList,
+.inventoryList {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.equippedItem,
+.sessionItem,
+.inventoryItem {
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 0.78rem 0.8rem;
+  background: color-mix(in srgb, var(--surface-card-soft) 78%, transparent);
+  display: grid;
+  gap: 0.25rem;
+}
+
+.itemTitle {
+  font-weight: 800;
+}
+
+.itemMeta {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.ctaCard {
+  @include panel;
+  padding: 1.2rem;
+  display: grid;
+  gap: 0.8rem;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--accent-soft) 48%, var(--surface-card)), var(--surface-card)),
+    var(--surface-card);
+}
+
+.ctaTitle {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.ctaCopy {
+  @include subtle-copy;
+  margin: 0;
+}
+
+.liveGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.liveConsole {
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  display: grid;
+  gap: 1rem;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 18%, transparent), transparent 36%),
+    color-mix(in srgb, var(--surface-card) 96%, transparent);
+}
+
+.consoleHeadline {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.consolePrice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 1.5rem;
+  font-weight: 900;
+}
+
+.consoleHint {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.pullButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3rem;
+  padding: 0.82rem 1.2rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-card));
+  color: var(--accent-strong);
+  font-weight: 900;
+  transition:
+    transform 140ms ease,
+    background-color 140ms ease,
+    opacity 140ms ease;
+}
+
+.pullButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.pullButton:disabled {
+  opacity: 0.55;
+}
+
+.pullMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.resultCard {
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  display: grid;
+  gap: 0.9rem;
+  background: color-mix(in srgb, var(--surface-card) 95%, transparent);
+}
+
+.rewardHero {
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  display: grid;
+  gap: 0.35rem;
+  background:
+    linear-gradient(155deg, color-mix(in srgb, var(--reward-accent) 24%, transparent), transparent 62%),
+    color-mix(in srgb, var(--surface-card-soft) 84%, transparent);
+  border: 1px solid color-mix(in srgb, var(--reward-accent) 24%, var(--border));
+}
+
+.rewardKicker {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--reward-accent);
+}
+
+.rewardTitle {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.rewardMeta {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.resultLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.92rem;
+}
+
+.resultLabel {
+  color: var(--muted);
+}
+
+.resultValue {
+  font-weight: 800;
+}
+
+.statusMessage {
+  border-radius: var(--radius-sm);
+  padding: 0.85rem 0.95rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.statusError {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
+.statusWarn {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+}
+
+.statusNeutral {
+  background: color-mix(in srgb, var(--surface-card-soft) 84%, transparent);
+  color: var(--muted);
+}
+
+.empty {
+  @include empty-state;
+}
+
+@media (max-width: 1120px) {
+  .catalogGrid,
+  .heroMetrics,
+  .pullMetaGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .contentGrid,
+  .liveGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .hero,
+  .panel,
+  .ctaCard {
+    padding: 1rem;
+  }
+
+  .catalogGrid,
+  .heroMetrics,
+  .metaGrid,
+  .pullMetaGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .cardFooter,
+  .miniRow,
+  .resultLine,
+  .sectionHead {
+    align-items: start;
+    flex-direction: column;
+  }
+}

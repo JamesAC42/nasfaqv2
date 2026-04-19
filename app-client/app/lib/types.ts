@@ -4,6 +4,10 @@ export type AuthUser = {
   profile_picture_url: string | null;
   profile_color: string | null;
   is_admin: boolean;
+  can_create_prediction_markets: boolean;
+  can_approve_prediction_markets: boolean;
+  can_resolve_prediction_markets: boolean;
+  can_void_prediction_markets: boolean;
   created_at: string;
 };
 
@@ -73,6 +77,166 @@ export type CandlePoint = {
   close: number | null;
   close_mark?: number | null;
   volume_shares?: number | null;
+};
+
+export type PredictionMarketScope = "public" | "mine" | "review_queue";
+
+export type PredictionMarketPagination = {
+  total: number;
+  page: number;
+  limit: number;
+  page_count: number;
+  has_previous_page: boolean;
+  has_next_page: boolean;
+};
+
+export type PredictionMarketCategory = {
+  id: number;
+  slug: string | null;
+  display_name: string | null;
+};
+
+export type PredictionMarketUserRef = {
+  id: number;
+  username: string | null;
+  profile_color?: string | null;
+};
+
+export type PredictionMarketOutcome = {
+  id: number;
+  outcome_code: "yes" | "no" | string;
+  label: string;
+  sort_order: number;
+  is_winner: boolean;
+};
+
+export type PredictionMarketViewerPermissions = {
+  can_submit_for_approval: boolean;
+  can_approve: boolean;
+  can_resolve: boolean;
+  can_void: boolean;
+  is_creator: boolean;
+};
+
+export type PredictionMarket = {
+  id: number;
+  slug: string;
+  title: string;
+  subtitle: string | null;
+  description: string | null;
+  rules_text: string;
+  resolution_source_text: string;
+  status: "draft" | "pending_approval" | "open" | "closed" | "resolving" | "resolved" | "voided" | "rejected" | string;
+  trading_status: "pending_open" | "open" | "closed" | string;
+  visibility: "public" | "unlisted" | "private" | string;
+  market_type: string;
+  resolution_outcome: string | null;
+  resolution_notes: string | null;
+  featured_image_url: string | null;
+  metadata_json: Record<string, unknown>;
+  opens_at: string;
+  closes_at: string;
+  resolves_after: string | null;
+  approved_at: string | null;
+  trading_opened_at: string | null;
+  trading_closed_at: string | null;
+  resolved_at: string | null;
+  voided_at: string | null;
+  last_traded_probability: number | null;
+  last_trade_at: string | null;
+  total_volume_cash: number;
+  open_interest_shares: number;
+  created_at: string;
+  updated_at: string;
+  category: PredictionMarketCategory | null;
+  creator: PredictionMarketUserRef | null;
+  approver: PredictionMarketUserRef | null;
+  resolver: PredictionMarketUserRef | null;
+  outcomes: PredictionMarketOutcome[];
+  viewer_permissions?: PredictionMarketViewerPermissions;
+};
+
+export type PredictionMarketListResponse = {
+  items: PredictionMarket[];
+  pagination: PredictionMarketPagination;
+};
+
+export type PredictionMarketDetailResponse = {
+  market: PredictionMarket;
+};
+
+export type PredictionOrderBookLevel = {
+  price: number;
+  quantity: number;
+};
+
+export type PredictionOrderBook = {
+  yes: {
+    buy: PredictionOrderBookLevel[];
+    sell: PredictionOrderBookLevel[];
+  };
+  no: {
+    buy: PredictionOrderBookLevel[];
+    sell: PredictionOrderBookLevel[];
+  };
+};
+
+export type PredictionOrderBookResponse = {
+  slug: string;
+  orderbook: PredictionOrderBook;
+};
+
+export type PredictionTrade = {
+  id: number;
+  market_id: number;
+  outcome_id: number;
+  outcome_code: "yes" | "no" | string;
+  outcome_label: string;
+  trade_kind: "secondary" | "mint" | "redeem" | string;
+  maker_order_id: number | null;
+  taker_order_id: number | null;
+  maker_user_id: number | null;
+  maker_username: string | null;
+  taker_user_id: number | null;
+  taker_username: string | null;
+  maker_outcome_id: number | null;
+  maker_outcome_code: string | null;
+  taker_outcome_id: number | null;
+  taker_outcome_code: string | null;
+  maker_side: "buy" | "sell" | null | string;
+  taker_side: "buy" | "sell" | null | string;
+  buy_order_id: number | null;
+  sell_order_id: number | null;
+  buy_user_id: number | null;
+  buy_username: string | null;
+  sell_user_id: number | null;
+  sell_username: string | null;
+  price: number;
+  quantity: number;
+  notional_cash: number;
+  fee_cash_buy: number;
+  fee_cash_sell: number;
+  matched_at: string;
+};
+
+export type PredictionTradeResponse = {
+  slug: string;
+  trades: PredictionTrade[];
+};
+
+export type PredictionCandlePoint = CandlePoint & {
+  last?: number | null;
+  volume_cash?: number | null;
+  trade_count?: number | null;
+  best_bid?: number | null;
+  best_ask?: number | null;
+};
+
+export type PredictionCandlesResponse = {
+  slug: string;
+  interval: string;
+  outcome: "yes" | "no" | string;
+  candles: PredictionCandlePoint[];
 };
 
 export type MarketAsset = {
@@ -259,6 +423,201 @@ export type PortfolioSummary = {
   total_unrealized_pnl: number;
   total_equity: number;
   holdings: PortfolioHolding[];
+};
+
+export type GameCatalogEntry = {
+  id: number;
+  key: string;
+  name: string;
+  description: string;
+  game_type: "single_player" | "gacha" | "pvp" | "idle";
+  status: "draft" | "active" | "disabled";
+  entry_fee_cash: number;
+  min_stake_cash: number | null;
+  max_stake_cash: number | null;
+  sort_order: number;
+  icon_key: string | null;
+  banner_key: string | null;
+  config: Record<string, unknown>;
+};
+
+export type GameCatalogResponse = {
+  games: GameCatalogEntry[];
+};
+
+export type GameCosmetic = {
+  id: number;
+  user_id: number;
+  cosmetic_key: string;
+  cosmetic_type: string;
+  rarity: string;
+  source_type: string;
+  source_reference_id: number | null;
+  metadata: Record<string, unknown>;
+  granted_at: string;
+};
+
+export type GameEquippedCosmetic = {
+  slot_key: string;
+  cosmetic: GameCosmetic;
+  updated_at: string;
+};
+
+export type GameInventoryResponse = {
+  user_id: number;
+  cosmetics: GameCosmetic[];
+  equipped: GameEquippedCosmetic[];
+  summary: {
+    total_cosmetics: number;
+    counts_by_type: Record<string, number>;
+  };
+};
+
+export type GameSessionSummary = {
+  id: number;
+  game_id: number;
+  game_key: string;
+  game_name: string;
+  game_type: "single_player" | "gacha" | "pvp" | "idle";
+  status: string;
+  entry_fee_cash: number;
+  payout_cash: number;
+  score: number | null;
+  started_at: string;
+  completed_at: string | null;
+  created_at: string;
+};
+
+export type GamesSummary = {
+  user_id: number;
+  cash_balance: number;
+  inventory: {
+    total_cosmetics: number;
+    counts_by_type: Record<string, number>;
+    equipped: GameEquippedCosmetic[];
+  };
+  recent_sessions: GameSessionSummary[];
+};
+
+export type GachaPullResult = {
+  game: GameCatalogEntry;
+  session: {
+    id: number;
+    entry_fee_cash: number;
+    payout_cash: number;
+    created_at: string;
+  };
+  wallet: {
+    debited_cash: number;
+    duplicate_compensation_cash: number;
+    cash_balance_after: number;
+  };
+  pull: {
+    id: number;
+    created_at: string;
+    reward: {
+      key: string;
+      type: string;
+      rarity: string;
+      display_name: string;
+      slot_key: string | null;
+      metadata: Record<string, unknown>;
+    };
+    duplicate: boolean;
+    granted_cosmetic: GameCosmetic | null;
+  };
+};
+
+export type TickerTapTimelineTarget = {
+  index: number;
+  lane: number;
+  start_ms: number;
+};
+
+export type TickerTapSessionConfig = {
+  run_duration_seconds: number;
+  lane_count: number;
+  target_lifetime_ms: number;
+  spawn_interval_ms: number;
+  max_targets: number;
+  leaderboard_window_days?: number;
+  leaderboard_limit?: number;
+  seed_hint: string;
+  timeline: TickerTapTimelineTarget[];
+};
+
+export type TickerTapSessionCreateResponse = {
+  game: GameCatalogEntry;
+  session: {
+    id: number;
+    status: string;
+    entry_fee_cash: number;
+    started_at: string;
+    config: TickerTapSessionConfig;
+  };
+  wallet: {
+    cash_balance_after: number;
+  };
+};
+
+export type TickerTapSessionResult = {
+  type: string;
+  phase: string;
+  config: TickerTapSessionConfig;
+  submission: {
+    hits: number;
+    misses: number;
+    max_streak: number;
+    duration_ms: number;
+    taps: number;
+    accuracy: number;
+  };
+  score: number;
+};
+
+export type TickerTapSessionResponse = {
+  session: {
+    id: number;
+    status: string;
+    score: number | null;
+    entry_fee_cash: number;
+    payout_cash: number;
+    started_at: string;
+    completed_at: string | null;
+    result: Record<string, unknown> | TickerTapSessionResult;
+  };
+};
+
+export type TickerTapSubmitResponse = {
+  session: {
+    id: number;
+    status: string;
+    score: number;
+    payout_cash: number;
+    completed_at: string;
+  };
+  result: TickerTapSessionResult;
+};
+
+export type TickerTapLeaderboardEntry = {
+  rank: number;
+  session_id: number;
+  user_id: number;
+  username: string;
+  profile_color: string | null;
+  score: number;
+  completed_at: string;
+  stats: {
+    hits: number;
+    misses: number;
+    max_streak: number;
+    duration_ms: number;
+  };
+};
+
+export type TickerTapLeaderboardResponse = {
+  game: GameCatalogEntry | null;
+  leaderboard: TickerTapLeaderboardEntry[];
 };
 
 export type ReportRow = {
@@ -726,6 +1085,12 @@ export type ProfileBundle = {
     bio: string | null;
     profile_picture_url: string | null;
     profile_color: string | null;
+    permissions: {
+      can_create_prediction_markets: boolean;
+      can_approve_prediction_markets: boolean;
+      can_resolve_prediction_markets: boolean;
+      can_void_prediction_markets: boolean;
+    };
     rank: number;
     oshi_coin: ProfileOshiCoin | null;
     stats: {
