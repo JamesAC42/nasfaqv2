@@ -5,13 +5,12 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { FaBolt, FaChartLine, FaClock, FaMoneyBillTrendUp, FaPlay, FaUsers } from "react-icons/fa6";
 import { HiSparkles } from "react-icons/hi2";
 import { SiteShell } from "@/app/components/layout/site-shell";
-import { apiFetch } from "@/app/lib/api";
 import { fmtDate, fmtNumber } from "@/app/lib/format";
 import {
-  normalizeGameCatalogResponse,
-  normalizeGameInventoryResponse,
-  normalizeGamesSummary,
-} from "@/app/lib/normalizers";
+  fetchGamesCatalog,
+  fetchGamesInventory,
+  fetchGamesSummary,
+} from "@/app/lib/games-api";
 import type {
   GameCatalogEntry,
   GameInventoryResponse,
@@ -48,9 +47,9 @@ function cardAccent(game: GameCatalogEntry) {
 
 function futureNote(game: GameCatalogEntry) {
   if (game.key === "capsule-gacha") return "Live now on its own game page.";
-  if (game.key === "ticker-tap") return "Arcade run UI is the next milestone.";
-  if (game.key === "prediction-duel") return "Async stake matches land after solo play.";
-  return "Reserved for the next games wave.";
+  if (game.key === "ticker-tap") return "Fast arcade runs for score.";
+  if (game.key === "prediction-duel") return "Head-to-head prediction battles are coming.";
+  return "More games are on the way.";
 }
 
 function gameSignal(game: GameCatalogEntry) {
@@ -84,8 +83,7 @@ export function GamesHomePage() {
     setIsLoadingCatalog(true);
     setCatalogError(null);
     try {
-      const result = await apiFetch<Record<string, unknown>>("/api/games/catalog", { cache: "no-store" });
-      setCatalog(normalizeGameCatalogResponse(result).games);
+      setCatalog((await fetchGamesCatalog()).games);
     } catch (error) {
       setCatalogError(String((error as Error).message || error));
     } finally {
@@ -109,12 +107,9 @@ export function GamesHomePage() {
       setIsLoadingAccount(true);
       setAccountError(null);
       try {
-        const [summaryResult, inventoryResult] = await Promise.all([
-          apiFetch<Record<string, unknown>>("/api/games/me/summary", { cache: "no-store" }),
-          apiFetch<Record<string, unknown>>("/api/games/me/inventory", { cache: "no-store" }),
-        ]);
-        setSummary(normalizeGamesSummary(summaryResult));
-        setInventory(normalizeGameInventoryResponse(inventoryResult));
+        const [summaryResult, inventoryResult] = await Promise.all([fetchGamesSummary(), fetchGamesInventory()]);
+        setSummary(summaryResult);
+        setInventory(inventoryResult);
       } catch (error) {
         setAccountError(String((error as Error).message || error));
       } finally {
@@ -135,14 +130,12 @@ export function GamesHomePage() {
             <p className={styles.eyebrow}>Nasfaq Games</p>
             <h1 className={styles.heroTitle}>Keep the cash moving after the bell.</h1>
             <p className={styles.heroCopy}>
-              NASFAQ Games is the retention lane for short runs, cosmetic sinks, and later PvP contests. The UI lives in
-              `app-client` for now, but every interaction already targets the shared `/api/games/*` contract so this
-              can move into a dedicated client later without reworking the backend.
+              Burn some cash, chase a score, collect cosmetics, and find new reasons to stick around after the market closes.
             </p>
             <div className={styles.heroActions}>
               <Link href="/games/capsule-gacha" className={styles.heroButton}>Open Capsule Gacha</Link>
               <Link href={user ? "/profile" : "/login"} className={styles.heroButtonMuted}>
-                {user ? "View Locker Context" : "Sign In To Play"}
+                {user ? "View Profile" : "Sign In To Play"}
               </Link>
             </div>
           </div>
@@ -150,19 +143,19 @@ export function GamesHomePage() {
             <article className={styles.metricCard}>
               <span className={styles.metricLabel}>Catalog</span>
               <strong className={styles.metricValue}>{isLoadingCatalog ? "…" : catalog.length}</strong>
-              <span className={styles.metricMeta}>Backend-defined games synced from `/api`.</span>
+              <span className={styles.metricMeta}>Games waiting for your attention.</span>
             </article>
             <article className={styles.metricCard}>
               <span className={styles.metricLabel}>Live Now</span>
               <strong className={styles.metricValue}>{isLoadingCatalog ? "…" : liveGames.length}</strong>
-              <span className={styles.metricMeta}>Only the gacha flow is fully wired in the UI today.</span>
+              <span className={styles.metricMeta}>Jump in and spend cash right away.</span>
             </article>
             <article className={styles.metricCard}>
               <span className={styles.metricLabel}>Wallet</span>
               <strong className={styles.metricValue}>
-                {user && summary ? fmtNumber(summary.cash_balance, "$") : user ? "Loading…" : "Connected"}
+                {user && summary ? fmtNumber(summary.cash_balance, "$") : user ? "Loading…" : "Sign in"}
               </strong>
-              <span className={styles.metricMeta}>One shared NASFAQ balance across market and games.</span>
+              <span className={styles.metricMeta}>Your bankroll for every game here.</span>
             </article>
           </div>
         </section>
@@ -173,8 +166,7 @@ export function GamesHomePage() {
               <div>
                 <h2 className={styles.sectionTitle}>Games Roadmap</h2>
                 <p className={styles.sectionCopy}>
-                  This hub lists the game catalog exactly the way the backend sees it. That keeps the page portable if
-                  the games surface becomes its own client later.
+                  Pick a lane, pay the entry, and see what deserves your next session.
                 </p>
               </div>
             </div>
@@ -211,7 +203,7 @@ export function GamesHomePage() {
                     <div className={styles.metaCard}>
                       <span className={styles.metaLabel}>Lane</span>
                       <strong className={styles.metaValue}>{game.game_type.replace("_", " ")}</strong>
-                      <span className={styles.metaHint}>Portable API-first domain model.</span>
+                      <span className={styles.metaHint}>Short session, clear stakes.</span>
                     </div>
                   </div>
                   <div className={styles.cardFooter}>
@@ -233,14 +225,14 @@ export function GamesHomePage() {
                   <div className={styles.sectionHead}>
                     <div>
                       <h2 className={styles.sectionTitle}>Wallet Snapshot</h2>
-                      <p className={styles.sectionCopy}>Shared market and games currency, no second wallet.</p>
+                      <p className={styles.sectionCopy}>Your cash on hand for runs, pulls, and future duels.</p>
                     </div>
                     <FaMoneyBillTrendUp />
                   </div>
                   {accountError ? <div className={`${styles.statusMessage} ${styles.statusWarn}`}>Account warning: {accountError}</div> : null}
                   <strong className={styles.walletValue}>{summary ? fmtNumber(summary.cash_balance, "$") : "Loading…"}</strong>
                   <span className={styles.walletMeta}>
-                    {isLoadingAccount ? "Refreshing games account…" : "Pulled from `/api/games/me/summary`."}
+                    {isLoadingAccount ? "Refreshing…" : "Ready to spend."}
                   </span>
                   <div className={styles.miniGrid}>
                     <div className={styles.miniRow}>
@@ -258,7 +250,7 @@ export function GamesHomePage() {
                   <div className={styles.sectionHead}>
                     <div>
                       <h2 className={styles.sectionTitle}>Equipped Now</h2>
-                      <p className={styles.sectionCopy}>Current cosmetics that can later flow into profile and chat.</p>
+                      <p className={styles.sectionCopy}>Your current look.</p>
                     </div>
                     <HiSparkles />
                   </div>
@@ -278,7 +270,7 @@ export function GamesHomePage() {
                   <div className={styles.sectionHead}>
                     <div>
                       <h2 className={styles.sectionTitle}>Recent Sessions</h2>
-                      <p className={styles.sectionCopy}>Last runs recorded by the games backend.</p>
+                      <p className={styles.sectionCopy}>Your latest activity.</p>
                     </div>
                     <FaClock />
                   </div>
@@ -298,8 +290,7 @@ export function GamesHomePage() {
               <section className={styles.ctaCard}>
                 <h2 className={styles.ctaTitle}>Sign in to light this up.</h2>
                 <p className={styles.ctaCopy}>
-                  The games homepage is public, but wallet state, pulls, inventory, and future PvP all depend on the
-                  same NASFAQ session and cash balance used by the market.
+                  Sign in to spend cash, collect cosmetics, and start climbing the boards.
                 </p>
                 <Link href="/login" className={styles.heroButton}>Sign In</Link>
               </section>
@@ -312,8 +303,7 @@ export function GamesHomePage() {
             <div>
               <h2 className={styles.sectionTitle}>Featured Launch Surface</h2>
               <p className={styles.sectionCopy}>
-                `capsule-gacha` is now the first dedicated `/games/[game]` page. The hub stays focused on discovery,
-                wallet context, and routing into each game-specific surface.
+                Start with Capsule Gacha, then move on to fast score runs and future duels.
               </p>
             </div>
             <FaChartLine />
@@ -327,7 +317,7 @@ export function GamesHomePage() {
                   <span>{capsuleGame ? fmtNumber(capsuleGame.entry_fee_cash, "$") : "$250.00"} per pull</span>
                 </div>
                 <p className={styles.consoleHint}>
-                  Cosmetic-only sink with duplicate compensation, driven by the shared games backend and its own dedicated page.
+                  Pull for cosmetics, turn duplicates into a little cash back, and keep the locker growing.
                 </p>
               </div>
 
@@ -335,17 +325,17 @@ export function GamesHomePage() {
                 <div className={styles.metaCard}>
                   <span className={styles.metaLabel}>Mode</span>
                   <strong className={styles.metaValue}>Single Pull</strong>
-                  <span className={styles.metaHint}>One transactional pull request at a time.</span>
+                  <span className={styles.metaHint}>Quick hit, instant result.</span>
                 </div>
                 <div className={styles.metaCard}>
-                  <span className={styles.metaLabel}>Surface</span>
-                  <strong className={styles.metaValue}>/games/capsule-gacha</strong>
-                  <span className={styles.metaHint}>Portable route that can move into a future games client.</span>
+                  <span className={styles.metaLabel}>Reward</span>
+                  <strong className={styles.metaValue}>Cosmetics</strong>
+                  <span className={styles.metaHint}>Fresh pulls and duplicate refunds.</span>
                 </div>
                 <div className={styles.metaCard}>
                   <span className={styles.metaLabel}>Balance</span>
                   <strong className={styles.metaValue}>{summary ? fmtNumber(summary.cash_balance, "$") : user ? "Loading…" : "Sign in"}</strong>
-                  <span className={styles.metaHint}>Same wallet as `/market`.</span>
+                  <span className={styles.metaHint}>Spend it here.</span>
                 </div>
               </div>
 
@@ -360,7 +350,7 @@ export function GamesHomePage() {
                 <div>
                   <h3 className={styles.sectionTitle}>What Lives There</h3>
                   <p className={styles.sectionCopy}>
-                    The dedicated page owns live pulls, latest result state, and the cosmetic locker slice tied to the gacha loop.
+                    Capsule Gacha is live now with pulls, rewards, and your latest locker updates.
                   </p>
                 </div>
                 <FaPlay />

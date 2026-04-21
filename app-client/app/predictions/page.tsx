@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import { PredictionsPage } from "@/app/components/pages/predictions-page";
 
 export default function Page() {
-  return <PredictionsPage />;
+  return (
+    <Suspense fallback={null}>
+      <PredictionsPage />
+    </Suspense>
+  );
 }

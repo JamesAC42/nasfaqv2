@@ -550,6 +550,56 @@ async function listOpenPredictionOrders(pool, slug) {
   return rows;
 }
 
+async function listUserOpenPredictionOrders(pool, slug, userId) {
+  const { rows } = await pool.query(
+    `
+    SELECT
+      ord.id,
+      ord.market_id,
+      ord.outcome_id,
+      o.outcome_code,
+      o.label AS outcome_label,
+      ord.user_id,
+      ord.side,
+      ord.price,
+      ord.original_quantity AS quantity,
+      ord.open_quantity,
+      ord.matched_quantity,
+      ord.cash_reserved,
+      ord.status,
+      ord.created_at,
+      ord.updated_at
+    FROM market.prediction_market_orders ord
+    JOIN market.prediction_markets pm ON pm.id = ord.market_id
+    JOIN market.prediction_market_outcomes o ON o.id = ord.outcome_id
+    WHERE pm.slug = $1
+      AND ord.user_id = $2
+      AND ord.status IN ('open', 'partially_filled')
+      AND ord.open_quantity > 0
+    ORDER BY ord.created_at DESC, ord.id DESC
+  `,
+    [slug, userId]
+  );
+
+  return rows.map((row) => ({
+    id: Number(row.id || 0),
+    market_id: Number(row.market_id || 0),
+    outcome_id: Number(row.outcome_id || 0),
+    outcome_code: String(row.outcome_code || ""),
+    outcome_label: String(row.outcome_label || ""),
+    user_id: Number(row.user_id || 0),
+    side: String(row.side || "buy"),
+    price: Number(row.price || 0),
+    quantity: Number(row.quantity || 0),
+    open_quantity: Number(row.open_quantity || 0),
+    matched_quantity: Number(row.matched_quantity || 0),
+    cash_reserved: Number(row.cash_reserved || 0),
+    status: String(row.status || "open"),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }));
+}
+
 async function getPredictionOrderBook(pool, slug, { depth = 10 } = {}) {
   const safeDepth = parsePositiveInt(depth, 10, { min: 1, max: 50 });
   const rows = await listOpenPredictionOrders(pool, slug);
@@ -654,6 +704,7 @@ module.exports = {
   getPredictionMarketBySlugForTradingWithClient,
   getPredictionOrderBook,
   listOpenPredictionOrders,
+  listUserOpenPredictionOrders,
   listPredictionOutcomesByMarketIdWithClient,
   listPredictionTrades,
   insertPredictionMarketEventWithClient,

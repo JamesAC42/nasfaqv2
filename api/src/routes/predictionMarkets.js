@@ -1,4 +1,5 @@
 const express = require("express");
+const predictionMarketDb = require("../predictionMarketDb");
 const predictionMarketService = require("../services/predictionMarketService");
 const predictionOrderbook = require("../services/predictionOrderbook");
 const {
@@ -86,6 +87,25 @@ router.get("/:slug/trades", async (req, res, next) => {
       limit: req.query.limit,
     });
     res.json({ slug: req.params.slug, trades });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/:slug/orders/mine", async (req, res, next) => {
+  try {
+    const actor = requireAuthenticatedUser(req);
+    await predictionMarketService.getPredictionMarketDetail(
+      req.ctx.pool,
+      req.params.slug,
+      actor
+    );
+    const orders = await predictionMarketDb.listUserOpenPredictionOrders(
+      req.ctx.pool,
+      req.params.slug,
+      actor.id
+    );
+    res.json({ slug: req.params.slug, orders });
   } catch (error) {
     next(error);
   }

@@ -224,6 +224,29 @@ export type PredictionTradeResponse = {
   trades: PredictionTrade[];
 };
 
+export type PredictionOpenOrder = {
+  id: number;
+  market_id: number;
+  outcome_id: number;
+  outcome_code: "yes" | "no" | string;
+  outcome_label: string;
+  user_id: number;
+  side: "buy" | "sell" | string;
+  price: number;
+  quantity: number;
+  open_quantity: number;
+  matched_quantity: number;
+  cash_reserved: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PredictionOpenOrdersResponse = {
+  slug: string;
+  orders: PredictionOpenOrder[];
+};
+
 export type PredictionCandlePoint = CandlePoint & {
   last?: number | null;
   volume_cash?: number | null;

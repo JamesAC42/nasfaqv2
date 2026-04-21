@@ -5,17 +5,16 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import { FaArrowLeft, FaClock, FaMoneyBillTrendUp, FaPlay, FaUsers } from "react-icons/fa6";
 import { HiSparkles } from "react-icons/hi2";
 import { SiteShell } from "@/app/components/layout/site-shell";
-import { apiFetch } from "@/app/lib/api";
 import { fmtDate, fmtNumber } from "@/app/lib/format";
 import {
-  normalizeGameCatalogEntry,
-  normalizeGameInventoryResponse,
-  normalizeGamesSummary,
-  normalizeGachaPullResult,
-  normalizeTickerTapLeaderboardResponse,
-  normalizeTickerTapSessionCreateResponse,
-  normalizeTickerTapSubmitResponse,
-} from "@/app/lib/normalizers";
+  createTickerTapSession,
+  fetchGameCatalogEntry,
+  fetchGamesInventory,
+  fetchGamesSummary,
+  fetchTickerTapLeaderboard,
+  pullCapsuleGacha,
+  submitTickerTapSession,
+} from "@/app/lib/games-api";
 import type {
   GameCatalogEntry,
   GameInventoryResponse,
@@ -109,9 +108,9 @@ function priceLine(game: GameCatalogEntry) {
 function placeholderCopy(game: GameCatalogEntry | null) {
   if (!game) return "Game unavailable.";
   if (game.key === "prediction-duel") {
-    return "Prediction Duel stays in draft while the asynchronous stake-match flow is built out on the backend and then surfaced here.";
+    return "Prediction Duel is still in development.";
   }
-  return "This game does not have a dedicated frontend surface yet.";
+  return "This game is still in development.";
 }
 
 function tickerAccuracy(hits: number, misses: number) {
@@ -162,12 +161,9 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
     setIsLoadingAccount(true);
     setAccountError(null);
     try {
-      const [summaryResult, inventoryResult] = await Promise.all([
-        apiFetch<Record<string, unknown>>("/api/games/me/summary", { cache: "no-store" }),
-        apiFetch<Record<string, unknown>>("/api/games/me/inventory", { cache: "no-store" }),
-      ]);
-      setSummary(normalizeGamesSummary(summaryResult));
-      setInventory(normalizeGameInventoryResponse(inventoryResult));
+      const [summaryResult, inventoryResult] = await Promise.all([fetchGamesSummary(), fetchGamesInventory()]);
+      setSummary(summaryResult);
+      setInventory(inventoryResult);
     } catch (error) {
       setAccountError(String((error as Error).message || error));
     } finally {
@@ -180,8 +176,7 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
     setIsLoadingTickerTapBoard(true);
     setTickerTapBoardError(null);
     try {
-      const result = await apiFetch<Record<string, unknown>>("/api/games/ticker-tap/leaderboard", { cache: "no-store" });
-      setTickerTapBoard(normalizeTickerTapLeaderboardResponse(result));
+      setTickerTapBoard(await fetchTickerTapLeaderboard());
     } catch (error) {
       setTickerTapBoardError(String((error as Error).message || error));
     } finally {
@@ -193,11 +188,7 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
     setIsPulling(true);
     setPullError(null);
     try {
-      const result = await apiFetch<Record<string, unknown>>("/api/games/capsule-gacha/pull", {
-        method: "POST",
-        body: JSON.stringify({ count: 1 }),
-      });
-      setLatestPull(normalizeGachaPullResult(result));
+      setLatestPull(await pullCapsuleGacha(1));
       await loadAccount();
     } catch (error) {
       setPullError(String((error as Error).message || error));
@@ -215,10 +206,7 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
     }));
 
     try {
-      const result = await apiFetch<Record<string, unknown>>("/api/games/ticker-tap/sessions", {
-        method: "POST",
-      });
-      const normalized = normalizeTickerTapSessionCreateResponse(result);
+      const normalized = await createTickerTapSession();
       tickerTapSubmitRequestedRef.current = false;
       setTickerTapRun({
         phase: "running",
@@ -255,17 +243,13 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
     }));
 
     try {
-      const result = await apiFetch<Record<string, unknown>>(`/api/games/ticker-tap/sessions/${currentRun.sessionId}/submit`, {
-        method: "POST",
-        body: JSON.stringify({
-          hits: currentRun.hits,
-          misses: currentRun.misses,
-          max_streak: currentRun.maxStreak,
-          duration_ms: Math.max(currentRun.elapsedMs, currentRun.config.run_duration_seconds * 1000),
-          taps: currentRun.taps,
-        }),
+      const normalized = await submitTickerTapSession(currentRun.sessionId, {
+        hits: currentRun.hits,
+        misses: currentRun.misses,
+        max_streak: currentRun.maxStreak,
+        duration_ms: Math.max(currentRun.elapsedMs, currentRun.config.run_duration_seconds * 1000),
+        taps: currentRun.taps,
       });
-      const normalized = normalizeTickerTapSubmitResponse(result);
       setTickerTapRun((current) => ({
         ...current,
         phase: "completed",
@@ -326,9 +310,8 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
       setIsLoadingGame(true);
       setGameError(null);
       try {
-        const result = await apiFetch<Record<string, unknown>>(`/api/games/catalog/${encodeURIComponent(gameKey)}`, { cache: "no-store" });
         if (cancelled) return;
-        setGame(normalizeGameCatalogEntry(((result.game || {}) as Record<string, unknown>)));
+        setGame(await fetchGameCatalogEntry(gameKey));
       } catch (error) {
         if (cancelled) return;
         setGameError(String((error as Error).message || error));
@@ -470,7 +453,7 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
           <div>
             <h1 className={styles.heroTitle}>{game?.name || (isLoadingGame ? "Loading game…" : "Game not found")}</h1>
             <p className={styles.heroCopy}>
-              {game?.description || "This page is the dedicated surface for a specific NASFAQ game. It consumes the same `/api/games/*` contract the hub uses."}
+              {game?.description || "Step in, spend some cash, and chase a better run."}
             </p>
           </div>
 
@@ -479,17 +462,17 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
               <div className={styles.metaCard}>
                 <span className={styles.metaLabel}>Entry</span>
                 <strong className={styles.metaValue}>{priceLine(game)}</strong>
-                <span className={styles.metaHint}>Shared wallet, no second currency.</span>
+                <span className={styles.metaHint}>Paid from your NASFAQ balance.</span>
               </div>
               <div className={styles.metaCard}>
-                <span className={styles.metaLabel}>Game Key</span>
-                <strong className={styles.metaValue}>{game.key}</strong>
-                <span className={styles.metaHint}>Portable route and backend contract.</span>
+                <span className={styles.metaLabel}>Mode</span>
+                <strong className={styles.metaValue}>{typeLabel(game.game_type)}</strong>
+                <span className={styles.metaHint}>Jump in and make it count.</span>
               </div>
               <div className={styles.metaCard}>
                 <span className={styles.metaLabel}>Wallet</span>
                 <strong className={styles.metaValue}>{summary ? fmtNumber(summary.cash_balance, "$") : user ? "Loading…" : "Sign in"}</strong>
-                <span className={styles.metaHint}>Same balance used across NASFAQ.</span>
+                <span className={styles.metaHint}>Ready for your next shot.</span>
               </div>
             </div>
           ) : null}
@@ -502,7 +485,7 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
                 <div>
                   <h2 className={styles.sectionTitle}>Live Pull Console</h2>
                   <p className={styles.sectionCopy}>
-                    Pulls are resolved server-side. Cash is debited from the shared NASFAQ wallet, cosmetics are granted or duplicate compensation is paid back, and the result is stored in the games backend.
+                    Crack open capsules, grow your locker, and turn duplicates into a little cash back.
                   </p>
                 </div>
                 <HiSparkles />
@@ -514,7 +497,7 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
                   <span>{fmtNumber(game.entry_fee_cash, "$")} per pull</span>
                 </div>
                 <p className={styles.consoleCopy}>
-                  Cosmetic-only sink. Duplicate pulls convert into cash compensation instead of burning the outcome.
+                  Every pull costs cash. Some hits grow your collection, and duplicates soften the blow.
                 </p>
 
                 {pullError ? <div className={`${styles.statusMessage} ${styles.statusError}`}>Pull failed: {pullError}</div> : null}
@@ -578,7 +561,7 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
               <div className={styles.sectionHead}>
                 <div>
                   <h2 className={styles.sectionTitle}>Locker Slice</h2>
-                  <p className={styles.sectionCopy}>Recent cosmetics and sessions tied to the same shared game account.</p>
+                  <p className={styles.sectionCopy}>Your newest drops and recent pulls.</p>
                 </div>
                 <FaClock />
               </div>
@@ -606,7 +589,7 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
               <div className={styles.sectionHead}>
                 <div>
                   <h3 className={styles.sectionTitle}>Recent Sessions</h3>
-                  <p className={styles.sectionCopy}>Only this game’s session history.</p>
+                  <p className={styles.sectionCopy}>Your latest capsule runs.</p>
                 </div>
                 <FaClock />
               </div>
@@ -630,7 +613,7 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
                 <div>
                   <h2 className={styles.sectionTitle}>Run Console</h2>
                   <p className={styles.sectionCopy}>
-                    Each run is a paid backend session. The server creates the seed and target timeline, debits your wallet up front, and scores the submitted run when time expires.
+                    Buy in, stay sharp, and clear as many targets as you can before the clock hits zero.
                   </p>
                 </div>
                 <FaPlay />
@@ -642,7 +625,7 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
                   <span>{fmtNumber(game.entry_fee_cash, "$")} per run</span>
                 </div>
                 <p className={styles.consoleCopy}>
-                  Press the numbered lanes or use keys `1-{tickerTapLaneCount}`. This stays client-portable because the only dependency is the `/api/games/ticker-tap/*` contract.
+                  Tap the numbered lanes or use keys `1-{tickerTapLaneCount}`. Misses cost rhythm, streaks build score.
                 </p>
 
                 {tickerTapError ? <div className={`${styles.statusMessage} ${styles.statusError}`}>Run error: {tickerTapError}</div> : null}
@@ -697,7 +680,7 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
                   <div>
                     <h3 className={styles.sectionTitle}>Ticker Grid</h3>
                     <p className={styles.sectionCopy}>
-                      Live targets fall through each lane for {tickerTapConfig?.run_duration_seconds || 45}s. Missed taps reduce accuracy; only server-submitted runs hit the leaderboard.
+                      Targets drop fast for {tickerTapConfig?.run_duration_seconds || 45}s. Hit clean, keep the streak alive, and climb the board.
                     </p>
                   </div>
                   <FaClock />
@@ -747,8 +730,8 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
                     <h3 className={styles.sectionTitle}>Run Result</h3>
                     <p className={styles.sectionCopy}>
                       {tickerTapRun.result
-                        ? "The score below is the server-accepted result for the most recent completed run."
-                        : "Start a run to generate a score and push a completed session into history."}
+                        ? "Your latest completed run."
+                        : "Your score card will show up here after a run."}
                     </p>
                   </div>
                   <FaMoneyBillTrendUp />
@@ -759,7 +742,7 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
                     <span className={styles.scoreKicker}>Server Score</span>
                     <h4 className={styles.scoreValue}>{fmtNumber(tickerTapRun.result.session.score)}</h4>
                     <span className={styles.scoreMeta}>
-                      Completed {fmtDate(tickerTapRun.result.session.completed_at)} · Accuracy {(tickerTapRun.result.result.submission.accuracy * 100).toFixed(0)}%
+                      Finished {fmtDate(tickerTapRun.result.session.completed_at)} · Accuracy {(tickerTapRun.result.result.submission.accuracy * 100).toFixed(0)}%
                     </span>
                   </div>
                 ) : (
@@ -785,7 +768,7 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
               <div className={styles.sectionHead}>
                 <div>
                   <h2 className={styles.sectionTitle}>Run Board</h2>
-                  <p className={styles.sectionCopy}>Recent best runs from the shared NASFAQ population.</p>
+                  <p className={styles.sectionCopy}>Recent best scores from across NASFAQ.</p>
                 </div>
                 <FaUsers />
               </div>
@@ -826,7 +809,7 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
               <div className={styles.sectionHead}>
                 <div>
                   <h3 className={styles.sectionTitle}>Recent Sessions</h3>
-                  <p className={styles.sectionCopy}>Completed and active sessions for this game.</p>
+                  <p className={styles.sectionCopy}>Your latest runs.</p>
                 </div>
                 <FaClock />
               </div>
@@ -847,7 +830,7 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
           <section className={styles.placeholder}>
             <div className={styles.sectionHead}>
               <div>
-                <h2 className={styles.sectionTitle}>Surface Status</h2>
+                <h2 className={styles.sectionTitle}>Coming Soon</h2>
                 <p className={styles.sectionCopy}>{placeholderCopy(game)}</p>
               </div>
               {game?.game_type === "pvp" ? <FaUsers /> : <FaPlay />}
@@ -855,8 +838,8 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
 
             <div className={`${styles.statusMessage} ${styles.statusNeutral}`}>
               {game?.status === "draft"
-                ? "This page is intentionally ahead of the fully playable UI so the route structure is stable before the next game surfaces land."
-                : "The route is live, but the interactive client surface is still queued."}
+                ? "This game is still in development."
+                : "This game is almost ready."}
             </div>
 
             <Link href="/games" className={styles.actionLink}>Back to games hub</Link>

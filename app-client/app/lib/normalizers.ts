@@ -53,6 +53,8 @@ import {
   type PredictionMarket,
   type PredictionMarketDetailResponse,
   type PredictionMarketListResponse,
+  type PredictionOpenOrder,
+  type PredictionOpenOrdersResponse,
   type PredictionOrderBook,
   type PredictionOrderBookLevel,
   type PredictionOrderBookResponse,
@@ -282,6 +284,37 @@ export function normalizePredictionTradeResponse(value: Record<string, unknown>)
           };
         })
         .filter((trade): trade is PredictionTrade => trade !== null)
+      : [],
+  };
+}
+
+export function normalizePredictionOpenOrdersResponse(value: Record<string, unknown>): PredictionOpenOrdersResponse {
+  return {
+    slug: String(value.slug || ""),
+    orders: Array.isArray(value.orders)
+      ? value.orders
+        .map((order) => {
+          const row = order && typeof order === "object" ? order as Record<string, unknown> : null;
+          if (!row) return null;
+          return {
+            id: Number(row.id || 0),
+            market_id: Number(row.market_id || 0),
+            outcome_id: Number(row.outcome_id || 0),
+            outcome_code: String(row.outcome_code || ""),
+            outcome_label: String(row.outcome_label || ""),
+            user_id: Number(row.user_id || 0),
+            side: String(row.side || "buy"),
+            price: Number(toNumber(row.price) || 0),
+            quantity: Number(toNumber(row.quantity) || 0),
+            open_quantity: Number(toNumber(row.open_quantity) || 0),
+            matched_quantity: Number(toNumber(row.matched_quantity) || 0),
+            cash_reserved: Number(toNumber(row.cash_reserved) || 0),
+            status: String(row.status || "open"),
+            created_at: String(row.created_at || ""),
+            updated_at: String(row.updated_at || ""),
+          };
+        })
+        .filter((order): order is PredictionOpenOrder => order !== null)
       : [],
   };
 }

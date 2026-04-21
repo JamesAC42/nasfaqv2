@@ -94,6 +94,53 @@
   flex-wrap: wrap;
 }
 
+.formGrid,
+.tradeForm {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.field > span {
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+.fieldWide {
+  grid-column: 1 / -1;
+}
+
+.input,
+.textarea,
+.inlineInput {
+  @include input-base;
+}
+
+.textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.formActions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.primaryButton {
+  @include button-primary;
+}
+
+.secondaryButton {
+  @include button-secondary;
+}
+
 .controlGroup {
   display: flex;
   gap: 0.65rem;
@@ -136,6 +183,7 @@
 }
 
 .select {
+  @include input-base;
   border: 1px solid var(--border-soft);
   background: var(--surface-card);
   color: var(--text);
@@ -314,6 +362,22 @@
 .detailStack {
   display: grid;
   gap: 1rem;
+}
+
+.actionRail {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.actionButtons {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.inlineInput {
+  width: min(22rem, 100%);
 }
 
 .detailHero {
@@ -567,6 +631,8 @@
 }
 
 @media (max-width: 820px) {
+  .formGrid,
+  .tradeForm,
   .metricStrip,
   .statGrid,
   .orderbookGrid,
