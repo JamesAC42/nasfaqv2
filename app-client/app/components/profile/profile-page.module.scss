@@ -116,10 +116,36 @@
 }
 
 .title {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(2.2rem, 4.4vw, 3.2rem);
-  line-height: 1.05;
+  font-size: clamp(1.8rem, 3.3vw, 2.55rem);
+  line-height: 1.08;
+  max-width: 100%;
+}
+
+.usernameText {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.verifiedBadge {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, #22c55e 78%, var(--profile-accent));
+  color: #fff;
+  font-size: 0.78rem;
+  box-shadow: 0 0 0 0.18rem color-mix(in srgb, #22c55e 18%, transparent);
 }
 
 .bio {
@@ -300,6 +326,10 @@
   gap: 1rem;
 }
 
+.settingsGrid > .fieldStack:first-child {
+  grid-column: 1 / -1;
+}
+
 .settingsSide,
 .fieldStack {
   display: grid;
@@ -313,8 +343,12 @@
   letter-spacing: 0.06em;
 }
 
+.input,
 .textarea {
   @include input-base;
+}
+
+.textarea {
   min-height: 8.5rem;
   resize: vertical;
 }

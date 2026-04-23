@@ -8,6 +8,16 @@ function requireAuthenticatedUser(req) {
   return user;
 }
 
+function requireVerifiedUser(req) {
+  const user = requireAuthenticatedUser(req);
+  if (!user.email_verified) {
+    const error = new Error("email_verification_required");
+    error.code = "email_verification_required";
+    throw error;
+  }
+  return user;
+}
+
 function canManagePredictionMarkets(user) {
   return Boolean(
     user?.is_admin
@@ -19,7 +29,7 @@ function canManagePredictionMarkets(user) {
 }
 
 function requirePredictionCreator(req) {
-  const user = requireAuthenticatedUser(req);
+  const user = requireVerifiedUser(req);
   if (!user.is_admin && !user.can_create_prediction_markets) {
     const error = new Error("forbidden");
     error.code = "forbidden";
@@ -61,6 +71,7 @@ function requirePredictionVoider(req) {
 module.exports = {
   canManagePredictionMarkets,
   requireAuthenticatedUser,
+  requireVerifiedUser,
   requirePredictionApprover,
   requirePredictionCreator,
   requirePredictionResolver,

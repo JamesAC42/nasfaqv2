@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { FaArrowTrendUp, FaClock, FaScaleBalanced, FaShieldHalved } from "react-icons/fa6";
 import { TrendChartCard } from "@/app/components/charts/market-charts";
+import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { fmtDate, fmtInteger, fmtNumber, fmtPct } from "@/app/lib/format";
@@ -249,10 +250,12 @@ function OpenOrdersList({
   orders,
   onCancel,
   busyOrderId,
+  actionsDisabled = false,
 }: {
   orders: PredictionOpenOrder[];
   onCancel: (orderId: number) => Promise<void>;
   busyOrderId: number | null;
+  actionsDisabled?: boolean;
 }) {
   return (
     <div className={styles.tradeList}>
@@ -267,7 +270,7 @@ function OpenOrdersList({
               type="button"
               className={styles.secondaryButton}
               onClick={() => void onCancel(order.id)}
-              disabled={busyOrderId === order.id}
+              disabled={actionsDisabled || busyOrderId === order.id}
             >
               {busyOrderId === order.id ? "Cancelling…" : "Cancel"}
             </button>
@@ -459,6 +462,10 @@ export function PredictionsPage() {
 
   async function handleCreateMarket(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (userNeedsEmailVerification(user)) {
+      setCreateError("Verify your email before you can create prediction markets.");
+      return;
+    }
     setCreateBusy(true);
     setCreateError(null);
     setCreateMessage(null);
@@ -487,6 +494,10 @@ export function PredictionsPage() {
 
   async function handleLifecycleAction(kind: "submit" | "approve" | "reject") {
     if (!detail) return;
+    if (kind === "submit" && userNeedsEmailVerification(user)) {
+      setActionError("Verify your email before you can submit prediction markets for approval.");
+      return;
+    }
     setActionBusy(kind);
     setActionError(null);
     setActionMessage(null);
@@ -516,6 +527,10 @@ export function PredictionsPage() {
   async function handlePlaceOrder(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!detail) return;
+    if (userNeedsEmailVerification(user)) {
+      setOrderError("Verify your email before you can trade prediction markets.");
+      return;
+    }
     setOrderBusy(true);
     setOrderError(null);
     setOrderMessage(null);
@@ -541,6 +556,10 @@ export function PredictionsPage() {
 
   async function handleCancelOrder(orderId: number) {
     if (!detail) return;
+    if (userNeedsEmailVerification(user)) {
+      setOrderError("Verify your email before you can cancel prediction market orders.");
+      return;
+    }
     setCancelBusyOrderId(orderId);
     setOrderError(null);
     setOrderMessage(null);
@@ -560,7 +579,8 @@ export function PredictionsPage() {
 
   const canSubmit = Boolean(detail?.market.viewer_permissions?.can_submit_for_approval);
   const canApprove = Boolean(detail?.market.viewer_permissions?.can_approve);
-  const canTrade = Boolean(user && detail?.market.status === "open" && detail.market.trading_status === "open");
+  const needsVerification = userNeedsEmailVerification(user);
+  const canTrade = Boolean(user && !needsVerification && detail?.market.status === "open" && detail.market.trading_status === "open");
 
   return (
     <SiteShell>
@@ -631,6 +651,7 @@ export function PredictionsPage() {
             </div>
             {createError ? <div className="statusMessage statusMessageError">{createError}</div> : null}
             {createMessage ? <div className="statusMessage statusMessageSuccess">{createMessage}</div> : null}
+            {needsVerification ? <VerificationRequiredNotice action="create prediction markets" /> : null}
             <form className={styles.formGrid} onSubmit={handleCreateMarket}>
               <label className={styles.field}>
                 <span>Title</span>
@@ -677,7 +698,7 @@ export function PredictionsPage() {
                 <input className={styles.input} type="datetime-local" value={createForm.resolves_after} onChange={(event) => setCreateForm((current) => ({ ...current, resolves_after: event.target.value }))} required />
               </label>
               <div className={styles.formActions}>
-                <button type="submit" className={styles.primaryButton} disabled={createBusy}>
+                <button type="submit" className={styles.primaryButton} disabled={createBusy || needsVerification}>
                   {createBusy ? "Creating…" : "Create draft market"}
                 </button>
               </div>
@@ -793,7 +814,7 @@ export function PredictionsPage() {
                         {actionMessage ? <div className="statusMessage statusMessageSuccess">{actionMessage}</div> : null}
                         <div className={styles.actionButtons}>
                           {canSubmit ? (
-                            <button type="button" className={styles.primaryButton} disabled={actionBusy !== null} onClick={() => void handleLifecycleAction("submit")}>
+                            <button type="button" className={styles.primaryButton} disabled={actionBusy !== null || needsVerification} onClick={() => void handleLifecycleAction("submit")}>
                               {actionBusy === "submit" ? "Submitting…" : "Submit for approval"}
                             </button>
                           ) : null}
@@ -874,6 +895,7 @@ export function PredictionsPage() {
                     </div>
                     {orderError ? <div className="statusMessage statusMessageError">{orderError}</div> : null}
                     {orderMessage ? <div className="statusMessage statusMessageSuccess">{orderMessage}</div> : null}
+                    {needsVerification ? <VerificationRequiredNotice action="trade prediction markets" /> : null}
                     <form className={styles.tradeForm} onSubmit={handlePlaceOrder}>
                       <label className={styles.field}>
                         <span>Outcome</span>
@@ -945,7 +967,7 @@ export function PredictionsPage() {
                         <p className={styles.panelCopy}>Resting orders you can currently cancel from this market.</p>
                       </div>
                     </div>
-                    <OpenOrdersList orders={detail.openOrders} onCancel={handleCancelOrder} busyOrderId={cancelBusyOrderId} />
+                    <OpenOrdersList orders={detail.openOrders} onCancel={handleCancelOrder} busyOrderId={cancelBusyOrderId} actionsDisabled={needsVerification} />
                   </section>
                 ) : null}
 

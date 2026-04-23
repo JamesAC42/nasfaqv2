@@ -1571,6 +1571,7 @@ export function normalizeProfileBundle(value: Record<string, unknown>): ProfileB
     profile: {
       id: Number(profile?.id || 0),
       username: String(profile?.username || ""),
+      email_verified: Boolean(profile?.email_verified),
       created_at: String(profile?.created_at || ""),
       bio: profile?.bio ? String(profile.bio) : null,
       profile_picture_url: profile?.profile_picture_url ? String(profile.profile_picture_url) : null,

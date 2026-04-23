@@ -1,6 +1,6 @@
 const express = require("express");
 const articleDb = require("../articleDb");
-const { requireAdmin, requireUserId } = require("../userContext");
+const { requireAdmin, requireUserId, requireVerifiedUserId } = require("../userContext");
 
 const router = express.Router();
 
@@ -49,7 +49,7 @@ router.get("/", async (req, res, next) => {
 
 router.post("/", async (req, res, next) => {
   try {
-    const userId = requireUserId(req);
+    const userId = requireVerifiedUserId(req);
     const created = await articleDb.createArticle(req.ctx.pool, {
       title: req.body?.title,
       subtitle: req.body?.subtitle,
@@ -110,7 +110,7 @@ router.post("/:slug/view", async (req, res, next) => {
 
 router.put("/:slug", async (req, res, next) => {
   try {
-    const userId = requireUserId(req);
+    const userId = requireVerifiedUserId(req);
     const ownership = await articleDb.getArticleOwnership(req.ctx.pool, req.params.slug);
     if (!ownership) return res.status(404).json({ error: "article_not_found" });
     if (!req.ctx.user?.is_admin && ownership.author_id !== userId) {
@@ -134,7 +134,7 @@ router.put("/:slug", async (req, res, next) => {
 
 router.post("/:slug/comments", async (req, res, next) => {
   try {
-    const userId = requireUserId(req);
+    const userId = requireVerifiedUserId(req);
     await articleDb.createComment(req.ctx.pool, req.params.slug, userId, req.body?.body, req.body?.mood);
     const article = await articleDb.getArticleBySlug(req.ctx.pool, req.params.slug, userId, true);
     res.status(201).json({ article });
@@ -145,7 +145,7 @@ router.post("/:slug/comments", async (req, res, next) => {
 
 router.post("/:slug/like", async (req, res, next) => {
   try {
-    const userId = requireUserId(req);
+    const userId = requireVerifiedUserId(req);
     const active = await articleDb.toggleArticlePreference(req.ctx.pool, req.params.slug, userId, "like");
     const article = await articleDb.getArticleBySlug(req.ctx.pool, req.params.slug, userId, true);
     res.json({ active, article });
@@ -156,7 +156,7 @@ router.post("/:slug/like", async (req, res, next) => {
 
 router.post("/:slug/save", async (req, res, next) => {
   try {
-    const userId = requireUserId(req);
+    const userId = requireVerifiedUserId(req);
     const active = await articleDb.toggleArticlePreference(req.ctx.pool, req.params.slug, userId, "save");
     const article = await articleDb.getArticleBySlug(req.ctx.pool, req.params.slug, userId, true);
     res.json({ active, article });
@@ -167,7 +167,7 @@ router.post("/:slug/save", async (req, res, next) => {
 
 router.post("/:slug/proposals", async (req, res, next) => {
   try {
-    const userId = requireUserId(req);
+    const userId = requireVerifiedUserId(req);
     await articleDb.createProposal(req.ctx.pool, req.params.slug, userId, {
       title: req.body?.title,
       subtitle: req.body?.subtitle,

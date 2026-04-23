@@ -26,6 +26,7 @@ import {
   FaThumbsUp,
 } from "react-icons/fa6";
 import { ChannelTickerPill } from "@/app/components/common/channel-ticker-pill";
+import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { fmtInteger } from "@/app/lib/format";
@@ -246,6 +247,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
   const [proposalVoteBusyId, setProposalVoteBusyId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const effectTimeoutRef = useRef<number | null>(null);
+  const needsVerification = userNeedsEmailVerification(user);
 
   const canEdit = useMemo(
     () => Boolean(user && article && !article.is_news && (user.is_admin || user.id === article.author?.id)),
@@ -345,6 +347,10 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
   }
 
   async function handlePreference(kind: "like" | "save") {
+    if (needsVerification) {
+      setError("Verify your email before you can react to articles.");
+      return;
+    }
     const result = await apiFetch<{ article: Record<string, unknown> }>(`/api/articles/${encodeURIComponent(slug)}/${kind}`, {
       method: "POST",
       body: "{}",
@@ -355,6 +361,10 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
 
   async function handleProposalVote(proposal: ArticleProposal, value: 1 | -1) {
     if (!user) return;
+    if (needsVerification) {
+      setError("Verify your email before you can vote on proposals.");
+      return;
+    }
     setProposalVoteBusyId(proposal.id);
     try {
       const result = await apiFetch<{ article: Record<string, unknown> }>(
@@ -373,6 +383,10 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
   async function handleCommentSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!commentBody.trim()) return;
+    if (needsVerification) {
+      setError("Verify your email before you can comment.");
+      return;
+    }
     setIsSubmittingComment(true);
     try {
       const result = await apiFetch<{ article: Record<string, unknown> }>(`/api/articles/${encodeURIComponent(slug)}/comments`, {
@@ -390,6 +404,10 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
   async function handleProposalSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!proposalContent.trim()) return;
+    if (needsVerification) {
+      setError("Verify your email before you can submit article proposals.");
+      return;
+    }
     setIsSubmittingProposal(true);
     try {
       const result = await apiFetch<{ article: Record<string, unknown> }>(`/api/articles/${encodeURIComponent(slug)}/proposals`, {
@@ -528,7 +546,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                     type="button"
                     className={`${styles.actionButton} ${article.viewer_has_liked ? styles.actionButtonOn : ""} ${activeEffect === "like" ? styles.actionButtonBurst : ""}`.trim()}
                     onClick={() => void handlePreference("like")}
-                    disabled={!user}
+                    disabled={!user || needsVerification}
                   >
                     <span className={styles.actionIcon}>
                       {article.viewer_has_liked ? <FaHeart aria-hidden="true" /> : <FaRegHeart aria-hidden="true" />}
@@ -540,7 +558,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                     type="button"
                     className={`${styles.secondaryButton} ${article.viewer_has_saved ? styles.secondaryButtonOn : ""} ${activeEffect === "save" ? styles.actionButtonBurst : ""}`.trim()}
                     onClick={() => void handlePreference("save")}
-                    disabled={!user}
+                    disabled={!user || needsVerification}
                   >
                     <span className={styles.actionIcon}>
                       {article.viewer_has_saved ? <FaBookmark aria-hidden="true" /> : <FaRegBookmark aria-hidden="true" />}
@@ -551,6 +569,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                   {canEdit ? <Link href={`/articles/${encodeURIComponent(article.slug)}/edit`} className={styles.toolbarLink}>Edit article</Link> : null}
                 </div>
                 {!user ? <p className={styles.helperText}>Sign in to like, save, comment, or react to coverage proposals.</p> : null}
+                {needsVerification ? <VerificationRequiredNotice action="like, save, comment, or react to coverage proposals" compact /> : null}
               </div>
             </section>
 
@@ -669,7 +688,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                                     type="button"
                                     className={`${styles.secondaryButton} ${proposal.viewer_vote === 1 ? styles.secondaryButtonOn : ""}`.trim()}
                                     onClick={() => void handleProposalVote(proposal, 1)}
-                                    disabled={!user || voteIsBusy}
+                                    disabled={!user || needsVerification || voteIsBusy}
                                   >
                                     <FaThumbsUp aria-hidden="true" />
                                     <span>{fmtInteger(proposal.upvotes)}</span>
@@ -678,7 +697,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                                     type="button"
                                     className={`${styles.secondaryButton} ${proposal.viewer_vote === -1 ? styles.secondaryButtonOn : ""}`.trim()}
                                     onClick={() => void handleProposalVote(proposal, -1)}
-                                    disabled={!user || voteIsBusy}
+                                    disabled={!user || needsVerification || voteIsBusy}
                                   >
                                     <FaThumbsDown aria-hidden="true" />
                                     <span>{fmtInteger(proposal.downvotes)}</span>
@@ -740,7 +759,9 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                     </div>
                   </div>
 
-                  {user ? (
+                  {user && needsVerification ? (
+                    <VerificationRequiredNotice action="submit article proposals" />
+                  ) : user ? (
                     <section className={styles.detailCard} id="write-proposal">
                       <div>
                         <h3 className={styles.sectionTitle}>{hasPublishedBody ? "Submit an alternate draft" : "Write the first draft"}</h3>
@@ -770,7 +791,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                           <textarea className={styles.textarea} value={proposalContent} onChange={(event) => setProposalContent(event.target.value)} placeholder="Write the article body you want the admin to approve." />
                         </label>
                         <div className={styles.actionRow}>
-                          <button type="submit" className={styles.primaryButton} disabled={isSubmittingProposal || !proposalContent.trim()}>
+                          <button type="submit" className={styles.primaryButton} disabled={needsVerification || isSubmittingProposal || !proposalContent.trim()}>
                             {isSubmittingProposal ? "Submitting…" : "Submit proposal"}
                           </button>
                         </div>
@@ -787,7 +808,9 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                   <h2 className={styles.sectionTitle}>Comments</h2>
                   <p className={styles.sectionCopy}>{formatCountLabel(article.comment_count, "comment")} total</p>
                 </div>
-                {user ? (
+                {user && needsVerification ? (
+                  <VerificationRequiredNotice action="comment" />
+                ) : user ? (
                   <form className={styles.commentComposer} onSubmit={handleCommentSubmit}>
                     <div className={`${styles.field} ${styles.commentComposerMoodField}`}>
                       <span className={styles.fieldLabel}>Mood</span>
@@ -831,7 +854,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                         />
                       </label>
                       <div className={styles.commentComposerActions}>
-                        <button type="submit" className={styles.primaryButton} disabled={isSubmittingComment || !commentBody.trim()}>
+                        <button type="submit" className={styles.primaryButton} disabled={needsVerification || isSubmittingComment || !commentBody.trim()}>
                           {isSubmittingComment ? "Posting…" : "Post comment"}
                         </button>
                       </div>
@@ -977,7 +1000,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                                         type="button"
                                         className={`${styles.secondaryButton} ${proposal.viewer_vote === 1 ? styles.secondaryButtonOn : ""}`.trim()}
                                         onClick={() => void handleProposalVote(proposal, 1)}
-                                        disabled={!user || voteIsBusy}
+                                        disabled={!user || needsVerification || voteIsBusy}
                                       >
                                         <FaThumbsUp aria-hidden="true" />
                                         <span>{fmtInteger(proposal.upvotes)}</span>
@@ -986,7 +1009,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                                         type="button"
                                         className={`${styles.secondaryButton} ${proposal.viewer_vote === -1 ? styles.secondaryButtonOn : ""}`.trim()}
                                         onClick={() => void handleProposalVote(proposal, -1)}
-                                        disabled={!user || voteIsBusy}
+                                        disabled={!user || needsVerification || voteIsBusy}
                                       >
                                         <FaThumbsDown aria-hidden="true" />
                                         <span>{fmtInteger(proposal.downvotes)}</span>
@@ -1055,6 +1078,10 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                           )}
                         </div>
                       </div>
+                    ) : user && needsVerification ? (
+                      <div className={styles.coverageOverlayDraftPane}>
+                        <VerificationRequiredNotice action="submit article proposals" />
+                      </div>
                     ) : user ? (
                       <section className={styles.coverageOverlayDraftPane}>
                         <div className={styles.coverageOverlayDraftIntro}>
@@ -1085,7 +1112,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                             <textarea className={styles.textarea} value={proposalContent} onChange={(event) => setProposalContent(event.target.value)} placeholder="Write the article body you want the admin to approve." />
                           </label>
                           <div className={styles.actionRow}>
-                            <button type="submit" className={styles.primaryButton} disabled={isSubmittingProposal || !proposalContent.trim()}>
+                            <button type="submit" className={styles.primaryButton} disabled={needsVerification || isSubmittingProposal || !proposalContent.trim()}>
                               {isSubmittingProposal ? "Submitting…" : "Submit proposal"}
                             </button>
                           </div>

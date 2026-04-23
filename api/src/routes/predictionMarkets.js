@@ -6,6 +6,7 @@ const {
   requireAuthenticatedUser,
   requirePredictionApprover,
   requirePredictionCreator,
+  requireVerifiedUser,
 } = require("../services/predictionPermissions");
 
 const router = express.Router();
@@ -146,7 +147,7 @@ router.post("/", async (req, res, next) => {
 
 router.post("/:slug/orders", async (req, res, next) => {
   try {
-    const actor = requireAuthenticatedUser(req);
+    const actor = requireVerifiedUser(req);
     const result = await predictionOrderbook.placePredictionOrder(req.ctx.pool, {
       userId: actor.id,
       slug: req.params.slug,
@@ -163,7 +164,7 @@ router.post("/:slug/orders", async (req, res, next) => {
 
 router.delete("/:slug/orders/:orderId", async (req, res, next) => {
   try {
-    const actor = requireAuthenticatedUser(req);
+    const actor = requireVerifiedUser(req);
     const orderId = parseId(req.params.orderId);
     if (!orderId) return res.status(400).json({ error: "invalid_prediction_market_order" });
     const result = await predictionOrderbook.cancelPredictionOrder(req.ctx.pool, {
@@ -179,7 +180,7 @@ router.delete("/:slug/orders/:orderId", async (req, res, next) => {
 
 router.post("/:id/submit", async (req, res, next) => {
   try {
-    const actor = requireAuthenticatedUser(req);
+    const actor = requireVerifiedUser(req);
     const marketId = parseId(req.params.id);
     if (!marketId) return res.status(400).json({ error: "invalid_prediction_market" });
     const market = await predictionMarketService.submitPredictionMarket(req.ctx.pool, marketId, actor);

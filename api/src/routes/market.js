@@ -15,7 +15,7 @@ const {
 } = require("../marketCache");
 const trading = require("../services/trading");
 const marketState = require("../services/marketState");
-const { requireUserId } = require("../userContext");
+const { requireVerifiedUserId } = require("../userContext");
 
 const router = express.Router();
 
@@ -233,7 +233,7 @@ router.get("/assets/:symbol/comments", async (req, res, next) => {
 
 router.post("/assets/:symbol/comments", async (req, res, next) => {
   try {
-    const userId = requireUserId(req);
+    const userId = requireVerifiedUserId(req);
     const symbol = normalizeSymbol(req.params.symbol);
     if (!symbol) return res.status(400).json({ error: "missing_symbol" });
 
@@ -268,7 +268,7 @@ router.post("/assets/:symbol/comments", async (req, res, next) => {
 
 router.post("/assets/:symbol/comments/:commentId/vote", async (req, res, next) => {
   try {
-    const userId = requireUserId(req);
+    const userId = requireVerifiedUserId(req);
     const symbol = normalizeSymbol(req.params.symbol);
     if (!symbol) return res.status(400).json({ error: "missing_symbol" });
 
@@ -471,7 +471,7 @@ router.get("/assets/:symbol", async (req, res, next) => {
 
 router.post("/orders/buy", async (req, res, next) => {
   try {
-    const userId = requireUserId(req);
+    const userId = requireVerifiedUserId(req);
     const symbol = normalizeSymbol(req.body?.symbol);
     const quantity = req.body?.quantity;
     if (!symbol) return res.status(400).json({ error: "missing_symbol" });
@@ -500,7 +500,7 @@ router.post("/orders/buy", async (req, res, next) => {
 
 router.post("/orders/sell", async (req, res, next) => {
   try {
-    const userId = requireUserId(req);
+    const userId = requireVerifiedUserId(req);
     const symbol = normalizeSymbol(req.body?.symbol);
     const quantity = req.body?.quantity;
     if (!symbol) return res.status(400).json({ error: "missing_symbol" });

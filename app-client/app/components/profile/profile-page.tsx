@@ -9,6 +9,7 @@ import {
   FaAward,
   FaBookOpen,
   FaBullseye,
+  FaCheck,
   FaCoins,
   FaCrown,
   FaFire,
@@ -24,6 +25,7 @@ import type { IconType } from "react-icons";
 import { TrendChartCard } from "@/app/components/charts/market-charts";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { AssetPicker } from "@/app/components/common/asset-picker";
+import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { createChannelChartTheme } from "@/app/lib/chart-theme";
@@ -31,6 +33,7 @@ import { fmtNumber } from "@/app/lib/format";
 import { normalizeArticleListResponse, normalizeProfileBundle } from "@/app/lib/normalizers";
 import type { ArticleSummary, ProfileBundle, ProfileRelationUser } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
+import { useAuthStore } from "@/app/stores/auth-store";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/profile/profile-page.module.scss";
@@ -175,7 +178,14 @@ function ProfileIdentity({
         )}
         <div className={styles.identityCopy}>
           <div className={styles.eyebrow}>{isSelf ? "Your Public Profile" : "Public Profile"}</div>
-          <h1 className={styles.title}>{profile.username}</h1>
+          <h1 className={styles.title}>
+            <span className={styles.usernameText}>{profile.username}</span>
+            {profile.email_verified ? (
+              <span className={styles.verifiedBadge} title="User is verified" aria-label="User is verified">
+                <FaCheck aria-hidden="true" />
+              </span>
+            ) : null}
+          </h1>
           <div className={styles.profileBadgeStack}>
             <span className={styles.profileBadge}>Joined {formatDate(profile.created_at)}</span>
             {profile.oshi_coin ? (
@@ -224,8 +234,9 @@ function ProfileSettingsModal({
   profile: ProfileBundle["profile"] | null;
   assets: ReturnType<typeof useMarketStore.getState>["assets"];
   onClose: () => void;
-  onSave: (payload: { bio: string; profile_color: string | null; oshi_coin_asset_id: number | null }) => Promise<void>;
+  onSave: (payload: { username: string; bio: string; profile_color: string | null; oshi_coin_asset_id: number | null }) => Promise<void>;
 }) {
+  const [usernameDraft, setUsernameDraft] = useState("");
   const [bioDraft, setBioDraft] = useState("");
   const [profileColorDraft, setProfileColorDraft] = useState("#1aacbc");
   const [oshiSymbolDraft, setOshiSymbolDraft] = useState("");
@@ -234,6 +245,7 @@ function ProfileSettingsModal({
 
   useEffect(() => {
     if (!open || !profile) return;
+    setUsernameDraft(profile.username || "");
     setBioDraft(profile.bio || "");
     setProfileColorDraft(profile.profile_color || "#1aacbc");
     setOshiSymbolDraft(profile.oshi_coin?.symbol || "");
@@ -249,6 +261,7 @@ function ProfileSettingsModal({
     try {
       const selectedAsset = assets.find((asset) => asset.symbol === oshiSymbolDraft) || null;
       await onSave({
+        username: usernameDraft,
         bio: bioDraft,
         profile_color: profileColorDraft || null,
         oshi_coin_asset_id: selectedAsset?.id || null,
@@ -281,6 +294,18 @@ function ProfileSettingsModal({
         </div>
 
         <div className={styles.settingsGrid}>
+          <div className={styles.fieldStack}>
+            <label className={styles.fieldLabel} htmlFor="profile-username">Username</label>
+            <input
+              id="profile-username"
+              className={styles.input}
+              maxLength={32}
+              value={usernameDraft}
+              onChange={(event) => setUsernameDraft(event.target.value)}
+              placeholder="Username"
+            />
+            <span className={styles.sectionCount}>Letters, numbers, and underscores. 3-32 characters.</span>
+          </div>
           <div className={styles.fieldStack}>
             <label className={styles.fieldLabel} htmlFor="profile-bio">Bio</label>
             <textarea
@@ -823,6 +848,7 @@ export function ProfilePage({ username }: { username?: string | null }) {
   const profile = bundle?.profile || null;
   const viewer = bundle?.viewer_context || null;
   const isSelf = Boolean(viewer?.is_self);
+  const needsVerification = isSelf && userNeedsEmailVerification(user);
   const selectedProfilePictureId = detectSelectedProfilePictureId(profile?.profile_picture_url || null, profilePictures);
   const accentColor = profile?.profile_color || profile?.oshi_coin?.color || "var(--accent)";
   const networthDelta = useMemo(() => {
@@ -894,6 +920,10 @@ export function ProfilePage({ username }: { username?: string | null }) {
                     onLogout={() => void handleLogout()}
                     logoutBusy={logoutBusy}
                   />
+
+                  {needsVerification ? (
+                    <VerificationRequiredNotice action="trade, post, comment, vote, or write articles" />
+                  ) : null}
 
                   {!viewer.is_self ? (
                     <section className={styles.sectionPanel}>
@@ -1131,6 +1161,10 @@ export function ProfilePage({ username }: { username?: string | null }) {
               body: JSON.stringify(payload),
             });
             setBundle(normalizeProfileBundle(result));
+            const current = useAuthStore.getState().user;
+            if (current) {
+              useAuthStore.getState().setUser({ ...current, username: payload.username });
+            }
           }}
         />
         </>

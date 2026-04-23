@@ -1,6 +1,8 @@
 export type AuthUser = {
   id: number;
   username: string;
+  email: string | null;
+  email_verified: boolean;
   profile_picture_url: string | null;
   profile_color: string | null;
   is_admin: boolean;
@@ -1104,6 +1106,7 @@ export type ProfileBundle = {
   profile: {
     id: number;
     username: string;
+    email_verified: boolean;
     created_at: string;
     bio: string | null;
     profile_picture_url: string | null;

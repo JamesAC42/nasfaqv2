@@ -172,7 +172,14 @@ const app = express();
 app.use(express.json({ limit: "25mb" }));
 app.use(
   cors({
-    origin: cfg.corsOrigin,
+    origin(origin, callback) {
+      const isAllowedLoopbackDevOrigin = /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(String(origin || ""));
+      if (!origin || cfg.corsOrigins.includes(origin) || isAllowedLoopbackDevOrigin) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error(`CORS origin not allowed: ${origin}`));
+    },
     credentials: true
   })
 );
@@ -229,6 +236,7 @@ app.use((err, _req, res, _next) => {
   // eslint-disable-next-line no-console
   console.error(err);
   if (err?.code === "unauthenticated") return res.status(401).json({ error: "unauthenticated" });
+  if (err?.code === "email_verification_required") return res.status(403).json({ error: "email_verification_required" });
   if (err?.code === "forbidden") return res.status(403).json({ error: "forbidden" });
   if (
     err?.code === "article_not_found"
@@ -244,6 +252,7 @@ app.use((err, _req, res, _next) => {
     err?.code === "already_friends"
     || err?.code === "friend_request_pending"
     || err?.code === "friend_request_needs_response"
+    || err?.code === "username_taken"
   ) {
     return res.status(409).json({ error: err.code });
   }

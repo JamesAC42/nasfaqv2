@@ -14,6 +14,7 @@ import {
 } from "@/app/components/charts/market-charts";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { MarketSidebar } from "@/app/components/common/market-sidebar";
+import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { createChannelChartTheme } from "@/app/lib/chart-theme";
@@ -1327,6 +1328,16 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   async function handleTrade(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedAsset) return;
+    if (userNeedsEmailVerification(user)) {
+      setTradeError("email_verification_required");
+      setTradeFailureNotice({
+        title: "Email verification required",
+        message: "Verify your email before you can trade.",
+      });
+      setTradeConfirmation(null);
+      setIsTradeConfirmationClosing(false);
+      return;
+    }
     if (marketStatus && !marketStatus.is_trading_open) {
       setTradeError("market_closed");
       setTradeFailureNotice({
@@ -1373,6 +1384,10 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   async function handleCommentSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedAsset || !commentBody.trim()) return;
+    if (needsEmailVerification) {
+      setAssetCommentBoardError("Verify your email before posting on the channel board.");
+      return;
+    }
 
     setIsSubmittingComment(true);
     setAssetCommentBoardError(null);
@@ -1398,6 +1413,10 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
 
   async function handleCommentVote(comment: AssetComment, value: 1 | -1) {
     if (!selectedAsset || !user) return;
+    if (needsEmailVerification) {
+      setAssetCommentBoardError("Verify your email before voting on channel board comments.");
+      return;
+    }
 
     setCommentVoteBusyId(comment.id);
     setAssetCommentBoardError(null);
@@ -1517,7 +1536,8 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     [relatedArticles]
   );
   const viewerOwnedShares = assetCommentBoard?.viewer_context.owned_shares ?? ownedShares;
-  const canPostAssetComment = user ? (assetCommentBoard?.viewer_context.can_post ?? ownedShares > 0) : false;
+  const needsEmailVerification = userNeedsEmailVerification(user);
+  const canPostAssetComment = user && !needsEmailVerification ? (assetCommentBoard?.viewer_context.can_post ?? ownedShares > 0) : false;
   const assetCommentPagination = assetCommentBoard?.pagination || null;
   const totalAssetComments = assetCommentPagination?.total ?? 0;
   const currentMidPrice = fmtNumber(selectedAsset?.current_mid_price, "$");
@@ -2218,6 +2238,7 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                         </div>
                       </div>
 
+                      {needsEmailVerification ? <VerificationRequiredNotice action="trade" /> : null}
                       <form className={styles.tradeForm} onSubmit={(event) => void handleTrade(event)}>
                         <div className={styles.sideToggle}>
                           <button
@@ -2270,7 +2291,7 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                           </div>
                         </div>
 
-                        <button type="submit" className={tradeSide === "buy" ? styles.tradeSubmitBuy : styles.tradeSubmitSell} disabled={!tradingOpen}>
+                        <button type="submit" className={tradeSide === "buy" ? styles.tradeSubmitBuy : styles.tradeSubmitSell} disabled={!tradingOpen || needsEmailVerification}>
                           {tradingOpen ? `${tradeSide === "buy" ? "Submit Buy" : "Submit Sell"} Order` : "Market Closed"}
                         </button>
                       </form>
@@ -2304,6 +2325,7 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
             {assetCommentBoardError ? <div className="statusMessage statusMessageError">Board error: {assetCommentBoardError}</div> : null}
             {user ? (
               <form className={styles.commentComposer} onSubmit={handleCommentSubmit}>
+                {needsEmailVerification ? <VerificationRequiredNotice action="post on the channel board" /> : null}
                 <div className={styles.commentMoodPicker}>
                   {ARTICLE_COMMENT_MOODS.map((mood) => {
                     const meta = COMMENT_MOOD_META[mood];
@@ -2345,7 +2367,9 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                 />
                 <div className={styles.commentComposerFooter}>
                   <span>
-                    {!user
+                    {needsEmailVerification
+                      ? "Verify your email before posting on the channel board."
+                      : !user
                       ? "Sign in to join the channel board."
                       : canPostAssetComment
                         ? `You can post because you currently own ${fmtNumber(viewerOwnedShares)} shares of ${selectedAsset?.symbol || normalizedSymbol}.`
@@ -2407,7 +2431,7 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                             type="button"
                             className={`${styles.commentVoteButton} ${comment.viewer_vote === 1 ? styles.commentVoteButtonActive : ""}`.trim()}
                             onClick={() => void handleCommentVote(comment, 1)}
-                            disabled={!user || isOwnComment || commentVoteBusyId === comment.id}
+                            disabled={!user || needsEmailVerification || isOwnComment || commentVoteBusyId === comment.id}
                             aria-pressed={comment.viewer_vote === 1}
                           >
                             <FaThumbsUp aria-hidden="true" />
@@ -2417,7 +2441,7 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                             type="button"
                             className={`${styles.commentVoteButton} ${comment.viewer_vote === -1 ? styles.commentVoteButtonActive : ""}`.trim()}
                             onClick={() => void handleCommentVote(comment, -1)}
-                            disabled={!user || isOwnComment || commentVoteBusyId === comment.id}
+                            disabled={!user || needsEmailVerification || isOwnComment || commentVoteBusyId === comment.id}
                             aria-pressed={comment.viewer_vote === -1}
                           >
                             <FaThumbsDown aria-hidden="true" />

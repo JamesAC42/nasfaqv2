@@ -17,6 +17,7 @@ import {
 import { FiChevronDown, FiMenu, FiRadio, FiSend, FiStar, FiWifi, FiWifiOff, FiX } from "react-icons/fi";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { SiteShell } from "@/app/components/layout/site-shell";
+import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { apiFetch } from "@/app/lib/api";
 import { fmtInteger, fmtNumber } from "@/app/lib/format";
 import { getIconUrl, normalizeChatChannel, normalizeChatMessage } from "@/app/lib/normalizers";
@@ -354,6 +355,7 @@ const ChatComposer = memo(function ChatComposer({
   const composerMaxHeightRef = useRef<number | null>(null);
 
   const composerTrigger = useMemo(() => findComposerTrigger(draft, composerSelection), [composerSelection, draft]);
+  const needsVerification = userNeedsEmailVerification(user);
   const suggestions = useMemo<ComposerSuggestion[]>(() => {
     if (!composerTrigger) return [];
     const query = composerTrigger.query.toLowerCase();
@@ -452,6 +454,10 @@ const ChatComposer = memo(function ChatComposer({
 
   async function submitDraft() {
     if (!canPost || isSending) return;
+    if (needsVerification) {
+      setSendError("Verify your email before you can chat.");
+      return;
+    }
 
     const body = draft.trim();
     if (!body) return;
@@ -507,6 +513,7 @@ const ChatComposer = memo(function ChatComposer({
       {user && selectedEntry.channel.posting_policy === "admins_only" && !user.is_admin ? (
         <div className="statusMessage statusMessageWarn">This room is currently limited to admins.</div>
       ) : null}
+      {needsVerification ? <VerificationRequiredNotice action="chat" compact /> : null}
       {sendError ? <div className="statusMessage statusMessageError">Send failed: {sendError}</div> : null}
       <label className={styles.composerLabel} htmlFor="chat-message">
         Message
@@ -540,10 +547,10 @@ const ChatComposer = memo(function ChatComposer({
                 onKeyUp={syncComposerSelection}
                 onSelect={syncComposerSelection}
                 onKeyDown={handleComposerKeyDown}
-                placeholder={canPost ? `Message #${selectedEntry.ticker.toLowerCase()}` : "Posting is unavailable in this room"}
+                placeholder={needsVerification ? "Verify your email before chatting" : canPost ? `Message #${selectedEntry.ticker.toLowerCase()}` : "Posting is unavailable in this room"}
                 rows={1}
                 maxLength={1000}
-                disabled={!canPost || isSending}
+                disabled={!canPost || needsVerification || isSending}
               />
               {composerTrigger && suggestions.length ? (
                 <div className={styles.composerSuggestions} role="listbox">
@@ -1132,6 +1139,7 @@ export function ChatPage() {
   const canPost =
     !!selectedEntry &&
     !!user &&
+    user.email_verified &&
     selectedEntry.channel.posting_policy !== "read_only" &&
     (selectedEntry.channel.posting_policy !== "admins_only" || user.is_admin) &&
     !selectedEntry.channel.muted_until;

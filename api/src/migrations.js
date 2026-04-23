@@ -42,6 +42,38 @@ async function applySchema(pool) {
   `);
   await pool.query(`
     ALTER TABLE market.users
+      ADD COLUMN IF NOT EXISTS email TEXT NULL,
+      ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ NULL,
+      ADD COLUMN IF NOT EXISTS google_sub TEXT NULL
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS market_users_email_uidx
+      ON market.users (lower(email))
+      WHERE email IS NOT NULL
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS market_users_google_sub_uidx
+      ON market.users (google_sub)
+      WHERE google_sub IS NOT NULL
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.user_email_verification_tokens (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      email TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TIMESTAMPTZ NOT NULL,
+      used_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_user_email_verification_tokens_user_idx
+      ON market.user_email_verification_tokens (user_id, created_at DESC)
+  `);
+  await pool.query(`
+    ALTER TABLE market.users
       ADD COLUMN IF NOT EXISTS can_create_prediction_markets BOOLEAN NOT NULL DEFAULT false,
       ADD COLUMN IF NOT EXISTS can_approve_prediction_markets BOOLEAN NOT NULL DEFAULT false,
       ADD COLUMN IF NOT EXISTS can_resolve_prediction_markets BOOLEAN NOT NULL DEFAULT false,

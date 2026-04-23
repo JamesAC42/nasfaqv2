@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { AssetPicker } from "@/app/components/common/asset-picker";
 import { OptionPicker } from "@/app/components/common/option-picker";
+import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { normalizeArticleDetail } from "@/app/lib/normalizers";
@@ -82,6 +83,10 @@ export function ArticleEditorPage({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!title.trim() || !content.trim()) return;
+    if (userNeedsEmailVerification(user)) {
+      setError("Verify your email before you can write articles.");
+      return;
+    }
     setIsSaving(true);
     setError(null);
     try {
@@ -135,6 +140,21 @@ export function ArticleEditorPage({
             <h1 className={styles.title}>Sign in required</h1>
             <p className={styles.copy}>You need an account session to create or edit articles.</p>
           </section>
+        </div>
+      </SiteShell>
+    );
+  }
+
+  if (userNeedsEmailVerification(user)) {
+    return (
+      <SiteShell>
+        <div className={styles.stack}>
+          <section className={styles.hero}>
+            <div className={styles.eyebrow}>Publishing Desk</div>
+            <h1 className={styles.title}>Email verification required</h1>
+            <p className={styles.copy}>Verify your email before creating or editing articles.</p>
+          </section>
+          <VerificationRequiredNotice action="write articles" />
         </div>
       </SiteShell>
     );

@@ -18,6 +18,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
         message = body.error;
       }
     } catch {}
+    if (message === "email_verification_required") {
+      message = "Verify your email before using this feature.";
+    }
     throw new Error(message);
   }
 

@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { CandleChartCard, TrendChartCard, VolumeChartCard } from "@/app/components/charts/market-charts";
+import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import type { ChannelChartTheme } from "@/app/lib/chart-theme";
 import { apiFetch } from "@/app/lib/api";
 import { fmtDate, fmtNumber, fmtPct } from "@/app/lib/format";
 import type { AssetDetailBundle, MarketAsset, MarketStatus } from "@/app/lib/types";
+import { useAuth } from "@/app/providers/auth-provider";
 import styles from "@/app/components/home/asset-detail-section.module.scss";
 
 const DETAIL_CHART_START_DATE = "2025-10-09";
@@ -32,6 +34,7 @@ export function AssetDetailSection({
   onTradeComplete: () => Promise<void>;
   chartTheme?: ChannelChartTheme | null;
 }) {
+  const { user } = useAuth();
   const [tradeSide, setTradeSide] = useState<"buy" | "sell">("buy");
   const [tradeQuantity, setTradeQuantity] = useState("10");
   const [tradeError, setTradeError] = useState<string | null>(null);
@@ -40,6 +43,11 @@ export function AssetDetailSection({
   async function handleTrade(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!asset) return;
+    if (userNeedsEmailVerification(user)) {
+      setTradeError("Verify your email before you can trade.");
+      setTradeResult(null);
+      return;
+    }
     if (marketStatus && !marketStatus.is_trading_open) {
       setTradeError(marketStatus.trading_message || "market_closed");
       setTradeResult(null);
@@ -72,6 +80,7 @@ export function AssetDetailSection({
   }
 
   const tradingOpen = marketStatus?.is_trading_open ?? true;
+  const needsVerification = userNeedsEmailVerification(user);
   const marketClosedMessage = marketStatus?.trading_message || "Trading is temporarily unavailable while the market settles.";
   const chartStartTs = toTimestamp(DETAIL_CHART_START_DATE);
   const filteredDailyCandles =
@@ -103,7 +112,9 @@ export function AssetDetailSection({
         <div className={styles.statCard}><span className={styles.label}>Snapshot Date</span><strong>{asset.latest_snapshot_date || "—"}</strong></div>
       </div>
 
-      {canTrade ? (
+      {canTrade && needsVerification ? (
+        <VerificationRequiredNotice action="trade" />
+      ) : canTrade ? (
         <form className={styles.tradeForm} onSubmit={(event) => void handleTrade(event)}>
           <label>
             <span className={styles.label}>Side</span>
@@ -119,9 +130,9 @@ export function AssetDetailSection({
           </label>
           <label>
             <span className={styles.label}>Quantity</span>
-            <input className={styles.input} value={tradeQuantity} disabled={!tradingOpen} onChange={(event) => setTradeQuantity(event.target.value)} />
+            <input className={styles.input} value={tradeQuantity} disabled={!tradingOpen || needsVerification} onChange={(event) => setTradeQuantity(event.target.value)} />
           </label>
-          <button type="submit" className={styles.submit} disabled={!tradingOpen}>
+          <button type="submit" className={styles.submit} disabled={!tradingOpen || needsVerification}>
             {tradingOpen ? "Submit Trade" : "Market Closed"}
           </button>
         </form>

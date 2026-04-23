@@ -23,12 +23,24 @@ function loadEnv() {
 }
 
 function getConfig() {
+  const configuredCorsOrigins = String(process.env.CORS_ORIGIN || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  const corsOrigins = Array.from(new Set([
+    ...configuredCorsOrigins,
+    "http://localhost:3000",
+    "http://localhost:3010",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3010",
+  ]));
+
   return {
     port: Number(process.env.PORT || 5067),
     databaseUrl: process.env.DATABASE_URL,
     redisUrl: process.env.REDIS_URL,
     redisPassword: process.env.REDIS_PASSWORD,
-    corsOrigin: process.env.CORS_ORIGIN || "http://localhost:3010",
+    corsOrigins,
     enableMigrations: (process.env.ENABLE_MIGRATIONS || "").toLowerCase() === "true",
     enableMarketSettlementScheduler: (process.env.MARKET_SETTLEMENT_SCHEDULER_ENABLED || "true").toLowerCase() !== "false",
   };

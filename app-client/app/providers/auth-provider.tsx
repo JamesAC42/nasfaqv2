@@ -12,8 +12,10 @@ type AuthContextValue = {
   isLoading: boolean;
   error: string | null;
   refreshSession: () => Promise<AuthUser | null>;
-  login: (username: string, password: string) => Promise<AuthUser>;
-  register: (username: string, password: string) => Promise<AuthUser>;
+  login: (username: string, password: string, turnstileToken?: string) => Promise<AuthUser>;
+  register: (username: string, email: string, password: string, turnstileToken?: string) => Promise<AuthUser>;
+  loginWithGoogle: (credential: string, turnstileToken?: string) => Promise<AuthUser>;
+  resendVerification: () => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -49,13 +51,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [setError, setInitialized, setLoading, setUser]);
 
   const login = useCallback(
-    async (username: string, password: string) => {
+    async (username: string, password: string, turnstileToken?: string) => {
       setLoading(true);
       setError(null);
       try {
         const result = await apiFetch<{ user: AuthUser }>("/api/auth/login", {
           method: "POST",
-          body: JSON.stringify({ username, password }),
+          body: JSON.stringify({ username, password, turnstile_token: turnstileToken }),
         });
         setUser(result.user);
         setInitialized(true);
@@ -72,13 +74,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const register = useCallback(
-    async (username: string, password: string) => {
+    async (username: string, email: string, password: string, turnstileToken?: string) => {
       setLoading(true);
       setError(null);
       try {
         const result = await apiFetch<{ user: AuthUser }>("/api/auth/register", {
           method: "POST",
-          body: JSON.stringify({ username, password }),
+          body: JSON.stringify({ username, email, password, turnstile_token: turnstileToken }),
         });
         setUser(result.user);
         setInitialized(true);
@@ -93,6 +95,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     [setError, setInitialized, setLoading, setUser]
   );
+
+  const loginWithGoogle = useCallback(
+    async (credential: string, turnstileToken?: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const result = await apiFetch<{ user: AuthUser }>("/api/auth/google", {
+          method: "POST",
+          body: JSON.stringify({ credential, turnstile_token: turnstileToken }),
+        });
+        setUser(result.user);
+        setInitialized(true);
+        return result.user;
+      } catch (error) {
+        const message = String((error as Error).message || error);
+        setError(message);
+        throw new Error(message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [setError, setInitialized, setLoading, setUser]
+  );
+
+  const resendVerification = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await apiFetch<{ ok: boolean }>("/api/auth/resend-verification", {
+        method: "POST",
+        body: "{}",
+      });
+    } catch (error) {
+      const message = String((error as Error).message || error);
+      setError(message);
+      throw new Error(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [setError, setLoading]);
 
   const logout = useCallback(async () => {
     setLoading(true);
@@ -128,9 +170,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshSession,
       login,
       register,
+      loginWithGoogle,
+      resendVerification,
       logout,
     }),
-    [error, initialized, isLoading, login, logout, refreshSession, register, user]
+    [error, initialized, isLoading, login, loginWithGoogle, logout, refreshSession, register, resendVerification, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

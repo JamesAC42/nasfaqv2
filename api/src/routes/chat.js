@@ -1,7 +1,7 @@
 const express = require("express");
 
 const chatDb = require("../chatDb");
-const { requireAdmin, requireUserId } = require("../userContext");
+const { requireAdmin, requireUserId, requireVerifiedUserId } = require("../userContext");
 
 const router = express.Router();
 
@@ -85,7 +85,7 @@ router.get("/channels/:channelKey/messages", async (req, res, next) => {
 router.post("/channels/:channelKey/messages", async (req, res, next) => {
   try {
     const viewer = req.ctx.user;
-    requireUserId(req);
+    requireVerifiedUserId(req);
     await ensureTopology(req.ctx.pool);
 
     const channel = await chatDb.getChannelByKey(req.ctx.pool, req.params.channelKey, {

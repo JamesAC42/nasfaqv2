@@ -88,6 +88,7 @@ router.put("/me", async (req, res, next) => {
   try {
     const userId = requireUserId(req);
     await profileDb.updateProfileSettings(req.ctx.pool, userId, {
+      username: req.body?.username,
       bio: req.body?.bio,
       profileColor: req.body?.profile_color,
       oshiCoinAssetId: req.body?.oshi_coin_asset_id,

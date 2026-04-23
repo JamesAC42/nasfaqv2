@@ -26,6 +26,16 @@ function normalizeUsername(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function validateUsername(value) {
+  const trimmed = String(value || "").trim();
+  if (!/^[A-Za-z0-9_]{3,32}$/.test(trimmed)) {
+    const error = new Error("invalid_profile_update");
+    error.code = "invalid_profile_update";
+    throw error;
+  }
+  return trimmed;
+}
+
 function normalizeUserId(value) {
   const parsed = Number.parseInt(String(value || "").trim(), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -57,6 +67,7 @@ async function getUserByUsername(pool, username) {
     SELECT
       u.id,
       u.username,
+      u.email_verified,
       u.created_at,
       u.bio,
       ${profilePictureUrlSql("large")} AS profile_picture_url,
@@ -99,6 +110,7 @@ async function getUserById(pool, userId) {
     SELECT
       u.id,
       u.username,
+      u.email_verified,
       u.created_at,
       u.bio,
       ${profilePictureUrlSql("large")} AS profile_picture_url,
@@ -421,6 +433,7 @@ async function getProfileBundle(pool, {
     profile: {
       id: profileUser.id,
       username: profileUser.username,
+      email_verified: Boolean(profileUser.email_verified),
       created_at: profileUser.created_at,
       bio: profileUser.bio,
       profile_picture_url: profileUser.profile_picture_url,
@@ -536,7 +549,7 @@ async function setProfilePicture(pool, userId, profilePictureId) {
   );
 }
 
-async function updateProfileSettings(pool, userId, { bio, profileColor, oshiCoinAssetId }) {
+async function updateProfileSettings(pool, userId, { username, bio, profileColor, oshiCoinAssetId }) {
   const safeUserId = Number(userId);
   if (!Number.isInteger(safeUserId) || safeUserId <= 0) {
     const error = new Error("invalid_profile_update");
@@ -550,6 +563,8 @@ async function updateProfileSettings(pool, userId, { bio, profileColor, oshiCoin
     error.code = "invalid_profile_update";
     throw error;
   }
+  const safeUsername = validateUsername(username);
+  const safeUsernameNormalized = normalizeUsername(safeUsername);
 
   const safeProfileColor = profileColor === null || profileColor === undefined || profileColor === ""
     ? null
@@ -585,16 +600,28 @@ async function updateProfileSettings(pool, userId, { bio, profileColor, oshiCoin
     }
   }
 
-  await pool.query(
-    `
-    UPDATE market.users
-    SET bio = $2,
-        profile_color = $3,
-        oshi_coin_asset_id = $4
-    WHERE id = $1
-  `,
-    [safeUserId, safeBio, safeProfileColor, safeOshiCoinAssetId]
-  );
+  try {
+    await pool.query(
+      `
+      UPDATE market.users
+      SET username = $2,
+          username_normalized = $3,
+          bio = $4,
+          profile_color = $5,
+          oshi_coin_asset_id = $6,
+          updated_at = now()
+      WHERE id = $1
+    `,
+      [safeUserId, safeUsername, safeUsernameNormalized, safeBio, safeProfileColor, safeOshiCoinAssetId]
+    );
+  } catch (error) {
+    if (error?.code === "23505") {
+      const e = new Error("username_taken");
+      e.code = "username_taken";
+      throw e;
+    }
+    throw error;
+  }
 }
 
 async function sendFriendRequest(pool, viewerUserId, username) {
