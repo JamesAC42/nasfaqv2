@@ -1,5 +1,5 @@
-import { MarketPage } from "@/app/components/pages/market-page";
+import { MarketReportPage } from "@/app/components/pages/market-report-page";
 
 export default function Page() {
-  return <MarketPage />;
+  return <MarketReportPage />;
 }

@@ -1,553 +1,302 @@
 @use "../../styles/mixins" as *;
 
-.page {
+.dashboard {
+  --index-cyan: var(--accent);
+  --index-panel: color-mix(in srgb, var(--surface-card) 84%, transparent);
+  --index-panel-soft: color-mix(in srgb, var(--surface-card-soft) 76%, transparent);
   display: grid;
+  grid-template-columns: minmax(18rem, 0.34fr) minmax(0, 1fr);
   gap: 1rem;
-  padding: 0 0 2rem;
+  height: calc(100dvh - var(--site-shell-chrome-height, 8rem) - 4.5rem);
+  min-height: 42rem;
+  overflow: hidden;
 }
 
-.hero,
-.summaryCardLarge,
-.reportCard,
+.selectorPane,
+.detailPane,
+.chartPanel,
+.sidePanel,
+.metricTile,
 .heatmapPanel,
 .tablePanel,
-.indexSelectorCard,
-.indexDetailPane,
-.heroStat,
-.statusCard {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+.selectorCard {
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
 }
 
-.hero {
+.selectorPane,
+.detailPane {
+  min-height: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 20% 0%, color-mix(in srgb, var(--index-cyan) 14%, transparent), transparent 34%),
+    linear-gradient(135deg, color-mix(in srgb, var(--index-panel) 92%, transparent), color-mix(in srgb, var(--bg-accent) 86%, transparent));
+}
+
+.selectorPane {
   display: grid;
-  gap: 1rem;
-  grid-template-columns: minmax(0, 1.6fr) minmax(16rem, 0.9fr);
-  padding: 1.25rem;
-}
-
-.heroCopy {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.heroEyebrow,
-.indexEyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  width: fit-content;
-  color: var(--accent);
-  font-size: 0.76rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.hero h1 {
-  @include section-title;
-  font-size: clamp(2rem, 4vw, 3.2rem);
-}
-
-.hero p {
-  @include subtle-copy;
-  margin: 0;
-  max-width: 60ch;
-}
-
-.heroStats {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.heroStat,
-.statusCard,
-.summaryCardLarge,
-.reportCard,
-.heatmapPanel,
-.tablePanel,
-.indexSelectorCard,
-.indexDetailPane {
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 0.85rem;
   padding: 1rem;
 }
 
-.heroStat span,
-.statusCard span,
-.summaryStat span,
-.indexStat span,
-.reportSnapshotItem span,
-.highlightCard > span,
-.returnBadge span {
+.selectorHeader {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.selectorHeader h2,
+.detailHeader h1,
+.sectionHeader h2 {
+  @include section-title;
+}
+
+.selectorHeader p,
+.detailHeader p,
+.sectionHeader p,
+.constituentCard p {
+  @include subtle-copy;
+  margin: 0;
+}
+
+.eyebrow,
+.metricTile span {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  color: var(--muted);
-  font-size: 0.76rem;
-  text-transform: uppercase;
+  color: var(--index-cyan);
+  font-size: 0.74rem;
+  font-weight: 800;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.heroStat strong,
-.statusCard strong,
-.reportSnapshotItem strong {
-  display: block;
-  margin-top: 0.35rem;
-  color: var(--text);
-  font-size: 1.3rem;
-}
-
-.loadingPanel {
-  @include empty-state;
-}
-
-.statusStrip,
-.summaryGrid,
-.marketDesk,
-.summaryHighlights,
-.summaryStats,
-.reportSnapshot,
-.reportGrid,
-.indexSplitPane,
-.indexStatsGrid {
-  display: grid;
-  gap: 1rem;
-}
-
-.statusStrip {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.statusCard p,
-.cardTitle p,
-.sectionHeader p,
-.iconStripMeta span,
-.heatmapTileHeader span,
-.heatmapMeta span,
-.table td em,
-.reportAsset span {
-  @include subtle-copy;
-  margin: 0;
-  font-size: 0.88rem;
-}
-
-.summaryGrid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.cardHeader,
-.sectionHeader,
-.indexSelectorHeader,
-.indexDetailHeader {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: flex-start;
-}
-
-.cardTitle {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.cardIcon {
-  display: inline-grid;
-  place-items: center;
-  width: 2.35rem;
-  height: 2.35rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-info);
-  background: var(--surface-card-highlight);
-  color: var(--accent);
-  flex: 0 0 auto;
-}
-
-.cardTitle h2,
-.cardTitle h3,
-.sectionHeader h2,
-.indexCardHeader h3 {
-  margin: 0;
-  color: var(--text);
-  font-family: var(--font-display);
-}
-
-.summaryHighlights {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-top: 0.75rem;
-}
-
-.highlightCard,
-.summaryStat,
-.reportSnapshotItem,
-.indexStat,
-.indexSelectorStat,
-.reportRow,
-.returnBadge,
-.indexDetailCallout,
-.iconStrip {
-  padding: 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-card-soft);
-}
-
-.highlightCard strong,
-.summaryStat strong,
-.indexStat strong,
-.heatmapNumbers strong {
-  display: block;
-  margin-top: 0.3rem;
-  color: var(--text);
-}
-
-.highlightCard strong {
-  font-size: clamp(1.4rem, 2vw, 2rem);
-}
-
-.assetMeta {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  margin-top: 0.55rem;
-}
-
-.inlineAssetIcon,
-.reportAssetIcon,
-.tableCoin,
-.heatmapIcon,
-.indexChannelIcon {
-  width: 2rem;
-  height: 2rem;
-}
-
-.summaryStats {
-  margin-top: 0.75rem;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.summaryStat em,
-.table td em {
-  display: block;
-  margin-top: 0.25rem;
-  font-style: normal;
-}
-
-.reportSnapshot {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.reportGrid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.reportRows {
-  display: grid;
-  gap: 0.65rem;
-  margin-top: 1rem;
-}
-
-.reportRow {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 0.75rem;
-  align-items: center;
-}
-
-.reportRank {
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-weight: 700;
-}
-
-.reportAsset {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.7rem;
-  min-width: 0;
-}
-
-.reportAsset strong,
-.heatmapTileHeader strong,
-.table td strong {
-  display: block;
-  color: var(--text);
-}
-
-.reportAsset span,
-.table td em,
-.heatmapTileHeader span {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.indexesSection {
-  display: grid;
-  gap: 1rem;
-}
-
-.filterPill {
-  display: inline-flex;
-  gap: 0.7rem;
-  align-items: center;
-  padding: 0.55rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-pill);
-  color: var(--text);
-  font-size: 0.86rem;
-}
-
-.filterPill strong {
-  font-family: var(--font-mono);
-  color: var(--text);
-}
-
-.indexSplitPane {
-  grid-template-columns: minmax(17rem, 0.72fr) minmax(0, 1.28fr);
-  align-items: start;
-}
-
-.indexSelectorPane {
-  display: grid;
-  gap: 0.6rem;
-  max-height: calc(100dvh - var(--site-shell-chrome-height, 4.5rem) - 1rem);
-  overflow-y: auto;
-  padding-right: 0.3rem;
+.selectorList,
+.detailScroll,
+.tableWrap {
+  overflow: auto;
+  min-height: 0;
   scrollbar-gutter: stable;
 }
 
-.indexSelectorCard {
+.selectorList {
   display: grid;
-  gap: 0.6rem;
+  align-content: start;
+  gap: 0.65rem;
+  padding-right: 0.25rem;
+}
+
+.selectorCard {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.85rem;
+  color: inherit;
   text-align: left;
   cursor: pointer;
-  background: color-mix(in srgb, var(--surface-card-soft) 76%, transparent);
-  padding: 0.8rem;
+  background: color-mix(in srgb, var(--index-panel-soft) 86%, transparent);
   transition:
     transform 180ms cubic-bezier(0.2, 0.9, 0.2, 1),
     border-color 180ms ease,
-    box-shadow 180ms ease,
     background-color 180ms ease;
-  will-change: transform;
 }
 
-.indexSelectorCard:hover,
-.indexSelectorCard:focus-visible {
+.selectorCard:hover,
+.selectorCard:focus-visible {
   transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--border-info) 60%, var(--border));
-  background: color-mix(in srgb, var(--surface-card-highlight) 60%, transparent);
+  border-color: color-mix(in srgb, var(--index-cyan) 48%, var(--border));
   outline: none;
 }
 
-.indexSelectorCardSelected {
-  border-color: var(--border-info);
-  box-shadow: inset 0 0 0 1px var(--border-info), var(--shadow);
-  background: color-mix(in srgb, var(--surface-card-highlight) 80%, transparent);
+.selectorCardSelected {
+  border-color: var(--index-cyan);
+  background: color-mix(in srgb, var(--accent-soft) 58%, var(--index-panel));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--index-cyan) 50%, transparent), var(--shadow);
 }
 
-.indexSelectorHeader {
-  align-items: center;
-}
-
-.indexSelectorTitleRow {
+.selectorTop,
+.detailHeader,
+.sectionHeader,
+.heatmapTileHeader,
+.heatmapNumbers {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.indexSelectorTitleRow h3 {
-  margin: 0;
-}
-
-.indexSelectorMembers {
-  display: inline-flex;
-  align-items: center;
-  flex: 0 0 auto;
-  min-width: 0;
-}
-
-.indexSelectorMembers > * + * {
-  margin-left: -0.3rem;
-}
-
-.indexSelectorMemberIcon {
-  width: 1.1rem;
-  height: 1.1rem;
-  border: 1.5px solid var(--surface-card);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--surface-card-soft) 55%, transparent);
-}
-
-.indexSelectorStats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.45rem;
-}
-
-.indexSelectorStat {
-  display: grid;
-  gap: 0.1rem;
-  padding: 0.55rem 0.6rem;
-}
-
-.indexSelectorStat strong {
-  font-size: 0.95rem;
-}
-
-.indexDetailPane {
-  display: grid;
-  gap: 1rem;
-  min-width: 0;
-  background: color-mix(in srgb, var(--surface-card-soft) 88%, transparent);
-  animation: detailPaneIn 220ms cubic-bezier(0.2, 0.9, 0.2, 1);
-}
-
-.indexDetailMarketDesk {
-  display: grid;
-  gap: 1rem;
-}
-
-.indexDetailTop {
-  display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.8fr);
-  gap: 1rem;
-  align-items: start;
-}
-
-.indexDetailChart,
-.indexDetailAside {
-  display: grid;
-  gap: 1rem;
-  min-width: 0;
-}
-
-.indexDetailHeader {
-  align-items: center;
-}
-
-.returnBadge {
-  display: grid;
-  justify-items: center;
-  gap: 0.2rem;
-  min-width: 4.75rem;
-  color: var(--text);
-}
-
-.indexChart :global(.chartBox) {
-  min-height: 0;
-}
-
-.detailChart :global(.chartBox) {
-  min-height: 0;
-  background: var(--bg-accent);
-  border-color: var(--muted);
-}
-
-.detailChart :global(.chartBoxTrend),
-.detailChart :global(.chartBoxCandles) {
-  background: var(--bg-accent);
-}
-
-.detailChart :global(.canvas) {
-  height: 320px;
-}
-
-.iconStrip {
-  display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.9rem;
 }
 
-.iconStack {
+.selectorTop h3 {
+  margin: 0.2rem 0 0;
+  color: var(--text);
+  font-family: var(--font-display);
+}
+
+.returnBadge,
+.heroReturn {
+  display: grid;
+  justify-items: center;
+  gap: 0.15rem;
+  min-width: 4.6rem;
+  padding: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-card-soft) 82%, transparent);
+}
+
+.returnBadge span,
+.heroReturn span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.selectorStats {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.65rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
+.memberStack,
+.memberStackCompact {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
 }
 
-.iconStack > * + * {
+.memberStack > * + *,
+.memberStackCompact > * + * {
   margin-left: -0.35rem;
 }
 
-.indexChannelIcon {
+.memberIcon,
+.memberIconCompact {
   border: 2px solid var(--surface-card);
 }
 
-.iconStripMeta {
-  display: grid;
-  justify-items: end;
+.memberIcon {
+  width: 2.15rem;
+  height: 2.15rem;
 }
 
-.iconStripMeta strong {
+.memberIconCompact {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.detailPane {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  padding: 1rem;
+}
+
+.detailHeader {
+  padding-bottom: 1rem;
+}
+
+.detailHeader h1 {
+  font-size: clamp(2rem, 4vw, 3.2rem);
+}
+
+.detailScroll {
+  display: grid;
+  gap: 1rem;
+  padding-right: 0.3rem;
+}
+
+.topGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(17rem, 0.65fr);
+  gap: 1rem;
+}
+
+.chartPanel,
+.sidePanel,
+.metricTile,
+.heatmapPanel,
+.tablePanel {
+  min-width: 0;
+  padding: 1rem;
+  background: color-mix(in srgb, var(--index-panel-soft) 88%, transparent);
+}
+
+.chartPanel :global(.chartBoxBare) {
+  min-height: 0;
+  padding: 0;
+}
+
+.chartPanel :global(.canvas) {
+  height: 310px;
+}
+
+.sidePanel,
+.constituentCard {
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+}
+
+.constituentCard {
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-card-soft) 78%, transparent);
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.metricTile {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.metricTile strong {
   color: var(--text);
-}
-
-.iconStripEmpty {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  color: var(--muted);
-}
-
-.indexDetailCallout {
-  display: grid;
-  gap: 0.35rem;
-}
-
-.indexDetailCallout p {
-  @include subtle-copy;
-  margin: 0;
-  font-size: 0.88rem;
-}
-
-.indexStatsGrid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.positive {
-  color: var(--trend-up) !important;
-}
-
-.negative {
-  color: var(--trend-down) !important;
-}
-
-.neutral {
-  color: var(--text) !important;
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
 }
 
 .marketDesk {
-  grid-template-columns: minmax(0, 1.15fr) minmax(22rem, 0.85fr);
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(24rem, 0.9fr);
+  gap: 1rem;
 }
 
 .heatmap {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.65rem;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  grid-auto-rows: 7rem;
+  grid-auto-rows: 6.7rem;
   margin-top: 1rem;
 }
 
 .heatmapTile {
   display: grid;
-  gap: 0.6rem;
   align-content: space-between;
-  padding: 0.85rem;
+  gap: 0.5rem;
+  padding: 0.75rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
+  color: inherit;
   text-align: left;
   cursor: pointer;
   transition:
-    transform 160ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    transform 160ms ease,
     border-color 160ms ease,
-    box-shadow 160ms ease,
-    background-color 160ms ease;
+    box-shadow 160ms ease;
 }
 
 .heatmapTile:hover,
 .heatmapTile:focus-visible {
   transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-color: color-mix(in srgb, var(--index-cyan) 45%, var(--border));
   outline: none;
 }
 
@@ -560,7 +309,7 @@
 }
 
 .tileSelected {
-  box-shadow: inset 0 0 0 1px var(--accent);
+  box-shadow: inset 0 0 0 1px var(--index-cyan);
 }
 
 .tileLg {
@@ -576,22 +325,30 @@
   grid-column: span 1;
 }
 
-.heatmapTileHeader,
-.heatmapNumbers,
-.heatmapMeta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+.heatmapIcon,
+.tableCoin {
+  width: 2rem;
+  height: 2rem;
 }
 
-.heatmapTileHeader {
-  align-items: flex-start;
+.heatmapTileHeader span,
+.assetLink span {
+  display: grid;
+  min-width: 0;
+}
+
+.heatmapTileHeader em,
+.assetLink em {
+  overflow: hidden;
+  color: var(--muted);
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tableWrap {
-  overflow-x: auto;
   margin-top: 1rem;
+  max-height: 35rem;
 }
 
 .table {
@@ -609,66 +366,70 @@
 .assetLink {
   display: inline-flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.65rem;
   color: inherit;
   text-decoration: none;
   min-width: 0;
 }
 
-@keyframes detailPaneIn {
-  from {
-    opacity: 0;
-    transform: translateX(12px) scale(0.985);
-  }
+.loadingPanel {
+  @include empty-state;
+}
 
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
+.positive {
+  color: var(--trend-up) !important;
+}
+
+.negative {
+  color: var(--trend-down) !important;
+}
+
+.neutral {
+  color: var(--text) !important;
 }
 
 @media (max-width: 1180px) {
-  .hero,
-  .statusStrip,
-  .summaryGrid,
-  .reportGrid,
-  .indexSplitPane,
+  .dashboard {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    grid-template-columns: 1fr;
+  }
+
+  .selectorPane,
+  .detailPane {
+    overflow: visible;
+  }
+
+  .selectorList,
+  .detailScroll {
+    overflow: visible;
+  }
+
+  .topGrid,
   .marketDesk {
     grid-template-columns: 1fr;
   }
 
-  .summaryStats,
-  .reportSnapshot,
-  .indexSelectorStats,
-  .indexDetailTop,
-  .indexStatsGrid {
+  .metricGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .indexSelectorPane {
-    max-height: none;
-    overflow: visible;
-    padding-right: 0;
-  }
-
-  .heatmap {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 760px) {
-  .summaryHighlights,
-  .summaryStats,
-  .reportSnapshot,
-  .indexSelectorStats,
-  .indexDetailTop,
-  .indexStatsGrid {
+  .metricGrid,
+  .selectorTop,
+  .detailHeader,
+  .sectionHeader,
+  .heatmapTileHeader,
+  .heatmapNumbers {
+    display: grid;
     grid-template-columns: 1fr;
   }
 
   .heatmap {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-auto-rows: 6.5rem;
+    grid-auto-rows: 6.25rem;
   }
 
   .tileLg,
@@ -678,26 +439,8 @@
     grid-row: span 1;
   }
 
-  .cardHeader,
-  .sectionHeader,
-  .indexSelectorHeader,
-  .indexDetailHeader,
-  .iconStrip,
-  .heatmapTileHeader,
-  .heatmapNumbers,
-  .heatmapMeta {
-    display: grid;
-    grid-template-columns: 1fr;
-  }
-
-  .indexSelectorTitleRow {
-    grid-template-columns: 1fr;
-    display: grid;
-    justify-content: start;
-  }
-
   .returnBadge,
-  .iconStripMeta {
+  .heroReturn {
     justify-items: start;
   }
 }

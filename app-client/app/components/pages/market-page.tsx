@@ -1,8 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { FaBolt, FaChartLine, FaClock, FaMoneyBillTrendUp, FaSignal, FaUsers } from "react-icons/fa6";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  FaBolt,
+  FaChartLine,
+  FaCircleNodes,
+  FaClock,
+  FaMoneyBillTrendUp,
+  FaSignal,
+  FaUsers,
+} from "react-icons/fa6";
 import { TrendChartCard } from "@/app/components/charts/market-charts";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { SiteShell } from "@/app/components/layout/site-shell";
@@ -124,6 +132,123 @@ function StatCard({
   );
 }
 
+function ActivityGauge({
+  score,
+  label,
+  meta,
+}: {
+  score: number;
+  label: string;
+  meta: string;
+}) {
+  const clamped = Math.max(0, Math.min(100, score));
+
+  return (
+    <div className={styles.activityGauge}>
+      <div className={styles.gaugeRing} style={{ "--gauge-value": `${clamped}%` } as CSSProperties}>
+        <strong>{Math.round(clamped)}</strong>
+        <span>pulse</span>
+      </div>
+      <div>
+        <span className={styles.microLabel}>{label}</span>
+        <p>{meta}</p>
+      </div>
+    </div>
+  );
+}
+
+function FlowPressure({
+  buyCount,
+  sellCount,
+}: {
+  buyCount: number;
+  sellCount: number;
+}) {
+  const total = buyCount + sellCount;
+  const buyPct = total > 0 ? (buyCount / total) * 100 : 50;
+
+  return (
+    <div className={styles.flowPressure}>
+      <div className={styles.flowPressureHead}>
+        <span><FaCircleNodes /> Tape pressure</span>
+        <strong>{fmtInteger(total)} recent fills</strong>
+      </div>
+      <div className={styles.pressureTrack}>
+        <i style={{ width: `${buyPct}%` }} />
+      </div>
+      <div className={styles.pressureLegend}>
+        <span className={styles.positive}>Buy {fmtInteger(buyCount)}</span>
+        <span className={styles.negative}>Sell {fmtInteger(sellCount)}</span>
+      </div>
+    </div>
+  );
+}
+
+function HotSymbolStrip({
+  symbols,
+  assetMeta,
+}: {
+  symbols: Array<{ symbol: string; count: number; cash: number }>;
+  assetMeta: Map<string, { icon: string | null; color: string | null }>;
+}) {
+  return (
+    <div className={styles.hotStrip}>
+      {symbols.length ? symbols.map((item) => {
+        const meta = assetMeta.get(item.symbol);
+        return (
+          <Link key={item.symbol} href={`/stocks/${encodeURIComponent(item.symbol)}`} className={styles.hotSymbol}>
+            <AssetCoin symbol={item.symbol} icon={meta?.icon ?? null} color={meta?.color ?? null} className={styles.hotIcon} />
+            <span>
+              <strong>{item.symbol}</strong>
+              <em>{fmtInteger(item.count)} prints · {fmtNumber(item.cash, "$")}</em>
+            </span>
+          </Link>
+        );
+      }) : <div className={styles.empty}>No hot symbols yet.</div>}
+    </div>
+  );
+}
+
+function ActivityInsightRail({
+  hub,
+  activityScore,
+}: {
+  hub: MarketHubResponse;
+  activityScore: number;
+}) {
+  const fiveMinute = hub.activity.windows["5m"];
+  const oneHour = hub.activity.windows["1h"];
+  const topTrader = hub.activity.most_active_traders_24h[0] || null;
+  const topMover = hub.leaders.top_movers[0] || null;
+  const topLoser = hub.leaders.top_losers[0] || null;
+
+  const lines = [
+    `${fmtInteger(fiveMinute.trade_count)} trades printed in the last 5 minutes, tracking at ${Math.round(activityScore)} pulse intensity.`,
+    `${fmtNumber(oneHour.volume_cash, "$")} changed hands over the last hour across ${fmtInteger(oneHour.asset_count)} assets.`,
+    topTrader ? `${topTrader.username} is driving the board with ${fmtInteger(topTrader.trade_count)} trades over 24 hours.` : null,
+    topMover && topLoser ? `${topMover.symbol} leads momentum at ${formatSignedPct(topMover.move_24h_pct)} while ${topLoser.symbol} is under pressure at ${formatSignedPct(topLoser.move_24h_pct)}.` : null,
+  ].filter((line): line is string => Boolean(line));
+
+  return (
+    <section className={styles.insightRail}>
+      <div className={styles.sectionHead}>
+        <div>
+          <h2 className={styles.sectionTitle}>Live Read</h2>
+          <p className={styles.sectionCopy}>Derived from the hub snapshot plus recent websocket fills.</p>
+        </div>
+      </div>
+      <div className={styles.insightList}>
+        {lines.map((line) => (
+          <div key={line} className={styles.insightItem}>
+            <FaSignal />
+            <p>{line}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function AssetLeaderList({
   title,
   subtitle,
@@ -197,6 +322,7 @@ function TradeTape({
               <strong>{fmtNumber(trade.quantity)} @ {fmtNumber(trade.price, "$")}</strong>
               <span>Gross {fmtNumber(trade.gross_cash, "$")}</span>
             </div>
+            <span className={`${styles.tradeRail} ${isBuy ? styles.tradeRailBuy : styles.tradeRailSell}`} aria-hidden="true" />
           </article>
         );
       }) : <div className={styles.empty}>No trade prints yet.</div>}
@@ -385,6 +511,38 @@ export function MarketPage() {
     ];
   }, [allMarketIndex]);
 
+  const tradePressure = useMemo(() => {
+    return trades.reduce(
+      (acc, trade) => {
+        if (trade.side.toLowerCase() === "buy") acc.buyCount += 1;
+        if (trade.side.toLowerCase() === "sell") acc.sellCount += 1;
+        return acc;
+      },
+      { buyCount: 0, sellCount: 0 }
+    );
+  }, [trades]);
+
+  const hotSymbols = useMemo(() => {
+    const bySymbol = new Map<string, { symbol: string; count: number; cash: number }>();
+    for (const trade of trades) {
+      const current = bySymbol.get(trade.symbol) || { symbol: trade.symbol, count: 0, cash: 0 };
+      current.count += 1;
+      current.cash += trade.gross_cash;
+      bySymbol.set(trade.symbol, current);
+    }
+    return [...bySymbol.values()].sort((a, b) => b.count - a.count || b.cash - a.cash).slice(0, 5);
+  }, [trades]);
+
+  const activityScore = useMemo(() => {
+    if (!hub) return 0;
+    const fiveMinuteTrades = hub.activity.windows["5m"].trade_count;
+    const hourlyPace = Math.max(1, hub.activity.windows["1h"].trade_count / 12);
+    const paceScore = Math.min(52, (fiveMinuteTrades / hourlyPace) * 28);
+    const traderScore = Math.min(24, hub.activity.windows["5m"].trader_count * 4);
+    const assetScore = Math.min(24, hub.activity.windows["5m"].asset_count * 3);
+    return Math.max(0, Math.min(100, paceScore + traderScore + assetScore));
+  }, [hub]);
+
   return (
     <SiteShell>
       <div className={styles.page}>
@@ -392,11 +550,11 @@ export function MarketPage() {
           <div className={styles.heroCopy}>
             <div className={styles.heroEyebrow}>
               <FaSignal />
-              <span>Live market hub</span>
+              <span>Live game activity</span>
             </div>
-            <h1 className={styles.heroTitle}>Exchange Floor</h1>
+            <h1 className={styles.heroTitle}>Market Heartbeat</h1>
             <p className={styles.heroText}>
-              A live read on the game: who is trading, what is moving, where the flow is going, and how active the market feels right now.
+              A real-time operations desk for the game economy: live fills, trader pressure, hot symbols, and where attention is rotating right now.
             </p>
           </div>
           <div className={styles.heroStatus}>
@@ -413,42 +571,40 @@ export function MarketPage() {
         </section>
 
         {error ? <div className="statusMessage statusMessageError">Request error: {error}</div> : null}
-        {isLoading ? <div className={styles.loading}>Loading market hub…</div> : null}
+        {isLoading ? <div className={styles.loading}>Loading market activity…</div> : null}
 
         {hub ? (
           <>
-            <section className={styles.statsGrid}>
-              <StatCard
-                label="5 Minute Tape"
-                value={fmtInteger(hub.activity.windows["5m"].trade_count)}
-                meta={`${fmtInteger(hub.activity.windows["5m"].trader_count)} traders`}
-                icon={<FaBolt />}
-              />
-              <StatCard
-                label="1 Hour Flow"
-                value={fmtNumber(hub.activity.windows["1h"].volume_cash, "$")}
-                meta={`${fmtInteger(hub.activity.windows["1h"].trade_count)} trades`}
-                icon={<FaMoneyBillTrendUp />}
-              />
-              <StatCard
-                label="24 Hour Crowd"
-                value={fmtInteger(hub.activity.windows["24h"].trader_count)}
-                meta={`${fmtInteger(hub.activity.windows["24h"].asset_count)} assets touched`}
-                icon={<FaUsers />}
-              />
-              <StatCard
-                label="Market Breadth"
-                value={`${fmtInteger(allMarketIndex?.summary?.advancers)} / ${fmtInteger(allMarketIndex?.summary?.decliners)}`}
-                meta={`${fmtInteger(allMarketIndex?.summary?.constituent_count)} tracked`}
-                icon={<FaChartLine />}
-              />
+            <section className={styles.controlDeck}>
+              <div className={styles.pulsePanel}>
+                <ActivityGauge
+                  score={activityScore}
+                  label="Activity intensity"
+                  meta={`${fmtInteger(hub.activity.windows["5m"].trade_count)} trades · ${fmtInteger(hub.activity.windows["5m"].trader_count)} traders in 5m`}
+                />
+                <FlowPressure buyCount={tradePressure.buyCount} sellCount={tradePressure.sellCount} />
+              </div>
+              <StatCard label="1 Hour Flow" value={fmtNumber(hub.activity.windows["1h"].volume_cash, "$")} meta={`${fmtInteger(hub.activity.windows["1h"].trade_count)} trades`} icon={<FaMoneyBillTrendUp />} />
+              <StatCard label="24 Hour Crowd" value={fmtInteger(hub.activity.windows["24h"].trader_count)} meta={`${fmtInteger(hub.activity.windows["24h"].asset_count)} assets touched`} icon={<FaUsers />} />
+              <StatCard label="Market Breadth" value={`${fmtInteger(allMarketIndex?.summary?.advancers)} / ${fmtInteger(allMarketIndex?.summary?.decliners)}`} meta={`${fmtInteger(allMarketIndex?.summary?.constituent_count)} tracked`} icon={<FaChartLine />} />
+            </section>
+
+            <section className={styles.hotPanel}>
+              <div className={styles.sectionHead}>
+                <div>
+                  <h2 className={styles.sectionTitle}>Hot Symbols</h2>
+                  <p className={styles.sectionCopy}>Most repeated names in the currently loaded live tape.</p>
+                </div>
+                <div className={styles.sectionMeta}><FaBolt /> Rotating now</div>
+              </div>
+              <HotSymbolStrip symbols={hotSymbols} assetMeta={assetMeta} />
             </section>
 
             <div className={styles.mainGrid}>
               <section className={`${styles.panel} ${styles.chartPanel}`}>
                 <div className={styles.sectionHead}>
                   <div>
-                    <h2 className={styles.sectionTitle}>Market Pulse</h2>
+                    <h2 className={styles.sectionTitle}>Heartbeat Index</h2>
                     <p className={styles.sectionCopy}>
                       {allMarketIndex?.summary?.market_date ? `${allMarketIndex.summary.market_date} · ` : ""}
                       broad index action and current breadth
@@ -466,7 +622,7 @@ export function MarketPage() {
               <section className={`${styles.panel} ${styles.tapePanel}`}>
                 <div className={styles.sectionHead}>
                   <div>
-                    <h2 className={styles.sectionTitle}>Live Tape</h2>
+                    <h2 className={styles.sectionTitle}>Live Trade Tape</h2>
                     <p className={styles.sectionCopy}>Recent fills across the entire market, newest first.</p>
                   </div>
                   <div className={styles.sectionMeta}>
@@ -483,7 +639,9 @@ export function MarketPage() {
               </section>
             </div>
 
-            <div className={styles.boardGrid}>
+            <div className={styles.intelGrid}>
+              <ActivityInsightRail hub={hub} activityScore={activityScore} />
+
               <AssetLeaderList
                 title="Fastest Movers"
                 subtitle="Names with the biggest positive 24H move."
@@ -492,7 +650,7 @@ export function MarketPage() {
               />
 
               <AssetLeaderList
-                title="Hardest Slips"
+                title="Pressure Board"
                 subtitle="Names under the heaviest 24H pressure."
                 assets={hub.leaders.top_losers}
                 metric={(asset) => <span className={toneClass(asset.move_24h_pct)}>{formatSignedPct(asset.move_24h_pct)}</span>}
@@ -530,7 +688,9 @@ export function MarketPage() {
                   )) : <div className={styles.empty}>No momentum leaders yet.</div>}
                 </div>
               </section>
+            </div>
 
+            <div className={styles.bottomGrid}>
               <section className={styles.panel}>
                 <div className={styles.sectionHead}>
                   <div>
@@ -565,14 +725,14 @@ export function MarketPage() {
               <section className={styles.panel}>
                 <div className={styles.sectionHead}>
                   <div>
-                    <h2 className={styles.sectionTitle}>Market Clock</h2>
+                    <h2 className={styles.sectionTitle}>Session Clock</h2>
                     <p className={styles.sectionCopy}>Runtime state and the current session timeline.</p>
                   </div>
                 </div>
                 <div className={styles.clockGrid}>
                   <div className={styles.clockCard}>
                     <span>Status</span>
-                    <strong>{hub.status?.is_trading_open ? "Open" : "Closed"}</strong>
+                    <strong className={hub.status?.is_trading_open ? styles.positive : styles.negative}>{hub.status?.is_trading_open ? "Open" : "Closed"}</strong>
                     <p>{hub.status?.trading_message || "Trading session operating normally."}</p>
                   </div>
                   <div className={styles.clockCard}>

@@ -1,45 +1,103 @@
 @use "../../styles/mixins" as *;
 
 .page {
+  --activity-cyan: var(--accent);
+  --activity-blue: var(--trend-line);
+  --activity-panel: color-mix(in srgb, var(--surface-card) 86%, transparent);
+  --activity-panel-soft: color-mix(in srgb, var(--surface-card-soft) 78%, transparent);
   display: grid;
   gap: 1rem;
+}
+
+.hero,
+.statCard,
+.pulsePanel,
+.hotPanel,
+.panel,
+.insightRail {
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--activity-cyan) 14%, transparent), transparent 32%),
+    linear-gradient(135deg, color-mix(in srgb, var(--activity-panel) 90%, transparent), color-mix(in srgb, var(--bg-accent) 84%, transparent));
 }
 
 .hero {
-  @include panel;
-  padding: 1.4rem;
+  position: relative;
   display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.65fr);
   gap: 1rem;
-  grid-template-columns: minmax(0, 1.5fr) minmax(18rem, 0.9fr);
   align-items: end;
+  overflow: hidden;
+  padding: clamp(1rem, 2vw, 1.6rem);
 }
 
-.heroEyebrow {
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: auto -7rem -11rem auto;
+  width: 22rem;
+  height: 22rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--activity-blue) 28%, transparent), transparent 62%);
+  pointer-events: none;
+}
+
+.heroCopy {
+  position: relative;
+  z-index: 1;
+}
+
+.heroEyebrow,
+.microLabel,
+.statLabel,
+.sectionMeta,
+.flowPressureHead span,
+.clockCard span {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
-  font-size: 0.8rem;
+  gap: 0.5rem;
+  color: var(--activity-cyan);
+  font-size: 0.76rem;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--muted);
 }
 
 .heroTitle {
   @include section-title;
   margin: 0.2rem 0 0;
+  font-size: clamp(2.35rem, 5vw, 4.25rem);
+}
+
+.heroText,
+.heroMeta,
+.statMeta,
+.sectionCopy,
+.clockCard p,
+.insightItem p,
+.activityGauge p {
+  @include subtle-copy;
+  margin: 0;
 }
 
 .heroText {
-  @include subtle-copy;
-  margin: 0.4rem 0 0;
-  max-width: 64ch;
+  max-width: 68ch;
+  margin-top: 0.45rem;
 }
 
 .heroStatus {
+  position: relative;
+  z-index: 1;
   display: grid;
-  gap: 0.45rem;
+  gap: 0.55rem;
   justify-items: end;
   text-align: right;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--activity-cyan) 24%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-card-strong) 80%, transparent);
 }
 
 .connectionRow {
@@ -61,8 +119,8 @@
 }
 
 .connectionConnecting {
-  background: #f59e0b;
-  color: #f59e0b;
+  background: var(--warning);
+  color: var(--warning);
 }
 
 .connectionClosed {
@@ -70,111 +128,219 @@
   color: var(--danger);
 }
 
-.heroMeta {
-  color: var(--muted);
-  font-size: 0.92rem;
+.loading,
+.empty {
+  @include empty-state;
 }
 
-.loading {
-  @include panel;
-  padding: 1rem 1.2rem;
-}
-
-.statsGrid {
+.controlDeck {
   display: grid;
+  grid-template-columns: minmax(25rem, 1.25fr) repeat(3, minmax(0, 0.75fr));
   gap: 1rem;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.pulsePanel {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.8fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem;
+}
+
+.activityGauge {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.gaugeRing {
+  --gauge-value: 0%;
+  display: grid;
+  place-items: center;
+  width: 7.75rem;
+  height: 7.75rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, var(--bg-accent) 0 56%, transparent 57%),
+    conic-gradient(var(--activity-cyan) var(--gauge-value), color-mix(in srgb, var(--muted) 18%, transparent) 0);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--activity-cyan) 25%, transparent);
+}
+
+.gaugeRing strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.gaugeRing span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.flowPressure {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.flowPressureHead,
+.pressureLegend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.flowPressureHead strong,
+.pressureLegend {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+.pressureTrack {
+  height: 0.8rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--trend-down) 34%, transparent);
+}
+
+.pressureTrack i {
+  display: block;
+  height: 100%;
+  min-width: 0.2rem;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--trend-up), color-mix(in srgb, var(--activity-cyan) 80%, var(--trend-up)));
 }
 
 .statCard {
-  @include panel;
-  padding: 1rem 1.1rem;
   display: grid;
+  align-content: center;
   gap: 0.45rem;
-}
-
-.statLabel {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  color: var(--muted);
-  font-size: 0.84rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.statIcon {
-  color: var(--accent);
+  padding: 1rem;
 }
 
 .statValue {
-  font-size: clamp(1.2rem, 2vw, 1.9rem);
-  font-weight: 800;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: clamp(1.25rem, 2vw, 1.9rem);
+  font-weight: 900;
 }
 
-.statMeta {
+.statIcon {
+  color: var(--activity-cyan);
+}
+
+.hotPanel {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+}
+
+.hotStrip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.hotSymbol {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--activity-panel-soft) 82%, transparent);
+  color: inherit;
+  text-decoration: none;
+}
+
+.hotSymbol:hover {
+  border-color: color-mix(in srgb, var(--activity-cyan) 45%, var(--border));
+}
+
+.hotIcon {
+  width: 2.1rem;
+  height: 2.1rem;
+  flex: 0 0 auto;
+}
+
+.hotSymbol span,
+.assetMain > div,
+.traderIdentity > div,
+.tradeCopy {
+  display: grid;
+  min-width: 0;
+}
+
+.hotSymbol em,
+.tradeMeta,
+.assetMain span,
+.traderIdentity span {
+  overflow: hidden;
   color: var(--muted);
-  font-size: 0.92rem;
+  font-size: 0.88rem;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mainGrid {
   display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(28rem, 1.08fr);
   gap: 1rem;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  align-items: stretch;
 }
 
-.boardGrid {
+.intelGrid {
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.panel {
-  @include panel;
-  padding: 1.15rem;
+.bottomGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(22rem, 0.72fr);
+  gap: 1rem;
+}
+
+.panel,
+.insightRail {
   display: grid;
   gap: 0.95rem;
+  min-width: 0;
+  padding: 1rem;
 }
 
-.chartPanel {
-  min-width: 0;
+.chartPanel :global(.chartBoxBare) {
+  padding: 0;
+}
+
+.chartPanel :global(.canvas) {
+  height: 330px;
 }
 
 .tapePanel {
-  min-width: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
-.sectionHead {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 1rem;
+.tradeTape {
+  display: grid;
+  gap: 0.65rem;
+  max-height: 30rem;
+  overflow: auto;
+  padding-right: 0.25rem;
+  scrollbar-gutter: stable;
 }
 
-.sectionTitle {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 800;
-}
-
-.sectionCopy {
-  @include subtle-copy;
-  margin: 0.25rem 0 0;
-  font-size: 0.94rem;
-}
-
-.sectionMeta {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  color: var(--muted);
-  font-size: 0.9rem;
-  white-space: nowrap;
-}
-
-.tradeTape,
 .assetList,
-.traderList {
+.traderList,
+.clockGrid,
+.insightList {
   display: grid;
   gap: 0.75rem;
 }
@@ -182,16 +348,38 @@
 .tradeRow,
 .assetRow,
 .traderRow {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.9rem 1rem;
-  border: 1px solid var(--border-soft);
+  overflow: hidden;
+  padding: 0.85rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--surface-card) 88%, transparent);
+  background: color-mix(in srgb, var(--surface-card) 84%, transparent);
   color: inherit;
   text-decoration: none;
+}
+
+.assetRow:hover,
+.traderRow:hover,
+.tradeRow:hover {
+  border-color: color-mix(in srgb, var(--activity-cyan) 38%, var(--border));
+}
+
+.tradeRail {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0.24rem;
+}
+
+.tradeRailBuy {
+  background: var(--trend-up);
+}
+
+.tradeRailSell {
+  background: var(--trend-down);
 }
 
 .tradeIdentity,
@@ -203,26 +391,11 @@
   min-width: 0;
 }
 
-.tradeCopy,
-.assetMain > div,
-.traderIdentity > div {
-  display: grid;
-  gap: 0.2rem;
-  min-width: 0;
-}
-
 .tradeHeadline {
   display: flex;
   align-items: center;
   gap: 0.45rem;
   flex-wrap: wrap;
-}
-
-.tradeMeta,
-.assetMain span,
-.traderIdentity span {
-  color: var(--muted);
-  font-size: 0.88rem;
 }
 
 .tradeNumbers,
@@ -254,7 +427,7 @@
   padding: 0.2rem 0.45rem;
   border-radius: 999px;
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 900;
   letter-spacing: 0.06em;
 }
 
@@ -287,53 +460,74 @@
 }
 
 .traderBadge {
-  width: 2.1rem;
-  height: 2.1rem;
-  border-radius: 999px;
   display: grid;
   place-items: center;
-  background: var(--accent);
-  color: var(--button-primary-text);
-  font-weight: 800;
+  width: 2.1rem;
+  height: 2.1rem;
   flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--activity-cyan);
+  color: var(--button-primary-text);
+  font-weight: 900;
 }
 
-.clockGrid {
+.clockCard,
+.insightItem {
   display: grid;
-  gap: 0.75rem;
-}
-
-.clockCard {
-  border: 1px solid var(--border-soft);
+  gap: 0.35rem;
+  padding: 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: var(--radius-md);
-  padding: 0.95rem 1rem;
-  background: color-mix(in srgb, var(--surface-card) 86%, transparent);
-  display: grid;
-  gap: 0.25rem;
+  background: color-mix(in srgb, var(--surface-card-soft) 78%, transparent);
 }
 
-.clockCard span {
-  color: var(--muted);
-  font-size: 0.82rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.insightItem {
+  grid-template-columns: auto minmax(0, 1fr);
 }
 
-.clockCard p {
-  @include subtle-copy;
+.insightItem svg {
+  margin-top: 0.2rem;
+  color: var(--activity-cyan);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sectionTitle {
   margin: 0;
-  font-size: 0.9rem;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 1.15rem;
 }
 
-.empty {
-  @include empty-state;
+.sectionCopy {
+  margin-top: 0.25rem;
+  font-size: 0.94rem;
 }
 
-@media (max-width: 1080px) {
+.positive {
+  color: var(--trend-up) !important;
+}
+
+.negative {
+  color: var(--trend-down) !important;
+}
+
+.neutral {
+  color: var(--text) !important;
+}
+
+@media (max-width: 1180px) {
   .hero,
+  .controlDeck,
   .mainGrid,
-  .boardGrid,
-  .statsGrid {
+  .intelGrid,
+  .bottomGrid,
+  .hotStrip {
     grid-template-columns: 1fr;
   }
 
@@ -343,12 +537,17 @@
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 760px) {
+  .pulsePanel,
+  .activityGauge,
   .tradeRow,
   .assetRow,
   .traderRow,
-  .sectionHead {
+  .sectionHead,
+  .flowPressureHead,
+  .pressureLegend {
     display: grid;
+    grid-template-columns: 1fr;
   }
 
   .tradeNumbers,

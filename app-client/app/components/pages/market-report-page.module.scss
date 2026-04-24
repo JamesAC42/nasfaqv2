@@ -1,0 +1,335 @@
+@use "../../styles/mixins" as *;
+
+.page {
+  --report-cyan: var(--accent);
+  --report-blue: var(--trend-line);
+  --report-panel: color-mix(in srgb, var(--surface-card) 86%, transparent);
+  --report-panel-soft: color-mix(in srgb, var(--surface-card-soft) 78%, transparent);
+  display: grid;
+  gap: 1rem;
+}
+
+.hero,
+.statCard,
+.chartPanel,
+.insightPanel,
+.portfolioPanel,
+.reportCard {
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--report-panel) 88%, transparent), color-mix(in srgb, var(--bg-accent) 82%, transparent)),
+    radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--report-cyan) 16%, transparent), transparent 32%);
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(18rem, 0.65fr);
+  gap: 1rem;
+  overflow: hidden;
+  padding: clamp(1rem, 2vw, 1.5rem);
+  position: relative;
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: auto -8rem -12rem auto;
+  width: 22rem;
+  height: 22rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--trend-line) 28%, transparent), transparent 64%);
+  pointer-events: none;
+}
+
+.heroCopy,
+.heroPanel,
+.insightList,
+.portfolioStats,
+.exposureBars,
+.reportRows,
+.radarGrid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.eyebrow,
+.statCard span,
+.heroPanel span,
+.portfolioStats span,
+.radarGrid span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--report-cyan);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero h1 {
+  @include section-title;
+  font-size: clamp(2.25rem, 5vw, 4rem);
+}
+
+.hero p,
+.sectionHeader p,
+.heroPanel p,
+.statCard p,
+.insightItem p,
+.radarGrid p {
+  @include subtle-copy;
+  margin: 0;
+}
+
+.heroPanel {
+  z-index: 1;
+  align-self: stretch;
+  align-content: end;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--report-cyan) 24%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-card-strong) 84%, transparent);
+}
+
+.heroPanel strong {
+  font-family: var(--font-display);
+  font-size: clamp(1.7rem, 3vw, 2.8rem);
+}
+
+.loading,
+.empty {
+  @include empty-state;
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.statCard {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+}
+
+.statCard strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: clamp(1.2rem, 2vw, 1.8rem);
+}
+
+.commandGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(22rem, 0.75fr);
+  gap: 1rem;
+}
+
+.chartPanel,
+.insightPanel,
+.portfolioPanel,
+.reportCard {
+  padding: 1rem;
+  min-width: 0;
+}
+
+.chartPanel :global(.chartBoxBare) {
+  min-height: 0;
+}
+
+.chartPanel :global(.canvas) {
+  height: 300px;
+}
+
+.sectionHeader,
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sectionHeader h2,
+.cardHeader h2 {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+}
+
+.panelLink {
+  color: var(--accent-strong);
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.panelLink:hover {
+  text-decoration: underline;
+}
+
+.insightItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--border-info) 50%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--report-panel-soft) 86%, transparent);
+}
+
+.insightItem svg,
+.headerGlyph {
+  color: var(--report-cyan);
+}
+
+.portfolioGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(22rem, 0.72fr);
+  gap: 1rem;
+}
+
+.portfolioStats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.portfolioStats div,
+.radarGrid div {
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-card-soft) 78%, transparent);
+}
+
+.portfolioStats strong,
+.radarGrid strong {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+
+.exposureRow {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr) 4rem;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.exposureTrack {
+  height: 0.65rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 18%, transparent);
+}
+
+.exposureTrack i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--report-cyan), var(--report-blue));
+}
+
+.reportGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.cardHeader {
+  justify-content: flex-start;
+}
+
+.cardIcon {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  flex: 0 0 auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 70%, transparent);
+  color: var(--report-cyan);
+}
+
+.reportRow {
+  display: grid;
+  grid-template-columns: 2rem auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-card-soft) 72%, transparent);
+  color: inherit;
+  text-decoration: none;
+}
+
+.reportRow:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.rank {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-weight: 800;
+}
+
+.assetIcon {
+  width: 2rem;
+  height: 2rem;
+}
+
+.assetCopy {
+  display: grid;
+  min-width: 0;
+}
+
+.assetCopy em {
+  overflow: hidden;
+  color: var(--muted);
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.positive {
+  color: var(--trend-up) !important;
+}
+
+.negative {
+  color: var(--trend-down) !important;
+}
+
+.neutral {
+  color: var(--text) !important;
+}
+
+@media (max-width: 1180px) {
+  .hero,
+  .statGrid,
+  .commandGrid,
+  .portfolioGrid,
+  .reportGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .portfolioStats,
+  .exposureRow,
+  .sectionHeader {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .reportRow {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .rank {
+    display: none;
+  }
+}

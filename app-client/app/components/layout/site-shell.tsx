@@ -25,7 +25,8 @@ const CATEGORY_ITEMS = [
     key: "finance",
     label: "Finance",
     links: [
-      { href: "/market", label: "Market" },
+      { href: "/market", label: "Reports" },
+      { href: "/finance/activity", label: "Activity" },
       { href: "/indexes", label: "Indexes" },
       { href: "/stocks", label: "Stocks" },
       { href: "/finance/rankings", label: "Rankings" },
