@@ -443,6 +443,89 @@ function ArticleCard({ article }: { article: ArticleSummary }) {
   );
 }
 
+function ArticleShelf({
+  mine,
+  saved,
+  activeTab,
+  isLoading,
+  onTabChange,
+  onMinePageChange,
+  onSavedPageChange,
+}: {
+  mine: ProfileBundle["articles"];
+  saved: ProfileBundle["saved_articles"];
+  activeTab: "mine" | "saved";
+  isLoading: boolean;
+  onTabChange: (tab: "mine" | "saved") => void;
+  onMinePageChange: (updater: (current: number) => number) => void;
+  onSavedPageChange: (updater: (current: number) => number) => void;
+}) {
+  const canShowSaved = Boolean(saved);
+  const resolvedTab = activeTab === "saved" && canShowSaved ? "saved" : "mine";
+  const activeList = resolvedTab === "saved" && saved ? saved : mine;
+  const isSaved = resolvedTab === "saved";
+
+  return (
+    <section className={[styles.sectionPanel, styles.articleShelf].join(" ")}>
+      <div className={styles.articleShelfHead}>
+        <div>
+          <h2 className={styles.sectionTitle}>Articles</h2>
+          <span className={styles.sectionCount}>Page {activeList.pagination.page} of {activeList.pagination.page_count}</span>
+        </div>
+        <div className={styles.tabList} role="tablist" aria-label="Profile articles">
+          <button
+            type="button"
+            className={[styles.tabButton, resolvedTab === "mine" ? styles.tabButtonActive : ""].filter(Boolean).join(" ")}
+            role="tab"
+            aria-selected={resolvedTab === "mine"}
+            onClick={() => onTabChange("mine")}
+          >
+            Mine
+          </button>
+          {canShowSaved ? (
+            <button
+              type="button"
+              className={[styles.tabButton, resolvedTab === "saved" ? styles.tabButtonActive : ""].filter(Boolean).join(" ")}
+              role="tab"
+              aria-selected={resolvedTab === "saved"}
+              onClick={() => onTabChange("saved")}
+            >
+              Saved
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {activeList.items.length ? (
+        <div className={styles.articleShelfGrid}>
+          {activeList.items.map((article) => <ArticleCard key={article.id} article={article} />)}
+        </div>
+      ) : (
+        <div className={styles.empty}>{isSaved ? "No saved articles yet." : "No published articles yet."}</div>
+      )}
+      <div className={styles.paginationCompact}>
+        <button
+          type="button"
+          className={styles.smallPaginationButton}
+          disabled={!activeList.pagination.has_previous_page || isLoading}
+          onClick={() => (isSaved ? onSavedPageChange : onMinePageChange)((current) => Math.max(1, current - 1))}
+        >
+          Previous
+        </button>
+        <span className={styles.muted}>Page {activeList.pagination.page} of {activeList.pagination.page_count}</span>
+        <button
+          type="button"
+          className={styles.smallPaginationButton}
+          disabled={!activeList.pagination.has_next_page || isLoading}
+          onClick={() => (isSaved ? onSavedPageChange : onMinePageChange)((current) => current + 1)}
+        >
+          Next
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function TradeList({
   trades,
   assets,
@@ -491,44 +574,51 @@ function TradeList({
 function AchievementBadgeList({
   achievements,
   emptyLabel,
+  defaultOpen = false,
 }: {
   achievements: ProfileBundle["profile"]["achievements"];
   emptyLabel: string;
+  defaultOpen?: boolean;
 }) {
   return (
-    <section className={styles.sectionPanel}>
-      <div className={styles.sectionHead}>
-        <h2 className={styles.sectionTitle}>Achievements</h2>
-        <span className={styles.sectionCount}>{achievements.length}</span>
-      </div>
-      {achievements.length ? (
-        <div className={styles.achievementGrid}>
-          {achievements.map((achievement) => {
-            const AchievementIcon = achievementIconFor(achievement);
-            return (
-              <article
-                key={`${achievement.key}:${achievement.earned_at || "earned"}`}
-                className={styles.achievementCard}
-                style={achievement.badge_color ? ({ "--achievement-accent": achievement.badge_color } as CSSProperties) : undefined}
-              >
-                <div className={styles.achievementIconBadge} aria-hidden="true">
-                  <AchievementIcon />
-                </div>
-                <div className={styles.achievementTop}>
-                  <strong>{achievement.name}</strong>
-                  {achievement.reward_cash > 0 ? <span className={styles.achievementReward}>+{fmtNumber(achievement.reward_cash, "$")}</span> : null}
-                </div>
-                {achievement.description ? <p className={styles.achievementDescription}>{achievement.description}</p> : null}
-                <div className={styles.achievementMeta}>
-                  <span>{achievement.earned_at ? `Earned ${formatDate(achievement.earned_at)}` : "Earned"}</span>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      ) : (
-        <div className={styles.empty}>{emptyLabel}</div>
-      )}
+    <section className={[styles.sectionPanel, styles.achievementPanel].join(" ")}>
+      <details className={styles.achievementDisclosure} open={defaultOpen}>
+        <summary className={styles.achievementSummary}>
+          <div>
+            <h2 className={styles.sectionTitle}>Milestones</h2>
+            <span className={styles.sectionCount}>{achievements.length} earned badges</span>
+          </div>
+          <strong className={styles.disclosureCue}>Toggle</strong>
+        </summary>
+        {achievements.length ? (
+          <div className={styles.achievementGrid}>
+            {achievements.map((achievement) => {
+              const AchievementIcon = achievementIconFor(achievement);
+              return (
+                <article
+                  key={`${achievement.key}:${achievement.earned_at || "earned"}`}
+                  className={styles.achievementCard}
+                  style={achievement.badge_color ? ({ "--achievement-accent": achievement.badge_color } as CSSProperties) : undefined}
+                >
+                  <div className={styles.achievementIconBadge} aria-hidden="true">
+                    <AchievementIcon />
+                  </div>
+                  <div className={styles.achievementTop}>
+                    <strong>{achievement.name}</strong>
+                    {achievement.reward_cash > 0 ? <span className={styles.achievementReward}>+{fmtNumber(achievement.reward_cash, "$")}</span> : null}
+                  </div>
+                  {achievement.description ? <p className={styles.achievementDescription}>{achievement.description}</p> : null}
+                  <div className={styles.achievementMeta}>
+                    <span>{achievement.earned_at ? `Earned ${formatDate(achievement.earned_at)}` : "Earned"}</span>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className={styles.empty}>{emptyLabel}</div>
+        )}
+      </details>
     </section>
   );
 }
@@ -629,6 +719,7 @@ export function ProfilePage({ username }: { username?: string | null }) {
   const [error, setError] = useState<string | null>(null);
   const [articlesPage, setArticlesPage] = useState(1);
   const [savedArticlesPage, setSavedArticlesPage] = useState(1);
+  const [articleShelfTab, setArticleShelfTab] = useState<"mine" | "saved">("mine");
   const [tradesPage, setTradesPage] = useState(1);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [profilePictures, setProfilePictures] = useState<SelectableProfilePicture[]>([]);
@@ -646,6 +737,7 @@ export function ProfilePage({ username }: { username?: string | null }) {
   useEffect(() => {
     setArticlesPage(1);
     setSavedArticlesPage(1);
+    setArticleShelfTab("mine");
     setTradesPage(1);
   }, [username]);
 
@@ -903,6 +995,10 @@ export function ProfilePage({ username }: { username?: string | null }) {
     ? Math.max(0, Math.min(100, (profile.stats.total_market_value / profile.stats.total_equity) * 100))
     : 0;
   const cashWeightPct = Math.max(0, 100 - holdingsWeightPct);
+  const topHolding = holdingsSorted[0] || null;
+  const topHoldingWeightPct = topHolding && profile && profile.stats.total_equity > 0
+    ? (topHolding.market_value / profile.stats.total_equity) * 100
+    : null;
 
   const chartTheme = useMemo(
     () => createChannelChartTheme(profile?.profile_color || profile?.oshi_coin?.color || null),
@@ -947,8 +1043,12 @@ export function ProfilePage({ username }: { username?: string | null }) {
 
           {bundle && profile && viewer ? (
             <>
-              <div className={styles.profileLayout}>
-                <div className={styles.leftColumn}>
+              <section
+                className={styles.traderHero}
+                style={{ "--profile-accent": accentColor, "--holdings-weight": `${holdingsWeightPct}%`, "--cash-weight": `${cashWeightPct}%` } as CSSProperties}
+              >
+                <div className={styles.heroVisual} aria-hidden="true" />
+                <div className={styles.traderIdentitySlot}>
                   <ProfileIdentity
                     profile={profile}
                     isSelf={isSelf}
@@ -957,7 +1057,85 @@ export function ProfilePage({ username }: { username?: string | null }) {
                     onLogout={() => void handleLogout()}
                     logoutBusy={logoutBusy}
                   />
+                </div>
 
+                <div className={styles.traderBriefing}>
+                  <div>
+                    <div className={styles.heroEyebrow}>User Profile</div>
+                    <h2 className={styles.heroTitle}>Trade Desk</h2>
+                    <p className={styles.heroText}>
+                      {`Live profile, trading posture, and equity curve.`}
+                    </p>
+                  </div>
+                  <div className={styles.deskMetaRow}>
+                    {profile.rank > 0 ? <span>Rank #{profile.rank}</span> : null}
+                    <span>{profile.stats.trade_count} trades</span>
+                    <span>{holdingsSorted.length} holdings</span>
+                    <span>{profile.streaks.current_streak_days > 0 ? `${profile.streaks.current_streak_days} day streak` : "No active streak"}</span>
+                  </div>
+                  <div className={styles.summaryGrid}>
+                    <ProfileStatCard
+                      label="Net worth"
+                      value={fmtNumber(profile.stats.total_equity, "$")}
+                      emphasis="hero"
+                      tone={networthDelta}
+                      showTrend
+                      iconPosition="right"
+                    />
+                    <ProfileStatCard
+                      label="Cash"
+                      value={fmtNumber(profile.stats.cash_balance, "$")}
+                      icon={<FaMoneyBillWave aria-hidden="true" />}
+                    />
+                    <ProfileStatCard
+                      label="Unrealized PnL"
+                      value={formatSignedCurrency(profile.stats.total_unrealized_pnl)}
+                      tone={profile.stats.total_unrealized_pnl}
+                      showTrend
+                      iconPosition="right"
+                    />
+                  </div>
+                  <div className={styles.deskReadoutGrid}>
+                    <article className={styles.deskReadout}>
+                      <span>Portfolio exposure</span>
+                      <strong className={styles.numericValue}>{holdingsWeightPct.toFixed(1)}%</strong>
+                    </article>
+                    <article className={styles.deskReadout}>
+                      <span>Largest position</span>
+                      <strong className={styles.numericValue}>
+                        {topHolding ? `${topHolding.symbol} ${topHoldingWeightPct === null ? "" : `${topHoldingWeightPct.toFixed(1)}%`}` : "—"}
+                      </strong>
+                    </article>
+                    <article className={styles.deskReadout}>
+                      <span>Social signal</span>
+                      <strong className={styles.numericValue}>{profile.stats.friend_count}F / {profile.stats.rival_count}R</strong>
+                    </article>
+                  </div>
+                </div>
+
+                <div className={styles.heroChartDock}>
+                  <div className={styles.allocationPanel}>
+                    <div className={styles.allocationRow}>
+                      <span>Holdings <strong className={styles.numericValue}>{holdingsWeightPct.toFixed(1)}%</strong></span>
+                      <span><strong className={styles.numericValue}>{cashWeightPct.toFixed(1)}%</strong> Cash</span>
+                    </div>
+                    <div className={styles.allocationBar} aria-hidden="true">
+                      <span className={styles.allocationHoldings} />
+                      <span className={styles.allocationCash} />
+                    </div>
+                  </div>
+                  <TrendChartCard
+                    title="Net Worth"
+                    subtitle="Tracked snapshots of equity and cash over time"
+                    series={networthSeries}
+                    theme={chartTheme}
+                    bare
+                  />
+                </div>
+              </section>
+
+              <div className={styles.profileLayout}>
+                <div className={styles.leftColumn}>
                   {needsVerification ? (
                     <VerificationRequiredNotice action="trade, post, comment, vote, or write articles" />
                   ) : null}
@@ -996,6 +1174,13 @@ export function ProfilePage({ username }: { username?: string | null }) {
                     </section>
                   ) : null}
 
+                  {isSelf && profile.pending_friend_requests ? (
+                    <>
+                      <RelationList title="Incoming Requests" emptyLabel="No incoming friend requests." people={profile.pending_friend_requests.incoming} />
+                      <RelationList title="Outgoing Requests" emptyLabel="No outgoing friend requests." people={profile.pending_friend_requests.outgoing} />
+                    </>
+                  ) : null}
+
                   <section className={styles.sectionPanel}>
                     <div className={styles.sectionHead}>
                       <h2 className={styles.sectionTitle}>Recent Trades</h2>
@@ -1015,62 +1200,6 @@ export function ProfilePage({ username }: { username?: string | null }) {
                 </div>
 
                 <div className={styles.centerColumn}>
-                  <section
-                    className={styles.summaryStrip}
-                    style={{ "--profile-accent": accentColor } as CSSProperties}
-                  >
-                    <div className={styles.summaryGrid}>
-                      <ProfileStatCard
-                        label="Net worth"
-                        value={fmtNumber(profile.stats.total_equity, "$")}
-                        emphasis="hero"
-                        tone={networthDelta}
-                        showTrend
-                        iconPosition="right"
-                      />
-                      <ProfileStatCard
-                        label="Cash"
-                        value={fmtNumber(profile.stats.cash_balance, "$")}
-                        icon={<FaMoneyBillWave aria-hidden="true" />}
-                      />
-                      <ProfileStatCard
-                        label="Unrealized PnL"
-                        value={formatSignedCurrency(profile.stats.total_unrealized_pnl)}
-                        tone={profile.stats.total_unrealized_pnl}
-                        showTrend
-                        iconPosition="right"
-                      />
-                    </div>
-                  </section>
-
-                  <section
-                    className={styles.chartPanel}
-                    style={{ "--profile-accent": accentColor, "--holdings-weight": `${holdingsWeightPct}%`, "--cash-weight": `${cashWeightPct}%` } as CSSProperties}
-                  >
-                    <div className={styles.allocationPanel}>
-                      <div className={styles.allocationRow}>
-                        <span>Holdings <strong className={styles.numericValue}>{holdingsWeightPct.toFixed(1)}%</strong></span>
-                        <span><strong className={styles.numericValue}>{cashWeightPct.toFixed(1)}%</strong> Cash</span>
-                      </div>
-                      <div className={styles.allocationBar} aria-hidden="true">
-                        <span className={styles.allocationHoldings} />
-                        <span className={styles.allocationCash} />
-                      </div>
-                    </div>
-                    <TrendChartCard
-                      title="Net Worth"
-                      subtitle="Tracked snapshots of equity and cash over time"
-                      series={networthSeries}
-                      theme={chartTheme}
-                      bare
-                    />
-                  </section>
-
-                  <AchievementBadgeList
-                    achievements={profile.achievements}
-                    emptyLabel={isSelf ? "You have not earned any achievements yet." : "No achievements are visible yet."}
-                  />
-
                   {isSelf ? (
                     <section className={styles.sectionPanel}>
                       <div className={styles.sectionHead}>
@@ -1084,72 +1213,26 @@ export function ProfilePage({ username }: { username?: string | null }) {
                       )}
                     </section>
                   ) : null}
+
+                  <ArticleShelf
+                    mine={bundle.articles}
+                    saved={isSelf ? bundle.saved_articles : null}
+                    activeTab={articleShelfTab}
+                    isLoading={isLoading}
+                    onTabChange={setArticleShelfTab}
+                    onMinePageChange={setArticlesPage}
+                    onSavedPageChange={setSavedArticlesPage}
+                  />
+
+                  <AchievementBadgeList
+                    achievements={profile.achievements}
+                    emptyLabel={isSelf ? "You have not earned any achievements yet." : "No achievements are visible yet."}
+                  />
                 </div>
 
                 <div className={styles.rightColumn}>
                   <RelationList title="Friends" emptyLabel={isSelf ? "You have no confirmed friends yet." : "No friends are visible yet."} people={profile.friends} />
                   <RelationList title="Rivals" emptyLabel={isSelf ? "You have not marked any rivals yet." : "No rivals are visible yet."} people={profile.rivals} />
-
-                  <section className={styles.sectionPanel}>
-                    <div className={styles.sectionHead}>
-                      <h2 className={styles.sectionTitle}>Articles</h2>
-                      <span className={styles.sectionCount}>Page {bundle.articles.pagination.page} of {bundle.articles.pagination.page_count}</span>
-                    </div>
-                    {bundle.articles.items.length ? (
-                      <div className={styles.articleGrid}>
-                        {bundle.articles.items.map((article) => <ArticleCard key={article.id} article={article} />)}
-                      </div>
-                    ) : (
-                      <div className={styles.empty}>No published articles yet.</div>
-                    )}
-                    <div className={styles.paginationCompact}>
-                      <button type="button" className={styles.smallPaginationButton} disabled={!bundle.articles.pagination.has_previous_page || isLoading} onClick={() => setArticlesPage((current) => Math.max(1, current - 1))}>Previous</button>
-                      <span className={styles.muted}>Page {bundle.articles.pagination.page} of {bundle.articles.pagination.page_count}</span>
-                      <button type="button" className={styles.smallPaginationButton} disabled={!bundle.articles.pagination.has_next_page || isLoading} onClick={() => setArticlesPage((current) => current + 1)}>Next</button>
-                    </div>
-                  </section>
-
-                  {isSelf && bundle.saved_articles ? (
-                    <section className={styles.sectionPanel}>
-                      <div className={styles.sectionHead}>
-                        <h2 className={styles.sectionTitle}>Saved Articles</h2>
-                        <span className={styles.sectionCount}>Page {bundle.saved_articles.pagination.page} of {bundle.saved_articles.pagination.page_count}</span>
-                      </div>
-                      {bundle.saved_articles.items.length ? (
-                        <div className={styles.articleGrid}>
-                          {bundle.saved_articles.items.map((article) => <ArticleCard key={article.id} article={article} />)}
-                        </div>
-                      ) : (
-                        <div className={styles.empty}>No saved articles yet.</div>
-                      )}
-                      <div className={styles.paginationCompact}>
-                        <button
-                          type="button"
-                          className={styles.smallPaginationButton}
-                          disabled={!bundle.saved_articles.pagination.has_previous_page || isLoading}
-                          onClick={() => setSavedArticlesPage((current) => Math.max(1, current - 1))}
-                        >
-                          Previous
-                        </button>
-                        <span className={styles.muted}>Page {bundle.saved_articles.pagination.page} of {bundle.saved_articles.pagination.page_count}</span>
-                        <button
-                          type="button"
-                          className={styles.smallPaginationButton}
-                          disabled={!bundle.saved_articles.pagination.has_next_page || isLoading}
-                          onClick={() => setSavedArticlesPage((current) => current + 1)}
-                        >
-                          Next
-                        </button>
-                      </div>
-                    </section>
-                  ) : null}
-
-                  {isSelf && profile.pending_friend_requests ? (
-                    <>
-                      <RelationList title="Incoming Requests" emptyLabel="No incoming friend requests." people={profile.pending_friend_requests.incoming} />
-                      <RelationList title="Outgoing Requests" emptyLabel="No outgoing friend requests." people={profile.pending_friend_requests.outgoing} />
-                    </>
-                  ) : null}
 
                   {isSelf && user?.is_admin ? (
                     <section className={styles.sectionPanel}>

@@ -42,23 +42,10 @@ function getStreamDuration(startedAt: string | null | undefined, nowMs: number) 
 }
 
 function LiveViewerCount({ viewerCount }: { viewerCount: number | null }) {
-  const [displayedCount, setDisplayedCount] = useState<number | null>(viewerCount);
-  const [flashTick, setFlashTick] = useState(0);
-
-  useEffect(() => {
-    setDisplayedCount((current) => {
-      if (current === viewerCount) return current;
-      if (current !== null && viewerCount !== null) {
-        setFlashTick((value) => value + 1);
-      }
-      return viewerCount;
-    });
-  }, [viewerCount]);
-
   return (
     <div className={styles.viewerRow}>
-      <strong key={flashTick} className={`${styles.viewerCount} ${flashTick ? styles.viewerCountFlash : ""}`}>
-        {fmtInteger(displayedCount)}
+      <strong className={styles.viewerCount}>
+        {fmtInteger(viewerCount)}
       </strong>
       <span className={styles.viewerLabel}>watching</span>
     </div>
@@ -73,6 +60,8 @@ function topLivestreams(items: LivestreamItem[]) {
 
 export function LivestreamSection({ items, error }: { items: LivestreamItem[]; error: string | null }) {
   const streams = topLivestreams(items);
+  const featuredStream = streams[0] || null;
+  const secondaryStreams = streams.slice(1);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [selectedItem, setSelectedItem] = useState<LivestreamModalItem | null>(null);
 
@@ -85,15 +74,40 @@ export function LivestreamSection({ items, error }: { items: LivestreamItem[]; e
     setSelectedItem(item);
   }, [setSelectedItem]);
 
-  useEffect(() => {
-    if (!selectedItem) return;
-    const next = items.find((entry) => entry.id === selectedItem.id);
-    if (next) {
-      setSelectedItem(next);
-      return;
-    }
-    setSelectedItem(null);
-  }, [items, selectedItem]);
+  function renderStreamCard(item: LivestreamItem, featured = false) {
+    const accentColor = normalizeHexColor(item.channel_color) || DEFAULT_LIVE_ACCENT;
+    const cardStyle = {
+      "--stream-accent": accentColor,
+      borderColor: rgba(accentColor, 0.34),
+      boxShadow: `0 0 0 0.0625rem ${rgba(accentColor, 0.1)} inset, 0 0.75rem 1.6rem ${rgba(accentColor, 0.12)}`,
+    } as CSSProperties;
+
+    return (
+      <button
+        key={item.id}
+        type="button"
+        className={[styles.card, featured ? styles.cardFeatured : ""].filter(Boolean).join(" ")}
+        style={cardStyle}
+        onClick={() => openModal(item)}
+      >
+        <div className={styles.thumbWrap}>
+          {item.thumbnail_url ? <img src={item.thumbnail_url} alt="" className={styles.thumb} /> : <div className={styles.thumbFallback} />}
+        </div>
+        <div className={styles.body}>
+          <div className={styles.topRow}>
+            <span className={styles.livePill}>Live</span>
+            <span className={styles.duration}>{getStreamDuration(item.started_at, nowMs)}</span>
+          </div>
+          <strong className={styles.streamTitle}>{item.title}</strong>
+          <div className={styles.creatorRow}>
+            <AssetCoin symbol={item.creator.slice(0, 1)} icon={item.creator_icon} className={styles.creatorIcon} />
+            <span className={styles.creatorName}>{item.creator}</span>
+          </div>
+          <LiveViewerCount viewerCount={item.viewer_count} />
+        </div>
+      </button>
+    );
+  }
 
   return (
     <>
@@ -110,36 +124,20 @@ export function LivestreamSection({ items, error }: { items: LivestreamItem[]; e
 
         {error ? <div className={styles.empty}>Livestream feed unavailable: {error}</div> : null}
 
-        {streams.length ? (
+        {featuredStream ? (
           <div className={styles.grid}>
-            {streams.map((item) => {
-              const accentColor = normalizeHexColor(item.channel_color) || DEFAULT_LIVE_ACCENT;
-              const cardStyle = {
-                "--stream-accent": accentColor,
-                borderColor: rgba(accentColor, 0.34),
-                boxShadow: `0 0 0 1px ${rgba(accentColor, 0.1)} inset, 0 0.75rem 1.6rem ${rgba(accentColor, 0.12)}`,
-              } as CSSProperties;
-
-              return (
-                <button key={item.id} type="button" className={styles.card} style={cardStyle} onClick={() => openModal(item)}>
-                  <div className={styles.thumbWrap}>
-                    {item.thumbnail_url ? <img src={item.thumbnail_url} alt="" className={styles.thumb} /> : <div className={styles.thumbFallback} />}
-                  </div>
-                  <div className={styles.body}>
-                    <div className={styles.topRow}>
-                      <span className={styles.livePill}>Live</span>
-                      <span className={styles.duration}>{getStreamDuration(item.started_at, nowMs)}</span>
-                    </div>
-                    <strong className={styles.streamTitle}>{item.title}</strong>
-                    <div className={styles.creatorRow}>
-                      <AssetCoin symbol={item.creator.slice(0, 1)} icon={item.creator_icon} className={styles.creatorIcon} />
-                      <span className={styles.creatorName}>{item.creator}</span>
-                    </div>
-                    <LiveViewerCount viewerCount={item.viewer_count} />
-                  </div>
-                </button>
-              );
-            })}
+            {renderStreamCard(featuredStream, true)}
+            {secondaryStreams.length ? (
+              <div className={styles.secondaryGrid}>
+                {secondaryStreams.map((item) => renderStreamCard(item))}
+              </div>
+            ) : (
+              <div className={styles.activityRail}>
+                <span>Live activity</span>
+                <strong>{fmtInteger(featuredStream.viewer_count)} watching now</strong>
+                <p>More active streams will stack here as the live board fills in.</p>
+              </div>
+            )}
           </div>
         ) : !error ? (
           <div className={styles.empty}>No live channels are available right now.</div>

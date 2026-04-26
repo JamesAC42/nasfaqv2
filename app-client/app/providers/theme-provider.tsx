@@ -24,11 +24,7 @@ function getPreferredTheme(): Theme {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark");
-
-  useEffect(() => {
-    setTheme(getPreferredTheme());
-  }, []);
+  const [theme, setTheme] = useState<Theme>(() => getPreferredTheme());
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, theme);

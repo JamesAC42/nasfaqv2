@@ -4,6 +4,22 @@
   @include archive-panel;
   display: grid;
   align-content: start;
+  gap: 0.85rem;
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 28rem),
+    color-mix(in srgb, var(--surface-card) 90%, transparent);
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+}
+
+.eyebrow {
+  @include archive-eyebrow;
 }
 
 .title {
@@ -17,6 +33,27 @@
   @include section-title-icon(1.1rem);
 }
 
+.copy {
+  @include subtle-copy;
+  margin: 0.35rem 0 0;
+  max-width: 52rem;
+}
+
+.archiveLink {
+  min-height: 2.1rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-card));
+  color: var(--accent-strong);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
 .featuredList,
 .list {
   display: grid;
@@ -28,10 +65,14 @@
   column-gap: 0.8rem;
 }
 
+.compactGridTwoColumn {
+  column-count: 2;
+}
+
 .topLayout {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(18rem, 0.7fr);
-  gap: 0.65rem;
+  grid-template-columns: minmax(0, 1.24fr) minmax(18rem, 0.76fr);
+  gap: 0.8rem;
   align-items: stretch;
 }
 
@@ -44,6 +85,10 @@
 
 .sideRail {
   grid-template-rows: auto 1fr auto;
+  padding: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 68%, transparent);
 }
 
 .sideRailHeader {
@@ -70,11 +115,10 @@
 }
 
 .item {
-  border: 1px solid var(--border-soft);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 72%, transparent);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--surface-card) 88%, transparent);
+  background: color-mix(in srgb, var(--surface-card) 72%, transparent);
   position: relative;
-  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border-soft));
 
   transition: border 0.1s linear;
   cursor: pointer;
@@ -88,6 +132,10 @@
 .itemLead {
   display: grid;
   gap: 0;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-card-strong) 76%, transparent), color-mix(in srgb, var(--surface-card) 86%, transparent));
 }
 
 .itemFeatured {
@@ -133,7 +181,7 @@
 }
 
 .leadThumb {
-  aspect-ratio: 16 / 8;
+  aspect-ratio: 16 / 7.5;
 }
 
 .thumb {
@@ -195,6 +243,20 @@
 .summary {
   color: var(--muted);
   font-size: 0.92rem;
+}
+
+.impactStrip {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  padding: 0.68rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-card));
+
+  > span {
+    @include archive-eyebrow;
+  }
 }
 
 .metaRow {
@@ -259,12 +321,21 @@
 }
 
 @media (max-width: 800px) {
+  .sectionHeader {
+    display: grid;
+  }
+
+  .archiveLink {
+    width: 100%;
+    justify-content: center;
+  }
+
   .topLayout {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .compactGrid,
-  .compactGrid {
+  .compactGridTwoColumn {
     column-count: 1;
   }
 

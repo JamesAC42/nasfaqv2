@@ -7,7 +7,7 @@ import { FaArrowTrendDown, FaArrowTrendUp } from "react-icons/fa6";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { ChannelTickerPill } from "@/app/components/common/channel-ticker-pill";
 import { SparklineChart } from "@/app/components/charts/market-charts";
-import { fmtInteger, fmtNumber, fmtPct } from "@/app/lib/format";
+import { fmtNumber, fmtPct } from "@/app/lib/format";
 import { computeDailyPriceChangePct, computeDailyVolumeChange, getCandleClose } from "@/app/lib/market-metrics";
 import type { MarketAsset } from "@/app/lib/types";
 import styles from "@/app/components/home/home-sidebar-section.module.scss";
@@ -166,9 +166,12 @@ export const MarketSidebar = memo(function MarketSidebar({
     <aside className={[styles.sidebar, compact ? styles.sidebarCompact : "", className].filter(Boolean).join(" ")}>
       {showSearch ? (
       <section className={[styles.panel, compact ? styles.panelCompact : ""].filter(Boolean).join(" ")}>
-        <div>
-          <h2 className={styles.title}>Market Search</h2>
-          <p className={styles.copy}>Search by symbol, name, or unit.</p>
+        <div className={styles.searchHeader}>
+          <div>
+            <h2 className={styles.title}>Market Search</h2>
+            <p className={styles.copy}>Search by symbol, name, or unit.</p>
+          </div>
+          <Link href="/stocks" className={styles.panelLink}>Stocks page</Link>
         </div>
         <input
           className={styles.searchInput}

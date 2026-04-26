@@ -76,6 +76,22 @@ function getMonthsAgoDate(months: number) {
   return cutoff;
 }
 
+function formatSessionDate(value: string | null | undefined) {
+  if (!value) return "Market desk";
+  const parsed = new Date(`${value.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const day = parsed.getDate();
+  const suffix = day % 10 === 1 && day !== 11
+    ? "st"
+    : day % 10 === 2 && day !== 12
+      ? "nd"
+      : day % 10 === 3 && day !== 13
+        ? "rd"
+        : "th";
+  const month = parsed.toLocaleDateString("en-US", { month: "long" });
+  return `${month} ${day}${suffix}, ${parsed.getFullYear()}`;
+}
+
 type OverviewTimeSeriesPoint = {
   time: string;
   subscriber_count: number | null;
@@ -317,8 +333,6 @@ export function HomePage() {
   const [onlineUsers, setOnlineUsers] = useState<number | null>(null);
   const [channelOverviewRows, setChannelOverviewRows] = useState<OverviewRow[]>([]);
   const [channelOverviewError, setChannelOverviewError] = useState<string | null>(null);
-  const [accentColor, setAccentColor] = useState("#f97316");
-  const [monoFontFamily, setMonoFontFamily] = useState<string | undefined>(undefined);
   const assets = useMarketStore((state) => state.assets);
   const marketIndexes = useMarketStore((state) => state.marketIndexes);
   const report = useMarketStore((state) => state.report);
@@ -391,20 +405,10 @@ export function HomePage() {
   const marketTopVolume = [...assets].sort((a, b) => (b.volume_24h ?? 0) - (a.volume_24h ?? 0))[0] || null;
   const marketTopMover = [...assets]
     .sort((a, b) => Math.abs(computeDailyPriceChangePct(b.current_mid_price, b.sparkline_candles) ?? 0) - Math.abs(computeDailyPriceChangePct(a.current_mid_price, a.sparkline_candles) ?? 0))[0] || null;
-  const marketUnderdog = [...assets]
-    .filter((asset) => asset.current_mid_price !== null)
-    .sort((a, b) => (a.current_mid_price ?? 0) - (b.current_mid_price ?? 0))[0] || null;
-  const marketSummaryIcons = useMemo(() => {
-    const seenSymbols = new Set<string>();
-
-    return [marketTopPrice, marketTopVolume, marketTopMover, marketUnderdog].filter((asset): asset is MarketAsset => {
-      if (!asset?.symbol) return false;
-      const symbol = asset.symbol.trim().toUpperCase();
-      if (!symbol || seenSymbols.has(symbol)) return false;
-      seenSymbols.add(symbol);
-      return true;
-    });
-  }, [marketTopMover, marketTopPrice, marketTopVolume, marketUnderdog]);
+  const richPremiumRow = report?.largest_premiums?.[0] || null;
+  const deepDiscountRow = report?.largest_discounts?.[0] || null;
+  const richPremiumAsset = richPremiumRow ? assets.find((asset) => asset.symbol === richPremiumRow.symbol) || null : null;
+  const deepDiscountAsset = deepDiscountRow ? assets.find((asset) => asset.symbol === deepDiscountRow.symbol) || null : null;
   const topSubscribersAsset = topSubscribers ? findAssetForChannel(topSubscribers, assets) : null;
   const topViewsAsset = topViews ? findAssetForChannel(topViews, assets) : null;
   const topVideosAsset = topVideos ? findAssetForChannel(topVideos, assets) : null;
@@ -492,6 +496,9 @@ export function HomePage() {
       return Number.isFinite(timestamp) && timestamp >= cutoffTime;
     });
   }, [allMarketIndex]);
+  const tapeSentence = richPremiumRow
+    ? `${richPremiumRow.symbol} carries the richest premium at ${fmtPct(richPremiumRow.premium_pct)}, while ${marketTopMover?.symbol || "the tape"} leads today's move.`
+    : `${marketTopMover?.symbol || "The tape"} is setting the pace across ${fmtInteger(assets.length)} tracked assets.`;
 
   useEffect(() => {
     void (async () => {
@@ -601,35 +608,46 @@ export function HomePage() {
     };
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const styles = getComputedStyle(document.documentElement);
-    const nextAccent = styles.getPropertyValue("--accent").trim();
-    const nextMono = styles.getPropertyValue("--font-mono").trim();
-
-    if (nextAccent) {
-      setAccentColor(nextAccent);
-    }
-    if (nextMono) {
-      setMonoFontFamily(nextMono);
-    }
-  }, []);
-
   return (
     <SiteShell>
       <div className={styles.pageHeader}>
         <div className={styles.pageHeaderBg}>
           <Image src="/hero-image-12.jpg" alt="" width={2500} height={1643} />
         </div>
-        <h1 className={styles.title}><Image src="/android-chrome-512x512.png" alt="" width={512} height={512} /> NASFAQ</h1>
-        <div className={styles.subtitle}>
-          <p>Home of numbers.</p>
+        <div className={styles.heroCopy}>
+          <span className={styles.heroEyebrow}>ogey?</span>
+          <h1 className={styles.heroTitle}>
+            <Image src="/android-chrome-512x512.png" alt="" width={512} height={512} />
+            NASFAQ
+          </h1>
+          <p className={styles.heroText}>
+            Home of numbers.
+          </p>
+          <div className={styles.heroActions}>
+            <Link href="/finance/activity" className={styles.heroActionPrimary}>Open market desk</Link>
+            <Link href="/finance/rankings" className={styles.heroAction}>View rankings</Link>
+            <Link href="/market" className={styles.heroAction}>Read report</Link>
+          </div>
         </div>
-        <div className={styles.liveStats}>
-          <div className={styles.liveStat}><MdPerson /> {fmtInteger(siteStats?.user_count ?? null)} traders</div>
-          <div className={styles.liveStat}><BsRecordCircle /> {fmtInteger(onlineUsers)} online</div>
-          <div className={styles.liveStat}><BsYoutube /> {fmtInteger(siteStats?.channel_count ?? null)} channels</div>
+        <div className={styles.heroPanel}>
+          <div className={styles.heroPanelTop}>
+            <span>Session</span>
+            <strong>{formatSessionDate(marketStatus?.current_market_date || report?.market_date)}</strong>
+          </div>
+          <div className={styles.liveStats}>
+            <div className={styles.liveStat}>
+              <div className={styles.liveStatValue}><MdPerson /> <strong>{fmtInteger(siteStats?.user_count ?? null)}</strong></div>
+              <span>traders</span>
+            </div>
+            <div className={styles.liveStat}>
+              <div className={styles.liveStatValue}><BsRecordCircle /> <strong>{fmtInteger(onlineUsers)}</strong></div>
+              <span>online</span>
+            </div>
+            <div className={styles.liveStat}>
+              <div className={styles.liveStatValue}><BsYoutube /> <strong>{fmtInteger(siteStats?.channel_count ?? null)}</strong></div>
+              <span>channels</span>
+            </div>
+          </div>
         </div>
       </div>
       {error ? <div className="statusMessage statusMessageError">Request error: {error}</div> : null}
@@ -646,6 +664,31 @@ export function HomePage() {
         </div>
       ) : null}
 
+      <section className={styles.marketTape} aria-label="Market tape">
+        <div className={styles.tapeLead}>
+          <span>Daily tape</span>
+          <strong>{tapeSentence}</strong>
+        </div>
+        <div className={styles.tapeStats}>
+          <div className={styles.tapeStat}>
+            <span>All Market</span>
+            <strong>{fmtNumber(allMarketIndex?.summary?.index_value)}</strong>
+          </div>
+          <div className={styles.tapeStat}>
+            <span>Breadth</span>
+            <strong>{fmtInteger(allMarketIndex?.summary?.advancers)} / {fmtInteger(allMarketIndex?.summary?.decliners)}</strong>
+          </div>
+          <div className={styles.tapeStat}>
+            <span>Top Mover</span>
+            <strong>{marketTopMover?.symbol || "—"}</strong>
+          </div>
+          <div className={styles.tapeStat}>
+            <span>Flow Leader</span>
+            <strong>{marketTopVolume?.symbol || "—"}</strong>
+          </div>
+        </div>
+      </section>
+
       <div className={styles.grid}>
         <div className={styles.leftColumn}>
           <NewsSection items={newsItems} error={newsError} />
@@ -653,7 +696,14 @@ export function HomePage() {
           <section className={styles.dashboardSection}>
             <div className={styles.sectionHeader}>
               <div>
-                <h2 className={styles.title}>Market Summary</h2>
+                <span className={styles.sectionEyebrow}>Finance surface</span>
+                <h2 className={styles.title}>Market Pulse</h2>
+                <p className={styles.copy}>A compact launchpad into pricing, rankings, and the latest settlement report.</p>
+              </div>
+              <div className={styles.sectionActions}>
+                <Link href="/stocks" className={styles.sectionLink}>Stocks</Link>
+                <Link href="/finance/rankings" className={styles.sectionLink}>Rankings</Link>
+                <Link href="/market" className={styles.sectionLink}>Report</Link>
               </div>
             </div>
             <div className={styles.summaryHeroGrid}>
@@ -693,17 +743,17 @@ export function HomePage() {
                 </span>
               </div>
               <div className={styles.summaryStatCard}>
-                <span className={styles.walletLabel}>Top Underdog</span>
-                {renderAssetLabel(marketUnderdog, marketUnderdog?.symbol || "—")}
-                <span>${fmtNumber(marketUnderdog?.current_mid_price ?? null)} per share</span>
+                <span className={styles.walletLabel}>Rich Premium</span>
+                {renderAssetLabel(richPremiumAsset || (richPremiumRow ? { symbol: richPremiumRow.symbol, display_name: richPremiumRow.display_name } : null), richPremiumRow?.symbol || "—")}
+                <span className={richPremiumRow ? styles.positive : styles.neutral}>{fmtPct(richPremiumRow?.premium_pct)}</span>
               </div>
               <div className={styles.summaryStatCard}>
-                <span className={styles.walletLabel}>Active Assets</span>
-                <strong>{fmtInteger(assets.length)}</strong>
-                <span>Names currently in overview</span>
+                <span className={styles.walletLabel}>Deep Discount</span>
+                {renderAssetLabel(deepDiscountAsset || (deepDiscountRow ? { symbol: deepDiscountRow.symbol, display_name: deepDiscountRow.display_name } : null), deepDiscountRow?.symbol || "—")}
+                <span className={deepDiscountRow ? styles.negative : styles.neutral}>{fmtPct(deepDiscountRow?.premium_pct)}</span>
               </div>
               <div className={styles.summaryStatCard}>
-                <span className={styles.walletLabel}>Avg Daily Move</span>
+                <span className={styles.walletLabel}>Avg Move</span>
                 <strong className={styles.summaryValueAccent}>
                   {assets.length
                     ? fmtPct(
@@ -723,11 +773,10 @@ export function HomePage() {
                       ? `${allMarketIndex.summary.market_date} · last 4 months`
                       : "Last 4 months"
                   }
-                  fontFamily={monoFontFamily}
                   series={[
                     {
                       name: "All Index",
-                      color: accentColor,
+                      color: "#7de7f2",
                       kind: "area",
                       values: recentAllMarketSeries.map((point) => ({ time: point.bucket, value: point.value })),
                     },
@@ -789,10 +838,12 @@ export function HomePage() {
             </div>
           </section>
           
-          <section className={styles.dashboardSection}>
+          <section className={`${styles.dashboardSection} ${styles.creatorBoard}`}>
             <div className={styles.sectionHeader}>
               <div>
-                <h2 className={styles.title}>YouTube Channel Summary</h2>
+                <span className={styles.sectionEyebrow}>Creator market</span>
+                <h2 className={styles.title}>YouTube Channel Board</h2>
+                <p className={styles.copy}>Audience scale, lifetime reach, and upload pressure mapped back to tradable names.</p>
               </div>
             </div>
             <div className={styles.summaryHeroGrid}>
@@ -912,7 +963,8 @@ export function HomePage() {
           <LivestreamSection items={livestreamItems} error={livestreamError} />
           <MarketReportSection report={report} assets={assets} />
 
-          <section className={styles.dashboardSection}>
+          <div className={styles.lowerPageGrid}>
+          <section className={`${styles.dashboardSection} ${styles.lowerPanel}`}>
             <div className={styles.sectionHeader}>
               <div>
                 <h2 className={styles.title}>Leaderboard</h2>
@@ -984,46 +1036,59 @@ export function HomePage() {
             </div>
           </section>
 
-          <section className={styles.dashboardSection}>
+          <section className={styles.communityFloor}>
             <div className={styles.sectionHeader}>
               <div>
-                <h2 className={styles.title}>Recent Community Articles</h2>
+                <span className={styles.sectionEyebrow}>Community floor</span>
+                <h2 className={styles.title}>Articles and Archive</h2>
+                <p className={styles.copy}>Recent writeups and overflow headlines without stretching the home desk into a full archive.</p>
               </div>
-              <Link href="/articles" className={styles.sectionLink}>Browse articles</Link>
-            </div>
-            <div className={styles.articleGrid}>
-              {communityArticles.map((article) => (
-                <Link key={article.id} href={`/articles/${encodeURIComponent(article.slug)}`} className={styles.articleCard}>
-                  <div className={styles.articleTopRow}>
-                    <span className={styles.articleTag}>{article.tags[0] || "Article"}</span>
-                    {article.related_assets[0] ? (
-                      <AssetCoin
-                        symbol={article.related_assets[0].symbol}
-                        icon={article.related_assets[0].icon ?? null}
-                        color={article.related_assets[0].color ?? null}
-                        className={styles.articleIcon}
-                      />
-                    ) : null}
-                  </div>
-                  <strong className={styles.articleTitle}>{article.title}</strong>
-                  <p className={styles.articleCopy}>{article.preview || article.subtitle || "Open the article to read the full writeup."}</p>
-                </Link>
-              ))}
-            </div>
-          </section>
-
-          {homepageNewsLayout.overflowItems.length ? (
-            <section className={styles.dashboardSection}>
-              <div className={styles.sectionHeader}>
-                <div>
-                  <h2 className={styles.title}>More Recent News</h2>
-                  <p className={styles.copy}>Additional recent headlines in a denser three-column layout.</p>
-                </div>
+              <div className={styles.sectionActions}>
+                <Link href="/articles" className={styles.sectionLink}>Browse articles</Link>
                 <Link href="/news" className={styles.sectionLink}>Full archive</Link>
               </div>
-              <CompactNewsGrid items={homepageNewsLayout.overflowItems} />
-            </section>
-          ) : null}
+            </div>
+            <div className={styles.communityGrid}>
+              <div className={styles.communityPanel}>
+                <div className={styles.miniHeader}>
+                  <h3>Recent Community Articles</h3>
+                  <span>{fmtInteger(communityArticles.length)} notes</span>
+                </div>
+                <div className={styles.articleGrid}>
+                  {communityArticles.map((article) => (
+                    <Link key={article.id} href={`/articles/${encodeURIComponent(article.slug)}`} className={styles.articleCard}>
+                      <div className={styles.articleTopRow}>
+                        <span className={styles.articleTag}>{article.tags[0] || "Article"}</span>
+                        {article.related_assets[0] ? (
+                          <AssetCoin
+                            symbol={article.related_assets[0].symbol}
+                            icon={article.related_assets[0].icon ?? null}
+                            color={article.related_assets[0].color ?? null}
+                            className={styles.articleIcon}
+                          />
+                        ) : null}
+                      </div>
+                      <strong className={styles.articleTitle}>{article.title}</strong>
+                      <p className={styles.articleCopy}>{article.preview || article.subtitle || "Open the article to read the full writeup."}</p>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+              {homepageNewsLayout.overflowItems.length ? (
+                <div className={styles.communityPanel}>
+                  <div className={styles.miniHeader}>
+                    <h3>More Recent News</h3>
+                    <div className={styles.miniActions}>
+                      <span>{fmtInteger(homepageNewsLayout.overflowItems.length)} headlines</span>
+                      <Link href="/news">News archive</Link>
+                    </div>
+                  </div>
+                  <CompactNewsGrid items={homepageNewsLayout.overflowItems} variant="twoColumn" />
+                </div>
+              ) : null}
+            </div>
+          </section>
+          </div>
 
           <section className={styles.walletSection}>
             <div className={styles.walletHeader}>
@@ -1157,6 +1222,7 @@ export function HomePage() {
           <MarketSidebar
             assets={assets}
             onSelectSymbol={setSelectedSymbol}
+            compact
           />
         </div>
       </div>

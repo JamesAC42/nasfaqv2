@@ -222,11 +222,16 @@ export function NewsSection({ items, error }: { items: NewsItem[]; error: string
 
   return (
     <section className={styles.section}>
-      <div>
-        <h2 className={styles.title}>
-          <FaNewspaper className={styles.titleIcon} aria-hidden="true" />
-          <span>HoloNews</span>
-        </h2>
+      <div className={styles.sectionHeader}>
+        <div>
+          <span className={styles.eyebrow}>News desk</span>
+          <h2 className={styles.title}>
+            <FaNewspaper className={styles.titleIcon} aria-hidden="true" />
+            <span>HoloNews</span>
+          </h2>
+          <p className={styles.copy}>Lead story, related market names, and fast headlines from the current news tape.</p>
+        </div>
+        <Link href="/news" className={styles.archiveLink}>Open news archive</Link>
       </div>
       {items.length ? (
         <>
@@ -248,7 +253,10 @@ export function NewsSection({ items, error }: { items: NewsItem[]; error: string
                       <EngagementStat kind="comments" value={leadStory.comment_count} />
                     </div>
                     {hasDistinctSummary(leadStory) ? <div className={styles.summary}>{leadStory.summary}</div> : null}
-                    <RelatedTickerPills item={leadStory} />
+                    <div className={styles.impactStrip}>
+                      <span>Market impact</span>
+                      <RelatedTickerPills item={leadStory} />
+                    </div>
                   </div>
                 </article>
 
@@ -355,11 +363,17 @@ export function NewsSection({ items, error }: { items: NewsItem[]; error: string
   );
 }
 
-export function CompactNewsGrid({ items }: { items: NewsItem[] }) {
+export function CompactNewsGrid({
+  items,
+  variant = "default",
+}: {
+  items: NewsItem[];
+  variant?: "default" | "twoColumn";
+}) {
   if (!items.length) return null;
 
   return (
-    <div className={styles.compactGrid}>
+    <div className={[styles.compactGrid, variant === "twoColumn" ? styles.compactGridTwoColumn : ""].filter(Boolean).join(" ")}>
       {items.map((item) => (
         <article key={item.id} className={`${styles.item} ${styles.compactItem}`}>
           <div className={styles.itemBody}>
