@@ -72,6 +72,7 @@ export function ChannelTickerPill({
   className,
   disableLink = false,
   enablePopover = false,
+  compact = false,
 }: {
   channel: NewsCharacter;
   onClick?: () => void;
@@ -79,6 +80,7 @@ export function ChannelTickerPill({
   className?: string;
   disableLink?: boolean;
   enablePopover?: boolean;
+  compact?: boolean;
 }) {
   const assets = useMarketStore((state) => state.assets);
   const normalizedChannelName = normalizeName(channel.name);
@@ -104,7 +106,7 @@ export function ChannelTickerPill({
     : `${styles.change} ${changePct >= 0 ? styles.changeUp : styles.changeDown}`;
   const TrendIcon = changePct === null ? null : changePct >= 0 ? FaArrowTrendUp : FaArrowTrendDown;
   const href = asset ? `/stocks/${encodeURIComponent(asset.symbol)}` : null;
-  const pillClassName = [styles.pill, tone === "warning" ? styles.warning : "", className].filter(Boolean).join(" ");
+  const pillClassName = [styles.pill, tone === "warning" ? styles.warning : "", compact ? styles.pillCompact : "", className].filter(Boolean).join(" ");
   const pillStyle = (tone === "warning"
     ? {
         "--ticker-pill-accent": "var(--warning)",

@@ -330,6 +330,7 @@ export const MarketSidebar = memo(function MarketSidebar({
               <ChannelTickerPill
                 key={asset.symbol}
                 className={styles.recentPill}
+                compact
                 channel={{
                   name: asset.display_name,
                   icon: asset.icon ?? null,
@@ -358,6 +359,7 @@ export const MarketSidebar = memo(function MarketSidebar({
               <ChannelTickerPill
                 key={asset.symbol}
                 className={styles.recentPill}
+                compact
                 channel={{
                   name: asset.display_name,
                   icon: asset.icon ?? null,

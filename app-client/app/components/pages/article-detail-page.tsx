@@ -255,6 +255,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
   );
   const hasPublishedBody = useMemo(() => hasText(article?.content), [article?.content]);
   const shouldUseCoverageOverlay = Boolean(article?.is_news && !hasPublishedBody);
+  const canOpenCoverageOverlay = Boolean(article?.is_news && (shouldUseCoverageOverlay || article.proposals.length));
   const estimatedReadMinutes = useMemo(() => estimateReadingTimeMinutes(article?.content), [article?.content]);
   const storyHeading = useMemo(() => getArticleStoryHeading(article), [article]);
   const selectedProposal = useMemo(() => {
@@ -307,10 +308,10 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
   }, [article]);
 
   useEffect(() => {
-    if (!shouldUseCoverageOverlay && isCoverageOverlayOpen) {
+    if (!canOpenCoverageOverlay && isCoverageOverlayOpen) {
       setIsCoverageOverlayOpen(false);
     }
-  }, [isCoverageOverlayOpen, shouldUseCoverageOverlay]);
+  }, [canOpenCoverageOverlay, isCoverageOverlayOpen]);
 
   useEffect(() => {
     if (!isCoverageOverlayOpen) return;
@@ -625,181 +626,23 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                 </section>
               )}
 
-              {article.is_news && !shouldUseCoverageOverlay ? (
-                <section className={styles.coverageWorkspace}>
-                  <div className={styles.coverageIntro}>
-                    <div>
-                      <h2 className={styles.sectionTitle}>Coverage desk</h2>
-                      <p className={styles.sectionCopy}>
-                        Proposals live in a dedicated review area so it is always clear when you are reading a draft rather than the published article. Community votes help signal which version looks strongest before approval.
-                      </p>
-                    </div>
-                    <div className={styles.metaRow}>
-                      <span className={styles.pill}>{fmtInteger(article.proposals.length)} proposals</span>
-                      {!hasPublishedBody ? <span className={styles.statusPill}>No approved body yet</span> : null}
-                    </div>
+              {article.is_news && hasPublishedBody && article.proposals.length ? (
+                <section className={styles.coverageCompactCard}>
+                  <div className={styles.coverageCompactIcon}>
+                    <FaBinoculars aria-hidden="true" />
                   </div>
-
-                  <div className={styles.proposalWorkspaceGrid}>
-                    <div className={styles.proposalRail}>
-                      <div className={styles.proposalRailHeader}>
-                        <h3 className={styles.sectionTitle}>Draft queue</h3>
-                        <p className={styles.sectionCopy}>Select a proposal to preview the full draft.</p>
-                      </div>
-                      {article.proposals.length ? (
-                        <div className={styles.proposalList}>
-                          {article.proposals.map((proposal) => {
-                            const isSelected = selectedProposal?.id === proposal.id;
-                            const voteIsBusy = proposalVoteBusyId === proposal.id;
-                            return (
-                              <article
-                                key={proposal.id}
-                                className={`${styles.proposalSummaryCard} ${isSelected ? styles.proposalSummaryCardActive : ""}`.trim()}
-                              >
-                                <button
-                                  type="button"
-                                  className={styles.proposalSelectButton}
-                                  onClick={() => setSelectedProposalId(proposal.id)}
-                                >
-                                  <div className={styles.proposalHeader}>
-                                    <div className={styles.proposalMeta}>
-                                      <strong>{getProposalTitle(proposal, article)}</strong>
-                                      <span className={styles.muted}>
-                                        {proposal.author.username} · {formatDateTime(proposal.created_at)}
-                                      </span>
-                                    </div>
-                                    <span className={`${styles.statusPill} ${proposal.status === "approved" ? styles.statusPublished : styles.statusDraft}`}>
-                                      {proposal.status}
-                                    </span>
-                                  </div>
-                                  {proposal.subtitle ? <p className={styles.sectionCopy}>{proposal.subtitle}</p> : null}
-                                  {proposal.tags.length ? (
-                                    <div className={styles.tagRow}>
-                                      {proposal.tags.map((tag) => <span key={`${proposal.id}:${tag}`} className={styles.pill}>{tag}</span>)}
-                                    </div>
-                                  ) : null}
-                                  <div className={styles.proposalSummaryFooter}>
-                                    <span className={styles.muted}>{fmtInteger(proposal.upvotes)} upvotes</span>
-                                    <span className={styles.muted}>{fmtInteger(proposal.downvotes)} downvotes</span>
-                                  </div>
-                                </button>
-                                <div className={styles.proposalActions}>
-                                  <button
-                                    type="button"
-                                    className={`${styles.secondaryButton} ${proposal.viewer_vote === 1 ? styles.secondaryButtonOn : ""}`.trim()}
-                                    onClick={() => void handleProposalVote(proposal, 1)}
-                                    disabled={!user || needsVerification || voteIsBusy}
-                                  >
-                                    <FaThumbsUp aria-hidden="true" />
-                                    <span>{fmtInteger(proposal.upvotes)}</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className={`${styles.secondaryButton} ${proposal.viewer_vote === -1 ? styles.secondaryButtonOn : ""}`.trim()}
-                                    onClick={() => void handleProposalVote(proposal, -1)}
-                                    disabled={!user || needsVerification || voteIsBusy}
-                                  >
-                                    <FaThumbsDown aria-hidden="true" />
-                                    <span>{fmtInteger(proposal.downvotes)}</span>
-                                  </button>
-                                  {user?.is_admin && proposal.status !== "approved" ? (
-                                    <button type="button" className={styles.primaryButton} onClick={() => void handleApproveProposal(proposal.id)}>
-                                      Approve
-                                    </button>
-                                  ) : null}
-                                </div>
-                              </article>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className={styles.empty}>No proposals yet. Be the first to draft coverage for this item.</div>
-                      )}
-                    </div>
-
-                    <div className={styles.proposalViewerPane} id="proposal-preview">
-                      {selectedProposal ? (
-                        <article className={styles.proposalViewer}>
-                          <div className={styles.proposalViewerHeader}>
-                            <div>
-                              <div className={styles.metaRow}>
-                                <span className={styles.eyebrow}>Proposal preview</span>
-                                <span className={`${styles.statusPill} ${selectedProposal.status === "approved" ? styles.statusPublished : styles.statusDraft}`}>
-                                  {selectedProposal.status}
-                                </span>
-                              </div>
-                              <h3 className={styles.proposalViewerTitle}>{getProposalTitle(selectedProposal, article)}</h3>
-                              {selectedProposal.subtitle ? <p className={styles.storyDek}>{selectedProposal.subtitle}</p> : null}
-                            </div>
-                            <div className={styles.proposalViewerMeta}>
-                              <span>By {selectedProposal.author.username}</span>
-                              <span>{formatDateTime(selectedProposal.created_at)}</span>
-                              <span>{fmtInteger(selectedProposal.upvotes - selectedProposal.downvotes)} net score</span>
-                            </div>
-                          </div>
-                          {selectedProposal.tags.length ? (
-                            <div className={styles.tagRow}>
-                              {selectedProposal.tags.map((tag) => <span key={`${selectedProposal.id}:preview:${tag}`} className={styles.pill}>{tag}</span>)}
-                            </div>
-                          ) : null}
-                          {selectedProposal.thumbnail_url ? (
-                            <div className={styles.flatMedia}>
-                              <img src={selectedProposal.thumbnail_url} alt="" className={styles.featureThumb} />
-                            </div>
-                          ) : null}
-                          <div className={styles.proposalViewerBody}>
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {selectedProposal.content}
-                            </ReactMarkdown>
-                          </div>
-                        </article>
-                      ) : (
-                        <div className={styles.empty}>Select a proposal from the queue to preview it here.</div>
-                      )}
-                    </div>
+                  <div className={styles.coverageCompactBody}>
+                    <h2 className={styles.sectionTitle}>Coverage proposals</h2>
+                    <p className={styles.sectionCopy}>
+                      This article already has an approved body. You can still review the proposal history in the side panel.
+                    </p>
                   </div>
-
-                  {user && needsVerification ? (
-                    <VerificationRequiredNotice action="submit article proposals" />
-                  ) : user ? (
-                    <section className={styles.detailCard} id="write-proposal">
-                      <div>
-                        <h3 className={styles.sectionTitle}>{hasPublishedBody ? "Submit an alternate draft" : "Write the first draft"}</h3>
-                        <p className={styles.sectionCopy}>
-                          Your submission is stored as a proposal until an admin approves it as the official article body.
-                        </p>
-                      </div>
-                      <form className={styles.fieldGrid} onSubmit={handleProposalSubmit}>
-                        <label className={styles.field}>
-                          <span className={styles.fieldLabel}>Proposed title</span>
-                          <input className={styles.input} value={proposalTitle} onChange={(event) => setProposalTitle(event.target.value)} placeholder="Optional replacement title" />
-                        </label>
-                        <label className={styles.field}>
-                          <span className={styles.fieldLabel}>Proposed subtitle</span>
-                          <input className={styles.input} value={proposalSubtitle} onChange={(event) => setProposalSubtitle(event.target.value)} placeholder="Optional subtitle" />
-                        </label>
-                        <label className={styles.field}>
-                          <span className={styles.fieldLabel}>Tags</span>
-                          <input className={styles.input} value={proposalTags} onChange={(event) => setProposalTags(event.target.value)} placeholder="Comma-separated tags" />
-                        </label>
-                        <label className={styles.field}>
-                          <span className={styles.fieldLabel}>Thumbnail URL</span>
-                          <input className={styles.input} value={proposalThumbnailUrl} onChange={(event) => setProposalThumbnailUrl(event.target.value)} placeholder="Optional thumbnail override" />
-                        </label>
-                        <label className={styles.field}>
-                          <span className={styles.fieldLabel}>Proposal body</span>
-                          <textarea className={styles.textarea} value={proposalContent} onChange={(event) => setProposalContent(event.target.value)} placeholder="Write the article body you want the admin to approve." />
-                        </label>
-                        <div className={styles.actionRow}>
-                          <button type="submit" className={styles.primaryButton} disabled={needsVerification || isSubmittingProposal || !proposalContent.trim()}>
-                            {isSubmittingProposal ? "Submitting…" : "Submit proposal"}
-                          </button>
-                        </div>
-                      </form>
-                    </section>
-                  ) : (
-                    <p className={styles.sectionCopy}>Sign in to submit a proposed article for this news item.</p>
-                  )}
+                  <div className={styles.coverageCompactActions}>
+                    <span className={styles.pill}>{fmtInteger(article.proposals.length)} proposals</span>
+                    <button type="button" className={styles.secondaryButton} onClick={() => openCoverageOverlay("proposals")}>
+                      View proposals
+                    </button>
+                  </div>
                 </section>
               ) : null}
 
@@ -885,7 +728,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
               </section>
             </div>
 
-            {shouldUseCoverageOverlay ? (
+            {canOpenCoverageOverlay ? (
               <div
                 className={`${styles.coverageOverlay} ${isCoverageOverlayOpen ? styles.coverageOverlayOpen : ""}`.trim()}
                 aria-hidden={!isCoverageOverlayOpen}
@@ -916,15 +759,19 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
 
                   <div className={styles.coverageOverlayHeader}>
                     <div className={styles.coverageOverlayHeading}>
-                      <span className={styles.eyebrow}>Writers draft room</span>
-                      <h2 id="coverage-overlay-title" className={styles.coverageOverlayTitle}>Build the first approved version of this story.</h2>
+                      <span className={styles.eyebrow}>{hasPublishedBody ? "Proposal history" : "Writers draft room"}</span>
+                      <h2 id="coverage-overlay-title" className={styles.coverageOverlayTitle}>
+                        {hasPublishedBody ? "Review existing drafts for this story." : "Build the first approved version of this story."}
+                      </h2>
                       <p className={styles.coverageOverlayCopy}>
-                        Review the room&apos;s current drafts or write a new take for editorial approval. The source headline stays live while this coverage board fills up.
+                        {hasPublishedBody
+                          ? "The approved article body remains the canonical version while previous proposals stay available for review."
+                          : "Review the room's current drafts or write a new take for editorial approval. The source headline stays live while this coverage board fills up."}
                       </p>
                     </div>
                     <div className={styles.coverageOverlayStats}>
                       <span className={styles.pill}>{fmtInteger(article.proposals.length)} proposals</span>
-                      <span className={styles.statusPill}>No approved body yet</span>
+                      <span className={styles.statusPill}>{hasPublishedBody ? "Approved body live" : "No approved body yet"}</span>
                     </div>
                   </div>
 
@@ -938,19 +785,21 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                     >
                       Current proposals
                     </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={coverageOverlayTab === "write"}
-                      className={`${styles.coverageOverlayTab} ${coverageOverlayTab === "write" ? styles.coverageOverlayTabActive : ""}`.trim()}
-                      onClick={() => setCoverageOverlayTab("write")}
-                    >
-                      Write a proposal
-                    </button>
+                    {!hasPublishedBody ? (
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={coverageOverlayTab === "write"}
+                        className={`${styles.coverageOverlayTab} ${coverageOverlayTab === "write" ? styles.coverageOverlayTabActive : ""}`.trim()}
+                        onClick={() => setCoverageOverlayTab("write")}
+                      >
+                        Write a proposal
+                      </button>
+                    ) : null}
                   </div>
 
                   <div className={styles.coverageOverlayBody}>
-                    {coverageOverlayTab === "proposals" ? (
+                    {coverageOverlayTab === "proposals" || hasPublishedBody ? (
                       <div className={styles.coverageOverlayWorkspace}>
                         <div className={styles.proposalRail}>
                           <div className={styles.proposalRailHeader}>

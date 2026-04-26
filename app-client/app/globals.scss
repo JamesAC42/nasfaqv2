@@ -14,10 +14,28 @@ body {
 }
 
 body {
-  min-height: 100vh;
-  background:var(--bg);
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 18% -10%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 34rem),
+    radial-gradient(circle at 86% 8%, color-mix(in srgb, var(--trend-line) 9%, transparent), transparent 28rem),
+    linear-gradient(180deg, var(--bg-darker), var(--bg) 34rem, var(--bg-darkest));
   color: var(--text);
   font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
+  text-rendering: geometricPrecision;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+  opacity: 0.34;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.028) 0 1px, transparent 1px 4px),
+    radial-gradient(circle at 20% 10%, rgba(95, 222, 236, 0.08), transparent 24rem);
+  mix-blend-mode: screen;
 }
 
 a {
@@ -34,6 +52,15 @@ textarea {
 
 button {
   cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 2px;
 }
 
 img {

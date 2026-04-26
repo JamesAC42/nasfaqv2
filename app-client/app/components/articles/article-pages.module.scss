@@ -2,7 +2,7 @@
 
 .stack {
   display: grid;
-  gap: 1.25rem;
+  gap: 0.8rem;
 }
 
 .hero,
@@ -18,27 +18,87 @@
 .detailCard,
 .editorCard {
   display: grid;
-  gap: 1rem;
+  gap: 0.65rem;
 }
 
 .filterForm {
   display: grid;
-  gap: 1rem;
+  gap: 0.55rem;
 }
 
-.hero,
 .panel,
 .detailCard,
 .editorCard {
-  padding: 1.2rem;
+  padding: 0.85rem;
 }
 
 .hero {
-  display: grid;
-  gap: 0.7rem;
+  @include archive-hero;
+  grid-template-columns: minmax(0, 1fr) minmax(21rem, 0.36fr);
+  min-height: clamp(17.5rem, 28vw, 24rem);
+  padding: clamp(1.1rem, 2.4vw, 2rem);
   background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--surface-card-highlight) 70%, transparent), transparent 40%),
-    linear-gradient(145deg, color-mix(in srgb, var(--surface-card) 92%, #101624), color-mix(in srgb, var(--surface-card-soft) 86%, #05070d));
+    linear-gradient(90deg, #06151b 0 0.125rem, color-mix(in srgb, var(--surface-card) 96%, #06151b) 0.125rem 22%, color-mix(in srgb, var(--surface-card) 74%, transparent) 48%, color-mix(in srgb, var(--surface-card) 24%, transparent) 100%),
+    radial-gradient(circle at 76% 40%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 34%),
+    url("/articles-archive-hero.png");
+  background-position: center, center, 58% 36%;
+  background-size: cover, cover, cover;
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, transparent 56%, color-mix(in srgb, var(--surface-card) 84%, transparent)),
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, transparent) 0 0.0625rem, transparent 0.0625rem 0.875rem);
+  mask-image: linear-gradient(90deg, black, transparent 68%);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, #06151b 82%, transparent) 0%, color-mix(in srgb, var(--surface-card) 62%, transparent) 38%, transparent 74%),
+    linear-gradient(180deg, color-mix(in srgb, black 12%, transparent), color-mix(in srgb, black 22%, transparent));
+  pointer-events: none;
+}
+
+.heroCopy {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 0.42rem;
+  max-width: 48rem;
+}
+
+.heroEyebrow {
+  @include archive-eyebrow;
+}
+
+.heroMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.9rem;
+  margin-top: 0.45rem;
+  color: color-mix(in srgb, var(--text) 82%, transparent);
+  font-size: 0.82rem;
+}
+
+.heroMetrics {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.newsMetric {
+  @include archive-metric;
 }
 
 .storyHero,
@@ -117,8 +177,7 @@
 }
 
 .title {
-  @include section-title;
-  margin: 0;
+  @include archive-title;
 }
 
 .copy {
@@ -131,7 +190,8 @@
 .actionRow,
 .tagRow,
 .assetRow,
-.toolbar {
+.toolbar,
+.feedHeader {
   display: flex;
   flex-wrap: wrap;
   gap: 0.65rem;
@@ -139,10 +199,11 @@
 }
 
 .metaRow {
-  margin-bottom: 0.5rem;
+  margin-bottom: 0;
 }
 
-.toolbar {
+.toolbar,
+.feedHeader {
   justify-content: space-between;
 }
 
@@ -191,9 +252,9 @@
   display: inline-flex;
   align-items: center;
   gap: 0.55rem;
-  border-radius: 999px;
-  padding: 0.62rem 0.95rem;
-  font-size: 0.92rem;
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.72rem;
+  font-size: 0.8rem;
   font-weight: 700;
   text-decoration: none;
   transition:
@@ -212,9 +273,9 @@
 
 .primaryButton,
 .actionButton {
-  border: 1px solid color-mix(in srgb, var(--button-primary-border) 72%, transparent);
-  color: var(--text);
-  background: linear-gradient(135deg, var(--button-primary-bg), color-mix(in srgb, var(--button-primary-bg) 64%, white 36%));
+  border: 1px solid var(--button-primary-border);
+  color: var(--bg-darkest);
+  background: var(--accent);
 }
 
 .dangerButton {
@@ -251,6 +312,7 @@
 }
 
 .actionButtonOn {
+  color: var(--bg-darkest);
   box-shadow: 0 14px 28px color-mix(in srgb, var(--button-primary-bg) 28%, transparent);
 }
 
@@ -311,7 +373,7 @@
 
 .grid {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.38rem;
 }
 
 .cardLink {
@@ -326,14 +388,16 @@
 
 .articleCard {
   display: grid;
-  grid-template-columns: 9rem minmax(0, 1fr);
-  gap: 0.55rem;
-  padding: 0.48rem 0.55rem;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: 0.65rem;
+  padding: 0.5rem 0.6rem 0.5rem 0.8rem;
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--surface-card) 92%, transparent);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 16%, transparent) 0 0.18rem, transparent 0.18rem),
+    color-mix(in srgb, var(--surface-card) 92%, transparent);
   align-items: start;
-  min-height: 6.5rem;
+  min-height: 6rem;
   transition:
     transform 140ms ease,
     border-color 140ms ease,
@@ -356,7 +420,7 @@
 .thumb {
   width: 100%;
   height: 100%;
-  min-height: 6rem;
+  min-height: 5.4rem;
   border-radius: var(--radius-sm);
   object-fit: cover;
   display: block;
@@ -366,15 +430,16 @@
 .cardBody {
   min-width: 0;
   display: grid;
-  gap: 0.28rem;
+  gap: 0.22rem;
   align-self: start;
   padding-top: 0.02rem;
 }
 
 .cardTitle {
   margin: 0;
-  font-size: 1.12rem;
+  font-size: clamp(0.98rem, 1.2vw, 1.12rem);
   line-height: 1.24;
+  text-wrap: pretty;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -409,24 +474,25 @@
 }
 
 .assetRow {
-  gap: 0;
+  gap: 0.28rem;
 }
 
 .compactPill {
-  gap: 0.32rem;
-  padding: 0;
-  padding-right: 0.5rem;
-  font-size: 0.9rem;
+  gap: 0.34rem;
+  padding: 0.08rem 0.36rem 0.08rem 0.12rem;
+  font-size: 0.92rem;
+  line-height: 1.05;
   box-shadow: 0 0.25rem 0.75rem color-mix(in srgb, var(--surface-card-soft) 20%, transparent);
-  transform: scale(0.8);
+  transform: none;
   transform-origin: left center;
 }
 
 .engagementRow {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 0.42rem;
   margin-top: 0.05rem;
 }
 
@@ -434,6 +500,11 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+  min-height: 1.75rem;
+  padding: 0.28rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border-soft));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 82%, transparent);
   color: var(--muted);
   font-size: 0.82rem;
   font-variant-numeric: tabular-nums;
@@ -455,12 +526,53 @@
 }
 
 @media (max-width: 60rem) {
+  .hero {
+    grid-template-columns: 1fr;
+    min-height: 24rem;
+    background-position: center, center, 58% 34%;
+  }
+
+  .editorHeroStatus {
+    justify-items: start;
+  }
+
+  .editorWorkspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .editorSidebar {
+    position: static;
+  }
+
+  .heroMetrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .articleCard {
     grid-template-columns: 7.5rem minmax(0, 1fr);
   }
 }
 
 @media (max-width: 45rem) {
+  .fieldGrid,
+  .heroMetrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .filterActions {
+    align-items: stretch;
+  }
+
+  .toolbarActions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .toolbarActions > * {
+    flex: 1 1 10rem;
+    justify-content: center;
+  }
+
   .articleCard,
   .articleCardNoThumb {
     grid-template-columns: minmax(0, 1fr);
@@ -491,13 +603,14 @@
 
 .storyFrame,
 .emptyStoryCard {
-  width: min(100%, 56rem);
+  width: min(100%, 64rem);
   margin: 0 auto;
 }
 
 .storyFrame {
   display: grid;
   gap: 1.1rem;
+  padding-top: 1.4rem;
 }
 
 .emptyStoryCard {
@@ -537,9 +650,14 @@
 }
 
 .storyArticle {
-  width: min(100%, 46rem);
+  width: min(100%, 52rem);
   margin: 0 auto;
-  padding: 2rem 0 0.5rem;
+  padding: 1.65rem 1.8rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 10%, var(--border-soft));
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 8%, transparent) 0 0.16rem, transparent 0.16rem),
+    color-mix(in srgb, var(--surface-card) 72%, transparent);
 }
 
 .storyArticleMeta {
@@ -558,9 +676,9 @@
 }
 
 .storyArticle .markdownBody {
-  gap: 1.35rem;
-  font-size: 1.09rem;
-  line-height: 1.95;
+  gap: 1.15rem;
+  font-size: 1.04rem;
+  line-height: 1.82;
   color: var(--text-primary, var(--text));
 }
 
@@ -575,7 +693,7 @@
 .storyArticle .markdownBody p,
 .storyArticle .markdownBody li,
 .storyArticle .markdownBody blockquote {
-  max-width: 42rem;
+  max-width: 46rem;
 }
 
 .markdownBody > :first-child {
@@ -601,6 +719,21 @@
 .markdownBody h4 {
   margin: 1rem 0 0;
   line-height: 1.2;
+}
+
+.markdownBody h1,
+.markdownBody h2 {
+  color: var(--accent-strong);
+  font-family: var(--font-display);
+  letter-spacing: 0;
+}
+
+.markdownBody h1 {
+  font-size: clamp(1.8rem, 3.2vw, 2.75rem);
+}
+
+.markdownBody h2 {
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
 }
 
 .markdownBody ul,
@@ -703,6 +836,47 @@
 .coverageWorkspace {
   display: grid;
   gap: 1.1rem;
+}
+
+.coverageCompactCard {
+  width: min(100%, 56rem);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 84%, transparent);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-card-highlight) 18%, transparent), transparent 64%),
+    color-mix(in srgb, var(--surface-card) 94%, transparent);
+}
+
+.coverageCompactIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border-soft));
+  color: var(--text-primary, var(--text));
+  background: color-mix(in srgb, var(--surface-card-highlight) 42%, transparent);
+}
+
+.coverageCompactBody {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.coverageCompactActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .coverageOverlay {
@@ -1153,7 +1327,10 @@
 .proposalViewerBody {
   display: grid;
   gap: 1rem;
-  padding-top: 0.35rem;
+  padding: 1.65rem 1.8rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 10%, var(--border-soft));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 72%, transparent);
   line-height: 1.8;
   font-size: 1rem;
 }
@@ -1181,6 +1358,21 @@
 .proposalViewerBody h4 {
   margin: 1rem 0 0;
   line-height: 1.2;
+}
+
+.proposalViewerBody h1,
+.proposalViewerBody h2 {
+  color: var(--accent-strong);
+  font-family: var(--font-display);
+  letter-spacing: 0;
+}
+
+.proposalViewerBody h1 {
+  font-size: clamp(1.8rem, 3.2vw, 2.75rem);
+}
+
+.proposalViewerBody h2 {
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
 }
 
 .proposalViewerBody ul,
@@ -1262,13 +1454,13 @@
 
 .fieldGrid {
   display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .field {
   display: grid;
-  gap: 0.42rem;
+  gap: 0.3rem;
 }
 
 .commentComposer {
@@ -1302,12 +1494,243 @@
   background: var(--surface);
 }
 
+.editorHeroStatus {
+  display: grid;
+  justify-items: end;
+  align-self: end;
+}
+
+.editorHeroStatus span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.35rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border-soft));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 82%, transparent);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.editorHeroStatus svg {
+  color: var(--accent);
+}
+
+.autosaveSaved {
+  color: var(--success) !important;
+}
+
+.editorWorkspace {
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 0.34fr);
+  align-items: start;
+  gap: 0.8rem;
+}
+
+.editorMain,
+.editorSidebar {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 10%, transparent) 0 0.16rem, transparent 0.16rem),
+    color-mix(in srgb, var(--surface-card) 72%, transparent);
+}
+
+.editorMain {
+  grid-template-rows: auto auto auto minmax(42rem, 1fr);
+  min-height: calc(100dvh - var(--site-shell-chrome-height, 8rem) - 14rem);
+}
+
+.editorSidebar {
+  position: sticky;
+  top: calc(var(--site-shell-chrome-height, 8rem) + 0.85rem);
+  align-content: start;
+}
+
+.editorSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.editorHeaderControls {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.editorSectionHeader span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--accent-strong);
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.editorSectionHeader em {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.editorModeToggle {
+  display: inline-flex;
+  gap: 0.2rem;
+  padding: 0.2rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border-soft));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 76%, transparent);
+}
+
+.editorModeToggle button {
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 1px);
+  background: transparent;
+  color: var(--muted);
+  padding: 0.35rem 0.55rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.editorModeToggle button:hover,
+.editorModeActive {
+  color: var(--accent-strong) !important;
+  background: color-mix(in srgb, var(--accent) 16%, transparent) !important;
+}
+
+.editorTitleInput {
+  min-height: 3.25rem;
+  color: var(--accent-strong);
+  font-family: var(--font-display);
+  font-size: clamp(1.45rem, 2.6vw, 2.25rem);
+}
+
+.bodyField {
+  align-content: start;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-height: 42rem;
+}
+
+.markdownHelp {
+  border: 1px solid color-mix(in srgb, var(--accent) 14%, var(--border-soft));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 58%, transparent);
+}
+
+.markdownHelp summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.62rem 0.75rem;
+  color: var(--accent-strong);
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+  list-style: none;
+}
+
+.markdownHelp summary::-webkit-details-marker {
+  display: none;
+}
+
+.markdownHelp summary svg {
+  color: var(--accent);
+  transition: transform 140ms ease;
+}
+
+.markdownHelp[open] summary svg {
+  transform: rotate(180deg);
+}
+
+.markdownHelpGrid {
+  display: grid;
+  grid-template-columns: minmax(9rem, 0.8fr) minmax(0, 1fr);
+  gap: 0.45rem 0.7rem;
+  padding: 0 0.75rem 0.75rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.markdownHelpGrid code {
+  min-width: 0;
+  padding: 0.18rem 0.35rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg) 84%, transparent);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.editorTextarea {
+  align-self: start;
+  min-height: 40rem;
+  height: 100%;
+  padding: 1.65rem 1.8rem;
+  border-color: transparent;
+  background: color-mix(in srgb, var(--surface-card) 72%, transparent) !important;
+  resize: vertical;
+  line-height: 1.65;
+}
+
+.editorTextarea:focus {
+  outline: 1px solid color-mix(in srgb, var(--accent) 36%, transparent);
+}
+
+.editorPreview {
+  min-height: 40rem;
+  height: 100%;
+  padding: 1.65rem 1.8rem;
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 72%, transparent);
+}
+
+.editorPreviewEmpty {
+  display: grid;
+  min-height: 12rem;
+  align-content: center;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.editorActions {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border-soft);
+}
+
+.editorActions .primaryButton {
+  justify-content: center;
+  width: 100%;
+}
+
 .filterActions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.65rem;
 }
 
 .filterMeta {
@@ -1316,9 +1739,10 @@
 }
 
 .fieldLabel {
-  font-size: 0.84rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .input,
@@ -1340,6 +1764,30 @@
   @include input-base;
   padding: 0.5rem 0.62rem;
   font-size: 0.84rem;
+}
+
+.searchField {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.searchInputShell {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  padding-left: 0.62rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+}
+
+.searchInputShell svg {
+  color: var(--accent);
+}
+
+.searchInputShell .filterInput {
+  border: 0;
+  background: transparent;
 }
 
 .textarea {
@@ -1411,9 +1859,31 @@
 }
 
 .assetSelectRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.65rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.assetSelectRow > * {
+  min-width: 0;
+}
+
+.assetPill {
+  border-radius: var(--radius-sm);
+  padding: 0.34rem 0.45rem;
+}
+
+.assetPill strong {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.assetPill em {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-style: normal;
 }
 
 .assetRemoveButton {
@@ -1534,6 +2004,15 @@
 }
 
 @media (max-width: 44rem) {
+  .coverageCompactCard {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .coverageCompactActions {
+    justify-content: flex-start;
+  }
+
   .coverageOverlayPanel {
     inset: 0;
     padding: 1rem;

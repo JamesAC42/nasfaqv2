@@ -3,10 +3,10 @@
 .page {
   --activity-cyan: var(--accent);
   --activity-blue: var(--trend-line);
-  --activity-panel: color-mix(in srgb, var(--surface-card) 86%, transparent);
-  --activity-panel-soft: color-mix(in srgb, var(--surface-card-soft) 78%, transparent);
+  --activity-panel: color-mix(in srgb, var(--surface-card) 92%, transparent);
+  --activity-panel-soft: color-mix(in srgb, var(--surface-card-soft) 86%, transparent);
   display: grid;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .hero,
@@ -17,36 +17,60 @@
 .insightRail {
   border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-tight);
   background:
-    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--activity-cyan) 14%, transparent), transparent 32%),
-    linear-gradient(135deg, color-mix(in srgb, var(--activity-panel) 90%, transparent), color-mix(in srgb, var(--bg-accent) 84%, transparent));
+    linear-gradient(90deg, color-mix(in srgb, var(--activity-cyan) 7%, transparent) 0 1px, transparent 1px 100%),
+    linear-gradient(180deg, color-mix(in srgb, var(--activity-cyan) 5%, transparent) 0 1px, transparent 1px 100%),
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--activity-cyan) 12%, transparent), transparent 30%),
+    linear-gradient(135deg, color-mix(in srgb, var(--activity-panel) 96%, transparent), color-mix(in srgb, var(--bg-accent) 90%, transparent));
+  background-size: 18px 18px, 18px 18px, auto, auto;
 }
 
 .hero {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.65fr);
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 0.5fr);
   gap: 1rem;
   align-items: end;
-  overflow: hidden;
-  padding: clamp(1rem, 2vw, 1.6rem);
+  min-height: clamp(22rem, 42vw, 32rem);
+  padding: clamp(1.1rem, 2.4vw, 2rem);
+  background:
+    linear-gradient(90deg, #06151b 0 2px, color-mix(in srgb, var(--surface-card) 96%, #06151b) 2px 18%, color-mix(in srgb, var(--surface-card) 74%, transparent) 42%, color-mix(in srgb, var(--surface-card) 20%, transparent) 100%),
+    radial-gradient(circle at 76% 40%, color-mix(in srgb, var(--activity-cyan) 18%, transparent), transparent 34%),
+    url("/market-heartbeat-floor-hero.png");
+  background-position: center, center, center;
+  background-size: cover, cover, cover;
 }
 
 .hero::after {
   content: "";
   position: absolute;
-  inset: auto -7rem -11rem auto;
-  width: 22rem;
-  height: 22rem;
-  border-radius: 999px;
-  background: radial-gradient(circle, color-mix(in srgb, var(--activity-blue) 28%, transparent), transparent 62%);
+  inset: 0;
+  background:
+    linear-gradient(180deg, transparent 58%, color-mix(in srgb, var(--surface-card) 84%, transparent)),
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--activity-cyan) 18%, transparent) 0 1px, transparent 1px 14px);
+  mask-image: linear-gradient(90deg, black, transparent 68%);
+  opacity: 0.55;
   pointer-events: none;
+  transform: translateX(-0px);
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, #06151b 0 2px, color-mix(in srgb, var(--surface-card) 96%, transparent) 2px 36%, color-mix(in srgb, var(--surface-card) 70%, transparent) 52%, transparent 78%),
+    linear-gradient(180deg, color-mix(in srgb, black 12%, transparent), color-mix(in srgb, black 22%, transparent));
+  pointer-events: none;
+  transform: translateX(-1px);
 }
 
 .heroCopy {
   position: relative;
   z-index: 1;
+  max-width: 50rem;
+  padding: 1rem 0;
 }
 
 .heroEyebrow,
@@ -59,16 +83,22 @@
   align-items: center;
   gap: 0.5rem;
   color: var(--activity-cyan);
-  font-size: 0.76rem;
+  font-size: 0.68rem;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
 }
 
 .heroTitle {
   @include section-title;
   margin: 0.2rem 0 0;
-  font-size: clamp(2.35rem, 5vw, 4.25rem);
+  max-width: 12ch;
+  font-size: clamp(3.4rem, 7.4vw, 7rem);
+  line-height: 0.86;
+  color: var(--accent-strong);
+  text-shadow:
+    0 1rem 3rem color-mix(in srgb, black 48%, transparent),
+    0 0 34px color-mix(in srgb, var(--accent) 26%, transparent);
 }
 
 .heroText,
@@ -83,21 +113,25 @@
 }
 
 .heroText {
-  max-width: 68ch;
+  max-width: 52ch;
   margin-top: 0.45rem;
+  font-size: 1.05rem;
+  line-height: 1.55;
 }
 
 .heroStatus {
   position: relative;
   z-index: 1;
   display: grid;
-  gap: 0.55rem;
+  gap: 0.45rem;
   justify-items: end;
   text-align: right;
-  padding: 1rem;
-  border: 1px solid color-mix(in srgb, var(--activity-cyan) 24%, var(--border));
+  padding: 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--activity-cyan) 32%, var(--border));
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--surface-card-strong) 80%, transparent);
+  background: color-mix(in srgb, var(--surface-card-strong) 72%, transparent);
+  backdrop-filter: blur(18px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
 
 .connectionRow {
@@ -135,16 +169,16 @@
 
 .controlDeck {
   display: grid;
-  grid-template-columns: minmax(25rem, 1.25fr) repeat(3, minmax(0, 0.75fr));
-  gap: 1rem;
+  grid-template-columns: minmax(25rem, 1.35fr) repeat(3, minmax(0, 0.72fr));
+  gap: 0.75rem;
 }
 
 .pulsePanel {
   display: grid;
   grid-template-columns: minmax(12rem, 0.8fr) minmax(0, 1fr);
-  gap: 1rem;
+  gap: 0.8rem;
   align-items: center;
-  padding: 1rem;
+  padding: 0.8rem;
 }
 
 .activityGauge {
@@ -155,10 +189,11 @@
 
 .gaugeRing {
   --gauge-value: 0%;
+  position: relative;
   display: grid;
   place-items: center;
-  width: 7.75rem;
-  height: 7.75rem;
+  width: 6.8rem;
+  height: 6.8rem;
   flex: 0 0 auto;
   border-radius: 50%;
   background:
@@ -170,11 +205,12 @@
 .gaugeRing strong {
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: 2rem;
+  font-size: 2.15rem;
   line-height: 1;
 }
 
 .gaugeRing span {
+  display: none;
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 800;
@@ -202,9 +238,9 @@
 }
 
 .pressureTrack {
-  height: 0.8rem;
+  height: 0.62rem;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: 999rem;
   background: color-mix(in srgb, var(--trend-down) 34%, transparent);
 }
 
@@ -219,14 +255,15 @@
 .statCard {
   display: grid;
   align-content: center;
-  gap: 0.45rem;
-  padding: 1rem;
+  gap: 0.28rem;
+  min-height: 7rem;
+  padding: 0.8rem;
 }
 
 .statValue {
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: clamp(1.25rem, 2vw, 1.9rem);
+  font-size: clamp(1.2rem, 1.8vw, 1.65rem);
   font-weight: 900;
 }
 
@@ -236,31 +273,34 @@
 
 .hotPanel {
   display: grid;
-  gap: 0.9rem;
-  padding: 1rem;
+  gap: 0.65rem;
+  padding: 0.8rem;
 }
 
 .hotStrip {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0.75rem;
+  gap: 0.55rem;
 }
 
 .hotSymbol {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.65rem;
   min-width: 0;
-  padding: 0.8rem;
+  padding: 0.62rem;
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--activity-panel-soft) 82%, transparent);
   color: inherit;
   text-decoration: none;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
 }
 
 .hotSymbol:hover {
   border-color: color-mix(in srgb, var(--activity-cyan) 45%, var(--border));
+  background: color-mix(in srgb, var(--activity-cyan) 9%, var(--activity-panel-soft));
+  transform: translateY(-1px);
 }
 
 .hotIcon {
@@ -291,29 +331,35 @@
 
 .mainGrid {
   display: grid;
-  grid-template-columns: minmax(0, 0.92fr) minmax(28rem, 1.08fr);
-  gap: 1rem;
+  grid-template-columns: minmax(0, 0.9fr) minmax(30rem, 1.1fr);
+  gap: 0.75rem;
   align-items: stretch;
 }
 
 .intelGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
+  gap: 0.75rem;
+  align-items: start;
 }
 
 .bottomGrid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(22rem, 0.72fr);
-  gap: 1rem;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.bottomGrid .panel {
+  align-content: start;
 }
 
 .panel,
 .insightRail {
   display: grid;
-  gap: 0.95rem;
+  gap: 0.65rem;
   min-width: 0;
-  padding: 1rem;
+  padding: 0.8rem;
 }
 
 .chartPanel :global(.chartBoxBare) {
@@ -321,7 +367,7 @@
 }
 
 .chartPanel :global(.canvas) {
-  height: 330px;
+  height: 300px;
 }
 
 .tapePanel {
@@ -330,11 +376,29 @@
 
 .tradeTape {
   display: grid;
-  gap: 0.65rem;
-  max-height: 30rem;
+  align-content: start;
+  gap: 0.55rem;
+  max-height: 28rem;
   overflow: auto;
-  padding-right: 0.25rem;
+  padding-right: 0.35rem;
   scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--activity-cyan) 44%, var(--border)) color-mix(in srgb, var(--surface-card) 88%, transparent);
+}
+
+.tradeTape::-webkit-scrollbar {
+  width: 0.7rem;
+}
+
+.tradeTape::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-card) 88%, transparent);
+}
+
+.tradeTape::-webkit-scrollbar-thumb {
+  border: 2px solid color-mix(in srgb, var(--surface-card) 88%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--activity-cyan) 44%, var(--border));
 }
 
 .assetList,
@@ -342,7 +406,8 @@
 .clockGrid,
 .insightList {
   display: grid;
-  gap: 0.75rem;
+  align-content: start;
+  gap: 0.48rem;
 }
 
 .tradeRow,
@@ -352,20 +417,28 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.8rem;
   overflow: hidden;
-  padding: 0.85rem 1rem;
+  padding: 0.58rem 0.72rem;
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--surface-card) 84%, transparent);
   color: inherit;
   text-decoration: none;
+  transition: border-color 150ms ease, background-color 150ms ease, transform 150ms ease;
+}
+
+.tradeRow {
+  min-height: 4.35rem;
+  padding: 0.72rem 0.8rem;
 }
 
 .assetRow:hover,
 .traderRow:hover,
 .tradeRow:hover {
   border-color: color-mix(in srgb, var(--activity-cyan) 38%, var(--border));
+  background: color-mix(in srgb, var(--activity-cyan) 7%, var(--surface-card));
+  transform: translateX(2px);
 }
 
 .tradeRail {
@@ -396,6 +469,13 @@
   align-items: center;
   gap: 0.45rem;
   flex-wrap: wrap;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.tradeMeta {
+  white-space: normal;
+  line-height: 1.35;
 }
 
 .tradeNumbers,
@@ -412,12 +492,12 @@
 .assetMetric span,
 .traderMetrics span {
   color: var(--muted);
-  font-size: 0.88rem;
+  font-size: 0.78rem;
 }
 
 .assetIcon {
-  width: 2.2rem;
-  height: 2.2rem;
+  width: 1.9rem;
+  height: 1.9rem;
   flex: 0 0 auto;
 }
 
@@ -425,8 +505,8 @@
   display: inline-flex;
   align-items: center;
   padding: 0.2rem 0.45rem;
-  border-radius: 999px;
-  font-size: 0.72rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.64rem;
   font-weight: 900;
   letter-spacing: 0.06em;
 }
@@ -457,15 +537,17 @@
 
 .loadMoreButton {
   @include button-secondary;
+  min-height: 2.35rem;
+  padding-block: 0.52rem;
 }
 
 .traderBadge {
   display: grid;
   place-items: center;
-  width: 2.1rem;
-  height: 2.1rem;
+  width: 1.9rem;
+  height: 1.9rem;
   flex: 0 0 auto;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--activity-cyan);
   color: var(--button-primary-text);
   font-weight: 900;
@@ -474,8 +556,8 @@
 .clockCard,
 .insightItem {
   display: grid;
-  gap: 0.35rem;
-  padding: 0.9rem;
+  gap: 0.28rem;
+  padding: 0.68rem;
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--surface-card-soft) 78%, transparent);
@@ -501,12 +583,15 @@
   margin: 0;
   color: var(--text);
   font-family: var(--font-display);
-  font-size: 1.15rem;
+  font-size: 1.02rem;
+  line-height: 1.05;
+  letter-spacing: 0;
 }
 
 .sectionCopy {
-  margin-top: 0.25rem;
-  font-size: 0.94rem;
+  margin-top: 0.15rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
 }
 
 .positive {
@@ -521,6 +606,57 @@
   color: var(--text) !important;
 }
 
+@keyframes tako-glow {
+  0% {
+    box-shadow: 0 0 8rem -1rem rgba(65, 42, 127, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 8rem -1rem rgba(24, 38, 93, 0.5);
+  }
+  57% {
+    box-shadow: 0 0 8rem -1rem rgba(169, 250, 144, 0.326);
+  }
+  60% {
+    box-shadow: 0 0 8rem -1rem rgba(33, 136, 103, 0.5);
+  }
+  90% {
+    box-shadow: 0 0 8rem -1rem rgba(24, 38, 93, 0.5);
+  }
+  97% {
+    box-shadow: 0 0 8rem -1rem rgba(255, 229, 190, 0.326);
+  }
+  100% {
+    box-shadow: 0 0 8rem -1rem rgba(227, 36, 36, 0.5);
+  }
+}
+
+.takoContainer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  img {
+    position:absolute;
+    bottom:0;
+    right:0;
+    width: 15rem;
+    height:auto;
+  }
+
+  &::before {
+    content:"";
+    height:30rem;
+    width:30rem;
+    position:absolute;
+    bottom:0;
+    right:0;
+    transform:translate(25%, 55%);
+    box-shadow: 0 0 8rem -1rem rgba(119, 84, 218, 0.5);
+    border-radius: 50%;
+    animation: tako-glow 5s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite;
+  }
+}
+
 @media (max-width: 1180px) {
   .hero,
   .controlDeck,
@@ -529,6 +665,11 @@
   .bottomGrid,
   .hotStrip {
     grid-template-columns: 1fr;
+  }
+
+  .hero {
+    min-height: 32rem;
+    background-position: center, center, 62% center;
   }
 
   .heroStatus {
@@ -555,5 +696,20 @@
   .traderMetrics {
     justify-items: start;
     text-align: left;
+  }
+
+  .hero {
+    min-height: 36rem;
+    padding: 1rem;
+    background-position: center, center, 66% center;
+  }
+
+  .heroTitle {
+    max-width: 8ch;
+    font-size: clamp(3rem, 16vw, 4.8rem);
+  }
+
+  .heroText {
+    max-width: 34ch;
   }
 }

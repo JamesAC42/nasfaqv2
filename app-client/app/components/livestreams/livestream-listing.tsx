@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { FaClockRotateLeft, FaTowerBroadcast, FaVideo } from "react-icons/fa6";
 import { apiFetch } from "@/app/lib/api";
 import { LivestreamModal, type LivestreamModalItem } from "@/app/components/livestreams/livestream-modal";
 import { fmtDate, fmtDurationSeconds, fmtInteger } from "@/app/lib/format";
@@ -170,12 +171,18 @@ function LiveViewerCount({ streamId, viewerCount, jitterTick }: { streamId: stri
         window.clearTimeout(updateTimerRef.current);
         updateTimerRef.current = null;
       }
-      setDisplayedCount(null);
+      updateTimerRef.current = window.setTimeout(() => {
+        updateTimerRef.current = null;
+        setDisplayedCount(null);
+      }, 0);
       return;
     }
 
     if (displayedCountRef.current === null) {
-      setDisplayedCount(viewerCount);
+      updateTimerRef.current = window.setTimeout(() => {
+        updateTimerRef.current = null;
+        setDisplayedCount(viewerCount);
+      }, 0);
       return;
     }
 
@@ -210,14 +217,17 @@ function LiveViewerCount({ streamId, viewerCount, jitterTick }: { streamId: stri
 
   useEffect(() => {
     if (!jitterTick || viewerCount === null) return;
-    setDisplayedCount((current) => {
-      if (current === null) return current;
-      if (Math.random() >= 0.7) return current;
-      const next = Math.max(0, current + (Math.random() < 0.5 ? -1 : 1));
-      if (next === current) return current;
-      setFlashTick((value) => value + 1);
-      return next;
-    });
+    const timerId = window.setTimeout(() => {
+      setDisplayedCount((current) => {
+        if (current === null) return current;
+        if (Math.random() >= 0.7) return current;
+        const next = Math.max(0, current + (Math.random() < 0.5 ? -1 : 1));
+        if (next === current) return current;
+        setFlashTick((value) => value + 1);
+        return next;
+      });
+    }, 0);
+    return () => window.clearTimeout(timerId);
   }, [jitterTick, viewerCount]);
 
   return (
@@ -226,6 +236,16 @@ function LiveViewerCount({ streamId, viewerCount, jitterTick }: { streamId: stri
         {fmtInteger(displayedCount)}
       </strong>
       <span className={styles.viewerLabel}>watching</span>
+    </div>
+  );
+}
+
+function StreamMetric({ label, value, meta }: { label: string; value: string; meta: string }) {
+  return (
+    <div className={styles.metric}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <em>{meta}</em>
     </div>
   );
 }
@@ -361,7 +381,7 @@ export function LivestreamListing() {
   const [pastLoading, setPastLoading] = useState(false);
   const [pastError, setPastError] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<LivestreamModalItem | null>(null);
-  const upcomingReferenceNowMsRef = useRef<number | null>(null);
+  const [upcomingReferenceNowMs, setUpcomingReferenceNowMs] = useState<number | null>(null);
 
   useEffect(() => {
     void fetchLivestreams();
@@ -380,8 +400,11 @@ export function LivestreamListing() {
   useEffect(() => {
     if (viewMode !== "historical") return;
     let cancelled = false;
-    setPastLoading(true);
-    setPastError(null);
+    const loadingTimerId = window.setTimeout(() => {
+      if (cancelled) return;
+      setPastLoading(true);
+      setPastError(null);
+    }, 0);
 
     void apiFetch<PastPayload>(`/api/livestreams/history?page=${encodeURIComponent(String(pastPage))}`)
       .then((result) => {
@@ -401,17 +424,21 @@ export function LivestreamListing() {
 
     return () => {
       cancelled = true;
+      window.clearTimeout(loadingTimerId);
     };
   }, [pastPage, viewMode]);
 
-  if (upcomingReferenceNowMsRef.current === null && upcoming.length > 0) {
-    upcomingReferenceNowMsRef.current = Date.now();
-  }
+  useEffect(() => {
+    if (upcomingReferenceNowMs !== null || upcoming.length === 0) return;
+    const timerId = window.setTimeout(() => setUpcomingReferenceNowMs(Date.now()), 0);
+    return () => window.clearTimeout(timerId);
+  }, [upcoming.length, upcomingReferenceNowMs]);
 
   const hasStreams = live.length > 0 || upcoming.length > 0;
-  const upcomingReferenceNowMs = upcomingReferenceNowMsRef.current ?? nowMs;
+  const upcomingStatusReferenceNowMs = upcomingReferenceNowMs ?? nowMs;
   const pastStreams = pastData?.streams?.map(normalizePastStream) || [];
   const weekLabel = pastData ? `${new Date(pastData.week_start).toLocaleDateString()} - ${new Date(pastData.week_end).toLocaleDateString()}` : "";
+  const liveViewerTotal = live.reduce((sum, item) => sum + (item.viewer_count ?? 0), 0);
   const openModal = useCallback((nextItem: LivestreamModalItem) => {
     setSelectedItem(nextItem);
   }, []);
@@ -419,18 +446,33 @@ export function LivestreamListing() {
   useEffect(() => {
     if (!selectedItem || selectedItem.status === "ended") return;
     const next = [...live, ...upcoming].find((entry) => entry.id === selectedItem.id);
-    if (next) setSelectedItem(next);
+    if (!next) return;
+    const timerId = window.setTimeout(() => setSelectedItem(next), 0);
+    return () => window.clearTimeout(timerId);
   }, [live, selectedItem, upcoming]);
 
   return (
     <>
     <section className={styles.section}>
-      <div className={styles.header}>
-        <div className={styles.headerSide}>
-          <h1 className={styles.title}>Livestreams</h1>
-          <p className={styles.copy}>{viewMode === "current" ? "Live now at the top, scheduled next below." : weekLabel || "Past week of completed streams."}</p>
+      <div className={styles.hero}>
+        <div className={styles.heroCopy}>
+          <div className={styles.heroEyebrow}>
+            <FaTowerBroadcast aria-hidden="true" />
+            Stream desk
+          </div>
+          <h1 className={styles.title}>Livestream Monitor</h1>
+          <div className={styles.heroMeta}>
+            <span>{viewMode === "current" ? `${live.length} live / ${upcoming.length} upcoming` : weekLabel || "Loading completed streams"}</span>
+            <span>{viewMode === "current" ? `${fmtInteger(liveViewerTotal)} watching` : `${fmtInteger(pastStreams.length)} archived streams`}</span>
+            <span>{isLoading || pastLoading ? "Feed refreshing" : "Feed ready"}</span>
+          </div>
         </div>
-        <div className={styles.headerToggle}>
+        <div className={styles.heroControls}>
+          <div className={styles.metrics}>
+            <StreamMetric label="Live" value={fmtInteger(live.length)} meta={`${fmtInteger(liveViewerTotal)} viewers`} />
+            <StreamMetric label="Upcoming" value={fmtInteger(upcoming.length)} meta="scheduled queue" />
+            <StreamMetric label="Archive" value={fmtInteger(pastStreams.length)} meta={viewMode === "historical" ? "loaded this week" : "historical mode"} />
+          </div>
           <div className="segmentedControl" role="tablist" aria-label="Livestream mode">
             <button
               type="button"
@@ -448,7 +490,6 @@ export function LivestreamListing() {
             </button>
           </div>
         </div>
-        <div className={styles.headerSide} />
       </div>
 
       {error ? <div className={styles.empty}>Livestream feed unavailable: {error}</div> : null}
@@ -461,21 +502,21 @@ export function LivestreamListing() {
           <div className={styles.split}>
             <section className={styles.column}>
               <div className={styles.columnHeader}>
-                <h2 className={styles.columnTitle}>Live Now</h2>
+                <h2 className={styles.columnTitle}><FaVideo aria-hidden="true" /> Live Now</h2>
                 <span className={styles.columnBadge}>{live.length}</span>
               </div>
               <div className={styles.list}>
-                {live.length ? live.map((item) => renderStreamCard(item, "live", nowMs, jitterTick, upcomingReferenceNowMs, openModal)) : <div className={styles.columnEmpty}>No channels are live right now.</div>}
+                {live.length ? live.map((item) => renderStreamCard(item, "live", nowMs, jitterTick, upcomingStatusReferenceNowMs, openModal)) : <div className={styles.columnEmpty}>No channels are live right now.</div>}
               </div>
             </section>
 
             <section className={styles.column}>
               <div className={styles.columnHeader}>
-                <h2 className={styles.columnTitle}>Upcoming</h2>
+                <h2 className={styles.columnTitle}><FaClockRotateLeft aria-hidden="true" /> Upcoming</h2>
                 <span className={styles.columnBadge}>{upcoming.length}</span>
               </div>
               <div className={styles.list}>
-                {upcoming.length ? upcoming.map((item) => renderStreamCard(item, "upcoming", nowMs, jitterTick, upcomingReferenceNowMs, openModal)) : <div className={styles.columnEmpty}>No upcoming streams in cache.</div>}
+                {upcoming.length ? upcoming.map((item) => renderStreamCard(item, "upcoming", nowMs, jitterTick, upcomingStatusReferenceNowMs, openModal)) : <div className={styles.columnEmpty}>No upcoming streams in cache.</div>}
               </div>
             </section>
           </div>

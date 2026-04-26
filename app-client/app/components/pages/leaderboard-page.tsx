@@ -12,7 +12,7 @@ import { getIconUrl } from "@/app/lib/normalizers";
 import type { MarketAsset } from "@/app/lib/types";
 import type { LeaderboardEntry, LeaderboardNeighbor, LeaderboardScope, LeaderboardWindow } from "@/app/lib/types";
 import { useAuthStore } from "@/app/stores/auth-store";
-  import { useLeaderboardStore } from "@/app/stores/leaderboard-store";
+import { useLeaderboardStore } from "@/app/stores/leaderboard-store";
 import { useMarketStore } from "@/app/stores/market-store";
 import pageStyles from "@/app/components/pages/page-shell.module.scss";
 import styles from "@/app/components/pages/leaderboard-page.module.scss";
@@ -48,11 +48,6 @@ function trendTone(changePct: number | null) {
   return changePct >= 0 ? pageStyles.positive : pageStyles.negative;
 }
 
-function formatSignedNumber(value: number | null, formatter: (input: number | null) => string) {
-  if (value === null) return "—";
-  return `${value > 0 ? "+" : ""}${formatter(value)}`;
-}
-
 function TrendValue({
   changePct,
   changeAbs,
@@ -75,6 +70,27 @@ function TrendValue({
           {changeAbs === null ? "Absolute move unavailable" : `${changeAbs > 0 ? "+" : ""}${fmtNumber(changeAbs, "$")}`}
         </span>
       ) : null}
+    </div>
+  );
+}
+
+function ExposureMeter({ entry }: { entry: LeaderboardEntry }) {
+  const total = Math.max(0, entry.cash_balance + entry.holdings_market_value);
+  const investedPct = total > 0 ? Math.max(0, Math.min(100, (entry.holdings_market_value / total) * 100)) : 0;
+
+  return (
+    <div className={styles.exposureMeter}>
+      <div className={styles.exposureHead}>
+        <span>Exposure</span>
+        <strong>{investedPct.toFixed(0)}%</strong>
+      </div>
+      <div className={styles.exposureTrack}>
+        <i style={{ width: `${investedPct}%` }} />
+      </div>
+      <div className={styles.exposureLegend}>
+        <span>{fmtNumber(entry.holdings_market_value, "$")} held</span>
+        <span>{fmtNumber(entry.cash_balance, "$")} cash</span>
+      </div>
     </div>
   );
 }
@@ -107,6 +123,30 @@ function AssetMetaPill({
       </Link>
       {shares !== null ? <span className={styles.assetMetaShares}>x{fmtInteger(Math.round(shares))}</span> : null}
     </div>
+  );
+}
+
+function AssetPositionCell({
+  label,
+  asset,
+  symbol,
+  value,
+}: {
+  label: string;
+  asset: MarketAsset | null;
+  symbol: string | null;
+  value: string;
+}) {
+  if (!symbol) return <span className={styles.emptyMetric}>—</span>;
+
+  return (
+    <Link href={`/stocks/${encodeURIComponent(symbol)}`} className={styles.tableAssetChip}>
+      <AssetCoin symbol={symbol} icon={asset?.icon ?? null} color={asset?.color ?? null} className={styles.tableAssetCoin} />
+      <span>
+        <strong>{symbol}</strong>
+        <em>{label} {value}</em>
+      </span>
+    </Link>
   );
 }
 
@@ -216,23 +256,18 @@ function PodiumCard({ entry, tone }: { entry: LeaderboardEntry; tone: "gold" | "
       style={entry.profile_color ? ({ "--podium-user-color": entry.profile_color } as CSSProperties) : undefined}
     >
       <div className={styles.podiumStage}>
-        
-        <div className={styles.podiumBar}>
-          <div className={styles.podiumAvatarWrap}>
-            <div
-              className={`${styles.avatar} ${styles.podiumAvatar}`}
-              style={entry.profile_color ? ({ "--leaderboard-accent": entry.profile_color } as CSSProperties) : undefined}
-            >
-              {entry.profile_picture_url ? (
-                <img src={entry.profile_picture_url} alt="" className={styles.avatarImage} />
-              ) : (
-                initialsFor(entry.username)
-              )}
-            </div>
-          </div>
-          {largestAsset?.icon ? <img src={getIconUrl(largestAsset.icon) || ""} alt="" className={styles.podiumWatermark} /> : null}
-          <div className={styles.podiumRank}>#{entry.rank}</div>
+        {largestAsset?.icon ? <img src={getIconUrl(largestAsset.icon) || ""} alt="" className={styles.podiumWatermark} /> : null}
+        <div
+          className={`${styles.avatar} ${styles.podiumAvatar}`}
+          style={entry.profile_color ? ({ "--leaderboard-accent": entry.profile_color } as CSSProperties) : undefined}
+        >
+          {entry.profile_picture_url ? (
+            <img src={entry.profile_picture_url} alt="" className={styles.avatarImage} />
+          ) : (
+            initialsFor(entry.username)
+          )}
         </div>
+        <div className={styles.podiumRank}>#{entry.rank}</div>
       </div>
       <div className={styles.podiumInfo}>
         <Link href={`/profile/${encodeURIComponent(entry.username)}`} className={styles.podiumName}>
@@ -240,6 +275,7 @@ function PodiumCard({ entry, tone }: { entry: LeaderboardEntry; tone: "gold" | "
         </Link>
         <strong className={`${styles.podiumValue} ${styles.valueMono}`.trim()}>{fmtNumber(entry.total_equity, "$")}</strong>
         <TrendValue changePct={entry.change_pct} changeAbs={entry.change_abs} compact />
+        <ExposureMeter entry={entry} />
         <div className={styles.podiumMeta}>
           <span className={styles.streakBadge}>🔥 {entry.streaks.current_streak_days > 0 ? `${fmtInteger(entry.streaks.current_streak_days)} day streak` : "No streak"}</span>
           <AssetMetaPill
@@ -288,19 +324,44 @@ export function LeaderboardPage() {
   const tableRows = entries.slice(3);
   const scopeClassName = scopeThemeClass(scope);
   const windowIndex = Math.max(0, WINDOW_OPTIONS.findIndex((option) => option.value === window));
+  const assetBySymbol = useMemo(() => {
+    const map = new Map<string, MarketAsset>();
+    for (const asset of assets) {
+      map.set(asset.symbol, asset);
+    }
+    return map;
+  }, [assets]);
+  const leader = entries[0] || null;
+  const activeCapital = entries.reduce((sum, entry) => sum + entry.total_equity, 0);
 
   return (
     <SiteShell>
-      <div className={pageStyles.stack}>
-        <section className={pageStyles.hero}>
-          <h1 className={pageStyles.title}>Leaderboard</h1>
-          <p className={pageStyles.copy}>
-            Track the richest desks on NASFAQ by live net worth, follow your rivals, and see how far you are from the next spot.
-          </p>
-          <div className={styles.heroMeta}>
-            <span>{fmtInteger(stats.user_count)} tracked users</span>
-            <span>Updated {fmtDate(stats.last_updated_at)}</span>
-            {stats.cutoff_equity_top_10 !== null ? <span>Top 10 cutoff {fmtNumber(stats.cutoff_equity_top_10, "$")}</span> : null}
+      <div className={`${pageStyles.stack} ${styles.leaderboardPage}`.trim()}>
+        <section className={`${pageStyles.hero} ${styles.leaderboardHero}`.trim()}>
+          <div>
+            <h1 className={pageStyles.title}>Leaderboard</h1>
+            <p className={pageStyles.copy}>
+              Rank the richest NASFAQ desks by live equity, window move, exposure, and who is one trade away from taking your slot.
+            </p>
+            <div className={styles.heroMeta}>
+              <span>{fmtInteger(stats.user_count)} tracked users</span>
+              <span>Updated {fmtDate(stats.last_updated_at)}</span>
+              {leader ? <span>Desk to beat {leader.username} at {fmtNumber(leader.total_equity, "$")}</span> : null}
+            </div>
+          </div>
+          <div className={styles.marketStatsGrid}>
+            <div className={styles.marketStat}>
+              <span>Loaded equity</span>
+              <strong>{fmtNumber(activeCapital, "$")}</strong>
+            </div>
+            <div className={styles.marketStat}>
+              <span>Top 10 cutoff</span>
+              <strong>{stats.cutoff_equity_top_10 !== null ? fmtNumber(stats.cutoff_equity_top_10, "$") : "—"}</strong>
+            </div>
+            <div className={styles.marketStat}>
+              <span>Top 100 cutoff</span>
+              <strong>{stats.cutoff_equity_top_100 !== null ? fmtNumber(stats.cutoff_equity_top_100, "$") : "—"}</strong>
+            </div>
           </div>
         </section>
 
@@ -361,7 +422,8 @@ export function LeaderboardPage() {
         </section>
 
         {me ? (
-          <section className={`${pageStyles.panel} ${styles.meCard} ${scopeClassName}`.trim()}>
+        <section className={styles.commandGrid}>
+          <div className={`${styles.meCard} ${scopeClassName}`.trim()}>
             <div className={styles.meSummary}>
               <div className={styles.meHeading}>
                 <div className={styles.eyebrow}>Your position</div>
@@ -387,8 +449,9 @@ export function LeaderboardPage() {
                   <TrendValue changePct={me.change_pct} changeAbs={me.change_abs} />
                 </div>
                 <div className={styles.meStat}>
-                  <span className={styles.meStatLabel}>Standing</span>
-                  <strong>{(Math.max(0, me.percentile) * 100).toFixed(1)} percentile</strong>
+                  <span className={styles.meStatLabel}>Unrealized P/L</span>
+                  <strong className={trendTone(me.total_unrealized_pnl)}>{fmtNumber(me.total_unrealized_pnl, "$")}</strong>
+                  <span className={styles.meStatSubtle}>{(Math.max(0, me.percentile) * 100).toFixed(1)} percentile</span>
                 </div>
                 <div className={styles.meStat}>
                   <span className={styles.meStatLabel}>Streak</span>
@@ -403,7 +466,8 @@ export function LeaderboardPage() {
                 <NeighborCard key={neighbor.user_id} meRank={me.rank} neighbor={neighbor} />
               )) : <div className={styles.inlineNotice}>No nearby users in this scope yet.</div>}
             </div>
-          </section>
+          </div>
+        </section>
         ) : null}
 
         {isLoading && !entries.length ? (
@@ -421,14 +485,22 @@ export function LeaderboardPage() {
         ) : null}
 
         {topThree.length ? (
-          <section className={styles.podiumGrid}>
-            {topThree[1] ? <PodiumCard entry={topThree[1]} tone="silver" /> : null}
-            {topThree[0] ? <PodiumCard entry={topThree[0]} tone="gold" /> : null}
-            {topThree[2] ? <PodiumCard entry={topThree[2]} tone="bronze" /> : null}
+          <section className={styles.podiumSection}>
+            <div className={styles.tableHeader}>
+              <div>
+                <h2 className={styles.sectionTitle}>Top desks</h2>
+                <p className={styles.sectionCopy}>Fast read on the accounts currently setting the mark.</p>
+              </div>
+            </div>
+            <div className={styles.podiumGrid}>
+              {topThree[0] ? <PodiumCard entry={topThree[0]} tone="gold" /> : null}
+              {topThree[1] ? <PodiumCard entry={topThree[1]} tone="silver" /> : null}
+              {topThree[2] ? <PodiumCard entry={topThree[2]} tone="bronze" /> : null}
+            </div>
           </section>
         ) : null}
 
-        <section className={pageStyles.panel}>
+        <section className={`${pageStyles.panel} ${styles.standingsPanel}`.trim()}>
           <div className={styles.tableHeader}>
             <div>
               <h2 className={styles.sectionTitle}>Standings</h2>
@@ -462,6 +534,7 @@ export function LeaderboardPage() {
                   <th>Rank</th>
                   <th>User</th>
                   <th>Net Worth</th>
+                  <th>Exposure</th>
                   <th>Move</th>
                   <th>Largest Bag</th>
                   <th>Best Pick</th>
@@ -476,7 +549,12 @@ export function LeaderboardPage() {
                     <td>
                       <div className={styles.metricCell}>
                         <strong>{fmtNumber(entry.total_equity, "$")}</strong>
-                        <span>{fmtNumber(entry.cash_balance, "$")} cash</span>
+                        <span>{fmtNumber(entry.total_unrealized_pnl, "$")} unrealized</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className={styles.metricCellWide}>
+                        <ExposureMeter entry={entry} />
                       </div>
                     </td>
                     <td>
@@ -484,8 +562,22 @@ export function LeaderboardPage() {
                         <TrendValue changePct={entry.change_pct} changeAbs={entry.change_abs} compact />
                       </div>
                     </td>
-                    <td>{entry.largest_position ? `${entry.largest_position.symbol} · ${fmtNumber(entry.largest_position.value, "$")}` : "—"}</td>
-                    <td>{entry.best_asset ? `${entry.best_asset.symbol} · ${fmtNumber(entry.best_asset.unrealized_pnl, "$")}` : "—"}</td>
+                    <td>
+                      <AssetPositionCell
+                        label="bag"
+                        symbol={entry.largest_position?.symbol ?? null}
+                        asset={entry.largest_position ? assetBySymbol.get(entry.largest_position.symbol) ?? null : null}
+                        value={entry.largest_position ? fmtNumber(entry.largest_position.value, "$") : "—"}
+                      />
+                    </td>
+                    <td>
+                      <AssetPositionCell
+                        label="P/L"
+                        symbol={entry.best_asset?.symbol ?? null}
+                        asset={entry.best_asset ? assetBySymbol.get(entry.best_asset.symbol) ?? null : null}
+                        value={entry.best_asset ? fmtNumber(entry.best_asset.unrealized_pnl, "$") : "—"}
+                      />
+                    </td>
                     <td>
                       <AchievementRow entry={entry} />
                     </td>

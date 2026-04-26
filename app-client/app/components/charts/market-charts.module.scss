@@ -270,85 +270,127 @@
   overflow-x: auto;
 }
 
-.heatmapGrid {
+.heatmapCalendar {
+  min-width: 48rem;
   display: grid;
-  gap: 0.5rem;
-  min-width: min(100%, 44rem);
+  gap: 0.55rem;
 }
 
-.heatmapHeaderRow,
-.heatmapRowGroup {
+.heatmapSummary {
   display: grid;
-  grid-template-columns: minmax(8rem, 11rem) repeat(var(--heatmap-columns), minmax(3.75rem, 1fr));
-  column-gap: 0;
-  row-gap: 0;
-  align-items: stretch;
+  justify-items: end;
+  gap: 0.12rem;
+  font-family: var(--font-mono);
+  color: var(--text);
 }
 
-.heatmapCorner,
-.heatmapColumnLabel {
+.heatmapSummary span {
   color: var(--muted);
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.heatmapCorner {
-  display: flex;
-  align-items: center;
-  padding-left: 0.2rem;
-}
-
-.heatmapColumnLabel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 0.2rem 0.1rem;
-}
-
-.heatmapRowLabel {
-  display: flex;
-  align-items: center;
-  color: var(--text);
-  font-size: 0.88rem;
-  font-weight: 700;
-  padding: 0 0.2rem;
-}
-
-.heatmapCell {
-  aspect-ratio: 1 / 1;
-  min-height: 0;
-  border-radius: 0;
-  padding: 0.55rem 0.4rem;
-  display: grid;
-  place-items: center;
-  text-align: center;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--heatmap-start, #f97316) calc(var(--heatmap-cell-opacity) * 100%), transparent),
-      color-mix(in srgb, var(--heatmap-end, #ef4444) calc(var(--heatmap-cell-opacity) * 82%), transparent)
-    ),
-    color-mix(in srgb, var(--surface-card) 82%, white 18%);
-  border: 1px solid color-mix(in srgb, var(--heatmap-border, #f97316) calc(var(--heatmap-cell-opacity) * 42%), var(--border-soft));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
-
-.heatmapCell span {
-  color: var(--text);
   font-size: 0.78rem;
-  font-weight: 700;
-  line-height: 1.2;
+}
+
+.heatmapMonths {
+  display: grid;
+  grid-template-columns: repeat(var(--heatmap-week-count), 0.78rem);
+  gap: 0.22rem;
+  padding-left: 2.4rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.heatmapMonths span {
+  min-width: 2.6rem;
+  white-space: nowrap;
+}
+
+.heatmapBody {
+  display: grid;
+  grid-template-columns: 1.8rem minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: start;
+}
+
+.heatmapWeekdays {
+  display: grid;
+  grid-template-rows: repeat(7, 0.78rem);
+  gap: 0.22rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 0.78rem;
+}
+
+.heatmapWeekdays span:nth-child(1) {
+  grid-row: 2;
+}
+
+.heatmapWeekdays span:nth-child(2) {
+  grid-row: 4;
+}
+
+.heatmapWeekdays span:nth-child(3) {
+  grid-row: 6;
+}
+
+.heatmapWeeks {
+  display: grid;
+  grid-template-columns: repeat(var(--heatmap-week-count), 0.78rem);
+  gap: 0.22rem;
+}
+
+.heatmapWeek {
+  display: grid;
+  grid-template-rows: repeat(7, 0.78rem);
+  gap: 0.22rem;
+}
+
+.heatmapDay,
+.heatmapDayBlank {
+  width: 0.78rem;
+  height: 0.78rem;
+  border-radius: 0.18rem;
+}
+
+.heatmapDay {
+  background: color-mix(in srgb, var(--surface-card) 82%, white 18%);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 72%, transparent);
+}
+
+.heatmapDay[data-level="1"] {
+  background: color-mix(in srgb, var(--heatmap-start) 24%, var(--surface-card) 76%);
+  border-color: color-mix(in srgb, var(--heatmap-border) 18%, var(--border-soft));
+}
+
+.heatmapDay[data-level="2"] {
+  background: color-mix(in srgb, var(--heatmap-start) 46%, var(--surface-card) 54%);
+  border-color: color-mix(in srgb, var(--heatmap-border) 26%, var(--border-soft));
+}
+
+.heatmapDay[data-level="3"] {
+  background: color-mix(in srgb, var(--heatmap-start) 68%, var(--surface-card) 32%);
+  border-color: color-mix(in srgb, var(--heatmap-border) 38%, var(--border-soft));
+}
+
+.heatmapDay[data-level="4"] {
+  background: linear-gradient(135deg, var(--heatmap-start), var(--heatmap-end));
+  border-color: color-mix(in srgb, var(--heatmap-border) 54%, var(--border-soft));
+}
+
+.heatmapLegend {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.32rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.heatmapLegend .heatmapDay {
+  flex: 0 0 auto;
 }
 
 @media (max-width: 760px) {
-  .heatmapHeaderRow,
-  .heatmapRowGroup {
-    grid-template-columns: minmax(7rem, 9rem) repeat(var(--heatmap-columns), minmax(3.25rem, 1fr));
-  }
-
-  .heatmapCell {
-    padding: 0.45rem 0.25rem;
+  .heatmapCalendar {
+    min-width: 42rem;
   }
 }

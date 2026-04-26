@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { FaComment, FaHeart } from "react-icons/fa6";
+import { usePathname } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { FaComment, FaEye, FaHeart, FaMagnifyingGlass, FaNewspaper, FaSignal } from "react-icons/fa6";
 import { AssetPicker } from "@/app/components/common/asset-picker";
 import { ChannelTickerPill } from "@/app/components/common/channel-ticker-pill";
 import { FilterPanel } from "@/app/components/common/filter-panel";
@@ -33,6 +34,14 @@ type NewsFilters = {
   limit: number;
 };
 
+const DEFAULT_FILTERS: NewsFilters = {
+  headlineQuery: "",
+  stockQuery: "",
+  unit: "all",
+  sort: "newest",
+  limit: 20,
+};
+
 function formatPublishedDate(value: string | null | undefined) {
   if (!value) return "Unknown date";
   const parsed = new Date(value);
@@ -55,38 +64,74 @@ function EngagementStat({
   kind,
   value,
 }: {
-  kind: "likes" | "comments";
+  kind: "likes" | "comments" | "views";
   value: number | null | undefined;
 }) {
   return (
     <span className={styles.engagementStat}>
       <span className={styles.engagementIcon} aria-hidden="true">
-        {kind === "likes" ? <FaHeart /> : <FaComment />}
+        {kind === "likes" ? <FaHeart /> : kind === "comments" ? <FaComment /> : <FaEye />}
       </span>
       <span>{fmtInteger(value ?? 0)}</span>
     </span>
   );
 }
 
+function NewsMetric({
+  label,
+  value,
+  meta,
+}: {
+  label: string;
+  value: string;
+  meta: string;
+}) {
+  return (
+    <div className={styles.newsMetric}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <em>{meta}</em>
+    </div>
+  );
+}
+
+function NewsTickerStrip({ items }: { items: NewsItem[] }) {
+  const headlines = items.slice(0, 6);
+  if (!headlines.length) return null;
+  const loops = headlines.length > 1 ? [0, 1] : [0];
+
+  return (
+    <div className={styles.newsTicker}>
+      <span className={styles.newsTickerLabel}>
+        <FaSignal aria-hidden="true" />
+        Live archive tape
+      </span>
+      <div className={styles.newsTickerViewport}>
+        <div className={`${styles.newsTickerTrack} ${headlines.length > 1 ? styles.newsTickerTrackAnimated : ""}`.trim()}>
+          {loops.map((loopIndex) => (
+            <div key={loopIndex} className={styles.newsTickerLoop} aria-hidden={loopIndex === 1}>
+              {headlines.map((item) => (
+                <Link key={`${loopIndex}-${item.id}`} href={getArticleHref(item)} className={styles.newsTickerItem}>
+                  <strong>{item.source}</strong>
+                  <span>{item.headline}</span>
+                </Link>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function NewsPage() {
+  const pathname = usePathname();
   const marketError = useMarketStore((state) => state.error);
   const isLoadingOverview = useMarketStore((state) => state.isLoadingOverview);
   const assets = useMarketStore((state) => state.assets);
 
-  const [draftFilters, setDraftFilters] = useState<NewsFilters>({
-    headlineQuery: "",
-    stockQuery: "",
-    unit: "all",
-    sort: "newest",
-    limit: 20,
-  });
-  const [appliedFilters, setAppliedFilters] = useState<NewsFilters>({
-    headlineQuery: "",
-    stockQuery: "",
-    unit: "all",
-    sort: "newest",
-    limit: 20,
-  });
+  const [draftFilters, setDraftFilters] = useState<NewsFilters>(DEFAULT_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState<NewsFilters>(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<NewsItem[]>([]);
   const [pagination, setPagination] = useState<NewsFeedPagination>(DEFAULT_PAGINATION);
@@ -105,17 +150,19 @@ export function NewsPage() {
   }
 
   function resetFilters() {
-    const nextFilters: NewsFilters = {
-      headlineQuery: "",
-      stockQuery: "",
-      unit: "all",
-      sort: "newest",
-      limit: 20,
-    };
-    setDraftFilters(nextFilters);
-    setAppliedFilters(nextFilters);
+    setDraftFilters(DEFAULT_FILTERS);
+    setAppliedFilters(DEFAULT_FILTERS);
     setPage(1);
   }
+
+  useEffect(() => {
+    setDraftFilters(DEFAULT_FILTERS);
+    setAppliedFilters(DEFAULT_FILTERS);
+    setPage(1);
+    setItems([]);
+    setPagination(DEFAULT_PAGINATION);
+    setError(null);
+  }, [pathname]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -185,17 +232,30 @@ export function NewsPage() {
     : isLoading
       ? "Loading stories..."
       : "No stories match the current filters";
+  const visibleSources = useMemo(() => new Set(items.map((item) => item.source).filter(Boolean)).size, [items]);
+  const visibleTickers = useMemo(() => new Set(items.flatMap((item) => item.stock_symbols ?? [])).size, [items]);
+  const latestStory = items[0] || null;
 
   return (
     <SiteShell>
-      <div className={shellStyles.stack}>
+      <div className={`${shellStyles.stack} ${styles.newsPage}`.trim()}>
         <section className={styles.hero}>
-          <div className={styles.heroEyebrow}>News Desk</div>
-          <h1 className={styles.title}>HoloNews Archive</h1>
-          <p className={styles.copy}>All HoloNews headlines in one feed. Browse the full database-backed archive.</p>
-          <div className={styles.heroMeta}>
-            <span>{resultSummary}</span>
-            <span>Page {pagination.page} of {pagination.page_count}</span>
+          <div className={styles.heroCopy}>
+            <div className={styles.heroEyebrow}>
+              <FaNewspaper aria-hidden="true" />
+              News desk
+            </div>
+            <h1 className={styles.title}>HoloNews Archive</h1>
+            <div className={styles.heroMeta}>
+              <span>{resultSummary}</span>
+              <span>Page {pagination.page} of {pagination.page_count}</span>
+              {latestStory ? <span>Latest {formatPublishedDate(latestStory.published_at)}</span> : null}
+            </div>
+          </div>
+          <div className={styles.heroMetrics}>
+            <NewsMetric label="Stories" value={fmtInteger(pagination.total)} meta={`${fmtInteger(items.length)} loaded`} />
+            <NewsMetric label="Sources" value={fmtInteger(visibleSources)} meta="visible feed" />
+            <NewsMetric label="Tickers" value={fmtInteger(visibleTickers)} meta="linked names" />
           </div>
         </section>
 
@@ -203,7 +263,7 @@ export function NewsPage() {
         {error ? <div className="statusMessage statusMessageError">News request error: {error}</div> : null}
         {isLoadingOverview ? <div className={shellStyles.panel}>Loading market metadata…</div> : null}
 
-        <FilterPanel summary={filterSummary} description="Search headlines and narrow the news feed">
+        <FilterPanel summary={filterSummary} description="Search headlines, symbols, units, and feed order">
           <form
             className={styles.filterForm}
             onSubmit={(event) => {
@@ -211,17 +271,19 @@ export function NewsPage() {
               applyFilters();
             }}
           >
-            <div className={styles.filtersGrid}>
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>Headline search</span>
+            <label className={`${styles.field} ${styles.searchField}`.trim()}>
+              <span className={styles.fieldLabel}>Headline search</span>
+              <span className={styles.searchInputShell}>
+                <FaMagnifyingGlass aria-hidden="true" />
                 <input
                   value={draftFilters.headlineQuery}
                   onChange={(event) => setDraftFilters((current) => ({ ...current, headlineQuery: event.target.value }))}
                   className={styles.input}
                   placeholder="Search headline text"
                 />
-              </label>
-
+              </span>
+            </label>
+            <div className={styles.filtersGrid}>
               <label className={styles.field}>
                 <span className={styles.fieldLabel}>Stock</span>
                 <AssetPicker
@@ -288,9 +350,14 @@ export function NewsPage() {
 
         {isLoading && !items.length ? <div className={shellStyles.panel}>Loading news feed…</div> : null}
 
+        <NewsTickerStrip items={items} />
+
         <section className={styles.feedPanel}>
           <div className={styles.feedHeader}>
-            <h2 className={styles.sectionTitle}>News Feed</h2>
+            <div>
+              <h2 className={styles.sectionTitle}>News feed</h2>
+              <p className={styles.sectionCopy}>Newest story flow with linked symbols and engagement.</p>
+            </div>
             <div className={styles.paginationMeta}>
               <span>{pagination.total} total stories</span>
             </div>
@@ -311,6 +378,7 @@ export function NewsPage() {
                       <div className={styles.itemMeta}>
                         <span>{item.source}</span>
                         <span>{formatPublishedDate(item.published_at)}</span>
+                        {item.units?.length ? <span>{item.units.slice(0, 2).join(" / ")}</span> : null}
                       </div>
                       {item.characters?.length ? (
                         <div className={styles.pillRow}>
@@ -328,9 +396,12 @@ export function NewsPage() {
                         <h3 className={styles.itemHeadline}>{item.headline}</h3>
                       </div>
                       {item.summary ? <p className={styles.itemSummary}>{item.summary}</p> : null}
-                      <div className={styles.engagementRow}>
-                        <EngagementStat kind="likes" value={item.like_count} />
-                        <EngagementStat kind="comments" value={item.comment_count} />
+                      <div className={styles.itemFooter}>
+                        <div className={styles.engagementRow}>
+                          <EngagementStat kind="views" value={item.view_count} />
+                          <EngagementStat kind="likes" value={item.like_count} />
+                          <EngagementStat kind="comments" value={item.comment_count} />
+                        </div>
                       </div>
                     </div>
                   </Link>

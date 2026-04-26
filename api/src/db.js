@@ -469,6 +469,7 @@ async function listNewsFeed(pool, {
       COALESCE(a.id, NULL) AS article_id,
       COALESCE(a.slug, 'news-' || mn.id::text) AS article_slug,
       COALESCE(a.is_news, TRUE) AS is_news,
+      COALESCE(a.views, 0)::int AS view_count,
       COALESCE(a.likes, 0)::int AS like_count,
       COALESCE(a.saves, 0)::int AS save_count,
       COALESCE(comment_rel.comment_count, 0)::int AS comment_count,

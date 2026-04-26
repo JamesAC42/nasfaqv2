@@ -8,6 +8,7 @@ import {
   FaDollarSign,
   FaEye,
   FaHeart,
+  FaRankingStar,
   FaStopwatch,
   FaUsers,
   FaVideo,
@@ -186,6 +187,56 @@ function formatMetricValue(row: RankingRow, metric: RankingMetricKey) {
   }
 }
 
+function metricDescription(metric: RankingMetricKey) {
+  switch (metric) {
+    case "price":
+      return "Sorts by current market price, exposing the names trading at the richest valuation.";
+    case "volume24h":
+      return "Ranks the heaviest recent trading flow so active desks surface first.";
+    case "move24h":
+      return "Ranks the strongest one-day price action across the market.";
+    case "subscribers":
+      return "Ranks creator scale by current subscriber count.";
+    case "views":
+      return "Ranks cumulative attention by channel view count.";
+    case "superchatEarnings":
+      return "Ranks recent direct support over the current seven-day superchat window.";
+    case "streamTime7d":
+      return "Ranks the most active stream schedules over the last seven days.";
+    case "videos":
+      return "Ranks published channel depth by total video count.";
+    case "oshicoinUsers":
+      return "Ranks current fan allocation by oshicoin user selections.";
+    default:
+      return "Ranks the market by the selected metric.";
+  }
+}
+
+function metricSignalLabel(metric: RankingMetricKey) {
+  switch (metric) {
+    case "price":
+      return "valuation";
+    case "volume24h":
+      return "flow";
+    case "move24h":
+      return "momentum";
+    case "subscribers":
+      return "audience";
+    case "views":
+      return "attention";
+    case "superchatEarnings":
+      return "support";
+    case "streamTime7d":
+      return "activity";
+    case "videos":
+      return "catalog";
+    case "oshicoinUsers":
+      return "holders";
+    default:
+      return "signal";
+  }
+}
+
 function metricToneClass(row: RankingRow, metric: RankingMetricKey) {
   if (metric !== "move24h") return "";
   const value = row.move24hPct ?? 0;
@@ -242,6 +293,15 @@ function buildMoveSeries(candles: CandlePoint[]) {
     .filter((item): item is { time: string; value: number } => Boolean(item));
 }
 
+function DetailStat({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className={styles.detailStat}>
+      <span>{label}</span>
+      <strong className={tone}>{value}</strong>
+    </div>
+  );
+}
+
 function DetailPanel({
   row,
   metric,
@@ -262,6 +322,7 @@ function DetailPanel({
   const trimmedStats = detail?.stats.slice(-30) || [];
   const moveSeries = buildMoveSeries(trimmedCandles);
   const oshiShare = totalOshicoinUsers > 0 ? ((row.oshicoinUsers || 0) / totalOshicoinUsers) * 100 : 0;
+  const activeMetric = METRIC_OPTIONS.find((item) => item.key === metric) || METRIC_OPTIONS[0];
 
   let content: ReactNode = null;
 
@@ -446,13 +507,52 @@ function DetailPanel({
       <div className={styles.detailTopRow}>
         <div>
           <h3 className={styles.detailTitle}>{row.displayName} Detail</h3>
-          <p className={styles.detailCopy}>Expanded view for {METRIC_OPTIONS.find((item) => item.key === metric)?.label?.toLowerCase() || "this metric"}.</p>
+          <p className={styles.detailCopy}>Expanded view for {activeMetric.label.toLowerCase()}.</p>
         </div>
         <Link href={`/stocks/${encodeURIComponent(row.symbol)}`} className={styles.detailLink}>
           Open stock page
         </Link>
       </div>
-      {content}
+      <div className={styles.detailBody}>
+        <div className={styles.detailChart}>{content}</div>
+        <aside className={styles.detailAside}>
+          <div className={styles.detailAsset}>
+            <AssetCoin symbol={row.symbol} icon={row.icon} color={row.color} className={styles.detailAssetCoin} />
+            <div>
+              <strong>{row.symbol}</strong>
+              <span>{row.displayName}</span>
+            </div>
+          </div>
+          <DetailStat label={activeMetric.valueLabel} value={formatMetricValue(row, metric)} tone={metricToneClass(row, metric)} />
+          <DetailStat label="Price" value={fmtNumber(row.currentMidPrice, "$")} />
+          <DetailStat label="24H move" value={formatSignedPct(row.move24hPct)} tone={metricToneClass(row, "move24h")} />
+          <DetailStat label="24H volume" value={fmtInteger(row.volume24h)} />
+          <p className={styles.detailAsideCopy}>{metricDescription(metric)}</p>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function RankingMetric({
+  label,
+  value,
+  meta,
+  icon,
+}: {
+  label: string;
+  value: string;
+  meta: string;
+  icon?: ReactNode;
+}) {
+  return (
+    <div className={styles.heroMetric}>
+      <span>{label}</span>
+      <strong className={icon ? styles.heroMetricValueWithIcon : undefined}>
+        {icon}
+        <span>{value}</span>
+      </strong>
+      <em>{meta}</em>
     </div>
   );
 }
@@ -460,7 +560,7 @@ function DetailPanel({
 export function FinanceRankingsPage() {
   const [rows, setRows] = useState<RankingRow[]>([]);
   const [selectedMetric, setSelectedMetric] = useState<RankingMetricKey>("price");
-  const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
+  const [expandedSymbols, setExpandedSymbols] = useState<Record<string, true>>({});
   const [detailBySymbol, setDetailBySymbol] = useState<Record<string, RankingDetail>>({});
   const [detailLoadingBySymbol, setDetailLoadingBySymbol] = useState<Record<string, boolean>>({});
   const [detailErrorBySymbol, setDetailErrorBySymbol] = useState<Record<string, string | null>>({});
@@ -495,6 +595,11 @@ export function FinanceRankingsPage() {
 
   const selectedMetricOption = METRIC_OPTIONS.find((metric) => metric.key === selectedMetric) || METRIC_OPTIONS[0];
 
+  function selectMetric(nextMetric: RankingMetricKey) {
+    setSelectedMetric(nextMetric);
+    setExpandedSymbols({});
+  }
+
   const rankedRows = useMemo(() => {
     return [...rows].sort((left, right) => {
       const leftValue = metricValue(left, selectedMetric);
@@ -510,6 +615,21 @@ export function FinanceRankingsPage() {
     () => rankedRows.reduce((sum, row) => sum + (row.oshicoinUsers || 0), 0),
     [rankedRows]
   );
+  const leader = rankedRows[0] || null;
+  const podiumRows = rankedRows.slice(0, 3);
+  const movementRows = useMemo(() => {
+    return [...rankedRows]
+      .filter((row) => row.move24hPct !== null && row.move24hPct !== undefined)
+      .sort((left, right) => Math.abs(right.move24hPct || 0) - Math.abs(left.move24hPct || 0))
+      .slice(0, 4);
+  }, [rankedRows]);
+  const maxMetricValue = useMemo(() => {
+    return rankedRows.reduce((max, row) => {
+      const value = metricValue(row, selectedMetric);
+      if (value === null || value === undefined || !Number.isFinite(value)) return max;
+      return Math.max(max, Math.abs(value));
+    }, 0);
+  }, [rankedRows, selectedMetric]);
 
   async function ensureDetail(symbol: string) {
     if (detailBySymbol[symbol]) return;
@@ -545,8 +665,15 @@ export function FinanceRankingsPage() {
   }
 
   async function toggleRow(row: RankingRow) {
-    const isExpanded = expandedSymbol === row.symbol;
-    setExpandedSymbol(isExpanded ? null : row.symbol);
+    const isExpanded = Boolean(expandedSymbols[row.symbol]);
+    setExpandedSymbols((current) => {
+      if (current[row.symbol]) {
+        const next = { ...current };
+        delete next[row.symbol];
+        return next;
+      }
+      return { ...current, [row.symbol]: true };
+    });
     if (!isExpanded && selectedMetric !== "oshicoinUsers") {
       await ensureDetail(row.symbol);
     }
@@ -556,10 +683,39 @@ export function FinanceRankingsPage() {
     <SiteShell>
       <div className={styles.page}>
         <section className={styles.hero}>
-          <h1 className={styles.title}>Rankings</h1>
-          <p className={styles.copy}>
-            Rank every asset by the metric you care about. Click a row to expand a metric-specific detail view directly below it.
-          </p>
+          <div className={styles.heroVisual} aria-hidden="true" />
+          <div className={styles.heroCopy}>
+            <div className={styles.heroEyebrow}>
+              <FaRankingStar aria-hidden="true" />
+              Ranking desk
+            </div>
+            <h1 className={styles.title}>Market Rankings</h1>
+            <p className={styles.heroText}>Rank every asset by price, flow, attention, and creator metrics.</p>
+            <div className={styles.heroMeta}>
+              <span>{fmtInteger(rankedRows.length)} ranked assets</span>
+              <span>Metric: {selectedMetricOption.label}</span>
+              {leader ? <span>Leader: {leader.symbol}</span> : null}
+            </div>
+          </div>
+          <div className={styles.heroMetrics}>
+            <RankingMetric label="Assets" value={fmtInteger(rankedRows.length)} meta="ranked feed" />
+            <RankingMetric label="Metric" value={selectedMetricOption.label} meta="active sort" />
+            <RankingMetric
+              label="Leader"
+              value={leader?.symbol || "—"}
+              meta={leader ? formatMetricValue(leader, selectedMetric) : "waiting"}
+              icon={leader ? <AssetCoin symbol={leader.symbol} icon={leader.icon} color={leader.color} className={styles.heroLeaderCoin} /> : undefined}
+            />
+          </div>
+        </section>
+
+        <section className={styles.metricPanel} aria-label="Ranking metric lenses">
+          <div className={styles.panelHeader}>
+            <div>
+              <h2 className={styles.panelTitle}>Ranking lens</h2>
+              <p className={styles.panelCopy}>Choose a ranking lens; rows expand into metric-specific detail charts.</p>
+            </div>
+          </div>
           <div className={styles.metricBubbleRow}>
             {METRIC_OPTIONS.map((metric) => {
               const Icon = metric.icon;
@@ -574,7 +730,7 @@ export function FinanceRankingsPage() {
                     metric.toneClass,
                     isActive ? styles.metricBubbleActive : "",
                   ].filter(Boolean).join(" ")}
-                  onClick={() => setSelectedMetric(metric.key)}
+                  onClick={() => selectMetric(metric.key)}
                   aria-pressed={isActive}
                 >
                   <span className={styles.metricBubbleIcon}>
@@ -587,77 +743,139 @@ export function FinanceRankingsPage() {
           </div>
         </section>
 
-        <section className={styles.rankingsPanel}>
-          <div className={styles.panelHeader}>
-            <div>
-              <h2 className={styles.panelTitle}>{selectedMetricOption.label}</h2>
-              <p className={styles.panelCopy}>Click a row to inspect a chart or deeper visual for the selected metric.</p>
+        <div className={styles.deskGrid}>
+          <section className={styles.rankingsPanel}>
+            <div className={styles.panelHeader}>
+              <div>
+                <h2 className={styles.panelTitle}>{selectedMetricOption.label}</h2>
+                <p className={styles.panelCopy}>Click a row to inspect a chart or deeper visual for the selected metric.</p>
+              </div>
+              <div className={styles.resultMeta}>{fmtInteger(rankedRows.length)} assets</div>
             </div>
-            <div className={styles.resultMeta}>{fmtInteger(rankedRows.length)} assets</div>
-          </div>
 
-          <div className={styles.listHeader} aria-hidden="true">
-            <span className={styles.listHeaderRank}>Rank</span>
-            <span>Asset</span>
-            <span>Price</span>
-            <span className={styles.listHeaderMetric}>{selectedMetricOption.valueLabel}</span>
-          </div>
+            <div className={styles.listHeader} aria-hidden="true">
+              <span className={styles.listHeaderRank}>Rank</span>
+              <span>Asset</span>
+              <span>Price</span>
+              <span>24H move</span>
+              <span>24H volume</span>
+              <span className={styles.listHeaderMetric}>{selectedMetricOption.valueLabel}</span>
+            </div>
 
-          {error ? <div className="statusMessage statusMessageError">Rankings unavailable: {error}</div> : null}
-          {isLoading ? <div className={styles.empty}>Loading rankings…</div> : null}
-          {!isLoading && !error && rankedRows.length === 0 ? <div className={styles.empty}>No ranking data available.</div> : null}
+            {error ? <div className="statusMessage statusMessageError">Rankings unavailable: {error}</div> : null}
+            {isLoading ? <div className={styles.empty}>Loading rankings…</div> : null}
+            {!isLoading && !error && rankedRows.length === 0 ? <div className={styles.empty}>No ranking data available.</div> : null}
 
-          {!isLoading && !error && rankedRows.length ? (
-            <div className={styles.list}>
-              {rankedRows.map((row, index) => {
-                const isExpanded = expandedSymbol === row.symbol;
+            {!isLoading && !error && rankedRows.length ? (
+              <div className={styles.list}>
+                {rankedRows.map((row, index) => {
+                  const isExpanded = Boolean(expandedSymbols[row.symbol]);
+
+                  return (
+                    <div key={row.symbol} className={styles.rowGroup}>
+                      <button
+                        type="button"
+                        className={[styles.row, isExpanded ? styles.rowExpanded : ""].filter(Boolean).join(" ")}
+                        onClick={() => void toggleRow(row)}
+                        aria-expanded={isExpanded}
+                      >
+                        <span className={styles.rankBadge}>#{index + 1}</span>
+
+                        <span className={styles.assetCell}>
+                          <AssetCoin
+                            symbol={row.symbol}
+                            icon={row.icon}
+                            color={row.color}
+                            className={styles.assetCoin}
+                          />
+                          <span className={styles.assetCopy}>
+                            <strong className={styles.assetTicker}>{row.symbol}</strong>
+                            <span className={styles.assetName}>{row.displayName}</span>
+                          </span>
+                        </span>
+
+                        <span className={styles.priceCell}>{fmtNumber(row.currentMidPrice, "$")}</span>
+
+                        <span className={[styles.moveCell, metricToneClass(row, "move24h")].filter(Boolean).join(" ")}>
+                          {formatSignedPct(row.move24hPct)}
+                        </span>
+
+                        <span className={styles.volumeCell}>{fmtInteger(row.volume24h)}</span>
+
+                        <span className={[styles.metricValue, metricToneClass(row, selectedMetric)].filter(Boolean).join(" ")}>
+                          {formatMetricValue(row, selectedMetric)}
+                        </span>
+                      </button>
+
+                      {isExpanded ? (
+                        <DetailPanel
+                          row={row}
+                          metric={selectedMetric}
+                          detail={detailBySymbol[row.symbol] || null}
+                          loading={Boolean(detailLoadingBySymbol[row.symbol])}
+                          error={detailErrorBySymbol[row.symbol] || null}
+                          totalOshicoinUsers={totalOshicoinUsers}
+                        />
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </section>
+
+          <aside className={styles.lensPanel}>
+            <div className={styles.lensHeader}>
+              <span>{metricSignalLabel(selectedMetric)} lens</span>
+              <strong>{selectedMetricOption.label}</strong>
+              <p>{metricDescription(selectedMetric)}</p>
+            </div>
+
+            {leader ? (
+              <div className={styles.leaderCard}>
+                <span>Current leader</span>
+                <div className={styles.leaderIdentity}>
+                  <AssetCoin symbol={leader.symbol} icon={leader.icon} color={leader.color} className={styles.leaderCoin} />
+                  <div>
+                    <strong>{leader.symbol}</strong>
+                    <p>{leader.displayName}</p>
+                  </div>
+                </div>
+                <strong className={styles.leaderValue}>{formatMetricValue(leader, selectedMetric)}</strong>
+              </div>
+            ) : null}
+
+            <div className={styles.podiumList}>
+              <span className={styles.lensSectionLabel}>Top board</span>
+              {podiumRows.map((row, index) => {
+                const value = metricValue(row, selectedMetric);
+                const width = maxMetricValue > 0 && value !== null && value !== undefined ? Math.max(6, Math.min(100, (Math.abs(value) / maxMetricValue) * 100)) : 0;
 
                 return (
-                  <div key={row.symbol} className={styles.rowGroup}>
-                    <button
-                      type="button"
-                      className={[styles.row, isExpanded ? styles.rowExpanded : ""].filter(Boolean).join(" ")}
-                      onClick={() => void toggleRow(row)}
-                      aria-expanded={isExpanded}
-                    >
-                      <span className={styles.rankBadge}>#{index + 1}</span>
-
-                      <span className={styles.assetCell}>
-                        <AssetCoin
-                          symbol={row.symbol}
-                          icon={row.icon}
-                          color={row.color}
-                          className={styles.assetCoin}
-                        />
-                        <span className={styles.assetCopy}>
-                          <strong className={styles.assetTicker}>{row.symbol}</strong>
-                          <span className={styles.assetName}>{row.displayName}</span>
-                        </span>
-                      </span>
-
-                      <span className={styles.priceCell}>{fmtNumber(row.currentMidPrice, "$")}</span>
-
-                      <span className={[styles.metricValue, metricToneClass(row, selectedMetric)].filter(Boolean).join(" ")}>
-                        {formatMetricValue(row, selectedMetric)}
-                      </span>
-                    </button>
-
-                    {isExpanded ? (
-                      <DetailPanel
-                        row={row}
-                        metric={selectedMetric}
-                        detail={detailBySymbol[row.symbol] || null}
-                        loading={Boolean(detailLoadingBySymbol[row.symbol])}
-                        error={detailErrorBySymbol[row.symbol] || null}
-                        totalOshicoinUsers={totalOshicoinUsers}
-                      />
-                    ) : null}
+                  <div key={row.symbol} className={styles.podiumItem}>
+                    <div className={styles.podiumItemTop}>
+                      <span>#{index + 1} {row.symbol}</span>
+                      <strong>{formatMetricValue(row, selectedMetric)}</strong>
+                    </div>
+                    <div className={styles.podiumTrack}>
+                      <span style={{ width: `${width}%` }} />
+                    </div>
                   </div>
                 );
               })}
             </div>
-          ) : null}
-        </section>
+
+            <div className={styles.moverList}>
+              <span className={styles.lensSectionLabel}>Volatility watch</span>
+              {movementRows.map((row) => (
+                <div key={row.symbol} className={styles.moverItem}>
+                  <span>{row.symbol}</span>
+                  <strong className={metricToneClass(row, "move24h")}>{formatSignedPct(row.move24hPct)}</strong>
+                </div>
+              ))}
+            </div>
+          </aside>
+        </div>
       </div>
     </SiteShell>
   );

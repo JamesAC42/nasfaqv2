@@ -274,6 +274,8 @@ export type MarketAsset = {
   color?: string | null;
   current_fair_value: number | null;
   current_mid_price: number | null;
+  previous_settlement_mid_price: number | null;
+  pre_settlement_mid_price: number | null;
   current_bid_price: number | null;
   current_ask_price: number | null;
   current_premium_pct: number | null;
@@ -923,6 +925,7 @@ export type NewsItem = {
   like_count?: number | null;
   save_count?: number | null;
   comment_count?: number | null;
+  view_count?: number | null;
 };
 
 export type NewsFeedPagination = {
@@ -1142,6 +1145,7 @@ export type ProfileBundle = {
   };
   viewer_context: ProfileViewerContext;
   articles: ArticleListResponse;
+  saved_articles: ArticleListResponse | null;
   trades: {
     items: ProfileTrade[];
     pagination: NewsFeedPagination;

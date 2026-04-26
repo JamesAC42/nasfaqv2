@@ -7,12 +7,10 @@ import {
   FaArrowTrendUp,
   FaChartLine,
   FaCircleNodes,
-  FaGaugeHigh,
   FaLayerGroup,
   FaMoneyBillTrendUp,
-  FaRegCalendar,
+  FaPercent,
 } from "react-icons/fa6";
-import { HiSparkles } from "react-icons/hi2";
 import { TrendChartCard } from "@/app/components/charts/market-charts";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { SiteShell } from "@/app/components/layout/site-shell";
@@ -21,6 +19,8 @@ import { computeHeatmapMarketCap } from "@/app/lib/normalizers";
 import type { MarketAsset, MarketIndexBundle } from "@/app/lib/types";
 import { useMarketStore } from "@/app/stores/market-store";
 import styles from "@/app/components/pages/indexes-page.module.scss";
+
+const INDEX_CHART_MIN_BUCKET = "2025-10-06";
 
 function formatIndexTitle(group: string) {
   if (group === "all") return "All Market";
@@ -34,8 +34,31 @@ function getToneClass(value: number | null | undefined) {
   return styles.neutral;
 }
 
+function computeSettlementPriceMove(asset: MarketAsset) {
+  if (
+    asset.current_mid_price !== null &&
+    asset.current_mid_price !== undefined &&
+    asset.previous_settlement_mid_price !== null &&
+    asset.previous_settlement_mid_price !== undefined
+  ) {
+    return asset.current_mid_price - asset.previous_settlement_mid_price;
+  }
+
+  return asset.move_24h_pct;
+}
+
+function getHeatmapTileToneClass(asset: MarketAsset) {
+  const move = computeSettlementPriceMove(asset);
+  if (move === null || move === undefined || Number.isNaN(move) || move === 0) return styles.tileFlat;
+  return move > 0 ? styles.tileUp : styles.tileDown;
+}
+
 function getIndexGroupValue(index: MarketIndexBundle) {
   return index.group === "all" ? "all" : index.group;
+}
+
+function isChartBucketInDisplayRange(bucket: string) {
+  return bucket.slice(0, 10) >= INDEX_CHART_MIN_BUCKET;
 }
 
 function IndexMemberStack({ index, assets, compact = false }: { index: MarketIndexBundle; assets: MarketAsset[]; compact?: boolean }) {
@@ -129,6 +152,10 @@ function IndexDetailPanel({
 }) {
   const summary = index.summary;
   const title = formatIndexTitle(index.group);
+  const chartValues = index.series
+    .filter((point) => isChartBucketInDisplayRange(point.bucket))
+    .map((point) => ({ time: point.bucket, value: point.value }));
+  const useCompactHeatmap = heatmapAssets.length <= 6;
 
   return (
     <section className={styles.detailPane}>
@@ -137,6 +164,20 @@ function IndexDetailPanel({
           <span className={styles.eyebrow}><FaLayerGroup /> Index desk</span>
           <h1>{title}</h1>
           <p>{title === "All Market" ? "Cross-market baseline" : "Unit-level basket"} with performance, breadth, heatmap, and constituent tape.</p>
+        </div>
+        <div className={styles.detailHeaderStats}>
+          <div>
+            <span>Level</span>
+            <strong>{fmtNumber(summary?.index_value)}</strong>
+          </div>
+          <div>
+            <span>Breadth</span>
+            <strong>{fmtInteger(summary?.advancers)} / {fmtInteger(summary?.decliners)}</strong>
+          </div>
+          <div>
+            <span>Names</span>
+            <strong>{fmtInteger(summary?.constituent_count)}</strong>
+          </div>
         </div>
         <div className={`${styles.heroReturn} ${getToneClass(summary?.day_return_pct)}`}>
           {(summary?.day_return_pct ?? 0) >= 0 ? <FaArrowTrendUp /> : <FaArrowTrendDown />}
@@ -156,7 +197,7 @@ function IndexDetailPanel({
                   name: "Index",
                   color: "#5fdeec",
                   kind: "area",
-                  values: index.series.map((point) => ({ time: point.bucket, value: point.value })),
+                  values: chartValues,
                 },
               ]}
               bare
@@ -167,16 +208,10 @@ function IndexDetailPanel({
               <IndexMemberStack index={index} assets={assets} />
               <p>{fmtInteger(summary?.constituent_count)} indexed channels in this basket.</p>
             </div>
-            <MetricTile icon={<FaGaugeHigh />} label="Level" value={fmtNumber(summary?.index_value)} />
             <MetricTile icon={<FaChartLine />} label="Range" value={fmtPct(summary?.total_return_pct)} tone={getToneClass(summary?.total_return_pct)} />
+            <MetricTile icon={<FaMoneyBillTrendUp />} label="Volume" value={fmtNumber(summary?.total_volume_cash, "$")} />
+            <MetricTile icon={<FaPercent />} label="Premium" value={fmtPct(summary?.avg_premium_pct)} tone={getToneClass(summary?.avg_premium_pct)} />
           </div>
-        </div>
-
-        <div className={styles.metricGrid}>
-          <MetricTile icon={<FaMoneyBillTrendUp />} label="Volume" value={fmtNumber(summary?.total_volume_cash, "$")} />
-          <MetricTile icon={<HiSparkles />} label="Premium" value={fmtPct(summary?.avg_premium_pct)} tone={getToneClass(summary?.avg_premium_pct)} />
-          <MetricTile icon={<FaArrowTrendUp />} label="Breadth" value={`${fmtInteger(summary?.advancers)} / ${fmtInteger(summary?.decliners)}`} />
-          <MetricTile icon={<FaRegCalendar />} label="Date" value={summary?.market_date || "—"} />
         </div>
 
         <div className={styles.marketDesk}>
@@ -187,29 +222,28 @@ function IndexDetailPanel({
                 <p>Tile size follows price-volume footprint inside the selected index.</p>
               </div>
             </div>
-            <div className={styles.heatmap}>
+            <div className={`${styles.heatmap} ${useCompactHeatmap ? styles.heatmapCompact : ""}`.trim()}>
               {heatmapAssets.map((asset) => {
                 const maxCap = computeHeatmapMarketCap(heatmapAssets[0] || asset) || 1;
                 const strength = Math.max(0, Math.min(1, computeHeatmapMarketCap(asset) / maxCap));
-                const spanClass = strength > 0.66 ? styles.tileLg : strength > 0.33 ? styles.tileMd : styles.tileSm;
+                const spanClass = useCompactHeatmap ? styles.tileCompact : strength > 0.66 ? styles.tileLg : strength > 0.33 ? styles.tileMd : styles.tileSm;
                 return (
                   <button
                     key={asset.symbol}
                     type="button"
-                    className={`${styles.heatmapTile} ${spanClass} ${(asset.move_24h_pct ?? 0) >= 0 ? styles.tileUp : styles.tileDown} ${selectedSymbol === asset.symbol ? styles.tileSelected : ""}`}
+                    className={`${styles.heatmapTile} ${spanClass} ${getHeatmapTileToneClass(asset)} ${selectedSymbol === asset.symbol ? styles.tileSelected : ""}`}
                     onClick={() => setSelectedSymbol(asset.symbol)}
+                    title={`${asset.symbol} ${fmtNumber(asset.current_mid_price, "$")}`}
                   >
-                    <div className={styles.heatmapTileHeader}>
-                      <AssetCoin symbol={asset.symbol} icon={asset.icon ?? null} color={asset.color ?? null} className={styles.heatmapIcon} />
-                      <span>
-                        <strong>{asset.symbol}</strong>
-                        <em>{asset.display_name}</em>
-                      </span>
-                    </div>
-                    <div className={styles.heatmapNumbers}>
-                      <strong>{fmtNumber(asset.current_mid_price, "$")}</strong>
-                      <span className={getToneClass(asset.move_24h_pct)}>{fmtPct(asset.move_24h_pct)}</span>
-                    </div>
+                    <AssetCoin
+                      symbol={asset.symbol}
+                      icon={asset.icon ?? null}
+                      color={asset.color ?? null}
+                      appearance="plain"
+                      className={styles.heatmapSymbolImage}
+                    />
+                    <span className={styles.heatmapPrice}>{fmtNumber(asset.current_mid_price, "$")}</span>
+                    <span className={styles.heatmapSymbol}>{asset.symbol}</span>
                   </button>
                 );
               })}
@@ -310,7 +344,7 @@ export function IndexesPage() {
   );
 
   return (
-    <SiteShell hideFooter>
+    <SiteShell hideFooter hideRibbon>
       <div className={styles.dashboard}>
         <aside className={styles.selectorPane}>
           <div className={styles.selectorHeader}>

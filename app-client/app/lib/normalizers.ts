@@ -361,6 +361,8 @@ export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
     color: asset.color ? String(asset.color) : null,
     current_fair_value: toNumber(asset.current_fair_value),
     current_mid_price: toNumber(asset.current_mid_price),
+    previous_settlement_mid_price: toNumber(asset.previous_settlement_mid_price),
+    pre_settlement_mid_price: toNumber(asset.pre_settlement_mid_price),
     current_bid_price: toNumber(asset.current_bid_price),
     current_ask_price: toNumber(asset.current_ask_price),
     current_premium_pct: toNumber(asset.current_premium_pct),
@@ -1257,6 +1259,7 @@ export function normalizeNews(rows: Array<Record<string, unknown>>): NewsItem[] 
       like_count: toNumber(row.like_count ?? row.likes ?? row.likeCount),
       save_count: toNumber(row.save_count ?? row.saves ?? row.saveCount),
       comment_count: toNumber(row.comment_count ?? row.comments ?? row.commentCount),
+      view_count: toNumber(row.view_count ?? row.views ?? row.viewCount),
     };
   });
 }
@@ -1282,6 +1285,7 @@ export function normalizeHoloNewsFeed(value: Record<string, unknown>): NewsItem[
       is_news: true,
       like_count: toNumber(item.like_count ?? item.likes ?? item.likeCount),
       comment_count: toNumber(item.comment_count ?? item.comments ?? item.commentCount),
+      view_count: toNumber(item.view_count ?? item.views ?? item.viewCount),
     };
   });
 }
@@ -1558,6 +1562,7 @@ export function normalizeProfileBundle(value: Record<string, unknown>): ProfileB
   const stats = (profile?.stats || null) as Record<string, unknown> | null;
   const viewer = (value.viewer_context || null) as Record<string, unknown> | null;
   const articles = (value.articles || null) as Record<string, unknown> | null;
+  const savedArticles = (value.saved_articles || null) as Record<string, unknown> | null;
   const trades = (value.trades || null) as Record<string, unknown> | null;
   const tradesPagination = (trades?.pagination || null) as Record<string, unknown> | null;
   const oshiCoin = profile?.oshi_coin && typeof profile.oshi_coin === "object"
@@ -1632,6 +1637,7 @@ export function normalizeProfileBundle(value: Record<string, unknown>): ProfileB
       is_rivaled_by_profile: Boolean(viewer?.is_rivaled_by_profile),
     },
     articles: normalizeArticleListResponse(articles || {}),
+    saved_articles: savedArticles ? normalizeArticleListResponse(savedArticles) : null,
     trades: {
       items: normalizeProfileTrades(trades?.items),
       pagination: {

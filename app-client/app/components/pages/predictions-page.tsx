@@ -589,7 +589,7 @@ export function PredictionsPage() {
           <div className={styles.heroTop}>
             <div>
               <div className={styles.eyebrow}>Community Prediction Markets</div>
-              <h1 className={styles.title}>Binary event markets with creator controls, reviewer actions, and live YES/NO books.</h1>
+              <h1 className={styles.title}>HoloBets</h1>
               <p className={styles.copy}>
                 This slice adds the first interactive workflow: privileged users can draft markets, submit them into review,
                 approvers can approve or reject, and traders can place and cancel resting limit orders directly from the market page.

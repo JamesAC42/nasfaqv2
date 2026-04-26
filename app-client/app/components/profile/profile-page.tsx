@@ -436,6 +436,7 @@ function ArticleCard({ article }: { article: ArticleSummary }) {
       <p>{article.subtitle || article.preview || "No summary provided."}</p>
       <div className={styles.articleFooter}>
         <span>{article.likes} likes</span>
+        <span>{article.saves} saves</span>
         <span>{article.comment_count} comments</span>
       </div>
     </Link>
@@ -627,6 +628,7 @@ export function ProfilePage({ username }: { username?: string | null }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [articlesPage, setArticlesPage] = useState(1);
+  const [savedArticlesPage, setSavedArticlesPage] = useState(1);
   const [tradesPage, setTradesPage] = useState(1);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [profilePictures, setProfilePictures] = useState<SelectableProfilePicture[]>([]);
@@ -643,6 +645,7 @@ export function ProfilePage({ username }: { username?: string | null }) {
 
   useEffect(() => {
     setArticlesPage(1);
+    setSavedArticlesPage(1);
     setTradesPage(1);
   }, [username]);
 
@@ -657,6 +660,8 @@ export function ProfilePage({ username }: { username?: string | null }) {
         const params = new URLSearchParams();
         params.set("articles_page", "1");
         params.set("articles_limit", "6");
+        params.set("saved_articles_page", "1");
+        params.set("saved_articles_limit", "6");
         params.set("trades_page", "1");
         params.set("trades_limit", "10");
         const path = `${baseProfilePath()}?${params.toString()}`;
@@ -731,6 +736,36 @@ export function ProfilePage({ username }: { username?: string | null }) {
   }, [articlesPage, bundle, username]);
 
   useEffect(() => {
+    if (!bundle?.saved_articles || bundle.saved_articles.pagination.page === savedArticlesPage) return;
+    const controller = new AbortController();
+
+    async function loadSavedArticlesPage() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        params.set("page", String(savedArticlesPage));
+        params.set("limit", "6");
+        const result = await apiFetch<Record<string, unknown>>(`/api/profiles/me/saved-articles?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        const savedArticles = normalizeArticleListResponse(result);
+        if (!controller.signal.aborted) {
+          setBundle((current) => current ? { ...current, saved_articles: savedArticles } : current);
+        }
+      } catch (nextError) {
+        if ((nextError as Error).name === "AbortError") return;
+        setError(String((nextError as Error).message || nextError));
+      } finally {
+        if (!controller.signal.aborted) setIsLoading(false);
+      }
+    }
+
+    void loadSavedArticlesPage();
+    return () => controller.abort();
+  }, [savedArticlesPage, bundle]);
+
+  useEffect(() => {
     if (!bundle || bundle.trades.pagination.page === tradesPage) return;
     const controller = new AbortController();
 
@@ -763,6 +798,8 @@ export function ProfilePage({ username }: { username?: string | null }) {
     const params = new URLSearchParams();
     params.set("articles_page", "1");
     params.set("articles_limit", "6");
+    params.set("saved_articles_page", "1");
+    params.set("saved_articles_limit", "6");
     params.set("trades_page", "1");
     params.set("trades_limit", "10");
     const path = `${baseProfilePath()}?${params.toString()}`;
@@ -1071,6 +1108,41 @@ export function ProfilePage({ username }: { username?: string | null }) {
                       <button type="button" className={styles.smallPaginationButton} disabled={!bundle.articles.pagination.has_next_page || isLoading} onClick={() => setArticlesPage((current) => current + 1)}>Next</button>
                     </div>
                   </section>
+
+                  {isSelf && bundle.saved_articles ? (
+                    <section className={styles.sectionPanel}>
+                      <div className={styles.sectionHead}>
+                        <h2 className={styles.sectionTitle}>Saved Articles</h2>
+                        <span className={styles.sectionCount}>Page {bundle.saved_articles.pagination.page} of {bundle.saved_articles.pagination.page_count}</span>
+                      </div>
+                      {bundle.saved_articles.items.length ? (
+                        <div className={styles.articleGrid}>
+                          {bundle.saved_articles.items.map((article) => <ArticleCard key={article.id} article={article} />)}
+                        </div>
+                      ) : (
+                        <div className={styles.empty}>No saved articles yet.</div>
+                      )}
+                      <div className={styles.paginationCompact}>
+                        <button
+                          type="button"
+                          className={styles.smallPaginationButton}
+                          disabled={!bundle.saved_articles.pagination.has_previous_page || isLoading}
+                          onClick={() => setSavedArticlesPage((current) => Math.max(1, current - 1))}
+                        >
+                          Previous
+                        </button>
+                        <span className={styles.muted}>Page {bundle.saved_articles.pagination.page} of {bundle.saved_articles.pagination.page_count}</span>
+                        <button
+                          type="button"
+                          className={styles.smallPaginationButton}
+                          disabled={!bundle.saved_articles.pagination.has_next_page || isLoading}
+                          onClick={() => setSavedArticlesPage((current) => current + 1)}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </section>
+                  ) : null}
 
                   {isSelf && profile.pending_friend_requests ? (
                     <>

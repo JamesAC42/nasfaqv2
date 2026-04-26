@@ -141,12 +141,12 @@ function adjustLightness(hex: string, amount: number) {
   return rgbToHex(hslToRgb({ ...hsl, l: clamp(hsl.l + amount, 0, 100) }));
 }
 
-function adjustSaturation(hex: string, amount: number) {
+export function adjustSaturation(hex: string, amount: number) {
   const hsl = rgbToHsl(hexToRgb(hex));
   return rgbToHex(hslToRgb({ ...hsl, s: clamp(hsl.s + amount, 0, 100) }));
 }
 
-function rotateHue(hex: string, amount: number) {
+export function rotateHue(hex: string, amount: number) {
   const hsl = rgbToHsl(hexToRgb(hex));
   return rgbToHex(hslToRgb({ ...hsl, h: hsl.h + amount }));
 }

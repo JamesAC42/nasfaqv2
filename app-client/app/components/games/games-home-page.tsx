@@ -127,8 +127,8 @@ export function GamesHomePage() {
       <div className={styles.stack}>
         <section className={styles.hero}>
           <div className={styles.heroHeader}>
-            <p className={styles.eyebrow}>Nasfaq Games</p>
-            <h1 className={styles.heroTitle}>Keep the cash moving after the bell.</h1>
+            <p className={styles.eyebrow}>Keep the cash moving</p>
+            <h1 className={styles.heroTitle}>NASFAQ Games</h1>
             <p className={styles.heroCopy}>
               Burn some cash, chase a score, collect cosmetics, and find new reasons to stick around after the market closes.
             </p>

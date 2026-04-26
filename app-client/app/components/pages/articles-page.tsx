@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { FaComment, FaEye, FaHeart } from "react-icons/fa6";
+import { FaComment, FaEye, FaHeart, FaMagnifyingGlass, FaNewspaper } from "react-icons/fa6";
 import { AssetPicker } from "@/app/components/common/asset-picker";
 import { ChannelTickerPill } from "@/app/components/common/channel-ticker-pill";
 import { FilterPanel } from "@/app/components/common/filter-panel";
@@ -29,6 +30,12 @@ type ArticleFilters = {
   type: string;
   asset: string;
   query: string;
+};
+
+const DEFAULT_FILTERS: ArticleFilters = {
+  type: "all",
+  asset: "",
+  query: "",
 };
 
 function formatDate(value: string | null) {
@@ -74,6 +81,16 @@ function EngagementStat({
       </span>
       <span>{fmtInteger(value)}</span>
     </span>
+  );
+}
+
+function ArticleMetric({ label, value, meta }: { label: string; value: string; meta: string }) {
+  return (
+    <div className={styles.newsMetric}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <em>{meta}</em>
+    </div>
   );
 }
 
@@ -128,6 +145,7 @@ function hasApprovedArticleBody(article: ArticleSummary) {
 }
 
 export function ArticlesPage() {
+  const pathname = usePathname();
   const { user } = useAuth();
   const assets = useMarketStore((state) => state.assets);
   const isLoadingOverview = useMarketStore((state) => state.isLoadingOverview);
@@ -135,20 +153,14 @@ export function ArticlesPage() {
 
   const [items, setItems] = useState<ArticleSummary[]>([]);
   const [pagination, setPagination] = useState<NewsFeedPagination>(DEFAULT_PAGINATION);
-  const [draftFilters, setDraftFilters] = useState<ArticleFilters>({
-    type: "all",
-    asset: "",
-    query: "",
-  });
-  const [appliedFilters, setAppliedFilters] = useState<ArticleFilters>({
-    type: "all",
-    asset: "",
-    query: "",
-  });
+  const [draftFilters, setDraftFilters] = useState<ArticleFilters>(DEFAULT_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState<ArticleFilters>(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const visibleItems = items.filter(hasApprovedArticleBody);
+  const communityCount = visibleItems.filter((article) => !article.is_news).length;
+  const newsCount = visibleItems.filter((article) => article.is_news).length;
   const activeFilterCount =
     (draftFilters.type !== "all" ? 1 : 0) +
     (draftFilters.asset ? 1 : 0) +
@@ -167,15 +179,19 @@ export function ArticlesPage() {
   }
 
   function resetFilters() {
-    const nextFilters: ArticleFilters = {
-      type: "all",
-      asset: "",
-      query: "",
-    };
-    setDraftFilters(nextFilters);
-    setAppliedFilters(nextFilters);
+    setDraftFilters(DEFAULT_FILTERS);
+    setAppliedFilters(DEFAULT_FILTERS);
     setPage(1);
   }
+
+  useEffect(() => {
+    setDraftFilters(DEFAULT_FILTERS);
+    setAppliedFilters(DEFAULT_FILTERS);
+    setPage(1);
+    setItems([]);
+    setPagination(DEFAULT_PAGINATION);
+    setError(null);
+  }, [pathname]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -212,19 +228,23 @@ export function ArticlesPage() {
     <SiteShell>
       <div className={styles.stack}>
         <section className={styles.hero}>
-          <div className={styles.eyebrow}>Publishing Desk</div>
-          <h1 className={styles.title}>Articles & News</h1>
-          <p className={styles.copy}>
-            Community-authored writeups and converted news entries live in the same system, with likes, saves, comments, related assets, and proposal workflows for news coverage.
-          </p>
-          <div className={styles.toolbar}>
-            <div className={styles.metaRow}>
-              <span className={styles.muted}>{pagination.total} total articles</span>
-              <span className={styles.muted}>Page {pagination.page} of {pagination.page_count}</span>
+          <div className={styles.heroCopy}>
+            <div className={styles.heroEyebrow}>
+              <FaNewspaper aria-hidden="true" />
+              Publishing desk
             </div>
-            <div className={styles.toolbarActions}>
-              {user ? <Link href="/articles/new" className={styles.primaryButton}>Write article</Link> : null}
+            <h1 className={styles.title}>Articles Archive</h1>
+            <div className={styles.heroMeta}>
+              <span>{pagination.total ? `Showing ${visibleItems.length} of ${pagination.total} articles` : isLoading ? "Loading articles..." : "No articles match the current filters"}</span>
+              <span>Page {pagination.page} of {pagination.page_count}</span>
+              <span>{user ? "Writer tools available" : "Public archive"}</span>
             </div>
+          </div>
+          <div className={styles.heroMetrics}>
+            <ArticleMetric label="Articles" value={fmtInteger(pagination.total)} meta={`${fmtInteger(visibleItems.length)} loaded`} />
+            <ArticleMetric label="News" value={fmtInteger(newsCount)} meta="visible feed" />
+            <ArticleMetric label="Community" value={fmtInteger(communityCount)} meta="visible feed" />
+            {user ? <Link href="/articles/new" className={styles.primaryButton}>Write article</Link> : null}
           </div>
         </section>
 
@@ -240,16 +260,19 @@ export function ArticlesPage() {
               applyFilters();
             }}
           >
-            <div className={styles.fieldGrid}>
-              <label className={styles.field}>
+            <label className={`${styles.field} ${styles.searchField}`.trim()}>
                 <span className={styles.fieldLabel}>Search</span>
-                <input
-                  className={styles.filterInput}
-                  value={draftFilters.query}
-                  onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))}
-                  placeholder="Search titles, subtitles, or tags"
-                />
+                <span className={styles.searchInputShell}>
+                  <FaMagnifyingGlass aria-hidden="true" />
+                  <input
+                    className={styles.filterInput}
+                    value={draftFilters.query}
+                    onChange={(event) => setDraftFilters((current) => ({ ...current, query: event.target.value }))}
+                    placeholder="Search titles, subtitles, or tags"
+                  />
+                </span>
               </label>
+            <div className={styles.fieldGrid}>
               <label className={styles.field}>
                 <span className={styles.fieldLabel}>Type</span>
                 <OptionPicker
@@ -289,6 +312,15 @@ export function ArticlesPage() {
         </FilterPanel>
 
         <section className={styles.panel}>
+          <div className={styles.feedHeader}>
+            <div>
+              <h2 className={styles.sectionTitle}>Article feed</h2>
+              <p className={styles.sectionCopy}>Newest published articles with linked symbols and engagement.</p>
+            </div>
+            <div className={styles.metaRow}>
+              <span className={styles.muted}>{pagination.total} total articles</span>
+            </div>
+          </div>
           {isLoading && !visibleItems.length ? <div className={styles.empty}>Loading articles…</div> : null}
           {!isLoading && !visibleItems.length ? <div className={styles.empty}>No articles matched the current filters.</div> : null}
           {visibleItems.length ? (

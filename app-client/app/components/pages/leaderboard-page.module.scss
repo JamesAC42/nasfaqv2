@@ -28,16 +28,62 @@
   font-size: 0.9rem;
 }
 
+.leaderboardPage {
+  gap: 0.8rem;
+}
+
+.leaderboardHero {
+  grid-template-columns: minmax(0, 1fr) minmax(22rem, 0.42fr);
+  align-items: end;
+  min-height: 10.5rem;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 8%, transparent) 0 1px, transparent 1px 100%),
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, transparent) 0 1px, transparent 1px 100%),
+    radial-gradient(circle at 88% 18%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 20rem),
+    linear-gradient(135deg, color-mix(in srgb, var(--surface-card) 96%, transparent), color-mix(in srgb, var(--bg-accent) 94%, transparent));
+  background-size: 18px 18px, 18px 18px, auto, auto;
+}
+
+.marketStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.marketStat {
+  display: grid;
+  gap: 0.2rem;
+  min-height: 4.6rem;
+  align-content: center;
+  padding: 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border-soft));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 82%, transparent);
+}
+
+.marketStat span,
+.exposureHead,
+.exposureLegend {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.marketStat strong {
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
+}
+
 .controlSection {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.55rem;
 }
 
 .controlRow {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
   align-items: end;
-  gap: 1rem 1.25rem;
+  gap: 0.75rem;
 }
 
 .controlGroup {
@@ -52,9 +98,10 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  border-radius: 0.9rem;
+  border-radius: var(--radius-sm);
   border: 1px solid color-mix(in srgb, var(--leaderboard-scope-accent) 24%, var(--border-soft));
-  padding: 0.7rem 1rem;
+  min-height: 2.5rem;
+  padding: 0.55rem 0.8rem;
   background: color-mix(in srgb, var(--leaderboard-scope-soft) 34%, var(--surface-card));
   color: inherit;
   font: inherit;
@@ -97,7 +144,7 @@
     color-mix(in srgb, var(--leaderboard-scope-soft) 38%, var(--surface-card)),
     color-mix(in srgb, var(--leaderboard-scope-soft) 16%, var(--surface-card))
   );
-  padding: 0.65rem 0.85rem;
+  padding: 0.55rem 0.7rem;
   display: grid;
   gap: 0.45rem;
 }
@@ -159,21 +206,29 @@
   @include empty-state;
 }
 
+.commandGrid {
+  display: grid;
+}
+
 .meCard {
+  @include panel;
+  padding: 0.85rem;
+  display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
   align-items: start;
-  gap: 1.25rem;
+  gap: 0.85rem;
 }
 
 .meSummary {
   display: grid;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .meHeading {
   display: grid;
-  gap: 0.8rem;
-  justify-items: start;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
 }
 
 .eyebrow {
@@ -184,8 +239,9 @@
 }
 
 .meAvatar {
-  width: 4.5rem;
-  height: 4.5rem;
+  width: 3.6rem;
+  height: 3.6rem;
+  grid-row: 1 / span 2;
 }
 
 .meRank {
@@ -195,8 +251,8 @@
 }
 
 .meRankSentence {
-  font-size: clamp(1.1rem, 2vw, 1.4rem);
-  line-height: 1.4;
+  font-size: clamp(1rem, 1.5vw, 1.22rem);
+  line-height: 1.25;
 }
 
 .meRankSentence strong {
@@ -205,8 +261,8 @@
 
 .meMetaGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.85rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
 }
 
 .meStat {
@@ -217,7 +273,8 @@
     color-mix(in srgb, var(--leaderboard-scope-soft) 28%, var(--surface-card)),
     color-mix(in srgb, var(--surface-card) 90%, transparent)
   );
-  padding: 0.95rem 1rem;
+  min-height: 4.8rem;
+  padding: 0.6rem 0.7rem;
   display: grid;
   gap: 0.3rem;
 }
@@ -234,7 +291,7 @@
 
 .neighbors {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .neighborsTitle {
@@ -253,7 +310,7 @@
     color-mix(in srgb, var(--leaderboard-scope-soft) 20%, var(--surface-card)),
     color-mix(in srgb, var(--surface-card) 92%, transparent)
   );
-  padding: 0.95rem;
+  padding: 0.62rem;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.8rem;
@@ -278,7 +335,7 @@
 }
 
 .neighborName {
-  font-size: 0.98rem;
+  font-size: 0.9rem;
 }
 
 .neighborMeta,
@@ -330,146 +387,138 @@
   font-family: var(--font-mono);
 }
 
+.exposureMeter {
+  display: grid;
+  gap: 0.28rem;
+  width: 100%;
+}
+
+.exposureHead,
+.exposureLegend {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.exposureHead strong,
+.exposureLegend span {
+  font-family: var(--font-mono);
+}
+
+.exposureTrack {
+  height: 0.42rem;
+  overflow: hidden;
+  border-radius: 999rem;
+  background: color-mix(in srgb, var(--muted) 18%, transparent);
+}
+
+.exposureTrack i {
+  display: block;
+  min-width: 0.18rem;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--leaderboard-scope-accent, var(--accent)), color-mix(in srgb, var(--accent) 62%, var(--success)));
+}
+
 .podiumGrid {
   display: grid;
-  gap: 1.25rem;
-  grid-template-columns: repeat(3, minmax(0, 23rem));
-  align-items: end;
-  justify-items: center;
-  justify-content: center;
-  margin-top: 7rem;
+  gap: 0.7rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
 }
 
 .podiumCard {
   display: grid;
-  --podium-stage-height: 15rem;
-  grid-template-rows: var(--podium-stage-height) minmax(15.5rem, 1fr);
+  grid-template-columns: 7.5rem minmax(0, 1fr);
   gap: 0;
   --podium-user-color: var(--accent);
-  width: min(100%, 23rem);
   height: 100%;
+  border: 1px solid color-mix(in srgb, var(--podium-user-color) 32%, var(--border-soft));
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 0 0, color-mix(in srgb, var(--podium-user-color) 20%, transparent), transparent 13rem),
+    color-mix(in srgb, var(--surface-card) 90%, transparent);
+  box-shadow: var(--shadow-tight);
 }
 
 .gold {
-  --podium-height: 15rem;
+  --podium-rank-color: var(--leaderboard-podium-gold-strong);
 }
 
 .silver {
-  --podium-height: 12.5rem;
+  --podium-rank-color: var(--leaderboard-podium-silver-strong);
 }
 
 .bronze {
-  --podium-height: 10.75rem;
+  --podium-rank-color: var(--leaderboard-podium-bronze-strong);
 }
 
 .podiumStage {
   position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: end;
-}
-
-.podiumAvatarWrap {
-  position: absolute;
-  left: 50%;
-  top:0;
-  transform: translate(-50%, -90%);
-  z-index: 3;
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: 0.75rem;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--podium-user-color) 22%, transparent), transparent),
+    color-mix(in srgb, var(--bg-darkest) 72%, var(--podium-user-color));
 }
 
 .podiumAvatar {
-  width: 10.5rem;
-  height: 10.5rem;
-  border-width: 4px;
-  box-shadow: 0 18px 34px color-mix(in srgb, var(--podium-user-color) 24%, transparent);
-}
-
-.podiumBar {
-  height: var(--podium-height);
-  width: 93%;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  border: 1px solid color-mix(in srgb, var(--podium-user-color) 46%, var(--border-soft));
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--podium-user-color) 80%, white),
-    var(--podium-user-color) 48%,
-    color-mix(in srgb, var(--podium-user-color) 58%, #f0c95a)
-  );
-  display: grid;
-  align-items: start;
-  justify-items: center;
-  padding: 1.2rem 1rem 1rem;
+  width: 4.35rem;
+  height: 4.35rem;
+  border-width: 2px;
   position: relative;
-  align-self: end;
+  z-index: 2;
+  box-shadow: 0 12px 24px color-mix(in srgb, var(--podium-user-color) 24%, transparent);
 }
-
-// .podiumBar::after {
-//   content: "";
-//   position: absolute;
-//   inset: auto -10% 0;
-//   height: 42%;
-//   background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.14));
-// }
-
-// .podiumBar::before {
-//   content: "";
-//   position: absolute;
-//   inset: auto 10% -24% 10%;
-//   height: 52%;
-//   background:
-//     radial-gradient(circle at center top, rgba(255, 255, 255, 0.16), transparent 58%),
-//     color-mix(in srgb, var(--podium-user-color) 72%, transparent);
-//   opacity: 0.46;
-//   border-radius: 999px 999px 0 0;
-//   filter: saturate(1.15) brightness(1.05);
-// }
 
 .podiumWatermark {
   position: absolute;
   left: 50%;
-  bottom: -38%;
-  width: 48%;
+  bottom: -10%;
+  width: 6rem;
   aspect-ratio: 1;
   object-fit: contain;
-  transform: translateX(-50%);
-  opacity: 0.4;
+  transform: translateX(-50%) rotate(-8deg);
+  opacity: 0.22;
   filter: saturate(1.2) brightness(1.08);
   pointer-events: none;
 }
 
 .podiumRank {
   font-family: var(--font-display);
-  font-size: clamp(2rem, 4vw, 3.2rem);
+  position: absolute;
+  top: 0.5rem;
+  left: 0.55rem;
+  z-index: 2;
+  font-size: 1.45rem;
   line-height: 1;
   font-weight: 700;
-  color: color-mix(in srgb, var(--bg-darkest) 56%, white);
-  text-shadow: 0 2px 12px rgba(255, 255, 255, 0.18);
-  position: relative;
-  z-index: 1;
+  color: var(--podium-rank-color, var(--accent));
+  text-shadow: 0 0 18px color-mix(in srgb, var(--podium-rank-color, var(--accent)) 34%, transparent);
 }
 
 .podiumInfo {
-  @include panel;
-  padding: 1rem;
+  padding: 0.75rem;
   display: grid;
-  gap: 0.55rem;
-  border-radius: 0 0 var(--radius-md) var(--radius-md);
-  text-align: center;
-  justify-items: center;
+  gap: 0.45rem;
+  text-align: left;
+  justify-items: stretch;
   align-content: start;
-  min-height: 15.5rem;
-  width: 100%;
 }
 
 .podiumName {
   color: inherit;
   text-decoration: none;
   font-weight: 800;
-  font-size: 1.18rem;
+  font-size: 1rem;
 }
 
 .podiumValue {
-  font-size: 1.36rem;
+  font-size: 1.16rem;
   line-height: 1;
 }
 
@@ -478,7 +527,7 @@
   gap: 0.38rem;
   color: var(--muted);
   font-size: 0.86rem;
-  justify-items: center;
+  justify-items: start;
   width: 100%;
 }
 
@@ -509,7 +558,7 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.35rem 0.55rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-soft);
   text-decoration: none;
   color: inherit;
@@ -531,7 +580,7 @@
   height: 1.35rem;
   min-width: 1.35rem;
   padding: 0.18rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
 }
 
 .assetMetaPrice,
@@ -554,9 +603,9 @@
 
 .avatar {
   --leaderboard-accent: var(--accent, #2563eb);
-  width: 5rem;
-  height: 5rem;
-  border-radius: 999px;
+  width: 3.8rem;
+  height: 3.8rem;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   display: grid;
   place-items: center;
@@ -606,7 +655,7 @@
   --leaderboard-badge-accent: var(--accent, #2563eb);
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid color-mix(in srgb, var(--leaderboard-badge-accent) 35%, var(--border-soft));
   padding: 0.18rem 0.48rem;
   font-size: 0.74rem;
@@ -623,7 +672,7 @@
 .streakBadge {
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid color-mix(in srgb, #ff7b00 45%, var(--border-soft));
   background: color-mix(in srgb, #ff7b00 14%, var(--surface-card));
   padding: 0.26rem 0.62rem;
@@ -644,6 +693,14 @@
   margin: 0;
 }
 
+.podiumSection,
+.standingsPanel {
+  @include panel;
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
 .sectionCopy {
   @include subtle-copy;
   margin: 0.25rem 0 0;
@@ -662,14 +719,14 @@
 
 .table {
   width: 100%;
-  min-width: 960px;
+  min-width: 1120px;
   border-collapse: collapse;
 }
 
 .table th,
 .table td {
   text-align: left;
-  padding: 0.9rem 0.75rem;
+  padding: 0.68rem 0.7rem;
   border-bottom: 1px solid var(--border-soft);
   vertical-align: middle;
 }
@@ -686,6 +743,10 @@
   gap: 0.2rem;
 }
 
+.metricCellWide {
+  min-width: 11rem;
+}
+
 .metricCell span {
   color: var(--muted);
   font-size: 0.85rem;
@@ -695,12 +756,57 @@
   background: color-mix(in srgb, var(--accent, #2563eb) 10%, transparent);
 }
 
+.emptyMetric {
+  color: var(--muted);
+}
+
+.tableAssetChip {
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 9.5rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.tableAssetCoin {
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: var(--radius-sm);
+}
+
+.tableAssetChip span {
+  display: grid;
+  min-width: 0;
+  gap: 0.06rem;
+}
+
+.tableAssetChip strong {
+  font-size: 0.86rem;
+}
+
+.tableAssetChip em {
+  overflow: hidden;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 980px) {
   .controlRow,
   .meCard,
-  .podiumGrid,
-  .meMetaGrid {
+  .leaderboardHero,
+  .podiumGrid {
     grid-template-columns: 1fr;
+  }
+
+  .meMetaGrid,
+  .marketStatsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .rangeMarks {
@@ -725,22 +831,12 @@
   }
 
   .podiumGrid {
-    gap: 1.25rem;
-  }
-
-  .silver,
-  .gold,
-  .bronze {
-    --podium-height: 11.5rem;
+    gap: 0.75rem;
   }
 
   .podiumAvatar {
-    width: 7.25rem;
-    height: 7.25rem;
-  }
-
-  .podiumBar {
-    width: 96%;
+    width: 3.9rem;
+    height: 3.9rem;
   }
 }
 

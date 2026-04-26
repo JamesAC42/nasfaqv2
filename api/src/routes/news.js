@@ -27,6 +27,7 @@ router.get("/", async (req, res, next) => {
         article_id: ensured?.id ?? item.article_id ?? null,
         article_slug: ensured?.slug ?? item.article_slug ?? articleDb.buildNewsSlugBase(item.headline),
         is_news: true,
+        view_count: item.view_count ?? 0,
         like_count: item.like_count ?? 0,
         save_count: item.save_count ?? 0,
         comment_count: item.comment_count ?? 0,

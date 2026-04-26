@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ColorType, LineSeries, createChart, type IChartApi, type ISeriesApi, type Time } from "lightweight-charts";
@@ -17,7 +18,7 @@ import { MarketSidebar } from "@/app/components/common/market-sidebar";
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
-import { createChannelChartTheme } from "@/app/lib/chart-theme";
+import { adjustSaturation, createChannelChartTheme, rotateHue } from "@/app/lib/chart-theme";
 import { getUsableChannelColor, normalizeHexColor } from "@/app/lib/color";
 import { fmtDate, fmtDurationSeconds, fmtInteger, fmtNumber, fmtPct } from "@/app/lib/format";
 import {
@@ -100,7 +101,7 @@ const SUPERCHAT_TIMESERIES_OPTIONS = [
   { value: "7d", label: "Past 7 days" },
   { value: "14d", label: "Past 14 days" },
   { value: "1m", label: "Weekly for month" },
-  { value: "1y", label: "Monthly for year" },
+  { value: "1y", label: "Past year" },
 ] as const;
 const CURRENCY_FLAG_MAP: Record<string, string> = {
   AED: "AE",
@@ -565,19 +566,6 @@ function getCurrencyFlagUrl(currencyCode: string) {
   return `https://flagcdn.com/${countryCode.toLowerCase()}.svg`;
 }
 
-function formatBucketLabel(bucket: string, bucketUnit: AssetSuperchatTimeseriesBundle["bucket_unit"]) {
-  if (!bucket) return "—";
-  const parsed = new Date(bucket);
-  if (Number.isNaN(parsed.getTime())) return bucket.slice(0, 10);
-  const options: Intl.DateTimeFormatOptions =
-    bucketUnit === "month"
-      ? { month: "short", year: "2-digit" }
-      : bucketUnit === "week"
-        ? { month: "short", day: "numeric" }
-        : { month: "short", day: "numeric" };
-  return new Intl.DateTimeFormat("en-US", options).format(parsed);
-}
-
 function toChartTime(value: string): Time | null {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
@@ -889,9 +877,12 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   const [isLoadingSuperchats, setIsLoadingSuperchats] = useState(false);
   const [superchatTimeseriesRange, setSuperchatTimeseriesRange] = useState<(typeof SUPERCHAT_TIMESERIES_OPTIONS)[number]["value"]>("7d");
   const [superchatTimeseries, setSuperchatTimeseries] = useState<AssetSuperchatTimeseriesBundle | null>(null);
+  const [superchatCalendarTimeseries, setSuperchatCalendarTimeseries] = useState<AssetSuperchatTimeseriesBundle | null>(null);
   const [relatedArticles, setRelatedArticles] = useState<ArticleSummary[]>([]);
   const [superchatTimeseriesError, setSuperchatTimeseriesError] = useState<string | null>(null);
+  const [superchatCalendarError, setSuperchatCalendarError] = useState<string | null>(null);
   const [isLoadingSuperchatTimeseries, setIsLoadingSuperchatTimeseries] = useState(false);
+  const [isLoadingSuperchatCalendar, setIsLoadingSuperchatCalendar] = useState(false);
   const [deferredReadySymbol, setDeferredReadySymbol] = useState<string | null>(null);
   const tradeConfirmationCloseTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
 
@@ -1054,6 +1045,9 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
       setSuperchatRank(null);
       setSuperchatError(null);
       setIsLoadingSuperchats(false);
+      setSuperchatCalendarTimeseries(null);
+      setSuperchatCalendarError(null);
+      setIsLoadingSuperchatCalendar(false);
       return;
     }
 
@@ -1117,8 +1111,29 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
       }
     }
 
+    async function fetchSuperchatCalendar() {
+      setIsLoadingSuperchatCalendar(true);
+      setSuperchatCalendarError(null);
+      try {
+        const result = await apiFetch<Record<string, unknown>>(
+          `/api/market/assets/${encodeURIComponent(normalizedSymbol)}/superchats/timeseries?range=1y`
+        );
+        if (cancelled) return;
+        setSuperchatCalendarTimeseries(normalizeAssetSuperchatTimeseries(result));
+      } catch (nextError) {
+        if (cancelled) return;
+        setSuperchatCalendarTimeseries(null);
+        setSuperchatCalendarError(String((nextError as Error).message || nextError));
+      } finally {
+        if (!cancelled) {
+          setIsLoadingSuperchatCalendar(false);
+        }
+      }
+    }
+
     void fetchLivestreams();
     void fetchSuperchatSummary();
+    void fetchSuperchatCalendar();
     return () => {
       cancelled = true;
     };
@@ -1676,6 +1691,21 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     () => (superchatSummary ? [...superchatSummary.currencies].sort((a, b) => (b.total_in_yen || 0) - (a.total_in_yen || 0)) : []),
     [superchatSummary]
   );
+  const sortedSuperchatCurrenciesByDonationCount = useMemo(
+    () => [...sortedSuperchatCurrencies].sort((a, b) => (b.donation_count || 0) - (a.donation_count || 0)),
+    [sortedSuperchatCurrencies]
+  );
+  const sortedSuperchatCurrenciesByAverageTicket = useMemo(
+    () =>
+      [...sortedSuperchatCurrencies]
+        .filter((item) => (item.donation_count || 0) > 0)
+        .sort((a, b) => {
+          const left = (a.total_in_yen || 0) / Math.max(a.donation_count || 1, 1);
+          const right = (b.total_in_yen || 0) / Math.max(b.donation_count || 1, 1);
+          return right - left;
+        }),
+    [sortedSuperchatCurrencies]
+  );
   const totalSuperchatYen = useMemo(
     () => sortedSuperchatCurrencies.reduce((sum, item) => sum + (item.total_in_yen || 0), 0),
     [sortedSuperchatCurrencies]
@@ -1683,6 +1713,15 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   const totalSuperchatCount = useMemo(
     () => sortedSuperchatCurrencies.reduce((sum, item) => sum + (item.donation_count || 0), 0),
     [sortedSuperchatCurrencies]
+  );
+  const superchatValuePalette = chartPalette;
+  const superchatDonationPalette = useMemo(
+    () => chartPalette.map((color, index) => adjustSaturation(rotateHue(color, 46 + index * 4), 10)),
+    [chartPalette]
+  );
+  const superchatAveragePalette = useMemo(
+    () => chartPalette.map((color, index) => adjustSaturation(rotateHue(color, -58 - index * 4), 12)),
+    [chartPalette]
   );
   const topCurrency = sortedSuperchatCurrencies[0] || null;
   const averageDonationYen = totalSuperchatCount > 0 ? totalSuperchatYen / totalSuperchatCount : 0;
@@ -1747,43 +1786,156 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   ]);
 
   const superchatHeatmap = useMemo(() => {
-    if (!showDeferredSections || !superchatTimeseries) {
+    if (!showDeferredSections || !superchatCalendarTimeseries) {
       return { columns: [] as string[], rows: [] as Array<{ label: string; cells: Array<{ bucket: string; value: number; valueLabel: string }> }> };
     }
 
-    const bucketOrder = Array.from(new Set(superchatTimeseries.points.map((point) => point.bucket))).sort((a, b) => a.localeCompare(b));
-    const totalsByCurrency = new Map<string, number>();
-    const valuesByCurrency = new Map<string, Map<string, number>>();
-
-    for (const point of superchatTimeseries.points) {
+    const totalsByBucket = new Map<string, number>();
+    for (const point of superchatCalendarTimeseries.points) {
       const value = point.total_in_yen || 0;
-      totalsByCurrency.set(point.currency_name, (totalsByCurrency.get(point.currency_name) || 0) + value);
-      if (!valuesByCurrency.has(point.currency_name)) {
-        valuesByCurrency.set(point.currency_name, new Map<string, number>());
-      }
-      valuesByCurrency.get(point.currency_name)?.set(point.bucket, value);
+      totalsByBucket.set(point.bucket, (totalsByBucket.get(point.bucket) || 0) + value);
     }
 
-    const topCurrencies = Array.from(totalsByCurrency.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 6)
-      .map(([currencyName]) => currencyName);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const cells = Array.from({ length: 365 }, (_, index) => {
+      const date = new Date(today);
+      date.setDate(today.getDate() - (364 - index));
+      const bucket = date.toISOString().slice(0, 10);
+      const value = totalsByBucket.get(bucket) || 0;
+      return {
+        bucket,
+        value,
+        valueLabel: value > 0 ? `¥${fmtInteger(value)}` : "No superchats",
+      };
+    });
 
     return {
-      columns: bucketOrder.map((bucket) => formatBucketLabel(bucket, superchatTimeseries.bucket_unit)),
-      rows: topCurrencies.map((currencyName) => ({
-        label: formatCurrencyLabelWithFlag(currencyName),
-        cells: bucketOrder.map((bucket) => {
-          const value = valuesByCurrency.get(currencyName)?.get(bucket) || 0;
-          return {
-            bucket: formatBucketLabel(bucket, superchatTimeseries.bucket_unit),
-            value,
-            valueLabel: value > 0 ? `¥${fmtInteger(value)}` : "No superchats",
-          };
-        }),
-      })),
+      columns: [],
+      rows: [{ label: "Daily total", cells }],
     };
-  }, [showDeferredSections, superchatTimeseries]);
+  }, [showDeferredSections, superchatCalendarTimeseries]);
+
+  const tradeTicket = (
+    <section className={styles.tradePanel}>
+      <div className={styles.tradePanelContent}>
+        <div className={styles.tradeTicketHeader}>
+          <div>
+            <span className={styles.tradeTicketEyebrow}>Execution</span>
+            <h2 className={styles.sectionTitle}>Trade {selectedAsset?.symbol || normalizedSymbol}</h2>
+          </div>
+          <span className={tradingOpen ? styles.marketOpenPill : styles.marketClosedPill}>
+            {tradingOpen ? "Market open" : "Market closed"}
+          </span>
+        </div>
+
+        {!user ? (
+          <div className={styles.authCta}>
+            <span>Sign in to trade and load your portfolio context.</span>
+            <div className={styles.authLinks}>
+              <Link href="/login">Login</Link>
+              <Link href="/register">Register</Link>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className={styles.portfolioGrid}>
+              <div className={styles.portfolioStat}>
+                <span>Cash</span>
+                <strong>{isLoadingPortfolio ? "Loading…" : fmtNumber(portfolio?.cash_balance ?? null, "$")}</strong>
+              </div>
+              <div className={styles.portfolioStat}>
+                <span>Shares Owned</span>
+                <strong>{isLoadingPortfolio ? "Loading…" : fmtNumber(ownedShares)}</strong>
+              </div>
+              <div className={styles.portfolioStat}>
+                <span>Position Value</span>
+                <strong>{isLoadingPortfolio ? "Loading…" : fmtNumber(estimatedPositionValue, "$")}</strong>
+              </div>
+              <div className={styles.portfolioStat}>
+                <span>Avg Cost</span>
+                <strong>{isLoadingPortfolio ? "Loading…" : fmtNumber(selectedHolding?.avg_cost_basis ?? null, "$")}</strong>
+              </div>
+              <div className={styles.portfolioStat}>
+                <span>Unrealized PnL</span>
+                <strong className={(selectedHolding?.unrealized_pnl ?? 0) >= 0 ? styles.valueUp : styles.valueDown}>
+                  {isLoadingPortfolio ? "Loading…" : formatSignedCurrency(selectedHolding?.unrealized_pnl ?? null)}
+                </strong>
+              </div>
+              <div className={styles.portfolioStat}>
+                <span>Order Value</span>
+                <strong>{fmtNumber(estimatedTradeNotional, "$")}</strong>
+              </div>
+            </div>
+
+            {needsEmailVerification ? <VerificationRequiredNotice action="trade" /> : null}
+            <form className={styles.tradeForm} onSubmit={(event) => void handleTrade(event)}>
+              <div className={styles.sideToggle}>
+                <button
+                  type="button"
+                  className={tradeSide === "buy" ? styles.sideToggleActiveBuy : styles.sideToggleButton}
+                  onClick={() => setTradeSide("buy")}
+                >
+                  Buy
+                </button>
+                <button
+                  type="button"
+                  className={tradeSide === "sell" ? styles.sideToggleActiveSell : styles.sideToggleButton}
+                  onClick={() => setTradeSide("sell")}
+                >
+                  Sell
+                </button>
+              </div>
+
+              <label className={styles.tradeField}>
+                <span>Quantity</span>
+                <input
+                  className={styles.tradeInput}
+                  value={tradeQuantity}
+                  inputMode="decimal"
+                  disabled={!tradingOpen}
+                  onChange={(event) => setTradeQuantity(event.target.value)}
+                />
+              </label>
+
+              <div className={styles.tradePresets}>
+                {["10", "25", "50", "100"].map((preset) => (
+                  <button key={preset} type="button" className={styles.presetButton} onClick={() => setTradeQuantity(preset)}>
+                    {preset}
+                  </button>
+                ))}
+              </div>
+
+              <div className={styles.tradeSummary}>
+                <div>
+                  <span>Mid</span>
+                  <strong>{fmtNumber(selectedAsset?.current_mid_price, "$")}</strong>
+                </div>
+                <div>
+                  <span>Bid / Ask</span>
+                  <strong>{fmtNumber(selectedAsset?.current_bid_price, "$")} / {fmtNumber(selectedAsset?.current_ask_price, "$")}</strong>
+                </div>
+                <div>
+                  <span>Premium</span>
+                  <strong>{fmtPct(selectedAsset?.current_premium_pct)}</strong>
+                </div>
+              </div>
+
+              <button type="submit" className={tradeSide === "buy" ? styles.tradeSubmitBuy : styles.tradeSubmitSell} disabled={!tradingOpen || needsEmailVerification}>
+                {tradingOpen ? `${tradeSide === "buy" ? "Submit Buy" : "Submit Sell"} Order` : "Market Closed"}
+              </button>
+            </form>
+
+            {!tradingOpen ? (
+              <div className="statusMessage statusMessageWarn">
+                <strong>Trading paused.</strong> {marketClosedMessage}
+              </div>
+            ) : null}
+          </>
+        )}
+      </div>
+    </section>
+  );
 
   if (!selectedAsset && !isLoadingOverview) {
     return (
@@ -1798,6 +1950,18 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
               showTopMovers={false}
               showVolumeLeaders={false}
             />
+            <div className={styles.takostandSpacer}>
+              <div className={styles.takostandSticky} aria-hidden="true">
+                <Image
+                  src="/takostand.png"
+                  alt=""
+                  width={320}
+                  height={252}
+                  className={styles.takostandImage}
+                  priority={false}
+                />
+              </div>
+            </div>
           </div>
           <div className={styles.contentRail}>
             <section className={styles.emptyState}>
@@ -1815,6 +1979,18 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
               showRecentViews={false}
               showMostViewed={false}
             />
+            <div className={styles.takoSpacer}>
+              <div className={styles.takoSticky} aria-hidden="true">
+                <Image
+                  src="/tako.png"
+                  alt=""
+                  width={680}
+                  height={383}
+                  className={styles.takoImage}
+                  priority={false}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </SiteShell>
@@ -1833,14 +2009,28 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
             showTopMovers={false}
             showVolumeLeaders={false}
           />
+          <div className={styles.takostandSpacer}>
+            <div className={styles.takostandSticky} aria-hidden="true">
+              <Image
+                src="/takostand.png"
+                alt=""
+                width={320}
+                height={252}
+                className={styles.takostandImage}
+                priority={false}
+              />
+            </div>
+          </div>
         </div>
 
         <div className={styles.contentRail}>
           {error ? <div className="statusMessage statusMessageError">Request error: {error}</div> : null}
           {channelError ? <div className="statusMessage statusMessageWarn">Channel metadata warning: {channelError}</div> : null}
           {portfolioError && user ? <div className="statusMessage statusMessageWarn">Portfolio warning: {portfolioError}</div> : null}
-          <section className={styles.hero} style={heroStyle}>
-            <div className={styles.heroOverlay}>
+          <div className={styles.deskGrid}>
+            <div className={styles.workspaceColumn}>
+              <section className={styles.hero} style={heroStyle}>
+                <div className={styles.heroOverlay}>
 
               <div className={styles.heroPrice}>
                 <strong className={styles.heroPriceValue}>{currentMidPrice}</strong>
@@ -1985,8 +2175,13 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                   </div>
                 ))}
               </div>
+                </div>
+              </section>
             </div>
-          </section>
+            <aside className={styles.executionColumn}>
+              {tradeTicket}
+            </aside>
+          </div>
 
           <section className={styles.rankSection}>
             <div className={styles.sectionHeader}>
@@ -2189,123 +2384,6 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
 
             </div>
 
-            <div className={styles.tradeColumn}>
-              <section className={styles.tradePanel}>
-                <div className={styles.tradePanelContent}>
-                  <div className={styles.sectionHeader}>
-                    <div>
-                      <h2 className={styles.sectionTitle}>Trade {selectedAsset?.symbol || normalizedSymbol}</h2>
-                      <p className={styles.sectionCopy}>A tighter order ticket with account context relevant to this position.</p>
-                    </div>
-                  </div>
-
-                  {!user ? (
-                    <div className={styles.authCta}>
-                      <span>Sign in to trade and load your portfolio context.</span>
-                      <div className={styles.authLinks}>
-                        <Link href="/login">Login</Link>
-                        <Link href="/register">Register</Link>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className={styles.portfolioGrid}>
-                        <div className={styles.portfolioStat}>
-                          <span>Cash</span>
-                          <strong>{isLoadingPortfolio ? "Loading…" : fmtNumber(portfolio?.cash_balance ?? null, "$")}</strong>
-                        </div>
-                        <div className={styles.portfolioStat}>
-                          <span>Shares Owned</span>
-                          <strong>{isLoadingPortfolio ? "Loading…" : fmtNumber(ownedShares)}</strong>
-                        </div>
-                        <div className={styles.portfolioStat}>
-                          <span>Position Value</span>
-                          <strong>{isLoadingPortfolio ? "Loading…" : fmtNumber(estimatedPositionValue, "$")}</strong>
-                        </div>
-                        <div className={styles.portfolioStat}>
-                          <span>Avg Cost</span>
-                          <strong>{isLoadingPortfolio ? "Loading…" : fmtNumber(selectedHolding?.avg_cost_basis ?? null, "$")}</strong>
-                        </div>
-                        <div className={styles.portfolioStat}>
-                          <span>Unrealized PnL</span>
-                          <strong className={(selectedHolding?.unrealized_pnl ?? 0) >= 0 ? styles.valueUp : styles.valueDown}>
-                            {isLoadingPortfolio ? "Loading…" : formatSignedCurrency(selectedHolding?.unrealized_pnl ?? null)}
-                          </strong>
-                        </div>
-                        <div className={styles.portfolioStat}>
-                          <span>Order Value</span>
-                          <strong>{fmtNumber(estimatedTradeNotional, "$")}</strong>
-                        </div>
-                      </div>
-
-                      {needsEmailVerification ? <VerificationRequiredNotice action="trade" /> : null}
-                      <form className={styles.tradeForm} onSubmit={(event) => void handleTrade(event)}>
-                        <div className={styles.sideToggle}>
-                          <button
-                            type="button"
-                            className={tradeSide === "buy" ? styles.sideToggleActiveBuy : styles.sideToggleButton}
-                            onClick={() => setTradeSide("buy")}
-                          >
-                            Buy
-                          </button>
-                          <button
-                            type="button"
-                            className={tradeSide === "sell" ? styles.sideToggleActiveSell : styles.sideToggleButton}
-                            onClick={() => setTradeSide("sell")}
-                          >
-                            Sell
-                          </button>
-                        </div>
-
-                        <label className={styles.tradeField}>
-                          <span>Quantity</span>
-                          <input
-                            className={styles.tradeInput}
-                            value={tradeQuantity}
-                            inputMode="decimal"
-                            disabled={!tradingOpen}
-                            onChange={(event) => setTradeQuantity(event.target.value)}
-                          />
-                        </label>
-
-                        <div className={styles.tradePresets}>
-                          {["10", "25", "50", "100"].map((preset) => (
-                            <button key={preset} type="button" className={styles.presetButton} onClick={() => setTradeQuantity(preset)}>
-                              {preset}
-                            </button>
-                          ))}
-                        </div>
-
-                        <div className={styles.tradeSummary}>
-                          <div>
-                            <span>Mid</span>
-                            <strong>{fmtNumber(selectedAsset?.current_mid_price, "$")}</strong>
-                          </div>
-                          <div>
-                            <span>Bid / Ask</span>
-                            <strong>{fmtNumber(selectedAsset?.current_bid_price, "$")} / {fmtNumber(selectedAsset?.current_ask_price, "$")}</strong>
-                          </div>
-                          <div>
-                            <span>Premium</span>
-                            <strong>{fmtPct(selectedAsset?.current_premium_pct)}</strong>
-                          </div>
-                        </div>
-
-                        <button type="submit" className={tradeSide === "buy" ? styles.tradeSubmitBuy : styles.tradeSubmitSell} disabled={!tradingOpen || needsEmailVerification}>
-                          {tradingOpen ? `${tradeSide === "buy" ? "Submit Buy" : "Submit Sell"} Order` : "Market Closed"}
-                        </button>
-                      </form>
-
-                      {!tradingOpen ? (
-                        <div className="statusMessage statusMessageWarn">
-                          <strong>Trading paused.</strong> {marketClosedMessage}
-                        </div>
-                      ) : null}
-                    </>
-                  )}
-                </div>
-              </section>
-            </div>
           </div>
 
           <section className={styles.sectionCard}>
@@ -2694,26 +2772,82 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                       </div>
                     </div>
 
+                    {superchatCalendarError ? (
+                      <div className="statusMessage statusMessageError">Superchat calendar error: {superchatCalendarError}</div>
+                    ) : null}
+                    {isLoadingSuperchatCalendar ? <div className={shellStyles.empty}>Loading yearly superchat calendar…</div> : null}
+                    {!isLoadingSuperchatCalendar && !superchatCalendarError ? (
+                      <SuperchatHeatmapCard
+                        title="Yearly Superchat Heatmap"
+                        subtitle="Daily yen flow over the last year; the rightmost square is today"
+                        columns={superchatHeatmap.columns}
+                        rows={superchatHeatmap.rows}
+                        theme={chartTheme}
+                      />
+                    ) : null}
+
+                    {superchatTimeseriesError ? (
+                      <div className="statusMessage statusMessageError">Superchat timeseries error: {superchatTimeseriesError}</div>
+                    ) : null}
+                    {!isLoadingSuperchatTimeseries && !superchatTimeseriesError && superchatLineSeries.length === 0 ? (
+                      <div className={shellStyles.empty}>No superchat timeseries data for this range.</div>
+                    ) : null}
+                    {superchatLineSeries.length > 0 ? (
+                      <div className={styles.revenuePulseRow}>
+                        <div className={styles.revenuePulseChart}>
+                          <TrendChartCard
+                            title="Revenue Pulse"
+                            subtitle="Total yen flow over time with the strongest currencies layered on top"
+                            series={superchatLineSeries}
+                            theme={chartTheme}
+                          />
+                        </div>
+                        <aside className={styles.revenuePulseTabs} aria-label="Revenue Pulse timeframe">
+                          <div className={styles.revenuePulseTabHeader}>
+                            <span>Timeframe</span>
+                            <strong>{SUPERCHAT_TIMESERIES_OPTIONS.find((option) => option.value === superchatTimeseriesRange)?.label}</strong>
+                            {superchatTimeseries?.start_date && superchatTimeseries?.end_date ? (
+                              <em>{fmtDate(superchatTimeseries.start_date)} to {fmtDate(superchatTimeseries.end_date)}</em>
+                            ) : null}
+                            {isLoadingSuperchatTimeseries ? <span className={styles.revenuePulseLoading}>Updating chart</span> : null}
+                          </div>
+                          <div className={styles.revenuePulseTabList}>
+                            {SUPERCHAT_TIMESERIES_OPTIONS.map((option) => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                className={option.value === superchatTimeseriesRange ? styles.revenuePulseTabActive : styles.revenuePulseTab}
+                                onClick={() => setSuperchatTimeseriesRange(option.value)}
+                                aria-pressed={option.value === superchatTimeseriesRange}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                        </aside>
+                      </div>
+                    ) : null}
+
                     <SuperchatHistogramCard
                       title="Revenue Power"
                       subtitle="Past 7 days of superchat value in yen by currency"
                       theme={chartTheme}
                       bars={sortedSuperchatCurrencies.map((item, index) => ({
                         label: formatCurrencyLabelWithFlag(item.currency_name),
-                        color: chartPalette[index % chartPalette.length],
+                        color: superchatValuePalette[index % superchatValuePalette.length],
                         value: item.total_in_yen || 0,
                         subtitle: `${fmtInteger(item.donation_count || 0)} donations • ${fmtNumber(item.total_in_currency)} ${item.currency_name}`,
                         flagUrl: getCurrencyFlagUrl(item.currency_name),
                       }))}
                     />
 
-                    <div className={shellStyles.superchatChartGrid}>
+                    <div className={styles.superchatRankStack}>
                       <RankedBarChartCard
                         title="Share Of Value"
                         subtitle="Currency contribution to weekly yen volume"
                         bars={sortedSuperchatCurrencies.map((item, index) => ({
                           label: formatCurrencyLabelWithFlag(item.currency_name),
-                          color: chartPalette[index % chartPalette.length],
+                          color: superchatValuePalette[index % superchatValuePalette.length],
                           value: item.total_in_yen || 0,
                           valueLabel: totalSuperchatYen > 0 ? `${fmtNumber(((item.total_in_yen || 0) / totalSuperchatYen) * 100)}%` : "0%",
                           meta: `¥${fmtInteger(item.total_in_yen)} total`,
@@ -2722,9 +2856,9 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                       <RankedBarChartCard
                         title="Donation Count"
                         subtitle="How many superchats each currency contributed"
-                        bars={sortedSuperchatCurrencies.map((item, index) => ({
+                        bars={sortedSuperchatCurrenciesByDonationCount.map((item, index) => ({
                           label: formatCurrencyLabelWithFlag(item.currency_name),
-                          color: chartPalette[index % chartPalette.length],
+                          color: superchatDonationPalette[index % superchatDonationPalette.length],
                           value: item.donation_count || 0,
                           valueLabel: fmtInteger(item.donation_count || 0),
                           meta: totalSuperchatCount > 0 ? `${fmtNumber(((item.donation_count || 0) / totalSuperchatCount) * 100)}% of all donations` : "No donations",
@@ -2733,11 +2867,10 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                       <RankedBarChartCard
                         title="Average Ticket"
                         subtitle="Average yen per donation by currency"
-                        bars={sortedSuperchatCurrencies
-                          .filter((item) => (item.donation_count || 0) > 0)
+                        bars={sortedSuperchatCurrenciesByAverageTicket
                           .map((item, index) => ({
                             label: formatCurrencyLabelWithFlag(item.currency_name),
-                            color: chartPalette[index % chartPalette.length],
+                            color: superchatAveragePalette[index % superchatAveragePalette.length],
                             value: (item.total_in_yen || 0) / Math.max(item.donation_count || 1, 1),
                             valueLabel: `¥${fmtInteger((item.total_in_yen || 0) / Math.max(item.donation_count || 1, 1))}`,
                             meta: `${fmtNumber(item.total_in_currency)} ${item.currency_name} across ${fmtInteger(item.donation_count || 0)} donations`,
@@ -2747,55 +2880,6 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                   </>
                 ) : null}
 
-                <div className={shellStyles.superchatSubsection}>
-                  <div className={shellStyles.superchatToolbar}>
-                    <h3 className={shellStyles.sectionLabel}>Totals Over Time</h3>
-                    <div className={shellStyles.rangeSelector}>
-                      {SUPERCHAT_TIMESERIES_OPTIONS.map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          className={option.value === superchatTimeseriesRange ? shellStyles.rangeChipActive : shellStyles.rangeChip}
-                          onClick={() => setSuperchatTimeseriesRange(option.value)}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {superchatTimeseries?.start_date && superchatTimeseries?.end_date ? (
-                    <p className={styles.sectionMeta}>
-                      Window: {fmtDate(superchatTimeseries.start_date)} to {fmtDate(superchatTimeseries.end_date)}
-                    </p>
-                  ) : null}
-
-                  {superchatTimeseriesError ? (
-                    <div className="statusMessage statusMessageError">Superchat timeseries error: {superchatTimeseriesError}</div>
-                  ) : null}
-                  {isLoadingSuperchatTimeseries ? <div className={shellStyles.empty}>Loading superchat timeseries…</div> : null}
-                  {!isLoadingSuperchatTimeseries && !superchatTimeseriesError && superchatLineSeries.length === 0 ? (
-                    <div className={shellStyles.empty}>No superchat timeseries data for this range.</div>
-                  ) : null}
-
-                  {superchatLineSeries.length > 0 ? (
-                    <div className={shellStyles.superchatChartGrid}>
-                      <TrendChartCard
-                        title="Revenue Pulse"
-                        subtitle="Total yen flow over time with the strongest currencies layered on top"
-                        series={superchatLineSeries}
-                        theme={chartTheme}
-                      />
-                      <SuperchatHeatmapCard
-                        title="Currency Heatmap"
-                        subtitle="Spot bursts, quiet gaps, and which countries dominated each bucket"
-                        columns={superchatHeatmap.columns}
-                        rows={superchatHeatmap.rows}
-                        theme={chartTheme}
-                      />
-                    </div>
-                  ) : null}
-                </div>
               </section>
             </>
           ) : (
@@ -2821,6 +2905,18 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
             showRecentViews={false}
             showMostViewed={false}
           />
+          <div className={styles.takoSpacer}>
+            <div className={styles.takoSticky} aria-hidden="true">
+              <Image
+                src="/tako.png"
+                alt=""
+                width={680}
+                height={383}
+                className={styles.takoImage}
+                priority={false}
+              />
+            </div>
+          </div>
         </div>
       </div>
 

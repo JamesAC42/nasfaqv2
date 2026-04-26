@@ -1,13 +1,141 @@
 @use "../../styles/mixins" as *;
 
-.filtersPanel {
-  @include panel;
-  padding: 0.9rem;
-  display: grid;
-  gap: 0.7rem;
+.stocksPage {
+  gap: 0.8rem;
 }
 
-.filtersHeader {
+.hero {
+  @include archive-hero;
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 0.34fr);
+  min-height: clamp(24rem, 43vw, 34rem);
+  align-items: end;
+  overflow: hidden;
+  position: relative;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--surface-card) 96%, #06151b) 0%, color-mix(in srgb, var(--surface-card) 78%, transparent) 43%, color-mix(in srgb, var(--surface-card) 18%, transparent) 100%),
+    url("/stocks-archive-hero.png");
+  background-position: center, center;
+  background-size: cover, cover;
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, transparent 58%, color-mix(in srgb, var(--surface-card) 84%, transparent)),
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, transparent) 0 0.0625rem, transparent 0.0625rem 0.875rem);
+  mask-image: linear-gradient(90deg, black, transparent 68%);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, #06151b 0 0.125rem, color-mix(in srgb, var(--surface-card) 96%, transparent) 0.125rem 36%, color-mix(in srgb, var(--surface-card) 70%, transparent) 52%, transparent 78%),
+    linear-gradient(180deg, color-mix(in srgb, black 12%, transparent), color-mix(in srgb, black 22%, transparent));
+  pointer-events: none;
+}
+
+.hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.heroCopy {
+  display: grid;
+  gap: 0.7rem;
+  max-width: 52rem;
+}
+
+.heroEyebrow {
+  @include archive-eyebrow;
+}
+
+.title {
+  @include archive-title;
+  max-width: 10ch;
+  font-size: clamp(3.4rem, 7.2vw, 7rem);
+  line-height: 0.86;
+  text-shadow: 0 1rem 3rem color-mix(in srgb, black 48%, transparent);
+}
+
+.heroText {
+  @include subtle-copy;
+  max-width: 48rem;
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.55;
+}
+
+.heroSearch {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: min(100%, 38rem);
+  min-height: 3.2rem;
+  padding: 0 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-card-strong) 72%, transparent);
+  backdrop-filter: blur(18px);
+  color: var(--accent);
+}
+
+.heroSearch:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.heroSearch input,
+.textInput,
+.saveViewControl input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+
+.heroSearch input::placeholder,
+.textInput::placeholder,
+.saveViewControl input::placeholder {
+  color: var(--muted);
+}
+
+.heroMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.9rem;
+  margin-top: 0.45rem;
+  color: color-mix(in srgb, var(--text) 82%, transparent);
+  font-size: 0.82rem;
+}
+
+.heroMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  align-self: end;
+}
+
+.stockMetric {
+  @include archive-metric;
+}
+
+.filtersPanel,
+.viewsPanel,
+.compareTray {
+  @include archive-panel;
+}
+
+.filtersHeader,
+.feedHeader {
   display: flex;
   justify-content: space-between;
   gap: 0.75rem;
@@ -15,10 +143,133 @@
   flex-wrap: wrap;
 }
 
-.sectionTitle {
-  margin: 0;
-  font-size: 1rem;
+.feedActions {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.viewToggle {
+  display: inline-flex;
+  gap: 0.25rem;
+  min-height: 2.35rem;
+  padding: 0.2rem;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 78%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 78%, transparent);
+}
+
+.toggleButton,
+.metricSelect,
+.selectAllButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  min-height: 1.95rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8rem;
   font-weight: 800;
+}
+
+.toggleButton {
+  padding: 0.35rem 0.5rem;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    background-color 140ms ease;
+}
+
+.toggleButton:hover,
+.toggleButtonActive {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface-card));
+  color: var(--accent-strong);
+}
+
+.selectAllButton {
+  box-sizing: border-box;
+  height: 2.35rem;
+  min-height: 0;
+  padding: 0.2rem 0.62rem;
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-card));
+  color: var(--accent-strong);
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease,
+    opacity 140ms ease;
+}
+
+.selectAllButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-card));
+}
+
+.selectAllButton:focus-visible {
+  outline: 2px solid var(--button-primary-border);
+  outline-offset: 2px;
+}
+
+.selectAllButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.metricSelect {
+  min-height: 2.35rem;
+  padding: 0.2rem 0.55rem;
+  border-color: color-mix(in srgb, var(--border-soft) 78%, transparent);
+  background: color-mix(in srgb, var(--surface-card) 78%, transparent);
+}
+
+.metricSelect select {
+  min-width: 5.5rem;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.metricSelect select option {
+  background: #06151b;
+  color: #e6f8fb;
+}
+
+.metricSelect svg,
+.toggleButton svg,
+.selectAllButton svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.sectionTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  font-size: 0.96rem;
+  font-weight: 800;
+}
+
+.sectionTitle svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  color: var(--accent);
 }
 
 .sectionCopy {
@@ -29,7 +280,7 @@
 
 .filtersGrid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.5rem;
 }
 
@@ -39,7 +290,7 @@
 }
 
 .fieldLabel {
-  font-size: 0.9rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--muted);
@@ -51,6 +302,13 @@
   font-size: 0.84rem;
 }
 
+.textInput,
+.saveViewControl input {
+  @include input-base;
+  padding: 0.58rem 0.7rem;
+  font-size: 0.86rem;
+}
+
 .resetButton {
   @include button-secondary;
   padding: 0.5rem 0.72rem;
@@ -60,6 +318,182 @@
 .resultsMeta {
   color: var(--muted);
   font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.activeViewBar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.75rem;
+  padding: 0.62rem 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border-soft));
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 14%, transparent), transparent 62%),
+    color-mix(in srgb, var(--surface-card-strong) 82%, transparent);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.activeViewBar strong {
+  color: var(--text);
+}
+
+.activeViewBar button {
+  margin-left: auto;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 82%, transparent);
+  color: var(--accent-strong);
+  font: inherit;
+  font-weight: 800;
+  padding: 0.4rem 0.55rem;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.activeViewBar button:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface-card));
+}
+
+.saveViewControl {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.viewStrip,
+.discoveryGrid,
+.compareGrid {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.viewStrip {
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+}
+
+.viewChip,
+.discoveryCard {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 78%, transparent);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 12%, transparent) 0 0.16rem, transparent 0.16rem),
+    color-mix(in srgb, var(--surface-card) 88%, transparent);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.viewChip {
+  position: relative;
+  display: grid;
+  gap: 0.12rem;
+  padding: 0.72rem 0.8rem;
+}
+
+.viewChipMain {
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  gap: 0.12rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.viewChipMain:focus-visible,
+.removeView:focus-visible,
+.compareButton:focus-visible,
+.removeCompare:focus-visible {
+  outline: 2px solid var(--button-primary-border);
+  outline-offset: 2px;
+}
+
+.viewChip:hover,
+.discoveryCard:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--surface-card-highlight) 52%, transparent);
+}
+
+.viewChip strong,
+.discoveryCard strong {
+  color: var(--text);
+}
+
+.viewChip span,
+.discoveryCard span,
+.discoveryCard em {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-style: normal;
+}
+
+.viewChipSaved {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.25rem;
+  align-items: start;
+  padding-right: 0.55rem;
+}
+
+.removeView {
+  display: inline-grid;
+  place-items: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-card-soft) 78%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    background-color 140ms ease;
+}
+
+.removeView:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface-card));
+  color: var(--accent-strong);
+}
+
+.discoveryGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.discoveryCard {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.85rem;
+}
+
+.discoveryCard b {
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+.tablePanel {
+  @include archive-panel;
 }
 
 .sortButton {
@@ -79,25 +513,56 @@
 
 .stockTableCompact {
   width: 100%;
-  min-width: 1160px;
-  font-size: 0.9rem;
+  min-width: 1290px;
+  font-size: 0.86rem;
 }
 
 .stockTableCompact :global(th),
 .stockTableCompact :global(td) {
-  padding: 0.42rem 0.48rem;
+  padding: 0.46rem 0.52rem;
   white-space: nowrap;
 }
 
 .stockTableCompact :global(thead th) {
   font-size: 0.7rem;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
 .sortHint {
   color: var(--muted);
   font-size: 0.92rem;
   flex: 0 0 auto;
+}
+
+.compareButton,
+.quickTradeButton {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 82%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card-soft) 84%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    background-color 140ms ease;
+}
+
+.compareButton:hover,
+.compareButtonActive,
+.quickTradeButton:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--border));
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface-card));
+  color: var(--accent-strong);
+}
+
+.compareButtonActive {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
 }
 
 .cardList {
@@ -132,10 +597,22 @@
   background: color-mix(in srgb, var(--accent) 38%, var(--border-soft));
 }
 
+.desktopTableHidden {
+  display: none;
+}
+
+.cardListArchive {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
 .stockCard {
   border: 1px solid color-mix(in srgb, var(--border-soft) 72%, transparent);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--surface-card) 96%, #000 4%);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 12%, transparent) 0 0.16rem, transparent 0.16rem),
+    color-mix(in srgb, var(--surface-card) 92%, transparent);
   padding: 0.8rem;
   display: grid;
   gap: 0.65rem;
@@ -147,7 +624,9 @@
 }
 
 .stockCard:hover {
+  transform: translateY(-1px);
   background: color-mix(in srgb, var(--surface-card-highlight) 58%, transparent);
+  box-shadow: 0 14px 28px color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .stockCard:focus-visible {
@@ -205,30 +684,97 @@
   line-height: 1.2;
 }
 
-.cardPriceBlock {
+.cardActionRow {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+
+.cardMarketHero {
   display: grid;
-  gap: 0.1rem;
-  justify-items: end;
-  text-align: right;
+  justify-items: center;
+  gap: 0.18rem;
+  padding: 0.35rem 0 0;
+  text-align: center;
 }
 
 .cardPrice {
   font-family: var(--font-mono);
-  font-size: 0.94rem;
+  font-size: clamp(1.45rem, 2.4vw, 2.05rem);
+  line-height: 1;
+  letter-spacing: 0;
 }
 
 .cardSparkline {
   display: flex;
   justify-content: center;
+  min-height: 9rem;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 62%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card-strong) 52%, transparent);
 }
 
 .cardSparkline :global(*) {
   margin-inline: auto;
 }
 
+.cardSparkline > div {
+  width: 100%;
+  min-width: 0;
+}
+
 .cardDelta {
-  font-size: 0.78rem;
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.32rem;
+  font-size: 1rem;
+  font-weight: 900;
+  font-family: var(--font-mono);
+}
+
+.cardDelta svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.cardGraphSvg {
+  width: 100%;
+  height: 8.5rem;
+  display: block;
+}
+
+.cardGraphLinePositive,
+.cardGraphLineNegative {
+  fill: none;
+  stroke-width: 2.4;
+  vector-effect: non-scaling-stroke;
+}
+
+.cardGraphLinePositive {
+  stroke: var(--success);
+}
+
+.cardGraphLineNegative {
+  stroke: var(--danger);
+}
+
+.cardGraphAreaPositive {
+  fill: color-mix(in srgb, var(--success) 20%, transparent);
+}
+
+.cardGraphAreaNegative {
+  fill: color-mix(in srgb, var(--danger) 18%, transparent);
+}
+
+.cardGraphEmpty {
+  min-height: 8.5rem;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 0.82rem;
 }
 
 .dataGrid {
@@ -263,13 +809,277 @@
   @include empty-state;
 }
 
+.compareTray {
+  display: grid;
+  gap: 0.55rem;
+  position: sticky;
+  bottom: 0.75rem;
+  z-index: 10;
+  margin-top: 0.5rem;
+  padding: 0.7rem 0.8rem 0.8rem;
+  border-color: var(--border-soft);
+  background: var(--surface-card);
+  box-shadow: none;
+}
+
+.compareTray::before {
+  content: none;
+}
+
+.compareHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.compareHeader .sectionCopy {
+  display: none;
+}
+
+.compareGrid {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-auto-rows: minmax(2.85rem, auto);
+  align-items: stretch;
+  max-height: 9.8rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent) 28%, var(--border-soft)) transparent;
+}
+
+.compareGrid::-webkit-scrollbar {
+  width: 10px;
+}
+
+.compareGrid::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--surface-card) 82%, transparent);
+  border-radius: 999px;
+}
+
+.compareGrid::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--accent) 24%, var(--border-soft));
+  border: 2px solid color-mix(in srgb, var(--surface-card) 82%, transparent);
+  border-radius: 999px;
+}
+
+.compareGrid::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--accent) 38%, var(--border-soft));
+}
+
+.compareCard {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.85rem;
+  padding: 0.45rem 1.8rem 0.45rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 78%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 74%, transparent);
+  overflow: hidden;
+}
+
+.compareCard strong {
+  display: block;
+  color: var(--text);
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
+.compareCard span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.05;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comparePrice {
+  margin-left: auto;
+  color: color-mix(in srgb, var(--text) 84%, transparent) !important;
+  font-family: var(--font-mono);
+  font-size: 0.72rem !important;
+  flex: 0 0 auto;
+}
+
+.removeCompare {
+  position: absolute;
+  top: 0.42rem;
+  right: 0.42rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    color 140ms ease,
+    background-color 140ms ease;
+}
+
+.removeCompare:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-card));
+  color: var(--accent-strong);
+}
+
+.quickTradeBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  justify-content: flex-end;
+  background: color-mix(in srgb, black 42%, transparent);
+  backdrop-filter: blur(4px);
+  animation: drawerBackdropIn 180ms ease-out both;
+  overflow: hidden;
+}
+
+.quickTradeBackdropClosing {
+  animation: drawerBackdropOut 150ms ease-in both;
+}
+
+.quickTradeDrawer {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 30rem);
+  height: 100%;
+  display: grid;
+  align-content: start;
+  padding: 1rem;
+  border-left: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent 48%),
+    color-mix(in srgb, var(--surface-card-strong) 96%, #06151b);
+  box-shadow: -1.5rem 0 3rem color-mix(in srgb, black 36%, transparent);
+  overflow-y: auto;
+  animation: drawerSlideIn 240ms cubic-bezier(0.18, 1.05, 0.32, 1) both;
+}
+
+.quickTradeDrawerClosing {
+  animation: drawerSlideOut 160ms cubic-bezier(0.55, 0, 0.9, 0.35) 20ms both;
+}
+
+.quickTradeMascot {
+  position: absolute;
+  right: 30rem;
+  bottom: 0;
+  z-index: 1;
+  width: clamp(7rem, 14vw, 11rem);
+  aspect-ratio: 1;
+  pointer-events: none;
+  transform-origin: bottom right;
+  animation: mascotPopIn 260ms cubic-bezier(0.18, 1.18, 0.32, 1) 180ms both;
+  will-change: transform, opacity;
+}
+
+.quickTradeMascot img {
+  object-fit: contain;
+  object-position: bottom right;
+}
+
+.quickTradeMascotClosing {
+  animation: mascotPopOut 140ms cubic-bezier(0.55, 0, 0.9, 0.35) both;
+}
+
+.quickTradeFailureOverlay {
+  z-index: 90;
+}
+
+.quickTradeCloseRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.55rem;
+}
+
+.drawerClose {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 78%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 78%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+@keyframes drawerBackdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes drawerBackdropOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes drawerSlideIn {
+  from {
+    opacity: 0.72;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes drawerSlideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0.72;
+    transform: translateX(100%);
+  }
+}
+
+@keyframes mascotPopIn {
+  from {
+    opacity: 0;
+    transform: translateX(72%) translateY(8%) scale(0.92) rotate(4deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes mascotPopOut {
+  from {
+    opacity: 1;
+    transform: translateX(0) translateY(0) scale(1) rotate(0deg);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(72%) translateY(8%) scale(0.92) rotate(4deg);
+  }
+}
+
 .mobileSortField {
   display: none;
 }
 
 @media (max-width: 1240px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+
   .filtersGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .compareGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -287,12 +1097,17 @@
     gap: 0.6rem;
   }
 
+  .cardListArchive {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .dataGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 680px) {
+  .heroMetrics,
   .filtersGrid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -301,7 +1116,24 @@
     align-items: center;
   }
 
-  .cardPriceBlock {
+  .cardActionRow {
     gap: 0.02rem;
+  }
+
+  .compareTray {
+    position: static;
+    bottom: auto;
+  }
+
+  .compareGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cardListArchive {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .quickTradeMascot {
+    display: none;
   }
 }

@@ -2,8 +2,8 @@
 
 .pageLayout {
   display: grid;
-  grid-template-columns: minmax(13.5rem, 17rem) minmax(0, 1fr) minmax(13.5rem, 17rem);
-  gap: 1.25rem;
+  grid-template-columns: minmax(13rem, 16.5rem) minmax(0, 1fr) minmax(13rem, 16.5rem);
+  gap: 0.9rem;
   align-items: start;
 }
 
@@ -11,29 +11,109 @@
 .sidebarRailRight {
   min-width: 0;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: 0.9rem;
+}
+
+.takoSpacer,
+.takostandSpacer {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.takoSpacer {
+  justify-content: flex-end;
+}
+
+.takostandSpacer {
+  justify-content: flex-start;
+  margin-top: 1rem;
+}
+
+.takoSticky,
+.takostandSticky {
+  position: sticky;
+  margin: 0 auto;
+  pointer-events: none;
+  line-height: 0;
+}
+
+.takoSticky {
+  bottom: 0;
+  width: 85%;
+}
+
+.takostandSticky {
+  --takostand-image-height: 5rem;
+  top: calc(var(--site-shell-chrome-height, 5rem) + 1rem - var(--takostand-image-height));
+  width: 42%;
+}
+
+.takoImage,
+.takostandImage {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.takostandImage {
+  transform: rotate(180deg);
 }
 
 .contentRail {
   min-width: 0;
   display: grid;
-  gap: 1.25rem;
+  gap: 1rem;
+}
+
+.deskGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 23.5rem);
+  gap: 1rem;
+  align-items: start;
+}
+
+.workspaceColumn,
+.executionColumn {
+  min-width: 0;
+}
+
+.executionColumn {
+  position: sticky;
+  top: 5rem;
+  align-self: start;
 }
 
 .hero,
-.liveNowCard,
-.sectionCard,
 .emptyState {
   @include panel;
 }
 
 .hero {
   position: relative;
-  overflow: visible;
+  overflow: hidden;
   z-index: 0;
   background: none;
-  border-color: color-mix(in srgb, var(--hero-accent) 28%, var(--border-soft));
+  border-color: color-mix(in srgb, var(--hero-accent) 22%, var(--border-soft));
   isolation: isolate;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-sm);
+}
+
+[data-theme="light"] .hero {
+  --text: #f1f7ff;
+  --text-soft: rgba(241, 247, 255, 0.86);
+  --muted: rgba(206, 220, 238, 0.78);
+  --surface-card: rgba(12, 22, 34, 0.72);
+  --surface-card-soft: rgba(18, 30, 46, 0.6);
+  --surface-card-strong: rgba(8, 18, 28, 0.78);
+  --surface-card-highlight: rgba(28, 48, 68, 0.7);
+  --border-soft: rgba(255, 255, 255, 0.14);
+  --border: rgba(255, 255, 255, 0.18);
+  color: var(--text);
 }
 
 .hero::before {
@@ -41,15 +121,15 @@
   position: absolute;
   inset: 0;
   z-index: 0;
-  transform: translate(-0.4375rem, 0.4375rem);
+  transform: none;
   background-image: linear-gradient(
-    -190deg,
-    color-mix(in srgb, var(--hero-accent) 60%, rgba(255, 255, 255, 0.539)),
-    color-mix(in srgb, var(--hero-accent) 35%, #2d0ddf)
+    180deg,
+    color-mix(in srgb, var(--hero-accent) 18%, transparent),
+    color-mix(in srgb, var(--surface-card) 84%, transparent)
   );
-  opacity: 0.66;
+  opacity: 0.45;
   pointer-events: none;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-sm);
 }
 
 .hero::after {
@@ -58,55 +138,61 @@
   inset: 0;
   z-index: 1;
   background-image:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 5%, transparent) 0 1px, transparent 1px 100%),
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 4%, transparent) 0 1px, transparent 1px 100%),
     linear-gradient(
       135deg,
-      color-mix(in srgb, var(--hero-accent) 24%, rgba(6, 12, 23, 0.845)),
-      rgba(8, 17, 33, 0.78)
+      color-mix(in srgb, var(--hero-accent) 9%, rgba(6, 15, 24, 0.62)),
+      rgba(4, 10, 17, 0.5) 48%,
+      rgba(4, 10, 17, 0.7)
     ),
     var(--hero-surface-image, none);
-  background-position: center, top center;
-  /* Fill width, tile downwards (repeat-y) for hero-surface-image */
-  background-size: cover, 100% auto;
-  background-repeat: no-repeat, repeat-y;
+  background-position: center, center, center, top center;
+  background-size: 20px 20px, 20px 20px, cover, 100% auto;
+  background-repeat: repeat, repeat, no-repeat, repeat-y;
   pointer-events: none;
-  overflow:hidden;
-  border: 1.5px solid color-mix(in srgb, var(--hero-accent) 78%, #fff);
-  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--hero-accent) 26%, var(--border-soft));
+  border-radius: var(--radius-sm);
 }
 
 .heroOverlay {
   position: relative;
   z-index: 2;
-  padding: 1.4rem;
+  padding: 1rem;
   display: grid;
-  gap: 1.2rem;
-  border-radius: 3rem;
+  gap: 0.85rem;
+  border-radius: var(--radius-sm);
 }
 
 .heroPrice {
   display: flex;
-  gap: 0.5rem;
-  align-items: center;
+  gap: 0.65rem;
+  align-items: flex-start;
   position: absolute;
   top:0;
   right:0;
-  margin:1rem;
-  margin-right:1.5rem;
+  margin: 1.05rem 1.15rem;
   font-family: var(--font-mono);
 }
 
 .heroPriceValue {
-  font-size: 2.5rem;
-  font-weight: 1000;
-  color: white;
+  font-size: clamp(2rem, 3.6vw, 3.1rem);
+  font-weight: 700;
+  line-height: 0.95;
+  color: var(--text);
 }
 
 .heroPriceChange {
   display: flex;
-  flex-direction: column;
-  gap: 0;
+  gap: 0.28rem;
   align-items: center;
   justify-content: center;
+  margin-top: 0.42rem;
+  padding: 0.22rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  background: color-mix(in srgb, currentColor 9%, transparent);
   &.up {
     color: var(--trend-up);
   }
@@ -120,30 +206,31 @@
     justify-content: center;
   }
   .heroPriceChangeIcon {
-    font-size: 1.1rem;
+    font-size: 0.9rem;
     svg {
-      transform:translateY(40%);
+      transform: translateY(8%);
     }
   }
   .heroPriceChangeValue {
-    font-size: 1rem;
+    font-size: 0.82rem;
   }
 }
 .heroIdentity {
   display: flex;
   gap: 1rem;
   align-items: start;
+  padding-right: min(18rem, 34vw);
 }
 
 .channelAvatar,
 .assetAvatar {
-  width: 5.6rem;
-  height: 5.6rem;
-  min-width: 5.25rem;
-  border-radius: 1.2rem;
+  width: 4.35rem;
+  height: 4.35rem;
+  min-width: 4.35rem;
+  border-radius: var(--radius-sm);
   object-fit: cover;
-  border: 1px solid color-mix(in srgb, var(--hero-accent) 38%, rgba(255, 255, 255, 0.2));
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+  border: 1px solid color-mix(in srgb, var(--hero-accent) 32%, rgba(255, 255, 255, 0.14));
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.22);
 }
 
 .assetAvatar {
@@ -175,7 +262,7 @@
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  padding: 0.28rem 0.58rem;
+  padding: 0.24rem 0.52rem;
 }
 
 .heroEyebrow {
@@ -200,9 +287,9 @@
 }
 
 .heroLink {
-  font-size: 1.2rem;
+  font-size: 1rem;
   margin-left: 0.5rem;
-  font-weight: 200;
+  font-weight: 700;
   svg {
     font-size:1.1rem;
     margin-left: 0.5rem;
@@ -216,16 +303,19 @@
   gap: 0.8rem;
   flex-wrap: wrap;
   align-items: baseline;
-  font-size: clamp(2rem, 4.2vw, 3.4rem);
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4.4vw, 3.65rem);
   line-height: 0.98;
-  color: white;
-  margin-top:0.5rem;
+  color: var(--text);
+  margin-top: 0.3rem;
+  letter-spacing: 0;
+  text-shadow: none;
 }
 
 .heroSymbol {
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   font-family: var(--font-mono);
-  color: color-mix(in srgb, rgb(218, 218, 218) 90%, var(--accent));
+  color: color-mix(in srgb, var(--text-soft) 84%, var(--accent));
 }
 
 .heroDescription,
@@ -243,9 +333,9 @@
   margin: 0;
   width: 100%;
   max-width: none;
-  color: rgba(255, 255, 255, 0.82);
+  color: color-mix(in srgb, var(--text-soft) 82%, white 18%);
   font: inherit;
-  font-size: 1.1rem;
+  font-size: 0.92rem;
   line-height: var(--hero-description-line-height);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -338,7 +428,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: repeat(4, minmax(0, 1fr));
-  gap: 0.75rem;
+  gap: 0.65rem;
   align-content: stretch;
   height: 100%;
   min-height: 0;
@@ -346,8 +436,8 @@
 
 .heroMarketGrid {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(12rem, 1fr);
-  gap: 0.9rem;
+  grid-template-columns: minmax(0, 3.2fr) minmax(10.5rem, 0.95fr);
+  gap: 0.7rem;
   align-items: stretch;
 }
 
@@ -356,13 +446,13 @@
   min-height: 0;
   height: 100%;
   display: flex;
-  padding: 0.55rem;
-  border: 1px solid color-mix(in srgb, var(--hero-accent) 54%, var(--border-soft));
-  border-radius: var(--radius-lg);
+  padding: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--hero-accent) 22%, var(--border-soft));
+  border-radius: var(--radius-sm);
   background:
-    linear-gradient(180deg, rgba(20, 30, 45, 0.96), rgba(7, 11, 18, 0.94)),
+    linear-gradient(180deg, rgba(10, 22, 32, 0.94), rgba(5, 10, 16, 0.98)),
     #07111d;
-  box-shadow: 0 16px 30px rgba(2, 6, 12, 0.32);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
 }
 
 .heroChartSlot {
@@ -393,16 +483,16 @@
 .heroMetaGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.75rem;
+  gap: 0.65rem;
 }
 
 .quickStatCard,
 .portfolioStat,
 .infoCard {
-  border: 1px solid color-mix(in srgb, var(--border-soft) 72%, rgba(255, 255, 255, 0.1));
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, rgba(8, 10, 14, 0.92) 84%, var(--hero-accent));
-  padding: 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 82%, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 70%, transparent);
+  padding: 0.78rem;
   display: grid;
   gap: 0.22rem;
 }
@@ -443,7 +533,8 @@
 
 .quickStatValue {
   font-size: 1.02rem;
-  color: white;
+  color: var(--text);
+  font-family: var(--font-mono);
 }
 
 .portfolioStat strong,
@@ -478,25 +569,25 @@
 }
 
 .rankSection {
-  @include panel;
-  padding: 1.15rem;
+  @include archive-panel;
   display: grid;
-  gap: 1rem;
 }
 
 .rankSpotlightGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.9rem;
+  gap: 0.65rem;
 }
 
 .rankSpotlightCard {
-  border: 1px solid color-mix(in srgb, var(--border-soft) 74%, var(--hero-accent) 26%);
-  border-radius: var(--radius-lg);
-  padding: 1.1rem 0.95rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border-soft));
+  border-radius: var(--radius-sm);
+  padding: 0.85rem;
   background:
-    radial-gradient(circle at top, color-mix(in srgb, var(--hero-accent) 14%, transparent), transparent 68%),
-    color-mix(in srgb, var(--surface-card) 92%, var(--hero-accent) 8%);
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 6%, transparent) 0 1px, transparent 1px 100%),
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 4%, transparent) 0 1px, transparent 1px 100%),
+    color-mix(in srgb, var(--surface-card) 88%, transparent);
+  background-size: 18px 18px, 18px 18px, auto;
   display: grid;
   gap: 0.35rem;
   justify-items: center;
@@ -504,7 +595,8 @@
 }
 
 .rankSpotlightValue {
-  font-size: clamp(1.9rem, 4vw, 2.6rem);
+  font-family: var(--font-display);
+  font-size: clamp(1.9rem, 4vw, 2.65rem);
   line-height: 1;
   color: var(--text);
 }
@@ -534,8 +626,8 @@
 
 .topGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(18rem, 24rem);
-  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.9rem;
   align-items: start;
 }
 
@@ -543,14 +635,13 @@
 .tradeColumn {
   min-width: 0;
   display: grid;
-  gap: 1.25rem;
+  gap: 0.9rem;
 }
 
 .sectionCard {
+  @include archive-panel;
   position: relative;
-  padding: 1.15rem;
   display: grid;
-  gap: 1rem;
 }
 
 .sectionCard {
@@ -573,7 +664,7 @@
 .sectionCopy,
 .sectionMeta,
 .emptyCopy {
-  margin: 0.28rem 0 0;
+  margin: 0.2rem 0 0;
   font-size: 0.9rem;
 }
 
@@ -584,7 +675,7 @@
 .portfolioGrid,
 .infoGrid {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.65rem;
 }
 
 .articleGrid {
@@ -602,13 +693,13 @@
 .authCta,
 .commentComposer {
   border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--surface-card) 96%, #000 4%);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 90%, transparent);
 }
 
 .articleCard,
 .commentCard {
-  padding: 1rem;
+  padding: 0.85rem;
   display: grid;
   gap: 0.6rem;
 }
@@ -696,7 +787,7 @@
   min-width: 4.5rem;
   min-height: 2rem;
   padding: 0 0.8rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
   font-family: var(--font-mono);
   font-size: 0.82rem;
@@ -736,7 +827,7 @@
 }
 
 .sameUnitCard {
-  padding: 0.9rem;
+  padding: 0.78rem;
   display: flex;
   justify-content: space-between;
   gap: 0.8rem;
@@ -776,7 +867,7 @@
 }
 
 .commentComposer {
-  padding: 0.9rem;
+  padding: 0.85rem;
   display: grid;
   gap: 0.8rem;
 }
@@ -801,8 +892,8 @@
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  padding: 0.55rem 0.8rem;
-  border-radius: 999px;
+  padding: 0.48rem 0.72rem;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-soft);
   background: color-mix(in srgb, var(--surface-card) 92%, transparent);
   color: var(--muted);
@@ -840,7 +931,7 @@
   align-items: center;
   gap: 0.42rem;
   padding: 0.4rem 0.72rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   color: var(--comment-mood-fg, var(--text-primary));
   background: var(--comment-mood-bg, color-mix(in srgb, var(--surface-card) 94%, transparent));
   border: 1px solid color-mix(in srgb, var(--comment-mood-fg, currentColor) 28%, transparent);
@@ -927,7 +1018,7 @@
   align-items: center;
   gap: 0.35rem;
   padding: 0.35rem 0.7rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-soft);
   background: color-mix(in srgb, var(--surface-card-soft) 88%, transparent);
   color: var(--muted);
@@ -1016,7 +1107,7 @@
   align-items: center;
   gap: 0.45rem;
   padding: 0.45rem 0.72rem;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-soft);
   background: color-mix(in srgb, var(--surface-card) 96%, #000 4%);
   color: var(--muted);
@@ -1035,14 +1126,65 @@
 }
 
 .tradePanel {
-  @include panel;
-  padding:1rem;
+  @include archive-panel;
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border-soft));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-card) 88%, #06131b 12%), color-mix(in srgb, var(--surface-card) 96%, #03070d 4%)),
+    var(--surface-card);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 7%, transparent),
+    0 18px 38px rgba(0, 0, 0, 0.22);
+}
+
+.tradePanelContent {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.tradeTicketHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.tradeTicketEyebrow,
+.marketOpenPill,
+.marketClosedPill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tradeTicketEyebrow {
+  margin-bottom: 0.35rem;
+  color: var(--muted);
+}
+
+.marketOpenPill,
+.marketClosedPill {
+  padding: 0.3rem 0.62rem;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.marketOpenPill {
+  color: var(--trend-up);
+  background: color-mix(in srgb, var(--trend-up) 10%, transparent);
+}
+
+.marketClosedPill {
+  color: var(--trend-down);
+  background: color-mix(in srgb, var(--trend-down) 10%, transparent);
 }
 
 .liveNowCard {
-  padding: 1.15rem;
+  @include archive-panel;
   display: grid;
-  gap: 1rem;
 }
 
 .liveNowGrid {
@@ -1056,9 +1198,9 @@
 .liveChartColumn {
   min-width: 0;
   border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--surface-card) 96%, #000 4%);
-  padding: 0.95rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 90%, transparent);
+  padding: 0.85rem;
 }
 
 .liveThumb,
@@ -1066,7 +1208,7 @@
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: cover;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--surface-card-soft) 88%, transparent);
 }
 
@@ -1183,22 +1325,24 @@
 
 .portfolioGrid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
 }
 
 .tradeForm {
   display: grid;
-  gap: 0.9rem;
-  margin-top: 1rem;
+  gap: 0.75rem;
+  margin-top: 0.2rem;
 }
 
 .sideToggle {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem;
-  padding: 0.35rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-card-soft) 88%, black);
+  gap: 0;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card-soft) 72%, black);
   border: 1px solid var(--border-soft);
+  overflow: hidden;
 }
 
 .sideToggleButton,
@@ -1206,10 +1350,21 @@
 .sideToggleActiveSell {
   border: 0;
   min-height: 2.4rem;
-  border-radius: 999px;
+  border-radius: 0;
   background: transparent;
   color: var(--muted);
   font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.sideToggleButton:active,
+.sideToggleActiveBuy:active,
+.sideToggleActiveSell:active {
+  transform: scale(0.98);
 }
 
 .sideToggleActiveBuy {
@@ -1247,21 +1402,21 @@
 }
 
 .tradePresets {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.45rem;
-  flex-wrap: wrap;
 }
 
 .tradeSummary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.6rem;
+  gap: 0.5rem;
 }
 
 .tradeSummary > div {
-  padding: 0.8rem;
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--surface-card-soft) 82%, transparent);
+  padding: 0.7rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card-soft) 66%, transparent);
   border: 1px solid var(--border-soft);
   display: grid;
   gap: 0.16rem;
@@ -1272,53 +1427,41 @@
   @include button-base;
   min-height: 2.9rem;
   position: relative;
-  border-width: 2px;
+  border-width: 1px;
   font-weight: 800;
   background: color-mix(in srgb, var(--surface-card) 96%, #02040a);
   box-shadow: none;
+  transition:
+    transform 140ms ease,
+    background 140ms ease,
+    border-color 140ms ease;
 }
 
 .tradeSubmitBuy::before,
 .tradeSubmitSell::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  border-radius: 999px;
-  transform: translate(-7px, 7px);
-  transition: transform 140ms ease;
+  content: none;
 }
 
 .tradeSubmitBuy:hover:not(:disabled),
 .tradeSubmitSell:hover:not(:disabled) {
-  transform: translate(-2px, 2px);
+  transform: translateY(-1px);
 }
 
 .tradeSubmitBuy:active:not(:disabled),
 .tradeSubmitSell:active:not(:disabled) {
-  transform: translate(-7px, 7px);
-}
-
-.tradeSubmitBuy:active:not(:disabled)::before,
-.tradeSubmitSell:active:not(:disabled)::before {
-  transform: translate(0, 0);
+  transform: translateY(1px) scale(0.99);
 }
 
 .tradeSubmitBuy {
   color: var(--trend-up);
-  border-color: color-mix(in srgb, var(--trend-up) 72%, black);
-}
-
-.tradeSubmitBuy::before {
-  background: color-mix(in srgb, var(--trend-up) 42%, #04110a);
+  border-color: color-mix(in srgb, var(--trend-up) 54%, var(--border));
+  background: color-mix(in srgb, var(--trend-up) 16%, var(--surface-card) 84%);
 }
 
 .tradeSubmitSell {
   color: var(--trend-down);
-  border-color: color-mix(in srgb, var(--trend-down) 68%, black);
-}
-
-.tradeSubmitSell::before {
-  background: color-mix(in srgb, var(--trend-down) 40%, #120606);
+  border-color: color-mix(in srgb, var(--trend-down) 50%, var(--border));
+  background: color-mix(in srgb, var(--trend-down) 15%, var(--surface-card) 85%);
 }
 
 .authCta,
@@ -1335,7 +1478,7 @@
 .chartGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .chartGridWide {
@@ -1346,7 +1489,7 @@
 .utilityGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.25rem;
+  gap: 0.9rem;
   align-items: start;
 }
 
@@ -1356,16 +1499,142 @@
 
 .tradeTape {
   display: grid;
-  gap: 0.7rem;
+  gap: 0;
   align-content: start;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
 }
 
 .tradeTapeRow {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) auto minmax(0, 1fr);
   gap: 0.65rem;
-  padding: 0.8rem;
+  padding: 0.78rem;
   align-items: center;
+  border: 0;
+  border-bottom: 1px solid var(--border-soft);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--surface-card) 70%, transparent);
+}
+
+.tradeTapeRow:last-child {
+  border-bottom: 0;
+}
+
+.revenuePulseRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, 12.5rem);
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.revenuePulseChart {
+  min-width: 0;
+}
+
+.revenuePulseTabs {
+  min-width: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-card) 82%, transparent), color-mix(in srgb, var(--surface-card-soft) 76%, transparent));
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+}
+
+.revenuePulseTabHeader {
+  display: grid;
+  gap: 0.18rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.revenuePulseTabHeader span,
+.revenuePulseTabHeader em {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-style: normal;
+}
+
+.revenuePulseTabHeader span {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.revenuePulseTabHeader strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.94rem;
+}
+
+.revenuePulseLoading {
+  width: fit-content;
+  margin-top: 0.22rem;
+  padding: 0.22rem 0.48rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border-soft));
+  background: color-mix(in srgb, var(--accent-soft) 14%, transparent);
+  color: color-mix(in srgb, var(--text-soft) 82%, var(--accent));
+  animation: revenuePulseLoading 1.1s ease-in-out infinite;
+}
+
+.revenuePulseTabList {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.revenuePulseTab,
+.revenuePulseTabActive {
+  width: 100%;
+  min-height: 2.35rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface-card) 76%, transparent);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: left;
+  padding: 0.52rem 0.65rem;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.revenuePulseTab:hover,
+.revenuePulseTab:focus-visible,
+.revenuePulseTabActive {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border-soft));
+  background: color-mix(in srgb, var(--accent-soft) 20%, var(--surface-card) 80%);
+}
+
+.revenuePulseTab:active,
+.revenuePulseTabActive:active {
+  transform: scale(0.98);
+}
+
+.superchatRankStack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+@keyframes revenuePulseLoading {
+  0%,
+  100% {
+    opacity: 0.58;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 .mockEmpty {
@@ -1812,9 +2081,14 @@
 
 @media (max-width: 1160px) {
   .pageLayout,
+  .deskGrid,
   .topGrid,
   .utilityGrid {
     grid-template-columns: 1fr;
+  }
+
+  .executionColumn {
+    position: static;
   }
 
   .sidebarRailRight {
@@ -1839,6 +2113,16 @@
 }
 
 @media (max-width: 760px) {
+  .heroPrice {
+    position: static;
+    justify-content: flex-start;
+    margin: 0;
+  }
+
+  .heroIdentity {
+    padding-right: 0;
+  }
+
   .heroIdentity,
   .sectionHeader {
     grid-template-columns: 1fr;
@@ -1846,6 +2130,7 @@
   }
 
   .quickStatsGrid,
+  .revenuePulseRow,
   .sameUnitGrid,
   .portfolioGrid,
   .chartGrid,

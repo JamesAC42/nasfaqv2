@@ -285,10 +285,12 @@ export function SiteShell({
   children,
   fullBleed = false,
   hideFooter = false,
+  hideRibbon = false,
 }: {
   children: React.ReactNode;
   fullBleed?: boolean;
   hideFooter?: boolean;
+  hideRibbon?: boolean;
 }) {
   const pathname = usePathname();
   const { user, isLoading } = useAuth();
@@ -443,7 +445,7 @@ export function SiteShell({
       </header>
 
       <div ref={ribbonShellRef} className={styles.ribbonShell}>
-        <MarketRibbon marketIndexes={marketIndexes} isLoadingIndex={isLoadingIndex} />
+        {!hideRibbon ? <MarketRibbon marketIndexes={marketIndexes} isLoadingIndex={isLoadingIndex} /> : null}
       </div>
 
       <main className={[styles.main, fullBleed ? styles.mainFullBleed : ""].filter(Boolean).join(" ")}>{children}</main>

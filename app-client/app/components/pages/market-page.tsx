@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import {
   FaBolt,
@@ -22,9 +23,12 @@ import { getMarketWsUrl } from "@/app/lib/ws";
 import styles from "@/app/components/pages/market-page.module.scss";
 import shellStyles from "@/app/components/pages/page-shell.module.scss";
 
+import tako from "@/public/tako.png";
+
 const INITIAL_TRADE_LIMIT = 20;
 const LIVE_TRADE_CAP = 40;
 const RECONCILE_INTERVAL_MS = 60_000;
+const HEARTBEAT_INDEX_START_DATE = "2025-10-06";
 
 function formatSignedPct(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
@@ -504,9 +508,11 @@ export function MarketPage() {
     return [
       {
         name: "All Market",
-        color: "#ea580c",
+        color: "#5fdeec",
         kind: "area" as const,
-        values: allMarketIndex.series.map((point) => ({ time: point.bucket, value: point.value })),
+        values: allMarketIndex.series
+          .filter((point) => point.bucket >= HEARTBEAT_INDEX_START_DATE)
+          .map((point) => ({ time: point.bucket, value: point.value })),
       },
     ];
   }, [allMarketIndex]);
@@ -554,7 +560,7 @@ export function MarketPage() {
             </div>
             <h1 className={styles.heroTitle}>Market Heartbeat</h1>
             <p className={styles.heroText}>
-              A real-time operations desk for the game economy: live fills, trader pressure, hot symbols, and where attention is rotating right now.
+              Live fills, trader pressure, hot symbols, and attention rotation across the NASFAQ game economy.
             </p>
           </div>
           <div className={styles.heroStatus}>
@@ -688,6 +694,10 @@ export function MarketPage() {
                   )) : <div className={styles.empty}>No momentum leaders yet.</div>}
                 </div>
               </section>
+
+              <div className={styles.takoContainer}>  
+                <Image src={tako} alt="Tako" width={680} height={383} />
+              </div>
             </div>
 
             <div className={styles.bottomGrid}>

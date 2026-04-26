@@ -6,12 +6,11 @@
   --report-panel: color-mix(in srgb, var(--surface-card) 86%, transparent);
   --report-panel-soft: color-mix(in srgb, var(--surface-card-soft) 78%, transparent);
   display: grid;
-  gap: 1rem;
+  gap: 1.15rem;
 }
 
 .hero,
 .statCard,
-.chartPanel,
 .insightPanel,
 .portfolioPanel,
 .reportCard {
@@ -25,26 +24,58 @@
 
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(18rem, 0.65fr);
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(28rem, 0.95fr);
+  min-height: clamp(24rem, 46vw, 34rem);
+  gap: 1.4rem;
   overflow: hidden;
-  padding: clamp(1rem, 2vw, 1.5rem);
+  padding: clamp(1.25rem, 2.5vw, 2.2rem);
   position: relative;
+  isolation: isolate;
+  align-items: end;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--surface-card) 94%, #04151b) 0%, color-mix(in srgb, var(--surface-card) 70%, transparent) 52%, color-mix(in srgb, var(--surface-card) 18%, transparent) 100%),
+    radial-gradient(circle at 76% 45%, color-mix(in srgb, var(--report-cyan) 18%, transparent), transparent 34%),
+    color-mix(in srgb, var(--surface-card) 92%, #041016);
 }
 
 .hero::after {
   content: "";
   position: absolute;
-  inset: auto -8rem -12rem auto;
-  width: 22rem;
-  height: 22rem;
-  border-radius: 999px;
-  background: radial-gradient(circle, color-mix(in srgb, var(--trend-line) 28%, transparent), transparent 64%);
+  inset: 0;
+  background:
+    linear-gradient(180deg, transparent 58%, color-mix(in srgb, var(--surface-card) 84%, transparent)),
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--report-cyan) 18%, transparent) 0 0.0625rem, transparent 0.0625rem 0.875rem);
+  mask-image: linear-gradient(90deg, black, transparent 68%);
+  opacity: 0.55;
   pointer-events: none;
+  z-index: 1;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, #06151b 0 0.125rem, color-mix(in srgb, var(--surface-card) 96%, transparent) 0.125rem 36%, color-mix(in srgb, var(--surface-card) 70%, transparent) 52%, transparent 78%),
+    linear-gradient(180deg, color-mix(in srgb, black 12%, transparent), color-mix(in srgb, black 22%, transparent));
+  pointer-events: none;
+  z-index: 1;
+}
+
+.heroVisual {
+  position: absolute;
+  inset: 0;
+  background-image:
+    url("/market-report-sora-hero.png");
+  background-position: center;
+  background-size: cover;
+  opacity: 0.98;
+  z-index: 0;
 }
 
 .heroCopy,
 .heroPanel,
+.heroMiniStats,
 .insightList,
 .portfolioStats,
 .exposureBars,
@@ -52,6 +83,14 @@
 .radarGrid {
   display: grid;
   gap: 0.75rem;
+}
+
+.heroCopy {
+  z-index: 2;
+  display: grid;
+  gap: 0.42rem;
+  max-width: 52rem;
+  padding: 1rem 0;
 }
 
 .eyebrow,
@@ -71,7 +110,14 @@
 
 .hero h1 {
   @include section-title;
-  font-size: clamp(2.25rem, 5vw, 4rem);
+  margin: 0.2rem 0 0;
+  max-width: 11ch;
+  font-size: clamp(3.6rem, 8vw, 7.4rem);
+  line-height: 0.84;
+  color: var(--accent-strong);
+  text-shadow:
+    0 1rem 3rem color-mix(in srgb, black 48%, transparent),
+    0 0 34px color-mix(in srgb, var(--report-cyan) 26%, transparent);
 }
 
 .hero p,
@@ -85,18 +131,53 @@
 }
 
 .heroPanel {
-  z-index: 1;
-  align-self: stretch;
-  align-content: end;
-  padding: 1rem;
+  z-index: 2;
+  align-self: end;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
   border: 1px solid color-mix(in srgb, var(--report-cyan) 24%, var(--border));
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--surface-card-strong) 84%, transparent);
+  background: color-mix(in srgb, var(--surface-card-strong) 78%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.hero .eyebrow {
+  gap: 0.5rem;
+  color: var(--report-cyan);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+}
+
+.heroCopy p {
+  max-width: 52ch;
+  margin-top: 0.45rem;
+  color: color-mix(in srgb, var(--text) 82%, transparent);
+  font-size: 1.05rem;
+  line-height: 1.55;
 }
 
 .heroPanel strong {
   font-family: var(--font-display);
-  font-size: clamp(1.7rem, 3vw, 2.8rem);
+  font-size: clamp(1.5rem, 2.5vw, 2.6rem);
+  line-height: 1;
+}
+
+.heroMiniStats {
+  align-content: center;
+  justify-items: end;
+  gap: 0.45rem;
+}
+
+.heroMiniStats span {
+  padding: 0.35rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--report-cyan) 22%, transparent);
+  border-radius: 999px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-card) 68%, transparent);
+  font-size: 0.78rem;
 }
 
 .loading,
@@ -113,7 +194,7 @@
 .statCard {
   display: grid;
   gap: 0.35rem;
-  padding: 1rem;
+  padding: 0.95rem;
 }
 
 .statCard strong {
@@ -124,11 +205,11 @@
 
 .commandGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(22rem, 0.75fr);
+  grid-template-columns: minmax(0, 1.55fr) minmax(22rem, 0.65fr);
   gap: 1rem;
+  align-items: stretch;
 }
 
-.chartPanel,
 .insightPanel,
 .portfolioPanel,
 .reportCard {
@@ -136,12 +217,25 @@
   min-width: 0;
 }
 
+.chartPanel {
+  position: relative;
+  min-width: 0;
+  padding: 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--report-cyan) 24%, var(--border));
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-card) 88%, transparent), color-mix(in srgb, var(--bg-accent) 74%, transparent)),
+    radial-gradient(circle at 76% 0%, color-mix(in srgb, var(--report-cyan) 16%, transparent), transparent 32%);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
 .chartPanel :global(.chartBoxBare) {
   min-height: 0;
 }
 
 .chartPanel :global(.canvas) {
-  height: 300px;
+  height: clamp(26rem, 48vw, 38rem);
 }
 
 .sectionHeader,
@@ -170,6 +264,31 @@
   text-decoration: underline;
 }
 
+.tapeBand {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--report-cyan) 28%, var(--border));
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--report-cyan) 13%, transparent), transparent 42%),
+    color-mix(in srgb, var(--surface-card-soft) 76%, transparent);
+}
+
+.tapeBand span {
+  color: var(--report-cyan);
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+}
+
+.tapeBand p {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.55;
+}
+
 .insightItem {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -183,6 +302,92 @@
 .insightItem svg,
 .headerGlyph {
   color: var(--report-cyan);
+}
+
+.briefingGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(20rem, 0.75fr);
+  gap: 1rem;
+}
+
+.briefingLead,
+.briefingStack article,
+.leaderboardSection {
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface-card) 90%, transparent), color-mix(in srgb, var(--bg-accent) 72%, transparent)),
+    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--report-cyan) 14%, transparent), transparent 34%);
+  box-shadow: var(--shadow);
+}
+
+.briefingLead {
+  display: grid;
+  align-content: end;
+  gap: 0.8rem;
+  min-height: 16rem;
+  padding: clamp(1rem, 2vw, 1.45rem);
+  overflow: hidden;
+  position: relative;
+}
+
+.briefingLead::after {
+  content: "";
+  position: absolute;
+  inset: auto -4rem -7rem auto;
+  width: 18rem;
+  height: 18rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--trend-up) 18%, transparent), transparent 66%);
+  pointer-events: none;
+}
+
+.briefingLead > * {
+  position: relative;
+  z-index: 1;
+}
+
+.briefingLead h2 {
+  margin: 0;
+  max-width: 16ch;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3.7rem);
+  line-height: 0.95;
+}
+
+.briefingLead p,
+.briefingStack p {
+  @include subtle-copy;
+  margin: 0;
+}
+
+.briefingStack {
+  display: grid;
+  gap: 1rem;
+}
+
+.briefingStack article {
+  display: grid;
+  align-content: space-between;
+  gap: 0.6rem;
+  min-height: 7.5rem;
+  padding: 1rem;
+}
+
+.briefingStack span {
+  color: var(--report-cyan);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.briefingStack strong {
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: clamp(1.7rem, 3vw, 2.6rem);
+  line-height: 1;
 }
 
 .portfolioGrid {
@@ -232,10 +437,29 @@
   background: linear-gradient(90deg, var(--report-cyan), var(--report-blue));
 }
 
+.leaderboardSection {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
 .reportGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
   gap: 1rem;
+  align-items: start;
+}
+
+.reportCard {
+  min-height: 0;
+}
+
+.reportCardFeatured {
+  grid-row: auto;
+}
+
+.reportCardFeatured .reportRows {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .cardHeader {
@@ -311,18 +535,57 @@
   .hero,
   .statGrid,
   .commandGrid,
+  .briefingGrid,
   .portfolioGrid,
   .reportGrid {
     grid-template-columns: 1fr;
+  }
+
+  .reportCard,
+  .reportCardFeatured {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .reportCardFeatured .reportRows {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    min-height: 34rem;
+  }
+
+  .heroCopy {
+    align-self: end;
   }
 }
 
 @media (max-width: 760px) {
   .portfolioStats,
   .exposureRow,
-  .sectionHeader {
+  .sectionHeader,
+  .tapeBand {
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .hero {
+    min-height: 37rem;
+    padding: 1rem;
+  }
+
+  .heroVisual {
+    background-position: center, 63% center;
+    opacity: 0.72;
+  }
+
+  .hero h1 {
+    max-width: 8ch;
+    font-size: clamp(3rem, 16vw, 4.8rem);
+  }
+
+  .heroMiniStats {
+    justify-items: start;
   }
 
   .reportRow {

@@ -33,3 +33,10 @@ clean up things:
     - fix label of quick stats in light mode to be readable
     - show the rank next to quick stats
     - have the graph match the height of the stats to the right
+
+
+redesign todo:
+
+    - add a hero image to the livestream monitor page
+    - add a hero image to articles and news page
+    - 

@@ -1,306 +1,500 @@
 @use "../../styles/mixins" as *;
 
-.pageStack {
+.threadPage {
   align-self: start;
   align-content: start;
+  gap: 0.9rem;
 }
 
 .hero {
-  @include panel;
-  padding: 1.2rem;
+  @include archive-hero;
+  grid-template-columns: minmax(0, 1fr) minmax(22rem, 0.38fr);
+}
+
+.heroCopy {
   display: grid;
-  gap: 0.5rem;
-  min-height: 9.25rem;
+  gap: 0.42rem;
 }
 
 .heroEyebrow {
-  font-size: 0.78rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--accent-strong);
+  @include archive-eyebrow;
 }
 
 .title {
-  @include section-title;
-  margin: 0;
+  @include archive-title;
 }
 
 .copy {
   @include subtle-copy;
   margin: 0;
-  max-width: 72ch;
+  max-width: 58ch;
+  color: color-mix(in srgb, var(--text) 84%, transparent);
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.heroMeta,
+.featuredKicker,
+.feedMeta,
+.feedFooter,
+.featuredFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.72rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .heroMeta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  color: var(--muted);
-  font-size: 0.92rem;
-  min-height: 1.4rem;
+  margin-top: 0.4rem;
 }
 
-.threadPanel {
-  @include panel;
-  margin-bottom:0;
-  padding-bottom:0;
+.heroMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
 }
 
-.tabBarConnected {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.2rem;
-  padding: 0 0 0rem;
-  margin: -0.15rem -0.15rem 0;
-  border-bottom: 1px solid var(--border-soft);
-}
-
-.tabButtonConnected {
+.statTile {
+  @include archive-metric;
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid transparent;
-  border-bottom: 0;
-  background: transparent;
-  color: var(--muted);
-  border-radius: 0.7rem 0.7rem 0 0;
-  padding: 0.7rem 1rem 0.72rem;
-  font-weight: 800;
-  min-width: 8rem;
-  transition: border-color 120ms ease, color 120ms ease, background-color 120ms ease;
 }
 
-.tabButtonLabel {
-  display: inline-block;
-}
-
-.tabBadge {
-  position: absolute;
-  top: 0.42rem;
-  right: 0.48rem;
-  min-width: 1.15rem;
-  height: 1.15rem;
-  padding: 0 0.3rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--trend-up) 76%, white 24%);
-  color: #08220f;
-  font-size: 0.72rem;
-  font-weight: 900;
-  line-height: 1.15rem;
-  text-align: center;
-  box-shadow: 0 0 0 2px var(--bg-darker);
-}
-
-.tabButtonConnected:hover {
-  color: var(--text);
-  background: color-mix(in srgb, var(--bg-darkest) 78%, transparent);
-}
-
-.tabButtonConnectedActive {
-  color: var(--text);
-  border-color: var(--accent-soft);
-  background: var(--bg-darker);
-  margin-bottom: -1px;
-}
-
-.metaLink {
+.statIcon {
   color: var(--accent);
 }
 
-.threadPanel {
-  padding: 1rem 1.2rem 1.2rem;
-  display: grid;
-  gap: 1rem;
-}
-
+.controlsPanel,
+.feedPanel,
+.railPanel,
+.threadStatusPanel,
 .threadEmptyState {
-  min-height: 8rem;
-  display: flex;
-  align-items: center;
-  color: var(--muted);
+  @include archive-panel;
 }
 
-.threadStatusPanel {
-  min-height: 8rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  color: var(--muted);
+.controlsPanel {
+  gap: 0.8rem;
 }
 
-.sectionHeader {
+.controlsTopRow,
+.feedHeader {
   display: flex;
   align-items: center;
-  gap: 1rem;
-}
-
-.sectionTitle {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 800;
-}
-
-.threadMeta {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  justify-content: space-between;
+  gap: 0.8rem;
   flex-wrap: wrap;
 }
 
-.threadSubject {
+.tabGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.tabButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.55rem;
+  min-width: 7.7rem;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border-soft));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 72%, transparent);
   color: var(--muted);
-  font-size: 0.94rem;
+  font-weight: 900;
+  transition: transform 140ms ease, color 140ms ease, border-color 140ms ease, background-color 140ms ease;
+}
+
+.tabButton:hover {
+  transform: translateY(-1px);
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border-soft));
+}
+
+.tabButtonActive {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--border-soft));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, transparent), color-mix(in srgb, var(--surface-card) 82%, transparent));
+  box-shadow: 0 12px 26px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.tabButton strong {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.28rem;
+  border-radius: 999px;
+  background: var(--trend-up);
+  color: #061c13;
+  font-size: 0.72rem;
+}
+
+.openThreadLink,
+.toggleButton {
+  @include button-secondary;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.35rem;
+  padding: 0.5rem 0.72rem;
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.filterGrid {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1.4fr) minmax(10rem, 0.8fr) minmax(12rem, 0.8fr) minmax(10rem, 0.55fr);
+  gap: 0.55rem;
+  align-items: end;
+}
+
+.field {
+  display: grid;
+  gap: 0.32rem;
+}
+
+.controlLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.controlLabel svg {
+  color: var(--accent);
+}
+
+.searchInputShell {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  padding-left: 0.62rem;
+}
+
+.searchInputShell svg {
+  color: var(--accent);
+}
+
+.input,
+.select {
+  @include input-base;
+  min-height: 2.35rem;
+  padding: 0.5rem 0.62rem;
+  font-size: 0.84rem;
+}
+
+.searchInputShell .input {
+  border: 0;
+  background: transparent;
+}
+
+.toggleButtonActive {
+  border-color: color-mix(in srgb, var(--accent) 54%, var(--border-soft));
+  background: color-mix(in srgb, var(--accent) 18%, var(--button-secondary-bg));
+  color: var(--accent-strong);
+}
+
+.threadStatusPanel,
+.threadEmptyState,
+.emptyState {
+  min-height: 8rem;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.28fr);
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.threadFeed {
+  min-width: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.featuredThread {
+  @include archive-panel;
+  display: block;
+  padding: 1rem;
+  overflow: visible;
+}
+
+.featuredThread::after {
+  content: "";
+  display: block;
+  clear: both;
+}
+
+.featuredThreadYou,
+.feedPostYou {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border-soft));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.feedPostRepliesToYou {
+  border-color: color-mix(in srgb, var(--trend-up) 52%, var(--border-soft));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--trend-up) 16%, transparent) 0 0.2rem, transparent 0.2rem),
+    color-mix(in srgb, var(--surface-card) 92%, transparent);
+}
+
+.mediaPlaceholder {
+  position: relative;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 5.3rem;
+  border: 1px dashed color-mix(in srgb, var(--accent) 36%, var(--border-soft));
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 7%, transparent) 0 1px, transparent 1px 100%),
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 6%, transparent) 0 1px, transparent 1px 100%),
+    color-mix(in srgb, var(--surface-card-soft) 74%, transparent);
+  background-size: 16px 16px, 16px 16px, auto;
+  color: color-mix(in srgb, var(--accent-strong) 84%, transparent);
+  text-align: center;
+  overflow: hidden;
+}
+
+.mediaLink {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 5.3rem;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--surface-card-soft) 86%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border-soft));
+}
+
+.mediaLinkFeatured {
+  float: left;
+  width: min(52rem, 62%);
+  min-height: 19rem;
+  margin: 0 1rem 0.75rem 0;
+}
+
+.threadImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 5.3rem;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: color-mix(in srgb, var(--surface-card-soft) 86%, transparent);
+}
+
+.threadImageFeatured {
+  min-height: 19rem;
+  object-fit: cover;
+}
+
+.mediaPlaceholder svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.mediaPlaceholder span {
+  max-width: 18ch;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1.22;
+  text-transform: uppercase;
+}
+
+.mediaPlaceholderFeatured {
+  float: left;
+  width: min(52rem, 62%);
+  min-height: 19rem;
+  margin: 0 1rem 0.75rem 0;
+}
+
+.featuredBody {
+  min-width: 0;
+  display: block;
+}
+
+.featuredKicker {
+  color: var(--accent-strong);
+}
+
+.featuredTitle,
+.sectionTitle,
+.railTitle {
+  margin: 0;
+}
+
+.featuredTitle {
+  font-size: clamp(1.3rem, 1.8vw, 1.8rem);
+  line-height: 1.14;
+  margin: 0.55rem 0 0.75rem;
+  text-wrap: pretty;
+}
+
+.featuredExcerpt {
+  max-height: none;
+  overflow: visible;
+  padding-right: 0.2rem;
+  color: color-mix(in srgb, var(--text) 88%, transparent);
+}
+
+.featuredFooter {
+  clear: both;
+  margin-top: 0.9rem;
+}
+
+.sectionTitle {
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.sectionCopy {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.feedStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .postList {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
-.postCard {
-  border: 1px solid var(--border-soft);
-  border-radius: 4px;
-  background: var(--bg-darker);
-  padding: 1rem;
+.feedPost {
   display: grid;
-  gap: 0.8rem;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: 0.65rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 13%, transparent) 0 0.16rem, transparent 0.16rem),
+    color-mix(in srgb, var(--surface-card) 91%, transparent);
+  padding: 0.58rem 0.65rem 0.58rem 0.8rem;
   scroll-margin-top: 6rem;
-  transition: background-color 120ms ease, border-color 120ms ease;
 }
 
-.postCard:target {
-  background: var(--bg-darkest);
-  border-color: color-mix(in srgb, var(--accent) 28%, var(--border-soft));
+.feedPostNoMedia {
+  grid-template-columns: minmax(0, 1fr);
 }
 
-.postCardYou {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-soft));
-  background: color-mix(in srgb, var(--accent-soft) 10%, var(--bg-darker));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+.feedPost:target {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border-soft));
+  background: color-mix(in srgb, var(--surface-card-highlight) 48%, transparent);
 }
 
-.postCardRepliesToYou {
-  border-color: color-mix(in srgb, var(--trend-up) 44%, var(--border-soft));
-  background: color-mix(in srgb, var(--trend-up) 10%, var(--bg-darker));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--trend-up) 18%, transparent);
+.feedPostBody {
+  min-width: 0;
+  display: grid;
+  gap: 0.35rem;
 }
 
-[data-theme="light"] .postCardYou {
-  border-color: color-mix(in srgb, var(--accent-strong) 64%, var(--border-soft));
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, white 82%), color-mix(in srgb, var(--accent-soft) 72%, white 28%)),
-    var(--bg-darker);
-  box-shadow:
-    inset 0 0 0 2px color-mix(in srgb, var(--accent-strong) 28%, transparent),
-    0 0.45rem 1rem color-mix(in srgb, var(--accent) 14%, transparent);
-}
-
-[data-theme="light"] .postCardRepliesToYou {
-  border-color: color-mix(in srgb, var(--trend-up) 58%, var(--border-soft));
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--trend-up) 14%, white 86%), color-mix(in srgb, var(--trend-up) 8%, var(--bg-darker))),
-    var(--bg-darker);
-  box-shadow:
-    inset 0 0 0 2px color-mix(in srgb, var(--trend-up) 20%, transparent),
-    0 0.45rem 1rem color-mix(in srgb, var(--trend-up) 12%, transparent);
-}
-
-.postCardOp {
-  display: block;
-}
-
-.postHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 0.75rem;
-}
-
-.postIdentity {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.75rem;
-  align-items: center;
-}
-
-.postReplies {
+.feedFooter span,
+.featuredFooter span {
   display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.6rem;
+  align-items: center;
+  gap: 0.3rem;
 }
 
 .postAuthor {
-  font-weight: 800;
   color: var(--accent-strong);
+  font-weight: 900;
+}
+
+.youBadge,
+.replyOverflow {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.35rem;
+  padding: 0.12rem 0.42rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border-soft));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent-strong);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .youBadge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 1.45rem;
-  padding: 0.08rem 0.45rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  color: var(--accent-strong);
-  font-size: 0.76rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  border-color: color-mix(in srgb, var(--trend-up) 42%, var(--border-soft));
+  background: color-mix(in srgb, var(--trend-up) 12%, transparent);
+  color: var(--trend-up);
 }
 
 .youToggle {
-  border: 1px solid color-mix(in srgb, var(--border-soft) 88%, transparent);
-  background: color-mix(in srgb, var(--bg-darkest) 74%, transparent);
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 1.85rem;
+  padding: 0.28rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--muted);
-  border-radius: 999px;
-  padding: 0.24rem 0.6rem;
-  font-size: 0.78rem;
-  font-weight: 700;
-  transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 800;
+  transition: color 140ms ease, border-color 140ms ease, background-color 140ms ease;
 }
 
-.youToggle:hover {
+.youToggle:hover,
+.youToggle:focus-visible {
   color: var(--text);
-  border-color: color-mix(in srgb, var(--accent) 30%, var(--border-soft));
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border-soft));
+  background: color-mix(in srgb, var(--surface-card) 72%, transparent);
+  outline: none;
+}
+
+.youToggle:active {
+  color: var(--accent-strong);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border-soft));
+  background: color-mix(in srgb, var(--accent) 13%, var(--button-secondary-bg));
 }
 
 .youToggleActive {
   color: var(--accent-strong);
-  border-color: color-mix(in srgb, var(--accent) 38%, var(--border-soft));
-  background: color-mix(in srgb, var(--accent) 12%, var(--bg-darkest));
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border-soft));
+  background: color-mix(in srgb, var(--accent) 13%, var(--button-secondary-bg));
 }
 
-.postId,
-.postTimestamp {
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.imageLink {
+.replyCluster {
   display: inline-flex;
-  width: fit-content;
-  max-width: 100%;
-  padding: 0;
-}
-
-.imageThumb {
-  display: block;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-soft);
-  background: var(--surface-card-soft);
-  max-width: min(20rem, 100%);
-  width: auto;
-  height: auto;
-  object-fit: contain;
-  transition: opacity 120ms ease;
-  margin-right:1rem;
-}
-
-.imageThumbExpanded {
-  max-width: min(34rem, 100%);
+  flex-wrap: wrap;
+  gap: 0.28rem 0.5rem;
 }
 
 .inlineUrl,
@@ -314,15 +508,15 @@
   margin: 0;
   word-break: break-word;
   font-family: var(--font-body);
-  font-size: 1rem;
-  line-height: 1.55;
-  padding-left:1rem;
-  color: color-mix(in srgb, var(--text) 94%, transparent);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--text) 90%, transparent);
 }
 
-.postCardOp .postBody {
-  font-size: 1rem;
-  line-height: 1.62;
+.featuredExcerpt .postBody,
+.featuredExcerpt {
+  font-size: 0.98rem;
+  line-height: 1.58;
 }
 
 .postLine {
@@ -330,17 +524,108 @@
 }
 
 .postLine + .postLine {
-  margin-top: 0.18rem;
+  margin-top: 0.14rem;
 }
 
 .postLineLead {
-  font-size: 1.25rem;
-  font-weight: 800;
+  font-size: 1.05rem;
+  font-weight: 900;
   color: var(--accent-strong);
 }
 
 .postLineQuoted {
   color: var(--trend-up);
+}
+
+.signalRail {
+  position: sticky;
+  top: 4.55rem;
+  align-self: start;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.railPanel {
+  gap: 0.75rem;
+}
+
+.railTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--accent-strong);
+  font-size: 0.88rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.relevanceGauge {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border-soft));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.relevanceGauge strong,
+.velocityBlock strong {
+  font-family: var(--font-mono);
+  font-size: 1.65rem;
+  line-height: 1;
+}
+
+.relevanceGauge span,
+.velocityBlock span,
+.railCopy {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.railMetricGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.railMetricGrid div,
+.termRow,
+.velocityBlock {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 72%, transparent);
+  padding: 0.58rem;
+}
+
+.railMetricGrid span,
+.termRow span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.railMetricGrid strong,
+.termRow strong {
+  font-family: var(--font-mono);
+}
+
+.termList {
+  display: grid;
+  gap: 0.38rem;
+}
+
+.termRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.velocityBlock {
+  display: grid;
+  gap: 0.28rem;
 }
 
 .quotePreview {
@@ -377,12 +662,13 @@
 }
 
 .quotePreviewThumb {
-  display: block;
   float: left;
+  display: block;
   max-width: min(10rem, 42%);
   height: auto;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border-soft));
+  background: color-mix(in srgb, var(--surface-card-soft) 74%, transparent);
   margin: 0 0.75rem 0.5rem 0;
 }
 
@@ -400,60 +686,62 @@
   clear: both;
 }
 
-@media (min-width: 860px) {
-  .postCard {
-    display: block;
+@media (max-width: 1180px) {
+  .contentGrid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .postCard .postHeader {
-    margin-bottom: 0.8rem;
+  .signalRail {
+    position: static;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .hero,
+  .filterGrid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .postCard .imageSlot {
-    float: left;
-    max-width: 100%;
-    margin: 0 1rem 0rem 0;
-  }
-
-  .postCard .imageThumb {
-    max-width: 100%;
-    width: 100%;
-    height: auto;
-  }
-
-  .postCard::after {
-    content: "";
-    display: block;
-    clear: both;
-  }
-
-  .postCardOp .imageSlot {
-    float: left;
-    width: min(44rem, 50%);
-    max-width: 100%;
-    margin: 0 1rem 0.75rem 0;
-  }
-
-  .postCardOp .imageThumbExpanded,
-  .postCardOp .imageThumb {
-    max-width: 100%;
-    width: 100%;
-    height: auto;
-  }
-
-  .postCardOp .postBody {
-    display: block;
-  }
-
-  .postCardOp::after {
-    content: "";
-    display: block;
-    clear: both;
+  .heroMetrics,
+  .signalRail {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 720px) {
-  .postHeader {
-    flex-direction: column;
+  .heroMetrics,
+  .signalRail,
+  .railMetricGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .feedPost {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mediaPlaceholderFeatured {
+    float: none;
+    width: 100%;
+    min-height: 12rem;
+    margin: 0 0 0.8rem;
+  }
+
+  .mediaLinkFeatured,
+  .threadImageFeatured {
+    float: none;
+    width: 100%;
+    min-height: 12rem;
+    margin: 0 0 0.8rem;
+  }
+
+  .controlsTopRow,
+  .feedHeader {
+    align-items: stretch;
+  }
+
+  .tabButton,
+  .openThreadLink {
+    flex: 1 1 9rem;
   }
 }

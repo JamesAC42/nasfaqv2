@@ -18,6 +18,8 @@ router.get("/me", async (req, res, next) => {
       selfOnly: true,
       articlesPage: parsePositiveInt(req.query.articles_page, 1, { min: 1, max: 1000 }),
       articlesLimit: parsePositiveInt(req.query.articles_limit, 6, { min: 1, max: 24 }),
+      savedArticlesPage: parsePositiveInt(req.query.saved_articles_page, 1, { min: 1, max: 1000 }),
+      savedArticlesLimit: parsePositiveInt(req.query.saved_articles_limit, 6, { min: 1, max: 24 }),
       tradesPage: parsePositiveInt(req.query.trades_page, 1, { min: 1, max: 1000 }),
       tradesLimit: parsePositiveInt(req.query.trades_limit, 10, { min: 1, max: 25 }),
     });
@@ -37,6 +39,22 @@ router.get("/me/articles", async (req, res, next) => {
       page: parsePositiveInt(req.query.page, 1, { min: 1, max: 1000 }),
       limit: parsePositiveInt(req.query.limit, 6, { min: 1, max: 24 }),
       viewerUserId: userId,
+    });
+    res.json(result);
+  } catch (error) {
+    if (error?.code === "unauthenticated") {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    next(error);
+  }
+});
+
+router.get("/me/saved-articles", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    const result = await profileDb.listSavedArticles(req.ctx.pool, userId, {
+      page: parsePositiveInt(req.query.page, 1, { min: 1, max: 1000 }),
+      limit: parsePositiveInt(req.query.limit, 6, { min: 1, max: 24 }),
     });
     res.json(result);
   } catch (error) {
@@ -72,6 +90,8 @@ router.put("/me/profile-picture", async (req, res, next) => {
       selfOnly: true,
       articlesPage: parsePositiveInt(req.query.articles_page, 1, { min: 1, max: 1000 }),
       articlesLimit: parsePositiveInt(req.query.articles_limit, 6, { min: 1, max: 24 }),
+      savedArticlesPage: parsePositiveInt(req.query.saved_articles_page, 1, { min: 1, max: 1000 }),
+      savedArticlesLimit: parsePositiveInt(req.query.saved_articles_limit, 6, { min: 1, max: 24 }),
       tradesPage: parsePositiveInt(req.query.trades_page, 1, { min: 1, max: 1000 }),
       tradesLimit: parsePositiveInt(req.query.trades_limit, 10, { min: 1, max: 25 }),
     });
@@ -98,6 +118,8 @@ router.put("/me", async (req, res, next) => {
       selfOnly: true,
       articlesPage: parsePositiveInt(req.query.articles_page, 1, { min: 1, max: 1000 }),
       articlesLimit: parsePositiveInt(req.query.articles_limit, 6, { min: 1, max: 24 }),
+      savedArticlesPage: parsePositiveInt(req.query.saved_articles_page, 1, { min: 1, max: 1000 }),
+      savedArticlesLimit: parsePositiveInt(req.query.saved_articles_limit, 6, { min: 1, max: 24 }),
       tradesPage: parsePositiveInt(req.query.trades_page, 1, { min: 1, max: 1000 }),
       tradesLimit: parsePositiveInt(req.query.trades_limit, 10, { min: 1, max: 25 }),
     });

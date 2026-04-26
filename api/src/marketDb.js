@@ -91,11 +91,11 @@ function getSuperchatTimeseriesConfig(range) {
     case "1y":
       return {
         range: "1y",
-        bucketUnit: "month",
-        startExpr: "date_trunc('month', current_date - interval '11 months')::date",
-        endExpr: "date_trunc('month', current_date)::date",
-        stepInterval: "1 month",
-        bucketExpr: "date_trunc('month', started_at)::date",
+        bucketUnit: "day",
+        startExpr: "current_date - interval '364 days'",
+        endExpr: "current_date",
+        stepInterval: "1 day",
+        bucketExpr: "date_trunc('day', started_at)::date",
       };
     default: {
       const error = new Error("unsupported_superchat_range");
@@ -208,6 +208,14 @@ async function listAssets(pool) {
       FROM market.asset_daily_market_state d
       ORDER BY d.asset_id, d.market_date DESC
     ),
+    latest_settlement_reset AS (
+      SELECT DISTINCT ON (e.asset_id)
+        e.asset_id,
+        e.old_mid_price AS pre_settlement_mid_price
+      FROM market.asset_price_events e
+      WHERE e.event_type = 'daily_reset'
+      ORDER BY e.asset_id, e.ts DESC
+    ),
     sparkline_daily AS (
       SELECT
         d.asset_id,
@@ -240,6 +248,8 @@ async function listAssets(pool) {
       c.color,
       a.current_fair_value,
       a.current_mid_price,
+      ld.mid_open AS previous_settlement_mid_price,
+      lsr.pre_settlement_mid_price,
       a.current_bid_price,
       a.current_ask_price,
       a.current_premium_pct,
@@ -260,6 +270,7 @@ async function listAssets(pool) {
     JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
     LEFT JOIN volume_24h v ON v.asset_id = a.id
     LEFT JOIN latest_daily ld ON ld.asset_id = a.id
+    LEFT JOIN latest_settlement_reset lsr ON lsr.asset_id = a.id
     LEFT JOIN sparkline_daily sd ON sd.asset_id = a.id
     ORDER BY a.symbol ASC
   `

@@ -384,6 +384,21 @@ async function listProfileArticles(pool, userId, { page = 1, limit = 6, viewerUs
   };
 }
 
+async function listSavedArticles(pool, userId, { page = 1, limit = 6 } = {}) {
+  const result = await articleDb.listArticles(pool, {
+    page,
+    limit,
+    savedByUserId: userId,
+    viewerUserId: userId,
+    includeDrafts: false,
+  });
+
+  return {
+    items: result.items,
+    pagination: paginationShape(result),
+  };
+}
+
 async function resolveProfileUser(pool, { username = null, viewerUserId = null, selfOnly = false } = {}) {
   const profileUser = selfOnly ? await getUserById(pool, viewerUserId) : await getUserByUsername(pool, username);
   if (!profileUser) {
@@ -399,6 +414,8 @@ async function getProfileBundle(pool, {
   viewerUserId = null,
   articlesPage = 1,
   articlesLimit = 6,
+  savedArticlesPage = 1,
+  savedArticlesLimit = 6,
   tradesPage = 1,
   tradesLimit = 10,
   historyLimit = 60,
@@ -407,13 +424,14 @@ async function getProfileBundle(pool, {
   const profileUser = await resolveProfileUser(pool, { username, viewerUserId, selfOnly });
 
   const isSelf = Boolean(viewerUserId) && Number(profileUser.id) === Number(viewerUserId);
-  const [viewerContext, stats, friends, rivals, networth, articleResult, tradeResult, portfolio, userAchievements, streaks, leaderboardEntries] = await Promise.all([
+  const [viewerContext, stats, friends, rivals, networth, articleResult, savedArticleResult, tradeResult, portfolio, userAchievements, streaks, leaderboardEntries] = await Promise.all([
     getViewerContext(pool, profileUser.id, viewerUserId),
     getProfileStats(pool, profileUser.id),
     listAcceptedFriends(pool, profileUser.id),
     listRivals(pool, profileUser.id),
     getNetworthHistory(pool, profileUser.id, { limit: historyLimit }),
     listProfileArticles(pool, profileUser.id, { page: articlesPage, limit: articlesLimit, viewerUserId }),
+    isSelf ? listSavedArticles(pool, profileUser.id, { page: savedArticlesPage, limit: savedArticlesLimit }) : Promise.resolve(null),
     listProfileTrades(pool, profileUser.id, { page: tradesPage, limit: tradesLimit }),
     isSelf ? trading.getPortfolioSummary(pool, profileUser.id) : getPublicPortfolioSummary(pool, profileUser.id),
     achievements.listUserAchievements(pool, profileUser.id, { limit: 100 }),
@@ -476,6 +494,7 @@ async function getProfileBundle(pool, {
       items: articleResult.items,
       pagination: articleResult.pagination,
     },
+    saved_articles: savedArticleResult,
     trades: tradeResult,
   };
 }
@@ -756,6 +775,7 @@ async function setRival(pool, viewerUserId, username, active) {
 module.exports = {
   acceptFriendRequest,
   getProfileBundle,
+  listSavedArticles,
   listProfileArticles,
   listProfileTrades,
   removeFriendship,

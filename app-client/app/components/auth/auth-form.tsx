@@ -79,6 +79,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     if (!googleScriptReady || !googleClientId || !window.google || !googleButtonRef.current || googleButtonRenderedRef.current) return;
     window.google.accounts.id.initialize({
       client_id: googleClientId,
+      ux_mode: "popup",
+      use_fedcm_for_prompt: false,
+      use_fedcm_for_button: false,
       callback: async (response: { credential?: string }) => {
         if (!response.credential) return;
         const token = turnstileTokenRef.current;

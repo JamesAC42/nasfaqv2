@@ -26,6 +26,8 @@ import { useMarketStore } from "@/app/stores/market-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/pages/market-report-page.module.scss";
 
+const MARKET_REPORT_INDEX_START_DATE = "2025-10-06";
+
 function toneClass(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return styles.neutral;
   if (value > 0) return styles.positive;
@@ -80,7 +82,9 @@ function latestIndexSeries(index: MarketIndexBundle | null) {
       name: "All Market",
       color: "#5fdeec",
       kind: "area" as const,
-      values: index.series.map((point) => ({ time: point.bucket, value: point.value })),
+      values: index.series
+        .filter((point) => point.bucket >= MARKET_REPORT_INDEX_START_DATE)
+        .map((point) => ({ time: point.bucket, value: point.value })),
     },
   ];
 }
@@ -136,15 +140,17 @@ function ReportList({
   rows,
   assets,
   kind,
+  featured = false,
 }: {
   title: string;
   icon: ReactNode;
   rows: ReportRow[];
   assets: MarketAsset[];
   kind: "premium" | "move" | "volume" | "fair";
+  featured?: boolean;
 }) {
   return (
-    <section className={styles.reportCard}>
+    <section className={`${styles.reportCard} ${featured ? styles.reportCardFeatured : ""}`.trim()}>
       <div className={styles.cardHeader}>
         <span className={styles.cardIcon}>{icon}</span>
         <div>
@@ -218,10 +224,17 @@ export function MarketReportPage() {
               index context, and your portfolio exposure in one modern NASFAQ desk.
             </p>
           </div>
+          <div className={styles.heroVisual} aria-hidden="true" />
           <div className={styles.heroPanel}>
-            <span><FaRegCalendar /> Report date</span>
-            <strong>{report?.market_date || marketStatus?.last_settlement_market_date || "—"}</strong>
-            <p>{fmtInteger(report?.asset_count)} settled assets · {marketStatus?.is_trading_open ? "market open" : "market paused"}</p>
+            <div>
+              <span><FaRegCalendar /> Report date</span>
+              <strong>{report?.market_date || marketStatus?.last_settlement_market_date || "—"}</strong>
+              <p>{fmtInteger(report?.asset_count)} settled assets · {marketStatus?.is_trading_open ? "market open" : "market paused"}</p>
+            </div>
+            <div className={styles.heroMiniStats}>
+              <span>{fmtPct(allMarketIndex?.summary?.day_return_pct)} tape</span>
+              <span>{fmtInteger(allMarketIndex?.summary?.advancers)} up / {fmtInteger(allMarketIndex?.summary?.decliners)} down</span>
+            </div>
           </div>
         </section>
 
@@ -235,6 +248,14 @@ export function MarketReportPage() {
           <StatCard label="Top mover" value={topMover?.symbol || "—"} meta={fmtPct(topMover?.move_24h_pct)} icon={<FaArrowTrendUp />} />
           <StatCard label="Report flow" value={fmtNumber(totalReportVolume || topVolume?.volume_24h, totalReportVolume ? "$" : "")} meta={topVolume ? `${topVolume.symbol} leads spot activity` : "Latest settled basket"} icon={<FaMoneyBillTrendUp />} />
         </section>
+
+        {insights[0] ? (
+          <section className={styles.tapeBand}>
+            <span>Daily tape</span>
+            <p>{insights[0]}</p>
+            <Link href="/market" className={styles.panelLink}>Open market desk</Link>
+          </section>
+        ) : null}
 
         <section className={styles.commandGrid}>
           <div className={styles.chartPanel}>
@@ -264,6 +285,28 @@ export function MarketReportPage() {
               )) : <div className={styles.empty}>No report insights are available yet.</div>}
             </div>
           </aside>
+        </section>
+
+        <section className={styles.briefingGrid}>
+          <article className={styles.briefingLead}>
+            <span className={styles.eyebrow}><FaChartLine /> Report read</span>
+            <h2>{topMover?.symbol ? `${topMover.symbol} sets the tape.` : "The tape is still forming."}</h2>
+            <p>
+              {insights[2] || insights[0] || "Once the settlement report fills in, this brief turns the raw table into a quick read on momentum, valuation pressure, and portfolio relevance."}
+            </p>
+          </article>
+          <div className={styles.briefingStack}>
+            <article>
+              <span>Valuation pressure</span>
+              <strong>{topDiscount?.symbol || "—"}</strong>
+              <p>{topDiscount ? `${topDiscount.symbol} screens as the deepest live discount at ${fmtPct(topDiscount.current_premium_pct)}.` : "No discount leader is available yet."}</p>
+            </article>
+            <article>
+              <span>Portfolio angle</span>
+              <strong className={toneClass(portfolio?.total_unrealized_pnl)}>{portfolio ? fmtNumber(portfolio.total_unrealized_pnl, "$") : "—"}</strong>
+              <p>{portfolio ? "Your marked P/L is now part of the report context." : "Sign in to connect this read to your own book."}</p>
+            </article>
+          </div>
         </section>
 
         <section className={styles.portfolioGrid}>
@@ -323,10 +366,18 @@ export function MarketReportPage() {
           </div>
         </section>
 
-        <section className={styles.reportGrid}>
-          {reportGroups.map((group) => (
-            <ReportList key={group.key} title={group.title} icon={group.icon} rows={group.rows} assets={assets} kind={group.kind} />
-          ))}
+        <section className={styles.leaderboardSection}>
+          <div className={styles.sectionHeader}>
+            <div>
+              <h2>Report Boards</h2>
+              <p>Leaderboards grouped by premium, discount, momentum, volume, and fair-value changes.</p>
+            </div>
+          </div>
+          <div className={styles.reportGrid}>
+            {reportGroups.map((group, index) => (
+              <ReportList key={group.key} title={group.title} icon={group.icon} rows={group.rows} assets={assets} kind={group.kind} featured={index === 0} />
+            ))}
+          </div>
         </section>
       </div>
     </SiteShell>

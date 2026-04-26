@@ -6,10 +6,11 @@
   --index-panel-soft: color-mix(in srgb, var(--surface-card-soft) 76%, transparent);
   display: grid;
   grid-template-columns: minmax(18rem, 0.34fr) minmax(0, 1fr);
-  gap: 1rem;
-  height: calc(100dvh - var(--site-shell-chrome-height, 8rem) - 4.5rem);
-  min-height: 42rem;
-  overflow: hidden;
+  align-content: start;
+  align-items: start;
+  gap: 0.8rem;
+  min-height: calc(100dvh - var(--site-shell-chrome-height, 8rem) - 2.6rem);
+  overflow: visible;
 }
 
 .selectorPane,
@@ -21,29 +22,45 @@
 .tablePanel,
 .selectorCard {
   border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-sm);
   box-shadow: var(--shadow);
 }
 
 .selectorPane,
 .detailPane {
   min-height: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.selectorPane {
   overflow: hidden;
-  background:
-    radial-gradient(circle at 20% 0%, color-mix(in srgb, var(--index-cyan) 14%, transparent), transparent 34%),
-    linear-gradient(135deg, color-mix(in srgb, var(--index-panel) 92%, transparent), color-mix(in srgb, var(--bg-accent) 86%, transparent));
+}
+
+.detailPane {
+  overflow: visible;
 }
 
 .selectorPane {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 0.85rem;
-  padding: 1rem;
+  align-content: start;
+  gap: 0.65rem;
+  position: sticky;
+  top: calc(var(--site-shell-chrome-height, 8rem) + 1.1rem);
+  height: calc(100dvh - var(--site-shell-chrome-height, 8rem) - 2.6rem);
+  padding: 0;
 }
 
 .selectorHeader {
+  @include archive-grid-surface;
   display: grid;
-  gap: 0.4rem;
+  gap: 0.42rem;
+  min-height: 9.2rem;
+  padding: 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: var(--radius-sm);
+  align-content: center;
 }
 
 .selectorHeader h2,
@@ -62,50 +79,70 @@
 
 .eyebrow,
 .metricTile span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
+  @include archive-eyebrow;
   color: var(--index-cyan);
-  font-size: 0.74rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .selectorList,
-.detailScroll,
 .tableWrap {
   overflow: auto;
   min-height: 0;
   scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--index-cyan) 42%, var(--border)) color-mix(in srgb, var(--surface-card) 90%, transparent);
+}
+
+.selectorList::-webkit-scrollbar,
+.tableWrap::-webkit-scrollbar {
+  width: 0.7rem;
+}
+
+.selectorList::-webkit-scrollbar-track,
+.tableWrap::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-card) 90%, transparent);
+}
+
+.selectorList::-webkit-scrollbar-thumb,
+.tableWrap::-webkit-scrollbar-thumb {
+  border: 2px solid color-mix(in srgb, var(--surface-card) 90%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--index-cyan) 42%, var(--border));
 }
 
 .selectorList {
   display: grid;
   align-content: start;
-  gap: 0.65rem;
+  gap: 0.5rem;
   padding-right: 0.25rem;
 }
 
 .selectorCard {
   display: grid;
-  gap: 0.7rem;
-  padding: 0.85rem;
+  gap: 0.62rem;
+  padding: 0.75rem;
   color: inherit;
   text-align: left;
   cursor: pointer;
-  background: color-mix(in srgb, var(--index-panel-soft) 86%, transparent);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 12%, transparent) 0 0.16rem, transparent 0.16rem),
+    color-mix(in srgb, var(--index-panel-soft) 86%, transparent);
   transition:
-    transform 180ms cubic-bezier(0.2, 0.9, 0.2, 1),
-    border-color 180ms ease,
-    background-color 180ms ease;
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 180ms ease;
 }
 
 .selectorCard:hover,
 .selectorCard:focus-visible {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--index-cyan) 48%, var(--border));
   outline: none;
+}
+
+.selectorCard:active {
+  transform: translateY(1px);
 }
 
 .selectorCardSelected {
@@ -118,7 +155,7 @@
 .detailHeader,
 .sectionHeader,
 .heatmapTileHeader,
-.heatmapNumbers {
+.heatmapFooter {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -129,6 +166,8 @@
   margin: 0.2rem 0 0;
   color: var(--text);
   font-family: var(--font-display);
+  font-size: clamp(1rem, 1.4vw, 1.2rem);
+  line-height: 1;
 }
 
 .returnBadge,
@@ -137,9 +176,9 @@
   justify-items: center;
   gap: 0.15rem;
   min-width: 4.6rem;
-  padding: 0.55rem;
+  padding: 0.52rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--surface-card-soft) 82%, transparent);
 }
 
@@ -189,38 +228,102 @@
 
 .detailPane {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  padding: 1rem;
+  grid-template-rows: auto auto;
+  gap: 0.65rem;
+  padding: 0;
 }
 
 .detailHeader {
-  padding-bottom: 1rem;
+  @include archive-grid-surface;
+  align-items: end;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  min-height: 8.6rem;
+  padding: 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: var(--radius-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.detailHeader::after {
+  content: "";
+  position: absolute;
+  inset: auto -8rem -10rem auto;
+  width: 24rem;
+  height: 24rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--index-cyan) 14%, transparent), transparent 66%);
+  pointer-events: none;
+}
+
+.detailHeader > * {
+  position: relative;
+  z-index: 1;
 }
 
 .detailHeader h1 {
-  font-size: clamp(2rem, 4vw, 3.2rem);
+  @include archive-title;
+  font-size: clamp(2.2rem, 4.4vw, 3.9rem);
+  line-height: 0.9;
+}
+
+.detailHeaderStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(5.8rem, 1fr));
+  gap: 0.55rem;
+  align-self: stretch;
+  align-content: end;
+}
+
+.detailHeaderStats div {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card-soft) 64%, transparent);
+}
+
+.detailHeaderStats span {
+  @include archive-eyebrow;
+  color: var(--muted);
+}
+
+.detailHeaderStats strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 1rem;
 }
 
 .detailScroll {
   display: grid;
-  gap: 1rem;
+  grid-template-rows: auto auto;
+  gap: 0.7rem;
   padding-right: 0.3rem;
+  overflow: visible;
 }
 
 .topGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(17rem, 0.65fr);
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1.7fr) minmax(14rem, 0.42fr);
+  gap: 0.7rem;
 }
 
 .chartPanel,
 .sidePanel,
-.metricTile,
+.metricTile {
+  min-width: 0;
+  padding: 0.78rem;
+  background: color-mix(in srgb, var(--index-panel-soft) 88%, transparent);
+}
+
 .heatmapPanel,
 .tablePanel {
   min-width: 0;
-  padding: 1rem;
-  background: color-mix(in srgb, var(--index-panel-soft) 88%, transparent);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .chartPanel :global(.chartBoxBare) {
@@ -229,7 +332,7 @@
 }
 
 .chartPanel :global(.canvas) {
-  height: 310px;
+  height: clamp(15rem, 29vh, 22rem);
 }
 
 .sidePanel,
@@ -239,22 +342,28 @@
   align-content: start;
 }
 
+.sidePanel {
+  grid-template-rows: auto repeat(3, minmax(0, 1fr));
+}
+
 .constituentCard {
-  padding: 0.85rem;
+  padding: 0.75rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--surface-card-soft) 78%, transparent);
 }
 
 .metricGrid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
 }
 
 .metricTile {
   display: grid;
-  gap: 0.3rem;
+  align-content: center;
+  gap: 0.22rem;
+  min-height: 5rem;
 }
 
 .metricTile strong {
@@ -265,51 +374,117 @@
 
 .marketDesk {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(24rem, 0.9fr);
-  gap: 1rem;
+  justify-self: center;
+  width: 80%;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2.4rem;
+  margin-top: 1.6rem;
+  min-height: 0;
+}
+
+.heatmapPanel {
+  display: grid;
+  grid-template-rows: auto minmax(25rem, 1fr);
+  min-height: 0;
+}
+
+.tablePanel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
 }
 
 .heatmap {
   display: grid;
-  gap: 0.65rem;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  grid-auto-rows: 6.7rem;
-  margin-top: 1rem;
+  gap: 0;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-auto-rows: minmax(6.7rem, 1fr);
+  grid-auto-flow: dense;
+  margin-top: 1.1rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+  border-radius: var(--radius-sm);
+}
+
+.heatmapCompact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 7rem;
 }
 
 .heatmapTile {
   display: grid;
-  align-content: space-between;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  position: relative;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+  border-radius: 0;
   color: inherit;
   text-align: left;
   cursor: pointer;
   transition:
-    transform 160ms ease,
+    background-color 160ms ease,
     border-color 160ms ease,
     box-shadow 160ms ease;
+  box-shadow: inset 0 -2.9rem 3.4rem color-mix(in srgb, black 22%, transparent);
+  overflow: hidden;
+}
+
+.heatmapTile::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 2.4rem;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, black 36%, transparent));
+  pointer-events: none;
 }
 
 .heatmapTile:hover,
 .heatmapTile:focus-visible {
-  transform: translateY(-2px);
   border-color: color-mix(in srgb, var(--index-cyan) 45%, var(--border));
+  box-shadow:
+    inset 0 -2.9rem 3.4rem color-mix(in srgb, black 24%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--index-cyan) 22%, transparent);
   outline: none;
 }
 
+.heatmapTile:active {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--index-cyan) 28%, transparent),
+    inset 0 -2.9rem 3.4rem color-mix(in srgb, black 26%, transparent);
+}
+
 .tileUp {
-  background: color-mix(in srgb, var(--surface-card) 88%, var(--tile-up-tint));
+  background:
+    radial-gradient(circle at 50% 36%, color-mix(in srgb, #22c55e 26%, transparent), transparent 58%),
+    color-mix(in srgb, #16a34a 24%, var(--surface-card));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #22c55e 18%, transparent),
+    inset 0 -2.9rem 3.4rem color-mix(in srgb, black 22%, transparent);
 }
 
 .tileDown {
-  background: color-mix(in srgb, var(--surface-card) 88%, var(--tile-down-tint));
+  background:
+    radial-gradient(circle at 50% 36%, color-mix(in srgb, #ef4444 26%, transparent), transparent 58%),
+    color-mix(in srgb, #dc2626 24%, var(--surface-card));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #ef4444 18%, transparent),
+    inset 0 -2.9rem 3.4rem color-mix(in srgb, black 22%, transparent);
+}
+
+.tileFlat {
+  background: color-mix(in srgb, var(--surface-card) 92%, var(--border-soft));
 }
 
 .tileSelected {
-  box-shadow: inset 0 0 0 1px var(--index-cyan);
+  box-shadow:
+    inset 0 0 0 1px var(--index-cyan),
+    inset 0 0 0 2px color-mix(in srgb, var(--index-cyan) 18%, transparent),
+    inset 0 -2.9rem 3.4rem color-mix(in srgb, black 20%, transparent),
+    0 0 1.2rem color-mix(in srgb, var(--index-cyan) 18%, transparent);
 }
 
 .tileLg {
@@ -325,7 +500,45 @@
   grid-column: span 1;
 }
 
-.heatmapIcon,
+.tileCompact {
+  grid-column: span 1;
+  grid-row: span 1;
+}
+
+.heatmapTile .heatmapSymbolImage {
+  width: min(68%, 7rem);
+  height: min(68%, 7rem);
+  opacity: 0.26;
+  filter: saturate(1.05);
+  pointer-events: none;
+}
+
+.heatmapPrice,
+.heatmapSymbol {
+  position: absolute;
+  bottom: 0.46rem;
+  z-index: 1;
+  max-width: calc(50% - 0.6rem);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.heatmapPrice {
+  left: 0.52rem;
+  color: var(--text);
+}
+
+.heatmapSymbol {
+  right: 0.52rem;
+  color: color-mix(in srgb, var(--text) 82%, transparent);
+  text-align: right;
+}
+
 .tableCoin {
   width: 2rem;
   height: 2rem;
@@ -337,6 +550,22 @@
   min-width: 0;
 }
 
+.heatmapTileHeader {
+  min-width: 0;
+  align-items: flex-start;
+}
+
+.heatmapTileHeader span {
+  gap: 0.12rem;
+}
+
+.heatmapTileHeader strong,
+.assetLink strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .heatmapTileHeader em,
 .assetLink em {
   overflow: hidden;
@@ -346,13 +575,67 @@
   white-space: nowrap;
 }
 
+.tileMd .heatmapTileHeader em,
+.tileSm .heatmapTileHeader em {
+  display: none;
+}
+
+.heatmapFooter {
+  align-items: flex-end;
+  gap: 0.5rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+.heatmapFooter strong,
+.heatmapFooter span {
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.heatmapFooter strong {
+  color: var(--text);
+}
+
+.tileLg .heatmapFooter strong,
+.tileCompact .heatmapFooter strong {
+  font-size: 0.96rem;
+}
+
+.tileSm {
+  gap: 0;
+}
+
 .tableWrap {
-  margin-top: 1rem;
-  max-height: 35rem;
+  margin-top: 1.1rem;
+  min-height: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .table {
   @include table-shell;
+}
+
+.table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  backdrop-filter: blur(14px);
+}
+
+.table th {
+  background: color-mix(in srgb, var(--surface-card) 94%, #07151c);
+}
+
+.table th,
+.table td {
+  padding-block: 0.62rem;
 }
 
 .table tbody tr {
@@ -398,6 +681,8 @@
 
   .selectorPane,
   .detailPane {
+    position: static;
+    height: auto;
     overflow: visible;
   }
 
@@ -411,8 +696,21 @@
     grid-template-columns: 1fr;
   }
 
+  .marketDesk {
+    width: 100%;
+  }
+
   .metricGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .detailHeader {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .detailHeaderStats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-self: auto;
   }
 }
 
@@ -420,21 +718,24 @@
   .metricGrid,
   .selectorTop,
   .detailHeader,
+  .detailHeaderStats,
   .sectionHeader,
   .heatmapTileHeader,
-  .heatmapNumbers {
+  .heatmapFooter {
     display: grid;
     grid-template-columns: 1fr;
   }
 
-  .heatmap {
+  .heatmap,
+  .heatmapCompact {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-auto-rows: 6.25rem;
   }
 
   .tileLg,
   .tileMd,
-  .tileSm {
+  .tileSm,
+  .tileCompact {
     grid-column: span 1;
     grid-row: span 1;
   }

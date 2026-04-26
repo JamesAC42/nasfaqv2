@@ -144,6 +144,30 @@ function formatRangeLabel(values: string[]) {
   return `${values[0].slice(0, 10)} to ${values[values.length - 1].slice(0, 10)}`;
 }
 
+function formatCalendarMonth(value: string) {
+  const parsed = new Date(`${value.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toLocaleDateString("en-US", { month: "short" });
+}
+
+function formatCalendarDate(value: string) {
+  const parsed = new Date(`${value.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function chunkCalendarWeeks(cells: HeatmapRow["cells"]) {
+  if (!cells.length) return [];
+  const firstDate = new Date(`${cells[0].bucket.slice(0, 10)}T00:00:00`);
+  const leadingBlankCount = Number.isNaN(firstDate.getTime()) ? 0 : firstDate.getDay();
+  const padded: Array<HeatmapRow["cells"][number] | null> = [
+    ...Array.from({ length: leadingBlankCount }, () => null),
+    ...cells,
+  ];
+  const weekCount = Math.ceil(padded.length / 7);
+  return Array.from({ length: weekCount }, (_, weekIndex) => padded.slice(weekIndex * 7, weekIndex * 7 + 7));
+}
+
 function chartTimeKey(time: Time) {
   return typeof time === "string" ? time : String(time);
 }
@@ -882,7 +906,8 @@ export function RankedBarChartCard({
   subtitle?: string;
   bars: RankedBar[];
 }) {
-  const maxValue = Math.max(...bars.map((item) => item.value), 0);
+  const sortedBars = [...bars].sort((a, b) => b.value - a.value);
+  const maxValue = Math.max(...sortedBars.map((item) => item.value), 0);
   const hasData = maxValue > 0;
 
   return (
@@ -895,7 +920,7 @@ export function RankedBarChartCard({
       </div>
       {hasData ? (
         <div className={styles.rankedBars}>
-          {bars.map((item) => {
+          {sortedBars.map((item) => {
             const width = maxValue > 0 ? `${(item.value / maxValue) * 100}%` : "0%";
             return (
               <div key={item.label} className={styles.rankedBarRow}>
@@ -924,7 +949,6 @@ export function RankedBarChartCard({
 export function SuperchatHeatmapCard({
   title,
   subtitle,
-  columns,
   rows,
   theme,
 }: {
@@ -934,9 +958,19 @@ export function SuperchatHeatmapCard({
   rows: HeatmapRow[];
   theme?: ChannelChartTheme | null;
 }) {
-  const maxValue = Math.max(...rows.flatMap((row) => row.cells.map((cell) => cell.value)), 0);
-  const hasData = maxValue > 0 && columns.length > 0 && rows.length > 0;
+  const cells = rows[0]?.cells || [];
+  const weeks = chunkCalendarWeeks(cells);
+  const maxValue = Math.max(...cells.map((cell) => cell.value), 0);
+  const totalValue = cells.reduce((sum, cell) => sum + (cell.value || 0), 0);
+  const activeDays = cells.filter((cell) => (cell.value || 0) > 0).length;
+  const hasData = cells.length > 0;
   const palette = resolveTheme(theme);
+  const monthLabels = weeks.map((week) => {
+    const firstRealCell = week.find((cell): cell is HeatmapRow["cells"][number] => Boolean(cell));
+    if (!firstRealCell) return "";
+    const day = Number(firstRealCell.bucket.slice(8, 10));
+    return day <= 7 ? formatCalendarMonth(firstRealCell.bucket) : "";
+  });
 
   return (
     <div className={`${styles.chartBox} ${styles.chartBoxTrend}`}>
@@ -945,46 +979,72 @@ export function SuperchatHeatmapCard({
           <strong className={styles.title}>{title}</strong>
           <span className={styles.subtitle}>{subtitle || "Intensity by bucket"}</span>
         </div>
+        {hasData ? (
+          <div className={styles.heatmapSummary}>
+            <strong>¥{formatValue(totalValue)}</strong>
+            <span>{activeDays} active days</span>
+          </div>
+        ) : null}
       </div>
       {hasData ? (
         <div className={styles.heatmap}>
           <div
-            className={styles.heatmapGrid}
+            className={styles.heatmapCalendar}
             style={
               {
-                "--heatmap-columns": String(columns.length),
                 "--heatmap-start": palette.base,
-                "--heatmap-end": palette.complement,
+                "--heatmap-end": palette.baseDeep,
                 "--heatmap-border": palette.highlight,
               } as CSSProperties
             }
           >
-            <div className={styles.heatmapHeaderRow}>
-              <div className={styles.heatmapCorner}>Currency</div>
-              {columns.map((column) => (
-                <div key={column} className={styles.heatmapColumnLabel}>
-                  {column}
-                </div>
+            <div className={styles.heatmapMonths} style={{ "--heatmap-week-count": String(weeks.length) } as CSSProperties}>
+              {monthLabels.map((label, index) => (
+                <span key={`${label}-${index}`}>{label}</span>
               ))}
             </div>
-            {rows.map((row) => (
-              <div key={row.label} className={styles.heatmapRowGroup}>
-                <div className={styles.heatmapRowLabel}>{row.label}</div>
-                {row.cells.map((cell) => {
-                  const intensity = maxValue > 0 ? Math.max(cell.value / maxValue, 0.08) : 0;
-                  return (
-                    <div
-                      key={`${row.label}-${cell.bucket}`}
-                      className={styles.heatmapCell}
-                      style={{ "--heatmap-cell-opacity": intensity.toFixed(3) } as CSSProperties}
-                      title={`${row.label} • ${cell.bucket}: ${cell.valueLabel}`}
-                    >
-                      <span>{cell.value > 0 ? cell.valueLabel : "—"}</span>
-                    </div>
-                  );
-                })}
+            <div className={styles.heatmapBody}>
+              <div className={styles.heatmapWeekdays}>
+                <span>Mon</span>
+                <span>Wed</span>
+                <span>Fri</span>
               </div>
-            ))}
+              <div className={styles.heatmapWeeks} style={{ "--heatmap-week-count": String(weeks.length) } as CSSProperties}>
+                {weeks.map((week, weekIndex) => (
+                  <div key={weekIndex} className={styles.heatmapWeek}>
+                    {Array.from({ length: 7 }, (_, dayIndex) => {
+                      const cell = week[dayIndex] || null;
+                      if (!cell) {
+                        return <span key={`blank-${weekIndex}-${dayIndex}`} className={styles.heatmapDayBlank} aria-hidden="true" />;
+                      }
+                      const normalized = maxValue > 0 ? cell.value / maxValue : 0;
+                      const level = cell.value <= 0 ? 0 : normalized >= 0.75 ? 4 : normalized >= 0.45 ? 3 : normalized >= 0.18 ? 2 : 1;
+                      return (
+                        <span
+                          key={cell.bucket}
+                          className={styles.heatmapDay}
+                          data-level={level}
+                          title={`${formatCalendarDate(cell.bucket)}: ${cell.valueLabel}`}
+                          aria-label={`${formatCalendarDate(cell.bucket)}: ${cell.valueLabel}`}
+                        />
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className={styles.heatmapLegend}>
+              <span>Less</span>
+              {[0, 1, 2, 3, 4].map((level) => (
+                <span
+                  key={level}
+                  className={styles.heatmapDay}
+                  data-level={level}
+                  aria-hidden="true"
+                />
+              ))}
+              <span>More</span>
+            </div>
           </div>
         </div>
       ) : (

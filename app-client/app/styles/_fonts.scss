@@ -13,6 +13,13 @@
 }
 
 @font-face {
+  font-family: "Rethink Sans";
+  src: url("/fonts/Rethink_Sans/RethinkSans-VariableFont_wght.ttf") format("truetype");
+  font-display: swap;
+  font-weight: 400 800;
+}
+
+@font-face {
   font-family: "Red Hat Mono";
   src: url("/fonts/Red_Hat_Mono/RedHatMono-VariableFont_wght.ttf") format("truetype");
   font-variation-settings: "wght" 400;

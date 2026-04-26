@@ -41,6 +41,29 @@
   color: color-mix(in srgb, var(--warning) 88%, var(--text));
 }
 
+.pillCompact {
+  gap: 0.25rem;
+  padding: 0.22rem 0.4rem 0.22rem 0.32rem;
+  font-size: 0.66rem;
+  box-shadow: 0 0.4rem 1rem color-mix(in srgb, var(--ticker-pill-accent-soft) 30%, transparent);
+}
+
+.pillCompact .iconCoin {
+  width: 1.05rem;
+  height: 1.05rem;
+  min-width: 1.05rem;
+  padding: 0.1rem;
+}
+
+.pillCompact .change {
+  gap: 0.14rem;
+}
+
+.pillCompact .trendIcon {
+  width: 0.55rem;
+  height: 0.55rem;
+}
+
 .iconCoin {
   width: 1.3rem;
   height: 1.3rem;

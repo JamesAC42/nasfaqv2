@@ -523,6 +523,7 @@ async function listArticles(pool, {
   isNews = null,
   query = null,
   authorId = null,
+  savedByUserId = null,
   viewerUserId = null,
   includeDrafts = false,
 } = {}) {
@@ -535,6 +536,7 @@ async function listArticles(pool, {
     normalizeNullableString(query, { maxLength: 120 }),
     includeDrafts,
     Number.isInteger(Number(authorId)) && Number(authorId) > 0 ? Number(authorId) : null,
+    Number.isInteger(Number(savedByUserId)) && Number(savedByUserId) > 0 ? Number(savedByUserId) : null,
   ];
 
   const whereClause = `
@@ -559,6 +561,12 @@ async function listArticles(pool, {
       )
       AND ($4::boolean IS TRUE OR a.status = 'published')
       AND ($5::bigint IS NULL OR a.author_id = $5)
+      AND ($6::bigint IS NULL OR EXISTS (
+        SELECT 1
+        FROM content.article_saves saved_filter
+        WHERE saved_filter.article_id = a.id
+          AND saved_filter.user_id = $6
+      ))
   `;
 
   const countResult = await pool.query(
@@ -600,6 +608,9 @@ async function listArticles(pool, {
       ON n.id = a.news_id
     LEFT JOIN market.users u
       ON u.id = a.author_id
+    LEFT JOIN content.article_saves saved_filter
+      ON saved_filter.article_id = a.id
+      AND saved_filter.user_id = $6
     LEFT JOIN LATERAL (
       SELECT COUNT(*)::int AS comment_count
       FROM content.article_comments ac
@@ -624,9 +635,12 @@ async function listArticles(pool, {
       WHERE aa.article_id = a.id
     ) asset_rel ON TRUE
     ${whereClause}
-    ORDER BY a.published_at DESC, a.id DESC
-    LIMIT $6
-    OFFSET $7
+    ORDER BY
+      CASE WHEN $6::bigint IS NULL THEN a.published_at ELSE saved_filter.created_at END DESC NULLS LAST,
+      a.published_at DESC,
+      a.id DESC
+    LIMIT $7
+    OFFSET $8
   `,
     [...params, safeLimit, offset]
   );
