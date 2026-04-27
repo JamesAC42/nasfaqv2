@@ -224,12 +224,10 @@ export function NewsSection({ items, error }: { items: NewsItem[]; error: string
     <section className={styles.section}>
       <div className={styles.sectionHeader}>
         <div>
-          <span className={styles.eyebrow}>News desk</span>
           <h2 className={styles.title}>
             <FaNewspaper className={styles.titleIcon} aria-hidden="true" />
             <span>HoloNews</span>
           </h2>
-          <p className={styles.copy}>Lead story, related market names, and fast headlines from the current news tape.</p>
         </div>
         <Link href="/news" className={styles.archiveLink}>Open news archive</Link>
       </div>

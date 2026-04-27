@@ -50,14 +50,22 @@ import {
   type PortfolioSummary,
   type PredictionCandlesResponse,
   type PredictionCandlePoint,
+  type PredictionMarketComment,
+  type PredictionMarketCommentListResponse,
+  type PredictionMarketCommentStake,
   type PredictionMarket,
   type PredictionMarketDetailResponse,
+  type PredictionMarketEvent,
+  type PredictionMarketEventResponse,
   type PredictionMarketListResponse,
   type PredictionOpenOrder,
   type PredictionOpenOrdersResponse,
   type PredictionOrderBook,
   type PredictionOrderBookLevel,
   type PredictionOrderBookResponse,
+  type PredictionPortfolioResponse,
+  type PredictionPosition,
+  type PredictionPositionsResponse,
   type PredictionTrade,
   type PredictionTradeResponse,
   type ProfileBundle,
@@ -220,6 +228,86 @@ export function normalizePredictionMarketDetailResponse(value: Record<string, un
   };
 }
 
+function normalizePredictionMarketCommentStakes(value: unknown): PredictionMarketCommentStake[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      const row = item && typeof item === "object" ? item as Record<string, unknown> : null;
+      if (!row) return null;
+      const outcomeId = Number(row.outcome_id || 0);
+      const shares = Number(toNumber(row.shares) || 0);
+      if (!outcomeId || shares <= 0) return null;
+      return {
+        outcome_id: outcomeId,
+        outcome_code: String(row.outcome_code || ""),
+        outcome_label: row.outcome_label ? String(row.outcome_label) : null,
+        shares,
+        avg_entry_price: Number(toNumber(row.avg_entry_price) || 0),
+      };
+    })
+    .filter((stake): stake is PredictionMarketCommentStake => stake !== null);
+}
+
+function normalizePredictionMarketCommentAuthor(value: unknown): PredictionMarketComment["author"] | null {
+  const author = normalizeAssetCommentAuthor(value);
+  if (!author) return null;
+  const row = value && typeof value === "object" ? value as Record<string, unknown> : null;
+  return {
+    ...author,
+    total_equity: toNumber(row?.total_equity),
+    rank: toNumber(row?.rank),
+  };
+}
+
+function normalizePredictionMarketComments(value: unknown): PredictionMarketComment[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      const row = item && typeof item === "object" ? item as Record<string, unknown> : null;
+      if (!row) return null;
+      const id = Number(row.id || 0);
+      const body = String(row.body || "").trim();
+      const author = normalizePredictionMarketCommentAuthor(row.author);
+      if (!id || !body || !author) return null;
+      return {
+        id,
+        market_id: Number(row.market_id || 0),
+        body,
+        created_at: String(row.created_at || ""),
+        updated_at: String(row.updated_at || ""),
+        author,
+        author_stakes: normalizePredictionMarketCommentStakes(row.author_stakes),
+      };
+    })
+    .filter((comment): comment is PredictionMarketComment => comment !== null);
+}
+
+export function normalizePredictionMarketCommentListResponse(value: Record<string, unknown>): PredictionMarketCommentListResponse {
+  const pagination = value.pagination && typeof value.pagination === "object"
+    ? value.pagination as Record<string, unknown>
+    : null;
+  const viewerContext = value.viewer_context && typeof value.viewer_context === "object"
+    ? value.viewer_context as Record<string, unknown>
+    : null;
+  return {
+    slug: String(value.slug || ""),
+    comments: normalizePredictionMarketComments(value.comments),
+    pagination: {
+      total: Number(pagination?.total || 0),
+      page: Number(pagination?.page || 1),
+      limit: Number(pagination?.limit || 12),
+      page_count: Number(pagination?.page_count || 1),
+      has_previous_page: Boolean(pagination?.has_previous_page),
+      has_next_page: Boolean(pagination?.has_next_page),
+    },
+    viewer_context: {
+      is_authenticated: Boolean(viewerContext?.is_authenticated),
+      can_post: Boolean(viewerContext?.can_post),
+      positions: normalizePredictionMarketCommentStakes(viewerContext?.positions),
+    },
+  };
+}
+
 export function normalizePredictionOrderBookResponse(value: Record<string, unknown>): PredictionOrderBookResponse {
   const bookValue = value.orderbook && typeof value.orderbook === "object"
     ? value.orderbook as Record<string, unknown>
@@ -346,6 +434,89 @@ export function normalizePredictionCandlesResponse(value: Record<string, unknown
           return normalized;
         })
         .filter((candle): candle is PredictionCandlePoint => candle !== null)
+      : [],
+  };
+}
+
+function normalizePredictionPosition(value: unknown): PredictionPosition {
+  const row = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    user_id: Number(row.user_id || 0),
+    market_id: Number(row.market_id || 0),
+    slug: String(row.slug || ""),
+    title: String(row.title || ""),
+    status: String(row.status || ""),
+    trading_status: String(row.trading_status || ""),
+    resolution_outcome: row.resolution_outcome ? String(row.resolution_outcome) : null,
+    last_traded_probability: toNumber(row.last_traded_probability),
+    closes_at: String(row.closes_at || ""),
+    resolved_at: row.resolved_at ? String(row.resolved_at) : null,
+    outcome_id: Number(row.outcome_id || 0),
+    outcome_code: String(row.outcome_code || ""),
+    outcome_label: String(row.outcome_label || ""),
+    is_winner: Boolean(row.is_winner),
+    shares: Number(toNumber(row.shares) || 0),
+    avg_entry_price: Number(toNumber(row.avg_entry_price) || 0),
+    realized_pnl_cash: Number(toNumber(row.realized_pnl_cash) || 0),
+    updated_at: String(row.updated_at || ""),
+  };
+}
+
+export function normalizePredictionPositionsResponse(value: Record<string, unknown>): PredictionPositionsResponse {
+  return {
+    slug: String(value.slug || ""),
+    positions: Array.isArray(value.positions) ? value.positions.map(normalizePredictionPosition) : [],
+  };
+}
+
+export function normalizePredictionMarketEventResponse(value: Record<string, unknown>): PredictionMarketEventResponse {
+  return {
+    slug: String(value.slug || ""),
+    events: Array.isArray(value.events)
+      ? value.events.map((event) => {
+        const row = event && typeof event === "object" ? event as Record<string, unknown> : {};
+        return {
+          id: Number(row.id || 0),
+          market_id: Number(row.market_id || 0),
+          actor_user_id: toNumber(row.actor_user_id),
+          actor_username: row.actor_username ? String(row.actor_username) : null,
+          actor_profile_color: row.actor_profile_color ? String(row.actor_profile_color) : null,
+          event_type: String(row.event_type || ""),
+          event_data: row.event_data && typeof row.event_data === "object" ? row.event_data as Record<string, unknown> : {},
+          created_at: String(row.created_at || ""),
+        } satisfies PredictionMarketEvent;
+      })
+      : [],
+  };
+}
+
+export function normalizePredictionPortfolioResponse(value: Record<string, unknown>): PredictionPortfolioResponse {
+  return {
+    user_id: Number(value.user_id || 0),
+    positions: Array.isArray(value.positions) ? value.positions.map(normalizePredictionPosition) : [],
+    open_orders: Array.isArray(value.open_orders)
+      ? value.open_orders.map((order) => {
+        const row = order && typeof order === "object" ? order as Record<string, unknown> : {};
+        return {
+          id: Number(row.id || 0),
+          market_id: Number(row.market_id || 0),
+          slug: String(row.slug || ""),
+          title: String(row.title || ""),
+          outcome_id: Number(row.outcome_id || 0),
+          outcome_code: String(row.outcome_code || ""),
+          outcome_label: String(row.outcome_label || ""),
+          user_id: Number(row.user_id || value.user_id || 0),
+          side: String(row.side || "buy"),
+          price: Number(toNumber(row.price) || 0),
+          quantity: Number(toNumber(row.quantity) || 0),
+          open_quantity: Number(toNumber(row.open_quantity) || 0),
+          matched_quantity: Number(toNumber(row.matched_quantity) || 0),
+          cash_reserved: Number(toNumber(row.cash_reserved) || 0),
+          status: String(row.status || "open"),
+          created_at: String(row.created_at || ""),
+          updated_at: String(row.updated_at || ""),
+        };
+      })
       : [],
   };
 }

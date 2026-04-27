@@ -96,6 +96,9 @@ export type PredictionMarketCategory = {
   id: number;
   slug: string | null;
   display_name: string | null;
+  description?: string | null;
+  sort_order?: number;
+  is_active?: boolean;
 };
 
 export type PredictionMarketUserRef = {
@@ -262,6 +265,89 @@ export type PredictionCandlesResponse = {
   interval: string;
   outcome: "yes" | "no" | string;
   candles: PredictionCandlePoint[];
+};
+
+export type PredictionMarketEvent = {
+  id: number;
+  market_id: number;
+  actor_user_id: number | null;
+  actor_username: string | null;
+  actor_profile_color: string | null;
+  event_type: string;
+  event_data: Record<string, unknown>;
+  created_at: string;
+};
+
+export type PredictionMarketEventResponse = {
+  slug: string;
+  events: PredictionMarketEvent[];
+};
+
+export type PredictionMarketCommentStake = {
+  outcome_id: number;
+  outcome_code: "yes" | "no" | string;
+  outcome_label: string | null;
+  shares: number;
+  avg_entry_price: number;
+};
+
+export type PredictionMarketComment = {
+  id: number;
+  market_id: number;
+  body: string;
+  created_at: string;
+  updated_at: string;
+  author: AssetCommentAuthor & {
+    total_equity: number | null;
+    rank: number | null;
+  };
+  author_stakes: PredictionMarketCommentStake[];
+};
+
+export type PredictionMarketCommentListResponse = {
+  slug: string;
+  comments: PredictionMarketComment[];
+  pagination: PredictionMarketPagination;
+  viewer_context: {
+    is_authenticated: boolean;
+    can_post: boolean;
+    positions: PredictionMarketCommentStake[];
+  };
+};
+
+export type PredictionPosition = {
+  user_id: number;
+  market_id: number;
+  slug: string;
+  title: string;
+  status: string;
+  trading_status: string;
+  resolution_outcome: string | null;
+  last_traded_probability: number | null;
+  closes_at: string;
+  resolved_at: string | null;
+  outcome_id: number;
+  outcome_code: "yes" | "no" | string;
+  outcome_label: string;
+  is_winner: boolean;
+  shares: number;
+  avg_entry_price: number;
+  realized_pnl_cash: number;
+  updated_at: string;
+};
+
+export type PredictionPositionsResponse = {
+  slug: string;
+  positions: PredictionPosition[];
+};
+
+export type PredictionPortfolioResponse = {
+  user_id: number;
+  positions: PredictionPosition[];
+  open_orders: Array<PredictionOpenOrder & {
+    slug: string;
+    title: string;
+  }>;
 };
 
 export type MarketAsset = {

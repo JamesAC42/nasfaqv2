@@ -1206,9 +1206,12 @@ async function cancelPredictionOrder(pool, {
       eventData: { order_id: Number(order.id) },
     });
 
+    const refreshedMarket = await predictionMarketDb.getPredictionMarketByIdWithClient(client, market.id);
     await client.query("COMMIT");
     return {
       order_id: Number(order.id),
+      market_id: Number(market.id),
+      market: refreshedMarket,
       status: "cancelled",
       refunded_cash: refundableCash,
     };

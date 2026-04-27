@@ -751,6 +751,25 @@ async function applySchema(pool) {
       ON market.prediction_market_events (market_id, created_at DESC, id DESC)
   `);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS content.prediction_market_comments (
+      id BIGSERIAL PRIMARY KEY,
+      market_id BIGINT NOT NULL REFERENCES market.prediction_markets(id) ON DELETE CASCADE,
+      author_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      body TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT content_prediction_market_comments_body_check CHECK (char_length(btrim(body)) BETWEEN 1 AND 4000)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS content_prediction_market_comments_market_idx
+      ON content.prediction_market_comments (market_id, created_at DESC, id DESC)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS content_prediction_market_comments_author_idx
+      ON content.prediction_market_comments (author_id, created_at DESC, id DESC)
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS market.user_leaderboard_current (
       user_id BIGINT PRIMARY KEY REFERENCES market.users(id) ON DELETE CASCADE,
       username_snapshot TEXT NOT NULL,

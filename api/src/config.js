@@ -43,9 +43,8 @@ function getConfig() {
     corsOrigins,
     enableMigrations: (process.env.ENABLE_MIGRATIONS || "").toLowerCase() === "true",
     enableMarketSettlementScheduler: (process.env.MARKET_SETTLEMENT_SCHEDULER_ENABLED || "true").toLowerCase() !== "false",
+    enablePredictionMarketScheduler: (process.env.PREDICTION_MARKET_SCHEDULER_ENABLED || "true").toLowerCase() !== "false",
   };
 }
 
 module.exports = { loadEnv, getConfig };
-
-

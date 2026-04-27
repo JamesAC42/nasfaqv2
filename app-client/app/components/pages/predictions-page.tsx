@@ -9,8 +9,10 @@ import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/co
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { fmtDate, fmtInteger, fmtNumber, fmtPct } from "@/app/lib/format";
+import { getPredictionMarketWsUrl } from "@/app/lib/ws";
 import {
   normalizePredictionCandlesResponse,
+  normalizePredictionMarketCommentListResponse,
   normalizePredictionMarketDetailResponse,
   normalizePredictionMarketListResponse,
   normalizePredictionOpenOrdersResponse,
@@ -19,6 +21,7 @@ import {
 } from "@/app/lib/normalizers";
 import type {
   PredictionCandlePoint,
+  PredictionMarketCommentListResponse,
   PredictionMarket,
   PredictionMarketScope,
   PredictionOpenOrder,
@@ -35,6 +38,7 @@ type DetailBundle = {
   yesCandles: PredictionCandlePoint[];
   noCandles: PredictionCandlePoint[];
   openOrders: PredictionOpenOrder[];
+  comments: PredictionMarketCommentListResponse;
 };
 
 type CreateFormState = {
@@ -57,13 +61,8 @@ type OrderFormState = {
   quantity: string;
 };
 
-const STATUS_OPTIONS = [
-  { value: "all", label: "All statuses" },
-  { value: "open", label: "Open" },
-  { value: "pending_approval", label: "Pending approval" },
-  { value: "resolved", label: "Resolved" },
-  { value: "rejected", label: "Rejected" },
-] as const;
+const CURRENT_MARKET_STATUSES = new Set(["draft", "pending_approval", "open", "closed", "resolving"]);
+const PAST_MARKET_STATUSES = new Set(["resolved", "voided", "rejected"]);
 
 function formatStatusLabel(value: string | null | undefined) {
   if (!value) return "Unknown";
@@ -124,9 +123,7 @@ function spreadLabel(bestBid: number | null, bestAsk: number | null) {
 }
 
 function buildMarketHref(slug: string) {
-  const params = new URLSearchParams();
-  params.set("market", slug);
-  return `/predictions?${params.toString()}`;
+  return `/predictions/${encodeURIComponent(slug)}`;
 }
 
 function datetimeLocalFromDate(date: Date) {
@@ -299,13 +296,104 @@ function OpenOrdersList({
   );
 }
 
-export function PredictionsPage() {
+function stakeLabel(stake: PredictionMarketCommentListResponse["viewer_context"]["positions"][number]) {
+  const outcome = stake.outcome_label || stake.outcome_code.toUpperCase();
+  return `${fmtInteger(stake.shares)} ${outcome} @ ${centsLabel(stake.avg_entry_price)}`;
+}
+
+function profileInitial(username: string | null | undefined) {
+  const trimmed = String(username || "").trim();
+  return trimmed ? trimmed.charAt(0).toUpperCase() : "?";
+}
+
+function stakeBadgeClassName(outcomeCode: string) {
+  return [
+    styles.kindBadge,
+    outcomeCode === "no" ? styles.commentStakeNo : styles.commentStakeYes,
+  ].join(" ");
+}
+
+function netWorthBadgeClassName(rank: number | null | undefined) {
+  if (rank === 1) return [styles.commentNetWorth, styles.commentNetWorthTopTen, styles.commentNetWorthFirst].join(" ");
+  if (rank === 2 || rank === 3) return [styles.commentNetWorth, styles.commentNetWorthTopTen, styles.commentNetWorthPodium].join(" ");
+  if ((rank || 0) > 0 && (rank || 0) <= 10) return [styles.commentNetWorth, styles.commentNetWorthTopTen].join(" ");
+  return styles.commentNetWorth;
+}
+
+function netWorthRankClassName(rank: number | null | undefined) {
+  if (rank === 1) return [styles.commentNetWorthRank, styles.commentNetWorthRankTopTen, styles.commentNetWorthRankFirst].join(" ");
+  if (rank === 2 || rank === 3) return [styles.commentNetWorthRank, styles.commentNetWorthRankTopTen, styles.commentNetWorthRankPodium].join(" ");
+  if ((rank || 0) > 0 && (rank || 0) <= 10) return [styles.commentNetWorthRank, styles.commentNetWorthRankTopTen].join(" ");
+  return styles.commentNetWorthRank;
+}
+
+function MarketComments({
+  comments,
+}: {
+  comments: PredictionMarketCommentListResponse;
+}) {
+  return (
+    <div className={styles.commentList}>
+      {comments.comments.length ? comments.comments.map((comment) => (
+        <article key={comment.id} className={styles.commentCard}>
+          <div className={styles.commentTop}>
+            <div className={styles.commentAuthorBlock}>
+              <Link href={`/profile/${encodeURIComponent(comment.author.username)}`} className={styles.commentAvatar}>
+                {comment.author.profile_picture_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={comment.author.profile_picture_url} alt="" className={styles.commentAvatarImage} />
+                ) : (
+                  <span className={styles.commentAvatarFallback}>{profileInitial(comment.author.username)}</span>
+                )}
+              </Link>
+              <div className={styles.commentAuthorMeta}>
+                <div className={styles.commentTopline}>
+                  <Link
+                    href={`/profile/${encodeURIComponent(comment.author.username)}`}
+                    className={styles.commentAuthorName}
+                    style={comment.author.profile_color ? { color: comment.author.profile_color } : undefined}
+                  >
+                    {comment.author.username}
+                  </Link>
+                  {comment.author.rank && comment.author.total_equity !== null ? (
+                    <span className={netWorthBadgeClassName(comment.author.rank)}>
+                      <span className={netWorthRankClassName(comment.author.rank)}>
+                        #{fmtInteger(comment.author.rank)}
+                      </span>
+                      <span className={styles.commentNetWorthValue}>{fmtNumber(comment.author.total_equity, "$")}</span>
+                    </span>
+                  ) : null}
+                </div>
+                <div className={styles.tradeMeta}>{fmtDate(comment.created_at)}</div>
+              </div>
+            </div>
+            <div className={styles.commentStakes}>
+              {comment.author_stakes.length ? comment.author_stakes.map((stake) => (
+                <span key={`${comment.id}-${stake.outcome_id}`} className={stakeBadgeClassName(stake.outcome_code)}>
+                  {stakeLabel(stake)}
+                </span>
+              )) : <span className={styles.kindBadge}>No active stake</span>}
+            </div>
+          </div>
+          <p className={styles.commentBody}>{comment.body}</p>
+        </article>
+      )) : <div className={styles.empty}>No comments yet. Stakeholders can start the discussion once they hold shares.</div>}
+    </div>
+  );
+}
+
+export function PredictionsPage({
+  initialMarketSlug = null,
+  initialScope = "public",
+}: {
+  initialMarketSlug?: string | null;
+  initialScope?: PredictionMarketScope;
+}) {
   const { user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedSlugParam = searchParams.get("market");
-  const [scope, setScope] = useState<PredictionMarketScope>("public");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [scope, setScope] = useState<PredictionMarketScope>(initialScope);
   const [markets, setMarkets] = useState<PredictionMarket[]>([]);
   const [listTotal, setListTotal] = useState(0);
   const [isLoadingList, setIsLoadingList] = useState(true);
@@ -318,12 +406,20 @@ export function PredictionsPage() {
   const [createBusy, setCreateBusy] = useState(false);
   const [createMessage, setCreateMessage] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false);
+  const [directoryView, setDirectoryView] = useState<"current" | "past">("current");
   const [orderForm, setOrderForm] = useState<OrderFormState>({ outcome: "yes", side: "buy", price: "0.55", quantity: "10" });
   const [orderBusy, setOrderBusy] = useState(false);
   const [orderMessage, setOrderMessage] = useState<string | null>(null);
   const [orderError, setOrderError] = useState<string | null>(null);
+  const [commentBody, setCommentBody] = useState("");
+  const [commentBusy, setCommentBusy] = useState(false);
+  const [commentMessage, setCommentMessage] = useState<string | null>(null);
+  const [commentError, setCommentError] = useState<string | null>(null);
   const [reviewReason, setReviewReason] = useState("");
-  const [actionBusy, setActionBusy] = useState<"submit" | "approve" | "reject" | null>(null);
+  const [resolutionOutcome, setResolutionOutcome] = useState<"yes" | "no">("yes");
+  const [resolutionNotes, setResolutionNotes] = useState("");
+  const [actionBusy, setActionBusy] = useState<"submit" | "approve" | "reject" | "close" | "resolve" | "void" | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [cancelBusyOrderId, setCancelBusyOrderId] = useState<number | null>(null);
@@ -331,6 +427,7 @@ export function PredictionsPage() {
   const canShowMine = Boolean(user);
   const canShowReviewQueue = Boolean(user?.is_admin || user?.can_approve_prediction_markets);
   const canCreateMarket = Boolean(user?.is_admin || user?.can_create_prediction_markets);
+  const isHub = !initialMarketSlug;
 
   useEffect(() => {
     if (scope === "mine" && !canShowMine) {
@@ -343,6 +440,22 @@ export function PredictionsPage() {
   }, [canShowMine, canShowReviewQueue, scope]);
 
   useEffect(() => {
+    const url = getPredictionMarketWsUrl();
+    if (!url) return;
+    const ws = new WebSocket(url);
+    ws.addEventListener("message", (event) => {
+      try {
+        const payload = JSON.parse(String(event.data || "{}"));
+        const slug = String(payload.slug || "");
+        if (!slug || slug === selectedSlugParam || slug === initialMarketSlug) {
+          setReloadToken((current) => current + 1);
+        }
+      } catch {}
+    });
+    return () => ws.close();
+  }, [initialMarketSlug, selectedSlugParam]);
+
+  useEffect(() => {
     let cancelled = false;
     setIsLoadingList(true);
     setListError(null);
@@ -351,8 +464,7 @@ export function PredictionsPage() {
       try {
         const params = new URLSearchParams();
         params.set("scope", scope);
-        params.set("limit", "40");
-        if (statusFilter !== "all") params.set("status", statusFilter);
+        params.set("limit", isHub ? "100" : "40");
         const result = await apiFetch<Record<string, unknown>>(`/api/prediction-markets?${params.toString()}`, { cache: "no-store" });
         if (cancelled) return;
         const normalized = normalizePredictionMarketListResponse(result);
@@ -372,9 +484,9 @@ export function PredictionsPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadToken, scope, statusFilter]);
+  }, [isHub, reloadToken, scope]);
 
-  const selectedSlug = selectedSlugParam || markets[0]?.slug || null;
+  const selectedSlug = selectedSlugParam || initialMarketSlug || (isHub ? null : markets[0]?.slug || null);
 
   useEffect(() => {
     if (!selectedSlug) {
@@ -397,6 +509,7 @@ export function PredictionsPage() {
           apiFetch<Record<string, unknown>>(`/api/prediction-markets/${encodeURIComponent(slug)}/trades?limit=12`, { cache: "no-store" }),
           apiFetch<Record<string, unknown>>(`/api/prediction-markets/${encodeURIComponent(slug)}/candles?interval=1h&outcome=yes&limit=120`, { cache: "no-store" }),
           apiFetch<Record<string, unknown>>(`/api/prediction-markets/${encodeURIComponent(slug)}/candles?interval=1h&outcome=no&limit=120`, { cache: "no-store" }),
+          apiFetch<Record<string, unknown>>(`/api/prediction-markets/${encodeURIComponent(slug)}/comments?limit=12`, { cache: "no-store" }),
         ];
 
         if (user) {
@@ -411,9 +524,10 @@ export function PredictionsPage() {
         const trades = normalizePredictionTradeResponse(results[2]).trades;
         const yesCandles = normalizePredictionCandlesResponse(results[3]).candles;
         const noCandles = normalizePredictionCandlesResponse(results[4]).candles;
-        const openOrders = user && results[5] ? normalizePredictionOpenOrdersResponse(results[5]).orders : [];
+        const comments = normalizePredictionMarketCommentListResponse(results[5]);
+        const openOrders = user && results[6] ? normalizePredictionOpenOrdersResponse(results[6]).orders : [];
 
-        setDetail({ market, orderbook, trades, yesCandles, noCandles, openOrders });
+        setDetail({ market, orderbook, trades, yesCandles, noCandles, openOrders, comments });
       } catch (error) {
         if (cancelled) return;
         setDetail(null);
@@ -452,6 +566,15 @@ export function PredictionsPage() {
     pending: markets.filter((market) => market.status === "pending_approval").length,
     resolved: markets.filter((market) => market.status === "resolved").length,
   }), [markets]);
+  const currentMarkets = useMemo(
+    () => markets.filter((market) => CURRENT_MARKET_STATUSES.has(market.status)),
+    [markets]
+  );
+  const pastMarkets = useMemo(
+    () => markets.filter((market) => PAST_MARKET_STATUSES.has(market.status)),
+    [markets]
+  );
+  const displayedMarkets = directoryView === "current" ? currentMarkets : pastMarkets;
 
   const selectedBestBid = detail ? bestPrice(detail.orderbook.yes.buy) : null;
   const selectedBestAsk = detail ? bestPrice(detail.orderbook.yes.sell) : null;
@@ -482,6 +605,7 @@ export function PredictionsPage() {
       const market = normalizePredictionMarketDetailResponse(result).market;
       setCreateMessage(`Draft created: ${market.slug}`);
       setCreateForm(createDefaultFormState());
+      setIsCreateDrawerOpen(false);
       if (scope !== "mine" && canShowMine) setScope("mine");
       router.push(buildMarketHref(market.slug));
       await refreshAll();
@@ -492,7 +616,7 @@ export function PredictionsPage() {
     }
   }
 
-  async function handleLifecycleAction(kind: "submit" | "approve" | "reject") {
+  async function handleLifecycleAction(kind: "submit" | "approve" | "reject" | "close" | "resolve" | "void") {
     if (!detail) return;
     if (kind === "submit" && userNeedsEmailVerification(user)) {
       setActionError("Verify your email before you can submit prediction markets for approval.");
@@ -510,12 +634,37 @@ export function PredictionsPage() {
         path = `/api/prediction-markets/${detail.market.id}/reject`;
         body = { reason: reviewReason };
       }
+      if (kind === "close") {
+        path = `/api/prediction-markets/${detail.market.id}/close`;
+        body = { reason: "manual_close" };
+      }
+      if (kind === "resolve") {
+        path = `/api/prediction-markets/${detail.market.id}/resolve`;
+        body = { outcome: resolutionOutcome, notes: resolutionNotes };
+      }
+      if (kind === "void") {
+        path = `/api/prediction-markets/${detail.market.id}/void`;
+        body = { reason: resolutionNotes };
+      }
       await apiFetch<Record<string, unknown>>(path, {
         method: "POST",
         body: JSON.stringify(body || {}),
       });
-      setActionMessage(kind === "submit" ? "Market submitted for approval." : kind === "approve" ? "Market approved." : "Market rejected.");
+      setActionMessage(
+        kind === "submit"
+          ? "Market submitted for approval."
+          : kind === "approve"
+            ? "Market approved."
+            : kind === "reject"
+              ? "Market rejected."
+              : kind === "close"
+                ? "Market closed."
+                : kind === "resolve"
+                  ? "Market resolved."
+                  : "Market voided."
+      );
       if (kind === "reject") setReviewReason("");
+      if (kind === "resolve" || kind === "void") setResolutionNotes("");
       await refreshAll();
     } catch (error) {
       setActionError(String((error as Error).message || error));
@@ -577,10 +726,39 @@ export function PredictionsPage() {
     }
   }
 
+  async function handleCreateComment(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!detail) return;
+    if (userNeedsEmailVerification(user)) {
+      setCommentError("Verify your email before you can comment on prediction markets.");
+      return;
+    }
+    setCommentBusy(true);
+    setCommentError(null);
+    setCommentMessage(null);
+    try {
+      const result = await apiFetch<Record<string, unknown>>(`/api/prediction-markets/${encodeURIComponent(detail.market.slug)}/comments?limit=12`, {
+        method: "POST",
+        body: JSON.stringify({ body: commentBody }),
+      });
+      const comments = normalizePredictionMarketCommentListResponse(result);
+      setDetail((current) => current ? { ...current, comments } : current);
+      setCommentBody("");
+      setCommentMessage("Comment posted.");
+    } catch (error) {
+      setCommentError(String((error as Error).message || error));
+    } finally {
+      setCommentBusy(false);
+    }
+  }
+
   const canSubmit = Boolean(detail?.market.viewer_permissions?.can_submit_for_approval);
   const canApprove = Boolean(detail?.market.viewer_permissions?.can_approve);
+  const canResolve = Boolean(detail?.market.viewer_permissions?.can_resolve);
+  const canVoid = Boolean(detail?.market.viewer_permissions?.can_void);
   const needsVerification = userNeedsEmailVerification(user);
   const canTrade = Boolean(user && !needsVerification && detail?.market.status === "open" && detail.market.trading_status === "open");
+  const canComment = Boolean(user && !needsVerification && detail?.comments.viewer_context.can_post);
 
   return (
     <SiteShell>
@@ -591,11 +769,15 @@ export function PredictionsPage() {
               <div className={styles.eyebrow}>Community Prediction Markets</div>
               <h1 className={styles.title}>HoloBets</h1>
               <p className={styles.copy}>
-                This slice adds the first interactive workflow: privileged users can draft markets, submit them into review,
-                approvers can approve or reject, and traders can place and cancel resting limit orders directly from the market page.
+                Browse current and resolved binary markets, then open any contract for its chart, rules, depth, and trading ticket.
               </p>
             </div>
             <div className={styles.heroActions}>
+              {isHub && canCreateMarket ? (
+                <button type="button" className={styles.primaryButton} onClick={() => setIsCreateDrawerOpen(true)}>
+                  Create market
+                </button>
+              ) : null}
               <div className={styles.heroPill}><FaShieldHalved /> {canCreateMarket ? "Creator access enabled" : "Read-only access"}</div>
               <div className={styles.heroPill}><FaScaleBalanced /> {canShowReviewQueue ? "Approval actions unlocked" : "Public market view"}</div>
             </div>
@@ -621,92 +803,120 @@ export function PredictionsPage() {
           </div>
         </section>
 
-        <section className={styles.controls}>
-          <div className={styles.controlGroup}>
-            <span className={styles.label}>Scope</span>
-            <ScopeControls scope={scope} onChange={setScope} canShowMine={canShowMine} canShowReviewQueue={canShowReviewQueue} />
-          </div>
-          <div className={styles.controlGroup}>
-            <label className={styles.label} htmlFor="prediction-status-filter">Status</label>
-            <select
-              id="prediction-status-filter"
-              className={styles.select}
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-            >
-              {STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </div>
-        </section>
-
-        {canCreateMarket ? (
-          <section className={styles.panel}>
-            <div className={styles.panelHead}>
-              <div>
-                <h2 className={styles.panelTitle}>Create market</h2>
-                <p className={styles.panelCopy}>Privileged users can draft new binary contracts here. Drafts can then be submitted into the review queue.</p>
+        {isHub ? (
+          <>
+            <section className={styles.controls}>
+              <div className={styles.controlGroup}>
+                <span className={styles.label}>View</span>
+                <div className={styles.pillGroup}>
+                  <button
+                    type="button"
+                    className={`${styles.pillButton} ${directoryView === "current" ? styles.pillButtonActive : ""}`.trim()}
+                    onClick={() => setDirectoryView("current")}
+                  >
+                    Current markets
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.pillButton} ${directoryView === "past" ? styles.pillButtonActive : ""}`.trim()}
+                    onClick={() => setDirectoryView("past")}
+                  >
+                    Past markets
+                  </button>
+                </div>
               </div>
+              <div className={styles.controlGroup}>
+                <span className={styles.label}>Scope</span>
+                <ScopeControls scope={scope} onChange={setScope} canShowMine={canShowMine} canShowReviewQueue={canShowReviewQueue} />
+              </div>
+            </section>
+
+            {isCreateDrawerOpen ? (
+              <div className={styles.drawerOverlay} onClick={() => setIsCreateDrawerOpen(false)}>
+                <aside className={styles.createDrawer} onClick={(event) => event.stopPropagation()} aria-label="Create prediction market">
+                  <div className={styles.drawerHead}>
+                    <div>
+                      <div className={styles.eyebrow}>Creator Tools</div>
+                      <h2 className={styles.panelTitle}>Create market</h2>
+                      <p className={styles.panelCopy}>Draft a binary contract and submit it into review.</p>
+                    </div>
+                    <button type="button" className={styles.drawerCloseButton} onClick={() => setIsCreateDrawerOpen(false)} aria-label="Close create market drawer">
+                      &times;
+                    </button>
+                  </div>
+                  {createError ? <div className="statusMessage statusMessageError">{createError}</div> : null}
+                  {createMessage ? <div className="statusMessage statusMessageSuccess">{createMessage}</div> : null}
+                  {needsVerification ? <VerificationRequiredNotice action="create prediction markets" /> : null}
+                  <form className={styles.drawerFormGrid} onSubmit={handleCreateMarket}>
+                    <label className={styles.field}>
+                      <span>Title</span>
+                      <input className={styles.input} value={createForm.title} onChange={(event) => setCreateForm((current) => ({ ...current, title: event.target.value }))} required />
+                    </label>
+                    <label className={styles.field}>
+                      <span>Slug</span>
+                      <input className={styles.input} value={createForm.slug} onChange={(event) => setCreateForm((current) => ({ ...current, slug: event.target.value }))} placeholder="optional-auto-from-title" />
+                    </label>
+                    <label className={styles.field}>
+                      <span>Subtitle</span>
+                      <input className={styles.input} value={createForm.subtitle} onChange={(event) => setCreateForm((current) => ({ ...current, subtitle: event.target.value }))} />
+                    </label>
+                    <label className={styles.field}>
+                      <span>Visibility</span>
+                      <select className={styles.select} value={createForm.visibility} onChange={(event) => setCreateForm((current) => ({ ...current, visibility: event.target.value as CreateFormState["visibility"] }))}>
+                        <option value="public">Public</option>
+                        <option value="private">Private</option>
+                        <option value="unlisted">Unlisted</option>
+                      </select>
+                    </label>
+                    <label className={`${styles.field} ${styles.fieldWide}`}>
+                      <span>Description</span>
+                      <textarea className={styles.textarea} value={createForm.description} onChange={(event) => setCreateForm((current) => ({ ...current, description: event.target.value }))} rows={3} />
+                    </label>
+                    <label className={`${styles.field} ${styles.fieldWide}`}>
+                      <span>Rules</span>
+                      <textarea className={styles.textarea} value={createForm.rules_text} onChange={(event) => setCreateForm((current) => ({ ...current, rules_text: event.target.value }))} rows={4} required />
+                    </label>
+                    <label className={`${styles.field} ${styles.fieldWide}`}>
+                      <span>Resolution source</span>
+                      <textarea className={styles.textarea} value={createForm.resolution_source_text} onChange={(event) => setCreateForm((current) => ({ ...current, resolution_source_text: event.target.value }))} rows={3} required />
+                    </label>
+                    <label className={styles.field}>
+                      <span>Opens at</span>
+                      <input className={styles.input} type="datetime-local" value={createForm.opens_at} onChange={(event) => setCreateForm((current) => ({ ...current, opens_at: event.target.value }))} required />
+                    </label>
+                    <label className={styles.field}>
+                      <span>Closes at</span>
+                      <input className={styles.input} type="datetime-local" value={createForm.closes_at} onChange={(event) => setCreateForm((current) => ({ ...current, closes_at: event.target.value }))} required />
+                    </label>
+                    <label className={styles.field}>
+                      <span>Resolves after</span>
+                      <input className={styles.input} type="datetime-local" value={createForm.resolves_after} onChange={(event) => setCreateForm((current) => ({ ...current, resolves_after: event.target.value }))} required />
+                    </label>
+                    <div className={styles.formActions}>
+                      <button type="submit" className={styles.primaryButton} disabled={createBusy || needsVerification}>
+                        {createBusy ? "Creating…" : "Create draft market"}
+                      </button>
+                      <button type="button" className={styles.secondaryButton} onClick={() => setIsCreateDrawerOpen(false)}>
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </aside>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <section className={styles.controls}>
+            <Link href="/predictions" className={styles.secondaryButton}>Back to prediction markets</Link>
+            <div className={styles.controlGroup}>
+              <span className={styles.label}>Market page</span>
+              <span className={styles.countPill}>{initialMarketSlug}</span>
             </div>
-            {createError ? <div className="statusMessage statusMessageError">{createError}</div> : null}
-            {createMessage ? <div className="statusMessage statusMessageSuccess">{createMessage}</div> : null}
-            {needsVerification ? <VerificationRequiredNotice action="create prediction markets" /> : null}
-            <form className={styles.formGrid} onSubmit={handleCreateMarket}>
-              <label className={styles.field}>
-                <span>Title</span>
-                <input className={styles.input} value={createForm.title} onChange={(event) => setCreateForm((current) => ({ ...current, title: event.target.value }))} required />
-              </label>
-              <label className={styles.field}>
-                <span>Slug</span>
-                <input className={styles.input} value={createForm.slug} onChange={(event) => setCreateForm((current) => ({ ...current, slug: event.target.value }))} placeholder="optional-auto-from-title" />
-              </label>
-              <label className={styles.field}>
-                <span>Subtitle</span>
-                <input className={styles.input} value={createForm.subtitle} onChange={(event) => setCreateForm((current) => ({ ...current, subtitle: event.target.value }))} />
-              </label>
-              <label className={styles.field}>
-                <span>Visibility</span>
-                <select className={styles.select} value={createForm.visibility} onChange={(event) => setCreateForm((current) => ({ ...current, visibility: event.target.value as CreateFormState["visibility"] }))}>
-                  <option value="public">Public</option>
-                  <option value="private">Private</option>
-                  <option value="unlisted">Unlisted</option>
-                </select>
-              </label>
-              <label className={`${styles.field} ${styles.fieldWide}`}>
-                <span>Description</span>
-                <textarea className={styles.textarea} value={createForm.description} onChange={(event) => setCreateForm((current) => ({ ...current, description: event.target.value }))} rows={3} />
-              </label>
-              <label className={`${styles.field} ${styles.fieldWide}`}>
-                <span>Rules</span>
-                <textarea className={styles.textarea} value={createForm.rules_text} onChange={(event) => setCreateForm((current) => ({ ...current, rules_text: event.target.value }))} rows={4} required />
-              </label>
-              <label className={`${styles.field} ${styles.fieldWide}`}>
-                <span>Resolution source</span>
-                <textarea className={styles.textarea} value={createForm.resolution_source_text} onChange={(event) => setCreateForm((current) => ({ ...current, resolution_source_text: event.target.value }))} rows={3} required />
-              </label>
-              <label className={styles.field}>
-                <span>Opens at</span>
-                <input className={styles.input} type="datetime-local" value={createForm.opens_at} onChange={(event) => setCreateForm((current) => ({ ...current, opens_at: event.target.value }))} required />
-              </label>
-              <label className={styles.field}>
-                <span>Closes at</span>
-                <input className={styles.input} type="datetime-local" value={createForm.closes_at} onChange={(event) => setCreateForm((current) => ({ ...current, closes_at: event.target.value }))} required />
-              </label>
-              <label className={styles.field}>
-                <span>Resolves after</span>
-                <input className={styles.input} type="datetime-local" value={createForm.resolves_after} onChange={(event) => setCreateForm((current) => ({ ...current, resolves_after: event.target.value }))} required />
-              </label>
-              <div className={styles.formActions}>
-                <button type="submit" className={styles.primaryButton} disabled={createBusy || needsVerification}>
-                  {createBusy ? "Creating…" : "Create draft market"}
-                </button>
-              </div>
-            </form>
           </section>
-        ) : null}
+        )}
 
-        <div className={styles.layout}>
+        <div className={isHub ? styles.hubDirectory : styles.detailLayout}>
+          {isHub ? (
           <section className={styles.panel}>
             <div className={styles.panelHead}>
               <div>
@@ -715,15 +925,15 @@ export function PredictionsPage() {
                   {scope === "public" ? "Tradable public listings." : scope === "mine" ? "Markets you created." : "Markets waiting on approval."}
                 </p>
               </div>
-              <div className={styles.countPill}>{fmtInteger(listTotal)} total</div>
+              <div className={styles.countPill}>{fmtInteger(displayedMarkets.length)} shown · {fmtInteger(listTotal)} total</div>
             </div>
 
             {listError ? <div className={styles.error}>Prediction market list unavailable: {listError}</div> : null}
             {isLoadingList ? <div className={styles.loading}>Loading prediction markets…</div> : null}
 
             <div className={styles.marketList}>
-              {!isLoadingList && !markets.length && !listError ? <div className={styles.empty}>No markets in this slice yet.</div> : null}
-              {markets.map((market) => (
+              {!isLoadingList && !displayedMarkets.length && !listError ? <div className={styles.empty}>No {directoryView} markets in this view yet.</div> : null}
+              {displayedMarkets.map((market) => (
                 <Link
                   key={market.slug}
                   href={buildMarketHref(market.slug)}
@@ -759,7 +969,9 @@ export function PredictionsPage() {
               ))}
             </div>
           </section>
+          ) : null}
 
+          {!isHub ? (
           <div className={styles.detailStack}>
             {detailError ? <div className={styles.error}>Prediction market detail unavailable: {detailError}</div> : null}
             {isLoadingDetail ? <div className={styles.panel}><div className={styles.loading}>Loading market detail…</div></div> : null}
@@ -808,7 +1020,7 @@ export function PredictionsPage() {
                       </div>
                     </div>
 
-                    {(canSubmit || canApprove) ? (
+                    {(canSubmit || canApprove || canResolve || canVoid) ? (
                       <div className={styles.actionRail}>
                         {actionError ? <div className="statusMessage statusMessageError">{actionError}</div> : null}
                         {actionMessage ? <div className="statusMessage statusMessageSuccess">{actionMessage}</div> : null}
@@ -833,6 +1045,37 @@ export function PredictionsPage() {
                                 {actionBusy === "reject" ? "Rejecting…" : "Reject"}
                               </button>
                             </>
+                          ) : null}
+                          {canResolve && detail.market.status === "open" ? (
+                            <button type="button" className={styles.secondaryButton} disabled={actionBusy !== null} onClick={() => void handleLifecycleAction("close")}>
+                              {actionBusy === "close" ? "Closing…" : "Close market"}
+                            </button>
+                          ) : null}
+                          {canResolve && ["closed", "resolving"].includes(detail.market.status) ? (
+                            <>
+                              <select
+                                className={styles.select}
+                                value={resolutionOutcome}
+                                onChange={(event) => setResolutionOutcome(event.target.value as "yes" | "no")}
+                              >
+                                <option value="yes">Resolve YES</option>
+                                <option value="no">Resolve NO</option>
+                              </select>
+                              <input
+                                className={styles.inlineInput}
+                                value={resolutionNotes}
+                                onChange={(event) => setResolutionNotes(event.target.value)}
+                                placeholder="Resolution notes or void reason"
+                              />
+                              <button type="button" className={styles.primaryButton} disabled={actionBusy !== null} onClick={() => void handleLifecycleAction("resolve")}>
+                                {actionBusy === "resolve" ? "Resolving…" : "Resolve"}
+                              </button>
+                            </>
+                          ) : null}
+                          {canVoid && !["resolved", "voided"].includes(detail.market.status) ? (
+                            <button type="button" className={styles.secondaryButton} disabled={actionBusy !== null} onClick={() => void handleLifecycleAction("void")}>
+                              {actionBusy === "void" ? "Voiding…" : "Void market"}
+                            </button>
                           ) : null}
                         </div>
                       </div>
@@ -883,6 +1126,53 @@ export function PredictionsPage() {
                       <p>{detail.market.resolution_source_text || "No resolution source provided yet."}</p>
                     </div>
                   </div>
+                </section>
+
+                <section className={styles.panel}>
+                  <div className={styles.panelHead}>
+                    <div>
+                      <h2 className={styles.panelTitle}>Market discussion</h2>
+                      <p className={styles.panelCopy}>Only traders with active YES or NO shares can post. Stake badges show each author&apos;s current position.</p>
+                    </div>
+                    <div className={styles.countPill}>{fmtInteger(detail.comments.pagination.total)} comments</div>
+                  </div>
+                  {user ? (
+                    <>
+                      {commentError ? <div className="statusMessage statusMessageError">{commentError}</div> : null}
+                      {commentMessage ? <div className="statusMessage statusMessageSuccess">{commentMessage}</div> : null}
+                      {needsVerification ? <VerificationRequiredNotice action="comment on prediction markets" /> : null}
+                      {!needsVerification && !detail.comments.viewer_context.can_post ? (
+                        <div className={styles.empty}>Buy YES or NO shares in this market before joining the discussion.</div>
+                      ) : null}
+                      {detail.comments.viewer_context.positions.length ? (
+                        <div className={styles.commentComposerStake}>
+                          Your stake: {detail.comments.viewer_context.positions.map(stakeLabel).join(" · ")}
+                        </div>
+                      ) : null}
+                      <form className={styles.commentForm} onSubmit={handleCreateComment}>
+                        <label className={`${styles.field} ${styles.fieldWide}`}>
+                          <span>Comment</span>
+                          <textarea
+                            className={styles.textarea}
+                            value={commentBody}
+                            onChange={(event) => setCommentBody(event.target.value)}
+                            rows={3}
+                            maxLength={4000}
+                            placeholder="Share your read on this market."
+                            required
+                          />
+                        </label>
+                        <div className={styles.formActions}>
+                          <button type="submit" className={styles.primaryButton} disabled={commentBusy || !canComment || !commentBody.trim()}>
+                            {commentBusy ? "Posting…" : "Post comment"}
+                          </button>
+                        </div>
+                      </form>
+                    </>
+                  ) : (
+                    <div className={styles.empty}>Sign in and buy shares in this market to comment.</div>
+                  )}
+                  <MarketComments comments={detail.comments} />
                 </section>
 
                 {user ? (
@@ -983,6 +1273,7 @@ export function PredictionsPage() {
               </>
             ) : null}
           </div>
+          ) : null}
         </div>
       </div>
     </SiteShell>

@@ -416,7 +416,7 @@ export function NasfaqThreadPage() {
   const [threadStateByKey, setThreadStateByKey] = useState<Record<ThreadTabKey, ThreadLoadState>>(buildInitialThreadState);
   const [quotePreview, setQuotePreview] = useState<QuotePreviewState | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortMode, setSortMode] = useState<ThreadSortMode>("latest");
+  const [sortMode, setSortMode] = useState<ThreadSortMode>("oldest");
   const [mediaMode, setMediaMode] = useState<ThreadMediaMode>("all");
   const [highlightOnly, setHighlightOnly] = useState(false);
   const [persistedYouState, setPersistedYouState] = useState<PersistedYouState>(buildInitialPersistedYouState);
@@ -852,10 +852,10 @@ export function NasfaqThreadPage() {
           <div className={styles.heroCopy}>
             <div className={styles.heroEyebrow}>
               <FiActivity aria-hidden="true" />
-              <span>Community Watch</span>
+              <span>Board Activity</span>
             </div>
             <h1 className={styles.title}>/vt/ Threads</h1>
-            <p className={styles.copy}>Active board chatter translated into a NASFAQ market signal desk.</p>
+            <p className={styles.copy}>Market relevant /vt/ activity.</p>
             <div className={styles.heroMeta}>
               <span>{activeTabDefinition.label} live board</span>
               <span>Last refresh {formatUpdatedAt(thread?.updated_at || null)}</span>

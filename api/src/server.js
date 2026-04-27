@@ -11,6 +11,7 @@ const chatDb = require("./chatDb");
 const authService = require("./services/auth");
 const marketState = require("./services/marketState");
 const { startMarketScheduler, loadSchedulerConfig, computeNextScheduledAt } = require("./services/marketScheduler");
+const { startPredictionScheduler } = require("./services/predictionScheduler");
 
 const channelsRoutes = require("./routes/channels");
 const { router: chatRoutes, CHAT_EVENTS_REDIS_CHANNEL } = require("./routes/chat");
@@ -36,6 +37,7 @@ const mediaCatalog = require("./services/mediaCatalog");
 const achievements = require("./services/achievements");
 const gamesCatalog = require("./services/games/catalog");
 const { MARKET_EVENTS_REDIS_CHANNEL } = require("./services/trading");
+const { PREDICTION_MARKET_EVENTS_REDIS_CHANNEL } = require("./services/predictionMarketEvents");
 
 const LIVESTREAM_VIEWER_UPDATES_CHANNEL = "nasfaq_livestreams:viewer_updates";
 const LIVESTREAM_BUCKET_UPDATES_CHANNEL = "nasfaq_livestreams:bucket_updates";
@@ -275,6 +277,7 @@ app.use((err, _req, res, _next) => {
     || err?.code === "invalid_asset_comment"
     || err?.code === "invalid_asset_comment_vote"
     || err?.code === "invalid_prediction_market"
+    || err?.code === "invalid_prediction_market_comment"
     || err?.code === "invalid_prediction_market_order"
     || err?.code === "invalid_game_inventory"
     || err?.code === "invalid_game_wallet"
@@ -286,6 +289,7 @@ app.use((err, _req, res, _next) => {
   if (
     err?.code === "asset_comment_requires_holding"
     || err?.code === "asset_comment_self_vote"
+    || err?.code === "prediction_market_comment_requires_position"
   ) {
     return res.status(403).json({ error: err.code });
   }
@@ -317,6 +321,7 @@ app.use((err, _req, res, _next) => {
     || err?.code === "prediction_market_closed"
     || err?.code === "prediction_insufficient_cash"
     || err?.code === "prediction_insufficient_holdings"
+    || err?.code === "prediction_cash_invariant_failed"
     || err?.code === "prediction_order_not_found"
     || err?.code === "prediction_order_not_cancellable"
     || err?.code === "game_session_not_active"
@@ -363,6 +368,7 @@ async function main() {
   const statsWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
   const chatWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
   const marketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
+  const predictionMarketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
 
   const broadcastOnlineUserCount = () => {
     const payload = JSON.stringify({
@@ -519,6 +525,10 @@ async function main() {
   marketWss.on("connection", (ws) => {
     ws.on("close", () => {});
   });
+  predictionMarketWss.on("connection", (ws) => {
+    sendWsText(ws, JSON.stringify({ type: "prediction.hello", at: new Date().toISOString() }));
+    ws.on("close", () => {});
+  });
 
   server.on("upgrade", async (req, socket, head) => {
     let pathname = "";
@@ -540,6 +550,8 @@ async function main() {
               ? chatWss
               : pathname === "/api/market/ws"
                 ? marketWss
+                : pathname === "/api/prediction-markets/ws"
+                  ? predictionMarketWss
           : null;
 
     if (!target) {
@@ -589,8 +601,14 @@ async function main() {
       sendWsText(client, payload);
     });
   });
+  await redisSub.subscribe(PREDICTION_MARKET_EVENTS_REDIS_CHANNEL, (message) => {
+    const payload = String(message);
+    predictionMarketWss.clients.forEach((client) => {
+      sendWsText(client, payload);
+    });
+  });
   // eslint-disable-next-line no-console
-  console.log("Subscribed to Redis channels:", LIVESTREAM_VIEWER_UPDATES_CHANNEL, LIVESTREAM_BUCKET_UPDATES_CHANNEL, CHAT_EVENTS_REDIS_CHANNEL, MARKET_EVENTS_REDIS_CHANNEL);
+  console.log("Subscribed to Redis channels:", LIVESTREAM_VIEWER_UPDATES_CHANNEL, LIVESTREAM_BUCKET_UPDATES_CHANNEL, CHAT_EVENTS_REDIS_CHANNEL, MARKET_EVENTS_REDIS_CHANNEL, PREDICTION_MARKET_EVENTS_REDIS_CHANNEL);
 
   // One server-side refresh timer replaces client polling.
   await refreshSnapshot();
@@ -599,12 +617,15 @@ async function main() {
   server.listen(cfg.port, () => {
     // eslint-disable-next-line no-console
     console.log(
-      `API listening on http://localhost:${cfg.port} (HTTP + WebSocket /api/livestreams/ws + /api/livestreams/buckets/ws + /api/stats/ws + /api/chat/ws + /api/market/ws)`
+      `API listening on http://localhost:${cfg.port} (HTTP + WebSocket /api/livestreams/ws + /api/livestreams/buckets/ws + /api/stats/ws + /api/chat/ws + /api/market/ws + /api/prediction-markets/ws)`
     );
   });
 
   if (cfg.enableMarketSettlementScheduler) {
     startMarketScheduler(pool, console);
+  }
+  if (cfg.enablePredictionMarketScheduler) {
+    startPredictionScheduler(pool, console, redis);
   }
 }
 

@@ -30,8 +30,8 @@ import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { createChannelChartTheme } from "@/app/lib/chart-theme";
 import { fmtNumber } from "@/app/lib/format";
-import { normalizeArticleListResponse, normalizeProfileBundle } from "@/app/lib/normalizers";
-import type { ArticleSummary, ProfileBundle, ProfileRelationUser } from "@/app/lib/types";
+import { normalizeArticleListResponse, normalizePredictionPortfolioResponse, normalizeProfileBundle } from "@/app/lib/normalizers";
+import type { ArticleSummary, PredictionPortfolioResponse, ProfileBundle, ProfileRelationUser } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useAuthStore } from "@/app/stores/auth-store";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -703,6 +703,64 @@ function HoldingsTable({
   );
 }
 
+function PredictionExposurePanel({ portfolio }: { portfolio: PredictionPortfolioResponse | null }) {
+  const positions = portfolio?.positions || [];
+  const openOrders = portfolio?.open_orders || [];
+
+  return (
+    <section className={styles.sectionPanel}>
+      <div className={styles.sectionHead}>
+        <h2 className={styles.sectionTitle}>Prediction Exposure</h2>
+        <span className={styles.sectionCount}>{positions.length} positions · {openOrders.length} orders</span>
+      </div>
+      {positions.length ? (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Market</th>
+                <th>Outcome</th>
+                <th>Shares</th>
+                <th>Avg</th>
+                <th>PnL</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {positions.map((position) => (
+                <tr key={`${position.market_id}-${position.outcome_id}`} className={styles.holdingRow}>
+                  <td>
+                    <Link href={`/predictions/${encodeURIComponent(position.slug)}`} className={styles.holdingAssetLink}>
+                      <div className={styles.holdingAssetCopy}>
+                        <strong>{position.title}</strong>
+                        <span>{position.slug}</span>
+                      </div>
+                    </Link>
+                  </td>
+                  <td>{position.outcome_label}</td>
+                  <td className={styles.numericCell}>{fmtNumber(position.shares)}</td>
+                  <td className={styles.numericCell}>{(position.avg_entry_price * 100).toFixed(1)}c</td>
+                  <td className={[styles.numericCell, valueToneClass(position.realized_pnl_cash)].filter(Boolean).join(" ")}>
+                    {formatSignedCurrency(position.realized_pnl_cash)}
+                  </td>
+                  <td>{position.status.replace(/_/g, " ")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className={styles.empty}>No prediction positions yet.</div>
+      )}
+      {openOrders.length ? (
+        <p className={styles.muted}>
+          {openOrders.length} open prediction order{openOrders.length === 1 ? "" : "s"} reserve {fmtNumber(openOrders.reduce((sum, order) => sum + order.cash_reserved, 0), "$")} cash.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 export function ProfilePage({ username }: { username?: string | null }) {
   const { user, logout } = useAuth();
   const router = useRouter();
@@ -727,6 +785,7 @@ export function ProfilePage({ username }: { username?: string | null }) {
   const [isProfilePictureModalOpen, setIsProfilePictureModalOpen] = useState(false);
   const [isProfileSettingsModalOpen, setIsProfileSettingsModalOpen] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
+  const [predictionPortfolio, setPredictionPortfolio] = useState<PredictionPortfolioResponse | null>(null);
 
   function baseProfilePath() {
     return username
@@ -796,6 +855,30 @@ export function ProfilePage({ username }: { username?: string | null }) {
     void loadProfilePictures();
     return () => controller.abort();
   }, [username]);
+
+  useEffect(() => {
+    if (username || !user) {
+      setPredictionPortfolio(null);
+      return;
+    }
+    const controller = new AbortController();
+
+    async function loadPredictionPortfolio() {
+      try {
+        const result = await apiFetch<Record<string, unknown>>("/api/portfolio/me/predictions", {
+          signal: controller.signal,
+        });
+        if (!controller.signal.aborted) {
+          setPredictionPortfolio(normalizePredictionPortfolioResponse(result));
+        }
+      } catch {
+        if (!controller.signal.aborted) setPredictionPortfolio(null);
+      }
+    }
+
+    void loadPredictionPortfolio();
+    return () => controller.abort();
+  }, [username, user]);
 
   useEffect(() => {
     if (!bundle || bundle.articles.pagination.page === articlesPage) return;
@@ -1201,17 +1284,20 @@ export function ProfilePage({ username }: { username?: string | null }) {
 
                 <div className={styles.centerColumn}>
                   {isSelf ? (
-                    <section className={styles.sectionPanel}>
-                      <div className={styles.sectionHead}>
-                        <h2 className={styles.sectionTitle}>Holdings</h2>
-                        <span className={styles.sectionCount}>{holdingsSorted.length}</span>
-                      </div>
-                      {holdingsSorted.length ? (
-                        <HoldingsTable holdings={holdingsSorted} assets={assets} totalEquity={profile.stats.total_equity} />
-                      ) : (
-                        <div className={styles.empty}>You do not hold any positions yet.</div>
-                      )}
-                    </section>
+                    <>
+                      <section className={styles.sectionPanel}>
+                        <div className={styles.sectionHead}>
+                          <h2 className={styles.sectionTitle}>Holdings</h2>
+                          <span className={styles.sectionCount}>{holdingsSorted.length}</span>
+                        </div>
+                        {holdingsSorted.length ? (
+                          <HoldingsTable holdings={holdingsSorted} assets={assets} totalEquity={profile.stats.total_equity} />
+                        ) : (
+                          <div className={styles.empty}>You do not hold any positions yet.</div>
+                        )}
+                      </section>
+                      <PredictionExposurePanel portfolio={predictionPortfolio} />
+                    </>
                   ) : null}
 
                   <ArticleShelf

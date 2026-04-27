@@ -1,4 +1,5 @@
 const express = require("express");
+const predictionMarketDb = require("../predictionMarketDb");
 const trading = require("../services/trading");
 const { requireUserId } = require("../userContext");
 
@@ -43,6 +44,19 @@ router.get("/me/orders", async (req, res, next) => {
     const limit = parseLimit(req.query.limit, 100);
     const orders = await trading.getPortfolioOrders(req.ctx.pool, userId, { limit });
     res.json({ user_id: userId, orders });
+  } catch (e) {
+    if (e?.code === "unauthenticated") {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    next(e);
+  }
+});
+
+router.get("/me/predictions", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    const portfolio = await predictionMarketDb.listUserPredictionPortfolio(req.ctx.pool, userId);
+    res.json({ user_id: userId, ...portfolio });
   } catch (e) {
     if (e?.code === "unauthenticated") {
       return res.status(401).json({ error: "unauthenticated" });

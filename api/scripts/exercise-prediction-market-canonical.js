@@ -6,6 +6,7 @@ const { Pool } = require("pg");
 const { applySchema } = require("../src/migrations");
 const predictionMarketService = require("../src/services/predictionMarketService");
 const predictionOrderbook = require("../src/services/predictionOrderbook");
+const predictionSettlement = require("../src/services/predictionSettlement");
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
@@ -161,6 +162,8 @@ async function main() {
 
   const slug = "canonical-refactor-e2e-test";
   const privateSlug = "canonical-refactor-private-visibility-test";
+  const voidSlug = "canonical-refactor-void-test";
+  const scheduledSlug = "canonical-refactor-scheduler-test";
   const creatorName = "prediction_creator_test";
   const approverName = "prediction_approver_test";
   const traderYesName = "prediction_yes_trader_test";
@@ -184,6 +187,8 @@ async function main() {
 
     await cleanupMarket(pool, slug);
     await cleanupMarket(pool, privateSlug);
+    await cleanupMarket(pool, voidSlug);
+    await cleanupMarket(pool, scheduledSlug);
     await resetLedgerForUsers(pool, [creator.id, approver.id, traderYes.id, traderNo.id]);
 
     const market = await predictionMarketService.createPredictionMarket(pool, creator, {
@@ -394,6 +399,101 @@ async function main() {
       "forbidden"
     );
 
+    const closedMarket = await predictionSettlement.closePredictionMarket(pool, market.id, approver, {
+      reason: "canonical_close",
+    });
+    assert.equal(closedMarket.status, "closed");
+    assert.equal(closedMarket.trading_status, "closed");
+    await assertRejectsWithCode(
+      () => predictionOrderbook.placePredictionOrder(pool, {
+        userId: traderYes.id,
+        slug,
+        outcomeCode: "yes",
+        side: "buy",
+        price: 0.5,
+        quantity: 1,
+      }),
+      "prediction_market_closed"
+    );
+
+    const resolvedMarket = await predictionSettlement.resolvePredictionMarket(pool, market.id, approver, {
+      outcome: "yes",
+      notes: "Canonical test resolves YES.",
+    });
+    assert.equal(resolvedMarket.status, "resolved");
+    assert.equal(resolvedMarket.trading_status, "resolved");
+    assert.equal(resolvedMarket.resolution_outcome, "yes");
+    assert.equal(resolvedMarket.outcomes.find((outcome) => outcome.outcome_code === "yes")?.is_winner, true);
+    assert.equal(resolvedMarket.outcomes.find((outcome) => outcome.outcome_code === "no")?.is_winner, false);
+
+    const resolvedPositions = await fetchPositions(pool, slug, [traderYesName, traderNoName]);
+    assert.ok(resolvedPositions.every((row) => approxEqual(toNumber(row.shares), 0)));
+    const resolvedCashBalances = await fetchCashBalances(pool, [traderYesName, traderNoName]);
+    const resolvedCashMap = new Map(resolvedCashBalances.map((row) => [row.username, row]));
+    assert.ok(approxEqual(toNumber(resolvedCashMap.get(traderYesName)?.cash_balance), 10000.79));
+    assert.ok(approxEqual(toNumber(resolvedCashMap.get(traderNoName)?.cash_balance), 9999.21));
+
+    const voidMarket = await predictionMarketService.createPredictionMarket(pool, creator, {
+      slug: voidSlug,
+      title: "Canonical Void Test",
+      subtitle: "Verifies void reserve release",
+      description: "Void market for settlement assertions",
+      rules_text: "Void market test rules.",
+      resolution_source_text: "Void market test source",
+      visibility: "public",
+      opens_at: new Date(Date.now() - 60_000).toISOString(),
+      closes_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      resolves_after: new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString(),
+    });
+    await predictionMarketService.submitPredictionMarket(pool, voidMarket.id, creator);
+    await predictionMarketService.approvePredictionMarket(pool, voidMarket.id, approver);
+    const voidRestingOrder = await predictionOrderbook.placePredictionOrder(pool, {
+      userId: traderYes.id,
+      slug: voidSlug,
+      outcomeCode: "yes",
+      side: "buy",
+      price: 0.25,
+      quantity: 4,
+    });
+    assert.equal(voidRestingOrder.order_status, "open");
+    const voidedMarket = await predictionSettlement.voidPredictionMarket(pool, voidMarket.id, approver, {
+      reason: "Canonical invalid market.",
+    });
+    assert.equal(voidedMarket.status, "voided");
+    assert.equal(voidedMarket.trading_status, "voided");
+    assert.equal(voidedMarket.resolution_outcome, "void");
+    const cashAfterVoid = await fetchCashBalances(pool, [traderYesName]);
+    assert.ok(approxEqual(toNumber(cashAfterVoid[0]?.cash_balance), 10000.79));
+
+    const scheduledMarket = await predictionMarketService.createPredictionMarket(pool, creator, {
+      slug: scheduledSlug,
+      title: "Canonical Scheduler Test",
+      subtitle: "Verifies auto open and close",
+      description: "Scheduler market for lifecycle assertions",
+      rules_text: "Scheduler market test rules.",
+      resolution_source_text: "Scheduler market test source",
+      visibility: "public",
+      opens_at: new Date(Date.now() + 60_000).toISOString(),
+      closes_at: new Date(Date.now() + 120_000).toISOString(),
+      resolves_after: new Date(Date.now() + 180_000).toISOString(),
+    });
+    await predictionMarketService.submitPredictionMarket(pool, scheduledMarket.id, creator);
+    const approvedScheduledMarket = await predictionMarketService.approvePredictionMarket(pool, scheduledMarket.id, approver);
+    assert.equal(approvedScheduledMarket.trading_status, "pending_open");
+
+    const openedByScheduler = await predictionSettlement.openDuePredictionMarkets(pool, {
+      now: new Date(Date.now() + 90_000),
+    });
+    assert.equal(openedByScheduler.some((item) => item.slug === scheduledSlug && item.trading_status === "open"), true);
+    const closedByScheduler = await predictionSettlement.closeDuePredictionMarkets(pool, {
+      now: new Date(Date.now() + 150_000),
+    });
+    assert.equal(closedByScheduler.some((item) => item.slug === scheduledSlug && item.status === "closed"), true);
+    const resolvingByScheduler = await predictionSettlement.markDuePredictionMarketsResolving(pool, {
+      now: new Date(Date.now() + 210_000),
+    });
+    assert.equal(resolvingByScheduler.some((item) => item.slug === scheduledSlug && item.status === "resolving"), true);
+
     console.log(JSON.stringify({
       ok: true,
       market_created_id: market.id,
@@ -428,6 +528,14 @@ async function main() {
         public_list_contains_private: publicListForTrader.items.some((item) => item.slug === privateSlug),
         creator_mine_contains_private: mineListForCreator.items.some((item) => item.slug === privateSlug),
         approver_review_queue_contains_private: reviewQueueForApprover.items.some((item) => item.slug === privateSlug),
+      },
+      settlement: {
+        closed_status: closedMarket.status,
+        resolved_status: resolvedMarket.status,
+        voided_status: voidedMarket.status,
+        scheduled_opened: openedByScheduler.map((item) => item.slug),
+        scheduled_closed: closedByScheduler.map((item) => item.slug),
+        scheduled_resolving: resolvingByScheduler.map((item) => item.slug),
       },
     }, null, 2));
   } finally {
