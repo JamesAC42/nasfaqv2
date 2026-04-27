@@ -12,6 +12,7 @@
 .hero,
 .statCard,
 .pulsePanel,
+.liveOrderPanel,
 .hotPanel,
 .adjustmentClockDeck,
 .countdownPanel,
@@ -358,6 +359,72 @@
   display: grid;
   grid-template-columns: minmax(25rem, 1.35fr) repeat(3, minmax(0, 0.72fr));
   gap: 0.75rem;
+}
+
+.liveOrderPanel {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem;
+}
+
+.liveOrderSummaryGrid {
+  display: grid;
+  grid-template-columns: minmax(15rem, 0.58fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.liveOrderTotal {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--activity-cyan) 20%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-card-soft) 76%, transparent);
+}
+
+.liveOrderTotal strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  line-height: 1;
+}
+
+.liveOrderTotal p {
+  @include subtle-copy;
+  margin: 0;
+}
+
+.liveOrderPressure {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.liveOrderAssetList {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.liveOrderAssetRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--activity-panel-soft) 82%, transparent);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.liveOrderAssetRow:hover {
+  border-color: color-mix(in srgb, var(--activity-cyan) 45%, var(--border));
+  background: color-mix(in srgb, var(--activity-cyan) 9%, var(--activity-panel-soft));
+  transform: translateY(-1px);
 }
 
 .adjustmentFeedPanel {
@@ -888,6 +955,8 @@
   .adjustmentClockDeck,
   .clockWall,
   .controlDeck,
+  .liveOrderSummaryGrid,
+  .liveOrderAssetList,
   .mainGrid,
   .intelGrid,
   .bottomGrid,
@@ -912,6 +981,7 @@
   .activityGauge,
   .smallClockGrid,
   .tradeRow,
+  .liveOrderAssetRow,
   .adjustmentFeedRow,
   .assetRow,
   .traderRow,

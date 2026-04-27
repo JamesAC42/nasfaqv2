@@ -159,6 +159,17 @@ router.get("/adjustments/summary", async (req, res, next) => {
   }
 });
 
+router.get("/live-orders/summary", async (req, res, next) => {
+  try {
+    const limit = parsePositiveInt(req.query.limit, 12, { min: 1, max: 50 });
+    const symbol = req.query.symbol ? normalizeSymbol(req.query.symbol) : null;
+    const summary = await marketDb.getPendingLiveOrderSummary(req.ctx.pool, { symbol, limit });
+    res.json(summary);
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.get("/adjustments/admin/sessions", async (req, res, next) => {
   try {
     requireAdmin(req);
@@ -596,7 +607,7 @@ router.post("/orders/buy", async (req, res, next) => {
     const quantity = req.body?.quantity;
     if (!symbol) return res.status(400).json({ error: "missing_symbol" });
 
-    const result = await trading.executeOrder(req.ctx.pool, {
+    const result = await trading.submitLiveOrder(req.ctx.pool, {
       userId,
       symbol,
       side: "buy",
@@ -613,6 +624,7 @@ router.post("/orders/buy", async (req, res, next) => {
     if (e?.code === "asset_not_active") return res.status(409).json({ error: "asset_not_active" });
     if (e?.code === "market_closed") return res.status(409).json({ error: "market_closed", market_status: e.marketStatus || null });
     if (e?.code === "insufficient_cash") return res.status(409).json({ error: "insufficient_cash" });
+    if (e?.code === "live_order_limit_exceeded") return res.status(429).json({ error: "live_order_limit_exceeded", limit: e.limit || null });
     if (e?.code === "invalid_quote") return res.status(409).json({ error: "invalid_quote" });
     next(e);
   }
@@ -625,7 +637,7 @@ router.post("/orders/sell", async (req, res, next) => {
     const quantity = req.body?.quantity;
     if (!symbol) return res.status(400).json({ error: "missing_symbol" });
 
-    const result = await trading.executeOrder(req.ctx.pool, {
+    const result = await trading.submitLiveOrder(req.ctx.pool, {
       userId,
       symbol,
       side: "sell",
@@ -642,6 +654,7 @@ router.post("/orders/sell", async (req, res, next) => {
     if (e?.code === "asset_not_active") return res.status(409).json({ error: "asset_not_active" });
     if (e?.code === "market_closed") return res.status(409).json({ error: "market_closed", market_status: e.marketStatus || null });
     if (e?.code === "insufficient_holdings") return res.status(409).json({ error: "insufficient_holdings" });
+    if (e?.code === "live_order_limit_exceeded") return res.status(429).json({ error: "live_order_limit_exceeded", limit: e.limit || null });
     if (e?.code === "invalid_quote") return res.status(409).json({ error: "invalid_quote" });
     next(e);
   }

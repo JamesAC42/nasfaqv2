@@ -371,6 +371,12 @@ export type MarketAsset = {
   latest_snapshot_date: string | null;
   volume_24h: number | null;
   move_24h_pct: number | null;
+  pending_live_order_count?: number;
+  pending_live_buy_count?: number;
+  pending_live_sell_count?: number;
+  pending_live_buy_quantity?: number;
+  pending_live_sell_quantity?: number;
+  next_live_order_execute_after?: string | null;
   base_rate?: number | null;
   market_price?: number | null;
   premium_discount_pct?: number | null;
@@ -987,6 +993,32 @@ export type MarketActivityTrader = {
   latest_trade_at: string | null;
 };
 
+export type MarketLiveOrderAssetSummary = {
+  asset_id: number;
+  symbol: string;
+  display_name: string;
+  icon: string | null;
+  color: string | null;
+  next_execute_after: string | null;
+  pending_count: number;
+  pending_buy_count: number;
+  pending_sell_count: number;
+  pending_buy_quantity: number;
+  pending_sell_quantity: number;
+};
+
+export type MarketLiveOrderSummary = {
+  generated_at: string;
+  symbol: string | null;
+  next_execute_after: string | null;
+  pending_count: number;
+  pending_buy_count: number;
+  pending_sell_count: number;
+  pending_buy_quantity: number;
+  pending_sell_quantity: number;
+  assets: MarketLiveOrderAssetSummary[];
+};
+
 export type MarketActivity = {
   windows: {
     "5m": MarketActivityWindow;
@@ -994,6 +1026,7 @@ export type MarketActivity = {
     "24h": MarketActivityWindow;
   };
   most_active_traders_24h: MarketActivityTrader[];
+  live_orders: MarketLiveOrderSummary;
 };
 
 export type MarketHubLeaders = {

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { ColorType, LineSeries, createChart, type IChartApi, type ISeriesApi, type Time } from "lightweight-charts";
 import type { IconType } from "react-icons";
 import {
@@ -186,9 +187,16 @@ type BucketUpdate = {
 };
 
 type TradeExecutionResult = {
-  filled_quantity: number;
-  executed_price: number;
-  fee: number;
+  order_id?: number | string;
+  status?: "pending" | "filled" | "cancelled" | "rejected";
+  order_type?: "market" | "live_market";
+  requested_quantity?: number;
+  execute_after?: string | null;
+  interval_limit?: number;
+  indicative_price?: number;
+  filled_quantity?: number;
+  executed_price?: number;
+  fee?: number;
   total_cost?: number | null;
   total_proceeds?: number | null;
   cost_basis_sold?: number | null;
@@ -204,8 +212,13 @@ type TradeExecutionResult = {
 };
 
 type TradeConfirmation = {
+  mode: "filled" | "queued";
+  orderId: number | string | null;
   side: "buy" | "sell";
   symbol: string;
+  requestedQuantity: number;
+  executeAfter: string | null;
+  intervalLimit: number | null;
   filledQuantity: number;
   executedPrice: number;
   fee: number;
@@ -503,6 +516,11 @@ function getTradeFailureNotice(errorCode: string, side: "buy" | "sell", symbol: 
         title: "Invalid order size",
         message: `Enter a valid number of ${symbol} shares before submitting this ${side} order.`,
       };
+    case "live_order_limit_exceeded":
+      return {
+        title: "Live order limit reached",
+        message: "You have already submitted the maximum number of live orders for this market interval.",
+      };
     default:
       return {
         title: "Trade failed",
@@ -519,16 +537,20 @@ function buildTradeConfirmation(args: {
   const { result, currentMidPrice, previousHolding } = args;
   const previousQuantity = previousHolding?.quantity ?? 0;
   const previousAvgCost = previousHolding?.avg_cost_basis ?? 0;
-  const grossValue = result.filled_quantity * result.executed_price;
-  const nextQuantity = result.updated_holdings?.quantity ?? (result.side === "buy" ? previousQuantity + result.filled_quantity : previousQuantity - result.filled_quantity);
+  const isQueued = result.order_type === "live_market" && result.status === "pending";
+  const filledQuantity = result.filled_quantity ?? 0;
+  const executedPrice = result.executed_price ?? (result.indicative_price ?? 0);
+  const fee = result.fee ?? 0;
+  const grossValue = filledQuantity * executedPrice;
+  const nextQuantity = result.updated_holdings?.quantity ?? (result.side === "buy" ? previousQuantity + filledQuantity : previousQuantity - filledQuantity);
   const nextAvgCost = result.updated_holdings?.avg_cost_basis ?? (nextQuantity > 0 ? previousAvgCost : 0);
-  const totalCost = result.total_cost ?? (result.side === "buy" ? grossValue + result.fee : null);
-  const totalProceeds = result.total_proceeds ?? (result.side === "sell" ? grossValue - result.fee : null);
-  const costBasisSold = result.cost_basis_sold ?? (result.side === "sell" ? previousAvgCost * result.filled_quantity : null);
-  const netCashImpact = result.side === "buy" ? -(totalCost ?? (grossValue + result.fee)) : (totalProceeds ?? (grossValue - result.fee));
+  const totalCost = result.total_cost ?? (result.side === "buy" ? grossValue + fee : null);
+  const totalProceeds = result.total_proceeds ?? (result.side === "sell" ? grossValue - fee : null);
+  const costBasisSold = result.cost_basis_sold ?? (result.side === "sell" ? previousAvgCost * filledQuantity : null);
+  const netCashImpact = result.side === "buy" ? -(totalCost ?? (grossValue + fee)) : (totalProceeds ?? (grossValue - fee));
   const realizedPnl =
     result.side === "sell"
-      ? (result.realized_pnl ?? ((totalProceeds ?? (grossValue - result.fee)) - (costBasisSold ?? 0)))
+      ? (result.realized_pnl ?? ((totalProceeds ?? (grossValue - fee)) - (costBasisSold ?? 0)))
       : null;
   const unrealizedPnl =
     currentMidPrice !== null && currentMidPrice !== undefined && nextQuantity > 0
@@ -542,11 +564,16 @@ function buildTradeConfirmation(args: {
         : pickRandomItem(TRADE_CONFIRMATION_SELL_LOSS_IMAGES);
 
   return {
+    mode: isQueued ? "queued" : "filled",
+    orderId: result.order_id ?? null,
     side: result.side,
     symbol: result.symbol,
-    filledQuantity: result.filled_quantity,
-    executedPrice: result.executed_price,
-    fee: result.fee,
+    requestedQuantity: result.requested_quantity ?? filledQuantity,
+    executeAfter: result.execute_after ?? null,
+    intervalLimit: result.interval_limit ?? null,
+    filledQuantity,
+    executedPrice,
+    fee,
     grossValue,
     netCashImpact,
     totalCost,
@@ -1995,6 +2022,26 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                 </div>
               </div>
 
+              <div className={styles.liveOrderQueue}>
+                <div>
+                  <span>Next Tick Queue</span>
+                  <strong>{fmtNumber(selectedAsset?.pending_live_order_count ?? 0)}</strong>
+                </div>
+                <div>
+                  <span>Buy Orders</span>
+                  <strong className={styles.valueUp}>{fmtNumber(selectedAsset?.pending_live_buy_count ?? 0)}</strong>
+                </div>
+                <div>
+                  <span>Sell Orders</span>
+                  <strong className={styles.valueDown}>{fmtNumber(selectedAsset?.pending_live_sell_count ?? 0)}</strong>
+                </div>
+                <p>
+                  {selectedAsset?.next_live_order_execute_after
+                    ? `Queued live orders execute around ${fmtDate(selectedAsset.next_live_order_execute_after)}.`
+                    : "No live orders are queued for this asset right now."}
+                </p>
+              </div>
+
               <button type="submit" className={tradeSide === "buy" ? styles.tradeSubmitBuy : styles.tradeSubmitSell} disabled={!tradingOpen || needsEmailVerification}>
                 {tradingOpen ? `${tradeSide === "buy" ? "Submit Buy" : "Submit Sell"} Order` : "Market Closed"}
               </button>
@@ -3080,9 +3127,11 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
         </div>
       </div>
 
-      {tradeConfirmation ? (
-        (() => {
-          const isPositiveTradeTheme = tradeConfirmation.side === "buy" || (tradeConfirmation.realizedPnl ?? 0) >= 0;
+      {tradeConfirmation && typeof document !== "undefined"
+        ? createPortal(
+            (() => {
+          const isQueued = tradeConfirmation.mode === "queued";
+          const isPositiveTradeTheme = isQueued || tradeConfirmation.side === "buy" || (tradeConfirmation.realizedPnl ?? 0) >= 0;
           return (
         <div
           className={[
@@ -3116,10 +3165,12 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
             >
               <div>
                 <span className={styles.tradeConfirmationEyebrow}>
-                  {tradeConfirmation.side === "buy" ? "Buy Filled" : "Sell Filled"}
+                  {isQueued ? "Live Order Queued" : tradeConfirmation.side === "buy" ? "Buy Filled" : "Sell Filled"}
                 </span>
                 <h2 id="trade-confirmation-title" className={styles.tradeConfirmationTitle}>
-                  {tradeConfirmation.side === "buy"
+                  {isQueued
+                    ? "Order queued for next tick"
+                    : tradeConfirmation.side === "buy"
                     ? "Position updated"
                     : (tradeConfirmation.realizedPnl ?? 0) >= 0
                       ? `Nice! Capital gains = ${fmtNumber(tradeConfirmation.realizedPnl, "$")}`
@@ -3135,7 +3186,9 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                   <p className={styles.tradeConfirmationCopy}>
                     <strong className={styles.tradeConfirmationTicker}>${tradeConfirmation.symbol}</strong>
                     <span>
-                      {fmtNumber(tradeConfirmation.filledQuantity)} shares executed at {fmtNumber(tradeConfirmation.executedPrice, "$")} per share.
+                      {isQueued
+                        ? `${fmtNumber(tradeConfirmation.requestedQuantity)} shares will execute on the next 10-minute tick.`
+                        : `${fmtNumber(tradeConfirmation.filledQuantity)} shares executed at ${fmtNumber(tradeConfirmation.executedPrice, "$")} per share.`}
                     </span>
                   </p>
                 </div>
@@ -3163,22 +3216,22 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                 <div className={styles.tradeConfirmationContent}>
                   <div className={styles.tradeConfirmationGrid}>
                     <div className={styles.tradeConfirmationCard}>
-                      <span>{tradeConfirmation.side === "buy" ? "Total Cost" : "Gross Value"}</span>
-                      <strong>{fmtNumber(tradeConfirmation.side === "buy" ? tradeConfirmation.totalCost : tradeConfirmation.grossValue, "$")}</strong>
+                      <span>{isQueued ? "Requested Shares" : tradeConfirmation.side === "buy" ? "Total Cost" : "Gross Value"}</span>
+                      <strong>{isQueued ? fmtNumber(tradeConfirmation.requestedQuantity) : fmtNumber(tradeConfirmation.side === "buy" ? tradeConfirmation.totalCost : tradeConfirmation.grossValue, "$")}</strong>
                     </div>
                     <div className={styles.tradeConfirmationCard}>
-                      <span>Fee</span>
-                      <strong>{fmtNumber(tradeConfirmation.fee, "$")}</strong>
+                      <span>{isQueued ? "Order ID" : "Fee"}</span>
+                      <strong>{isQueued ? `#${tradeConfirmation.orderId || "new"}` : fmtNumber(tradeConfirmation.fee, "$")}</strong>
                     </div>
                     <div className={styles.tradeConfirmationCard}>
-                      <span>{tradeConfirmation.side === "buy" ? "Cash Change" : "Net Proceeds"}</span>
-                      <strong className={tradeConfirmation.netCashImpact >= 0 ? styles.valueUp : styles.valueDown}>
-                        {formatSignedCurrency(tradeConfirmation.netCashImpact)}
+                      <span>{isQueued ? "Executes Around" : tradeConfirmation.side === "buy" ? "Cash Change" : "Net Proceeds"}</span>
+                      <strong className={isQueued || tradeConfirmation.netCashImpact >= 0 ? styles.valueUp : styles.valueDown}>
+                        {isQueued ? fmtDate(tradeConfirmation.executeAfter) : formatSignedCurrency(tradeConfirmation.netCashImpact)}
                       </strong>
                     </div>
                     <div className={styles.tradeConfirmationCard}>
-                      <span>New Cash Balance</span>
-                      <strong>{fmtNumber(tradeConfirmation.nextCashBalance, "$")}</strong>
+                      <span>{isQueued ? "Interval Limit" : "New Cash Balance"}</span>
+                      <strong>{isQueued ? `${fmtNumber(tradeConfirmation.intervalLimit)} orders` : fmtNumber(tradeConfirmation.nextCashBalance, "$")}</strong>
                     </div>
                   </div>
 
@@ -3212,7 +3265,22 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                     <section className={styles.tradeConfirmationSection}>
                       <h3>{tradeConfirmation.side === "buy" ? "What changed" : "Remaining position"}</h3>
                       <div className={styles.tradeConfirmationMetricList}>
-                        {tradeConfirmation.side === "buy" ? (
+                        {isQueued ? (
+                          <>
+                            <div className={styles.tradeConfirmationMetric}>
+                              <span>Side</span>
+                              <strong className={tradeConfirmation.side === "buy" ? styles.valueUp : styles.valueDown}>{tradeConfirmation.side.toUpperCase()}</strong>
+                            </div>
+                            <div className={styles.tradeConfirmationMetric}>
+                              <span>Execution rule</span>
+                              <strong>Next 10-minute tick</strong>
+                            </div>
+                            <div className={styles.tradeConfirmationMetric}>
+                              <span>Fill check</span>
+                              <strong>Cash, holdings, and quote rechecked at execution</strong>
+                            </div>
+                          </>
+                        ) : tradeConfirmation.side === "buy" ? (
                           <>
                             <div className={styles.tradeConfirmationMetric}>
                               <span>Shares added</span>
@@ -3263,10 +3331,12 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
             </div>
               </div>
             </div>
-        </div>
-          );
-        })()
-      ) : null}
+              </div>
+            );
+            })(),
+            document.body,
+          )
+        : null}
       {tradeFailureNotice ? (
         <div className={styles.tradeFailureOverlay} onClick={() => setTradeFailureNotice(null)}>
           <div className={styles.tradeFailureModal} role="alertdialog" aria-modal="true" aria-labelledby="trade-failure-title" onClick={(event) => event.stopPropagation()}>

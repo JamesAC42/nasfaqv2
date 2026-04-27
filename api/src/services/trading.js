@@ -3,11 +3,15 @@ const DEFAULT_TRANSIENT_HALF_LIFE_MINUTES = 60;
 const DEFAULT_TRANSIENT_IMPACT_WEIGHT = 0.7;
 const DEFAULT_PERSISTENT_IMPACT_WEIGHT = 0.15;
 const DEFAULT_EXECUTION_SLIPPAGE_WEIGHT = 0.5;
+const DEFAULT_LIVE_ORDER_LIMIT_PER_INTERVAL = 180;
+const DEFAULT_LIVE_ORDER_BATCH_LIMIT = 100;
+const LIVE_ORDER_SCHEDULER_LOCK_KEY = 9_204_003;
 const marketState = require("./marketState");
 const netWorth = require("./netWorth");
 const achievements = require("./achievements");
 const { ensureUserCashAccount, getStarterCash } = require("./portfolioCash");
 const { publishMarketEvent } = require("./marketEvents");
+const { invalidateMarketAssetsCache } = require("../marketCache");
 
 function getTradingFeeRate() {
   const parsed = Number(process.env.MARKET_TRADING_FEE_RATE || DEFAULT_TRADING_FEE_RATE);
@@ -18,6 +22,11 @@ const TRANSIENT_HALF_LIFE_MINUTES = Number(process.env.MARKET_TRANSIENT_HALF_LIF
 const TRANSIENT_IMPACT_WEIGHT = Number(process.env.MARKET_TRANSIENT_IMPACT_WEIGHT || DEFAULT_TRANSIENT_IMPACT_WEIGHT);
 const PERSISTENT_IMPACT_WEIGHT = Number(process.env.MARKET_PERSISTENT_IMPACT_WEIGHT || DEFAULT_PERSISTENT_IMPACT_WEIGHT);
 const EXECUTION_SLIPPAGE_WEIGHT = Number(process.env.MARKET_EXECUTION_SLIPPAGE_WEIGHT || DEFAULT_EXECUTION_SLIPPAGE_WEIGHT);
+const LIVE_ORDER_LIMIT_PER_INTERVAL = Math.max(
+  1,
+  Number(process.env.MARKET_LIVE_ORDER_LIMIT_PER_INTERVAL || DEFAULT_LIVE_ORDER_LIMIT_PER_INTERVAL)
+);
+const LIVE_ORDER_BATCH_LIMIT = Math.max(1, Number(process.env.MARKET_LIVE_ORDER_BATCH_LIMIT || DEFAULT_LIVE_ORDER_BATCH_LIMIT));
 
 function toNumber(value, fallback = 0) {
   const parsed = Number(value);
@@ -32,6 +41,11 @@ function requirePositiveQuantity(quantity) {
     throw error;
   }
   return parsed;
+}
+
+function computeNextLiveOrderTick(now = new Date()) {
+  const tickMs = 10 * 60 * 1000;
+  return new Date((Math.floor(now.getTime() / tickMs) + 1) * tickMs);
 }
 
 function decayTransientOffset(transientOffset, lastUpdatedAt, now = new Date()) {
@@ -162,6 +176,31 @@ async function createOrder(client, { userId, assetId, side, quantity, bidPrice, 
   `,
     [userId, assetId, side, quantity, bidPrice, askPrice]
   );
+  return rows[0].id;
+}
+
+async function markExistingOrderFilled(client, { orderId, quantity, bidPrice, askPrice, liveOrderBatchId = null }) {
+  const { rows } = await client.query(
+    `
+    UPDATE market.trade_orders
+    SET
+      filled_quantity = $2,
+      status = 'filled',
+      quote_bid_at_submit = COALESCE(quote_bid_at_submit, $3),
+      quote_ask_at_submit = COALESCE(quote_ask_at_submit, $4),
+      live_order_batch_id = COALESCE($5, live_order_batch_id),
+      updated_at = now()
+    WHERE id = $1
+      AND status = 'pending'
+    RETURNING id
+  `,
+    [orderId, quantity, bidPrice, askPrice, liveOrderBatchId]
+  );
+  if (!rows[0]) {
+    const error = new Error("live_order_not_pending");
+    error.code = "live_order_not_pending";
+    throw error;
+  }
   return rows[0].id;
 }
 
@@ -338,11 +377,51 @@ async function updateAssetAfterTrade(client, asset, {
   };
 }
 
-async function executeOrder(pool, { userId, symbol, side, quantity, redis = null }) {
+async function getLockedPendingLiveOrder(client, orderId) {
+  const { rows } = await client.query(
+    `
+    SELECT
+      o.id,
+      o.user_id,
+      o.asset_id,
+      o.side,
+      o.requested_quantity,
+      a.symbol
+    FROM market.trade_orders o
+    JOIN market.market_assets a ON a.id = o.asset_id
+    WHERE o.id = $1
+      AND o.order_type = 'live_market'
+      AND o.status = 'pending'
+    FOR UPDATE OF o
+  `,
+    [orderId]
+  );
+  return rows[0] || null;
+}
+
+async function executeOrder(pool, { userId, symbol, side, quantity, redis = null, existingOrderId = null, liveOrderBatchId = null }) {
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
+
+    let effectiveUserId = userId;
+    let effectiveSymbol = symbol;
+    let effectiveSide = side;
+    let effectiveQuantity = quantity;
+
+    if (existingOrderId) {
+      const pendingOrder = await getLockedPendingLiveOrder(client, existingOrderId);
+      if (!pendingOrder) {
+        const error = new Error("live_order_not_pending");
+        error.code = "live_order_not_pending";
+        throw error;
+      }
+      effectiveUserId = pendingOrder.user_id;
+      effectiveSymbol = pendingOrder.symbol;
+      effectiveSide = pendingOrder.side;
+      effectiveQuantity = pendingOrder.requested_quantity;
+    }
 
     const status = await marketState.getMarketStatusWithClient(client);
     if (status && !status.is_trading_open) {
@@ -352,8 +431,8 @@ async function executeOrder(pool, { userId, symbol, side, quantity, redis = null
       throw error;
     }
 
-    const parsedQuantity = requirePositiveQuantity(quantity);
-    const asset = await getLockedAssetBySymbol(client, symbol);
+    const parsedQuantity = requirePositiveQuantity(effectiveQuantity);
+    const asset = await getLockedAssetBySymbol(client, effectiveSymbol);
     if (!asset) {
       const error = new Error("asset_not_found");
       error.code = "asset_not_found";
@@ -365,8 +444,8 @@ async function executeOrder(pool, { userId, symbol, side, quantity, redis = null
       throw error;
     }
 
-    const cashAccount = await ensureUserCashAccount(client, userId);
-    const holding = await getLockedHolding(client, userId, asset.id);
+    const cashAccount = await ensureUserCashAccount(client, effectiveUserId);
+    const holding = await getLockedHolding(client, effectiveUserId, asset.id);
     const feeRate = getTradingFeeRate();
     const now = new Date();
     const fairPrice = Math.max(toNumber(asset.current_fair_value, 0), 0.000001);
@@ -374,7 +453,7 @@ async function executeOrder(pool, { userId, symbol, side, quantity, redis = null
     const liveMidBefore = computeLiveMidPrice(fairPrice, persistentOffset, transientOffset);
     const quotesBefore = computeQuotes(liveMidBefore, asset.spread_bps);
     const executablePrice = computeExecutionPrice({
-      side,
+      side: effectiveSide,
       bidPrice: quotesBefore.bidPrice,
       askPrice: quotesBefore.askPrice,
       quantity: parsedQuantity,
@@ -388,15 +467,15 @@ async function executeOrder(pool, { userId, symbol, side, quantity, redis = null
 
     const grossCash = executablePrice * parsedQuantity;
     const feeCash = grossCash * feeRate;
-    const totalCash = side === "buy" ? grossCash + feeCash : grossCash - feeCash;
+    const totalCash = effectiveSide === "buy" ? grossCash + feeCash : grossCash - feeCash;
 
-    if (side === "buy" && toNumber(cashAccount.cash_balance, 0) < totalCash) {
+    if (effectiveSide === "buy" && toNumber(cashAccount.cash_balance, 0) < totalCash) {
       const error = new Error("insufficient_cash");
       error.code = "insufficient_cash";
       throw error;
     }
 
-    if (side === "sell") {
+    if (effectiveSide === "sell") {
       const currentQty = toNumber(holding?.quantity, 0);
       if (currentQty < parsedQuantity) {
         const error = new Error("insufficient_holdings");
@@ -405,37 +484,45 @@ async function executeOrder(pool, { userId, symbol, side, quantity, redis = null
       }
     }
 
-    const orderId = await createOrder(client, {
-      userId,
-      assetId: asset.id,
-      side,
-      quantity: parsedQuantity,
-      bidPrice: quotesBefore.bidPrice,
-      askPrice: quotesBefore.askPrice,
-    });
+    const orderId = existingOrderId
+      ? await markExistingOrderFilled(client, {
+          orderId: existingOrderId,
+          quantity: parsedQuantity,
+          bidPrice: quotesBefore.bidPrice,
+          askPrice: quotesBefore.askPrice,
+          liveOrderBatchId,
+        })
+      : await createOrder(client, {
+          userId: effectiveUserId,
+          assetId: asset.id,
+          side: effectiveSide,
+          quantity: parsedQuantity,
+          bidPrice: quotesBefore.bidPrice,
+          askPrice: quotesBefore.askPrice,
+        });
 
     const fillRow = await createFill(client, {
       orderId,
       assetId: asset.id,
-      userId,
-      side,
+      userId: effectiveUserId,
+      side: effectiveSide,
       price: executablePrice,
       quantity: parsedQuantity,
       grossCash,
       feeCash,
-      netCash: side === "buy" ? -(grossCash + feeCash) : grossCash - feeCash,
+      netCash: effectiveSide === "buy" ? -(grossCash + feeCash) : grossCash - feeCash,
     });
 
     const currentCash = toNumber(cashAccount.cash_balance, 0);
     const currentQuantity = toNumber(holding?.quantity, 0);
     const currentAvgCost = toNumber(holding?.avg_cost_basis, 0);
-    const costBasisSold = side === "sell" ? currentAvgCost * parsedQuantity : null;
+    const costBasisSold = effectiveSide === "sell" ? currentAvgCost * parsedQuantity : null;
 
     let nextCash = currentCash;
     let nextQuantity = currentQuantity;
     let nextAvgCost = currentAvgCost;
 
-    if (side === "buy") {
+    if (effectiveSide === "buy") {
       nextCash = currentCash - grossCash - feeCash;
       nextQuantity = currentQuantity + parsedQuantity;
       nextAvgCost =
@@ -444,7 +531,7 @@ async function executeOrder(pool, { userId, symbol, side, quantity, redis = null
           : 0;
 
       await insertLedgerEntry(client, {
-        userId,
+        userId: effectiveUserId,
         assetId: asset.id,
         entryType: "buy_asset_credit",
         quantityDelta: parsedQuantity,
@@ -453,7 +540,7 @@ async function executeOrder(pool, { userId, symbol, side, quantity, redis = null
         referenceId: fillRow.id,
       });
       await insertLedgerEntry(client, {
-        userId,
+        userId: effectiveUserId,
         assetId: asset.id,
         entryType: "buy_cash_debit",
         quantityDelta: 0,
@@ -462,7 +549,7 @@ async function executeOrder(pool, { userId, symbol, side, quantity, redis = null
         referenceId: fillRow.id,
       });
       await insertLedgerEntry(client, {
-        userId,
+        userId: effectiveUserId,
         assetId: asset.id,
         entryType: "trade_fee",
         quantityDelta: 0,
@@ -476,7 +563,7 @@ async function executeOrder(pool, { userId, symbol, side, quantity, redis = null
       nextAvgCost = nextQuantity > 0 ? currentAvgCost : 0;
 
       await insertLedgerEntry(client, {
-        userId,
+        userId: effectiveUserId,
         assetId: asset.id,
         entryType: "sell_asset_debit",
         quantityDelta: -parsedQuantity,
@@ -485,7 +572,7 @@ async function executeOrder(pool, { userId, symbol, side, quantity, redis = null
         referenceId: fillRow.id,
       });
       await insertLedgerEntry(client, {
-        userId,
+        userId: effectiveUserId,
         assetId: asset.id,
         entryType: "sell_cash_credit",
         quantityDelta: 0,
@@ -494,7 +581,7 @@ async function executeOrder(pool, { userId, symbol, side, quantity, redis = null
         referenceId: fillRow.id,
       });
       await insertLedgerEntry(client, {
-        userId,
+        userId: effectiveUserId,
         assetId: asset.id,
         entryType: "trade_fee",
         quantityDelta: 0,
@@ -504,16 +591,16 @@ async function executeOrder(pool, { userId, symbol, side, quantity, redis = null
       });
     }
 
-    await updateCashBalance(client, userId, nextCash);
+    await updateCashBalance(client, effectiveUserId, nextCash);
     await upsertHolding(client, {
-      userId,
+      userId: effectiveUserId,
       assetId: asset.id,
       quantity: nextQuantity,
       avgCostBasis: nextAvgCost,
     });
 
     const updatedQuote = await updateAssetAfterTrade(client, asset, {
-      side,
+      side: effectiveSide,
       quantity: parsedQuantity,
       executionPrice: executablePrice,
       fairPrice,
@@ -523,8 +610,8 @@ async function executeOrder(pool, { userId, symbol, side, quantity, redis = null
       transientOffset,
     });
 
-    const userIdentity = await getUserTradeIdentity(client, userId);
-    await netWorth.refreshCurrentLeaderboardForAssetWithClient(client, asset.id, { extraUserIds: [userId] });
+    const userIdentity = await getUserTradeIdentity(client, effectiveUserId);
+    await netWorth.refreshCurrentLeaderboardForAssetWithClient(client, asset.id, { extraUserIds: [effectiveUserId] });
 
     await client.query("COMMIT");
 
@@ -533,19 +620,19 @@ async function executeOrder(pool, { userId, symbol, side, quantity, redis = null
       trade: {
         id: fillRow.id,
         order_id: orderId,
-        user_id: userId,
+        user_id: effectiveUserId,
         username: userIdentity?.username || null,
         profile_color: userIdentity?.profile_color || null,
         asset_id: asset.id,
         symbol: asset.symbol,
         display_name: asset.display_name,
         ts: fillRow.ts,
-        side,
+        side: effectiveSide,
         price: executablePrice,
         quantity: parsedQuantity,
         gross_cash: grossCash,
         fee_cash: feeCash,
-        net_cash: side === "buy" ? -(grossCash + feeCash) : grossCash - feeCash,
+        net_cash: effectiveSide === "buy" ? -(grossCash + feeCash) : grossCash - feeCash,
         counterparty_type: "treasury",
       },
       quote: {
@@ -566,7 +653,7 @@ async function executeOrder(pool, { userId, symbol, side, quantity, redis = null
     });
 
     achievements.handleTradeFill(pool, {
-      userId,
+      userId: effectiveUserId,
       fillId: fillRow.id,
     }).catch((error) => {
       // eslint-disable-next-line no-console
@@ -579,11 +666,11 @@ async function executeOrder(pool, { userId, symbol, side, quantity, redis = null
       filled_quantity: parsedQuantity,
       executed_price: executablePrice,
       fee: feeCash,
-      total_cost: side === "buy" ? grossCash + feeCash : null,
-      total_proceeds: side === "sell" ? grossCash - feeCash : null,
+      total_cost: effectiveSide === "buy" ? grossCash + feeCash : null,
+      total_proceeds: effectiveSide === "sell" ? grossCash - feeCash : null,
       cost_basis_sold: costBasisSold,
-      realized_pnl: side === "sell" ? (grossCash - feeCash) - (costBasisSold || 0) : null,
-      side,
+      realized_pnl: effectiveSide === "sell" ? (grossCash - feeCash) - (costBasisSold || 0) : null,
+      side: effectiveSide,
       symbol: asset.symbol,
       updated_holdings: {
         quantity: nextQuantity,
@@ -599,6 +686,389 @@ async function executeOrder(pool, { userId, symbol, side, quantity, redis = null
   } finally {
     client.release();
   }
+}
+
+async function getCurrentLiveOrderInterval(client, { marketDate, now = new Date() } = {}) {
+  if (!marketDate) {
+    return { marketDate: null, intervalKey: "open", scheduledAt: null };
+  }
+
+  const { rows } = await client.query(
+    `
+    WITH session AS (
+      SELECT id, market_date
+      FROM market.adjustment_sessions
+      WHERE market_date = $1
+      ORDER BY id DESC
+      LIMIT 1
+    ),
+    interval_schedule AS (
+      SELECT
+        i.interval_key,
+        MIN(i.scheduled_at) AS scheduled_at
+      FROM market.asset_adjustment_intervals i
+      JOIN session s ON s.id = i.session_id
+      GROUP BY i.interval_key
+    )
+    SELECT interval_key, scheduled_at
+    FROM interval_schedule
+    WHERE scheduled_at <= $2
+    ORDER BY scheduled_at DESC
+    LIMIT 1
+  `,
+    [marketDate, now.toISOString()]
+  );
+
+  if (rows[0]) {
+    return {
+      marketDate,
+      intervalKey: rows[0].interval_key,
+      scheduledAt: rows[0].scheduled_at,
+    };
+  }
+
+  return { marketDate, intervalKey: "open", scheduledAt: null };
+}
+
+async function countLiveOrdersForInterval(client, { userId, marketDate, intervalKey }) {
+  const { rows } = await client.query(
+    `
+    SELECT COUNT(*)::INTEGER AS order_count
+    FROM market.trade_orders
+    WHERE user_id = $1
+      AND order_type = 'live_market'
+      AND submitted_market_date IS NOT DISTINCT FROM $2::date
+      AND submitted_interval_key IS NOT DISTINCT FROM $3::text
+  `,
+    [userId, marketDate, intervalKey]
+  );
+  return Number(rows[0]?.order_count || 0);
+}
+
+async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = null }) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const status = await marketState.getMarketStatusWithClient(client);
+    if (status && !status.is_trading_open) {
+      const error = new Error("market_closed");
+      error.code = "market_closed";
+      error.marketStatus = status;
+      throw error;
+    }
+
+    const normalizedSide = String(side || "").toLowerCase();
+    if (!["buy", "sell"].includes(normalizedSide)) {
+      const error = new Error("invalid_side");
+      error.code = "invalid_side";
+      throw error;
+    }
+
+    const parsedQuantity = requirePositiveQuantity(quantity);
+    const asset = await getLockedAssetBySymbol(client, symbol);
+    if (!asset) {
+      const error = new Error("asset_not_found");
+      error.code = "asset_not_found";
+      throw error;
+    }
+    if (asset.status !== "active") {
+      const error = new Error("asset_not_active");
+      error.code = "asset_not_active";
+      throw error;
+    }
+
+    const cashAccount = await ensureUserCashAccount(client, userId);
+    const holding = await getLockedHolding(client, userId, asset.id);
+    const now = new Date();
+    const fairPrice = Math.max(toNumber(asset.current_fair_value, 0), 0.000001);
+    const { persistentOffset, transientOffset } = getDecayedOffsets(asset, now);
+    const liveMidBefore = computeLiveMidPrice(fairPrice, persistentOffset, transientOffset);
+    const quotesBefore = computeQuotes(liveMidBefore, asset.spread_bps);
+    const indicativePrice = computeExecutionPrice({
+      side: normalizedSide,
+      bidPrice: quotesBefore.bidPrice,
+      askPrice: quotesBefore.askPrice,
+      quantity: parsedQuantity,
+      liquidityDepth: asset.liquidity_depth,
+    });
+    if (!(indicativePrice > 0)) {
+      const error = new Error("invalid_quote");
+      error.code = "invalid_quote";
+      throw error;
+    }
+
+    const indicativeGrossCash = indicativePrice * parsedQuantity;
+    const indicativeFeeCash = indicativeGrossCash * getTradingFeeRate();
+    if (normalizedSide === "buy" && toNumber(cashAccount.cash_balance, 0) < indicativeGrossCash + indicativeFeeCash) {
+      const error = new Error("insufficient_cash");
+      error.code = "insufficient_cash";
+      throw error;
+    }
+    if (normalizedSide === "sell" && toNumber(holding?.quantity, 0) < parsedQuantity) {
+      const error = new Error("insufficient_holdings");
+      error.code = "insufficient_holdings";
+      throw error;
+    }
+
+    const marketDate = status?.last_settlement_market_date || status?.current_market_date || null;
+    const interval = await getCurrentLiveOrderInterval(client, { marketDate, now });
+    const submittedCount = await countLiveOrdersForInterval(client, {
+      userId,
+      marketDate: interval.marketDate,
+      intervalKey: interval.intervalKey,
+    });
+    if (submittedCount >= LIVE_ORDER_LIMIT_PER_INTERVAL) {
+      const error = new Error("live_order_limit_exceeded");
+      error.code = "live_order_limit_exceeded";
+      error.limit = LIVE_ORDER_LIMIT_PER_INTERVAL;
+      throw error;
+    }
+
+    const executeAfter = computeNextLiveOrderTick(now);
+    const { rows } = await client.query(
+      `
+      INSERT INTO market.trade_orders (
+        user_id,
+        asset_id,
+        side,
+        order_type,
+        requested_quantity,
+        filled_quantity,
+        status,
+        quote_bid_at_submit,
+        quote_ask_at_submit,
+        execute_after,
+        submitted_market_date,
+        submitted_interval_key,
+        metadata_json,
+        updated_at
+      ) VALUES ($1,$2,$3,'live_market',$4,0,'pending',$5,$6,$7,$8,$9,$10::jsonb,now())
+      RETURNING id, requested_at
+    `,
+      [
+        userId,
+        asset.id,
+        normalizedSide,
+        parsedQuantity,
+        quotesBefore.bidPrice,
+        quotesBefore.askPrice,
+        executeAfter.toISOString(),
+        interval.marketDate,
+        interval.intervalKey,
+        JSON.stringify({
+          queued_mid_price: roundForMetadata(liveMidBefore),
+          queued_indicative_price: roundForMetadata(indicativePrice),
+          queued_fee_rate: getTradingFeeRate(),
+          live_order_limit: LIVE_ORDER_LIMIT_PER_INTERVAL,
+          submitted_interval_scheduled_at: interval.scheduledAt || null,
+        }),
+      ]
+    );
+
+    await client.query("COMMIT");
+
+    const order = {
+      order_id: rows[0].id,
+      status: "pending",
+      order_type: "live_market",
+      side: normalizedSide,
+      symbol: asset.symbol,
+      requested_quantity: parsedQuantity,
+      submitted_count: submittedCount + 1,
+      interval_limit: LIVE_ORDER_LIMIT_PER_INTERVAL,
+      submitted_market_date: interval.marketDate,
+      submitted_interval_key: interval.intervalKey,
+      execute_after: executeAfter.toISOString(),
+      quote_bid_at_submit: quotesBefore.bidPrice,
+      quote_ask_at_submit: quotesBefore.askPrice,
+      indicative_price: indicativePrice,
+      requested_at: rows[0].requested_at,
+    };
+
+    void publishMarketEvent(redis, {
+      type: "market.live_order_queued",
+      order,
+    });
+
+    return order;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+function roundForMetadata(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return Number(parsed.toFixed(8));
+}
+
+function isLiveOrderRejectionCode(code) {
+  return [
+    "market_closed",
+    "asset_not_found",
+    "asset_not_active",
+    "insufficient_cash",
+    "insufficient_holdings",
+    "invalid_quote",
+    "invalid_quantity",
+    "live_order_not_pending",
+  ].includes(String(code || ""));
+}
+
+async function rejectLiveOrder(pool, { orderId, reason, liveOrderBatchId = null }) {
+  await pool.query(
+    `
+    UPDATE market.trade_orders
+    SET
+      status = 'rejected',
+      rejection_reason = $2,
+      live_order_batch_id = COALESCE($3, live_order_batch_id),
+      updated_at = now()
+    WHERE id = $1
+      AND status = 'pending'
+      AND order_type = 'live_market'
+  `,
+    [orderId, reason, liveOrderBatchId]
+  );
+}
+
+async function createLiveOrderBatch(pool) {
+  const { rows } = await pool.query(
+    `
+    INSERT INTO market.live_order_batches (status, started_at)
+    VALUES ('started', now())
+    RETURNING id, started_at
+  `
+  );
+  return rows[0];
+}
+
+async function completeLiveOrderBatch(pool, { batchId, attempted, filled, rejected, errorText = null }) {
+  await pool.query(
+    `
+    UPDATE market.live_order_batches
+    SET
+      status = $2,
+      completed_at = now(),
+      orders_attempted = $3,
+      orders_filled = $4,
+      orders_rejected = $5,
+      error_text = $6
+    WHERE id = $1
+  `,
+    [batchId, errorText ? "failed" : "completed", attempted, filled, rejected, errorText]
+  );
+}
+
+async function listDueLiveOrderIds(pool, { now = new Date(), limit = LIVE_ORDER_BATCH_LIMIT } = {}) {
+  const { rows } = await pool.query(
+    `
+    SELECT id
+    FROM market.trade_orders
+    WHERE order_type = 'live_market'
+      AND status = 'pending'
+      AND execute_after <= $1
+    ORDER BY execute_after ASC, id ASC
+    LIMIT $2
+  `,
+    [now.toISOString(), limit]
+  );
+  return rows.map((row) => Number(row.id)).filter(Boolean);
+}
+
+async function processDueLiveOrders(pool, { now = new Date(), limit = LIVE_ORDER_BATCH_LIMIT, redis = null } = {}) {
+  const orderIds = await listDueLiveOrderIds(pool, { now, limit });
+  if (orderIds.length === 0) {
+    return { batch_id: null, attempted: 0, filled: 0, rejected: 0 };
+  }
+
+  const batch = await createLiveOrderBatch(pool);
+  let filled = 0;
+  let rejected = 0;
+  let fatalError = null;
+
+  for (const orderId of orderIds) {
+    try {
+      await executeOrder(pool, { existingOrderId: orderId, liveOrderBatchId: batch.id, redis });
+      filled += 1;
+    } catch (error) {
+      const reason = isLiveOrderRejectionCode(error?.code) ? error.code : "execution_failed";
+      try {
+        await rejectLiveOrder(pool, { orderId, reason, liveOrderBatchId: batch.id });
+        rejected += 1;
+      } catch (rejectError) {
+        fatalError = fatalError || String(rejectError?.message || rejectError);
+      }
+      if (!isLiveOrderRejectionCode(error?.code)) {
+        fatalError = fatalError || String(error?.message || error);
+      }
+    }
+  }
+
+  await completeLiveOrderBatch(pool, {
+    batchId: batch.id,
+    attempted: orderIds.length,
+    filled,
+    rejected,
+    errorText: fatalError,
+  });
+
+  return {
+    batch_id: batch.id,
+    attempted: orderIds.length,
+    filled,
+    rejected,
+    error: fatalError,
+  };
+}
+
+async function acquireLiveOrderSchedulerLock(client) {
+  const { rows } = await client.query("SELECT pg_try_advisory_lock($1) AS locked", [LIVE_ORDER_SCHEDULER_LOCK_KEY]);
+  return Boolean(rows[0]?.locked);
+}
+
+async function releaseLiveOrderSchedulerLock(client) {
+  try {
+    await client.query("SELECT pg_advisory_unlock($1)", [LIVE_ORDER_SCHEDULER_LOCK_KEY]);
+  } catch {}
+}
+
+function startLiveOrderScheduler(pool, logger = console, redis = null) {
+  const enabled = (process.env.MARKET_LIVE_ORDER_SCHEDULER_ENABLED || "true").toLowerCase() !== "false";
+  const intervalMs = Math.max(10_000, Number(process.env.MARKET_LIVE_ORDER_SCHEDULER_INTERVAL_MS || 60_000));
+  let running = false;
+
+  async function tick() {
+    if (!enabled || running) return;
+    running = true;
+    const lockClient = await pool.connect();
+    try {
+      const locked = await acquireLiveOrderSchedulerLock(lockClient);
+      if (!locked) return;
+      const result = await processDueLiveOrders(pool, { redis });
+      if (result.attempted > 0) {
+        await invalidateMarketAssetsCache(redis);
+        logger.info?.("market live order batch processed", result);
+      }
+    } catch (error) {
+      logger.error?.("market live order scheduler failed", error);
+    } finally {
+      await releaseLiveOrderSchedulerLock(lockClient);
+      lockClient.release();
+      running = false;
+    }
+  }
+
+  void tick();
+  const timer = setInterval(() => {
+    void tick();
+  }, intervalMs);
+
+  return () => clearInterval(timer);
 }
 
 async function getPortfolioSummary(pool, userId) {
@@ -690,6 +1160,10 @@ async function getPortfolioOrders(pool, userId, { limit = 100 } = {}) {
       o.quote_bid_at_submit,
       o.quote_ask_at_submit,
       o.rejection_reason,
+      o.execute_after,
+      o.live_order_batch_id,
+      o.submitted_market_date,
+      o.submitted_interval_key,
       o.requested_at,
       o.updated_at
     FROM market.trade_orders o
@@ -705,6 +1179,9 @@ async function getPortfolioOrders(pool, userId, { limit = 100 } = {}) {
 
 module.exports = {
   executeOrder,
+  submitLiveOrder,
+  processDueLiveOrders,
+  startLiveOrderScheduler,
   getStarterCash,
   getPortfolioSummary,
   getPortfolioLedger,

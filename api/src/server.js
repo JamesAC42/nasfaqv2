@@ -12,6 +12,7 @@ const authService = require("./services/auth");
 const marketState = require("./services/marketState");
 const { startMarketScheduler, loadSchedulerConfig, computeNextScheduledAt } = require("./services/marketScheduler");
 const { startAdjustmentScheduler } = require("./services/marketAdjustments");
+const { startLiveOrderScheduler } = require("./services/trading");
 const { startPredictionScheduler } = require("./services/predictionScheduler");
 
 const channelsRoutes = require("./routes/channels");
@@ -631,6 +632,9 @@ async function main() {
   }
   if (cfg.enableMarketAdjustmentScheduler) {
     startAdjustmentScheduler(pool, console, redis);
+  }
+  if (cfg.enableMarketLiveOrderScheduler) {
+    startLiveOrderScheduler(pool, console, redis);
   }
   if (cfg.enablePredictionMarketScheduler) {
     startPredictionScheduler(pool, console, redis);

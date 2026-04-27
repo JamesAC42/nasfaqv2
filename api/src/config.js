@@ -44,6 +44,7 @@ function getConfig() {
     enableMigrations: (process.env.ENABLE_MIGRATIONS || "").toLowerCase() === "true",
     enableMarketSettlementScheduler: (process.env.MARKET_SETTLEMENT_SCHEDULER_ENABLED || "true").toLowerCase() !== "false",
     enableMarketAdjustmentScheduler: (process.env.MARKET_ADJUSTMENT_SCHEDULER_ENABLED || "true").toLowerCase() !== "false",
+    enableMarketLiveOrderScheduler: (process.env.MARKET_LIVE_ORDER_SCHEDULER_ENABLED || "true").toLowerCase() !== "false",
     enablePredictionMarketScheduler: (process.env.PREDICTION_MARKET_SCHEDULER_ENABLED || "true").toLowerCase() !== "false",
   };
 }

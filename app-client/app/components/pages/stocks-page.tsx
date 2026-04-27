@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { startTransition, useEffect, useMemo, useState, useSyncExternalStore, type FormEvent } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -89,9 +90,16 @@ type SavedStockView = {
 };
 
 type TradeExecutionResult = {
-  filled_quantity: number;
-  executed_price: number;
-  fee: number;
+  order_id?: number | string;
+  status?: "pending" | "filled" | "cancelled" | "rejected";
+  order_type?: "market" | "live_market";
+  requested_quantity?: number;
+  execute_after?: string | null;
+  interval_limit?: number;
+  indicative_price?: number;
+  filled_quantity?: number;
+  executed_price?: number;
+  fee?: number;
   total_cost?: number | null;
   total_proceeds?: number | null;
   cost_basis_sold?: number | null;
@@ -107,8 +115,13 @@ type TradeExecutionResult = {
 };
 
 type TradeConfirmation = {
+  mode: "filled" | "queued";
+  orderId: number | string | null;
   side: "buy" | "sell";
   symbol: string;
+  requestedQuantity: number;
+  executeAfter: string | null;
+  intervalLimit: number | null;
   filledQuantity: number;
   executedPrice: number;
   fee: number;
@@ -313,6 +326,11 @@ function getTradeFailureNotice(errorCode: string, side: TradeSide, symbol: strin
         title: "Invalid order size",
         message: `Enter a valid number of ${symbol} shares before submitting this ${side} order.`,
       };
+    case "live_order_limit_exceeded":
+      return {
+        title: "Live order limit reached",
+        message: "You have already submitted the maximum number of live orders for this market interval.",
+      };
     default:
       return {
         title: "Trade failed",
@@ -389,16 +407,20 @@ function buildTradeConfirmation(args: {
   const { result, currentMidPrice, previousHolding } = args;
   const previousQuantity = previousHolding?.quantity ?? 0;
   const previousAvgCost = previousHolding?.avg_cost_basis ?? 0;
-  const grossValue = result.filled_quantity * result.executed_price;
-  const nextQuantity = result.updated_holdings?.quantity ?? (result.side === "buy" ? previousQuantity + result.filled_quantity : previousQuantity - result.filled_quantity);
+  const isQueued = result.order_type === "live_market" && result.status === "pending";
+  const filledQuantity = result.filled_quantity ?? 0;
+  const executedPrice = result.executed_price ?? (result.indicative_price ?? 0);
+  const fee = result.fee ?? 0;
+  const grossValue = filledQuantity * executedPrice;
+  const nextQuantity = result.updated_holdings?.quantity ?? (result.side === "buy" ? previousQuantity + filledQuantity : previousQuantity - filledQuantity);
   const nextAvgCost = result.updated_holdings?.avg_cost_basis ?? (nextQuantity > 0 ? previousAvgCost : 0);
-  const totalCost = result.total_cost ?? (result.side === "buy" ? grossValue + result.fee : null);
-  const totalProceeds = result.total_proceeds ?? (result.side === "sell" ? grossValue - result.fee : null);
-  const costBasisSold = result.cost_basis_sold ?? (result.side === "sell" ? previousAvgCost * result.filled_quantity : null);
-  const netCashImpact = result.side === "buy" ? -(totalCost ?? (grossValue + result.fee)) : (totalProceeds ?? (grossValue - result.fee));
+  const totalCost = result.total_cost ?? (result.side === "buy" ? grossValue + fee : null);
+  const totalProceeds = result.total_proceeds ?? (result.side === "sell" ? grossValue - fee : null);
+  const costBasisSold = result.cost_basis_sold ?? (result.side === "sell" ? previousAvgCost * filledQuantity : null);
+  const netCashImpact = result.side === "buy" ? -(totalCost ?? (grossValue + fee)) : (totalProceeds ?? (grossValue - fee));
   const realizedPnl =
     result.side === "sell"
-      ? (result.realized_pnl ?? ((totalProceeds ?? (grossValue - result.fee)) - (costBasisSold ?? 0)))
+      ? (result.realized_pnl ?? ((totalProceeds ?? (grossValue - fee)) - (costBasisSold ?? 0)))
       : null;
   const unrealizedPnl =
     currentMidPrice !== null && currentMidPrice !== undefined && nextQuantity > 0
@@ -412,11 +434,16 @@ function buildTradeConfirmation(args: {
         : pickRandomItem(TRADE_CONFIRMATION_SELL_LOSS_IMAGES);
 
   return {
+    mode: isQueued ? "queued" : "filled",
+    orderId: result.order_id ?? null,
     side: result.side,
     symbol: result.symbol,
-    filledQuantity: result.filled_quantity,
-    executedPrice: result.executed_price,
-    fee: result.fee,
+    requestedQuantity: result.requested_quantity ?? filledQuantity,
+    executeAfter: result.execute_after ?? null,
+    intervalLimit: result.interval_limit ?? null,
+    filledQuantity,
+    executedPrice,
+    fee,
     grossValue,
     netCashImpact,
     totalCost,
@@ -1256,6 +1283,7 @@ export function StocksPage() {
                 <tr>
                   <th>Compare</th>
                   <th>Trade</th>
+                  <th>Queue</th>
                   <th>Icon</th>
                   {SORTABLE_COLUMNS.slice(0, 3).map((column) => (
                     <th key={column.key}>
@@ -1313,6 +1341,12 @@ export function StocksPage() {
                         >
                           <FaCartShopping aria-hidden="true" />
                         </button>
+                      </td>
+                      <td>
+                        <span className={styles.queueMini}>
+                          <strong>{fmtNumber(asset.pending_live_order_count ?? 0)}</strong>
+                          <em>{fmtNumber(asset.pending_live_buy_count ?? 0)}B / {fmtNumber(asset.pending_live_sell_count ?? 0)}S</em>
+                        </span>
                       </td>
                       <td>
                         <AssetCoin symbol={asset.symbol} icon={asset.icon} color={asset.color} />
@@ -1446,6 +1480,7 @@ export function StocksPage() {
                     <DataItem label="Fair" value={formatPrice(asset.current_fair_value)} />
                     <DataItem label="Medium" value={formatPrice(asset.current_bid_price)} />
                     <DataItem label="Premium" value={fmtPct(asset.current_premium_pct)} />
+                    <DataItem label="Next Tick Queue" value={`${fmtNumber(asset.pending_live_order_count ?? 0)} (${fmtNumber(asset.pending_live_buy_count ?? 0)}B / ${fmtNumber(asset.pending_live_sell_count ?? 0)}S)`} />
                     <DataItem label="24H Volume" value={fmtNumber(asset.volume_24h)} />
                     <DataItem label="Volume Change" value={formatSignedPct(volumeChangePct)} tone={volumeTone} />
                     <DataItem label="Subscribers" value={fmtInteger(channelMetrics?.subscribers)} />
@@ -1490,6 +1525,218 @@ export function StocksPage() {
             </div>
           </section>
         ) : null}
+
+        {tradeConfirmation && typeof document !== "undefined"
+          ? createPortal(
+              (() => {
+            const confirmationAsset = assets.find((asset) => asset.symbol === tradeConfirmation.symbol) || quickTradeAsset;
+            const isQueued = tradeConfirmation.mode === "queued";
+            const isPositiveTradeTheme = isQueued || tradeConfirmation.side === "buy" || (tradeConfirmation.realizedPnl ?? 0) >= 0;
+            return (
+              <div
+                className={[
+                  detailStyles.tradeConfirmationOverlay,
+                  isTradeConfirmationClosing ? detailStyles.tradeConfirmationOverlayClosing : "",
+                ].filter(Boolean).join(" ")}
+                onClick={closeTradeConfirmation}
+              >
+                <div
+                  className={[
+                    detailStyles.tradeConfirmationFrame,
+                    isPositiveTradeTheme ? detailStyles.tradeConfirmationFrameBuy : detailStyles.tradeConfirmationFrameSell,
+                  ].join(" ")}
+                >
+                  <div
+                    className={[
+                      detailStyles.tradeConfirmationModal,
+                      isPositiveTradeTheme ? detailStyles.tradeConfirmationModalBuy : detailStyles.tradeConfirmationModalSell,
+                      isTradeConfirmationClosing ? detailStyles.tradeConfirmationModalClosing : "",
+                    ].filter(Boolean).join(" ")}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="trade-confirmation-title"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div
+                      className={[
+                        detailStyles.tradeConfirmationHero,
+                        isPositiveTradeTheme ? detailStyles.tradeConfirmationHeroBuy : detailStyles.tradeConfirmationHeroSell,
+                      ].join(" ")}
+                    >
+                      <div>
+                        <span className={detailStyles.tradeConfirmationEyebrow}>
+                          {isQueued ? "Live Order Queued" : tradeConfirmation.side === "buy" ? "Buy Filled" : "Sell Filled"}
+                        </span>
+                        <h2 id="trade-confirmation-title" className={detailStyles.tradeConfirmationTitle}>
+                          {isQueued
+                            ? "Order queued for next tick"
+                            : tradeConfirmation.side === "buy"
+                            ? "Position updated"
+                            : (tradeConfirmation.realizedPnl ?? 0) >= 0
+                              ? `Nice! Capital gains = ${fmtNumber(tradeConfirmation.realizedPnl, "$")}`
+                              : `Tough break. Capital loss = ${fmtNumber(Math.abs(tradeConfirmation.realizedPnl ?? 0), "$")}`}
+                        </h2>
+                        <div className={detailStyles.tradeConfirmationSubheader}>
+                          <AssetCoin
+                            symbol={tradeConfirmation.symbol}
+                            icon={confirmationAsset?.icon ?? null}
+                            color={confirmationAsset?.color ?? null}
+                            className={detailStyles.tradeConfirmationTickerIcon}
+                          />
+                          <p className={detailStyles.tradeConfirmationCopy}>
+                            <strong className={detailStyles.tradeConfirmationTicker}>${tradeConfirmation.symbol}</strong>
+                            <span>
+                              {isQueued
+                                ? `${fmtNumber(tradeConfirmation.requestedQuantity)} shares will execute on the next 10-minute tick.`
+                                : `${fmtNumber(tradeConfirmation.filledQuantity)} shares executed at ${fmtNumber(tradeConfirmation.executedPrice, "$")} per share.`}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className={detailStyles.tradeConfirmationClose}
+                        onClick={closeTradeConfirmation}
+                        aria-label="Close trade confirmation"
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    <div className={detailStyles.tradeConfirmationBody}>
+                      <div className={detailStyles.tradeConfirmationLayout}>
+                        <div className={detailStyles.tradeConfirmationImageSlot}>
+                          <Image
+                            src={tradeConfirmation.imageSrc}
+                            alt="Trade confirmation illustration"
+                            width={320}
+                            height={320}
+                            className={detailStyles.tradeConfirmationImage}
+                          />
+                        </div>
+
+                        <div className={detailStyles.tradeConfirmationContent}>
+                          <div className={detailStyles.tradeConfirmationGrid}>
+                            <div className={detailStyles.tradeConfirmationCard}>
+                              <span>{isQueued ? "Requested Shares" : tradeConfirmation.side === "buy" ? "Total Cost" : "Gross Value"}</span>
+                              <strong>{isQueued ? fmtNumber(tradeConfirmation.requestedQuantity) : fmtNumber(tradeConfirmation.side === "buy" ? tradeConfirmation.totalCost : tradeConfirmation.grossValue, "$")}</strong>
+                            </div>
+                            <div className={detailStyles.tradeConfirmationCard}>
+                              <span>{isQueued ? "Order ID" : "Fee"}</span>
+                              <strong>{isQueued ? `#${tradeConfirmation.orderId || "new"}` : fmtNumber(tradeConfirmation.fee, "$")}</strong>
+                            </div>
+                            <div className={detailStyles.tradeConfirmationCard}>
+                              <span>{isQueued ? "Executes Around" : tradeConfirmation.side === "buy" ? "Cash Change" : "Net Proceeds"}</span>
+                              <strong className={isQueued || tradeConfirmation.netCashImpact >= 0 ? detailStyles.valueUp : detailStyles.valueDown}>
+                                {isQueued ? fmtDate(tradeConfirmation.executeAfter) : formatSignedCurrency(tradeConfirmation.netCashImpact)}
+                              </strong>
+                            </div>
+                            <div className={detailStyles.tradeConfirmationCard}>
+                              <span>{isQueued ? "Interval Limit" : "New Cash Balance"}</span>
+                              <strong>{isQueued ? `${fmtNumber(tradeConfirmation.intervalLimit)} orders` : fmtNumber(tradeConfirmation.nextCashBalance, "$")}</strong>
+                            </div>
+                          </div>
+
+                          <div className={detailStyles.tradeConfirmationColumns}>
+                            <section className={detailStyles.tradeConfirmationSection}>
+                              <h3>Position</h3>
+                              <div className={detailStyles.tradeConfirmationMetricList}>
+                                <div className={detailStyles.tradeConfirmationMetric}>
+                                  <span>Shares owned</span>
+                                  <strong>{fmtNumber(tradeConfirmation.previousQuantity)} → {fmtNumber(tradeConfirmation.nextQuantity)}</strong>
+                                </div>
+                                <div className={detailStyles.tradeConfirmationMetric}>
+                                  <span>Average cost</span>
+                                  <strong>{fmtNumber(tradeConfirmation.previousAvgCost, "$")} → {fmtNumber(tradeConfirmation.nextAvgCost, "$")}</strong>
+                                </div>
+                                <div className={detailStyles.tradeConfirmationMetric}>
+                                  <span>Marked at</span>
+                                  <strong>{fmtNumber(tradeConfirmation.currentMidPrice, "$")}</strong>
+                                </div>
+                                <div className={detailStyles.tradeConfirmationMetric}>
+                                  <span>{tradeConfirmation.side === "buy" ? "Estimated unrealized P/L" : "Actual realized P/L"}</span>
+                                  <strong className={((tradeConfirmation.side === "buy" ? tradeConfirmation.unrealizedPnl : tradeConfirmation.realizedPnl) ?? 0) >= 0 ? detailStyles.valueUp : detailStyles.valueDown}>
+                                    {formatSignedCurrency(tradeConfirmation.side === "buy" ? tradeConfirmation.unrealizedPnl : tradeConfirmation.realizedPnl)}
+                                  </strong>
+                                </div>
+                              </div>
+                            </section>
+
+                            <section className={detailStyles.tradeConfirmationSection}>
+                          <h3>{tradeConfirmation.side === "buy" ? "What changed" : "Remaining position"}</h3>
+                          <div className={detailStyles.tradeConfirmationMetricList}>
+                            {isQueued ? (
+                              <>
+                                <div className={detailStyles.tradeConfirmationMetric}>
+                                  <span>Side</span>
+                                  <strong className={tradeConfirmation.side === "buy" ? detailStyles.valueUp : detailStyles.valueDown}>{tradeConfirmation.side.toUpperCase()}</strong>
+                                </div>
+                                <div className={detailStyles.tradeConfirmationMetric}>
+                                  <span>Execution rule</span>
+                                  <strong>Next 10-minute tick</strong>
+                                </div>
+                                <div className={detailStyles.tradeConfirmationMetric}>
+                                  <span>Fill check</span>
+                                  <strong>Cash, holdings, and quote rechecked at execution</strong>
+                                </div>
+                              </>
+                            ) : tradeConfirmation.side === "buy" ? (
+                                  <>
+                                    <div className={detailStyles.tradeConfirmationMetric}>
+                                      <span>Shares added</span>
+                                      <strong className={detailStyles.valueUp}>+{fmtNumber(tradeConfirmation.filledQuantity)}</strong>
+                                    </div>
+                                    <div className={detailStyles.tradeConfirmationMetric}>
+                                      <span>New weighted average</span>
+                                      <strong>{fmtNumber(tradeConfirmation.nextAvgCost, "$")}</strong>
+                                    </div>
+                                    <div className={detailStyles.tradeConfirmationMetric}>
+                                      <span>Fill time</span>
+                                      <strong>{fmtDate(tradeConfirmation.filledAt)}</strong>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className={detailStyles.tradeConfirmationMetric}>
+                                      <span>Cost basis sold</span>
+                                      <strong>{fmtNumber(tradeConfirmation.costBasisSold, "$")}</strong>
+                                    </div>
+                                    <div className={detailStyles.tradeConfirmationMetric}>
+                                      <span>Shares remaining</span>
+                                      <strong>{fmtNumber(tradeConfirmation.nextQuantity)}</strong>
+                                    </div>
+                                    <div className={detailStyles.tradeConfirmationMetric}>
+                                      <span>Remaining unrealized P/L</span>
+                                      <strong className={(tradeConfirmation.unrealizedPnl ?? 0) >= 0 ? detailStyles.valueUp : detailStyles.valueDown}>
+                                        {formatSignedCurrency(tradeConfirmation.unrealizedPnl)}
+                                      </strong>
+                                    </div>
+                                    <div className={detailStyles.tradeConfirmationMetric}>
+                                      <span>Fill time</span>
+                                      <strong>{fmtDate(tradeConfirmation.filledAt)}</strong>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </section>
+                          </div>
+
+                          <div className={detailStyles.tradeConfirmationActions}>
+                            <button type="button" className={detailStyles.tradeConfirmationPrimary} onClick={closeTradeConfirmation}>
+                              Back to chart
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+              })(),
+              document.body,
+            )
+          : null}
 
         {quickTradeAsset ? (
           <div className={`${styles.quickTradeBackdrop} ${isQuickTradeClosing ? styles.quickTradeBackdropClosing : ""}`.trim()} onClick={closeQuickTrade}>
@@ -1572,6 +1819,26 @@ export function StocksPage() {
                           <div><span>Premium</span><strong>{fmtPct(quickTradeAsset.current_premium_pct)}</strong></div>
                         </div>
 
+                        <div className={detailStyles.liveOrderQueue}>
+                          <div>
+                            <span>Next Tick Queue</span>
+                            <strong>{fmtNumber(quickTradeAsset.pending_live_order_count ?? 0)}</strong>
+                          </div>
+                          <div>
+                            <span>Buy Orders</span>
+                            <strong className={detailStyles.valueUp}>{fmtNumber(quickTradeAsset.pending_live_buy_count ?? 0)}</strong>
+                          </div>
+                          <div>
+                            <span>Sell Orders</span>
+                            <strong className={detailStyles.valueDown}>{fmtNumber(quickTradeAsset.pending_live_sell_count ?? 0)}</strong>
+                          </div>
+                          <p>
+                            {quickTradeAsset.next_live_order_execute_after
+                              ? `Queued live orders execute around ${fmtDate(quickTradeAsset.next_live_order_execute_after)}.`
+                              : "No live orders are queued for this asset right now."}
+                          </p>
+                        </div>
+
                         <button
                           type="submit"
                           className={quickTradeSide === "buy" ? detailStyles.tradeSubmitBuy : detailStyles.tradeSubmitSell}
@@ -1593,197 +1860,8 @@ export function StocksPage() {
             </aside>
           </div>
         ) : null}
-
-        {tradeConfirmation ? (
-          (() => {
-            const confirmationAsset = assets.find((asset) => asset.symbol === tradeConfirmation.symbol) || quickTradeAsset;
-            const isPositiveTradeTheme = tradeConfirmation.side === "buy" || (tradeConfirmation.realizedPnl ?? 0) >= 0;
-            return (
-              <div
-                className={[
-                  detailStyles.tradeConfirmationOverlay,
-                  isTradeConfirmationClosing ? detailStyles.tradeConfirmationOverlayClosing : "",
-                ].filter(Boolean).join(" ")}
-                onClick={closeTradeConfirmation}
-              >
-                <div
-                  className={[
-                    detailStyles.tradeConfirmationFrame,
-                    isPositiveTradeTheme ? detailStyles.tradeConfirmationFrameBuy : detailStyles.tradeConfirmationFrameSell,
-                  ].join(" ")}
-                >
-                  <div
-                    className={[
-                      detailStyles.tradeConfirmationModal,
-                      isPositiveTradeTheme ? detailStyles.tradeConfirmationModalBuy : detailStyles.tradeConfirmationModalSell,
-                      isTradeConfirmationClosing ? detailStyles.tradeConfirmationModalClosing : "",
-                    ].filter(Boolean).join(" ")}
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby="trade-confirmation-title"
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <div
-                      className={[
-                        detailStyles.tradeConfirmationHero,
-                        isPositiveTradeTheme ? detailStyles.tradeConfirmationHeroBuy : detailStyles.tradeConfirmationHeroSell,
-                      ].join(" ")}
-                    >
-                      <div>
-                        <span className={detailStyles.tradeConfirmationEyebrow}>
-                          {tradeConfirmation.side === "buy" ? "Buy Filled" : "Sell Filled"}
-                        </span>
-                        <h2 id="trade-confirmation-title" className={detailStyles.tradeConfirmationTitle}>
-                          {tradeConfirmation.side === "buy"
-                            ? "Position updated"
-                            : (tradeConfirmation.realizedPnl ?? 0) >= 0
-                              ? `Nice! Capital gains = ${fmtNumber(tradeConfirmation.realizedPnl, "$")}`
-                              : `Tough break. Capital loss = ${fmtNumber(Math.abs(tradeConfirmation.realizedPnl ?? 0), "$")}`}
-                        </h2>
-                        <div className={detailStyles.tradeConfirmationSubheader}>
-                          <AssetCoin
-                            symbol={tradeConfirmation.symbol}
-                            icon={confirmationAsset?.icon ?? null}
-                            color={confirmationAsset?.color ?? null}
-                            className={detailStyles.tradeConfirmationTickerIcon}
-                          />
-                          <p className={detailStyles.tradeConfirmationCopy}>
-                            <strong className={detailStyles.tradeConfirmationTicker}>${tradeConfirmation.symbol}</strong>
-                            <span>
-                              {fmtNumber(tradeConfirmation.filledQuantity)} shares executed at {fmtNumber(tradeConfirmation.executedPrice, "$")} per share.
-                            </span>
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        className={detailStyles.tradeConfirmationClose}
-                        onClick={closeTradeConfirmation}
-                        aria-label="Close trade confirmation"
-                      >
-                        ×
-                      </button>
-                    </div>
-
-                    <div className={detailStyles.tradeConfirmationBody}>
-                      <div className={detailStyles.tradeConfirmationLayout}>
-                        <div className={detailStyles.tradeConfirmationImageSlot}>
-                          <Image
-                            src={tradeConfirmation.imageSrc}
-                            alt="Trade confirmation illustration"
-                            width={320}
-                            height={320}
-                            className={detailStyles.tradeConfirmationImage}
-                          />
-                        </div>
-
-                        <div className={detailStyles.tradeConfirmationContent}>
-                          <div className={detailStyles.tradeConfirmationGrid}>
-                            <div className={detailStyles.tradeConfirmationCard}>
-                              <span>{tradeConfirmation.side === "buy" ? "Total Cost" : "Gross Value"}</span>
-                              <strong>{fmtNumber(tradeConfirmation.side === "buy" ? tradeConfirmation.totalCost : tradeConfirmation.grossValue, "$")}</strong>
-                            </div>
-                            <div className={detailStyles.tradeConfirmationCard}>
-                              <span>Fee</span>
-                              <strong>{fmtNumber(tradeConfirmation.fee, "$")}</strong>
-                            </div>
-                            <div className={detailStyles.tradeConfirmationCard}>
-                              <span>{tradeConfirmation.side === "buy" ? "Cash Change" : "Net Proceeds"}</span>
-                              <strong className={tradeConfirmation.netCashImpact >= 0 ? detailStyles.valueUp : detailStyles.valueDown}>
-                                {formatSignedCurrency(tradeConfirmation.netCashImpact)}
-                              </strong>
-                            </div>
-                            <div className={detailStyles.tradeConfirmationCard}>
-                              <span>New Cash Balance</span>
-                              <strong>{fmtNumber(tradeConfirmation.nextCashBalance, "$")}</strong>
-                            </div>
-                          </div>
-
-                          <div className={detailStyles.tradeConfirmationColumns}>
-                            <section className={detailStyles.tradeConfirmationSection}>
-                              <h3>Position</h3>
-                              <div className={detailStyles.tradeConfirmationMetricList}>
-                                <div className={detailStyles.tradeConfirmationMetric}>
-                                  <span>Shares owned</span>
-                                  <strong>{fmtNumber(tradeConfirmation.previousQuantity)} → {fmtNumber(tradeConfirmation.nextQuantity)}</strong>
-                                </div>
-                                <div className={detailStyles.tradeConfirmationMetric}>
-                                  <span>Average cost</span>
-                                  <strong>{fmtNumber(tradeConfirmation.previousAvgCost, "$")} → {fmtNumber(tradeConfirmation.nextAvgCost, "$")}</strong>
-                                </div>
-                                <div className={detailStyles.tradeConfirmationMetric}>
-                                  <span>Marked at</span>
-                                  <strong>{fmtNumber(tradeConfirmation.currentMidPrice, "$")}</strong>
-                                </div>
-                                <div className={detailStyles.tradeConfirmationMetric}>
-                                  <span>{tradeConfirmation.side === "buy" ? "Estimated unrealized P/L" : "Actual realized P/L"}</span>
-                                  <strong className={((tradeConfirmation.side === "buy" ? tradeConfirmation.unrealizedPnl : tradeConfirmation.realizedPnl) ?? 0) >= 0 ? detailStyles.valueUp : detailStyles.valueDown}>
-                                    {formatSignedCurrency(tradeConfirmation.side === "buy" ? tradeConfirmation.unrealizedPnl : tradeConfirmation.realizedPnl)}
-                                  </strong>
-                                </div>
-                              </div>
-                            </section>
-
-                            <section className={detailStyles.tradeConfirmationSection}>
-                              <h3>{tradeConfirmation.side === "buy" ? "What changed" : "Remaining position"}</h3>
-                              <div className={detailStyles.tradeConfirmationMetricList}>
-                                {tradeConfirmation.side === "buy" ? (
-                                  <>
-                                    <div className={detailStyles.tradeConfirmationMetric}>
-                                      <span>Shares added</span>
-                                      <strong className={detailStyles.valueUp}>+{fmtNumber(tradeConfirmation.filledQuantity)}</strong>
-                                    </div>
-                                    <div className={detailStyles.tradeConfirmationMetric}>
-                                      <span>New weighted average</span>
-                                      <strong>{fmtNumber(tradeConfirmation.nextAvgCost, "$")}</strong>
-                                    </div>
-                                    <div className={detailStyles.tradeConfirmationMetric}>
-                                      <span>Fill time</span>
-                                      <strong>{fmtDate(tradeConfirmation.filledAt)}</strong>
-                                    </div>
-                                  </>
-                                ) : (
-                                  <>
-                                    <div className={detailStyles.tradeConfirmationMetric}>
-                                      <span>Cost basis sold</span>
-                                      <strong>{fmtNumber(tradeConfirmation.costBasisSold, "$")}</strong>
-                                    </div>
-                                    <div className={detailStyles.tradeConfirmationMetric}>
-                                      <span>Shares remaining</span>
-                                      <strong>{fmtNumber(tradeConfirmation.nextQuantity)}</strong>
-                                    </div>
-                                    <div className={detailStyles.tradeConfirmationMetric}>
-                                      <span>Remaining unrealized P/L</span>
-                                      <strong className={(tradeConfirmation.unrealizedPnl ?? 0) >= 0 ? detailStyles.valueUp : detailStyles.valueDown}>
-                                        {formatSignedCurrency(tradeConfirmation.unrealizedPnl)}
-                                      </strong>
-                                    </div>
-                                    <div className={detailStyles.tradeConfirmationMetric}>
-                                      <span>Fill time</span>
-                                      <strong>{fmtDate(tradeConfirmation.filledAt)}</strong>
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            </section>
-                          </div>
-
-                          <div className={detailStyles.tradeConfirmationActions}>
-                            <button type="button" className={detailStyles.tradeConfirmationPrimary} onClick={closeTradeConfirmation}>
-                              Back to chart
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })()
-        ) : null}
         {quickTradeFailureNotice ? (
-          <div className={`${detailStyles.tradeFailureOverlay} ${styles.quickTradeFailureOverlay}`.trim()} onClick={() => setQuickTradeFailureNotice(null)}>
+          <div className={detailStyles.tradeFailureOverlay} onClick={() => setQuickTradeFailureNotice(null)}>
             <div
               className={detailStyles.tradeFailureModal}
               role="alertdialog"

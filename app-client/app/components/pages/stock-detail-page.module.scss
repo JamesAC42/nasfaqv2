@@ -1602,6 +1602,45 @@
   gap: 0.16rem;
 }
 
+.liveOrderQueue {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border-soft));
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 8%, transparent) 0 1px, transparent 1px 100%),
+    color-mix(in srgb, var(--surface-card-soft) 78%, transparent);
+  background-size: 16px 16px, auto;
+}
+
+.liveOrderQueue > div {
+  display: grid;
+  gap: 0.14rem;
+  min-width: 0;
+}
+
+.liveOrderQueue span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.liveOrderQueue strong {
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+}
+
+.liveOrderQueue p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
 .tradeSubmitBuy,
 .tradeSubmitSell {
   @include button-base;
@@ -1823,10 +1862,15 @@
 
 .tradeConfirmationFrame {
   --trade-confirmation-border-color: var(--border-strong);
-  position: relative;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: min(100%, 59.1rem);
+  max-width: calc(100vw - 3rem);
   padding: 0.55rem;
   border-radius: calc(1.5rem + 0.55rem);
   filter: drop-shadow(0 0 18px color-mix(in srgb, var(--trade-confirmation-border-color) 22%, transparent));
+  transform: translate3d(-50%, -50%, 0);
 }
 
 .tradeConfirmationFrame::before {
@@ -1856,9 +1900,7 @@
 .tradeConfirmationOverlay {
   position: fixed;
   inset: 0;
-  z-index: 60;
-  display: grid;
-  place-items: center;
+  z-index: 120;
   padding: 1.5rem;
   background: var(--trade-confirmation-overlay-bg);
   backdrop-filter: blur(10px);
@@ -1868,7 +1910,7 @@
 .tradeFailureOverlay {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 120;
   display: grid;
   place-items: center;
   padding: 1.5rem;
@@ -1927,7 +1969,7 @@
 
 .tradeConfirmationModal {
   --trade-confirmation-border-color: var(--border-strong);
-  width: min(100%, 58rem);
+  width: 100%;
   max-height: min(90vh, 56rem);
   overflow: hidden;
   position: relative;
@@ -2192,7 +2234,7 @@
 @keyframes tradeConfirmationSlideIn {
   from {
     opacity: 0;
-    transform: translate3d(calc(-100vw + 4rem), 0, 0) scale(0.94);
+    transform: translate3d(calc(-50vw - 50%), 0, 0) scale(0.96);
   }
 
   to {
@@ -2209,7 +2251,7 @@
 
   to {
     opacity: 0;
-    transform: translate3d(calc(100vw + 4rem), 0, 0) scale(0.96);
+    transform: translate3d(calc(50vw + 50%), 0, 0) scale(0.97);
   }
 }
 
@@ -2323,6 +2365,7 @@
   .adjustmentGrid,
   .rankSpotlightGrid,
   .tradeSummary,
+  .liveOrderQueue,
   .articleGrid,
   .infoGrid,
   .tradeTapeRow,
@@ -2336,6 +2379,10 @@
 
   .tradeConfirmationOverlay {
     padding: 0.75rem;
+  }
+
+  .tradeConfirmationFrame {
+    max-width: calc(100vw - 1.5rem);
   }
 
   .tradeConfirmationGrid,

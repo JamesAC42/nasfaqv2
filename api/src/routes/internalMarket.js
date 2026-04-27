@@ -6,6 +6,7 @@ const marketAdjustments = require("../services/marketAdjustments");
 const marketAdmin = require("../services/marketAdmin");
 const marketState = require("../services/marketState");
 const settlement = require("../services/settlement");
+const trading = require("../services/trading");
 const {
   acquireSchedulerLock,
   computeNextScheduledAt,
@@ -224,6 +225,20 @@ router.post("/adjustments/apply-due", async (req, res, next) => {
       limit: Number.isFinite(limit) ? Math.min(1000, Math.max(1, limit)) : 250,
       redis: req.ctx.redis,
     });
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/live-orders/apply-due", async (req, res, next) => {
+  try {
+    const limit = Number.parseInt(String(req.body?.limit || "100"), 10);
+    const result = await trading.processDueLiveOrders(req.ctx.pool, {
+      limit: Number.isFinite(limit) ? Math.min(1000, Math.max(1, limit)) : 100,
+      redis: req.ctx.redis,
+    });
+    await invalidateMarketAssetsCache(req.ctx.redis);
     res.json(result);
   } catch (e) {
     next(e);

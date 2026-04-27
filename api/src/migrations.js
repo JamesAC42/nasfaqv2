@@ -1305,6 +1305,55 @@ async function applySchema(pool) {
     CREATE INDEX IF NOT EXISTS market_asset_adjustment_intervals_asset_scheduled_idx
       ON market.asset_adjustment_intervals (asset_id, scheduled_at DESC)
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.live_order_batches (
+      id BIGSERIAL PRIMARY KEY,
+      status TEXT NOT NULL DEFAULT 'started',
+      started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      completed_at TIMESTAMPTZ NULL,
+      orders_attempted INTEGER NOT NULL DEFAULT 0,
+      orders_filled INTEGER NOT NULL DEFAULT 0,
+      orders_rejected INTEGER NOT NULL DEFAULT 0,
+      error_text TEXT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT live_order_batches_status_check CHECK (status IN ('started', 'completed', 'failed'))
+    )
+  `);
+  await pool.query(`
+    ALTER TABLE market.trade_orders
+      ADD COLUMN IF NOT EXISTS execute_after TIMESTAMPTZ NULL,
+      ADD COLUMN IF NOT EXISTS live_order_batch_id BIGINT NULL REFERENCES market.live_order_batches(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS submitted_market_date DATE NULL,
+      ADD COLUMN IF NOT EXISTS submitted_interval_key TEXT NULL
+  `);
+  await pool.query(`
+    ALTER TABLE market.trade_orders
+      DROP CONSTRAINT IF EXISTS trade_orders_type_check
+  `);
+  await pool.query(`
+    ALTER TABLE market.trade_orders
+      ADD CONSTRAINT trade_orders_type_check CHECK (order_type IN ('market', 'live_market'))
+  `);
+  await pool.query(`
+    ALTER TABLE market.trade_orders
+      DROP CONSTRAINT IF EXISTS trade_orders_submitted_interval_key_check
+  `);
+  await pool.query(`
+    ALTER TABLE market.trade_orders
+      ADD CONSTRAINT trade_orders_submitted_interval_key_check CHECK (
+        submitted_interval_key IS NULL OR submitted_interval_key IN ('open', 'lunch', 'late', 'overnight')
+      )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_trade_orders_live_due_idx
+      ON market.trade_orders (status, execute_after, id)
+      WHERE order_type = 'live_market'
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_trade_orders_live_user_interval_idx
+      ON market.trade_orders (user_id, submitted_market_date, submitted_interval_key, requested_at DESC)
+      WHERE order_type = 'live_market'
+  `);
 }
 
 module.exports = { applySchema };

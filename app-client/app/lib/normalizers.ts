@@ -41,6 +41,8 @@ import {
   type MarketActivity,
   type MarketActivityTrader,
   type MarketActivityWindow,
+  type MarketLiveOrderAssetSummary,
+  type MarketLiveOrderSummary,
   type MarketAdjustmentHealth,
   type MarketAdjustmentOutcome,
   type MarketAdjustmentSessionSummary,
@@ -560,6 +562,12 @@ export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
     latest_snapshot_date: asset.latest_snapshot_date ? String(asset.latest_snapshot_date) : null,
     volume_24h: toNumber(asset.volume_24h),
     move_24h_pct: toNumber(asset.move_24h_pct),
+    pending_live_order_count: Number(toNumber(asset.pending_live_order_count) || 0),
+    pending_live_buy_count: Number(toNumber(asset.pending_live_buy_count) || 0),
+    pending_live_sell_count: Number(toNumber(asset.pending_live_sell_count) || 0),
+    pending_live_buy_quantity: Number(toNumber(asset.pending_live_buy_quantity) || 0),
+    pending_live_sell_quantity: Number(toNumber(asset.pending_live_sell_quantity) || 0),
+    next_live_order_execute_after: asset.next_live_order_execute_after ? String(asset.next_live_order_execute_after) : null,
     base_rate: toNumber(asset.base_rate ?? asset.current_fair_value),
     market_price: toNumber(asset.market_price ?? asset.current_mid_price),
     premium_discount_pct: toNumber(asset.premium_discount_pct ?? asset.current_premium_pct),
@@ -811,6 +819,38 @@ function normalizeMarketActivityTrader(value: Record<string, unknown>): MarketAc
   };
 }
 
+function normalizeMarketLiveOrderAssetSummary(value: Record<string, unknown>): MarketLiveOrderAssetSummary {
+  return {
+    asset_id: Number(value.asset_id || 0),
+    symbol: String(value.symbol || ""),
+    display_name: String(value.display_name || ""),
+    icon: value.icon ? String(value.icon) : null,
+    color: value.color ? String(value.color) : null,
+    next_execute_after: value.next_execute_after ? String(value.next_execute_after) : null,
+    pending_count: Number(toNumber(value.pending_count) || 0),
+    pending_buy_count: Number(toNumber(value.pending_buy_count) || 0),
+    pending_sell_count: Number(toNumber(value.pending_sell_count) || 0),
+    pending_buy_quantity: Number(toNumber(value.pending_buy_quantity) || 0),
+    pending_sell_quantity: Number(toNumber(value.pending_sell_quantity) || 0),
+  };
+}
+
+export function normalizeMarketLiveOrderSummary(value: Record<string, unknown> | null): MarketLiveOrderSummary {
+  return {
+    generated_at: String(value?.generated_at || ""),
+    symbol: value?.symbol ? String(value.symbol) : null,
+    next_execute_after: value?.next_execute_after ? String(value.next_execute_after) : null,
+    pending_count: Number(toNumber(value?.pending_count) || 0),
+    pending_buy_count: Number(toNumber(value?.pending_buy_count) || 0),
+    pending_sell_count: Number(toNumber(value?.pending_sell_count) || 0),
+    pending_buy_quantity: Number(toNumber(value?.pending_buy_quantity) || 0),
+    pending_sell_quantity: Number(toNumber(value?.pending_sell_quantity) || 0),
+    assets: Array.isArray(value?.assets)
+      ? (value.assets as Array<Record<string, unknown>>).map(normalizeMarketLiveOrderAssetSummary)
+      : [],
+  };
+}
+
 function normalizeMarketActivity(value: Record<string, unknown> | null): MarketActivity {
   const windows = (value?.windows || null) as Record<string, unknown> | null;
   return {
@@ -822,6 +862,7 @@ function normalizeMarketActivity(value: Record<string, unknown> | null): MarketA
     most_active_traders_24h: Array.isArray(value?.most_active_traders_24h)
       ? (value?.most_active_traders_24h as Array<Record<string, unknown>>).map(normalizeMarketActivityTrader)
       : [],
+    live_orders: normalizeMarketLiveOrderSummary((value?.live_orders as Record<string, unknown> | null) || null),
   };
 }
 

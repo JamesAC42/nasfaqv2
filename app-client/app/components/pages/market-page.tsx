@@ -17,7 +17,7 @@ import { AssetCoin } from "@/app/components/common/asset-coin";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { fmtDate, fmtInteger, fmtNumber, fmtPct, toNumber } from "@/app/lib/format";
-import { normalizeMarketAdjustmentSummary, normalizeMarketHubResponse, normalizeMarketHubTrade } from "@/app/lib/normalizers";
+import { normalizeMarketAdjustmentSummary, normalizeMarketHubResponse, normalizeMarketHubTrade, normalizeMarketLiveOrderSummary } from "@/app/lib/normalizers";
 import type { MarketAdjustmentSummary, MarketAsset, MarketHubResponse, MarketHubTrade, MarketTradeEvent } from "@/app/lib/types";
 import { getMarketWsUrl } from "@/app/lib/ws";
 import styles from "@/app/components/pages/market-page.module.scss";
@@ -319,6 +319,68 @@ function HotSymbolStrip({
   );
 }
 
+function PendingLiveOrders({
+  hub,
+}: {
+  hub: MarketHubResponse;
+}) {
+  const summary = hub.activity.live_orders;
+  const total = summary.pending_count;
+  const buyPct = total > 0 ? (summary.pending_buy_count / total) * 100 : 50;
+
+  return (
+    <section className={styles.liveOrderPanel}>
+      <div className={styles.sectionHead}>
+        <div>
+          <h2 className={styles.sectionTitle}>Live Order Queue</h2>
+          <p className={styles.sectionCopy}>
+            Pending manual orders queued for the next 10-minute execution tick.
+          </p>
+        </div>
+        <div className={styles.sectionMeta}>
+          <FaClock />
+          <span>{summary.next_execute_after ? formatEt(summary.next_execute_after) : "No tick queued"}</span>
+        </div>
+      </div>
+
+      <div className={styles.liveOrderSummaryGrid}>
+        <div className={styles.liveOrderTotal}>
+          <span className={styles.microLabel}>Next tick orders</span>
+          <strong>{fmtInteger(total)}</strong>
+          <p>{fmtInteger(summary.pending_buy_quantity)} buy shares · {fmtInteger(summary.pending_sell_quantity)} sell shares</p>
+        </div>
+        <div className={styles.liveOrderPressure}>
+          <div className={styles.pressureTrack}>
+            <i style={{ width: `${buyPct}%` }} />
+          </div>
+          <div className={styles.pressureLegend}>
+            <span className={styles.positive}>Buy {fmtInteger(summary.pending_buy_count)}</span>
+            <span className={styles.negative}>Sell {fmtInteger(summary.pending_sell_count)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.liveOrderAssetList}>
+        {summary.assets.length ? summary.assets.map((asset) => (
+          <Link key={asset.symbol} href={`/stocks/${encodeURIComponent(asset.symbol)}`} className={styles.liveOrderAssetRow}>
+            <div className={styles.assetMain}>
+              <AssetCoin symbol={asset.symbol} icon={asset.icon} color={asset.color} className={styles.assetIcon} shape="circle" />
+              <div>
+                <strong>{asset.symbol}</strong>
+                <span>{asset.display_name}</span>
+              </div>
+            </div>
+            <div className={styles.assetMetric}>
+              <strong>{fmtInteger(asset.pending_count)} orders</strong>
+              <span>{fmtInteger(asset.pending_buy_count)} buy / {fmtInteger(asset.pending_sell_count)} sell</span>
+            </div>
+          </Link>
+        )) : <div className={styles.empty}>No live orders are waiting for the next tick.</div>}
+      </div>
+    </section>
+  );
+}
+
 function AnalogClock({
   label,
   zone,
@@ -586,6 +648,23 @@ export function MarketPage() {
             return;
           }
 
+          if (payload.type === "market.live_order_queued") {
+            setTickToast("Live order queued for the next 10-minute execution tick");
+            void apiFetch<Record<string, unknown>>("/api/market/live-orders/summary?limit=8", { cache: "no-store" })
+              .then((result) => {
+                const liveOrders = normalizeMarketLiveOrderSummary(result);
+                setHub((current) => current ? {
+                  ...current,
+                  activity: {
+                    ...current.activity,
+                    live_orders: liveOrders,
+                  },
+                } : current);
+              })
+              .catch(() => {});
+            return;
+          }
+
           if (payload.type !== "market.trade_fill") return;
           const normalizedTrade = normalizeMarketHubTrade(payload.trade as Record<string, unknown>);
           const marketEvent = {
@@ -831,6 +910,8 @@ export function MarketPage() {
               <StatCard label="24 Hour Crowd" value={fmtInteger(hub.activity.windows["24h"].trader_count)} meta={`${fmtInteger(hub.activity.windows["24h"].asset_count)} assets touched`} icon={<FaUsers />} />
               <StatCard label="Market Breadth" value={`${fmtInteger(allMarketIndex?.summary?.advancers)} / ${fmtInteger(allMarketIndex?.summary?.decliners)}`} meta={`${fmtInteger(allMarketIndex?.summary?.constituent_count)} tracked`} icon={<FaChartLine />} />
             </section>
+
+            <PendingLiveOrders hub={hub} />
 
             <section className={styles.hotPanel}>
               <div className={styles.sectionHead}>

@@ -451,6 +451,19 @@ CREATE TABLE IF NOT EXISTS market.asset_price_events (
 CREATE INDEX IF NOT EXISTS market_asset_price_events_asset_ts_desc_idx
   ON market.asset_price_events (asset_id, ts DESC);
 
+CREATE TABLE IF NOT EXISTS market.live_order_batches (
+  id BIGSERIAL PRIMARY KEY,
+  status TEXT NOT NULL DEFAULT 'started',
+  started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  completed_at TIMESTAMPTZ NULL,
+  orders_attempted INTEGER NOT NULL DEFAULT 0,
+  orders_filled INTEGER NOT NULL DEFAULT 0,
+  orders_rejected INTEGER NOT NULL DEFAULT 0,
+  error_text TEXT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT live_order_batches_status_check CHECK (status IN ('started', 'completed', 'failed'))
+);
+
 CREATE TABLE IF NOT EXISTS market.trade_orders (
   id BIGSERIAL PRIMARY KEY,
   user_id BIGINT NOT NULL,
@@ -463,19 +476,54 @@ CREATE TABLE IF NOT EXISTS market.trade_orders (
   quote_bid_at_submit NUMERIC NULL,
   quote_ask_at_submit NUMERIC NULL,
   rejection_reason TEXT NULL,
+  execute_after TIMESTAMPTZ NULL,
+  live_order_batch_id BIGINT NULL REFERENCES market.live_order_batches(id) ON DELETE SET NULL,
+  submitted_market_date DATE NULL,
+  submitted_interval_key TEXT NULL,
   metadata_json JSONB NULL,
   requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
   CONSTRAINT trade_orders_side_check CHECK (side IN ('buy', 'sell')),
-  CONSTRAINT trade_orders_type_check CHECK (order_type IN ('market')),
+  CONSTRAINT trade_orders_type_check CHECK (order_type IN ('market', 'live_market')),
   CONSTRAINT trade_orders_status_check CHECK (status IN ('pending', 'filled', 'cancelled', 'rejected')),
+  CONSTRAINT trade_orders_submitted_interval_key_check CHECK (
+    submitted_interval_key IS NULL OR submitted_interval_key IN ('open', 'lunch', 'late', 'overnight')
+  ),
   CONSTRAINT trade_orders_requested_quantity_check CHECK (requested_quantity > 0),
   CONSTRAINT trade_orders_filled_quantity_check CHECK (filled_quantity >= 0 AND filled_quantity <= requested_quantity)
 );
 
+ALTER TABLE market.trade_orders
+  ADD COLUMN IF NOT EXISTS execute_after TIMESTAMPTZ NULL,
+  ADD COLUMN IF NOT EXISTS live_order_batch_id BIGINT NULL REFERENCES market.live_order_batches(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS submitted_market_date DATE NULL,
+  ADD COLUMN IF NOT EXISTS submitted_interval_key TEXT NULL;
+
+ALTER TABLE market.trade_orders
+  DROP CONSTRAINT IF EXISTS trade_orders_type_check;
+
+ALTER TABLE market.trade_orders
+  ADD CONSTRAINT trade_orders_type_check CHECK (order_type IN ('market', 'live_market'));
+
+ALTER TABLE market.trade_orders
+  DROP CONSTRAINT IF EXISTS trade_orders_submitted_interval_key_check;
+
+ALTER TABLE market.trade_orders
+  ADD CONSTRAINT trade_orders_submitted_interval_key_check CHECK (
+    submitted_interval_key IS NULL OR submitted_interval_key IN ('open', 'lunch', 'late', 'overnight')
+  );
+
 CREATE INDEX IF NOT EXISTS market_trade_orders_user_requested_at_desc_idx
   ON market.trade_orders (user_id, requested_at DESC);
+
+CREATE INDEX IF NOT EXISTS market_trade_orders_live_due_idx
+  ON market.trade_orders (status, execute_after, id)
+  WHERE order_type = 'live_market';
+
+CREATE INDEX IF NOT EXISTS market_trade_orders_live_user_interval_idx
+  ON market.trade_orders (user_id, submitted_market_date, submitted_interval_key, requested_at DESC)
+  WHERE order_type = 'live_market';
 
 CREATE TABLE IF NOT EXISTS market.trade_fills (
   id BIGSERIAL,
@@ -698,4 +746,3 @@ CREATE TABLE IF NOT EXISTS market.market_runtime_state (
 INSERT INTO market.market_runtime_state (state_key)
 VALUES ('primary')
 ON CONFLICT (state_key) DO NOTHING;
-

@@ -335,6 +335,27 @@ async function listAssets(pool) {
       JOIN market.adjustment_sessions s ON s.id = i.session_id
       WHERE i.status = 'applied'
       ORDER BY i.asset_id, i.applied_at DESC NULLS LAST, i.id DESC
+    ),
+    next_live_order_tick AS (
+      SELECT MIN(execute_after) AS execute_after
+      FROM market.trade_orders
+      WHERE order_type = 'live_market'
+        AND status = 'pending'
+    ),
+    pending_live_orders AS (
+      SELECT
+        o.asset_id,
+        COUNT(*)::int AS pending_live_order_count,
+        COUNT(*) FILTER (WHERE o.side = 'buy')::int AS pending_live_buy_count,
+        COUNT(*) FILTER (WHERE o.side = 'sell')::int AS pending_live_sell_count,
+        COALESCE(SUM(o.requested_quantity) FILTER (WHERE o.side = 'buy'), 0) AS pending_live_buy_quantity,
+        COALESCE(SUM(o.requested_quantity) FILTER (WHERE o.side = 'sell'), 0) AS pending_live_sell_quantity,
+        MIN(o.execute_after) AS next_live_order_execute_after
+      FROM market.trade_orders o
+      JOIN next_live_order_tick nt ON o.execute_after = nt.execute_after
+      WHERE o.order_type = 'live_market'
+        AND o.status = 'pending'
+      GROUP BY o.asset_id
     )
     SELECT
       a.id,
@@ -402,6 +423,12 @@ async function listAssets(pool) {
       a.latest_snapshot_date,
       COALESCE(v.volume_24h, 0) AS volume_24h,
       COALESCE(v.volume_cash_24h, 0) AS volume_cash_24h,
+      COALESCE(plo.pending_live_order_count, 0) AS pending_live_order_count,
+      COALESCE(plo.pending_live_buy_count, 0) AS pending_live_buy_count,
+      COALESCE(plo.pending_live_sell_count, 0) AS pending_live_sell_count,
+      COALESCE(plo.pending_live_buy_quantity, 0) AS pending_live_buy_quantity,
+      COALESCE(plo.pending_live_sell_quantity, 0) AS pending_live_sell_quantity,
+      plo.next_live_order_execute_after,
       CASE
         WHEN ld.mid_open IS NULL OR ld.mid_open = 0 OR ld.mid_close IS NULL THEN NULL
         ELSE (ld.mid_close - ld.mid_open) / ld.mid_open
@@ -416,6 +443,7 @@ async function listAssets(pool) {
     LEFT JOIN sparkline_daily sd ON sd.asset_id = a.id
     LEFT JOIN next_adjustment na ON na.asset_id = a.id
     LEFT JOIN latest_adjustment la ON la.asset_id = a.id
+    LEFT JOIN pending_live_orders plo ON plo.asset_id = a.id
     ORDER BY a.symbol ASC
   `
   );
@@ -501,6 +529,30 @@ async function getAssetBySymbol(pool, symbol) {
         AND i.status = 'applied'
       ORDER BY i.applied_at DESC NULLS LAST, i.id DESC
       LIMIT 1
+    ),
+    pending_live_orders AS (
+      SELECT
+        o.asset_id,
+        COUNT(*)::int AS pending_live_order_count,
+        COUNT(*) FILTER (WHERE o.side = 'buy')::int AS pending_live_buy_count,
+        COUNT(*) FILTER (WHERE o.side = 'sell')::int AS pending_live_sell_count,
+        COALESCE(SUM(o.requested_quantity) FILTER (WHERE o.side = 'buy'), 0) AS pending_live_buy_quantity,
+        COALESCE(SUM(o.requested_quantity) FILTER (WHERE o.side = 'sell'), 0) AS pending_live_sell_quantity,
+        MIN(o.execute_after) AS next_live_order_execute_after
+      FROM market.trade_orders o
+      JOIN market.market_assets a ON a.id = o.asset_id
+      WHERE a.symbol = $1
+        AND o.order_type = 'live_market'
+        AND o.status = 'pending'
+        AND o.execute_after = (
+          SELECT MIN(o2.execute_after)
+          FROM market.trade_orders o2
+          JOIN market.market_assets a2 ON a2.id = o2.asset_id
+          WHERE a2.symbol = $1
+            AND o2.order_type = 'live_market'
+            AND o2.status = 'pending'
+        )
+      GROUP BY o.asset_id
     )
     SELECT
       a.id,
@@ -619,6 +671,12 @@ async function getAssetBySymbol(pool, symbol) {
       COALESCE(v.volume_24h, 0) AS volume_24h,
       COALESCE(v.volume_cash_24h, 0) AS volume_cash_24h,
       COALESCE(v.trade_count_24h, 0) AS trade_count_24h,
+      COALESCE(plo.pending_live_order_count, 0) AS pending_live_order_count,
+      COALESCE(plo.pending_live_buy_count, 0) AS pending_live_buy_count,
+      COALESCE(plo.pending_live_sell_count, 0) AS pending_live_sell_count,
+      COALESCE(plo.pending_live_buy_quantity, 0) AS pending_live_buy_quantity,
+      COALESCE(plo.pending_live_sell_quantity, 0) AS pending_live_sell_quantity,
+      plo.next_live_order_execute_after,
       lt.ts AS last_trade_ts,
       lt.side AS last_trade_side,
       lt.price AS last_trade_price,
@@ -631,6 +689,7 @@ async function getAssetBySymbol(pool, symbol) {
     LEFT JOIN latest_trade lt ON lt.asset_id = a.id
     LEFT JOIN next_adjustment na ON true
     LEFT JOIN latest_adjustment la ON true
+    LEFT JOIN pending_live_orders plo ON plo.asset_id = a.id
     WHERE a.symbol = $1
     LIMIT 1
   `,
@@ -783,7 +842,7 @@ async function listRecentMarketTrades(pool, { limit = 50, beforeTs = null, befor
 }
 
 async function getMarketActivityStats(pool) {
-  const [windowResult, traderResult] = await Promise.all([
+  const [windowResult, traderResult, liveOrders] = await Promise.all([
     pool.query(
       `
       WITH windows AS (
@@ -828,6 +887,7 @@ async function getMarketActivityStats(pool) {
       LIMIT 8
     `
     ),
+    getPendingLiveOrderSummary(pool, { limit: 8 }),
   ]);
 
   const windows = {
@@ -879,6 +939,113 @@ async function getMarketActivityStats(pool) {
       volume_cash: roundMetric(row.volume_cash) || 0,
       volume_shares: roundMetric(row.volume_shares) || 0,
       latest_trade_at: row.latest_trade_at || null,
+    })),
+    live_orders: liveOrders,
+  };
+}
+
+async function getPendingLiveOrderSummary(pool, { symbol = null, limit = 12 } = {}) {
+  const normalizedSymbol = symbol ? String(symbol).trim().toUpperCase() : null;
+  const safeLimit = Math.min(50, Math.max(1, Number.parseInt(String(limit || 12), 10) || 12));
+  const params = normalizedSymbol ? [normalizedSymbol, safeLimit] : [safeLimit];
+  const symbolFilter = normalizedSymbol ? "AND a.symbol = $1" : "";
+  const limitParam = normalizedSymbol ? "$2" : "$1";
+
+  const [totalsResult, assetsResult] = await Promise.all([
+    pool.query(
+      `
+      WITH pending AS (
+        SELECT
+          o.*
+        FROM market.trade_orders o
+        JOIN market.market_assets a ON a.id = o.asset_id
+        WHERE o.order_type = 'live_market'
+          AND o.status = 'pending'
+          ${symbolFilter}
+      ),
+      next_tick AS (
+        SELECT MIN(execute_after) AS execute_after
+        FROM pending
+      )
+      SELECT
+        nt.execute_after AS next_execute_after,
+        COUNT(p.id)::int AS pending_count,
+        COUNT(*) FILTER (WHERE p.side = 'buy')::int AS pending_buy_count,
+        COUNT(*) FILTER (WHERE p.side = 'sell')::int AS pending_sell_count,
+        COALESCE(SUM(p.requested_quantity) FILTER (WHERE p.side = 'buy'), 0) AS pending_buy_quantity,
+        COALESCE(SUM(p.requested_quantity) FILTER (WHERE p.side = 'sell'), 0) AS pending_sell_quantity
+      FROM next_tick nt
+      LEFT JOIN pending p
+        ON p.execute_after = nt.execute_after
+      GROUP BY nt.execute_after
+    `,
+      normalizedSymbol ? [normalizedSymbol] : []
+    ),
+    pool.query(
+      `
+      WITH pending AS (
+        SELECT
+          o.id,
+          o.asset_id,
+          o.side,
+          o.requested_quantity,
+          o.execute_after
+        FROM market.trade_orders o
+        JOIN market.market_assets a ON a.id = o.asset_id
+        WHERE o.order_type = 'live_market'
+          AND o.status = 'pending'
+          ${symbolFilter}
+      ),
+      next_tick AS (
+        SELECT MIN(execute_after) AS execute_after
+        FROM pending
+      )
+      SELECT
+        a.id AS asset_id,
+        a.symbol,
+        a.display_name,
+        c.icon,
+        c.color,
+        nt.execute_after AS next_execute_after,
+        COUNT(p.id)::int AS pending_count,
+        COUNT(*) FILTER (WHERE p.side = 'buy')::int AS pending_buy_count,
+        COUNT(*) FILTER (WHERE p.side = 'sell')::int AS pending_sell_count,
+        COALESCE(SUM(p.requested_quantity) FILTER (WHERE p.side = 'buy'), 0) AS pending_buy_quantity,
+        COALESCE(SUM(p.requested_quantity) FILTER (WHERE p.side = 'sell'), 0) AS pending_sell_quantity
+      FROM next_tick nt
+      JOIN pending p ON p.execute_after = nt.execute_after
+      JOIN market.market_assets a ON a.id = p.asset_id
+      JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
+      GROUP BY a.id, a.symbol, a.display_name, c.icon, c.color, nt.execute_after
+      ORDER BY pending_count DESC, (COALESCE(SUM(p.requested_quantity), 0)) DESC, a.symbol ASC
+      LIMIT ${limitParam}
+    `,
+      params
+    ),
+  ]);
+
+  const totals = totalsResult.rows[0] || {};
+  return {
+    generated_at: new Date().toISOString(),
+    symbol: normalizedSymbol,
+    next_execute_after: totals.next_execute_after || null,
+    pending_count: Number(totals.pending_count || 0),
+    pending_buy_count: Number(totals.pending_buy_count || 0),
+    pending_sell_count: Number(totals.pending_sell_count || 0),
+    pending_buy_quantity: roundMetric(totals.pending_buy_quantity) || 0,
+    pending_sell_quantity: roundMetric(totals.pending_sell_quantity) || 0,
+    assets: assetsResult.rows.map((row) => ({
+      asset_id: Number(row.asset_id),
+      symbol: row.symbol,
+      display_name: row.display_name,
+      icon: row.icon || null,
+      color: row.color || null,
+      next_execute_after: row.next_execute_after || null,
+      pending_count: Number(row.pending_count || 0),
+      pending_buy_count: Number(row.pending_buy_count || 0),
+      pending_sell_count: Number(row.pending_sell_count || 0),
+      pending_buy_quantity: roundMetric(row.pending_buy_quantity) || 0,
+      pending_sell_quantity: roundMetric(row.pending_sell_quantity) || 0,
     })),
   };
 }
@@ -2040,6 +2207,7 @@ module.exports = {
   getAssetTrades,
   listRecentMarketTrades,
   getMarketActivityStats,
+  getPendingLiveOrderSummary,
   getMarketHub,
   getAssetSuperchatSummary,
   getAssetSuperchatRank,
