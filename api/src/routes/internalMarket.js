@@ -1,6 +1,8 @@
 const express = require("express");
 const { invalidateMarketAssetsCache } = require("../marketCache");
+const { publishMarketStatusEvent } = require("../services/marketEvents");
 const fundamentals = require("../services/fundamentals");
+const marketAdjustments = require("../services/marketAdjustments");
 const marketAdmin = require("../services/marketAdmin");
 const marketState = require("../services/marketState");
 const settlement = require("../services/settlement");
@@ -47,6 +49,7 @@ router.post("/close", async (req, res, next) => {
       message: req.body?.message ? String(req.body.message) : "Market manually closed for maintenance.",
       nextScheduledSettlementAt: computeNextScheduledAt(new Date(), schedulerConfig).toISOString(),
     });
+    void publishMarketStatusEvent(req.ctx.redis, status);
     res.json({ ok: true, status });
   } catch (e) {
     next(e);
@@ -63,6 +66,7 @@ router.post("/open", async (req, res, next) => {
       message: req.body?.message ? String(req.body.message) : "Market reopened.",
       nextScheduledSettlementAt: computeNextScheduledAt(new Date(), schedulerConfig).toISOString(),
     });
+    void publishMarketStatusEvent(req.ctx.redis, status);
     res.json({ ok: true, status });
   } catch (e) {
     next(e);
@@ -74,7 +78,7 @@ router.post("/open", async (req, res, next) => {
 router.post("/run-daily-cycle", async (req, res, next) => {
   try {
     const schedulerConfig = loadSchedulerConfig();
-    const result = await runScheduledCycle(req.ctx.pool, schedulerConfig, console);
+    const result = await runScheduledCycle(req.ctx.pool, schedulerConfig, console, req.ctx.redis);
     await invalidateMarketAssetsCache(req.ctx.redis);
     res.json({ ok: true, result });
   } catch (e) {
@@ -125,15 +129,20 @@ router.post("/settle/:date", async (req, res, next) => {
     if (!marketDate) return res.status(400).json({ error: "invalid_market_date" });
 
     const force = Boolean(req.body?.force);
-    const result = await settlement.settleMarketDay(req.ctx.pool, { marketDate, force });
+    const result = await settlement.settleMarketDay(req.ctx.pool, { marketDate, force, redis: req.ctx.redis });
+    const adjustmentSession = await marketAdjustments.ensureAdjustmentSession(req.ctx.pool, {
+      marketDate: result.market_date,
+      force: Boolean(req.body?.force_adjustments),
+    });
     const schedulerConfig = loadSchedulerConfig();
-    await marketState.setMarketOpen(client, {
+    const status = await marketState.setMarketOpen(client, {
       nextScheduledSettlementAt: computeNextScheduledAt(new Date(), schedulerConfig).toISOString(),
       lastSettlementMarketDate: result.market_date,
       clearError: true,
     });
+    void publishMarketStatusEvent(req.ctx.redis, status);
     await invalidateMarketAssetsCache(req.ctx.redis);
-    res.json(result);
+    res.json({ ...result, adjustment_session: adjustmentSession });
   } catch (e) {
     if (e?.code === "settlement_already_completed") {
       return res.status(409).json({ error: "settlement_already_completed" });
@@ -159,16 +168,23 @@ router.post("/settle-range", async (req, res, next) => {
     if (!to) return res.status(400).json({ error: "invalid_to_date" });
 
     const force = Boolean(req.body?.force);
-    const result = await settlement.settleMarketRange(req.ctx.pool, { from, to, force });
+    const result = await settlement.settleMarketRange(req.ctx.pool, { from, to, force, redis: req.ctx.redis });
     const latestSettled = result.settled_dates[result.settled_dates.length - 1]?.market_date || null;
+    const adjustmentSession = latestSettled
+      ? await marketAdjustments.ensureAdjustmentSession(req.ctx.pool, {
+          marketDate: latestSettled,
+          force: Boolean(req.body?.force_adjustments),
+        })
+      : null;
     const schedulerConfig = loadSchedulerConfig();
-    await marketState.setMarketOpen(client, {
+    const status = await marketState.setMarketOpen(client, {
       nextScheduledSettlementAt: computeNextScheduledAt(new Date(), schedulerConfig).toISOString(),
       lastSettlementMarketDate: latestSettled,
       clearError: true,
     });
+    void publishMarketStatusEvent(req.ctx.redis, status);
     await invalidateMarketAssetsCache(req.ctx.redis);
-    res.json(result);
+    res.json({ ...result, adjustment_session: adjustmentSession });
   } catch (e) {
     if (e?.code === "settlement_already_completed") {
       return res.status(409).json({ error: "settlement_already_completed" });
@@ -182,6 +198,35 @@ router.post("/settle-range", async (req, res, next) => {
     next(e);
   } finally {
     client.release();
+  }
+});
+
+router.post("/adjustments/generate/:date", async (req, res, next) => {
+  try {
+    const marketDate = optionalDate(req.params.date);
+    if (!marketDate) return res.status(400).json({ error: "invalid_market_date" });
+
+    const result = await marketAdjustments.ensureAdjustmentSession(req.ctx.pool, {
+      marketDate,
+      force: Boolean(req.body?.force),
+    });
+    await invalidateMarketAssetsCache(req.ctx.redis);
+    res.json({ ok: true, result });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/adjustments/apply-due", async (req, res, next) => {
+  try {
+    const limit = Number.parseInt(String(req.body?.limit || "250"), 10);
+    const result = await marketAdjustments.applyDueAdjustments(req.ctx.pool, {
+      limit: Number.isFinite(limit) ? Math.min(1000, Math.max(1, limit)) : 250,
+      redis: req.ctx.redis,
+    });
+    res.json(result);
+  } catch (e) {
+    next(e);
   }
 });
 
@@ -224,13 +269,15 @@ router.post("/rebuild-full", async (req, res, next) => {
       from: range.from,
       to: latestReadyDate,
       force: true,
+      redis: req.ctx.redis,
     });
     const latestSettled = settlementResult.settled_dates[settlementResult.settled_dates.length - 1]?.market_date || null;
-    await marketState.setMarketOpen(lockClient, {
+    const status = await marketState.setMarketOpen(lockClient, {
       nextScheduledSettlementAt: computeNextScheduledAt(new Date(), schedulerConfig).toISOString(),
       lastSettlementMarketDate: latestSettled,
       clearError: true,
     });
+    void publishMarketStatusEvent(req.ctx.redis, status);
     await invalidateMarketAssetsCache(req.ctx.redis);
 
     res.json({

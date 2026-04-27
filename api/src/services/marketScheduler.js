@@ -1,6 +1,9 @@
 const fundamentals = require("./fundamentals");
 const settlement = require("./settlement");
 const marketState = require("./marketState");
+const marketAdjustments = require("./marketAdjustments");
+const { publishMarketStatusEvent } = require("./marketEvents");
+const { invalidateMarketAssetsCache } = require("../marketCache");
 
 const SCHEDULER_LOCK_KEY = 9_204_001;
 const DEFAULT_TIME_ZONE = "America/New_York";
@@ -242,7 +245,7 @@ function buildCycleMessage({ from, to, phase }) {
     : `Market closed for daily settlement. Applying settlement for ${from} through ${to}.`;
 }
 
-async function runScheduledCycle(pool, schedulerConfig, logger = console) {
+async function runScheduledCycle(pool, schedulerConfig, logger = console, redis = null) {
   const lockClient = await pool.connect();
   try {
     const locked = await acquireSchedulerLock(lockClient);
@@ -278,12 +281,13 @@ async function runScheduledCycle(pool, schedulerConfig, logger = console) {
     const from = readyDates[0];
     const to = readyDates[readyDates.length - 1];
 
-    await marketState.setMarketSettling(lockClient, {
+    const settlingStatus = await marketState.setMarketSettling(lockClient, {
       marketDate: to,
       phase: "fundamentals",
       message: buildCycleMessage({ from, to, phase: "fundamentals" }),
       nextScheduledSettlementAt: nextScheduledAt.toISOString(),
     });
+    void publishMarketStatusEvent(redis, settlingStatus);
 
     const fundamentalsResult = await fundamentals.recalculateFundamentals(pool, {
       from,
@@ -293,16 +297,18 @@ async function runScheduledCycle(pool, schedulerConfig, logger = console) {
       fillMissingDates: true,
     });
 
-    await marketState.updateSettlementPhase(lockClient, {
+    const settlementStatus = await marketState.updateSettlementPhase(lockClient, {
       marketDate: to,
       phase: "settlement",
       message: buildCycleMessage({ from, to, phase: "settlement" }),
     });
+    void publishMarketStatusEvent(redis, settlementStatus);
 
     const settlementResult = await settlement.settleMarketRange(pool, {
       from,
       to,
       force: false,
+      redis,
     });
     if ((settlementResult.skipped_dates || []).length > 0 || settlementResult.settled_count !== readyDates.length) {
       const error = new Error(`scheduled_settlement_incomplete:${JSON.stringify(settlementResult.skipped_dates || [])}`);
@@ -311,12 +317,17 @@ async function runScheduledCycle(pool, schedulerConfig, logger = console) {
     }
 
     const latestSettled = settlementResult.settled_dates[settlementResult.settled_dates.length - 1]?.market_date || to;
-    await marketState.setMarketOpen(lockClient, {
+    const adjustmentSession = await marketAdjustments.ensureAdjustmentSession(pool, {
+      marketDate: latestSettled,
+    });
+    await invalidateMarketAssetsCache(redis);
+    const openStatus = await marketState.setMarketOpen(lockClient, {
       message: `Daily settlement completed for ${latestSettled}. Trading is open.`,
       nextScheduledSettlementAt: nextScheduledAt.toISOString(),
       lastSettlementMarketDate: latestSettled,
       clearError: true,
     });
+    void publishMarketStatusEvent(redis, openStatus);
 
     return {
       ok: true,
@@ -324,13 +335,15 @@ async function runScheduledCycle(pool, schedulerConfig, logger = console) {
       to,
       fundamentals: fundamentalsResult,
       settlement: settlementResult,
+      adjustment_session: adjustmentSession,
       next_scheduled_settlement_at: nextScheduledAt.toISOString(),
     };
   } catch (error) {
     const nextScheduledAt = computeNextScheduledAt(new Date(), schedulerConfig);
-    await marketState.setMarketCycleError(lockClient, String(error?.message || error), {
+    const errorStatus = await marketState.setMarketCycleError(lockClient, String(error?.message || error), {
       nextScheduledSettlementAt: nextScheduledAt.toISOString(),
     });
+    void publishMarketStatusEvent(redis, errorStatus);
     logger.error?.("market scheduler cycle failed", error);
     throw error;
   } finally {
@@ -348,7 +361,7 @@ function loadSchedulerConfig() {
   };
 }
 
-function startMarketScheduler(pool, logger = console) {
+function startMarketScheduler(pool, logger = console, redis = null) {
   const schedulerConfig = loadSchedulerConfig();
   let running = false;
 
@@ -362,7 +375,7 @@ function startMarketScheduler(pool, logger = console) {
 
     running = true;
     try {
-      await runScheduledCycle(pool, schedulerConfig, logger);
+      await runScheduledCycle(pool, schedulerConfig, logger, redis);
     } catch {}
     running = false;
   }

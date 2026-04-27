@@ -203,6 +203,77 @@
   font-size: clamp(1.2rem, 2vw, 1.8rem);
 }
 
+.adjustmentBrief {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(20rem, 1fr);
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem;
+  border: 0.0625rem solid color-mix(in srgb, var(--report-cyan) 20%, var(--border));
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--report-cyan) 14%, transparent), transparent 18rem),
+    color-mix(in srgb, var(--report-panel) 82%, transparent);
+  box-shadow: var(--shadow);
+
+  h2 {
+    margin: 0.3rem 0 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.4rem, 2.4vw, 2.1rem);
+  }
+
+  p {
+    margin: 0.45rem 0 0;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+}
+
+.adjustmentEyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--report-cyan);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.adjustmentBriefStats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+
+  div {
+    display: grid;
+    gap: 0.22rem;
+    padding: 0.8rem;
+    border: 0.0625rem solid color-mix(in srgb, var(--report-cyan) 16%, var(--border));
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-card) 72%, transparent);
+  }
+
+  span {
+    color: var(--report-cyan);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  strong {
+    font-family: var(--font-mono);
+    font-size: 1rem;
+  }
+
+  em {
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-style: normal;
+  }
+}
+
 .commandGrid {
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(22rem, 0.65fr);
@@ -535,6 +606,7 @@
   .hero,
   .statGrid,
   .commandGrid,
+  .adjustmentBrief,
   .briefingGrid,
   .portfolioGrid,
   .reportGrid {
@@ -564,6 +636,7 @@
   .portfolioStats,
   .exposureRow,
   .sectionHeader,
+  .adjustmentBriefStats,
   .tapeBand {
     grid-template-columns: 1fr;
     display: grid;

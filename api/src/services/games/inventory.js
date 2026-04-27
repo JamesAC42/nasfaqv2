@@ -1,4 +1,5 @@
 const { getLockedCashAccountWithClient } = require("./wallet");
+const gachaPrizeCatalog = require("./gachaPrizeCatalog");
 
 function invalidGameInventory(code = "invalid_game_inventory") {
   const error = new Error(code);
@@ -50,6 +51,31 @@ function mapEquippedRow(row) {
       granted_at: row.granted_at,
     },
     updated_at: row.updated_at,
+  };
+}
+
+function mapLockerPullRow(row) {
+  const metadata = row.metadata_json || {};
+  const prizeImageUrl = row.prize_image_key ? gachaPrizeCatalog.imageUrlForKey(row.prize_image_key) : "";
+  return {
+    id: Number(row.id),
+    game_id: Number(row.game_id),
+    game_session_id: row.game_session_id === null ? null : Number(row.game_session_id),
+    cost_cash: Number(row.cost_cash || 0),
+    reward_type: row.prize_cosmetic_type || row.reward_type,
+    reward_key: row.reward_key,
+    duplicate_compensation_cash: Number(row.duplicate_compensation_cash || 0),
+    metadata,
+    created_at: row.created_at,
+    reward: {
+      key: row.reward_key,
+      type: row.prize_cosmetic_type || row.reward_type,
+      rarity: String(row.prize_rarity || metadata.rarity || "common"),
+      display_name: String(row.prize_display_name || metadata.display_name || row.reward_key),
+      image_key: row.prize_image_key ? String(row.prize_image_key) : metadata.image_key ? String(metadata.image_key) : "",
+      image_url: prizeImageUrl || (metadata.image_url ? String(metadata.image_url) : ""),
+      duplicate: Boolean(metadata.duplicate),
+    },
   };
 }
 
@@ -184,6 +210,46 @@ async function listUserInventory(pool, userId) {
     summary: {
       total_cosmetics: cosmetics.length,
       counts_by_type: countsByType,
+    },
+  };
+}
+
+async function listUserItemLocker(pool, userId) {
+  const { rows } = await pool.query(
+    `
+    SELECT
+      gp.id,
+      gp.game_id,
+      gp.game_session_id,
+      gp.cost_cash,
+      gp.reward_type,
+      gp.reward_key,
+      gp.duplicate_compensation_cash,
+      gp.metadata_json,
+      gp.created_at,
+      gpi.display_name AS prize_display_name,
+      gpi.cosmetic_type AS prize_cosmetic_type,
+      gpi.rarity AS prize_rarity,
+      gpi.image_key AS prize_image_key
+    FROM games.gacha_pulls gp
+    LEFT JOIN games.gacha_prize_items gpi
+      ON gpi.cosmetic_key = gp.reward_key
+    WHERE gp.user_id = $1
+    ORDER BY gp.created_at DESC, gp.id DESC
+  `,
+    [userId]
+  );
+
+  const items = rows.map(mapLockerPullRow);
+  return {
+    user_id: Number(userId),
+    items,
+    summary: {
+      total_items: items.length,
+      counts_by_type: items.reduce((acc, item) => {
+        acc[item.reward_type] = (acc[item.reward_type] || 0) + 1;
+        return acc;
+      }, {}),
     },
   };
 }
@@ -338,4 +404,5 @@ module.exports = {
   getGamesSummary,
   grantCosmeticWithClient,
   listUserInventory,
+  listUserItemLocker,
 };

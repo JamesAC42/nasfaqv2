@@ -281,6 +281,33 @@ function toNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function formatAdjustmentLabel(value: string | null | undefined) {
+  switch (value) {
+    case "open":
+      return "Open";
+    case "lunch":
+      return "Lunch";
+    case "late":
+      return "Late";
+    case "overnight":
+      return "Overnight";
+    default:
+      return value || "N/A";
+  }
+}
+
+function formatAdjustmentTime(value: string | null | undefined) {
+  if (!value) return "Not scheduled";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function formatRelativeTime(value: string | null | undefined) {
   if (!value) return { relative: "Unknown time", absolute: "Unknown time" };
   const date = new Date(value);
@@ -1558,11 +1585,24 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   const currentMidPrice = fmtNumber(selectedAsset?.current_mid_price, "$");
   const current24hMove = formatSignedPct(selectedAsset?.move_24h_pct);
   const isPositive = selectedAsset?.move_24h_pct !== null && selectedAsset?.move_24h_pct !== undefined && selectedAsset?.move_24h_pct >= 0;
+  const baseRate = selectedAsset?.base_rate ?? selectedAsset?.current_fair_value ?? null;
+  const marketPrice = selectedAsset?.market_price ?? selectedAsset?.current_mid_price ?? null;
+  const baseGapPct = marketPrice && baseRate ? (marketPrice - baseRate) / baseRate : null;
+  const basePressureLabel =
+    baseGapPct === null
+      ? "No base signal"
+      : baseGapPct > 0
+        ? "Above base rate"
+        : baseGapPct < 0
+          ? "Below base rate"
+          : "At base rate";
+  const nextAdjustment = selectedAsset?.next_adjustment || null;
+  const latestAdjustment = selectedAsset?.latest_adjustment || null;
   
   const heroPrimaryStats: HeroStat[] = [
     { label: "Mid Price", value: currentMidPrice, accent: false },
     { label: "24H Move", value: current24hMove, accent: isPositive, tone: isPositive ? "up" : "down" },
-    { label: "Fair Value", value: fmtNumber(selectedAsset?.current_fair_value, "$"), accent: false },
+    { label: "Base Rate", value: fmtNumber(baseRate, "$"), accent: false },
     { label: "24H Volume", value: fmtNumber(selectedAsset?.volume_24h), meta: "shares", accent: false },
   ];
   const heroMetaStats: HeroStat[] = [
@@ -2182,6 +2222,54 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
               {tradeTicket}
             </aside>
           </div>
+
+          <section className={styles.adjustmentSection}>
+            <div className={styles.sectionHeader}>
+              <div>
+                <h2 className={styles.sectionTitle}>Base Rate Pressure</h2>
+                <p className={styles.sectionCopy}>Scheduled ticks can move market price toward base rate while trading remains open.</p>
+              </div>
+              <span className={styles.adjustmentStatusPill}>
+                {selectedAsset?.adjustment_ready ? "Adjustment ready" : "Waiting for price data"}
+              </span>
+            </div>
+            <div className={styles.adjustmentGrid}>
+              <div className={styles.adjustmentPrimaryCard}>
+                <span>Current Gap</span>
+                <strong className={baseGapPct === null ? undefined : baseGapPct >= 0 ? styles.valueUp : styles.valueDown}>
+                  {fmtPct(baseGapPct)}
+                </strong>
+                <em>{basePressureLabel}</em>
+              </div>
+              <div className={styles.adjustmentCard}>
+                <span>Market Price</span>
+                <strong>{fmtNumber(marketPrice, "$")}</strong>
+              </div>
+              <div className={styles.adjustmentCard}>
+                <span>Base Rate</span>
+                <strong>{fmtNumber(baseRate, "$")}</strong>
+              </div>
+              <div className={styles.adjustmentCard}>
+                <span>Next Tick</span>
+                <strong>{nextAdjustment ? formatAdjustmentLabel(nextAdjustment.interval_key) : "N/A"}</strong>
+                <em>{formatAdjustmentTime(nextAdjustment?.scheduled_at)}</em>
+              </div>
+              <div className={styles.adjustmentCard}>
+                <span>Next Strength</span>
+                <strong>{nextAdjustment ? fmtPct((nextAdjustment.strength_pct ?? 0) / 100) : "N/A"}</strong>
+                <em>Percent of gap</em>
+              </div>
+              <div className={styles.adjustmentCard}>
+                <span>Last Tick</span>
+                <strong>{latestAdjustment ? formatAdjustmentLabel(latestAdjustment.interval_key) : "N/A"}</strong>
+                <em>
+                  {latestAdjustment?.price_before !== null && latestAdjustment?.price_before !== undefined
+                    ? `${fmtNumber(latestAdjustment.price_before, "$")} to ${fmtNumber(latestAdjustment.price_after ?? null, "$")}`
+                    : "No adjustment yet"}
+                </em>
+              </div>
+            </div>
+          </section>
 
           <section className={styles.rankSection}>
             <div className={styles.sectionHeader}>

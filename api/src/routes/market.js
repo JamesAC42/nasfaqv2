@@ -14,8 +14,9 @@ const {
   MARKET_RANKINGS_OSHICOIN_CACHE_KEY,
 } = require("../marketCache");
 const trading = require("../services/trading");
+const marketAdjustments = require("../services/marketAdjustments");
 const marketState = require("../services/marketState");
-const { requireVerifiedUserId } = require("../userContext");
+const { requireAdmin, requireVerifiedUserId } = require("../userContext");
 
 const router = express.Router();
 
@@ -27,6 +28,16 @@ function parsePositiveInt(value, fallback, { min = 1, max = 500 } = {}) {
 
 function normalizeSymbol(value) {
   return String(value || "").trim().toUpperCase();
+}
+
+function normalizeMarketDate(value) {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  const text = String(value).trim();
+  const match = text.match(/\d{4}-\d{2}-\d{2}/);
+  return match ? match[0] : null;
 }
 
 function toMetricMap(rows, valueKeys) {
@@ -134,6 +145,32 @@ router.get("/status", async (req, res, next) => {
     const status = await marketState.getMarketStatus(req.ctx.pool);
     res.json(status || {});
   } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/adjustments/force-next", async (req, res, next) => {
+  try {
+    requireAdmin(req);
+
+    let marketDate = normalizeMarketDate(req.body?.market_date);
+    if (!marketDate) {
+      const status = await marketState.getMarketStatus(req.ctx.pool);
+      marketDate = normalizeMarketDate(status?.current_market_date) || normalizeMarketDate(status?.last_settlement_market_date);
+    }
+    if (!marketDate) {
+      const report = await marketDb.getLatestDailyReport(req.ctx.pool);
+      marketDate = normalizeMarketDate(report?.market_date);
+    }
+    if (!marketDate) return res.status(409).json({ error: "missing_market_date" });
+
+    const result = await marketAdjustments.forceNextAdjustment(req.ctx.pool, {
+      marketDate,
+      redis: req.ctx.redis,
+    });
+    res.json(result);
+  } catch (e) {
+    if (e?.code === "invalid_market_date") return res.status(400).json({ error: "invalid_market_date" });
     next(e);
   }
 });
@@ -452,6 +489,32 @@ router.get("/assets/:symbol/treasury", async (req, res, next) => {
     if (!treasury) return res.status(404).json({ error: "asset_not_found" });
     res.json(treasury);
   } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/tuning/config", async (_req, res, next) => {
+  try {
+    res.json(marketDb.getMarketTuningConfig());
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.patch("/assets/:symbol/tuning", async (req, res, next) => {
+  try {
+    requireAdmin(req);
+    const symbol = normalizeSymbol(req.params.symbol);
+    if (!symbol) return res.status(400).json({ error: "missing_symbol" });
+
+    const asset = await marketDb.updateAssetMarketTuning(req.ctx.pool, symbol, req.body || {});
+    await invalidateMarketAssetsCache(req.ctx.redis);
+    res.json({ asset });
+  } catch (e) {
+    if (e?.code === "asset_not_found") return res.status(404).json({ error: "asset_not_found" });
+    if (e?.code === "invalid_market_tuning") {
+      return res.status(400).json({ error: "invalid_market_tuning", field: e.field || null });
+    }
     next(e);
   }
 });

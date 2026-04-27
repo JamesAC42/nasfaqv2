@@ -143,6 +143,78 @@ function roundMetric(value) {
   return Number(parsed.toFixed(6));
 }
 
+const MARKET_ADJUSTMENT_INTERVALS = [
+  { key: "open", label: "Open", time: "09:00", timezone: "America/New_York" },
+  { key: "lunch", label: "Lunch", time: "15:00", timezone: "America/New_York" },
+  { key: "late", label: "Late", time: "21:00", timezone: "America/New_York" },
+  { key: "overnight", label: "Overnight", time: "03:00", timezone: "America/New_York", next_day: true },
+];
+const SUPPLY_EVALUATION_CADENCES = new Set(["weekly", "monthly", "quarterly", "manual"]);
+
+function buildMarketTuningConfig() {
+  return {
+    vocabulary_version: 1,
+    base_rate_source: "market.market_assets.current_fair_value",
+    market_price_source: "market.market_assets.current_mid_price",
+    premium_discount_source: "market.market_assets.current_premium_pct",
+    interval_strength_total_pct: 200,
+    intervals: MARKET_ADJUSTMENT_INTERVALS,
+    asset_tuning_defaults: {
+      adjustment_min_pct: 0,
+      adjustment_max_pct: 200,
+      adjustment_enabled: true,
+      supply_evaluation_cadence: "weekly",
+      broker_buffer_pct: 0.02,
+    },
+    phase: {
+      key: "phase_1",
+      status: "reporting_only",
+      description: "Fair value is exposed as base rate; interval generation and execution arrive in Phase 2.",
+    },
+  };
+}
+
+function normalizeOptionalNumber(value, fieldName, { min = null, maxExclusive = null } = {}) {
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    const error = new Error(`invalid_${fieldName}`);
+    error.code = "invalid_market_tuning";
+    error.field = fieldName;
+    throw error;
+  }
+  if ((min !== null && parsed < min) || (maxExclusive !== null && parsed >= maxExclusive)) {
+    const error = new Error(`invalid_${fieldName}`);
+    error.code = "invalid_market_tuning";
+    error.field = fieldName;
+    throw error;
+  }
+  return parsed;
+}
+
+function normalizeOptionalBoolean(value, fieldName) {
+  if (value === undefined) return undefined;
+  if (typeof value !== "boolean") {
+    const error = new Error(`invalid_${fieldName}`);
+    error.code = "invalid_market_tuning";
+    error.field = fieldName;
+    throw error;
+  }
+  return value;
+}
+
+function normalizeOptionalCadence(value) {
+  if (value === undefined) return undefined;
+  const cadence = String(value || "").trim().toLowerCase();
+  if (!SUPPLY_EVALUATION_CADENCES.has(cadence)) {
+    const error = new Error("invalid_supply_evaluation_cadence");
+    error.code = "invalid_market_tuning";
+    error.field = "supply_evaluation_cadence";
+    throw error;
+  }
+  return cadence;
+}
+
 function sortByBucketAsc(points) {
   return [...points].sort((a, b) => String(a.bucket || "").localeCompare(String(b.bucket || "")));
 }
@@ -234,6 +306,35 @@ async function listAssets(pool) {
       FROM market.asset_daily_market_state d
       WHERE d.market_date >= current_date - interval '14 days'
       GROUP BY d.asset_id
+    ),
+    next_adjustment AS (
+      SELECT DISTINCT ON (i.asset_id)
+        i.asset_id,
+        i.interval_key,
+        i.scheduled_at,
+        i.strength_pct,
+        i.base_rate,
+        s.market_date
+      FROM market.asset_adjustment_intervals i
+      JOIN market.adjustment_sessions s ON s.id = i.session_id
+      WHERE i.status = 'scheduled'
+      ORDER BY i.asset_id, i.scheduled_at ASC, i.id ASC
+    ),
+    latest_adjustment AS (
+      SELECT DISTINCT ON (i.asset_id)
+        i.asset_id,
+        i.interval_key,
+        i.scheduled_at,
+        i.applied_at,
+        i.strength_pct,
+        i.base_rate,
+        i.price_before,
+        i.price_after,
+        s.market_date
+      FROM market.asset_adjustment_intervals i
+      JOIN market.adjustment_sessions s ON s.id = i.session_id
+      WHERE i.status = 'applied'
+      ORDER BY i.asset_id, i.applied_at DESC NULLS LAST, i.id DESC
     )
     SELECT
       a.id,
@@ -247,12 +348,55 @@ async function listAssets(pool) {
       c.icon,
       c.color,
       a.current_fair_value,
+      a.current_fair_value AS base_rate,
       a.current_mid_price,
+      a.current_mid_price AS market_price,
       ld.mid_open AS previous_settlement_mid_price,
       lsr.pre_settlement_mid_price,
       a.current_bid_price,
       a.current_ask_price,
       a.current_premium_pct,
+      a.current_premium_pct AS premium_discount_pct,
+      a.adjustment_min_pct,
+      a.adjustment_max_pct,
+      a.adjustment_enabled,
+      a.supply_evaluation_cadence,
+      a.broker_buffer_pct,
+      (
+        a.adjustment_enabled
+        AND a.current_fair_value IS NOT NULL
+        AND a.current_mid_price IS NOT NULL
+      ) AS adjustment_ready,
+      jsonb_build_object(
+        'adjustment_min_pct', a.adjustment_min_pct,
+        'adjustment_max_pct', a.adjustment_max_pct,
+        'adjustment_enabled', a.adjustment_enabled,
+        'supply_evaluation_cadence', a.supply_evaluation_cadence,
+        'broker_buffer_pct', a.broker_buffer_pct
+      ) AS market_tuning,
+      CASE
+        WHEN na.asset_id IS NULL THEN NULL
+        ELSE jsonb_build_object(
+          'interval_key', na.interval_key,
+          'scheduled_at', na.scheduled_at,
+          'strength_pct', na.strength_pct,
+          'base_rate', na.base_rate,
+          'market_date', na.market_date
+        )
+      END AS next_adjustment,
+      CASE
+        WHEN la.asset_id IS NULL THEN NULL
+        ELSE jsonb_build_object(
+          'interval_key', la.interval_key,
+          'scheduled_at', la.scheduled_at,
+          'applied_at', la.applied_at,
+          'strength_pct', la.strength_pct,
+          'base_rate', la.base_rate,
+          'price_before', la.price_before,
+          'price_after', la.price_after,
+          'market_date', la.market_date
+        )
+      END AS latest_adjustment,
       a.current_daily_emission,
       a.treasury_supply,
       a.circulating_supply,
@@ -272,6 +416,8 @@ async function listAssets(pool) {
     LEFT JOIN latest_daily ld ON ld.asset_id = a.id
     LEFT JOIN latest_settlement_reset lsr ON lsr.asset_id = a.id
     LEFT JOIN sparkline_daily sd ON sd.asset_id = a.id
+    LEFT JOIN next_adjustment na ON na.asset_id = a.id
+    LEFT JOIN latest_adjustment la ON la.asset_id = a.id
     ORDER BY a.symbol ASC
   `
   );
@@ -323,6 +469,39 @@ async function getAssetBySymbol(pool, symbol) {
       JOIN market.market_assets a ON a.id = tf.asset_id
       WHERE a.symbol = $1
       ORDER BY tf.ts DESC, tf.id DESC
+      LIMIT 1
+    ),
+    next_adjustment AS (
+      SELECT
+        i.interval_key,
+        i.scheduled_at,
+        i.strength_pct,
+        i.base_rate,
+        s.market_date
+      FROM market.asset_adjustment_intervals i
+      JOIN market.adjustment_sessions s ON s.id = i.session_id
+      JOIN market.market_assets a ON a.id = i.asset_id
+      WHERE a.symbol = $1
+        AND i.status = 'scheduled'
+      ORDER BY i.scheduled_at ASC, i.id ASC
+      LIMIT 1
+    ),
+    latest_adjustment AS (
+      SELECT
+        i.interval_key,
+        i.scheduled_at,
+        i.applied_at,
+        i.strength_pct,
+        i.base_rate,
+        i.price_before,
+        i.price_after,
+        s.market_date
+      FROM market.asset_adjustment_intervals i
+      JOIN market.adjustment_sessions s ON s.id = i.session_id
+      JOIN market.market_assets a ON a.id = i.asset_id
+      WHERE a.symbol = $1
+        AND i.status = 'applied'
+      ORDER BY i.applied_at DESC NULLS LAST, i.id DESC
       LIMIT 1
     )
     SELECT
@@ -381,6 +560,49 @@ async function getAssetBySymbol(pool, symbol) {
       ls.fundamental_value_smoothed,
       ls.calculation_version,
       ls.calculation_status,
+      a.current_fair_value AS base_rate,
+      a.current_mid_price AS market_price,
+      a.current_premium_pct AS premium_discount_pct,
+      a.adjustment_min_pct,
+      a.adjustment_max_pct,
+      a.adjustment_enabled,
+      a.supply_evaluation_cadence,
+      a.broker_buffer_pct,
+      (
+        a.adjustment_enabled
+        AND a.current_fair_value IS NOT NULL
+        AND a.current_mid_price IS NOT NULL
+      ) AS adjustment_ready,
+      jsonb_build_object(
+        'adjustment_min_pct', a.adjustment_min_pct,
+        'adjustment_max_pct', a.adjustment_max_pct,
+        'adjustment_enabled', a.adjustment_enabled,
+        'supply_evaluation_cadence', a.supply_evaluation_cadence,
+        'broker_buffer_pct', a.broker_buffer_pct
+      ) AS market_tuning,
+      CASE
+        WHEN na.interval_key IS NULL THEN NULL
+        ELSE jsonb_build_object(
+          'interval_key', na.interval_key,
+          'scheduled_at', na.scheduled_at,
+          'strength_pct', na.strength_pct,
+          'base_rate', na.base_rate,
+          'market_date', na.market_date
+        )
+      END AS next_adjustment,
+      CASE
+        WHEN la.interval_key IS NULL THEN NULL
+        ELSE jsonb_build_object(
+          'interval_key', la.interval_key,
+          'scheduled_at', la.scheduled_at,
+          'applied_at', la.applied_at,
+          'strength_pct', la.strength_pct,
+          'base_rate', la.base_rate,
+          'price_before', la.price_before,
+          'price_after', la.price_after,
+          'market_date', la.market_date
+        )
+      END AS latest_adjustment,
       ld.market_date,
       ld.mid_open,
       ld.mid_close,
@@ -411,12 +633,81 @@ async function getAssetBySymbol(pool, symbol) {
     LEFT JOIN latest_daily ld ON true
     LEFT JOIN volume_24h v ON v.asset_id = a.id
     LEFT JOIN latest_trade lt ON lt.asset_id = a.id
+    LEFT JOIN next_adjustment na ON true
+    LEFT JOIN latest_adjustment la ON true
     WHERE a.symbol = $1
     LIMIT 1
   `,
     [symbol]
   );
   return rows[0] || null;
+}
+
+async function updateAssetMarketTuning(pool, symbol, patch = {}) {
+  const normalizedSymbol = String(symbol || "").trim().toUpperCase();
+  const { rows } = await pool.query(
+    `
+    SELECT
+      adjustment_min_pct,
+      adjustment_max_pct,
+      adjustment_enabled,
+      supply_evaluation_cadence,
+      broker_buffer_pct
+    FROM market.market_assets
+    WHERE symbol = $1
+    LIMIT 1
+  `,
+    [normalizedSymbol]
+  );
+
+  const current = rows[0] || null;
+  if (!current) {
+    const error = new Error("asset_not_found");
+    error.code = "asset_not_found";
+    throw error;
+  }
+
+  const adjustmentMinPct = normalizeOptionalNumber(patch.adjustment_min_pct, "adjustment_min_pct", { min: 0 });
+  const adjustmentMaxPct = normalizeOptionalNumber(patch.adjustment_max_pct, "adjustment_max_pct", { min: 0 });
+  const brokerBufferPct = normalizeOptionalNumber(patch.broker_buffer_pct, "broker_buffer_pct", {
+    min: 0,
+    maxExclusive: 1,
+  });
+  const adjustmentEnabled = normalizeOptionalBoolean(patch.adjustment_enabled, "adjustment_enabled");
+  const supplyEvaluationCadence = normalizeOptionalCadence(patch.supply_evaluation_cadence);
+
+  const nextMin = adjustmentMinPct === undefined ? toNumber(current.adjustment_min_pct, 0) : adjustmentMinPct;
+  const nextMax = adjustmentMaxPct === undefined ? toNumber(current.adjustment_max_pct, 200) : adjustmentMaxPct;
+  if (nextMax < nextMin) {
+    const error = new Error("invalid_adjustment_range");
+    error.code = "invalid_market_tuning";
+    error.field = "adjustment_max_pct";
+    throw error;
+  }
+
+  await pool.query(
+    `
+    UPDATE market.market_assets
+    SET
+      adjustment_min_pct = $2,
+      adjustment_max_pct = $3,
+      adjustment_enabled = $4,
+      supply_evaluation_cadence = $5,
+      broker_buffer_pct = $6,
+      updated_at = now()
+    WHERE symbol = $1
+  `,
+    [
+      normalizedSymbol,
+      nextMin,
+      nextMax,
+      adjustmentEnabled === undefined ? Boolean(current.adjustment_enabled) : adjustmentEnabled,
+      supplyEvaluationCadence === undefined ? current.supply_evaluation_cadence : supplyEvaluationCadence,
+      brokerBufferPct === undefined ? toNumber(current.broker_buffer_pct, 0.02) : brokerBufferPct,
+    ]
+  );
+
+  return getAssetBySymbol(pool, normalizedSymbol);
 }
 
 async function getAssetTrades(pool, symbol, { limit = 50 } = {}) {
@@ -621,16 +912,20 @@ async function getMarketHub(pool, { tradeLimit = 20 } = {}) {
   return {
     generated_at: new Date().toISOString(),
     status: status || {},
+    market_tuning_config: buildMarketTuningConfig(),
     report: report || null,
     indexes,
     activity,
     leaders: {
       top_price: topBy(assets, "current_mid_price", "desc", 5),
+      top_base_rate: topBy(assets, "base_rate", "desc", 5),
       top_volume: topBy(assets, "volume_24h", "desc", 5),
       top_movers: topBy(assets, "move_24h_pct", "desc", 5),
       top_losers: topBy(assets, "move_24h_pct", "asc", 5),
       top_premiums: topBy(assets, "current_premium_pct", "desc", 5),
       top_discounts: topBy(assets, "current_premium_pct", "asc", 5),
+      top_market_premiums: topBy(assets, "premium_discount_pct", "desc", 5),
+      top_market_discounts: topBy(assets, "premium_discount_pct", "asc", 5),
       volume_winners: volumeSections.volume_winners,
       volume_losers: volumeSections.volume_losers,
     },
@@ -675,7 +970,15 @@ async function listAssetRankingCore(pool) {
       c.unit,
       c.icon,
       c.color,
+      a.current_fair_value AS base_rate,
       a.current_mid_price,
+      a.current_mid_price AS market_price,
+      a.current_premium_pct AS premium_discount_pct,
+      (
+        a.adjustment_enabled
+        AND a.current_fair_value IS NOT NULL
+        AND a.current_mid_price IS NOT NULL
+      ) AS adjustment_ready,
       COALESCE(v.volume_24h, 0) AS volume_24h,
       CASE
         WHEN ld.mid_open IS NULL OR ld.mid_open = 0 OR ld.mid_close IS NULL THEN NULL
@@ -1225,6 +1528,7 @@ async function getLatestDailyReport(pool) {
     created_at: rows[0].created_at,
     market_date: rows[0].market_date,
     ...(rows[0].report_json || {}),
+    market_tuning_config: buildMarketTuningConfig(),
     ...liveVolumeSections,
   };
 }
@@ -1244,6 +1548,7 @@ async function getDailyReportByDate(pool, marketDate) {
     created_at: rows[0].created_at,
     market_date: rows[0].market_date,
     ...(rows[0].report_json || {}),
+    market_tuning_config: buildMarketTuningConfig(),
   };
 }
 
@@ -1730,6 +2035,7 @@ module.exports = {
   listAssetRankingWeeklyActivity,
   listAssetRankingOshicoinUsers,
   getAssetBySymbol,
+  updateAssetMarketTuning,
   listAssetComments,
   createAssetComment,
   setAssetCommentVote,
@@ -1746,6 +2052,7 @@ module.exports = {
   getAssetTreasury,
   getLatestDailyReport,
   getDailyReportByDate,
+  getMarketTuningConfig: buildMarketTuningConfig,
   getGroupIndex,
   listGroupIndexes,
 };

@@ -1,0 +1,323 @@
+@use "../../styles/mixins" as *;
+
+.page {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.25rem;
+  align-items: end;
+  padding: 1.5rem;
+  border: 0.0625rem solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 16%, transparent), transparent 32rem),
+    linear-gradient(145deg, var(--surface-section-strong), var(--surface-section));
+  box-shadow: var(--shadow);
+}
+
+.eyebrow {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--muted);
+}
+
+.title {
+  margin: 0.35rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3rem);
+}
+
+.copy {
+  max-width: 58rem;
+  margin: 0.75rem 0 0;
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.heroStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(5.5rem, 1fr));
+  gap: 0.75rem;
+
+  div {
+    display: grid;
+    gap: 0.15rem;
+    min-width: 5.5rem;
+    padding: 0.85rem;
+    border: 0.0625rem solid var(--border);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-card) 88%, transparent);
+  }
+
+  span {
+    color: var(--muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  strong {
+    font-family: var(--font-mono);
+    font-size: 1.2rem;
+  }
+}
+
+.configPanel,
+.section {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 0.0625rem solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-section);
+  box-shadow: var(--shadow);
+}
+
+.configPanel {
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 34rem);
+  align-items: center;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+}
+
+.sectionNote {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.intervalGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.intervalPill {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.75rem;
+  border: 0.0625rem solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-section-strong);
+
+  span {
+    color: var(--muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  strong {
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+  }
+}
+
+.forceActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.primaryButton {
+  @include button-secondary;
+  font-weight: 800;
+  padding: 0.68rem 0.95rem;
+}
+
+.forceResult,
+.forceError {
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.forceResult {
+  color: var(--success);
+}
+
+.forceError {
+  color: var(--danger);
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: end;
+}
+
+.searchField,
+.compactField,
+.inlineFields label {
+  display: grid;
+  gap: 0.4rem;
+
+  span {
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
+}
+
+.searchField {
+  min-width: min(100%, 18rem);
+
+  input {
+    @include input-base;
+  }
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  @include table-shell;
+  min-width: 82rem;
+
+  td {
+    vertical-align: middle;
+  }
+}
+
+.assetMark {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  min-width: 12rem;
+
+  div {
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  strong {
+    font-family: var(--font-mono);
+    letter-spacing: 0.04em;
+  }
+
+  span {
+    color: var(--muted);
+    font-size: 0.86rem;
+  }
+}
+
+.assetCoin {
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 auto;
+}
+
+.metricCell {
+  span,
+  em {
+    display: block;
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-style: normal;
+  }
+
+  strong {
+    display: block;
+    margin-top: 0.2rem;
+    font-family: var(--font-mono);
+    white-space: nowrap;
+  }
+}
+
+.switch {
+  display: inline-flex;
+  gap: 0.55rem;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.inlineFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(5.5rem, 1fr));
+  gap: 0.55rem;
+}
+
+.compactInput,
+.select {
+  @include input-base;
+  min-width: 5.5rem;
+  padding: 0.62rem 0.7rem;
+}
+
+.select {
+  min-width: 8rem;
+  text-transform: capitalize;
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.secondaryButton {
+  @include button-secondary;
+  font-weight: 700;
+  padding: 0.62rem 0.85rem;
+}
+
+.ready,
+.notReady {
+  border-radius: 999rem;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.ready {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.notReady {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.empty {
+  @include empty-state;
+}
+
+@media (max-width: 68rem) {
+  .hero,
+  .configPanel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .heroStats,
+  .intervalGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 42rem) {
+  .heroStats,
+  .intervalGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

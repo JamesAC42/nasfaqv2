@@ -20,8 +20,12 @@ import {
   type GameCosmetic,
   type GameEquippedCosmetic,
   type GameInventoryResponse,
+  type GameItemLockerEntry,
+  type GameItemLockerResponse,
   type GameSessionSummary,
   type GamesSummary,
+  type GachaCatalogResponse,
+  type GachaCatalogReward,
   type GachaPullResult,
   type AssetSuperchatTimeseriesBundle,
   type CandlePoint,
@@ -522,6 +526,13 @@ export function normalizePredictionPortfolioResponse(value: Record<string, unkno
 }
 
 export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
+  const nextAdjustment = asset.next_adjustment && typeof asset.next_adjustment === "object"
+    ? asset.next_adjustment as Record<string, unknown>
+    : null;
+  const latestAdjustment = asset.latest_adjustment && typeof asset.latest_adjustment === "object"
+    ? asset.latest_adjustment as Record<string, unknown>
+    : null;
+
   return {
     id: Number(asset.id),
     symbol: String(asset.symbol || ""),
@@ -543,6 +554,31 @@ export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
     latest_snapshot_date: asset.latest_snapshot_date ? String(asset.latest_snapshot_date) : null,
     volume_24h: toNumber(asset.volume_24h),
     move_24h_pct: toNumber(asset.move_24h_pct),
+    base_rate: toNumber(asset.base_rate ?? asset.current_fair_value),
+    market_price: toNumber(asset.market_price ?? asset.current_mid_price),
+    premium_discount_pct: toNumber(asset.premium_discount_pct ?? asset.current_premium_pct),
+    adjustment_ready: typeof asset.adjustment_ready === "boolean" ? asset.adjustment_ready : null,
+    next_adjustment: nextAdjustment
+      ? {
+          interval_key: String(nextAdjustment.interval_key || ""),
+          scheduled_at: nextAdjustment.scheduled_at ? String(nextAdjustment.scheduled_at) : null,
+          strength_pct: toNumber(nextAdjustment.strength_pct),
+          base_rate: toNumber(nextAdjustment.base_rate),
+          market_date: nextAdjustment.market_date ? String(nextAdjustment.market_date) : null,
+        }
+      : null,
+    latest_adjustment: latestAdjustment
+      ? {
+          interval_key: String(latestAdjustment.interval_key || ""),
+          scheduled_at: latestAdjustment.scheduled_at ? String(latestAdjustment.scheduled_at) : null,
+          applied_at: latestAdjustment.applied_at ? String(latestAdjustment.applied_at) : null,
+          strength_pct: toNumber(latestAdjustment.strength_pct),
+          base_rate: toNumber(latestAdjustment.base_rate),
+          price_before: toNumber(latestAdjustment.price_before),
+          price_after: toNumber(latestAdjustment.price_after),
+          market_date: latestAdjustment.market_date ? String(latestAdjustment.market_date) : null,
+        }
+      : null,
     sparkline_candles: normalizeCandles(
       (asset.sparkline_candles as Array<Record<string, unknown>> | undefined) || []
     ),
@@ -1090,6 +1126,53 @@ export function normalizeGameInventoryResponse(value: Record<string, unknown>): 
   };
 }
 
+function normalizeGameItemLockerEntry(value: Record<string, unknown>): GameItemLockerEntry {
+  const reward = (value.reward || {}) as Record<string, unknown>;
+  return {
+    id: Number(value.id || 0),
+    game_id: Number(value.game_id || 0),
+    game_session_id: value.game_session_id === null ? null : Number(toNumber(value.game_session_id) || 0),
+    cost_cash: Number(toNumber(value.cost_cash) || 0),
+    reward_type: String(value.reward_type || ""),
+    reward_key: String(value.reward_key || ""),
+    duplicate_compensation_cash: Number(toNumber(value.duplicate_compensation_cash) || 0),
+    metadata: normalizeGamesConfig(value.metadata),
+    created_at: String(value.created_at || ""),
+    reward: {
+      key: String(reward.key || value.reward_key || ""),
+      type: String(reward.type || value.reward_type || ""),
+      rarity: String(reward.rarity || "common"),
+      display_name: String(reward.display_name || value.reward_key || "Item"),
+      image_key: String(reward.image_key || ""),
+      image_url: String(reward.image_url || ""),
+      duplicate: Boolean(reward.duplicate),
+    },
+  };
+}
+
+export function normalizeGameItemLockerResponse(value: Record<string, unknown>): GameItemLockerResponse {
+  const summary = (value.summary || {}) as Record<string, unknown>;
+  const countsByType = summary.counts_by_type && typeof summary.counts_by_type === "object"
+    ? Object.fromEntries(
+        Object.entries(summary.counts_by_type as Record<string, unknown>).map(([key, itemValue]) => [
+          key,
+          Number(toNumber(itemValue) || 0),
+        ])
+      )
+    : {};
+
+  return {
+    user_id: Number(value.user_id || 0),
+    items: Array.isArray(value.items)
+      ? (value.items as Array<Record<string, unknown>>).map(normalizeGameItemLockerEntry)
+      : [],
+    summary: {
+      total_items: Number(toNumber(summary.total_items) || 0),
+      counts_by_type: countsByType,
+    },
+  };
+}
+
 export function normalizeGachaPullResult(value: Record<string, unknown>): GachaPullResult {
   const session = (value.session || {}) as Record<string, unknown>;
   const wallet = (value.wallet || {}) as Record<string, unknown>;
@@ -1117,7 +1200,10 @@ export function normalizeGachaPullResult(value: Record<string, unknown>): GachaP
         type: String(reward.type || ""),
         rarity: String(reward.rarity || "common"),
         display_name: String(reward.display_name || ""),
+        description: String(reward.description || ""),
         slot_key: reward.slot_key ? String(reward.slot_key) : null,
+        image_key: String(reward.image_key || ""),
+        image_url: String(reward.image_url || ""),
         metadata: normalizeGamesConfig(reward.metadata),
       },
       duplicate: Boolean(pull.duplicate),
@@ -1126,6 +1212,36 @@ export function normalizeGachaPullResult(value: Record<string, unknown>): GachaP
           ? normalizeGameCosmetic(pull.granted_cosmetic as Record<string, unknown>)
           : null,
     },
+  };
+}
+
+function normalizeGachaCatalogReward(value: Record<string, unknown>): GachaCatalogReward {
+  return {
+    key: String(value.key || ""),
+    type: String(value.type || ""),
+    rarity: String(value.rarity || "common"),
+    display_name: String(value.display_name || ""),
+    description: String(value.description || ""),
+    slot_key: value.slot_key ? String(value.slot_key) : null,
+    weight: Number(toNumber(value.weight) || 0),
+    pull_weight: Number(toNumber(value.pull_weight ?? value.weight) || 0),
+    pull_chance: Number(toNumber(value.pull_chance) || 0),
+    image_key: String(value.image_key || ""),
+    filename: String(value.filename || ""),
+    image_url: String(value.image_url || ""),
+    metadata: normalizeGamesConfig(value.metadata),
+    is_active: typeof value.is_active === "boolean" ? value.is_active : undefined,
+    is_deleted: typeof value.is_deleted === "boolean" ? value.is_deleted : undefined,
+    sort_order: toNumber(value.sort_order) ?? undefined,
+  };
+}
+
+export function normalizeGachaCatalogResponse(value: Record<string, unknown>): GachaCatalogResponse {
+  return {
+    game: normalizeGameCatalogEntry(((value.game || {}) as Record<string, unknown>)),
+    rewards: Array.isArray(value.rewards)
+      ? (value.rewards as Array<Record<string, unknown>>).map(normalizeGachaCatalogReward)
+      : [],
   };
 }
 
@@ -1285,6 +1401,15 @@ export function normalizeLeaderboard(rows: Array<Record<string, unknown>>): Lead
     username: String(row.username || row.label || "user"),
     profile_picture_url: row.profile_picture_url ? String(row.profile_picture_url) : null,
     profile_color: row.profile_color ? String(row.profile_color) : null,
+    equipped_hat:
+      row.equipped_hat && typeof row.equipped_hat === "object"
+        ? {
+            cosmetic_key: String((row.equipped_hat as Record<string, unknown>).cosmetic_key || ""),
+            rarity: String((row.equipped_hat as Record<string, unknown>).rarity || "common"),
+            display_name: String((row.equipped_hat as Record<string, unknown>).display_name || "Hat"),
+            image_url: (row.equipped_hat as Record<string, unknown>).image_url ? String((row.equipped_hat as Record<string, unknown>).image_url) : null,
+          }
+        : null,
     rank: Number(row.rank || index + 1),
     label: String(row.label || row.username || "Entry"),
     value: Number(toNumber(row.total_equity || row.value || row.score) || 0),
@@ -1334,6 +1459,15 @@ function normalizeLeaderboardNeighbor(value: Record<string, unknown>): Leaderboa
     gap_abs: toNumber(value.gap_abs),
     profile_picture_url: value.profile_picture_url ? String(value.profile_picture_url) : null,
     profile_color: value.profile_color ? String(value.profile_color) : null,
+    equipped_hat:
+      value.equipped_hat && typeof value.equipped_hat === "object"
+        ? {
+            cosmetic_key: String((value.equipped_hat as Record<string, unknown>).cosmetic_key || ""),
+            rarity: String((value.equipped_hat as Record<string, unknown>).rarity || "common"),
+            display_name: String((value.equipped_hat as Record<string, unknown>).display_name || "Hat"),
+            image_url: (value.equipped_hat as Record<string, unknown>).image_url ? String((value.equipped_hat as Record<string, unknown>).image_url) : null,
+          }
+        : null,
   };
 }
 

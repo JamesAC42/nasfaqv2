@@ -371,7 +371,24 @@ export type MarketAsset = {
   latest_snapshot_date: string | null;
   volume_24h: number | null;
   move_24h_pct: number | null;
+  base_rate?: number | null;
+  market_price?: number | null;
+  premium_discount_pct?: number | null;
+  adjustment_ready?: boolean | null;
+  next_adjustment?: MarketAdjustment | null;
+  latest_adjustment?: MarketAdjustment | null;
   sparkline_candles: CandlePoint[];
+};
+
+export type MarketAdjustment = {
+  interval_key: string;
+  scheduled_at: string | null;
+  applied_at?: string | null;
+  strength_pct: number | null;
+  base_rate: number | null;
+  price_before?: number | null;
+  price_after?: number | null;
+  market_date?: string | null;
 };
 
 export type MarketStatPoint = {
@@ -586,6 +603,36 @@ export type GameInventoryResponse = {
   };
 };
 
+export type GameItemLockerEntry = {
+  id: number;
+  game_id: number;
+  game_session_id: number | null;
+  cost_cash: number;
+  reward_type: string;
+  reward_key: string;
+  duplicate_compensation_cash: number;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  reward: {
+    key: string;
+    type: string;
+    rarity: string;
+    display_name: string;
+    image_key: string;
+    image_url: string;
+    duplicate: boolean;
+  };
+};
+
+export type GameItemLockerResponse = {
+  user_id: number;
+  items: GameItemLockerEntry[];
+  summary: {
+    total_items: number;
+    counts_by_type: Record<string, number>;
+  };
+};
+
 export type GameSessionSummary = {
   id: number;
   game_id: number;
@@ -633,12 +680,39 @@ export type GachaPullResult = {
       type: string;
       rarity: string;
       display_name: string;
+      description: string;
       slot_key: string | null;
+      image_key: string;
+      image_url: string;
       metadata: Record<string, unknown>;
     };
     duplicate: boolean;
     granted_cosmetic: GameCosmetic | null;
   };
+};
+
+export type GachaCatalogReward = {
+  key: string;
+  type: string;
+  rarity: string;
+  display_name: string;
+  description: string;
+  slot_key: string | null;
+  weight: number;
+  pull_weight: number;
+  pull_chance: number;
+  image_key: string;
+  filename: string;
+  image_url: string;
+  metadata: Record<string, unknown>;
+  is_active?: boolean;
+  is_deleted?: boolean;
+  sort_order?: number;
+};
+
+export type GachaCatalogResponse = {
+  game: GameCatalogEntry;
+  rewards: GachaCatalogReward[];
 };
 
 export type TickerTapTimelineTarget = {
@@ -737,8 +811,12 @@ export type ReportRow = {
   asset_id?: number;
   symbol: string;
   display_name: string;
+  base_rate?: number | null;
+  base_rate_change_pct?: number | null;
   fair_value?: number | null;
   fair_value_change_pct?: number | null;
+  market_price?: number | null;
+  premium_discount_pct?: number | null;
   premium_pct?: number | null;
   emission?: number | null;
   treasury_supply_end?: number | null;
@@ -754,8 +832,12 @@ export type DailyReport = {
   market_date: string;
   generated_at?: string;
   asset_count: number;
+  biggest_base_rate_increases?: ReportRow[];
+  biggest_base_rate_decreases?: ReportRow[];
   biggest_fair_value_increases?: ReportRow[];
   biggest_fair_value_decreases?: ReportRow[];
+  largest_market_premiums?: ReportRow[];
+  largest_market_discounts?: ReportRow[];
   largest_premiums?: ReportRow[];
   largest_discounts?: ReportRow[];
   biggest_winners?: ReportRow[];
@@ -908,6 +990,12 @@ export type LeaderboardEntry = {
   username: string;
   profile_picture_url: string | null;
   profile_color: string | null;
+  equipped_hat: {
+    cosmetic_key: string;
+    rarity: string;
+    display_name: string;
+    image_url: string | null;
+  } | null;
   rank: number;
   label: string;
   value: number | null;
@@ -961,6 +1049,7 @@ export type LeaderboardNeighbor = {
   gap_abs: number | null;
   profile_picture_url: string | null;
   profile_color: string | null;
+  equipped_hat: LeaderboardEntry["equipped_hat"];
 };
 
 export type LeaderboardMe = LeaderboardEntry & {

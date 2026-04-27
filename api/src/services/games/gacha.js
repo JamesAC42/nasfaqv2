@@ -1,75 +1,8 @@
 const crypto = require("node:crypto");
 const gamesCatalog = require("./catalog");
+const gachaPrizeCatalog = require("./gachaPrizeCatalog");
 const gamesInventory = require("./inventory");
 const gamesWallet = require("./wallet");
-
-const GACHA_REWARD_POOLS = {
-  "capsule-gacha": [
-    {
-      cosmetic_key: "frame-market-open",
-      cosmetic_type: "profile_frame",
-      rarity: "common",
-      weight: 32,
-      display_name: "Market Open Frame",
-      slot_key: "profile_frame",
-      metadata: { palette: "teal-gold" },
-    },
-    {
-      cosmetic_key: "frame-bull-run",
-      cosmetic_type: "profile_frame",
-      rarity: "common",
-      weight: 28,
-      display_name: "Bull Run Frame",
-      slot_key: "profile_frame",
-      metadata: { palette: "emerald" },
-    },
-    {
-      cosmetic_key: "badge-after-hours",
-      cosmetic_type: "profile_badge",
-      rarity: "rare",
-      weight: 16,
-      display_name: "After Hours Badge",
-      slot_key: "profile_badge",
-      metadata: { glow: "blue" },
-    },
-    {
-      cosmetic_key: "badge-circuit-breaker",
-      cosmetic_type: "profile_badge",
-      rarity: "rare",
-      weight: 12,
-      display_name: "Circuit Breaker Badge",
-      slot_key: "profile_badge",
-      metadata: { glow: "amber" },
-    },
-    {
-      cosmetic_key: "chat-flair-starlight",
-      cosmetic_type: "chat_flair",
-      rarity: "rare",
-      weight: 8,
-      display_name: "Starlight Chat Flair",
-      slot_key: "chat_flair",
-      metadata: { accent: "silver" },
-    },
-    {
-      cosmetic_key: "theme-market-matrix",
-      cosmetic_type: "portfolio_theme",
-      rarity: "epic",
-      weight: 3,
-      display_name: "Market Matrix Theme",
-      slot_key: "portfolio_theme",
-      metadata: { background: "grid" },
-    },
-    {
-      cosmetic_key: "badge-nasfaq-founder",
-      cosmetic_type: "profile_badge",
-      rarity: "legendary",
-      weight: 1,
-      display_name: "NASFAQ Founder Badge",
-      slot_key: "profile_badge",
-      metadata: { effect: "legendary_shine" },
-    },
-  ],
-};
 
 function invalidGameGacha(code = "invalid_game_gacha") {
   const error = new Error(code);
@@ -95,19 +28,8 @@ function hashSeed(seed) {
   return crypto.createHash("sha256").update(seed).digest("hex");
 }
 
-function buildRewardPool(gameKey) {
-  const pool = GACHA_REWARD_POOLS[gameKey];
-  if (!Array.isArray(pool) || pool.length === 0) {
-    throw invalidGameGacha();
-  }
-  return pool.map((item) => ({
-    ...item,
-    metadata: { ...(item.metadata || {}) },
-  }));
-}
-
 function chooseReward(pool) {
-  const totalWeight = pool.reduce((sum, item) => sum + Number(item.weight || 0), 0);
+  const totalWeight = pool.reduce((sum, item) => sum + Number(item.pull_weight || item.weight || 0), 0);
   if (!(totalWeight > 0)) {
     throw invalidGameGacha();
   }
@@ -115,7 +37,7 @@ function chooseReward(pool) {
   const roll = randomUnitInterval() * totalWeight;
   let cursor = 0;
   for (const item of pool) {
-    cursor += Number(item.weight || 0);
+    cursor += Number(item.pull_weight || item.weight || 0);
     if (roll < cursor) {
       return item;
     }
@@ -241,7 +163,12 @@ async function pullCapsuleGacha(pool, {
     throw invalidGameGacha();
   }
 
-  const rewardPool = buildRewardPool(game.key);
+  const rewardPool = await gachaPrizeCatalog.listActivePrizePool(pool, { gameKey: game.key });
+  if (!rewardPool.length) {
+    const error = new Error("gacha_prize_pool_empty");
+    error.code = "gacha_prize_pool_empty";
+    throw error;
+  }
   const client = await pool.connect();
 
   try {
@@ -277,7 +204,10 @@ async function pullCapsuleGacha(pool, {
         sourceReferenceId: Number(session.id),
         metadata: {
           display_name: reward.display_name,
+          description: reward.description,
           slot_key: reward.slot_key,
+          image_key: reward.image_key,
+          image_url: reward.image_url,
           ...(reward.metadata || {}),
         },
       });
@@ -296,6 +226,8 @@ async function pullCapsuleGacha(pool, {
         game_key: game.key,
         rarity: reward.rarity,
         display_name: reward.display_name,
+        image_key: reward.image_key,
+        image_url: reward.image_url,
         duplicate: isDuplicate,
       },
     });
@@ -347,6 +279,9 @@ async function pullCapsuleGacha(pool, {
           rarity: reward.rarity,
           display_name: reward.display_name,
           slot_key: reward.slot_key,
+          description: reward.description,
+          image_key: reward.image_key,
+          image_url: reward.image_url,
           metadata: reward.metadata || {},
         },
         duplicate: isDuplicate,

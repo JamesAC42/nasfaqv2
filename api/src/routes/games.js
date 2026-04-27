@@ -1,6 +1,7 @@
 const express = require("express");
 const gamesCatalog = require("../services/games/catalog");
 const gamesGacha = require("../services/games/gacha");
+const gachaPrizeCatalog = require("../services/games/gachaPrizeCatalog");
 const gamesInventory = require("../services/games/inventory");
 const gamesSessions = require("../services/games/sessions");
 const { requireUserId } = require("../userContext");
@@ -55,6 +56,35 @@ router.get("/me/inventory", async (req, res, next) => {
     if (error?.code === "unauthenticated") {
       return res.status(401).json({ error: "unauthenticated" });
     }
+    next(error);
+  }
+});
+
+router.get("/me/item-locker", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    const locker = await gamesInventory.listUserItemLocker(req.ctx.pool, userId);
+    res.json(locker);
+  } catch (error) {
+    if (error?.code === "unauthenticated") {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    next(error);
+  }
+});
+
+router.get("/capsule-gacha/catalog", async (req, res, next) => {
+  try {
+    const game = await gamesCatalog.getGameByKey(req.ctx.pool, "capsule-gacha");
+    if (!game) {
+      return res.status(404).json({ error: "game_not_found" });
+    }
+
+    res.json({
+      game: gamesCatalog.toPublicGame(game),
+      rewards: await gachaPrizeCatalog.listActivePrizePool(req.ctx.pool, { gameKey: "capsule-gacha" }),
+    });
+  } catch (error) {
     next(error);
   }
 });

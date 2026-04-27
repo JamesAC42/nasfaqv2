@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -24,9 +24,27 @@ type AdminProfilePictureAsset = {
   is_deleted: boolean;
 };
 
+type AdminGachaPrizeAsset = {
+  id: number;
+  display_name: string;
+  description: string;
+  cosmetic_type: string;
+  rarity: string;
+  slot_key: string | null;
+  pull_weight: number;
+  pull_chance: number;
+  image_key: string;
+  filename: string;
+  image_url: string;
+  is_active: boolean;
+  is_deleted: boolean;
+  sort_order: number;
+};
+
 type AdminAssetsResponse = {
   emojis: AdminEmojiAsset[];
   profile_pictures: AdminProfilePictureAsset[];
+  gacha_prizes: AdminGachaPrizeAsset[];
 };
 
 function StatusMessage({ error, success }: { error: string | null; success: string | null }) {
@@ -197,6 +215,127 @@ function ProfilePictureRow({
   );
 }
 
+function formatChance(value: number) {
+  if (!(value > 0)) return "0%";
+  const percent = value * 100;
+  return percent >= 1 ? `${percent.toFixed(1)}%` : `${percent.toFixed(2)}%`;
+}
+
+function GachaPrizeRow({
+  item,
+  onSaved,
+}: {
+  item: AdminGachaPrizeAsset;
+  onSaved: () => Promise<void>;
+}) {
+  const [displayName, setDisplayName] = useState(item.display_name);
+  const [description, setDescription] = useState(item.description);
+  const [cosmeticType, setCosmeticType] = useState(item.cosmetic_type);
+  const [rarity, setRarity] = useState(item.rarity);
+  const [pullWeight, setPullWeight] = useState(String(item.pull_weight));
+  const [sortOrder, setSortOrder] = useState(String(item.sort_order));
+  const [isActive, setIsActive] = useState(item.is_active);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDisplayName(item.display_name);
+    setDescription(item.description);
+    setCosmeticType(item.cosmetic_type);
+    setRarity(item.rarity);
+    setPullWeight(String(item.pull_weight));
+    setSortOrder(String(item.sort_order));
+    setIsActive(item.is_active);
+  }, [item]);
+
+  async function handleSave() {
+    setBusy(true);
+    setError(null);
+    try {
+      await apiFetch<{ gacha_prize: AdminGachaPrizeAsset | null; gacha_prizes: AdminGachaPrizeAsset[] }>(`/api/admin/assets/gacha-prizes/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          display_name: displayName,
+          description,
+          cosmetic_type: cosmeticType,
+          rarity,
+          pull_weight: Number(pullWeight),
+          sort_order: Number(sortOrder),
+          is_active: isActive,
+        }),
+      });
+      await onSaved();
+    } catch (nextError) {
+      setError(String((nextError as Error).message || nextError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <tr>
+      <td>
+        <div className={styles.previewCell}>
+          <div
+            className={styles.previewImage}
+            role="img"
+            aria-label={item.display_name}
+            style={{ backgroundImage: `url("${item.image_url}")` }}
+          />
+          <span className={styles.filename}>{item.filename}</span>
+        </div>
+      </td>
+      <td>
+        <div className={styles.prizeFields}>
+          <input className={styles.input} value={displayName} onChange={(event) => setDisplayName(event.target.value)} aria-label="Prize name" />
+          <textarea className={styles.textarea} value={description} onChange={(event) => setDescription(event.target.value)} aria-label="Prize description" />
+        </div>
+      </td>
+      <td>
+        <div className={styles.prizeFields}>
+          <select className={styles.input} value={cosmeticType} onChange={(event) => setCosmeticType(event.target.value)} aria-label="Cosmetic type">
+            <option value="profile_badge">Profile badge</option>
+            <option value="profile_frame">Profile frame</option>
+            <option value="chat_flair">Chat flair</option>
+            <option value="portfolio_theme">Portfolio theme</option>
+            <option value="hat">Hat</option>
+            <option value="item">Item</option>
+          </select>
+          <select className={styles.input} value={rarity} onChange={(event) => setRarity(event.target.value)} aria-label="Rarity">
+            <option value="common">Common</option>
+            <option value="rare">Rare</option>
+            <option value="epic">Epic</option>
+            <option value="legendary">Legendary</option>
+          </select>
+          <span className={styles.filename}>Equip slot: {item.slot_key || cosmeticType}</span>
+        </div>
+      </td>
+      <td>
+        <div className={styles.prizeFields}>
+          <input className={styles.input} type="number" min="0" step="0.01" value={pullWeight} onChange={(event) => setPullWeight(event.target.value)} aria-label="Pull chance weight" />
+          <span className={styles.filename}>Actual chance: {formatChance(item.pull_chance)}</span>
+        </div>
+      </td>
+      <td>
+        <input className={styles.input} type="number" step="1" value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} aria-label="Sort order" />
+      </td>
+      <td>
+        <label className={styles.checkbox}>
+          <input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} />
+          {isActive ? "Active" : "Inactive"}
+        </label>
+        <div className={item.is_deleted ? styles.statusDeleted : styles.statusActive}>{item.is_deleted ? "Missing from S3" : "In S3"}</div>
+      </td>
+      <td>
+        <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void handleSave()}>
+          {busy ? "Saving..." : "Save"}
+        </button>
+        {error ? <div className="statusMessage statusMessageError">{error}</div> : null}
+      </td>
+    </tr>
+  );
+}
+
 export function AdminAssetsPage() {
   const { initialized, isLoading: isAuthLoading, user } = useAuth();
   const [bundle, setBundle] = useState<AdminAssetsResponse | null>(null);
@@ -210,6 +349,21 @@ export function AdminAssetsPage() {
   const [profileLargeFile, setProfileLargeFile] = useState<File | null>(null);
   const [profileSmallFile, setProfileSmallFile] = useState<File | null>(null);
   const [profileBusy, setProfileBusy] = useState(false);
+  const [gachaSyncBusy, setGachaSyncBusy] = useState(false);
+
+  const loadAdminAssets = useCallback(async (signal?: AbortSignal) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await apiFetch<AdminAssetsResponse>("/api/admin/assets", signal ? { signal } : undefined);
+      if (!signal?.aborted) setBundle(result);
+    } catch (nextError) {
+      if ((nextError as Error).name === "AbortError") return;
+      setError(String((nextError as Error).message || nextError));
+    } finally {
+      if (!signal?.aborted) setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!initialized || !user?.is_admin) {
@@ -218,23 +372,9 @@ export function AdminAssetsPage() {
     }
 
     const controller = new AbortController();
-    async function load() {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const result = await apiFetch<AdminAssetsResponse>("/api/admin/assets", { signal: controller.signal });
-        if (!controller.signal.aborted) setBundle(result);
-      } catch (nextError) {
-        if ((nextError as Error).name === "AbortError") return;
-        setError(String((nextError as Error).message || nextError));
-      } finally {
-        if (!controller.signal.aborted) setIsLoading(false);
-      }
-    }
-
-    void load();
+    void loadAdminAssets(controller.signal);
     return () => controller.abort();
-  }, [initialized, user?.is_admin]);
+  }, [initialized, loadAdminAssets, user?.is_admin]);
 
   async function handleCreateEmoji(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -305,6 +445,23 @@ export function AdminAssetsPage() {
       setError(String((nextError as Error).message || nextError));
     } finally {
       setProfileBusy(false);
+    }
+  }
+
+  async function handleSyncGachaPrizes() {
+    setGachaSyncBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const result = await apiFetch<{ sync: { total: number }; gacha_prizes: AdminGachaPrizeAsset[] }>("/api/admin/assets/gacha-prizes/sync", {
+        method: "POST",
+      });
+      setBundle((current) => current ? { ...current, gacha_prizes: result.gacha_prizes } : current);
+      setSuccess(`Gacha prize sync complete. Found ${result.sync.total} image files in gachaprizes/.`);
+    } catch (nextError) {
+      setError(String((nextError as Error).message || nextError));
+    } finally {
+      setGachaSyncBusy(false);
     }
   }
 
@@ -458,6 +615,51 @@ export function AdminAssetsPage() {
                 </div>
               ) : (
                 <div className={styles.empty}>No profile pictures are cataloged yet.</div>
+              )}
+            </AssetSection>
+
+            <AssetSection title="Gacha Prize Catalogue" note="Click refresh to sync image files from the S3 `gachaprizes/` folder, then edit names, descriptions, and pull weights.">
+              <div className={styles.createRow}>
+                <p className={styles.sectionNote}>
+                  Pull weight controls chance. Sort only controls display order in the admin and player catalogue.
+                </p>
+                <div className={styles.createAction}>
+                  <button type="button" className={styles.primaryButton} disabled={gachaSyncBusy} onClick={() => void handleSyncGachaPrizes()}>
+                    {gachaSyncBusy ? "Refreshing..." : "Refresh From S3"}
+                  </button>
+                </div>
+              </div>
+
+              {bundle.gacha_prizes.length ? (
+                <div className={styles.tableWrap}>
+                  <table className={`${styles.table} ${styles.prizeTable}`.trim()}>
+                    <thead>
+                      <tr>
+                        <th>Image</th>
+                        <th>Name and Description</th>
+                        <th>Type</th>
+                        <th>Pull Weight</th>
+                        <th>Sort</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bundle.gacha_prizes.map((item) => (
+                        <GachaPrizeRow
+                          key={item.id}
+                          item={item}
+                          onSaved={async () => {
+                            setSuccess("Gacha prize saved.");
+                            await loadAdminAssets();
+                          }}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className={styles.empty}>No gacha prizes are cataloged yet. Add image files to S3 under `gachaprizes/`, then refresh.</div>
               )}
             </AssetSection>
           </>

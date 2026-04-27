@@ -83,8 +83,14 @@
 }
 
 .input,
-.fileInput {
+.fileInput,
+.textarea {
   @include input-base;
+}
+
+.textarea {
+  min-height: 4.8rem;
+  resize: vertical;
 }
 
 .checkbox {
@@ -139,6 +145,16 @@
   }
 }
 
+.prizeTable {
+  min-width: 72rem;
+}
+
+.prizeFields {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 12rem;
+}
+
 .previewCell {
   display: flex;
   gap: 0.75rem;
@@ -151,6 +167,8 @@
   border-radius: var(--radius-sm);
   object-fit: cover;
   background: var(--surface-section-strong);
+  background-position: center;
+  background-size: cover;
   border: 1px solid var(--border);
 }
 

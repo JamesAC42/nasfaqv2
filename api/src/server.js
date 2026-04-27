@@ -11,6 +11,7 @@ const chatDb = require("./chatDb");
 const authService = require("./services/auth");
 const marketState = require("./services/marketState");
 const { startMarketScheduler, loadSchedulerConfig, computeNextScheduledAt } = require("./services/marketScheduler");
+const { startAdjustmentScheduler } = require("./services/marketAdjustments");
 const { startPredictionScheduler } = require("./services/predictionScheduler");
 
 const channelsRoutes = require("./routes/channels");
@@ -36,7 +37,7 @@ const assetsRoutes = require("./routes/assets");
 const mediaCatalog = require("./services/mediaCatalog");
 const achievements = require("./services/achievements");
 const gamesCatalog = require("./services/games/catalog");
-const { MARKET_EVENTS_REDIS_CHANNEL } = require("./services/trading");
+const { MARKET_EVENTS_REDIS_CHANNEL } = require("./services/marketEvents");
 const { PREDICTION_MARKET_EVENTS_REDIS_CHANNEL } = require("./services/predictionMarketEvents");
 
 const LIVESTREAM_VIEWER_UPDATES_CHANNEL = "nasfaq_livestreams:viewer_updates";
@@ -282,7 +283,10 @@ app.use((err, _req, res, _next) => {
     || err?.code === "invalid_game_inventory"
     || err?.code === "invalid_game_wallet"
     || err?.code === "invalid_game_gacha"
+    || err?.code === "invalid_gacha_prize"
+    || err?.code === "gacha_prize_pool_empty"
     || err?.code === "invalid_game_session"
+    || err?.code === "s3_not_configured"
   ) {
     return res.status(400).json({ error: err.code });
   }
@@ -310,6 +314,7 @@ app.use((err, _req, res, _next) => {
     || err?.code === "chat_message_not_found"
     || err?.code === "chat_report_not_found"
     || err?.code === "admin_asset_not_found"
+    || err?.code === "gacha_prize_not_found"
     || err?.code === "prediction_market_not_found"
   ) {
     return res.status(404).json({ error: err.code });
@@ -622,7 +627,10 @@ async function main() {
   });
 
   if (cfg.enableMarketSettlementScheduler) {
-    startMarketScheduler(pool, console);
+    startMarketScheduler(pool, console, redis);
+  }
+  if (cfg.enableMarketAdjustmentScheduler) {
+    startAdjustmentScheduler(pool, console, redis);
   }
   if (cfg.enablePredictionMarketScheduler) {
     startPredictionScheduler(pool, console, redis);

@@ -153,6 +153,7 @@ function mapLeaderboardEntry(row, {
         }
       : null,
     achievements: decoration?.achievements || [],
+    equipped_hat: decoration?.equipped_hat || null,
     streaks: decoration?.streaks || {
       current_streak_days: 0,
       longest_streak_days: 0,
@@ -205,7 +206,7 @@ async function loadLeaderboardDecorations(pool, userIds) {
   const decorationByUserId = new Map();
   if (!safeUserIds.length) return decorationByUserId;
 
-  const [achievementResult, streakResult] = await Promise.all([
+  const [achievementResult, streakResult, hatResult] = await Promise.all([
     pool.query(
       `
       SELECT
@@ -237,11 +238,29 @@ async function loadLeaderboardDecorations(pool, userIds) {
     `,
       [safeUserIds]
     ),
+    pool.query(
+      `
+      SELECT DISTINCT ON (ec.user_id)
+        ec.user_id,
+        uc.cosmetic_key,
+        uc.rarity,
+        uc.metadata_json
+      FROM games.user_equipped_cosmetics ec
+      JOIN games.user_cosmetics uc
+        ON uc.id = ec.user_cosmetic_id
+      WHERE ec.user_id = ANY($1::bigint[])
+        AND ec.slot_key = 'hat'
+        AND uc.cosmetic_type = 'hat'
+      ORDER BY ec.user_id ASC, ec.updated_at DESC
+    `,
+      [safeUserIds]
+    ),
   ]);
 
   for (const userId of safeUserIds) {
     decorationByUserId.set(userId, {
       achievements: [],
+      equipped_hat: null,
       streaks: {
         current_streak_days: 0,
         longest_streak_days: 0,
@@ -264,6 +283,18 @@ async function loadLeaderboardDecorations(pool, userIds) {
       earned_at: row.earned_at ? new Date(row.earned_at).toISOString() : null,
       reward_cash: toNumber(row.reward_cash, 0),
     });
+  }
+
+  for (const row of hatResult.rows) {
+    const userId = toInt(row.user_id, 0);
+    if (!decorationByUserId.has(userId)) continue;
+    const metadata = row.metadata_json || {};
+    decorationByUserId.get(userId).equipped_hat = {
+      cosmetic_key: String(row.cosmetic_key || ""),
+      rarity: String(row.rarity || "common"),
+      display_name: String(metadata.display_name || row.cosmetic_key || "Hat"),
+      image_url: metadata.image_url ? String(metadata.image_url) : null,
+    };
   }
 
   for (const row of streakResult.rows) {
@@ -741,6 +772,7 @@ async function listLeaderboardBundle(pool, { viewerUserId = null, scope = "globa
         gap_abs: mappedMeEntry ? entry.total_equity - mappedMeEntry.total_equity : null,
         profile_picture_url: entry.profile_picture_url,
         profile_color: entry.profile_color,
+        equipped_hat: entry.equipped_hat,
       };
     });
 

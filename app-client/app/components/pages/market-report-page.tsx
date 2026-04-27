@@ -40,21 +40,62 @@ function findAsset(assets: MarketAsset[], symbol: string) {
 }
 
 function rowMetric(row: ReportRow, kind: "premium" | "move" | "volume" | "fair") {
-  if (kind === "premium") return row.premium_pct;
+  if (kind === "premium") return row.premium_discount_pct ?? row.premium_pct;
   if (kind === "move") return row.move_pct;
-  if (kind === "fair") return row.fair_value_change_pct;
+  if (kind === "fair") return row.base_rate_change_pct ?? row.fair_value_change_pct;
   return row.volume_change_pct;
+}
+
+function formatIntervalLabel(value: string | null | undefined) {
+  switch (value) {
+    case "open":
+      return "Open";
+    case "lunch":
+      return "Lunch";
+    case "late":
+      return "Late";
+    case "overnight":
+      return "Overnight";
+    default:
+      return value || "N/A";
+  }
+}
+
+function formatAdjustmentTime(value: string | null | undefined) {
+  if (!value) return "Not scheduled";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function baseGapPct(asset: MarketAsset) {
+  const marketPrice = asset.market_price ?? asset.current_mid_price;
+  const baseRate = asset.base_rate ?? asset.current_fair_value;
+  if (!marketPrice || !baseRate) return null;
+  return (marketPrice - baseRate) / baseRate;
+}
+
+function adjustmentMovePct(asset: MarketAsset) {
+  const before = asset.latest_adjustment?.price_before;
+  const after = asset.latest_adjustment?.price_after;
+  if (!before || after === null || after === undefined) return null;
+  return (after - before) / before;
 }
 
 function getReportGroups(report: DailyReport | null) {
   if (!report) return [];
   return [
-    { key: "premiums", title: "Premium Heat", icon: <HiSparkles />, rows: report.largest_premiums || [], kind: "premium" as const },
-    { key: "discounts", title: "Discount Watch", icon: <FaArrowTrendDown />, rows: report.largest_discounts || [], kind: "premium" as const },
+    { key: "premiums", title: "Premium Heat", icon: <HiSparkles />, rows: report.largest_market_premiums || report.largest_premiums || [], kind: "premium" as const },
+    { key: "discounts", title: "Discount Watch", icon: <FaArrowTrendDown />, rows: report.largest_market_discounts || report.largest_discounts || [], kind: "premium" as const },
     { key: "winners", title: "Breakouts", icon: <FaArrowTrendUp />, rows: report.biggest_winners || [], kind: "move" as const },
     { key: "losers", title: "Drawdowns", icon: <FaChartLine />, rows: report.biggest_losers || [], kind: "move" as const },
     { key: "volume", title: "Flow Acceleration", icon: <FaMoneyBillTrendUp />, rows: report.volume_winners || report.top_volume || [], kind: "volume" as const },
-    { key: "fair", title: "Fundamental Shifts", icon: <FaScaleBalanced />, rows: report.biggest_fair_value_increases || [], kind: "fair" as const },
+    { key: "fair", title: "Base Rate Shifts", icon: <FaScaleBalanced />, rows: report.biggest_base_rate_increases || report.biggest_fair_value_increases || [], kind: "fair" as const },
   ].filter((group) => group.rows.length > 0);
 }
 
@@ -108,16 +149,16 @@ function buildPortfolioUnitExposure(portfolio: PortfolioSummary | null, assets: 
 }
 
 function buildInsightLines(report: DailyReport | null, allMarketIndex: MarketIndexBundle | null, portfolio: PortfolioSummary | null) {
-  const premium = report?.largest_premiums?.[0];
-  const discount = report?.largest_discounts?.[0];
+  const premium = (report?.largest_market_premiums || report?.largest_premiums)?.[0];
+  const discount = (report?.largest_market_discounts || report?.largest_discounts)?.[0];
   const winner = report?.biggest_winners?.[0];
   const loser = report?.biggest_losers?.[0];
   const breadth = allMarketIndex?.summary;
   const netPnl = portfolio?.total_unrealized_pnl ?? null;
 
   return [
-    premium ? `${premium.symbol} is pricing the richest premium at ${fmtPct(premium.premium_pct)}, so the tape is paying up for its current fundamentals.` : null,
-    discount ? `${discount.symbol} is the deepest discount at ${fmtPct(discount.premium_pct)}, creating the clearest value-versus-fair-value gap in the report.` : null,
+    premium ? `${premium.symbol} is pricing the richest premium at ${fmtPct(premium.premium_discount_pct ?? premium.premium_pct)}, so the tape is paying up above its base rate.` : null,
+    discount ? `${discount.symbol} is the deepest discount at ${fmtPct(discount.premium_discount_pct ?? discount.premium_pct)}, creating the clearest market-versus-base-rate gap in the report.` : null,
     winner && loser ? `Momentum dispersion is wide: ${winner.symbol} leads at ${fmtPct(winner.move_pct)} while ${loser.symbol} trails at ${fmtPct(loser.move_pct)}.` : null,
     breadth ? `Breadth is ${fmtInteger(breadth.advancers)} advancers against ${fmtInteger(breadth.decliners)} decliners across ${fmtInteger(breadth.constituent_count)} constituents.` : null,
     netPnl !== null ? `Your marked portfolio P/L is ${fmtNumber(netPnl, "$")}, so today's report can be read against your current exposure.` : null,
@@ -207,6 +248,33 @@ export function MarketReportPage() {
   const topMover = useMemo(() => topAssetBy(assets, (asset) => asset.move_24h_pct), [assets]);
   const topDiscount = useMemo(() => topAssetBy(assets, (asset) => asset.current_premium_pct, "min"), [assets]);
   const topVolume = useMemo(() => topAssetBy(assets, (asset) => asset.volume_24h), [assets]);
+  const nextAdjustmentAsset = useMemo(
+    () =>
+      [...assets]
+        .filter((asset) => asset.next_adjustment?.scheduled_at)
+        .sort((a, b) => String(a.next_adjustment?.scheduled_at || "").localeCompare(String(b.next_adjustment?.scheduled_at || "")))[0] || null,
+    [assets]
+  );
+  const latestAdjustmentAsset = useMemo(
+    () =>
+      [...assets]
+        .filter((asset) => asset.latest_adjustment?.applied_at || asset.latest_adjustment?.scheduled_at)
+        .sort((a, b) =>
+          String(b.latest_adjustment?.applied_at || b.latest_adjustment?.scheduled_at || "").localeCompare(
+            String(a.latest_adjustment?.applied_at || a.latest_adjustment?.scheduled_at || "")
+          )
+        )[0] || null,
+    [assets]
+  );
+  const widestBaseGap = useMemo(
+    () =>
+      [...assets]
+        .map((asset) => ({ asset, gap: baseGapPct(asset) }))
+        .filter((item): item is { asset: MarketAsset; gap: number } => item.gap !== null)
+        .sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap))[0] || null,
+    [assets]
+  );
+  const readyAdjustmentCount = useMemo(() => assets.filter((asset) => asset.adjustment_ready).length, [assets]);
   const totalReportVolume = useMemo(
     () => (report?.top_volume || report?.volume_winners || []).reduce((sum, row) => sum + (row.volume_cash || 0), 0),
     [report]
@@ -247,6 +315,50 @@ export function MarketReportPage() {
           <StatCard label="Breadth" value={`${fmtInteger(allMarketIndex?.summary?.advancers)} / ${fmtInteger(allMarketIndex?.summary?.decliners)}`} meta={`${fmtInteger(allMarketIndex?.summary?.constituent_count)} constituents`} icon={<FaCircleNodes />} />
           <StatCard label="Top mover" value={topMover?.symbol || "—"} meta={fmtPct(topMover?.move_24h_pct)} icon={<FaArrowTrendUp />} />
           <StatCard label="Report flow" value={fmtNumber(totalReportVolume || topVolume?.volume_24h, totalReportVolume ? "$" : "")} meta={topVolume ? `${topVolume.symbol} leads spot activity` : "Latest settled basket"} icon={<FaMoneyBillTrendUp />} />
+        </section>
+
+        <section className={styles.adjustmentBrief}>
+          <div>
+            <span className={styles.adjustmentEyebrow}><FaSignal /> Scheduled adjustment rhythm</span>
+            <h2>Trading stays open between base-rate ticks.</h2>
+            <p>
+              The report still summarizes settled activity, while live prices can now move at scheduled ticks toward each asset&apos;s base rate.
+            </p>
+          </div>
+          <div className={styles.adjustmentBriefStats}>
+            <div>
+              <span>Next Tick</span>
+              <strong>{nextAdjustmentAsset ? formatIntervalLabel(nextAdjustmentAsset.next_adjustment?.interval_key) : "No scheduled tick"}</strong>
+              <em>
+                {nextAdjustmentAsset
+                  ? formatAdjustmentTime(nextAdjustmentAsset.next_adjustment?.scheduled_at)
+                  : "Waiting for generated intervals"}
+              </em>
+            </div>
+            <div>
+              <span>Last Tick</span>
+              <strong>
+                {latestAdjustmentAsset
+                  ? `${latestAdjustmentAsset.symbol} ${formatIntervalLabel(latestAdjustmentAsset.latest_adjustment?.interval_key)}`
+                  : "No applied tick"}
+              </strong>
+              <em>
+                {latestAdjustmentAsset
+                  ? `${fmtPct(adjustmentMovePct(latestAdjustmentAsset))} move at ${formatAdjustmentTime(latestAdjustmentAsset.latest_adjustment?.applied_at)}`
+                  : "No adjustment has been applied yet"}
+              </em>
+            </div>
+            <div>
+              <span>Ready Assets</span>
+              <strong>{fmtInteger(readyAdjustmentCount)} / {fmtInteger(assets.length)}</strong>
+              <em>Have base and market prices</em>
+            </div>
+            <div>
+              <span>Widest Gap</span>
+              <strong>{widestBaseGap?.asset.symbol || "N/A"}</strong>
+              <em>{widestBaseGap ? fmtPct(widestBaseGap.gap) : "N/A"}</em>
+            </div>
+          </div>
         </section>
 
         {insights[0] ? (

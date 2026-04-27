@@ -34,6 +34,10 @@ function getS3Client() {
   };
 }
 
+function isS3Configured() {
+  return Boolean(getS3Client());
+}
+
 function sanitizeAssetSlug(value) {
   const trimmed = optionalTrimmedString(value);
   if (!trimmed) return null;
@@ -480,10 +484,12 @@ async function createProfilePicture(pool, { name, imageLargeDataUrl, imageSmallD
 module.exports = {
   createEmoji,
   createProfilePicture,
+  isS3Configured,
   listActiveEmojis,
   listActiveProfilePictures,
   listAdminEmojis,
   listAdminProfilePictures,
+  listObjectKeys,
   syncMediaCatalog,
   updateEmoji,
   updateProfilePicture,

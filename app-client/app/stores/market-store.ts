@@ -6,15 +6,116 @@ import {
   normalizeAsset,
   normalizeCandles,
   normalizeMarketIndex,
+  normalizeMarketHubTrade,
   normalizeMarketStatus,
   normalizeStats,
   normalizeTrades,
   normalizeTreasury,
 } from "@/app/lib/normalizers";
-import type { AssetDetailBundle, DailyReport, MarketAsset, MarketIndexBundle, MarketStatus } from "@/app/lib/types";
+import { getMarketWsUrl } from "@/app/lib/ws";
+import type { AssetDetailBundle, DailyReport, MarketAsset, MarketHubTrade, MarketIndexBundle, MarketStatus, TradeRow } from "@/app/lib/types";
 
 const detailCache = new Map<string, AssetDetailBundle>();
 let activeDetailRequestId = 0;
+let wsRef: WebSocket | null = null;
+let reconnectTimer: number | null = null;
+let reconnectAttempt = 0;
+let realtimeDisposed = false;
+
+function toNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function tradeToDetailRow(trade: MarketHubTrade): TradeRow {
+  return {
+    id: trade.id,
+    ts: trade.ts,
+    side: trade.side,
+    price: trade.price,
+    quantity: trade.quantity,
+    gross_cash: trade.gross_cash,
+  };
+}
+
+function mergeDetailTrades(current: TradeRow[], trade: MarketHubTrade) {
+  const next = [tradeToDetailRow(trade), ...current.filter((item) => item.id !== trade.id)];
+  return next.slice(0, Math.max(10, current.length || 10));
+}
+
+function patchAssetFromTrade(asset: MarketAsset, payload: Record<string, unknown>) {
+  const quote = (payload.quote && typeof payload.quote === "object" ? payload.quote : {}) as Record<string, unknown>;
+  const trade = (payload.trade && typeof payload.trade === "object" ? payload.trade : {}) as Record<string, unknown>;
+  const symbol = String(quote.symbol || trade.symbol || "").toUpperCase();
+  if (!symbol || asset.symbol.toUpperCase() !== symbol) return asset;
+
+  return {
+    ...asset,
+    current_mid_price: toNumber(quote.mid_price),
+    market_price: toNumber(quote.mid_price),
+    current_bid_price: toNumber(quote.bid_price),
+    current_ask_price: toNumber(quote.ask_price),
+    current_premium_pct: toNumber(quote.premium_pct),
+    premium_discount_pct: toNumber(quote.premium_pct),
+    volume_24h: (asset.volume_24h ?? 0) + (toNumber(trade.quantity) ?? 0),
+  };
+}
+
+function patchAssetFromQuote(asset: MarketAsset, quote: Record<string, unknown>) {
+  const symbol = String(quote.symbol || "").toUpperCase();
+  if (!symbol || asset.symbol.toUpperCase() !== symbol) return asset;
+
+  return {
+    ...asset,
+    current_mid_price: toNumber(quote.mid_price),
+    market_price: toNumber(quote.mid_price),
+    current_bid_price: toNumber(quote.bid_price),
+    current_ask_price: toNumber(quote.ask_price),
+    current_premium_pct: toNumber(quote.premium_pct),
+    premium_discount_pct: toNumber(quote.premium_pct),
+  };
+}
+
+function patchAssetFromSettlement(asset: MarketAsset, incoming: MarketAsset) {
+  if (asset.symbol.toUpperCase() !== incoming.symbol.toUpperCase()) return asset;
+  return {
+    ...asset,
+    current_fair_value: incoming.current_fair_value,
+    base_rate: incoming.base_rate ?? incoming.current_fair_value,
+    current_mid_price: incoming.current_mid_price,
+    market_price: incoming.market_price ?? incoming.current_mid_price,
+    previous_settlement_mid_price: incoming.previous_settlement_mid_price,
+    pre_settlement_mid_price: incoming.pre_settlement_mid_price,
+    current_bid_price: incoming.current_bid_price,
+    current_ask_price: incoming.current_ask_price,
+    current_premium_pct: incoming.current_premium_pct,
+    premium_discount_pct: incoming.premium_discount_pct ?? incoming.current_premium_pct,
+    current_daily_emission: incoming.current_daily_emission,
+    treasury_supply: incoming.treasury_supply,
+    circulating_supply: incoming.circulating_supply,
+    latest_snapshot_date: incoming.latest_snapshot_date,
+    volume_24h: incoming.volume_24h ?? asset.volume_24h,
+    move_24h_pct: incoming.move_24h_pct ?? asset.move_24h_pct,
+  };
+}
+
+function patchStatusFromTrade(current: MarketStatus | null, statusPayload: Record<string, unknown>): MarketStatus {
+  return {
+    trading_status: current?.trading_status || (statusPayload.is_trading_open ? "open" : "settling"),
+    is_trading_open: Boolean(statusPayload.is_trading_open),
+    active_phase: current?.active_phase || "idle",
+    trading_message: current?.trading_message || null,
+    current_market_date: statusPayload.current_market_date ? String(statusPayload.current_market_date) : current?.current_market_date || null,
+    current_cycle_started_at: current?.current_cycle_started_at || null,
+    current_cycle_updated_at: current?.current_cycle_updated_at || null,
+    last_settlement_market_date: statusPayload.last_settlement_market_date ? String(statusPayload.last_settlement_market_date) : current?.last_settlement_market_date || null,
+    last_settlement_completed_at: current?.last_settlement_completed_at || null,
+    next_scheduled_settlement_at: current?.next_scheduled_settlement_at || null,
+    last_cycle_error: current?.last_cycle_error || null,
+    updated_at: current?.updated_at || null,
+  };
+}
 
 type MarketState = {
   assets: MarketAsset[];
@@ -33,6 +134,7 @@ type MarketState = {
   refreshOverview: () => Promise<void>;
   fetchMarketIndexes: () => Promise<void>;
   fetchAssetDetail: (symbol: string) => Promise<void>;
+  connectRealtime: () => () => void;
   clearDetail: () => void;
 };
 
@@ -148,6 +250,138 @@ export const useMarketStore = create<MarketState>((set, get) => ({
         set({ isLoadingDetail: false });
       }
     }
+  },
+  connectRealtime: () => {
+    if (typeof window === "undefined") return () => {};
+    if (wsRef) return () => {};
+
+    const wsUrl = getMarketWsUrl();
+    if (!wsUrl) return () => {};
+    realtimeDisposed = false;
+
+    const connect = () => {
+      if (realtimeDisposed || wsRef) return;
+      wsRef = new WebSocket(wsUrl);
+
+      wsRef.onopen = () => {
+        reconnectAttempt = 0;
+      };
+
+      wsRef.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(String(event.data || "{}")) as Record<string, unknown>;
+
+          if (payload.type === "market.trade_fill") {
+            const trade = normalizeMarketHubTrade((payload.trade || {}) as Record<string, unknown>);
+            const cacheKey = trade.symbol.trim().toUpperCase();
+            if (cacheKey) detailCache.delete(cacheKey);
+
+            set((state) => {
+              const detailMatches = state.detail && state.selectedSymbol.trim().toUpperCase() === cacheKey;
+              const statusPayload = payload.market_status && typeof payload.market_status === "object"
+                ? payload.market_status as Record<string, unknown>
+                : null;
+              return {
+                assets: state.assets.map((asset) => patchAssetFromTrade(asset, payload)),
+                marketStatus: statusPayload ? patchStatusFromTrade(state.marketStatus, statusPayload) : state.marketStatus,
+                detail: detailMatches
+                  ? {
+                      ...state.detail!,
+                      trades: mergeDetailTrades(state.detail!.trades, trade),
+                    }
+                  : state.detail,
+              };
+            });
+            return;
+          }
+
+          if (payload.type === "market.status_update") {
+            const status = payload.status && typeof payload.status === "object"
+              ? normalizeMarketStatus(payload.status as Record<string, unknown>)
+              : null;
+            if (status) set({ marketStatus: status });
+            return;
+          }
+
+          if (payload.type === "market.adjustments_applied") {
+            const quotes = Array.isArray(payload.quotes)
+              ? payload.quotes as Array<Record<string, unknown>>
+              : [];
+            const changedSymbols = new Set(quotes.map((quote) => String(quote.symbol || "").toUpperCase()).filter(Boolean));
+            changedSymbols.forEach((symbol) => detailCache.delete(symbol));
+
+            set((state) => ({
+              assets: state.assets.map((asset) => {
+                const quote = quotes.find((item) => String(item.symbol || "").toUpperCase() === asset.symbol.toUpperCase());
+                return quote ? patchAssetFromQuote(asset, quote) : asset;
+              }),
+              detail: changedSymbols.has(state.selectedSymbol.trim().toUpperCase()) ? null : state.detail,
+            }));
+
+            const selectedSymbol = get().selectedSymbol.trim().toUpperCase();
+            if (selectedSymbol && changedSymbols.has(selectedSymbol)) {
+              void get().fetchAssetDetail(selectedSymbol);
+            }
+            return;
+          }
+
+          if (payload.type === "market.settlement_completed") {
+            const incomingAssets = Array.isArray(payload.assets)
+              ? (payload.assets as Array<Record<string, unknown>>).map(normalizeAsset)
+              : [];
+            const bySymbol = new Map(incomingAssets.map((asset) => [asset.symbol.toUpperCase(), asset]));
+            incomingAssets.forEach((asset) => detailCache.delete(asset.symbol.toUpperCase()));
+
+            set((state) => {
+              const selectedIncoming = bySymbol.get(state.selectedSymbol.trim().toUpperCase()) || null;
+              return {
+                assets: state.assets.map((asset) => {
+                  const incoming = bySymbol.get(asset.symbol.toUpperCase());
+                  return incoming ? patchAssetFromSettlement(asset, incoming) : asset;
+                }),
+                report: payload.report && typeof payload.report === "object" ? payload.report as DailyReport : state.report,
+                detail: selectedIncoming ? null : state.detail,
+              };
+            });
+
+            void get().fetchMarketIndexes();
+            const selectedSymbol = get().selectedSymbol.trim().toUpperCase();
+            if (selectedSymbol && bySymbol.has(selectedSymbol)) {
+              void get().fetchAssetDetail(selectedSymbol);
+            }
+          }
+        } catch {
+          // Ignore malformed websocket payloads; the next HTTP refresh will reconcile.
+        }
+      };
+
+      wsRef.onclose = () => {
+        wsRef = null;
+        if (realtimeDisposed) return;
+        reconnectAttempt += 1;
+        reconnectTimer = window.setTimeout(connect, Math.min(15_000, 1_000 * reconnectAttempt));
+      };
+
+      wsRef.onerror = () => {
+        try {
+          wsRef?.close();
+        } catch {}
+      };
+    };
+
+    connect();
+
+    return () => {
+      realtimeDisposed = true;
+      if (reconnectTimer !== null) {
+        window.clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      try {
+        wsRef?.close();
+      } catch {}
+      wsRef = null;
+    };
   },
   clearDetail: () => {
     activeDetailRequestId += 1;

@@ -1,5 +1,6 @@
 const { normalizeFundamentalToPrice } = require("./fundamentals");
 const netWorth = require("./netWorth");
+const { publishMarketEvent } = require("./marketEvents");
 const DEFAULT_PERSISTENT_DAILY_DECAY = 0.9;
 const DEFAULT_TRANSIENT_SETTLEMENT_DECAY = 0.1;
 const DEFAULT_LIQUIDITY_DEPTH_FLOOR = 2000;
@@ -464,9 +465,14 @@ function buildDailyReport(marketDate, settledStates, previousStatesByAssetId, pr
       asset_id: state.assetId,
       symbol: state.symbol,
       display_name: state.displayName,
+      base_rate: roundMetric(state.fairValue),
       fair_value: roundMetric(state.fairValue),
+      base_rate_change_pct:
+        prevFairValue && prevFairValue > 0 ? roundMetric((state.fairValue - prevFairValue) / prevFairValue) : null,
       fair_value_change_pct:
         prevFairValue && prevFairValue > 0 ? roundMetric((state.fairValue - prevFairValue) / prevFairValue) : null,
+      market_price: roundMetric(state.midOpen),
+      premium_discount_pct: roundMetric(state.premiumClosePct),
       premium_pct: roundMetric(state.premiumClosePct),
       emission: roundMetric(state.dailyEmission),
       treasury_supply_end: roundMetric(state.treasurySupplyEnd),
@@ -496,8 +502,12 @@ function buildDailyReport(marketDate, settledStates, previousStatesByAssetId, pr
     market_date: marketDate,
     generated_at: new Date().toISOString(),
     asset_count: settledStates.length,
+    biggest_base_rate_increases: topBy(fairValueChanges, "base_rate_change_pct", "desc"),
+    biggest_base_rate_decreases: topBy(fairValueChanges, "base_rate_change_pct", "asc"),
     biggest_fair_value_increases: topBy(fairValueChanges, "fair_value_change_pct", "desc"),
     biggest_fair_value_decreases: topBy(fairValueChanges, "fair_value_change_pct", "asc"),
+    largest_market_premiums: topBy(fairValueChanges, "premium_discount_pct", "desc"),
+    largest_market_discounts: topBy(fairValueChanges, "premium_discount_pct", "asc"),
     largest_premiums: topBy(fairValueChanges, "premium_pct", "desc"),
     largest_discounts: topBy(fairValueChanges, "premium_pct", "asc"),
     biggest_winners: topBy(fairValueChanges, "move_pct", "desc"),
@@ -507,6 +517,31 @@ function buildDailyReport(marketDate, settledStates, previousStatesByAssetId, pr
     volume_losers: topBy(fairValueChanges, "volume_change_pct", "asc"),
     top_volume: topBy(fairValueChanges, "volume_shares", "desc"),
     notable_treasury_emissions: topBy(fairValueChanges, "emission", "desc"),
+  };
+}
+
+function buildSettlementAssetPayload(state) {
+  return {
+    id: state.assetId,
+    asset_id: state.assetId,
+    symbol: state.symbol,
+    display_name: state.displayName,
+    base_rate: state.fairValue,
+    current_fair_value: state.fairValue,
+    current_fair_value_raw: state.fairValueRaw,
+    market_price: state.midOpen,
+    current_mid_price: state.midOpen,
+    current_bid_price: state.bidClose,
+    current_ask_price: state.askClose,
+    premium_discount_pct: state.premiumClosePct,
+    current_premium_pct: state.premiumClosePct,
+    current_daily_emission: state.dailyEmission,
+    treasury_supply: state.treasurySupplyEnd,
+    circulating_supply: state.circulatingSupplyEnd,
+    latest_snapshot_date: state.snapshotDate,
+    previous_settlement_mid_price: state.midOpen,
+    pre_settlement_mid_price: state.priorMidPrice,
+    market_date: state.snapshotDate,
   };
 }
 
@@ -522,7 +557,7 @@ async function persistDailyReport(client, marketDate, report) {
   );
 }
 
-async function settleMarketDay(pool, { marketDate, sourceMarketDate = null, force = false } = {}) {
+async function settleMarketDay(pool, { marketDate, sourceMarketDate = null, force = false, redis = null } = {}) {
   const client = await pool.connect();
   let runId = null;
   const resolvedSourceMarketDate = sourceMarketDate || marketDate;
@@ -583,6 +618,17 @@ async function settleMarketDay(pool, { marketDate, sourceMarketDate = null, forc
 
     await client.query("COMMIT");
 
+    void publishMarketEvent(redis, {
+      type: "market.settlement_completed",
+      market_date: marketDate,
+      source_market_date: resolvedSourceMarketDate,
+      run_id: runId,
+      asset_count: settledStates.length,
+      assets: settledStates.map(buildSettlementAssetPayload),
+      report,
+      at: new Date().toISOString(),
+    });
+
     return {
       ok: true,
       market_date: marketDate,
@@ -602,7 +648,7 @@ async function settleMarketDay(pool, { marketDate, sourceMarketDate = null, forc
 
 module.exports = {
   settleMarketDay,
-  async settleMarketRange(pool, { from, to, force = false, marketDateOffsetDays = 0 } = {}) {
+  async settleMarketRange(pool, { from, to, force = false, marketDateOffsetDays = 0, redis = null } = {}) {
     const client = await pool.connect();
     let datesResult;
     try {
@@ -619,7 +665,7 @@ module.exports = {
         : String(row.snapshot_date);
       const marketDate = shiftDateKey(sourceMarketDate, marketDateOffsetDays);
       try {
-        const result = await settleMarketDay(pool, { marketDate, sourceMarketDate, force });
+        const result = await settleMarketDay(pool, { marketDate, sourceMarketDate, force, redis });
         settled.push({
           market_date: result.market_date,
           source_market_date: result.source_market_date,

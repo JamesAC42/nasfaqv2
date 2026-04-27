@@ -150,6 +150,36 @@ function AssetPositionCell({
   );
 }
 
+function LeaderboardAvatar({
+  username,
+  profilePictureUrl,
+  profileColor,
+  hat,
+  className,
+}: {
+  username: string;
+  profilePictureUrl: string | null;
+  profileColor: string | null;
+  hat: LeaderboardEntry["equipped_hat"];
+  className?: string;
+}) {
+  return (
+    <div
+      className={`${styles.avatar} ${className || ""}`.trim()}
+      style={profileColor ? ({ "--leaderboard-accent": profileColor } as CSSProperties) : undefined}
+    >
+      {profilePictureUrl ? (
+        <img src={profilePictureUrl} alt="" className={styles.avatarImage} />
+      ) : (
+        initialsFor(username)
+      )}
+      {hat?.image_url ? (
+        <img src={hat.image_url} alt="" className={styles.avatarHat} aria-hidden="true" />
+      ) : null}
+    </div>
+  );
+}
+
 function AchievementRow({ entry }: { entry: LeaderboardEntry }) {
   const chips = entry.achievements.length
     ? entry.achievements.slice(0, 3).map((achievement) => ({
@@ -184,16 +214,12 @@ function AchievementRow({ entry }: { entry: LeaderboardEntry }) {
 function LeaderboardIdentity({ entry }: { entry: LeaderboardEntry }) {
   return (
     <div className={styles.identity}>
-      <div
-        className={styles.avatar}
-        style={entry.profile_color ? ({ "--leaderboard-accent": entry.profile_color } as CSSProperties) : undefined}
-      >
-        {entry.profile_picture_url ? (
-          <img src={entry.profile_picture_url} alt="" className={styles.avatarImage} />
-        ) : (
-          initialsFor(entry.username)
-        )}
-      </div>
+      <LeaderboardAvatar
+        username={entry.username}
+        profilePictureUrl={entry.profile_picture_url}
+        profileColor={entry.profile_color}
+        hat={entry.equipped_hat}
+      />
       <div className={styles.identityMeta}>
         <Link href={`/profile/${encodeURIComponent(entry.username)}`} className={styles.profileLink}>
           {entry.username}
@@ -213,16 +239,12 @@ function NeighborCard({ meRank, neighbor }: { meRank: number; neighbor: Leaderbo
 
   return (
     <div className={styles.neighbor}>
-      <div
-        className={styles.avatar}
-        style={neighbor.profile_color ? ({ "--leaderboard-accent": neighbor.profile_color } as CSSProperties) : undefined}
-      >
-        {neighbor.profile_picture_url ? (
-          <img src={neighbor.profile_picture_url} alt="" className={styles.avatarImage} />
-        ) : (
-          initialsFor(neighbor.username)
-        )}
-      </div>
+      <LeaderboardAvatar
+        username={neighbor.username}
+        profilePictureUrl={neighbor.profile_picture_url}
+        profileColor={neighbor.profile_color}
+        hat={neighbor.equipped_hat}
+      />
       <div className={styles.neighborBody}>
         <span className={styles.neighborLabel}>
           {isAbove ? <FaArrowTrendUp aria-hidden="true" /> : <FaArrowTrendDown aria-hidden="true" />}
@@ -257,16 +279,13 @@ function PodiumCard({ entry, tone }: { entry: LeaderboardEntry; tone: "gold" | "
     >
       <div className={styles.podiumStage}>
         {largestAsset?.icon ? <img src={getIconUrl(largestAsset.icon) || ""} alt="" className={styles.podiumWatermark} /> : null}
-        <div
-          className={`${styles.avatar} ${styles.podiumAvatar}`}
-          style={entry.profile_color ? ({ "--leaderboard-accent": entry.profile_color } as CSSProperties) : undefined}
-        >
-          {entry.profile_picture_url ? (
-            <img src={entry.profile_picture_url} alt="" className={styles.avatarImage} />
-          ) : (
-            initialsFor(entry.username)
-          )}
-        </div>
+        <LeaderboardAvatar
+          username={entry.username}
+          profilePictureUrl={entry.profile_picture_url}
+          profileColor={entry.profile_color}
+          hat={entry.equipped_hat}
+          className={styles.podiumAvatar}
+        />
         <div className={styles.podiumRank}>#{entry.rank}</div>
       </div>
       <div className={styles.podiumInfo}>
@@ -427,16 +446,13 @@ export function LeaderboardPage() {
             <div className={styles.meSummary}>
               <div className={styles.meHeading}>
                 <div className={styles.eyebrow}>Your position</div>
-                <div
-                  className={`${styles.avatar} ${styles.meAvatar}`}
-                  style={me.profile_color ? ({ "--leaderboard-accent": me.profile_color } as CSSProperties) : undefined}
-                >
-                  {me.profile_picture_url ? (
-                    <img src={me.profile_picture_url} alt="" className={styles.avatarImage} />
-                  ) : (
-                    initialsFor(me.username)
-                  )}
-                </div>
+                <LeaderboardAvatar
+                  username={me.username}
+                  profilePictureUrl={me.profile_picture_url}
+                  profileColor={me.profile_color}
+                  hat={me.equipped_hat}
+                  className={styles.meAvatar}
+                />
                 <div className={styles.meRankSentence}>You are ranked <strong>#{me.rank}</strong> of <strong>{fmtInteger(stats.user_count)}</strong> players</div>
               </div>
               <div className={styles.meMetaGrid}>

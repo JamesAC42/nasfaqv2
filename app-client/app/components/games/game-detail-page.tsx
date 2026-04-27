@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
-import { FaArrowLeft, FaClock, FaMoneyBillTrendUp, FaPlay, FaUsers } from "react-icons/fa6";
+import { FaArrowLeft, FaBoxOpen, FaClock, FaMoneyBillTrendUp, FaPlay, FaStar, FaTicket, FaUsers } from "react-icons/fa6";
 import { HiSparkles } from "react-icons/hi2";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { fmtDate, fmtNumber } from "@/app/lib/format";
 import {
   createTickerTapSession,
+  fetchCapsuleGachaCatalog,
   fetchGameCatalogEntry,
   fetchGamesInventory,
   fetchGamesSummary,
@@ -17,6 +18,7 @@ import {
 } from "@/app/lib/games-api";
 import type {
   GameCatalogEntry,
+  GachaCatalogResponse,
   GameInventoryResponse,
   GamesSummary,
   GachaPullResult,
@@ -105,6 +107,12 @@ function priceLine(game: GameCatalogEntry) {
   return fmtNumber(game.entry_fee_cash, "$");
 }
 
+function formatPullChance(value: number) {
+  if (value <= 0) return "0%";
+  const percent = value * 100;
+  return percent >= 1 ? `${percent.toFixed(0)}%` : `${percent.toFixed(1)}%`;
+}
+
 function placeholderCopy(game: GameCatalogEntry | null) {
   if (!game) return "Game unavailable.";
   if (game.key === "prediction-duel") {
@@ -141,16 +149,20 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
   const [game, setGame] = useState<GameCatalogEntry | null>(null);
   const [summary, setSummary] = useState<GamesSummary | null>(null);
   const [inventory, setInventory] = useState<GameInventoryResponse | null>(null);
+  const [gachaCatalog, setGachaCatalog] = useState<GachaCatalogResponse | null>(null);
   const [latestPull, setLatestPull] = useState<GachaPullResult | null>(null);
   const [tickerTapRun, setTickerTapRun] = useState<TickerTapRunState>(INITIAL_TICKER_TAP_RUN_STATE);
   const [tickerTapBoard, setTickerTapBoard] = useState<TickerTapLeaderboardResponse | null>(null);
   const [isLoadingGame, setIsLoadingGame] = useState(true);
   const [isLoadingAccount, setIsLoadingAccount] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
+  const [isCatalogOpen, setIsCatalogOpen] = useState(false);
+  const [isLoadingGachaCatalog, setIsLoadingGachaCatalog] = useState(false);
   const [isLoadingTickerTapBoard, setIsLoadingTickerTapBoard] = useState(false);
   const [gameError, setGameError] = useState<string | null>(null);
   const [accountError, setAccountError] = useState<string | null>(null);
   const [pullError, setPullError] = useState<string | null>(null);
+  const [gachaCatalogError, setGachaCatalogError] = useState<string | null>(null);
   const [tickerTapError, setTickerTapError] = useState<string | null>(null);
   const [tickerTapBoardError, setTickerTapBoardError] = useState<string | null>(null);
   const tickerTapRunRef = useRef<TickerTapRunState>(INITIAL_TICKER_TAP_RUN_STATE);
@@ -350,6 +362,38 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
   }, [gameKey, loadTickerTapBoard]);
 
   useEffect(() => {
+    if (gameKey !== "capsule-gacha") {
+      setGachaCatalog(null);
+      setGachaCatalogError(null);
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      setIsLoadingGachaCatalog(true);
+      setGachaCatalogError(null);
+      try {
+        const catalogResult = await fetchCapsuleGachaCatalog();
+        if (!cancelled) {
+          setGachaCatalog(catalogResult);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setGachaCatalogError(String((error as Error).message || error));
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingGachaCatalog(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [gameKey]);
+
+  useEffect(() => {
     if (tickerTapRun.phase !== "running" || !tickerTapRun.startedAtMs || !tickerTapRun.config) {
       return undefined;
     }
@@ -431,10 +475,21 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
       }))
     : [];
 
+  const heroImage = isCapsuleGacha
+    ? 'url("/gacha-game-banner.png")'
+    : isTickerTap
+      ? 'url("/rhythm-game-banner.png")'
+      : "none";
+
+  const heroStyle = {
+    "--hero-accent": accent,
+    "--hero-image": heroImage,
+  } as CSSProperties;
+
   return (
     <SiteShell>
       <div className={styles.stack}>
-        <section className={styles.hero} style={{ "--hero-accent": accent } as CSSProperties}>
+        <section className={`${styles.hero} ${(isCapsuleGacha || isTickerTap) ? styles.heroWithImage : ""}`.trim()} style={heroStyle}>
           <div className={styles.heroTop}>
             <Link href="/games" className={styles.backLink}>
               <FaArrowLeft />
@@ -479,55 +534,105 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
         </section>
 
         {isCapsuleGacha && game ? (
-          <div className={styles.layout}>
-            <section className={styles.panel}>
+          <div className={`${styles.layout} ${styles.gachaLayout}`.trim()} style={{ "--hero-accent": accent } as CSSProperties}>
+            <section className={`${styles.panel} ${styles.gachaStage}`.trim()}>
               <div className={styles.sectionHead}>
                 <div>
-                  <h2 className={styles.sectionTitle}>Live Pull Console</h2>
+                  <h2 className={styles.sectionTitle}>Capsule Drop</h2>
                   <p className={styles.sectionCopy}>
-                    Crack open capsules, grow your locker, and turn duplicates into a little cash back.
+                    A focused pull experience with the price, prize pool, and result feedback visible before you spend.
                   </p>
                 </div>
                 <HiSparkles />
               </div>
 
-              <div className={styles.console}>
-                <div className={styles.priceRow}>
-                  <HiSparkles />
-                  <span>{fmtNumber(game.entry_fee_cash, "$")} per pull</span>
-                </div>
-                <p className={styles.consoleCopy}>
-                  Every pull costs cash. Some hits grow your collection, and duplicates soften the blow.
-                </p>
-
-                {pullError ? <div className={`${styles.statusMessage} ${styles.statusError}`}>Pull failed: {pullError}</div> : null}
-
-                {user ? (
-                  <button type="button" className={styles.actionButton} disabled={isPulling || isLoadingAccount} onClick={() => void handlePull()}>
-                    <HiSparkles />
-                    <span>{isPulling ? "Rolling capsule…" : `Pull for ${fmtNumber(game.entry_fee_cash, "$")}`}</span>
-                  </button>
-                ) : (
-                  <Link href="/login" className={styles.actionLink}>
-                    <FaPlay />
-                    <span>Sign In To Pull</span>
-                  </Link>
-                )}
-              </div>
-
-              <div className={styles.resultCard}>
-                <div className={styles.sectionHead}>
-                  <div>
-                    <h3 className={styles.sectionTitle}>Latest Result</h3>
-                    <p className={styles.sectionCopy}>
-                      {latestPull
-                        ? latestPull.pull.duplicate
-                          ? `Duplicate converted into ${fmtNumber(latestPull.wallet.duplicate_compensation_cash, "$")} cash back.`
-                          : "New cosmetic added to your locker."
-                        : "Your next pull result will show up here."}
+              <div className={styles.gachaHeroGrid}>
+                <div className={styles.gachaMachine}>
+                  <div className={styles.assetPrompt}>
+                    <span>Featured banner placeholder</span>
+                    <p>
+                      Image prompt: premium gacha website capsule machine, transparent glass sphere, collectible NASFAQ profile cards inside capsules, teal-black arcade cabinet, amber rim light, anime-inspired but professional, no text.
                     </p>
                   </div>
+                  <div className={styles.capsuleRail} aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                </div>
+
+                <div className={styles.pullConsolePanel}>
+                  <span className={styles.rewardKicker}>Single pull</span>
+                  <h3 className={styles.pullPrice}>{fmtNumber(game.entry_fee_cash, "$")}</h3>
+                  <p className={styles.consoleCopy}>
+                    Pull once for a profile cosmetic. New rewards go straight to your locker, while duplicates return a small cash rebate.
+                  </p>
+
+                  <div className={styles.pullBalanceCard}>
+                    <span className={styles.metaLabel}>Wallet available</span>
+                    <strong>{summary ? fmtNumber(summary.cash_balance, "$") : user ? "Loading..." : "Sign in"}</strong>
+                    <span>{isLoadingAccount ? "Refreshing account state." : "Debited only when a pull succeeds."}</span>
+                  </div>
+
+                  {pullError ? <div className={`${styles.statusMessage} ${styles.statusError}`}>Pull failed: {pullError}</div> : null}
+
+                  {user ? (
+                    <button type="button" className={styles.actionButton} disabled={isPulling || isLoadingAccount} onClick={() => void handlePull()}>
+                      <HiSparkles />
+                      <span>{isPulling ? "Opening capsule..." : `Pull for ${fmtNumber(game.entry_fee_cash, "$")}`}</span>
+                    </button>
+                  ) : (
+                    <Link href="/login" className={styles.actionLink}>
+                      <FaPlay />
+                      <span>Sign In To Pull</span>
+                    </Link>
+                  )}
+
+                  <button type="button" className={styles.secondaryActionButton} onClick={() => setIsCatalogOpen(true)}>
+                    <FaTicket />
+                    <span>View prize catalogue</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className={styles.gachaInfoGrid}>
+                <article className={styles.rateCard}>
+                  <FaStar />
+                  <span className={styles.metaLabel}>Featured rewards</span>
+                  <strong>Frames, themes, chat flair</strong>
+                  <p>{gachaCatalog ? `${gachaCatalog.rewards.length} cosmetics in the current pool.` : "Image prompt for reward cards: three premium collectible profile cosmetics on dark glass pedestals, rarity color edges, no text."}</p>
+                </article>
+                <article className={styles.rateCard}>
+                  <FaTicket />
+                  <span className={styles.metaLabel}>Pull style</span>
+                  <strong>One capsule at a time</strong>
+                  <p>Keep the action clear and fast. The result appears immediately below the machine.</p>
+                </article>
+                <article className={styles.rateCard}>
                   <FaMoneyBillTrendUp />
+                  <span className={styles.metaLabel}>Duplicates</span>
+                  <strong>Cash rebate applied</strong>
+                  <p>Duplicate compensation is shown after every pull so players understand what happened.</p>
+                </article>
+              </div>
+
+              <div className={`${styles.resultCard} ${styles.gachaResult}`.trim()}>
+                <div>
+                  <span className={styles.rewardKicker}>Latest result</span>
+                  <h3 className={styles.resultTitle}>
+                    {latestPull
+                      ? latestPull.pull.duplicate
+                        ? "Duplicate converted to cash back"
+                        : "New cosmetic unlocked"
+                      : "Your next reward appears here"}
+                  </h3>
+                  <p className={styles.sectionCopy}>
+                    {latestPull
+                      ? "Use this area for the reward card art, rarity treatment, and wallet impact."
+                      : "No pull yet this session. The first result will replace this empty state."}
+                  </p>
                 </div>
 
                 {latestPull ? (
@@ -539,29 +644,36 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
                     </span>
                   </div>
                 ) : (
-                  <div className={`${styles.statusMessage} ${styles.statusNeutral}`}>No pull yet for this session.</div>
+                  <div className={styles.rewardPlaceholder}>
+                    <span>Reward card placeholder</span>
+                    <p>
+                      Image prompt: collectible NASFAQ cosmetic card reveal, dark glass card, rarity border, profile frame asset centered, subtle confetti shards, no text.
+                    </p>
+                  </div>
                 )}
 
-                <div className={styles.resultLine}>
-                  <span className={styles.resultLabel}>Duplicate compensation</span>
-                  <strong className={styles.resultValue}>{latestPull ? fmtNumber(latestPull.wallet.duplicate_compensation_cash, "$") : "—"}</strong>
-                </div>
-                <div className={styles.resultLine}>
-                  <span className={styles.resultLabel}>Balance after pull</span>
-                  <strong className={styles.resultValue}>{latestPull ? fmtNumber(latestPull.wallet.cash_balance_after, "$") : "—"}</strong>
-                </div>
-                <div className={styles.resultLine}>
-                  <span className={styles.resultLabel}>Grant result</span>
-                  <strong className={styles.resultValue}>{latestPull ? (latestPull.pull.granted_cosmetic ? "New cosmetic" : "Duplicate") : "—"}</strong>
+                <div className={styles.resultGrid}>
+                  <div className={styles.resultLine}>
+                    <span className={styles.resultLabel}>Duplicate compensation</span>
+                    <strong className={styles.resultValue}>{latestPull ? fmtNumber(latestPull.wallet.duplicate_compensation_cash, "$") : "-"}</strong>
+                  </div>
+                  <div className={styles.resultLine}>
+                    <span className={styles.resultLabel}>Balance after pull</span>
+                    <strong className={styles.resultValue}>{latestPull ? fmtNumber(latestPull.wallet.cash_balance_after, "$") : "-"}</strong>
+                  </div>
+                  <div className={styles.resultLine}>
+                    <span className={styles.resultLabel}>Grant result</span>
+                    <strong className={styles.resultValue}>{latestPull ? (latestPull.pull.granted_cosmetic ? "New cosmetic" : "Duplicate") : "-"}</strong>
+                  </div>
                 </div>
               </div>
             </section>
 
-            <aside className={styles.panel}>
+            <aside className={`${styles.panel} ${styles.gachaSidebar}`.trim()}>
               <div className={styles.sectionHead}>
                 <div>
-                  <h2 className={styles.sectionTitle}>Locker Slice</h2>
-                  <p className={styles.sectionCopy}>Your newest drops and recent pulls.</p>
+                  <h2 className={styles.sectionTitle}>Your Locker</h2>
+                  <p className={styles.sectionCopy}>Newest cosmetics and capsule sessions.</p>
                 </div>
                 <FaClock />
               </div>
@@ -577,18 +689,27 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
                 <strong className={styles.miniValue}>{summary?.inventory.total_cosmetics ?? 0}</strong>
               </div>
 
+              <Link href="/games/item-locker" className={styles.secondaryActionButton}>
+                <FaBoxOpen />
+                <span>Open item locker</span>
+              </Link>
+
               <div className={styles.lockerList}>
                 {recentCosmetics.length ? recentCosmetics.map((cosmetic) => (
                   <article key={cosmetic.id} className={styles.lockerItem}>
                     <strong className={styles.itemTitle}>{String(cosmetic.metadata.display_name || cosmetic.cosmetic_key)}</strong>
                     <span className={styles.itemMeta}>{cosmetic.rarity} · {cosmetic.cosmetic_type} · {fmtDate(cosmetic.granted_at)}</span>
                   </article>
-                )) : <div className={styles.empty}>Your recent cosmetics will show up here.</div>}
+                )) : (
+                  <div className={styles.empty}>
+                    Your recent cosmetics will show up here. Use profile frame, chat badge, and portfolio theme thumbnail art once assets are ready.
+                  </div>
+                )}
               </div>
 
               <div className={styles.sectionHead}>
                 <div>
-                  <h3 className={styles.sectionTitle}>Recent Sessions</h3>
+                  <h3 className={styles.sectionTitle}>Capsule History</h3>
                   <p className={styles.sectionCopy}>Your latest capsule runs.</p>
                 </div>
                 <FaClock />
@@ -605,9 +726,74 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
                 )) : <div className={styles.empty}>No sessions recorded for this game yet.</div>}
               </div>
             </aside>
+
+            {isCatalogOpen ? (
+              <div className={styles.catalogModalBackdrop}>
+                <section className={styles.catalogModal} role="dialog" aria-modal="true" aria-labelledby="gacha-catalog-title">
+                  <div className={styles.catalogModalHead}>
+                    <div>
+                      <span className={styles.rewardKicker}>Capsule pool</span>
+                      <h2 id="gacha-catalog-title" className={styles.catalogModalTitle}>Prize Catalogue</h2>
+                      <p className={styles.sectionCopy}>
+                        These rewards and chances come from the backend gacha reward pool, so you can edit the catalogue in one place.
+                      </p>
+                    </div>
+                    <button type="button" className={styles.modalCloseButton} onClick={() => setIsCatalogOpen(false)}>
+                      Close
+                    </button>
+                  </div>
+
+                  {gachaCatalogError ? <div className={`${styles.statusMessage} ${styles.statusError}`}>Catalogue failed to load: {gachaCatalogError}</div> : null}
+
+                  <div className={styles.catalogSummary}>
+                    <div>
+                      <span className={styles.metaLabel}>Pull price</span>
+                      <strong>{fmtNumber(gachaCatalog?.game.entry_fee_cash ?? game.entry_fee_cash, "$")}</strong>
+                    </div>
+                    <div>
+                      <span className={styles.metaLabel}>Reward count</span>
+                      <strong>{gachaCatalog?.rewards.length ?? 0}</strong>
+                    </div>
+                    <div>
+                      <span className={styles.metaLabel}>Duplicate rebate</span>
+                      <strong>{fmtNumber(Number(game.config.duplicate_compensation_cash || 0), "$")}</strong>
+                    </div>
+                  </div>
+
+                  <div className={styles.catalogList}>
+                    {isLoadingGachaCatalog ? (
+                      <div className={styles.empty}>Loading prize catalogue...</div>
+                    ) : gachaCatalog?.rewards.length ? gachaCatalog.rewards.map((reward) => (
+                      <article key={reward.key} className={styles.catalogRewardCard} style={{ "--reward-accent": rarityAccent(reward.rarity) } as CSSProperties}>
+                        <div
+                          className={styles.catalogRewardArt}
+                          style={reward.image_url ? { backgroundImage: `linear-gradient(180deg, transparent, color-mix(in srgb, var(--bg-darkest) 82%, transparent)), url("${reward.image_url}")` } : undefined}
+                        >
+                          <span>{reward.rarity}</span>
+                          <p>{reward.description || String(reward.metadata.image_prompt || "Cosmetic asset placeholder for this reward.")}</p>
+                        </div>
+                        <div className={styles.catalogRewardBody}>
+                          <div>
+                            <h3>{reward.display_name}</h3>
+                            <p>{reward.type.replaceAll("_", " ")} · {reward.slot_key || "no slot"}</p>
+                          </div>
+                          <div className={styles.catalogChance}>
+                            <span>Chance</span>
+                            <strong>{formatPullChance(reward.pull_chance)}</strong>
+                            <em>Weight {reward.weight}</em>
+                          </div>
+                        </div>
+                      </article>
+                    )) : (
+                      <div className={styles.empty}>No rewards are configured yet.</div>
+                    )}
+                  </div>
+                </section>
+              </div>
+            ) : null}
           </div>
         ) : isTickerTap && game ? (
-          <div className={styles.layout}>
+          <div className={styles.layout} style={{ "--hero-accent": accent } as CSSProperties}>
             <section className={styles.panel}>
               <div className={styles.sectionHead}>
                 <div>

@@ -389,6 +389,34 @@ async function applySchema(pool) {
       ON games.gacha_pulls (user_id, created_at DESC, id DESC)
   `);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS games.gacha_prize_items (
+      id BIGSERIAL PRIMARY KEY,
+      game_key TEXT NOT NULL DEFAULT 'capsule-gacha',
+      cosmetic_key TEXT NOT NULL,
+      display_name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      cosmetic_type TEXT NOT NULL DEFAULT 'profile_badge',
+      rarity TEXT NOT NULL DEFAULT 'common',
+      slot_key TEXT NULL,
+      pull_weight NUMERIC NOT NULL DEFAULT 1,
+      image_key TEXT NOT NULL,
+      filename TEXT NOT NULL,
+      metadata_json JSONB NOT NULL DEFAULT '{}'::JSONB,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      is_deleted BOOLEAN NOT NULL DEFAULT false,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT games_gacha_prize_items_pull_weight_nonnegative_check CHECK (pull_weight >= 0),
+      CONSTRAINT games_gacha_prize_items_game_image_unique UNIQUE (game_key, image_key),
+      CONSTRAINT games_gacha_prize_items_game_cosmetic_unique UNIQUE (game_key, cosmetic_key)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS games_gacha_prize_items_game_active_idx
+      ON games.gacha_prize_items (game_key, is_deleted, is_active, sort_order ASC, id ASC)
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS games.pvp_matches (
       id BIGSERIAL PRIMARY KEY,
       game_id BIGINT NOT NULL REFERENCES games.game_catalog(id) ON DELETE CASCADE,
@@ -1194,6 +1222,88 @@ async function applySchema(pool) {
     UPDATE market.market_settlement_runs
     SET source_market_date = market_date
     WHERE source_market_date IS NULL
+  `);
+  await pool.query(`
+    ALTER TABLE market.market_assets
+      ADD COLUMN IF NOT EXISTS adjustment_min_pct NUMERIC NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS adjustment_max_pct NUMERIC NOT NULL DEFAULT 200,
+      ADD COLUMN IF NOT EXISTS adjustment_enabled BOOLEAN NOT NULL DEFAULT true,
+      ADD COLUMN IF NOT EXISTS supply_evaluation_cadence TEXT NOT NULL DEFAULT 'weekly',
+      ADD COLUMN IF NOT EXISTS broker_buffer_pct NUMERIC NOT NULL DEFAULT 0.02
+  `);
+  await pool.query(`
+    ALTER TABLE market.market_assets
+      DROP CONSTRAINT IF EXISTS market_assets_adjustment_pct_check
+  `);
+  await pool.query(`
+    ALTER TABLE market.market_assets
+      ADD CONSTRAINT market_assets_adjustment_pct_check CHECK (
+        adjustment_min_pct >= 0 AND adjustment_max_pct >= adjustment_min_pct
+      )
+  `);
+  await pool.query(`
+    ALTER TABLE market.market_assets
+      DROP CONSTRAINT IF EXISTS market_assets_supply_evaluation_cadence_check
+  `);
+  await pool.query(`
+    ALTER TABLE market.market_assets
+      ADD CONSTRAINT market_assets_supply_evaluation_cadence_check CHECK (
+        supply_evaluation_cadence IN ('weekly', 'monthly', 'quarterly', 'manual')
+      )
+  `);
+  await pool.query(`
+    ALTER TABLE market.market_assets
+      DROP CONSTRAINT IF EXISTS market_assets_broker_buffer_pct_check
+  `);
+  await pool.query(`
+    ALTER TABLE market.market_assets
+      ADD CONSTRAINT market_assets_broker_buffer_pct_check CHECK (
+        broker_buffer_pct >= 0 AND broker_buffer_pct < 1
+      )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.adjustment_sessions (
+      id BIGSERIAL PRIMARY KEY,
+      market_date DATE NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'scheduled',
+      generated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      opened_at TIMESTAMPTZ NULL,
+      completed_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT adjustment_sessions_status_check CHECK (status IN ('scheduled', 'active', 'completed', 'cancelled'))
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.asset_adjustment_intervals (
+      id BIGSERIAL PRIMARY KEY,
+      session_id BIGINT NOT NULL REFERENCES market.adjustment_sessions(id) ON DELETE CASCADE,
+      asset_id BIGINT NOT NULL REFERENCES market.market_assets(id) ON DELETE CASCADE,
+      interval_key TEXT NOT NULL,
+      scheduled_at TIMESTAMPTZ NOT NULL,
+      strength_pct NUMERIC NOT NULL,
+      base_rate NUMERIC NOT NULL,
+      price_before NUMERIC NULL,
+      price_after NUMERIC NULL,
+      status TEXT NOT NULL DEFAULT 'scheduled',
+      applied_at TIMESTAMPTZ NULL,
+      metadata_json JSONB NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (session_id, asset_id, interval_key),
+      CONSTRAINT asset_adjustment_intervals_interval_key_check CHECK (interval_key IN ('open', 'lunch', 'late', 'overnight')),
+      CONSTRAINT asset_adjustment_intervals_strength_check CHECK (strength_pct >= 0),
+      CONSTRAINT asset_adjustment_intervals_base_rate_check CHECK (base_rate > 0),
+      CONSTRAINT asset_adjustment_intervals_status_check CHECK (status IN ('scheduled', 'applied', 'skipped', 'cancelled'))
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_asset_adjustment_intervals_due_idx
+      ON market.asset_adjustment_intervals (status, scheduled_at, id)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_asset_adjustment_intervals_asset_scheduled_idx
+      ON market.asset_adjustment_intervals (asset_id, scheduled_at DESC)
   `);
 }
 

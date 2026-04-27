@@ -603,10 +603,11 @@
 
 .avatar {
   --leaderboard-accent: var(--accent, #2563eb);
+  position: relative;
   width: 3.8rem;
   height: 3.8rem;
   border-radius: var(--radius-sm);
-  overflow: hidden;
+  overflow: visible;
   display: grid;
   place-items: center;
   border: 1px solid color-mix(in srgb, var(--leaderboard-accent) 45%, var(--border-soft));
@@ -620,7 +621,26 @@
 .avatarImage {
   width: 100%;
   height: 100%;
+  border-radius: inherit;
   object-fit: cover;
+}
+
+.avatarHat {
+  position: absolute;
+  left: 50%;
+  top: -32%;
+  width: 86%;
+  max-width: none;
+  height: auto;
+  object-fit: contain;
+  pointer-events: none;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 0.35rem 0.45rem rgba(0, 0, 0, 0.38));
+}
+
+.podiumAvatar .avatarHat {
+  top: -35%;
+  width: 92%;
 }
 
 .identityMeta {

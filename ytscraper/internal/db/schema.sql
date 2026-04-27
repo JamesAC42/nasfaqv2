@@ -388,6 +388,11 @@ CREATE TABLE IF NOT EXISTS market.market_assets (
   current_persistent_offset NUMERIC NOT NULL DEFAULT 0,
   current_transient_offset NUMERIC NOT NULL DEFAULT 0,
   offsets_updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  adjustment_min_pct NUMERIC NOT NULL DEFAULT 0,
+  adjustment_max_pct NUMERIC NOT NULL DEFAULT 200,
+  adjustment_enabled BOOLEAN NOT NULL DEFAULT true,
+  supply_evaluation_cadence TEXT NOT NULL DEFAULT 'weekly',
+  broker_buffer_pct NUMERIC NOT NULL DEFAULT 0.02,
 
   liquidity_depth NUMERIC NOT NULL,
   spread_bps INTEGER NOT NULL,
@@ -416,6 +421,15 @@ CREATE TABLE IF NOT EXISTS market.market_assets (
   ),
   CONSTRAINT market_assets_latest_snapshot_pair_check CHECK (
     (latest_snapshot_date IS NULL) = (latest_snapshot_id IS NULL)
+  ),
+  CONSTRAINT market_assets_adjustment_pct_check CHECK (
+    adjustment_min_pct >= 0 AND adjustment_max_pct >= adjustment_min_pct
+  ),
+  CONSTRAINT market_assets_supply_evaluation_cadence_check CHECK (
+    supply_evaluation_cadence IN ('weekly', 'monthly', 'quarterly', 'manual')
+  ),
+  CONSTRAINT market_assets_broker_buffer_pct_check CHECK (
+    broker_buffer_pct >= 0 AND broker_buffer_pct < 1
   )
 );
 
@@ -594,6 +608,46 @@ CREATE TABLE IF NOT EXISTS market.market_settlement_runs (
   error_text TEXT NULL,
   CONSTRAINT market_settlement_runs_status_check CHECK (status IN ('started', 'completed', 'failed'))
 );
+
+CREATE TABLE IF NOT EXISTS market.adjustment_sessions (
+  id BIGSERIAL PRIMARY KEY,
+  market_date DATE NOT NULL UNIQUE,
+  status TEXT NOT NULL DEFAULT 'scheduled',
+  generated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  opened_at TIMESTAMPTZ NULL,
+  completed_at TIMESTAMPTZ NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT adjustment_sessions_status_check CHECK (status IN ('scheduled', 'active', 'completed', 'cancelled'))
+);
+
+CREATE TABLE IF NOT EXISTS market.asset_adjustment_intervals (
+  id BIGSERIAL PRIMARY KEY,
+  session_id BIGINT NOT NULL REFERENCES market.adjustment_sessions(id) ON DELETE CASCADE,
+  asset_id BIGINT NOT NULL REFERENCES market.market_assets(id) ON DELETE CASCADE,
+  interval_key TEXT NOT NULL,
+  scheduled_at TIMESTAMPTZ NOT NULL,
+  strength_pct NUMERIC NOT NULL,
+  base_rate NUMERIC NOT NULL,
+  price_before NUMERIC NULL,
+  price_after NUMERIC NULL,
+  status TEXT NOT NULL DEFAULT 'scheduled',
+  applied_at TIMESTAMPTZ NULL,
+  metadata_json JSONB NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (session_id, asset_id, interval_key),
+  CONSTRAINT asset_adjustment_intervals_interval_key_check CHECK (interval_key IN ('open', 'lunch', 'late', 'overnight')),
+  CONSTRAINT asset_adjustment_intervals_strength_check CHECK (strength_pct >= 0),
+  CONSTRAINT asset_adjustment_intervals_base_rate_check CHECK (base_rate > 0),
+  CONSTRAINT asset_adjustment_intervals_status_check CHECK (status IN ('scheduled', 'applied', 'skipped', 'cancelled'))
+);
+
+CREATE INDEX IF NOT EXISTS market_asset_adjustment_intervals_due_idx
+  ON market.asset_adjustment_intervals (status, scheduled_at, id);
+
+CREATE INDEX IF NOT EXISTS market_asset_adjustment_intervals_asset_scheduled_idx
+  ON market.asset_adjustment_intervals (asset_id, scheduled_at DESC);
 
 CREATE TABLE IF NOT EXISTS market.fundamental_calculation_runs (
   id BIGSERIAL PRIMARY KEY,

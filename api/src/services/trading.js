@@ -7,7 +7,7 @@ const marketState = require("./marketState");
 const netWorth = require("./netWorth");
 const achievements = require("./achievements");
 const { ensureUserCashAccount, getStarterCash } = require("./portfolioCash");
-const MARKET_EVENTS_REDIS_CHANNEL = "nasfaq_market:events";
+const { publishMarketEvent } = require("./marketEvents");
 
 function getTradingFeeRate() {
   const parsed = Number(process.env.MARKET_TRADING_FEE_RATE || DEFAULT_TRADING_FEE_RATE);
@@ -266,16 +266,6 @@ async function getUserTradeIdentity(client, userId) {
   );
 
   return rows[0] || null;
-}
-
-async function publishMarketEvent(redis, payload) {
-  if (!redis) return;
-  try {
-    await redis.publish(MARKET_EVENTS_REDIS_CHANNEL, JSON.stringify(payload));
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("market event publish failed:", String(error?.message || error));
-  }
 }
 
 async function updateAssetAfterTrade(client, asset, {
@@ -714,7 +704,6 @@ async function getPortfolioOrders(pool, userId, { limit = 100 } = {}) {
 }
 
 module.exports = {
-  MARKET_EVENTS_REDIS_CHANNEL,
   executeOrder,
   getStarterCash,
   getPortfolioSummary,

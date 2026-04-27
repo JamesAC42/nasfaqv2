@@ -2,8 +2,10 @@ import { apiFetch } from "@/app/lib/api";
 import {
   normalizeGameCatalogEntry,
   normalizeGameCatalogResponse,
+  normalizeGameItemLockerResponse,
   normalizeGameInventoryResponse,
   normalizeGamesSummary,
+  normalizeGachaCatalogResponse,
   normalizeGachaPullResult,
   normalizeTickerTapLeaderboardResponse,
   normalizeTickerTapSessionCreateResponse,
@@ -30,12 +32,22 @@ export async function fetchGamesInventory() {
   return normalizeGameInventoryResponse(result);
 }
 
+export async function fetchGameItemLocker() {
+  const result = await apiFetch<Record<string, unknown>>("/api/games/me/item-locker", { cache: "no-store" });
+  return normalizeGameItemLockerResponse(result);
+}
+
 export async function pullCapsuleGacha(count = 1) {
   const result = await apiFetch<Record<string, unknown>>("/api/games/capsule-gacha/pull", {
     method: "POST",
     body: JSON.stringify({ count }),
   });
   return normalizeGachaPullResult(result);
+}
+
+export async function fetchCapsuleGachaCatalog() {
+  const result = await apiFetch<Record<string, unknown>>("/api/games/capsule-gacha/catalog", { cache: "no-store" });
+  return normalizeGachaCatalogResponse(result);
 }
 
 export async function createTickerTapSession() {

@@ -1328,6 +1328,7 @@ export function ProfilePage({ username }: { username?: string | null }) {
                       <p className={styles.muted}>Reset clears derived market and portfolio state. Rebuild recalculates assets, fundamentals, and settlement history.</p>
                       <div className={styles.actions}>
                         <Link href="/admin/assets" className={styles.secondaryButton}>Manage assets</Link>
+                        <Link href="/admin/market-tuning" className={styles.secondaryButton}>Tune market</Link>
                       </div>
                       <div className={styles.actions}>
                         <button type="button" className={styles.secondaryButton} onClick={() => void handleReset()} disabled={adminBusy !== false}>

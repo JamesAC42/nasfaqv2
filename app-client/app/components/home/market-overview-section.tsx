@@ -11,6 +11,40 @@ function formatIndexTitle(group: string) {
   return group === "all" ? "All Market" : group;
 }
 
+function formatIntervalLabel(value: string | null | undefined) {
+  switch (value) {
+    case "open":
+      return "Open";
+    case "lunch":
+      return "Lunch";
+    case "late":
+      return "Late";
+    case "overnight":
+      return "Overnight";
+    default:
+      return value || "Next";
+  }
+}
+
+function formatAdjustmentTime(value: string | null | undefined) {
+  if (!value) return "Not scheduled";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function computePremiumPressure(asset: MarketAsset) {
+  const marketPrice = asset.market_price ?? asset.current_mid_price;
+  const baseRate = asset.base_rate ?? asset.current_fair_value;
+  if (!marketPrice || !baseRate) return null;
+  return (marketPrice - baseRate) / baseRate;
+}
+
 function IndexCard({
   index,
   selectedUnit,
@@ -164,13 +198,49 @@ export function MarketOverviewSection({
     .filter((asset) => selectedUnit === "all" || asset.unit === selectedUnit)
     .sort((a, b) => computeHeatmapMarketCap(b) - computeHeatmapMarketCap(a))
     .slice(0, 25);
+  const nextAdjustmentAsset = [...assets]
+    .filter((asset) => asset.next_adjustment?.scheduled_at)
+    .sort((a, b) => String(a.next_adjustment?.scheduled_at || "").localeCompare(String(b.next_adjustment?.scheduled_at || "")))[0] || null;
+  const readyCount = assets.filter((asset) => asset.adjustment_ready).length;
+  const largestPressureAsset = [...assets]
+    .map((asset) => ({ asset, pressure: computePremiumPressure(asset) }))
+    .filter((item): item is { asset: MarketAsset; pressure: number } => item.pressure !== null)
+    .sort((a, b) => Math.abs(b.pressure) - Math.abs(a.pressure))[0] || null;
 
   return (
     <section className={styles.section}>
       <div className={styles.header}>
         <div>
           <h2 className={styles.title}>Market Assets</h2>
-          <p className={styles.copy}>Overview table, selection state, and heatmap are now isolated behind the market store.</p>
+          <p className={styles.copy}>Prices trade continuously, then scheduled adjustment ticks can move them toward each asset&apos;s base rate.</p>
+        </div>
+      </div>
+      <div className={styles.adjustmentPanel}>
+        <div className={styles.adjustmentLead}>
+          <span className={styles.label}>Market Rhythm</span>
+          <strong>
+            {nextAdjustmentAsset?.next_adjustment
+              ? `${formatIntervalLabel(nextAdjustmentAsset.next_adjustment.interval_key)} tick`
+              : "No tick scheduled"}
+          </strong>
+          <p>
+            Trading stays open during adjustment ticks. The tick uses each asset&apos;s scheduled strength to pull market price toward base rate.
+          </p>
+        </div>
+        <div className={styles.adjustmentStats}>
+          <div>
+            <span className={styles.label}>Next Tick</span>
+            <strong>{formatAdjustmentTime(nextAdjustmentAsset?.next_adjustment?.scheduled_at)}</strong>
+          </div>
+          <div>
+            <span className={styles.label}>Ready Assets</span>
+            <strong>{fmtInteger(readyCount)} / {fmtInteger(assets.length)}</strong>
+          </div>
+          <div>
+            <span className={styles.label}>Largest Gap</span>
+            <strong>{largestPressureAsset ? largestPressureAsset.asset.symbol : "N/A"}</strong>
+            <em>{largestPressureAsset ? fmtPct(largestPressureAsset.pressure) : "N/A"}</em>
+          </div>
         </div>
       </div>
       {showIndexes ? (
@@ -203,8 +273,9 @@ export function MarketOverviewSection({
                 <th>Name</th>
                 <th>Trend</th>
                 <th>Mid</th>
-                <th>Fair</th>
+                <th>Base Rate</th>
                 <th>Premium</th>
+                <th>Next Tick</th>
                 <th>24h Move</th>
                 <th>24h Volume</th>
               </tr>
@@ -230,8 +301,13 @@ export function MarketOverviewSection({
                   <td>{asset.display_name}</td>
                   <td><SparklineChart candles={asset.sparkline_candles} /></td>
                   <td>{fmtNumber(asset.current_mid_price)}</td>
-                  <td>{fmtNumber(asset.current_fair_value)}</td>
+                  <td>{fmtNumber(asset.base_rate ?? asset.current_fair_value)}</td>
                   <td>{fmtPct(asset.current_premium_pct)}</td>
+                  <td>
+                    {asset.next_adjustment
+                      ? `${formatIntervalLabel(asset.next_adjustment.interval_key)} ${fmtPct((asset.next_adjustment.strength_pct ?? 0) / 100)}`
+                      : "N/A"}
+                  </td>
                   <td>{fmtPct(asset.move_24h_pct)}</td>
                   <td>{fmtNumber(asset.volume_24h)}</td>
                 </tr>

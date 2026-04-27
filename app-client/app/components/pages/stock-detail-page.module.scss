@@ -573,6 +573,67 @@
   display: grid;
 }
 
+.adjustmentSection {
+  @include archive-panel;
+  display: grid;
+}
+
+.adjustmentStatusPill {
+  display: inline-flex;
+  align-items: center;
+  align-self: start;
+  border: 0.0625rem solid color-mix(in srgb, var(--accent) 22%, var(--border-soft));
+  border-radius: 999rem;
+  padding: 0.42rem 0.7rem;
+  color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.adjustmentGrid {
+  display: grid;
+  grid-template-columns: 1.25fr repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.adjustmentPrimaryCard,
+.adjustmentCard {
+  display: grid;
+  gap: 0.24rem;
+  align-content: center;
+  min-height: 5.7rem;
+  border: 0.0625rem solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 88%, transparent);
+  padding: 0.82rem;
+
+  span,
+  em {
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-style: normal;
+  }
+
+  span {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  strong {
+    font-family: var(--font-mono);
+    font-size: 1.08rem;
+  }
+}
+
+.adjustmentPrimaryCard {
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 13%, transparent), transparent 12rem),
+    color-mix(in srgb, var(--surface-card-highlight) 70%, transparent);
+}
+
 .rankSpotlightGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2110,6 +2171,10 @@
   .rankSpotlightGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .adjustmentGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
@@ -2136,6 +2201,7 @@
   .chartGrid,
   .heroMarketGrid,
   .heroMetaGrid,
+  .adjustmentGrid,
   .rankSpotlightGrid,
   .tradeSummary,
   .articleGrid,

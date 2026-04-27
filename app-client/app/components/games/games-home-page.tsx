@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import { useEffect, useState, type CSSProperties } from "react";
-import { FaBolt, FaChartLine, FaClock, FaMoneyBillTrendUp, FaPlay, FaUsers } from "react-icons/fa6";
+import { FaBolt, FaChartLine, FaClock, FaMoneyBillTrendUp, FaPlay, FaStar, FaTicket, FaUsers } from "react-icons/fa6";
 import { HiSparkles } from "react-icons/hi2";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { fmtDate, fmtNumber } from "@/app/lib/format";
 import {
   fetchGamesCatalog,
+  fetchGameItemLocker,
   fetchGamesInventory,
   fetchGamesSummary,
 } from "@/app/lib/games-api";
 import type {
   GameCatalogEntry,
+  GameItemLockerResponse,
   GameInventoryResponse,
   GamesSummary,
 } from "@/app/lib/types";
@@ -59,6 +61,25 @@ function gameSignal(game: GameCatalogEntry) {
   return <FaPlay />;
 }
 
+function gameImagePrompt(game: GameCatalogEntry) {
+  if (game.key === "capsule-gacha") {
+    return "Image prompt: premium anime gacha banner for a finance arcade. Use the reference image of Ninomae Ina'nis as the featured character beside a glass capsule machine, collectible hats and items inside, teal and amber lighting, no text, wide 16:9 composition.";
+  }
+  if (game.key === "ticker-tap") {
+    return "Image prompt: sleek arcade reaction game key art. Use the reference image of Vestia Zeta as the featured character tapping glowing ticker targets across neon lanes, dark teal trading floor, crisp UI lights, no text, wide 16:9 composition.";
+  }
+  if (game.key === "prediction-duel") {
+    return "Image prompt: cinematic two-player prediction battle stage with market charts, split-screen rivals, restrained red and teal accents, no text, wide 16:9 composition.";
+  }
+  return "Image prompt: NASFAQ mini-game key art, polished dark fintech arcade style, collectible rewards, no text, wide 16:9 composition.";
+}
+
+function gameThumbnailUrl(game: GameCatalogEntry) {
+  if (game.key === "capsule-gacha") return "/gacha-game-banner.png";
+  if (game.key === "ticker-tap") return "/rhythm-game-banner.png";
+  return null;
+}
+
 function gamePriceLine(game: GameCatalogEntry) {
   if (game.game_type === "pvp") {
     if (game.min_stake_cash !== null && game.max_stake_cash !== null) {
@@ -69,11 +90,15 @@ function gamePriceLine(game: GameCatalogEntry) {
   return fmtNumber(game.entry_fee_cash, "$");
 }
 
+const GACHA_GAME_BANNER_URL = "/gacha-game-banner.png";
+const GAMES_HERO_IMAGE_URL = "/games-home-hero.png";
+
 export function GamesHomePage() {
   const { user, initialized } = useAuth();
   const [catalog, setCatalog] = useState<GameCatalogEntry[]>([]);
   const [summary, setSummary] = useState<GamesSummary | null>(null);
   const [inventory, setInventory] = useState<GameInventoryResponse | null>(null);
+  const [itemLocker, setItemLocker] = useState<GameItemLockerResponse | null>(null);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
   const [isLoadingAccount, setIsLoadingAccount] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -100,6 +125,7 @@ export function GamesHomePage() {
     if (!user) {
       setSummary(null);
       setInventory(null);
+      setItemLocker(null);
       setAccountError(null);
       return;
     }
@@ -107,9 +133,14 @@ export function GamesHomePage() {
       setIsLoadingAccount(true);
       setAccountError(null);
       try {
-        const [summaryResult, inventoryResult] = await Promise.all([fetchGamesSummary(), fetchGamesInventory()]);
+        const [summaryResult, inventoryResult, itemLockerResult] = await Promise.all([
+          fetchGamesSummary(),
+          fetchGamesInventory(),
+          fetchGameItemLocker(),
+        ]);
         setSummary(summaryResult);
         setInventory(inventoryResult);
+        setItemLocker(itemLockerResult);
       } catch (error) {
         setAccountError(String((error as Error).message || error));
       } finally {
@@ -121,52 +152,138 @@ export function GamesHomePage() {
   const liveGames = catalog.filter((game) => game.status === "active");
   const capsuleGame = catalog.find((game) => game.key === "capsule-gacha") || null;
   const recentCosmetics = inventory?.cosmetics.slice(0, 4) || [];
+  const recentLockerItems = itemLocker?.items.slice(0, 4) || [];
+  const featuredGames = [...catalog].sort((a, b) => {
+    if (a.key === "capsule-gacha") return -1;
+    if (b.key === "capsule-gacha") return 1;
+    return a.sort_order - b.sort_order;
+  });
 
   return (
     <SiteShell>
       <div className={styles.stack}>
-        <section className={styles.hero}>
-          <div className={styles.heroHeader}>
-            <p className={styles.eyebrow}>Keep the cash moving</p>
-            <h1 className={styles.heroTitle}>NASFAQ Games</h1>
-            <p className={styles.heroCopy}>
-              Burn some cash, chase a score, collect cosmetics, and find new reasons to stick around after the market closes.
-            </p>
-            <div className={styles.heroActions}>
-              <Link href="/games/capsule-gacha" className={styles.heroButton}>Open Capsule Gacha</Link>
-              <Link href={user ? "/profile" : "/login"} className={styles.heroButtonMuted}>
-                {user ? "View Profile" : "Sign In To Play"}
-              </Link>
+        <section className={styles.hero} style={{ "--hero-image": `url("${GAMES_HERO_IMAGE_URL}")` } as CSSProperties}>
+          <div className={styles.heroContent}>
+            <div className={styles.heroHeader}>
+              <p className={styles.eyebrow}>NASFAQ arcade</p>
+              <h1 className={styles.heroTitle}>NASFAQ Games</h1>
+              <p className={styles.heroCopy}>
+                Pick a quick session, spend from your NASFAQ balance, and collect profile cosmetics that carry back into the rest of the site.
+              </p>
+              <div className={styles.heroActions}>
+                <Link href="/games/capsule-gacha" className={styles.heroButton}>Start with Capsule Gacha</Link>
+                <Link href={user ? "/games/item-locker" : "/login"} className={styles.heroButtonMuted}>
+                  {user ? "View my locker" : "Sign in to play"}
+                </Link>
+              </div>
             </div>
           </div>
+
           <div className={styles.heroMetrics}>
             <article className={styles.metricCard}>
-              <span className={styles.metricLabel}>Catalog</span>
+              <span className={styles.metricLabel}>
+                <FaTicket />
+                Catalog
+              </span>
               <strong className={styles.metricValue}>{isLoadingCatalog ? "…" : catalog.length}</strong>
-              <span className={styles.metricMeta}>Games waiting for your attention.</span>
             </article>
             <article className={styles.metricCard}>
-              <span className={styles.metricLabel}>Live Now</span>
+              <span className={styles.metricLabel}>
+                <FaBolt />
+                Live Now
+              </span>
               <strong className={styles.metricValue}>{isLoadingCatalog ? "…" : liveGames.length}</strong>
-              <span className={styles.metricMeta}>Jump in and spend cash right away.</span>
             </article>
             <article className={styles.metricCard}>
-              <span className={styles.metricLabel}>Wallet</span>
+              <span className={styles.metricLabel}>
+                <FaMoneyBillTrendUp />
+                Wallet
+              </span>
               <strong className={styles.metricValue}>
                 {user && summary ? fmtNumber(summary.cash_balance, "$") : user ? "Loading…" : "Sign in"}
               </strong>
-              <span className={styles.metricMeta}>Your bankroll for every game here.</span>
             </article>
           </div>
         </section>
 
+        <section className={styles.featurePanel}>
+          <div className={styles.sectionHead}>
+            <div>
+              <h2 className={styles.sectionTitle}>Featured Launch: Capsule Gacha</h2>
+              <p className={styles.sectionCopy}>
+                The first live game is a quick pull for collectible locker rewards.
+              </p>
+            </div>
+            <FaChartLine />
+          </div>
+
+          <div className={styles.liveGrid}>
+            <article className={styles.launchVisual}>
+              <div
+                className={`${styles.launchArt} ${styles.launchArtWithImage}`.trim()}
+                style={{ "--launch-thumbnail": `url("${GACHA_GAME_BANNER_URL}")` } as CSSProperties}
+              >
+                <span className={styles.artLabel}>Capsule Gacha thumbnail</span>
+              </div>
+              <div className={styles.launchStats}>
+                <div>
+                  <span className={styles.metaLabel}>Entry</span>
+                  <strong>{capsuleGame ? fmtNumber(capsuleGame.entry_fee_cash, "$") : "$50.00"}</strong>
+                </div>
+                <div>
+                  <span className={styles.metaLabel}>Rewards</span>
+                  <strong>Hats, items, customization</strong>
+                </div>
+              </div>
+            </article>
+
+            <article className={styles.resultCard}>
+              <div className={styles.featureCopy}>
+                <span className={styles.eyebrow}>How it works</span>
+                <h3 className={styles.featureTitle}>Spend cash. Reveal a prize. Build your locker.</h3>
+                <p className={styles.sectionCopy}>
+                  Each paid pull reveals one reward and adds it to your item locker.
+                </p>
+              </div>
+              <div className={styles.featureSteps}>
+                <div className={styles.stepRow}>
+                  <FaTicket />
+                  <span>Buy one pull from your NASFAQ balance.</span>
+                </div>
+                <div className={styles.stepRow}>
+                  <FaStar />
+                  <span>Win hats, items, or profile customization.</span>
+                </div>
+                <div className={styles.stepRow}>
+                  <HiSparkles />
+                  <span>Open your locker to view everything you have won.</span>
+                </div>
+              </div>
+              <Link href="/games/capsule-gacha" className={styles.pullButton}>
+                <FaPlay />
+                <span>{user ? "Open Capsule Gacha" : "Preview Capsule Gacha"}</span>
+              </Link>
+            </article>
+          </div>
+          {recentCosmetics.length ? (
+            <div className={styles.inventoryStrip}>
+              {recentCosmetics.map((cosmetic) => (
+                <article key={cosmetic.id} className={styles.inventoryItem}>
+                  <strong className={styles.itemTitle}>{String(cosmetic.metadata.display_name || cosmetic.cosmetic_key)}</strong>
+                  <span className={styles.itemMeta}>{cosmetic.rarity} · {cosmetic.cosmetic_type} · {fmtDate(cosmetic.granted_at)}</span>
+                </article>
+              ))}
+            </div>
+          ) : null}
+        </section>
+
         <div className={styles.contentGrid}>
-          <section className={styles.panel}>
+          <section className={styles.panelLarge}>
             <div className={styles.sectionHead}>
               <div>
-                <h2 className={styles.sectionTitle}>Games Roadmap</h2>
+                <h2 className={styles.sectionTitle}>Choose Your Next Session</h2>
                 <p className={styles.sectionCopy}>
-                  Pick a lane, pay the entry, and see what deserves your next session.
+                  Each game explains the cost, status, and best reason to open it before you spend anything.
                 </p>
               </div>
             </div>
@@ -174,46 +291,67 @@ export function GamesHomePage() {
             {catalogError ? <div className={`${styles.statusMessage} ${styles.statusError}`}>Catalog error: {catalogError}</div> : null}
 
             <div className={styles.catalogGrid}>
-              {catalog.map((game) => (
-                <article
-                  key={game.key}
-                  id={game.key}
-                  className={styles.gameCard}
-                  style={{ "--card-accent": cardAccent(game) } as CSSProperties}
-                >
-                  <div className={styles.gameCardTop}>
-                    <div className={styles.badgeRow}>
-                      <span className={styles.typePill}>{typeLabel(game.game_type)}</span>
-                      <span className={`${styles.statusPill} ${statusClass(game.status)}`.trim()}>{statusCopy(game.status)}</span>
+              {featuredGames.map((game, index) => {
+                const thumbnailUrl = gameThumbnailUrl(game);
+
+                return (
+                  <article
+                    key={game.key}
+                    id={game.key}
+                    className={`${styles.gameCard} ${(index === 0 || game.key === "ticker-tap") ? styles.gameCardFeatured : ""}`.trim()}
+                    style={{ "--card-accent": cardAccent(game) } as CSSProperties}
+                  >
+                    <div
+                      className={`${styles.gameArt} ${thumbnailUrl ? styles.gameArtWithImage : ""}`.trim()}
+                      style={thumbnailUrl ? { "--game-thumbnail": `url("${thumbnailUrl}")` } as CSSProperties : undefined}
+                    >
+                      {thumbnailUrl ? (
+                        <span className={styles.artLabel}>Game thumbnail</span>
+                      ) : (
+                        <div>
+                          <span className={styles.artLabel}>Asset placeholder</span>
+                          <p>{gameImagePrompt(game)}</p>
+                        </div>
+                      )}
                     </div>
-                    <span className={styles.gameSignal}>{gameSignal(game)}</span>
-                  </div>
-                  <div>
-                    <h3 className={styles.gameTitle}>{game.name}</h3>
-                    <p className={styles.gameDescription}>{game.description}</p>
-                  </div>
-                  <div className={styles.metaGrid}>
-                    <div className={styles.metaCard}>
-                      <span className={styles.metaLabel}>Entry</span>
-                      <strong className={styles.metaValue}>{gamePriceLine(game)}</strong>
-                      <span className={styles.metaHint}>
-                        {game.game_type === "gacha" ? "Direct money sink." : game.game_type === "pvp" ? "Stake band." : "Pay per run."}
-                      </span>
+                    <div className={styles.gameBody}>
+                      <div className={styles.gameCardTop}>
+                        <div className={styles.badgeRow}>
+                          <span className={styles.typePill}>{typeLabel(game.game_type)}</span>
+                          <span className={`${styles.statusPill} ${statusClass(game.status)}`.trim()}>{statusCopy(game.status)}</span>
+                        </div>
+                        <span className={styles.gameSignal}>{gameSignal(game)}</span>
+                      </div>
+                      <div>
+                        <h3 className={styles.gameTitle}>{game.name}</h3>
+                        <p className={styles.gameDescription}>{game.description}</p>
+                      </div>
+                      <div className={styles.metaGrid}>
+                        <div className={styles.metaCard}>
+                          <span className={styles.metaLabel}>Cost</span>
+                          <strong className={styles.metaValue}>{gamePriceLine(game)}</strong>
+                          <span className={styles.metaHint}>
+                            {game.game_type === "gacha" ? "Per pull." : game.game_type === "pvp" ? "Stake band." : "Per run."}
+                          </span>
+                        </div>
+                        <div className={styles.metaCard}>
+                          <span className={styles.metaLabel}>Best for</span>
+                          <strong className={styles.metaValue}>
+                            {game.game_type === "gacha" ? "Cosmetics" : game.game_type === "pvp" ? "Duels" : "Scores"}
+                          </strong>
+                          <span className={styles.metaHint}>Clear outcome, short session.</span>
+                        </div>
+                      </div>
+                      <div className={styles.cardFooter}>
+                        <span className={styles.cardNote}>{futureNote(game)}</span>
+                        <Link href={`/games/${encodeURIComponent(game.key)}`} className={styles.cardAction}>
+                          {game.status === "active" ? "Open game" : "View preview"}
+                        </Link>
+                      </div>
                     </div>
-                    <div className={styles.metaCard}>
-                      <span className={styles.metaLabel}>Lane</span>
-                      <strong className={styles.metaValue}>{game.game_type.replace("_", " ")}</strong>
-                      <span className={styles.metaHint}>Short session, clear stakes.</span>
-                    </div>
-                  </div>
-                  <div className={styles.cardFooter}>
-                    <span className={styles.cardNote}>{futureNote(game)}</span>
-                    <Link href={`/games/${encodeURIComponent(game.key)}`} className={styles.cardAction}>
-                      {game.status === "active" ? "Open game" : "View status"} →
-                    </Link>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
               {!catalog.length && !isLoadingCatalog ? <div className={styles.empty}>No games have been synced yet.</div> : null}
             </div>
           </section>
@@ -224,8 +362,8 @@ export function GamesHomePage() {
                 <section className={styles.panel}>
                   <div className={styles.sectionHead}>
                     <div>
-                      <h2 className={styles.sectionTitle}>Wallet Snapshot</h2>
-                      <p className={styles.sectionCopy}>Your cash on hand for runs, pulls, and future duels.</p>
+                      <h2 className={styles.sectionTitle}>Player Snapshot</h2>
+                      <p className={styles.sectionCopy}>Your balance, cosmetics, and latest activity.</p>
                     </div>
                     <FaMoneyBillTrendUp />
                   </div>
@@ -249,28 +387,28 @@ export function GamesHomePage() {
                 <section className={styles.panel}>
                   <div className={styles.sectionHead}>
                     <div>
-                      <h2 className={styles.sectionTitle}>Equipped Now</h2>
-                      <p className={styles.sectionCopy}>Your current look.</p>
+                      <h2 className={styles.sectionTitle}>Current Locker</h2>
                     </div>
                     <HiSparkles />
                   </div>
                   <div className={styles.equippedList}>
-                    {summary?.inventory.equipped.length ? summary.inventory.equipped.map((item) => (
-                      <article key={item.slot_key} className={styles.equippedItem}>
-                        <strong className={styles.itemTitle}>{String(item.cosmetic.metadata.display_name || item.cosmetic.cosmetic_key)}</strong>
+                    {recentLockerItems.length ? recentLockerItems.map((item) => (
+                      <article key={item.id} className={styles.equippedItem}>
+                        <strong className={styles.itemTitle}>{item.reward.display_name || item.reward_key}</strong>
                         <span className={styles.itemMeta}>
-                          {item.slot_key} · {item.cosmetic.rarity} · {item.cosmetic.cosmetic_type}
+                          {item.reward.rarity} · {item.reward.type} · {fmtDate(item.created_at)}
                         </span>
                       </article>
-                    )) : <div className={styles.empty}>No cosmetics equipped yet.</div>}
+                    )) : <div className={styles.empty}>No item wins yet.</div>}
                   </div>
+                  <Link href="/games/item-locker" className={styles.panelLink}>View all items</Link>
                 </section>
 
                 <section className={styles.panel}>
                   <div className={styles.sectionHead}>
                     <div>
-                      <h2 className={styles.sectionTitle}>Recent Sessions</h2>
-                      <p className={styles.sectionCopy}>Your latest activity.</p>
+                      <h2 className={styles.sectionTitle}>Recent Activity</h2>
+                      <p className={styles.sectionCopy}>Your latest game sessions.</p>
                     </div>
                     <FaClock />
                   </div>
@@ -288,106 +426,15 @@ export function GamesHomePage() {
               </>
             ) : (
               <section className={styles.ctaCard}>
-                <h2 className={styles.ctaTitle}>Sign in to light this up.</h2>
+                <h2 className={styles.ctaTitle}>Sign in to unlock the hub.</h2>
                 <p className={styles.ctaCopy}>
-                  Sign in to spend cash, collect cosmetics, and start climbing the boards.
+                  Your wallet, locker, and session history live here once you are signed in.
                 </p>
                 <Link href="/login" className={styles.heroButton}>Sign In</Link>
               </section>
             )}
           </aside>
         </div>
-
-        <section className={styles.panel}>
-          <div className={styles.sectionHead}>
-            <div>
-              <h2 className={styles.sectionTitle}>Featured Launch Surface</h2>
-              <p className={styles.sectionCopy}>
-                Start with Capsule Gacha, then move on to fast score runs and future duels.
-              </p>
-            </div>
-            <FaChartLine />
-          </div>
-
-          <div className={styles.liveGrid}>
-            <article className={styles.liveConsole}>
-              <div className={styles.consoleHeadline}>
-                <div className={styles.consolePrice}>
-                  <HiSparkles />
-                  <span>{capsuleGame ? fmtNumber(capsuleGame.entry_fee_cash, "$") : "$250.00"} per pull</span>
-                </div>
-                <p className={styles.consoleHint}>
-                  Pull for cosmetics, turn duplicates into a little cash back, and keep the locker growing.
-                </p>
-              </div>
-
-              <div className={styles.pullMetaGrid}>
-                <div className={styles.metaCard}>
-                  <span className={styles.metaLabel}>Mode</span>
-                  <strong className={styles.metaValue}>Single Pull</strong>
-                  <span className={styles.metaHint}>Quick hit, instant result.</span>
-                </div>
-                <div className={styles.metaCard}>
-                  <span className={styles.metaLabel}>Reward</span>
-                  <strong className={styles.metaValue}>Cosmetics</strong>
-                  <span className={styles.metaHint}>Fresh pulls and duplicate refunds.</span>
-                </div>
-                <div className={styles.metaCard}>
-                  <span className={styles.metaLabel}>Balance</span>
-                  <strong className={styles.metaValue}>{summary ? fmtNumber(summary.cash_balance, "$") : user ? "Loading…" : "Sign in"}</strong>
-                  <span className={styles.metaHint}>Spend it here.</span>
-                </div>
-              </div>
-
-              <Link href="/games/capsule-gacha" className={styles.pullButton}>
-                <FaPlay />
-                <span>{user ? "Open Capsule Gacha" : "Preview Game Page"}</span>
-              </Link>
-            </article>
-
-            <article className={styles.resultCard}>
-              <div className={styles.sectionHead}>
-                <div>
-                  <h3 className={styles.sectionTitle}>What Lives There</h3>
-                  <p className={styles.sectionCopy}>
-                    Capsule Gacha is live now with pulls, rewards, and your latest locker updates.
-                  </p>
-                </div>
-                <FaPlay />
-              </div>
-
-              <div className={`${styles.rewardHero} ${styles.rewardHeroStatic}`.trim()} style={{ "--reward-accent": "#f97316" } as CSSProperties}>
-                <span className={styles.rewardKicker}>Live Game</span>
-                <h4 className={styles.rewardTitle}>Capsule Gacha</h4>
-                <span className={styles.rewardMeta}>
-                  Pull console · latest reward card · recent cosmetics
-                </span>
-              </div>
-
-              <div className={styles.resultLine}>
-                <span className={styles.resultLabel}>Now</span>
-                <strong className={styles.resultValue}>Dedicated route</strong>
-              </div>
-              <div className={styles.resultLine}>
-                <span className={styles.resultLabel}>Next</span>
-                <strong className={styles.resultValue}>Ticker Tap page</strong>
-              </div>
-              <div className={styles.resultLine}>
-                <span className={styles.resultLabel}>After that</span>
-                <strong className={styles.resultValue}>Prediction Duel page</strong>
-              </div>
-
-              <div className={styles.inventoryList}>
-                {recentCosmetics.length ? recentCosmetics.map((cosmetic) => (
-                  <article key={cosmetic.id} className={styles.inventoryItem}>
-                    <strong className={styles.itemTitle}>{String(cosmetic.metadata.display_name || cosmetic.cosmetic_key)}</strong>
-                    <span className={styles.itemMeta}>{cosmetic.rarity} · {cosmetic.cosmetic_type} · {fmtDate(cosmetic.granted_at)}</span>
-                  </article>
-                )) : <div className={styles.empty}>Your latest cosmetics will show up here after the first pull.</div>}
-              </div>
-            </article>
-          </div>
-        </section>
       </div>
     </SiteShell>
   );
