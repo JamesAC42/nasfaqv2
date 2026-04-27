@@ -374,6 +374,7 @@ export type MarketAsset = {
   base_rate?: number | null;
   market_price?: number | null;
   premium_discount_pct?: number | null;
+  adjustment_enabled?: boolean | null;
   adjustment_ready?: boolean | null;
   next_adjustment?: MarketAdjustment | null;
   latest_adjustment?: MarketAdjustment | null;
@@ -384,11 +385,85 @@ export type MarketAdjustment = {
   interval_key: string;
   scheduled_at: string | null;
   applied_at?: string | null;
-  strength_pct: number | null;
   base_rate: number | null;
   price_before?: number | null;
   price_after?: number | null;
   market_date?: string | null;
+};
+
+export type MarketAdjustmentSessionSummary = {
+  id: number;
+  market_date: string;
+  status: string;
+  generated_at: string | null;
+  opened_at: string | null;
+  completed_at: string | null;
+  interval_count: number;
+  scheduled_count: number;
+  applied_count: number;
+  skipped_count: number;
+  cancelled_count: number;
+};
+
+export type MarketAdjustmentTickSummary = {
+  session_id: number;
+  market_date: string;
+  interval_key: string;
+  scheduled_at: string | null;
+  applied_at?: string | null;
+  asset_count?: number;
+  applied_count?: number;
+  skipped_count?: number;
+  avg_abs_move_pct?: number | null;
+  avg_gap_compression_pct?: number | null;
+};
+
+export type MarketAdjustmentOutcome = {
+  id?: number;
+  market_date?: string | null;
+  symbol: string;
+  display_name: string;
+  icon?: string | null;
+  color?: string | null;
+  interval_key: string;
+  scheduled_at?: string | null;
+  applied_at?: string | null;
+  status?: string;
+  base_rate: number | null;
+  price_before: number | null;
+  price_after: number | null;
+  move_pct: number | null;
+  gap_compression_pct?: number | null;
+  skip_reason?: string | null;
+};
+
+export type MarketAdjustmentHealth = {
+  next_scheduled_at: string | null;
+  last_applied_at: string | null;
+  overdue_scheduled_count: number;
+  scheduled_count: number;
+  skipped_24h_count: number;
+  applied_24h_count: number;
+};
+
+export type MarketAdjustmentSummary = {
+  generated_at: string;
+  timezone: string;
+  sessions: MarketAdjustmentSessionSummary[];
+  next_tick: MarketAdjustmentTickSummary | null;
+  last_tick: MarketAdjustmentTickSummary | null;
+  recaps: MarketAdjustmentTickSummary[];
+  leaderboards: {
+    movers: MarketAdjustmentOutcome[];
+    gap_compression: MarketAdjustmentOutcome[];
+  };
+  feed: MarketAdjustmentOutcome[];
+  health: MarketAdjustmentHealth | null;
+};
+
+export type MarketAssetAdjustmentHistory = {
+  symbol: string;
+  items: MarketAdjustmentOutcome[];
 };
 
 export type MarketStatPoint = {

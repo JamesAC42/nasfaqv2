@@ -305,7 +305,7 @@ export function MarketOverviewSection({
                   <td>{fmtPct(asset.current_premium_pct)}</td>
                   <td>
                     {asset.next_adjustment
-                      ? `${formatIntervalLabel(asset.next_adjustment.interval_key)} ${fmtPct((asset.next_adjustment.strength_pct ?? 0) / 100)}`
+                      ? formatIntervalLabel(asset.next_adjustment.interval_key)
                       : "N/A"}
                   </td>
                   <td>{fmtPct(asset.move_24h_pct)}</td>

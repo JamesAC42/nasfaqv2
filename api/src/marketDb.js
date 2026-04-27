@@ -379,7 +379,6 @@ async function listAssets(pool) {
         ELSE jsonb_build_object(
           'interval_key', na.interval_key,
           'scheduled_at', na.scheduled_at,
-          'strength_pct', na.strength_pct,
           'base_rate', na.base_rate,
           'market_date', na.market_date
         )
@@ -390,7 +389,6 @@ async function listAssets(pool) {
           'interval_key', la.interval_key,
           'scheduled_at', la.scheduled_at,
           'applied_at', la.applied_at,
-          'strength_pct', la.strength_pct,
           'base_rate', la.base_rate,
           'price_before', la.price_before,
           'price_after', la.price_after,
@@ -585,7 +583,6 @@ async function getAssetBySymbol(pool, symbol) {
         ELSE jsonb_build_object(
           'interval_key', na.interval_key,
           'scheduled_at', na.scheduled_at,
-          'strength_pct', na.strength_pct,
           'base_rate', na.base_rate,
           'market_date', na.market_date
         )
@@ -596,7 +593,6 @@ async function getAssetBySymbol(pool, symbol) {
           'interval_key', la.interval_key,
           'scheduled_at', la.scheduled_at,
           'applied_at', la.applied_at,
-          'strength_pct', la.strength_pct,
           'base_rate', la.base_rate,
           'price_before', la.price_before,
           'price_after', la.price_after,

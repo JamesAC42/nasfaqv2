@@ -27,6 +27,7 @@ import {
   normalizeAssetSuperchatSummary,
   normalizeAssetSuperchatTimeseries,
   normalizeLivestreams,
+  normalizeMarketAssetAdjustmentHistory,
 } from "@/app/lib/normalizers";
 import { getBucketWsUrl } from "@/app/lib/ws";
 import { ARTICLE_COMMENT_MOODS } from "@/app/lib/types";
@@ -39,6 +40,7 @@ import type {
   ArticleCommentMood,
   ChannelOverviewRow,
   LivestreamItem,
+  MarketAssetAdjustmentHistory,
   MarketAsset,
   PortfolioHolding,
 } from "@/app/lib/types";
@@ -911,6 +913,8 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   const [isLoadingSuperchatTimeseries, setIsLoadingSuperchatTimeseries] = useState(false);
   const [isLoadingSuperchatCalendar, setIsLoadingSuperchatCalendar] = useState(false);
   const [deferredReadySymbol, setDeferredReadySymbol] = useState<string | null>(null);
+  const [adjustmentHistory, setAdjustmentHistory] = useState<MarketAssetAdjustmentHistory | null>(null);
+  const [adjustmentHistoryError, setAdjustmentHistoryError] = useState<string | null>(null);
   const tradeConfirmationCloseTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
 
   useEffect(() => {
@@ -961,6 +965,30 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     setSelectedSymbol(normalizedSymbol);
     void fetchAssetDetail(normalizedSymbol);
   }, [fetchAssetDetail, normalizedSymbol, setSelectedSymbol]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadAdjustmentHistory() {
+      try {
+        const result = await apiFetch<Record<string, unknown>>(`/api/market/assets/${encodeURIComponent(normalizedSymbol)}/adjustments?limit=12`, {
+          cache: "no-store",
+        });
+        if (!cancelled) {
+          setAdjustmentHistory(normalizeMarketAssetAdjustmentHistory(result));
+          setAdjustmentHistoryError(null);
+        }
+      } catch (nextError) {
+        if (!cancelled) {
+          setAdjustmentHistory(null);
+          setAdjustmentHistoryError(String((nextError as Error).message || nextError));
+        }
+      }
+    }
+    void loadAdjustmentHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [normalizedSymbol]);
 
   useEffect(() => {
     setAssetCommentPage(1);
@@ -1598,6 +1626,12 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
           : "At base rate";
   const nextAdjustment = selectedAsset?.next_adjustment || null;
   const latestAdjustment = selectedAsset?.latest_adjustment || null;
+  const adjustmentEnabled = selectedAsset?.adjustment_enabled !== false;
+  const pressureMeterPct = baseGapPct === null ? 50 : Math.max(5, Math.min(95, 50 + baseGapPct * 220));
+  const latestAdjustmentMovePct =
+    latestAdjustment?.price_before && latestAdjustment.price_after !== null && latestAdjustment.price_after !== undefined
+      ? (latestAdjustment.price_after - latestAdjustment.price_before) / latestAdjustment.price_before
+      : null;
   
   const heroPrimaryStats: HeroStat[] = [
     { label: "Mid Price", value: currentMidPrice, accent: false },
@@ -2230,8 +2264,23 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                 <p className={styles.sectionCopy}>Scheduled ticks can move market price toward base rate while trading remains open.</p>
               </div>
               <span className={styles.adjustmentStatusPill}>
-                {selectedAsset?.adjustment_ready ? "Adjustment ready" : "Waiting for price data"}
+                {!adjustmentEnabled ? "Adjustments disabled" : selectedAsset?.adjustment_ready ? "Adjustment ready" : "Waiting for price data"}
               </span>
+            </div>
+            <div className={styles.pressureMeter}>
+              <div className={styles.pressureMeterHeader}>
+                <span>Discount</span>
+                <strong>{basePressureLabel}</strong>
+                <span>Premium</span>
+              </div>
+              <div className={styles.pressureMeterTrack}>
+                <i style={{ left: `${pressureMeterPct}%` }} />
+              </div>
+              <p>
+                {adjustmentEnabled
+                  ? "Ticks can pull this marker back toward the center after each interval is applied."
+                  : "This asset is excluded from scheduled adjustment ticks until re-enabled."}
+              </p>
             </div>
             <div className={styles.adjustmentGrid}>
               <div className={styles.adjustmentPrimaryCard}>
@@ -2255,18 +2304,41 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                 <em>{formatAdjustmentTime(nextAdjustment?.scheduled_at)}</em>
               </div>
               <div className={styles.adjustmentCard}>
-                <span>Next Strength</span>
-                <strong>{nextAdjustment ? fmtPct((nextAdjustment.strength_pct ?? 0) / 100) : "N/A"}</strong>
-                <em>Percent of gap</em>
+                <span>Enabled State</span>
+                <strong>{adjustmentEnabled ? "Enabled" : "Disabled"}</strong>
+                <em>{adjustmentEnabled ? "Included when price data is ready" : "Scheduled ticks will skip this asset"}</em>
               </div>
               <div className={styles.adjustmentCard}>
                 <span>Last Tick</span>
                 <strong>{latestAdjustment ? formatAdjustmentLabel(latestAdjustment.interval_key) : "N/A"}</strong>
                 <em>
                   {latestAdjustment?.price_before !== null && latestAdjustment?.price_before !== undefined
-                    ? `${fmtNumber(latestAdjustment.price_before, "$")} to ${fmtNumber(latestAdjustment.price_after ?? null, "$")}`
+                    ? `${fmtNumber(latestAdjustment.price_before, "$")} to ${fmtNumber(latestAdjustment.price_after ?? null, "$")} · ${fmtPct(latestAdjustmentMovePct)}`
                     : "No adjustment yet"}
                 </em>
+              </div>
+            </div>
+            <div className={styles.adjustmentHistoryPanel}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h3 className={styles.sectionTitle}>Session Audit Trail</h3>
+                  <p className={styles.sectionCopy}>Recent scheduled, applied, and skipped intervals for this asset.</p>
+                </div>
+              </div>
+              {adjustmentHistoryError ? <div className="statusMessage">Adjustment history unavailable: {adjustmentHistoryError}</div> : null}
+              <div className={styles.adjustmentHistoryList}>
+                {adjustmentHistory?.items.length ? adjustmentHistory.items.map((item) => (
+                  <div key={`${item.id}-${item.interval_key}`} className={styles.adjustmentHistoryRow}>
+                    <div>
+                      <strong>{formatAdjustmentLabel(item.interval_key)} · {item.market_date || "N/A"}</strong>
+                      <span>{formatAdjustmentTime(item.applied_at || item.scheduled_at)} · {item.status || "scheduled"}</span>
+                    </div>
+                    <div>
+                      <strong className={item.move_pct === null ? undefined : item.move_pct >= 0 ? styles.valueUp : styles.valueDown}>{fmtPct(item.move_pct)}</strong>
+                      <span>{item.status === "skipped" ? item.skip_reason || "Skipped" : `${fmtNumber(item.price_before, "$")} to ${fmtNumber(item.price_after, "$")}`}</span>
+                    </div>
+                  </div>
+                )) : <div className={styles.emptyState}>No adjustment history is available for this asset yet.</div>}
               </div>
             </div>
           </section>

@@ -66,6 +66,67 @@ type ForceAdjustmentResponse = {
   } | null;
 };
 
+type AdjustmentAdminSession = {
+  id: number;
+  market_date: string;
+  status: string;
+  generated_at: string | null;
+  opened_at: string | null;
+  completed_at: string | null;
+  interval_count: number;
+  asset_count: number;
+  scheduled_count: number;
+  applied_count: number;
+  skipped_count: number;
+  cancelled_count: number;
+  first_scheduled_at?: string | null;
+  last_scheduled_at?: string | null;
+  last_applied_at?: string | null;
+  completion_pct: number | null;
+};
+
+type AdjustmentAdminInterval = {
+  id: number;
+  session_id: number;
+  asset_id: number;
+  symbol: string;
+  display_name: string;
+  icon: string | null;
+  color: string | null;
+  interval_key: string;
+  scheduled_at: string | null;
+  applied_at: string | null;
+  status: string;
+  base_rate: number | null;
+  price_before: number | null;
+  price_after: number | null;
+  metadata_json: Record<string, unknown> | null;
+  skip_reason: string | null;
+  price_event_id: number | null;
+  price_event_at: string | null;
+  move_pct: number | null;
+  gap_compression_pct: number | null;
+};
+
+type AdjustmentAdminSessionDetail = {
+  session: AdjustmentAdminSession;
+  intervals: AdjustmentAdminInterval[];
+};
+
+type AdjustmentAdminHealth = {
+  next_scheduled_at: string | null;
+  last_applied_at: string | null;
+  scheduled_count: number;
+  overdue_scheduled_count: number;
+  stuck_scheduled_count: number;
+  applied_24h_count: number;
+  skipped_24h_count: number;
+  open_session_count: number;
+  scheduler_lock_held: boolean;
+  scheduler_interval_ms: number;
+  scheduler_enabled: boolean;
+};
+
 const CADENCE_OPTIONS = ["weekly", "monthly", "quarterly", "manual"];
 
 function toNumber(value: unknown): number | null {
@@ -125,6 +186,80 @@ function formatIntervalLabel(value: string | null | undefined) {
     default:
       return value || "N/A";
   }
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "N/A";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function normalizeSession(row: Record<string, unknown>): AdjustmentAdminSession {
+  return {
+    id: Number(row.id || 0),
+    market_date: String(row.market_date || ""),
+    status: String(row.status || ""),
+    generated_at: row.generated_at ? String(row.generated_at) : null,
+    opened_at: row.opened_at ? String(row.opened_at) : null,
+    completed_at: row.completed_at ? String(row.completed_at) : null,
+    interval_count: Number(toNumber(row.interval_count) || 0),
+    asset_count: Number(toNumber(row.asset_count) || 0),
+    scheduled_count: Number(toNumber(row.scheduled_count) || 0),
+    applied_count: Number(toNumber(row.applied_count) || 0),
+    skipped_count: Number(toNumber(row.skipped_count) || 0),
+    cancelled_count: Number(toNumber(row.cancelled_count) || 0),
+    first_scheduled_at: row.first_scheduled_at ? String(row.first_scheduled_at) : null,
+    last_scheduled_at: row.last_scheduled_at ? String(row.last_scheduled_at) : null,
+    last_applied_at: row.last_applied_at ? String(row.last_applied_at) : null,
+    completion_pct: toNumber(row.completion_pct),
+  };
+}
+
+function normalizeInterval(row: Record<string, unknown>): AdjustmentAdminInterval {
+  return {
+    id: Number(row.id || 0),
+    session_id: Number(row.session_id || 0),
+    asset_id: Number(row.asset_id || 0),
+    symbol: String(row.symbol || ""),
+    display_name: String(row.display_name || ""),
+    icon: row.icon ? String(row.icon) : null,
+    color: row.color ? String(row.color) : null,
+    interval_key: String(row.interval_key || ""),
+    scheduled_at: row.scheduled_at ? String(row.scheduled_at) : null,
+    applied_at: row.applied_at ? String(row.applied_at) : null,
+    status: String(row.status || ""),
+    base_rate: toNumber(row.base_rate),
+    price_before: toNumber(row.price_before),
+    price_after: toNumber(row.price_after),
+    metadata_json: row.metadata_json && typeof row.metadata_json === "object" ? row.metadata_json as Record<string, unknown> : null,
+    skip_reason: row.skip_reason ? String(row.skip_reason) : null,
+    price_event_id: toNumber(row.price_event_id),
+    price_event_at: row.price_event_at ? String(row.price_event_at) : null,
+    move_pct: toNumber(row.move_pct),
+    gap_compression_pct: toNumber(row.gap_compression_pct),
+  };
+}
+
+function normalizeHealth(row: Record<string, unknown>): AdjustmentAdminHealth {
+  return {
+    next_scheduled_at: row.next_scheduled_at ? String(row.next_scheduled_at) : null,
+    last_applied_at: row.last_applied_at ? String(row.last_applied_at) : null,
+    scheduled_count: Number(toNumber(row.scheduled_count) || 0),
+    overdue_scheduled_count: Number(toNumber(row.overdue_scheduled_count) || 0),
+    stuck_scheduled_count: Number(toNumber(row.stuck_scheduled_count) || 0),
+    applied_24h_count: Number(toNumber(row.applied_24h_count) || 0),
+    skipped_24h_count: Number(toNumber(row.skipped_24h_count) || 0),
+    open_session_count: Number(toNumber(row.open_session_count) || 0),
+    scheduler_lock_held: Boolean(row.scheduler_lock_held),
+    scheduler_interval_ms: Number(toNumber(row.scheduler_interval_ms) || 0),
+    scheduler_enabled: Boolean(row.scheduler_enabled),
+  };
 }
 
 function AssetMark({ asset }: { asset: MarketTuningAsset }) {
@@ -286,6 +421,13 @@ export function AdminMarketTuningPage() {
   const [forceBusy, setForceBusy] = useState(false);
   const [forceResult, setForceResult] = useState<ForceAdjustmentResponse | null>(null);
   const [forceError, setForceError] = useState<string | null>(null);
+  const [adminSessions, setAdminSessions] = useState<AdjustmentAdminSession[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
+  const [sessionDetail, setSessionDetail] = useState<AdjustmentAdminSessionDetail | null>(null);
+  const [selectedInterval, setSelectedInterval] = useState<AdjustmentAdminInterval | null>(null);
+  const [adminHealth, setAdminHealth] = useState<AdjustmentAdminHealth | null>(null);
+  const [adminAdjustmentError, setAdminAdjustmentError] = useState<string | null>(null);
+  const [isLoadingAdminAdjustments, setIsLoadingAdminAdjustments] = useState(false);
 
   useEffect(() => {
     if (!initialized || !user?.is_admin) {
@@ -317,6 +459,65 @@ export function AdminMarketTuningPage() {
     return () => controller.abort();
   }, [initialized, user?.is_admin]);
 
+  useEffect(() => {
+    if (!initialized || !user?.is_admin) return;
+    let cancelled = false;
+
+    async function loadAdminAdjustments() {
+      setIsLoadingAdminAdjustments(true);
+      setAdminAdjustmentError(null);
+      try {
+        const [sessionsResult, healthResult] = await Promise.all([
+          apiFetch<{ sessions: Array<Record<string, unknown>> }>("/api/market/adjustments/admin/sessions?limit=30"),
+          apiFetch<Record<string, unknown>>("/api/market/adjustments/admin/health"),
+        ]);
+        if (cancelled) return;
+        const sessions = sessionsResult.sessions.map(normalizeSession);
+        setAdminSessions(sessions);
+        setAdminHealth(normalizeHealth(healthResult));
+        setSelectedSessionId((current) => current || sessions[0]?.id || null);
+      } catch (nextError) {
+        if (!cancelled) setAdminAdjustmentError(String((nextError as Error).message || nextError));
+      } finally {
+        if (!cancelled) setIsLoadingAdminAdjustments(false);
+      }
+    }
+
+    void loadAdminAdjustments();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialized, user?.is_admin]);
+
+  useEffect(() => {
+    if (!selectedSessionId || !user?.is_admin) {
+      setSessionDetail(null);
+      return;
+    }
+    let cancelled = false;
+    async function loadSessionDetail() {
+      setAdminAdjustmentError(null);
+      try {
+        const result = await apiFetch<{ session: Record<string, unknown>; intervals: Array<Record<string, unknown>> }>(
+          `/api/market/adjustments/admin/sessions/${selectedSessionId}`,
+          { cache: "no-store" }
+        );
+        if (cancelled) return;
+        setSessionDetail({
+          session: normalizeSession(result.session),
+          intervals: result.intervals.map(normalizeInterval),
+        });
+        setSelectedInterval(null);
+      } catch (nextError) {
+        if (!cancelled) setAdminAdjustmentError(String((nextError as Error).message || nextError));
+      }
+    }
+    void loadSessionDetail();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSessionId, user?.is_admin]);
+
   const filteredAssets = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return assets;
@@ -328,6 +529,43 @@ export function AdminMarketTuningPage() {
 
   const enabledCount = assets.filter((asset) => asset.adjustment_enabled).length;
   const readyCount = assets.filter((asset) => asset.adjustment_ready).length;
+  const sessionAssetRows = useMemo(() => {
+    const byAsset = new Map<string, { symbol: string; display_name: string; icon: string | null; color: string | null; intervals: Record<string, AdjustmentAdminInterval> }>();
+    for (const interval of sessionDetail?.intervals || []) {
+      const current = byAsset.get(interval.symbol) || {
+        symbol: interval.symbol,
+        display_name: interval.display_name,
+        icon: interval.icon,
+        color: interval.color,
+        intervals: {},
+      };
+      current.intervals[interval.interval_key] = interval;
+      byAsset.set(interval.symbol, current);
+    }
+    return [...byAsset.values()];
+  }, [sessionDetail?.intervals]);
+
+  async function refreshAdminAdjustmentData(nextSessionId = selectedSessionId) {
+    const [sessionsResult, healthResult] = await Promise.all([
+      apiFetch<{ sessions: Array<Record<string, unknown>> }>("/api/market/adjustments/admin/sessions?limit=30", { cache: "no-store" }),
+      apiFetch<Record<string, unknown>>("/api/market/adjustments/admin/health", { cache: "no-store" }),
+    ]);
+    const sessions = sessionsResult.sessions.map(normalizeSession);
+    setAdminSessions(sessions);
+    setAdminHealth(normalizeHealth(healthResult));
+    const resolvedSessionId = nextSessionId || sessions[0]?.id || null;
+    setSelectedSessionId(resolvedSessionId);
+    if (resolvedSessionId) {
+      const detail = await apiFetch<{ session: Record<string, unknown>; intervals: Array<Record<string, unknown>> }>(
+        `/api/market/adjustments/admin/sessions/${resolvedSessionId}`,
+        { cache: "no-store" }
+      );
+      setSessionDetail({
+        session: normalizeSession(detail.session),
+        intervals: detail.intervals.map(normalizeInterval),
+      });
+    }
+  }
 
   async function handleForceNextAdjustment() {
     setForceBusy(true);
@@ -340,6 +578,7 @@ export function AdminMarketTuningPage() {
       });
       const assetRows = await apiFetch<Record<string, unknown>[]>("/api/market/assets");
       setAssets(assetRows.map(toAsset));
+      await refreshAdminAdjustmentData();
       setForceResult(result);
     } catch (nextError) {
       setForceError(String((nextError as Error).message || nextError));
@@ -413,6 +652,147 @@ export function AdminMarketTuningPage() {
               </div>
             ))}
           </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.toolbar}>
+            <div>
+              <h2 className={styles.sectionTitle}>Adjustment Operations</h2>
+              <p className={styles.sectionNote}>Session status, interval completion, forced tick results, scheduler freshness, and drill-down metadata.</p>
+            </div>
+            <label className={styles.searchField}>
+              <span>Session</span>
+              <select
+                className={styles.select}
+                value={selectedSessionId ?? ""}
+                onChange={(event) => setSelectedSessionId(Number(event.target.value) || null)}
+              >
+                {adminSessions.map((session) => (
+                  <option key={session.id} value={session.id}>
+                    {session.market_date} · {session.status}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {adminAdjustmentError ? <div className="statusMessage statusMessageError">{adminAdjustmentError}</div> : null}
+          {isLoadingAdminAdjustments ? <div className={styles.empty}>Loading adjustment operations...</div> : null}
+
+          <div className={styles.opsGrid}>
+            <div className={styles.opsCard}>
+              <span>Scheduler</span>
+              <strong>{adminHealth?.scheduler_enabled ? "Enabled" : "Disabled"}</strong>
+              <p>{adminHealth?.scheduler_lock_held ? "Scheduler lock is currently held." : "No active scheduler lock detected."}</p>
+            </div>
+            <div className={styles.opsCard}>
+              <span>Next Due</span>
+              <strong>{formatDateTime(adminHealth?.next_scheduled_at)}</strong>
+              <p>{adminHealth?.scheduled_count ?? 0} scheduled rows open.</p>
+            </div>
+            <div className={styles.opsCard}>
+              <span>Stuck Rows</span>
+              <strong>{adminHealth?.stuck_scheduled_count ?? 0}</strong>
+              <p>{adminHealth?.overdue_scheduled_count ?? 0} rows are more than 10 minutes overdue.</p>
+            </div>
+            <div className={styles.opsCard}>
+              <span>24H Result</span>
+              <strong>{adminHealth?.applied_24h_count ?? 0} / {adminHealth?.skipped_24h_count ?? 0}</strong>
+              <p>Applied / skipped intervals over the last 24 hours.</p>
+            </div>
+          </div>
+
+          {sessionDetail?.session ? (
+            <div className={styles.sessionSummary}>
+              <div>
+                <span>Market date</span>
+                <strong>{sessionDetail.session.market_date}</strong>
+              </div>
+              <div>
+                <span>Status</span>
+                <strong>{sessionDetail.session.status}</strong>
+              </div>
+              <div>
+                <span>Progress</span>
+                <strong>{formatPct((sessionDetail.session.completion_pct ?? 0) / 100)}</strong>
+              </div>
+              <div>
+                <span>Rows</span>
+                <strong>{sessionDetail.session.applied_count} applied · {sessionDetail.session.skipped_count} skipped · {sessionDetail.session.scheduled_count} scheduled</strong>
+              </div>
+            </div>
+          ) : null}
+
+          {sessionAssetRows.length ? (
+            <div className={styles.intervalGridWrap}>
+              <table className={styles.intervalMatrix}>
+                <thead>
+                  <tr>
+                    <th>Asset</th>
+                    <th>Open</th>
+                    <th>Lunch</th>
+                    <th>Late</th>
+                    <th>Overnight</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sessionAssetRows.map((row) => (
+                    <tr key={row.symbol}>
+                      <td>
+                        <AssetMark asset={{ id: 0, symbol: row.symbol, display_name: row.display_name, icon: row.icon, color: row.color }} />
+                      </td>
+                      {["open", "lunch", "late", "overnight"].map((key) => {
+                        const interval = row.intervals[key];
+                        return (
+                          <td key={key}>
+                            {interval ? (
+                              <button
+                                type="button"
+                                className={`${styles.intervalCell} ${styles[`intervalCell_${interval.status}`] || ""}`}
+                                onClick={() => setSelectedInterval(interval)}
+                              >
+                                <strong>{interval.status}</strong>
+                                <span>{formatDateTime(interval.applied_at || interval.scheduled_at)}</span>
+                                {interval.price_before !== null ? <em>{formatPrice(interval.price_before)} to {formatPrice(interval.price_after)}</em> : null}
+                              </button>
+                            ) : (
+                              <span className={styles.intervalEmpty}>N/A</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : !isLoadingAdminAdjustments ? (
+            <div className={styles.empty}>No interval rows are available for this session.</div>
+          ) : null}
+
+          {selectedInterval ? (
+            <aside className={styles.detailDrawer}>
+              <div className={styles.detailDrawerHead}>
+                <div>
+                  <h3>{selectedInterval.symbol} · {formatIntervalLabel(selectedInterval.interval_key)}</h3>
+                  <p>{selectedInterval.status} · scheduled {formatDateTime(selectedInterval.scheduled_at)}</p>
+                </div>
+                <button type="button" className={styles.secondaryButton} onClick={() => setSelectedInterval(null)}>Close</button>
+              </div>
+              <div className={styles.detailGrid}>
+                <div><span>Base</span><strong>{formatPrice(selectedInterval.base_rate)}</strong></div>
+                <div><span>Before</span><strong>{formatPrice(selectedInterval.price_before)}</strong></div>
+                <div><span>After</span><strong>{formatPrice(selectedInterval.price_after)}</strong></div>
+                <div><span>Move</span><strong>{formatPct(selectedInterval.move_pct)}</strong></div>
+                <div><span>Gap compression</span><strong>{formatPct(selectedInterval.gap_compression_pct)}</strong></div>
+                <div><span>Price event</span><strong>{selectedInterval.price_event_id ? `#${selectedInterval.price_event_id}` : "N/A"}</strong></div>
+              </div>
+              <div className={styles.metadataBlock}>
+                <span>Metadata / skip reason</span>
+                <pre>{JSON.stringify({ skip_reason: selectedInterval.skip_reason, ...selectedInterval.metadata_json }, null, 2)}</pre>
+              </div>
+            </aside>
+          ) : null}
         </section>
 
         <section className={styles.section}>

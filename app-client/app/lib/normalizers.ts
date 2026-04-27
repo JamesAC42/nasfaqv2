@@ -36,10 +36,16 @@ import {
   type LeaderboardResponse,
   type LeaderboardStats,
   type LivestreamItem,
+  type MarketAssetAdjustmentHistory,
   type MarketAsset,
   type MarketActivity,
   type MarketActivityTrader,
   type MarketActivityWindow,
+  type MarketAdjustmentHealth,
+  type MarketAdjustmentOutcome,
+  type MarketAdjustmentSessionSummary,
+  type MarketAdjustmentSummary,
+  type MarketAdjustmentTickSummary,
   type MarketHubResponse,
   type MarketHubTrade,
   type MarketHubVolumeLeader,
@@ -557,12 +563,12 @@ export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
     base_rate: toNumber(asset.base_rate ?? asset.current_fair_value),
     market_price: toNumber(asset.market_price ?? asset.current_mid_price),
     premium_discount_pct: toNumber(asset.premium_discount_pct ?? asset.current_premium_pct),
+    adjustment_enabled: typeof asset.adjustment_enabled === "boolean" ? asset.adjustment_enabled : null,
     adjustment_ready: typeof asset.adjustment_ready === "boolean" ? asset.adjustment_ready : null,
     next_adjustment: nextAdjustment
       ? {
           interval_key: String(nextAdjustment.interval_key || ""),
           scheduled_at: nextAdjustment.scheduled_at ? String(nextAdjustment.scheduled_at) : null,
-          strength_pct: toNumber(nextAdjustment.strength_pct),
           base_rate: toNumber(nextAdjustment.base_rate),
           market_date: nextAdjustment.market_date ? String(nextAdjustment.market_date) : null,
         }
@@ -572,7 +578,6 @@ export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
           interval_key: String(latestAdjustment.interval_key || ""),
           scheduled_at: latestAdjustment.scheduled_at ? String(latestAdjustment.scheduled_at) : null,
           applied_at: latestAdjustment.applied_at ? String(latestAdjustment.applied_at) : null,
-          strength_pct: toNumber(latestAdjustment.strength_pct),
           base_rate: toNumber(latestAdjustment.base_rate),
           price_before: toNumber(latestAdjustment.price_before),
           price_after: toNumber(latestAdjustment.price_after),
@@ -582,6 +587,104 @@ export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
     sparkline_candles: normalizeCandles(
       (asset.sparkline_candles as Array<Record<string, unknown>> | undefined) || []
     ),
+  };
+}
+
+function normalizeAdjustmentSession(value: Record<string, unknown>): MarketAdjustmentSessionSummary {
+  return {
+    id: Number(value.id || 0),
+    market_date: String(value.market_date || ""),
+    status: String(value.status || ""),
+    generated_at: value.generated_at ? String(value.generated_at) : null,
+    opened_at: value.opened_at ? String(value.opened_at) : null,
+    completed_at: value.completed_at ? String(value.completed_at) : null,
+    interval_count: Number(toNumber(value.interval_count) || 0),
+    scheduled_count: Number(toNumber(value.scheduled_count) || 0),
+    applied_count: Number(toNumber(value.applied_count) || 0),
+    skipped_count: Number(toNumber(value.skipped_count) || 0),
+    cancelled_count: Number(toNumber(value.cancelled_count) || 0),
+  };
+}
+
+function normalizeAdjustmentTick(value: Record<string, unknown> | null): MarketAdjustmentTickSummary | null {
+  if (!value) return null;
+  return {
+    session_id: Number(value.session_id || 0),
+    market_date: String(value.market_date || ""),
+    interval_key: String(value.interval_key || ""),
+    scheduled_at: value.scheduled_at ? String(value.scheduled_at) : null,
+    applied_at: value.applied_at ? String(value.applied_at) : null,
+    asset_count: value.asset_count === undefined ? undefined : Number(toNumber(value.asset_count) || 0),
+    applied_count: value.applied_count === undefined ? undefined : Number(toNumber(value.applied_count) || 0),
+    skipped_count: value.skipped_count === undefined ? undefined : Number(toNumber(value.skipped_count) || 0),
+    avg_abs_move_pct: toNumber(value.avg_abs_move_pct),
+    avg_gap_compression_pct: toNumber(value.avg_gap_compression_pct),
+  };
+}
+
+function normalizeAdjustmentOutcome(value: Record<string, unknown>): MarketAdjustmentOutcome {
+  return {
+    id: value.id === undefined ? undefined : Number(value.id || 0),
+    market_date: value.market_date ? String(value.market_date) : null,
+    symbol: String(value.symbol || ""),
+    display_name: String(value.display_name || ""),
+    icon: value.icon ? String(value.icon) : null,
+    color: value.color ? String(value.color) : null,
+    interval_key: String(value.interval_key || ""),
+    scheduled_at: value.scheduled_at ? String(value.scheduled_at) : null,
+    applied_at: value.applied_at ? String(value.applied_at) : null,
+    status: value.status ? String(value.status) : undefined,
+    base_rate: toNumber(value.base_rate),
+    price_before: toNumber(value.price_before),
+    price_after: toNumber(value.price_after),
+    move_pct: toNumber(value.move_pct),
+    gap_compression_pct: toNumber(value.gap_compression_pct),
+    skip_reason: value.skip_reason ? String(value.skip_reason) : null,
+  };
+}
+
+function normalizeAdjustmentHealth(value: Record<string, unknown> | null): MarketAdjustmentHealth | null {
+  if (!value) return null;
+  return {
+    next_scheduled_at: value.next_scheduled_at ? String(value.next_scheduled_at) : null,
+    last_applied_at: value.last_applied_at ? String(value.last_applied_at) : null,
+    overdue_scheduled_count: Number(toNumber(value.overdue_scheduled_count) || 0),
+    scheduled_count: Number(toNumber(value.scheduled_count) || 0),
+    skipped_24h_count: Number(toNumber(value.skipped_24h_count) || 0),
+    applied_24h_count: Number(toNumber(value.applied_24h_count) || 0),
+  };
+}
+
+export function normalizeMarketAdjustmentSummary(value: Record<string, unknown>): MarketAdjustmentSummary {
+  const leaderboards = value.leaderboards && typeof value.leaderboards === "object"
+    ? value.leaderboards as Record<string, unknown>
+    : {};
+  return {
+    generated_at: String(value.generated_at || ""),
+    timezone: String(value.timezone || "America/New_York"),
+    sessions: Array.isArray(value.sessions) ? value.sessions.map((item) => normalizeAdjustmentSession(item as Record<string, unknown>)) : [],
+    next_tick: normalizeAdjustmentTick((value.next_tick as Record<string, unknown> | null) || null),
+    last_tick: normalizeAdjustmentTick((value.last_tick as Record<string, unknown> | null) || null),
+    recaps: Array.isArray(value.recaps)
+      ? value.recaps.map((item) => normalizeAdjustmentTick(item as Record<string, unknown>)).filter((item): item is MarketAdjustmentTickSummary => item !== null)
+      : [],
+    leaderboards: {
+      movers: Array.isArray(leaderboards.movers)
+        ? (leaderboards.movers as Array<Record<string, unknown>>).map(normalizeAdjustmentOutcome)
+        : [],
+      gap_compression: Array.isArray(leaderboards.gap_compression)
+        ? (leaderboards.gap_compression as Array<Record<string, unknown>>).map(normalizeAdjustmentOutcome)
+        : [],
+    },
+    feed: Array.isArray(value.feed) ? (value.feed as Array<Record<string, unknown>>).map(normalizeAdjustmentOutcome) : [],
+    health: normalizeAdjustmentHealth((value.health as Record<string, unknown> | null) || null),
+  };
+}
+
+export function normalizeMarketAssetAdjustmentHistory(value: Record<string, unknown>): MarketAssetAdjustmentHistory {
+  return {
+    symbol: String(value.symbol || ""),
+    items: Array.isArray(value.items) ? (value.items as Array<Record<string, unknown>>).map(normalizeAdjustmentOutcome) : [],
   };
 }
 

@@ -807,12 +807,410 @@ function startAdjustmentScheduler(pool, logger = console, redis = null) {
   return () => clearInterval(timer);
 }
 
+async function getAdjustmentSummary(pool, { recentLimit = 20 } = {}) {
+  const [sessionsResult, nextResult, lastResult, recapResult, moversResult, compressionResult, feedResult, healthResult] = await Promise.all([
+    pool.query(
+      `
+      SELECT
+        s.id,
+        s.market_date,
+        s.status,
+        s.generated_at,
+        s.opened_at,
+        s.completed_at,
+        COUNT(i.id)::INTEGER AS interval_count,
+        COUNT(*) FILTER (WHERE i.status = 'scheduled')::INTEGER AS scheduled_count,
+        COUNT(*) FILTER (WHERE i.status = 'applied')::INTEGER AS applied_count,
+        COUNT(*) FILTER (WHERE i.status = 'skipped')::INTEGER AS skipped_count,
+        COUNT(*) FILTER (WHERE i.status = 'cancelled')::INTEGER AS cancelled_count
+      FROM market.adjustment_sessions s
+      LEFT JOIN market.asset_adjustment_intervals i ON i.session_id = s.id
+      GROUP BY s.id
+      ORDER BY s.market_date DESC
+      LIMIT 10
+    `
+    ),
+    pool.query(
+      `
+      SELECT
+        s.id AS session_id,
+        s.market_date,
+        i.interval_key,
+        MIN(i.scheduled_at) AS scheduled_at,
+        COUNT(*)::INTEGER AS asset_count
+      FROM market.asset_adjustment_intervals i
+      JOIN market.adjustment_sessions s ON s.id = i.session_id
+      WHERE i.status = 'scheduled'
+      GROUP BY s.id, s.market_date, i.interval_key
+      ORDER BY MIN(i.scheduled_at) ASC
+      LIMIT 1
+    `
+    ),
+    pool.query(
+      `
+      SELECT
+        s.id AS session_id,
+        s.market_date,
+        i.interval_key,
+        MIN(i.scheduled_at) AS scheduled_at,
+        MAX(i.applied_at) AS applied_at,
+        COUNT(*) FILTER (WHERE i.status = 'applied')::INTEGER AS applied_count,
+        COUNT(*) FILTER (WHERE i.status = 'skipped')::INTEGER AS skipped_count,
+        AVG(ABS((i.price_after - i.price_before) / NULLIF(i.price_before, 0))) FILTER (WHERE i.status = 'applied') AS avg_abs_move_pct
+      FROM market.asset_adjustment_intervals i
+      JOIN market.adjustment_sessions s ON s.id = i.session_id
+      WHERE i.status IN ('applied', 'skipped')
+        AND i.applied_at IS NOT NULL
+      GROUP BY s.id, s.market_date, i.interval_key
+      ORDER BY MAX(i.applied_at) DESC
+      LIMIT 1
+    `
+    ),
+    pool.query(
+      `
+      SELECT
+        s.id AS session_id,
+        s.market_date,
+        i.interval_key,
+        MIN(i.scheduled_at) AS scheduled_at,
+        MAX(i.applied_at) AS applied_at,
+        COUNT(*) FILTER (WHERE i.status = 'applied')::INTEGER AS applied_count,
+        COUNT(*) FILTER (WHERE i.status = 'skipped')::INTEGER AS skipped_count,
+        AVG(ABS((i.price_after - i.price_before) / NULLIF(i.price_before, 0))) FILTER (WHERE i.status = 'applied') AS avg_abs_move_pct,
+        AVG(
+          (ABS(i.price_before - i.base_rate) - ABS(i.price_after - i.base_rate)) / NULLIF(ABS(i.price_before - i.base_rate), 0)
+        ) FILTER (WHERE i.status = 'applied') AS avg_gap_compression_pct
+      FROM market.asset_adjustment_intervals i
+      JOIN market.adjustment_sessions s ON s.id = i.session_id
+      WHERE i.status IN ('applied', 'skipped')
+        AND i.applied_at IS NOT NULL
+      GROUP BY s.id, s.market_date, i.interval_key
+      ORDER BY MAX(i.applied_at) DESC
+      LIMIT 6
+    `
+    ),
+    pool.query(
+      `
+      SELECT
+        a.symbol,
+        a.display_name,
+        c.icon,
+        c.color,
+        i.interval_key,
+        i.applied_at,
+        i.base_rate,
+        i.price_before,
+        i.price_after,
+        CASE
+          WHEN i.price_before IS NULL OR i.price_before = 0 THEN NULL
+          ELSE (i.price_after - i.price_before) / i.price_before
+        END AS move_pct,
+        CASE
+          WHEN i.price_before IS NULL OR i.base_rate IS NULL OR ABS(i.price_before - i.base_rate) = 0 THEN NULL
+          ELSE (ABS(i.price_before - i.base_rate) - ABS(i.price_after - i.base_rate)) / ABS(i.price_before - i.base_rate)
+        END AS gap_compression_pct
+      FROM market.asset_adjustment_intervals i
+      JOIN market.market_assets a ON a.id = i.asset_id
+      JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
+      WHERE i.status = 'applied'
+        AND i.applied_at >= now() - interval '7 days'
+      ORDER BY ABS((i.price_after - i.price_before) / NULLIF(i.price_before, 0)) DESC NULLS LAST, i.applied_at DESC
+      LIMIT 8
+    `
+    ),
+    pool.query(
+      `
+      SELECT
+        a.symbol,
+        a.display_name,
+        c.icon,
+        c.color,
+        i.interval_key,
+        i.applied_at,
+        i.base_rate,
+        i.price_before,
+        i.price_after,
+        CASE
+          WHEN i.price_before IS NULL OR i.price_before = 0 THEN NULL
+          ELSE (i.price_after - i.price_before) / i.price_before
+        END AS move_pct,
+        CASE
+          WHEN i.price_before IS NULL OR i.base_rate IS NULL OR ABS(i.price_before - i.base_rate) = 0 THEN NULL
+          ELSE (ABS(i.price_before - i.base_rate) - ABS(i.price_after - i.base_rate)) / ABS(i.price_before - i.base_rate)
+        END AS gap_compression_pct
+      FROM market.asset_adjustment_intervals i
+      JOIN market.market_assets a ON a.id = i.asset_id
+      JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
+      WHERE i.status = 'applied'
+        AND i.applied_at >= now() - interval '7 days'
+      ORDER BY gap_compression_pct DESC NULLS LAST, i.applied_at DESC
+      LIMIT 8
+    `
+    ),
+    pool.query(
+      `
+      SELECT
+        i.id,
+        s.market_date,
+        a.symbol,
+        a.display_name,
+        c.icon,
+        c.color,
+        i.interval_key,
+        i.scheduled_at,
+        i.applied_at,
+        i.status,
+        i.base_rate,
+        i.price_before,
+        i.price_after,
+        i.metadata_json->>'skip_reason' AS skip_reason,
+        CASE
+          WHEN i.price_before IS NULL OR i.price_before = 0 THEN NULL
+          ELSE (i.price_after - i.price_before) / i.price_before
+        END AS move_pct
+      FROM market.asset_adjustment_intervals i
+      JOIN market.adjustment_sessions s ON s.id = i.session_id
+      JOIN market.market_assets a ON a.id = i.asset_id
+      JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
+      WHERE i.status IN ('applied', 'skipped')
+      ORDER BY COALESCE(i.applied_at, i.updated_at, i.scheduled_at) DESC, i.id DESC
+      LIMIT $1
+    `,
+      [Math.max(1, Math.min(100, Number(recentLimit) || 20))]
+    ),
+    pool.query(
+      `
+      SELECT
+        MIN(i.scheduled_at) FILTER (WHERE i.status = 'scheduled') AS next_scheduled_at,
+        MAX(i.applied_at) FILTER (WHERE i.status = 'applied') AS last_applied_at,
+        COUNT(*) FILTER (WHERE i.status = 'scheduled' AND i.scheduled_at < now() - interval '10 minutes')::INTEGER AS overdue_scheduled_count,
+        COUNT(*) FILTER (WHERE i.status = 'scheduled')::INTEGER AS scheduled_count,
+        COUNT(*) FILTER (WHERE i.status = 'skipped' AND i.applied_at >= now() - interval '24 hours')::INTEGER AS skipped_24h_count,
+        COUNT(*) FILTER (WHERE i.status = 'applied' AND i.applied_at >= now() - interval '24 hours')::INTEGER AS applied_24h_count
+      FROM market.asset_adjustment_intervals i
+    `
+    ),
+  ]);
+
+  return {
+    generated_at: new Date().toISOString(),
+    timezone: getTimeZone(),
+    sessions: sessionsResult.rows,
+    next_tick: nextResult.rows[0] || null,
+    last_tick: lastResult.rows[0] || null,
+    recaps: recapResult.rows,
+    leaderboards: {
+      movers: moversResult.rows,
+      gap_compression: compressionResult.rows,
+    },
+    feed: feedResult.rows,
+    health: healthResult.rows[0] || null,
+  };
+}
+
+async function getAssetAdjustmentHistory(pool, symbol, { limit = 20 } = {}) {
+  const normalizedSymbol = String(symbol || "").trim().toUpperCase();
+  const { rows } = await pool.query(
+    `
+    SELECT
+      i.id,
+      s.market_date,
+      i.interval_key,
+      i.scheduled_at,
+      i.applied_at,
+      i.status,
+      i.base_rate,
+      i.price_before,
+      i.price_after,
+      i.metadata_json->>'skip_reason' AS skip_reason,
+      CASE
+        WHEN i.price_before IS NULL OR i.price_before = 0 THEN NULL
+        ELSE (i.price_after - i.price_before) / i.price_before
+      END AS move_pct,
+      CASE
+        WHEN i.price_before IS NULL OR i.base_rate IS NULL OR ABS(i.price_before - i.base_rate) = 0 THEN NULL
+        ELSE (ABS(i.price_before - i.base_rate) - ABS(i.price_after - i.base_rate)) / ABS(i.price_before - i.base_rate)
+      END AS gap_compression_pct
+    FROM market.asset_adjustment_intervals i
+    JOIN market.adjustment_sessions s ON s.id = i.session_id
+    JOIN market.market_assets a ON a.id = i.asset_id
+    WHERE a.symbol = $1
+    ORDER BY i.scheduled_at DESC, i.id DESC
+    LIMIT $2
+  `,
+    [normalizedSymbol, Math.max(1, Math.min(100, Number(limit) || 20))]
+  );
+
+  return { symbol: normalizedSymbol, items: rows };
+}
+
+async function listAdminAdjustmentSessions(pool, { limit = 30 } = {}) {
+  const { rows } = await pool.query(
+    `
+    SELECT
+      s.id,
+      s.market_date,
+      s.status,
+      s.generated_at,
+      s.opened_at,
+      s.completed_at,
+      COUNT(i.id)::INTEGER AS interval_count,
+      COUNT(DISTINCT i.asset_id)::INTEGER AS asset_count,
+      COUNT(*) FILTER (WHERE i.status = 'scheduled')::INTEGER AS scheduled_count,
+      COUNT(*) FILTER (WHERE i.status = 'applied')::INTEGER AS applied_count,
+      COUNT(*) FILTER (WHERE i.status = 'skipped')::INTEGER AS skipped_count,
+      COUNT(*) FILTER (WHERE i.status = 'cancelled')::INTEGER AS cancelled_count,
+      MIN(i.scheduled_at) AS first_scheduled_at,
+      MAX(i.scheduled_at) AS last_scheduled_at,
+      MAX(i.applied_at) AS last_applied_at,
+      ROUND(
+        100 * COUNT(*) FILTER (WHERE i.status IN ('applied', 'skipped', 'cancelled'))::numeric / NULLIF(COUNT(i.id), 0),
+        2
+      ) AS completion_pct
+    FROM market.adjustment_sessions s
+    LEFT JOIN market.asset_adjustment_intervals i ON i.session_id = s.id
+    GROUP BY s.id
+    ORDER BY s.market_date DESC, s.id DESC
+    LIMIT $1
+  `,
+    [Math.max(1, Math.min(100, Number(limit) || 30))]
+  );
+
+  return { sessions: rows };
+}
+
+async function getAdminAdjustmentSession(pool, sessionId) {
+  const numericSessionId = Number(sessionId);
+  const [sessionResult, intervalsResult] = await Promise.all([
+    pool.query(
+      `
+      SELECT
+        s.id,
+        s.market_date,
+        s.status,
+        s.generated_at,
+        s.opened_at,
+        s.completed_at,
+        COUNT(i.id)::INTEGER AS interval_count,
+        COUNT(DISTINCT i.asset_id)::INTEGER AS asset_count,
+        COUNT(*) FILTER (WHERE i.status = 'scheduled')::INTEGER AS scheduled_count,
+        COUNT(*) FILTER (WHERE i.status = 'applied')::INTEGER AS applied_count,
+        COUNT(*) FILTER (WHERE i.status = 'skipped')::INTEGER AS skipped_count,
+        COUNT(*) FILTER (WHERE i.status = 'cancelled')::INTEGER AS cancelled_count,
+        ROUND(
+          100 * COUNT(*) FILTER (WHERE i.status IN ('applied', 'skipped', 'cancelled'))::numeric / NULLIF(COUNT(i.id), 0),
+          2
+        ) AS completion_pct
+      FROM market.adjustment_sessions s
+      LEFT JOIN market.asset_adjustment_intervals i ON i.session_id = s.id
+      WHERE s.id = $1
+      GROUP BY s.id
+    `,
+      [numericSessionId]
+    ),
+    pool.query(
+      `
+      SELECT
+        i.id,
+        i.session_id,
+        i.asset_id,
+        a.symbol,
+        a.display_name,
+        c.icon,
+        c.color,
+        i.interval_key,
+        i.scheduled_at,
+        i.applied_at,
+        i.status,
+        i.base_rate,
+        i.price_before,
+        i.price_after,
+        i.metadata_json,
+        i.metadata_json->>'skip_reason' AS skip_reason,
+        e.id AS price_event_id,
+        e.ts AS price_event_at,
+        CASE
+          WHEN i.price_before IS NULL OR i.price_before = 0 THEN NULL
+          ELSE (i.price_after - i.price_before) / i.price_before
+        END AS move_pct,
+        CASE
+          WHEN i.price_before IS NULL OR i.base_rate IS NULL OR ABS(i.price_before - i.base_rate) = 0 THEN NULL
+          ELSE (ABS(i.price_before - i.base_rate) - ABS(i.price_after - i.base_rate)) / ABS(i.price_before - i.base_rate)
+        END AS gap_compression_pct
+      FROM market.asset_adjustment_intervals i
+      JOIN market.market_assets a ON a.id = i.asset_id
+      JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
+      LEFT JOIN market.asset_price_events e
+        ON e.asset_id = i.asset_id
+       AND e.event_type = 'interval_adjustment'
+       AND e.metadata_json->>'adjustment_interval_id' = i.id::text
+      WHERE i.session_id = $1
+      ORDER BY a.symbol ASC,
+        CASE i.interval_key
+          WHEN 'open' THEN 1
+          WHEN 'lunch' THEN 2
+          WHEN 'late' THEN 3
+          WHEN 'overnight' THEN 4
+          ELSE 9
+        END ASC
+    `,
+      [numericSessionId]
+    ),
+  ]);
+
+  return {
+    session: sessionResult.rows[0] || null,
+    intervals: intervalsResult.rows,
+  };
+}
+
+async function getAdminAdjustmentHealth(pool) {
+  const [healthResult, lockResult] = await Promise.all([
+    pool.query(
+      `
+      SELECT
+        MIN(i.scheduled_at) FILTER (WHERE i.status = 'scheduled') AS next_scheduled_at,
+        MAX(i.applied_at) FILTER (WHERE i.status = 'applied') AS last_applied_at,
+        COUNT(*) FILTER (WHERE i.status = 'scheduled')::INTEGER AS scheduled_count,
+        COUNT(*) FILTER (WHERE i.status = 'scheduled' AND i.scheduled_at < now() - interval '10 minutes')::INTEGER AS overdue_scheduled_count,
+        COUNT(*) FILTER (WHERE i.status = 'scheduled' AND i.scheduled_at < now() - interval '1 hour')::INTEGER AS stuck_scheduled_count,
+        COUNT(*) FILTER (WHERE i.status = 'applied' AND i.applied_at >= now() - interval '24 hours')::INTEGER AS applied_24h_count,
+        COUNT(*) FILTER (WHERE i.status = 'skipped' AND i.applied_at >= now() - interval '24 hours')::INTEGER AS skipped_24h_count,
+        COUNT(DISTINCT s.id) FILTER (WHERE s.status IN ('scheduled', 'active'))::INTEGER AS open_session_count
+      FROM market.asset_adjustment_intervals i
+      JOIN market.adjustment_sessions s ON s.id = i.session_id
+    `
+    ),
+    pool.query(
+      `
+      SELECT COUNT(*)::INTEGER AS lock_count
+      FROM pg_locks
+      WHERE locktype = 'advisory'
+        AND objid = $1
+    `,
+      [ADJUSTMENT_SCHEDULER_LOCK_KEY]
+    ),
+  ]);
+
+  return {
+    ...(healthResult.rows[0] || {}),
+    scheduler_lock_held: Number(lockResult.rows[0]?.lock_count || 0) > 0,
+    scheduler_interval_ms: Math.max(10_000, Number(process.env.MARKET_ADJUSTMENT_SCHEDULER_INTERVAL_MS || 60_000)),
+    scheduler_enabled: (process.env.MARKET_ADJUSTMENT_SCHEDULER_ENABLED || "true").toLowerCase() !== "false",
+  };
+}
+
 module.exports = {
   INTERVALS,
   INTERVAL_STRENGTH_TOTAL_PCT,
   applyDueAdjustments,
   ensureAdjustmentSession,
   forceNextAdjustment,
+  getAdminAdjustmentHealth,
+  getAdminAdjustmentSession,
+  listAdminAdjustmentSessions,
+  getAdjustmentSummary,
+  getAssetAdjustmentHistory,
   generateStrengths,
   getIntervalSchedule,
   startAdjustmentScheduler,

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   FaArrowTrendDown,
   FaArrowTrendUp,
@@ -20,8 +20,10 @@ import { HiSparkles } from "react-icons/hi2";
 import { TrendChartCard } from "@/app/components/charts/market-charts";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { SiteShell } from "@/app/components/layout/site-shell";
+import { apiFetch } from "@/app/lib/api";
 import { fmtInteger, fmtNumber, fmtPct } from "@/app/lib/format";
-import type { DailyReport, MarketAsset, MarketIndexBundle, PortfolioSummary, ReportRow } from "@/app/lib/types";
+import { normalizeMarketAdjustmentSummary } from "@/app/lib/normalizers";
+import type { DailyReport, MarketAdjustmentOutcome, MarketAdjustmentSummary, MarketAsset, MarketIndexBundle, PortfolioSummary, ReportRow } from "@/app/lib/types";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/pages/market-report-page.module.scss";
@@ -70,6 +72,20 @@ function formatAdjustmentTime(value: string | null | undefined) {
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
+  });
+}
+
+function formatAdjustmentTimeEt(value: string | null | undefined) {
+  if (!value) return "Not scheduled";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString(undefined, {
+    timeZone: "America/New_York",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
   });
 }
 
@@ -220,6 +236,29 @@ function ReportList({
   );
 }
 
+function AdjustmentOutcomeRow({
+  item,
+  metric,
+  index,
+}: {
+  item: MarketAdjustmentOutcome;
+  metric: "move" | "compression";
+  index: number;
+}) {
+  const value = metric === "compression" ? item.gap_compression_pct : item.move_pct;
+  return (
+    <Link href={`/stocks/${encodeURIComponent(item.symbol)}`} className={styles.adjustmentBoardRow}>
+      <span className={styles.rank}>{String(index + 1).padStart(2, "0")}</span>
+      <AssetCoin symbol={item.symbol} icon={item.icon ?? null} color={item.color ?? null} className={styles.assetIcon} />
+      <span className={styles.assetCopy}>
+        <strong>{item.symbol}</strong>
+        <em>{formatIntervalLabel(item.interval_key)} · {formatAdjustmentTimeEt(item.applied_at)}</em>
+      </span>
+      <strong className={toneClass(value)}>{fmtPct(value)}</strong>
+    </Link>
+  );
+}
+
 export function MarketReportPage() {
   const assets = useMarketStore((state) => state.assets);
   const report = useMarketStore((state) => state.report);
@@ -233,10 +272,31 @@ export function MarketReportPage() {
   const portfolio = useProfileStore((state) => state.portfolio);
   const portfolioError = useProfileStore((state) => state.portfolioError);
   const fetchPortfolio = useProfileStore((state) => state.fetchPortfolio);
+  const [adjustmentSummary, setAdjustmentSummary] = useState<MarketAdjustmentSummary | null>(null);
+  const [adjustmentSummaryError, setAdjustmentSummaryError] = useState<string | null>(null);
 
   useEffect(() => {
     void Promise.allSettled([refreshOverview(), fetchMarketIndexes(), fetchPortfolio()]);
   }, [fetchMarketIndexes, fetchPortfolio, refreshOverview]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadAdjustmentSummary() {
+      try {
+        const result = await apiFetch<Record<string, unknown>>("/api/market/adjustments/summary?recent_limit=12", { cache: "no-store" });
+        if (!cancelled) {
+          setAdjustmentSummary(normalizeMarketAdjustmentSummary(result));
+          setAdjustmentSummaryError(null);
+        }
+      } catch (nextError) {
+        if (!cancelled) setAdjustmentSummaryError(String((nextError as Error).message || nextError));
+      }
+    }
+    void loadAdjustmentSummary();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const allMarketIndex = useMemo(
     () => marketIndexes.find((index) => index.group === "all") || marketIndexes[0] || null,
@@ -275,6 +335,8 @@ export function MarketReportPage() {
     [assets]
   );
   const readyAdjustmentCount = useMemo(() => assets.filter((asset) => asset.adjustment_ready).length, [assets]);
+  const nextTick = adjustmentSummary?.next_tick || null;
+  const lastTick = adjustmentSummary?.last_tick || null;
   const totalReportVolume = useMemo(
     () => (report?.top_volume || report?.volume_winners || []).reduce((sum, row) => sum + (row.volume_cash || 0), 0),
     [report]
@@ -307,6 +369,7 @@ export function MarketReportPage() {
         </section>
 
         {error ? <div className="statusMessage statusMessageError">Market data error: {error}</div> : null}
+        {adjustmentSummaryError ? <div className="statusMessage">Adjustment overlay unavailable: {adjustmentSummaryError}</div> : null}
         {portfolioError ? <div className="statusMessage">Portfolio overlay unavailable: {portfolioError}</div> : null}
         {isLoadingOverview || isLoadingIndex ? <div className={styles.loading}>Loading market report…</div> : null}
 
@@ -328,9 +391,11 @@ export function MarketReportPage() {
           <div className={styles.adjustmentBriefStats}>
             <div>
               <span>Next Tick</span>
-              <strong>{nextAdjustmentAsset ? formatIntervalLabel(nextAdjustmentAsset.next_adjustment?.interval_key) : "No scheduled tick"}</strong>
+              <strong>{nextTick ? formatIntervalLabel(nextTick.interval_key) : nextAdjustmentAsset ? formatIntervalLabel(nextAdjustmentAsset.next_adjustment?.interval_key) : "No scheduled tick"}</strong>
               <em>
-                {nextAdjustmentAsset
+                {nextTick
+                  ? `${formatAdjustmentTimeEt(nextTick.scheduled_at)} · ${fmtInteger(nextTick.asset_count)} assets`
+                  : nextAdjustmentAsset
                   ? formatAdjustmentTime(nextAdjustmentAsset.next_adjustment?.scheduled_at)
                   : "Waiting for generated intervals"}
               </em>
@@ -338,12 +403,16 @@ export function MarketReportPage() {
             <div>
               <span>Last Tick</span>
               <strong>
-                {latestAdjustmentAsset
+                {lastTick
+                  ? `${formatIntervalLabel(lastTick.interval_key)} recap`
+                  : latestAdjustmentAsset
                   ? `${latestAdjustmentAsset.symbol} ${formatIntervalLabel(latestAdjustmentAsset.latest_adjustment?.interval_key)}`
                   : "No applied tick"}
               </strong>
               <em>
-                {latestAdjustmentAsset
+                {lastTick
+                  ? `${fmtInteger(lastTick.applied_count)} applied · ${fmtPct(lastTick.avg_abs_move_pct)} avg move`
+                  : latestAdjustmentAsset
                   ? `${fmtPct(adjustmentMovePct(latestAdjustmentAsset))} move at ${formatAdjustmentTime(latestAdjustmentAsset.latest_adjustment?.applied_at)}`
                   : "No adjustment has been applied yet"}
               </em>
@@ -360,6 +429,64 @@ export function MarketReportPage() {
             </div>
           </div>
         </section>
+
+        <section className={styles.tickStatement}>
+          <FaSignal />
+          <p>
+            {nextTick
+              ? `Next market adjustment tick is ${formatIntervalLabel(nextTick.interval_key)} on ${formatAdjustmentTimeEt(nextTick.scheduled_at)} for ${fmtInteger(nextTick.asset_count)} scheduled assets.`
+              : "No upcoming adjustment tick is currently scheduled."}
+            {" "}
+            {lastTick
+              ? `Last tick was ${formatIntervalLabel(lastTick.interval_key)} on ${formatAdjustmentTimeEt(lastTick.applied_at)} with ${fmtInteger(lastTick.applied_count)} applied intervals and ${fmtInteger(lastTick.skipped_count)} skips.`
+              : "No completed tick has been recorded yet."}
+          </p>
+        </section>
+
+        {adjustmentSummary ? (
+          <section className={styles.adjustmentIntelligence}>
+            <div className={styles.sectionHeader}>
+              <div>
+                <h2>Adjustment Outcomes</h2>
+                <p>Recent tick summaries and rankings derived after interval application. Hidden tick weights stay hidden.</p>
+              </div>
+            </div>
+            <div className={styles.tickRecapGrid}>
+              {adjustmentSummary.recaps.slice(0, 3).map((recap) => (
+                <article key={`${recap.session_id}-${recap.interval_key}-${recap.applied_at}`} className={styles.tickRecapCard}>
+                  <span>{formatIntervalLabel(recap.interval_key)} · {recap.market_date}</span>
+                  <strong>{fmtInteger(recap.applied_count)} applied</strong>
+                  <p>{fmtPct(recap.avg_abs_move_pct)} avg move · {fmtPct(recap.avg_gap_compression_pct)} gap compression · {fmtInteger(recap.skipped_count)} skipped</p>
+                </article>
+              ))}
+            </div>
+            <div className={styles.adjustmentBoardGrid}>
+              <section className={styles.adjustmentBoard}>
+                <h3>Largest Tick Moves</h3>
+                <div className={styles.adjustmentBoardRows}>
+                  {adjustmentSummary.leaderboards.movers.slice(0, 5).map((item, index) => (
+                    <AdjustmentOutcomeRow key={`${item.symbol}-${item.applied_at}-move`} item={item} metric="move" index={index} />
+                  ))}
+                </div>
+              </section>
+              <section className={styles.adjustmentBoard}>
+                <h3>Gap Compression</h3>
+                <div className={styles.adjustmentBoardRows}>
+                  {adjustmentSummary.leaderboards.gap_compression.slice(0, 5).map((item, index) => (
+                    <AdjustmentOutcomeRow key={`${item.symbol}-${item.applied_at}-compression`} item={item} metric="compression" index={index} />
+                  ))}
+                </div>
+              </section>
+              <aside className={styles.adjustmentExplainer}>
+                <h3>Base Rate vs Market Price</h3>
+                <p>
+                  Base rate is the system&apos;s current fundamental anchor for an asset. Market price is the live tradable mark.
+                  Scheduled ticks can pull market price toward base rate after the tick happens, but the per-tick pull is intentionally not shown in advance.
+                </p>
+              </aside>
+            </div>
+          </section>
+        ) : null}
 
         {insights[0] ? (
           <section className={styles.tapeBand}>

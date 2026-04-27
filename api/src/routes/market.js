@@ -149,6 +149,50 @@ router.get("/status", async (req, res, next) => {
   }
 });
 
+router.get("/adjustments/summary", async (req, res, next) => {
+  try {
+    const recentLimit = parsePositiveInt(req.query.recent_limit, 20, { min: 1, max: 100 });
+    const summary = await marketAdjustments.getAdjustmentSummary(req.ctx.pool, { recentLimit });
+    res.json(summary);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/adjustments/admin/sessions", async (req, res, next) => {
+  try {
+    requireAdmin(req);
+    const limit = parsePositiveInt(req.query.limit, 30, { min: 1, max: 100 });
+    const result = await marketAdjustments.listAdminAdjustmentSessions(req.ctx.pool, { limit });
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/adjustments/admin/sessions/:sessionId", async (req, res, next) => {
+  try {
+    requireAdmin(req);
+    const sessionId = Number(req.params.sessionId);
+    if (!Number.isFinite(sessionId) || sessionId <= 0) return res.status(400).json({ error: "invalid_session_id" });
+    const result = await marketAdjustments.getAdminAdjustmentSession(req.ctx.pool, sessionId);
+    if (!result.session) return res.status(404).json({ error: "session_not_found" });
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/adjustments/admin/health", async (req, res, next) => {
+  try {
+    requireAdmin(req);
+    const result = await marketAdjustments.getAdminAdjustmentHealth(req.ctx.pool);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.post("/adjustments/force-next", async (req, res, next) => {
   try {
     requireAdmin(req);
@@ -234,6 +278,19 @@ router.get("/assets/:symbol/trades", async (req, res, next) => {
     const limit = parsePositiveInt(req.query.limit, 50, { min: 1, max: 200 });
     const trades = await marketDb.getAssetTrades(req.ctx.pool, symbol, { limit });
     res.json({ symbol, trades });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/assets/:symbol/adjustments", async (req, res, next) => {
+  try {
+    const symbol = normalizeSymbol(req.params.symbol);
+    if (!symbol) return res.status(400).json({ error: "missing_symbol" });
+
+    const limit = parsePositiveInt(req.query.limit, 20, { min: 1, max: 100 });
+    const result = await marketAdjustments.getAssetAdjustmentHistory(req.ctx.pool, symbol, { limit });
+    res.json(result);
   } catch (e) {
     next(e);
   }
