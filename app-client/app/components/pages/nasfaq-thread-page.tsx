@@ -4,6 +4,8 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import type { ReactNode } from "react";
 import {
   FiActivity,
+  FiArrowDown,
+  FiArrowUp,
   FiBarChart2,
   FiClock,
   FiExternalLink,
@@ -406,6 +408,8 @@ function renderPostText(
 }
 
 export function NasfaqThreadPage() {
+  const feedPanelRef = useRef<HTMLElement | null>(null);
+  const feedEndRef = useRef<HTMLDivElement | null>(null);
   const processedThreadSignatureByTabRef = useRef<Record<ThreadTabKey, string>>({
     nasfaq: "",
     hlg: "",
@@ -571,6 +575,12 @@ export function NasfaqThreadPage() {
   const showQuotePreview = useCallback((postId: number, clientX: number, clientY: number) => {
     const position = getQuotePreviewPosition(clientX, clientY);
     setQuotePreview({ postId, x: position.x, y: position.y });
+  }, []);
+  const scrollToFeedTop = useCallback(() => {
+    feedPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+  const scrollToFeedBottom = useCallback(() => {
+    feedEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, []);
 
   useEffect(() => {
@@ -812,6 +822,7 @@ export function NasfaqThreadPage() {
                 <span>No. {post.post_id}</span>
                 <time>{formatThreadTimestamp(post.timestamp)}</time>
                 {isYouPost ? <span className={styles.youBadge}>You</span> : null}
+                {repliesToYou ? <span className={styles.replyToYouBadge}>Reply to you</span> : null}
               </div>
               <div className={styles.postBody}>
                 {renderPostText(
@@ -986,7 +997,7 @@ export function NasfaqThreadPage() {
                 </article>
               ) : null}
 
-              <section className={styles.feedPanel}>
+              <section className={styles.feedPanel} ref={feedPanelRef}>
                 <div className={styles.feedHeader}>
                   <div>
                     <h2 className={styles.sectionTitle}>Thread feed</h2>
@@ -999,7 +1010,20 @@ export function NasfaqThreadPage() {
                     {formatUpdatedAt(thread.updated_at)}
                   </span>
                 </div>
+                <div className={styles.feedJumpRow} aria-label="Thread feed navigation">
+                  <button type="button" className={styles.feedJumpButton} onClick={scrollToFeedBottom} disabled={!renderedPosts.length}>
+                    <FiArrowDown aria-hidden="true" />
+                    <span>Bottom</span>
+                  </button>
+                </div>
                 {renderedPosts.length ? <div className={styles.postList}>{renderedPosts}</div> : <div className={styles.emptyState}>No posts match the active filters.</div>}
+                <div ref={feedEndRef} aria-hidden="true" />
+                <div className={styles.feedJumpRow} aria-label="Thread feed navigation">
+                  <button type="button" className={styles.feedJumpButton} onClick={scrollToFeedTop} disabled={!renderedPosts.length}>
+                    <FiArrowUp aria-hidden="true" />
+                    <span>Top</span>
+                  </button>
+                </div>
               </section>
             </main>
 

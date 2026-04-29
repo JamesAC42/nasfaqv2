@@ -153,9 +153,7 @@
 
 .selectorTop,
 .detailHeader,
-.sectionHeader,
-.heatmapTileHeader,
-.heatmapFooter {
+.sectionHeader {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -299,7 +297,7 @@
   display: grid;
   grid-template-rows: auto auto;
   gap: 0.7rem;
-  padding-right: 0.3rem;
+  padding: 0 0.3rem clamp(2rem, 6vh, 4rem) 0;
   overflow: visible;
 }
 
@@ -384,125 +382,68 @@
 
 .heatmapPanel {
   display: grid;
-  grid-template-rows: auto minmax(25rem, 1fr);
-  min-height: 0;
+  grid-template-rows: auto auto;
+  align-content: start;
+  justify-items: center;
+  min-height: max-content;
+}
+
+.heatmapPanel .sectionHeader {
+  justify-content: center;
+  text-align: center;
 }
 
 .tablePanel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  min-height: 0;
+  grid-template-rows: auto auto;
+  min-height: max-content;
 }
 
 .heatmap {
-  display: grid;
-  gap: 0;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  grid-auto-rows: minmax(6.7rem, 1fr);
-  grid-auto-flow: dense;
+  position: relative;
+  width: min(100%, 42rem);
+  aspect-ratio: 1 / 1;
   margin-top: 1.1rem;
+  justify-self: center;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
   border-radius: var(--radius-sm);
-}
-
-.heatmapCompact {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: 7rem;
+  background: color-mix(in srgb, var(--surface-card) 62%, transparent);
 }
 
 .heatmapTile {
   display: grid;
-  position: relative;
+  position: absolute;
+  isolation: isolate;
   place-items: center;
   min-width: 0;
   min-height: 0;
   padding: 0;
   border: 0;
-  border-right: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
   border-radius: 0;
   color: inherit;
   text-align: left;
-  cursor: pointer;
-  transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease;
-  box-shadow: inset 0 -2.9rem 3.4rem color-mix(in srgb, black 22%, transparent);
+  cursor: default;
   overflow: hidden;
 }
 
 .heatmapTile::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 0;
-  height: 2.4rem;
-  background: linear-gradient(180deg, transparent, color-mix(in srgb, black 36%, transparent));
-  pointer-events: none;
-}
-
-.heatmapTile:hover,
-.heatmapTile:focus-visible {
-  border-color: color-mix(in srgb, var(--index-cyan) 45%, var(--border));
-  box-shadow:
-    inset 0 -2.9rem 3.4rem color-mix(in srgb, black 24%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--index-cyan) 22%, transparent);
-  outline: none;
-}
-
-.heatmapTile:active {
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--index-cyan) 28%, transparent),
-    inset 0 -2.9rem 3.4rem color-mix(in srgb, black 26%, transparent);
+  content: none;
 }
 
 .tileUp {
   background:
-    radial-gradient(circle at 50% 36%, color-mix(in srgb, #22c55e 26%, transparent), transparent 58%),
-    color-mix(in srgb, #16a34a 24%, var(--surface-card));
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, #22c55e 18%, transparent),
-    inset 0 -2.9rem 3.4rem color-mix(in srgb, black 22%, transparent);
+    radial-gradient(circle at 50% 36%, color-mix(in srgb, #4ade80 28%, transparent), transparent 58%),
+    color-mix(in srgb, #22c55e 36%, var(--surface-card));
 }
 
 .tileDown {
   background:
-    radial-gradient(circle at 50% 36%, color-mix(in srgb, #ef4444 26%, transparent), transparent 58%),
-    color-mix(in srgb, #dc2626 24%, var(--surface-card));
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, #ef4444 18%, transparent),
-    inset 0 -2.9rem 3.4rem color-mix(in srgb, black 22%, transparent);
+    radial-gradient(circle at 50% 36%, color-mix(in srgb, #fb7185 30%, transparent), transparent 58%),
+    color-mix(in srgb, #ef4444 38%, var(--surface-card));
 }
 
 .tileFlat {
   background: color-mix(in srgb, var(--surface-card) 92%, var(--border-soft));
-}
-
-.tileSelected {
-  box-shadow:
-    inset 0 0 0 1px var(--index-cyan),
-    inset 0 0 0 2px color-mix(in srgb, var(--index-cyan) 18%, transparent),
-    inset 0 -2.9rem 3.4rem color-mix(in srgb, black 20%, transparent),
-    0 0 1.2rem color-mix(in srgb, var(--index-cyan) 18%, transparent);
-}
-
-.tileLg {
-  grid-column: span 2;
-  grid-row: span 2;
-}
-
-.tileMd {
-  grid-column: span 2;
-}
-
-.tileSm {
-  grid-column: span 1;
-}
-
-.tileCompact {
-  grid-column: span 1;
-  grid-row: span 1;
 }
 
 .heatmapTile .heatmapSymbolImage {
@@ -513,12 +454,22 @@
   pointer-events: none;
 }
 
+.tileLarge .heatmapSymbolImage {
+  width: min(72%, 9rem);
+  height: min(72%, 9rem);
+}
+
+.tileTiny .heatmapSymbolImage {
+  width: min(58%, 4.5rem);
+  height: min(58%, 4.5rem);
+  opacity: 0.18;
+}
+
 .heatmapPrice,
+.heatmapShare,
 .heatmapSymbol {
   position: absolute;
-  bottom: 0.46rem;
   z-index: 1;
-  max-width: calc(50% - 0.6rem);
   overflow: hidden;
   font-family: var(--font-mono);
   font-size: 0.72rem;
@@ -526,6 +477,42 @@
   line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.heatmapPrice,
+.heatmapSymbol {
+  bottom: 0.46rem;
+  max-width: calc(50% - 0.6rem);
+}
+
+.heatmapShare {
+  top: 0.48rem;
+  left: 0.52rem;
+  max-width: calc(100% - 1.04rem);
+  color: color-mix(in srgb, var(--text) 78%, transparent);
+  font-size: 0.66rem;
+}
+
+.tileLarge .heatmapPrice,
+.tileLarge .heatmapShare,
+.tileLarge .heatmapSymbol {
+  font-size: 0.82rem;
+}
+
+.tileTiny .heatmapPrice,
+.tileTiny .heatmapShare,
+.tileTiny .heatmapSymbol {
+  font-size: 0.62rem;
+}
+
+.tileTiny .heatmapPrice,
+.tileTiny .heatmapSymbol {
+  bottom: 0.34rem;
+}
+
+.tileTiny .heatmapShare {
+  top: 0.34rem;
+  left: 0.38rem;
 }
 
 .heatmapPrice {
@@ -544,29 +531,17 @@
   height: 2rem;
 }
 
-.heatmapTileHeader span,
 .assetLink span {
   display: grid;
   min-width: 0;
 }
 
-.heatmapTileHeader {
-  min-width: 0;
-  align-items: flex-start;
-}
-
-.heatmapTileHeader span {
-  gap: 0.12rem;
-}
-
-.heatmapTileHeader strong,
 .assetLink strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.heatmapTileHeader em,
 .assetLink em {
   overflow: hidden;
   color: var(--muted);
@@ -575,47 +550,25 @@
   white-space: nowrap;
 }
 
-.tileMd .heatmapTileHeader em,
-.tileSm .heatmapTileHeader em {
-  display: none;
-}
-
-.heatmapFooter {
-  align-items: flex-end;
-  gap: 0.5rem;
-  padding-top: 0.3rem;
-  border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
-}
-
-.heatmapFooter strong,
-.heatmapFooter span {
-  min-width: 0;
-  font-family: var(--font-mono);
-  font-size: 0.88rem;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.heatmapFooter strong {
-  color: var(--text);
-}
-
-.tileLg .heatmapFooter strong,
-.tileCompact .heatmapFooter strong {
-  font-size: 0.96rem;
-}
-
-.tileSm {
-  gap: 0;
-}
-
 .tableWrap {
   margin-top: 1.1rem;
-  min-height: 0;
+  min-height: max-content;
+  padding-bottom: 1rem;
   overflow: visible;
   border: 0;
   border-radius: 0;
   background: transparent;
+}
+
+.assetTapeMascot {
+  display: flex;
+  justify-content: center;
+  margin-top: clamp(4rem, 10vh, 7rem);
+}
+
+.assetTapeMascot img {
+  width: min(100%, 12rem);
+  height: auto;
 }
 
 .table {
@@ -719,25 +672,13 @@
   .selectorTop,
   .detailHeader,
   .detailHeaderStats,
-  .sectionHeader,
-  .heatmapTileHeader,
-  .heatmapFooter {
+  .sectionHeader {
     display: grid;
     grid-template-columns: 1fr;
   }
 
-  .heatmap,
-  .heatmapCompact {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-auto-rows: 6.25rem;
-  }
-
-  .tileLg,
-  .tileMd,
-  .tileSm,
-  .tileCompact {
-    grid-column: span 1;
-    grid-row: span 1;
+  .heatmap {
+    width: 100%;
   }
 
   .returnBadge,

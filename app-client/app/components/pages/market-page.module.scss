@@ -193,10 +193,32 @@
 }
 
 .adjustmentClockDeck {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(16rem, 0.72fr) minmax(0, 1.4fr) minmax(17rem, 0.9fr);
+  grid-template-columns: minmax(16rem, 0.72fr) minmax(0, 1.05fr) minmax(17rem, 0.9fr);
   gap: 0.75rem;
+  align-items: stretch;
+  min-height: clamp(18rem, 24vw, 22rem);
   padding: 0.8rem;
+  overflow: hidden;
+}
+
+.adjustmentClockDeck::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto -12rem 0;
+  width: min(54rem, 66%);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, black 52%, transparent), color-mix(in srgb, black 32%, transparent) 46%, transparent 100%),
+    url("/kronii.jpg") left 92% top / auto 156% no-repeat;
+  opacity: 0.64;
+  pointer-events: none;
+  mask-image: linear-gradient(90deg, black 0 58%, transparent 100%);
+}
+
+.adjustmentClockDeck > * {
+  position: relative;
+  z-index: 1;
 }
 
 .countdownPanel {
@@ -219,16 +241,37 @@
   margin: 0;
 }
 
+.tickRules {
+  display: grid;
+  gap: 0.32rem;
+  margin-top: 0.4rem;
+}
+
+.tickRules span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.8rem;
+  padding: 0.32rem 0.48rem;
+  border: 1px solid color-mix(in srgb, var(--activity-cyan) 18%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card-soft) 70%, transparent);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
 .clockWall {
   display: grid;
-  grid-template-columns: minmax(10rem, 0.7fr) minmax(0, 1fr);
+  grid-template-columns: minmax(12.5rem, 0.82fr) minmax(0, 1fr);
   gap: 0.75rem;
+  margin-left: clamp(3rem, 6vw, 6.5rem);
   padding: 0.8rem;
 }
 
 .smallClockGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.55rem;
 }
 
@@ -264,7 +307,7 @@
 }
 
 .analogClockLarge .clockFace {
-  width: 7rem;
+  width: 10.5rem;
 }
 
 .hourHand,
@@ -308,10 +351,13 @@
 }
 
 .tickTimeline {
+  position: relative;
   display: grid;
-  align-content: center;
-  gap: 1.5rem;
-  padding: 0.95rem;
+  align-content: start;
+  gap: 1.1rem;
+  min-height: 100%;
+  padding: 1.15rem 0.95rem 4.2rem;
+  overflow: hidden;
 }
 
 .tickTimelineHead {
@@ -327,32 +373,117 @@
 
 .timelineTrack {
   position: relative;
-  height: 0.38rem;
-  margin: 1.15rem 0 0.4rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--muted) 22%, transparent);
+  height: 13.5rem;
+  margin: 0.35rem 3.7rem 0.4rem 0.2rem;
 }
 
 .timelineTrack > i {
   position: absolute;
-  top: 50%;
-  width: 0.95rem;
-  height: 0.95rem;
+  width: 1.15rem;
+  height: 1.15rem;
   border: 2px solid var(--activity-cyan);
   border-radius: 50%;
   background: var(--surface-card-strong);
+  box-shadow: 0 0 0 0.34rem color-mix(in srgb, var(--activity-cyan) 14%, transparent);
+  animation: timeline-current-pulse 1.8s ease-in-out infinite;
   transform: translate(-50%, -50%);
+  z-index: 3;
+}
+
+.timelineSegment {
+  position: absolute;
+  display: block;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 24%, transparent);
+}
+
+.timelineSegmentTop {
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 0.38rem;
+}
+
+.timelineSegmentRightDrop {
+  top: 0;
+  right: 0;
+  width: 0.38rem;
+  height: 50%;
+}
+
+.timelineSegmentMiddle {
+  top: 50%;
+  right: 0;
+  width: 100%;
+  height: 0.38rem;
+}
+
+.timelineSegmentLeftDrop {
+  top: 50%;
+  left: 0;
+  width: 0.38rem;
+  height: 50%;
+}
+
+.timelineSegmentBottom {
+  bottom: 0;
+  left: 0;
+  width: 82%;
+  height: 0.38rem;
 }
 
 .timelineTick {
   position: absolute;
-  top: 0.85rem;
-  transform: translateX(-50%);
+  display: block;
+  transform: translateY(-50%);
   color: var(--muted);
   font-size: 0.68rem;
   font-weight: 800;
   text-transform: uppercase;
   white-space: nowrap;
+  z-index: 2;
+}
+
+.timelineTick::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 0.62rem;
+  height: 0.62rem;
+  border: 2px solid color-mix(in srgb, var(--activity-cyan) 72%, var(--text));
+  border-radius: 50%;
+  background: var(--surface-card-strong);
+  transform: translate(-50%, -50%);
+}
+
+.timelineTickText {
+  display: block;
+  transform: translate(0.55rem, -0.05rem);
+}
+
+.tickTimelineMascot {
+  position: absolute;
+  right: 0.65rem;
+  bottom: 0;
+  width: 7.6rem;
+  height: auto;
+  opacity: 0.92;
+  pointer-events: none;
+}
+
+@keyframes timeline-current-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0.28rem color-mix(in srgb, var(--activity-cyan) 14%, transparent),
+      0 0 1.2rem color-mix(in srgb, var(--activity-cyan) 18%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 0.48rem color-mix(in srgb, var(--activity-cyan) 24%, transparent),
+      0 0 1.9rem color-mix(in srgb, var(--activity-cyan) 42%, transparent);
+  }
 }
 
 .controlDeck {
@@ -433,10 +564,84 @@
   padding: 0.85rem;
 }
 
+.adjustmentFeedBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 12rem;
+  gap: 0.55rem;
+  align-items: stretch;
+}
+
 .adjustmentFeed {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.55rem;
+}
+
+.adjustmentMovementGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  align-content: start;
+}
+
+.adjustmentMovementColumn {
+  display: grid;
+  gap: 0.55rem;
+  align-content: start;
+  min-width: 0;
+}
+
+.adjustmentMovementHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2rem;
+  padding: 0 0.1rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.adjustmentMovementList {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.adjustmentExpandButton {
+  grid-column: 1 / -1;
+  justify-self: center;
+  min-height: 2.4rem;
+  padding: 0 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--activity-cyan) 34%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--activity-cyan) 8%, var(--surface-card-soft));
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.adjustmentExpandButton:hover {
+  border-color: color-mix(in srgb, var(--activity-cyan) 58%, var(--border));
+  background: color-mix(in srgb, var(--activity-cyan) 14%, var(--surface-card-soft));
+  transform: translateY(-1px);
+}
+
+.adjustmentFeedImage {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 12rem;
+}
+
+.adjustmentFeedImage img {
+  display: block;
+  width: 12rem;
+  height: auto;
 }
 
 .adjustmentFeedRow {
@@ -960,9 +1165,15 @@
   .mainGrid,
   .intelGrid,
   .bottomGrid,
+  .adjustmentFeedBody,
   .adjustmentFeed,
+  .adjustmentMovementGrid,
   .hotStrip {
     grid-template-columns: 1fr;
+  }
+
+  .adjustmentFeedImage {
+    justify-content: flex-end;
   }
 
   .hero {
@@ -973,6 +1184,10 @@
   .heroStatus {
     justify-items: start;
     text-align: left;
+  }
+
+  .clockWall {
+    margin-left: 0;
   }
 }
 

@@ -1,20 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { FaClockRotateLeft, FaTowerBroadcast, FaVideo } from "react-icons/fa6";
 import { apiFetch } from "@/app/lib/api";
 import { LivestreamModal, type LivestreamModalItem } from "@/app/components/livestreams/livestream-modal";
+import { AssetPicker } from "@/app/components/common/asset-picker";
 import { fmtDate, fmtDurationSeconds, fmtInteger } from "@/app/lib/format";
 import { getIconUrl } from "@/app/lib/normalizers";
-import type { LivestreamItem } from "@/app/lib/types";
+import type { LivestreamItem, MarketAsset } from "@/app/lib/types";
 import { useLivestreamStore } from "@/app/stores/livestream-store";
+import { useMarketStore } from "@/app/stores/market-store";
 import styles from "@/app/components/livestreams/livestream-listing.module.scss";
 
 const DEFAULT_LIVE_ACCENT = "#ff5c7a";
 
 type PastStreamResponse = {
   video_id: string;
+  youtube_channel_id: string | null;
   status: "ended";
   video_title: string | null;
   thumbnail_url: string | null;
@@ -40,6 +43,7 @@ type PastPayload = {
 
 type PastStreamItem = {
   id: string;
+  channel_id: string | null;
   title: string;
   creator: string;
   creator_icon: string | null;
@@ -92,6 +96,22 @@ function toNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function normalizeKey(value: string | null | undefined) {
+  return (value || "").trim().toLowerCase();
+}
+
+function assetMatchesStream(asset: MarketAsset, stream: LivestreamItem | PastStreamItem) {
+  const channelId = normalizeKey(stream.channel_id);
+  if (channelId && normalizeKey(asset.youtube_channel_id) === channelId) return true;
+  return normalizeKey(asset.display_name) === normalizeKey(stream.creator);
+}
+
+function assetMatchesFilters(asset: MarketAsset, selectedUnits: string[], selectedCoins: string[]) {
+  const unitMatch = selectedUnits.length === 0 || Boolean(asset.unit && selectedUnits.includes(asset.unit));
+  const coinMatch = selectedCoins.length === 0 || selectedCoins.includes(asset.symbol);
+  return unitMatch && coinMatch;
+}
+
 function deriveDurationSeconds(start?: string | null, end?: string | null) {
   if (!start || !end) return null;
   const startMs = new Date(start).getTime();
@@ -103,6 +123,7 @@ function deriveDurationSeconds(start?: string | null, end?: string | null) {
 function normalizePastStream(stream: PastStreamResponse): PastStreamItem {
   return {
     id: stream.video_id,
+    channel_id: stream.youtube_channel_id || null,
     title: stream.video_title || "Livestream",
     creator: stream.channel_name,
     creator_icon: stream.channel_icon,
@@ -373,6 +394,8 @@ export function LivestreamListing() {
   const error = useLivestreamStore((state) => state.error);
   const isLoading = useLivestreamStore((state) => state.isLoading);
   const fetchLivestreams = useLivestreamStore((state) => state.fetchLivestreams);
+  const assets = useMarketStore((state) => state.assets);
+  const refreshOverview = useMarketStore((state) => state.refreshOverview);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [jitterTick, setJitterTick] = useState(0);
   const [viewMode, setViewMode] = useState<"current" | "historical">("current");
@@ -383,9 +406,14 @@ export function LivestreamListing() {
   const [selectedItem, setSelectedItem] = useState<LivestreamModalItem | null>(null);
   const [upcomingReferenceNowMs, setUpcomingReferenceNowMs] = useState<number | null>(null);
 
+  const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
+  const [selectedCoins, setSelectedCoins] = useState<string[]>([]);
+  const [coinPickerValue, setCoinPickerValue] = useState("");
+
   useEffect(() => {
     void fetchLivestreams();
-  }, [fetchLivestreams]);
+    void refreshOverview();
+  }, [fetchLivestreams, refreshOverview]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => setNowMs(Date.now()), 1000);
@@ -436,12 +464,55 @@ export function LivestreamListing() {
 
   const hasStreams = live.length > 0 || upcoming.length > 0;
   const upcomingStatusReferenceNowMs = upcomingReferenceNowMs ?? nowMs;
-  const pastStreams = pastData?.streams?.map(normalizePastStream) || [];
+  const pastStreams = useMemo(() => pastData?.streams?.map(normalizePastStream) || [], [pastData]);
   const weekLabel = pastData ? `${new Date(pastData.week_start).toLocaleDateString()} - ${new Date(pastData.week_end).toLocaleDateString()}` : "";
   const liveViewerTotal = live.reduce((sum, item) => sum + (item.viewer_count ?? 0), 0);
   const openModal = useCallback((nextItem: LivestreamModalItem) => {
     setSelectedItem(nextItem);
   }, []);
+
+  const units = useMemo(() => {
+    const set = new Set<string>();
+    for (const asset of assets) {
+      if (asset.unit) set.add(asset.unit);
+    }
+    return Array.from(set).sort();
+  }, [assets]);
+
+  const selectedCoinAssets = useMemo(() => (
+    selectedCoins
+      .map((symbol) => assets.find((asset) => asset.symbol === symbol))
+      .filter(Boolean) as MarketAsset[]
+  ), [assets, selectedCoins]);
+
+  const applyCoinFilter = useCallback((symbol: string) => {
+    setCoinPickerValue("");
+    if (!symbol) {
+      setSelectedCoins([]);
+      return;
+    }
+    setSelectedCoins((current) => current.includes(symbol) ? current : [...current, symbol]);
+  }, []);
+
+  const hasActiveFilters = selectedUnits.length > 0 || selectedCoins.length > 0;
+
+  const filteredUpcoming = useMemo(() => {
+    return upcoming.filter((item) => {
+      if (!hasActiveFilters) return true;
+      const asset = assets.find((candidate) => assetMatchesStream(candidate, item));
+      if (!asset) return false;
+      return assetMatchesFilters(asset, selectedUnits, selectedCoins);
+    });
+  }, [upcoming, assets, hasActiveFilters, selectedUnits, selectedCoins]);
+
+  const filteredPastStreams = useMemo(() => {
+    return pastStreams.filter((item) => {
+      if (!hasActiveFilters) return true;
+      const asset = assets.find((candidate) => assetMatchesStream(candidate, item));
+      if (!asset) return false;
+      return assetMatchesFilters(asset, selectedUnits, selectedCoins);
+    });
+  }, [pastStreams, assets, hasActiveFilters, selectedUnits, selectedCoins]);
 
   useEffect(() => {
     if (!selectedItem || selectedItem.status === "ended") return;
@@ -450,6 +521,85 @@ export function LivestreamListing() {
     const timerId = window.setTimeout(() => setSelectedItem(next), 0);
     return () => window.clearTimeout(timerId);
   }, [live, selectedItem, upcoming]);
+
+  const filterControls = (
+    <div className={styles.filterPanel}>
+      <div className={styles.filterGroup}>
+        <span className={styles.filterLabel}>Unit</span>
+        <div className={styles.filterPills} aria-label="Filter by unit">
+          <button
+            type="button"
+            className={`${styles.filterPill} ${selectedUnits.length === 0 ? styles.filterPillActive : ""}`.trim()}
+            onClick={() => setSelectedUnits([])}
+          >
+            All
+          </button>
+          {units.map((unit) => {
+            const isActive = selectedUnits.includes(unit);
+            return (
+              <button
+                key={unit}
+                type="button"
+                className={`${styles.filterPill} ${isActive ? styles.filterPillActive : ""}`.trim()}
+                onClick={() => {
+                  setSelectedUnits((current) => (
+                    current.includes(unit)
+                      ? current.filter((item) => item !== unit)
+                      : [...current, unit]
+                  ));
+                }}
+              >
+                {unit}
+              </button>
+            );
+          })}
+          {hasActiveFilters ? (
+            <button
+              type="button"
+              className={styles.clearFilters}
+              onClick={() => {
+                setSelectedUnits([]);
+                setSelectedCoins([]);
+              }}
+            >
+              Clear all
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <div className={styles.filterGroup}>
+        <span className={styles.filterLabel}>Coin</span>
+        <div className={styles.coinFilter}>
+          <AssetPicker
+            assets={assets}
+            value={coinPickerValue}
+            onChange={applyCoinFilter}
+            placeholder={selectedCoins.length ? "Add another coin" : "Search coin"}
+            emptyLabel="All coins"
+          />
+        </div>
+        {selectedCoinAssets.length ? (
+          <div className={styles.selectedCoins}>
+            {selectedCoinAssets.map((asset) => (
+              <button
+                key={asset.symbol}
+                type="button"
+                className={styles.selectedCoin}
+                onClick={() => setSelectedCoins((current) => current.filter((symbol) => symbol !== asset.symbol))}
+                aria-label={`Remove ${asset.symbol} filter`}
+              >
+                {asset.symbol}
+                <span aria-hidden="true">×</span>
+              </button>
+            ))}
+            <button type="button" className={styles.clearFilters} onClick={() => setSelectedCoins([])}>
+              Clear
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -513,10 +663,11 @@ export function LivestreamListing() {
             <section className={styles.column}>
               <div className={styles.columnHeader}>
                 <h2 className={styles.columnTitle}><FaClockRotateLeft aria-hidden="true" /> Upcoming</h2>
-                <span className={styles.columnBadge}>{upcoming.length}</span>
+                <span className={styles.columnBadge}>{filteredUpcoming.length}</span>
               </div>
+              {filterControls}
               <div className={styles.list}>
-                {upcoming.length ? upcoming.map((item) => renderStreamCard(item, "upcoming", nowMs, jitterTick, upcomingStatusReferenceNowMs, openModal)) : <div className={styles.columnEmpty}>No upcoming streams in cache.</div>}
+                {filteredUpcoming.length ? filteredUpcoming.map((item) => renderStreamCard(item, "upcoming", nowMs, jitterTick, upcomingStatusReferenceNowMs, openModal)) : <div className={styles.columnEmpty}>{hasActiveFilters ? "No upcoming streams match your filters." : "No upcoming streams in cache."}</div>}
               </div>
             </section>
           </div>
@@ -543,14 +694,16 @@ export function LivestreamListing() {
             </button>
           </div>
 
+          {filterControls}
+
           {pastError ? <div className={styles.empty}>Historical livestreams unavailable: {pastError}</div> : null}
           {pastLoading ? <div className={styles.empty}>Loading historical livestreams…</div> : null}
-          {!pastLoading && !pastError && !pastStreams.length ? <div className={styles.empty}>No completed livestreams found for this week.</div> : null}
+          {!pastLoading && !pastError && !filteredPastStreams.length ? <div className={styles.empty}>{hasActiveFilters ? "No historical streams match your filters." : "No completed livestreams found for this week."}</div> : null}
 
-          {pastStreams.length ? (
+          {filteredPastStreams.length ? (
             <>
               <div className={styles.list}>
-                {pastStreams.map((item) => renderPastStreamCard(item, openModal))}
+                {filteredPastStreams.map((item) => renderPastStreamCard(item, openModal))}
               </div>
               <div className={styles.historyToolbar}>
                 <button

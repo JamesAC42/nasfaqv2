@@ -9,6 +9,7 @@ import {
   FaAward,
   FaBookOpen,
   FaBullseye,
+  FaCartShopping,
   FaCheck,
   FaCoins,
   FaCrown,
@@ -25,13 +26,14 @@ import type { IconType } from "react-icons";
 import { TrendChartCard } from "@/app/components/charts/market-charts";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { AssetPicker } from "@/app/components/common/asset-picker";
+import { QuickTradeFlyout } from "@/app/components/common/quick-trade-flyout";
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { createChannelChartTheme } from "@/app/lib/chart-theme";
 import { fmtNumber } from "@/app/lib/format";
 import { normalizeArticleListResponse, normalizePredictionPortfolioResponse, normalizeProfileBundle } from "@/app/lib/normalizers";
-import type { ArticleSummary, PredictionPortfolioResponse, ProfileBundle, ProfileRelationUser } from "@/app/lib/types";
+import type { ArticleSummary, MarketAsset, PortfolioOrder, PredictionPortfolioResponse, ProfileBundle, ProfileRelationUser } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useAuthStore } from "@/app/stores/auth-store";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -277,7 +279,7 @@ function ProfileSettingsModal({
   return (
     <div className={styles.profilePictureOverlay} onClick={onClose}>
       <div
-        className={styles.profilePictureModal}
+        className={`${styles.profilePictureModal} ${styles.profileSettingsModal}`}
         role="dialog"
         aria-modal="true"
         aria-label="Edit profile"
@@ -627,10 +629,12 @@ function HoldingsTable({
   holdings,
   assets,
   totalEquity,
+  onTrade,
 }: {
   holdings: ProfileBundle["profile"]["holdings"];
   assets: ReturnType<typeof useMarketStore.getState>["assets"];
   totalEquity: number;
+  onTrade: (asset: MarketAsset) => void;
 }) {
   const router = useRouter();
 
@@ -646,6 +650,7 @@ function HoldingsTable({
             <th>Value</th>
             <th>%</th>
             <th>PnL</th>
+            <th>Trade</th>
           </tr>
         </thead>
         <tbody>
@@ -694,12 +699,59 @@ function HoldingsTable({
                 <td className={styles.numericCell}>{fmtNumber(holding.market_value, "$")}</td>
                 <td className={styles.numericCell}>{weight === null ? "—" : `${weight.toFixed(1)}%`}</td>
                 <td className={[styles.numericCell, valueToneClass(holding.unrealized_pnl)].filter(Boolean).join(" ")}>{formatSignedCurrency(holding.unrealized_pnl)}</td>
+                <td onClick={(event) => event.stopPropagation()}>
+                  <button
+                    type="button"
+                    className={styles.holdingTradeButton}
+                    onClick={() => {
+                      if (asset) onTrade(asset);
+                    }}
+                    disabled={!asset}
+                    aria-label={`Trade ${holding.symbol}`}
+                  >
+                    <FaCartShopping aria-hidden="true" />
+                  </button>
+                </td>
               </tr>
             );
           })}
         </tbody>
       </table>
     </div>
+  );
+}
+
+function PendingLiveOrdersPanel({ orders }: { orders: PortfolioOrder[] }) {
+  return (
+    <section className={styles.sectionPanel}>
+      <div className={styles.sectionHead}>
+        <div>
+          <h2 className={styles.sectionTitle}>Pending Live Orders</h2>
+          <p className={styles.sectionHint}>
+            Queued live orders execute as best-effort batches. Prices, cash, and holdings are checked again at execution, so an order can still reject.
+          </p>
+        </div>
+        <span className={styles.sectionCount}>{orders.length}</span>
+      </div>
+      {orders.length ? (
+        <div className={styles.pendingOrderList}>
+          {orders.map((order) => (
+            <article key={order.id} className={styles.pendingOrderCard}>
+              <div>
+                <strong>{order.side.toUpperCase()} {fmtNumber(order.requested_quantity)}</strong>
+                <span>{order.symbol} · {order.display_name}</span>
+              </div>
+              <div className={styles.pendingOrderMeta}>
+                <span>Executes after</span>
+                <strong>{formatDateTime(order.execute_after)}</strong>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className={styles.empty}>No queued live orders right now.</div>
+      )}
+    </section>
   );
 }
 
@@ -769,6 +821,10 @@ export function ProfilePage({ username }: { username?: string | null }) {
   const adminError = useProfileStore((state) => state.adminError);
   const resetMarket = useProfileStore((state) => state.resetMarket);
   const rebuildMarket = useProfileStore((state) => state.rebuildMarket);
+  const pendingLiveOrders = useProfileStore((state) => state.pendingLiveOrders);
+  const fetchPortfolioOrders = useProfileStore((state) => state.fetchPortfolioOrders);
+  const clearPendingLiveOrders = useProfileStore((state) => state.clearPendingLiveOrders);
+  const tradingRevision = useProfileStore((state) => state.tradingRevision);
   const refreshMarketOverview = useMarketStore((state) => state.refreshOverview);
   const assets = useMarketStore((state) => state.assets);
 
@@ -786,6 +842,8 @@ export function ProfilePage({ username }: { username?: string | null }) {
   const [isProfileSettingsModalOpen, setIsProfileSettingsModalOpen] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const [predictionPortfolio, setPredictionPortfolio] = useState<PredictionPortfolioResponse | null>(null);
+  const [quickTradeAsset, setQuickTradeAsset] = useState<MarketAsset | null>(null);
+  const selfTradingRevision = username ? 0 : tradingRevision;
 
   function baseProfilePath() {
     return username
@@ -798,7 +856,7 @@ export function ProfilePage({ username }: { username?: string | null }) {
     setSavedArticlesPage(1);
     setArticleShelfTab("mine");
     setTradesPage(1);
-  }, [username]);
+  }, [selfTradingRevision, username]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -829,7 +887,7 @@ export function ProfilePage({ username }: { username?: string | null }) {
 
     void loadProfile();
     return () => controller.abort();
-  }, [username]);
+  }, [selfTradingRevision, username]);
 
   useEffect(() => {
     if (username) return;
@@ -859,26 +917,30 @@ export function ProfilePage({ username }: { username?: string | null }) {
   useEffect(() => {
     if (username || !user) {
       setPredictionPortfolio(null);
+      clearPendingLiveOrders();
       return;
     }
     const controller = new AbortController();
 
-    async function loadPredictionPortfolio() {
+    async function loadSelfPortfolioExtras() {
       try {
-        const result = await apiFetch<Record<string, unknown>>("/api/portfolio/me/predictions", {
-          signal: controller.signal,
-        });
+        const [predictionResult] = await Promise.all([
+          apiFetch<Record<string, unknown>>("/api/portfolio/me/predictions", { signal: controller.signal }),
+          fetchPortfolioOrders(),
+        ]);
         if (!controller.signal.aborted) {
-          setPredictionPortfolio(normalizePredictionPortfolioResponse(result));
+          setPredictionPortfolio(normalizePredictionPortfolioResponse(predictionResult));
         }
       } catch {
-        if (!controller.signal.aborted) setPredictionPortfolio(null);
+        if (!controller.signal.aborted) {
+          setPredictionPortfolio(null);
+        }
       }
     }
 
-    void loadPredictionPortfolio();
+    void loadSelfPortfolioExtras();
     return () => controller.abort();
-  }, [username, user]);
+  }, [clearPendingLiveOrders, fetchPortfolioOrders, username, user]);
 
   useEffect(() => {
     if (!bundle || bundle.articles.pagination.page === articlesPage) return;
@@ -1285,13 +1347,19 @@ export function ProfilePage({ username }: { username?: string | null }) {
                 <div className={styles.centerColumn}>
                   {isSelf ? (
                     <>
+                      <PendingLiveOrdersPanel orders={pendingLiveOrders} />
                       <section className={styles.sectionPanel}>
                         <div className={styles.sectionHead}>
                           <h2 className={styles.sectionTitle}>Holdings</h2>
                           <span className={styles.sectionCount}>{holdingsSorted.length}</span>
                         </div>
                         {holdingsSorted.length ? (
-                          <HoldingsTable holdings={holdingsSorted} assets={assets} totalEquity={profile.stats.total_equity} />
+                          <HoldingsTable
+                            holdings={holdingsSorted}
+                            assets={assets}
+                            totalEquity={profile.stats.total_equity}
+                            onTrade={setQuickTradeAsset}
+                          />
                         ) : (
                           <div className={styles.empty}>You do not hold any positions yet.</div>
                         )}
@@ -1409,6 +1477,15 @@ export function ProfilePage({ username }: { username?: string | null }) {
             }
           }}
         />
+        {quickTradeAsset ? (
+          <QuickTradeFlyout
+            asset={quickTradeAsset}
+            onClose={() => setQuickTradeAsset(null)}
+            onTradeComplete={async () => {
+              await Promise.allSettled([reloadBundle(), refreshMarketOverview(), fetchPortfolioOrders()]);
+            }}
+          />
+        ) : null}
         </>
       )}
     </SiteShell>

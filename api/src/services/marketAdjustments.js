@@ -196,6 +196,23 @@ function computeAdjustedPrice(currentMid, baseRate, strengthPct) {
   return currentMid + ((baseRate - currentMid) * (strengthPct / 100));
 }
 
+function toPublicAdjustment(adjustment) {
+  if (!adjustment) return adjustment;
+  return {
+    id: adjustment.id,
+    session_id: adjustment.session_id,
+    market_date: adjustment.market_date,
+    interval_key: adjustment.interval_key,
+    asset_id: adjustment.asset_id,
+    symbol: adjustment.symbol,
+    display_name: adjustment.display_name,
+    price_before: adjustment.price_before,
+    price_after: adjustment.price_after,
+    premium_discount_pct: adjustment.premium_discount_pct,
+    quote: adjustment.quote,
+  };
+}
+
 async function listAssetsForSession(client) {
   const { rows } = await client.query(
     `
@@ -581,7 +598,7 @@ async function applyDueAdjustments(pool, { now = new Date(), limit = DEFAULT_BAT
       type: "market.adjustments_applied",
       applied_count: applied.length,
       skipped_count: skippedCount,
-      adjustments: applied,
+      adjustments: applied.map(toPublicAdjustment),
       quotes: applied.map((item) => item.quote),
       at: now.toISOString(),
     });
@@ -743,7 +760,7 @@ async function forceNextAdjustment(pool, { marketDate, now = new Date(), redis =
       applied_count: applied.length,
       skipped_count: skippedCount + skippedPriorCount,
       skipped_prior_count: skippedPriorCount,
-      adjustments: applied,
+      adjustments: applied.map(toPublicAdjustment),
       quotes: applied.map((item) => item.quote),
       at: now.toISOString(),
     });
@@ -877,9 +894,7 @@ async function getAdjustmentSummary(pool, { recentLimit = 20 } = {}) {
         COUNT(*) FILTER (WHERE i.status = 'applied')::INTEGER AS applied_count,
         COUNT(*) FILTER (WHERE i.status = 'skipped')::INTEGER AS skipped_count,
         AVG(ABS((i.price_after - i.price_before) / NULLIF(i.price_before, 0))) FILTER (WHERE i.status = 'applied') AS avg_abs_move_pct,
-        AVG(
-          (ABS(i.price_before - i.base_rate) - ABS(i.price_after - i.base_rate)) / NULLIF(ABS(i.price_before - i.base_rate), 0)
-        ) FILTER (WHERE i.status = 'applied') AS avg_gap_compression_pct
+        NULL::numeric AS avg_gap_compression_pct
       FROM market.asset_adjustment_intervals i
       JOIN market.adjustment_sessions s ON s.id = i.session_id
       WHERE i.status IN ('applied', 'skipped')
@@ -898,17 +913,13 @@ async function getAdjustmentSummary(pool, { recentLimit = 20 } = {}) {
         c.color,
         i.interval_key,
         i.applied_at,
-        i.base_rate,
         i.price_before,
         i.price_after,
         CASE
           WHEN i.price_before IS NULL OR i.price_before = 0 THEN NULL
           ELSE (i.price_after - i.price_before) / i.price_before
         END AS move_pct,
-        CASE
-          WHEN i.price_before IS NULL OR i.base_rate IS NULL OR ABS(i.price_before - i.base_rate) = 0 THEN NULL
-          ELSE (ABS(i.price_before - i.base_rate) - ABS(i.price_after - i.base_rate)) / ABS(i.price_before - i.base_rate)
-        END AS gap_compression_pct
+        NULL::numeric AS gap_compression_pct
       FROM market.asset_adjustment_intervals i
       JOIN market.market_assets a ON a.id = i.asset_id
       JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
@@ -927,23 +938,24 @@ async function getAdjustmentSummary(pool, { recentLimit = 20 } = {}) {
         c.color,
         i.interval_key,
         i.applied_at,
-        i.base_rate,
         i.price_before,
         i.price_after,
         CASE
           WHEN i.price_before IS NULL OR i.price_before = 0 THEN NULL
           ELSE (i.price_after - i.price_before) / i.price_before
         END AS move_pct,
-        CASE
-          WHEN i.price_before IS NULL OR i.base_rate IS NULL OR ABS(i.price_before - i.base_rate) = 0 THEN NULL
-          ELSE (ABS(i.price_before - i.base_rate) - ABS(i.price_after - i.base_rate)) / ABS(i.price_before - i.base_rate)
-        END AS gap_compression_pct
+        NULL::numeric AS gap_compression_pct
       FROM market.asset_adjustment_intervals i
       JOIN market.market_assets a ON a.id = i.asset_id
       JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
       WHERE i.status = 'applied'
         AND i.applied_at >= now() - interval '7 days'
-      ORDER BY gap_compression_pct DESC NULLS LAST, i.applied_at DESC
+      ORDER BY (
+        CASE
+          WHEN i.price_before IS NULL OR i.base_rate IS NULL OR ABS(i.price_before - i.base_rate) = 0 THEN NULL
+          ELSE (ABS(i.price_before - i.base_rate) - ABS(i.price_after - i.base_rate)) / ABS(i.price_before - i.base_rate)
+        END
+      ) DESC NULLS LAST, i.applied_at DESC
       LIMIT 8
     `
     ),
@@ -960,7 +972,6 @@ async function getAdjustmentSummary(pool, { recentLimit = 20 } = {}) {
         i.scheduled_at,
         i.applied_at,
         i.status,
-        i.base_rate,
         i.price_before,
         i.price_after,
         i.metadata_json->>'skip_reason' AS skip_reason,
@@ -1019,7 +1030,6 @@ async function getAssetAdjustmentHistory(pool, symbol, { limit = 20 } = {}) {
       i.scheduled_at,
       i.applied_at,
       i.status,
-      i.base_rate,
       i.price_before,
       i.price_after,
       i.metadata_json->>'skip_reason' AS skip_reason,
@@ -1027,10 +1037,7 @@ async function getAssetAdjustmentHistory(pool, symbol, { limit = 20 } = {}) {
         WHEN i.price_before IS NULL OR i.price_before = 0 THEN NULL
         ELSE (i.price_after - i.price_before) / i.price_before
       END AS move_pct,
-      CASE
-        WHEN i.price_before IS NULL OR i.base_rate IS NULL OR ABS(i.price_before - i.base_rate) = 0 THEN NULL
-        ELSE (ABS(i.price_before - i.base_rate) - ABS(i.price_after - i.base_rate)) / ABS(i.price_before - i.base_rate)
-      END AS gap_compression_pct
+      NULL::numeric AS gap_compression_pct
     FROM market.asset_adjustment_intervals i
     JOIN market.adjustment_sessions s ON s.id = i.session_id
     JOIN market.market_assets a ON a.id = i.asset_id
@@ -1122,6 +1129,7 @@ async function getAdminAdjustmentSession(pool, sessionId) {
         i.scheduled_at,
         i.applied_at,
         i.status,
+        i.strength_pct,
         i.base_rate,
         i.price_before,
         i.price_after,

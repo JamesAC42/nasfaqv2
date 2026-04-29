@@ -3,19 +3,25 @@
 import { create } from "zustand";
 import { apiFetch } from "@/app/lib/api";
 import { fmtNumber } from "@/app/lib/format";
-import { normalizePortfolio } from "@/app/lib/normalizers";
-import type { PortfolioSummary } from "@/app/lib/types";
+import { normalizePortfolio, normalizePortfolioOrdersResponse } from "@/app/lib/normalizers";
+import type { PortfolioOrder, PortfolioSummary } from "@/app/lib/types";
 
 type AdminBusy = false | "reset" | "rebuild";
 
 type ProfileState = {
   portfolio: PortfolioSummary | null;
+  pendingLiveOrders: PortfolioOrder[];
   isLoadingPortfolio: boolean;
+  isLoadingOrders: boolean;
   portfolioError: string | null;
+  tradingRevision: number;
   adminBusy: AdminBusy;
   adminStatus: string | null;
   adminError: string | null;
   fetchPortfolio: () => Promise<void>;
+  fetchPortfolioOrders: () => Promise<void>;
+  refreshTradingState: () => Promise<void>;
+  clearPendingLiveOrders: () => void;
   clearPortfolio: () => void;
   resetMarket: () => Promise<void>;
   rebuildMarket: () => Promise<void>;
@@ -23,11 +29,14 @@ type ProfileState = {
 
 export const useProfileStore = create<ProfileState>((set) => ({
   portfolio: null,
+  pendingLiveOrders: [],
   isLoadingPortfolio: false,
+  isLoadingOrders: false,
   portfolioError: null,
   adminBusy: false,
   adminStatus: null,
   adminError: null,
+  tradingRevision: 0,
   fetchPortfolio: async () => {
     set({ isLoadingPortfolio: true, portfolioError: null });
     try {
@@ -42,9 +51,34 @@ export const useProfileStore = create<ProfileState>((set) => ({
       set({ isLoadingPortfolio: false });
     }
   },
+  fetchPortfolioOrders: async () => {
+    set({ isLoadingOrders: true, portfolioError: null });
+    try {
+      const result = await apiFetch<Record<string, unknown>>("/api/portfolio/me/orders?limit=50", { cache: "no-store" });
+      set({
+        pendingLiveOrders: normalizePortfolioOrdersResponse(result).orders.filter(
+          (order) => order.status === "pending" && order.order_type === "live_market"
+        ),
+      });
+    } catch (error) {
+      set({
+        pendingLiveOrders: [],
+        portfolioError: String((error as Error).message || error),
+      });
+    } finally {
+      set({ isLoadingOrders: false });
+    }
+  },
+  refreshTradingState: async () => {
+    const state = useProfileStore.getState();
+    await Promise.allSettled([state.fetchPortfolio(), state.fetchPortfolioOrders()]);
+    set((current) => ({ tradingRevision: current.tradingRevision + 1 }));
+  },
+  clearPendingLiveOrders: () => set({ pendingLiveOrders: [] }),
   clearPortfolio: () =>
     set({
       portfolio: null,
+      pendingLiveOrders: [],
       portfolioError: null,
     }),
   resetMarket: async () => {

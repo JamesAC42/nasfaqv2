@@ -8,6 +8,7 @@ const { createPool } = require("./db");
 const { applySchema } = require("./migrations");
 const { createRedis } = require("./redis");
 const chatDb = require("./chatDb");
+const marketDb = require("./marketDb");
 const authService = require("./services/auth");
 const marketState = require("./services/marketState");
 const { startMarketScheduler, loadSchedulerConfig, computeNextScheduledAt } = require("./services/marketScheduler");
@@ -81,6 +82,7 @@ function toListStream(item) {
   // Modal fetches session/buckets separately, so omit large/unneeded fields.
   return {
     video_id: item.video_id,
+    channel_id: item.youtube_channel_id || item.channel_id || null,
     status: item.status,
     title: item.title,
     thumbnail_url: item.thumbnail_url,
@@ -93,6 +95,18 @@ function toListStream(item) {
   };
 }
 
+function channelIdFromRedisKey(key) {
+  const match = String(key || "").match(/^nasfaq_livestreams:\{(.+)\}$/);
+  return match ? match[1] : null;
+}
+
+function withChannelId(item, channelID) {
+  return {
+    ...item,
+    youtube_channel_id: item.youtube_channel_id || item.channel_id || channelID || null,
+  };
+}
+
 function signatureForStreamDiff(stream) {
   // Ignore concurrent_viewers so we don't emit diffs every time viewer counts change.
   // Viewer counts are sent separately via the viewer websocket.
@@ -100,6 +114,7 @@ function signatureForStreamDiff(stream) {
     video_id: stream.video_id,
     status: stream.status,
     title: stream.title,
+    channel_id: stream.youtube_channel_id || stream.channel_id || null,
     thumbnail_url: stream.thumbnail_url,
     channel_name: stream.channel_name,
     channel_icon: stream.channel_icon,
@@ -141,12 +156,14 @@ async function computeLivestreamSnapshot(redisClient) {
   if (!redisClient) return { type: "snapshot", at: new Date().toISOString(), live, upcoming };
 
   for await (const key of redisClient.scanIterator({ MATCH: "nasfaq_livestreams:{*}", COUNT: 200 })) {
+    const channelID = channelIdFromRedisKey(key);
     const h = await redisClient.hGetAll(key);
     for (const [, val] of Object.entries(h)) {
       const item = safeParseJSON(val);
       if (!item || !item.video_id) continue;
-      if (item.status === "live") live.push(item);
-      else if (item.status === "upcoming") upcoming.push(item);
+      const stream = withChannelId(item, channelID);
+      if (stream.status === "live") live.push(stream);
+      else if (stream.status === "upcoming") upcoming.push(stream);
     }
   }
 
@@ -529,6 +546,34 @@ async function main() {
     });
   });
   marketWss.on("connection", (ws) => {
+    (async () => {
+      try {
+        const [assets, status] = await Promise.all([
+          marketDb.listAssets(pool),
+          marketState.getMarketStatus(pool),
+        ]);
+        sendWsText(
+          ws,
+          JSON.stringify({
+            type: "market.snapshot",
+            assets,
+            status: status || null,
+            at: new Date().toISOString(),
+          })
+        );
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error("market websocket snapshot failed:", String(error?.message || error));
+        sendWsText(
+          ws,
+          JSON.stringify({
+            type: "market.error",
+            error: "snapshot_unavailable",
+            at: new Date().toISOString(),
+          })
+        );
+      }
+    })();
     ws.on("close", () => {});
   });
   predictionMarketWss.on("connection", (ws) => {

@@ -191,27 +191,24 @@ async function pullCapsuleGacha(pool, {
     const reward = chooseReward(rewardPool);
     const existingCosmetic = await findExistingCosmeticWithClient(client, userId, reward.cosmetic_key);
     const isDuplicate = Boolean(existingCosmetic);
-    const compensationCash = isDuplicate ? duplicateCompensationCash : 0;
+    const compensationCash = 0;
 
-    let grantedCosmetic = null;
-    if (!isDuplicate) {
-      grantedCosmetic = await gamesInventory.grantCosmeticWithClient(client, {
-        userId,
-        cosmeticKey: reward.cosmetic_key,
-        cosmeticType: reward.cosmetic_type,
-        rarity: reward.rarity,
-        sourceType: "gacha",
-        sourceReferenceId: Number(session.id),
-        metadata: {
-          display_name: reward.display_name,
-          description: reward.description,
-          slot_key: reward.slot_key,
-          image_key: reward.image_key,
-          image_url: reward.image_url,
-          ...(reward.metadata || {}),
-        },
-      });
-    }
+    const grantedCosmetic = await gamesInventory.grantCosmeticWithClient(client, {
+      userId,
+      cosmeticKey: reward.cosmetic_key,
+      cosmeticType: reward.cosmetic_type,
+      rarity: reward.rarity,
+      sourceType: "gacha",
+      sourceReferenceId: Number(session.id),
+      metadata: {
+        display_name: reward.display_name,
+        description: reward.description,
+        slot_key: reward.slot_key,
+        image_key: reward.image_key,
+        image_url: reward.image_url,
+        ...(reward.metadata || {}),
+      },
+    });
 
     const pullRow = await insertGachaPullWithClient(client, {
       gameId: game.id,
@@ -228,6 +225,7 @@ async function pullCapsuleGacha(pool, {
         display_name: reward.display_name,
         image_key: reward.image_key,
         image_url: reward.image_url,
+        pull_chance: reward.pull_chance,
         duplicate: isDuplicate,
       },
     });
@@ -282,6 +280,7 @@ async function pullCapsuleGacha(pool, {
           description: reward.description,
           image_key: reward.image_key,
           image_url: reward.image_url,
+          pull_chance: reward.pull_chance,
           metadata: reward.metadata || {},
         },
         duplicate: isDuplicate,

@@ -386,15 +386,37 @@
   font-size: 0.8rem;
 }
 
+.feedJumpRow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.feedJumpButton {
+  @include button-secondary;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.38rem;
+  min-height: 2.1rem;
+  padding: 0.42rem 0.62rem;
+  font-size: 0.78rem;
+}
+
+.feedJumpButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .postList {
   display: grid;
   gap: 0.45rem;
 }
 
 .feedPost {
-  display: grid;
-  grid-template-columns: 8rem minmax(0, 1fr);
-  gap: 0.65rem;
+  display: block;
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
   background:
@@ -404,8 +426,22 @@
   scroll-margin-top: 6rem;
 }
 
-.feedPostNoMedia {
-  grid-template-columns: minmax(0, 1fr);
+.feedPost::after {
+  content: "";
+  display: block;
+  clear: both;
+}
+
+.feedPost .mediaLink,
+.feedPost > .threadImage {
+  float: left;
+  width: 8rem;
+  min-height: 5.3rem;
+  margin: 0 0.65rem 0.45rem 0;
+}
+
+.feedPost > .threadImage {
+  aspect-ratio: 16 / 9;
 }
 
 .feedPost:target {
@@ -415,8 +451,16 @@
 
 .feedPostBody {
   min-width: 0;
-  display: grid;
-  gap: 0.35rem;
+  display: block;
+}
+
+.feedMeta,
+.postBody {
+  margin-bottom: 0.35rem;
+}
+
+.feedFooter {
+  clear: both;
 }
 
 .feedFooter span,
@@ -451,6 +495,21 @@
   border-color: color-mix(in srgb, var(--trend-up) 42%, var(--border-soft));
   background: color-mix(in srgb, var(--trend-up) 12%, transparent);
   color: var(--trend-up);
+}
+
+.replyToYouBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.35rem;
+  padding: 0.12rem 0.42rem;
+  border: 1px solid color-mix(in srgb, var(--trend-up) 48%, var(--border-soft));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--trend-up) 16%, transparent);
+  color: var(--trend-up);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .youToggle {

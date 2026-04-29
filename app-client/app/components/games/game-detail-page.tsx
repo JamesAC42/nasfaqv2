@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
-import { FaArrowLeft, FaBoxOpen, FaClock, FaMoneyBillTrendUp, FaPlay, FaStar, FaTicket, FaUsers } from "react-icons/fa6";
+import { FaArrowLeft, FaBoxOpen, FaClock, FaMoneyBillTrendUp, FaPlay, FaTicket, FaUsers } from "react-icons/fa6";
 import { HiSparkles } from "react-icons/hi2";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { fmtDate, fmtNumber } from "@/app/lib/format";
@@ -19,6 +19,7 @@ import {
 import type {
   GameCatalogEntry,
   GachaCatalogResponse,
+  GachaCatalogReward,
   GameInventoryResponse,
   GamesSummary,
   GachaPullResult,
@@ -30,6 +31,7 @@ import { useAuth } from "@/app/providers/auth-provider";
 import styles from "@/app/components/games/game-detail-page.module.scss";
 
 type TickerTapRunPhase = "idle" | "starting" | "running" | "submitting" | "completed";
+type GachaRevealPhase = "idle" | "rolling" | "revealed";
 
 type TickerTapRunState = {
   phase: TickerTapRunPhase;
@@ -62,6 +64,330 @@ const INITIAL_TICKER_TAP_RUN_STATE: TickerTapRunState = {
   walletBalanceAfter: null,
   result: null,
 };
+
+const GACHA_REVEAL_DURATION_MS = 4_200;
+
+function wait(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function GachaRevealCanvas({
+  phase,
+  rewards,
+  result,
+  nonce,
+}: {
+  phase: GachaRevealPhase;
+  rewards: GachaCatalogReward[];
+  result: GachaPullResult | null;
+  nonce: number;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const wonReward = result?.pull.reward || null;
+  const isRevealed = phase === "revealed" && Boolean(wonReward);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return undefined;
+
+    let frame = 0;
+    let cancelled = false;
+    const startedAt = performance.now();
+    const displayRewards = rewards.length
+      ? rewards
+      : wonReward
+        ? [{
+          key: wonReward.key,
+          type: wonReward.type,
+          rarity: wonReward.rarity,
+          display_name: wonReward.display_name,
+          description: wonReward.description,
+          slot_key: wonReward.slot_key,
+          weight: 1,
+          pull_weight: 1,
+          pull_chance: wonReward.pull_chance,
+          image_key: wonReward.image_key,
+          filename: "",
+          image_url: wonReward.image_url,
+          metadata: wonReward.metadata,
+        }]
+        : [];
+    const cycle = displayRewards.length ? displayRewards : [{
+      key: "pending",
+      type: "cosmetic",
+      rarity: "common",
+      display_name: "Prize",
+      description: "",
+      slot_key: null,
+      weight: 1,
+      pull_weight: 1,
+      pull_chance: 0,
+      image_key: "",
+      filename: "",
+      image_url: "",
+      metadata: {},
+    }];
+    const imageCache = new Map<string, HTMLImageElement>();
+    Array.from(new Set(displayRewards.map((reward) => reward.image_url).filter(Boolean))).forEach((imageUrl) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.src = imageUrl;
+      imageCache.set(imageUrl, image);
+    });
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+      canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    const rarityColor = (rarity: string) => {
+      const normalized = rarity.toLowerCase();
+      if (normalized === "legendary") return "#d6a53a";
+      if (normalized === "epic") return "#a78bfa";
+      if (normalized === "rare") return "#67b7dc";
+      return "#d9c7a3";
+    };
+    const easeInOut = (value: number) => value < 0.5
+      ? 4 * value * value * value
+      : 1 - Math.pow(-2 * value + 2, 3) / 2;
+    const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
+    const drawCoverImage = (image: HTMLImageElement, radius: number) => {
+      const imageRatio = image.naturalWidth / image.naturalHeight;
+      const size = radius * 1.78;
+      const targetRatio = 1;
+      let drawWidth = size;
+      let drawHeight = size;
+      if (imageRatio > targetRatio) {
+        drawWidth = size * imageRatio;
+      } else {
+        drawHeight = size / imageRatio;
+      }
+      ctx.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+    };
+    const drawBubble = (
+      reward: GachaCatalogReward,
+      x: number,
+      y: number,
+      radius: number,
+      alpha: number,
+      scale = 1,
+    ) => {
+      const color = rarityColor(reward.rarity);
+      const image = reward.image_url ? imageCache.get(reward.image_url) : null;
+      const hasLoadedImage = Boolean(image?.complete && image.naturalWidth > 0 && image.naturalHeight > 0);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+      ctx.shadowColor = color;
+      ctx.shadowBlur = radius * 0.32;
+      ctx.fillStyle = "rgba(8, 13, 24, 0.38)";
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      if (hasLoadedImage && image) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.92, 0, Math.PI * 2);
+        ctx.clip();
+        drawCoverImage(image, radius);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = color;
+        ctx.globalAlpha = alpha * 0.22;
+        ctx.beginPath();
+        ctx.arc(0, -radius * 0.08, radius * 0.42, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = alpha;
+      }
+
+      const glass = ctx.createRadialGradient(-radius * 0.34, -radius * 0.42, 0, 0, 0, radius);
+      glass.addColorStop(0, "rgba(255, 255, 255, 0.38)");
+      glass.addColorStop(0.22, "rgba(255, 255, 255, 0.14)");
+      glass.addColorStop(0.5, "rgba(255, 255, 255, 0.06)");
+      glass.addColorStop(1, "rgba(10, 15, 27, 0.38)");
+      ctx.fillStyle = glass;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.36)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(-radius * 0.24, -radius * 0.22, radius * 0.48, Math.PI * 1.05, Math.PI * 1.55);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(8, 13, 24, 0.62)";
+      ctx.beginPath();
+      ctx.roundRect(-radius * 0.76, radius * 0.34, radius * 1.52, radius * 0.32, radius * 0.16);
+      ctx.fill();
+      ctx.fillStyle = color;
+      ctx.font = `800 ${Math.max(8, radius * 0.11)}px system-ui, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(reward.rarity.toUpperCase(), 0, radius * 0.5, radius * 1.28);
+      ctx.restore();
+    };
+
+    resize();
+    window.addEventListener("resize", resize);
+
+    const draw = (now: number) => {
+      if (cancelled) return;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const elapsed = now - startedAt;
+      const progress = phase === "rolling"
+        ? Math.min(1, elapsed / GACHA_REVEAL_DURATION_MS)
+        : 1;
+      const speedCurve = Math.sin(Math.min(1, progress) * Math.PI);
+      const spacing = Math.max(86, height * 0.22);
+      const baseOffset = ((elapsed * (0.72 + speedCurve * 3.8)) % spacing);
+      const wonAsCatalog = wonReward
+        ? (displayRewards.find((reward) => reward.key === wonReward.key) || {
+          key: wonReward.key,
+          type: wonReward.type,
+          rarity: wonReward.rarity,
+          display_name: wonReward.display_name,
+          description: wonReward.description,
+          slot_key: wonReward.slot_key,
+          weight: 1,
+          pull_weight: 1,
+          pull_chance: wonReward.pull_chance,
+          image_key: wonReward.image_key,
+          filename: "",
+          image_url: wonReward.image_url,
+          metadata: wonReward.metadata,
+        })
+        : null;
+      const winnerLandStart = 0.62;
+      const winnerJumpStart = 0.72;
+      const jumpProgress = wonAsCatalog && phase === "rolling"
+        ? easeInOut(clamp01((progress - winnerJumpStart) / (1 - winnerJumpStart)))
+        : phase === "revealed" && wonAsCatalog
+          ? 1
+          : 0;
+      const winnerLineProgress = wonAsCatalog
+        ? clamp01((progress - winnerLandStart) / (winnerJumpStart - winnerLandStart))
+        : 0;
+      const lineAlpha = phase === "rolling"
+        ? wonAsCatalog
+          ? Math.max(0, 1 - jumpProgress * 3.4)
+          : 1
+        : 0;
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "rgba(10, 15, 27, 0.94)";
+      ctx.fillRect(0, 0, width, height);
+
+      const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, Math.max(width, height) * 0.72);
+      gradient.addColorStop(0, "rgba(249, 115, 22, 0.22)");
+      gradient.addColorStop(1, "rgba(10, 15, 27, 0)");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+
+      if (phase === "idle") {
+        ctx.save();
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.14)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, Math.min(width, height) * 0.2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        frame = window.requestAnimationFrame(draw);
+        return;
+      }
+
+      if (lineAlpha > 0.01) {
+        ctx.save();
+        ctx.globalAlpha = lineAlpha;
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(centerX, 0);
+        ctx.lineTo(centerX, height);
+        ctx.stroke();
+        ctx.restore();
+
+        const visibleCount = Math.ceil(height / spacing) + 5;
+        for (let index = -2; index < visibleCount; index += 1) {
+          const reward = cycle[Math.abs(index + Math.floor(elapsed / spacing)) % cycle.length];
+          const rawY = index * spacing + baseOffset - spacing;
+          const distance = Math.abs(rawY - centerY);
+          if (wonAsCatalog && progress >= winnerLandStart && distance < spacing * 0.48) {
+            continue;
+          }
+          const alpha = Math.max(0.14, 1 - distance / (height * 0.72)) * lineAlpha;
+          drawBubble(reward, centerX, rawY, Math.min(52, spacing * 0.34), alpha, 1);
+        }
+      }
+
+      if (wonAsCatalog) {
+        const finalScale = 1 + jumpProgress * 1.08;
+        const finalAlpha = phase === "revealed" ? 1 : Math.max(winnerLineProgress, jumpProgress);
+        const liftY = centerY - Math.sin(jumpProgress * Math.PI) * 18;
+        const color = rarityColor(wonAsCatalog.rarity);
+        ctx.save();
+        ctx.globalAlpha = finalAlpha * jumpProgress;
+        ctx.strokeStyle = color;
+        for (let ring = 0; ring < 4; ring += 1) {
+          ctx.globalAlpha = finalAlpha * jumpProgress * (0.3 - ring * 0.05);
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.arc(centerX, liftY, 76 + ring * 28 + Math.sin(elapsed / 420 + ring) * 4, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
+        drawBubble(wonAsCatalog, centerX, liftY, 58, finalAlpha, finalScale);
+      }
+
+      frame = window.requestAnimationFrame(draw);
+    };
+
+    frame = window.requestAnimationFrame(draw);
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", resize);
+    };
+  }, [phase, rewards, wonReward, nonce]);
+
+  return (
+    <div className={`${styles.gachaRevealStage} ${isRevealed ? styles.gachaRevealStageComplete : ""}`.trim()}>
+      <canvas ref={canvasRef} className={styles.gachaRevealCanvas} aria-hidden="true" />
+      <div className={styles.gachaRevealOverlay} aria-live="polite">
+        {wonReward && isRevealed ? (
+          <>
+            <span>You received: {wonReward.display_name}</span>
+            <strong>{wonReward.rarity} · {formatPullChance(wonReward.pull_chance)} probability</strong>
+          </>
+        ) : phase === "rolling" ? (
+          <span>Opening capsule...</span>
+        ) : (
+          <span>Ready for a pull</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function gameAccent(game: GameCatalogEntry | null) {
   if (game?.key === "capsule-gacha") return "#f97316";
@@ -151,6 +477,9 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
   const [inventory, setInventory] = useState<GameInventoryResponse | null>(null);
   const [gachaCatalog, setGachaCatalog] = useState<GachaCatalogResponse | null>(null);
   const [latestPull, setLatestPull] = useState<GachaPullResult | null>(null);
+  const [pendingPull, setPendingPull] = useState<GachaPullResult | null>(null);
+  const [gachaRevealPhase, setGachaRevealPhase] = useState<GachaRevealPhase>("idle");
+  const [gachaRevealNonce, setGachaRevealNonce] = useState(0);
   const [tickerTapRun, setTickerTapRun] = useState<TickerTapRunState>(INITIAL_TICKER_TAP_RUN_STATE);
   const [tickerTapBoard, setTickerTapBoard] = useState<TickerTapLeaderboardResponse | null>(null);
   const [isLoadingGame, setIsLoadingGame] = useState(true);
@@ -199,11 +528,20 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
   async function handlePull() {
     setIsPulling(true);
     setPullError(null);
+    setPendingPull(null);
+    setGachaRevealPhase("rolling");
     try {
-      setLatestPull(await pullCapsuleGacha(1));
+      const pullResult = await pullCapsuleGacha(1);
+      setPendingPull(pullResult);
+      setGachaRevealNonce((current) => current + 1);
+      await wait(GACHA_REVEAL_DURATION_MS);
+      setLatestPull(pullResult);
+      setPendingPull(null);
+      setGachaRevealPhase("revealed");
       await loadAccount();
     } catch (error) {
       setPullError(String((error as Error).message || error));
+      setGachaRevealPhase(latestPull ? "revealed" : "idle");
     } finally {
       setIsPulling(false);
     }
@@ -365,6 +703,9 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
     if (gameKey !== "capsule-gacha") {
       setGachaCatalog(null);
       setGachaCatalogError(null);
+      setLatestPull(null);
+      setPendingPull(null);
+      setGachaRevealPhase("idle");
       return;
     }
 
@@ -447,6 +788,8 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
   const accent = gameAccent(game);
   const recentCosmetics = inventory?.cosmetics.slice(0, 4) || [];
   const recentSessions = summary?.recent_sessions.filter((session) => session.game_key === gameKey).slice(0, 5) || [];
+  const gachaRevealPull = pendingPull || latestPull;
+  const gachaRewards = gachaCatalog?.rewards || [];
   const isCapsuleGacha = game?.key === "capsule-gacha";
   const isTickerTap = game?.key === "ticker-tap";
   const tickerTapConfig = tickerTapRun.config || tickerConfigFromGame(game);
@@ -539,41 +882,28 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
               <div className={styles.sectionHead}>
                 <div>
                   <h2 className={styles.sectionTitle}>Capsule Drop</h2>
-                  <p className={styles.sectionCopy}>
-                    A focused pull experience with the price, prize pool, and result feedback visible before you spend.
-                  </p>
                 </div>
                 <HiSparkles />
               </div>
 
               <div className={styles.gachaHeroGrid}>
                 <div className={styles.gachaMachine}>
-                  <div className={styles.assetPrompt}>
-                    <span>Featured banner placeholder</span>
-                    <p>
-                      Image prompt: premium gacha website capsule machine, transparent glass sphere, collectible NASFAQ profile cards inside capsules, teal-black arcade cabinet, amber rim light, anime-inspired but professional, no text.
-                    </p>
-                  </div>
-                  <div className={styles.capsuleRail} aria-hidden="true">
-                    <span />
-                    <span />
-                    <span />
-                    <span />
-                    <span />
-                  </div>
+                  <GachaRevealCanvas
+                    phase={gachaRevealPhase}
+                    rewards={gachaRewards}
+                    result={gachaRevealPull}
+                    nonce={gachaRevealNonce}
+                  />
                 </div>
 
                 <div className={styles.pullConsolePanel}>
                   <span className={styles.rewardKicker}>Single pull</span>
                   <h3 className={styles.pullPrice}>{fmtNumber(game.entry_fee_cash, "$")}</h3>
-                  <p className={styles.consoleCopy}>
-                    Pull once for a profile cosmetic. New rewards go straight to your locker, while duplicates return a small cash rebate.
-                  </p>
 
                   <div className={styles.pullBalanceCard}>
                     <span className={styles.metaLabel}>Wallet available</span>
                     <strong>{summary ? fmtNumber(summary.cash_balance, "$") : user ? "Loading..." : "Sign in"}</strong>
-                    <span>{isLoadingAccount ? "Refreshing account state." : "Debited only when a pull succeeds."}</span>
+                    <span>{isLoadingAccount ? "Refreshing." : `${gachaRewards.length} prizes in the pool.`}</span>
                   </div>
 
                   {pullError ? <div className={`${styles.statusMessage} ${styles.statusError}`}>Pull failed: {pullError}</div> : null}
@@ -592,47 +922,17 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
 
                   <button type="button" className={styles.secondaryActionButton} onClick={() => setIsCatalogOpen(true)}>
                     <FaTicket />
-                    <span>View prize catalogue</span>
+                    <span>Prize catalogue</span>
                   </button>
                 </div>
-              </div>
-
-              <div className={styles.gachaInfoGrid}>
-                <article className={styles.rateCard}>
-                  <FaStar />
-                  <span className={styles.metaLabel}>Featured rewards</span>
-                  <strong>Frames, themes, chat flair</strong>
-                  <p>{gachaCatalog ? `${gachaCatalog.rewards.length} cosmetics in the current pool.` : "Image prompt for reward cards: three premium collectible profile cosmetics on dark glass pedestals, rarity color edges, no text."}</p>
-                </article>
-                <article className={styles.rateCard}>
-                  <FaTicket />
-                  <span className={styles.metaLabel}>Pull style</span>
-                  <strong>One capsule at a time</strong>
-                  <p>Keep the action clear and fast. The result appears immediately below the machine.</p>
-                </article>
-                <article className={styles.rateCard}>
-                  <FaMoneyBillTrendUp />
-                  <span className={styles.metaLabel}>Duplicates</span>
-                  <strong>Cash rebate applied</strong>
-                  <p>Duplicate compensation is shown after every pull so players understand what happened.</p>
-                </article>
               </div>
 
               <div className={`${styles.resultCard} ${styles.gachaResult}`.trim()}>
                 <div>
                   <span className={styles.rewardKicker}>Latest result</span>
                   <h3 className={styles.resultTitle}>
-                    {latestPull
-                      ? latestPull.pull.duplicate
-                        ? "Duplicate converted to cash back"
-                        : "New cosmetic unlocked"
-                      : "Your next reward appears here"}
+                    {latestPull ? latestPull.pull.reward.display_name : "No pull yet"}
                   </h3>
-                  <p className={styles.sectionCopy}>
-                    {latestPull
-                      ? "Use this area for the reward card art, rarity treatment, and wallet impact."
-                      : "No pull yet this session. The first result will replace this empty state."}
-                  </p>
                 </div>
 
                 {latestPull ? (
@@ -640,30 +940,27 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
                     <span className={styles.rewardKicker}>{latestPull.pull.reward.rarity}</span>
                     <h4 className={styles.rewardTitle}>{latestPull.pull.reward.display_name}</h4>
                     <span className={styles.rewardMeta}>
-                      {latestPull.pull.reward.type} · {latestPull.pull.reward.slot_key || "no slot"} · {fmtDate(latestPull.pull.created_at)}
+                      {formatPullChance(latestPull.pull.reward.pull_chance)} chance · {fmtDate(latestPull.pull.created_at)}
                     </span>
                   </div>
                 ) : (
                   <div className={styles.rewardPlaceholder}>
-                    <span>Reward card placeholder</span>
-                    <p>
-                      Image prompt: collectible NASFAQ cosmetic card reveal, dark glass card, rarity border, profile frame asset centered, subtle confetti shards, no text.
-                    </p>
+                    <span>Ready</span>
                   </div>
                 )}
 
                 <div className={styles.resultGrid}>
                   <div className={styles.resultLine}>
-                    <span className={styles.resultLabel}>Duplicate compensation</span>
-                    <strong className={styles.resultValue}>{latestPull ? fmtNumber(latestPull.wallet.duplicate_compensation_cash, "$") : "-"}</strong>
+                    <span className={styles.resultLabel}>Prize type</span>
+                    <strong className={styles.resultValue}>{latestPull ? latestPull.pull.reward.type.replaceAll("_", " ") : "-"}</strong>
                   </div>
                   <div className={styles.resultLine}>
                     <span className={styles.resultLabel}>Balance after pull</span>
                     <strong className={styles.resultValue}>{latestPull ? fmtNumber(latestPull.wallet.cash_balance_after, "$") : "-"}</strong>
                   </div>
                   <div className={styles.resultLine}>
-                    <span className={styles.resultLabel}>Grant result</span>
-                    <strong className={styles.resultValue}>{latestPull ? (latestPull.pull.granted_cosmetic ? "New cosmetic" : "Duplicate") : "-"}</strong>
+                    <span className={styles.resultLabel}>Locker item</span>
+                    <strong className={styles.resultValue}>{latestPull ? `#${latestPull.pull.granted_cosmetic?.id || latestPull.pull.id}` : "-"}</strong>
                   </div>
                 </div>
               </div>
@@ -734,9 +1031,6 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
                     <div>
                       <span className={styles.rewardKicker}>Capsule pool</span>
                       <h2 id="gacha-catalog-title" className={styles.catalogModalTitle}>Prize Catalogue</h2>
-                      <p className={styles.sectionCopy}>
-                        These rewards and chances come from the backend gacha reward pool, so you can edit the catalogue in one place.
-                      </p>
                     </div>
                     <button type="button" className={styles.modalCloseButton} onClick={() => setIsCatalogOpen(false)}>
                       Close
@@ -755,8 +1049,8 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
                       <strong>{gachaCatalog?.rewards.length ?? 0}</strong>
                     </div>
                     <div>
-                      <span className={styles.metaLabel}>Duplicate rebate</span>
-                      <strong>{fmtNumber(Number(game.config.duplicate_compensation_cash || 0), "$")}</strong>
+                      <span className={styles.metaLabel}>Duplicates</span>
+                      <strong>Allowed</strong>
                     </div>
                   </div>
 

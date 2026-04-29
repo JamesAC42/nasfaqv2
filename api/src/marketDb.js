@@ -400,7 +400,6 @@ async function listAssets(pool) {
         ELSE jsonb_build_object(
           'interval_key', na.interval_key,
           'scheduled_at', na.scheduled_at,
-          'base_rate', na.base_rate,
           'market_date', na.market_date
         )
       END AS next_adjustment,
@@ -410,7 +409,6 @@ async function listAssets(pool) {
           'interval_key', la.interval_key,
           'scheduled_at', la.scheduled_at,
           'applied_at', la.applied_at,
-          'base_rate', la.base_rate,
           'price_before', la.price_before,
           'price_after', la.price_after,
           'market_date', la.market_date
@@ -635,7 +633,6 @@ async function getAssetBySymbol(pool, symbol) {
         ELSE jsonb_build_object(
           'interval_key', na.interval_key,
           'scheduled_at', na.scheduled_at,
-          'base_rate', na.base_rate,
           'market_date', na.market_date
         )
       END AS next_adjustment,
@@ -645,7 +642,6 @@ async function getAssetBySymbol(pool, symbol) {
           'interval_key', la.interval_key,
           'scheduled_at', la.scheduled_at,
           'applied_at', la.applied_at,
-          'base_rate', la.base_rate,
           'price_before', la.price_before,
           'price_after', la.price_after,
           'market_date', la.market_date
@@ -1640,33 +1636,70 @@ async function getAssetCandles(pool, symbol, { interval = "1d", range = "30d" } 
 
   const { rows } = await pool.query(
     `
-    WITH fills AS (
+    WITH asset AS (
+      SELECT id
+      FROM market.market_assets
+      WHERE symbol = $1
+      LIMIT 1
+    ),
+    points AS (
       SELECT
         tf.asset_id,
         time_bucket($2::interval, tf.ts) AS bucket,
         tf.ts,
+        1 AS sequence,
         tf.price,
         tf.quantity,
-        tf.gross_cash
+        tf.gross_cash,
+        1 AS trade_count
       FROM market.trade_fills tf
-      JOIN market.market_assets a ON a.id = tf.asset_id
-      WHERE a.symbol = $1
-        AND tf.ts >= now() - $3::interval
+      JOIN asset a ON a.id = tf.asset_id
+      WHERE tf.ts >= now() - $3::interval
+      UNION ALL
+      SELECT
+        e.asset_id,
+        time_bucket($2::interval, e.ts) AS bucket,
+        e.ts,
+        0 AS sequence,
+        e.old_mid_price AS price,
+        0 AS quantity,
+        0 AS gross_cash,
+        0 AS trade_count
+      FROM market.asset_price_events e
+      JOIN asset a ON a.id = e.asset_id
+      WHERE e.ts >= now() - $3::interval
+        AND e.event_type IN ('interval_adjustment', 'daily_reset')
+        AND e.old_mid_price IS NOT NULL
+      UNION ALL
+      SELECT
+        e.asset_id,
+        time_bucket($2::interval, e.ts) AS bucket,
+        e.ts,
+        2 AS sequence,
+        e.new_mid_price AS price,
+        0 AS quantity,
+        0 AS gross_cash,
+        0 AS trade_count
+      FROM market.asset_price_events e
+      JOIN asset a ON a.id = e.asset_id
+      WHERE e.ts >= now() - $3::interval
+        AND e.event_type IN ('interval_adjustment', 'daily_reset')
+        AND e.new_mid_price IS NOT NULL
     )
     SELECT
       bucket,
-      (array_agg(price ORDER BY ts ASC))[1] AS open,
+      (array_agg(price ORDER BY ts ASC, sequence ASC))[1] AS open,
       MAX(price) AS high,
       MIN(price) AS low,
-      (array_agg(price ORDER BY ts DESC))[1] AS close,
+      (array_agg(price ORDER BY ts DESC, sequence DESC))[1] AS close,
       COALESCE(SUM(quantity), 0) AS volume_shares,
       COALESCE(SUM(gross_cash), 0) AS volume_cash,
-      COUNT(*)::INTEGER AS trade_count,
+      COALESCE(SUM(trade_count), 0)::INTEGER AS trade_count,
       CASE
         WHEN COALESCE(SUM(quantity), 0) = 0 THEN NULL
         ELSE SUM(gross_cash) / NULLIF(SUM(quantity), 0)
       END AS vwap
-    FROM fills
+    FROM points
     GROUP BY bucket
     ORDER BY bucket ASC
   `,

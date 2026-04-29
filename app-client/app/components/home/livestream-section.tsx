@@ -135,7 +135,6 @@ export function LivestreamSection({ items, error }: { items: LivestreamItem[]; e
               <div className={styles.activityRail}>
                 <span>Live activity</span>
                 <strong>{fmtInteger(featuredStream.viewer_count)} watching now</strong>
-                <p>More active streams will stack here as the live board fills in.</p>
               </div>
             )}
           </div>

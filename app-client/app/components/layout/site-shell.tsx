@@ -10,6 +10,7 @@ import type { MarketIndexBundle } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useTheme } from "@/app/providers/theme-provider";
 import { useMarketStore } from "@/app/stores/market-store";
+import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/layout/site-shell.module.scss";
 
 const CATEGORY_ITEMS = [
@@ -93,8 +94,26 @@ function formatValue(value: number | null | undefined) {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
 }
 
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "N/A";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
 function formatIndexName(value: string) {
   return value.replace(/^hololive\s+/i, "");
+}
+
+function OrdersIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.icon}>
+      <path
+        d="M5.75 4.5A2.25 2.25 0 0 0 3.5 6.75v10.5a2.25 2.25 0 0 0 2.25 2.25h12.5a2.25 2.25 0 0 0 2.25-2.25V8.5a1 1 0 0 0-.29-.71l-3-3a1 1 0 0 0-.71-.29H5.75Zm0 2h10.34l2.41 2.41v8.34a.25.25 0 0 1-.25.25H5.75a.25.25 0 0 1-.25-.25V6.75a.25.25 0 0 1 .25-.25Zm2 4.25a1 1 0 1 1 0-2h6.5a1 1 0 1 1 0 2h-6.5Zm0 4a1 1 0 1 1 0-2h8.5a1 1 0 1 1 0 2h-8.5Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
 }
 
 function BellIcon() {
@@ -300,12 +319,17 @@ export function SiteShell({
   const marketIndexes = useMarketStore((state) => state.marketIndexes);
   const isLoadingIndex = useMarketStore((state) => state.isLoadingIndex);
   const fetchMarketIndexes = useMarketStore((state) => state.fetchMarketIndexes);
+  const pendingOrders = useProfileStore((state) => state.pendingLiveOrders);
+  const fetchPortfolioOrders = useProfileStore((state) => state.fetchPortfolioOrders);
+  const clearPendingLiveOrders = useProfileStore((state) => state.clearPendingLiveOrders);
   const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const [isOrdersFlyoutOpen, setIsOrdersFlyoutOpen] = useState(false);
   const [lastCategory, setLastCategory] = useState<string | null>(null);
   const hasRequestedOverviewRef = useRef(false);
   const shellRef = useRef<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
   const ribbonShellRef = useRef<HTMLDivElement | null>(null);
+  const ordersFlyoutRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (assets.length || hasRequestedOverviewRef.current) return;
@@ -317,6 +341,35 @@ export function SiteShell({
     if (marketIndexes.length || isLoadingIndex) return;
     void fetchMarketIndexes();
   }, [fetchMarketIndexes, isLoadingIndex, marketIndexes.length]);
+
+  useEffect(() => {
+    if (!user) {
+      clearPendingLiveOrders();
+      return;
+    }
+
+    void fetchPortfolioOrders();
+    const interval = window.setInterval(fetchPortfolioOrders, 30_000);
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [clearPendingLiveOrders, fetchPortfolioOrders, user]);
+
+  useEffect(() => {
+    if (!isOrdersFlyoutOpen) return;
+
+    function closeOnOutsidePointer(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (ordersFlyoutRef.current?.contains(target)) return;
+      setIsOrdersFlyoutOpen(false);
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+    };
+  }, [isOrdersFlyoutOpen]);
 
   useLayoutEffect(() => {
     const shell = shellRef.current;
@@ -349,6 +402,7 @@ export function SiteShell({
   const profileHref = user ? "/profile" : "/login";
   const profileInitial = user?.username?.trim()?.charAt(0)?.toUpperCase() || "N";
   const profileImageUrl = user?.profile_picture_url?.trim() || null;
+  const visiblePendingOrders = user ? pendingOrders : [];
   const activeDropdownKey = openCategory || lastCategory;
   const activeDropdownItem = activeDropdownKey ? CATEGORY_ITEMS.find((entry) => entry.key === activeDropdownKey) ?? null : null;
   const currentYear = new Date().getFullYear();
@@ -399,6 +453,45 @@ export function SiteShell({
             <button type="button" className={styles.iconButton} aria-label="Notifications">
               <BellIcon />
             </button>
+
+            {user ? (
+              <div ref={ordersFlyoutRef} className={styles.ordersFlyoutWrap}>
+                <button
+                  type="button"
+                  className={[styles.iconButton, visiblePendingOrders.length ? styles.iconButtonHot : ""].filter(Boolean).join(" ")}
+                  aria-label="Pending live orders"
+                  aria-expanded={isOrdersFlyoutOpen}
+                  onClick={() => setIsOrdersFlyoutOpen((current) => !current)}
+                >
+                  <OrdersIcon />
+                  {visiblePendingOrders.length ? <span className={styles.iconBadge}>{visiblePendingOrders.length}</span> : null}
+                </button>
+                <div className={[styles.ordersFlyout, isOrdersFlyoutOpen ? styles.ordersFlyoutOpen : ""].filter(Boolean).join(" ")}>
+                  <div className={styles.ordersFlyoutHead}>
+                    <strong>Pending live orders</strong>
+                    <span>{visiblePendingOrders.length} queued</span>
+                  </div>
+                  <p className={styles.ordersFlyoutCopy}>
+                    Live orders are best-effort. The batch rechecks price, cash, and holdings at execution, so queued orders can reject.
+                  </p>
+                  {visiblePendingOrders.length ? (
+                    <div className={styles.ordersFlyoutList}>
+                      {visiblePendingOrders.slice(0, 5).map((order) => (
+                        <Link key={order.id} href={`/stocks/${encodeURIComponent(order.symbol)}`} className={styles.ordersFlyoutItem}>
+                          <span>{order.side.toUpperCase()} {formatValue(order.requested_quantity)} {order.symbol}</span>
+                          <small>After {formatDateTime(order.execute_after)}</small>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className={styles.ordersFlyoutEmpty}>No queued live orders.</div>
+                  )}
+                  <Link href="/profile" className={styles.ordersFlyoutLink} onClick={() => setIsOrdersFlyoutOpen(false)}>
+                    View profile orders
+                  </Link>
+                </div>
+              </div>
+            ) : null}
 
             <Link
               href={profileHref}

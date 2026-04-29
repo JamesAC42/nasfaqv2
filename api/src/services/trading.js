@@ -870,6 +870,7 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
 
     const order = {
       order_id: rows[0].id,
+      user_id: userId,
       status: "pending",
       order_type: "live_market",
       side: normalizedSide,
@@ -920,7 +921,7 @@ function isLiveOrderRejectionCode(code) {
 }
 
 async function rejectLiveOrder(pool, { orderId, reason, liveOrderBatchId = null }) {
-  await pool.query(
+  const { rows } = await pool.query(
     `
     UPDATE market.trade_orders
     SET
@@ -931,9 +932,61 @@ async function rejectLiveOrder(pool, { orderId, reason, liveOrderBatchId = null 
     WHERE id = $1
       AND status = 'pending'
       AND order_type = 'live_market'
+    RETURNING
+      id,
+      user_id,
+      asset_id,
+      side,
+      order_type,
+      requested_quantity,
+      filled_quantity,
+      status,
+      quote_bid_at_submit,
+      quote_ask_at_submit,
+      rejection_reason,
+      execute_after,
+      live_order_batch_id,
+      submitted_market_date,
+      submitted_interval_key,
+      requested_at,
+      updated_at
   `,
     [orderId, reason, liveOrderBatchId]
   );
+  return rows[0] || null;
+}
+
+async function getOrderAssetSnapshot(pool, orderId) {
+  const { rows } = await pool.query(
+    `
+    SELECT
+      o.id,
+      o.user_id,
+      o.asset_id,
+      a.symbol,
+      a.display_name,
+      o.side,
+      o.order_type,
+      o.requested_quantity,
+      o.filled_quantity,
+      o.status,
+      o.quote_bid_at_submit,
+      o.quote_ask_at_submit,
+      o.rejection_reason,
+      o.execute_after,
+      o.live_order_batch_id,
+      o.submitted_market_date,
+      o.submitted_interval_key,
+      o.requested_at,
+      o.updated_at
+    FROM market.trade_orders o
+    JOIN market.market_assets a ON a.id = o.asset_id
+    WHERE o.id = $1
+    LIMIT 1
+  `,
+    [orderId]
+  );
+  return rows[0] || null;
 }
 
 async function createLiveOrderBatch(pool) {
@@ -998,7 +1051,17 @@ async function processDueLiveOrders(pool, { now = new Date(), limit = LIVE_ORDER
     } catch (error) {
       const reason = isLiveOrderRejectionCode(error?.code) ? error.code : "execution_failed";
       try {
-        await rejectLiveOrder(pool, { orderId, reason, liveOrderBatchId: batch.id });
+        const rejectedOrder = await rejectLiveOrder(pool, { orderId, reason, liveOrderBatchId: batch.id });
+        const orderSnapshot = rejectedOrder ? await getOrderAssetSnapshot(pool, orderId) : null;
+        if (orderSnapshot) {
+          void publishMarketEvent(redis, {
+            type: "market.live_order_rejected",
+            order: orderSnapshot,
+            reason,
+            batch_id: batch.id,
+            at: new Date().toISOString(),
+          });
+        }
         rejected += 1;
       } catch (rejectError) {
         fatalError = fatalError || String(rejectError?.message || rejectError);
@@ -1177,11 +1240,74 @@ async function getPortfolioOrders(pool, userId, { limit = 100 } = {}) {
   return rows;
 }
 
+async function getLiveOrderAdminHealth(pool, { batchLimit = 10 } = {}) {
+  const safeLimit = Math.min(50, Math.max(1, Number.parseInt(String(batchLimit || 10), 10) || 10));
+  const [healthResult, batchesResult] = await Promise.all([
+    pool.query(
+      `
+      SELECT
+        MIN(execute_after) FILTER (WHERE status = 'pending' AND order_type = 'live_market') AS next_execute_after,
+        MIN(requested_at) FILTER (WHERE status = 'pending' AND order_type = 'live_market') AS oldest_pending_at,
+        COUNT(*) FILTER (WHERE status = 'pending' AND order_type = 'live_market')::INTEGER AS pending_count,
+        COUNT(*) FILTER (
+          WHERE status = 'pending'
+            AND order_type = 'live_market'
+            AND execute_after <= now()
+        )::INTEGER AS due_pending_count,
+        COUNT(*) FILTER (
+          WHERE status = 'pending'
+            AND order_type = 'live_market'
+            AND execute_after < now() - interval '10 minutes'
+        )::INTEGER AS overdue_pending_count,
+        COUNT(*) FILTER (
+          WHERE status = 'rejected'
+            AND order_type = 'live_market'
+            AND updated_at >= now() - interval '24 hours'
+        )::INTEGER AS rejected_24h_count,
+        COUNT(*) FILTER (
+          WHERE status = 'filled'
+            AND order_type = 'live_market'
+            AND updated_at >= now() - interval '24 hours'
+        )::INTEGER AS filled_24h_count
+      FROM market.trade_orders
+    `
+    ),
+    pool.query(
+      `
+      SELECT
+        id,
+        status,
+        started_at,
+        completed_at,
+        orders_attempted,
+        orders_filled,
+        orders_rejected,
+        error_text,
+        created_at
+      FROM market.live_order_batches
+      ORDER BY started_at DESC, id DESC
+      LIMIT $1
+    `,
+      [safeLimit]
+    ),
+  ]);
+
+  return {
+    generated_at: new Date().toISOString(),
+    scheduler_enabled: (process.env.MARKET_LIVE_ORDER_SCHEDULER_ENABLED || "true").toLowerCase() !== "false",
+    scheduler_interval_ms: Math.max(10_000, Number(process.env.MARKET_LIVE_ORDER_SCHEDULER_INTERVAL_MS || 60_000)),
+    batch_limit: LIVE_ORDER_BATCH_LIMIT,
+    health: healthResult.rows[0] || {},
+    recent_batches: batchesResult.rows,
+  };
+}
+
 module.exports = {
   executeOrder,
   submitLiveOrder,
   processDueLiveOrders,
   startLiveOrderScheduler,
+  getLiveOrderAdminHealth,
   getStarterCash,
   getPortfolioSummary,
   getPortfolioLedger,

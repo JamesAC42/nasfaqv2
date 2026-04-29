@@ -129,9 +129,125 @@
   transform: translateY(1px);
 }
 
+.iconButtonHot {
+  color: var(--accent-strong);
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+}
+
 .icon {
   width: 1.1rem;
   height: 1.1rem;
+}
+
+.iconBadge {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  min-width: 1.2rem;
+  height: 1.2rem;
+  padding: 0 0.28rem;
+  border: 0.0625rem solid var(--bg-darker);
+  border-radius: 999rem;
+  background: var(--accent);
+  color: #071318;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.1rem;
+  text-align: center;
+}
+
+.ordersFlyoutWrap {
+  position: relative;
+}
+
+.ordersFlyoutWrap .iconButton {
+  position: relative;
+}
+
+.ordersFlyout {
+  position: absolute;
+  top: calc(100% + 0.75rem);
+  right: 0;
+  width: min(24rem, calc(100vw - 2rem));
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 0.0625rem solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface-card) 96%, var(--bg-darker));
+  box-shadow: 0 1.2rem 3rem rgba(0, 10, 16, 0.28);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-0.4rem);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.ordersFlyoutOpen {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.ordersFlyoutHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.ordersFlyoutHead strong {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+}
+
+.ordersFlyoutHead span,
+.ordersFlyoutCopy,
+.ordersFlyoutItem small,
+.ordersFlyoutEmpty {
+  color: var(--muted);
+}
+
+.ordersFlyoutCopy {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.ordersFlyoutList {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.ordersFlyoutItem {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.65rem;
+  border: 0.0625rem solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card-soft) 72%, transparent);
+}
+
+.ordersFlyoutItem span {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.ordersFlyoutItem small {
+  font-size: 0.78rem;
+}
+
+.ordersFlyoutEmpty {
+  padding: 0.8rem;
+  border: 0.0625rem dashed color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
+.ordersFlyoutLink {
+  justify-self: start;
+  color: var(--accent-strong);
+  font-weight: 800;
 }
 
 .profileLink {

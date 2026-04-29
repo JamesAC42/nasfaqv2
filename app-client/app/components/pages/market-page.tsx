@@ -18,11 +18,13 @@ import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { fmtDate, fmtInteger, fmtNumber, fmtPct, toNumber } from "@/app/lib/format";
 import { normalizeMarketAdjustmentSummary, normalizeMarketHubResponse, normalizeMarketHubTrade, normalizeMarketLiveOrderSummary } from "@/app/lib/normalizers";
-import type { MarketAdjustmentSummary, MarketAsset, MarketHubResponse, MarketHubTrade, MarketTradeEvent } from "@/app/lib/types";
+import type { MarketAdjustmentOutcome, MarketAdjustmentSummary, MarketAsset, MarketHubResponse, MarketHubTrade, MarketTradeEvent } from "@/app/lib/types";
 import { getMarketWsUrl } from "@/app/lib/ws";
 import styles from "@/app/components/pages/market-page.module.scss";
 import shellStyles from "@/app/components/pages/page-shell.module.scss";
 
+import fubogki from "@/public/fubogki.png";
+import kronie from "@/public/kronie.png";
 import tako from "@/public/tako.png";
 
 const INITIAL_TRADE_LIMIT = 20;
@@ -30,14 +32,23 @@ const LIVE_TRADE_CAP = 40;
 const RECONCILE_INTERVAL_MS = 60_000;
 const HEARTBEAT_INDEX_START_DATE = "2025-10-06";
 const TICK_INTERVAL_ORDER = ["open", "lunch", "late", "overnight"] as const;
+const ADJUSTMENT_SUMMARY_RECENT_LIMIT = 500;
+const ADJUSTMENT_MOVEMENT_PREVIEW_COUNT = 10;
 const CLOCK_ZONES = [
-  { label: "US Eastern", zone: "America/New_York" },
+  { label: "New York / East", zone: "America/New_York" },
+  { label: "US West", zone: "America/Los_Angeles" },
   { label: "Japan", zone: "Asia/Tokyo" },
   { label: "Indonesia", zone: "Asia/Jakarta" },
   { label: "Austria", zone: "Europe/Vienna" },
   { label: "Australia", zone: "Australia/Sydney" },
   { label: "UK", zone: "Europe/London" },
 ] as const;
+const TIMELINE_LABEL_PROGRESS: Record<(typeof TICK_INTERVAL_ORDER)[number], number> = {
+  overnight: 12.5,
+  open: 37.5,
+  lunch: 62.5,
+  late: 87.5,
+};
 
 function formatSignedPct(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
@@ -130,6 +141,40 @@ function toneClass(value: number | null | undefined) {
   if (value > 0) return shellStyles.positive;
   if (value < 0) return shellStyles.negative;
   return "";
+}
+
+function timelineZPosition(progress: number): CSSProperties {
+  const distance = Math.max(0, Math.min(100, progress)) * 3.82;
+  let x = 0;
+  let y = 0;
+
+  if (distance <= 100) {
+    x = distance;
+  } else if (distance <= 150) {
+    x = 100;
+    y = distance - 100;
+  } else if (distance <= 250) {
+    x = 250 - distance;
+    y = 50;
+  } else if (distance <= 300) {
+    y = distance - 250;
+  } else {
+    x = distance - 300;
+    y = 100;
+  }
+
+  return {
+    left: `${x}%`,
+    top: `${y}%`,
+  };
+}
+
+function isLastAdjustmentOutcome(item: MarketAdjustmentOutcome, lastTick: MarketAdjustmentSummary["last_tick"]) {
+  if (!lastTick) return true;
+  if (item.market_date && lastTick.market_date && item.market_date !== lastTick.market_date) return false;
+  if (item.interval_key !== lastTick.interval_key) return false;
+  if (lastTick.scheduled_at && item.scheduled_at && item.scheduled_at !== lastTick.scheduled_at) return false;
+  return true;
 }
 
 function mergeTrades(current: MarketHubTrade[], incoming: MarketHubTrade[], cap = LIVE_TRADE_CAP) {
@@ -321,12 +366,20 @@ function HotSymbolStrip({
 
 function PendingLiveOrders({
   hub,
+  now,
 }: {
   hub: MarketHubResponse;
+  now: Date;
 }) {
   const summary = hub.activity.live_orders;
   const total = summary.pending_count;
   const buyPct = total > 0 ? (summary.pending_buy_count / total) * 100 : 50;
+  const batchMs = useMemo(() => {
+    if (!summary.next_execute_after) return null;
+    const timestamp = new Date(summary.next_execute_after).getTime();
+    if (Number.isNaN(timestamp)) return null;
+    return timestamp - now.getTime();
+  }, [now, summary.next_execute_after]);
 
   return (
     <section className={styles.liveOrderPanel}>
@@ -344,6 +397,11 @@ function PendingLiveOrders({
       </div>
 
       <div className={styles.liveOrderSummaryGrid}>
+        <div className={styles.liveOrderTotal}>
+          <span className={styles.microLabel}>Next batch in</span>
+          <strong>{formatCountdown(batchMs)}</strong>
+          <p>{summary.next_execute_after ? `Execution window starts ${formatEt(summary.next_execute_after)}` : "Waiting for queued orders"}</p>
+        </div>
         <div className={styles.liveOrderTotal}>
           <span className={styles.microLabel}>Next tick orders</span>
           <strong>{fmtInteger(total)}</strong>
@@ -548,6 +606,7 @@ export function MarketPage() {
   const [lastLiveAt, setLastLiveAt] = useState<string | null>(null);
   const [adjustmentSummary, setAdjustmentSummary] = useState<MarketAdjustmentSummary | null>(null);
   const [adjustmentError, setAdjustmentError] = useState<string | null>(null);
+  const [showAllAdjustmentMovers, setShowAllAdjustmentMovers] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [tickToast, setTickToast] = useState<string | null>(null);
 
@@ -594,7 +653,7 @@ export function MarketPage() {
     let cancelled = false;
     async function loadAdjustmentSummary() {
       try {
-        const result = await apiFetch<Record<string, unknown>>("/api/market/adjustments/summary?recent_limit=20", { cache: "no-store" });
+        const result = await apiFetch<Record<string, unknown>>(`/api/market/adjustments/summary?recent_limit=${ADJUSTMENT_SUMMARY_RECENT_LIMIT}`, { cache: "no-store" });
         if (!cancelled) {
           setAdjustmentSummary(normalizeMarketAdjustmentSummary(result));
           setAdjustmentError(null);
@@ -636,20 +695,7 @@ export function MarketPage() {
       socket.onmessage = (event) => {
         try {
           const payload = JSON.parse(String(event.data || "")) as Record<string, unknown>;
-          if (payload.type === "market.adjustments_applied") {
-            const quotes = Array.isArray(payload.quotes) ? payload.quotes as Array<Record<string, unknown>> : [];
-            setHub((current) => current ? patchHubWithQuotes(current, quotes) : current);
-            setTickToast(
-              `${formatIntervalLabel(String(payload.interval_key || ""))} tick applied to ${fmtInteger(Number(payload.applied_count || quotes.length || 0))} assets`
-            );
-            void apiFetch<Record<string, unknown>>("/api/market/adjustments/summary?recent_limit=20", { cache: "no-store" })
-              .then((result) => setAdjustmentSummary(normalizeMarketAdjustmentSummary(result)))
-              .catch(() => {});
-            return;
-          }
-
-          if (payload.type === "market.live_order_queued") {
-            setTickToast("Live order queued for the next 10-minute execution tick");
+          const refreshLiveOrderSummary = () => {
             void apiFetch<Record<string, unknown>>("/api/market/live-orders/summary?limit=8", { cache: "no-store" })
               .then((result) => {
                 const liveOrders = normalizeMarketLiveOrderSummary(result);
@@ -662,6 +708,29 @@ export function MarketPage() {
                 } : current);
               })
               .catch(() => {});
+          };
+
+          if (payload.type === "market.adjustments_applied") {
+            const quotes = Array.isArray(payload.quotes) ? payload.quotes as Array<Record<string, unknown>> : [];
+            setHub((current) => current ? patchHubWithQuotes(current, quotes) : current);
+            setTickToast(
+              `${formatIntervalLabel(String(payload.interval_key || ""))} tick applied to ${fmtInteger(Number(payload.applied_count || quotes.length || 0))} assets`
+            );
+            void apiFetch<Record<string, unknown>>(`/api/market/adjustments/summary?recent_limit=${ADJUSTMENT_SUMMARY_RECENT_LIMIT}`, { cache: "no-store" })
+              .then((result) => setAdjustmentSummary(normalizeMarketAdjustmentSummary(result)))
+              .catch(() => {});
+            return;
+          }
+
+          if (payload.type === "market.live_order_queued") {
+            setTickToast("Live order queued for the next 10-minute execution tick");
+            refreshLiveOrderSummary();
+            return;
+          }
+
+          if (payload.type === "market.live_order_rejected") {
+            setTickToast("A live order was rejected during batch execution");
+            refreshLiveOrderSummary();
             return;
           }
 
@@ -694,6 +763,7 @@ export function MarketPage() {
           setTrades((current) => mergeTrades(current, [normalizedTrade]));
           setHub((current) => current ? patchHubWithEvent(current, marketEvent) : current);
           setLastLiveAt(normalizedTrade.ts);
+          refreshLiveOrderSummary();
         } catch {
           // Ignore malformed payloads.
         }
@@ -824,6 +894,33 @@ export function MarketPage() {
     return timestamp - now.getTime();
   }, [adjustmentSummary, now]);
 
+  const adjustmentMovementColumns = useMemo(() => {
+    const feed = adjustmentSummary?.feed || [];
+    const appliedMovers = feed.filter((item) => item.status !== "skipped" && item.move_pct !== null && item.move_pct !== undefined);
+    const lastTickMovers = appliedMovers.filter((item) => isLastAdjustmentOutcome(item, adjustmentSummary?.last_tick || null));
+    const source = lastTickMovers.length ? lastTickMovers : appliedMovers;
+
+    return {
+      positive: source
+        .filter((item) => (item.move_pct ?? 0) > 0)
+        .sort((a, b) => (b.move_pct ?? 0) - (a.move_pct ?? 0)),
+      negative: source
+        .filter((item) => (item.move_pct ?? 0) < 0)
+        .sort((a, b) => (a.move_pct ?? 0) - (b.move_pct ?? 0)),
+      sourceCount: source.length,
+    };
+  }, [adjustmentSummary]);
+
+  const hasHiddenAdjustmentMovers =
+    adjustmentMovementColumns.positive.length > ADJUSTMENT_MOVEMENT_PREVIEW_COUNT ||
+    adjustmentMovementColumns.negative.length > ADJUSTMENT_MOVEMENT_PREVIEW_COUNT;
+  const visiblePositiveAdjustmentMovers = showAllAdjustmentMovers
+    ? adjustmentMovementColumns.positive
+    : adjustmentMovementColumns.positive.slice(0, ADJUSTMENT_MOVEMENT_PREVIEW_COUNT);
+  const visibleNegativeAdjustmentMovers = showAllAdjustmentMovers
+    ? adjustmentMovementColumns.negative
+    : adjustmentMovementColumns.negative.slice(0, ADJUSTMENT_MOVEMENT_PREVIEW_COUNT);
+
   const dailyTimelineProgress = useMemo(() => {
     const eastern = getZoneClock(now, "America/New_York");
     return ((eastern.hour * 60 + eastern.minute) / 1440) * 100;
@@ -872,9 +969,14 @@ export function MarketPage() {
                     ? `${formatIntervalLabel(adjustmentSummary.next_tick.interval_key)} · ${formatEt(adjustmentSummary.next_tick.scheduled_at)} · ${fmtInteger(adjustmentSummary.next_tick.asset_count)} assets`
                     : "Waiting for generated intervals"}
                 </p>
+                <div className={styles.tickRules}>
+                  <span>4 ticks per market day</span>
+                  <span>Each coin moves toward a hidden base rate</span>
+                  <span>Tick strength stays secret until after it lands</span>
+                </div>
               </div>
               <div className={styles.clockWall}>
-                <AnalogClock label="US Eastern" zone="America/New_York" now={now} large />
+                <AnalogClock label={CLOCK_ZONES[0].label} zone={CLOCK_ZONES[0].zone} now={now} large />
                 <div className={styles.smallClockGrid}>
                   {CLOCK_ZONES.slice(1).map((clock) => (
                     <AnalogClock key={clock.zone} label={clock.label} zone={clock.zone} now={now} />
@@ -887,13 +989,19 @@ export function MarketPage() {
                   <strong>{Math.round(dailyTimelineProgress)}%</strong>
                 </div>
                 <div className={styles.timelineTrack}>
-                  <i style={{ left: `${Math.max(0, Math.min(100, dailyTimelineProgress))}%` }} />
+                  <span className={`${styles.timelineSegment} ${styles.timelineSegmentTop}`} />
+                  <span className={`${styles.timelineSegment} ${styles.timelineSegmentRightDrop}`} />
+                  <span className={`${styles.timelineSegment} ${styles.timelineSegmentMiddle}`} />
+                  <span className={`${styles.timelineSegment} ${styles.timelineSegmentLeftDrop}`} />
+                  <span className={`${styles.timelineSegment} ${styles.timelineSegmentBottom}`} />
+                  <i style={timelineZPosition(dailyTimelineProgress)} />
                   {TICK_INTERVAL_ORDER.map((key) => (
-                    <span key={key} className={styles.timelineTick} style={{ left: key === "open" ? "37.5%" : key === "lunch" ? "62.5%" : key === "late" ? "87.5%" : "12.5%" }}>
-                      {formatIntervalLabel(key)}
+                    <span key={key} className={styles.timelineTick} style={timelineZPosition(TIMELINE_LABEL_PROGRESS[key])}>
+                      <span className={styles.timelineTickText}>{formatIntervalLabel(key)}</span>
                     </span>
                   ))}
                 </div>
+                <Image src={kronie} alt="" className={styles.tickTimelineMascot} width={337} height={405} />
               </div>
             </section>
 
@@ -911,7 +1019,7 @@ export function MarketPage() {
               <StatCard label="Market Breadth" value={`${fmtInteger(allMarketIndex?.summary?.advancers)} / ${fmtInteger(allMarketIndex?.summary?.decliners)}`} meta={`${fmtInteger(allMarketIndex?.summary?.constituent_count)} tracked`} icon={<FaChartLine />} />
             </section>
 
-            <PendingLiveOrders hub={hub} />
+            <PendingLiveOrders hub={hub} now={now} />
 
             <section className={styles.hotPanel}>
               <div className={styles.sectionHead}>
@@ -967,24 +1075,60 @@ export function MarketPage() {
               <div className={styles.sectionHead}>
                 <div>
                   <h2 className={styles.sectionTitle}>Adjustment Feed</h2>
-                  <p className={styles.sectionCopy}>Recent applied and skipped interval events from the adjustment system.</p>
+                  <p className={styles.sectionCopy}>Largest up and down moves from the last adjustment tick.</p>
                 </div>
                 <div className={styles.sectionMeta}>
                   <FaClock />
-                  <span>{fmtInteger(adjustmentSummary?.feed.length)} events</span>
+                  <span>{fmtInteger(adjustmentMovementColumns.sourceCount)} movements</span>
                 </div>
               </div>
-              <div className={styles.adjustmentFeed}>
-                {adjustmentSummary?.feed.length ? adjustmentSummary.feed.slice(0, 12).map((item) => (
-                  <Link key={`${item.id}-${item.symbol}`} href={`/stocks/${encodeURIComponent(item.symbol)}`} className={styles.adjustmentFeedRow}>
-                    <AssetCoin symbol={item.symbol} icon={item.icon ?? null} color={item.color ?? null} className={styles.assetIcon} shape="circle" />
-                    <span>
-                      <strong>{item.symbol} {formatIntervalLabel(item.interval_key)}</strong>
-                      <em>{item.status === "skipped" ? item.skip_reason || "Skipped" : `${fmtPct(item.move_pct)} move`} · {formatRelativeTime(item.applied_at || item.scheduled_at)}</em>
-                    </span>
-                    <b className={item.status === "skipped" ? styles.negative : styles.positive}>{item.status || "applied"}</b>
-                  </Link>
-                )) : <div className={styles.empty}>No adjustment events have printed yet.</div>}
+              <div className={styles.adjustmentFeedBody}>
+                <div className={styles.adjustmentMovementGrid}>
+                  <div className={styles.adjustmentMovementColumn}>
+                    <div className={styles.adjustmentMovementHead}>
+                      <span>Upward moves</span>
+                      <b className={styles.positive}>{fmtInteger(adjustmentMovementColumns.positive.length)}</b>
+                    </div>
+                    <div className={styles.adjustmentMovementList}>
+                      {visiblePositiveAdjustmentMovers.length ? visiblePositiveAdjustmentMovers.map((item) => (
+                        <Link key={`positive-${item.id}-${item.symbol}`} href={`/stocks/${encodeURIComponent(item.symbol)}`} className={styles.adjustmentFeedRow}>
+                          <AssetCoin symbol={item.symbol} icon={item.icon ?? null} color={item.color ?? null} className={styles.assetIcon} shape="circle" />
+                          <span>
+                            <strong>{item.symbol} {formatIntervalLabel(item.interval_key)}</strong>
+                            <em>{formatRelativeTime(item.applied_at || item.scheduled_at)}</em>
+                          </span>
+                          <b className={styles.positive}>+{fmtPct(item.move_pct)}</b>
+                        </Link>
+                      )) : <div className={styles.empty}>No upward moves in the last adjustment.</div>}
+                    </div>
+                  </div>
+                  <div className={styles.adjustmentMovementColumn}>
+                    <div className={styles.adjustmentMovementHead}>
+                      <span>Downward moves</span>
+                      <b className={styles.negative}>{fmtInteger(adjustmentMovementColumns.negative.length)}</b>
+                    </div>
+                    <div className={styles.adjustmentMovementList}>
+                      {visibleNegativeAdjustmentMovers.length ? visibleNegativeAdjustmentMovers.map((item) => (
+                        <Link key={`negative-${item.id}-${item.symbol}`} href={`/stocks/${encodeURIComponent(item.symbol)}`} className={styles.adjustmentFeedRow}>
+                          <AssetCoin symbol={item.symbol} icon={item.icon ?? null} color={item.color ?? null} className={styles.assetIcon} shape="circle" />
+                          <span>
+                            <strong>{item.symbol} {formatIntervalLabel(item.interval_key)}</strong>
+                            <em>{formatRelativeTime(item.applied_at || item.scheduled_at)}</em>
+                          </span>
+                          <b className={styles.negative}>{fmtPct(item.move_pct)}</b>
+                        </Link>
+                      )) : <div className={styles.empty}>No downward moves in the last adjustment.</div>}
+                    </div>
+                  </div>
+                  {hasHiddenAdjustmentMovers ? (
+                    <button type="button" className={styles.adjustmentExpandButton} onClick={() => setShowAllAdjustmentMovers((current) => !current)}>
+                      {showAllAdjustmentMovers ? "Show top 10 each" : "Show all coins"}
+                    </button>
+                  ) : null}
+                </div>
+                <div className={styles.adjustmentFeedImage}>
+                  <Image src={fubogki} alt="" width={192} height={192} />
+                </div>
               </div>
             </section>
 

@@ -608,6 +608,7 @@ export function StocksPage() {
   const refreshOverview = useMarketStore((state) => state.refreshOverview);
   const portfolio = useProfileStore((state) => state.portfolio);
   const fetchPortfolio = useProfileStore((state) => state.fetchPortfolio);
+  const fetchPortfolioOrders = useProfileStore((state) => state.fetchPortfolioOrders);
   const [overviewRows, setOverviewRows] = useState<OverviewRow[]>([]);
   const [channelError, setChannelError] = useState<string | null>(null);
   const [unitFilter, setUnitFilter] = useState("all");
@@ -1021,7 +1022,7 @@ export function StocksPage() {
           previousHolding,
         })
       );
-      await Promise.all([refreshOverview(), fetchPortfolio()]);
+      await Promise.all([refreshOverview(), fetchPortfolio(), fetchPortfolioOrders()]);
     } catch (error) {
       const errorCode = String((error as Error).message || error);
       setQuickTradeFailureNotice(getTradeFailureNotice(errorCode, quickTradeSide, quickTradeAsset.symbol));
@@ -1752,12 +1753,20 @@ export function StocksPage() {
                   <FaXmark aria-hidden="true" />
                 </button>
               </div>
-              <section className={detailStyles.tradePanel}>
+              <section className={styles.quickTradePanel}>
                 <div className={detailStyles.tradePanelContent}>
                   <div className={detailStyles.sectionHeader}>
-                    <div>
-                      <h2 className={detailStyles.sectionTitle}>Trade {quickTradeAsset.symbol}</h2>
-                      <p className={detailStyles.sectionCopy}>A tighter order ticket with account context relevant to this position.</p>
+                    <div className={styles.quickTradeTitleGroup}>
+                      <AssetCoin
+                        symbol={quickTradeAsset.symbol}
+                        icon={quickTradeAsset.icon ?? null}
+                        color={quickTradeAsset.color ?? null}
+                        className={styles.quickTradeHeaderCoin}
+                        shape="circle"
+                      />
+                      <div>
+                        <h2 className={detailStyles.sectionTitle}>Trade {quickTradeAsset.symbol}</h2>
+                      </div>
                     </div>
                   </div>
 

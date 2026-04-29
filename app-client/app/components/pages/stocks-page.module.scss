@@ -1019,6 +1019,26 @@
   margin-bottom: 0.55rem;
 }
 
+.quickTradePanel {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.quickTradeTitleGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.quickTradeHeaderCoin {
+  width: 2.65rem;
+  height: 2.65rem;
+  flex: 0 0 auto;
+}
+
 .drawerClose {
   display: inline-grid;
   place-items: center;

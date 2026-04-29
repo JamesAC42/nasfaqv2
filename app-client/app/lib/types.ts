@@ -636,6 +636,32 @@ export type PortfolioSummary = {
   holdings: PortfolioHolding[];
 };
 
+export type PortfolioOrder = {
+  id: number;
+  asset_id: number;
+  symbol: string;
+  display_name: string;
+  side: "buy" | "sell" | string;
+  order_type: string;
+  requested_quantity: number;
+  filled_quantity: number;
+  status: string;
+  quote_bid_at_submit: number | null;
+  quote_ask_at_submit: number | null;
+  rejection_reason: string | null;
+  execute_after: string | null;
+  live_order_batch_id: number | null;
+  submitted_market_date: string | null;
+  submitted_interval_key: string | null;
+  requested_at: string | null;
+  updated_at: string | null;
+};
+
+export type PortfolioOrdersResponse = {
+  user_id: number;
+  orders: PortfolioOrder[];
+};
+
 export type GameCatalogEntry = {
   id: number;
   key: string;
@@ -765,6 +791,7 @@ export type GachaPullResult = {
       slot_key: string | null;
       image_key: string;
       image_url: string;
+      pull_chance: number;
       metadata: Record<string, unknown>;
     };
     duplicate: boolean;
@@ -1075,6 +1102,7 @@ export type MarketTradeEvent = {
 
 export type LivestreamItem = {
   id: string;
+  channel_id?: string | null;
   title: string;
   creator: string;
   viewer_count: number | null;

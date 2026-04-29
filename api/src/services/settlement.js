@@ -37,10 +37,18 @@ function computeOpeningState({
   previousPersistentOffset,
   previousTransientOffset,
   fairValue,
+  carriedMarketPrice = null,
 }) {
   const persistentOffset = toNumber(previousPersistentOffset, 0) * PERSISTENT_DAILY_DECAY;
-  const transientOffset = toNumber(previousTransientOffset, 0) * TRANSIENT_SETTLEMENT_DECAY;
   const safeFairValue = Math.max(toNumber(fairValue, 0), 0.000001);
+
+  if (carriedMarketPrice !== null && carriedMarketPrice !== undefined && toNumber(carriedMarketPrice, 0) > 0) {
+    const midOpen = Math.max(toNumber(carriedMarketPrice, 0), 0.000001);
+    const transientOffset = Math.log(midOpen / safeFairValue) - persistentOffset;
+    return { persistentOffset, transientOffset, midOpen };
+  }
+
+  const transientOffset = toNumber(previousTransientOffset, 0) * TRANSIENT_SETTLEMENT_DECAY;
   const midOpen = safeFairValue * Math.exp(persistentOffset + transientOffset);
 
   return { persistentOffset, transientOffset, midOpen };
@@ -290,6 +298,7 @@ function buildSettledAssetState(assetRow, previousState) {
     previousPersistentOffset: previousOffsets.persistentOffset,
     previousTransientOffset: previousOffsets.transientOffset,
     fairValue,
+    carriedMarketPrice: priorMidPrice,
   });
   const midOpen = opening.midOpen;
   const premiumPct = computePremiumPct(midOpen, fairValue);

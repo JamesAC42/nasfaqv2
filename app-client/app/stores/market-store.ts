@@ -13,12 +13,16 @@ import {
   normalizeTreasury,
 } from "@/app/lib/normalizers";
 import { getMarketWsUrl } from "@/app/lib/ws";
+import { useAuthStore } from "@/app/stores/auth-store";
+import { useProfileStore } from "@/app/stores/profile-store";
 import type { AssetDetailBundle, DailyReport, MarketAsset, MarketHubTrade, MarketIndexBundle, MarketStatus, TradeRow } from "@/app/lib/types";
 
 const detailCache = new Map<string, AssetDetailBundle>();
 let activeDetailRequestId = 0;
 let wsRef: WebSocket | null = null;
 let reconnectTimer: number | null = null;
+let indexRefreshTimer: number | null = null;
+let tradingStateRefreshTimer: number | null = null;
 let reconnectAttempt = 0;
 let realtimeDisposed = false;
 
@@ -52,12 +56,12 @@ function patchAssetFromTrade(asset: MarketAsset, payload: Record<string, unknown
 
   return {
     ...asset,
-    current_mid_price: toNumber(quote.mid_price),
-    market_price: toNumber(quote.mid_price),
-    current_bid_price: toNumber(quote.bid_price),
-    current_ask_price: toNumber(quote.ask_price),
-    current_premium_pct: toNumber(quote.premium_pct),
-    premium_discount_pct: toNumber(quote.premium_pct),
+    current_mid_price: toNumber(quote.mid_price) ?? asset.current_mid_price,
+    market_price: toNumber(quote.mid_price) ?? asset.market_price,
+    current_bid_price: toNumber(quote.bid_price) ?? asset.current_bid_price,
+    current_ask_price: toNumber(quote.ask_price) ?? asset.current_ask_price,
+    current_premium_pct: toNumber(quote.premium_pct) ?? asset.current_premium_pct,
+    premium_discount_pct: toNumber(quote.premium_pct) ?? asset.premium_discount_pct,
     volume_24h: (asset.volume_24h ?? 0) + (toNumber(trade.quantity) ?? 0),
   };
 }
@@ -68,12 +72,12 @@ function patchAssetFromQuote(asset: MarketAsset, quote: Record<string, unknown>)
 
   return {
     ...asset,
-    current_mid_price: toNumber(quote.mid_price),
-    market_price: toNumber(quote.mid_price),
-    current_bid_price: toNumber(quote.bid_price),
-    current_ask_price: toNumber(quote.ask_price),
-    current_premium_pct: toNumber(quote.premium_pct),
-    premium_discount_pct: toNumber(quote.premium_pct),
+    current_mid_price: toNumber(quote.mid_price) ?? asset.current_mid_price,
+    market_price: toNumber(quote.mid_price) ?? asset.market_price,
+    current_bid_price: toNumber(quote.bid_price) ?? asset.current_bid_price,
+    current_ask_price: toNumber(quote.ask_price) ?? asset.current_ask_price,
+    current_premium_pct: toNumber(quote.premium_pct) ?? asset.current_premium_pct,
+    premium_discount_pct: toNumber(quote.premium_pct) ?? asset.premium_discount_pct,
   };
 }
 
@@ -115,6 +119,31 @@ function patchStatusFromTrade(current: MarketStatus | null, statusPayload: Recor
     last_cycle_error: current?.last_cycle_error || null,
     updated_at: current?.updated_at || null,
   };
+}
+
+function scheduleIndexRefresh(fetchMarketIndexes: () => Promise<void>, hasIndexes: boolean) {
+  if (!hasIndexes || typeof window === "undefined" || indexRefreshTimer !== null) return;
+  indexRefreshTimer = window.setTimeout(() => {
+    indexRefreshTimer = null;
+    void fetchMarketIndexes();
+  }, 750);
+}
+
+function eventUserId(payload: Record<string, unknown>) {
+  const trade = payload.trade && typeof payload.trade === "object" ? payload.trade as Record<string, unknown> : null;
+  const order = payload.order && typeof payload.order === "object" ? payload.order as Record<string, unknown> : null;
+  const parsed = Number(trade?.user_id ?? order?.user_id ?? payload.user_id);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function scheduleTradingStateRefresh(payload: Record<string, unknown>) {
+  const userId = useAuthStore.getState().user?.id || null;
+  if (!userId || eventUserId(payload) !== userId || typeof window === "undefined" || tradingStateRefreshTimer !== null) return;
+
+  tradingStateRefreshTimer = window.setTimeout(() => {
+    tradingStateRefreshTimer = null;
+    void useProfileStore.getState().refreshTradingState();
+  }, 400);
 }
 
 type MarketState = {
@@ -292,6 +321,32 @@ export const useMarketStore = create<MarketState>((set, get) => ({
                   : state.detail,
               };
             });
+            scheduleIndexRefresh(get().fetchMarketIndexes, get().marketIndexes.length > 0);
+            scheduleTradingStateRefresh(payload);
+            return;
+          }
+
+          if (payload.type === "market.snapshot") {
+            const assets = Array.isArray(payload.assets)
+              ? (payload.assets as Array<Record<string, unknown>>).map(normalizeAsset)
+              : [];
+            const status = payload.status && typeof payload.status === "object"
+              ? normalizeMarketStatus(payload.status as Record<string, unknown>)
+              : null;
+
+            if (assets.length || status) {
+              set((state) => {
+                const nextSymbol = state.selectedSymbol || assets[0]?.symbol || "";
+                return {
+                  assets: assets.length ? assets : state.assets,
+                  marketStatus: status || state.marketStatus,
+                  selectedSymbol: assets.length && !assets.some((asset) => asset.symbol === nextSymbol)
+                    ? assets[0]?.symbol || ""
+                    : nextSymbol,
+                };
+              });
+            }
+            scheduleIndexRefresh(get().fetchMarketIndexes, get().marketIndexes.length > 0);
             return;
           }
 
@@ -322,6 +377,12 @@ export const useMarketStore = create<MarketState>((set, get) => ({
             if (selectedSymbol && changedSymbols.has(selectedSymbol)) {
               void get().fetchAssetDetail(selectedSymbol);
             }
+            scheduleIndexRefresh(get().fetchMarketIndexes, get().marketIndexes.length > 0);
+            return;
+          }
+
+          if (payload.type === "market.live_order_queued" || payload.type === "market.live_order_rejected") {
+            scheduleTradingStateRefresh(payload);
             return;
           }
 
@@ -376,6 +437,14 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       if (reconnectTimer !== null) {
         window.clearTimeout(reconnectTimer);
         reconnectTimer = null;
+      }
+      if (indexRefreshTimer !== null) {
+        window.clearTimeout(indexRefreshTimer);
+        indexRefreshTimer = null;
+      }
+      if (tradingStateRefreshTimer !== null) {
+        window.clearTimeout(tradingStateRefreshTimer);
+        tradingStateRefreshTimer = null;
       }
       try {
         wsRef?.close();

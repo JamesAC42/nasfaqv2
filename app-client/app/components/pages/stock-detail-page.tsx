@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { FormEvent, Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { FormEvent, Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ColorType, LineSeries, createChart, type IChartApi, type ISeriesApi, type Time } from "lightweight-charts";
 import type { IconType } from "react-icons";
@@ -18,6 +18,7 @@ import { AssetCoin } from "@/app/components/common/asset-coin";
 import { MarketSidebar } from "@/app/components/common/market-sidebar";
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { SiteShell } from "@/app/components/layout/site-shell";
+import { LivestreamModal, type LivestreamModalItem } from "@/app/components/livestreams/livestream-modal";
 import { apiFetch } from "@/app/lib/api";
 import { adjustSaturation, createChannelChartTheme, rotateHue } from "@/app/lib/chart-theme";
 import { getUsableChannelColor, normalizeHexColor } from "@/app/lib/color";
@@ -27,6 +28,7 @@ import {
   normalizeAssetCommentListResponse,
   normalizeAssetSuperchatSummary,
   normalizeAssetSuperchatTimeseries,
+  normalizeCandles,
   normalizeLivestreams,
   normalizeMarketAssetAdjustmentHistory,
 } from "@/app/lib/normalizers";
@@ -44,6 +46,7 @@ import type {
   MarketAssetAdjustmentHistory,
   MarketAsset,
   PortfolioHolding,
+  CandlePoint,
 } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useTheme } from "@/app/providers/theme-provider";
@@ -77,6 +80,13 @@ import {
 
 const DETAIL_CHART_START_DATE = "2025-10-09";
 const TRADE_CONFIRMATION_ANIMATION_MS = 280;
+const INTRADAY_CANDLE_INTERVALS = [
+  { value: "1h", label: "1H" },
+  { value: "5m", label: "5M" },
+  { value: "1m", label: "1M" },
+] as const;
+
+type IntradayCandleInterval = (typeof INTRADAY_CANDLE_INTERVALS)[number]["value"];
 const TRADE_CONFIRMATION_BUY_IMAGES = [
   "/emojis/azki.jpg",
   "/emojis/nenethinking.jpg",
@@ -255,6 +265,39 @@ type AssetSuperchatRank = {
   rank: number | null;
 };
 
+type PastLivestreamResponse = {
+  video_id: string;
+  status: "ended";
+  video_title: string | null;
+  thumbnail_url: string | null;
+  channel_name: string;
+  channel_icon: string | null;
+  channel_color: string | null;
+  scheduled_start_at: string | null;
+  actual_start_at: string | null;
+  ended_at: string | null;
+  total_views: number | null;
+  avg_concurrent_viewers: number | null;
+  max_concurrent_viewers: number | null;
+  duration_seconds: number | null;
+};
+
+type PastLivestreamPayload = {
+  page: number;
+  week_start: string;
+  week_end: string;
+  has_older: boolean;
+  streams: PastLivestreamResponse[];
+};
+
+type PastLivestreamItem = LivestreamModalItem & {
+  total_views: number | null;
+  avg_concurrent_viewers: number | null;
+  max_concurrent_viewers: number | null;
+  duration_seconds: number | null;
+  ended_at: string | null;
+};
+
 type RankSpotlight = {
   label: string;
   rank: number | null;
@@ -294,6 +337,33 @@ function toNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function deriveDurationSeconds(start?: string | null, end?: string | null) {
+  if (!start || !end) return null;
+  const startMs = new Date(start).getTime();
+  const endMs = new Date(end).getTime();
+  if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs < startMs) return null;
+  return Math.floor((endMs - startMs) / 1000);
+}
+
+function normalizePastLivestream(stream: PastLivestreamResponse): PastLivestreamItem {
+  return {
+    id: stream.video_id,
+    title: stream.video_title || "Livestream",
+    creator: stream.channel_name,
+    creator_icon: stream.channel_icon,
+    channel_color: stream.channel_color,
+    thumbnail_url: stream.thumbnail_url,
+    started_at: stream.actual_start_at || stream.scheduled_start_at,
+    ended_at: stream.ended_at,
+    total_views: toNumber(stream.total_views),
+    avg_concurrent_viewers: toNumber(stream.avg_concurrent_viewers),
+    max_concurrent_viewers: toNumber(stream.max_concurrent_viewers),
+    duration_seconds: toNumber(stream.duration_seconds) ?? deriveDurationSeconds(stream.actual_start_at, stream.ended_at),
+    url: `https://www.youtube.com/watch?v=${encodeURIComponent(stream.video_id)}`,
+    status: stream.status,
+  };
 }
 
 function formatAdjustmentLabel(value: string | null | undefined) {
@@ -901,6 +971,7 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   const isLoadingPortfolio = useProfileStore((state) => state.isLoadingPortfolio);
   const portfolioError = useProfileStore((state) => state.portfolioError);
   const fetchPortfolio = useProfileStore((state) => state.fetchPortfolio);
+  const fetchPortfolioOrders = useProfileStore((state) => state.fetchPortfolioOrders);
   const clearPortfolio = useProfileStore((state) => state.clearPortfolio);
   const [tradeSide, setTradeSide] = useState<"buy" | "sell">("buy");
   const [tradeQuantity, setTradeQuantity] = useState("10");
@@ -921,8 +992,14 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     live: [],
     upcoming: [],
   });
+  const [livestreamView, setLivestreamView] = useState<"current" | "past">("current");
   const [livestreamError, setLivestreamError] = useState<string | null>(null);
   const [isLoadingLivestreams, setIsLoadingLivestreams] = useState(false);
+  const [pastLivestreamPage, setPastLivestreamPage] = useState(0);
+  const [pastLivestreamData, setPastLivestreamData] = useState<PastLivestreamPayload | null>(null);
+  const [pastLivestreamError, setPastLivestreamError] = useState<string | null>(null);
+  const [isLoadingPastLivestreams, setIsLoadingPastLivestreams] = useState(false);
+  const [selectedLivestreamItem, setSelectedLivestreamItem] = useState<LivestreamModalItem | null>(null);
   const [liveSession, setLiveSession] = useState<LiveSessionResponse["session"]>(null);
   const [liveBuckets, setLiveBuckets] = useState<ViewerBucket[]>([]);
   const [liveSessionError, setLiveSessionError] = useState<string | null>(null);
@@ -939,10 +1016,15 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   const [superchatCalendarError, setSuperchatCalendarError] = useState<string | null>(null);
   const [isLoadingSuperchatTimeseries, setIsLoadingSuperchatTimeseries] = useState(false);
   const [isLoadingSuperchatCalendar, setIsLoadingSuperchatCalendar] = useState(false);
+  const [intradayCandleInterval, setIntradayCandleInterval] = useState<IntradayCandleInterval>("1h");
+  const [intradayCandles, setIntradayCandles] = useState<CandlePoint[]>([]);
+  const [intradayCandlesError, setIntradayCandlesError] = useState<string | null>(null);
+  const [isLoadingIntradayCandles, setIsLoadingIntradayCandles] = useState(false);
   const [deferredReadySymbol, setDeferredReadySymbol] = useState<string | null>(null);
   const [adjustmentHistory, setAdjustmentHistory] = useState<MarketAssetAdjustmentHistory | null>(null);
   const [adjustmentHistoryError, setAdjustmentHistoryError] = useState<string | null>(null);
   const tradeConfirmationCloseTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
+  const showDeferredSections = deferredReadySymbol === normalizedSymbol;
 
   useEffect(() => {
     if (!tradeConfirmation && !isTradeConfirmationClosing) return;
@@ -1057,6 +1139,13 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   }, [normalizedSymbol]);
 
   useEffect(() => {
+    setIntradayCandleInterval("1h");
+    setIntradayCandles([]);
+    setIntradayCandlesError(null);
+    setIsLoadingIntradayCandles(false);
+  }, [normalizedSymbol]);
+
+  useEffect(() => {
     setDeferredReadySymbol(null);
 
     if (typeof window === "undefined") {
@@ -1090,6 +1179,38 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     };
   }, [normalizedSymbol]);
 
+  useEffect(() => {
+    if (!showDeferredSections || !normalizedSymbol) {
+      setIntradayCandles([]);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingIntradayCandles(true);
+    setIntradayCandlesError(null);
+
+    void apiFetch<{ candles: Array<Record<string, unknown>> }>(
+      `/api/market/assets/${encodeURIComponent(normalizedSymbol)}/candles?interval=${encodeURIComponent(intradayCandleInterval)}&range=24h`,
+      { cache: "no-store" }
+    )
+      .then((result) => {
+        if (cancelled) return;
+        setIntradayCandles(normalizeCandles(result.candles || []));
+      })
+      .catch((nextError) => {
+        if (cancelled) return;
+        setIntradayCandles([]);
+        setIntradayCandlesError(String((nextError as Error).message || nextError));
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingIntradayCandles(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [intradayCandleInterval, normalizedSymbol, showDeferredSections]);
+
   const selectedAsset = useMemo(
     () => assets.find((item) => item.symbol.toUpperCase() === normalizedSymbol) || null,
     [assets, normalizedSymbol]
@@ -1118,11 +1239,23 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   const channelBannerImage = selectedChannel?.channel.channel_asset_banner_url?.trim() || null;
 
   useEffect(() => {
+    setPastLivestreamPage(0);
+    setPastLivestreamData(null);
+    setPastLivestreamError(null);
+    setIsLoadingPastLivestreams(false);
+    setSelectedLivestreamItem(null);
+    setLivestreamView("current");
+  }, [selectedAsset?.youtube_channel_id]);
+
+  useEffect(() => {
     const channelId = selectedAsset?.youtube_channel_id?.trim() || "";
     if (!channelId) {
       setChannelStreams({ live: [], upcoming: [] });
       setLivestreamError(null);
       setIsLoadingLivestreams(false);
+      setPastLivestreamData(null);
+      setPastLivestreamError(null);
+      setIsLoadingPastLivestreams(false);
       setSuperchatSummary(null);
       setSuperchatRank(null);
       setSuperchatError(null);
@@ -1223,6 +1356,37 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
 
   useEffect(() => {
     const channelId = selectedAsset?.youtube_channel_id?.trim() || "";
+    if (!channelId || livestreamView !== "past") return;
+
+    let cancelled = false;
+    setIsLoadingPastLivestreams(true);
+    setPastLivestreamError(null);
+
+    void apiFetch<PastLivestreamPayload>(
+      `/api/livestreams/history?page=${encodeURIComponent(String(pastLivestreamPage))}&channel=${encodeURIComponent(channelId)}`
+    )
+      .then((result) => {
+        if (cancelled) return;
+        setPastLivestreamData(result);
+      })
+      .catch((nextError) => {
+        if (cancelled) return;
+        setPastLivestreamData(null);
+        setPastLivestreamError(String((nextError as Error).message || nextError));
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingPastLivestreams(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [livestreamView, pastLivestreamPage, selectedAsset?.youtube_channel_id]);
+
+  useEffect(() => {
+    const channelId = selectedAsset?.youtube_channel_id?.trim() || "";
     if (!channelId) {
       setSuperchatTimeseries(null);
       setSuperchatTimeseriesError(null);
@@ -1306,6 +1470,14 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
       cancelled = true;
     };
   }, [channelStreams.live]);
+
+  useEffect(() => {
+    if (!selectedLivestreamItem || selectedLivestreamItem.status === "ended") return;
+    const next = [...channelStreams.live, ...channelStreams.upcoming].find((entry) => entry.id === selectedLivestreamItem.id);
+    if (!next) return;
+    const timerId = window.setTimeout(() => setSelectedLivestreamItem(next), 0);
+    return () => window.clearTimeout(timerId);
+  }, [channelStreams.live, channelStreams.upcoming, selectedLivestreamItem]);
 
   useEffect(() => {
     const activeLiveId = channelStreams.live[0]?.id;
@@ -1405,7 +1577,7 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
       setAssetCommentBoardError(null);
     }
     if (user) {
-      await fetchPortfolio();
+      await Promise.all([fetchPortfolio(), fetchPortfolioOrders()]);
     }
   }
 
@@ -1533,24 +1705,31 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     }
   }
 
+  const openLivestreamModal = useCallback((item: LivestreamModalItem) => {
+    setSelectedLivestreamItem(item);
+  }, []);
+
+  const pastLivestreams = useMemo(
+    () => (pastLivestreamData?.streams || []).map(normalizePastLivestream),
+    [pastLivestreamData?.streams]
+  );
+
+  const pastLivestreamWeekLabel = pastLivestreamData
+    ? `${fmtDate(pastLivestreamData.week_start)} to ${fmtDate(pastLivestreamData.week_end)}`
+    : "Loading archive";
+
   function renderStreamItem(stream: LivestreamItem, label: "Live" | "Upcoming") {
-    return (
-      <Link
-        key={stream.id}
-        href={stream.url || "/livestreams"}
-        className={shellStyles.streamItem}
-        target={stream.url ? "_blank" : undefined}
-        rel={stream.url ? "noreferrer" : undefined}
-      >
+    const content = (
+      <>
         {stream.thumbnail_url ? (
-          <img src={stream.thumbnail_url} alt="" className={shellStyles.streamThumb} />
+          <img src={stream.thumbnail_url} alt="" className={styles.livestreamThumb} />
         ) : (
-          <div className={shellStyles.streamThumbFallback} />
+          <div className={styles.livestreamThumbFallback} />
         )}
-        <div className={shellStyles.streamBody}>
-          <div className={shellStyles.streamTitle}>{stream.title}</div>
-          <div className={shellStyles.streamMeta}>{stream.creator}</div>
-          <div className={shellStyles.streamMeta}>
+        <div className={styles.livestreamBody}>
+          <div className={styles.livestreamTitle}>{stream.title}</div>
+          <div className={styles.livestreamMeta}>{stream.creator}</div>
+          <div className={styles.livestreamMeta}>
             {label === "Live" ? (
               <>
                 <span className={shellStyles.livePill}>LIVE</span>
@@ -1565,7 +1744,62 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
             )}
           </div>
         </div>
+      </>
+    );
+
+    if (label === "Live") {
+      return (
+        <button
+          key={stream.id}
+          type="button"
+          className={styles.livestreamItem}
+          onClick={() => openLivestreamModal(stream)}
+        >
+          {content}
+        </button>
+      );
+    }
+
+    return (
+      <Link
+        key={stream.id}
+        href={stream.url || "/livestreams"}
+        className={styles.livestreamItem}
+        target={stream.url ? "_blank" : undefined}
+        rel={stream.url ? "noreferrer" : undefined}
+      >
+        {content}
       </Link>
+    );
+  }
+
+  function renderPastStreamItem(stream: PastLivestreamItem) {
+    return (
+      <button
+        key={stream.id}
+        type="button"
+        className={styles.livestreamItem}
+        onClick={() => openLivestreamModal(stream)}
+      >
+        {stream.thumbnail_url ? (
+          <img src={stream.thumbnail_url} alt="" className={styles.livestreamThumb} />
+        ) : (
+          <div className={styles.livestreamThumbFallback} />
+        )}
+        <div className={styles.livestreamBody}>
+          <div className={styles.livestreamTitle}>{stream.title}</div>
+          <div className={styles.livestreamMeta}>
+            <span className={styles.pastStreamPill}>ENDED</span>
+            <span>{stream.started_at ? fmtDate(stream.started_at) : "Start time unavailable"}</span>
+          </div>
+          <div className={styles.pastStreamStats}>
+            <span><strong>{fmtInteger(stream.max_concurrent_viewers)}</strong> max</span>
+            <span><strong>{fmtInteger(stream.avg_concurrent_viewers)}</strong> avg</span>
+            <span><strong>{fmtDurationSeconds(stream.duration_seconds)}</strong> runtime</span>
+            <span><strong>{fmtInteger(stream.total_views)}</strong> views</span>
+          </div>
+        </div>
+      </button>
     );
   }
 
@@ -1604,13 +1838,18 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   const numericTradeQuantity = Number(tradeQuantity) || 0;
   const estimatedTradeNotional = (selectedAsset?.current_mid_price ?? 0) * Math.max(numericTradeQuantity, 0);
   const chartStartTs = toTimestamp(DETAIL_CHART_START_DATE);
-  const showDeferredSections = deferredReadySymbol === normalizedSymbol;
   const filteredDailyCandles = useMemo(() => (
     !showDeferredSections ? [] : detail?.daily_candles.filter((item) => {
       const ts = toTimestamp(item.bucket);
       return chartStartTs !== null && ts !== null && ts >= chartStartTs;
     }) || []
   ), [chartStartTs, detail?.daily_candles, showDeferredSections]);
+  const displayedIntradayCandles = intradayCandles.length > 0
+    ? intradayCandles
+    : intradayCandleInterval === "1h"
+      ? detail?.intraday_candles || []
+      : [];
+  const intradayCandleSubtitle = `${INTRADAY_CANDLE_INTERVALS.find((item) => item.value === intradayCandleInterval)?.label || "1H"} candles from trades and adjustment ticks`;
   const filteredStats = useMemo(() => (
     !showDeferredSections ? [] : detail?.stats.filter((item) => {
       const ts = toTimestamp(item.snapshot_date);
@@ -2232,8 +2471,8 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                   <div className={styles.heroChartSlot}>
                     <CandleChartCard
                       title="24H Market"
-                      subtitle="Hourly candles from executed trades"
-                      candles={detail?.intraday_candles || []}
+                      subtitle={intradayCandleSubtitle}
+                      candles={displayedIntradayCandles}
                       theme={chartTheme}
                       height={320}
                       compact
@@ -2775,10 +3014,30 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                     <h2 className={styles.sectionTitle}>Market Graphs</h2>
                     <p className={styles.sectionCopy}>Price, fundamentals, and channel growth curves in one deck.</p>
                   </div>
+                  <div className={styles.candleIntervalControl} aria-label="24 hour candle interval">
+                    {INTRADAY_CANDLE_INTERVALS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className={intradayCandleInterval === option.value ? styles.candleIntervalButtonActive : styles.candleIntervalButton}
+                        onClick={() => setIntradayCandleInterval(option.value)}
+                        aria-pressed={intradayCandleInterval === option.value}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+                {intradayCandlesError ? <div className="statusMessage statusMessageWarn">24H candle warning: {intradayCandlesError}</div> : null}
                 <div className={styles.chartGrid}>
                   <div className={styles.chartGridWide}>
-                    <CandleChartCard title="24H Market" subtitle="Hourly candles from executed trades" candles={detail?.intraday_candles || []} theme={chartTheme} candlePalette="market" />
+                    <CandleChartCard
+                      title="24H Market"
+                      subtitle={isLoadingIntradayCandles ? `Loading ${intradayCandleSubtitle.toLowerCase()}` : intradayCandleSubtitle}
+                      candles={displayedIntradayCandles}
+                      theme={chartTheme}
+                      candlePalette="market"
+                    />
                   </div>
                   <CandleChartCard title="1Y Daily Price" subtitle="Daily candles with mark-close overlay" candles={filteredDailyCandles} showMarkClose theme={chartTheme} />
                   <VolumeChartCard title="1Y Daily Volume" subtitle="Settled daily coin volume in shares" candles={filteredDailyCandles} theme={chartTheme} />
@@ -2907,33 +3166,124 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                 <div className={styles.sectionHeader}>
                   <div>
                     <h2 className={styles.sectionTitle}>Livestreams</h2>
-                    <p className={styles.sectionCopy}>Current live and scheduled streams for this channel.</p>
+                    <p className={styles.sectionCopy}>Current, scheduled, and archived streams for this channel.</p>
                   </div>
                 </div>
 
-                {livestreamError ? <div className="statusMessage statusMessageError">Livestream error: {livestreamError}</div> : null}
-                {isLoadingLivestreams ? <div className={shellStyles.empty}>Loading livestreams…</div> : null}
-                {!isLoadingLivestreams && !livestreamError && channelStreams.live.length === 0 && channelStreams.upcoming.length === 0 ? (
-                  <div className={shellStyles.empty}>No live or upcoming streams for this channel.</div>
-                ) : null}
-
-                {channelStreams.live.length > 0 ? (
-                  <div className={shellStyles.streamSection}>
-                    <h3 className={shellStyles.sectionLabel}>Live Now</h3>
-                    <div className={shellStyles.streamList}>
-                      {channelStreams.live.map((stream) => renderStreamItem(stream, "Live"))}
+                <div className={styles.livestreamPanel}>
+                  <div className={styles.livestreamTabShell}>
+                    <div className={styles.revenuePulseTabHeader}>
+                      <span>Stream view</span>
+                      <strong>{livestreamView === "current" ? "Live and upcoming" : "Past streams"}</strong>
+                      <em>
+                        {livestreamView === "current"
+                          ? `${fmtInteger(channelStreams.live.length)} live / ${fmtInteger(channelStreams.upcoming.length)} upcoming`
+                          : pastLivestreamWeekLabel}
+                      </em>
+                    </div>
+                    <div className={styles.livestreamTabList} role="tablist" aria-label="Livestream view">
+                      <button
+                        type="button"
+                        className={livestreamView === "current" ? styles.revenuePulseTabActive : styles.revenuePulseTab}
+                        onClick={() => setLivestreamView("current")}
+                        aria-pressed={livestreamView === "current"}
+                      >
+                        Current
+                      </button>
+                      <button
+                        type="button"
+                        className={livestreamView === "past" ? styles.revenuePulseTabActive : styles.revenuePulseTab}
+                        onClick={() => setLivestreamView("past")}
+                        aria-pressed={livestreamView === "past"}
+                      >
+                        Past Streams
+                      </button>
                     </div>
                   </div>
-                ) : null}
 
-                {channelStreams.upcoming.length > 0 ? (
-                  <div className={shellStyles.streamSection}>
-                    <h3 className={shellStyles.sectionLabel}>Upcoming</h3>
-                    <div className={shellStyles.streamList}>
-                      {channelStreams.upcoming.map((stream) => renderStreamItem(stream, "Upcoming"))}
+                  {livestreamView === "current" ? (
+                    <>
+                      {livestreamError ? <div className="statusMessage statusMessageError">Livestream error: {livestreamError}</div> : null}
+                      {isLoadingLivestreams ? <div className={shellStyles.empty}>Loading livestreams…</div> : null}
+                      {!isLoadingLivestreams && !livestreamError && channelStreams.live.length === 0 && channelStreams.upcoming.length === 0 ? (
+                        <div className={shellStyles.empty}>No live or upcoming streams for this channel.</div>
+                      ) : null}
+
+                      {channelStreams.live.length > 0 ? (
+                        <div className={shellStyles.streamSection}>
+                          <h3 className={shellStyles.sectionLabel}>Live Now</h3>
+                          <div className={styles.livestreamList}>
+                            {channelStreams.live.map((stream) => renderStreamItem(stream, "Live"))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {channelStreams.upcoming.length > 0 ? (
+                        <div className={shellStyles.streamSection}>
+                          <h3 className={shellStyles.sectionLabel}>Upcoming</h3>
+                          <div className={styles.livestreamList}>
+                            {channelStreams.upcoming.map((stream) => renderStreamItem(stream, "Upcoming"))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <div className={styles.pastStreamPanel}>
+                      <div className={styles.pastStreamPager}>
+                        <button
+                          type="button"
+                          className={styles.pastStreamPageButton}
+                          onClick={() => setPastLivestreamPage((value) => value + 1)}
+                          disabled={isLoadingPastLivestreams || !pastLivestreamData?.has_older}
+                        >
+                          Older
+                        </button>
+                        <span>{pastLivestreamWeekLabel}</span>
+                        <button
+                          type="button"
+                          className={styles.pastStreamPageButton}
+                          onClick={() => setPastLivestreamPage((value) => Math.max(0, value - 1))}
+                          disabled={isLoadingPastLivestreams || pastLivestreamPage === 0}
+                        >
+                          Newer
+                        </button>
+                      </div>
+
+                      {pastLivestreamError ? <div className="statusMessage statusMessageError">Past livestream error: {pastLivestreamError}</div> : null}
+                      {isLoadingPastLivestreams ? <div className={shellStyles.empty}>Loading past livestreams…</div> : null}
+                      {!isLoadingPastLivestreams && !pastLivestreamError && pastLivestreams.length === 0 ? (
+                        <div className={shellStyles.empty}>No completed streams found for this channel in this window.</div>
+                      ) : null}
+
+                      {pastLivestreams.length > 0 ? (
+                        <>
+                          <div className={styles.livestreamList}>
+                            {pastLivestreams.map(renderPastStreamItem)}
+                          </div>
+                          <div className={styles.pastStreamPager}>
+                            <button
+                              type="button"
+                              className={styles.pastStreamPageButton}
+                              onClick={() => setPastLivestreamPage((value) => value + 1)}
+                              disabled={isLoadingPastLivestreams || !pastLivestreamData?.has_older}
+                            >
+                              Older
+                            </button>
+                            <span>{pastLivestreamWeekLabel}</span>
+                            <button
+                              type="button"
+                              className={styles.pastStreamPageButton}
+                              onClick={() => setPastLivestreamPage((value) => Math.max(0, value - 1))}
+                              disabled={isLoadingPastLivestreams || pastLivestreamPage === 0}
+                            >
+                              Newer
+                            </button>
+                          </div>
+                        </>
+                      ) : null}
                     </div>
-                  </div>
-                ) : null}
+                  )}
+                </div>
               </section>
 
               <section className={styles.sectionCard}>
@@ -3126,6 +3476,12 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
           </div>
         </div>
       </div>
+
+      <LivestreamModal
+        open={Boolean(selectedLivestreamItem)}
+        item={selectedLivestreamItem}
+        onClose={() => setSelectedLivestreamItem(null)}
+      />
 
       {tradeConfirmation && typeof document !== "undefined"
         ? createPortal(

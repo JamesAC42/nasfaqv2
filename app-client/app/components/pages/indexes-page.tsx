@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { startTransition, useDeferredValue, useEffect, useMemo, type ReactNode } from "react";
+import Image from "next/image";
+import { startTransition, useDeferredValue, useEffect, useMemo, type CSSProperties, type ReactNode } from "react";
 import {
   FaArrowTrendDown,
   FaArrowTrendUp,
@@ -21,6 +22,19 @@ import { useMarketStore } from "@/app/stores/market-store";
 import styles from "@/app/components/pages/indexes-page.module.scss";
 
 const INDEX_CHART_MIN_BUCKET = "2025-10-06";
+
+type TreemapRect = {
+  asset: MarketAsset;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type TreemapItem = {
+  asset: MarketAsset;
+  value: number;
+};
 
 function formatIndexTitle(group: string) {
   if (group === "all") return "All Market";
@@ -59,6 +73,80 @@ function getIndexGroupValue(index: MarketIndexBundle) {
 
 function isChartBucketInDisplayRange(bucket: string) {
   return bucket.slice(0, 10) >= INDEX_CHART_MIN_BUCKET;
+}
+
+function getTreemapValue(asset: MarketAsset) {
+  const value = computeHeatmapMarketCap(asset);
+  return Number.isFinite(value) && value > 0 ? value : 1;
+}
+
+function splitTreemap(items: TreemapItem[], rect: Omit<TreemapRect, "asset">): TreemapRect[] {
+  if (!items.length) return [];
+  if (items.length === 1) {
+    return [{ asset: items[0].asset, ...rect }];
+  }
+
+  const total = items.reduce((sum, item) => sum + item.value, 0);
+  const target = total / 2;
+  let splitIndex = 1;
+  let running = 0;
+
+  for (let index = 0; index < items.length - 1; index += 1) {
+    const next = running + items[index].value;
+    if (Math.abs(target - next) <= Math.abs(target - running) || index === 0) {
+      running = next;
+      splitIndex = index + 1;
+      continue;
+    }
+    break;
+  }
+
+  const firstItems = items.slice(0, splitIndex);
+  const secondItems = items.slice(splitIndex);
+  const firstTotal = firstItems.reduce((sum, item) => sum + item.value, 0);
+  const firstRatio = total > 0 ? firstTotal / total : 0.5;
+
+  if (rect.width >= rect.height) {
+    const firstWidth = rect.width * firstRatio;
+    return [
+      ...splitTreemap(firstItems, { ...rect, width: firstWidth }),
+      ...splitTreemap(secondItems, { ...rect, x: rect.x + firstWidth, width: rect.width - firstWidth }),
+    ];
+  }
+
+  const firstHeight = rect.height * firstRatio;
+  return [
+    ...splitTreemap(firstItems, { ...rect, height: firstHeight }),
+    ...splitTreemap(secondItems, { ...rect, y: rect.y + firstHeight, height: rect.height - firstHeight }),
+  ];
+}
+
+function buildHeatmapTreemap(assets: MarketAsset[]) {
+  const items = assets.map((asset) => ({ asset, value: getTreemapValue(asset) }));
+  return splitTreemap(items, { x: 0, y: 0, width: 100, height: 100 });
+}
+
+function getHeatmapTileStyle(rect: TreemapRect): CSSProperties {
+  return {
+    left: `${rect.x}%`,
+    top: `${rect.y}%`,
+    width: `${rect.width}%`,
+    height: `${rect.height}%`,
+  };
+}
+
+function getHeatmapTileSizeClass(rect: TreemapRect) {
+  const area = (rect.width * rect.height) / 10000;
+  if (area < 0.075) return styles.tileTiny;
+  if (area > 0.28) return styles.tileLarge;
+  return "";
+}
+
+function formatHeatmapShare(rect: TreemapRect) {
+  const share = (rect.width * rect.height) / 100;
+  if (share >= 10) return `${share.toFixed(0)}%`;
+  if (share >= 1) return `${share.toFixed(1)}%`;
+  return "<1%";
 }
 
 function IndexMemberStack({ index, assets, compact = false }: { index: MarketIndexBundle; assets: MarketAsset[]; compact?: boolean }) {
@@ -155,7 +243,7 @@ function IndexDetailPanel({
   const chartValues = index.series
     .filter((point) => isChartBucketInDisplayRange(point.bucket))
     .map((point) => ({ time: point.bucket, value: point.value }));
-  const useCompactHeatmap = heatmapAssets.length <= 6;
+  const heatmapRects = useMemo(() => buildHeatmapTreemap(heatmapAssets), [heatmapAssets]);
 
   return (
     <section className={styles.detailPane}>
@@ -219,20 +307,17 @@ function IndexDetailPanel({
             <div className={styles.sectionHeader}>
               <div>
                 <h2>Constituent Heatmap</h2>
-                <p>Tile size follows price-volume footprint inside the selected index.</p>
+                <p>Tile area is each asset&apos;s mid price times 24h volume.</p>
               </div>
             </div>
-            <div className={`${styles.heatmap} ${useCompactHeatmap ? styles.heatmapCompact : ""}`.trim()}>
-              {heatmapAssets.map((asset) => {
-                const maxCap = computeHeatmapMarketCap(heatmapAssets[0] || asset) || 1;
-                const strength = Math.max(0, Math.min(1, computeHeatmapMarketCap(asset) / maxCap));
-                const spanClass = useCompactHeatmap ? styles.tileCompact : strength > 0.66 ? styles.tileLg : strength > 0.33 ? styles.tileMd : styles.tileSm;
+            <div className={styles.heatmap}>
+              {heatmapRects.map((rect) => {
+                const { asset } = rect;
                 return (
-                  <button
+                  <div
                     key={asset.symbol}
-                    type="button"
-                    className={`${styles.heatmapTile} ${spanClass} ${getHeatmapTileToneClass(asset)} ${selectedSymbol === asset.symbol ? styles.tileSelected : ""}`}
-                    onClick={() => setSelectedSymbol(asset.symbol)}
+                    className={`${styles.heatmapTile} ${getHeatmapTileSizeClass(rect)} ${getHeatmapTileToneClass(asset)}`.trim()}
+                    style={getHeatmapTileStyle(rect)}
                     title={`${asset.symbol} ${fmtNumber(asset.current_mid_price, "$")}`}
                   >
                     <AssetCoin
@@ -242,9 +327,10 @@ function IndexDetailPanel({
                       appearance="plain"
                       className={styles.heatmapSymbolImage}
                     />
+                    <span className={styles.heatmapShare}>{formatHeatmapShare(rect)}</span>
                     <span className={styles.heatmapPrice}>{fmtNumber(asset.current_mid_price, "$")}</span>
                     <span className={styles.heatmapSymbol}>{asset.symbol}</span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -285,6 +371,9 @@ function IndexDetailPanel({
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className={styles.assetTapeMascot} aria-hidden="true">
+              <Image src="/subaru.png" alt="" width={411} height={458} />
             </div>
           </div>
         </div>
@@ -339,7 +428,7 @@ export function IndexesPage() {
   );
 
   const assetTableRows = useMemo(
-    () => [...filteredAssets].sort((a, b) => (b.current_mid_price ?? 0) - (a.current_mid_price ?? 0)).slice(0, 18),
+    () => [...filteredAssets].sort((a, b) => (b.current_mid_price ?? 0) - (a.current_mid_price ?? 0)),
     [filteredAssets]
   );
 
@@ -350,7 +439,7 @@ export function IndexesPage() {
           <div className={styles.selectorHeader}>
             <span className={styles.eyebrow}><FaCircleNodes /> Finance</span>
             <h2>Indexes</h2>
-            <p>Select a basket. The right desk scrolls internally; the page stays fixed.</p>
+            <p>Select a basket. The desk scrolls with the page so the full asset tape stays reachable.</p>
           </div>
           {error ? <div className="statusMessage statusMessageError">Request error: {error}</div> : null}
           {isLoadingOverview || isLoadingIndex ? <div className={styles.loadingPanel}>Loading indexes…</div> : null}

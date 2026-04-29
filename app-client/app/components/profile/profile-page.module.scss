@@ -413,10 +413,50 @@
   font-size: 1.45rem;
 }
 
+.sectionHint {
+  max-width: 44rem;
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
 .sectionLabel,
 .sectionCount,
 .muted {
   color: var(--muted);
+}
+
+.pendingOrderList {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.pendingOrderCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem;
+  border: 0.0625rem solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-card-soft) 74%, transparent);
+}
+
+.pendingOrderCard div,
+.pendingOrderMeta {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.pendingOrderCard span,
+.pendingOrderMeta span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.pendingOrderMeta {
+  text-align: right;
 }
 
 .sectionCount,
@@ -546,6 +586,10 @@
 .textarea {
   min-height: 8.5rem;
   resize: vertical;
+}
+
+.profileSettingsModal .textarea {
+  min-height: 14rem;
 }
 
 .colorRow {
@@ -939,6 +983,12 @@
   transform-origin: center;
 }
 
+.profileSettingsModal {
+  width: min(52rem, 100%);
+  max-height: min(48rem, 92vh);
+  padding: 1.35rem;
+}
+
 .profilePictureModalHead {
   display: flex;
   align-items: start;
@@ -1197,6 +1247,37 @@
     outline: 0.125rem solid var(--accent);
     outline-offset: -0.125rem;
     background: color-mix(in srgb, var(--surface-section-soft) 60%, var(--accent-soft));
+  }
+}
+
+.holdingTradeButton {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 0.0625rem solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent-soft) 24%, var(--surface-section-soft));
+  color: var(--accent);
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease;
+
+  &:hover,
+  &:focus-visible {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--accent) 54%, var(--border));
+    background: color-mix(in srgb, var(--accent-soft) 40%, var(--surface-section-soft));
+    color: var(--accent-strong);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
   }
 }
 

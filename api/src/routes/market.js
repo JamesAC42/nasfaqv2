@@ -170,6 +170,17 @@ router.get("/live-orders/summary", async (req, res, next) => {
   }
 });
 
+router.get("/live-orders/admin/health", async (req, res, next) => {
+  try {
+    requireAdmin(req);
+    const batchLimit = parsePositiveInt(req.query.batch_limit, 10, { min: 1, max: 50 });
+    const result = await trading.getLiveOrderAdminHealth(req.ctx.pool, { batchLimit });
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.get("/adjustments/admin/sessions", async (req, res, next) => {
   try {
     requireAdmin(req);

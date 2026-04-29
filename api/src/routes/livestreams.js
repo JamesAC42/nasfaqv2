@@ -17,9 +17,10 @@ function cmpAsc(a, b) {
 function toListStream(item) {
   // Only include fields needed by the livestream list + modal open button.
   // Modal does its own fetch for session/buckets, so we intentionally omit
-  // fields like `video_url`, `channel_id`, and `updated_at`.
+  // fields like `updated_at`; channel id is kept so clients can match assets.
   return {
     video_id: item.video_id,
+    channel_id: item.youtube_channel_id || item.channel_id || null,
     status: item.status,
     title: item.title,
     url: item.video_url || null,
@@ -46,6 +47,18 @@ function sortStreams(live, upcoming) {
   });
 }
 
+function channelIdFromRedisKey(key) {
+  const match = String(key || "").match(/^nasfaq_livestreams:\{(.+)\}$/);
+  return match ? match[1] : null;
+}
+
+function withChannelId(item, channelID) {
+  return {
+    ...item,
+    youtube_channel_id: item.youtube_channel_id || item.channel_id || channelID || null,
+  };
+}
+
 async function getChannelStreamsFromRedis(redis, channelID) {
   if (!redis || !channelID) {
     return { live: [], upcoming: [] };
@@ -59,8 +72,9 @@ async function getChannelStreamsFromRedis(redis, channelID) {
   for (const [, val] of Object.entries(hash)) {
     const item = safeParseJSON(val);
     if (!item || !item.video_id) continue;
-    if (item.status === "live") live.push(item);
-    else if (item.status === "upcoming") upcoming.push(item);
+    const stream = withChannelId(item, channelID);
+    if (stream.status === "live") live.push(stream);
+    else if (stream.status === "upcoming") upcoming.push(stream);
   }
 
   sortStreams(live, upcoming);
@@ -131,12 +145,14 @@ router.get("/", async (req, res, next) => {
     } else {
       // Aggregate all per-channel hashes: nasfaq_livestreams:{channelId}
       for await (const key of redis.scanIterator({ MATCH: "nasfaq_livestreams:{*}", COUNT: 200 })) {
+        const channelID = channelIdFromRedisKey(key);
         const h = await redis.hGetAll(key);
         for (const [, val] of Object.entries(h)) {
           const item = safeParseJSON(val);
           if (!item || !item.video_id) continue;
-          if (item.status === "live") live.push(item);
-          else if (item.status === "upcoming") upcoming.push(item);
+          const stream = withChannelId(item, channelID);
+          if (stream.status === "live") live.push(stream);
+          else if (stream.status === "upcoming") upcoming.push(stream);
         }
       }
       sortStreams(live, upcoming);
@@ -171,17 +187,19 @@ router.get("/history", async (req, res, next) => {
   try {
     const { pool } = req.ctx;
     const page = parsePage(req.query.page);
+    const channelFilter = req.query.channel ? req.query.channel.toString().trim() : null;
     const window = weekWindowForPage(page);
 
     const historyResult = await pool.query(
       `
         ${SESSION_SELECT}
         WHERE s.status = 'ended'
+          AND ($3::TEXT IS NULL OR s.youtube_channel_id = $3)
           AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) >= $1
           AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) < $2
         ORDER BY COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) DESC, s.video_id DESC
       `,
-      [window.start, window.end]
+      [window.start, window.end, channelFilter]
     );
 
     const olderResult = await pool.query(
@@ -189,10 +207,11 @@ router.get("/history", async (req, res, next) => {
         SELECT 1
         FROM yt.livestream_sessions s
         WHERE s.status = 'ended'
+          AND ($2::TEXT IS NULL OR s.youtube_channel_id = $2)
           AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) < $1
         LIMIT 1
       `,
-      [window.start]
+      [window.start, channelFilter]
     );
 
     res.json({

@@ -66,6 +66,21 @@ type ForceAdjustmentResponse = {
   } | null;
 };
 
+type ForceRegenerateDayResponse = {
+  market_date?: string;
+  settled_count?: number;
+  adjustment_session?: {
+    session?: {
+      id?: number;
+      market_date?: string;
+      status?: string;
+    };
+    created?: boolean;
+    interval_count?: number;
+    skipped_assets?: Array<Record<string, unknown>>;
+  };
+};
+
 type AdjustmentAdminSession = {
   id: number;
   market_date: string;
@@ -97,6 +112,7 @@ type AdjustmentAdminInterval = {
   scheduled_at: string | null;
   applied_at: string | null;
   status: string;
+  strength_pct: number | null;
   base_rate: number | null;
   price_before: number | null;
   price_after: number | null;
@@ -125,6 +141,34 @@ type AdjustmentAdminHealth = {
   scheduler_lock_held: boolean;
   scheduler_interval_ms: number;
   scheduler_enabled: boolean;
+};
+
+type LiveOrderAdminBatch = {
+  id: number;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  orders_attempted: number;
+  orders_filled: number;
+  orders_rejected: number;
+  error_text: string | null;
+};
+
+type LiveOrderAdminHealth = {
+  generated_at: string | null;
+  scheduler_enabled: boolean;
+  scheduler_interval_ms: number;
+  batch_limit: number;
+  health: {
+    next_execute_after: string | null;
+    oldest_pending_at: string | null;
+    pending_count: number;
+    due_pending_count: number;
+    overdue_pending_count: number;
+    rejected_24h_count: number;
+    filled_24h_count: number;
+  };
+  recent_batches: LiveOrderAdminBatch[];
 };
 
 const CADENCE_OPTIONS = ["weekly", "monthly", "quarterly", "manual"];
@@ -173,6 +217,11 @@ function formatPlainPct(value: number | null | undefined) {
   return String(value);
 }
 
+function formatStrengthPct(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "N/A";
+  return `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}%`;
+}
+
 function formatIntervalLabel(value: string | null | undefined) {
   switch (value) {
     case "open":
@@ -198,6 +247,21 @@ function formatDateTime(value: string | null | undefined) {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function getEasternDateKey(date = new Date()) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+      .formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+  return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
 function normalizeSession(row: Record<string, unknown>): AdjustmentAdminSession {
@@ -234,6 +298,7 @@ function normalizeInterval(row: Record<string, unknown>): AdjustmentAdminInterva
     scheduled_at: row.scheduled_at ? String(row.scheduled_at) : null,
     applied_at: row.applied_at ? String(row.applied_at) : null,
     status: String(row.status || ""),
+    strength_pct: toNumber(row.strength_pct),
     base_rate: toNumber(row.base_rate),
     price_before: toNumber(row.price_before),
     price_after: toNumber(row.price_after),
@@ -259,6 +324,35 @@ function normalizeHealth(row: Record<string, unknown>): AdjustmentAdminHealth {
     scheduler_lock_held: Boolean(row.scheduler_lock_held),
     scheduler_interval_ms: Number(toNumber(row.scheduler_interval_ms) || 0),
     scheduler_enabled: Boolean(row.scheduler_enabled),
+  };
+}
+
+function normalizeLiveOrderHealth(row: Record<string, unknown>): LiveOrderAdminHealth {
+  const health = (row.health || {}) as Record<string, unknown>;
+  return {
+    generated_at: row.generated_at ? String(row.generated_at) : null,
+    scheduler_enabled: Boolean(row.scheduler_enabled),
+    scheduler_interval_ms: Number(toNumber(row.scheduler_interval_ms) || 0),
+    batch_limit: Number(toNumber(row.batch_limit) || 0),
+    health: {
+      next_execute_after: health.next_execute_after ? String(health.next_execute_after) : null,
+      oldest_pending_at: health.oldest_pending_at ? String(health.oldest_pending_at) : null,
+      pending_count: Number(toNumber(health.pending_count) || 0),
+      due_pending_count: Number(toNumber(health.due_pending_count) || 0),
+      overdue_pending_count: Number(toNumber(health.overdue_pending_count) || 0),
+      rejected_24h_count: Number(toNumber(health.rejected_24h_count) || 0),
+      filled_24h_count: Number(toNumber(health.filled_24h_count) || 0),
+    },
+    recent_batches: ((row.recent_batches || []) as Array<Record<string, unknown>>).map((batch) => ({
+      id: Number(batch.id || 0),
+      status: String(batch.status || ""),
+      started_at: batch.started_at ? String(batch.started_at) : null,
+      completed_at: batch.completed_at ? String(batch.completed_at) : null,
+      orders_attempted: Number(toNumber(batch.orders_attempted) || 0),
+      orders_filled: Number(toNumber(batch.orders_filled) || 0),
+      orders_rejected: Number(toNumber(batch.orders_rejected) || 0),
+      error_text: batch.error_text ? String(batch.error_text) : null,
+    })),
   };
 }
 
@@ -421,11 +515,16 @@ export function AdminMarketTuningPage() {
   const [forceBusy, setForceBusy] = useState(false);
   const [forceResult, setForceResult] = useState<ForceAdjustmentResponse | null>(null);
   const [forceError, setForceError] = useState<string | null>(null);
+  const [regenerateDate, setRegenerateDate] = useState(() => getEasternDateKey());
+  const [regenerateBusy, setRegenerateBusy] = useState(false);
+  const [regenerateResult, setRegenerateResult] = useState<ForceRegenerateDayResponse | null>(null);
+  const [regenerateError, setRegenerateError] = useState<string | null>(null);
   const [adminSessions, setAdminSessions] = useState<AdjustmentAdminSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
   const [sessionDetail, setSessionDetail] = useState<AdjustmentAdminSessionDetail | null>(null);
   const [selectedInterval, setSelectedInterval] = useState<AdjustmentAdminInterval | null>(null);
   const [adminHealth, setAdminHealth] = useState<AdjustmentAdminHealth | null>(null);
+  const [liveOrderHealth, setLiveOrderHealth] = useState<LiveOrderAdminHealth | null>(null);
   const [adminAdjustmentError, setAdminAdjustmentError] = useState<string | null>(null);
   const [isLoadingAdminAdjustments, setIsLoadingAdminAdjustments] = useState(false);
 
@@ -467,14 +566,16 @@ export function AdminMarketTuningPage() {
       setIsLoadingAdminAdjustments(true);
       setAdminAdjustmentError(null);
       try {
-        const [sessionsResult, healthResult] = await Promise.all([
+        const [sessionsResult, healthResult, liveOrderHealthResult] = await Promise.all([
           apiFetch<{ sessions: Array<Record<string, unknown>> }>("/api/market/adjustments/admin/sessions?limit=30"),
           apiFetch<Record<string, unknown>>("/api/market/adjustments/admin/health"),
+          apiFetch<Record<string, unknown>>("/api/market/live-orders/admin/health?batch_limit=8"),
         ]);
         if (cancelled) return;
         const sessions = sessionsResult.sessions.map(normalizeSession);
         setAdminSessions(sessions);
         setAdminHealth(normalizeHealth(healthResult));
+        setLiveOrderHealth(normalizeLiveOrderHealth(liveOrderHealthResult));
         setSelectedSessionId((current) => current || sessions[0]?.id || null);
       } catch (nextError) {
         if (!cancelled) setAdminAdjustmentError(String((nextError as Error).message || nextError));
@@ -546,13 +647,15 @@ export function AdminMarketTuningPage() {
   }, [sessionDetail?.intervals]);
 
   async function refreshAdminAdjustmentData(nextSessionId = selectedSessionId) {
-    const [sessionsResult, healthResult] = await Promise.all([
+    const [sessionsResult, healthResult, liveOrderHealthResult] = await Promise.all([
       apiFetch<{ sessions: Array<Record<string, unknown>> }>("/api/market/adjustments/admin/sessions?limit=30", { cache: "no-store" }),
       apiFetch<Record<string, unknown>>("/api/market/adjustments/admin/health", { cache: "no-store" }),
+      apiFetch<Record<string, unknown>>("/api/market/live-orders/admin/health?batch_limit=8", { cache: "no-store" }),
     ]);
     const sessions = sessionsResult.sessions.map(normalizeSession);
     setAdminSessions(sessions);
     setAdminHealth(normalizeHealth(healthResult));
+    setLiveOrderHealth(normalizeLiveOrderHealth(liveOrderHealthResult));
     const resolvedSessionId = nextSessionId || sessions[0]?.id || null;
     setSelectedSessionId(resolvedSessionId);
     if (resolvedSessionId) {
@@ -584,6 +687,37 @@ export function AdminMarketTuningPage() {
       setForceError(String((nextError as Error).message || nextError));
     } finally {
       setForceBusy(false);
+    }
+  }
+
+  async function handleRegenerateDay() {
+    const marketDate = regenerateDate.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(marketDate)) {
+      setRegenerateError("Use a YYYY-MM-DD market date.");
+      return;
+    }
+
+    setRegenerateBusy(true);
+    setRegenerateError(null);
+    setRegenerateResult(null);
+    setForceResult(null);
+    try {
+      const result = await apiFetch<ForceRegenerateDayResponse>(`/internal/market/settle/${marketDate}`, {
+        method: "POST",
+        body: JSON.stringify({
+          force: true,
+          force_adjustments: true,
+        }),
+      });
+      const assetRows = await apiFetch<Record<string, unknown>[]>("/api/market/assets", { cache: "no-store" });
+      setAssets(assetRows.map(toAsset));
+      const nextSessionId = Number(result.adjustment_session?.session?.id || 0) || null;
+      await refreshAdminAdjustmentData(nextSessionId);
+      setRegenerateResult(result);
+    } catch (nextError) {
+      setRegenerateError(String((nextError as Error).message || nextError));
+    } finally {
+      setRegenerateBusy(false);
     }
   }
 
@@ -629,6 +763,37 @@ export function AdminMarketTuningPage() {
             <p className={styles.sectionNote}>
               Strengths total {config?.interval_strength_total_pct ?? 200}% across the day. Force Next Tick applies the next scheduled interval now and replaces that future tick.
             </p>
+            <div className={styles.regenerateActions}>
+              <label className={styles.compactField}>
+                <span>Regenerate Market Date</span>
+                <input
+                  className={styles.compactInput}
+                  type="date"
+                  value={regenerateDate}
+                  onChange={(event) => setRegenerateDate(event.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className={styles.dangerButton}
+                disabled={regenerateBusy || forceBusy || isLoading}
+                onClick={() => void handleRegenerateDay()}
+              >
+                {regenerateBusy ? "Regenerating..." : "Regenerate Day"}
+              </button>
+              {regenerateResult ? (
+                <span className={styles.forceResult}>
+                  {regenerateResult.market_date || regenerateDate} regenerated
+                  {regenerateResult.adjustment_session?.interval_count !== undefined
+                    ? ` · ${regenerateResult.adjustment_session.interval_count} interval rows`
+                    : ""}
+                </span>
+              ) : null}
+              {regenerateError ? <span className={styles.forceError}>{regenerateError}</span> : null}
+            </div>
+            <p className={styles.warningNote}>
+              This force-reruns settlement and replaces the adjustment session for that date. Use it for same-day debugging before forcing the next tick.
+            </p>
             <div className={styles.forceActions}>
               <button type="button" className={styles.primaryButton} disabled={forceBusy || isLoading} onClick={() => void handleForceNextAdjustment()}>
                 {forceBusy ? "Forcing tick..." : "Force Next Tick"}
@@ -658,7 +823,7 @@ export function AdminMarketTuningPage() {
           <div className={styles.toolbar}>
             <div>
               <h2 className={styles.sectionTitle}>Adjustment Operations</h2>
-              <p className={styles.sectionNote}>Session status, interval completion, forced tick results, scheduler freshness, and drill-down metadata.</p>
+              <p className={styles.sectionNote}>Session status, interval completion, hidden tick strength, forced tick results, scheduler freshness, and drill-down metadata.</p>
             </div>
             <label className={styles.searchField}>
               <span>Session</span>
@@ -699,6 +864,70 @@ export function AdminMarketTuningPage() {
               <span>24H Result</span>
               <strong>{adminHealth?.applied_24h_count ?? 0} / {adminHealth?.skipped_24h_count ?? 0}</strong>
               <p>Applied / skipped intervals over the last 24 hours.</p>
+            </div>
+          </div>
+
+          <div className={styles.liveOrderAdminPanel}>
+            <div className={styles.sectionHead}>
+              <div>
+                <h3 className={styles.sectionTitle}>Live Order Batch Health</h3>
+                <p className={styles.sectionNote}>Queued market orders execute in best-effort batches. Rejections here usually mean price, cash, holding, or interval-limit checks failed at execution.</p>
+              </div>
+            </div>
+            <div className={styles.opsGrid}>
+              <div className={styles.opsCard}>
+                <span>Scheduler</span>
+                <strong>{liveOrderHealth?.scheduler_enabled ? "Enabled" : "Disabled"}</strong>
+                <p>{liveOrderHealth?.scheduler_interval_ms ? `${Math.round(liveOrderHealth.scheduler_interval_ms / 1000)}s poll · ${liveOrderHealth.batch_limit} max per batch` : "No scheduler config loaded."}</p>
+              </div>
+              <div className={styles.opsCard}>
+                <span>Next Batch</span>
+                <strong>{formatDateTime(liveOrderHealth?.health.next_execute_after)}</strong>
+                <p>{liveOrderHealth?.health.pending_count ?? 0} pending orders total.</p>
+              </div>
+              <div className={styles.opsCard}>
+                <span>Due / Overdue</span>
+                <strong>{liveOrderHealth?.health.due_pending_count ?? 0} / {liveOrderHealth?.health.overdue_pending_count ?? 0}</strong>
+                <p>Overdue means execute_after is more than 10 minutes old.</p>
+              </div>
+              <div className={styles.opsCard}>
+                <span>24H Results</span>
+                <strong>{liveOrderHealth?.health.filled_24h_count ?? 0} / {liveOrderHealth?.health.rejected_24h_count ?? 0}</strong>
+                <p>Filled / rejected live orders over the last 24 hours.</p>
+              </div>
+            </div>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Batch</th>
+                    <th>Status</th>
+                    <th>Started</th>
+                    <th>Attempted</th>
+                    <th>Filled</th>
+                    <th>Rejected</th>
+                    <th>Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(liveOrderHealth?.recent_batches || []).map((batch) => (
+                    <tr key={batch.id}>
+                      <td>#{batch.id}</td>
+                      <td>{batch.status}</td>
+                      <td>{formatDateTime(batch.started_at)}</td>
+                      <td>{batch.orders_attempted}</td>
+                      <td>{batch.orders_filled}</td>
+                      <td>{batch.orders_rejected}</td>
+                      <td>{batch.error_text || "N/A"}</td>
+                    </tr>
+                  ))}
+                  {!liveOrderHealth?.recent_batches.length ? (
+                    <tr>
+                      <td colSpan={7}>No live-order batches have run yet.</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -753,6 +982,7 @@ export function AdminMarketTuningPage() {
                               >
                                 <strong>{interval.status}</strong>
                                 <span>{formatDateTime(interval.applied_at || interval.scheduled_at)}</span>
+                                <em>{formatStrengthPct(interval.strength_pct)} toward base</em>
                                 {interval.price_before !== null ? <em>{formatPrice(interval.price_before)} to {formatPrice(interval.price_after)}</em> : null}
                               </button>
                             ) : (
@@ -781,6 +1011,7 @@ export function AdminMarketTuningPage() {
               </div>
               <div className={styles.detailGrid}>
                 <div><span>Base</span><strong>{formatPrice(selectedInterval.base_rate)}</strong></div>
+                <div><span>Toward base</span><strong>{formatStrengthPct(selectedInterval.strength_pct)}</strong></div>
                 <div><span>Before</span><strong>{formatPrice(selectedInterval.price_before)}</strong></div>
                 <div><span>After</span><strong>{formatPrice(selectedInterval.price_after)}</strong></div>
                 <div><span>Move</span><strong>{formatPct(selectedInterval.move_pct)}</strong></div>

@@ -59,6 +59,8 @@ import {
   type NewsCharacter,
   type NewsFeedResponse,
   type NewsItem,
+  type PortfolioOrder,
+  type PortfolioOrdersResponse,
   type PortfolioSummary,
   type PredictionCandlesResponse,
   type PredictionCandlePoint,
@@ -1148,6 +1150,36 @@ export function normalizePortfolio(value: Record<string, unknown>): PortfolioSum
   };
 }
 
+export function normalizePortfolioOrder(value: Record<string, unknown>): PortfolioOrder {
+  return {
+    id: Number(value.id || 0),
+    asset_id: Number(value.asset_id || 0),
+    symbol: String(value.symbol || ""),
+    display_name: String(value.display_name || ""),
+    side: String(value.side || ""),
+    order_type: String(value.order_type || ""),
+    requested_quantity: Number(toNumber(value.requested_quantity) || 0),
+    filled_quantity: Number(toNumber(value.filled_quantity) || 0),
+    status: String(value.status || ""),
+    quote_bid_at_submit: toNumber(value.quote_bid_at_submit),
+    quote_ask_at_submit: toNumber(value.quote_ask_at_submit),
+    rejection_reason: value.rejection_reason ? String(value.rejection_reason) : null,
+    execute_after: value.execute_after ? String(value.execute_after) : null,
+    live_order_batch_id: value.live_order_batch_id === null || value.live_order_batch_id === undefined ? null : Number(value.live_order_batch_id),
+    submitted_market_date: value.submitted_market_date ? String(value.submitted_market_date) : null,
+    submitted_interval_key: value.submitted_interval_key ? String(value.submitted_interval_key) : null,
+    requested_at: value.requested_at ? String(value.requested_at) : null,
+    updated_at: value.updated_at ? String(value.updated_at) : null,
+  };
+}
+
+export function normalizePortfolioOrdersResponse(value: Record<string, unknown>): PortfolioOrdersResponse {
+  return {
+    user_id: Number(value.user_id || 0),
+    orders: ((value.orders || []) as Array<Record<string, unknown>>).map(normalizePortfolioOrder),
+  };
+}
+
 function normalizeGamesConfig(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? value as Record<string, unknown> : {};
 }
@@ -1348,6 +1380,7 @@ export function normalizeGachaPullResult(value: Record<string, unknown>): GachaP
         slot_key: reward.slot_key ? String(reward.slot_key) : null,
         image_key: String(reward.image_key || ""),
         image_url: String(reward.image_url || ""),
+        pull_chance: Number(toNumber(reward.pull_chance) || 0),
         metadata: normalizeGamesConfig(reward.metadata),
       },
       duplicate: Boolean(pull.duplicate),
@@ -1526,6 +1559,7 @@ export function normalizeTickerTapLeaderboardResponse(value: Record<string, unkn
 export function normalizeLivestreams(rows: Array<Record<string, unknown>>): LivestreamItem[] {
   return rows.map((row, index) => ({
     id: String(row.id || row.video_id || row.stream_id || index),
+    channel_id: row.channel_id ? String(row.channel_id) : row.youtube_channel_id ? String(row.youtube_channel_id) : null,
     title: String(row.title || row.name || "Untitled livestream"),
     creator: String(row.creator || row.channel || row.channel_name || "Unknown creator"),
     viewer_count: toNumber(row.viewer_count || row.concurrent_viewers),

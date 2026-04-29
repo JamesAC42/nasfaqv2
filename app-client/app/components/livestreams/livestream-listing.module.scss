@@ -117,6 +117,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .columnTitle {
@@ -143,6 +144,108 @@
   font-size: 0.8rem;
   font-weight: 700;
   text-align: center;
+}
+
+.filterPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(13rem, 18rem);
+  gap: 0.7rem;
+  align-items: start;
+  padding: 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 86%, transparent);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-card-highlight) 26%, transparent), transparent),
+    color-mix(in srgb, var(--surface-card) 64%, transparent);
+}
+
+.filterGroup {
+  display: grid;
+  gap: 0.42rem;
+  min-width: 0;
+}
+
+.filterLabel {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.filterPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.filterPill,
+.selectedCoin,
+.clearFilters {
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.74rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.filterPill {
+  padding: 0.42rem 0.64rem;
+}
+
+.filterPill:hover,
+.selectedCoin:hover,
+.clearFilters:hover {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border-soft));
+  color: var(--text);
+}
+
+.filterPill:active,
+.selectedCoin:active,
+.clearFilters:active {
+  transform: translateY(1px);
+}
+
+.filterPillActive {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border-soft));
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--text);
+}
+
+.coinFilter {
+  width: min(100%, 18rem);
+}
+
+.selectedCoins {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.34rem;
+}
+
+.selectedCoin {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.36rem 0.52rem;
+  color: var(--text);
+}
+
+.selectedCoin span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 0.8;
+}
+
+.clearFilters {
+  padding: 0.36rem 0.52rem;
 }
 
 .list {
@@ -455,6 +558,14 @@
   .metrics,
   .list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filterPanel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .coinFilter {
+    width: 100%;
   }
 
   .historyToolbar {
