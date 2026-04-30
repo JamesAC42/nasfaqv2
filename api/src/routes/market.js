@@ -40,6 +40,13 @@ function normalizeMarketDate(value) {
   return match ? match[0] : null;
 }
 
+function invalidateMarketAssetsCacheAsync(redis) {
+  invalidateMarketAssetsCache(redis).catch((error) => {
+    // eslint-disable-next-line no-console
+    console.error("market assets cache invalidation failed:", String(error?.message || error));
+  });
+}
+
 function toMetricMap(rows, valueKeys) {
   return new Map(
     (Array.isArray(rows) ? rows : []).map((row) => [
@@ -668,7 +675,7 @@ router.post("/orders/buy", async (req, res, next) => {
       quantity,
       redis: req.ctx.redis,
     });
-    await invalidateMarketAssetsCache(req.ctx.redis);
+    invalidateMarketAssetsCacheAsync(req.ctx.redis);
 
     res.json(result);
   } catch (e) {
@@ -698,7 +705,7 @@ router.post("/orders/sell", async (req, res, next) => {
       quantity,
       redis: req.ctx.redis,
     });
-    await invalidateMarketAssetsCache(req.ctx.redis);
+    invalidateMarketAssetsCacheAsync(req.ctx.redis);
 
     res.json(result);
   } catch (e) {

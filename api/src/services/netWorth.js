@@ -578,6 +578,20 @@ async function refreshCurrentLeaderboardForAssetWithClient(client, assetId, { ex
   await refreshCurrentOshiboardsForUsersWithClient(client, userIds);
 }
 
+async function refreshCurrentLeaderboardForAsset(pool, assetId, options = {}) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await refreshCurrentLeaderboardForAssetWithClient(client, assetId, options);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function refreshCurrentOshiboardsForUsersWithClient(client, userIds) {
   const safeUserIds = Array.isArray(userIds)
     ? Array.from(new Set(userIds.map((value) => toInt(value, 0)).filter((value) => value > 0)))
@@ -1310,6 +1324,7 @@ module.exports = {
   listLeaderboardBundle,
   recordDailyNetWorthSnapshot,
   refreshCurrentLeaderboard,
+  refreshCurrentLeaderboardForAsset,
   refreshCurrentLeaderboardForAssetWithClient,
   refreshCurrentLeaderboardWithClient,
   refreshCurrentOshiboards,

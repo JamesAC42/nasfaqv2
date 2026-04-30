@@ -317,6 +317,43 @@ function patchAsset(asset: MarketAsset, event: MarketTradeEvent): MarketAsset {
   };
 }
 
+function patchActivityWithTrade(current: MarketHubResponse, trade: MarketHubTrade): MarketHubResponse["activity"] {
+  const tradeTime = new Date(trade.ts).getTime();
+  if (Number.isNaN(tradeTime)) return current.activity;
+
+  const windows = {
+    "5m": 5 * 60 * 1000,
+    "1h": 60 * 60 * 1000,
+    "24h": 24 * 60 * 60 * 1000,
+  } as const;
+
+  const nextWindows = { ...current.activity.windows };
+  for (const [key, lookbackMs] of Object.entries(windows) as Array<[keyof typeof windows, number]>) {
+    const cutoff = tradeTime - lookbackMs;
+    const previousTrades = current.recent_trades.items.filter((item) => {
+      const itemTime = new Date(item.ts).getTime();
+      return Number.isFinite(itemTime) && itemTime >= cutoff;
+    });
+    const hasUserInWindow = previousTrades.some((item) => item.user_id === trade.user_id);
+    const hasAssetInWindow = previousTrades.some((item) => item.symbol === trade.symbol);
+
+    nextWindows[key] = {
+      ...nextWindows[key],
+      trade_count: nextWindows[key].trade_count + 1,
+      trader_count: nextWindows[key].trader_count + (hasUserInWindow ? 0 : 1),
+      asset_count: nextWindows[key].asset_count + (hasAssetInWindow ? 0 : 1),
+      volume_shares: nextWindows[key].volume_shares + trade.quantity,
+      volume_cash: nextWindows[key].volume_cash + trade.gross_cash,
+      latest_trade_at: trade.ts,
+    };
+  }
+
+  return {
+    ...current.activity,
+    windows: nextWindows,
+  };
+}
+
 function patchAssetFromQuote(asset: MarketAsset, quote: Record<string, unknown>): MarketAsset {
   const symbol = String(quote.symbol || "").toUpperCase();
   if (!symbol || asset.symbol !== symbol) return asset;
@@ -331,6 +368,7 @@ function patchAssetFromQuote(asset: MarketAsset, quote: Record<string, unknown>)
 
 function patchHubWithEvent(current: MarketHubResponse, event: MarketTradeEvent): MarketHubResponse {
   const patchAssets = (assets: MarketAsset[]) => assets.map((asset) => patchAsset(asset, event));
+  const isNewTrade = !current.recent_trades.items.some((item) => item.id === event.trade.id);
 
   return {
     ...current,
@@ -355,6 +393,7 @@ function patchHubWithEvent(current: MarketHubResponse, event: MarketTradeEvent):
       ...current.recent_trades,
       items: mergeTrades(current.recent_trades.items, [event.trade]),
     },
+    activity: isNewTrade ? patchActivityWithTrade(current, event.trade) : current.activity,
   };
 }
 

@@ -5,6 +5,8 @@ const DEFAULT_PERSISTENT_IMPACT_WEIGHT = 0.15;
 const DEFAULT_EXECUTION_SLIPPAGE_WEIGHT = 0.5;
 const DEFAULT_LIVE_ORDER_LIMIT_PER_INTERVAL = 180;
 const DEFAULT_LIVE_ORDER_BATCH_LIMIT = 100;
+const DEFAULT_LIVE_ORDER_WORKER_CONCURRENCY = 4;
+const DEFAULT_LIVE_ORDER_SCHEDULER_INTERVAL_MS = 1_000;
 const LIVE_ORDER_SCHEDULER_LOCK_KEY = 9_204_003;
 const marketState = require("./marketState");
 const netWorth = require("./netWorth");
@@ -27,6 +29,10 @@ const LIVE_ORDER_LIMIT_PER_INTERVAL = Math.max(
   Number(process.env.MARKET_LIVE_ORDER_LIMIT_PER_INTERVAL || DEFAULT_LIVE_ORDER_LIMIT_PER_INTERVAL)
 );
 const LIVE_ORDER_BATCH_LIMIT = Math.max(1, Number(process.env.MARKET_LIVE_ORDER_BATCH_LIMIT || DEFAULT_LIVE_ORDER_BATCH_LIMIT));
+const LIVE_ORDER_WORKER_CONCURRENCY = Math.max(
+  1,
+  Number(process.env.MARKET_LIVE_ORDER_WORKER_CONCURRENCY || DEFAULT_LIVE_ORDER_WORKER_CONCURRENCY)
+);
 
 function toNumber(value, fallback = 0) {
   const parsed = Number(value);
@@ -110,7 +116,7 @@ function computeQuotes(midPrice, spreadBps) {
   };
 }
 
-async function getLockedAssetBySymbol(client, symbol) {
+async function getLockedAssetBySymbol(client, symbol, { lock = true } = {}) {
   const { rows } = await client.query(
     `
     SELECT
@@ -140,7 +146,7 @@ async function getLockedAssetBySymbol(client, symbol) {
     JOIN yt.youtube_channels c
       ON c.youtube_channel_id = a.youtube_channel_id
     WHERE a.symbol = $1
-    FOR UPDATE OF a
+    ${lock ? "FOR UPDATE OF a" : ""}
   `,
     [symbol]
   );
@@ -403,7 +409,16 @@ async function getLockedPendingLiveOrder(client, orderId) {
   return rows[0] || null;
 }
 
-async function executeOrder(pool, { userId, symbol, side, quantity, redis = null, existingOrderId = null, liveOrderBatchId = null }) {
+async function executeOrder(pool, {
+  userId,
+  symbol,
+  side,
+  quantity,
+  redis = null,
+  existingOrderId = null,
+  liveOrderBatchId = null,
+  refreshDerivedState = true,
+}) {
   const client = await pool.connect();
 
   try {
@@ -615,9 +630,14 @@ async function executeOrder(pool, { userId, symbol, side, quantity, redis = null
     });
 
     const userIdentity = await getUserTradeIdentity(client, effectiveUserId);
-    await netWorth.refreshCurrentLeaderboardForAssetWithClient(client, asset.id, { extraUserIds: [effectiveUserId] });
-
     await client.query("COMMIT");
+
+    if (refreshDerivedState) {
+      netWorth.refreshCurrentLeaderboardForAsset(pool, asset.id, { extraUserIds: [effectiveUserId] }).catch((error) => {
+        // eslint-disable-next-line no-console
+        console.error("post-trade leaderboard refresh failed:", String(error?.message || error));
+      });
+    }
 
     void publishMarketEvent(redis, {
       type: "market.trade_fill",
@@ -772,7 +792,7 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
     }
 
     const parsedQuantity = requirePositiveQuantity(quantity);
-    const asset = await getLockedAssetBySymbol(client, symbol);
+    const asset = await getLockedAssetBySymbol(client, symbol, { lock: false });
     if (!asset) {
       const error = new Error("asset_not_found");
       error.code = "asset_not_found";
@@ -1023,10 +1043,10 @@ async function completeLiveOrderBatch(pool, { batchId, attempted, filled, reject
   );
 }
 
-async function listDueLiveOrderIds(pool, { now = new Date(), limit = LIVE_ORDER_BATCH_LIMIT } = {}) {
+async function listDueLiveOrders(pool, { now = new Date(), limit = LIVE_ORDER_BATCH_LIMIT } = {}) {
   const { rows } = await pool.query(
     `
-    SELECT id
+    SELECT id, asset_id, user_id
     FROM market.trade_orders
     WHERE order_type = 'live_market'
       AND status = 'pending'
@@ -1036,12 +1056,38 @@ async function listDueLiveOrderIds(pool, { now = new Date(), limit = LIVE_ORDER_
   `,
     [now.toISOString(), limit]
   );
-  return rows.map((row) => Number(row.id)).filter(Boolean);
+  return rows
+    .map((row) => ({
+      id: Number(row.id),
+      asset_id: Number(row.asset_id),
+      user_id: Number(row.user_id),
+    }))
+    .filter((row) => row.id > 0 && row.asset_id > 0 && row.user_id > 0);
+}
+
+async function runWithConcurrency(items, concurrency, worker) {
+  const safeConcurrency = Math.max(1, Number(concurrency) || 1);
+  let index = 0;
+
+  async function runNext() {
+    while (index < items.length) {
+      const item = items[index];
+      index += 1;
+      await worker(item);
+    }
+  }
+
+  await Promise.all(
+    Array.from(
+      { length: Math.min(safeConcurrency, items.length) },
+      () => runNext()
+    )
+  );
 }
 
 async function processDueLiveOrders(pool, { now = new Date(), limit = LIVE_ORDER_BATCH_LIMIT, redis = null } = {}) {
-  const orderIds = await listDueLiveOrderIds(pool, { now, limit });
-  if (orderIds.length === 0) {
+  const dueOrders = await listDueLiveOrders(pool, { now, limit });
+  if (dueOrders.length === 0) {
     return { batch_id: null, attempted: 0, filled: 0, rejected: 0 };
   }
 
@@ -1049,48 +1095,76 @@ async function processDueLiveOrders(pool, { now = new Date(), limit = LIVE_ORDER
   let filled = 0;
   let rejected = 0;
   let fatalError = null;
+  const groupedByAsset = new Map();
+  const refreshUserIdsByAsset = new Map();
 
-  for (const orderId of orderIds) {
-    try {
-      await executeOrder(pool, { existingOrderId: orderId, liveOrderBatchId: batch.id, redis });
-      filled += 1;
-    } catch (error) {
-      const reason = isLiveOrderRejectionCode(error?.code) ? error.code : "execution_failed";
+  for (const order of dueOrders) {
+    const group = groupedByAsset.get(order.asset_id) || [];
+    group.push(order);
+    groupedByAsset.set(order.asset_id, group);
+  }
+
+  await runWithConcurrency(Array.from(groupedByAsset.entries()), LIVE_ORDER_WORKER_CONCURRENCY, async ([, orders]) => {
+    for (const order of orders) {
       try {
-        const rejectedOrder = await rejectLiveOrder(pool, { orderId, reason, liveOrderBatchId: batch.id });
-        const orderSnapshot = rejectedOrder ? await getOrderAssetSnapshot(pool, orderId) : null;
-        if (orderSnapshot) {
-          void publishMarketEvent(redis, {
-            type: "market.live_order_rejected",
-            order: orderSnapshot,
-            reason,
-            batch_id: batch.id,
-            at: new Date().toISOString(),
-          });
+        await executeOrder(pool, {
+          existingOrderId: order.id,
+          liveOrderBatchId: batch.id,
+          redis,
+          refreshDerivedState: false,
+        });
+        filled += 1;
+        const refreshUserIds = refreshUserIdsByAsset.get(order.asset_id) || new Set();
+        refreshUserIds.add(order.user_id);
+        refreshUserIdsByAsset.set(order.asset_id, refreshUserIds);
+      } catch (error) {
+        const reason = isLiveOrderRejectionCode(error?.code) ? error.code : "execution_failed";
+        try {
+          const rejectedOrder = await rejectLiveOrder(pool, { orderId: order.id, reason, liveOrderBatchId: batch.id });
+          const orderSnapshot = rejectedOrder ? await getOrderAssetSnapshot(pool, order.id) : null;
+          if (orderSnapshot) {
+            void publishMarketEvent(redis, {
+              type: "market.live_order_rejected",
+              order: orderSnapshot,
+              reason,
+              batch_id: batch.id,
+              at: new Date().toISOString(),
+            });
+          }
+          rejected += 1;
+        } catch (rejectError) {
+          fatalError = fatalError || String(rejectError?.message || rejectError);
         }
-        rejected += 1;
-      } catch (rejectError) {
-        fatalError = fatalError || String(rejectError?.message || rejectError);
-      }
-      if (!isLiveOrderRejectionCode(error?.code)) {
-        fatalError = fatalError || String(error?.message || error);
+        if (!isLiveOrderRejectionCode(error?.code)) {
+          fatalError = fatalError || String(error?.message || error);
+        }
       }
     }
-  }
+  });
 
   await completeLiveOrderBatch(pool, {
     batchId: batch.id,
-    attempted: orderIds.length,
+    attempted: dueOrders.length,
     filled,
     rejected,
     errorText: fatalError,
   });
 
+  for (const [assetId, userIds] of refreshUserIdsByAsset.entries()) {
+    netWorth.refreshCurrentLeaderboardForAsset(pool, assetId, {
+      extraUserIds: Array.from(userIds),
+    }).catch((error) => {
+      // eslint-disable-next-line no-console
+      console.error("post-batch leaderboard refresh failed:", String(error?.message || error));
+    });
+  }
+
   return {
     batch_id: batch.id,
-    attempted: orderIds.length,
+    attempted: dueOrders.length,
     filled,
     rejected,
+    worker_concurrency: LIVE_ORDER_WORKER_CONCURRENCY,
     error: fatalError,
   };
 }
@@ -1108,7 +1182,10 @@ async function releaseLiveOrderSchedulerLock(client) {
 
 function startLiveOrderScheduler(pool, logger = console, redis = null) {
   const enabled = (process.env.MARKET_LIVE_ORDER_SCHEDULER_ENABLED || "true").toLowerCase() !== "false";
-  const intervalMs = Math.max(10_000, Number(process.env.MARKET_LIVE_ORDER_SCHEDULER_INTERVAL_MS || 10_000));
+  const intervalMs = Math.max(
+    500,
+    Number(process.env.MARKET_LIVE_ORDER_SCHEDULER_INTERVAL_MS || DEFAULT_LIVE_ORDER_SCHEDULER_INTERVAL_MS)
+  );
   let running = false;
 
   async function tick() {
@@ -1301,8 +1378,12 @@ async function getLiveOrderAdminHealth(pool, { batchLimit = 10 } = {}) {
   return {
     generated_at: new Date().toISOString(),
     scheduler_enabled: (process.env.MARKET_LIVE_ORDER_SCHEDULER_ENABLED || "true").toLowerCase() !== "false",
-    scheduler_interval_ms: Math.max(10_000, Number(process.env.MARKET_LIVE_ORDER_SCHEDULER_INTERVAL_MS || 10_000)),
+    scheduler_interval_ms: Math.max(
+      500,
+      Number(process.env.MARKET_LIVE_ORDER_SCHEDULER_INTERVAL_MS || DEFAULT_LIVE_ORDER_SCHEDULER_INTERVAL_MS)
+    ),
     batch_limit: LIVE_ORDER_BATCH_LIMIT,
+    worker_concurrency: LIVE_ORDER_WORKER_CONCURRENCY,
     health: healthResult.rows[0] || {},
     recent_batches: batchesResult.rows,
   };
