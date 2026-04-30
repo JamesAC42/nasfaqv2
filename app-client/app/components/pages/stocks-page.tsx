@@ -1579,116 +1579,118 @@ export function StocksPage() {
             </table>
           </div>
 
-          <div className={`${styles.cardList} ${archiveViewMode === "cards" ? styles.cardListArchive : ""}`.trim()}>
-            {sortedRows.map((row) => {
-              const { asset, channelMetrics, isSelected, volumeChangePct } = row;
-              const priceTone = (asset.move_24h_pct ?? 0) > 0 ? "positive" : (asset.move_24h_pct ?? 0) < 0 ? "negative" : undefined;
-              const cardGraphPoints = getCardGraphPoints(row, cardGraphMetric);
-              const volumeTone = (volumeChangePct ?? 0) > 0 ? "positive" : (volumeChangePct ?? 0) < 0 ? "negative" : undefined;
-              const subscriberTone =
-                (channelMetrics?.subscriberChangePct24h ?? 0) > 0
-                  ? "positive"
-                  : (channelMetrics?.subscriberChangePct24h ?? 0) < 0
-                    ? "negative"
-                    : undefined;
-              const viewTone =
-                (channelMetrics?.viewChangePct24h ?? 0) > 0
-                  ? "positive"
-                  : (channelMetrics?.viewChangePct24h ?? 0) < 0
-                    ? "negative"
-                    : undefined;
+          {archiveViewMode === "cards" ? (
+            <div className={`${styles.cardList} ${styles.cardListArchive}`.trim()}>
+              {sortedRows.map((row) => {
+                const { asset, channelMetrics, isSelected, volumeChangePct } = row;
+                const priceTone = (asset.move_24h_pct ?? 0) > 0 ? "positive" : (asset.move_24h_pct ?? 0) < 0 ? "negative" : undefined;
+                const cardGraphPoints = getCardGraphPoints(row, cardGraphMetric);
+                const volumeTone = (volumeChangePct ?? 0) > 0 ? "positive" : (volumeChangePct ?? 0) < 0 ? "negative" : undefined;
+                const subscriberTone =
+                  (channelMetrics?.subscriberChangePct24h ?? 0) > 0
+                    ? "positive"
+                    : (channelMetrics?.subscriberChangePct24h ?? 0) < 0
+                      ? "negative"
+                      : undefined;
+                const viewTone =
+                  (channelMetrics?.viewChangePct24h ?? 0) > 0
+                    ? "positive"
+                    : (channelMetrics?.viewChangePct24h ?? 0) < 0
+                      ? "negative"
+                      : undefined;
 
-              return (
-                <article
-                  key={asset.symbol}
-                  className={`${styles.stockCard} ${isSelected ? styles.stockCardSelected : ""}`}
-                  onClick={() => openRow(row)}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") return;
-                    event.preventDefault();
-                    openRow(row);
-                  }}
-                  tabIndex={0}
-                  role="link"
-                  aria-label={`Open ${asset.symbol} detail page`}
-                >
-                  <div className={styles.cardHeader}>
-                    <div className={styles.cardIdentity}>
-                      <AssetCoin symbol={asset.symbol} icon={asset.icon} color={asset.color} />
-                      <div className={styles.cardIdentityText}>
-                        <div className={styles.cardSymbolRow}>
-                          <strong className={styles.cardSymbol}>{asset.symbol}</strong>
-                          <span className={styles.cardUnit}>{asset.unit || "—"}</span>
+                return (
+                  <article
+                    key={asset.symbol}
+                    className={`${styles.stockCard} ${isSelected ? styles.stockCardSelected : ""}`}
+                    onClick={() => openRow(row)}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      openRow(row);
+                    }}
+                    tabIndex={0}
+                    role="link"
+                    aria-label={`Open ${asset.symbol} detail page`}
+                  >
+                    <div className={styles.cardHeader}>
+                      <div className={styles.cardIdentity}>
+                        <AssetCoin symbol={asset.symbol} icon={asset.icon} color={asset.color} />
+                        <div className={styles.cardIdentityText}>
+                          <div className={styles.cardSymbolRow}>
+                            <strong className={styles.cardSymbol}>{asset.symbol}</strong>
+                            <span className={styles.cardUnit}>{asset.unit || "—"}</span>
+                          </div>
+                          <div className={styles.cardName}>{asset.display_name}</div>
                         </div>
-                        <div className={styles.cardName}>{asset.display_name}</div>
+                      </div>
+                      <div className={styles.cardActionRow}>
+                        <button
+                          type="button"
+                          className={`${styles.compareButton} ${compareSymbols.includes(asset.symbol) ? styles.compareButtonActive : ""}`.trim()}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleCompare(asset.symbol);
+                          }}
+                          aria-pressed={compareSymbols.includes(asset.symbol)}
+                        >
+                          <FaPlus aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.quickTradeButton}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openQuickTrade(asset);
+                          }}
+                          aria-label={`Quick trade ${asset.symbol}`}
+                        >
+                          <FaCartShopping aria-hidden="true" />
+                        </button>
                       </div>
                     </div>
-                    <div className={styles.cardActionRow}>
-                      <button
-                        type="button"
-                        className={`${styles.compareButton} ${compareSymbols.includes(asset.symbol) ? styles.compareButtonActive : ""}`.trim()}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          toggleCompare(asset.symbol);
-                        }}
-                        aria-pressed={compareSymbols.includes(asset.symbol)}
+
+                    <div className={styles.cardMarketHero}>
+                      <strong className={styles.cardPrice}>{formatPrice(asset.current_mid_price)}</strong>
+                      <span
+                        className={[
+                          styles.cardDelta,
+                          priceTone === "positive" ? shellStyles.positive : "",
+                          priceTone === "negative" ? shellStyles.negative : "",
+                        ].filter(Boolean).join(" ")}
                       >
-                        <FaPlus aria-hidden="true" />
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.quickTradeButton}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openQuickTrade(asset);
-                        }}
-                        aria-label={`Quick trade ${asset.symbol}`}
-                      >
-                        <FaCartShopping aria-hidden="true" />
-                      </button>
+                        {(asset.move_24h_pct ?? 0) >= 0 ? <FaArrowTrendUp aria-hidden="true" /> : <FaArrowTrendDown aria-hidden="true" />}
+                        {formatSignedPct(asset.move_24h_pct)}
+                      </span>
                     </div>
-                  </div>
 
-                  <div className={styles.cardMarketHero}>
-                    <strong className={styles.cardPrice}>{formatPrice(asset.current_mid_price)}</strong>
-                    <span
-                      className={[
-                        styles.cardDelta,
-                        priceTone === "positive" ? shellStyles.positive : "",
-                        priceTone === "negative" ? shellStyles.negative : "",
-                      ].filter(Boolean).join(" ")}
-                    >
-                      {(asset.move_24h_pct ?? 0) >= 0 ? <FaArrowTrendUp aria-hidden="true" /> : <FaArrowTrendDown aria-hidden="true" />}
-                      {formatSignedPct(asset.move_24h_pct)}
-                    </span>
-                  </div>
+                    <div className={styles.cardSparkline}>
+                      <StockArchiveCardGraph
+                        asset={asset}
+                        metric={cardGraphMetric}
+                        points={cardGraphPoints}
+                        intradayCandles={intradayCandlesBySymbol[asset.symbol]}
+                        isLoadingIntradayCandles={intradayLoadingBySymbol[asset.symbol]}
+                        intradayCandlesError={intradayErrorsBySymbol[asset.symbol]}
+                      />
+                    </div>
 
-                  <div className={styles.cardSparkline}>
-                    <StockArchiveCardGraph
-                      asset={asset}
-                      metric={cardGraphMetric}
-                      points={cardGraphPoints}
-                      intradayCandles={intradayCandlesBySymbol[asset.symbol]}
-                      isLoadingIntradayCandles={intradayLoadingBySymbol[asset.symbol]}
-                      intradayCandlesError={intradayErrorsBySymbol[asset.symbol]}
-                    />
-                  </div>
-
-                  <dl className={styles.dataGrid}>
-                    <DataItem label="Medium" value={formatPrice(asset.current_bid_price)} />
-                    <DataItem label="Next Tick Queue" value={`${fmtNumber(asset.pending_live_order_count ?? 0)} (${fmtNumber(asset.pending_live_buy_count ?? 0)}B / ${fmtNumber(asset.pending_live_sell_count ?? 0)}S)`} />
-                    <DataItem label="24H Volume" value={fmtNumber(asset.volume_24h)} />
-                    <DataItem label="Volume Change" value={formatSignedPct(volumeChangePct)} tone={volumeTone} />
-                    <DataItem label="Subscribers" value={fmtInteger(channelMetrics?.subscribers)} />
-                    <DataItem label="24H Sub Change" value={formatSignedPct(channelMetrics?.subscriberChangePct24h)} tone={subscriberTone} />
-                    <DataItem label="Views" value={fmtInteger(channelMetrics?.views)} />
-                    <DataItem label="24H View Change" value={formatSignedPct(channelMetrics?.viewChangePct24h)} tone={viewTone} />
-                    <DataItem label="Videos" value={fmtInteger(channelMetrics?.videos)} />
-                  </dl>
-                </article>
-              );
-            })}
-          </div>
+                    <dl className={styles.dataGrid}>
+                      <DataItem label="Medium" value={formatPrice(asset.current_bid_price)} />
+                      <DataItem label="Next Tick Queue" value={`${fmtNumber(asset.pending_live_order_count ?? 0)} (${fmtNumber(asset.pending_live_buy_count ?? 0)}B / ${fmtNumber(asset.pending_live_sell_count ?? 0)}S)`} />
+                      <DataItem label="24H Volume" value={fmtNumber(asset.volume_24h)} />
+                      <DataItem label="Volume Change" value={formatSignedPct(volumeChangePct)} tone={volumeTone} />
+                      <DataItem label="Subscribers" value={fmtInteger(channelMetrics?.subscribers)} />
+                      <DataItem label="24H Sub Change" value={formatSignedPct(channelMetrics?.subscriberChangePct24h)} tone={subscriberTone} />
+                      <DataItem label="Views" value={fmtInteger(channelMetrics?.views)} />
+                      <DataItem label="24H View Change" value={formatSignedPct(channelMetrics?.viewChangePct24h)} tone={viewTone} />
+                      <DataItem label="Videos" value={fmtInteger(channelMetrics?.videos)} />
+                    </dl>
+                  </article>
+                );
+              })}
+            </div>
+          ) : null}
 
           {!sortedRows.length ? <div className={styles.empty}>No stocks matched the current filters.</div> : null}
 

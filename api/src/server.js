@@ -35,6 +35,7 @@ const authRoutes = require("./routes/auth");
 const statsRoutes = require("./routes/stats");
 const nasfaqThreadRoutes = require("./routes/nasfaqThread");
 const adminAssetsRoutes = require("./routes/adminAssets");
+const adminHolonewsRoutes = require("./routes/adminHolonews");
 const assetsRoutes = require("./routes/assets");
 const mediaCatalog = require("./services/mediaCatalog");
 const achievements = require("./services/achievements");
@@ -248,6 +249,7 @@ api.use("/prediction-markets", predictionMarketsRoutes);
 api.use("/profiles", profileRoutes);
 api.use("/stats", statsRoutes);
 api.use("/admin/assets", adminAssetsRoutes);
+api.use("/admin/holonews", adminHolonewsRoutes);
 api.use("/assets", assetsRoutes);
 api.use("/", nasfaqThreadRoutes);
 
@@ -304,7 +306,11 @@ app.use((err, _req, res, _next) => {
     || err?.code === "invalid_gacha_prize"
     || err?.code === "gacha_prize_pool_empty"
     || err?.code === "invalid_game_session"
+    || err?.code === "invalid_holonews_thumbnail_request"
     || err?.code === "s3_not_configured"
+    || err?.code === "gemini_not_configured"
+    || err?.code === "gemini_request_failed"
+    || err?.code === "reference_images_missing"
   ) {
     return res.status(400).json({ error: err.code });
   }
@@ -334,6 +340,7 @@ app.use((err, _req, res, _next) => {
     || err?.code === "admin_asset_not_found"
     || err?.code === "gacha_prize_not_found"
     || err?.code === "prediction_market_not_found"
+    || err?.code === "holonews_item_not_found"
   ) {
     return res.status(404).json({ error: err.code });
   }

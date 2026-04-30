@@ -252,7 +252,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isSubmittingProposal, setIsSubmittingProposal] = useState(false);
-  const [adminActionBusy, setAdminActionBusy] = useState<"delete-article" | "delete-body" | null>(null);
+  const [adminActionBusy, setAdminActionBusy] = useState<"delete-article" | "delete-body" | "regenerate-thumbnail" | null>(null);
   const [proposalVoteBusyId, setProposalVoteBusyId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const effectTimeoutRef = useRef<number | null>(null);
@@ -493,6 +493,30 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
     }
   }
 
+  async function handleRegenerateNewsThumbnail() {
+    if (!article || !user?.is_admin || !article.is_news) return;
+    const confirmed = window.confirm("Regenerate this news thumbnail? This will call the image generator, upload a new S3 thumbnail, and update the news item.");
+    if (!confirmed) return;
+    setAdminActionBusy("regenerate-thumbnail");
+    setError(null);
+    try {
+      await apiFetch<Record<string, unknown>>("/api/admin/holonews/thumbnails/regenerate", {
+        method: "POST",
+        body: JSON.stringify({
+          news_id: article.news_item?.id || null,
+          article_slug: article.slug,
+          impacted_coins: article.related_assets.map((asset) => asset.symbol).filter(Boolean),
+          reference_images: article.related_assets.map((asset) => asset.display_name).filter(Boolean),
+        }),
+      });
+      await loadArticle();
+    } catch (nextError) {
+      setError(String((nextError as Error).message || nextError));
+    } finally {
+      setAdminActionBusy((current) => (current === "regenerate-thumbnail" ? null : current));
+    }
+  }
+
   return (
     <SiteShell>
       <div className={styles.stack}>
@@ -633,6 +657,17 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                       disabled={adminActionBusy !== null}
                     >
                       {adminActionBusy === "delete-body" ? "Deleting..." : "Delete body"}
+                    </button>
+                  ) : null}
+                  {user?.is_admin && article.is_news ? (
+                    <button
+                      type="button"
+                      className={styles.secondaryButton}
+                      onClick={() => void handleRegenerateNewsThumbnail()}
+                      disabled={adminActionBusy !== null}
+                    >
+                      <span className={styles.actionIcon}><FaGem aria-hidden="true" /></span>
+                      <span>{adminActionBusy === "regenerate-thumbnail" ? "Regenerating..." : "Regenerate thumbnail"}</span>
                     </button>
                   ) : null}
                 </div>
