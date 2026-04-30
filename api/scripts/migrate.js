@@ -5,7 +5,7 @@ const articleDb = require("../src/articleDb");
 
 async function main() {
   loadEnv();
-  const pool = createPool();
+  const pool = createPool(process.env.DATABASE_URL);
   try {
     await applySchema(pool);
     await articleDb.backfillAllNewsArticles(pool);
