@@ -1,0 +1,90 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_OWNER: jamesac42
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: api
+            context: .
+            dockerfile: api/Dockerfile
+          - name: app-client
+            context: .
+            dockerfile: app-client/Dockerfile
+          - name: holonews
+            context: .
+            dockerfile: holonews/Dockerfile
+          - name: superchatscraper
+            context: .
+            dockerfile: superchatscraper/Dockerfile
+          - name: ytscraper
+            context: .
+            dockerfile: ytscraper/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/nasfaqv2-${{ matrix.name }}:sha-${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/nasfaqv2-${{ matrix.name }}:latest
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+      - run: doctl kubernetes cluster kubeconfig save ${{ secrets.DOKS_CLUSTER_NAME }}
+
+      - name: Apply base manifests
+        run: kubectl apply -f deploy/k8s/
+
+      - name: Run migrations
+        run: |
+          TAG=sha-${{ github.sha }}
+          sed "s|IMAGE_TAG|$TAG|g" deploy/jobs/api-migrate-job.yaml | kubectl apply -f -
+          kubectl -n nasfaq wait --for=condition=complete --timeout=300s "job/api-migrate-$TAG"
+
+      - name: Roll images
+        run: |
+          TAG=sha-${{ github.sha }}
+          kubectl -n nasfaq set image deploy/api-web api-web=ghcr.io/jamesac42/nasfaqv2-api:$TAG
+          kubectl -n nasfaq set image deploy/api-scheduler api-scheduler=ghcr.io/jamesac42/nasfaqv2-api:$TAG
+          kubectl -n nasfaq set image deploy/app-client app-client=ghcr.io/jamesac42/nasfaqv2-app-client:$TAG
+          kubectl -n nasfaq set image deploy/holonews holonews=ghcr.io/jamesac42/nasfaqv2-holonews:$TAG
+          kubectl -n nasfaq set image deploy/superchatscraper superchatscraper=ghcr.io/jamesac42/nasfaqv2-superchatscraper:$TAG
+          kubectl -n nasfaq set image deploy/ytscraper ytscraper=ghcr.io/jamesac42/nasfaqv2-ytscraper:$TAG
+          kubectl -n nasfaq rollout status deploy/api-web --timeout=300s
+          kubectl -n nasfaq rollout status deploy/api-scheduler --timeout=300s
+          kubectl -n nasfaq rollout status deploy/app-client --timeout=300s
+          kubectl -n nasfaq rollout status deploy/holonews --timeout=300s
+          kubectl -n nasfaq rollout status deploy/superchatscraper --timeout=300s
+          kubectl -n nasfaq rollout status deploy/ytscraper --timeout=300s

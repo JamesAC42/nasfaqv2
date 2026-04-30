@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: holonews
+  namespace: nasfaq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: holonews
+  template:
+    metadata:
+      labels:
+        app: holonews
+    spec:
+      containers:
+        - name: holonews
+          image: ghcr.io/jamesac42/nasfaqv2-holonews:latest
+          envFrom:
+            - configMapRef:
+                name: nasfaq-app-config
+            - secretRef:
+                name: nasfaq-app-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: superchatscraper
+  namespace: nasfaq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: superchatscraper
+  template:
+    metadata:
+      labels:
+        app: superchatscraper
+    spec:
+      containers:
+        - name: superchatscraper
+          image: ghcr.io/jamesac42/nasfaqv2-superchatscraper:latest
+          envFrom:
+            - configMapRef:
+                name: nasfaq-app-config
+            - secretRef:
+                name: nasfaq-app-secrets
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ytscraper
+  namespace: nasfaq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ytscraper
+  template:
+    metadata:
+      labels:
+        app: ytscraper
+    spec:
+      containers:
+        - name: ytscraper
+          image: ghcr.io/jamesac42/nasfaqv2-ytscraper:latest
+          envFrom:
+            - configMapRef:
+                name: nasfaq-app-config
+            - secretRef:
+                name: nasfaq-app-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

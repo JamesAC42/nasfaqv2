@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nasfaq-redis
+  namespace: nasfaq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nasfaq-redis
+  template:
+    metadata:
+      labels:
+        app: nasfaq-redis
+    spec:
+      containers:
+        - name: nasfaq-redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+              name: redis
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nasfaq-redis
+  namespace: nasfaq
+spec:
+  selector:
+    app: nasfaq-redis
+  ports:
+    - port: 6379
+      targetPort: redis
+      name: redis

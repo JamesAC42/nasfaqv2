@@ -1,0 +1,27 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: api-migrate-IMAGE_TAG
+  namespace: nasfaq
+spec:
+  ttlSecondsAfterFinished: 86400
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: api-migrate
+          image: ghcr.io/jamesac42/nasfaqv2-api:IMAGE_TAG
+          command: ["npm", "run", "migrate"]
+          envFrom:
+            - configMapRef:
+                name: nasfaq-app-config
+            - secretRef:
+                name: nasfaq-app-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi

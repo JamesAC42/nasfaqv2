@@ -17,7 +17,7 @@ This runbook is prescriptive - every section gives you a concrete next step you 
 3. [Cluster topology on DOKS](#3-cluster-topology-on-doks)
 4. [Per-service deployment spec](#4-per-service-deployment-spec)
 5. [Ingress, TLS, and routing](#5-ingress-tls-and-routing)
-6. [Data layer (Managed Postgres + Redis)](#6-data-layer-managed-postgres--redis)
+6. [Data layer (Managed Postgres + in-cluster Redis)](#6-data-layer-managed-postgres--in-cluster-redis)
 7. [Horizontal-scaling caveats from the audit](#7-horizontal-scaling-caveats-from-the-audit)
 8. [Hardware sizing for thousands of concurrent users](#8-hardware-sizing-for-thousands-of-concurrent-users)
 9. [CI/CD pipeline](#9-cicd-pipeline)
@@ -44,7 +44,7 @@ flowchart LR
     Superchat[superchatscraper]
     Yt[ytscraper]
   end
-  ApiWeb --> Redis[(Managed Redis)]
+  ApiWeb --> Redis[(Redis Service in DOKS)]
   ApiWeb --> Postgres[(Managed Postgres + TimescaleDB)]
   ApiScheduler --> Redis
   ApiScheduler --> Postgres
@@ -73,7 +73,7 @@ Everything you need to click or run in DigitalOcean before any `kubectl apply`. 
 
 ### 2.0 One-time account prep
 
-1. Create (or log in to) a DigitalOcean account and add a **payment method**. Baseline spend (see §8) is ~$129/mo; set up **billing alerts** at $100 / $200 / $400 under **Billing → Alerts**.
+1. Create (or log in to) a DigitalOcean account and add a **payment method**. Baseline spend (see §8) is ~$114/mo; set up **billing alerts** at $100 / $200 / $400 under **Billing → Alerts**.
 2. Create a **Team** if you plan to invite collaborators (optional).
 3. Install the CLI and auth once:
 
@@ -103,7 +103,7 @@ Keep the project ID handy - we'll move resources into it as we create them.
 
 ### 2.2 Create a VPC (private network)
 
-Put DOKS, Managed Postgres, and Managed Redis in the **same VPC** so they can talk over private IPs only. This is cheaper (no public egress) and faster.
+Put DOKS and Managed Postgres in the **same VPC** so they can talk over private IPs only. Redis runs inside the Kubernetes cluster as a private `ClusterIP` service.
 
 ```bash
 doctl vpcs create \
@@ -180,23 +180,28 @@ What to turn on in the DO UI:
 - **Standby node**: skip for now; add when you're past ~1k CCU for HA.
 - **Connection pooler**: not needed yet; we use `pg.Pool` in the app. If/when we introduce PgBouncer, we can add DO's built-in pooler instead.
 
-### 2.5 Create Managed Redis
+### 2.5 Create in-cluster Redis
 
 ```bash
-doctl databases create nasfaq-redis \
-  --engine redis --version 7 \
-  --region nyc3 \
-  --size db-s-1vcpu-1gb \
-  --num-nodes 1 \
-  --private-network-uuid <nasfaq-prod-vpc-uuid>
+kubectl create namespace nasfaq --dry-run=client -o yaml | kubectl apply -f -
 
-REDIS_ID=$(doctl databases list --format ID,Name --no-header | awk '/nasfaq-redis/{print $1}')
-doctl databases firewalls append "$REDIS_ID" --rule "k8s:$CLUSTER_ID"
+kubectl -n nasfaq create deployment nasfaq-redis \
+  --image=redis:7-alpine \
+  --port=6379
+
+kubectl -n nasfaq expose deployment nasfaq-redis \
+  --name=nasfaq-redis \
+  --port=6379 \
+  --target-port=6379
 ```
 
-Grab the **private** `rediss://` connection string and save as the `REDIS_URL` secret later.
+Save this internal service URL as the `REDIS_URL` secret later:
 
-DO's managed Redis has **eviction policy = `noeviction`** by default. Change it to `allkeys-lru` under **Databases → nasfaq-redis → Settings → Eviction Policy** because the API uses Redis as a cache in [`api/src/services/marketCache.js`](api/src/services/marketCache.js); running out of memory with `noeviction` would 503 the cache path.
+```bash
+redis://nasfaq-redis.nasfaq.svc.cluster.local:6379
+```
+
+This Redis deployment is intentionally simple: a single pod with no persistence. That is acceptable for this stack because Redis is used for cache/pub-sub behavior, not as the source of truth. If DigitalOcean Managed Redis/Valkey becomes available later, replace this service with a managed `rediss://` URL and keep the app secret name unchanged.
 
 ### 2.6 Object storage for images (pick one)
 
@@ -260,7 +265,7 @@ After Cloudflare is live (§11), tighten `inbound-rules` so public ingress only 
   - `https://holo.nasfaq.biz/api/health` (every 1 min, alert on 2 consecutive failures)
   - `https://holo.nasfaq.biz/` (Next.js homepage)
   - `wss://holo.nasfaq.biz/api/market/ws` (uses the DO uptime SSL check as a proxy; true WS health comes from the app's own metrics)
-- **Alert policies**: **Monitoring → Alert Policies → Create** for: node CPU > 80% (5 min), node memory > 85%, DB connection utilization > 80%, DB disk > 80%, Redis memory > 80%. Route to email + Slack webhook.
+- **Alert policies**: **Monitoring → Alert Policies → Create** for: node CPU > 80% (5 min), node memory > 85%, DB connection utilization > 80%, DB disk > 80%, and `nasfaq-redis` pod restarts/memory pressure via Kubernetes metrics. Route to email + Slack webhook.
 
 ### 2.10 Provisioning checklist
 
@@ -268,14 +273,14 @@ After Cloudflare is live (§11), tighten `inbound-rules` so public ingress only 
 - [ ] VPC `nasfaq-prod-vpc` created in `nyc3`.
 - [ ] DOKS cluster `nasfaq-prod` running with 3 nodes, autoscale 3-6, in the VPC.
 - [ ] Managed Postgres `nasfaq-pg` running, firewall restricted to cluster, `timescaledb` + `pg_stat_statements` extensions installed, PITR on.
-- [ ] Managed Redis `nasfaq-redis` running, firewall restricted to cluster, eviction policy `allkeys-lru`.
+- [ ] In-cluster Redis deployment/service `nasfaq-redis` running in the `nasfaq` namespace.
 - [ ] S3 (AWS) or Spaces (DO) bucket decided; credentials ready for the `nasfaq-app-secrets` Secret.
 - [ ] DO Cloud Firewall covers worker nodes.
 - [ ] Uptime checks + alert policies created.
 - [ ] `DIGITALOCEAN_ACCESS_TOKEN` in GitHub Actions secrets.
-- [ ] `doctl projects resources assign` run for cluster + both DBs.
+- [ ] `doctl projects resources assign` run for the cluster + Postgres.
 
-Total monthly cost at this point (no traffic yet): cluster **$36** + LB **$12** (after §3) + Postgres **$60** + Redis **$15** = **~$123/mo**.
+Total monthly cost at this point (no traffic yet): cluster **$36** + LB **$12** (after §3) + Postgres **$60** = **~$108/mo**. Redis runs inside the existing node pool.
 
 ---
 
@@ -622,7 +627,7 @@ Notes:
 
 ---
 
-## 6. Data layer (Managed Postgres + Redis)
+## 6. Data layer (Managed Postgres + in-cluster Redis)
 
 ### Provision (one-time)
 
@@ -632,13 +637,17 @@ doctl databases create nasfaq-pg \
   --engine pg --version 16 \
   --region nyc3 --size db-s-2vcpu-4gb --num-nodes 1
 
-doctl databases create nasfaq-redis \
-  --engine redis --version 7 \
-  --region nyc3 --size db-s-1vcpu-1gb
+kubectl -n nasfaq create deployment nasfaq-redis \
+  --image=redis:7-alpine \
+  --port=6379
+
+kubectl -n nasfaq expose deployment nasfaq-redis \
+  --name=nasfaq-redis \
+  --port=6379 \
+  --target-port=6379
 
 # After creation:
-doctl databases firewalls append <pg-id>    --rule k8s:<doks-cluster-id>
-doctl databases firewalls append <redis-id> --rule k8s:<doks-cluster-id>
+doctl databases firewalls append <pg-id> --rule k8s:<doks-cluster-id>
 ```
 
 Connect once as admin and enable the extension:
@@ -654,7 +663,7 @@ Bootstrap into a k8s Secret (one-off; not checked in):
 ```bash
 kubectl -n nasfaq create secret generic nasfaq-app-secrets \
   --from-literal=DATABASE_URL='postgresql://doadmin:...@nasfaq-pg-do-user-...:25060/defaultdb?sslmode=require' \
-  --from-literal=REDIS_URL='rediss://default:...@nasfaq-redis-do-user-...:25061' \
+  --from-literal=REDIS_URL='redis://nasfaq-redis.nasfaq.svc.cluster.local:6379' \
   --from-literal=YOUTUBE_API_KEY='...' \
   --from-literal=GEMINI_API_KEY='...' \
   --from-literal=AWS_ACCESS_KEY_ID='...' \
@@ -733,7 +742,7 @@ At peak the requests sum to roughly **5.3 vCPU / 7 GiB**. With 20% kube overhead
 ### Data tier
 
 - Managed Postgres `db-s-2vcpu-4gb` (~$60/mo) with daily backups. Upgrade vertically to `db-s-4vcpu-8gb` (~$120/mo) before hitting 5k CCU; the `last_seen_at` write-amp (§7 #3) is the first wall you hit if you don't ship the throttle fix.
-- Managed Redis `db-s-1vcpu-1gb` (~$15/mo). Pub/sub + cache footprint from the audit is well under 100 MiB.
+- In-cluster Redis runs on the existing DOKS node pool. Pub/sub + cache footprint from the audit is well under 100 MiB.
 
 ### Totals
 
@@ -742,11 +751,11 @@ At peak the requests sum to roughly **5.3 vCPU / 7 GiB**. With 20% kube overhead
 | DOKS control plane | $0 (DO free) |
 | 3 × node pool | $42 |
 | Managed Postgres | $60 |
-| Managed Redis | $15 |
+| In-cluster Redis | $0 incremental |
 | DO Load Balancer | $12 |
 | Container Registry (GHCR) | $0 (public/private included) |
-| **Baseline** | **~$129/mo** |
-| Peak (6 nodes, larger PG) | ~$245/mo |
+| **Baseline** | **~$114/mo** |
+| Peak (6 nodes, larger PG) | ~$230/mo |
 
 ---
 

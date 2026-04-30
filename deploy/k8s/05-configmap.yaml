@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nasfaq-app-config
+  namespace: nasfaq
+data:
+  PUBLIC_APP_BASE_URL: "https://holo.nasfaq.biz"
+  CORS_ORIGIN: "https://holo.nasfaq.biz"
+  AUTH_COOKIE_SECURE: "true"
+  AUTH_SESSION_TTL_DAYS: "30"
+  SCRAPE_TIMEZONE: "America/New_York"
+  MARKET_DATA_TIMEZONE: "America/New_York"
+  MARKET_SETTLEMENT_TIMEZONE: "America/New_York"
+  PG_POOL_MAX: "4"
+  SERVER_API_BASE: "http://api-web.nasfaq.svc.cluster.local"
+  NEXT_PUBLIC_API_BASE: ""

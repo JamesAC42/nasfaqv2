@@ -661,9 +661,11 @@ async function main() {
   // eslint-disable-next-line no-console
   console.log("Subscribed to Redis channels:", LIVESTREAM_VIEWER_UPDATES_CHANNEL, LIVESTREAM_BUCKET_UPDATES_CHANNEL, CHAT_EVENTS_REDIS_CHANNEL, MARKET_EVENTS_REDIS_CHANNEL, PREDICTION_MARKET_EVENTS_REDIS_CHANNEL);
 
-  // One server-side refresh timer replaces client polling.
-  await refreshSnapshot();
-  setInterval(refreshSnapshot, LIVESTREAM_SNAPSHOT_REFRESH_MS);
+  if (cfg.enableLivestreamSnapshotOwner) {
+    // One server-side refresh timer replaces client polling; keep it single-owner in Kubernetes.
+    await refreshSnapshot();
+    setInterval(refreshSnapshot, LIVESTREAM_SNAPSHOT_REFRESH_MS);
+  }
 
   server.listen(cfg.port, () => {
     // eslint-disable-next-line no-console

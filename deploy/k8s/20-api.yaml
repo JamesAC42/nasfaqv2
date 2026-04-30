@@ -1,0 +1,124 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-web
+  namespace: nasfaq
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-web
+  template:
+    metadata:
+      labels:
+        app: api-web
+    spec:
+      containers:
+        - name: api-web
+          image: ghcr.io/jamesac42/nasfaqv2-api:latest
+          ports:
+            - containerPort: 5067
+              name: http
+          envFrom:
+            - configMapRef:
+                name: nasfaq-app-config
+            - secretRef:
+                name: nasfaq-app-secrets
+          env:
+            - name: PORT
+              value: "5067"
+            - name: ENABLE_MIGRATIONS
+              value: "false"
+            - name: MARKET_SETTLEMENT_SCHEDULER_ENABLED
+              value: "false"
+            - name: MARKET_ADJUSTMENT_SCHEDULER_ENABLED
+              value: "false"
+            - name: MARKET_LIVE_ORDER_SCHEDULER_ENABLED
+              value: "false"
+            - name: PREDICTION_MARKET_SCHEDULER_ENABLED
+              value: "false"
+            - name: LIVESTREAM_SNAPSHOT_OWNER
+              value: "false"
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 500m
+              memory: 768Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-web
+  namespace: nasfaq
+spec:
+  selector:
+    app: api-web
+  ports:
+    - port: 80
+      targetPort: http
+      name: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-scheduler
+  namespace: nasfaq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-scheduler
+  template:
+    metadata:
+      labels:
+        app: api-scheduler
+    spec:
+      containers:
+        - name: api-scheduler
+          image: ghcr.io/jamesac42/nasfaqv2-api:latest
+          ports:
+            - containerPort: 5067
+              name: http
+          envFrom:
+            - configMapRef:
+                name: nasfaq-app-config
+            - secretRef:
+                name: nasfaq-app-secrets
+          env:
+            - name: PORT
+              value: "5067"
+            - name: ENABLE_MIGRATIONS
+              value: "false"
+            - name: LIVESTREAM_SNAPSHOT_OWNER
+              value: "true"
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi

@@ -46,6 +46,7 @@ function getConfig() {
     enableMarketAdjustmentScheduler: (process.env.MARKET_ADJUSTMENT_SCHEDULER_ENABLED || "true").toLowerCase() !== "false",
     enableMarketLiveOrderScheduler: (process.env.MARKET_LIVE_ORDER_SCHEDULER_ENABLED || "true").toLowerCase() !== "false",
     enablePredictionMarketScheduler: (process.env.PREDICTION_MARKET_SCHEDULER_ENABLED || "true").toLowerCase() !== "false",
+    enableLivestreamSnapshotOwner: (process.env.LIVESTREAM_SNAPSHOT_OWNER || "true").toLowerCase() !== "false",
   };
 }
 

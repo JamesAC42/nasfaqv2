@@ -3,7 +3,9 @@ const path = require("node:path");
 
 async function applySchema(pool) {
   // Reuse the schema from the Go service so API and scraper stay aligned.
-  const schemaPath = path.resolve(__dirname, "..", "..", "ytscraper", "internal", "db", "schema.sql");
+  const schemaPath = process.env.YT_SCHEMA_PATH
+    ? path.resolve(process.env.YT_SCHEMA_PATH)
+    : path.resolve(__dirname, "..", "..", "ytscraper", "internal", "db", "schema.sql");
   const sql = fs.readFileSync(schemaPath, "utf8");
   await pool.query(sql);
   await pool.query(`
