@@ -898,6 +898,10 @@ async function applySchema(pool) {
       ON content.articles (is_news, published_at DESC, id DESC)
   `);
   await pool.query(`
+    CREATE INDEX IF NOT EXISTS content_articles_status_is_news_published_idx
+      ON content.articles (status, is_news, published_at DESC, id DESC)
+  `);
+  await pool.query(`
     ALTER TABLE content.articles
       ADD COLUMN IF NOT EXISTS views INTEGER NOT NULL DEFAULT 0
   `);

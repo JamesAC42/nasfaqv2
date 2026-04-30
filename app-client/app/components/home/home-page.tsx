@@ -502,17 +502,20 @@ export function HomePage() {
 
   useEffect(() => {
     void (async () => {
-      const nextUser = await refreshSession();
       const results = await Promise.allSettled([
+        refreshSession(),
         refreshOverview(),
         fetchLivestreams(),
         fetchNews(),
         fetchChannels(),
         fetchLeaderboard(),
         apiFetch<OverviewRow[]>("/api/overview/timeseries?days=60&limit=120", { cache: "no-store" }),
+        apiFetch<Record<string, unknown>>("/api/articles?type=community&limit=3"),
       ]);
 
-      const timeseriesResult = results[5];
+      const sessionResult = results[0];
+      const nextUser = sessionResult.status === "fulfilled" ? sessionResult.value : null;
+      const timeseriesResult = results[6];
       if (timeseriesResult?.status === "fulfilled") {
         setChannelOverviewRows(timeseriesResult.value || []);
         setChannelOverviewError(null);
@@ -527,10 +530,10 @@ export function HomePage() {
         clearPortfolio();
       }
 
-      try {
-        const articleResult = await apiFetch<Record<string, unknown>>("/api/articles?type=community&limit=3");
-        setCommunityArticles(normalizeArticleListResponse(articleResult).items);
-      } catch {
+      const articleResult = results[7];
+      if (articleResult?.status === "fulfilled") {
+        setCommunityArticles(normalizeArticleListResponse(articleResult.value).items);
+      } else {
         setCommunityArticles([]);
       }
     })();

@@ -569,17 +569,13 @@ async function listArticles(pool, {
       ))
   `;
 
-  const countResult = await pool.query(
-    `
+  const countQuery = `
     SELECT COUNT(*)::int AS total
     FROM content.articles a
     ${whereClause}
-  `,
-    params
-  );
+  `;
 
-  const itemsResult = await pool.query(
-    `
+  const itemsQuery = `
     SELECT
       a.id,
       a.slug,
@@ -588,7 +584,7 @@ async function listArticles(pool, {
       a.subtitle,
       a.tags,
       a.thumbnail_url,
-      a.content,
+      LEFT(a.content, 512) AS content_preview,
       a.likes,
       a.saves,
       a.views,
@@ -641,9 +637,12 @@ async function listArticles(pool, {
       a.id DESC
     LIMIT $7
     OFFSET $8
-  `,
-    [...params, safeLimit, offset]
-  );
+  `;
+
+  const [countResult, itemsResult] = await Promise.all([
+    pool.query(countQuery, params),
+    pool.query(itemsQuery, [...params, safeLimit, offset]),
+  ]);
 
   const viewerIds = viewerUserId
     ? itemsResult.rows.map((row) => row.id)
@@ -682,7 +681,7 @@ async function listArticles(pool, {
     subtitle: row.subtitle,
     tags: Array.isArray(row.tags) ? row.tags : [],
     thumbnail_url: row.thumbnail_url,
-    preview: getPreview(row.content, row.subtitle),
+    preview: getPreview(row.content_preview, row.subtitle),
     author: row.author_id ? { id: row.author_id, username: row.author_username } : null,
     likes: Number(row.likes || 0),
     saves: Number(row.saves || 0),
