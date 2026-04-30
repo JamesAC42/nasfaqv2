@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Script from "next/script";
@@ -34,6 +35,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [ogey, setOgey] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const [verificationSent, setVerificationSent] = useState(false);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
@@ -46,6 +48,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
   const turnstileIsRequired = Boolean(turnstileSiteKey);
   const turnstileIsVerified = !turnstileIsRequired || Boolean(turnstileToken);
+  const ogeyError = error === "invalid_ogey";
 
   function resetTurnstile() {
     if (!turnstileWidgetRef.current || !window.turnstile) return;
@@ -121,7 +124,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       if (mode === "login") {
         await login(username, password, turnstileToken);
       } else {
-        await register(username, email, password, turnstileToken);
+        await register(username, email, password, ogey, turnstileToken);
         setVerificationSent(true);
       }
       router.push("/profile");
@@ -134,61 +137,73 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     <SiteShell>
       {turnstileSiteKey ? <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" strategy="afterInteractive" onLoad={renderTurnstile} /> : null}
       {googleClientId ? <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onLoad={() => setGoogleScriptReady(true)} /> : null}
-      <section className={styles.panel}>
-        <h2 className={styles.title}>{mode === "login" ? "Login" : "Register"}</h2>
-        <p className={styles.copy}>
-          {mode === "login"
-            ? "Sign in with a password or Google. Email must be verified before trading or posting."
-            : "Create an account, verify your email, then you can trade, chat, comment, and write articles."}
-        </p>
-        {user ? <div className="statusMessage statusMessageSuccess">Already signed in as {user.username}.</div> : null}
-        {user && !user.email_verified ? (
-          <div className="statusMessage statusMessageError">
-            Email verification is required before trading or posting.{" "}
-            <button type="button" className={styles.inlineButton} onClick={() => void resendVerification()}>
-              Resend verification email
-            </button>
-          </div>
-        ) : null}
-        {verificationSent ? <div className="statusMessage statusMessageSuccess">Verification email sent. Open the link before posting or trading.</div> : null}
-        {authNotice ? <div className="statusMessage statusMessageWarn">{authNotice}</div> : null}
-        <form className={styles.form} onSubmit={(event) => void handleSubmit(event)}>
-          <label className={styles.label}>
-            <span>{mode === "login" ? "Username or email" : "Username"}</span>
-            <input className={styles.input} value={username} onChange={(event) => setUsername(event.target.value)} />
-          </label>
-          {mode === "register" ? (
-            <label className={styles.label}>
-              <span>Email</span>
-              <input className={styles.input} type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
-            </label>
-          ) : null}
-          <label className={styles.label}>
-            <span>Password</span>
-            <input className={styles.input} type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-          </label>
-          {turnstileSiteKey ? <div ref={turnstileRef} className={styles.turnstile} /> : null}
-          <button type="submit" className={styles.submit} disabled={isLoading || !turnstileIsVerified}>
-            {mode === "login" ? "Sign In" : "Create User"}
-          </button>
-        </form>
-        {googleClientId ? (
-          <div className={styles.googleWrap}>
-            <div className={styles.divider}>or</div>
-            <div className={styles.googleButtonFrame}>
-              <div ref={googleButtonRef} className={styles.googleButton} />
-              {!turnstileIsVerified ? <div className={styles.googleButtonShield} aria-hidden="true" /> : null}
-            </div>
-            {!turnstileIsVerified ? <div className={styles.googleHint}>Complete captcha to continue.</div> : null}
-          </div>
-        ) : null}
-        {mode === "register" ? (
-          <p>Already have an account? <Link href="/login" className={styles.altLink}>Go to login</Link>.</p>
-        ) : (
-          <p>Need an account? <Link href="/register" className={styles.altLink}>Go to registration</Link>.</p>
-        )}
-        {error ? <div className="statusMessage statusMessageError">Auth error: {error}</div> : null}
-      </section>
+      <div className={styles.authStage}>
+        <div className={styles.cardWrap}>
+          <Image className={styles.sideImage} src="/okayuside.png" alt="" width={420} height={594} priority />
+          <section className={styles.panel}>
+            <h2 className={styles.title}>{mode === "login" ? "Login" : "Register"}</h2>
+            <p className={styles.copy}>
+              {mode === "login"
+                ? "Sign in with a password or Google. Email must be verified before trading or posting."
+                : "Create an account, verify your email, then you can trade, chat, comment, and write articles."}
+            </p>
+            {user ? <div className="statusMessage statusMessageSuccess">Already signed in as {user.username}.</div> : null}
+            {user && !user.email_verified ? (
+              <div className="statusMessage statusMessageError">
+                Email verification is required before trading or posting.{" "}
+                <button type="button" className={styles.inlineButton} onClick={() => void resendVerification()}>
+                  Resend verification email
+                </button>
+              </div>
+            ) : null}
+            {verificationSent ? <div className="statusMessage statusMessageSuccess">Verification email sent. Open the link before posting or trading.</div> : null}
+            {authNotice ? <div className="statusMessage statusMessageWarn">{authNotice}</div> : null}
+            <form className={styles.form} onSubmit={(event) => void handleSubmit(event)}>
+              <label className={styles.label}>
+                <span>{mode === "login" ? "Username or email" : "Username"}</span>
+                <input className={styles.input} value={username} onChange={(event) => setUsername(event.target.value)} />
+              </label>
+              {mode === "register" ? (
+                <label className={styles.label}>
+                  <span>Email</span>
+                  <input className={styles.input} type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+                </label>
+              ) : null}
+              <label className={styles.label}>
+                <span>Password</span>
+                <input className={styles.input} type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+              </label>
+              {mode === "register" ? (
+                <label className={styles.label}>
+                  <span>ogey?</span>
+                  <input className={styles.input} type="text" value={ogey} onChange={(event) => setOgey(event.target.value)} required />
+                </label>
+              ) : null}
+              {turnstileSiteKey ? <div ref={turnstileRef} className={styles.turnstile} /> : null}
+              <button type="submit" className={styles.submit} disabled={isLoading || !turnstileIsVerified}>
+                {mode === "login" ? "Sign In" : "Create User"}
+              </button>
+            </form>
+            {googleClientId ? (
+              <div className={styles.googleWrap}>
+                <div className={styles.divider}>or</div>
+                <div className={styles.googleButtonFrame}>
+                  <div ref={googleButtonRef} className={styles.googleButton} />
+                  {!turnstileIsVerified ? <div className={styles.googleButtonShield} aria-hidden="true" /> : null}
+                </div>
+                {!turnstileIsVerified ? <div className={styles.googleHint}>Complete captcha to continue.</div> : null}
+              </div>
+            ) : null}
+            {mode === "register" ? (
+              <p>Already have an account? <Link href="/login" className={styles.altLink}>Go to login</Link>.</p>
+            ) : (
+              <p>Need an account? <Link href="/register" className={styles.altLink}>Go to registration</Link>.</p>
+            )}
+            {ogeyError ? <div className={styles.ogeyError}>that&apos;s not ogey</div> : null}
+            {error && !ogeyError ? <div className="statusMessage statusMessageError">Auth error: {error}</div> : null}
+          </section>
+        </div>
+      </div>
     </SiteShell>
   );
 }

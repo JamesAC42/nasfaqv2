@@ -57,6 +57,9 @@ router.get("/me", async (req, res) => {
 router.post("/register", async (req, res, next) => {
   try {
     await verifyTurnstile(req);
+    if (String(req.body?.ogey || "").trim() !== "rrat") {
+      return res.status(400).json({ error: "invalid_ogey" });
+    }
     const user = await auth.createUser(req.ctx.pool, {
       username: req.body?.username,
       email: req.body?.email,

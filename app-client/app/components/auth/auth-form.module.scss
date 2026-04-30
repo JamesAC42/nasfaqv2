@@ -1,9 +1,35 @@
 @use "../../styles/mixins" as *;
 
+.authStage {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  min-height: calc(100dvh - 14rem);
+  padding: 1rem clamp(1rem, 5vw, 4.5rem) 2rem;
+}
+
+.cardWrap {
+  isolation: isolate;
+  position: relative;
+  align-self: center;
+  width: min(560px, 100%);
+}
+
+.sideImage {
+  position: absolute;
+  right: calc(100% - 1px);
+  bottom: 0;
+  z-index: -2;
+  width: clamp(8.5rem, 15vw, 13.75rem);
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+}
+
 .panel {
   @include panel;
   padding: 1.4rem;
-  max-width: 560px;
+  width: 100%;
 }
 
 .title {
@@ -94,4 +120,38 @@
 
 .altLink {
   color: var(--accent);
+}
+
+.ogeyError {
+  margin-top: 1rem;
+  padding: 1rem 1.05rem;
+  border: 0.125rem solid var(--danger);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--danger) 16%, var(--surface-card));
+  color: var(--danger);
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 2vw, 1.7rem);
+  font-weight: 900;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .authStage {
+    justify-content: center;
+    min-height: auto;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .cardWrap {
+    padding-top: 4.5rem;
+  }
+
+  .sideImage {
+    right: auto;
+    left: 0;
+    bottom: calc(100% - 4.6rem);
+    width: 7rem;
+  }
 }

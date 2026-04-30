@@ -13,7 +13,7 @@ type AuthContextValue = {
   error: string | null;
   refreshSession: () => Promise<AuthUser | null>;
   login: (username: string, password: string, turnstileToken?: string) => Promise<AuthUser>;
-  register: (username: string, email: string, password: string, turnstileToken?: string) => Promise<AuthUser>;
+  register: (username: string, email: string, password: string, ogey: string, turnstileToken?: string) => Promise<AuthUser>;
   loginWithGoogle: (credential: string, turnstileToken?: string) => Promise<AuthUser>;
   resendVerification: () => Promise<void>;
   logout: () => Promise<void>;
@@ -74,13 +74,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const register = useCallback(
-    async (username: string, email: string, password: string, turnstileToken?: string) => {
+    async (username: string, email: string, password: string, ogey: string, turnstileToken?: string) => {
       setLoading(true);
       setError(null);
       try {
         const result = await apiFetch<{ user: AuthUser }>("/api/auth/register", {
           method: "POST",
-          body: JSON.stringify({ username, email, password, turnstile_token: turnstileToken }),
+          body: JSON.stringify({ username, email, password, ogey, turnstile_token: turnstileToken }),
         });
         setUser(result.user);
         setInitialized(true);
