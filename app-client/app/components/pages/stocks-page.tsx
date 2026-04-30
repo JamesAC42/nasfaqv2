@@ -1814,6 +1814,7 @@ export function StocksPage() {
                             alt="Trade confirmation illustration"
                             width={320}
                             height={320}
+                            unoptimized
                             className={detailStyles.tradeConfirmationImage}
                           />
                         </div>
