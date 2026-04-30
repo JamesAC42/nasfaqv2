@@ -840,7 +840,6 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
             </Link>
             {game ? (
               <div className={styles.badgeRow}>
-                <span className={styles.typePill}>{typeLabel(game.game_type)}</span>
                 <span className={`${styles.statusPill} ${statusClass(game.status)}`.trim()}>{statusCopy(game.status)}</span>
               </div>
             ) : null}
@@ -860,17 +859,10 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
               <div className={styles.metaCard}>
                 <span className={styles.metaLabel}>Entry</span>
                 <strong className={styles.metaValue}>{priceLine(game)}</strong>
-                <span className={styles.metaHint}>Paid from your NASFAQ balance.</span>
-              </div>
-              <div className={styles.metaCard}>
-                <span className={styles.metaLabel}>Mode</span>
-                <strong className={styles.metaValue}>{typeLabel(game.game_type)}</strong>
-                <span className={styles.metaHint}>Jump in and make it count.</span>
               </div>
               <div className={styles.metaCard}>
                 <span className={styles.metaLabel}>Wallet</span>
                 <strong className={styles.metaValue}>{summary ? fmtNumber(summary.cash_balance, "$") : user ? "Loading…" : "Sign in"}</strong>
-                <span className={styles.metaHint}>Ready for your next shot.</span>
               </div>
             </div>
           ) : null}
@@ -970,7 +962,6 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
               <div className={styles.sectionHead}>
                 <div>
                   <h2 className={styles.sectionTitle}>Your Locker</h2>
-                  <p className={styles.sectionCopy}>Newest cosmetics and capsule sessions.</p>
                 </div>
                 <FaClock />
               </div>

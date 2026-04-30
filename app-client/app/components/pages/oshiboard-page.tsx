@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { FaHeart, FaMagnifyingGlass } from "react-icons/fa6";
 import { AssetCoin } from "@/app/components/common/asset-coin";
@@ -124,6 +125,15 @@ export function OshiboardPage() {
     <SiteShell>
       <div className={`${pageStyles.stack} ${styles.page}`.trim()}>
         <section className={styles.hero}>
+          <Image
+            src="/kotatsu-room-hero.png"
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className={styles.heroImage}
+            aria-hidden="true"
+          />
           <div className={styles.heroHeader}>
             <span className={styles.eyebrow}><FaHeart aria-hidden="true" /> Community Leaderboards</span>
             <h1>Oshiboard</h1>
@@ -168,6 +178,16 @@ export function OshiboardPage() {
               error={boardError}
               transitionKey={selectedSymbol}
             />
+
+            <div className={styles.takostandWrap} aria-hidden="true">
+              <Image
+                src="/takostand.png"
+                alt=""
+                width={320}
+                height={252}
+                className={styles.takostandImage}
+              />
+            </div>
           </main>
         </div>
       </div>

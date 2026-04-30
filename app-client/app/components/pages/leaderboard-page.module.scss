@@ -69,6 +69,12 @@
 }
 
 .leaderboardHero {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
   grid-template-columns: minmax(0, 1fr) minmax(22rem, 0.42fr);
   align-items: center;
   position: relative;
@@ -88,7 +94,7 @@
   inset: 0;
   z-index: 0;
   object-fit: cover;
-  object-position: right top;
+  object-position: 100% calc(0% - 2.1875rem);
   pointer-events: none;
 }
 
@@ -103,6 +109,7 @@
   mask-image: linear-gradient(90deg, black, transparent 68%);
   opacity: 0.55;
   pointer-events: none;
+  transform: translateY(-0.5rem);
 }
 
 .leaderboardHero::before {
@@ -114,6 +121,7 @@
     linear-gradient(90deg, color-mix(in srgb, #06151b 88%, transparent) 0%, color-mix(in srgb, var(--surface-card) 72%, transparent) 42%, transparent 78%),
     linear-gradient(180deg, color-mix(in srgb, black 14%, transparent), color-mix(in srgb, black 24%, transparent));
   pointer-events: none;
+  transform: translateY(-0.3rem) scale(1.05);
 }
 
 .leaderboardHero > :not(.heroImage) {
@@ -140,6 +148,25 @@
 
 [data-theme="light"] .leaderboardHero h1 {
   text-shadow: none;
+}
+
+[data-theme="light"] .leaderboardHero {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--surface-card) 98%, white) 0 0.125rem, color-mix(in srgb, var(--surface-card) 96%, white) 0.125rem 40%, color-mix(in srgb, var(--surface-card) 76%, transparent) 62%, color-mix(in srgb, var(--surface-card) 26%, transparent) 100%),
+    radial-gradient(circle at 76% 40%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 34%);
+}
+
+[data-theme="light"] .leaderboardHero::before {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--surface-card) 98%, white) 0%, color-mix(in srgb, var(--surface-card) 90%, transparent) 48%, color-mix(in srgb, var(--surface-card) 36%, transparent) 76%, transparent 100%),
+    linear-gradient(180deg, color-mix(in srgb, white 28%, transparent), color-mix(in srgb, var(--surface-card) 38%, transparent));
+}
+
+[data-theme="light"] .leaderboardHero::after {
+  background:
+    linear-gradient(180deg, transparent 58%, color-mix(in srgb, var(--surface-card) 86%, transparent)),
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, transparent) 0 0.0625rem, transparent 0.0625rem 0.875rem);
+  opacity: 0.42;
 }
 
 .marketStatsGrid {
@@ -294,10 +321,13 @@
 
 .commandGrid {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: end;
 }
 
 .meCard {
   @include panel;
+  position: relative;
   padding: 0.85rem;
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
@@ -305,14 +335,27 @@
   gap: 0.85rem;
 }
 
+.meCardFigure {
+  justify-self: end;
+  align-self: end;
+  width: clamp(7.5rem, 13vw, 10.5rem);
+  height: auto;
+  object-fit: contain;
+  object-position: left bottom;
+  pointer-events: none;
+  filter: drop-shadow(0 0.85rem 1.1rem color-mix(in srgb, var(--leaderboard-scope-accent) 18%, transparent));
+}
+
 .meSummary {
+  position: relative;
+  z-index: 1;
   display: grid;
   gap: 0.75rem;
 }
 
 .meHeading {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.75rem;
   align-items: center;
 }
@@ -345,6 +388,28 @@
   font-family: var(--font-mono);
 }
 
+.meNetWorth {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  justify-self: end;
+  display: grid;
+  gap: 0.18rem;
+  min-width: 10rem;
+  text-align: right;
+}
+
+.meNetWorth span {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.meNetWorth strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: clamp(1.35rem, 2.6vw, 2.15rem);
+  line-height: 1;
+}
+
 .meMetaGrid {
   display: grid;
   grid-auto-rows: minmax(3.4rem, 1fr);
@@ -358,13 +423,15 @@
   padding: 0.55rem 0;
   display: grid;
   grid-template-columns: minmax(7rem, 0.55fr) minmax(0, 1fr);
+  grid-template-rows: auto auto;
   gap: 0.5rem 1rem;
   align-items: center;
   align-content: center;
 }
 
 .meStat:first-child {
-  padding-top: 0;
+  margin-top: 0.35rem;
+  padding-top: 0.7rem;
 }
 
 .meStat:last-child {
@@ -376,6 +443,17 @@
   font-size: 1rem;
   justify-self: end;
   text-align: right;
+}
+
+.meStatValue {
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.15;
+}
+
+.meStatTrend {
+  color: var(--text);
+  transform: translateY(0.08rem);
 }
 
 .meStat .trendBlock {
@@ -396,7 +474,20 @@
   font-size: 0.82rem;
 }
 
+.meStatLabel {
+  grid-row: 1 / 3;
+  align-self: center;
+}
+
+.meStatSubtle,
+.meStat .trendSubtext {
+  font-size: 0.82rem;
+  line-height: 1.15;
+}
+
 .neighbors {
+  position: relative;
+  z-index: 1;
   display: grid;
   gap: 0.5rem;
 }
@@ -457,10 +548,11 @@
 
 .neighborTicker {
   justify-self: center;
-  width: min(100%, 15.625rem);
+  width: min(100%, 10.75rem);
   height: auto;
-  margin-top: 0.1rem;
+  margin-top: 0rem;
   object-fit: contain;
+  transform: translateY(-0.5rem);
   filter: drop-shadow(0 0.85rem 1.1rem color-mix(in srgb, var(--leaderboard-scope-accent) 20%, transparent));
 }
 
@@ -482,6 +574,10 @@
   font-size: 0.98rem;
   font-family: var(--font-mono);
   line-height: 1;
+}
+
+.trendValueIconAfter {
+  flex-direction: row-reverse;
 }
 
 .trendValue svg {
@@ -643,7 +739,7 @@
   gap: 0.38rem;
   color: var(--muted);
   font-size: 0.86rem;
-  justify-items: start;
+  justify-items: center;
   width: 100%;
 }
 
@@ -783,7 +879,9 @@
 .badgeRow {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 0.35rem;
+  margin-top: 0.5rem;
 }
 
 .badge,
@@ -940,6 +1038,18 @@
     grid-template-columns: 1fr;
   }
 
+  .commandGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .meCard {
+    padding-left: 0.85rem;
+  }
+
+  .meCardFigure {
+    display: none;
+  }
+
   .marketStatsGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -975,6 +1085,17 @@
   .controlGroup {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .meHeading {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .meNetWorth {
+    grid-column: 2;
+    grid-row: 3;
+    justify-self: start;
+    text-align: left;
   }
 
   .podiumGrid {

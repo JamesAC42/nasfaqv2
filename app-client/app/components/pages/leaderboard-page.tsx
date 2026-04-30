@@ -4,7 +4,7 @@ import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { FaArrowTrendDown, FaArrowTrendUp, FaEarthAmericas, FaFlagCheckered, FaRegCalendar, FaTrophy, FaUserGroup, FaUserSlash } from "react-icons/fa6";
+import { FaArrowTrendDown, FaArrowTrendUp, FaEarthAmericas, FaFire, FaFlagCheckered, FaRegCalendar, FaTrophy, FaUserGroup, FaUserSlash } from "react-icons/fa6";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { LoadingSpinner } from "@/app/components/common/loading-spinner";
@@ -53,16 +53,22 @@ function TrendValue({
   changePct,
   changeAbs,
   compact = false,
+  iconPosition = "before",
+  toneValue = true,
+  className,
 }: {
   changePct: number | null;
   changeAbs?: number | null;
   compact?: boolean;
+  iconPosition?: "before" | "after";
+  toneValue?: boolean;
+  className?: string;
 }) {
   const TrendIcon = changePct === null ? FaFlagCheckered : changePct >= 0 ? FaArrowTrendUp : FaArrowTrendDown;
 
   return (
-    <div className={`${styles.trendBlock} ${compact ? styles.trendCompact : ""}`.trim()}>
-      <strong className={`${styles.trendValue} ${trendTone(changePct)}`.trim()}>
+    <div className={`${styles.trendBlock} ${compact ? styles.trendCompact : ""} ${className || ""}`.trim()}>
+      <strong className={`${styles.trendValue} ${iconPosition === "after" ? styles.trendValueIconAfter : ""} ${toneValue ? trendTone(changePct) : ""}`.trim()}>
         <TrendIcon aria-hidden="true" />
         <span>{changePct === null ? "No move data" : `${changePct > 0 ? "+" : ""}${fmtPct(changePct)}`}</span>
       </strong>
@@ -197,8 +203,12 @@ function AchievementRow({ entry }: { entry: LeaderboardEntry }) {
   return (
     <div className={styles.badgeRow}>
       {entry.streaks.current_streak_days > 0 ? (
-        <span className={styles.streakBadge}>🔥 {entry.streaks.current_streak_days}d streak</span>
+        <span className={styles.streakBadge}>
+          <FaFire style={{ marginRight: '0.25em' }} aria-label="fire" />
+          {entry.streaks.current_streak_days}d streak
+        </span>
       ) : null}
+ 
       {chips.length ? chips.map((chip) => (
         <span
           key={chip.key}
@@ -297,7 +307,6 @@ function PodiumCard({ entry, tone }: { entry: LeaderboardEntry; tone: "gold" | "
         <TrendValue changePct={entry.change_pct} changeAbs={entry.change_abs} compact />
         <ExposureMeter entry={entry} />
         <div className={styles.podiumMeta}>
-          <span className={styles.streakBadge}>🔥 {entry.streaks.current_streak_days > 0 ? `${fmtInteger(entry.streaks.current_streak_days)} day streak` : "No streak"}</span>
           <AssetMetaPill
             label="Largest bag"
             asset={largestAsset}
@@ -356,7 +365,7 @@ export function LeaderboardPage() {
   return (
     <SiteShell>
       <div className={`${pageStyles.stack} ${styles.leaderboardPage}`.trim()}>
-        <section className={`${pageStyles.hero} ${styles.leaderboardHero}`.trim()}>
+        <section className={styles.leaderboardHero}>
           <Image
             src="/celebrity-arrival-hero.png"
             alt=""
@@ -443,24 +452,30 @@ export function LeaderboardPage() {
                   className={styles.meAvatar}
                 />
                 <div className={styles.meRankSentence}>You are ranked <strong>#{me.rank}</strong> of <strong>{fmtInteger(stats.user_count)}</strong> players</div>
+                <div className={styles.meNetWorth}>
+                  <span>Net worth</span>
+                  <strong>{fmtNumber(me.total_equity, "$")}</strong>
+                </div>
               </div>
               <div className={styles.meMetaGrid}>
                 <div className={styles.meStat}>
-                  <span className={styles.meStatLabel}>Net worth</span>
-                  <strong className={styles.valueMono}>{fmtNumber(me.total_equity, "$")}</strong>
-                </div>
-                <div className={styles.meStat}>
                   <span className={styles.meStatLabel}>Window move</span>
-                  <TrendValue changePct={me.change_pct} changeAbs={me.change_abs} />
+                  <TrendValue
+                    changePct={me.change_pct}
+                    changeAbs={me.change_abs}
+                    iconPosition="after"
+                    toneValue={false}
+                    className={styles.meStatTrend}
+                  />
                 </div>
                 <div className={styles.meStat}>
                   <span className={styles.meStatLabel}>Unrealized P/L</span>
-                  <strong className={trendTone(me.total_unrealized_pnl)}>{fmtNumber(me.total_unrealized_pnl, "$")}</strong>
+                  <strong className={`${styles.meStatValue} ${styles.valueMono}`.trim()}>{fmtNumber(me.total_unrealized_pnl, "$")}</strong>
                   <span className={styles.meStatSubtle}>{(Math.max(0, me.percentile) * 100).toFixed(1)} percentile</span>
                 </div>
                 <div className={styles.meStat}>
                   <span className={styles.meStatLabel}>Streak</span>
-                  <strong>{me.streaks.current_streak_days}d current</strong>
+                  <strong className={styles.meStatValue}>{me.streaks.current_streak_days}d current</strong>
                   <span className={styles.meStatSubtle}>{me.streaks.longest_streak_days}d best</span>
                 </div>
               </div>
@@ -516,7 +531,6 @@ export function LeaderboardPage() {
           <div className={styles.tableHeader}>
             <div>
               <h2 className={styles.sectionTitle}>Standings</h2>
-              <p className={styles.sectionCopy}>Current equity decides rank. The selected window controls the move column.</p>
             </div>
             <div className={styles.pagination}>
               <button

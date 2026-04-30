@@ -11,7 +11,7 @@ import {
   type Time,
 } from "lightweight-charts";
 import { AssetCoin } from "@/app/components/common/asset-coin";
-import { getUsableChannelColor } from "@/app/lib/color";
+import { getUsableChannelColor, type ColorMode } from "@/app/lib/color";
 import { createChannelChartTheme, withAlpha, type ChannelChartTheme } from "@/app/lib/chart-theme";
 import type { CandlePoint } from "@/app/lib/types";
 import { useTheme } from "@/app/providers/theme-provider";
@@ -79,6 +79,14 @@ function resolveTheme(theme?: ChannelChartTheme | null) {
   return theme || createChannelChartTheme(null);
 }
 
+function readableChartColor(color: string, colorMode: ColorMode) {
+  return getUsableChannelColor(
+    color,
+    colorMode,
+    colorMode === "light" ? { maxLightLuminance: 0.34 } : undefined
+  ) || color;
+}
+
 function resolveChartFontFamily(fontFamily?: string) {
   if (fontFamily?.trim()) return fontFamily.trim();
   if (typeof window !== "undefined") {
@@ -86,6 +94,14 @@ function resolveChartFontFamily(fontFamily?: string) {
     if (computed) return computed;
   }
   return "'Nasfaq Mono', 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace";
+}
+
+function resolveCssVar(name: string, fallback: string) {
+  if (typeof window !== "undefined") {
+    const computed = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    if (computed) return computed;
+  }
+  return fallback;
 }
 
 function createBaseChart(
@@ -101,7 +117,7 @@ function createBaseChart(
     height,
     layout: {
       background: { type: ColorType.Solid, color: "transparent" },
-      textColor: palette.text,
+      textColor: resolveCssVar("--text", palette.text),
       fontFamily: resolveChartFontFamily(fontFamily),
       fontSize,
       attributionLogo: false,
@@ -233,6 +249,7 @@ export function CandleChartCard({
   surfaceStyle?: CSSProperties;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const { theme: colorMode } = useTheme();
   const hasData = chartType === "line"
     ? candles.some((item) => {
         const value = item.close_mark ?? item.close ?? item.open ?? item.high ?? item.low;
@@ -240,6 +257,9 @@ export function CandleChartCard({
       })
     : candles.some((item) => item.open !== null && item.high !== null && item.low !== null && item.close !== null);
   const palette = resolveTheme(theme);
+  const highlightColor = readableChartColor(palette.highlight, colorMode);
+  const themedUpColor = readableChartColor(palette.baseDeep, colorMode);
+  const themedDownColor = readableChartColor(palette.complementDeep, colorMode);
 
   useEffect(() => {
     if (!containerRef.current || !hasData) return;
@@ -247,7 +267,7 @@ export function CandleChartCard({
     const chart = createBaseChart(containerRef.current, palette, fontFamily, height, compact ? 11 : 12);
     if (chartType === "line") {
       const lineSeries = chart.addSeries(LineSeries, {
-        color: palette.highlight,
+        color: highlightColor,
         lineWidth: compact ? 2 : 3,
         priceLineVisible: false,
         lastValueVisible: true,
@@ -264,8 +284,8 @@ export function CandleChartCard({
           .filter(Boolean) as Array<{ time: Time; value: number }>
       );
     } else {
-      const upColor = candlePalette === "market" ? "#16a34a" : palette.baseDeep;
-      const downColor = candlePalette === "market" ? "#dc2626" : palette.complementDeep;
+      const upColor = candlePalette === "market" ? "#16a34a" : themedUpColor;
+      const downColor = candlePalette === "market" ? "#dc2626" : themedDownColor;
       const candleSeries = chart.addSeries(CandlestickSeries, {
         upColor,
         downColor,
@@ -289,7 +309,7 @@ export function CandleChartCard({
 
     if (showMarkClose && chartType === "candles") {
       const markSeries = chart.addSeries(LineSeries, {
-        color: palette.highlight,
+        color: highlightColor,
         lineWidth: 2,
         priceLineVisible: false,
         lastValueVisible: false,
@@ -308,7 +328,7 @@ export function CandleChartCard({
 
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [candles, candlePalette, chartType, compact, fontFamily, hasData, height, palette, showMarkClose]);
+  }, [candles, candlePalette, chartType, compact, fontFamily, hasData, height, highlightColor, palette, showMarkClose, themedDownColor, themedUpColor]);
 
   return (
     <div
@@ -334,8 +354,8 @@ export function CandleChartCard({
           <span
             className={`${styles.pill} ${chartType === "line" ? styles.linePill : styles.candlePill}`}
             style={{
-              borderColor: withAlpha(chartType === "line" ? palette.highlight : palette.baseDeep, 0.35),
-              color: chartType === "line" ? palette.highlight : palette.baseDeep,
+              borderColor: withAlpha(chartType === "line" ? highlightColor : themedUpColor, 0.35),
+              color: chartType === "line" ? highlightColor : themedUpColor,
             }}
           >
             {chartType === "line" ? "Price" : "Candles"} {formatValue(latestValue(candles.map((item) => ({
@@ -347,7 +367,7 @@ export function CandleChartCard({
           {showMarkClose && chartType === "candles" ? (
             <span
               className={`${styles.pill} ${styles.linePill}`}
-              style={{ borderColor: withAlpha(palette.highlight, 0.35), color: palette.highlight }}
+              style={{ borderColor: withAlpha(highlightColor, 0.35), color: highlightColor }}
             >
               Mark {formatValue(latestValue(candles.map((item) => ({ value: item.close_mark ?? null }))))}
             </span>
@@ -365,6 +385,9 @@ export function TrendChartCard({
   series,
   theme,
   fontFamily,
+  height = 320,
+  compact = false,
+  className,
   bare = false,
 }: {
   title: string;
@@ -372,6 +395,9 @@ export function TrendChartCard({
   series: TrendSeries[];
   theme?: ChannelChartTheme | null;
   fontFamily?: string;
+  height?: number;
+  compact?: boolean;
+  className?: string;
   bare?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -384,13 +410,14 @@ export function TrendChartCard({
   useEffect(() => {
     if (!containerRef.current || !hasData) return;
 
-    const chart = createBaseChart(containerRef.current, palette, fontFamily);
+    const chart = createBaseChart(containerRef.current, palette, fontFamily, height, compact ? 11 : 12);
 
     for (const item of series) {
       const data = normalizeTrendData(item.values);
       if (!data.length) continue;
       const isActive = !hasActiveSelection || selectedSeriesNames.includes(item.name);
-      const strokeColor = isActive ? item.color : withAlpha(item.color, 0.18);
+      const itemColor = readableChartColor(item.color, colorMode);
+      const strokeColor = isActive ? itemColor : withAlpha(itemColor, 0.18);
 
       if (item.kind === "line") {
         const lineSeries = chart.addSeries(LineSeries, {
@@ -403,8 +430,8 @@ export function TrendChartCard({
       } else {
         const areaSeries = chart.addSeries(AreaSeries, {
           lineColor: strokeColor,
-          topColor: isActive ? withAlpha(item.color, 0.26) : withAlpha(item.color, 0.06),
-          bottomColor: isActive ? withAlpha(item.color, 0.04) : withAlpha(item.color, 0.01),
+          topColor: isActive ? withAlpha(itemColor, 0.26) : withAlpha(itemColor, 0.06),
+          bottomColor: isActive ? withAlpha(itemColor, 0.04) : withAlpha(itemColor, 0.01),
           lineWidth: 3,
           priceLineVisible: false,
           lastValueVisible: true,
@@ -415,7 +442,7 @@ export function TrendChartCard({
 
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [fontFamily, hasActiveSelection, hasData, palette, selectedSeriesNames, series]);
+  }, [colorMode, compact, fontFamily, hasActiveSelection, hasData, height, palette, selectedSeriesNames, series]);
 
   const rangeValues = series[0]?.values.map((item) => item.time) || [];
 
@@ -430,8 +457,16 @@ export function TrendChartCard({
 
   return (
     <div
-      className={`${bare ? styles.chartBoxBare : styles.chartBox} ${styles.chartBoxTrend}`}
-      style={fontFamily ? ({ "--chart-font-family": fontFamily } as CSSProperties) : undefined}
+      className={[
+        bare ? styles.chartBoxBare : styles.chartBox,
+        styles.chartBoxTrend,
+        compact ? styles.chartBoxCompact : "",
+        className,
+      ].filter(Boolean).join(" ")}
+      style={{
+        ...(fontFamily ? ({ "--chart-font-family": fontFamily } as CSSProperties) : {}),
+        "--chart-height": `${height}px`,
+      } as CSSProperties}
     >
       <div className={styles.header}>
         <div>
@@ -440,8 +475,7 @@ export function TrendChartCard({
         </div>
         <div className={styles.legend}>
           {series.map((item) => {
-            const legendColor =
-              getUsableChannelColor(item.color, colorMode, colorMode === "light" ? { maxLightLuminance: 0.34 } : undefined) || item.color;
+            const legendColor = readableChartColor(item.color, colorMode);
             const isActive = !hasActiveSelection || selectedSeriesNames.includes(item.name);
 
             return (
@@ -486,6 +520,9 @@ export function VolumeChartCard({
   theme,
   fontFamily,
   height = 320,
+  compact = false,
+  className,
+  bare = false,
 }: {
   title: string;
   subtitle?: string;
@@ -493,9 +530,16 @@ export function VolumeChartCard({
   theme?: ChannelChartTheme | null;
   fontFamily?: string;
   height?: number;
+  compact?: boolean;
+  className?: string;
+  bare?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const { theme: colorMode } = useTheme();
   const palette = resolveTheme(theme);
+  const highlightColor = readableChartColor(palette.highlight, colorMode);
+  const baseDeepColor = readableChartColor(palette.baseDeep, colorMode);
+  const complementDeepColor = readableChartColor(palette.complementDeep, colorMode);
   const volumeCandles = candles
     .map((item) => {
       const time = toChartTime(item.bucket);
@@ -505,9 +549,9 @@ export function VolumeChartCard({
       const toneColor =
         item.close !== null && item.open !== null
           ? item.close >= item.open
-            ? palette.baseDeep
-            : palette.complementDeep
-          : palette.highlight;
+            ? baseDeepColor
+            : complementDeepColor
+          : highlightColor;
 
       return {
         time,
@@ -521,7 +565,7 @@ export function VolumeChartCard({
   useEffect(() => {
     if (!containerRef.current || !hasData) return;
 
-    const chart = createBaseChart(containerRef.current, palette, fontFamily, height);
+    const chart = createBaseChart(containerRef.current, palette, fontFamily, height, compact ? 11 : 12);
     const series = chart.addSeries(HistogramSeries, {
       priceFormat: {
         type: "volume",
@@ -534,11 +578,16 @@ export function VolumeChartCard({
     series.setData(volumeCandles);
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [fontFamily, hasData, height, palette, volumeCandles]);
+  }, [compact, fontFamily, hasData, height, palette, volumeCandles]);
 
   return (
     <div
-      className={`${styles.chartBox} ${styles.chartBoxTrend}`}
+      className={[
+        bare ? styles.chartBoxBare : styles.chartBox,
+        styles.chartBoxTrend,
+        compact ? styles.chartBoxCompact : "",
+        className,
+      ].filter(Boolean).join(" ")}
       style={{
         ...(fontFamily ? ({ "--chart-font-family": fontFamily } as CSSProperties) : {}),
         "--chart-height": `${height}px`,
@@ -552,7 +601,7 @@ export function VolumeChartCard({
         <div className={styles.legend}>
           <span
             className={`${styles.pill} ${styles.linePill}`}
-            style={{ borderColor: withAlpha(palette.highlight, 0.35), color: palette.highlight }}
+            style={{ borderColor: withAlpha(highlightColor, 0.35), color: highlightColor }}
           >
             Volume {formatVolumeValue(latestValue(candles.map((item) => ({ value: item.volume_shares ?? null }))))}
           </span>
@@ -646,6 +695,7 @@ export function SuperchatHistogramCard({
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const { theme: colorMode } = useTheme();
   const hasData = bars.some((item) => Number.isFinite(item.value) && item.value > 0);
   const palette = resolveTheme(theme);
 
@@ -657,7 +707,7 @@ export function SuperchatHistogramCard({
       height: 320,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: palette.text,
+        textColor: resolveCssVar("--text", palette.text),
         fontFamily: resolveChartFontFamily(),
         attributionLogo: false,
       },
@@ -699,7 +749,7 @@ export function SuperchatHistogramCard({
       bars.map((item, index) => ({
         time: syntheticChartTime(index),
         value: item.value,
-        color: item.color,
+        color: readableChartColor(item.color, colorMode),
       }))
     );
 
@@ -742,7 +792,7 @@ export function SuperchatHistogramCard({
 
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [bars, hasData, palette]);
+  }, [bars, colorMode, hasData, palette]);
 
   return (
     <div className={`${styles.chartBox} ${styles.chartBoxTrend}`}>
@@ -779,6 +829,7 @@ export function MetricHistogramCard({
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const { theme: colorMode } = useTheme();
   const hasData = bars.some((item) => Number.isFinite(item.value) && item.value > 0);
   const palette = resolveTheme(theme);
 
@@ -790,7 +841,7 @@ export function MetricHistogramCard({
       height: 320,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: palette.text,
+        textColor: resolveCssVar("--text", palette.text),
         fontFamily: resolveChartFontFamily(),
         attributionLogo: false,
       },
@@ -832,7 +883,7 @@ export function MetricHistogramCard({
       bars.map((item, index) => ({
         time: syntheticChartTime(index),
         value: item.value,
-        color: item.color,
+        color: readableChartColor(item.color, colorMode),
       }))
     );
 
@@ -875,7 +926,7 @@ export function MetricHistogramCard({
 
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [bars, hasData, palette]);
+  }, [bars, colorMode, hasData, palette]);
 
   return (
     <div className={`${styles.chartBox} ${styles.chartBoxTrend}`}>
@@ -906,6 +957,7 @@ export function RankedBarChartCard({
   subtitle?: string;
   bars: RankedBar[];
 }) {
+  const { theme: colorMode } = useTheme();
   const sortedBars = [...bars].sort((a, b) => b.value - a.value);
   const maxValue = Math.max(...sortedBars.map((item) => item.value), 0);
   const hasData = maxValue > 0;
@@ -931,7 +983,7 @@ export function RankedBarChartCard({
                 <div className={styles.rankedBarTrack}>
                   <div
                     className={styles.rankedBarFill}
-                    style={{ "--ranked-bar-width": width, "--ranked-bar-color": item.color } as CSSProperties}
+                    style={{ "--ranked-bar-width": width, "--ranked-bar-color": readableChartColor(item.color, colorMode) } as CSSProperties}
                   />
                 </div>
                 {item.meta ? <div className={styles.rankedBarMeta}>{item.meta}</div> : null}
@@ -958,6 +1010,7 @@ export function SuperchatHeatmapCard({
   rows: HeatmapRow[];
   theme?: ChannelChartTheme | null;
 }) {
+  const { theme: colorMode } = useTheme();
   const cells = rows[0]?.cells || [];
   const weeks = chunkCalendarWeeks(cells);
   const maxValue = Math.max(...cells.map((cell) => cell.value), 0);
@@ -965,6 +1018,9 @@ export function SuperchatHeatmapCard({
   const activeDays = cells.filter((cell) => (cell.value || 0) > 0).length;
   const hasData = cells.length > 0;
   const palette = resolveTheme(theme);
+  const heatmapStart = readableChartColor(palette.base, colorMode);
+  const heatmapEnd = readableChartColor(palette.baseDeep, colorMode);
+  const heatmapBorder = readableChartColor(palette.highlight, colorMode);
   const monthLabels = weeks.map((week) => {
     const firstRealCell = week.find((cell): cell is HeatmapRow["cells"][number] => Boolean(cell));
     if (!firstRealCell) return "";
@@ -992,9 +1048,9 @@ export function SuperchatHeatmapCard({
             className={styles.heatmapCalendar}
             style={
               {
-                "--heatmap-start": palette.base,
-                "--heatmap-end": palette.baseDeep,
-                "--heatmap-border": palette.highlight,
+                "--heatmap-start": heatmapStart,
+                "--heatmap-end": heatmapEnd,
+                "--heatmap-border": heatmapBorder,
               } as CSSProperties
             }
           >

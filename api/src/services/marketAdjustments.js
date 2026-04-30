@@ -906,27 +906,46 @@ async function getAdjustmentSummary(pool, { recentLimit = 20 } = {}) {
     ),
     pool.query(
       `
-      SELECT
-        a.symbol,
-        a.display_name,
-        c.icon,
-        c.color,
-        i.interval_key,
-        i.applied_at,
-        i.price_before,
-        i.price_after,
-        CASE
-          WHEN i.price_before IS NULL OR i.price_before = 0 THEN NULL
-          ELSE (i.price_after - i.price_before) / i.price_before
-        END AS move_pct,
-        NULL::numeric AS gap_compression_pct
-      FROM market.asset_adjustment_intervals i
-      JOIN market.market_assets a ON a.id = i.asset_id
-      JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
-      WHERE i.status = 'applied'
-        AND i.applied_at >= now() - interval '7 days'
-      ORDER BY ABS((i.price_after - i.price_before) / NULLIF(i.price_before, 0)) DESC NULLS LAST, i.applied_at DESC
-      LIMIT 8
+      WITH applied_moves AS (
+        SELECT
+          a.symbol,
+          a.display_name,
+          c.icon,
+          c.color,
+          i.interval_key,
+          i.applied_at,
+          i.price_before,
+          i.price_after,
+          CASE
+            WHEN i.price_before IS NULL OR i.price_before = 0 THEN NULL
+            ELSE (i.price_after - i.price_before) / i.price_before
+          END AS move_pct,
+          NULL::numeric AS gap_compression_pct
+        FROM market.asset_adjustment_intervals i
+        JOIN market.market_assets a ON a.id = i.asset_id
+        JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
+        WHERE i.status = 'applied'
+          AND i.applied_at >= now() - interval '7 days'
+      ),
+      positive_moves AS (
+        SELECT *
+        FROM applied_moves
+        WHERE move_pct > 0
+        ORDER BY move_pct DESC, applied_at DESC
+        LIMIT 5
+      ),
+      negative_moves AS (
+        SELECT *
+        FROM applied_moves
+        WHERE move_pct < 0
+        ORDER BY move_pct ASC, applied_at DESC
+        LIMIT 5
+      )
+      SELECT *
+      FROM positive_moves
+      UNION ALL
+      SELECT *
+      FROM negative_moves
     `
     ),
     pool.query(

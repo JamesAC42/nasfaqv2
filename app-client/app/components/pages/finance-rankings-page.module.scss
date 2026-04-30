@@ -13,6 +13,7 @@
 .hero {
   position: relative;
   overflow: hidden;
+  isolation: isolate;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(27rem, 0.72fr);
   align-items: end;
@@ -23,49 +24,73 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-tight);
   background:
-    linear-gradient(90deg, #06151b 0 2px, color-mix(in srgb, var(--surface-card) 96%, #06151b) 2px 22%, color-mix(in srgb, var(--surface-card) 64%, transparent) 48%, color-mix(in srgb, var(--surface-card) 12%, transparent) 100%),
-    radial-gradient(circle at 76% 42%, color-mix(in srgb, var(--rank-cyan) 20%, transparent), transparent 36%),
-    color-mix(in srgb, var(--surface-card) 92%, #041016);
+    linear-gradient(90deg, #06151b 0 0.125rem, color-mix(in srgb, var(--surface-card) 96%, #06151b) 0.125rem 26%, color-mix(in srgb, var(--surface-card) 78%, transparent) 52%, color-mix(in srgb, var(--surface-card) 30%, transparent) 100%),
+    radial-gradient(circle at 76% 40%, color-mix(in srgb, var(--rank-cyan) 18%, transparent), transparent 34%);
+  background-position: center, center;
+  background-size: cover, cover;
+  background-repeat: no-repeat, no-repeat;
+}
+
+.heroImage {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  object-fit: cover;
+  object-position: 100% calc(0% - 2.1875rem);
+  pointer-events: none;
 }
 
 .hero::before {
   content: "";
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(90deg, #06151b 0 2px, color-mix(in srgb, var(--surface-card) 94%, transparent) 2px 34%, color-mix(in srgb, var(--surface-card) 64%, transparent) 52%, transparent 80%),
-    linear-gradient(180deg, color-mix(in srgb, black 8%, transparent), color-mix(in srgb, black 28%, transparent));
-  pointer-events: none;
   z-index: 1;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, #06151b 88%, transparent) 0%, color-mix(in srgb, var(--surface-card) 72%, transparent) 42%, transparent 78%),
+    linear-gradient(180deg, color-mix(in srgb, black 14%, transparent), color-mix(in srgb, black 24%, transparent));
+  pointer-events: none;
+  transform: translateY(-0.3rem) scale(1.05);
 }
 
 .hero::after {
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 1;
   background:
-    linear-gradient(180deg, transparent 58%, color-mix(in srgb, var(--surface-card) 86%, transparent)),
-    repeating-linear-gradient(135deg, color-mix(in srgb, var(--rank-cyan) 18%, transparent) 0 1px, transparent 1px 14px);
-  mask-image: linear-gradient(90deg, black, transparent 66%);
+    linear-gradient(180deg, transparent 58%, color-mix(in srgb, var(--surface-card) 84%, transparent)),
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--rank-cyan) 18%, transparent) 0 0.0625rem, transparent 0.0625rem 0.875rem);
+  mask-image: linear-gradient(90deg, black, transparent 68%);
   opacity: 0.55;
   pointer-events: none;
+  transform: translateY(-0.5rem);
+}
+
+.hero > :not(.heroImage) {
+  position: relative;
   z-index: 2;
 }
 
-.heroVisual {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(90deg, color-mix(in srgb, var(--surface-card) 92%, transparent) 0%, transparent 44%),
-    url("/rankings-hero.png");
-  background-position: center, center;
-  background-size: cover, cover;
-  opacity: 0.98;
+[data-theme="light"] .hero {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--surface-card) 98%, white) 0 0.125rem, color-mix(in srgb, var(--surface-card) 96%, white) 0.125rem 40%, color-mix(in srgb, var(--surface-card) 76%, transparent) 62%, color-mix(in srgb, var(--surface-card) 26%, transparent) 100%),
+    radial-gradient(circle at 76% 40%, color-mix(in srgb, var(--rank-cyan) 14%, transparent), transparent 34%);
+}
+
+[data-theme="light"] .hero::before {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--surface-card) 98%, white) 0%, color-mix(in srgb, var(--surface-card) 90%, transparent) 48%, color-mix(in srgb, var(--surface-card) 36%, transparent) 76%, transparent 100%),
+    linear-gradient(180deg, color-mix(in srgb, white 28%, transparent), color-mix(in srgb, var(--surface-card) 38%, transparent));
+}
+
+[data-theme="light"] .hero::after {
+  background:
+    linear-gradient(180deg, transparent 58%, color-mix(in srgb, var(--surface-card) 86%, transparent)),
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--rank-cyan) 14%, transparent) 0 0.0625rem, transparent 0.0625rem 0.875rem);
+  opacity: 0.42;
 }
 
 .heroCopy {
-  position: relative;
-  z-index: 3;
   max-width: 52rem;
   padding: 1rem 0;
   display: grid;
@@ -110,8 +135,6 @@
 }
 
 .heroMetrics {
-  position: relative;
-  z-index: 3;
   align-self: end;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -325,8 +348,7 @@
   align-items: center;
 }
 
-.listHeaderRank,
-.listHeaderMetric {
+.listHeaderRank {
   text-align: center;
 }
 
@@ -436,9 +458,9 @@
 }
 
 .metricValue {
-  justify-self: end;
+  justify-self: start;
   width: 100%;
-  text-align: right;
+  text-align: left;
   font-family: var(--font-mono);
   font-size: 1rem;
   font-weight: 800;
@@ -814,8 +836,8 @@
 
   .metricValue {
     grid-area: metric;
-    justify-self: end;
-    text-align: right;
+    justify-self: start;
+    text-align: left;
   }
 
   .detailBody {

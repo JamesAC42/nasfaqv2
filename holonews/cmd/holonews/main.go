@@ -42,6 +42,7 @@ const (
 	redisMetaKey         = "nasfaq_holonews:meta"
 	redisThreadKey       = "nasfaq_holonews:active_thread"
 	defaultSectionHeader = "holopro"
+	hololiveSectionKey   = "hololive"
 	defaultThumbnailCDN  = "https://images.nasfaq.biz"
 )
 
@@ -268,7 +269,7 @@ func mustLoadConfig() Config {
 		PollInterval:            time.Duration(parseEnvInt("POLL_INTERVAL_SECONDS", 600)) * time.Second,
 		RequestTimeout:          time.Duration(parseEnvInt("REQUEST_TIMEOUT_SECONDS", 20)) * time.Second,
 		GeminiTimeout:           time.Duration(parseEnvInt("GEMINI_TIMEOUT_SECONDS", 90)) * time.Second,
-		SectionSearchPosts:      parseEnvInt("SECTION_SEARCH_POSTS", 5),
+		SectionSearchPosts:      parseEnvInt("SECTION_SEARCH_POSTS", 50),
 		TopNewsCount:            parseEnvInt("TOP_NEWS_COUNT", 3),
 		ReferenceImagesS3Prefix: strings.Trim(getEnv("REFERENCE_IMAGES_S3_PREFIX", "reference-images"), "/"),
 		ReferenceImagesBaseURL:  strings.TrimRight(getEnv("REFERENCE_IMAGES_BASE_URL", "https://images.nasfaq.biz/reference-images"), "/"),
@@ -277,7 +278,7 @@ func mustLoadConfig() Config {
 	}
 
 	if cfg.SectionSearchPosts < 1 {
-		cfg.SectionSearchPosts = 5
+		cfg.SectionSearchPosts = 50
 	}
 	if cfg.TopNewsCount < 1 {
 		cfg.TopNewsCount = 3
@@ -390,7 +391,16 @@ func scrapeOnce(ctx context.Context, fetchClient, geminiClient *http.Client, s3C
 		return fmt.Errorf("extract headlines: %w", err)
 	}
 	if len(extraction.Headlines) == 0 {
-		log.Printf("holonews: no HoloPro headlines found in first %d posts of thread %d", cfg.SectionSearchPosts, threadID)
+		log.Printf("holonews: no HoloPro/Hololive headlines found in first %d posts of thread %d", cfg.SectionSearchPosts, threadID)
+		return nil
+	}
+
+	processed, err := roundupPostAlreadyProcessed(ctx, rdb, threadID, extraction.PostID)
+	if err != nil {
+		return fmt.Errorf("redis source post compare: %w", err)
+	}
+	if processed {
+		log.Printf("holonews: roundup post %d in thread %d was already processed", extraction.PostID, threadID)
 		return nil
 	}
 
@@ -604,23 +614,47 @@ func extractHeadlines(posts []post, maxPosts int) (headlineExtraction, error) {
 	if maxPosts > len(posts) {
 		maxPosts = len(posts)
 	}
+	var selected headlineExtraction
+	selectedIndex := -1
+	selectedQuoted := false
 	for i := 0; i < maxPosts; i++ {
 		logPostInspection(posts[i], i)
-		headlines := extractHeadlinesFromPost(posts[i])
-		if len(headlines) == 0 {
-			continue
+		candidates := extractHeadlineCandidatesFromPost(posts[i])
+		for _, candidate := range candidates {
+			log.Printf("holonews: extracted %d %s headlines from post %d", len(candidate.Headlines), candidate.SectionKey, posts[i].No)
+			if selected.PostID == 0 || candidate.Quoted && !selectedQuoted || candidate.Quoted == selectedQuoted && i >= selectedIndex {
+				selected = headlineExtraction{
+					PostID:     posts[i].No,
+					SectionKey: candidate.SectionKey,
+					Headlines:  candidate.Headlines,
+				}
+				selectedIndex = i
+				selectedQuoted = candidate.Quoted
+			}
 		}
-		log.Printf("holonews: extracted %d headlines from post %d", len(headlines), posts[i].No)
-		return headlineExtraction{
-			PostID:     posts[i].No,
-			SectionKey: defaultSectionHeader,
-			Headlines:  headlines,
-		}, nil
 	}
-	return headlineExtraction{}, fmt.Errorf("no %s section found", defaultSectionHeader)
+	if selected.PostID != 0 {
+		log.Printf("holonews: selected %s roundup from post %d", selected.SectionKey, selected.PostID)
+		return selected, nil
+	}
+	return headlineExtraction{}, fmt.Errorf("no %s/%s section found", defaultSectionHeader, hololiveSectionKey)
+}
+
+type headlineCandidate struct {
+	SectionKey string
+	Headlines  []string
+	Quoted     bool
 }
 
 func extractHeadlinesFromPost(p post) []string {
+	candidates := extractHeadlineCandidatesFromPost(p)
+	if len(candidates) == 0 {
+		return nil
+	}
+	return candidates[0].Headlines
+}
+
+func extractHeadlineCandidatesFromPost(p post) []headlineCandidate {
 	text := normalizePostText(p.Com)
 	if text == "" {
 		text = normalizePostText(p.Sub)
@@ -630,65 +664,86 @@ func extractHeadlinesFromPost(p post) []string {
 	}
 
 	lines := splitLines(text)
+	var candidates []headlineCandidate
 	for i, line := range lines {
-		if strings.Contains(strings.ToLower(strings.TrimSpace(line)), defaultSectionHeader) {
+		if sectionKey, ok := sectionHeaderKey(line); ok {
 			log.Printf("holonews: post %d candidate section line %d raw=%q", p.No, i+1, line)
-		}
-		if !strings.EqualFold(strings.TrimSpace(line), defaultSectionHeader) {
-			continue
-		}
 
-		start := i + 1
-		for start < len(lines) && strings.TrimSpace(lines[start]) == "" {
-			start++
-		}
-		if start >= len(lines) {
-			log.Printf("holonews: post %d found HoloPro but no lines followed it", p.No)
-			return nil
-		}
-
-		mode := "plain"
-		if strings.HasPrefix(strings.TrimSpace(lines[start]), ">") {
-			mode = "quoted"
-		}
-		log.Printf("holonews: post %d parsing HoloPro section in %s mode starting at line %d", p.No, mode, start+1)
-
-		var headlines []string
-		for _, next := range lines[start:] {
-			trimmed := strings.TrimSpace(next)
-			if trimmed == "" {
-				if len(headlines) > 0 {
-					log.Printf("holonews: post %d stopping section parse on blank line after %d headlines", p.No, len(headlines))
-					break
-				}
+			start := i + 1
+			for start < len(lines) && strings.TrimSpace(lines[start]) == "" {
+				start++
+			}
+			if start >= len(lines) {
+				log.Printf("holonews: post %d found %s but no lines followed it", p.No, sectionKey)
 				continue
 			}
 
-			if mode == "quoted" {
-				if !strings.HasPrefix(trimmed, ">") {
-					log.Printf("holonews: post %d stopping quoted section parse on non-headline line %q", p.No, trimmed)
+			mode := "plain"
+			quoted := isGreentextBullet(lines[start])
+			if quoted {
+				mode = "quoted"
+			}
+			log.Printf("holonews: post %d parsing %s section in %s mode starting at line %d", p.No, sectionKey, mode, start+1)
+
+			var headlines []string
+			for _, next := range lines[start:] {
+				trimmed := strings.TrimSpace(next)
+				if trimmed == "" {
+					if len(headlines) > 0 {
+						log.Printf("holonews: post %d stopping section parse on blank line after %d headlines", p.No, len(headlines))
+						break
+					}
+					continue
+				}
+
+				if quoted {
+					if !isGreentextBullet(trimmed) {
+						log.Printf("holonews: post %d stopping quoted section parse on non-headline line %q", p.No, trimmed)
+						break
+					}
+				} else if looksLikeSectionHeader(trimmed) {
+					log.Printf("holonews: post %d stopping plain section parse on likely section header %q", p.No, trimmed)
 					break
 				}
-			} else if looksLikeSectionHeader(trimmed) {
-				log.Printf("holonews: post %d stopping plain section parse on likely section header %q", p.No, trimmed)
-				break
-			}
 
-			headline := trimmed
-			if mode == "quoted" {
-				headline = strings.TrimSpace(strings.TrimPrefix(trimmed, ">"))
+				headline := trimmed
+				if quoted {
+					headline = strings.TrimSpace(strings.TrimPrefix(trimmed, ">"))
+				}
+				if headline == "" {
+					continue
+				}
+				headlines = append(headlines, headline)
 			}
-			if headline == "" {
-				continue
+			if len(headlines) > 0 {
+				candidates = append(candidates, headlineCandidate{
+					SectionKey: sectionKey,
+					Headlines:  dedupeStrings(headlines),
+					Quoted:     quoted,
+				})
 			}
-			headlines = append(headlines, headline)
-		}
-		if len(headlines) > 0 {
-			return dedupeStrings(headlines)
 		}
 	}
 
-	return nil
+	return candidates
+}
+
+func sectionHeaderKey(line string) (string, bool) {
+	trimmed := strings.TrimSpace(line)
+	trimmed = strings.TrimRight(trimmed, ":：")
+	switch strings.ToLower(strings.TrimSpace(trimmed)) {
+	case defaultSectionHeader:
+		return defaultSectionHeader, true
+	case hololiveSectionKey:
+		return hololiveSectionKey, true
+	default:
+		return "", false
+	}
+}
+
+func isGreentextBullet(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	return strings.HasPrefix(trimmed, ">") && !strings.HasPrefix(trimmed, ">>")
 }
 
 func looksLikeSectionHeader(line string) bool {
@@ -702,7 +757,7 @@ func looksLikeSectionHeader(line string) bool {
 	if strings.HasSuffix(trimmed, ":") && len(trimmed) <= 80 {
 		return true
 	}
-	if strings.EqualFold(trimmed, "HoloPro") {
+	if _, ok := sectionHeaderKey(trimmed); ok {
 		return true
 	}
 	return false
@@ -749,7 +804,11 @@ func stripTags(s string) string {
 		case '<':
 			inTag = true
 		case '>':
-			inTag = false
+			if inTag {
+				inTag = false
+			} else {
+				b.WriteRune(r)
+			}
 		default:
 			if !inTag {
 				b.WriteRune(r)
@@ -801,6 +860,18 @@ func headlinesChanged(ctx context.Context, rdb *redis.Client, headlines []string
 		}
 	}
 	return false, nil
+}
+
+func roundupPostAlreadyProcessed(ctx context.Context, rdb *redis.Client, threadID, sourcePostID int64) (bool, error) {
+	payload, ok, err := loadStoredPayloadFromRedis(ctx, rdb)
+	if err != nil {
+		return false, err
+	}
+	return storedPayloadMatchesSourcePost(payload, ok, threadID, sourcePostID), nil
+}
+
+func storedPayloadMatchesSourcePost(payload storedPayload, ok bool, threadID, sourcePostID int64) bool {
+	return ok && payload.ThreadID == threadID && payload.SourcePost == sourcePostID
 }
 
 func headlineDigest(headline string) string {

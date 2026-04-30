@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { FaClockRotateLeft, FaTowerBroadcast, FaVideo } from "react-icons/fa6";
@@ -605,6 +606,15 @@ export function LivestreamListing() {
     <>
     <section className={styles.section}>
       <div className={styles.hero}>
+        <Image
+          src="/livestreams-kiara-concert-hero.png"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className={styles.heroImage}
+          aria-hidden="true"
+        />
         <div className={styles.heroCopy}>
           <div className={styles.heroEyebrow}>
             <FaTowerBroadcast aria-hidden="true" />

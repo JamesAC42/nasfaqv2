@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FaArrowTrendUp, FaClock, FaScaleBalanced, FaShieldHalved } from "react-icons/fa6";
 import { TrendChartCard } from "@/app/components/charts/market-charts";
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
@@ -407,6 +408,8 @@ export function PredictionsPage({
   const [createMessage, setCreateMessage] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false);
+  const [isCreateDrawerClosing, setIsCreateDrawerClosing] = useState(false);
+  const createDrawerCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [directoryView, setDirectoryView] = useState<"current" | "past">("current");
   const [orderForm, setOrderForm] = useState<OrderFormState>({ outcome: "yes", side: "buy", price: "0.55", quantity: "10" });
   const [orderBusy, setOrderBusy] = useState(false);
@@ -428,6 +431,33 @@ export function PredictionsPage({
   const canShowReviewQueue = Boolean(user?.is_admin || user?.can_approve_prediction_markets);
   const canCreateMarket = Boolean(user?.is_admin || user?.can_create_prediction_markets);
   const isHub = !initialMarketSlug;
+
+  useEffect(() => {
+    return () => {
+      if (createDrawerCloseTimerRef.current) {
+        clearTimeout(createDrawerCloseTimerRef.current);
+      }
+    };
+  }, []);
+
+  function openCreateDrawer() {
+    if (createDrawerCloseTimerRef.current) {
+      clearTimeout(createDrawerCloseTimerRef.current);
+      createDrawerCloseTimerRef.current = null;
+    }
+    setIsCreateDrawerClosing(false);
+    setIsCreateDrawerOpen(true);
+  }
+
+  function closeCreateDrawer() {
+    if (!isCreateDrawerOpen || isCreateDrawerClosing) return;
+    setIsCreateDrawerClosing(true);
+    createDrawerCloseTimerRef.current = setTimeout(() => {
+      setIsCreateDrawerOpen(false);
+      setIsCreateDrawerClosing(false);
+      createDrawerCloseTimerRef.current = null;
+    }, 180);
+  }
 
   useEffect(() => {
     if (scope === "mine" && !canShowMine) {
@@ -605,7 +635,7 @@ export function PredictionsPage({
       const market = normalizePredictionMarketDetailResponse(result).market;
       setCreateMessage(`Draft created: ${market.slug}`);
       setCreateForm(createDefaultFormState());
-      setIsCreateDrawerOpen(false);
+      closeCreateDrawer();
       if (scope !== "mine" && canShowMine) setScope("mine");
       router.push(buildMarketHref(market.slug));
       await refreshAll();
@@ -764,6 +794,15 @@ export function PredictionsPage({
     <SiteShell>
       <div className={styles.stack}>
         <section className={styles.hero}>
+          <Image
+            src="/predictions-market-hero.png"
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className={styles.heroImage}
+            aria-hidden="true"
+          />
           <div className={styles.heroTop}>
             <div>
               <div className={styles.eyebrow}>Community Prediction Markets</div>
@@ -774,7 +813,7 @@ export function PredictionsPage({
             </div>
             <div className={styles.heroActions}>
               {isHub && canCreateMarket ? (
-                <button type="button" className={styles.primaryButton} onClick={() => setIsCreateDrawerOpen(true)}>
+                <button type="button" className={styles.primaryButton} onClick={openCreateDrawer}>
                   Create market
                 </button>
               ) : null}
@@ -832,15 +871,21 @@ export function PredictionsPage({
             </section>
 
             {isCreateDrawerOpen ? (
-              <div className={styles.drawerOverlay} onClick={() => setIsCreateDrawerOpen(false)}>
-                <aside className={styles.createDrawer} onClick={(event) => event.stopPropagation()} aria-label="Create prediction market">
+              <div className={`${styles.drawerOverlay} ${isCreateDrawerClosing ? styles.drawerOverlayClosing : ""}`.trim()} onClick={closeCreateDrawer}>
+                <div
+                  className={`${styles.drawerMascot} ${isCreateDrawerClosing ? styles.drawerMascotClosing : ""}`.trim()}
+                  aria-hidden="true"
+                >
+                  <Image src="/suisus.png" alt="" fill sizes="11rem" priority={false} />
+                </div>
+                <aside className={`${styles.createDrawer} ${isCreateDrawerClosing ? styles.createDrawerClosing : ""}`.trim()} onClick={(event) => event.stopPropagation()} aria-label="Create prediction market">
                   <div className={styles.drawerHead}>
                     <div>
                       <div className={styles.eyebrow}>Creator Tools</div>
                       <h2 className={styles.panelTitle}>Create market</h2>
                       <p className={styles.panelCopy}>Draft a binary contract and submit it into review.</p>
                     </div>
-                    <button type="button" className={styles.drawerCloseButton} onClick={() => setIsCreateDrawerOpen(false)} aria-label="Close create market drawer">
+                    <button type="button" className={styles.drawerCloseButton} onClick={closeCreateDrawer} aria-label="Close create market drawer">
                       &times;
                     </button>
                   </div>
@@ -896,7 +941,7 @@ export function PredictionsPage({
                       <button type="submit" className={styles.primaryButton} disabled={createBusy || needsVerification}>
                         {createBusy ? "Creating…" : "Create draft market"}
                       </button>
-                      <button type="button" className={styles.secondaryButton} onClick={() => setIsCreateDrawerOpen(false)}>
+                      <button type="button" className={styles.secondaryButton} onClick={closeCreateDrawer}>
                         Cancel
                       </button>
                     </div>

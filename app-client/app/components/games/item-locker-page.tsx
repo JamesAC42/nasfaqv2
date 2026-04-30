@@ -525,7 +525,6 @@ export function ItemLockerPage() {
               <div>
                 <span className={styles.kicker}>Collection List</span>
                 <h2>Won Prizes</h2>
-                <p>Grouped by prize, across every reward type.</p>
               </div>
               <button
                 type="button"

@@ -662,7 +662,7 @@
 
 .marketIndexStrip {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 16rem;
+  grid-template-columns: minmax(0, 1fr) 16rem minmax(10rem, 14rem);
   gap: 0.75rem;
   align-items: stretch;
 }
@@ -675,6 +675,21 @@
   display: grid;
   gap: 0.55rem;
   align-content: start;
+}
+
+.marketIndexMascot {
+  min-width: 0;
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.marketIndexMascotImage {
+  width: min(100%, 13rem);
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 1rem 1.4rem color-mix(in srgb, var(--accent) 18%, transparent));
 }
 
 .marketIndexStatCard {
@@ -854,11 +869,34 @@
   display: grid;
   grid-template-columns: minmax(19rem, 0.82fr) minmax(0, 1.18fr);
   gap: 0.9rem;
-  align-items: start;
+  align-items: stretch;
+}
+
+.leaderboardColumn {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.85rem;
 }
 
 .lowerPanel {
   min-width: 0;
+}
+
+.lamyAnchor {
+  align-self: end;
+  display: flex;
+  justify-content: center;
+  min-height: 9rem;
+  overflow: hidden;
+}
+
+.lamyImage {
+  width: min(82%, 17rem);
+  height: auto;
+  align-self: end;
+  object-fit: contain;
+  filter: drop-shadow(0 1rem 1.5rem color-mix(in srgb, var(--accent) 18%, transparent));
 }
 
 .communityGrid {

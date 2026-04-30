@@ -721,7 +721,13 @@ function HoldingsTable({
   );
 }
 
-function PendingLiveOrdersPanel({ orders }: { orders: PortfolioOrder[] }) {
+function PendingLiveOrdersPanel({
+  orders,
+  assets,
+}: {
+  orders: PortfolioOrder[];
+  assets: ReturnType<typeof useMarketStore.getState>["assets"];
+}) {
   return (
     <section className={styles.sectionPanel}>
       <div className={styles.sectionHead}>
@@ -735,18 +741,30 @@ function PendingLiveOrdersPanel({ orders }: { orders: PortfolioOrder[] }) {
       </div>
       {orders.length ? (
         <div className={styles.pendingOrderList}>
-          {orders.map((order) => (
-            <article key={order.id} className={styles.pendingOrderCard}>
-              <div>
-                <strong>{order.side.toUpperCase()} {fmtNumber(order.requested_quantity)}</strong>
-                <span>{order.symbol} · {order.display_name}</span>
-              </div>
-              <div className={styles.pendingOrderMeta}>
-                <span>Executes after</span>
-                <strong>{formatDateTime(order.execute_after)}</strong>
-              </div>
-            </article>
-          ))}
+          {orders.map((order) => {
+            const asset = assets.find((item) => item.symbol === order.symbol) || null;
+            return (
+              <article key={order.id} className={styles.pendingOrderCard}>
+                <div className={styles.pendingOrderAsset}>
+                  <AssetCoin
+                    symbol={order.symbol}
+                    icon={asset?.icon ?? null}
+                    color={asset?.color ?? null}
+                    className={styles.inlineAssetIcon}
+                    shape="circle"
+                  />
+                  <div className={styles.pendingOrderCopy}>
+                    <strong>{order.side.toUpperCase()} {fmtNumber(order.requested_quantity)}</strong>
+                    <span>{order.symbol} · {order.display_name}</span>
+                  </div>
+                </div>
+                <div className={styles.pendingOrderMeta}>
+                  <span>Executes after</span>
+                  <strong>{formatDateTime(order.execute_after)}</strong>
+                </div>
+              </article>
+            );
+          })}
         </div>
       ) : (
         <div className={styles.empty}>No queued live orders right now.</div>
@@ -1370,7 +1388,7 @@ export function ProfilePage({ username }: { username?: string | null }) {
                 <div className={styles.centerColumn}>
                   {isSelf ? (
                     <>
-                      <PendingLiveOrdersPanel orders={pendingLiveOrders} />
+                      <PendingLiveOrdersPanel orders={pendingLiveOrders} assets={assets} />
                       <section className={styles.sectionPanel}>
                         <div className={styles.sectionHead}>
                           <h2 className={styles.sectionTitle}>Holdings</h2>

@@ -234,7 +234,8 @@
 .detailHeader {
   @include archive-grid-surface;
   align-items: end;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  display: flex;
+  flex-direction: row;
   min-height: 8.6rem;
   padding: 0.9rem;
   border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
@@ -266,6 +267,7 @@
 }
 
 .detailHeaderStats {
+  margin-left: auto;
   display: grid;
   grid-template-columns: repeat(3, minmax(5.8rem, 1fr));
   gap: 0.55rem;

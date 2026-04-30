@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { FaComment, FaEye, FaHeart, FaMagnifyingGlass, FaNewspaper } from "react-icons/fa6";
+import { FaComment, FaEye, FaHeart, FaMagnifyingGlass, FaNewspaper, FaPencil } from "react-icons/fa6";
 import { AssetPicker } from "@/app/components/common/asset-picker";
 import { ChannelTickerPill } from "@/app/components/common/channel-ticker-pill";
 import { FilterPanel } from "@/app/components/common/filter-panel";
@@ -15,7 +16,6 @@ import { getCompactNewsThumbnailUrl } from "@/app/lib/thumbnails";
 import type { ArticleListResponse, ArticleSummary, NewsFeedPagination } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMarketStore } from "@/app/stores/market-store";
-import { FaPencil } from "react-icons/fa6"; // pencil icon
 
 import styles from "@/app/components/articles/article-pages.module.scss";
 
@@ -213,6 +213,15 @@ export function ArticlesPage() {
     <SiteShell>
       <div className={styles.stack}>
         <section className={styles.hero}>
+          <Image
+            src="/articles-archive-hero.png"
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className={styles.heroImage}
+            aria-hidden="true"
+          />
           <div className={styles.heroCopy}>
             <div className={styles.heroEyebrow}>
               <FaNewspaper aria-hidden="true" />

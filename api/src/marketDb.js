@@ -2056,12 +2056,14 @@ async function listAssetComments(pool, symbol, { page = 1, limit = 6, viewerUser
         jsonb_build_object(
           'id', u.id,
           'username', u.username,
-          'profile_picture_url', u.profile_picture_url,
+          'profile_picture_url', COALESCE(${profilePictureUrlSql("small", "pp")}, u.profile_picture_url),
           'profile_color', u.profile_color
         ) AS author
       FROM content.asset_comments c
       JOIN market.users u
         ON u.id = c.author_id
+      LEFT JOIN market.profile_pictures pp
+        ON pp.id = u.profile_picture_id
       LEFT JOIN market.portfolio_holdings author_holding
         ON author_holding.user_id = c.author_id
        AND author_holding.asset_id = c.asset_id

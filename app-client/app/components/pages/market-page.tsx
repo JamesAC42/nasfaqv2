@@ -1085,6 +1085,15 @@ export function MarketPage() {
       <div className={styles.page}>
         {tickToast ? <div className={styles.tickToast}><FaSignal /> {tickToast}</div> : null}
         <section className={styles.hero}>
+          <Image
+            src="/market-heartbeat-floor-hero.png"
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className={styles.heroImage}
+            aria-hidden="true"
+          />
           <div className={styles.heroCopy}>
             <div className={styles.heroEyebrow}>
               <FaSignal />

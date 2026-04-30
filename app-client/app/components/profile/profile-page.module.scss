@@ -486,10 +486,22 @@
   background: color-mix(in srgb, var(--surface-card-soft) 74%, transparent);
 }
 
-.pendingOrderCard div,
+.pendingOrderAsset,
+.pendingOrderCopy,
 .pendingOrderMeta {
   display: grid;
   gap: 0.2rem;
+}
+
+.pendingOrderAsset {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.pendingOrderCopy {
+  min-width: 0;
 }
 
 .pendingOrderCard span,

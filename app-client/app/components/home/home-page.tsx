@@ -743,16 +743,6 @@ export function HomePage() {
                 </span>
               </div>
               <div className={styles.summaryStatCard}>
-                <span className={styles.walletLabel}>Rich Premium</span>
-                {renderAssetLabel(richPremiumAsset || (richPremiumRow ? { symbol: richPremiumRow.symbol, display_name: richPremiumRow.display_name } : null), richPremiumRow?.symbol || "—")}
-                <span className={richPremiumRow ? styles.positive : styles.neutral}>{fmtPct(richPremiumRow?.premium_pct)}</span>
-              </div>
-              <div className={styles.summaryStatCard}>
-                <span className={styles.walletLabel}>Deep Discount</span>
-                {renderAssetLabel(deepDiscountAsset || (deepDiscountRow ? { symbol: deepDiscountRow.symbol, display_name: deepDiscountRow.display_name } : null), deepDiscountRow?.symbol || "—")}
-                <span className={deepDiscountRow ? styles.negative : styles.neutral}>{fmtPct(deepDiscountRow?.premium_pct)}</span>
-              </div>
-              <div className={styles.summaryStatCard}>
                 <span className={styles.walletLabel}>Avg Move</span>
                 <strong className={styles.summaryValueAccent}>
                   {assets.length
@@ -835,6 +825,9 @@ export function HomePage() {
                   </div>
                 </div>
               </div>
+              <div className={styles.marketIndexMascot} aria-hidden="true">
+                <Image src="/catshion.png" alt="" width={300} height={300} className={styles.marketIndexMascotImage} />
+              </div>
             </div>
           </section>
           
@@ -896,16 +889,6 @@ export function HomePage() {
                 <span>{fmtInteger(topViews?.latest?.view_count ?? null)}</span>
               </div>
               <div className={styles.summaryStatCard}>
-                <span className={styles.walletLabel}>Least Subscribers</span>
-                <ChannelMetricLabel card={leastSubscribers} fallback="—" />
-                <span>{fmtInteger(leastSubscribers?.value ?? null)}</span>
-              </div>
-              <div className={styles.summaryStatCard}>
-                <span className={styles.walletLabel}>Least Views</span>
-                <ChannelMetricLabel card={leastViews} fallback="—" />
-                <span>{fmtInteger(leastViews?.value ?? null)}</span>
-              </div>
-              <div className={styles.summaryStatCard}>
                 <span className={styles.walletLabel}>Most Videos</span>
                 {renderAssetLabel(
                   topVideosAsset
@@ -914,21 +897,6 @@ export function HomePage() {
                   topVideos?.channel.name || "—"
                 )}
                 <span>{fmtInteger(topVideos?.latest?.video_count ?? null)} uploads</span>
-              </div>
-              <div className={styles.summaryStatCard}>
-                <span className={styles.walletLabel}>Top Underdog</span>
-                {renderAssetLabel(
-                  topUnderdogChannelAsset
-                    ? { ...topUnderdogChannelAsset, display_name: topUnderdogChannel?.channel.name || topUnderdogChannelAsset.display_name }
-                    : null,
-                  topUnderdogChannel?.channel.name || "—"
-                )}
-                <span>{fmtInteger(topUnderdogChannel?.latest?.subscriber_count ?? null)} subscribers</span>
-              </div>
-              <div className={styles.summaryStatCard}>
-                <span className={styles.walletLabel}>Least Videos</span>
-                <ChannelMetricLabel card={leastVideos} fallback="—" />
-                <span>{fmtInteger(leastVideos?.value ?? null)} uploads</span>
               </div>
               <div className={styles.summaryStatCard}>
                 <span className={styles.walletLabel}>Best Views / Upload</span>
@@ -964,77 +932,82 @@ export function HomePage() {
           <MarketReportSection report={report} assets={assets} />
 
           <div className={styles.lowerPageGrid}>
-          <section className={`${styles.dashboardSection} ${styles.lowerPanel}`}>
-            <div className={styles.sectionHeader}>
-              <div>
-                <h2 className={styles.title}>Leaderboard</h2>
-                <p className={styles.copy}>A live preview of the richest portfolios on the exchange.</p>
-              </div>
-              <Link href="/leaderboard" className={styles.sectionLink}>View leaderboard</Link>
-            </div>
-            {leaderboardError && !leaderboardEntries.length ? <div className={styles.sectionEmpty}>Leaderboard unavailable: {leaderboardError}</div> : null}
-            {leaderboardLeader ? (
-              <div className={styles.rankHero}>
-                <div className={styles.rankHeroLabel}>Top desk right now</div>
-                <div className={styles.rankHeroValue}>{fmtNumber(leaderboardLeader.total_equity, "$")}</div>
-                <div className={styles.rankHeroMeta}>
-                  <span>#{leaderboardLeader.rank} {leaderboardLeader.label}</span>
-                  <span className={(leaderboardLeader.change_pct ?? 0) >= 0 ? styles.positive : styles.negative}>
-                    {leaderboardLeader.change_pct === null || leaderboardLeader.change_pct === undefined
-                      ? "—"
-                      : `${leaderboardLeader.change_pct > 0 ? "+" : ""}${fmtPct(leaderboardLeader.change_pct)}`}
-                  </span>
+          <div className={styles.leaderboardColumn}>
+            <section className={`${styles.dashboardSection} ${styles.lowerPanel}`}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2 className={styles.title}>Leaderboard</h2>
+                  <p className={styles.copy}>A live preview of the richest portfolios on the exchange.</p>
                 </div>
+                <Link href="/leaderboard" className={styles.sectionLink}>View leaderboard</Link>
               </div>
-            ) : null}
-            <div className={styles.rankList}>
-              {homepageLeaderboard.map((entry) => (
-                <div key={entry.id} className={styles.rankRow}>
-                  <div className={styles.rankBadge}>#{entry.rank}</div>
-                  <div className={styles.rankMeta}>
-                    <div className={styles.rankIdentity}>
-                      <div
-                        className={styles.rankAvatar}
-                        style={entry.profile_color ? ({ "--rank-avatar-accent": entry.profile_color } as CSSProperties) : undefined}
-                      >
-                        {entry.profile_picture_url ? (
-                          <img src={entry.profile_picture_url} alt="" className={styles.rankAvatarImage} />
-                        ) : (
-                          entry.label.slice(0, 2).toUpperCase()
-                        )}
+              {leaderboardError && !leaderboardEntries.length ? <div className={styles.sectionEmpty}>Leaderboard unavailable: {leaderboardError}</div> : null}
+              {leaderboardLeader ? (
+                <div className={styles.rankHero}>
+                  <div className={styles.rankHeroLabel}>Top desk right now</div>
+                  <div className={styles.rankHeroValue}>{fmtNumber(leaderboardLeader.total_equity, "$")}</div>
+                  <div className={styles.rankHeroMeta}>
+                    <span>#{leaderboardLeader.rank} {leaderboardLeader.label}</span>
+                    <span className={(leaderboardLeader.change_pct ?? 0) >= 0 ? styles.positive : styles.negative}>
+                      {leaderboardLeader.change_pct === null || leaderboardLeader.change_pct === undefined
+                        ? "—"
+                        : `${leaderboardLeader.change_pct > 0 ? "+" : ""}${fmtPct(leaderboardLeader.change_pct)}`}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+              <div className={styles.rankList}>
+                {homepageLeaderboard.map((entry) => (
+                  <div key={entry.id} className={styles.rankRow}>
+                    <div className={styles.rankBadge}>#{entry.rank}</div>
+                    <div className={styles.rankMeta}>
+                      <div className={styles.rankIdentity}>
+                        <div
+                          className={styles.rankAvatar}
+                          style={entry.profile_color ? ({ "--rank-avatar-accent": entry.profile_color } as CSSProperties) : undefined}
+                        >
+                          {entry.profile_picture_url ? (
+                            <img src={entry.profile_picture_url} alt="" className={styles.rankAvatarImage} />
+                          ) : (
+                            entry.label.slice(0, 2).toUpperCase()
+                          )}
+                        </div>
+                        <strong>{entry.label}</strong>
                       </div>
-                      <strong>{entry.label}</strong>
+                      <span>
+                        {entry.largest_position
+                          ? `Largest bag ${entry.largest_position.symbol} · ${fmtNumber(entry.largest_position.value, "$")}`
+                          : entry.best_asset
+                            ? `Best pick ${entry.best_asset.symbol}`
+                            : "Portfolio preview"}
+                      </span>
+                      {entry.badges?.length ? (
+                        <div className={styles.rankBadgeRow}>
+                          {entry.badges.slice(0, 2).map((badge) => (
+                            <span key={badge} className={styles.rankTag}>{badge}</span>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
-                    <span>
-                      {entry.largest_position
-                        ? `Largest bag ${entry.largest_position.symbol} · ${fmtNumber(entry.largest_position.value, "$")}`
-                        : entry.best_asset
-                          ? `Best pick ${entry.best_asset.symbol}`
-                          : "Portfolio preview"}
-                    </span>
-                    {entry.badges?.length ? (
-                      <div className={styles.rankBadgeRow}>
-                        {entry.badges.slice(0, 2).map((badge) => (
-                          <span key={badge} className={styles.rankTag}>{badge}</span>
-                        ))}
-                      </div>
-                    ) : null}
+                    <div className={styles.rankMetrics}>
+                      <strong>{fmtNumber(entry.total_equity, "$")}</strong>
+                      <span>{fmtNumber(entry.cash_balance, "$")} cash</span>
+                      <span className={(entry.change_pct ?? 0) >= 0 ? styles.positive : styles.negative}>
+                        {entry.change_pct === null || entry.change_pct === undefined ? "—" : `${entry.change_pct > 0 ? "+" : ""}${fmtPct(entry.change_pct)}`}
+                      </span>
+                    </div>
                   </div>
-                  <div className={styles.rankMetrics}>
-                    <strong>{fmtNumber(entry.total_equity, "$")}</strong>
-                    <span>{fmtNumber(entry.cash_balance, "$")} cash</span>
-                    <span className={(entry.change_pct ?? 0) >= 0 ? styles.positive : styles.negative}>
-                      {entry.change_pct === null || entry.change_pct === undefined ? "—" : `${entry.change_pct > 0 ? "+" : ""}${fmtPct(entry.change_pct)}`}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              <div className={styles.rankPreviewFooter}>
+                <span>Top 5 snapshot</span>
+                <span>Open the full board for friends, rivals, podiums, and your exact rank.</span>
+              </div>
+            </section>
+            <div className={styles.lamyAnchor} aria-hidden="true">
+              <Image src="/lamy.png" alt="" width={360} height={360} className={styles.lamyImage} />
             </div>
-            <div className={styles.rankPreviewFooter}>
-              <span>Top 5 snapshot</span>
-              <span>Open the full board for friends, rivals, podiums, and your exact rank.</span>
-            </div>
-          </section>
+          </div>
 
           <section className={styles.communityFloor}>
             <div className={styles.sectionHeader}>

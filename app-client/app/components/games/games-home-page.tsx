@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState, type CSSProperties } from "react";
 import { FaBolt, FaChartLine, FaClock, FaMoneyBillTrendUp, FaPlay, FaStar, FaTicket, FaUsers } from "react-icons/fa6";
 import { HiSparkles } from "react-icons/hi2";
@@ -48,7 +49,7 @@ function cardAccent(game: GameCatalogEntry) {
 }
 
 function futureNote(game: GameCatalogEntry) {
-  if (game.key === "capsule-gacha") return "Live now on its own game page.";
+  if (game.key === "capsule-gacha") return "";
   if (game.key === "ticker-tap") return "Fast arcade runs for score.";
   if (game.key === "prediction-duel") return "Head-to-head prediction battles are coming.";
   return "More games are on the way.";
@@ -92,6 +93,7 @@ function gamePriceLine(game: GameCatalogEntry) {
 
 const GACHA_GAME_BANNER_URL = "/gacha-game-banner.png";
 const GAMES_HERO_IMAGE_URL = "/games-home-hero.png";
+const HIDDEN_GAME_KEYS = new Set(["ticker-tap"]);
 
 export function GamesHomePage() {
   const { user, initialized } = useAuth();
@@ -149,11 +151,12 @@ export function GamesHomePage() {
     })();
   }, [initialized, user]);
 
-  const liveGames = catalog.filter((game) => game.status === "active");
+  const visibleCatalog = catalog.filter((game) => !HIDDEN_GAME_KEYS.has(game.key));
+  const liveGames = visibleCatalog.filter((game) => game.status === "active");
   const capsuleGame = catalog.find((game) => game.key === "capsule-gacha") || null;
   const recentCosmetics = inventory?.cosmetics.slice(0, 4) || [];
   const recentLockerItems = itemLocker?.items.slice(0, 4) || [];
-  const featuredGames = [...catalog].sort((a, b) => {
+  const featuredGames = [...visibleCatalog].sort((a, b) => {
     if (a.key === "capsule-gacha") return -1;
     if (b.key === "capsule-gacha") return 1;
     return a.sort_order - b.sort_order;
@@ -162,13 +165,22 @@ export function GamesHomePage() {
   return (
     <SiteShell>
       <div className={styles.stack}>
-        <section className={styles.hero} style={{ "--hero-image": `url("${GAMES_HERO_IMAGE_URL}")` } as CSSProperties}>
+        <section className={styles.hero}>
+          <Image
+            src={GAMES_HERO_IMAGE_URL}
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className={styles.heroImage}
+            aria-hidden="true"
+          />
           <div className={styles.heroContent}>
             <div className={styles.heroHeader}>
               <p className={styles.eyebrow}>NASFAQ arcade</p>
               <h1 className={styles.heroTitle}>NASFAQ Games</h1>
               <p className={styles.heroCopy}>
-                Pick a quick session, spend from your NASFAQ balance, and collect profile cosmetics that carry back into the rest of the site.
+                Play games and win rewards.           
               </p>
               <div className={styles.heroActions}>
                 <Link href="/games/capsule-gacha" className={styles.heroButton}>Start with Capsule Gacha</Link>
@@ -185,7 +197,7 @@ export function GamesHomePage() {
                 <FaTicket />
                 Catalog
               </span>
-              <strong className={styles.metricValue}>{isLoadingCatalog ? "…" : catalog.length}</strong>
+              <strong className={styles.metricValue}>{isLoadingCatalog ? "…" : visibleCatalog.length}</strong>
             </article>
             <article className={styles.metricCard}>
               <span className={styles.metricLabel}>
@@ -209,10 +221,7 @@ export function GamesHomePage() {
         <section className={styles.featurePanel}>
           <div className={styles.sectionHead}>
             <div>
-              <h2 className={styles.sectionTitle}>Featured Launch: Capsule Gacha</h2>
-              <p className={styles.sectionCopy}>
-                The first live game is a quick pull for collectible locker rewards.
-              </p>
+              <h2 className={styles.sectionTitle}>Featured Game: Capsule Gacha</h2>
             </div>
             <FaChartLine />
           </div>
@@ -223,7 +232,6 @@ export function GamesHomePage() {
                 className={`${styles.launchArt} ${styles.launchArtWithImage}`.trim()}
                 style={{ "--launch-thumbnail": `url("${GACHA_GAME_BANNER_URL}")` } as CSSProperties}
               >
-                <span className={styles.artLabel}>Capsule Gacha thumbnail</span>
               </div>
               <div className={styles.launchStats}>
                 <div>
@@ -281,10 +289,7 @@ export function GamesHomePage() {
           <section className={styles.panelLarge}>
             <div className={styles.sectionHead}>
               <div>
-                <h2 className={styles.sectionTitle}>Choose Your Next Session</h2>
-                <p className={styles.sectionCopy}>
-                  Each game explains the cost, status, and best reason to open it before you spend anything.
-                </p>
+                <h2 className={styles.sectionTitle}>All Games</h2>
               </div>
             </div>
 
@@ -298,7 +303,7 @@ export function GamesHomePage() {
                   <article
                     key={game.key}
                     id={game.key}
-                    className={`${styles.gameCard} ${(index === 0 || game.key === "ticker-tap") ? styles.gameCardFeatured : ""}`.trim()}
+                    className={`${styles.gameCard} ${index === 0 ? styles.gameCardFeatured : ""}`.trim()}
                     style={{ "--card-accent": cardAccent(game) } as CSSProperties}
                   >
                     <div
@@ -306,7 +311,7 @@ export function GamesHomePage() {
                       style={thumbnailUrl ? { "--game-thumbnail": `url("${thumbnailUrl}")` } as CSSProperties : undefined}
                     >
                       {thumbnailUrl ? (
-                        <span className={styles.artLabel}>Game thumbnail</span>
+                        <span className={styles.artLabel}></span>
                       ) : (
                         <div>
                           <span className={styles.artLabel}>Asset placeholder</span>
@@ -352,7 +357,7 @@ export function GamesHomePage() {
                   </article>
                 );
               })}
-              {!catalog.length && !isLoadingCatalog ? <div className={styles.empty}>No games have been synced yet.</div> : null}
+              {!visibleCatalog.length && !isLoadingCatalog ? <div className={styles.empty}>No games have been synced yet.</div> : null}
             </div>
           </section>
 
@@ -363,7 +368,6 @@ export function GamesHomePage() {
                   <div className={styles.sectionHead}>
                     <div>
                       <h2 className={styles.sectionTitle}>Player Snapshot</h2>
-                      <p className={styles.sectionCopy}>Your balance, cosmetics, and latest activity.</p>
                     </div>
                     <FaMoneyBillTrendUp />
                   </div>

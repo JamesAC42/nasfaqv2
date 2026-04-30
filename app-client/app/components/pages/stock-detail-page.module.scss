@@ -93,6 +93,12 @@
   @include panel;
 }
 
+.emptyComments {
+  text-align: center;
+  margin: 1rem 0;
+  opacity: 0.7;
+}
+
 .hero {
   position: relative;
   overflow: hidden;
@@ -1150,6 +1156,7 @@
   justify-content: space-between;
   gap: 0.75rem;
   align-items: center;
+  padding-left: 1rem;
   flex-wrap: wrap;
 }
 

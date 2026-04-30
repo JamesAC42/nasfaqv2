@@ -37,39 +37,77 @@
   grid-template-columns: minmax(0, 1fr) minmax(21rem, 0.36fr);
   min-height: clamp(17.5rem, 28vw, 24rem);
   padding: clamp(1.1rem, 2.4vw, 2rem);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   background:
-    linear-gradient(90deg, #06151b 0 0.125rem, color-mix(in srgb, var(--surface-card) 96%, #06151b) 0.125rem 22%, color-mix(in srgb, var(--surface-card) 74%, transparent) 48%, color-mix(in srgb, var(--surface-card) 24%, transparent) 100%),
-    radial-gradient(circle at 76% 40%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 34%),
-    url("/articles-archive-hero.png");
-  background-position: center, center, 58% 36%;
-  background-size: cover, cover, cover;
+    linear-gradient(90deg, #06151b 0 0.125rem, color-mix(in srgb, var(--surface-card) 96%, #06151b) 0.125rem 26%, color-mix(in srgb, var(--surface-card) 78%, transparent) 52%, color-mix(in srgb, var(--surface-card) 30%, transparent) 100%),
+    radial-gradient(circle at 76% 40%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 34%);
+  background-position: center, center;
+  background-size: cover, cover;
+  background-repeat: no-repeat, no-repeat;
+}
+
+.heroImage {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  object-fit: cover;
+  object-position: 100% calc(0% - 5.625rem);
+  pointer-events: none;
 }
 
 .hero::after {
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 1;
   background:
-    linear-gradient(180deg, transparent 56%, color-mix(in srgb, var(--surface-card) 84%, transparent)),
+    linear-gradient(180deg, transparent 58%, color-mix(in srgb, var(--surface-card) 84%, transparent)),
     repeating-linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, transparent) 0 0.0625rem, transparent 0.0625rem 0.875rem);
   mask-image: linear-gradient(90deg, black, transparent 68%);
   opacity: 0.55;
   pointer-events: none;
+  transform: translateY(-0.5rem);
 }
 
 .hero::before {
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 1;
   background:
-    linear-gradient(90deg, color-mix(in srgb, #06151b 82%, transparent) 0%, color-mix(in srgb, var(--surface-card) 62%, transparent) 38%, transparent 74%),
-    linear-gradient(180deg, color-mix(in srgb, black 12%, transparent), color-mix(in srgb, black 22%, transparent));
+    linear-gradient(90deg, color-mix(in srgb, #06151b 88%, transparent) 0%, color-mix(in srgb, var(--surface-card) 72%, transparent) 42%, transparent 78%),
+    linear-gradient(180deg, color-mix(in srgb, black 14%, transparent), color-mix(in srgb, black 24%, transparent));
   pointer-events: none;
+  transform: translateY(-0.3rem) scale(1.05);
+}
+
+.hero > :not(.heroImage) {
+  position: relative;
+  z-index: 2;
+}
+
+[data-theme="light"] .hero {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--surface-card) 98%, white) 0 0.125rem, color-mix(in srgb, var(--surface-card) 96%, white) 0.125rem 40%, color-mix(in srgb, var(--surface-card) 76%, transparent) 62%, color-mix(in srgb, var(--surface-card) 26%, transparent) 100%),
+    radial-gradient(circle at 76% 40%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 34%);
+}
+
+[data-theme="light"] .hero::before {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--surface-card) 98%, white) 0%, color-mix(in srgb, var(--surface-card) 90%, transparent) 48%, color-mix(in srgb, var(--surface-card) 36%, transparent) 76%, transparent 100%),
+    linear-gradient(180deg, color-mix(in srgb, white 28%, transparent), color-mix(in srgb, var(--surface-card) 38%, transparent));
+}
+
+[data-theme="light"] .hero::after {
+  background:
+    linear-gradient(180deg, transparent 58%, color-mix(in srgb, var(--surface-card) 86%, transparent)),
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, transparent) 0 0.0625rem, transparent 0.0625rem 0.875rem);
+  opacity: 0.42;
 }
 
 .heroCopy {
-  position: relative;
-  z-index: 1;
   display: grid;
   gap: 0.42rem;
   max-width: 48rem;
@@ -89,8 +127,6 @@
 }
 
 .heroMetrics {
-  position: relative;
-  z-index: 1;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: stretch;
@@ -551,7 +587,8 @@
   .hero {
     grid-template-columns: 1fr;
     min-height: 24rem;
-    background-position: center, center, 58% 34%;
+    background-position: center, center;
+    background-size: cover, cover;
   }
 
   .editorHeroStatus {

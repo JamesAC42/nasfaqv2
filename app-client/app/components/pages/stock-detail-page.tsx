@@ -3152,7 +3152,7 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
               </>
             ) : null}
             {!isLoadingAssetComments && !assetCommentBoard?.comments.length ? (
-              <div className={styles.empty}>No comments yet. Shareholders can start the first thread for this coin.</div>
+              <div className={styles.emptyComments}>No comments yet. Shareholders can start the first thread for this coin.</div>
             ) : null}
           </section>
 

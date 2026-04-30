@@ -60,6 +60,7 @@
     linear-gradient(180deg, color-mix(in srgb, black 12%, transparent), color-mix(in srgb, black 22%, transparent));
   pointer-events: none;
   z-index: 1;
+  transform: translateY(-0.3rem) scale(1.05);
 }
 
 .heroVisual {

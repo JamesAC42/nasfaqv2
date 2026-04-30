@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
@@ -24,9 +25,11 @@ import { AssetCoin } from "@/app/components/common/asset-coin";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { createChannelChartTheme } from "@/app/lib/chart-theme";
+import { getUsableChannelColor } from "@/app/lib/color";
 import { fmtInteger, fmtNumber, toNumber } from "@/app/lib/format";
 import { normalizeCandles, normalizeStats } from "@/app/lib/normalizers";
 import type { CandlePoint, MarketStatPoint } from "@/app/lib/types";
+import { useTheme } from "@/app/providers/theme-provider";
 import styles from "@/app/components/pages/finance-rankings-page.module.scss";
 
 type RankingMetricKey =
@@ -317,7 +320,12 @@ function DetailPanel({
   error: string | null;
   totalOshicoinUsers: number;
 }) {
-  const theme = createChannelChartTheme(row.color);
+  const { theme: colorMode } = useTheme();
+  const themeSafeRowColor = useMemo(
+    () => getUsableChannelColor(row.color, colorMode) || row.color || null,
+    [colorMode, row.color]
+  );
+  const theme = useMemo(() => createChannelChartTheme(themeSafeRowColor), [themeSafeRowColor]);
   const trimmedCandles = detail?.candles.slice(-14) || [];
   const trimmedStats = detail?.stats.slice(-30) || [];
   const moveSeries = buildMoveSeries(trimmedCandles);
@@ -683,7 +691,15 @@ export function FinanceRankingsPage() {
     <SiteShell>
       <div className={styles.page}>
         <section className={styles.hero}>
-          <div className={styles.heroVisual} aria-hidden="true" />
+          <Image
+            src="/rankings-hero.png"
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className={styles.heroImage}
+            aria-hidden="true"
+          />
           <div className={styles.heroCopy}>
             <div className={styles.heroEyebrow}>
               <FaRankingStar aria-hidden="true" />

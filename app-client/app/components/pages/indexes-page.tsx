@@ -251,7 +251,7 @@ function IndexDetailPanel({
         <div>
           <span className={styles.eyebrow}><FaLayerGroup /> Index desk</span>
           <h1>{title}</h1>
-          <p>{title === "All Market" ? "Cross-market baseline" : "Unit-level basket"} with performance, breadth, heatmap, and constituent tape.</p>
+          <p>{title === "All Market" ? "Cross-market baseline" : "Unit-level basket"}.</p>
         </div>
         <div className={styles.detailHeaderStats}>
           <div>
@@ -439,7 +439,7 @@ export function IndexesPage() {
           <div className={styles.selectorHeader}>
             <span className={styles.eyebrow}><FaCircleNodes /> Finance</span>
             <h2>Indexes</h2>
-            <p>Select a basket. The desk scrolls with the page so the full asset tape stays reachable.</p>
+            <p>Select an index to view performance, heatmap, and tape.</p>
           </div>
           {error ? <div className="statusMessage statusMessageError">Request error: {error}</div> : null}
           {isLoadingOverview || isLoadingIndex ? <div className={styles.loadingPanel}>Loading indexes…</div> : null}

@@ -1,21 +1,25 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { startTransition, useEffect, useMemo, useState, useSyncExternalStore, type FormEvent } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { FaArrowTrendDown, FaArrowTrendUp, FaBookmark, FaCartShopping, FaChartLine, FaChartSimple, FaCoins, FaFloppyDisk, FaGrip, FaMagnifyingGlass, FaPlus, FaSliders, FaTable, FaXmark } from "react-icons/fa6";
 import { HiMiniArrowSmallDown, HiMiniArrowSmallUp, HiOutlineArrowsUpDown } from "react-icons/hi2";
-import { SparklineChart } from "@/app/components/charts/market-charts";
+import { CandleChartCard, SparklineChart, TrendChartCard, VolumeChartCard } from "@/app/components/charts/market-charts";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { OptionPicker } from "@/app/components/common/option-picker";
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
+import { createChannelChartTheme } from "@/app/lib/chart-theme";
+import { getUsableChannelColor } from "@/app/lib/color";
 import { computeDailyVolumeChange } from "@/app/lib/market-metrics";
 import { fmtDate, fmtInteger, fmtNumber } from "@/app/lib/format";
-import type { MarketAsset } from "@/app/lib/types";
+import { normalizeCandles } from "@/app/lib/normalizers";
+import type { CandlePoint, MarketAsset } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
+import { useTheme } from "@/app/providers/theme-provider";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import shellStyles from "@/app/components/pages/page-shell.module.scss";
@@ -24,9 +28,10 @@ import detailStyles from "@/app/components/pages/stock-detail-page.module.scss";
 
 type OverviewTimeSeriesPoint = {
   time: string;
-  subscriber_count: number | null;
-  view_count: number | null;
-  video_count: number | null;
+  youtube_channel_id?: string | null;
+  subscriber_count: number | string | null;
+  view_count: number | string | null;
+  video_count: number | string | null;
 };
 
 type OverviewRow = {
@@ -65,7 +70,7 @@ type PriceMoveFilter = "all" | "positive" | "negative";
 type VolumeChangeFilter = "all" | "positive" | "negative";
 type PresetKind = "all" | "movers" | "volume" | "custom";
 type ArchiveViewMode = "table" | "cards";
-type CardGraphMetric = "price" | "volume" | "subscribers" | "views" | "videos";
+type CardGraphMetric = "price" | "candles24h" | "volume" | "subscribers" | "views" | "videos";
 type TradeSide = "buy" | "sell";
 
 const QUICK_TRADE_CLOSE_ANIMATION_MS = 170;
@@ -73,7 +78,7 @@ const TRADE_QUANTITY_PRESETS = ["1", "10", "25", "50", "100"] as const;
 
 type CardGraphPoint = {
   time: string;
-  value: number;
+  value: number | null;
 };
 
 type SavedStockView = {
@@ -167,6 +172,7 @@ const BUILT_IN_VIEWS: Array<{ id: PresetKind; name: string; description: string 
 
 const CARD_GRAPH_OPTIONS: Array<{ value: CardGraphMetric; label: string }> = [
   { value: "price", label: "Price" },
+  { value: "candles24h", label: "24H Candles" },
   { value: "volume", label: "Volume" },
   { value: "subscribers", label: "Subscribers" },
   { value: "views", label: "Views" },
@@ -290,6 +296,12 @@ function computeChangePct(current: number | null, previous: number | null) {
     return null;
   }
   return (current - previous) / previous;
+}
+
+function toFiniteNumber(value: number | string | null | undefined) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function computeAdjustmentMovePct(asset: MarketAsset) {
@@ -468,13 +480,18 @@ function buildChannelMetricsMap(rows: OverviewRow[]) {
     const latest = pickLatestPoint(row.series || []);
     const latestTs = toTimestamp(latest?.time);
     const prior24h = latestTs === null ? null : pickPointAtOrBefore(row.series || [], latestTs - 24 * 60 * 60 * 1000);
+    const latestSubscribers = toFiniteNumber(latest?.subscriber_count);
+    const latestViews = toFiniteNumber(latest?.view_count);
+    const latestVideos = toFiniteNumber(latest?.video_count);
+    const priorSubscribers = toFiniteNumber(prior24h?.subscriber_count);
+    const priorViews = toFiniteNumber(prior24h?.view_count);
 
     result.set(row.channel.youtube_channel_id, {
-      subscribers: latest?.subscriber_count ?? null,
-      subscriberChangePct24h: computeChangePct(latest?.subscriber_count ?? null, prior24h?.subscriber_count ?? null),
-      views: latest?.view_count ?? null,
-      viewChangePct24h: computeChangePct(latest?.view_count ?? null, prior24h?.view_count ?? null),
-      videos: latest?.video_count ?? null,
+      subscribers: latestSubscribers,
+      subscriberChangePct24h: computeChangePct(latestSubscribers, priorSubscribers),
+      views: latestViews,
+      viewChangePct24h: computeChangePct(latestViews, priorViews),
+      videos: latestVideos,
     });
   }
 
@@ -489,34 +506,121 @@ function SparklineCell({ asset, mode = "price" }: { asset: MarketAsset; mode?: C
   );
 }
 
-function buildLinePoints(points: CardGraphPoint[]) {
-  const clean = points.filter((point) => Number.isFinite(point.value));
-  if (!clean.length) return "";
-  const min = Math.min(...clean.map((point) => point.value));
-  const max = Math.max(...clean.map((point) => point.value));
-  const range = max - min || 1;
-  return clean
-    .map((point, index) => {
-      const x = clean.length === 1 ? 100 : (index / (clean.length - 1)) * 100;
-      const y = 86 - ((point.value - min) / range) * 70;
-      return `${x.toFixed(2)},${y.toFixed(2)}`;
-    })
-    .join(" ");
-}
+function StockArchiveCardGraph({
+  asset,
+  metric,
+  points,
+  intradayCandles,
+  isLoadingIntradayCandles,
+  intradayCandlesError,
+}: {
+  asset: MarketAsset;
+  metric: CardGraphMetric;
+  points: CardGraphPoint[];
+  intradayCandles?: CandlePoint[];
+  isLoadingIntradayCandles?: boolean;
+  intradayCandlesError?: string | null;
+}) {
+  const { theme: colorMode } = useTheme();
+  const themeSafeAssetColor = useMemo(
+    () => getUsableChannelColor(asset.color, colorMode) || asset.color || null,
+    [asset.color, colorMode]
+  );
+  const chartTheme = useMemo(() => createChannelChartTheme(themeSafeAssetColor), [themeSafeAssetColor]);
+  const compactChartClassName = styles.cardDetailChart;
 
-function StockArchiveCardGraph({ points, tone }: { points: CardGraphPoint[]; tone: "positive" | "negative" }) {
-  const linePoints = buildLinePoints(points);
-
-  if (!linePoints) {
-    return <div className={styles.cardGraphEmpty}>No graph data</div>;
+  if (metric === "price") {
+    return (
+      <CandleChartCard
+        title="Price"
+        subtitle="Recent market curve"
+        candles={asset.sparkline_candles.slice(-90)}
+        chartType="line"
+        theme={chartTheme}
+        height={170}
+        compact
+        className={compactChartClassName}
+        bare
+      />
+    );
   }
 
-  const areaPoints = `0,96 ${linePoints} 100,96`;
+  if (metric === "candles24h") {
+    return (
+      <CandleChartCard
+        title="24H Market"
+        subtitle={
+          isLoadingIntradayCandles
+            ? "Loading 1H candles"
+            : intradayCandlesError
+              ? "24H candles unavailable"
+              : "1H candles from trades and adjustment ticks"
+        }
+        candles={intradayCandles || []}
+        theme={chartTheme}
+        height={170}
+        compact
+        candlePalette="market"
+        className={compactChartClassName}
+        bare
+      />
+    );
+  }
+
+  if (metric === "volume") {
+    return (
+      <VolumeChartCard
+        title="Volume"
+        subtitle="Recent settled shares"
+        candles={asset.sparkline_candles.slice(-90)}
+        theme={chartTheme}
+        height={170}
+        compact
+        className={compactChartClassName}
+        bare
+      />
+    );
+  }
+
+  const metricMeta = {
+    subscribers: {
+      title: "Subscribers",
+      subtitle: "Audience trajectory",
+      name: "Subscribers",
+      color: chartTheme.base,
+    },
+    views: {
+      title: "Views",
+      subtitle: "Cumulative channel views",
+      name: "Views",
+      color: chartTheme.complement,
+    },
+    videos: {
+      title: "Video Count",
+      subtitle: "Published video total",
+      name: "Videos",
+      color: chartTheme.complementSoft,
+    },
+  }[metric];
+
   return (
-    <svg className={styles.cardGraphSvg} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-      <polygon className={tone === "negative" ? styles.cardGraphAreaNegative : styles.cardGraphAreaPositive} points={areaPoints} />
-      <polyline className={tone === "negative" ? styles.cardGraphLineNegative : styles.cardGraphLinePositive} points={linePoints} />
-    </svg>
+    <TrendChartCard
+      title={metricMeta.title}
+      subtitle={metricMeta.subtitle}
+      theme={chartTheme}
+      height={170}
+      compact
+      className={compactChartClassName}
+      bare
+      series={[
+        {
+          name: metricMeta.name,
+          color: metricMeta.color,
+          kind: "area",
+          values: points,
+        },
+      ]}
+    />
   );
 }
 
@@ -626,6 +730,11 @@ export function StocksPage() {
   const [activeViewName, setActiveViewName] = useState("");
   const [archiveViewMode, setArchiveViewMode] = useState<ArchiveViewMode>("table");
   const [cardGraphMetric, setCardGraphMetric] = useState<CardGraphMetric>("price");
+  const [intradayCandlesBySymbol, setIntradayCandlesBySymbol] = useState<Record<string, CandlePoint[]>>({});
+  const [intradayLoadingBySymbol, setIntradayLoadingBySymbol] = useState<Record<string, boolean>>({});
+  const [intradayErrorsBySymbol, setIntradayErrorsBySymbol] = useState<Record<string, string | null>>({});
+  const intradayCandlesBySymbolRef = useRef(intradayCandlesBySymbol);
+  const intradayLoadingBySymbolRef = useRef(intradayLoadingBySymbol);
   const [quickTradeSymbol, setQuickTradeSymbol] = useState("");
   const [quickTradeSide, setQuickTradeSide] = useState<TradeSide>("buy");
   const [quickTradeQuantity, setQuickTradeQuantity] = useState("10");
@@ -682,6 +791,12 @@ export function StocksPage() {
       }
       if (channel.symbol) {
         result.set(channel.symbol.toUpperCase(), row.series || []);
+      }
+      for (const point of row.series || []) {
+        if (point.youtube_channel_id) {
+          result.set(point.youtube_channel_id, row.series || []);
+          break;
+        }
       }
     }
     return result;
@@ -776,6 +891,8 @@ export function StocksPage() {
   }, [priceMoveFilter, rows, searchQuery, unitFilter, viewStockFilterSymbols, volumeChangeFilter]);
 
   const sortedRows = useMemo(() => sortRows(filteredRows, sortKey, sortDirection), [filteredRows, sortDirection, sortKey]);
+  const sortedRowSymbols = useMemo(() => sortedRows.map((row) => row.asset.symbol), [sortedRows]);
+  const sortedRowSymbolsKey = useMemo(() => sortedRowSymbols.join("\u0000"), [sortedRowSymbols]);
   const advancingCount = useMemo(() => rows.filter((row) => (row.asset.move_24h_pct ?? 0) > 0).length, [rows]);
   const decliningCount = useMemo(() => rows.filter((row) => (row.asset.move_24h_pct ?? 0) < 0).length, [rows]);
   const totalVolume = useMemo(() => rows.reduce((sum, row) => sum + (row.asset.volume_24h ?? 0), 0), [rows]);
@@ -804,6 +921,71 @@ export function StocksPage() {
       { id: "volume", label: "Volume leader", row: byVolume, value: fmtNumber(byVolume?.asset.volume_24h) },
     ];
   }, [rows]);
+
+  useEffect(() => {
+    intradayCandlesBySymbolRef.current = intradayCandlesBySymbol;
+  }, [intradayCandlesBySymbol]);
+
+  useEffect(() => {
+    intradayLoadingBySymbolRef.current = intradayLoadingBySymbol;
+  }, [intradayLoadingBySymbol]);
+
+  useEffect(() => {
+    if (archiveViewMode !== "cards" || cardGraphMetric !== "candles24h") return;
+
+    const missingSymbols = sortedRowSymbols.filter((symbol) => (
+      intradayCandlesBySymbolRef.current[symbol] === undefined &&
+      !intradayLoadingBySymbolRef.current[symbol]
+    ));
+    if (!missingSymbols.length) return;
+
+    let cancelled = false;
+    setIntradayLoadingBySymbol((current) => {
+      const next = { ...current };
+      for (const symbol of missingSymbols) next[symbol] = true;
+      return next;
+    });
+
+    let nextIndex = 0;
+    async function loadNext() {
+      while (!cancelled && nextIndex < missingSymbols.length) {
+        const symbol = missingSymbols[nextIndex];
+        nextIndex += 1;
+        try {
+          const result = await apiFetch<{ candles: Array<Record<string, unknown>> }>(
+            `/api/market/assets/${encodeURIComponent(symbol)}/candles?interval=1h&range=24h`,
+            { cache: "no-store" }
+          );
+          if (cancelled) return;
+          setIntradayCandlesBySymbol((current) => ({
+            ...current,
+            [symbol]: normalizeCandles(result.candles || []),
+          }));
+          setIntradayErrorsBySymbol((current) => ({ ...current, [symbol]: null }));
+        } catch (nextError) {
+          if (cancelled) return;
+          setIntradayCandlesBySymbol((current) => ({ ...current, [symbol]: [] }));
+          setIntradayErrorsBySymbol((current) => ({
+            ...current,
+            [symbol]: String((nextError as Error).message || nextError),
+          }));
+        } finally {
+          if (!cancelled) {
+            setIntradayLoadingBySymbol((current) => ({ ...current, [symbol]: false }));
+          }
+        }
+      }
+    }
+
+    const workerCount = Math.min(6, missingSymbols.length);
+    for (let index = 0; index < workerCount; index += 1) {
+      void loadNext();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [archiveViewMode, cardGraphMetric, sortedRowSymbols, sortedRowSymbolsKey]);
 
   function openRow(row: DerivedStockRow) {
     setSelectedSymbol(row.asset.symbol);
@@ -906,12 +1088,16 @@ export function StocksPage() {
   }
 
   function getCardGraphPoints(row: DerivedStockRow, metric: CardGraphMetric) {
+    if (metric === "candles24h") {
+      return [];
+    }
+
     if (metric === "price" || metric === "volume") {
       return row.asset.sparkline_candles
         .slice(-90)
         .map((item) => ({
           time: item.bucket,
-          value: metric === "volume" ? item.volume_shares : item.close_mark ?? item.close,
+          value: toFiniteNumber(metric === "volume" ? item.volume_shares : item.close_mark ?? item.close),
         }))
         .filter((point): point is CardGraphPoint => (
           point.value !== null &&
@@ -925,11 +1111,11 @@ export function StocksPage() {
       .slice(-90)
       .map((item) => ({
         time: item.time,
-        value: metric === "subscribers"
+        value: toFiniteNumber(metric === "subscribers"
           ? item.subscriber_count
           : metric === "views"
             ? item.view_count
-            : item.video_count,
+            : item.video_count),
       }))
       .filter((point): point is CardGraphPoint => (
         point.value !== null &&
@@ -1032,6 +1218,15 @@ export function StocksPage() {
     <SiteShell>
       <div className={`${shellStyles.stack} ${styles.stocksPage}`.trim()}>
         <section className={styles.hero}>
+          <Image
+            src="/stocks-archive-hero.png"
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className={styles.heroImage}
+            aria-hidden="true"
+          />
           <div className={styles.heroCopy}>
             <div className={styles.heroEyebrow}>
               <FaCoins aria-hidden="true" />
@@ -1262,18 +1457,16 @@ export function StocksPage() {
                 </button>
               </div>
               {archiveViewMode === "cards" ? (
-                <label className={styles.metricSelect}>
+                <div className={styles.metricSelect}>
                   <FaChartSimple aria-hidden="true" />
                   <span>Graph</span>
-                  <select
+                  <OptionPicker
                     value={cardGraphMetric}
-                    onChange={(event) => setCardGraphMetric(event.target.value as CardGraphMetric)}
-                  >
-                    {CARD_GRAPH_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                </label>
+                    options={CARD_GRAPH_OPTIONS}
+                    onChange={(nextValue) => setCardGraphMetric(nextValue as CardGraphMetric)}
+                    placeholder="Select graph"
+                  />
+                </div>
               ) : null}
               <div className={styles.resultsMeta}>{sortedRows.length} visible</div>
             </div>
@@ -1390,7 +1583,6 @@ export function StocksPage() {
             {sortedRows.map((row) => {
               const { asset, channelMetrics, isSelected, volumeChangePct } = row;
               const priceTone = (asset.move_24h_pct ?? 0) > 0 ? "positive" : (asset.move_24h_pct ?? 0) < 0 ? "negative" : undefined;
-              const graphTone = (asset.move_24h_pct ?? 0) < 0 ? "negative" : "positive";
               const cardGraphPoints = getCardGraphPoints(row, cardGraphMetric);
               const volumeTone = (volumeChangePct ?? 0) > 0 ? "positive" : (volumeChangePct ?? 0) < 0 ? "negative" : undefined;
               const subscriberTone =
@@ -1472,7 +1664,14 @@ export function StocksPage() {
                   </div>
 
                   <div className={styles.cardSparkline}>
-                    <StockArchiveCardGraph points={cardGraphPoints} tone={graphTone} />
+                    <StockArchiveCardGraph
+                      asset={asset}
+                      metric={cardGraphMetric}
+                      points={cardGraphPoints}
+                      intradayCandles={intradayCandlesBySymbol[asset.symbol]}
+                      isLoadingIntradayCandles={intradayLoadingBySymbol[asset.symbol]}
+                      intradayCandlesError={intradayErrorsBySymbol[asset.symbol]}
+                    />
                   </div>
 
                   <dl className={styles.dataGrid}>

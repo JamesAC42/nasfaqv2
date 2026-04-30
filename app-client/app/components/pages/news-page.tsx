@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -234,6 +235,15 @@ export function NewsPage() {
     <SiteShell>
       <div className={`${shellStyles.stack} ${styles.newsPage}`.trim()}>
         <section className={styles.hero}>
+          <Image
+            src="/news-articles-hero.png"
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className={styles.heroImage}
+            aria-hidden="true"
+          />
           <div className={styles.heroCopy}>
             <div className={styles.heroEyebrow}>
               <FaNewspaper aria-hidden="true" />

@@ -6,8 +6,8 @@ import { TrendChartCard } from "@/app/components/charts/market-charts";
 import { apiFetch } from "@/app/lib/api";
 import { getUsableChannelColor, type ColorMode } from "@/app/lib/color";
 import { fmtPct } from "@/app/lib/format";
-import { normalizeCandles } from "@/app/lib/normalizers";
-import type { DailyReport, MarketAsset, ReportRow } from "@/app/lib/types";
+import { normalizeCandles, normalizeMarketAdjustmentSummary } from "@/app/lib/normalizers";
+import type { DailyReport, MarketAdjustmentOutcome, MarketAdjustmentSummary, MarketAsset, ReportRow } from "@/app/lib/types";
 import { useTheme } from "@/app/providers/theme-provider";
 import styles from "@/app/components/home/market-report-section.module.scss";
 
@@ -15,7 +15,12 @@ function findAsset(assets: MarketAsset[], symbol: string) {
   return assets.find((asset) => asset.symbol === symbol);
 }
 
-function formatMetric(row: ReportRow, mode: "premium" | "move" | "volume") {
+type ReportListRow = Pick<ReportRow, "symbol" | "display_name" | "premium_pct" | "move_pct" | "volume_change_pct"> & {
+  icon?: string | null;
+  color?: string | null;
+};
+
+function formatMetric(row: ReportListRow, mode: "premium" | "move" | "volume") {
   if (mode === "premium") return fmtPct(row.premium_pct);
   if (mode === "move") return fmtPct(row.move_pct);
   return fmtPct(row.volume_change_pct);
@@ -24,6 +29,14 @@ function formatMetric(row: ReportRow, mode: "premium" | "move" | "volume") {
 function metricTone(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return styles.neutral;
   return value >= 0 ? styles.positive : styles.negative;
+}
+
+function isLastAdjustmentOutcome(item: MarketAdjustmentOutcome, lastTick: MarketAdjustmentSummary["last_tick"]) {
+  if (!lastTick) return true;
+  if (item.market_date && lastTick.market_date && item.market_date !== lastTick.market_date) return false;
+  if (item.interval_key !== lastTick.interval_key) return false;
+  if (lastTick.scheduled_at && item.scheduled_at && item.scheduled_at !== lastTick.scheduled_at) return false;
+  return true;
 }
 
 function toTimestamp(value: string | null | undefined) {
@@ -85,18 +98,20 @@ function ReportList({
   rows,
   assets,
   mode,
+  copy = "Snapshot of the latest settled report basket.",
 }: {
   title: string;
-  rows: ReportRow[];
+  rows: ReportListRow[];
   assets: MarketAsset[];
   mode: "premium" | "move" | "volume";
+  copy?: string;
 }) {
   return (
     <div className={styles.listCard}>
       <div className={styles.listHeader}>
         <div>
           <h3 className={styles.listTitle}>{title}</h3>
-          <p className={styles.listCopy}>Snapshot of the latest settled report basket.</p>
+          <p className={styles.listCopy}>{copy}</p>
         </div>
       </div>
       <div className={styles.list}>
@@ -110,8 +125,8 @@ function ReportList({
               <div className={styles.rowMeta}>
                 <AssetCoin
                   symbol={row.symbol}
-                  icon={asset?.icon ?? null}
-                  color={asset?.color ?? null}
+                  icon={asset?.icon ?? row.icon ?? null}
+                  color={asset?.color ?? row.color ?? null}
                   className={styles.rowIcon}
                 />
                 <div>
@@ -137,6 +152,7 @@ export function MarketReportSection({
 }) {
   const { theme } = useTheme();
   const [dailyCandleHistoryBySymbol, setDailyCandleHistoryBySymbol] = useState<Record<string, ReturnType<typeof normalizeCandles>>>({});
+  const [adjustmentSummary, setAdjustmentSummary] = useState<MarketAdjustmentSummary | null>(null);
 
   const topAssets = useMemo(
     () => [...assets].sort((a, b) => (b.current_mid_price ?? 0) - (a.current_mid_price ?? 0)).slice(0, 15),
@@ -180,40 +196,79 @@ export function MarketReportSection({
     };
   }, [topAssets]);
 
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadAdjustmentSummary() {
+      try {
+        const result = await apiFetch<Record<string, unknown>>("/api/market/adjustments/summary?recent_limit=12", { cache: "no-store" });
+        if (!isCancelled) {
+          setAdjustmentSummary(normalizeMarketAdjustmentSummary(result));
+        }
+      } catch {
+        if (!isCancelled) {
+          setAdjustmentSummary(null);
+        }
+      }
+    }
+
+    void loadAdjustmentSummary();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
   if (!report) {
     return <section className={styles.section}><div className={styles.empty}>No daily report found yet.</div></section>;
   }
 
   const monthPriceSeries = buildMonthPriceSeries(assets, dailyCandleHistoryBySymbol, theme);
+  const appliedAdjustmentFeed = (adjustmentSummary?.feed || [])
+    .filter((item) => item.status !== "skipped" && item.move_pct !== null && item.move_pct !== undefined);
+  const lastTickFeed = appliedAdjustmentFeed
+    .filter((item) => isLastAdjustmentOutcome(item, adjustmentSummary?.last_tick || null));
+  const adjustmentMovers = lastTickFeed.length
+    ? lastTickFeed
+    : appliedAdjustmentFeed.length
+      ? appliedAdjustmentFeed
+      : adjustmentSummary?.leaderboards.movers || [];
+  const adjustmentWinners: MarketAdjustmentOutcome[] = [...adjustmentMovers]
+    .filter((item) => (item.move_pct ?? 0) > 0)
+    .sort((left, right) => (right.move_pct ?? 0) - (left.move_pct ?? 0))
+    .slice(0, 5);
+  const adjustmentLosers: MarketAdjustmentOutcome[] = [...adjustmentMovers]
+    .filter((item) => (item.move_pct ?? 0) < 0)
+    .sort((left, right) => (left.move_pct ?? 0) - (right.move_pct ?? 0))
+    .slice(0, 5);
+  const winnerRows: ReportListRow[] = adjustmentWinners.length ? adjustmentWinners : (report.biggest_winners || []);
+  const loserRows: ReportListRow[] = adjustmentLosers.length ? adjustmentLosers : (report.biggest_losers || []);
+  const moveListCopy = adjustmentMovers.length
+    ? "Largest moves from the latest adjustment outcomes."
+    : "Snapshot of the latest settled report basket.";
 
   return (
     <section className={styles.section}>
       <div className={styles.header}>
         <div>
           <h2 className={styles.title}>Latest Market Report</h2>
-          <p className={styles.copy}>Market date {report.market_date} with {report.asset_count} assets settled across price, premium, and flow leadership.</p>
+          <p className={styles.copy}>Market date {report.market_date} with {report.asset_count} assets settled.</p>
         </div>
         <div className={styles.summaryStrip}>
           <div className={styles.summaryCard}>
-            <span className={styles.summaryLabel}>Premium Leaders</span>
-            <strong>{report.largest_premiums?.[0]?.symbol || "—"}</strong>
-          </div>
-          <div className={styles.summaryCard}>
             <span className={styles.summaryLabel}>Biggest Winner</span>
-            <strong>{report.biggest_winners?.[0]?.symbol || "—"}</strong>
+            <strong>{winnerRows[0]?.symbol || "—"}</strong>
           </div>
           <div className={styles.summaryCard}>
             <span className={styles.summaryLabel}>Top Loser</span>
-            <strong>{report.biggest_losers?.[0]?.symbol || "—"}</strong>
+            <strong>{loserRows[0]?.symbol || "—"}</strong>
           </div>
         </div>
       </div>
 
       <div className={styles.grid}>
-        <ReportList title="Largest Premiums" rows={report.largest_premiums || []} assets={assets} mode="premium" />
-        <ReportList title="Largest Discounts" rows={report.largest_discounts || []} assets={assets} mode="premium" />
-        <ReportList title="Biggest Winners" rows={report.biggest_winners || []} assets={assets} mode="move" />
-        <ReportList title="Top Losers" rows={report.biggest_losers || []} assets={assets} mode="move" />
+        <ReportList title="Biggest Winners" rows={winnerRows} assets={assets} mode="move" copy={moveListCopy} />
+        <ReportList title="Biggest Losers" rows={loserRows} assets={assets} mode="move" copy={moveListCopy} />
         <ReportList title="Volume Winners" rows={report.volume_winners || []} assets={assets} mode="volume" />
         <ReportList title="Volume Losers" rows={report.volume_losers || []} assets={assets} mode="volume" />
       </div>

@@ -24,12 +24,19 @@
   align-items: end;
   background:
     linear-gradient(90deg, #06151b 0 0.125rem, color-mix(in srgb, var(--surface-card) 96%, #06151b) 0.125rem 22%, color-mix(in srgb, var(--surface-card) 74%, transparent) 48%, color-mix(in srgb, var(--surface-card) 22%, transparent) 100%),
-    radial-gradient(circle at 76% 40%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 34%),
-    var(--hero-image),
-    color-mix(in srgb, var(--bg-darkest) 76%, transparent);
-  background-position: center, center, 58% 44%, center;
-  background-size: cover, cover, cover, cover;
-  background-repeat: no-repeat;
+    radial-gradient(circle at 76% 40%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 34%);
+  background-position: center, center;
+  background-size: cover, cover;
+  background-repeat: no-repeat, no-repeat;
+}
+
+.heroImage {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  object-fit: cover;
+  object-position: right top;
+  pointer-events: none;
 }
 
 .hero::after {
@@ -43,6 +50,7 @@
   mask-image: linear-gradient(90deg, black, transparent 68%);
   opacity: 0.55;
   pointer-events: none;
+  transform: translateY(-0.5rem);
 }
 
 .hero::before {
@@ -52,13 +60,33 @@
   z-index: 1;
   background:
     linear-gradient(90deg, #06151b 0 0.125rem, color-mix(in srgb, var(--surface-card) 96%, transparent) 0.125rem 36%, color-mix(in srgb, var(--surface-card) 70%, transparent) 52%, transparent 78%),
-    linear-gradient(180deg, color-mix(in srgb, black 12%, transparent), color-mix(in srgb, black 22%, transparent));
+    linear-gradient(180deg, color-mix(in srgb, black 14%, transparent), color-mix(in srgb, black 24%, transparent));
   pointer-events: none;
+  transform: translateY(-0.3rem) scale(1.05);
 }
 
-.hero > * {
+.hero > :not(.heroImage) {
   position: relative;
   z-index: 2;
+}
+
+[data-theme="light"] .hero {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--surface-card) 98%, white) 0 0.125rem, color-mix(in srgb, var(--surface-card) 96%, white) 0.125rem 40%, color-mix(in srgb, var(--surface-card) 76%, transparent) 62%, color-mix(in srgb, var(--surface-card) 26%, transparent) 100%),
+    radial-gradient(circle at 76% 40%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 34%);
+}
+
+[data-theme="light"] .hero::before {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--surface-card) 98%, white) 0%, color-mix(in srgb, var(--surface-card) 90%, transparent) 48%, color-mix(in srgb, var(--surface-card) 36%, transparent) 76%, transparent 100%),
+    linear-gradient(180deg, color-mix(in srgb, white 28%, transparent), color-mix(in srgb, var(--surface-card) 38%, transparent));
+}
+
+[data-theme="light"] .hero::after {
+  background:
+    linear-gradient(180deg, transparent 58%, color-mix(in srgb, var(--surface-card) 86%, transparent)),
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, transparent) 0 0.0625rem, transparent 0.0625rem 0.875rem);
+  opacity: 0.42;
 }
 
 .heroContent {
@@ -90,6 +118,7 @@
 .heroTitle {
   margin: 0;
   max-width: 13ch;
+  color: var(--accent-strong);
   font-family: var(--font-display);
   font-size: clamp(2.6rem, 6vw, 5.6rem);
   line-height: 0.92;

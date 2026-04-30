@@ -653,7 +653,7 @@ function normalizeAdjustmentOutcome(value: Record<string, unknown>): MarketAdjus
     price_before: toNumber(value.price_before),
     price_after: toNumber(value.price_after),
     move_pct: toNumber(value.move_pct),
-    gap_compression_pct: null,
+    gap_compression_pct: toNumber(value.gap_compression_pct),
     skip_reason: value.skip_reason ? String(value.skip_reason) : null,
   };
 }
