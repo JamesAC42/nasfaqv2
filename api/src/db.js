@@ -1,11 +1,19 @@
 const { Pool } = require("pg");
 
+function normalizeDatabaseUrl(databaseUrl) {
+  const url = new URL(databaseUrl);
+  if (url.searchParams.get("sslmode") === "require" && !url.searchParams.has("uselibpqcompat")) {
+    url.searchParams.set("uselibpqcompat", "true");
+  }
+  return url.toString();
+}
+
 function createPool(databaseUrl) {
   if (!databaseUrl) {
     throw new Error("Missing DATABASE_URL");
   }
   const pool = new Pool({
-    connectionString: databaseUrl,
+    connectionString: normalizeDatabaseUrl(databaseUrl),
     options: process.env.PG_OPTIONS || "-c timezone=UTC",
     max: Number(process.env.PG_POOL_MAX || 10),
     idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 30000),
