@@ -930,6 +930,65 @@ async function updateArticle(pool, slug, {
   }
 }
 
+async function deleteArticle(pool, slug) {
+  const safeSlug = normalizeString(slug, { maxLength: 220, allowEmpty: false });
+  if (!safeSlug) {
+    const error = new Error("article_not_found");
+    error.code = "article_not_found";
+    throw error;
+  }
+
+  const { rows } = await pool.query(
+    `
+    DELETE FROM content.articles
+    WHERE slug = $1
+      AND is_news = FALSE
+    RETURNING id
+  `,
+    [safeSlug]
+  );
+
+  if (!rows[0]) {
+    const error = new Error("article_not_found");
+    error.code = "article_not_found";
+    throw error;
+  }
+}
+
+async function deleteNewsArticleBody(pool, slug) {
+  const safeSlug = normalizeString(slug, { maxLength: 220, allowEmpty: false });
+  if (!safeSlug) {
+    const error = new Error("article_not_found");
+    error.code = "article_not_found";
+    throw error;
+  }
+
+  const { rows } = await pool.query(
+    `
+    UPDATE content.articles a
+    SET
+      title = COALESCE(n.headline, a.title),
+      subtitle = NULL,
+      tags = ARRAY[]::text[],
+      thumbnail_url = COALESCE(n.thumbnail_url, a.thumbnail_url),
+      content = '',
+      updated_at = now()
+    FROM info.member_news n
+    WHERE a.slug = $1
+      AND a.is_news = TRUE
+      AND n.id = a.news_id
+    RETURNING a.slug
+  `,
+    [safeSlug]
+  );
+
+  if (!rows[0]) {
+    const error = new Error("article_not_found");
+    error.code = "article_not_found";
+    throw error;
+  }
+}
+
 async function createComment(pool, slug, authorId, body, mood) {
   const safeBody = normalizeString(body, { maxLength: 4000, allowEmpty: false });
   const safeMood = normalizeCommentMood(mood);
@@ -1248,6 +1307,8 @@ module.exports = {
   getArticleBySlug,
   createArticle,
   updateArticle,
+  deleteArticle,
+  deleteNewsArticleBody,
   getArticleOwnership,
   createComment,
   toggleArticlePreference,

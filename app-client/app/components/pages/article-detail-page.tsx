@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -12,15 +14,20 @@ import {
   FaBinoculars,
   FaBookmark,
   FaBoxesStacked,
+  FaCalendarDays,
   FaChartSimple,
   FaCircleDown,
   FaCircleQuestion,
   FaCircleUp,
+  FaClock,
+  FaComments,
+  FaEye,
   FaGem,
   FaHeart,
   FaRegBookmark,
   FaRegHeart,
   FaScaleBalanced,
+  FaUserPen,
   FaXmark,
   FaThumbsDown,
   FaThumbsUp,
@@ -228,6 +235,7 @@ function CommentMoodBadge({ comment }: { comment: ArticleComment }) {
 }
 
 export function ArticleDetailPage({ slug }: { slug: string }) {
+  const router = useRouter();
   const { user } = useAuth();
   const [article, setArticle] = useState<ArticleDetail | null>(null);
   const [activeEffect, setActiveEffect] = useState<"like" | "save" | null>(null);
@@ -244,6 +252,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isSubmittingProposal, setIsSubmittingProposal] = useState(false);
+  const [adminActionBusy, setAdminActionBusy] = useState<"delete-article" | "delete-body" | null>(null);
   const [proposalVoteBusyId, setProposalVoteBusyId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const effectTimeoutRef = useRef<number | null>(null);
@@ -448,6 +457,42 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
     setArticle(normalizeArticleDetail(result.article));
   }
 
+  async function handleDeleteArticle() {
+    if (!article || !user?.is_admin || article.is_news) return;
+    const confirmed = window.confirm("Delete this community article? This cannot be undone.");
+    if (!confirmed) return;
+    setAdminActionBusy("delete-article");
+    setError(null);
+    try {
+      await apiFetch<Record<string, unknown>>(`/api/articles/${encodeURIComponent(article.slug)}`, {
+        method: "DELETE",
+      });
+      router.push("/articles");
+    } catch (nextError) {
+      setError(String((nextError as Error).message || nextError));
+    } finally {
+      setAdminActionBusy((current) => (current === "delete-article" ? null : current));
+    }
+  }
+
+  async function handleDeleteNewsBody() {
+    if (!article || !user?.is_admin || !article.is_news || !hasPublishedBody) return;
+    const confirmed = window.confirm("Delete the approved body for this news item? The imported news item and proposal history will remain.");
+    if (!confirmed) return;
+    setAdminActionBusy("delete-body");
+    setError(null);
+    try {
+      const result = await apiFetch<{ article: Record<string, unknown> }>(`/api/articles/${encodeURIComponent(article.slug)}/body`, {
+        method: "DELETE",
+      });
+      setArticle(normalizeArticleDetail(result.article));
+    } catch (nextError) {
+      setError(String((nextError as Error).message || nextError));
+    } finally {
+      setAdminActionBusy((current) => (current === "delete-body" ? null : current));
+    }
+  }
+
   return (
     <SiteShell>
       <div className={styles.stack}>
@@ -481,39 +526,41 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
 
               <div className={styles.storyByline}>
                 <div className={styles.storyBylineBlock}>
+                  <span className={styles.storyBylineIcon}><FaUserPen aria-hidden="true" /></span>
                   <span className={styles.eyebrow}>Byline</span>
                   {article.author ? (
                     <div className={styles.metaRow}>
                       <Link href={`/profile/${encodeURIComponent(article.author.username)}`} className={styles.inlineLink}>
                         {article.author.username}
                       </Link>
-                      <a
-                        href="#"
+                      <Link
+                        href={`/profile/${encodeURIComponent(article.author.username)}#articles`}
                         className={styles.inlineLinkMuted}
-                        onClick={(event) => event.preventDefault()}
-                        aria-disabled="true"
-                        title="Author article archives coming soon"
                       >
                         More by this author
-                      </a>
+                      </Link>
                     </div>
                   ) : (
                     <span className={styles.muted}>Imported from the news feed</span>
                   )}
                 </div>
                 <div className={styles.storyBylineBlock}>
+                  <span className={styles.storyBylineIcon}><FaCalendarDays aria-hidden="true" /></span>
                   <span className={styles.eyebrow}>Published</span>
                   <span className={styles.muted}>{formatDateTime(article.published_at || article.news_item?.published_at || article.created_at)}</span>
                 </div>
                 <div className={styles.storyBylineBlock}>
+                  <span className={styles.storyBylineIcon}><FaClock aria-hidden="true" /></span>
                   <span className={styles.eyebrow}>Reading time</span>
                   <span className={styles.muted}>{estimatedReadMinutes ? `${estimatedReadMinutes} min read` : "Awaiting body"}</span>
                 </div>
                 <div className={styles.storyBylineBlock}>
+                  <span className={styles.storyBylineIcon}><FaEye aria-hidden="true" /></span>
                   <span className={styles.eyebrow}>Views</span>
                   <span className={styles.muted}>{formatCountLabel(article.views, "view")}</span>
                 </div>
                 <div className={styles.storyBylineBlock}>
+                  <span className={styles.storyBylineIcon}><FaComments aria-hidden="true" /></span>
                   <span className={styles.eyebrow}>Discussion</span>
                   <span className={styles.muted}>{formatCountLabel(article.comment_count, "comment")}</span>
                 </div>
@@ -568,6 +615,26 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                     <span className={styles.actionCount}>{article.saves}</span>
                   </button>
                   {canEdit ? <Link href={`/articles/${encodeURIComponent(article.slug)}/edit`} className={styles.toolbarLink}>Edit article</Link> : null}
+                  {user?.is_admin && !article.is_news ? (
+                    <button
+                      type="button"
+                      className={styles.dangerButton}
+                      onClick={() => void handleDeleteArticle()}
+                      disabled={adminActionBusy !== null}
+                    >
+                      {adminActionBusy === "delete-article" ? "Deleting..." : "Delete article"}
+                    </button>
+                  ) : null}
+                  {user?.is_admin && article.is_news && hasPublishedBody ? (
+                    <button
+                      type="button"
+                      className={styles.dangerButton}
+                      onClick={() => void handleDeleteNewsBody()}
+                      disabled={adminActionBusy !== null}
+                    >
+                      {adminActionBusy === "delete-body" ? "Deleting..." : "Delete body"}
+                    </button>
+                  ) : null}
                 </div>
                 {!user ? <p className={styles.helperText}>Sign in to like, save, comment, or react to coverage proposals.</p> : null}
                 {needsVerification ? <VerificationRequiredNotice action="like, save, comment, or react to coverage proposals" compact /> : null}
@@ -593,6 +660,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                       </ReactMarkdown>
                     </div>
                   </article>
+                  <Image src="/maidwatame.png" alt="" width={408} height={611} className={styles.bodyMascot} aria-hidden="true" />
                 </section>
               ) : article.is_news ? (
                 <section className={styles.emptyStoryCard}>
@@ -614,6 +682,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                       <button type="button" className={styles.secondaryButton} onClick={() => openCoverageOverlay("proposals")}>Review proposals</button>
                     ) : null}
                   </div>
+                  <Image src="/maidwatame.png" alt="" width={408} height={611} className={styles.bodyMascot} aria-hidden="true" />
                 </section>
               ) : (
                 <section className={styles.storyFrame}>

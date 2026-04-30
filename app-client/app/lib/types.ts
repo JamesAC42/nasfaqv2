@@ -377,6 +377,7 @@ export type MarketAsset = {
   pending_live_buy_quantity?: number;
   pending_live_sell_quantity?: number;
   next_live_order_execute_after?: string | null;
+  oshicoin_users?: number;
   base_rate?: number | null;
   market_price?: number | null;
   premium_discount_pct?: number | null;
@@ -981,6 +982,8 @@ export type MarketHubTrade = {
   asset_id: number;
   symbol: string;
   display_name: string;
+  icon: string | null;
+  color: string | null;
   ts: string;
   side: string;
   price: number;
@@ -1013,6 +1016,7 @@ export type MarketActivityTrader = {
   user_id: number;
   username: string;
   profile_color: string | null;
+  profile_picture_url: string | null;
   trade_count: number;
   distinct_assets: number;
   volume_cash: number;
@@ -1207,6 +1211,53 @@ export type LeaderboardResponse = {
   stats: LeaderboardStats;
   entries: LeaderboardEntry[];
   me: LeaderboardMe | null;
+};
+
+export type OshiboardAsset = {
+  id: number;
+  symbol: string;
+  display_name: string;
+  icon: string | null;
+  color: string | null;
+  current_mid_price?: number | null;
+  current_premium_pct?: number | null;
+  circulating_supply?: number | null;
+};
+
+export type OshiboardEntry = {
+  user_id: number;
+  username: string;
+  profile_picture_url: string | null;
+  profile_color: string | null;
+  rank: number;
+  coin_quantity: number;
+  coin_market_value: number;
+  total_equity: number;
+  updated_at: string | null;
+};
+
+export type OshiboardStats = {
+  member_count: number;
+  total_shares: number;
+  total_market_value: number;
+  last_updated_at: string | null;
+};
+
+export type OshiboardResponse = {
+  asset: OshiboardAsset;
+  stats: OshiboardStats;
+  entries: OshiboardEntry[];
+};
+
+export type OshiboardMembership = {
+  asset: OshiboardAsset;
+  rank: number;
+  coin_quantity: number;
+  coin_market_value: number;
+  total_equity: number;
+  member_count: number;
+  total_shares: number;
+  updated_at: string | null;
 };
 
 export type NewsCharacter = {
@@ -1432,6 +1483,7 @@ export type ProfileBundle = {
       can_void_prediction_markets: boolean;
     };
     rank: number;
+    oshiboards: OshiboardMembership[];
     oshi_coin: ProfileOshiCoin | null;
     stats: {
       cash_balance: number;

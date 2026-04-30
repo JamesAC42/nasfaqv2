@@ -97,6 +97,10 @@
   }
 }
 
+[data-theme="light"] .heroTitle {
+  text-shadow: none;
+}
+
 .heroText {
   @include subtle-copy;
   max-width: 50rem;

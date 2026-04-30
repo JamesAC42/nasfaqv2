@@ -59,6 +59,10 @@ import {
   type NewsCharacter,
   type NewsFeedResponse,
   type NewsItem,
+  type OshiboardAsset,
+  type OshiboardEntry,
+  type OshiboardMembership,
+  type OshiboardResponse,
   type PortfolioOrder,
   type PortfolioOrdersResponse,
   type PortfolioSummary,
@@ -551,13 +555,13 @@ export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
     unit: asset.unit ? String(asset.unit) : null,
     icon: asset.icon ? String(asset.icon) : null,
     color: asset.color ? String(asset.color) : null,
-    current_fair_value: toNumber(asset.current_fair_value),
+    current_fair_value: null,
     current_mid_price: toNumber(asset.current_mid_price),
     previous_settlement_mid_price: toNumber(asset.previous_settlement_mid_price),
     pre_settlement_mid_price: toNumber(asset.pre_settlement_mid_price),
     current_bid_price: toNumber(asset.current_bid_price),
     current_ask_price: toNumber(asset.current_ask_price),
-    current_premium_pct: toNumber(asset.current_premium_pct),
+    current_premium_pct: null,
     current_daily_emission: toNumber(asset.current_daily_emission),
     treasury_supply: toNumber(asset.treasury_supply),
     circulating_supply: toNumber(asset.circulating_supply),
@@ -570,16 +574,17 @@ export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
     pending_live_buy_quantity: Number(toNumber(asset.pending_live_buy_quantity) || 0),
     pending_live_sell_quantity: Number(toNumber(asset.pending_live_sell_quantity) || 0),
     next_live_order_execute_after: asset.next_live_order_execute_after ? String(asset.next_live_order_execute_after) : null,
-    base_rate: toNumber(asset.base_rate ?? asset.current_fair_value),
+    oshicoin_users: Number(toNumber(asset.oshicoin_users) || 0),
+    base_rate: null,
     market_price: toNumber(asset.market_price ?? asset.current_mid_price),
-    premium_discount_pct: toNumber(asset.premium_discount_pct ?? asset.current_premium_pct),
+    premium_discount_pct: null,
     adjustment_enabled: typeof asset.adjustment_enabled === "boolean" ? asset.adjustment_enabled : null,
     adjustment_ready: typeof asset.adjustment_ready === "boolean" ? asset.adjustment_ready : null,
     next_adjustment: nextAdjustment
       ? {
           interval_key: String(nextAdjustment.interval_key || ""),
           scheduled_at: nextAdjustment.scheduled_at ? String(nextAdjustment.scheduled_at) : null,
-          base_rate: toNumber(nextAdjustment.base_rate),
+          base_rate: null,
           market_date: nextAdjustment.market_date ? String(nextAdjustment.market_date) : null,
         }
       : null,
@@ -588,7 +593,7 @@ export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
           interval_key: String(latestAdjustment.interval_key || ""),
           scheduled_at: latestAdjustment.scheduled_at ? String(latestAdjustment.scheduled_at) : null,
           applied_at: latestAdjustment.applied_at ? String(latestAdjustment.applied_at) : null,
-          base_rate: toNumber(latestAdjustment.base_rate),
+          base_rate: null,
           price_before: toNumber(latestAdjustment.price_before),
           price_after: toNumber(latestAdjustment.price_after),
           market_date: latestAdjustment.market_date ? String(latestAdjustment.market_date) : null,
@@ -644,11 +649,11 @@ function normalizeAdjustmentOutcome(value: Record<string, unknown>): MarketAdjus
     scheduled_at: value.scheduled_at ? String(value.scheduled_at) : null,
     applied_at: value.applied_at ? String(value.applied_at) : null,
     status: value.status ? String(value.status) : undefined,
-    base_rate: toNumber(value.base_rate),
+    base_rate: null,
     price_before: toNumber(value.price_before),
     price_after: toNumber(value.price_after),
     move_pct: toNumber(value.move_pct),
-    gap_compression_pct: toNumber(value.gap_compression_pct),
+    gap_compression_pct: null,
     skip_reason: value.skip_reason ? String(value.skip_reason) : null,
   };
 }
@@ -704,8 +709,8 @@ export function normalizeStats(stats: Array<Record<string, unknown>>): MarketSta
     subscriber_count: toNumber(item.subscriber_count),
     view_count: toNumber(item.view_count),
     video_count: toNumber(item.video_count),
-    fundamental_value_raw: toNumber(item.fundamental_value_raw),
-    fundamental_value_smoothed: toNumber(item.fundamental_value_smoothed),
+    fundamental_value_raw: null,
+    fundamental_value_smoothed: null,
   }));
 }
 
@@ -715,7 +720,7 @@ export function normalizeMarketIndexPoint(value: Record<string, unknown>): Marke
     value: toNumber(value.value),
     day_return_pct: toNumber(value.day_return_pct),
     total_volume_cash: toNumber(value.total_volume_cash),
-    avg_premium_pct: toNumber(value.avg_premium_pct),
+    avg_premium_pct: null,
     constituent_count: toNumber(value.constituent_count),
   };
 }
@@ -728,7 +733,7 @@ export function normalizeMarketIndexSummary(value: Record<string, unknown> | nul
     day_return_pct: toNumber(value.day_return_pct),
     total_return_pct: toNumber(value.total_return_pct),
     total_volume_cash: toNumber(value.total_volume_cash),
-    avg_premium_pct: toNumber(value.avg_premium_pct),
+    avg_premium_pct: null,
     constituent_count: toNumber(value.constituent_count),
     advancers: toNumber(value.advancers),
     decliners: toNumber(value.decliners),
@@ -775,6 +780,8 @@ export function normalizeMarketHubTrade(value: Record<string, unknown>): MarketH
     asset_id: Number(value.asset_id || 0),
     symbol: String(value.symbol || ""),
     display_name: String(value.display_name || ""),
+    icon: value.icon ? String(value.icon) : null,
+    color: value.color ? String(value.color) : null,
     ts: String(value.ts || ""),
     side: String(value.side || ""),
     price: Number(toNumber(value.price) || 0),
@@ -813,6 +820,7 @@ function normalizeMarketActivityTrader(value: Record<string, unknown>): MarketAc
     user_id: Number(value.user_id || 0),
     username: String(value.username || ""),
     profile_color: value.profile_color ? String(value.profile_color) : null,
+    profile_picture_url: value.profile_picture_url ? String(value.profile_picture_url) : null,
     trade_count: Number(toNumber(value.trade_count) || 0),
     distinct_assets: Number(toNumber(value.distinct_assets) || 0),
     volume_cash: Number(toNumber(value.volume_cash) || 0),
@@ -885,8 +893,8 @@ export function normalizeMarketHubResponse(value: Record<string, unknown>): Mark
       top_volume: Array.isArray(leaders?.top_volume) ? (leaders.top_volume as Array<Record<string, unknown>>).map(normalizeAsset) : [],
       top_movers: Array.isArray(leaders?.top_movers) ? (leaders.top_movers as Array<Record<string, unknown>>).map(normalizeAsset) : [],
       top_losers: Array.isArray(leaders?.top_losers) ? (leaders.top_losers as Array<Record<string, unknown>>).map(normalizeAsset) : [],
-      top_premiums: Array.isArray(leaders?.top_premiums) ? (leaders.top_premiums as Array<Record<string, unknown>>).map(normalizeAsset) : [],
-      top_discounts: Array.isArray(leaders?.top_discounts) ? (leaders.top_discounts as Array<Record<string, unknown>>).map(normalizeAsset) : [],
+      top_premiums: [],
+      top_discounts: [],
       volume_winners: Array.isArray(leaders?.volume_winners)
         ? (leaders.volume_winners as Array<Record<string, unknown>>).map(normalizeMarketHubVolumeLeader)
         : [],
@@ -921,7 +929,7 @@ export function normalizeTreasury(treasury: Record<string, unknown> | null): Ass
     circulating_supply: toNumber(treasury.circulating_supply),
     treasury_supply: toNumber(treasury.treasury_supply),
     current_daily_emission: toNumber(treasury.current_daily_emission),
-    current_premium_pct: toNumber(treasury.current_premium_pct),
+    current_premium_pct: null,
   };
 }
 
@@ -1688,6 +1696,68 @@ export function normalizeLeaderboardResponse(value: Record<string, unknown>): Le
   };
 }
 
+function normalizeOshiboardAsset(value: unknown): OshiboardAsset {
+  const row = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    id: Number(row.id || 0),
+    symbol: String(row.symbol || ""),
+    display_name: String(row.display_name || row.symbol || ""),
+    icon: row.icon ? String(row.icon) : null,
+    color: row.color ? String(row.color) : null,
+    current_mid_price: toNumber(row.current_mid_price),
+    current_premium_pct: null,
+    circulating_supply: toNumber(row.circulating_supply),
+  };
+}
+
+function normalizeOshiboardEntry(value: unknown): OshiboardEntry {
+  const row = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    user_id: Number(row.user_id || 0),
+    username: String(row.username || ""),
+    profile_picture_url: row.profile_picture_url ? String(row.profile_picture_url) : null,
+    profile_color: row.profile_color ? String(row.profile_color) : null,
+    rank: Number(row.rank || 0),
+    coin_quantity: Number(toNumber(row.coin_quantity) || 0),
+    coin_market_value: Number(toNumber(row.coin_market_value) || 0),
+    total_equity: Number(toNumber(row.total_equity) || 0),
+    updated_at: row.updated_at ? String(row.updated_at) : null,
+  };
+}
+
+export function normalizeOshiboardResponse(value: Record<string, unknown>): OshiboardResponse {
+  const stats = value.stats && typeof value.stats === "object" ? value.stats as Record<string, unknown> : {};
+  return {
+    asset: normalizeOshiboardAsset(value.asset),
+    stats: {
+      member_count: Number(stats.member_count || 0),
+      total_shares: Number(toNumber(stats.total_shares) || 0),
+      total_market_value: Number(toNumber(stats.total_market_value) || 0),
+      last_updated_at: stats.last_updated_at ? String(stats.last_updated_at) : null,
+    },
+    entries: Array.isArray(value.entries) ? value.entries.map(normalizeOshiboardEntry) : [],
+  };
+}
+
+export function normalizeOshiboardMemberships(value: unknown): OshiboardMembership[] {
+  const rows = value && typeof value === "object" && Array.isArray((value as Record<string, unknown>).memberships)
+    ? (value as Record<string, unknown>).memberships as unknown[]
+    : Array.isArray(value) ? value : [];
+  return rows.map((item) => {
+    const row = item && typeof item === "object" ? item as Record<string, unknown> : {};
+    return {
+      asset: normalizeOshiboardAsset(row.asset),
+      rank: Number(row.rank || 0),
+      coin_quantity: Number(toNumber(row.coin_quantity) || 0),
+      coin_market_value: Number(toNumber(row.coin_market_value) || 0),
+      total_equity: Number(toNumber(row.total_equity) || 0),
+      member_count: Number(row.member_count || 0),
+      total_shares: Number(toNumber(row.total_shares) || 0),
+      updated_at: row.updated_at ? String(row.updated_at) : null,
+    };
+  });
+}
+
 function normalizeNewsCharacters(value: unknown): NewsCharacter[] {
   if (!Array.isArray(value)) return [];
 
@@ -2071,6 +2141,7 @@ export function normalizeProfileBundle(value: Record<string, unknown>): ProfileB
         can_void_prediction_markets: Boolean(profile?.permissions && typeof profile.permissions === "object" && (profile.permissions as Record<string, unknown>).can_void_prediction_markets),
       },
       rank: Number(toNumber(profile?.rank) || 0),
+      oshiboards: normalizeOshiboardMemberships(profile?.oshiboards),
       oshi_coin: oshiCoin
         ? {
             id: Number(oshiCoin.id || 0),

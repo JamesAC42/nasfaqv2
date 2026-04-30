@@ -12,6 +12,7 @@ import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { fmtInteger } from "@/app/lib/format";
 import { normalizeNewsFeedResponse } from "@/app/lib/normalizers";
+import { getCompactNewsThumbnailUrl } from "@/app/lib/thumbnails";
 import type { NewsFeedPagination, NewsFeedResponse, NewsItem } from "@/app/lib/types";
 import { useMarketStore } from "@/app/stores/market-store";
 import shellStyles from "@/app/components/pages/page-shell.module.scss";
@@ -47,13 +48,6 @@ function formatPublishedDate(value: string | null | undefined) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-}
-
-function getCompactThumbnailUrl(url: string | null | undefined) {
-  if (!url) return null;
-  const lastSlashIndex = url.lastIndexOf("/");
-  if (lastSlashIndex < 0 || lastSlashIndex === url.length - 1) return url;
-  return `${url.slice(0, lastSlashIndex + 1)}thumbnail-${url.slice(lastSlashIndex + 1)}`;
 }
 
 function getArticleHref(item: NewsItem) {
@@ -356,7 +350,6 @@ export function NewsPage() {
           <div className={styles.feedHeader}>
             <div>
               <h2 className={styles.sectionTitle}>News feed</h2>
-              <p className={styles.sectionCopy}>Newest story flow with linked symbols and engagement.</p>
             </div>
             <div className={styles.paginationMeta}>
               <span>{pagination.total} total stories</span>
@@ -370,7 +363,7 @@ export function NewsPage() {
                   <Link href={getArticleHref(item)} className={styles.itemLink}>
                     {item.thumbnail_url ? (
                       <div className={styles.mediaLink}>
-                        <img src={getCompactThumbnailUrl(item.thumbnail_url) || item.thumbnail_url} alt="" className={styles.thumb} />
+                        <img src={getCompactNewsThumbnailUrl(item.thumbnail_url) || item.thumbnail_url} alt="" className={styles.thumb} />
                       </div>
                     ) : null}
 

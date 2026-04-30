@@ -833,6 +833,32 @@ async function applySchema(pool) {
       ON market.user_leaderboard_current (updated_at DESC)
   `);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.user_oshiboard_current (
+      asset_id BIGINT NOT NULL REFERENCES market.market_assets(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      username_snapshot TEXT NOT NULL,
+      profile_picture_url TEXT NULL,
+      profile_color TEXT NULL,
+      coin_quantity NUMERIC NOT NULL DEFAULT 0,
+      coin_market_value NUMERIC NOT NULL DEFAULT 0,
+      total_equity NUMERIC NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (asset_id, user_id)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_user_oshiboard_current_asset_quantity_idx
+      ON market.user_oshiboard_current (asset_id, coin_quantity DESC, user_id ASC)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_user_oshiboard_current_user_idx
+      ON market.user_oshiboard_current (user_id, coin_quantity DESC)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_user_oshiboard_current_updated_idx
+      ON market.user_oshiboard_current (updated_at DESC)
+  `);
+  await pool.query(`
     CREATE SCHEMA IF NOT EXISTS content
   `);
   await pool.query(`

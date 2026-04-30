@@ -575,6 +575,150 @@ async function refreshCurrentLeaderboardForAssetWithClient(client, assetId, { ex
 
   if (!userIds.length) return;
   await refreshCurrentLeaderboardWithClient(client, { userIds });
+  await refreshCurrentOshiboardsForUsersWithClient(client, userIds);
+}
+
+async function refreshCurrentOshiboardsForUsersWithClient(client, userIds) {
+  const safeUserIds = Array.isArray(userIds)
+    ? Array.from(new Set(userIds.map((value) => toInt(value, 0)).filter((value) => value > 0)))
+    : [];
+  if (!safeUserIds.length) return;
+
+  await client.query(
+    `
+    DELETE FROM market.user_oshiboard_current
+    WHERE user_id = ANY($1::bigint[])
+  `,
+    [safeUserIds]
+  );
+
+  await client.query(
+    `
+    WITH user_max_holding AS (
+      SELECT
+        h.user_id,
+        MAX(h.quantity) AS max_quantity
+      FROM market.portfolio_holdings h
+      WHERE h.user_id = ANY($1::bigint[])
+        AND h.quantity > 0
+      GROUP BY h.user_id
+    )
+    INSERT INTO market.user_oshiboard_current (
+      asset_id,
+      user_id,
+      username_snapshot,
+      profile_picture_url,
+      profile_color,
+      coin_quantity,
+      coin_market_value,
+      total_equity,
+      updated_at
+    )
+    SELECT
+      h.asset_id,
+      u.id,
+      COALESCE(l.username_snapshot, u.username),
+      COALESCE(l.profile_picture_url, ${profilePictureUrlSql("small")}),
+      COALESCE(l.profile_color, u.profile_color),
+      h.quantity,
+      h.quantity * COALESCE(a.current_mid_price, 0),
+      COALESCE(l.total_equity, COALESCE(pcb.cash_balance, $2) + COALESCE(holdings.total_market_value, 0)),
+      now()
+    FROM market.users u
+    JOIN user_max_holding mh
+      ON mh.user_id = u.id
+    JOIN market.portfolio_holdings h
+      ON h.user_id = u.id
+     AND h.asset_id = u.oshi_coin_asset_id
+     AND h.quantity = mh.max_quantity
+     AND h.quantity > 0
+    JOIN market.market_assets a
+      ON a.id = h.asset_id
+    LEFT JOIN market.user_leaderboard_current l
+      ON l.user_id = u.id
+    LEFT JOIN market.profile_pictures pp
+      ON pp.id = u.profile_picture_id
+    LEFT JOIN market.portfolio_cash_balances pcb
+      ON pcb.user_id = u.id
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(SUM(ph.quantity * COALESCE(ma.current_mid_price, 0)), 0) AS total_market_value
+      FROM market.portfolio_holdings ph
+      JOIN market.market_assets ma
+        ON ma.id = ph.asset_id
+      WHERE ph.user_id = u.id
+        AND ph.quantity > 0
+    ) holdings ON true
+    WHERE u.id = ANY($1::bigint[])
+      AND u.oshi_coin_asset_id IS NOT NULL
+    ON CONFLICT (asset_id, user_id)
+    DO UPDATE SET
+      username_snapshot = EXCLUDED.username_snapshot,
+      profile_picture_url = EXCLUDED.profile_picture_url,
+      profile_color = EXCLUDED.profile_color,
+      coin_quantity = EXCLUDED.coin_quantity,
+      coin_market_value = EXCLUDED.coin_market_value,
+      total_equity = EXCLUDED.total_equity,
+      updated_at = now()
+  `,
+    [safeUserIds, getStarterCash()]
+  );
+}
+
+async function refreshCurrentOshiboards(pool, options = {}) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    if (Array.isArray(options.userIds) && options.userIds.length) {
+      await refreshCurrentLeaderboardWithClient(client, { userIds: options.userIds });
+      await refreshCurrentOshiboardsForUsersWithClient(client, options.userIds);
+    } else {
+      const { rows } = await client.query(`SELECT id FROM market.users`);
+      const userIds = rows.map((row) => toInt(row.id, 0)).filter((value) => value > 0);
+      await client.query(`DELETE FROM market.user_oshiboard_current`);
+      if (userIds.length) {
+        await refreshCurrentLeaderboardWithClient(client, { userIds });
+        await refreshCurrentOshiboardsForUsersWithClient(client, userIds);
+      }
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function ensureCurrentOshiboardsReady(pool) {
+  await ensureCurrentLeaderboardReady(pool);
+  const { rows } = await pool.query(
+    `
+    WITH eligible AS (
+      SELECT DISTINCT u.id AS user_id
+      FROM market.users u
+      JOIN market.portfolio_holdings h
+        ON h.user_id = u.id
+       AND h.asset_id = u.oshi_coin_asset_id
+       AND h.quantity > 0
+      JOIN (
+        SELECT user_id, MAX(quantity) AS max_quantity
+        FROM market.portfolio_holdings
+        WHERE quantity > 0
+        GROUP BY user_id
+      ) mh
+        ON mh.user_id = h.user_id
+       AND mh.max_quantity = h.quantity
+      WHERE u.oshi_coin_asset_id IS NOT NULL
+    )
+    SELECT
+      (SELECT COUNT(*)::INTEGER FROM eligible) AS eligible_count,
+      (SELECT COUNT(*)::INTEGER FROM market.user_oshiboard_current) AS board_count
+  `
+  );
+
+  if (toInt(rows[0]?.eligible_count, 0) !== toInt(rows[0]?.board_count, 0)) {
+    await refreshCurrentOshiboards(pool);
+  }
 }
 
 async function ensureCurrentLeaderboardReady(pool) {
@@ -857,6 +1001,218 @@ async function listCurrentNetWorthLeaderboard(pool, { limit = 100 } = {}) {
   return bundle.entries;
 }
 
+function mapOshiboardEntry(row) {
+  return {
+    user_id: toInt(row.user_id, 0),
+    username: String(row.username_snapshot || ""),
+    profile_picture_url: row.profile_picture_url ? String(row.profile_picture_url) : null,
+    profile_color: row.profile_color ? String(row.profile_color) : null,
+    rank: toInt(row.rank, 0),
+    coin_quantity: toNumber(row.coin_quantity, 0),
+    coin_market_value: toNumber(row.coin_market_value, 0),
+    total_equity: toNumber(row.total_equity, 0),
+    updated_at: row.updated_at ? new Date(row.updated_at).toISOString() : null,
+  };
+}
+
+async function getAssetOshiboard(pool, symbol, { limit = 50 } = {}) {
+  await ensureCurrentOshiboardsReady(pool);
+  const safeSymbol = String(symbol || "").trim().toUpperCase();
+  if (!safeSymbol) return null;
+  const safeLimit = Math.max(1, Math.min(100, toInt(limit, 50)));
+
+  const { rows } = await pool.query(
+    `
+    WITH asset AS (
+      SELECT
+        a.id,
+        a.symbol,
+        a.display_name,
+        a.current_mid_price,
+        a.current_premium_pct,
+        a.circulating_supply,
+        yc.icon,
+        yc.color
+      FROM market.market_assets a
+      LEFT JOIN yt.youtube_channels yc
+        ON yc.youtube_channel_id = a.youtube_channel_id
+      WHERE a.symbol = $1
+      LIMIT 1
+    ),
+    ranked AS (
+      SELECT
+        o.*,
+        ROW_NUMBER() OVER (
+          ORDER BY o.coin_quantity DESC, o.username_snapshot ASC, o.user_id ASC
+        )::INTEGER AS rank
+      FROM market.user_oshiboard_current o
+      JOIN asset a
+        ON a.id = o.asset_id
+    ),
+    stats AS (
+      SELECT
+        COUNT(*)::INTEGER AS member_count,
+        COALESCE(SUM(coin_quantity), 0) AS total_shares,
+        COALESCE(SUM(coin_market_value), 0) AS total_market_value,
+        MAX(updated_at) AS last_updated_at
+      FROM ranked
+    )
+    SELECT
+      a.id AS asset_id,
+      a.symbol,
+      a.display_name,
+      a.icon,
+      a.color,
+      a.current_mid_price,
+      a.current_premium_pct,
+      a.circulating_supply,
+      s.member_count,
+      s.total_shares,
+      s.total_market_value,
+      s.last_updated_at,
+      r.user_id,
+      r.username_snapshot,
+      r.profile_picture_url,
+      r.profile_color,
+      r.rank,
+      r.coin_quantity,
+      r.coin_market_value,
+      r.total_equity,
+      r.updated_at
+    FROM asset a
+    CROSS JOIN stats s
+    LEFT JOIN ranked r
+      ON true
+    ORDER BY r.rank ASC NULLS LAST
+    LIMIT $2
+  `,
+    [safeSymbol, safeLimit]
+  );
+
+  if (!rows.length) return null;
+  const first = rows[0];
+  return {
+    asset: {
+      id: toInt(first.asset_id, 0),
+      symbol: String(first.symbol || ""),
+      display_name: String(first.display_name || first.symbol || ""),
+      icon: first.icon ? String(first.icon) : null,
+      color: first.color ? String(first.color) : null,
+      current_mid_price: first.current_mid_price === null || first.current_mid_price === undefined ? null : toNumber(first.current_mid_price, 0),
+      current_premium_pct: first.current_premium_pct === null || first.current_premium_pct === undefined ? null : toNumber(first.current_premium_pct, 0),
+      circulating_supply: first.circulating_supply === null || first.circulating_supply === undefined ? null : toNumber(first.circulating_supply, 0),
+    },
+    stats: {
+      member_count: toInt(first.member_count, 0),
+      total_shares: toNumber(first.total_shares, 0),
+      total_market_value: toNumber(first.total_market_value, 0),
+      last_updated_at: first.last_updated_at ? new Date(first.last_updated_at).toISOString() : null,
+    },
+    entries: rows
+      .filter((row) => row.user_id !== null && row.user_id !== undefined)
+      .map(mapOshiboardEntry),
+  };
+}
+
+async function listUserOshiboardMemberships(pool, userId) {
+  await ensureCurrentOshiboardsReady(pool);
+  const safeUserId = toInt(userId, 0);
+  if (!safeUserId) return [];
+
+  const { rows } = await pool.query(
+    `
+    WITH user_boards AS (
+      SELECT DISTINCT asset_id
+      FROM market.user_oshiboard_current
+      WHERE user_id = $1
+    ),
+    ranked AS (
+      SELECT
+        o.*,
+        ROW_NUMBER() OVER (
+          PARTITION BY o.asset_id
+          ORDER BY o.coin_quantity DESC, o.username_snapshot ASC, o.user_id ASC
+        )::INTEGER AS rank
+      FROM market.user_oshiboard_current o
+      JOIN user_boards ub
+        ON ub.asset_id = o.asset_id
+    )
+    SELECT
+      a.id AS asset_id,
+      a.symbol,
+      a.display_name,
+      yc.icon,
+      yc.color,
+      r.rank,
+      r.coin_quantity,
+      r.coin_market_value,
+      r.total_equity,
+      r.updated_at,
+      board_stats.member_count,
+      board_stats.total_shares
+    FROM ranked r
+    JOIN market.market_assets a
+      ON a.id = r.asset_id
+    LEFT JOIN yt.youtube_channels yc
+      ON yc.youtube_channel_id = a.youtube_channel_id
+    JOIN LATERAL (
+      SELECT
+        COUNT(*)::INTEGER AS member_count,
+        COALESCE(SUM(coin_quantity), 0) AS total_shares
+      FROM market.user_oshiboard_current o
+      WHERE o.asset_id = r.asset_id
+    ) board_stats ON true
+    WHERE r.user_id = $1
+    ORDER BY r.rank ASC, a.symbol ASC
+  `,
+    [safeUserId]
+  );
+
+  return rows.map((row) => ({
+    asset: {
+      id: toInt(row.asset_id, 0),
+      symbol: String(row.symbol || ""),
+      display_name: String(row.display_name || row.symbol || ""),
+      icon: row.icon ? String(row.icon) : null,
+      color: row.color ? String(row.color) : null,
+    },
+    rank: toInt(row.rank, 0),
+    coin_quantity: toNumber(row.coin_quantity, 0),
+    coin_market_value: toNumber(row.coin_market_value, 0),
+    total_equity: toNumber(row.total_equity, 0),
+    member_count: toInt(row.member_count, 0),
+    total_shares: toNumber(row.total_shares, 0),
+    updated_at: row.updated_at ? new Date(row.updated_at).toISOString() : null,
+  }));
+}
+
+async function listOshiboardAssetStats(pool) {
+  await ensureCurrentOshiboardsReady(pool);
+  const { rows } = await pool.query(
+    `
+    SELECT
+      a.id AS asset_id,
+      a.symbol,
+      COUNT(o.user_id)::INTEGER AS member_count,
+      COALESCE(SUM(o.coin_quantity), 0) AS total_shares,
+      MAX(o.updated_at) AS last_updated_at
+    FROM market.market_assets a
+    LEFT JOIN market.user_oshiboard_current o
+      ON o.asset_id = a.id
+    GROUP BY a.id, a.symbol
+    ORDER BY a.symbol ASC
+  `
+  );
+
+  return rows.map((row) => ({
+    asset_id: toInt(row.asset_id, 0),
+    symbol: String(row.symbol || ""),
+    member_count: toInt(row.member_count, 0),
+    total_shares: toNumber(row.total_shares, 0),
+    last_updated_at: row.last_updated_at ? new Date(row.last_updated_at).toISOString() : null,
+  }));
+}
+
 async function listDailyNetWorthHistory(pool, userId, { limit = 60 } = {}) {
   const safeLimit = Math.max(1, Math.min(365, Number(limit) || 60));
   const { rows } = await pool.query(
@@ -945,6 +1301,9 @@ module.exports = {
   ensureCurrentLeaderboardReady,
   getCurrentNetWorth,
   getStarterCash,
+  getAssetOshiboard,
+  listOshiboardAssetStats,
+  listUserOshiboardMemberships,
   listCurrentNetWorthLeaderboard,
   listCurrentNetWorthByUserIds,
   listDailyNetWorthHistory,
@@ -953,4 +1312,6 @@ module.exports = {
   refreshCurrentLeaderboard,
   refreshCurrentLeaderboardForAssetWithClient,
   refreshCurrentLeaderboardWithClient,
+  refreshCurrentOshiboards,
+  refreshCurrentOshiboardsForUsersWithClient,
 };

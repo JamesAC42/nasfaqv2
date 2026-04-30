@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { fmtInteger } from "@/app/lib/format";
+import { getCompactNewsThumbnailUrl } from "@/app/lib/thumbnails";
 import { ChannelTickerPill } from "@/app/components/common/channel-ticker-pill";
 import { FaComment, FaHeart, FaNewspaper } from "react-icons/fa6";
 import type { NewsCharacter, NewsItem } from "@/app/lib/types";
@@ -39,13 +40,6 @@ function splitHeadline(headline: string) {
     title: trimmed.slice(0, cutoff).trim(),
     subhead: trimmed.slice(cutoff).trim() || null,
   };
-}
-
-function getCompactThumbnailUrl(url: string | null | undefined) {
-  if (!url) return null;
-  const lastSlashIndex = url.lastIndexOf("/");
-  if (lastSlashIndex < 0 || lastSlashIndex === url.length - 1) return url;
-  return `${url.slice(0, lastSlashIndex + 1)}thumbnail-${url.slice(lastSlashIndex + 1)}`;
 }
 
 function formatRelativeTime(value: string | null | undefined) {
@@ -264,7 +258,7 @@ export function NewsSection({ items, error }: { items: NewsItem[]; error: string
                       <article key={item.id} className={`${styles.item} ${styles.itemFeatured}`}>
                         {item.thumbnail_url ? (
                           <Link href={getArticleHref(item)} className={styles.mediaLink}>
-                            <img src={getCompactThumbnailUrl(item.thumbnail_url) || item.thumbnail_url} alt="" className={styles.thumb} />
+                            <img src={getCompactNewsThumbnailUrl(item.thumbnail_url) || item.thumbnail_url} alt="" className={styles.thumb} />
                           </Link>
                         ) : null}
                         <div className={styles.itemBody}>
@@ -312,7 +306,7 @@ export function NewsSection({ items, error }: { items: NewsItem[]; error: string
                     <article className={`${styles.item} ${styles.itemFeaturedCompact}`}>
                       {sideFeature.thumbnail_url ? (
                         <Link href={getArticleHref(sideFeature)} className={styles.mediaLink}>
-                          <img src={getCompactThumbnailUrl(sideFeature.thumbnail_url) || sideFeature.thumbnail_url} alt="" className={styles.thumb} />
+                          <img src={getCompactNewsThumbnailUrl(sideFeature.thumbnail_url) || sideFeature.thumbnail_url} alt="" className={styles.thumb} />
                         </Link>
                       ) : null}
                       <div className={styles.itemBody}>

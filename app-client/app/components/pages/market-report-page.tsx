@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   FaArrowTrendDown,
@@ -12,11 +13,9 @@ import {
   FaMagnifyingGlassChart,
   FaMoneyBillTrendUp,
   FaRegCalendar,
-  FaScaleBalanced,
   FaSignal,
   FaWallet,
 } from "react-icons/fa6";
-import { HiSparkles } from "react-icons/hi2";
 import { TrendChartCard } from "@/app/components/charts/market-charts";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { SiteShell } from "@/app/components/layout/site-shell";
@@ -27,6 +26,9 @@ import type { DailyReport, MarketAdjustmentOutcome, MarketAdjustmentSummary, Mar
 import { useMarketStore } from "@/app/stores/market-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/pages/market-report-page.module.scss";
+import bijou from "@/public/bijou.png";
+import scaredOkayu from "@/public/scaredokayu.png";
+import shionSide from "@/public/shionside.png";
 
 const MARKET_REPORT_INDEX_START_DATE = "2025-10-06";
 
@@ -41,10 +43,8 @@ function findAsset(assets: MarketAsset[], symbol: string) {
   return assets.find((asset) => asset.symbol === symbol) || null;
 }
 
-function rowMetric(row: ReportRow, kind: "premium" | "move" | "volume" | "fair") {
-  if (kind === "premium") return row.premium_discount_pct ?? row.premium_pct;
+function rowMetric(row: ReportRow, kind: "move" | "volume") {
   if (kind === "move") return row.move_pct;
-  if (kind === "fair") return row.base_rate_change_pct ?? row.fair_value_change_pct;
   return row.volume_change_pct;
 }
 
@@ -89,11 +89,13 @@ function formatAdjustmentTimeEt(value: string | null | undefined) {
   });
 }
 
-function baseGapPct(asset: MarketAsset) {
-  const marketPrice = asset.market_price ?? asset.current_mid_price;
-  const baseRate = asset.base_rate ?? asset.current_fair_value;
-  if (!marketPrice || !baseRate) return null;
-  return (marketPrice - baseRate) / baseRate;
+function formatReportDate(value: string | null | undefined) {
+  if (!value) return "—";
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const day = parsed.getDate();
+  const suffix = day % 10 === 1 && day !== 11 ? "st" : day % 10 === 2 && day !== 12 ? "nd" : day % 10 === 3 && day !== 13 ? "rd" : "th";
+  return `${parsed.toLocaleString(undefined, { month: "long" })} ${day}${suffix}, ${parsed.getFullYear()}`;
 }
 
 function adjustmentMovePct(asset: MarketAsset) {
@@ -106,12 +108,9 @@ function adjustmentMovePct(asset: MarketAsset) {
 function getReportGroups(report: DailyReport | null) {
   if (!report) return [];
   return [
-    { key: "premiums", title: "Premium Heat", icon: <HiSparkles />, rows: report.largest_market_premiums || report.largest_premiums || [], kind: "premium" as const },
-    { key: "discounts", title: "Discount Watch", icon: <FaArrowTrendDown />, rows: report.largest_market_discounts || report.largest_discounts || [], kind: "premium" as const },
     { key: "winners", title: "Breakouts", icon: <FaArrowTrendUp />, rows: report.biggest_winners || [], kind: "move" as const },
     { key: "losers", title: "Drawdowns", icon: <FaChartLine />, rows: report.biggest_losers || [], kind: "move" as const },
     { key: "volume", title: "Flow Acceleration", icon: <FaMoneyBillTrendUp />, rows: report.volume_winners || report.top_volume || [], kind: "volume" as const },
-    { key: "fair", title: "Base Rate Shifts", icon: <FaScaleBalanced />, rows: report.biggest_base_rate_increases || report.biggest_fair_value_increases || [], kind: "fair" as const },
   ].filter((group) => group.rows.length > 0);
 }
 
@@ -165,23 +164,19 @@ function buildPortfolioUnitExposure(portfolio: PortfolioSummary | null, assets: 
 }
 
 function buildInsightLines(report: DailyReport | null, allMarketIndex: MarketIndexBundle | null, portfolio: PortfolioSummary | null) {
-  const premium = (report?.largest_market_premiums || report?.largest_premiums)?.[0];
-  const discount = (report?.largest_market_discounts || report?.largest_discounts)?.[0];
   const winner = report?.biggest_winners?.[0];
   const loser = report?.biggest_losers?.[0];
   const breadth = allMarketIndex?.summary;
   const netPnl = portfolio?.total_unrealized_pnl ?? null;
 
   return [
-    premium ? `${premium.symbol} is pricing the richest premium at ${fmtPct(premium.premium_discount_pct ?? premium.premium_pct)}, so the tape is paying up above its base rate.` : null,
-    discount ? `${discount.symbol} is the deepest discount at ${fmtPct(discount.premium_discount_pct ?? discount.premium_pct)}, creating the clearest market-versus-base-rate gap in the report.` : null,
     winner && loser ? `Momentum dispersion is wide: ${winner.symbol} leads at ${fmtPct(winner.move_pct)} while ${loser.symbol} trails at ${fmtPct(loser.move_pct)}.` : null,
     breadth ? `Breadth is ${fmtInteger(breadth.advancers)} advancers against ${fmtInteger(breadth.decliners)} decliners across ${fmtInteger(breadth.constituent_count)} constituents.` : null,
     netPnl !== null ? `Your marked portfolio P/L is ${fmtNumber(netPnl, "$")}, so today's report can be read against your current exposure.` : null,
   ].filter((line): line is string => Boolean(line));
 }
 
-function StatCard({ label, value, meta, icon }: { label: string; value: string; meta: string; icon: ReactNode }) {
+function StatCard({ label, value, meta, icon }: { label: string; value: ReactNode; meta: string; icon: ReactNode }) {
   return (
     <article className={styles.statCard}>
       <span>{icon}{label}</span>
@@ -203,7 +198,7 @@ function ReportList({
   icon: ReactNode;
   rows: ReportRow[];
   assets: MarketAsset[];
-  kind: "premium" | "move" | "volume" | "fair";
+  kind: "move" | "volume";
   featured?: boolean;
 }) {
   return (
@@ -306,7 +301,6 @@ export function MarketReportPage() {
   const insights = useMemo(() => buildInsightLines(report, allMarketIndex, portfolio), [allMarketIndex, portfolio, report]);
   const portfolioExposure = useMemo(() => buildPortfolioUnitExposure(portfolio, assets), [assets, portfolio]);
   const topMover = useMemo(() => topAssetBy(assets, (asset) => asset.move_24h_pct), [assets]);
-  const topDiscount = useMemo(() => topAssetBy(assets, (asset) => asset.current_premium_pct, "min"), [assets]);
   const topVolume = useMemo(() => topAssetBy(assets, (asset) => asset.volume_24h), [assets]);
   const nextAdjustmentAsset = useMemo(
     () =>
@@ -326,20 +320,30 @@ export function MarketReportPage() {
         )[0] || null,
     [assets]
   );
-  const widestBaseGap = useMemo(
-    () =>
-      [...assets]
-        .map((asset) => ({ asset, gap: baseGapPct(asset) }))
-        .filter((item): item is { asset: MarketAsset; gap: number } => item.gap !== null)
-        .sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap))[0] || null,
-    [assets]
-  );
   const readyAdjustmentCount = useMemo(() => assets.filter((asset) => asset.adjustment_ready).length, [assets]);
   const nextTick = adjustmentSummary?.next_tick || null;
   const lastTick = adjustmentSummary?.last_tick || null;
   const totalReportVolume = useMemo(
     () => (report?.top_volume || report?.volume_winners || []).reduce((sum, row) => sum + (row.volume_cash || 0), 0),
     [report]
+  );
+  const reportFlowLeader = report?.top_volume?.[0] || null;
+  const reportFlowAsset = reportFlowLeader ? findAsset(assets, reportFlowLeader.symbol) : null;
+  const largestTickMovesUp = useMemo(
+    () =>
+      (adjustmentSummary?.leaderboards.movers || [])
+        .filter((item) => (item.move_pct ?? 0) > 0)
+        .sort((left, right) => (right.move_pct ?? 0) - (left.move_pct ?? 0))
+        .slice(0, 5),
+    [adjustmentSummary]
+  );
+  const largestTickMovesDown = useMemo(
+    () =>
+      (adjustmentSummary?.leaderboards.movers || [])
+        .filter((item) => (item.move_pct ?? 0) < 0)
+        .sort((left, right) => (left.move_pct ?? 0) - (right.move_pct ?? 0))
+        .slice(0, 5),
+    [adjustmentSummary]
   );
 
   return (
@@ -349,16 +353,13 @@ export function MarketReportPage() {
           <div className={styles.heroCopy}>
             <div className={styles.eyebrow}><FaMagnifyingGlassChart /> Market intelligence</div>
             <h1>Market Report</h1>
-            <p>
-              The latest settlement report turned into a decision surface: leaders, valuation gaps, flow shifts,
-              index context, and your portfolio exposure in one modern NASFAQ desk.
-            </p>
+            <p>Daily tape, valuation gaps, flow, and portfolio context.</p>
           </div>
           <div className={styles.heroVisual} aria-hidden="true" />
           <div className={styles.heroPanel}>
             <div>
               <span><FaRegCalendar /> Report date</span>
-              <strong>{report?.market_date || marketStatus?.last_settlement_market_date || "—"}</strong>
+              <strong>{formatReportDate(report?.market_date || marketStatus?.last_settlement_market_date)}</strong>
               <p>{fmtInteger(report?.asset_count)} settled assets · {marketStatus?.is_trading_open ? "market open" : "market paused"}</p>
             </div>
             <div className={styles.heroMiniStats}>
@@ -376,16 +377,26 @@ export function MarketReportPage() {
         <section className={styles.statGrid}>
           <StatCard label="All-market level" value={fmtNumber(allMarketIndex?.summary?.index_value)} meta={`${fmtPct(allMarketIndex?.summary?.day_return_pct)} 1D return`} icon={<FaGaugeHigh />} />
           <StatCard label="Breadth" value={`${fmtInteger(allMarketIndex?.summary?.advancers)} / ${fmtInteger(allMarketIndex?.summary?.decliners)}`} meta={`${fmtInteger(allMarketIndex?.summary?.constituent_count)} constituents`} icon={<FaCircleNodes />} />
-          <StatCard label="Top mover" value={topMover?.symbol || "—"} meta={fmtPct(topMover?.move_24h_pct)} icon={<FaArrowTrendUp />} />
+          <StatCard
+            label="Top mover"
+            value={topMover ? (
+              <span className={styles.statAssetValue}>
+                <AssetCoin symbol={topMover.symbol} icon={topMover.icon ?? null} color={topMover.color ?? null} className={styles.statAssetIcon} shape="circle" />
+                <span>{topMover.symbol}</span>
+              </span>
+            ) : "—"}
+            meta={fmtPct(topMover?.move_24h_pct)}
+            icon={<FaArrowTrendUp />}
+          />
           <StatCard label="Report flow" value={fmtNumber(totalReportVolume || topVolume?.volume_24h, totalReportVolume ? "$" : "")} meta={topVolume ? `${topVolume.symbol} leads spot activity` : "Latest settled basket"} icon={<FaMoneyBillTrendUp />} />
         </section>
 
         <section className={styles.adjustmentBrief}>
           <div>
             <span className={styles.adjustmentEyebrow}><FaSignal /> Scheduled adjustment rhythm</span>
-            <h2>Trading stays open between base-rate ticks.</h2>
+            <h2>The next price pulse is on deck.</h2>
             <p>
-              The report still summarizes settled activity, while live prices can now move at scheduled ticks toward each asset&apos;s base rate.
+              Coins keep trading between pulses. When the next one lands, prices can jump and the day&apos;s leaders can reshuffle fast.
             </p>
           </div>
           <div className={styles.adjustmentBriefStats}>
@@ -420,12 +431,7 @@ export function MarketReportPage() {
             <div>
               <span>Ready Assets</span>
               <strong>{fmtInteger(readyAdjustmentCount)} / {fmtInteger(assets.length)}</strong>
-              <em>Have base and market prices</em>
-            </div>
-            <div>
-              <span>Widest Gap</span>
-              <strong>{widestBaseGap?.asset.symbol || "N/A"}</strong>
-              <em>{widestBaseGap ? fmtPct(widestBaseGap.gap) : "N/A"}</em>
+              <em>Have market data</em>
             </div>
           </div>
         </section>
@@ -448,13 +454,13 @@ export function MarketReportPage() {
             <div className={styles.sectionHeader}>
               <div>
                 <h2>Adjustment Outcomes</h2>
-                <p>Recent tick summaries and rankings derived after interval application. Hidden tick weights stay hidden.</p>
+                <p>Recent tick summaries and rankings.</p>
               </div>
             </div>
             <div className={styles.tickRecapGrid}>
               {adjustmentSummary.recaps.slice(0, 3).map((recap) => (
                 <article key={`${recap.session_id}-${recap.interval_key}-${recap.applied_at}`} className={styles.tickRecapCard}>
-                  <span>{formatIntervalLabel(recap.interval_key)} · {recap.market_date}</span>
+                  <span>{formatIntervalLabel(recap.interval_key)} · {new Date(recap.market_date).toLocaleDateString()}</span>
                   <strong>{fmtInteger(recap.applied_count)} applied</strong>
                   <p>{fmtPct(recap.avg_abs_move_pct)} avg move · {fmtPct(recap.avg_gap_compression_pct)} gap compression · {fmtInteger(recap.skipped_count)} skipped</p>
                 </article>
@@ -462,11 +468,21 @@ export function MarketReportPage() {
             </div>
             <div className={styles.adjustmentBoardGrid}>
               <section className={styles.adjustmentBoard}>
-                <h3>Largest Tick Moves</h3>
+                <h3>Largest Moves Up</h3>
                 <div className={styles.adjustmentBoardRows}>
-                  {adjustmentSummary.leaderboards.movers.slice(0, 5).map((item, index) => (
-                    <AdjustmentOutcomeRow key={`${item.symbol}-${item.applied_at}-move`} item={item} metric="move" index={index} />
+                  {largestTickMovesUp.map((item, index) => (
+                    <AdjustmentOutcomeRow key={`${item.symbol}-${item.applied_at}-up`} item={item} metric="move" index={index} />
                   ))}
+                  {!largestTickMovesUp.length ? <div className={styles.empty}>No upward tick moves yet.</div> : null}
+                </div>
+              </section>
+              <section className={styles.adjustmentBoard}>
+                <h3>Largest Moves Down</h3>
+                <div className={styles.adjustmentBoardRows}>
+                  {largestTickMovesDown.map((item, index) => (
+                    <AdjustmentOutcomeRow key={`${item.symbol}-${item.applied_at}-down`} item={item} metric="move" index={index} />
+                  ))}
+                  {!largestTickMovesDown.length ? <div className={styles.empty}>No downward tick moves yet.</div> : null}
                 </div>
               </section>
               <section className={styles.adjustmentBoard}>
@@ -477,13 +493,6 @@ export function MarketReportPage() {
                   ))}
                 </div>
               </section>
-              <aside className={styles.adjustmentExplainer}>
-                <h3>Base Rate vs Market Price</h3>
-                <p>
-                  Base rate is the system&apos;s current fundamental anchor for an asset. Market price is the live tradable mark.
-                  Scheduled ticks can pull market price toward base rate after the tick happens, but the per-tick pull is intentionally not shown in advance.
-                </p>
-              </aside>
             </div>
           </section>
         ) : null}
@@ -492,11 +501,15 @@ export function MarketReportPage() {
           <section className={styles.tapeBand}>
             <span>Daily tape</span>
             <p>{insights[0]}</p>
-            <Link href="/market" className={styles.panelLink}>Open market desk</Link>
+            <Link href="/stocks" className={styles.panelLink}>Open market desk</Link>
           </section>
         ) : null}
 
         <section className={styles.commandGrid}>
+          <div className={styles.indexSideMascot} aria-hidden="true">
+            <Image src={shionSide} alt="" width={300} height={420} />
+          </div>
+
           <div className={styles.chartPanel}>
             <div className={styles.sectionHeader}>
               <div>
@@ -529,20 +542,27 @@ export function MarketReportPage() {
         <section className={styles.briefingGrid}>
           <article className={styles.briefingLead}>
             <span className={styles.eyebrow}><FaChartLine /> Report read</span>
-            <h2>{topMover?.symbol ? `${topMover.symbol} sets the tape.` : "The tape is still forming."}</h2>
+            <h2>
+              {topMover ? (
+                <span className={styles.briefingHeadline}>
+                  <AssetCoin symbol={topMover.symbol} icon={topMover.icon ?? null} color={topMover.color ?? null} className={styles.briefingCoin} shape="circle" />
+                  <span><strong>{topMover.symbol}</strong> sets the tape.</span>
+                </span>
+              ) : "The tape is still forming."}
+            </h2>
             <p>
               {insights[2] || insights[0] || "Once the settlement report fills in, this brief turns the raw table into a quick read on momentum, valuation pressure, and portfolio relevance."}
             </p>
           </article>
           <div className={styles.briefingStack}>
             <article>
-              <span>Valuation pressure</span>
-              <strong>{topDiscount?.symbol || "—"}</strong>
-              <p>{topDiscount ? `${topDiscount.symbol} screens as the deepest live discount at ${fmtPct(topDiscount.current_premium_pct)}.` : "No discount leader is available yet."}</p>
-            </article>
-            <article>
               <span>Portfolio angle</span>
-              <strong className={toneClass(portfolio?.total_unrealized_pnl)}>{portfolio ? fmtNumber(portfolio.total_unrealized_pnl, "$") : "—"}</strong>
+              <strong className={toneClass(portfolio?.total_unrealized_pnl)}>
+                <span className={styles.portfolioAngleValue}>
+                  <span>{portfolio ? fmtNumber(Math.abs(portfolio.total_unrealized_pnl), "$") : "-"}</span>
+                  {portfolio ? (portfolio.total_unrealized_pnl >= 0 ? <FaArrowTrendUp aria-hidden="true" /> : <FaArrowTrendDown aria-hidden="true" />) : null}
+                </span>
+              </strong>
               <p>{portfolio ? "Your marked P/L is now part of the report context." : "Sign in to connect this read to your own book."}</p>
             </article>
           </div>
@@ -553,7 +573,6 @@ export function MarketReportPage() {
             <div className={styles.sectionHeader}>
               <div>
                 <h2>Your Exposure</h2>
-                <p>Portfolio market value by unit, read against current report themes.</p>
               </div>
               <FaWallet className={styles.headerGlyph} />
             </div>
@@ -580,28 +599,33 @@ export function MarketReportPage() {
           <div className={styles.portfolioPanel}>
             <div className={styles.sectionHeader}>
               <div>
-                <h2>Mispricing Radar</h2>
-                <p>Spot valuation pressure from live asset data.</p>
+                <h2>Activity Radar</h2>
               </div>
               <FaLayerGroup className={styles.headerGlyph} />
             </div>
             <div className={styles.radarGrid}>
               <div>
-                <span>Deepest discount</span>
-                <strong>{topDiscount?.symbol || "—"}</strong>
-                <p className={toneClass(topDiscount?.current_premium_pct)}>{fmtPct(topDiscount?.current_premium_pct)}</p>
-              </div>
-              <div>
-                <span>Richest report premium</span>
-                <strong>{report?.largest_premiums?.[0]?.symbol || "—"}</strong>
-                <p className={toneClass(report?.largest_premiums?.[0]?.premium_pct)}>{fmtPct(report?.largest_premiums?.[0]?.premium_pct)}</p>
-              </div>
-              <div>
                 <span>Flow leader</span>
-                <strong>{topVolume?.symbol || report?.top_volume?.[0]?.symbol || "—"}</strong>
-                <p>{fmtNumber(topVolume?.volume_24h ?? report?.top_volume?.[0]?.volume_shares)} shares</p>
+                <strong>
+                  {topVolume ? (
+                    <span className={styles.radarAssetValue}>
+                      <AssetCoin symbol={topVolume.symbol} icon={topVolume.icon ?? null} color={topVolume.color ?? null} className={styles.radarCoin} shape="circle" />
+                      <span>{topVolume.symbol}</span>
+                    </span>
+                  ) : reportFlowLeader ? (
+                    <span className={styles.radarAssetValue}>
+                      <AssetCoin symbol={reportFlowLeader.symbol} icon={reportFlowAsset?.icon ?? null} color={reportFlowAsset?.color ?? null} className={styles.radarCoin} shape="circle" />
+                      <span>{reportFlowLeader.symbol}</span>
+                    </span>
+                  ) : "—"}
+                </strong>
+                <p>{fmtNumber(topVolume?.volume_24h ?? reportFlowLeader?.volume_shares)} shares</p>
               </div>
             </div>
+          </div>
+
+          <div className={styles.portfolioMascotColumn} aria-hidden="true">
+            <Image src={scaredOkayu} alt="" width={260} height={360} />
           </div>
         </section>
 
@@ -609,13 +633,20 @@ export function MarketReportPage() {
           <div className={styles.sectionHeader}>
             <div>
               <h2>Report Boards</h2>
-              <p>Leaderboards grouped by premium, discount, momentum, volume, and fair-value changes.</p>
+              <p>Leaderboards grouped by momentum and volume.</p>
             </div>
           </div>
           <div className={styles.reportGrid}>
-            {reportGroups.map((group, index) => (
-              <ReportList key={group.key} title={group.title} icon={group.icon} rows={group.rows} assets={assets} kind={group.kind} featured={index === 0} />
-            ))}
+            {reportGroups.flatMap((group, index) => {
+              const board = <ReportList key={group.key} title={group.title} icon={group.icon} rows={group.rows} assets={assets} kind={group.kind} featured={index === 0} />;
+              if (index !== 0) return [board];
+              return [
+                board,
+                <div key="bijou-report-mascot" className={styles.reportMascotColumn} aria-hidden="true">
+                  <Image src={bijou} alt="" width={252} height={252} />
+                </div>,
+              ];
+            })}
           </div>
         </section>
       </div>

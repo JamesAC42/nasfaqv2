@@ -49,6 +49,43 @@ function toMetricMap(rows, valueKeys) {
   );
 }
 
+const PUBLIC_MARKET_SENSITIVE_KEYS = new Set([
+  "base_rate",
+  "base_rate_change_pct",
+  "biggest_base_rate_increases",
+  "biggest_base_rate_decreases",
+  "current_fair_value",
+  "current_fair_value_raw",
+  "current_premium_pct",
+  "fair_value_change_pct",
+  "fundamental_value_raw",
+  "fundamental_value_smoothed",
+  "largest_discounts",
+  "largest_market_discounts",
+  "largest_market_premiums",
+  "largest_premiums",
+  "premium_close_pct",
+  "premium_discount_pct",
+  "premium_pct",
+  "top_base_rate",
+  "top_discounts",
+  "top_market_discounts",
+  "top_market_premiums",
+  "top_premiums",
+]);
+
+function scrubPublicMarketPayload(value) {
+  if (Array.isArray(value)) return value.map(scrubPublicMarketPayload);
+  if (value instanceof Date) return value;
+  if (!value || typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !PUBLIC_MARKET_SENSITIVE_KEYS.has(key))
+      .map(([key, item]) => [key, scrubPublicMarketPayload(item)])
+  );
+}
+
 function encodeCursor(cursor) {
   if (!cursor?.ts || !cursor?.id) return null;
   return Buffer.from(JSON.stringify({ ts: cursor.ts, id: cursor.id }), "utf8").toString("base64url");
@@ -70,7 +107,7 @@ router.get("/hub", async (req, res, next) => {
     const tradeLimit = parsePositiveInt(req.query.trade_limit, 20, { min: 1, max: 100 });
     const hub = await marketDb.getMarketHub(req.ctx.pool, { tradeLimit });
     res.json({
-      ...hub,
+      ...scrubPublicMarketPayload(hub),
       recent_trades: {
         items: hub.recent_trades.items,
         next_cursor: encodeCursor(hub.recent_trades.next_cursor),
@@ -104,10 +141,10 @@ router.get("/assets", async (req, res, next) => {
   try {
     const cachedAssets = await getCachedAssets(req.ctx.redis);
     if (cachedAssets) {
-      return res.json(cachedAssets);
+      return res.json(scrubPublicMarketPayload(cachedAssets));
     }
 
-    const assets = await marketDb.listAssets(req.ctx.pool);
+    const assets = scrubPublicMarketPayload(await marketDb.listAssets(req.ctx.pool));
     await setCachedAssets(req.ctx.redis, assets);
     res.json(assets);
   } catch (e) {
@@ -119,7 +156,7 @@ router.get("/report/daily/latest", async (req, res, next) => {
   try {
     const report = await marketDb.getLatestDailyReport(req.ctx.pool);
     if (!report) return res.status(404).json({ error: "report_not_found" });
-    res.json(report);
+    res.json(scrubPublicMarketPayload(report));
   } catch (e) {
     next(e);
   }
@@ -134,7 +171,7 @@ router.get("/report/daily/:date", async (req, res, next) => {
 
     const report = await marketDb.getDailyReportByDate(req.ctx.pool, marketDate);
     if (!report) return res.status(404).json({ error: "report_not_found" });
-    res.json(report);
+    res.json(scrubPublicMarketPayload(report));
   } catch (e) {
     next(e);
   }
@@ -311,7 +348,13 @@ router.get("/assets/:symbol/adjustments", async (req, res, next) => {
     if (!symbol) return res.status(400).json({ error: "missing_symbol" });
 
     const limit = parsePositiveInt(req.query.limit, 20, { min: 1, max: 100 });
-    const result = await marketAdjustments.getAssetAdjustmentHistory(req.ctx.pool, symbol, { limit });
+    const recentLimit = parsePositiveInt(req.query.recent_limit, 5, { min: 1, max: 20 });
+    const upcomingLimit = parsePositiveInt(req.query.upcoming_limit, 2, { min: 0, max: 10 });
+    const result = await marketAdjustments.getAssetAdjustmentHistory(req.ctx.pool, symbol, {
+      limit,
+      recentLimit,
+      upcomingLimit,
+    });
     res.json(result);
   } catch (e) {
     next(e);
@@ -479,10 +522,10 @@ router.get("/rankings", async (req, res, next) => {
       }),
     }));
 
-    res.json({
+    res.json(scrubPublicMarketPayload({
       superchat_range: superchatRange,
       rows,
-    });
+    }));
   } catch (e) {
     next(e);
   }
@@ -553,7 +596,7 @@ router.get("/assets/:symbol/stats", async (req, res, next) => {
 
     const range = String(req.query.range || "30d");
     const stats = await marketDb.getAssetStats(req.ctx.pool, symbol, { range });
-    res.json({ symbol, range, stats });
+    res.json(scrubPublicMarketPayload({ symbol, range, stats }));
   } catch (e) {
     next(e);
   }
@@ -566,7 +609,7 @@ router.get("/assets/:symbol/treasury", async (req, res, next) => {
 
     const treasury = await marketDb.getAssetTreasury(req.ctx.pool, symbol);
     if (!treasury) return res.status(404).json({ error: "asset_not_found" });
-    res.json(treasury);
+    res.json(scrubPublicMarketPayload(treasury));
   } catch (e) {
     next(e);
   }
@@ -605,7 +648,7 @@ router.get("/assets/:symbol", async (req, res, next) => {
 
     const asset = await marketDb.getAssetBySymbol(req.ctx.pool, symbol);
     if (!asset) return res.status(404).json({ error: "asset_not_found" });
-    res.json(asset);
+    res.json(scrubPublicMarketPayload(asset));
   } catch (e) {
     next(e);
   }

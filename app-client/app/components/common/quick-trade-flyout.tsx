@@ -22,7 +22,86 @@ type TradeFailureNotice = {
   message: string;
 };
 
+type TradeExecutionResult = {
+  order_id?: number | string;
+  status?: "pending" | "filled" | "cancelled" | "rejected";
+  order_type?: "market" | "live_market";
+  requested_quantity?: number;
+  execute_after?: string | null;
+  interval_limit?: number;
+  indicative_price?: number;
+  filled_quantity?: number;
+  executed_price?: number;
+  fee?: number;
+  total_cost?: number | null;
+  total_proceeds?: number | null;
+  cost_basis_sold?: number | null;
+  realized_pnl?: number | null;
+  side?: TradeSide;
+  symbol?: string;
+  updated_holdings?: {
+    quantity: number;
+    avg_cost_basis: number;
+  } | null;
+  updated_cash_balance?: number | null;
+  filled_at?: string | null;
+};
+
+type TradeConfirmation = {
+  mode: "filled" | "queued";
+  orderId: number | string | null;
+  side: TradeSide;
+  symbol: string;
+  requestedQuantity: number;
+  executeAfter: string | null;
+  intervalLimit: number | null;
+  filledQuantity: number;
+  executedPrice: number;
+  fee: number;
+  grossValue: number;
+  netCashImpact: number;
+  totalCost: number | null;
+  totalProceeds: number | null;
+  costBasisSold: number | null;
+  previousQuantity: number;
+  previousAvgCost: number;
+  nextQuantity: number;
+  nextAvgCost: number;
+  nextCashBalance: number | null;
+  currentMidPrice: number | null;
+  filledAt: string | null;
+  realizedPnl: number | null;
+  unrealizedPnl: number | null;
+  themePnl: number | null;
+  imageSrc: string;
+};
+
 const QUICK_TRADE_CLOSE_ANIMATION_MS = 170;
+const TRADE_CONFIRMATION_ANIMATION_MS = 280;
+const TRADE_QUANTITY_PRESETS = ["1", "10", "25", "50", "100"] as const;
+const TRADE_CONFIRMATION_BUY_IMAGES = [
+  "/emojis/azki.jpg",
+  "/emojis/nenethinking.jpg",
+  "/emojis/polkaglove.jpg",
+  "/emojis/watamehat.png",
+] as const;
+const TRADE_CONFIRMATION_SELL_LOSS_IMAGES = [
+  "/emojis/ina.png",
+  "/emojis/kroniiok.jpg",
+  "/emojis/marineomg.jpg",
+  "/emojis/miotired.jpg",
+  "/emojis/ogey.jpg",
+  "/emojis/pekorasad.jpg",
+  "/emojis/suiseigun.jpg",
+] as const;
+const TRADE_CONFIRMATION_SELL_GAIN_IMAGES = [
+  "/emojis/amemoney.jpg",
+  "/emojis/fubukidab.jpg",
+  "/emojis/kaijiwin.jpg",
+  "/emojis/mikomoney.png",
+  "/emojis/moriwine.jpg",
+  "/emojis/pekoraboing.png",
+] as const;
 
 function formatPrice(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
@@ -69,6 +148,80 @@ function getTradeFailureNotice(errorCode: string, side: TradeSide, symbol: strin
   }
 }
 
+function pickRandomItem<T>(items: readonly T[]): T {
+  return items[Math.floor(Math.random() * items.length)] as T;
+}
+
+function buildTradeConfirmation(args: {
+  result: TradeExecutionResult & { side: TradeSide; symbol: string };
+  currentMidPrice: number | null | undefined;
+  previousHolding: { quantity: number; avg_cost_basis: number } | null;
+}): TradeConfirmation {
+  const { result, currentMidPrice, previousHolding } = args;
+  const previousQuantity = previousHolding?.quantity ?? 0;
+  const previousAvgCost = previousHolding?.avg_cost_basis ?? 0;
+  const isQueued = result.order_type === "live_market" && result.status === "pending";
+  const filledQuantity = result.filled_quantity ?? 0;
+  const executedPrice = result.executed_price ?? (result.indicative_price ?? 0);
+  const fee = result.fee ?? 0;
+  const grossValue = filledQuantity * executedPrice;
+  const requestedQuantity = result.requested_quantity ?? filledQuantity;
+  const nextQuantity = result.updated_holdings?.quantity ?? (result.side === "buy" ? previousQuantity + filledQuantity : previousQuantity - filledQuantity);
+  const nextAvgCost = result.updated_holdings?.avg_cost_basis ?? (nextQuantity > 0 ? previousAvgCost : 0);
+  const totalCost = result.total_cost ?? (result.side === "buy" ? grossValue + fee : null);
+  const totalProceeds = result.total_proceeds ?? (result.side === "sell" ? grossValue - fee : null);
+  const costBasisSold = result.cost_basis_sold ?? (result.side === "sell" ? previousAvgCost * filledQuantity : null);
+  const netCashImpact = result.side === "buy" ? -(totalCost ?? (grossValue + fee)) : (totalProceeds ?? (grossValue - fee));
+  const realizedPnl =
+    result.side === "sell"
+      ? (result.realized_pnl ?? ((totalProceeds ?? (grossValue - fee)) - (costBasisSold ?? 0)))
+      : null;
+  const unrealizedPnl =
+    currentMidPrice !== null && currentMidPrice !== undefined && nextQuantity > 0
+      ? nextQuantity * (currentMidPrice - nextAvgCost)
+      : null;
+  const expectedSellPnl =
+    result.side === "sell" && isQueued
+      ? (requestedQuantity * executedPrice) - fee - (previousAvgCost * requestedQuantity)
+      : null;
+  const themePnl = result.side === "sell" ? (expectedSellPnl ?? realizedPnl) : null;
+  const imageSrc =
+    result.side === "buy"
+      ? pickRandomItem(TRADE_CONFIRMATION_BUY_IMAGES)
+      : (themePnl ?? 0) >= 0
+        ? pickRandomItem(TRADE_CONFIRMATION_SELL_GAIN_IMAGES)
+        : pickRandomItem(TRADE_CONFIRMATION_SELL_LOSS_IMAGES);
+
+  return {
+    mode: isQueued ? "queued" : "filled",
+    orderId: result.order_id ?? null,
+    side: result.side,
+    symbol: result.symbol,
+    requestedQuantity,
+    executeAfter: result.execute_after ?? null,
+    intervalLimit: result.interval_limit ?? null,
+    filledQuantity,
+    executedPrice,
+    fee,
+    grossValue,
+    netCashImpact,
+    totalCost,
+    totalProceeds,
+    costBasisSold,
+    previousQuantity,
+    previousAvgCost,
+    nextQuantity,
+    nextAvgCost,
+    nextCashBalance: result.updated_cash_balance ?? null,
+    currentMidPrice: currentMidPrice ?? null,
+    filledAt: result.filled_at ?? null,
+    realizedPnl,
+    unrealizedPnl,
+    themePnl,
+    imageSrc,
+  };
+}
+
 export function QuickTradeFlyout({
   asset,
   onClose,
@@ -85,7 +238,10 @@ export function QuickTradeFlyout({
   const fetchPortfolioOrders = useProfileStore((state) => state.fetchPortfolioOrders);
   const [tradeSide, setTradeSide] = useState<TradeSide>("buy");
   const [quantity, setQuantity] = useState("10");
+  const [lastQuantityPreset, setLastQuantityPreset] = useState<string | null>(null);
   const [failureNotice, setFailureNotice] = useState<TradeFailureNotice | null>(null);
+  const [tradeConfirmation, setTradeConfirmation] = useState<TradeConfirmation | null>(null);
+  const [isTradeConfirmationClosing, setIsTradeConfirmationClosing] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -105,6 +261,16 @@ export function QuickTradeFlyout({
     if (isClosing) return;
     setIsClosing(true);
     globalThis.setTimeout(onClose, QUICK_TRADE_CLOSE_ANIMATION_MS);
+  }
+
+  function closeTradeConfirmation() {
+    if (!tradeConfirmation || isTradeConfirmationClosing) return;
+    setIsTradeConfirmationClosing(true);
+    globalThis.setTimeout(() => {
+      setTradeConfirmation(null);
+      setIsTradeConfirmationClosing(false);
+      closeWithAnimation();
+    }, TRADE_CONFIRMATION_ANIMATION_MS);
   }
 
   async function handleTrade(event: FormEvent<HTMLFormElement>) {
@@ -133,19 +299,39 @@ export function QuickTradeFlyout({
 
     setIsSubmitting(true);
     setFailureNotice(null);
+    setTradeConfirmation(null);
+    setIsTradeConfirmationClosing(false);
     try {
-      await apiFetch(`/api/market/orders/${tradeSide}`, {
+      const previousHolding = holding;
+      const result = await apiFetch<TradeExecutionResult>(`/api/market/orders/${tradeSide}`, {
         method: "POST",
         body: JSON.stringify({ symbol: asset.symbol, quantity: Number(quantity) }),
       });
+      setTradeConfirmation(buildTradeConfirmation({
+        result: {
+          ...result,
+          side: result.side || tradeSide,
+          symbol: result.symbol || asset.symbol,
+        },
+        currentMidPrice: asset.current_mid_price,
+        previousHolding,
+      }));
       await Promise.all([fetchPortfolio(), fetchPortfolioOrders(), onTradeComplete?.()]);
-      closeWithAnimation();
     } catch (error) {
       const errorCode = String((error as Error).message || error);
       setFailureNotice(getTradeFailureNotice(errorCode, tradeSide, asset.symbol));
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  function applyQuantityPreset(preset: string) {
+    if (lastQuantityPreset === preset) {
+      setQuantity((current) => String((Number(current) || 0) + Number(preset)));
+    } else {
+      setQuantity(preset);
+    }
+    setLastQuantityPreset(preset);
   }
 
   const flyout = (
@@ -212,13 +398,16 @@ export function QuickTradeFlyout({
                         value={quantity}
                         inputMode="decimal"
                         disabled={!tradingOpen || isSubmitting}
-                        onChange={(event) => setQuantity(event.target.value)}
+                        onChange={(event) => {
+                          setQuantity(event.target.value);
+                          setLastQuantityPreset(null);
+                        }}
                       />
                     </label>
 
                     <div className={detailStyles.tradePresets}>
-                      {["10", "25", "50", "100"].map((preset) => (
-                        <button key={preset} type="button" className={detailStyles.presetButton} onClick={() => setQuantity(preset)}>
+                      {TRADE_QUANTITY_PRESETS.map((preset) => (
+                        <button key={preset} type="button" className={detailStyles.presetButton} onClick={() => applyQuantityPreset(preset)}>
                           {preset}
                         </button>
                       ))}
@@ -302,6 +491,208 @@ export function QuickTradeFlyout({
           </div>
         </div>
       ) : null}
+
+      {tradeConfirmation ? (() => {
+        const isQueued = tradeConfirmation.mode === "queued";
+        const isPositiveTradeTheme = tradeConfirmation.side === "buy" || (tradeConfirmation.themePnl ?? tradeConfirmation.realizedPnl ?? 0) >= 0;
+        return (
+          <div
+            className={[
+              detailStyles.tradeConfirmationOverlay,
+              isTradeConfirmationClosing ? detailStyles.tradeConfirmationOverlayClosing : "",
+            ].filter(Boolean).join(" ")}
+            onClick={closeTradeConfirmation}
+          >
+            <div
+              className={[
+                detailStyles.tradeConfirmationFrame,
+                isPositiveTradeTheme ? detailStyles.tradeConfirmationFrameBuy : detailStyles.tradeConfirmationFrameSell,
+              ].join(" ")}
+            >
+              <div
+                className={[
+                  detailStyles.tradeConfirmationModal,
+                  isPositiveTradeTheme ? detailStyles.tradeConfirmationModalBuy : detailStyles.tradeConfirmationModalSell,
+                  isTradeConfirmationClosing ? detailStyles.tradeConfirmationModalClosing : "",
+                ].filter(Boolean).join(" ")}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="trade-confirmation-title"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div
+                  className={[
+                    detailStyles.tradeConfirmationHero,
+                    isPositiveTradeTheme ? detailStyles.tradeConfirmationHeroBuy : detailStyles.tradeConfirmationHeroSell,
+                  ].join(" ")}
+                >
+                  <div>
+                    <span className={detailStyles.tradeConfirmationEyebrow}>
+                      {isQueued ? "Live Order Queued" : tradeConfirmation.side === "buy" ? "Buy Filled" : "Sell Filled"}
+                    </span>
+                    <h2 id="trade-confirmation-title" className={detailStyles.tradeConfirmationTitle}>
+                      {isQueued
+                        ? "Order queued for next tick"
+                        : tradeConfirmation.side === "buy"
+                          ? "Position updated"
+                          : (tradeConfirmation.realizedPnl ?? 0) >= 0
+                            ? `Nice! Capital gains = ${fmtNumber(tradeConfirmation.realizedPnl, "$")}`
+                            : `Tough break. Capital loss = ${fmtNumber(Math.abs(tradeConfirmation.realizedPnl ?? 0), "$")}`}
+                    </h2>
+                    <div className={detailStyles.tradeConfirmationSubheader}>
+                      <AssetCoin
+                        symbol={tradeConfirmation.symbol}
+                        icon={asset.icon ?? null}
+                        color={asset.color ?? null}
+                        className={detailStyles.tradeConfirmationTickerIcon}
+                      />
+                      <p className={detailStyles.tradeConfirmationCopy}>
+                        <strong className={detailStyles.tradeConfirmationTicker}>${tradeConfirmation.symbol}</strong>
+                        <span>
+                          {isQueued
+                            ? `${fmtNumber(tradeConfirmation.requestedQuantity)} shares will execute on the next 10-minute tick.`
+                            : `${fmtNumber(tradeConfirmation.filledQuantity)} shares executed at ${fmtNumber(tradeConfirmation.executedPrice, "$")} per share.`}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className={detailStyles.tradeConfirmationClose}
+                    onClick={closeTradeConfirmation}
+                    aria-label="Close trade confirmation"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className={detailStyles.tradeConfirmationBody}>
+                  <div className={detailStyles.tradeConfirmationLayout}>
+                    <div className={detailStyles.tradeConfirmationImageSlot}>
+                      <Image
+                        src={tradeConfirmation.imageSrc}
+                        alt="Trade confirmation illustration"
+                        width={320}
+                        height={320}
+                        className={detailStyles.tradeConfirmationImage}
+                      />
+                    </div>
+
+                    <div className={detailStyles.tradeConfirmationContent}>
+                      <div className={detailStyles.tradeConfirmationGrid}>
+                        <div className={detailStyles.tradeConfirmationCard}>
+                          <span>{isQueued ? "Requested Shares" : tradeConfirmation.side === "buy" ? "Total Cost" : "Gross Value"}</span>
+                          <strong>{isQueued ? fmtNumber(tradeConfirmation.requestedQuantity) : fmtNumber(tradeConfirmation.side === "buy" ? tradeConfirmation.totalCost : tradeConfirmation.grossValue, "$")}</strong>
+                        </div>
+                        <div className={detailStyles.tradeConfirmationCard}>
+                          <span>{isQueued ? "Order ID" : "Fee"}</span>
+                          <strong>{isQueued ? `#${tradeConfirmation.orderId || "new"}` : fmtNumber(tradeConfirmation.fee, "$")}</strong>
+                        </div>
+                        <div className={detailStyles.tradeConfirmationCard}>
+                          <span>{isQueued ? "Executes Around" : tradeConfirmation.side === "buy" ? "Cash Change" : "Net Proceeds"}</span>
+                          <strong className={isQueued || tradeConfirmation.netCashImpact >= 0 ? detailStyles.valueUp : detailStyles.valueDown}>
+                            {isQueued ? fmtDate(tradeConfirmation.executeAfter) : formatSignedCurrency(tradeConfirmation.netCashImpact)}
+                          </strong>
+                        </div>
+                        <div className={detailStyles.tradeConfirmationCard}>
+                          <span>{isQueued ? "Interval Limit" : "New Cash Balance"}</span>
+                          <strong>{isQueued ? `${fmtNumber(tradeConfirmation.intervalLimit)} orders` : fmtNumber(tradeConfirmation.nextCashBalance, "$")}</strong>
+                        </div>
+                      </div>
+
+                      <div className={detailStyles.tradeConfirmationColumns}>
+                        <section className={detailStyles.tradeConfirmationSection}>
+                          <h3>Position</h3>
+                          <div className={detailStyles.tradeConfirmationMetricList}>
+                            <div className={detailStyles.tradeConfirmationMetric}>
+                              <span>Shares owned</span>
+                              <strong>{fmtNumber(tradeConfirmation.previousQuantity)} → {fmtNumber(tradeConfirmation.nextQuantity)}</strong>
+                            </div>
+                            <div className={detailStyles.tradeConfirmationMetric}>
+                              <span>Average cost</span>
+                              <strong>{fmtNumber(tradeConfirmation.previousAvgCost, "$")} → {fmtNumber(tradeConfirmation.nextAvgCost, "$")}</strong>
+                            </div>
+                            <div className={detailStyles.tradeConfirmationMetric}>
+                              <span>Marked at</span>
+                              <strong>{fmtNumber(tradeConfirmation.currentMidPrice, "$")}</strong>
+                            </div>
+                            <div className={detailStyles.tradeConfirmationMetric}>
+                              <span>{tradeConfirmation.side === "buy" ? "Estimated unrealized P/L" : "Actual realized P/L"}</span>
+                              <strong className={((tradeConfirmation.side === "buy" ? tradeConfirmation.unrealizedPnl : tradeConfirmation.realizedPnl) ?? 0) >= 0 ? detailStyles.valueUp : detailStyles.valueDown}>
+                                {formatSignedCurrency(tradeConfirmation.side === "buy" ? tradeConfirmation.unrealizedPnl : tradeConfirmation.realizedPnl)}
+                              </strong>
+                            </div>
+                          </div>
+                        </section>
+
+                        <section className={detailStyles.tradeConfirmationSection}>
+                          <h3>{tradeConfirmation.side === "buy" ? "What changed" : "Remaining position"}</h3>
+                          <div className={detailStyles.tradeConfirmationMetricList}>
+                            {isQueued ? (
+                              <>
+                                <div className={detailStyles.tradeConfirmationMetric}>
+                                  <span>Side</span>
+                                  <strong className={tradeConfirmation.side === "buy" ? detailStyles.valueUp : detailStyles.valueDown}>{tradeConfirmation.side.toUpperCase()}</strong>
+                                </div>
+                                <div className={detailStyles.tradeConfirmationMetric}>
+                                  <span>Execution rule</span>
+                                  <strong>Next 10-minute tick</strong>
+                                </div>
+                                <div className={detailStyles.tradeConfirmationMetric}>
+                                  <span>Fill check</span>
+                                  <strong>Cash, holdings, and quote rechecked at execution</strong>
+                                </div>
+                              </>
+                            ) : tradeConfirmation.side === "buy" ? (
+                              <>
+                                <div className={detailStyles.tradeConfirmationMetric}>
+                                  <span>Shares added</span>
+                                  <strong className={detailStyles.valueUp}>+{fmtNumber(tradeConfirmation.filledQuantity)}</strong>
+                                </div>
+                                <div className={detailStyles.tradeConfirmationMetric}>
+                                  <span>New weighted average</span>
+                                  <strong>{fmtNumber(tradeConfirmation.nextAvgCost, "$")}</strong>
+                                </div>
+                                <div className={detailStyles.tradeConfirmationMetric}>
+                                  <span>Fill time</span>
+                                  <strong>{fmtDate(tradeConfirmation.filledAt)}</strong>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className={detailStyles.tradeConfirmationMetric}>
+                                  <span>Cost basis sold</span>
+                                  <strong>{fmtNumber(tradeConfirmation.costBasisSold, "$")}</strong>
+                                </div>
+                                <div className={detailStyles.tradeConfirmationMetric}>
+                                  <span>Shares remaining</span>
+                                  <strong>{fmtNumber(tradeConfirmation.nextQuantity)}</strong>
+                                </div>
+                                <div className={detailStyles.tradeConfirmationMetric}>
+                                  <span>Remaining unrealized P/L</span>
+                                  <strong className={(tradeConfirmation.unrealizedPnl ?? 0) >= 0 ? detailStyles.valueUp : detailStyles.valueDown}>
+                                    {formatSignedCurrency(tradeConfirmation.unrealizedPnl)}
+                                  </strong>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </section>
+                      </div>
+
+                      <div className={detailStyles.tradeConfirmationActions}>
+                        <button type="button" className={detailStyles.tradeConfirmationPrimary} onClick={closeTradeConfirmation}>
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })() : null}
     </>
   );
 

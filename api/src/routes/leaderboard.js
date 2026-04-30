@@ -1,5 +1,11 @@
 const express = require("express");
 const netWorth = require("../services/netWorth");
+const {
+  buildAssetOshiboardCacheKey,
+  getCachedJson,
+  MARKET_ASSET_OSHIBOARD_CACHE_TTL_SECONDS,
+  setCachedJson,
+} = require("../marketCache");
 
 const router = express.Router();
 
@@ -39,6 +45,44 @@ router.get("/net-worth", async (req, res, next) => {
     const userIds = parseUserIds(req.query.user_ids);
     const entries = await netWorth.listCurrentNetWorthByUserIds(req.ctx.pool, userIds);
     res.json({ entries });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/oshiboard/memberships/:userId", async (req, res, next) => {
+  try {
+    const userId = Number.parseInt(String(req.params.userId || ""), 10);
+    if (!Number.isFinite(userId) || userId <= 0) return res.status(400).json({ error: "invalid_user_id" });
+    const memberships = await netWorth.listUserOshiboardMemberships(req.ctx.pool, userId);
+    res.json({ memberships });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/oshiboard-assets", async (req, res, next) => {
+  try {
+    const rows = await netWorth.listOshiboardAssetStats(req.ctx.pool);
+    res.json({ rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/oshiboard/:symbol", async (req, res, next) => {
+  try {
+    const symbol = String(req.params.symbol || "").trim().toUpperCase();
+    if (!symbol) return res.status(400).json({ error: "missing_symbol" });
+    const limit = parseLimit(req.query.limit, 50);
+    const cacheKey = buildAssetOshiboardCacheKey(symbol, limit);
+    const cached = await getCachedJson(req.ctx.redis, cacheKey);
+    if (cached) return res.json(cached);
+
+    const board = await netWorth.getAssetOshiboard(req.ctx.pool, symbol, { limit });
+    if (!board) return res.status(404).json({ error: "asset_not_found" });
+    await setCachedJson(req.ctx.redis, cacheKey, board, MARKET_ASSET_OSHIBOARD_CACHE_TTL_SECONDS);
+    res.json(board);
   } catch (error) {
     next(error);
   }

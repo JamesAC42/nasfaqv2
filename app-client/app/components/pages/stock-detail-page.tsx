@@ -16,6 +16,7 @@ import {
 } from "@/app/components/charts/market-charts";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { MarketSidebar } from "@/app/components/common/market-sidebar";
+import { OshiboardPanel } from "@/app/components/oshiboard/oshiboard-panel";
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { LivestreamModal, type LivestreamModalItem } from "@/app/components/livestreams/livestream-modal";
@@ -31,6 +32,7 @@ import {
   normalizeCandles,
   normalizeLivestreams,
   normalizeMarketAssetAdjustmentHistory,
+  normalizeOshiboardResponse,
 } from "@/app/lib/normalizers";
 import { getBucketWsUrl } from "@/app/lib/ws";
 import { ARTICLE_COMMENT_MOODS } from "@/app/lib/types";
@@ -44,7 +46,9 @@ import type {
   ChannelOverviewRow,
   LivestreamItem,
   MarketAssetAdjustmentHistory,
+  MarketAdjustmentOutcome,
   MarketAsset,
+  OshiboardResponse,
   PortfolioHolding,
   CandlePoint,
 } from "@/app/lib/types";
@@ -246,6 +250,7 @@ type TradeConfirmation = {
   filledAt: string | null;
   realizedPnl: number | null;
   unrealizedPnl: number | null;
+  themePnl: number | null;
   imageSrc: string;
 };
 
@@ -309,6 +314,8 @@ type TradeFailureNotice = {
   title: string;
   message: string;
 };
+
+const TRADE_QUANTITY_PRESETS = ["1", "10", "25", "50", "100"] as const;
 
 const COMMENT_MOOD_META: Record<ArticleCommentMood, { icon: IconType; badgeClassName: string; optionClassName: string }> = {
   Bullish: { icon: FaArrowTrendUp, badgeClassName: styles.commentMoodBadgeBullish, optionClassName: styles.commentMoodOptionBullish },
@@ -391,6 +398,11 @@ function formatAdjustmentTime(value: string | null | undefined) {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function buildAdjustmentKey(item: MarketAdjustmentOutcome | null | undefined) {
+  if (!item) return "";
+  return `${item.id ?? "item"}-${item.market_date || "date"}-${item.interval_key}-${item.scheduled_at || item.applied_at || ""}`;
 }
 
 function formatRelativeTime(value: string | null | undefined) {
@@ -612,6 +624,7 @@ function buildTradeConfirmation(args: {
   const executedPrice = result.executed_price ?? (result.indicative_price ?? 0);
   const fee = result.fee ?? 0;
   const grossValue = filledQuantity * executedPrice;
+  const requestedQuantity = result.requested_quantity ?? filledQuantity;
   const nextQuantity = result.updated_holdings?.quantity ?? (result.side === "buy" ? previousQuantity + filledQuantity : previousQuantity - filledQuantity);
   const nextAvgCost = result.updated_holdings?.avg_cost_basis ?? (nextQuantity > 0 ? previousAvgCost : 0);
   const totalCost = result.total_cost ?? (result.side === "buy" ? grossValue + fee : null);
@@ -626,10 +639,15 @@ function buildTradeConfirmation(args: {
     currentMidPrice !== null && currentMidPrice !== undefined && nextQuantity > 0
       ? nextQuantity * (currentMidPrice - nextAvgCost)
       : null;
+  const expectedSellPnl =
+    result.side === "sell" && isQueued
+      ? (requestedQuantity * executedPrice) - fee - (previousAvgCost * requestedQuantity)
+      : null;
+  const themePnl = result.side === "sell" ? (expectedSellPnl ?? realizedPnl) : null;
   const imageSrc =
     result.side === "buy"
       ? pickRandomItem(TRADE_CONFIRMATION_BUY_IMAGES)
-      : (realizedPnl ?? 0) >= 0
+      : (themePnl ?? 0) >= 0
         ? pickRandomItem(TRADE_CONFIRMATION_SELL_GAIN_IMAGES)
         : pickRandomItem(TRADE_CONFIRMATION_SELL_LOSS_IMAGES);
 
@@ -638,7 +656,7 @@ function buildTradeConfirmation(args: {
     orderId: result.order_id ?? null,
     side: result.side,
     symbol: result.symbol,
-    requestedQuantity: result.requested_quantity ?? filledQuantity,
+    requestedQuantity,
     executeAfter: result.execute_after ?? null,
     intervalLimit: result.interval_limit ?? null,
     filledQuantity,
@@ -658,6 +676,7 @@ function buildTradeConfirmation(args: {
     filledAt: result.filled_at ?? null,
     realizedPnl,
     unrealizedPnl,
+    themePnl,
     imageSrc,
   };
 }
@@ -975,6 +994,7 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   const clearPortfolio = useProfileStore((state) => state.clearPortfolio);
   const [tradeSide, setTradeSide] = useState<"buy" | "sell">("buy");
   const [tradeQuantity, setTradeQuantity] = useState("10");
+  const [lastTradeQuantityPreset, setLastTradeQuantityPreset] = useState<string | null>(null);
   const [tradeError, setTradeError] = useState<string | null>(null);
   const [tradeFailureNotice, setTradeFailureNotice] = useState<TradeFailureNotice | null>(null);
   const [tradeConfirmation, setTradeConfirmation] = useState<TradeConfirmation | null>(null);
@@ -1023,6 +1043,10 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   const [deferredReadySymbol, setDeferredReadySymbol] = useState<string | null>(null);
   const [adjustmentHistory, setAdjustmentHistory] = useState<MarketAssetAdjustmentHistory | null>(null);
   const [adjustmentHistoryError, setAdjustmentHistoryError] = useState<string | null>(null);
+  const [selectedAdjustmentKey, setSelectedAdjustmentKey] = useState<string | null>(null);
+  const [oshiboard, setOshiboard] = useState<OshiboardResponse | null>(null);
+  const [oshiboardError, setOshiboardError] = useState<string | null>(null);
+  const [isLoadingOshiboard, setIsLoadingOshiboard] = useState(false);
   const tradeConfirmationCloseTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
   const showDeferredSections = deferredReadySymbol === normalizedSymbol;
 
@@ -1079,16 +1103,22 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     let cancelled = false;
     async function loadAdjustmentHistory() {
       try {
-        const result = await apiFetch<Record<string, unknown>>(`/api/market/assets/${encodeURIComponent(normalizedSymbol)}/adjustments?limit=12`, {
+        const result = await apiFetch<Record<string, unknown>>(`/api/market/assets/${encodeURIComponent(normalizedSymbol)}/adjustments?recent_limit=5&upcoming_limit=2`, {
           cache: "no-store",
         });
         if (!cancelled) {
-          setAdjustmentHistory(normalizeMarketAssetAdjustmentHistory(result));
+          const history = normalizeMarketAssetAdjustmentHistory(result);
+          setAdjustmentHistory(history);
+          setSelectedAdjustmentKey((current) => {
+            if (current && history.items.some((item) => buildAdjustmentKey(item) === current)) return current;
+            return buildAdjustmentKey(history.items[0]);
+          });
           setAdjustmentHistoryError(null);
         }
       } catch (nextError) {
         if (!cancelled) {
           setAdjustmentHistory(null);
+          setSelectedAdjustmentKey(null);
           setAdjustmentHistoryError(String((nextError as Error).message || nextError));
         }
       }
@@ -1210,6 +1240,32 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
       cancelled = true;
     };
   }, [intradayCandleInterval, normalizedSymbol, showDeferredSections]);
+
+  useEffect(() => {
+    if (!normalizedSymbol) return;
+    let cancelled = false;
+
+    async function fetchOshiboard() {
+      setIsLoadingOshiboard(true);
+      setOshiboardError(null);
+      try {
+        const result = await apiFetch<Record<string, unknown>>(`/api/leaderboard/oshiboard/${encodeURIComponent(normalizedSymbol)}?limit=12`);
+        if (!cancelled) setOshiboard(normalizeOshiboardResponse(result));
+      } catch (nextError) {
+        if (!cancelled) {
+          setOshiboard(null);
+          setOshiboardError(String((nextError as Error).message || nextError));
+        }
+      } finally {
+        if (!cancelled) setIsLoadingOshiboard(false);
+      }
+    }
+
+    void fetchOshiboard();
+    return () => {
+      cancelled = true;
+    };
+  }, [normalizedSymbol]);
 
   const selectedAsset = useMemo(
     () => assets.find((item) => item.symbol.toUpperCase() === normalizedSymbol) || null,
@@ -1650,6 +1706,15 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     }
   }
 
+  function applyTradeQuantityPreset(preset: string) {
+    if (lastTradeQuantityPreset === preset) {
+      setTradeQuantity((current) => String((Number(current) || 0) + Number(preset)));
+    } else {
+      setTradeQuantity(preset);
+    }
+    setLastTradeQuantityPreset(preset);
+  }
+
   async function handleCommentSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedAsset || !commentBody.trim()) return;
@@ -1879,30 +1944,40 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   const currentMidPrice = fmtNumber(selectedAsset?.current_mid_price, "$");
   const current24hMove = formatSignedPct(selectedAsset?.move_24h_pct);
   const isPositive = selectedAsset?.move_24h_pct !== null && selectedAsset?.move_24h_pct !== undefined && selectedAsset?.move_24h_pct >= 0;
-  const baseRate = selectedAsset?.base_rate ?? selectedAsset?.current_fair_value ?? null;
   const marketPrice = selectedAsset?.market_price ?? selectedAsset?.current_mid_price ?? null;
-  const baseGapPct = marketPrice && baseRate ? (marketPrice - baseRate) / baseRate : null;
-  const basePressureLabel =
-    baseGapPct === null
-      ? "No base signal"
-      : baseGapPct > 0
-        ? "Above base rate"
-        : baseGapPct < 0
-          ? "Below base rate"
-          : "At base rate";
   const nextAdjustment = selectedAsset?.next_adjustment || null;
   const latestAdjustment = selectedAsset?.latest_adjustment || null;
   const adjustmentEnabled = selectedAsset?.adjustment_enabled !== false;
-  const pressureMeterPct = baseGapPct === null ? 50 : Math.max(5, Math.min(95, 50 + baseGapPct * 220));
   const latestAdjustmentMovePct =
     latestAdjustment?.price_before && latestAdjustment.price_after !== null && latestAdjustment.price_after !== undefined
       ? (latestAdjustment.price_after - latestAdjustment.price_before) / latestAdjustment.price_before
       : null;
+  const driftSinceLastTickPct =
+    latestAdjustment?.price_after && marketPrice !== null && marketPrice !== undefined
+      ? (marketPrice - latestAdjustment.price_after) / latestAdjustment.price_after
+      : null;
+  const driftMarkerPct = driftSinceLastTickPct === null ? 50 : Math.max(5, Math.min(95, 50 + driftSinceLastTickPct * 220));
+  const driftLabel =
+    driftSinceLastTickPct === null
+      ? "No tick yet"
+      : driftSinceLastTickPct > 0
+        ? "Drifted up"
+        : driftSinceLastTickPct < 0
+          ? "Drifted down"
+          : "Flat since tick";
+  const selectedAdjustment = useMemo(() => {
+    const items = adjustmentHistory?.items || [];
+    return items.find((item) => buildAdjustmentKey(item) === selectedAdjustmentKey) || items[0] || null;
+  }, [adjustmentHistory?.items, selectedAdjustmentKey]);
+  const selectedAdjustmentMovePct =
+    selectedAdjustment?.price_before && selectedAdjustment.price_after !== null && selectedAdjustment.price_after !== undefined
+      ? (selectedAdjustment.price_after - selectedAdjustment.price_before) / selectedAdjustment.price_before
+      : selectedAdjustment?.move_pct ?? null;
   
   const heroPrimaryStats: HeroStat[] = [
     { label: "Mid Price", value: currentMidPrice, accent: false },
     { label: "24H Move", value: current24hMove, accent: isPositive, tone: isPositive ? "up" : "down" },
-    { label: "Base Rate", value: fmtNumber(baseRate, "$"), accent: false },
+    { label: "Bid / Ask", value: `${fmtNumber(selectedAsset?.current_bid_price, "$")} / ${fmtNumber(selectedAsset?.current_ask_price, "$")}`, accent: false },
     { label: "24H Volume", value: fmtNumber(selectedAsset?.volume_24h), meta: "shares", accent: false },
   ];
   const heroMetaStats: HeroStat[] = [
@@ -2234,13 +2309,16 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                   value={tradeQuantity}
                   inputMode="decimal"
                   disabled={!tradingOpen}
-                  onChange={(event) => setTradeQuantity(event.target.value)}
+                  onChange={(event) => {
+                    setTradeQuantity(event.target.value);
+                    setLastTradeQuantityPreset(null);
+                  }}
                 />
               </label>
 
               <div className={styles.tradePresets}>
-                {["10", "25", "50", "100"].map((preset) => (
-                  <button key={preset} type="button" className={styles.presetButton} onClick={() => setTradeQuantity(preset)}>
+                {TRADE_QUANTITY_PRESETS.map((preset) => (
+                  <button key={preset} type="button" className={styles.presetButton} onClick={() => applyTradeQuantityPreset(preset)}>
                     {preset}
                   </button>
                 ))}
@@ -2256,8 +2334,8 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                   <strong>{fmtNumber(selectedAsset?.current_bid_price, "$")} / {fmtNumber(selectedAsset?.current_ask_price, "$")}</strong>
                 </div>
                 <div>
-                  <span>Premium</span>
-                  <strong>{fmtPct(selectedAsset?.current_premium_pct)}</strong>
+                  <span>Volume</span>
+                  <strong>{fmtNumber(selectedAsset?.volume_24h)}</strong>
                 </div>
               </div>
 
@@ -2546,8 +2624,8 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
           <section className={styles.adjustmentSection}>
             <div className={styles.sectionHeader}>
               <div>
-                <h2 className={styles.sectionTitle}>Base Rate Pressure</h2>
-                <p className={styles.sectionCopy}>Scheduled ticks can move market price toward base rate while trading remains open.</p>
+                <h2 className={styles.sectionTitle}>Adjustment Schedule</h2>
+                <p className={styles.sectionCopy}>Track public tick movement without exposing the hidden target.</p>
               </div>
               <span className={styles.adjustmentStatusPill}>
                 {!adjustmentEnabled ? "Adjustments disabled" : selectedAsset?.adjustment_ready ? "Adjustment ready" : "Waiting for price data"}
@@ -2555,46 +2633,42 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
             </div>
             <div className={styles.pressureMeter}>
               <div className={styles.pressureMeterHeader}>
-                <span>Discount</span>
-                <strong>{basePressureLabel}</strong>
-                <span>Premium</span>
+                <span>Down since tick</span>
+                <strong>{driftLabel}</strong>
+                <span>Up since tick</span>
               </div>
               <div className={styles.pressureMeterTrack}>
-                <i style={{ left: `${pressureMeterPct}%` }} />
+                <i style={{ left: `${driftMarkerPct}%` }} />
               </div>
-              <p>
-                {adjustmentEnabled
-                  ? "Ticks can pull this marker back toward the center after each interval is applied."
-                  : "This asset is excluded from scheduled adjustment ticks until re-enabled."}
-              </p>
+              <div className={styles.driftMeterFooter}>
+                <span>Last tick close {fmtNumber(latestAdjustment?.price_after ?? null, "$")}</span>
+                <strong className={driftSinceLastTickPct === null ? undefined : driftSinceLastTickPct >= 0 ? styles.valueUp : styles.valueDown}>
+                  {fmtPct(driftSinceLastTickPct)}
+                </strong>
+                <span>Now {fmtNumber(marketPrice, "$")}</span>
+              </div>
             </div>
             <div className={styles.adjustmentGrid}>
               <div className={styles.adjustmentPrimaryCard}>
-                <span>Current Gap</span>
-                <strong className={baseGapPct === null ? undefined : baseGapPct >= 0 ? styles.valueUp : styles.valueDown}>
-                  {fmtPct(baseGapPct)}
-                </strong>
-                <em>{basePressureLabel}</em>
-              </div>
-              <div className={styles.adjustmentCard}>
-                <span>Market Price</span>
+                <FaChartSimple aria-hidden="true" className={styles.adjustmentCardIcon} />
+                <span>Now</span>
                 <strong>{fmtNumber(marketPrice, "$")}</strong>
+                <em>Live midpoint</em>
               </div>
               <div className={styles.adjustmentCard}>
-                <span>Base Rate</span>
-                <strong>{fmtNumber(baseRate, "$")}</strong>
-              </div>
-              <div className={styles.adjustmentCard}>
+                <FaCircleQuestion aria-hidden="true" className={styles.adjustmentCardIcon} />
                 <span>Next Tick</span>
                 <strong>{nextAdjustment ? formatAdjustmentLabel(nextAdjustment.interval_key) : "N/A"}</strong>
                 <em>{formatAdjustmentTime(nextAdjustment?.scheduled_at)}</em>
               </div>
               <div className={styles.adjustmentCard}>
-                <span>Enabled State</span>
+                {adjustmentEnabled ? <FaCircleUp aria-hidden="true" className={styles.adjustmentCardIcon} /> : <FaCircleDown aria-hidden="true" className={styles.adjustmentCardIcon} />}
+                <span>Status</span>
                 <strong>{adjustmentEnabled ? "Enabled" : "Disabled"}</strong>
-                <em>{adjustmentEnabled ? "Included when price data is ready" : "Scheduled ticks will skip this asset"}</em>
+                <em>{adjustmentEnabled ? "Ready to play" : "Off the board"}</em>
               </div>
               <div className={styles.adjustmentCard}>
+                <FaScaleBalanced aria-hidden="true" className={styles.adjustmentCardIcon} />
                 <span>Last Tick</span>
                 <strong>{latestAdjustment ? formatAdjustmentLabel(latestAdjustment.interval_key) : "N/A"}</strong>
                 <em>
@@ -2607,25 +2681,79 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
             <div className={styles.adjustmentHistoryPanel}>
               <div className={styles.sectionHeader}>
                 <div>
-                  <h3 className={styles.sectionTitle}>Session Audit Trail</h3>
-                  <p className={styles.sectionCopy}>Recent scheduled, applied, and skipped intervals for this asset.</p>
+                  <h3 className={styles.sectionTitle}>Tick Log</h3>
                 </div>
               </div>
               {adjustmentHistoryError ? <div className="statusMessage">Adjustment history unavailable: {adjustmentHistoryError}</div> : null}
-              <div className={styles.adjustmentHistoryList}>
-                {adjustmentHistory?.items.length ? adjustmentHistory.items.map((item) => (
-                  <div key={`${item.id}-${item.interval_key}`} className={styles.adjustmentHistoryRow}>
-                    <div>
-                      <strong>{formatAdjustmentLabel(item.interval_key)} · {item.market_date || "N/A"}</strong>
-                      <span>{formatAdjustmentTime(item.applied_at || item.scheduled_at)} · {item.status || "scheduled"}</span>
-                    </div>
-                    <div>
-                      <strong className={item.move_pct === null ? undefined : item.move_pct >= 0 ? styles.valueUp : styles.valueDown}>{fmtPct(item.move_pct)}</strong>
-                      <span>{item.status === "skipped" ? item.skip_reason || "Skipped" : `${fmtNumber(item.price_before, "$")} to ${fmtNumber(item.price_after, "$")}`}</span>
-                    </div>
+              {adjustmentHistory?.items.length ? (
+                <div className={styles.adjustmentHistorySplit}>
+                  <div className={styles.adjustmentHistoryList} aria-label="Adjustment ticks">
+                    {adjustmentHistory.items.map((item) => {
+                      const itemKey = buildAdjustmentKey(item);
+                      const isSelected = itemKey === buildAdjustmentKey(selectedAdjustment);
+                      const itemMovePct =
+                        item.price_before && item.price_after !== null && item.price_after !== undefined
+                          ? (item.price_after - item.price_before) / item.price_before
+                          : item.move_pct;
+                      const StatusIcon = item.status === "skipped" ? FaCircleQuestion : itemMovePct !== null && itemMovePct < 0 ? FaArrowTrendDown : FaArrowTrendUp;
+                      return (
+                        <button
+                          key={itemKey}
+                          type="button"
+                          className={isSelected ? styles.adjustmentHistoryRowActive : styles.adjustmentHistoryRow}
+                          onClick={() => setSelectedAdjustmentKey(itemKey)}
+                        >
+                          <StatusIcon aria-hidden="true" className={styles.adjustmentHistoryIcon} />
+                          <span>
+                            <strong>{formatAdjustmentLabel(item.interval_key)}</strong>
+                            <em>{formatAdjustmentTime(item.applied_at || item.scheduled_at)}</em>
+                          </span>
+                          <b className={itemMovePct === null ? undefined : itemMovePct >= 0 ? styles.valueUp : styles.valueDown}>{fmtPct(itemMovePct)}</b>
+                        </button>
+                      );
+                    })}
                   </div>
-                )) : <div className={styles.emptyState}>No adjustment history is available for this asset yet.</div>}
-              </div>
+                  {selectedAdjustment ? (
+                    <article key={buildAdjustmentKey(selectedAdjustment)} className={styles.adjustmentDetailPanel}>
+                      <div className={styles.adjustmentDetailHeader}>
+                        <span className={styles.adjustmentDetailIcon}>
+                          {selectedAdjustment.status === "skipped" ? <FaCircleQuestion aria-hidden="true" /> : selectedAdjustmentMovePct !== null && selectedAdjustmentMovePct < 0 ? <FaArrowTrendDown aria-hidden="true" /> : <FaArrowTrendUp aria-hidden="true" />}
+                        </span>
+                      <div>
+                        <strong>{formatAdjustmentLabel(selectedAdjustment.interval_key)} tick</strong>
+                          <span>{formatAdjustmentTime(selectedAdjustment.applied_at || selectedAdjustment.scheduled_at)}</span>
+                      </div>
+                      </div>
+                      <div className={styles.adjustmentDetailStats}>
+                        <div>
+                          <span>Move</span>
+                          <strong className={selectedAdjustmentMovePct === null ? undefined : selectedAdjustmentMovePct >= 0 ? styles.valueUp : styles.valueDown}>{fmtPct(selectedAdjustmentMovePct)}</strong>
+                        </div>
+                        <div>
+                          <span>Before</span>
+                          <strong>{fmtNumber(selectedAdjustment.price_before, "$")}</strong>
+                        </div>
+                        <div>
+                          <span>After</span>
+                          <strong>{fmtNumber(selectedAdjustment.price_after, "$")}</strong>
+                        </div>
+                        <div>
+                          <span>Status</span>
+                          <strong>{selectedAdjustment.status || "scheduled"}</strong>
+                        </div>
+                      </div>
+                      <div className={styles.adjustmentDetailTimeline}>
+                        <div><span>Scheduled</span><strong>{formatAdjustmentTime(selectedAdjustment.scheduled_at)}</strong></div>
+                        <div><span>Landed</span><strong>{formatAdjustmentTime(selectedAdjustment.applied_at)}</strong></div>
+                        {selectedAdjustment.status === "skipped" ? <div><span>Call</span><strong>{selectedAdjustment.skip_reason || "Skipped"}</strong></div> : null}
+                      </div>
+                      <div className={styles.adjustmentDetailMascot} aria-hidden="true">
+                        <Image src="/laplus.png" alt="" width={180} height={180} />
+                      </div>
+                    </article>
+                  ) : null}
+                </div>
+              ) : <div className={styles.emptyState}>No tick history yet.</div>}
             </div>
           </section>
 
@@ -2635,6 +2763,9 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                 <h2 className={styles.sectionTitle}>Ranking Snapshot</h2>
                 <p className={styles.sectionCopy}>Current placement across the market for channel size, weekly superchats, and trading activity.</p>
               </div>
+              <Link href="/finance/rankings" className={styles.detailLink}>
+                Open rankings
+              </Link>
             </div>
             <div className={styles.rankSpotlightGrid}>
               {rankSpotlights.map((item) => (
@@ -2650,6 +2781,25 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                 </div>
               ))}
             </div>
+          </section>
+
+          <section className={styles.oshiboardSection}>
+            <div className={styles.sectionHeader}>
+              <div>
+                <h2 className={styles.sectionTitle}>Oshiboard</h2>
+                <p className={styles.sectionCopy}>Top holders who picked this as their oshicoin and hold it as their largest share-quantity position.</p>
+              </div>
+              <Link href={`/oshiboard?coin=${encodeURIComponent(normalizedSymbol)}`} className={styles.detailLink}>
+                Open boards
+              </Link>
+            </div>
+            <OshiboardPanel
+              board={oshiboard}
+              isLoading={isLoadingOshiboard}
+              error={oshiboardError}
+              compact
+              transitionKey={normalizedSymbol}
+            />
           </section>
 
           {activeLiveStream ? (
@@ -3012,7 +3162,7 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                 <div className={styles.sectionHeader}>
                   <div>
                     <h2 className={styles.sectionTitle}>Market Graphs</h2>
-                    <p className={styles.sectionCopy}>Price, fundamentals, and channel growth curves in one deck.</p>
+                    <p className={styles.sectionCopy}>Price and channel growth curves in one deck.</p>
                   </div>
                   <div className={styles.candleIntervalControl} aria-label="24 hour candle interval">
                     {INTRADAY_CANDLE_INTERVALS.map((option) => (
@@ -3041,38 +3191,21 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                   </div>
                   <CandleChartCard title="1Y Daily Price" subtitle="Daily candles with mark-close overlay" candles={filteredDailyCandles} showMarkClose theme={chartTheme} />
                   <VolumeChartCard title="1Y Daily Volume" subtitle="Settled daily coin volume in shares" candles={filteredDailyCandles} theme={chartTheme} />
-                  <TrendChartCard
-                    title="Fundamental Signal"
-                    subtitle="Smoothed anchor with raw signal overlay"
-                    theme={chartTheme}
-                    series={[
-                      {
-                        name: "Smoothed",
-                        color: chartTheme.baseDeep,
-                        kind: "area",
-                        values: filteredStats.map((item) => ({ time: item.snapshot_date, value: item.fundamental_value_smoothed })),
-                      },
-                      {
-                        name: "Raw",
-                        color: chartTheme.baseMuted,
-                        kind: "line",
-                        values: filteredStats.map((item) => ({ time: item.snapshot_date, value: item.fundamental_value_raw })),
-                      },
-                    ]}
-                  />
-                  <TrendChartCard
-                    title="Subscribers"
-                    subtitle="One-year audience trajectory"
-                    theme={chartTheme}
-                    series={[
-                      {
-                        name: "Subscribers",
-                        color: chartTheme.base,
-                        kind: "area",
-                        values: filteredStats.map((item) => ({ time: item.snapshot_date, value: item.subscriber_count })),
-                      },
-                    ]}
-                  />
+                  <div className={styles.chartGridWide}>
+                    <TrendChartCard
+                      title="Subscribers"
+                      subtitle="One-year audience trajectory"
+                      theme={chartTheme}
+                      series={[
+                        {
+                          name: "Subscribers",
+                          color: chartTheme.base,
+                          kind: "area",
+                          values: filteredStats.map((item) => ({ time: item.snapshot_date, value: item.subscriber_count })),
+                        },
+                      ]}
+                    />
+                  </div>
                   <TrendChartCard
                     title="Views"
                     subtitle="Cumulative channel views"
@@ -3115,7 +3248,6 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                     <div className={styles.infoCard}><span>Treasury</span><strong>{fmtNumber(detail?.treasury?.treasury_supply)}</strong></div>
                     <div className={styles.infoCard}><span>Max Supply</span><strong>{fmtNumber(detail?.treasury?.max_supply)}</strong></div>
                     <div className={styles.infoCard}><span>Daily Emission</span><strong>{fmtNumber(detail?.treasury?.current_daily_emission)}</strong></div>
-                    <div className={styles.infoCard}><span>Premium</span><strong>{fmtPct(detail?.treasury?.current_premium_pct)}</strong></div>
                     <div className={styles.infoCard}><span>Snapshot Date</span><strong>{selectedAsset?.latest_snapshot_date || "—"}</strong></div>
                   </div>
                 </section>
@@ -3168,6 +3300,9 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
                     <h2 className={styles.sectionTitle}>Livestreams</h2>
                     <p className={styles.sectionCopy}>Current, scheduled, and archived streams for this channel.</p>
                   </div>
+                  <Link href="/livestreams" className={styles.detailLink}>
+                    Open livestreams
+                  </Link>
                 </div>
 
                 <div className={styles.livestreamPanel}>
@@ -3487,7 +3622,7 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
         ? createPortal(
             (() => {
           const isQueued = tradeConfirmation.mode === "queued";
-          const isPositiveTradeTheme = isQueued || tradeConfirmation.side === "buy" || (tradeConfirmation.realizedPnl ?? 0) >= 0;
+          const isPositiveTradeTheme = tradeConfirmation.side === "buy" || (tradeConfirmation.themePnl ?? tradeConfirmation.realizedPnl ?? 0) >= 0;
           return (
         <div
           className={[

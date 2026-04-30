@@ -2,8 +2,9 @@
 
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { FaArrowTrendDown, FaArrowTrendUp, FaEarthAmericas, FaFlagCheckered, FaRegCalendar, FaUserGroup, FaUserSlash } from "react-icons/fa6";
+import { FaArrowTrendDown, FaArrowTrendUp, FaEarthAmericas, FaFlagCheckered, FaRegCalendar, FaTrophy, FaUserGroup, FaUserSlash } from "react-icons/fa6";
 import { AssetCoin } from "@/app/components/common/asset-coin";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { LoadingSpinner } from "@/app/components/common/loading-spinner";
@@ -342,7 +343,6 @@ export function LeaderboardPage() {
   const topThree = entries.slice(0, 3);
   const tableRows = entries.slice(3);
   const scopeClassName = scopeThemeClass(scope);
-  const windowIndex = Math.max(0, WINDOW_OPTIONS.findIndex((option) => option.value === window));
   const assetBySymbol = useMemo(() => {
     const map = new Map<string, MarketAsset>();
     for (const asset of assets) {
@@ -357,15 +357,22 @@ export function LeaderboardPage() {
     <SiteShell>
       <div className={`${pageStyles.stack} ${styles.leaderboardPage}`.trim()}>
         <section className={`${pageStyles.hero} ${styles.leaderboardHero}`.trim()}>
-          <div>
+          <Image
+            src="/celebrity-arrival-hero.png"
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className={styles.heroImage}
+            aria-hidden="true"
+          />
+          <div className={styles.heroHeader}>
+            <div className={styles.eyebrow}><FaTrophy aria-hidden="true" /> Community Leaderboards</div>
             <h1 className={pageStyles.title}>Leaderboard</h1>
-            <p className={pageStyles.copy}>
-              Rank the richest NASFAQ desks by live equity, window move, exposure, and who is one trade away from taking your slot.
-            </p>
             <div className={styles.heroMeta}>
-              <span>{fmtInteger(stats.user_count)} tracked users</span>
-              <span>Updated {fmtDate(stats.last_updated_at)}</span>
-              {leader ? <span>Desk to beat {leader.username} at {fmtNumber(leader.total_equity, "$")}</span> : null}
+              <span><strong>{fmtInteger(stats.user_count)}</strong> tracked users</span>
+              <span>Updated <strong>{fmtDate(stats.last_updated_at)}</strong></span>
+              {leader ? <span>Desk to beat <strong>{leader.username}</strong> at <strong>{fmtNumber(leader.total_equity, "$")}</strong></span> : null}
             </div>
           </div>
           <div className={styles.marketStatsGrid}>
@@ -400,34 +407,16 @@ export function LeaderboardPage() {
                 </button>
               ))}
             </div>
-            <div className={styles.rangeControl}>
-              <div className={styles.rangeLabel}>
-                <span className={styles.rangeLabelText}>
-                  <FaRegCalendar aria-hidden="true" />
-                  <span>Time range</span>
-                </span>
-                <strong>{WINDOW_OPTIONS[windowIndex]?.label ?? "1D"}</strong>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={WINDOW_OPTIONS.length - 1}
-                step={1}
-                value={windowIndex}
-                className={styles.rangeSlider}
-                aria-label="Leaderboard time range"
-                onChange={(event) => {
-                  const nextOption = WINDOW_OPTIONS[Number(event.target.value)]?.value;
-                  if (nextOption) setWindow(nextOption);
-                }}
-              />
-              <div className={styles.rangeMarks}>
+            <div className={styles.rangeControl} role="group" aria-label="Leaderboard time range">
+              <FaRegCalendar aria-hidden="true" className={styles.rangeIcon} />
+              <div className={styles.rangeOptions}>
                 {WINDOW_OPTIONS.map((option) => (
                   <button
                     key={option.value}
                     type="button"
-                    className={window === option.value ? styles.rangeMarkActive : styles.rangeMark}
+                    className={window === option.value ? styles.rangeOptionActive : styles.rangeOption}
                     onClick={() => setWindow(option.value)}
+                    aria-pressed={window === option.value}
                   >
                     {option.label}
                   </button>
@@ -481,6 +470,14 @@ export function LeaderboardPage() {
               {me.neighbors.length ? me.neighbors.map((neighbor) => (
                 <NeighborCard key={neighbor.user_id} meRank={me.rank} neighbor={neighbor} />
               )) : <div className={styles.inlineNotice}>No nearby users in this scope yet.</div>}
+              <Image
+                src="/gura-ticker.png"
+                alt=""
+                width={250}
+                height={205}
+                className={styles.neighborTicker}
+                aria-hidden="true"
+              />
             </div>
           </div>
         </section>
@@ -505,7 +502,6 @@ export function LeaderboardPage() {
             <div className={styles.tableHeader}>
               <div>
                 <h2 className={styles.sectionTitle}>Top desks</h2>
-                <p className={styles.sectionCopy}>Fast read on the accounts currently setting the mark.</p>
               </div>
             </div>
             <div className={styles.podiumGrid}>

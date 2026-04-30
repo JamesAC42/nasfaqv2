@@ -142,9 +142,9 @@
     linear-gradient(180deg, color-mix(in srgb, var(--accent) 4%, transparent) 0 1px, transparent 1px 100%),
     linear-gradient(
       135deg,
-      color-mix(in srgb, var(--hero-accent) 9%, rgba(6, 15, 24, 0.62)),
-      rgba(4, 10, 17, 0.5) 48%,
-      rgba(4, 10, 17, 0.7)
+      color-mix(in srgb, var(--hero-accent) 7%, rgba(2, 6, 12, 0.84)),
+      rgba(2, 6, 12, 0.78) 48%,
+      rgba(1, 4, 10, 0.9)
     ),
     var(--hero-surface-image, none);
   background-position: center, center, center, top center;
@@ -573,6 +573,24 @@
   display: grid;
 }
 
+.oshiboardSection {
+  @include archive-panel;
+  display: grid;
+}
+
+.detailLink {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border-soft));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-pill));
+  color: var(--text-primary);
+  padding: 0.45rem 0.75rem;
+  text-decoration: none;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .adjustmentSection {
   @include archive-panel;
   display: grid;
@@ -595,7 +613,7 @@
 
 .adjustmentGrid {
   display: grid;
-  grid-template-columns: 1.25fr repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.65rem;
 }
 
@@ -615,6 +633,24 @@
     color: var(--muted);
     font-size: 0.86rem;
     line-height: 1.45;
+  }
+}
+
+.driftMeterFooter {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+
+  span:last-child {
+    text-align: right;
+  }
+
+  strong {
+    font-family: var(--font-mono);
+    font-size: 1rem;
   }
 }
 
@@ -674,6 +710,7 @@
 
 .adjustmentPrimaryCard,
 .adjustmentCard {
+  position: relative;
   display: grid;
   gap: 0.24rem;
   align-content: center;
@@ -701,6 +738,14 @@
   }
 }
 
+.adjustmentCardIcon {
+  position: absolute;
+  top: 0.72rem;
+  right: 0.72rem;
+  color: color-mix(in srgb, var(--accent) 54%, var(--muted));
+  font-size: 0.95rem;
+}
+
 .adjustmentPrimaryCard {
   background:
     radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 13%, transparent), transparent 12rem),
@@ -713,30 +758,50 @@
   margin-top: 0.8rem;
 }
 
-.adjustmentHistoryList {
+.adjustmentHistorySplit {
   display: grid;
-  gap: 0.5rem;
+  grid-template-columns: minmax(13rem, 0.78fr) minmax(0, 1.22fr);
+  gap: 0.75rem;
+  align-items: stretch;
 }
 
-.adjustmentHistoryRow {
+.adjustmentHistoryList {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.9rem;
+  gap: 0.45rem;
+  align-content: start;
+}
+
+.adjustmentHistoryRow,
+.adjustmentHistoryRowActive {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.65rem;
   align-items: center;
-  padding: 0.75rem;
+  width: 100%;
+  padding: 0.68rem;
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--surface-card) 86%, transparent);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
 
-  div {
+  &:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--accent) 32%, var(--border-soft));
+    background: color-mix(in srgb, var(--surface-card-highlight) 72%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 58%, transparent);
+    outline-offset: 2px;
+  }
+
+  span {
     display: grid;
     gap: 0.18rem;
     min-width: 0;
-  }
-
-  div:last-child {
-    justify-items: end;
-    text-align: right;
   }
 
   strong {
@@ -744,12 +809,169 @@
     font-family: var(--font-mono);
   }
 
-  span {
+  em {
     overflow: hidden;
     color: var(--muted);
     font-size: 0.82rem;
+    font-style: normal;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  b {
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    font-weight: 800;
+  }
+}
+
+.adjustmentHistoryRowActive {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border-soft));
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 8rem),
+    color-mix(in srgb, var(--surface-card-highlight) 78%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.adjustmentHistoryIcon {
+  color: color-mix(in srgb, var(--accent) 62%, var(--text));
+  font-size: 1rem;
+}
+
+.adjustmentDetailPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-height: 100%;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border-soft));
+  border-radius: var(--radius-sm);
+  padding: 0.9rem;
+  background:
+    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--hero-accent) 12%, transparent), transparent 12rem),
+    color-mix(in srgb, var(--surface-card) 88%, transparent);
+  animation: adjustmentDetailIn 220ms ease both;
+}
+
+.adjustmentDetailHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+
+  div {
+    display: grid;
+    gap: 0.12rem;
+  }
+
+  strong {
+    color: var(--text);
+    font-family: var(--font-display);
+    font-size: clamp(1.45rem, 2vw, 1.85rem);
+    line-height: 1.05;
+  }
+
+  span {
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+  }
+}
+
+.adjustmentDetailIcon {
+  display: inline-flex;
+  width: 2.35rem;
+  height: 2.35rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border-soft));
+  border-radius: 0.65rem;
+  color: color-mix(in srgb, var(--accent) 66%, var(--text));
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.adjustmentDetailStats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+
+  div {
+    display: grid;
+    gap: 0.2rem;
+    min-width: 0;
+    min-height: 4.2rem;
+    align-content: center;
+    padding: 0.58rem 0.64rem;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-card-strong) 64%, transparent);
+  }
+
+  span {
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  strong {
+    overflow: hidden;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.98rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.adjustmentDetailMascot {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  min-height: 8rem;
+  margin-top: auto;
+  opacity: 0.92;
+
+  img {
+    width: min(11.25rem, 44%);
+    height: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 1.2rem 2rem color-mix(in srgb, var(--accent) 18%, transparent));
+  }
+}
+
+.adjustmentDetailTimeline {
+  display: grid;
+  gap: 0.45rem;
+
+  div {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding-top: 0.45rem;
+    border-top: 1px solid var(--border-soft);
+  }
+
+  span {
+    color: var(--muted);
+  }
+
+  strong {
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.88rem;
+    text-align: right;
+  }
+}
+
+@keyframes adjustmentDetailIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.35rem) scale(0.992);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -2539,6 +2761,10 @@
   .adjustmentGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .adjustmentHistorySplit {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 760px) {
@@ -2574,6 +2800,21 @@
   .tradeTapeRow,
   .liveMetaGrid {
     grid-template-columns: 1fr;
+  }
+
+  .driftMeterFooter,
+  .pressureMeterHeader {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+    text-align: left;
+
+    span:last-child {
+      text-align: left;
+    }
+  }
+
+  .adjustmentDetailStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .sameUnitCard {

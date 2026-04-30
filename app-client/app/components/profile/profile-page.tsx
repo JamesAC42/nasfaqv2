@@ -31,7 +31,7 @@ import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/co
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { createChannelChartTheme } from "@/app/lib/chart-theme";
-import { fmtNumber } from "@/app/lib/format";
+import { fmtInteger, fmtNumber } from "@/app/lib/format";
 import { normalizeArticleListResponse, normalizePredictionPortfolioResponse, normalizeProfileBundle } from "@/app/lib/normalizers";
 import type { ArticleSummary, MarketAsset, PortfolioOrder, PredictionPortfolioResponse, ProfileBundle, ProfileRelationUser } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -468,7 +468,7 @@ function ArticleShelf({
   const isSaved = resolvedTab === "saved";
 
   return (
-    <section className={[styles.sectionPanel, styles.articleShelf].join(" ")}>
+    <section id="articles" className={[styles.sectionPanel, styles.articleShelf].join(" ")}>
       <div className={styles.articleShelfHead}>
         <div>
           <h2 className={styles.sectionTitle}>Articles</h2>
@@ -1218,6 +1218,29 @@ export function ProfilePage({ username }: { username?: string | null }) {
                     <span>{holdingsSorted.length} holdings</span>
                     <span>{profile.streaks.current_streak_days > 0 ? `${profile.streaks.current_streak_days} day streak` : "No active streak"}</span>
                   </div>
+                  {profile.oshiboards.length ? (
+                    <div className={styles.oshiboardBadgeRow}>
+                      {profile.oshiboards.slice(0, 3).map((membership) => (
+                        <Link
+                          key={membership.asset.id}
+                          href={`/oshiboard?coin=${encodeURIComponent(membership.asset.symbol)}`}
+                          className={styles.oshiboardBadge}
+                        >
+                          <AssetCoin
+                            symbol={membership.asset.symbol}
+                            icon={membership.asset.icon}
+                            color={membership.asset.color}
+                            className={styles.oshiboardBadgeCoin}
+                            shape="circle"
+                          />
+                          <span>
+                            <strong>#{membership.rank} {membership.asset.symbol} oshiboard</strong>
+                            <em>{fmtInteger(Math.round(membership.coin_quantity))} shares</em>
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : null}
                   <div className={styles.summaryGrid}>
                     <ProfileStatCard
                       label="Net worth"

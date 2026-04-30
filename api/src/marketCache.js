@@ -1,12 +1,17 @@
 const MARKET_ASSETS_CACHE_KEY = "market:assets:list";
 const MARKET_ASSETS_CACHE_TTL_SECONDS = 5;
 const MARKET_ASSET_SUPERCHAT_RANK_CACHE_TTL_SECONDS = 60 * 60 * 6;
+const MARKET_ASSET_OSHIBOARD_CACHE_TTL_SECONDS = 15;
 const MARKET_RANKINGS_WEEKLY_ACTIVITY_CACHE_TTL_SECONDS = 60 * 60;
 const MARKET_RANKINGS_OSHICOIN_CACHE_TTL_SECONDS = 5;
 const MARKET_RANKINGS_OSHICOIN_CACHE_KEY = "market:rankings:oshicoin-users";
 
 function buildAssetSuperchatRankCacheKey(symbol, range = "7d") {
   return `market:asset:${String(symbol || "").trim().toUpperCase()}:superchat-rank:${String(range || "7d").trim().toLowerCase()}`;
+}
+
+function buildAssetOshiboardCacheKey(symbol, limit = 50) {
+  return `market:asset:${String(symbol || "").trim().toUpperCase()}:oshiboard:${Number(limit) || 50}`;
 }
 
 function buildMarketRankingsWeeklyActivityCacheKey(range = "7d") {
@@ -53,10 +58,12 @@ module.exports = {
   getCachedJson,
   setCachedJson,
   buildAssetSuperchatRankCacheKey,
+  buildAssetOshiboardCacheKey,
   buildMarketRankingsWeeklyActivityCacheKey,
   MARKET_ASSETS_CACHE_KEY,
   MARKET_ASSETS_CACHE_TTL_SECONDS,
   MARKET_ASSET_SUPERCHAT_RANK_CACHE_TTL_SECONDS,
+  MARKET_ASSET_OSHIBOARD_CACHE_TTL_SECONDS,
   MARKET_RANKINGS_WEEKLY_ACTIVITY_CACHE_TTL_SECONDS,
   MARKET_RANKINGS_OSHICOIN_CACHE_TTL_SECONDS,
   MARKET_RANKINGS_OSHICOIN_CACHE_KEY,

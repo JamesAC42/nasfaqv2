@@ -1,5 +1,13 @@
 const marketState = require("./services/marketState");
 
+const PROFILE_PICTURE_CDN_BASE_URL = "https://images.nasfaq.biz/profile-pictures";
+
+function profilePictureUrlSql(size, alias = "pp") {
+  const folder = size === "small" ? "small" : "large";
+  const field = size === "small" ? "filename_small" : "filename_large";
+  return `CASE WHEN ${alias}.id IS NULL OR ${alias}.is_deleted THEN NULL ELSE '${PROFILE_PICTURE_CDN_BASE_URL}/${folder}/' || ${alias}.${field} END`;
+}
+
 function parseRangeToInterval(range) {
   switch ((range || "").toLowerCase()) {
     case "24h":
@@ -356,6 +364,14 @@ async function listAssets(pool) {
       WHERE o.order_type = 'live_market'
         AND o.status = 'pending'
       GROUP BY o.asset_id
+    ),
+    oshicoin_users AS (
+      SELECT
+        u.oshi_coin_asset_id AS asset_id,
+        COUNT(*)::INTEGER AS oshicoin_users
+      FROM market.users u
+      WHERE u.oshi_coin_asset_id IS NOT NULL
+      GROUP BY u.oshi_coin_asset_id
     )
     SELECT
       a.id,
@@ -427,9 +443,10 @@ async function listAssets(pool) {
       COALESCE(plo.pending_live_buy_quantity, 0) AS pending_live_buy_quantity,
       COALESCE(plo.pending_live_sell_quantity, 0) AS pending_live_sell_quantity,
       plo.next_live_order_execute_after,
+      COALESCE(ou.oshicoin_users, 0) AS oshicoin_users,
       CASE
-        WHEN ld.mid_open IS NULL OR ld.mid_open = 0 OR ld.mid_close IS NULL THEN NULL
-        ELSE (ld.mid_close - ld.mid_open) / ld.mid_open
+        WHEN ld.mid_open IS NULL OR ld.mid_open = 0 OR a.current_mid_price IS NULL THEN NULL
+        ELSE (a.current_mid_price - ld.mid_open) / ld.mid_open
       END AS move_24h_pct,
       ld.market_date AS latest_market_date,
       COALESCE(sd.sparkline_candles, '[]'::jsonb) AS sparkline_candles
@@ -442,6 +459,7 @@ async function listAssets(pool) {
     LEFT JOIN next_adjustment na ON na.asset_id = a.id
     LEFT JOIN latest_adjustment la ON la.asset_id = a.id
     LEFT JOIN pending_live_orders plo ON plo.asset_id = a.id
+    LEFT JOIN oshicoin_users ou ON ou.asset_id = a.id
     ORDER BY a.symbol ASC
   `
   );
@@ -803,6 +821,8 @@ async function listRecentMarketTrades(pool, { limit = 50, beforeTs = null, befor
       tf.asset_id,
       ma.symbol,
       ma.display_name,
+      c.icon,
+      c.color,
       tf.ts,
       tf.side,
       tf.price,
@@ -814,6 +834,8 @@ async function listRecentMarketTrades(pool, { limit = 50, beforeTs = null, befor
     FROM market.trade_fills tf
     JOIN market.market_assets ma
       ON ma.id = tf.asset_id
+    JOIN yt.youtube_channels c
+      ON c.youtube_channel_id = ma.youtube_channel_id
     JOIN market.users u
       ON u.id = tf.user_id
     ${hasCursor ? "WHERE (tf.ts, tf.id) < ($1::timestamptz, $2::bigint)" : ""}
@@ -869,6 +891,7 @@ async function getMarketActivityStats(pool) {
         tf.user_id,
         u.username,
         u.profile_color,
+        COALESCE(${profilePictureUrlSql("small", "pp")}, u.profile_picture_url) AS profile_picture_url,
         COUNT(*)::int AS trade_count,
         COUNT(DISTINCT tf.asset_id)::int AS distinct_assets,
         COALESCE(SUM(tf.gross_cash), 0) AS volume_cash,
@@ -877,8 +900,10 @@ async function getMarketActivityStats(pool) {
       FROM market.trade_fills tf
       JOIN market.users u
         ON u.id = tf.user_id
+      LEFT JOIN market.profile_pictures pp
+        ON pp.id = u.profile_picture_id
       WHERE tf.ts >= now() - interval '24 hours'
-      GROUP BY tf.user_id, u.username, u.profile_color
+      GROUP BY tf.user_id, u.username, u.profile_color, u.profile_picture_url, pp.id, pp.is_deleted, pp.filename_small
       ORDER BY trade_count DESC, volume_cash DESC, latest_trade_at DESC, tf.user_id DESC
       LIMIT 8
     `
@@ -930,6 +955,7 @@ async function getMarketActivityStats(pool) {
       user_id: Number(row.user_id),
       username: row.username,
       profile_color: row.profile_color || null,
+      profile_picture_url: row.profile_picture_url || null,
       trade_count: Number(row.trade_count || 0),
       distinct_assets: Number(row.distinct_assets || 0),
       volume_cash: roundMetric(row.volume_cash) || 0,

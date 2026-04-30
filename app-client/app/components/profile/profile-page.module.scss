@@ -116,6 +116,10 @@
     0 0 2.125rem color-mix(in srgb, var(--profile-accent) 26%, transparent);
 }
 
+[data-theme="light"] .heroTitle {
+  text-shadow: none;
+}
+
 .heroText {
   @include subtle-copy;
   max-width: 42rem;
@@ -144,6 +148,45 @@
   min-height: 2rem;
   padding: 0.3rem 0.62rem;
   border-radius: 999rem;
+}
+
+.oshiboardBadgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.oshiboardBadge {
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: center;
+  max-width: min(100%, 18rem);
+  border: 0.0625rem solid color-mix(in srgb, var(--profile-accent) 26%, var(--border));
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--profile-accent) 10%, var(--surface-card-strong));
+  color: var(--text);
+  padding: 0.55rem 0.7rem;
+  text-decoration: none;
+}
+
+.oshiboardBadgeCoin {
+  width: 2.1rem;
+  height: 2.1rem;
+}
+
+.oshiboardBadge strong,
+.oshiboardBadge em {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oshiboardBadge em {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-style: normal;
 }
 
 .deskReadoutGrid {
@@ -1131,6 +1174,7 @@
 
 .articleShelf {
   gap: 0.8rem;
+  scroll-margin-top: calc(var(--site-shell-chrome-height, 8rem) + 1rem);
 }
 
 .articleShelfHead {

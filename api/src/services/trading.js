@@ -114,29 +114,33 @@ async function getLockedAssetBySymbol(client, symbol) {
   const { rows } = await client.query(
     `
     SELECT
-      id,
-      symbol,
-      display_name,
-      status,
-      current_mid_price,
-      current_bid_price,
-      current_ask_price,
-      current_premium_pct,
-      current_fair_value,
-      current_fair_value_raw,
-      current_daily_emission,
-      current_persistent_offset,
-      current_transient_offset,
-      offsets_updated_at,
-      circulating_supply,
-      treasury_supply,
-      liquidity_depth,
-      spread_bps,
-      latest_snapshot_date,
-      latest_snapshot_id
-    FROM market.market_assets
-    WHERE symbol = $1
-    FOR UPDATE
+      a.id,
+      a.symbol,
+      a.display_name,
+      c.icon,
+      c.color,
+      a.status,
+      a.current_mid_price,
+      a.current_bid_price,
+      a.current_ask_price,
+      a.current_premium_pct,
+      a.current_fair_value,
+      a.current_fair_value_raw,
+      a.current_daily_emission,
+      a.current_persistent_offset,
+      a.current_transient_offset,
+      a.offsets_updated_at,
+      a.circulating_supply,
+      a.treasury_supply,
+      a.liquidity_depth,
+      a.spread_bps,
+      a.latest_snapshot_date,
+      a.latest_snapshot_id
+    FROM market.market_assets a
+    JOIN yt.youtube_channels c
+      ON c.youtube_channel_id = a.youtube_channel_id
+    WHERE a.symbol = $1
+    FOR UPDATE OF a
   `,
     [symbol]
   );
@@ -626,6 +630,8 @@ async function executeOrder(pool, { userId, symbol, side, quantity, redis = null
         asset_id: asset.id,
         symbol: asset.symbol,
         display_name: asset.display_name,
+        icon: asset.icon || null,
+        color: asset.color || null,
         ts: fillRow.ts,
         side: effectiveSide,
         price: executablePrice,
@@ -1102,7 +1108,7 @@ async function releaseLiveOrderSchedulerLock(client) {
 
 function startLiveOrderScheduler(pool, logger = console, redis = null) {
   const enabled = (process.env.MARKET_LIVE_ORDER_SCHEDULER_ENABLED || "true").toLowerCase() !== "false";
-  const intervalMs = Math.max(10_000, Number(process.env.MARKET_LIVE_ORDER_SCHEDULER_INTERVAL_MS || 60_000));
+  const intervalMs = Math.max(10_000, Number(process.env.MARKET_LIVE_ORDER_SCHEDULER_INTERVAL_MS || 10_000));
   let running = false;
 
   async function tick() {
@@ -1295,7 +1301,7 @@ async function getLiveOrderAdminHealth(pool, { batchLimit = 10 } = {}) {
   return {
     generated_at: new Date().toISOString(),
     scheduler_enabled: (process.env.MARKET_LIVE_ORDER_SCHEDULER_ENABLED || "true").toLowerCase() !== "false",
-    scheduler_interval_ms: Math.max(10_000, Number(process.env.MARKET_LIVE_ORDER_SCHEDULER_INTERVAL_MS || 60_000)),
+    scheduler_interval_ms: Math.max(10_000, Number(process.env.MARKET_LIVE_ORDER_SCHEDULER_INTERVAL_MS || 10_000)),
     batch_limit: LIVE_ORDER_BATCH_LIMIT,
     health: healthResult.rows[0] || {},
     recent_batches: batchesResult.rows,

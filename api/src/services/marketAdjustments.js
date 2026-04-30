@@ -1019,33 +1019,93 @@ async function getAdjustmentSummary(pool, { recentLimit = 20 } = {}) {
   };
 }
 
-async function getAssetAdjustmentHistory(pool, symbol, { limit = 20 } = {}) {
+async function getAssetAdjustmentHistory(pool, symbol, { limit = 20, recentLimit = null, upcomingLimit = null } = {}) {
   const normalizedSymbol = String(symbol || "").trim().toUpperCase();
+  const boundedLimit = Math.max(1, Math.min(100, Number(limit) || 20));
+  const boundedRecentLimit = recentLimit === null
+    ? boundedLimit
+    : Math.max(1, Math.min(20, Number(recentLimit) || 5));
+  const boundedUpcomingLimit = upcomingLimit === null
+    ? 0
+    : Math.max(0, Math.min(10, Number(upcomingLimit) || 0));
   const { rows } = await pool.query(
     `
+    WITH asset AS (
+      SELECT id
+      FROM market.market_assets
+      WHERE symbol = $1
+      LIMIT 1
+    ),
+    upcoming AS (
+      SELECT
+        i.id,
+        s.market_date,
+        i.interval_key,
+        i.scheduled_at,
+        i.applied_at,
+        i.status,
+        i.price_before,
+        i.price_after,
+        i.metadata_json->>'skip_reason' AS skip_reason,
+        CASE
+          WHEN i.price_before IS NULL OR i.price_before = 0 THEN NULL
+          ELSE (i.price_after - i.price_before) / i.price_before
+        END AS move_pct,
+        NULL::numeric AS gap_compression_pct,
+        0 AS section_order,
+        ROW_NUMBER() OVER (ORDER BY i.scheduled_at ASC, i.id ASC) AS row_order
+      FROM market.asset_adjustment_intervals i
+      JOIN market.adjustment_sessions s ON s.id = i.session_id
+      JOIN asset a ON a.id = i.asset_id
+      WHERE i.status = 'scheduled'
+      ORDER BY i.scheduled_at ASC, i.id ASC
+      LIMIT $2
+    ),
+    recent AS (
+      SELECT
+        i.id,
+        s.market_date,
+        i.interval_key,
+        i.scheduled_at,
+        i.applied_at,
+        i.status,
+        i.price_before,
+        i.price_after,
+        i.metadata_json->>'skip_reason' AS skip_reason,
+        CASE
+          WHEN i.price_before IS NULL OR i.price_before = 0 THEN NULL
+          ELSE (i.price_after - i.price_before) / i.price_before
+        END AS move_pct,
+        NULL::numeric AS gap_compression_pct,
+        1 AS section_order,
+        ROW_NUMBER() OVER (ORDER BY i.scheduled_at DESC, i.id DESC) AS row_order
+      FROM market.asset_adjustment_intervals i
+      JOIN market.adjustment_sessions s ON s.id = i.session_id
+      JOIN asset a ON a.id = i.asset_id
+      WHERE i.status <> 'scheduled'
+      ORDER BY i.scheduled_at DESC, i.id DESC
+      LIMIT $3
+    )
     SELECT
-      i.id,
-      s.market_date,
-      i.interval_key,
-      i.scheduled_at,
-      i.applied_at,
-      i.status,
-      i.price_before,
-      i.price_after,
-      i.metadata_json->>'skip_reason' AS skip_reason,
-      CASE
-        WHEN i.price_before IS NULL OR i.price_before = 0 THEN NULL
-        ELSE (i.price_after - i.price_before) / i.price_before
-      END AS move_pct,
-      NULL::numeric AS gap_compression_pct
-    FROM market.asset_adjustment_intervals i
-    JOIN market.adjustment_sessions s ON s.id = i.session_id
-    JOIN market.market_assets a ON a.id = i.asset_id
-    WHERE a.symbol = $1
-    ORDER BY i.scheduled_at DESC, i.id DESC
-    LIMIT $2
+      id,
+      market_date,
+      interval_key,
+      scheduled_at,
+      applied_at,
+      status,
+      price_before,
+      price_after,
+      skip_reason,
+      move_pct,
+      gap_compression_pct
+    FROM (
+      SELECT * FROM upcoming
+      UNION ALL
+      SELECT * FROM recent
+    ) combined
+    ORDER BY section_order ASC, row_order ASC
   `,
-    [normalizedSymbol, Math.max(1, Math.min(100, Number(limit) || 20))]
+    [normalizedSymbol, boundedUpcomingLimit, boundedRecentLimit]
   );
 
   return { symbol: normalizedSymbol, items: rows };

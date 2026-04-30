@@ -13,7 +13,7 @@ import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/co
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { computeDailyVolumeChange } from "@/app/lib/market-metrics";
-import { fmtDate, fmtInteger, fmtNumber, fmtPct } from "@/app/lib/format";
+import { fmtDate, fmtInteger, fmtNumber } from "@/app/lib/format";
 import type { MarketAsset } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -49,9 +49,7 @@ type SortKey =
   | "name"
   | "unit"
   | "mid"
-  | "fair"
   | "medium"
-  | "premium"
   | "settlementMove"
   | "move24h"
   | "volume24h"
@@ -65,12 +63,13 @@ type SortKey =
 type SortDirection = "asc" | "desc";
 type PriceMoveFilter = "all" | "positive" | "negative";
 type VolumeChangeFilter = "all" | "positive" | "negative";
-type PresetKind = "all" | "movers" | "volume" | "premium" | "discount" | "custom";
+type PresetKind = "all" | "movers" | "volume" | "custom";
 type ArchiveViewMode = "table" | "cards";
 type CardGraphMetric = "price" | "volume" | "subscribers" | "views" | "videos";
 type TradeSide = "buy" | "sell";
 
 const QUICK_TRADE_CLOSE_ANIMATION_MS = 170;
+const TRADE_QUANTITY_PRESETS = ["1", "10", "25", "50", "100"] as const;
 
 type CardGraphPoint = {
   time: string;
@@ -139,6 +138,7 @@ type TradeConfirmation = {
   filledAt: string | null;
   realizedPnl: number | null;
   unrealizedPnl: number | null;
+  themePnl: number | null;
   imageSrc: string;
 };
 
@@ -163,8 +163,6 @@ const BUILT_IN_VIEWS: Array<{ id: PresetKind; name: string; description: string 
   { id: "all", name: "All Stocks", description: "Full archive" },
   { id: "movers", name: "Top Movers", description: "Green tape first" },
   { id: "volume", name: "High Volume", description: "Most active names" },
-  { id: "premium", name: "Premium Watch", description: "Richest pricing" },
-  { id: "discount", name: "Discount Watch", description: "Cheapest gaps" },
 ];
 
 const CARD_GRAPH_OPTIONS: Array<{ value: CardGraphMetric; label: string }> = [
@@ -209,16 +207,12 @@ const MOBILE_SORT_OPTIONS: Array<{ value: `${SortKey}:${SortDirection}`; label: 
   { value: "unit:desc", label: "Unit Z-A" },
   { value: "mid:desc", label: "Mid price high-low" },
   { value: "mid:asc", label: "Mid price low-high" },
-  { value: "fair:desc", label: "Fair value high-low" },
-  { value: "fair:asc", label: "Fair value low-high" },
   { value: "medium:desc", label: "Medium price high-low" },
   { value: "medium:asc", label: "Medium price low-high" },
-  { value: "premium:desc", label: "Premium high-low" },
-  { value: "premium:asc", label: "Premium low-high" },
-  { value: "settlementMove:desc", label: "Settlement move high-low" },
-  { value: "settlementMove:asc", label: "Settlement move low-high" },
-  { value: "move24h:desc", label: "24H move high-low" },
-  { value: "move24h:asc", label: "24H move low-high" },
+  { value: "settlementMove:desc", label: "Adjustment move high-low" },
+  { value: "settlementMove:asc", label: "Adjustment move low-high" },
+  { value: "move24h:desc", label: "Today move high-low" },
+  { value: "move24h:asc", label: "Today move low-high" },
   { value: "volume24h:desc", label: "24H volume high-low" },
   { value: "volume24h:asc", label: "24H volume low-high" },
   { value: "volumeChange:desc", label: "Volume change high-low" },
@@ -240,11 +234,9 @@ const SORTABLE_COLUMNS: Array<{ key: SortKey; label: string }> = [
   { key: "name", label: "Name" },
   { key: "unit", label: "Unit" },
   { key: "mid", label: "Mid" },
-  { key: "fair", label: "Fair" },
   { key: "medium", label: "Medium" },
-  { key: "premium", label: "Premium" },
-  { key: "settlementMove", label: "Settlement Move" },
-  { key: "move24h", label: "24H Move" },
+  { key: "settlementMove", label: "Adjustment Move" },
+  { key: "move24h", label: "Today Move" },
   { key: "volume24h", label: "24H Volume" },
   { key: "volumeChange", label: "Volume Change" },
   { key: "subscribers", label: "Subscribers" },
@@ -300,8 +292,8 @@ function computeChangePct(current: number | null, previous: number | null) {
   return (current - previous) / previous;
 }
 
-function computeSettlementMovePct(asset: MarketAsset) {
-  return computeChangePct(asset.current_mid_price, asset.pre_settlement_mid_price);
+function computeAdjustmentMovePct(asset: MarketAsset) {
+  return computeChangePct(asset.current_mid_price, asset.latest_adjustment?.price_after ?? null);
 }
 
 function getTradeFailureNotice(errorCode: string, side: TradeSide, symbol: string): TradeFailureNotice {
@@ -412,6 +404,7 @@ function buildTradeConfirmation(args: {
   const executedPrice = result.executed_price ?? (result.indicative_price ?? 0);
   const fee = result.fee ?? 0;
   const grossValue = filledQuantity * executedPrice;
+  const requestedQuantity = result.requested_quantity ?? filledQuantity;
   const nextQuantity = result.updated_holdings?.quantity ?? (result.side === "buy" ? previousQuantity + filledQuantity : previousQuantity - filledQuantity);
   const nextAvgCost = result.updated_holdings?.avg_cost_basis ?? (nextQuantity > 0 ? previousAvgCost : 0);
   const totalCost = result.total_cost ?? (result.side === "buy" ? grossValue + fee : null);
@@ -426,10 +419,15 @@ function buildTradeConfirmation(args: {
     currentMidPrice !== null && currentMidPrice !== undefined && nextQuantity > 0
       ? nextQuantity * (currentMidPrice - nextAvgCost)
       : null;
+  const expectedSellPnl =
+    result.side === "sell" && isQueued
+      ? (requestedQuantity * executedPrice) - fee - (previousAvgCost * requestedQuantity)
+      : null;
+  const themePnl = result.side === "sell" ? (expectedSellPnl ?? realizedPnl) : null;
   const imageSrc =
     result.side === "buy"
       ? pickRandomItem(TRADE_CONFIRMATION_BUY_IMAGES)
-      : (realizedPnl ?? 0) >= 0
+      : (themePnl ?? 0) >= 0
         ? pickRandomItem(TRADE_CONFIRMATION_SELL_GAIN_IMAGES)
         : pickRandomItem(TRADE_CONFIRMATION_SELL_LOSS_IMAGES);
 
@@ -438,7 +436,7 @@ function buildTradeConfirmation(args: {
     orderId: result.order_id ?? null,
     side: result.side,
     symbol: result.symbol,
-    requestedQuantity: result.requested_quantity ?? filledQuantity,
+    requestedQuantity,
     executeAfter: result.execute_after ?? null,
     intervalLimit: result.interval_limit ?? null,
     filledQuantity,
@@ -458,6 +456,7 @@ function buildTradeConfirmation(args: {
     filledAt: result.filled_at ?? null,
     realizedPnl,
     unrealizedPnl,
+    themePnl,
     imageSrc,
   };
 }
@@ -630,6 +629,7 @@ export function StocksPage() {
   const [quickTradeSymbol, setQuickTradeSymbol] = useState("");
   const [quickTradeSide, setQuickTradeSide] = useState<TradeSide>("buy");
   const [quickTradeQuantity, setQuickTradeQuantity] = useState("10");
+  const [lastQuickTradeQuantityPreset, setLastQuickTradeQuantityPreset] = useState<string | null>(null);
   const [quickTradeFailureNotice, setQuickTradeFailureNotice] = useState<TradeFailureNotice | null>(null);
   const [isQuickTradeClosing, setIsQuickTradeClosing] = useState(false);
   const [tradeConfirmation, setTradeConfirmation] = useState<TradeConfirmation | null>(null);
@@ -722,7 +722,7 @@ export function StocksPage() {
         ...(() => {
           const channelMetrics = channelMetricsById.get(asset.youtube_channel_id);
           const volumeChangePct = computeDailyVolumeChange(asset.volume_24h, asset.sparkline_candles).pct;
-          const settlementMovePct = computeSettlementMovePct(asset);
+          const adjustmentMovePct = computeAdjustmentMovePct(asset);
 
           return {
             asset,
@@ -735,10 +735,8 @@ export function StocksPage() {
               name: asset.display_name,
               unit: asset.unit ?? "",
               mid: asset.current_mid_price,
-              fair: asset.current_fair_value,
               medium: asset.current_bid_price,
-              premium: asset.current_premium_pct,
-              settlementMove: settlementMovePct,
+              settlementMove: adjustmentMovePct,
               move24h: asset.move_24h_pct,
               volume24h: asset.volume_24h,
               volumeChange: volumeChangePct,
@@ -801,13 +799,9 @@ export function StocksPage() {
   const discoveryCards = useMemo(() => {
     const byMove = [...rows].sort((a, b) => (b.asset.move_24h_pct ?? Number.NEGATIVE_INFINITY) - (a.asset.move_24h_pct ?? Number.NEGATIVE_INFINITY))[0];
     const byVolume = [...rows].sort((a, b) => (b.asset.volume_24h ?? Number.NEGATIVE_INFINITY) - (a.asset.volume_24h ?? Number.NEGATIVE_INFINITY))[0];
-    const byPremium = [...rows].sort((a, b) => (b.asset.current_premium_pct ?? Number.NEGATIVE_INFINITY) - (a.asset.current_premium_pct ?? Number.NEGATIVE_INFINITY))[0];
-    const byDiscount = [...rows].sort((a, b) => (a.asset.current_premium_pct ?? Number.POSITIVE_INFINITY) - (b.asset.current_premium_pct ?? Number.POSITIVE_INFINITY))[0];
     return [
-      { id: "move", label: "Top move", row: byMove, value: formatSignedPct(byMove?.asset.move_24h_pct) },
+      { id: "move", label: "Top today move", row: byMove, value: formatSignedPct(byMove?.asset.move_24h_pct) },
       { id: "volume", label: "Volume leader", row: byVolume, value: fmtNumber(byVolume?.asset.volume_24h) },
-      { id: "premium", label: "Rich premium", row: byPremium, value: fmtPct(byPremium?.asset.current_premium_pct) },
-      { id: "discount", label: "Deep discount", row: byDiscount, value: fmtPct(byDiscount?.asset.current_premium_pct) },
     ];
   }, [rows]);
 
@@ -847,14 +841,6 @@ export function StocksPage() {
     if (view === "volume") {
       setSortKey("volume24h");
       setSortDirection("desc");
-    }
-    if (view === "premium") {
-      setSortKey("premium");
-      setSortDirection("desc");
-    }
-    if (view === "discount") {
-      setSortKey("premium");
-      setSortDirection("asc");
     }
   }
 
@@ -957,9 +943,19 @@ export function StocksPage() {
     setIsQuickTradeClosing(false);
     setQuickTradeSide("buy");
     setQuickTradeQuantity("10");
+    setLastQuickTradeQuantityPreset(null);
     setQuickTradeFailureNotice(null);
     setTradeConfirmation(null);
     setIsTradeConfirmationClosing(false);
+  }
+
+  function applyQuickTradeQuantityPreset(preset: string) {
+    if (lastQuickTradeQuantityPreset === preset) {
+      setQuickTradeQuantity((current) => String((Number(current) || 0) + Number(preset)));
+    } else {
+      setQuickTradeQuantity(preset);
+    }
+    setLastQuickTradeQuantityPreset(preset);
   }
 
   function closeQuickTrade() {
@@ -977,6 +973,7 @@ export function StocksPage() {
     globalThis.setTimeout(() => {
       setTradeConfirmation(null);
       setIsTradeConfirmationClosing(false);
+      closeQuickTrade();
     }, TRADE_CONFIRMATION_ANIMATION_MS);
   }
 
@@ -1052,7 +1049,7 @@ export function StocksPage() {
             </label>
             <div className={styles.heroMeta}>
               <span>{rows.length ? `Showing ${sortedRows.length} of ${rows.length} assets` : isLoadingOverview ? "Loading assets..." : "No assets loaded"}</span>
-              <span>{advancingCount} advancing / {decliningCount} declining</span>
+              <span>{advancingCount} up today / {decliningCount} down today</span>
               <span>{viewStockFilterSymbols.length ? `${viewStockFilterSymbols.length} in active view` : `${compareSymbols.length} selected`}</span>
             </div>
           </div>
@@ -1118,12 +1115,15 @@ export function StocksPage() {
               }}
               disabled={!card.row}
             >
-              <span>{card.label}</span>
               {card.row ? (
                 <>
-                  <strong>{card.row.asset.symbol}</strong>
-                  <em>{card.row.asset.display_name}</em>
-                  <b>{card.value}</b>
+                  <AssetCoin symbol={card.row.asset.symbol} icon={card.row.asset.icon} color={card.row.asset.color} />
+                  <span>
+                    <em>{card.label}</em>
+                    <strong>{card.row.asset.symbol}</strong>
+                    <small>{card.row.asset.display_name}</small>
+                    <b>{card.value}</b>
+                  </span>
                 </>
               ) : <strong>—</strong>}
             </button>
@@ -1171,14 +1171,14 @@ export function StocksPage() {
             </label>
 
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>24H price change</span>
+              <span className={styles.fieldLabel}>Today price change</span>
               <OptionPicker
                 value={priceMoveFilter}
                 options={priceMoveOptions}
                 onChange={(nextValue) => {
                   startTransition(() => setPriceMoveFilter(nextValue as PriceMoveFilter));
                 }}
-                placeholder="All moves"
+                placeholder="All today moves"
               />
             </label>
 
@@ -1308,7 +1308,7 @@ export function StocksPage() {
               <tbody>
                 {sortedRows.map((row) => {
                   const { asset, channelMetrics, isSelected } = row;
-                  const settlementMovePct = row.sortValues.settlementMove as number | null;
+                  const adjustmentMovePct = row.sortValues.settlementMove as number | null;
                   return (
                     <tr
                       key={asset.symbol}
@@ -1359,11 +1359,9 @@ export function StocksPage() {
                         <SparklineCell asset={asset} />
                       </td>
                       <td>{formatPrice(asset.current_mid_price)}</td>
-                      <td>{formatPrice(asset.current_fair_value)}</td>
                       <td>{formatPrice(asset.current_bid_price)}</td>
-                      <td>{fmtPct(asset.current_premium_pct)}</td>
-                      <td className={(settlementMovePct ?? 0) >= 0 ? shellStyles.positive : shellStyles.negative}>
-                        {formatSignedPct(settlementMovePct)}
+                      <td className={(adjustmentMovePct ?? 0) >= 0 ? shellStyles.positive : shellStyles.negative}>
+                        {formatSignedPct(adjustmentMovePct)}
                       </td>
                       <td className={(asset.move_24h_pct ?? 0) >= 0 ? shellStyles.positive : shellStyles.negative}>
                         {formatSignedPct(asset.move_24h_pct)}
@@ -1478,9 +1476,7 @@ export function StocksPage() {
                   </div>
 
                   <dl className={styles.dataGrid}>
-                    <DataItem label="Fair" value={formatPrice(asset.current_fair_value)} />
                     <DataItem label="Medium" value={formatPrice(asset.current_bid_price)} />
-                    <DataItem label="Premium" value={fmtPct(asset.current_premium_pct)} />
                     <DataItem label="Next Tick Queue" value={`${fmtNumber(asset.pending_live_order_count ?? 0)} (${fmtNumber(asset.pending_live_buy_count ?? 0)}B / ${fmtNumber(asset.pending_live_sell_count ?? 0)}S)`} />
                     <DataItem label="24H Volume" value={fmtNumber(asset.volume_24h)} />
                     <DataItem label="Volume Change" value={formatSignedPct(volumeChangePct)} tone={volumeTone} />
@@ -1496,7 +1492,12 @@ export function StocksPage() {
           </div>
 
           {!sortedRows.length ? <div className={styles.empty}>No stocks matched the current filters.</div> : null}
+
         </section>
+
+        <div className={styles.tableFooterMascot}>
+          <Image src="/tako.png" alt="" width={300} height={300} />
+        </div>
 
         {compareRows.length ? (
           <section className={styles.compareTray}>
@@ -1532,7 +1533,7 @@ export function StocksPage() {
               (() => {
             const confirmationAsset = assets.find((asset) => asset.symbol === tradeConfirmation.symbol) || quickTradeAsset;
             const isQueued = tradeConfirmation.mode === "queued";
-            const isPositiveTradeTheme = isQueued || tradeConfirmation.side === "buy" || (tradeConfirmation.realizedPnl ?? 0) >= 0;
+            const isPositiveTradeTheme = tradeConfirmation.side === "buy" || (tradeConfirmation.themePnl ?? tradeConfirmation.realizedPnl ?? 0) >= 0;
             return (
               <div
                 className={[
@@ -1810,13 +1811,16 @@ export function StocksPage() {
                             value={quickTradeQuantity}
                             inputMode="decimal"
                             disabled={!tradingOpen || isQuickTradeSubmitting}
-                            onChange={(event) => setQuickTradeQuantity(event.target.value)}
+                            onChange={(event) => {
+                              setQuickTradeQuantity(event.target.value);
+                              setLastQuickTradeQuantityPreset(null);
+                            }}
                           />
                         </label>
 
                         <div className={detailStyles.tradePresets}>
-                          {["10", "25", "50", "100"].map((preset) => (
-                            <button key={preset} type="button" className={detailStyles.presetButton} onClick={() => setQuickTradeQuantity(preset)}>
+                          {TRADE_QUANTITY_PRESETS.map((preset) => (
+                            <button key={preset} type="button" className={detailStyles.presetButton} onClick={() => applyQuickTradeQuantityPreset(preset)}>
                               {preset}
                             </button>
                           ))}
@@ -1825,7 +1829,7 @@ export function StocksPage() {
                         <div className={detailStyles.tradeSummary}>
                           <div><span>Mid</span><strong>{formatPrice(quickTradeAsset.current_mid_price)}</strong></div>
                           <div><span>Bid / Ask</span><strong>{formatPrice(quickTradeAsset.current_bid_price)} / {formatPrice(quickTradeAsset.current_ask_price)}</strong></div>
-                          <div><span>Premium</span><strong>{fmtPct(quickTradeAsset.current_premium_pct)}</strong></div>
+                          <div><span>Volume</span><strong>{fmtNumber(quickTradeAsset.volume_24h)}</strong></div>
                         </div>
 
                         <div className={detailStyles.liveOrderQueue}>

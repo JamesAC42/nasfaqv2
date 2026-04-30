@@ -132,6 +132,27 @@ router.put("/:slug", async (req, res, next) => {
   }
 });
 
+router.delete("/:slug", async (req, res, next) => {
+  try {
+    requireAdmin(req);
+    await articleDb.deleteArticle(req.ctx.pool, req.params.slug);
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/:slug/body", async (req, res, next) => {
+  try {
+    requireAdmin(req);
+    await articleDb.deleteNewsArticleBody(req.ctx.pool, req.params.slug);
+    const article = await articleDb.getArticleBySlug(req.ctx.pool, req.params.slug, req.ctx.user?.id || null, true);
+    res.json({ article });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/:slug/comments", async (req, res, next) => {
   try {
     const userId = requireVerifiedUserId(req);

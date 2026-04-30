@@ -88,6 +88,10 @@
     0 0 34px color-mix(in srgb, var(--rank-cyan) 26%, transparent);
 }
 
+[data-theme="light"] .title {
+  text-shadow: none;
+}
+
 .heroText {
   max-width: 52ch;
   margin: 0.45rem 0 0;

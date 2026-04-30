@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   FaBolt,
   FaChartLine,
   FaCircleNodes,
   FaClock,
+  FaArrowTrendDown,
+  FaArrowTrendUp,
+  FaFire,
   FaMoneyBillTrendUp,
   FaSignal,
   FaUsers,
@@ -25,6 +28,7 @@ import shellStyles from "@/app/components/pages/page-shell.module.scss";
 
 import fubogki from "@/public/fubogki.png";
 import kronie from "@/public/kronie.png";
+import smugKorone from "@/public/smugkorone.png";
 import tako from "@/public/tako.png";
 
 const INITIAL_TRADE_LIMIT = 20;
@@ -73,7 +77,8 @@ function formatRelativeTime(value: string | null | undefined) {
 
 function formatCountdown(ms: number | null) {
   if (ms === null) return "No tick scheduled";
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  if (ms <= 0) return "Due now";
+  const totalSeconds = Math.floor(ms / 1000);
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
@@ -177,6 +182,115 @@ function isLastAdjustmentOutcome(item: MarketAdjustmentOutcome, lastTick: Market
   return true;
 }
 
+function DailyTickTimelineCanvas({ progress }: { progress: number }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const progressRef = useRef(progress);
+
+  useEffect(() => {
+    progressRef.current = progress;
+  }, [progress]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+
+    let frame = 0;
+    let width = 0;
+    let height = 0;
+    let dpr = window.devicePixelRatio || 1;
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      width = rect.width;
+      height = rect.height;
+      dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.round(width * dpr));
+      canvas.height = Math.max(1, Math.round(height * dpr));
+    };
+
+    const markerPoint = () => {
+      const distance = Math.max(0, Math.min(100, progressRef.current)) * 3.82;
+      const lineInset = 3;
+      const canvasBleed = 20;
+      const trackLeft = canvasBleed + lineInset;
+      const trackRight = width - canvasBleed - lineInset;
+      const trackTop = canvasBleed + lineInset;
+      const trackMiddle = canvasBleed + (height - canvasBleed * 2) * 0.5 + lineInset;
+      const trackBottom = height - canvasBleed - lineInset;
+      const trackBottomEnd = canvasBleed + (width - canvasBleed * 2) * 0.82;
+      const drawableWidth = Math.max(1, trackRight - trackLeft);
+
+      if (distance <= 100) return { x: trackLeft + (distance / 100) * drawableWidth, y: trackTop };
+      if (distance <= 150) return { x: trackRight, y: trackTop + ((distance - 100) / 50) * (trackMiddle - trackTop) };
+      if (distance <= 250) return { x: trackLeft + ((250 - distance) / 100) * drawableWidth, y: trackMiddle };
+      if (distance <= 300) return { x: trackLeft, y: trackMiddle + ((distance - 250) / 50) * (trackBottom - trackMiddle) };
+      return { x: trackLeft + ((distance - 300) / 82) * (trackBottomEnd - trackLeft), y: trackBottom };
+    };
+
+    const draw = (time = 0) => {
+      const context = canvas.getContext("2d");
+      if (!context || width <= 0 || height <= 0) {
+        frame = window.requestAnimationFrame(draw);
+        return;
+      }
+
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      context.clearRect(0, 0, width, height);
+      context.lineWidth = 6;
+      context.lineCap = "round";
+      context.lineJoin = "round";
+      context.strokeStyle = "rgba(123, 168, 184, 0.28)";
+      context.beginPath();
+      const canvasBleed = 20;
+      const trackLeft = canvasBleed + 3;
+      const trackRight = width - canvasBleed - 3;
+      const trackTop = canvasBleed + 3;
+      const trackMiddle = canvasBleed + (height - canvasBleed * 2) * 0.5 + 3;
+      const trackBottom = height - canvasBleed - 3;
+      context.moveTo(trackLeft, trackTop);
+      context.lineTo(trackRight, trackTop);
+      context.lineTo(trackRight, trackMiddle);
+      context.lineTo(trackLeft, trackMiddle);
+      context.lineTo(trackLeft, trackBottom);
+      context.lineTo(canvasBleed + (width - canvasBleed * 2) * 0.82, trackBottom);
+      context.stroke();
+
+      const pulse = media.matches ? 0 : (Math.sin(time / 280) + 1) / 2;
+      const point = markerPoint();
+      context.shadowColor = "rgba(36, 229, 137, 0.48)";
+      context.shadowBlur = 13 + pulse * 8;
+      context.fillStyle = "#071822";
+      context.strokeStyle = "#24e589";
+      context.lineWidth = 3;
+      context.beginPath();
+      context.arc(point.x, point.y, 9, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+
+      context.shadowBlur = 0;
+      context.fillStyle = "rgba(36, 229, 137, 0.2)";
+      context.beginPath();
+      context.arc(point.x, point.y, 14 + pulse * 4, 0, Math.PI * 2);
+      context.fill();
+
+      frame = window.requestAnimationFrame(draw);
+    };
+
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(canvas);
+    frame = window.requestAnimationFrame(draw);
+
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className={styles.timelineCanvas} aria-hidden="true" />;
+}
+
 function mergeTrades(current: MarketHubTrade[], incoming: MarketHubTrade[], cap = LIVE_TRADE_CAP) {
   const seen = new Set<number>();
   const merged: MarketHubTrade[] = [];
@@ -198,7 +312,7 @@ function patchAsset(asset: MarketAsset, event: MarketTradeEvent): MarketAsset {
     current_mid_price: event.quote.mid_price,
     current_bid_price: event.quote.bid_price,
     current_ask_price: event.quote.ask_price,
-    current_premium_pct: event.quote.premium_pct,
+    current_premium_pct: null,
     volume_24h: (asset.volume_24h ?? 0) + event.trade.quantity,
   };
 }
@@ -211,7 +325,7 @@ function patchAssetFromQuote(asset: MarketAsset, quote: Record<string, unknown>)
     current_mid_price: toNumber(quote.mid_price),
     current_bid_price: toNumber(quote.bid_price),
     current_ask_price: toNumber(quote.ask_price),
-    current_premium_pct: toNumber(quote.premium_pct),
+    current_premium_pct: null,
   };
 }
 
@@ -234,8 +348,8 @@ function patchHubWithEvent(current: MarketHubResponse, event: MarketTradeEvent):
       top_volume: patchAssets(current.leaders.top_volume),
       top_movers: patchAssets(current.leaders.top_movers),
       top_losers: patchAssets(current.leaders.top_losers),
-      top_premiums: patchAssets(current.leaders.top_premiums),
-      top_discounts: patchAssets(current.leaders.top_discounts),
+      top_premiums: [],
+      top_discounts: [],
     },
     recent_trades: {
       ...current.recent_trades,
@@ -258,8 +372,8 @@ function patchHubWithQuotes(current: MarketHubResponse, quotes: Array<Record<str
       top_volume: patchAssets(current.leaders.top_volume),
       top_movers: patchAssets(current.leaders.top_movers),
       top_losers: patchAssets(current.leaders.top_losers),
-      top_premiums: patchAssets(current.leaders.top_premiums),
-      top_discounts: patchAssets(current.leaders.top_discounts),
+      top_premiums: [],
+      top_discounts: [],
     },
   };
 }
@@ -434,6 +548,45 @@ function PendingLiveOrders({
             </div>
           </Link>
         )) : <div className={styles.empty}>No live orders are waiting for the next tick.</div>}
+      </div>
+    </section>
+  );
+}
+
+function ActiveTraderPanel({ hub }: { hub: MarketHubResponse }) {
+  return (
+    <section className={`${styles.panel} ${styles.activeTraderPanel}`}>
+      <div className={styles.sectionHead}>
+        <div>
+          <h2 className={styles.sectionTitle}>Most Active Traders</h2>
+          <p className={styles.sectionCopy}>Top accounts by trade count over the last 24 hours.</p>
+        </div>
+      </div>
+      <div className={styles.traderList}>
+        {hub.activity.most_active_traders_24h.length ? hub.activity.most_active_traders_24h.map((trader) => (
+          <Link key={trader.user_id} href={`/profile/${encodeURIComponent(trader.username)}`} className={styles.traderRow}>
+            <div className={styles.traderIdentity}>
+              <span
+                className={styles.traderBadge}
+                style={trader.profile_color ? { backgroundColor: trader.profile_color } : undefined}
+              >
+                {trader.profile_picture_url ? (
+                  <img src={trader.profile_picture_url} alt="" className={styles.traderBadgeImage} />
+                ) : (
+                  trader.username.slice(0, 1).toUpperCase()
+                )}
+              </span>
+              <div>
+                <strong>{trader.username}</strong>
+                <span>{fmtInteger(trader.distinct_assets)} assets · {formatRelativeTime(trader.latest_trade_at)}</span>
+              </div>
+            </div>
+            <div className={styles.traderMetrics}>
+              <strong>{fmtInteger(trader.trade_count)} trades</strong>
+              <span>{fmtNumber(trader.volume_cash, "$")}</span>
+            </div>
+          </Link>
+        )) : <div className={styles.empty}>No active traders yet.</div>}
       </div>
     </section>
   );
@@ -746,7 +899,7 @@ export function MarketPage() {
               mid_price: toNumber((payload.quote as Record<string, unknown> | undefined)?.mid_price),
               bid_price: toNumber((payload.quote as Record<string, unknown> | undefined)?.bid_price),
               ask_price: toNumber((payload.quote as Record<string, unknown> | undefined)?.ask_price),
-              premium_pct: toNumber((payload.quote as Record<string, unknown> | undefined)?.premium_pct),
+              premium_pct: null,
               updated_at: (payload.quote as Record<string, unknown> | undefined)?.updated_at ? String((payload.quote as Record<string, unknown>).updated_at) : null,
             },
             market_status: {
@@ -830,6 +983,7 @@ export function MarketPage() {
           ...hub.leaders.top_losers,
           ...hub.leaders.top_premiums,
           ...hub.leaders.top_discounts,
+          ...trades,
         ]
       : [];
 
@@ -839,7 +993,7 @@ export function MarketPage() {
     }
 
     return map;
-  }, [hub]);
+  }, [hub, trades]);
 
   const indexSeries = useMemo(() => {
     if (!allMarketIndex) return [];
@@ -874,7 +1028,7 @@ export function MarketPage() {
       current.cash += trade.gross_cash;
       bySymbol.set(trade.symbol, current);
     }
-    return [...bySymbol.values()].sort((a, b) => b.count - a.count || b.cash - a.cash).slice(0, 5);
+    return [...bySymbol.values()].sort((a, b) => b.count - a.count || b.cash - a.cash).slice(0, 16);
   }, [trades]);
 
   const activityScore = useMemo(() => {
@@ -938,7 +1092,7 @@ export function MarketPage() {
             </div>
             <h1 className={styles.heroTitle}>Market Heartbeat</h1>
             <p className={styles.heroText}>
-              Live fills, trader pressure, hot symbols, and attention rotation across the NASFAQ game economy.
+              See what players are trading right now.
             </p>
           </div>
           <div className={styles.heroStatus}>
@@ -971,8 +1125,25 @@ export function MarketPage() {
                 </p>
                 <div className={styles.tickRules}>
                   <span>4 ticks per market day</span>
-                  <span>Each coin moves toward a hidden base rate</span>
+                  <span>Each coin moves toward a hidden target</span>
                   <span>Tick strength stays secret until after it lands</span>
+                </div>
+                <div className={styles.countdownSessionRows}>
+                  <div className={styles.countdownSessionRow}>
+                    <span>Status</span>
+                    <strong className={hub.status?.is_trading_open ? styles.positive : styles.negative}>{hub.status?.is_trading_open ? "Open" : "Closed"}</strong>
+                    <em>{hub.status?.trading_message || "Trading session operating normally."}</em>
+                  </div>
+                  <div className={styles.countdownSessionRow}>
+                    <span>Next settlement</span>
+                    <strong>{hub.status?.next_scheduled_settlement_at ? fmtDate(hub.status.next_scheduled_settlement_at) : "—"}</strong>
+                    <em>Scheduled market cycle checkpoint.</em>
+                  </div>
+                  <div className={styles.countdownSessionRow}>
+                    <span>Daily report</span>
+                    <strong>{hub.report?.market_date || "—"}</strong>
+                    <em>Latest generated market summary date.</em>
+                  </div>
                 </div>
               </div>
               <div className={styles.clockWall}>
@@ -989,12 +1160,7 @@ export function MarketPage() {
                   <strong>{Math.round(dailyTimelineProgress)}%</strong>
                 </div>
                 <div className={styles.timelineTrack}>
-                  <span className={`${styles.timelineSegment} ${styles.timelineSegmentTop}`} />
-                  <span className={`${styles.timelineSegment} ${styles.timelineSegmentRightDrop}`} />
-                  <span className={`${styles.timelineSegment} ${styles.timelineSegmentMiddle}`} />
-                  <span className={`${styles.timelineSegment} ${styles.timelineSegmentLeftDrop}`} />
-                  <span className={`${styles.timelineSegment} ${styles.timelineSegmentBottom}`} />
-                  <i style={timelineZPosition(dailyTimelineProgress)} />
+                  <DailyTickTimelineCanvas progress={dailyTimelineProgress} />
                   {TICK_INTERVAL_ORDER.map((key) => (
                     <span key={key} className={styles.timelineTick} style={timelineZPosition(TIMELINE_LABEL_PROGRESS[key])}>
                       <span className={styles.timelineTickText}>{formatIntervalLabel(key)}</span>
@@ -1019,18 +1185,28 @@ export function MarketPage() {
               <StatCard label="Market Breadth" value={`${fmtInteger(allMarketIndex?.summary?.advancers)} / ${fmtInteger(allMarketIndex?.summary?.decliners)}`} meta={`${fmtInteger(allMarketIndex?.summary?.constituent_count)} tracked`} icon={<FaChartLine />} />
             </section>
 
-            <PendingLiveOrders hub={hub} now={now} />
+            <div className={styles.liveActivityRow}>
+              <PendingLiveOrders hub={hub} now={now} />
+              <ActiveTraderPanel hub={hub} />
+            </div>
 
-            <section className={styles.hotPanel}>
-              <div className={styles.sectionHead}>
-                <div>
-                  <h2 className={styles.sectionTitle}>Hot Symbols</h2>
-                  <p className={styles.sectionCopy}>Most repeated names in the currently loaded live tape.</p>
+            <div className={styles.hotSymbolsRow}>
+              <section className={styles.hotPanel}>
+                <div className={styles.sectionHead}>
+                  <div>
+                    <h2 className={`${styles.sectionTitle} ${styles.hotTitle}`}><FaFire aria-hidden="true" /> Hot Symbols</h2>
+                    <p className={styles.sectionCopy}>Most repeated names in the currently loaded live tape.</p>
+                  </div>
+                  <div className={styles.sectionMeta}><FaBolt /> Rotating now</div>
                 </div>
-                <div className={styles.sectionMeta}><FaBolt /> Rotating now</div>
+
+                <HotSymbolStrip symbols={hotSymbols} assetMeta={assetMeta} />
+              </section>
+
+              <div className={styles.hotMascotSlot}>
+                <Image src={smugKorone} alt="" className={styles.hotMascotImage} width={320} height={320} />
               </div>
-              <HotSymbolStrip symbols={hotSymbols} assetMeta={assetMeta} />
-            </section>
+            </div>
 
             <div className={styles.mainGrid}>
               <section className={`${styles.panel} ${styles.chartPanel}`}>
@@ -1042,6 +1218,10 @@ export function MarketPage() {
                       broad index action and current breadth
                     </p>
                   </div>
+                  <Link href="/indexes" className={styles.sectionMetaLink}>
+                    <FaChartLine />
+                    <span>Open indexes</span>
+                  </Link>
                 </div>
                 <TrendChartCard
                   title="All Market Index"
@@ -1097,7 +1277,10 @@ export function MarketPage() {
                             <strong>{item.symbol} {formatIntervalLabel(item.interval_key)}</strong>
                             <em>{formatRelativeTime(item.applied_at || item.scheduled_at)}</em>
                           </span>
-                          <b className={styles.positive}>+{fmtPct(item.move_pct)}</b>
+                          <span className={styles.adjustmentMetric}>
+                            <em>{fmtNumber(item.price_after ?? item.price_before, "$")}</em>
+                            <b className={styles.positive}><FaArrowTrendUp aria-hidden="true" /> +{fmtPct(item.move_pct)}</b>
+                          </span>
                         </Link>
                       )) : <div className={styles.empty}>No upward moves in the last adjustment.</div>}
                     </div>
@@ -1115,7 +1298,10 @@ export function MarketPage() {
                             <strong>{item.symbol} {formatIntervalLabel(item.interval_key)}</strong>
                             <em>{formatRelativeTime(item.applied_at || item.scheduled_at)}</em>
                           </span>
-                          <b className={styles.negative}>{fmtPct(item.move_pct)}</b>
+                          <span className={styles.adjustmentMetric}>
+                            <em>{fmtNumber(item.price_after ?? item.price_before, "$")}</em>
+                            <b className={styles.negative}><FaArrowTrendDown aria-hidden="true" /> {fmtPct(item.move_pct)}</b>
+                          </span>
                         </Link>
                       )) : <div className={styles.empty}>No downward moves in the last adjustment.</div>}
                     </div>
@@ -1187,64 +1373,6 @@ export function MarketPage() {
               </div>
             </div>
 
-            <div className={styles.bottomGrid}>
-              <section className={styles.panel}>
-                <div className={styles.sectionHead}>
-                  <div>
-                    <h2 className={styles.sectionTitle}>Most Active Traders</h2>
-                    <p className={styles.sectionCopy}>Top accounts by trade count over the last 24 hours.</p>
-                  </div>
-                </div>
-                <div className={styles.traderList}>
-                  {hub.activity.most_active_traders_24h.length ? hub.activity.most_active_traders_24h.map((trader) => (
-                    <Link key={trader.user_id} href={`/profile/${encodeURIComponent(trader.username)}`} className={styles.traderRow}>
-                      <div className={styles.traderIdentity}>
-                        <span
-                          className={styles.traderBadge}
-                          style={trader.profile_color ? { backgroundColor: trader.profile_color } : undefined}
-                        >
-                          {trader.username.slice(0, 1).toUpperCase()}
-                        </span>
-                        <div>
-                          <strong>{trader.username}</strong>
-                          <span>{fmtInteger(trader.distinct_assets)} assets · {formatRelativeTime(trader.latest_trade_at)}</span>
-                        </div>
-                      </div>
-                      <div className={styles.traderMetrics}>
-                        <strong>{fmtInteger(trader.trade_count)} trades</strong>
-                        <span>{fmtNumber(trader.volume_cash, "$")}</span>
-                      </div>
-                    </Link>
-                  )) : <div className={styles.empty}>No active traders yet.</div>}
-                </div>
-              </section>
-
-              <section className={styles.panel}>
-                <div className={styles.sectionHead}>
-                  <div>
-                    <h2 className={styles.sectionTitle}>Session Clock</h2>
-                    <p className={styles.sectionCopy}>Runtime state and the current session timeline.</p>
-                  </div>
-                </div>
-                <div className={styles.clockGrid}>
-                  <div className={styles.clockCard}>
-                    <span>Status</span>
-                    <strong className={hub.status?.is_trading_open ? styles.positive : styles.negative}>{hub.status?.is_trading_open ? "Open" : "Closed"}</strong>
-                    <p>{hub.status?.trading_message || "Trading session operating normally."}</p>
-                  </div>
-                  <div className={styles.clockCard}>
-                    <span>Next settlement</span>
-                    <strong>{hub.status?.next_scheduled_settlement_at ? fmtDate(hub.status.next_scheduled_settlement_at) : "—"}</strong>
-                    <p>Scheduled market cycle checkpoint.</p>
-                  </div>
-                  <div className={styles.clockCard}>
-                    <span>Daily report</span>
-                    <strong>{hub.report?.market_date || "—"}</strong>
-                    <p>Latest generated market summary date.</p>
-                  </div>
-                </div>
-              </section>
-            </div>
           </>
         ) : null}
       </div>

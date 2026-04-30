@@ -77,6 +77,10 @@
     0 0 34px color-mix(in srgb, var(--accent) 26%, transparent);
 }
 
+[data-theme="light"] .title {
+  text-shadow: none;
+}
+
 .copy {
   @include subtle-copy;
   margin: 0.45rem 0 0;

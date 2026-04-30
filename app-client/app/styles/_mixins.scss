@@ -58,6 +58,10 @@
   font-size: clamp(2rem, 3.8vw, 3.7rem);
   line-height: 0.96;
   text-shadow: 0 0 30px color-mix(in srgb, var(--accent) 22%, transparent);
+
+  [data-theme="light"] & {
+    text-shadow: none;
+  }
 }
 
 @mixin archive-metric {

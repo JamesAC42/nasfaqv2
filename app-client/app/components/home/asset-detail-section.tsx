@@ -6,7 +6,7 @@ import { CandleChartCard, TrendChartCard, VolumeChartCard } from "@/app/componen
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import type { ChannelChartTheme } from "@/app/lib/chart-theme";
 import { apiFetch } from "@/app/lib/api";
-import { fmtDate, fmtNumber, fmtPct } from "@/app/lib/format";
+import { fmtDate, fmtNumber } from "@/app/lib/format";
 import type { AssetDetailBundle, MarketAsset, MarketStatus } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import styles from "@/app/components/home/asset-detail-section.module.scss";
@@ -106,8 +106,7 @@ export function AssetDetailSection({
         <div className={styles.statCard}><span className={styles.label}>Mid</span><strong>{fmtNumber(asset.current_mid_price)}</strong></div>
         <div className={styles.statCard}><span className={styles.label}>Bid</span><strong>{fmtNumber(asset.current_bid_price)}</strong></div>
         <div className={styles.statCard}><span className={styles.label}>Ask</span><strong>{fmtNumber(asset.current_ask_price)}</strong></div>
-        <div className={styles.statCard}><span className={styles.label}>Fair</span><strong>{fmtNumber(asset.current_fair_value)}</strong></div>
-        <div className={styles.statCard}><span className={styles.label}>Premium</span><strong>{fmtPct(asset.current_premium_pct)}</strong></div>
+        <div className={styles.statCard}><span className={styles.label}>Volume</span><strong>{fmtNumber(asset.volume_24h)}</strong></div>
         <div className={styles.statCard}><span className={styles.label}>Emission</span><strong>{fmtNumber(asset.current_daily_emission)}</strong></div>
         <div className={styles.statCard}><span className={styles.label}>Snapshot Date</span><strong>{asset.latest_snapshot_date || "—"}</strong></div>
       </div>
@@ -156,25 +155,6 @@ export function AssetDetailSection({
         <CandleChartCard title="1Y Daily Price" subtitle="Daily candles with mark-close overlay" candles={filteredDailyCandles} showMarkClose theme={chartTheme} />
         <VolumeChartCard title="1Y Daily Volume" subtitle="Settled daily coin volume in shares" candles={filteredDailyCandles} theme={chartTheme} />
         <TrendChartCard
-          title="Fundamental Signal"
-          subtitle="Smoothed anchor with raw signal overlay"
-          theme={chartTheme}
-          series={[
-            {
-              name: "Smoothed",
-              color: chartTheme?.baseDeep || "#2563eb",
-              kind: "area",
-              values: filteredStats.map((item) => ({ time: item.snapshot_date, value: item.fundamental_value_smoothed })),
-            },
-            {
-              name: "Raw",
-              color: chartTheme?.baseMuted || "#94a3b8",
-              kind: "line",
-              values: filteredStats.map((item) => ({ time: item.snapshot_date, value: item.fundamental_value_raw })),
-            },
-          ]}
-        />
-        <TrendChartCard
           title="Subscribers"
           subtitle="One-year audience trajectory"
           theme={chartTheme}
@@ -221,7 +201,6 @@ export function AssetDetailSection({
           <div className={styles.statCard}><span className={styles.label}>Circulating</span><strong>{fmtNumber(detail?.treasury?.circulating_supply)}</strong></div>
           <div className={styles.statCard}><span className={styles.label}>Treasury</span><strong>{fmtNumber(detail?.treasury?.treasury_supply)}</strong></div>
           <div className={styles.statCard}><span className={styles.label}>Max</span><strong>{fmtNumber(detail?.treasury?.max_supply)}</strong></div>
-          <div className={styles.statCard}><span className={styles.label}>Premium</span><strong>{fmtPct(detail?.treasury?.current_premium_pct)}</strong></div>
         </div>
       </div>
 

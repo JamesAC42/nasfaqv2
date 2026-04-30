@@ -22,6 +22,7 @@ let activeDetailRequestId = 0;
 let wsRef: WebSocket | null = null;
 let reconnectTimer: number | null = null;
 let indexRefreshTimer: number | null = null;
+let overviewRefreshTimer: number | null = null;
 let tradingStateRefreshTimer: number | null = null;
 let reconnectAttempt = 0;
 let realtimeDisposed = false;
@@ -53,31 +54,41 @@ function patchAssetFromTrade(asset: MarketAsset, payload: Record<string, unknown
   const trade = (payload.trade && typeof payload.trade === "object" ? payload.trade : {}) as Record<string, unknown>;
   const symbol = String(quote.symbol || trade.symbol || "").toUpperCase();
   if (!symbol || asset.symbol.toUpperCase() !== symbol) return asset;
+  const nextMidPrice = toNumber(quote.mid_price) ?? asset.current_mid_price;
+  const todayOpenPrice = asset.previous_settlement_mid_price;
 
   return {
     ...asset,
-    current_mid_price: toNumber(quote.mid_price) ?? asset.current_mid_price,
-    market_price: toNumber(quote.mid_price) ?? asset.market_price,
+    current_mid_price: nextMidPrice,
+    market_price: nextMidPrice ?? asset.market_price,
     current_bid_price: toNumber(quote.bid_price) ?? asset.current_bid_price,
     current_ask_price: toNumber(quote.ask_price) ?? asset.current_ask_price,
-    current_premium_pct: toNumber(quote.premium_pct) ?? asset.current_premium_pct,
-    premium_discount_pct: toNumber(quote.premium_pct) ?? asset.premium_discount_pct,
+    current_premium_pct: null,
+    premium_discount_pct: null,
     volume_24h: (asset.volume_24h ?? 0) + (toNumber(trade.quantity) ?? 0),
+    move_24h_pct: nextMidPrice !== null && todayOpenPrice !== null && todayOpenPrice !== 0
+      ? (nextMidPrice - todayOpenPrice) / todayOpenPrice
+      : asset.move_24h_pct,
   };
 }
 
 function patchAssetFromQuote(asset: MarketAsset, quote: Record<string, unknown>) {
   const symbol = String(quote.symbol || "").toUpperCase();
   if (!symbol || asset.symbol.toUpperCase() !== symbol) return asset;
+  const nextMidPrice = toNumber(quote.mid_price) ?? asset.current_mid_price;
+  const todayOpenPrice = asset.previous_settlement_mid_price;
 
   return {
     ...asset,
-    current_mid_price: toNumber(quote.mid_price) ?? asset.current_mid_price,
-    market_price: toNumber(quote.mid_price) ?? asset.market_price,
+    current_mid_price: nextMidPrice,
+    market_price: nextMidPrice ?? asset.market_price,
     current_bid_price: toNumber(quote.bid_price) ?? asset.current_bid_price,
     current_ask_price: toNumber(quote.ask_price) ?? asset.current_ask_price,
-    current_premium_pct: toNumber(quote.premium_pct) ?? asset.current_premium_pct,
-    premium_discount_pct: toNumber(quote.premium_pct) ?? asset.premium_discount_pct,
+    current_premium_pct: null,
+    premium_discount_pct: null,
+    move_24h_pct: nextMidPrice !== null && todayOpenPrice !== null && todayOpenPrice !== 0
+      ? (nextMidPrice - todayOpenPrice) / todayOpenPrice
+      : asset.move_24h_pct,
   };
 }
 
@@ -85,16 +96,16 @@ function patchAssetFromSettlement(asset: MarketAsset, incoming: MarketAsset) {
   if (asset.symbol.toUpperCase() !== incoming.symbol.toUpperCase()) return asset;
   return {
     ...asset,
-    current_fair_value: incoming.current_fair_value,
-    base_rate: incoming.base_rate ?? incoming.current_fair_value,
+    current_fair_value: null,
+    base_rate: null,
     current_mid_price: incoming.current_mid_price,
     market_price: incoming.market_price ?? incoming.current_mid_price,
     previous_settlement_mid_price: incoming.previous_settlement_mid_price,
     pre_settlement_mid_price: incoming.pre_settlement_mid_price,
     current_bid_price: incoming.current_bid_price,
     current_ask_price: incoming.current_ask_price,
-    current_premium_pct: incoming.current_premium_pct,
-    premium_discount_pct: incoming.premium_discount_pct ?? incoming.current_premium_pct,
+    current_premium_pct: null,
+    premium_discount_pct: null,
     current_daily_emission: incoming.current_daily_emission,
     treasury_supply: incoming.treasury_supply,
     circulating_supply: incoming.circulating_supply,
@@ -127,6 +138,14 @@ function scheduleIndexRefresh(fetchMarketIndexes: () => Promise<void>, hasIndexe
     indexRefreshTimer = null;
     void fetchMarketIndexes();
   }, 750);
+}
+
+function scheduleOverviewRefresh(refreshOverview: () => Promise<void>) {
+  if (typeof window === "undefined" || overviewRefreshTimer !== null) return;
+  overviewRefreshTimer = window.setTimeout(() => {
+    overviewRefreshTimer = null;
+    void refreshOverview();
+  }, 700);
 }
 
 function eventUserId(payload: Record<string, unknown>) {
@@ -322,6 +341,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
               };
             });
             scheduleIndexRefresh(get().fetchMarketIndexes, get().marketIndexes.length > 0);
+            scheduleOverviewRefresh(get().refreshOverview);
             scheduleTradingStateRefresh(payload);
             return;
           }
@@ -382,6 +402,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
           }
 
           if (payload.type === "market.live_order_queued" || payload.type === "market.live_order_rejected") {
+            scheduleOverviewRefresh(get().refreshOverview);
             scheduleTradingStateRefresh(payload);
             return;
           }

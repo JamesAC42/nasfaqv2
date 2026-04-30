@@ -42,6 +42,7 @@ const CATEGORY_ITEMS = [
       { href: "/predictions", label: "Predictions" },
       { href: "/threads", label: "/vt/" },
       { href: "/leaderboard", label: "Leaderboard" },
+      { href: "/oshiboard", label: "Oshiboard" },
     ],
   },
   {
@@ -324,8 +325,10 @@ export function SiteShell({
   const clearPendingLiveOrders = useProfileStore((state) => state.clearPendingLiveOrders);
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [isOrdersFlyoutOpen, setIsOrdersFlyoutOpen] = useState(false);
+  const [liveOrderNotice, setLiveOrderNotice] = useState<string | null>(null);
   const [lastCategory, setLastCategory] = useState<string | null>(null);
   const hasRequestedOverviewRef = useRef(false);
+  const pendingOrderIdsRef = useRef<Set<number> | null>(null);
   const shellRef = useRef<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
   const ribbonShellRef = useRef<HTMLDivElement | null>(null);
@@ -349,11 +352,49 @@ export function SiteShell({
     }
 
     void fetchPortfolioOrders();
-    const interval = window.setInterval(fetchPortfolioOrders, 30_000);
+    const interval = window.setInterval(fetchPortfolioOrders, 10_000);
     return () => {
       window.clearInterval(interval);
     };
   }, [clearPendingLiveOrders, fetchPortfolioOrders, user]);
+
+  useEffect(() => {
+    if (!user || !pendingOrders.length) return;
+    const nextDueAt = pendingOrders
+      .map((order) => order.execute_after ? new Date(order.execute_after).getTime() : Number.NaN)
+      .filter((value) => Number.isFinite(value))
+      .sort((a, b) => a - b)[0];
+    if (!nextDueAt) return;
+
+    const delayMs = Math.max(1_000, nextDueAt - Date.now() + 1_500);
+    const timer = window.setTimeout(fetchPortfolioOrders, delayMs);
+    return () => window.clearTimeout(timer);
+  }, [fetchPortfolioOrders, pendingOrders, user]);
+
+  useEffect(() => {
+    if (!user) {
+      pendingOrderIdsRef.current = null;
+      setLiveOrderNotice(null);
+      return;
+    }
+
+    const nextIds = new Set(pendingOrders.map((order) => order.id));
+    const previousIds = pendingOrderIdsRef.current;
+    if (previousIds) {
+      const completedCount = Array.from(previousIds).filter((id) => !nextIds.has(id)).length;
+      if (completedCount > 0) {
+        setLiveOrderNotice(`${completedCount} live order${completedCount === 1 ? "" : "s"} finished processing.`);
+        setIsOrdersFlyoutOpen(false);
+      }
+    }
+    pendingOrderIdsRef.current = nextIds;
+  }, [pendingOrders, user]);
+
+  useEffect(() => {
+    if (!liveOrderNotice) return;
+    const timer = window.setTimeout(() => setLiveOrderNotice(null), 6200);
+    return () => window.clearTimeout(timer);
+  }, [liveOrderNotice]);
 
   useEffect(() => {
     if (!isOrdersFlyoutOpen) return;
@@ -409,6 +450,13 @@ export function SiteShell({
 
   return (
     <div ref={shellRef} className={styles.shell}>
+      {liveOrderNotice ? (
+        <div className={styles.liveOrderToast} role="status">
+          <strong>Live order update</strong>
+          <span>{liveOrderNotice}</span>
+          <Link href="/profile" onClick={() => setLiveOrderNotice(null)}>View profile</Link>
+        </div>
+      ) : null}
       <header ref={headerRef} className={styles.header}>
         <div className={styles.navbarRow}>
           <div className={styles.navbarStart}>
@@ -448,10 +496,6 @@ export function SiteShell({
               onClick={toggleTheme}
             >
               {theme === "dark" ? <FiSun className={styles.icon} /> : <FiMoon className={styles.icon} />}
-            </button>
-
-            <button type="button" className={styles.iconButton} aria-label="Notifications">
-              <BellIcon />
             </button>
 
             {user ? (

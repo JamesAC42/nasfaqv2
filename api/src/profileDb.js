@@ -424,7 +424,7 @@ async function getProfileBundle(pool, {
   const profileUser = await resolveProfileUser(pool, { username, viewerUserId, selfOnly });
 
   const isSelf = Boolean(viewerUserId) && Number(profileUser.id) === Number(viewerUserId);
-  const [viewerContext, stats, friends, rivals, networth, articleResult, savedArticleResult, tradeResult, portfolio, userAchievements, streaks, leaderboardEntries] = await Promise.all([
+  const [viewerContext, stats, friends, rivals, networth, articleResult, savedArticleResult, tradeResult, portfolio, userAchievements, streaks, leaderboardEntries, oshiboards] = await Promise.all([
     getViewerContext(pool, profileUser.id, viewerUserId),
     getProfileStats(pool, profileUser.id),
     listAcceptedFriends(pool, profileUser.id),
@@ -437,6 +437,7 @@ async function getProfileBundle(pool, {
     achievements.listUserAchievements(pool, profileUser.id, { limit: 100 }),
     achievements.getUserTradeStreak(pool, profileUser.id),
     netWorth.listCurrentNetWorthByUserIds(pool, [profileUser.id]),
+    netWorth.listUserOshiboardMemberships(pool, profileUser.id),
   ]);
   const leaderboardEntry = leaderboardEntries[0] || null;
 
@@ -463,6 +464,7 @@ async function getProfileBundle(pool, {
         can_void_prediction_markets: Boolean(profileUser.can_void_prediction_markets),
       },
       rank: Number(leaderboardEntry?.rank || 0),
+      oshiboards,
       oshi_coin: profileUser.oshi_coin,
       stats: {
         cash_balance: portfolio.cash_balance,
@@ -566,6 +568,7 @@ async function setProfilePicture(pool, userId, profilePictureId) {
   `,
     [safeUserId, safeProfilePictureId]
   );
+  await netWorth.refreshCurrentOshiboards(pool, { userIds: [safeUserId] });
 }
 
 async function updateProfileSettings(pool, userId, { username, bio, profileColor, oshiCoinAssetId }) {
@@ -641,6 +644,8 @@ async function updateProfileSettings(pool, userId, { username, bio, profileColor
     }
     throw error;
   }
+
+  await netWorth.refreshCurrentOshiboards(pool, { userIds: [safeUserId] });
 }
 
 async function sendFriendRequest(pool, viewerUserId, username) {

@@ -7,14 +7,16 @@ import { FaComment, FaEye, FaHeart, FaMagnifyingGlass, FaNewspaper } from "react
 import { AssetPicker } from "@/app/components/common/asset-picker";
 import { ChannelTickerPill } from "@/app/components/common/channel-ticker-pill";
 import { FilterPanel } from "@/app/components/common/filter-panel";
-import { OptionPicker } from "@/app/components/common/option-picker";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { fmtInteger } from "@/app/lib/format";
 import { normalizeArticleListResponse } from "@/app/lib/normalizers";
+import { getCompactNewsThumbnailUrl } from "@/app/lib/thumbnails";
 import type { ArticleListResponse, ArticleSummary, NewsFeedPagination } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMarketStore } from "@/app/stores/market-store";
+import { FaPencil } from "react-icons/fa6"; // pencil icon
+
 import styles from "@/app/components/articles/article-pages.module.scss";
 
 const DEFAULT_PAGINATION: NewsFeedPagination = {
@@ -27,13 +29,11 @@ const DEFAULT_PAGINATION: NewsFeedPagination = {
 };
 
 type ArticleFilters = {
-  type: string;
   asset: string;
   query: string;
 };
 
 const DEFAULT_FILTERS: ArticleFilters = {
-  type: "all",
   asset: "",
   query: "",
 };
@@ -43,13 +43,6 @@ function formatDate(value: string | null) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-}
-
-function getCompactThumbnailUrl(url: string | null | undefined) {
-  if (!url) return null;
-  const lastSlashIndex = url.lastIndexOf("/");
-  if (lastSlashIndex < 0 || lastSlashIndex === url.length - 1) return url;
-  return `${url.slice(0, lastSlashIndex + 1)}thumbnail-${url.slice(lastSlashIndex + 1)}`;
 }
 
 function formatCountLabel(count: number, singular: string, plural = `${singular}s`) {
@@ -102,12 +95,12 @@ function ArticleCard({ article }: { article: ArticleSummary }) {
   return (
     <Link href={`/articles/${encodeURIComponent(article.slug)}`} className={styles.cardLink}>
       <article className={`${styles.articleCard} ${article.thumbnail_url ? "" : styles.articleCardNoThumb}`.trim()}>
-        {article.thumbnail_url ? <img src={getCompactThumbnailUrl(article.thumbnail_url) || article.thumbnail_url} alt="" className={styles.thumb} /> : null}
+        {article.thumbnail_url ? <img src={getCompactNewsThumbnailUrl(article.thumbnail_url) || article.thumbnail_url} alt="" className={styles.thumb} /> : null}
         <div className={styles.cardBody}>
           <div className={styles.metaRow}>
-            <span className={styles.pill}>{article.is_news ? "News" : "Community"}</span>
+            <span className={styles.pill}>Community</span>
             <span className={styles.muted}>{formatDate(article.published_at)}</span>
-            <span className={styles.muted}>{article.author ? `By ${article.author.username}` : "Imported news item"}</span>
+            <span className={styles.muted}>{article.author ? `By ${article.author.username}` : "Community article"}</span>
           </div>
           {article.related_assets.length ? (
             <div className={styles.assetRow}>
@@ -139,11 +132,6 @@ function ArticleCard({ article }: { article: ArticleSummary }) {
   );
 }
 
-function hasApprovedArticleBody(article: ArticleSummary) {
-  if (!article.is_news) return true;
-  return Boolean(article.preview?.trim());
-}
-
 export function ArticlesPage() {
   const pathname = usePathname();
   const { user } = useAuth();
@@ -158,11 +146,9 @@ export function ArticlesPage() {
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const visibleItems = items.filter(hasApprovedArticleBody);
-  const communityCount = visibleItems.filter((article) => !article.is_news).length;
-  const newsCount = visibleItems.filter((article) => article.is_news).length;
+  const visibleItems = items;
+  const communityCount = visibleItems.length;
   const activeFilterCount =
-    (draftFilters.type !== "all" ? 1 : 0) +
     (draftFilters.asset ? 1 : 0) +
     (draftFilters.query.trim() ? 1 : 0);
   const filterSummary = activeFilterCount
@@ -172,7 +158,6 @@ export function ArticlesPage() {
   function applyFilters() {
     setPage(1);
     setAppliedFilters({
-      type: draftFilters.type,
       asset: draftFilters.asset,
       query: draftFilters.query.trim(),
     });
@@ -202,7 +187,7 @@ export function ArticlesPage() {
         const params = new URLSearchParams();
         params.set("limit", "12");
         params.set("page", String(page));
-        if (appliedFilters.type !== "all") params.set("type", appliedFilters.type);
+        params.set("type", "community");
         if (appliedFilters.asset) params.set("asset", appliedFilters.asset);
         if (appliedFilters.query) params.set("q", appliedFilters.query);
         const result = await apiFetch<Record<string, unknown>>(`/api/articles?${params.toString()}`, {
@@ -242,9 +227,8 @@ export function ArticlesPage() {
           </div>
           <div className={styles.heroMetrics}>
             <ArticleMetric label="Articles" value={fmtInteger(pagination.total)} meta={`${fmtInteger(visibleItems.length)} loaded`} />
-            <ArticleMetric label="News" value={fmtInteger(newsCount)} meta="visible feed" />
             <ArticleMetric label="Community" value={fmtInteger(communityCount)} meta="visible feed" />
-            {user ? <Link href="/articles/new" className={styles.primaryButton}>Write article</Link> : null}
+            {user ? <Link href="/articles/new" className={styles.primaryButton}><FaPencil aria-hidden="true" /> Write article</Link> : null}
           </div>
         </section>
 
@@ -274,19 +258,6 @@ export function ArticlesPage() {
               </label>
             <div className={styles.fieldGrid}>
               <label className={styles.field}>
-                <span className={styles.fieldLabel}>Type</span>
-                <OptionPicker
-                  value={draftFilters.type}
-                  onChange={(value) => setDraftFilters((current) => ({ ...current, type: value }))}
-                  placeholder="All article types"
-                  options={[
-                    { value: "all", label: "All article types" },
-                    { value: "community", label: "Community articles" },
-                    { value: "news", label: "News articles" },
-                  ]}
-                />
-              </label>
-              <label className={styles.field}>
                 <span className={styles.fieldLabel}>Related asset</span>
                 <AssetPicker
                   assets={assets}
@@ -315,7 +286,7 @@ export function ArticlesPage() {
           <div className={styles.feedHeader}>
             <div>
               <h2 className={styles.sectionTitle}>Article feed</h2>
-              <p className={styles.sectionCopy}>Newest published articles with linked symbols and engagement.</p>
+              <p className={styles.sectionCopy}>Newest published community articles.</p>
             </div>
             <div className={styles.metaRow}>
               <span className={styles.muted}>{pagination.total} total articles</span>
