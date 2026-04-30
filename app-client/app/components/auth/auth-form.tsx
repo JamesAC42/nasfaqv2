@@ -58,7 +58,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     if (!turnstileSiteKey || !window.turnstile || !turnstileRef.current || turnstileWidgetRef.current) return;
     turnstileWidgetRef.current = window.turnstile.render(turnstileRef.current, {
       sitekey: turnstileSiteKey,
-      appearance: "interaction-only",
+      appearance: "always",
       callback: (token: string) => {
         turnstileTokenRef.current = token;
         setTurnstileToken(token);
