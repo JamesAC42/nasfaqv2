@@ -1,5 +1,6 @@
 FROM golang:1.25-alpine AS build
 WORKDIR /src
+ENV GOFLAGS=-buildvcs=false
 COPY superchatscraper/go.mod superchatscraper/go.sum ./
 RUN go mod download
 COPY superchatscraper/ ./
