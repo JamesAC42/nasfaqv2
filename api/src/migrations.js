@@ -12,6 +12,9 @@ async function applySchema(pool) {
     CREATE SCHEMA IF NOT EXISTS info
   `);
   await pool.query(`
+    CREATE SCHEMA IF NOT EXISTS content
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS info.member_news (
       id BIGSERIAL PRIMARY KEY,
       headline TEXT NOT NULL,
@@ -859,9 +862,6 @@ async function applySchema(pool) {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS market_user_oshiboard_current_updated_idx
       ON market.user_oshiboard_current (updated_at DESC)
-  `);
-  await pool.query(`
-    CREATE SCHEMA IF NOT EXISTS content
   `);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS content.articles (
