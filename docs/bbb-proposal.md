@@ -94,7 +94,7 @@ Additionally, Long Term Gambit Slots should be exclusively for the player’s fa
 The auto-trader also handles any Contracts that you have, which do not count against your Gambit Slots.
 
 Normal Live Trading
-Every interval, players may issue up to 180 Live Orders. Each Order represents a single transaction, Buy or Sell, in an Index or a Coin. All Orders are executed on the next Tick of 10 minutes after being issued, but are not shown until the next Interval.
+Every execution tick, players may issue Live Orders totaling up to 180 shares. Each Order represents a single transaction, Buy or Sell, in an Index or a Coin. All Orders are executed on the next Tick of 10 minutes after being issued, but are not shown until the next Interval.
 Public Update timeframes may need to be adjusted. One Update per 6 hours may be excessive. Perhaps One per Hour instead? Not sure.
-The Live Order limit shouldn’t be increased, as it represents the old form of Manual Trading, hitting buttons (or abusing API calls) on cooldown (5 trades per cycle * 36 cycles of 10 minutes = 180). This allows players to not have to sit in front of the trade menu all day to get ahead, or worse, code API bots that will potentially break the site. At any time during the interval, players can issue their orders.
+The Live Order limit shouldn’t be increased, as it represents the old form of Manual Trading, hitting buttons (or abusing API calls) on cooldown. This allows players to not have to sit in front of the trade menu all day to get ahead, or worse, code API bots that will potentially break the site. At any time during the interval, players can issue their orders.
 Live Orders shouldn’t interfere with Market Gambits or the auto trader in general.

@@ -3,7 +3,7 @@ const DEFAULT_TRANSIENT_HALF_LIFE_MINUTES = 60;
 const DEFAULT_TRANSIENT_IMPACT_WEIGHT = 0.7;
 const DEFAULT_PERSISTENT_IMPACT_WEIGHT = 0.15;
 const DEFAULT_EXECUTION_SLIPPAGE_WEIGHT = 0.5;
-const DEFAULT_LIVE_ORDER_LIMIT_PER_INTERVAL = 180;
+const DEFAULT_LIVE_ORDER_SHARE_LIMIT_PER_TICK = 180;
 const DEFAULT_LIVE_ORDER_BATCH_LIMIT = 100;
 const DEFAULT_LIVE_ORDER_WORKER_CONCURRENCY = 4;
 const DEFAULT_LIVE_ORDER_SCHEDULER_INTERVAL_MS = 1_000;
@@ -24,9 +24,14 @@ const TRANSIENT_HALF_LIFE_MINUTES = Number(process.env.MARKET_TRANSIENT_HALF_LIF
 const TRANSIENT_IMPACT_WEIGHT = Number(process.env.MARKET_TRANSIENT_IMPACT_WEIGHT || DEFAULT_TRANSIENT_IMPACT_WEIGHT);
 const PERSISTENT_IMPACT_WEIGHT = Number(process.env.MARKET_PERSISTENT_IMPACT_WEIGHT || DEFAULT_PERSISTENT_IMPACT_WEIGHT);
 const EXECUTION_SLIPPAGE_WEIGHT = Number(process.env.MARKET_EXECUTION_SLIPPAGE_WEIGHT || DEFAULT_EXECUTION_SLIPPAGE_WEIGHT);
-const LIVE_ORDER_LIMIT_PER_INTERVAL = Math.max(
+const LIVE_ORDER_SHARE_LIMIT_PER_TICK = Math.max(
   1,
-  Number(process.env.MARKET_LIVE_ORDER_LIMIT_PER_INTERVAL || DEFAULT_LIVE_ORDER_LIMIT_PER_INTERVAL)
+  Number(
+    process.env.MARKET_LIVE_ORDER_SHARE_LIMIT_PER_TICK ||
+    process.env.MARKET_LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL ||
+      process.env.MARKET_LIVE_ORDER_LIMIT_PER_INTERVAL ||
+      DEFAULT_LIVE_ORDER_SHARE_LIMIT_PER_TICK
+  )
 );
 const LIVE_ORDER_BATCH_LIMIT = Math.max(1, Number(process.env.MARKET_LIVE_ORDER_BATCH_LIMIT || DEFAULT_LIVE_ORDER_BATCH_LIMIT));
 const LIVE_ORDER_WORKER_CONCURRENCY = Math.max(
@@ -756,19 +761,31 @@ async function getCurrentLiveOrderInterval(client, { marketDate, now = new Date(
   return { marketDate, intervalKey: "open", scheduledAt: null };
 }
 
-async function countLiveOrdersForInterval(client, { userId, marketDate, intervalKey }) {
+async function sumLiveOrderSharesForTick(client, { userId, executeAfter }) {
   const { rows } = await client.query(
     `
-    SELECT COUNT(*)::INTEGER AS order_count
+    SELECT COALESCE(SUM(requested_quantity), 0) AS share_count
     FROM market.trade_orders
     WHERE user_id = $1
       AND order_type = 'live_market'
-      AND submitted_market_date IS NOT DISTINCT FROM $2::date
-      AND submitted_interval_key IS NOT DISTINCT FROM $3::text
+      AND status = 'pending'
+      AND execute_after IS NOT DISTINCT FROM $2::timestamptz
   `,
-    [userId, marketDate, intervalKey]
+    [userId, executeAfter]
   );
-  return Number(rows[0]?.order_count || 0);
+  return Number(rows[0]?.share_count || 0);
+}
+
+async function lockLiveOrderTick(client, { userId, executeAfter }) {
+  await client.query(
+    `
+    SELECT pg_advisory_xact_lock(
+      hashtext($1)::integer,
+      hashtext($2)::integer
+    )
+  `,
+    [String(userId), String(executeAfter || "none")]
+  );
 }
 
 async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = null }) {
@@ -839,19 +856,26 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
 
     const marketDate = status?.last_settlement_market_date || status?.current_market_date || null;
     const interval = await getCurrentLiveOrderInterval(client, { marketDate, now });
-    const submittedCount = await countLiveOrdersForInterval(client, {
+    const executeAfter = computeNextLiveOrderTick(now);
+    const executeAfterIso = executeAfter.toISOString();
+    await lockLiveOrderTick(client, {
       userId,
-      marketDate: interval.marketDate,
-      intervalKey: interval.intervalKey,
+      executeAfter: executeAfterIso,
     });
-    if (submittedCount >= LIVE_ORDER_LIMIT_PER_INTERVAL) {
+    const submittedShares = await sumLiveOrderSharesForTick(client, {
+      userId,
+      executeAfter: executeAfterIso,
+    });
+    const remainingShares = Math.max(0, LIVE_ORDER_SHARE_LIMIT_PER_TICK - submittedShares);
+    if (parsedQuantity > remainingShares) {
       const error = new Error("live_order_limit_exceeded");
       error.code = "live_order_limit_exceeded";
-      error.limit = LIVE_ORDER_LIMIT_PER_INTERVAL;
+      error.limit = LIVE_ORDER_SHARE_LIMIT_PER_TICK;
+      error.submittedShares = submittedShares;
+      error.remainingShares = remainingShares;
       throw error;
     }
 
-    const executeAfter = computeNextLiveOrderTick(now);
     const { rows } = await client.query(
       `
       INSERT INTO market.trade_orders (
@@ -879,14 +903,14 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
         parsedQuantity,
         quotesBefore.bidPrice,
         quotesBefore.askPrice,
-        executeAfter.toISOString(),
+        executeAfterIso,
         interval.marketDate,
         interval.intervalKey,
         JSON.stringify({
           queued_mid_price: roundForMetadata(liveMidBefore),
           queued_indicative_price: roundForMetadata(indicativePrice),
           queued_fee_rate: getTradingFeeRate(),
-          live_order_limit: LIVE_ORDER_LIMIT_PER_INTERVAL,
+          live_order_share_limit: LIVE_ORDER_SHARE_LIMIT_PER_TICK,
           submitted_interval_scheduled_at: interval.scheduledAt || null,
         }),
       ]
@@ -902,11 +926,15 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
       side: normalizedSide,
       symbol: asset.symbol,
       requested_quantity: parsedQuantity,
-      submitted_count: submittedCount + 1,
-      interval_limit: LIVE_ORDER_LIMIT_PER_INTERVAL,
+      submitted_shares: submittedShares + parsedQuantity,
+      remaining_tick_shares: Math.max(0, remainingShares - parsedQuantity),
+      remaining_interval_shares: Math.max(0, remainingShares - parsedQuantity),
+      tick_share_limit: LIVE_ORDER_SHARE_LIMIT_PER_TICK,
+      interval_share_limit: LIVE_ORDER_SHARE_LIMIT_PER_TICK,
+      interval_limit: LIVE_ORDER_SHARE_LIMIT_PER_TICK,
       submitted_market_date: interval.marketDate,
       submitted_interval_key: interval.intervalKey,
-      execute_after: executeAfter.toISOString(),
+      execute_after: executeAfterIso,
       quote_bid_at_submit: quotesBefore.bidPrice,
       quote_ask_at_submit: quotesBefore.askPrice,
       indicative_price: indicativePrice,
@@ -1382,6 +1410,8 @@ async function getLiveOrderAdminHealth(pool, { batchLimit = 10 } = {}) {
       500,
       Number(process.env.MARKET_LIVE_ORDER_SCHEDULER_INTERVAL_MS || DEFAULT_LIVE_ORDER_SCHEDULER_INTERVAL_MS)
     ),
+    share_limit_per_tick: LIVE_ORDER_SHARE_LIMIT_PER_TICK,
+    share_limit_per_interval: LIVE_ORDER_SHARE_LIMIT_PER_TICK,
     batch_limit: LIVE_ORDER_BATCH_LIMIT,
     worker_concurrency: LIVE_ORDER_WORKER_CONCURRENCY,
     health: healthResult.rows[0] || {},

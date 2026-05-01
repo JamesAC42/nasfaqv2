@@ -685,7 +685,15 @@ router.post("/orders/buy", async (req, res, next) => {
     if (e?.code === "asset_not_active") return res.status(409).json({ error: "asset_not_active" });
     if (e?.code === "market_closed") return res.status(409).json({ error: "market_closed", market_status: e.marketStatus || null });
     if (e?.code === "insufficient_cash") return res.status(409).json({ error: "insufficient_cash" });
-    if (e?.code === "live_order_limit_exceeded") return res.status(429).json({ error: "live_order_limit_exceeded", limit: e.limit || null });
+    if (e?.code === "live_order_limit_exceeded") {
+      return res.status(429).json({
+        error: "live_order_limit_exceeded",
+        limit: e.limit || null,
+        submitted_shares: e.submittedShares ?? null,
+        remaining_tick_shares: e.remainingShares ?? null,
+        remaining_interval_shares: e.remainingShares ?? null,
+      });
+    }
     if (e?.code === "invalid_quote") return res.status(409).json({ error: "invalid_quote" });
     next(e);
   }
@@ -715,7 +723,15 @@ router.post("/orders/sell", async (req, res, next) => {
     if (e?.code === "asset_not_active") return res.status(409).json({ error: "asset_not_active" });
     if (e?.code === "market_closed") return res.status(409).json({ error: "market_closed", market_status: e.marketStatus || null });
     if (e?.code === "insufficient_holdings") return res.status(409).json({ error: "insufficient_holdings" });
-    if (e?.code === "live_order_limit_exceeded") return res.status(429).json({ error: "live_order_limit_exceeded", limit: e.limit || null });
+    if (e?.code === "live_order_limit_exceeded") {
+      return res.status(429).json({
+        error: "live_order_limit_exceeded",
+        limit: e.limit || null,
+        submitted_shares: e.submittedShares ?? null,
+        remaining_tick_shares: e.remainingShares ?? null,
+        remaining_interval_shares: e.remainingShares ?? null,
+      });
+    }
     if (e?.code === "invalid_quote") return res.status(409).json({ error: "invalid_quote" });
     next(e);
   }

@@ -195,13 +195,13 @@ To preserve current trading semantics, the cleanest version should adjust the tr
 
 #### Live Order Limits And Delayed Execution
 
-BBB's live order cap of `180` per interval maps well to a new pending order queue. Current `market.trade_orders` already has fields for `pending`, `filled`, `cancelled`, and `rejected`, though current code only creates filled market orders.
+BBB's live trading cap of `180` shares per 10-minute execution tick maps well to a new pending order queue. Current `market.trade_orders` already has fields for `pending`, `filled`, `cancelled`, and `rejected`, though current code only creates filled market orders.
 
 Recommended approach:
 
 - Extend `trade_orders.order_type` to include `live_market` or add a separate `market.live_orders` table.
 - Store pending user orders during the interval.
-- Enforce `180` orders per user per interval.
+- Enforce `180` pending shares per user per execution tick.
 - Batch-execute eligible orders every 10 minutes.
 - Do not publish all details publicly until the next interval if that rule is desired.
 
@@ -398,7 +398,7 @@ Add interval scheduling and asset adjustment events around the existing fair-val
 
 Key risk: deciding how interval moves interact with transient/persistent offsets and existing daily settlement decay.
 
-### 4. Live Order Queue And 180-Order Interval Limit
+### 4. Live Order Queue And 180-Share Tick Limit
 
 Difficulty: Medium
 

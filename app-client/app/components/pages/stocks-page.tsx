@@ -100,6 +100,8 @@ type TradeExecutionResult = {
   requested_quantity?: number;
   execute_after?: string | null;
   interval_limit?: number;
+  remaining_interval_shares?: number | null;
+  remaining_tick_shares?: number | null;
   indicative_price?: number;
   filled_quantity?: number;
   executed_price?: number;
@@ -126,6 +128,7 @@ type TradeConfirmation = {
   requestedQuantity: number;
   executeAfter: string | null;
   intervalLimit: number | null;
+  remainingIntervalShares: number | null;
   filledQuantity: number;
   executedPrice: number;
   fee: number;
@@ -332,8 +335,8 @@ function getTradeFailureNotice(errorCode: string, side: TradeSide, symbol: strin
       };
     case "live_order_limit_exceeded":
       return {
-        title: "Live order limit reached",
-        message: "You have already submitted the maximum number of live orders for this market interval.",
+        title: "Live limit reached",
+        message: "This order would exceed your live share limit for the next execution tick.",
       };
     default:
       return {
@@ -451,6 +454,7 @@ function buildTradeConfirmation(args: {
     requestedQuantity,
     executeAfter: result.execute_after ?? null,
     intervalLimit: result.interval_limit ?? null,
+    remainingIntervalShares: result.remaining_interval_shares ?? result.remaining_tick_shares ?? null,
     filledQuantity,
     executedPrice,
     fee,
@@ -1836,8 +1840,8 @@ export function StocksPage() {
                               </strong>
                             </div>
                             <div className={detailStyles.tradeConfirmationCard}>
-                              <span>{isQueued ? "Interval Limit" : "New Cash Balance"}</span>
-                              <strong>{isQueued ? `${fmtNumber(tradeConfirmation.intervalLimit)} orders` : fmtNumber(tradeConfirmation.nextCashBalance, "$")}</strong>
+                              <span>{isQueued ? "Shares Left" : "New Cash Balance"}</span>
+                              <strong>{isQueued ? `${fmtNumber(tradeConfirmation.remainingIntervalShares ?? tradeConfirmation.intervalLimit)} shares` : fmtNumber(tradeConfirmation.nextCashBalance, "$")}</strong>
                             </div>
                           </div>
 
