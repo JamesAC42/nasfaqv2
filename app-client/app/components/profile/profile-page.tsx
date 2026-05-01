@@ -319,7 +319,7 @@ function ProfileSettingsModal({
               onChange={(event) => setUsernameDraft(event.target.value)}
               placeholder="Username"
             />
-            <span className={styles.sectionCount}>Letters, numbers, and underscores. 3-32 characters.</span>
+            <span className={styles.sectionCount}>Letters, numbers, underscores, and single spaces. 3-32 characters.</span>
           </div>
           <div className={styles.fieldStack}>
             <label className={styles.fieldLabel} htmlFor="profile-bio">Bio</label>
@@ -847,11 +847,6 @@ function PredictionExposurePanel({ portfolio }: { portfolio: PredictionPortfolio
 export function ProfilePage({ username }: { username?: string | null }) {
   const { user, logout } = useAuth();
   const router = useRouter();
-  const adminBusy = useProfileStore((state) => state.adminBusy);
-  const adminStatus = useProfileStore((state) => state.adminStatus);
-  const adminError = useProfileStore((state) => state.adminError);
-  const resetMarket = useProfileStore((state) => state.resetMarket);
-  const rebuildMarket = useProfileStore((state) => state.rebuildMarket);
   const pendingLiveOrders = useProfileStore((state) => state.pendingLiveOrders);
   const fetchPortfolioOrders = useProfileStore((state) => state.fetchPortfolioOrders);
   const clearPendingLiveOrders = useProfileStore((state) => state.clearPendingLiveOrders);
@@ -1107,16 +1102,6 @@ export function ProfilePage({ username }: { username?: string | null }) {
     } finally {
       setActionBusy(null);
     }
-  }
-
-  async function handleReset() {
-    await resetMarket();
-    await Promise.allSettled([reloadBundle(), refreshMarketOverview()]);
-  }
-
-  async function handleRebuild() {
-    await rebuildMarket();
-    await Promise.allSettled([reloadBundle(), refreshMarketOverview()]);
   }
 
   async function handleSelectProfilePicture(profilePictureId: number | null) {
@@ -1451,21 +1436,11 @@ export function ProfilePage({ username }: { username?: string | null }) {
                       <div className={styles.sectionHead}>
                         <h2 className={styles.sectionTitle}>Market Admin</h2>
                       </div>
-                      <p className={styles.muted}>Reset clears derived market and portfolio state. Rebuild recalculates assets, fundamentals, and settlement history.</p>
+                      <p className={styles.muted}>Administrative market tools are available from the dedicated admin pages.</p>
                       <div className={styles.actions}>
                         <Link href="/admin/assets" className={styles.secondaryButton}>Manage assets</Link>
                         <Link href="/admin/market-tuning" className={styles.secondaryButton}>Tune market</Link>
                       </div>
-                      <div className={styles.actions}>
-                        <button type="button" className={styles.secondaryButton} onClick={() => void handleReset()} disabled={adminBusy !== false}>
-                          {adminBusy === "reset" ? "Resetting…" : "Reset market"}
-                        </button>
-                        <button type="button" className={styles.primaryButton} onClick={() => void handleRebuild()} disabled={adminBusy !== false}>
-                          {adminBusy === "rebuild" ? "Rebuilding…" : "Rebuild market"}
-                        </button>
-                      </div>
-                      {adminError ? <div className="statusMessage statusMessageError">Admin error: {adminError}</div> : null}
-                      {adminStatus ? <div className="statusMessage statusMessageSuccess">{adminStatus}</div> : null}
                     </section>
                   ) : null}
                 </div>

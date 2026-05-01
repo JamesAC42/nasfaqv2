@@ -5,6 +5,8 @@ import { AssetCoin } from "@/app/components/common/asset-coin";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { useAuth } from "@/app/providers/auth-provider";
+import { useMarketStore } from "@/app/stores/market-store";
+import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/admin/admin-market-tuning-page.module.scss";
 
 type MarketTuningConfig = {
@@ -53,6 +55,8 @@ type MarketTuningAsset = {
 type MarketTuningResponse = {
   asset: MarketTuningAsset;
 };
+
+type MarketResetAction = "reset" | "rebuild";
 
 type ForceAdjustmentResponse = {
   applied_count: number;
@@ -507,6 +511,12 @@ function TuningRow({
 
 export function AdminMarketTuningPage() {
   const { initialized, isLoading: isAuthLoading, user } = useAuth();
+  const adminBusy = useProfileStore((state) => state.adminBusy);
+  const adminStatus = useProfileStore((state) => state.adminStatus);
+  const adminError = useProfileStore((state) => state.adminError);
+  const resetMarket = useProfileStore((state) => state.resetMarket);
+  const rebuildMarket = useProfileStore((state) => state.rebuildMarket);
+  const refreshMarketOverview = useMarketStore((state) => state.refreshOverview);
   const [assets, setAssets] = useState<MarketTuningAsset[]>([]);
   const [config, setConfig] = useState<MarketTuningConfig | null>(null);
   const [query, setQuery] = useState("");
@@ -527,6 +537,8 @@ export function AdminMarketTuningPage() {
   const [liveOrderHealth, setLiveOrderHealth] = useState<LiveOrderAdminHealth | null>(null);
   const [adminAdjustmentError, setAdminAdjustmentError] = useState<string | null>(null);
   const [isLoadingAdminAdjustments, setIsLoadingAdminAdjustments] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<MarketResetAction | null>(null);
+  const [confirmText, setConfirmText] = useState("");
 
   useEffect(() => {
     if (!initialized || !user?.is_admin) {
@@ -718,6 +730,35 @@ export function AdminMarketTuningPage() {
       setRegenerateError(String((nextError as Error).message || nextError));
     } finally {
       setRegenerateBusy(false);
+    }
+  }
+
+  function openConfirmAction(action: MarketResetAction) {
+    setConfirmAction(action);
+    setConfirmText("");
+  }
+
+  function closeConfirmAction() {
+    setConfirmAction(null);
+    setConfirmText("");
+  }
+
+  async function handleConfirmedMarketReset() {
+    if (!confirmAction || confirmText.trim() !== confirmAction) return;
+    const action = confirmAction;
+    closeConfirmAction();
+    try {
+      if (action === "reset") {
+        await resetMarket("reset");
+      } else {
+        await rebuildMarket("rebuild");
+      }
+      if (useProfileStore.getState().adminError) return;
+      const assetRows = await apiFetch<Record<string, unknown>[]>("/api/market/assets", { cache: "no-store" });
+      setAssets(assetRows.map(toAsset));
+      await Promise.allSettled([refreshAdminAdjustmentData(), refreshMarketOverview()]);
+    } catch (nextError) {
+      setError(String((nextError as Error).message || nextError));
     }
   }
 
@@ -1074,7 +1115,71 @@ export function AdminMarketTuningPage() {
             <div className={styles.empty}>No assets match that filter.</div>
           ) : null}
         </section>
+
+        <section className={`${styles.section} ${styles.resetPanel}`}>
+          <div>
+            <h2 className={styles.sectionTitle}>Market Reset Controls</h2>
+            <p className={styles.sectionNote}>
+              Reset clears derived market and portfolio state. Rebuild recalculates assets, fundamentals, and settlement history.
+            </p>
+          </div>
+          <div className={styles.resetActions}>
+            <button
+              type="button"
+              className={styles.dangerButton}
+              onClick={() => openConfirmAction("reset")}
+              disabled={adminBusy !== false}
+            >
+              {adminBusy === "reset" ? "Resetting..." : "Reset market"}
+            </button>
+            <button
+              type="button"
+              className={styles.dangerButton}
+              onClick={() => openConfirmAction("rebuild")}
+              disabled={adminBusy !== false}
+            >
+              {adminBusy === "rebuild" ? "Rebuilding..." : "Rebuild market"}
+            </button>
+          </div>
+          {adminError ? <div className="statusMessage statusMessageError">Admin error: {adminError}</div> : null}
+          {adminStatus ? <div className="statusMessage statusMessageSuccess">{adminStatus}</div> : null}
+        </section>
       </div>
+      {confirmAction ? (
+        <div className={styles.modalOverlay} onClick={closeConfirmAction}>
+          <div className={styles.confirmModal} role="dialog" aria-modal="true" aria-labelledby="market-reset-confirm-title" onClick={(event) => event.stopPropagation()}>
+            <div>
+              <div className={styles.eyebrow}>Destructive Market Action</div>
+              <h2 id="market-reset-confirm-title" className={styles.sectionTitle}>
+                {confirmAction === "reset" ? "Confirm market reset" : "Confirm market rebuild"}
+              </h2>
+              <p className={styles.sectionNote}>
+                Type <strong>{confirmAction}</strong> to continue. The server request will not be sent until the typed confirmation matches.
+              </p>
+            </div>
+            <input
+              className={styles.confirmInput}
+              value={confirmText}
+              onChange={(event) => setConfirmText(event.target.value)}
+              placeholder={confirmAction}
+              autoFocus
+            />
+            <div className={styles.modalActions}>
+              <button type="button" className={styles.secondaryButton} onClick={closeConfirmAction}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={styles.dangerButton}
+                onClick={() => void handleConfirmedMarketReset()}
+                disabled={adminBusy !== false || confirmText.trim() !== confirmAction}
+              >
+                {confirmAction === "reset" ? "Reset market" : "Rebuild market"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </SiteShell>
   );
 }

@@ -7,6 +7,7 @@ const marketAdmin = require("../services/marketAdmin");
 const marketState = require("../services/marketState");
 const settlement = require("../services/settlement");
 const trading = require("../services/trading");
+const { requireAdmin } = require("../userContext");
 const {
   acquireSchedulerLock,
   computeNextScheduledAt,
@@ -22,6 +23,10 @@ function optionalDate(value) {
   if (value === null || value === undefined || value === "") return null;
   const trimmed = String(value).trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : null;
+}
+
+function hasConfirmation(req, expected) {
+  return String(req.body?.confirmation || "").trim() === expected;
 }
 
 router.get("/jobs", async (req, res, next) => {
@@ -115,6 +120,8 @@ router.get("/invariants", async (req, res, next) => {
 
 router.post("/reset", async (req, res, next) => {
   try {
+    requireAdmin(req);
+    if (!hasConfirmation(req, "reset")) return res.status(400).json({ error: "invalid_confirmation" });
     const result = await marketAdmin.resetMarketState(req.ctx.pool);
     await invalidateMarketAssetsCache(req.ctx.redis);
     res.json(result);
@@ -248,6 +255,8 @@ router.post("/live-orders/apply-due", async (req, res, next) => {
 router.post("/rebuild-full", async (req, res, next) => {
   const lockClient = await req.ctx.pool.connect();
   try {
+    requireAdmin(req);
+    if (!hasConfirmation(req, "rebuild")) return res.status(400).json({ error: "invalid_confirmation" });
     const locked = await acquireSchedulerLock(lockClient);
     if (!locked) {
       return res.status(409).json({ error: "scheduler_running" });

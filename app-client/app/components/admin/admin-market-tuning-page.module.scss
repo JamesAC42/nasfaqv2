@@ -521,6 +521,48 @@
   padding: 0.62rem 0.85rem;
 }
 
+.resetPanel {
+  border-color: color-mix(in srgb, var(--danger) 28%, var(--border-strong));
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--danger) 6%, var(--surface-section)), var(--surface-section));
+}
+
+.resetActions,
+.modalActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(0 0 0 / 0.62);
+  backdrop-filter: blur(0.35rem);
+}
+
+.confirmModal {
+  display: grid;
+  gap: 1rem;
+  width: min(100%, 32rem);
+  padding: 1.25rem;
+  border: 0.0625rem solid color-mix(in srgb, var(--danger) 36%, var(--border-strong));
+  border-radius: var(--radius-lg);
+  background: var(--surface-section);
+  box-shadow: var(--shadow);
+}
+
+.confirmInput {
+  @include input-base;
+  width: 100%;
+  border-color: color-mix(in srgb, var(--danger) 32%, var(--border));
+}
+
 .ready,
 .notReady {
   border-radius: 999rem;

@@ -28,7 +28,7 @@ function normalizeUsername(value) {
 
 function validateUsername(value) {
   const trimmed = String(value || "").trim();
-  if (!/^[A-Za-z0-9_]{3,32}$/.test(trimmed)) {
+  if (trimmed.length < 3 || trimmed.length > 32 || !/^[A-Za-z0-9_]+(?: [A-Za-z0-9_]+)*$/.test(trimmed)) {
     const error = new Error("invalid_profile_update");
     error.code = "invalid_profile_update";
     throw error;

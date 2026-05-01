@@ -23,8 +23,8 @@ type ProfileState = {
   refreshTradingState: () => Promise<void>;
   clearPendingLiveOrders: () => void;
   clearPortfolio: () => void;
-  resetMarket: () => Promise<void>;
-  rebuildMarket: () => Promise<void>;
+  resetMarket: (confirmation: "reset") => Promise<void>;
+  rebuildMarket: (confirmation: "rebuild") => Promise<void>;
 };
 
 export const useProfileStore = create<ProfileState>((set) => ({
@@ -81,12 +81,12 @@ export const useProfileStore = create<ProfileState>((set) => ({
       pendingLiveOrders: [],
       portfolioError: null,
     }),
-  resetMarket: async () => {
+  resetMarket: async (confirmation) => {
     set({ adminBusy: "reset", adminError: null, adminStatus: null });
     try {
       const result = await apiFetch<{ starter_cash: number }>("/internal/market/reset", {
         method: "POST",
-        body: "{}",
+        body: JSON.stringify({ confirmation }),
       });
       set({
         portfolio: null,
@@ -98,7 +98,7 @@ export const useProfileStore = create<ProfileState>((set) => ({
       set({ adminBusy: false });
     }
   },
-  rebuildMarket: async () => {
+  rebuildMarket: async (confirmation) => {
     set({ adminBusy: "rebuild", adminError: null, adminStatus: null });
     try {
       const result = await apiFetch<{
@@ -111,6 +111,7 @@ export const useProfileStore = create<ProfileState>((set) => ({
           active_only: true,
           fill_missing_dates: true,
           force: true,
+          confirmation,
           version: 1,
         }),
       });

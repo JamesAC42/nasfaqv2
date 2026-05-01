@@ -263,7 +263,7 @@ function isNearBottom(viewport: HTMLDivElement | null) {
 
 function findComposerTrigger(value: string, cursor: number): ComposerTrigger {
   const beforeCursor = value.slice(0, cursor);
-  const mentionMatch = beforeCursor.match(/(?:^|\s)@([A-Za-z0-9_]*)$/);
+  const mentionMatch = beforeCursor.match(/(?:^|\s)@([A-Za-z0-9_]+(?: [A-Za-z0-9_]+)*|[A-Za-z0-9_]*)$/);
   if (mentionMatch) {
     return {
       type: "mention",
