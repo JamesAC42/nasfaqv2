@@ -457,72 +457,73 @@ async function listNewsFeed(pool, {
     orderClause = "ORDER BY lower(mn.headline) DESC, mn.id DESC";
   }
 
-  const countResult = await pool.query(
-    `
-    SELECT COUNT(*)::int AS total
-    FROM info.member_news mn
-    ${whereClause}
-  `,
-    params
-  );
-
-  const itemsResult = await pool.query(
-    `
-    SELECT
-      mn.id,
-      mn.headline,
-      'HoloNews'::text AS source,
-      mn.date::text AS published_at,
-      mn.thumbnail_url,
-      COALESCE(a.id, NULL) AS article_id,
-      COALESCE(a.slug, 'news-' || mn.id::text) AS article_slug,
-      COALESCE(a.is_news, TRUE) AS is_news,
-      COALESCE(a.views, 0)::int AS view_count,
-      COALESCE(a.likes, 0)::int AS like_count,
-      COALESCE(a.saves, 0)::int AS save_count,
-      COALESCE(comment_rel.comment_count, 0)::int AS comment_count,
-      COALESCE(rel.characters, '[]'::json) AS characters,
-      COALESCE(rel.related_names, ARRAY[]::text[]) AS related_names,
-      COALESCE(rel.channel_ids, ARRAY[]::text[]) AS channel_ids,
-      COALESCE(rel.stock_symbols, ARRAY[]::text[]) AS stock_symbols,
-      COALESCE(rel.units, ARRAY[]::text[]) AS units
-    FROM info.member_news mn
-    LEFT JOIN content.articles a
-      ON a.news_id = mn.id
-    LEFT JOIN LATERAL (
+  const [countResult, itemsResult] = await Promise.all([
+    pool.query(
+      `
+      SELECT COUNT(*)::int AS total
+      FROM info.member_news mn
+      ${whereClause}
+    `,
+      params
+    ),
+    pool.query(
+      `
       SELECT
-        json_agg(
-          DISTINCT jsonb_build_object(
-            'name', yc.name_short,
-            'icon', yc.icon,
-            'youtube_channel_id', yc.youtube_channel_id,
-            'symbol', ma.symbol,
-            'unit', yc.unit
-          )
-        ) FILTER (WHERE yc.youtube_channel_id IS NOT NULL) AS characters,
-        array_agg(DISTINCT yc.name_short) FILTER (WHERE yc.name_short IS NOT NULL) AS related_names,
-        array_agg(DISTINCT yc.youtube_channel_id) FILTER (WHERE yc.youtube_channel_id IS NOT NULL) AS channel_ids,
-        array_agg(DISTINCT ma.symbol) FILTER (WHERE ma.symbol IS NOT NULL) AS stock_symbols,
-        array_agg(DISTINCT yc.unit) FILTER (WHERE yc.unit IS NOT NULL) AS units
-      FROM info.member_news_channels mnc
-      JOIN yt.youtube_channels yc
-        ON yc.youtube_channel_id = mnc.youtube_channel_id
-      LEFT JOIN market.market_assets ma
-        ON ma.youtube_channel_id = yc.youtube_channel_id
-      WHERE mnc.news_id = mn.id
-    ) rel ON TRUE
-    LEFT JOIN LATERAL (
-      SELECT COUNT(*)::int AS comment_count
-      FROM content.article_comments ac
-      WHERE ac.article_id = a.id
-    ) comment_rel ON TRUE
-    ${whereClause}
-    ${orderClause}
-    LIMIT $5
-    OFFSET $6
-  `,
-    [...params, safeLimit, offset]
-  );
+        mn.id,
+        mn.headline,
+        'HoloNews'::text AS source,
+        mn.date::text AS published_at,
+        mn.thumbnail_url,
+        COALESCE(a.id, NULL) AS article_id,
+        COALESCE(a.slug, 'news-' || mn.id::text) AS article_slug,
+        COALESCE(a.is_news, TRUE) AS is_news,
+        COALESCE(a.views, 0)::int AS view_count,
+        COALESCE(a.likes, 0)::int AS like_count,
+        COALESCE(a.saves, 0)::int AS save_count,
+        COALESCE(comment_rel.comment_count, 0)::int AS comment_count,
+        COALESCE(rel.characters, '[]'::json) AS characters,
+        COALESCE(rel.related_names, ARRAY[]::text[]) AS related_names,
+        COALESCE(rel.channel_ids, ARRAY[]::text[]) AS channel_ids,
+        COALESCE(rel.stock_symbols, ARRAY[]::text[]) AS stock_symbols,
+        COALESCE(rel.units, ARRAY[]::text[]) AS units
+      FROM info.member_news mn
+      LEFT JOIN content.articles a
+        ON a.news_id = mn.id
+      LEFT JOIN LATERAL (
+        SELECT
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'name', yc.name_short,
+              'icon', yc.icon,
+              'youtube_channel_id', yc.youtube_channel_id,
+              'symbol', ma.symbol,
+              'unit', yc.unit
+            )
+          ) FILTER (WHERE yc.youtube_channel_id IS NOT NULL) AS characters,
+          array_agg(DISTINCT yc.name_short) FILTER (WHERE yc.name_short IS NOT NULL) AS related_names,
+          array_agg(DISTINCT yc.youtube_channel_id) FILTER (WHERE yc.youtube_channel_id IS NOT NULL) AS channel_ids,
+          array_agg(DISTINCT ma.symbol) FILTER (WHERE ma.symbol IS NOT NULL) AS stock_symbols,
+          array_agg(DISTINCT yc.unit) FILTER (WHERE yc.unit IS NOT NULL) AS units
+        FROM info.member_news_channels mnc
+        JOIN yt.youtube_channels yc
+          ON yc.youtube_channel_id = mnc.youtube_channel_id
+        LEFT JOIN market.market_assets ma
+          ON ma.youtube_channel_id = yc.youtube_channel_id
+        WHERE mnc.news_id = mn.id
+      ) rel ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::int AS comment_count
+        FROM content.article_comments ac
+        WHERE ac.article_id = a.id
+      ) comment_rel ON TRUE
+      ${whereClause}
+      ${orderClause}
+      LIMIT $5
+      OFFSET $6
+    `,
+      [...params, safeLimit, offset]
+    ),
+  ]);
 
   return {
     items: itemsResult.rows,

@@ -56,29 +56,36 @@ router.get("/holonews", async (req, res, next) => {
       };
     }
 
-    const channels = await db.listChannels(req.ctx.pool, { activeOnly: true });
+    const rawItems = sortHoloNewsItems(Array.isArray(payload.items) ? payload.items : []);
+    const [channels, articleRefsByHeadline] = await Promise.all([
+      db.listChannels(req.ctx.pool, { activeOnly: true }),
+      articleDb.getNewsArticleRefsByHeadlines(
+        req.ctx.pool,
+        rawItems.map((item) => item.headline || "")
+      ),
+    ]);
     const iconByEnglishName = new Map(
       channels
         .filter((channel) => channel?.name_english)
         .map((channel) => [String(channel.name_english).trim().toLowerCase(), channel.icon || null])
     );
-    const rawItems = sortHoloNewsItems(Array.isArray(payload.items) ? payload.items : []);
-    const slugByHeadline = await articleDb.ensureNewsArticlesByHeadlines(
-      req.ctx.pool,
-      rawItems.map((item) => item.headline || "")
-    );
 
-    const items = rawItems.map((item) => ({
-      headline: item.headline || "",
-      article_slug: slugByHeadline.get(String(item.headline || ""))?.slug || articleDb.buildNewsSlugBase(item.headline || ""),
-      characters: (Array.isArray(item.characters) ? item.characters.filter(Boolean) : []).map((name) => ({
-        name,
-        icon: iconByEnglishName.get(String(name).trim().toLowerCase()) || null
-      })),
-      rank: Number.isFinite(item.rank) ? item.rank : null,
-      thumbnail_s3_key: item.thumbnail_s3_key || null,
-      thumbnail_url: toThumbnailUrl(item.thumbnail_s3_key || null)
-    }));
+    const items = rawItems.map((item) => {
+      const headline = String(item.headline || "");
+      const articleRef = articleRefsByHeadline.get(headline) || null;
+      return {
+        headline,
+        article_id: articleRef?.article_id || null,
+        article_slug: articleRef?.slug || articleDb.buildNewsSlugBase(headline),
+        characters: (Array.isArray(item.characters) ? item.characters.filter(Boolean) : []).map((name) => ({
+          name,
+          icon: iconByEnglishName.get(String(name).trim().toLowerCase()) || null
+        })),
+        rank: Number.isFinite(item.rank) ? item.rank : null,
+        thumbnail_s3_key: item.thumbnail_s3_key || null,
+        thumbnail_url: toThumbnailUrl(item.thumbnail_s3_key || null)
+      };
+    });
 
     res.json({
       thread_id: payload.thread_id || null,
@@ -150,7 +157,5 @@ router.get("/timeseries", async (req, res, next) => {
 });
 
 module.exports = router;
-
-
 
 

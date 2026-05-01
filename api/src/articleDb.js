@@ -271,6 +271,44 @@ async function ensureNewsArticlesByHeadlines(pool, headlines) {
   return out;
 }
 
+async function getNewsArticleRefsByHeadlines(pool, headlines) {
+  const normalizedHeadlines = Array.from(
+    new Set(
+      (Array.isArray(headlines) ? headlines : [])
+        .map((item) => normalizeString(item, { maxLength: 500, allowEmpty: false }))
+        .filter(Boolean)
+    )
+  );
+  const out = new Map();
+  if (!normalizedHeadlines.length) return out;
+
+  const { rows } = await pool.query(
+    `
+    SELECT DISTINCT ON (mn.headline)
+      mn.id,
+      mn.headline,
+      a.id AS article_id,
+      a.slug AS article_slug
+    FROM info.member_news mn
+    LEFT JOIN content.articles a
+      ON a.news_id = mn.id
+    WHERE mn.headline = ANY($1::text[])
+    ORDER BY mn.headline ASC, mn.date DESC, mn.id DESC
+  `,
+    [normalizedHeadlines]
+  );
+
+  for (const row of rows) {
+    out.set(String(row.headline), {
+      news_id: Number(row.id),
+      article_id: row.article_id ? Number(row.article_id) : null,
+      slug: row.article_slug || `news-${row.id}`,
+    });
+  }
+
+  return out;
+}
+
 async function backfillAllNewsArticles(pool, { batchSize = 500 } = {}) {
   const safeBatchSize = Math.max(1, Math.min(5000, Number(batchSize) || 500));
   const idsResult = await pool.query(
@@ -1301,6 +1339,7 @@ module.exports = {
   ensureNewsArticle,
   ensureNewsArticles,
   ensureNewsArticlesByHeadlines,
+  getNewsArticleRefsByHeadlines,
   backfillAllNewsArticles,
   listArticles,
   getArticleBySlug,

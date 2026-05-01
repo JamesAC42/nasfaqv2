@@ -395,9 +395,11 @@ export function IndexesPage() {
   const refreshOverview = useMarketStore((state) => state.refreshOverview);
   const fetchMarketIndexes = useMarketStore((state) => state.fetchMarketIndexes);
   const deferredSelectedUnit = useDeferredValue(selectedUnit);
+  const isInitialIndexLoad = isLoadingIndex && marketIndexes.length === 0;
+  const isInitialOverviewLoad = isLoadingOverview && assets.length === 0;
 
   useEffect(() => {
-    void Promise.allSettled([refreshOverview(), fetchMarketIndexes()]);
+    void Promise.allSettled([refreshOverview(), fetchMarketIndexes({ force: true })]);
   }, [fetchMarketIndexes, refreshOverview]);
 
   const allMarketIndex = useMemo(
@@ -442,7 +444,7 @@ export function IndexesPage() {
             <p>Select an index to view performance, heatmap, and tape.</p>
           </div>
           {error ? <div className="statusMessage statusMessageError">Request error: {error}</div> : null}
-          {isLoadingOverview || isLoadingIndex ? <div className={styles.loadingPanel}>Loading indexes…</div> : null}
+          {isInitialOverviewLoad || isInitialIndexLoad ? <div className={styles.loadingPanel}>Loading indexes…</div> : null}
           <div className={styles.selectorList}>
             {marketIndexes.map((index) => (
               <IndexSelectorCard

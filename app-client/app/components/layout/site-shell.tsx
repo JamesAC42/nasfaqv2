@@ -296,7 +296,7 @@ const MarketRibbon = memo(function MarketRibbon({
         ))}
       </div>
       {!ribbonEntries.length && !isLoadingIndex ? <div className={styles.ribbonFallback}>Index ribbon unavailable.</div> : null}
-      {isLoadingIndex ? <div className={styles.ribbonFallback}>Loading indexes…</div> : null}
+      {!ribbonEntries.length && isLoadingIndex ? <div className={styles.ribbonFallback}>Loading indexes…</div> : null}
     </div>
   );
 });
@@ -374,8 +374,8 @@ export function SiteShell({
   useEffect(() => {
     if (!user) {
       pendingOrderIdsRef.current = null;
-      setLiveOrderNotice(null);
-      return;
+      const timer = window.setTimeout(() => setLiveOrderNotice(null), 0);
+      return () => window.clearTimeout(timer);
     }
 
     const nextIds = new Set(pendingOrders.map((order) => order.id));

@@ -1,6 +1,5 @@
 const express = require("express");
 const db = require("../db");
-const articleDb = require("../articleDb");
 
 const router = express.Router();
 
@@ -16,16 +15,11 @@ router.get("/", async (req, res, next) => {
       limit: req.query.limit,
     });
 
-    const ensuredArticles = await articleDb.ensureNewsArticles(
-      req.ctx.pool,
-      result.items.map((item) => item.id)
-    );
     const items = result.items.map((item) => {
-      const ensured = ensuredArticles.get(Number(item.id)) || null;
       return {
         ...item,
-        article_id: ensured?.id ?? item.article_id ?? null,
-        article_slug: ensured?.slug ?? item.article_slug ?? articleDb.buildNewsSlugBase(item.headline),
+        article_id: item.article_id ?? null,
+        article_slug: item.article_slug ?? `news-${item.id}`,
         is_news: true,
         view_count: item.view_count ?? 0,
         like_count: item.like_count ?? 0,

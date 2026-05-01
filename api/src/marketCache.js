@@ -1,5 +1,6 @@
 const MARKET_ASSETS_CACHE_KEY = "market:assets:list";
 const MARKET_ASSETS_CACHE_TTL_SECONDS = 5;
+const MARKET_INDEX_OVERVIEW_CACHE_TTL_SECONDS = 5;
 const MARKET_ASSET_SUPERCHAT_RANK_CACHE_TTL_SECONDS = 60 * 60 * 6;
 const MARKET_ASSET_OSHIBOARD_CACHE_TTL_SECONDS = 15;
 const MARKET_RANKINGS_WEEKLY_ACTIVITY_CACHE_TTL_SECONDS = 60 * 60;
@@ -16,6 +17,15 @@ function buildAssetOshiboardCacheKey(symbol, limit = 50) {
 
 function buildMarketRankingsWeeklyActivityCacheKey(range = "7d") {
   return `market:rankings:weekly-activity:${String(range || "7d").trim().toLowerCase()}`;
+}
+
+function buildMarketIndexOverviewCacheKey({ groupBy = "unit", range = "1y", weighting = "equal" } = {}) {
+  return [
+    "market:indexes:overview",
+    String(groupBy || "unit").trim().toLowerCase(),
+    String(range || "1y").trim().toLowerCase(),
+    String(weighting || "equal").trim().toLowerCase(),
+  ].join(":");
 }
 
 async function getCachedJson(redis, key) {
@@ -60,8 +70,10 @@ module.exports = {
   buildAssetSuperchatRankCacheKey,
   buildAssetOshiboardCacheKey,
   buildMarketRankingsWeeklyActivityCacheKey,
+  buildMarketIndexOverviewCacheKey,
   MARKET_ASSETS_CACHE_KEY,
   MARKET_ASSETS_CACHE_TTL_SECONDS,
+  MARKET_INDEX_OVERVIEW_CACHE_TTL_SECONDS,
   MARKET_ASSET_SUPERCHAT_RANK_CACHE_TTL_SECONDS,
   MARKET_ASSET_OSHIBOARD_CACHE_TTL_SECONDS,
   MARKET_RANKINGS_WEEKLY_ACTIVITY_CACHE_TTL_SECONDS,

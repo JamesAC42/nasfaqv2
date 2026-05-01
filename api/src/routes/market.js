@@ -7,8 +7,10 @@ const {
   getCachedJson,
   setCachedJson,
   buildAssetSuperchatRankCacheKey,
+  buildMarketIndexOverviewCacheKey,
   buildMarketRankingsWeeklyActivityCacheKey,
   MARKET_ASSET_SUPERCHAT_RANK_CACHE_TTL_SECONDS,
+  MARKET_INDEX_OVERVIEW_CACHE_TTL_SECONDS,
   MARKET_RANKINGS_WEEKLY_ACTIVITY_CACHE_TTL_SECONDS,
   MARKET_RANKINGS_OSHICOIN_CACHE_TTL_SECONDS,
   MARKET_RANKINGS_OSHICOIN_CACHE_KEY,
@@ -19,6 +21,7 @@ const marketState = require("../services/marketState");
 const { requireAdmin, requireVerifiedUserId } = require("../userContext");
 
 const router = express.Router();
+const pendingIndexOverviewRequests = new Map();
 
 function parsePositiveInt(value, fallback, { min = 1, max = 500 } = {}) {
   const parsed = Number.parseInt(String(value ?? fallback), 10);
@@ -307,8 +310,24 @@ router.get("/indexes/overview", async (req, res, next) => {
     const groupBy = String(req.query.group_by || "unit");
     const range = String(req.query.range || "1y");
     const weighting = String(req.query.weighting || "equal");
+    const cacheKey = buildMarketIndexOverviewCacheKey({ groupBy, range, weighting });
+    const cached = await getCachedJson(req.ctx.redis, cacheKey);
+    if (cached) return res.json(cached);
 
-    const result = await marketDb.listGroupIndexes(req.ctx.pool, { groupBy, range, weighting });
+    let pending = pendingIndexOverviewRequests.get(cacheKey);
+    if (!pending) {
+      pending = marketDb.listGroupIndexes(req.ctx.pool, { groupBy, range, weighting })
+        .then(async (result) => {
+          await setCachedJson(req.ctx.redis, cacheKey, result, MARKET_INDEX_OVERVIEW_CACHE_TTL_SECONDS);
+          return result;
+        })
+        .finally(() => {
+          pendingIndexOverviewRequests.delete(cacheKey);
+        });
+      pendingIndexOverviewRequests.set(cacheKey, pending);
+    }
+
+    const result = await pending;
     res.json(result);
   } catch (e) {
     if (e?.code === "unsupported_group_by") {

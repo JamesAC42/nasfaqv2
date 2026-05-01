@@ -26,6 +26,10 @@ let overviewRefreshTimer: number | null = null;
 let tradingStateRefreshTimer: number | null = null;
 let reconnectAttempt = 0;
 let realtimeDisposed = false;
+let lastIndexFetchStartedAt = 0;
+let activeIndexRequest: Promise<void> | null = null;
+
+const INDEX_REFRESH_STALE_MS = 5 * 60_000;
 
 function toNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -132,11 +136,16 @@ function patchStatusFromTrade(current: MarketStatus | null, statusPayload: Recor
   };
 }
 
-function scheduleIndexRefresh(fetchMarketIndexes: () => Promise<void>, hasIndexes: boolean) {
+type FetchMarketIndexesOptions = {
+  force?: boolean;
+  silent?: boolean;
+};
+
+function scheduleIndexRefresh(fetchMarketIndexes: (options?: FetchMarketIndexesOptions) => Promise<void>, hasIndexes: boolean) {
   if (!hasIndexes || typeof window === "undefined" || indexRefreshTimer !== null) return;
   indexRefreshTimer = window.setTimeout(() => {
     indexRefreshTimer = null;
-    void fetchMarketIndexes();
+    void fetchMarketIndexes({ silent: true });
   }, 750);
 }
 
@@ -180,7 +189,7 @@ type MarketState = {
   setSelectedSymbol: (symbol: string) => void;
   setSelectedUnit: (unit: string) => void;
   refreshOverview: () => Promise<void>;
-  fetchMarketIndexes: () => Promise<void>;
+  fetchMarketIndexes: (options?: FetchMarketIndexesOptions) => Promise<void>;
   fetchAssetDetail: (symbol: string) => Promise<void>;
   connectRealtime: () => () => void;
   clearDetail: () => void;
@@ -231,21 +240,36 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       set({ isLoadingOverview: false });
     }
   },
-  fetchMarketIndexes: async () => {
-    set({ isLoadingIndex: true, error: null });
-    try {
-      const result = await apiFetch<Record<string, unknown>[]>(
-        "/api/market/indexes/overview?group_by=unit&range=1y&weighting=equal"
-      );
-      set({ marketIndexes: result.map(normalizeMarketIndex) });
-    } catch (error) {
-      set({
-        marketIndexes: [],
-        error: String((error as Error).message || error),
-      });
-    } finally {
-      set({ isLoadingIndex: false });
+  fetchMarketIndexes: async (options = {}) => {
+    if (activeIndexRequest) return activeIndexRequest;
+
+    const hasExistingIndexes = get().marketIndexes.length > 0;
+    const now = Date.now();
+    if (!options.force && hasExistingIndexes && now - lastIndexFetchStartedAt < INDEX_REFRESH_STALE_MS) {
+      return;
     }
+
+    lastIndexFetchStartedAt = now;
+    if (!options.silent) set({ isLoadingIndex: true, error: null });
+
+    activeIndexRequest = (async () => {
+      try {
+        const result = await apiFetch<Record<string, unknown>[]>(
+          "/api/market/indexes/overview?group_by=unit&range=1y&weighting=equal"
+        );
+        set({ marketIndexes: result.map(normalizeMarketIndex), error: null });
+      } catch (error) {
+        set({
+          ...(hasExistingIndexes ? {} : { marketIndexes: [] }),
+          error: String((error as Error).message || error),
+        });
+      } finally {
+        if (!options.silent) set({ isLoadingIndex: false });
+        activeIndexRequest = null;
+      }
+    })();
+
+    return activeIndexRequest;
   },
   fetchAssetDetail: async (symbol) => {
     if (!symbol) {
@@ -426,7 +450,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
               };
             });
 
-            void get().fetchMarketIndexes();
+            void get().fetchMarketIndexes({ force: true, silent: true });
             const selectedSymbol = get().selectedSymbol.trim().toUpperCase();
             if (selectedSymbol && bySymbol.has(selectedSymbol)) {
               void get().fetchAssetDetail(selectedSymbol);
