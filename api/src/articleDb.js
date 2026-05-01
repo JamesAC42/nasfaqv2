@@ -1026,6 +1026,33 @@ async function deleteNewsArticleBody(pool, slug) {
   }
 }
 
+async function deleteNewsArticle(pool, slug) {
+  const safeSlug = normalizeString(slug, { maxLength: 220, allowEmpty: false });
+  if (!safeSlug) {
+    const error = new Error("article_not_found");
+    error.code = "article_not_found";
+    throw error;
+  }
+
+  const { rows } = await pool.query(
+    `
+    DELETE FROM info.member_news n
+    USING content.articles a
+    WHERE a.slug = $1
+      AND a.is_news = TRUE
+      AND a.news_id = n.id
+    RETURNING n.id
+  `,
+    [safeSlug]
+  );
+
+  if (!rows[0]) {
+    const error = new Error("article_not_found");
+    error.code = "article_not_found";
+    throw error;
+  }
+}
+
 async function createComment(pool, slug, authorId, body, mood) {
   const safeBody = normalizeString(body, { maxLength: 4000, allowEmpty: false });
   const safeMood = normalizeCommentMood(mood);
@@ -1346,6 +1373,7 @@ module.exports = {
   createArticle,
   updateArticle,
   deleteArticle,
+  deleteNewsArticle,
   deleteNewsArticleBody,
   getArticleOwnership,
   createComment,

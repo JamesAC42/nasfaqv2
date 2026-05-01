@@ -1,4 +1,5 @@
 const express = require("express");
+const articleDb = require("../articleDb");
 const holonewsThumbnails = require("../services/holonewsThumbnails");
 const { requireAdmin } = require("../userContext");
 
@@ -9,6 +10,16 @@ router.post("/thumbnails/regenerate", async (req, res, next) => {
     requireAdmin(req);
     const result = await holonewsThumbnails.regenerateThumbnail(req.ctx.pool, req.ctx.redis, req.body || {});
     res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/articles/:slug", async (req, res, next) => {
+  try {
+    requireAdmin(req);
+    await articleDb.deleteNewsArticle(req.ctx.pool, req.params.slug);
+    res.json({ ok: true });
   } catch (error) {
     next(error);
   }

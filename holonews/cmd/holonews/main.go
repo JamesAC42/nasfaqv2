@@ -59,6 +59,9 @@ CREATE TABLE IF NOT EXISTS info.member_news (
 CREATE UNIQUE INDEX IF NOT EXISTS member_news_headline_date_uidx
   ON info.member_news (headline, date);
 
+CREATE INDEX IF NOT EXISTS member_news_headline_normalized_idx
+  ON info.member_news (lower(regexp_replace(btrim(headline), '[[:space:]]+', ' ', 'g')));
+
 CREATE INDEX IF NOT EXISTS member_news_date_desc_idx
   ON info.member_news (date DESC, id DESC);
 
@@ -1405,21 +1408,44 @@ func upsertStoredPayloadToDB(ctx context.Context, pool *pgxpool.Pool, cfg Config
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	seenHeadlines := make(map[string]struct{}, len(payload.Items))
 	for _, item := range payload.Items {
 		headline := strings.TrimSpace(item.Headline)
 		if headline == "" {
 			continue
 		}
+		headlineKey := canonicalHeadlineKey(headline)
+		if headlineKey == "" {
+			continue
+		}
+		if _, ok := seenHeadlines[headlineKey]; ok {
+			log.Printf("holonews: skip duplicate headline in payload: %q", headline)
+			continue
+		}
+		seenHeadlines[headlineKey] = struct{}{}
 
 		var newsID int64
-		if err := tx.QueryRow(ctx, `
-			INSERT INTO info.member_news (headline, thumbnail_url, date)
-			VALUES ($1, $2, $3)
-			ON CONFLICT (headline, date)
-			DO UPDATE SET
-				thumbnail_url = COALESCE(EXCLUDED.thumbnail_url, info.member_news.thumbnail_url)
-			RETURNING id
-		`, headline, thumbnailURL(cfg, item.ThumbnailS3Key), newsDate).Scan(&newsID); err != nil {
+		existingID, err := findExistingMemberNewsIDByHeadline(ctx, tx, headline)
+		if err != nil {
+			return fmt.Errorf("lookup member_news headline=%q: %w", headline, err)
+		}
+		if existingID != 0 {
+			if err := tx.QueryRow(ctx, `
+				UPDATE info.member_news
+				SET thumbnail_url = COALESCE($2, thumbnail_url)
+				WHERE id = $1
+				RETURNING id
+			`, existingID, thumbnailURL(cfg, item.ThumbnailS3Key)).Scan(&newsID); err != nil {
+				return fmt.Errorf("update member_news headline=%q id=%d: %w", headline, existingID, err)
+			}
+		} else if err := tx.QueryRow(ctx, `
+				INSERT INTO info.member_news (headline, thumbnail_url, date)
+				VALUES ($1, $2, $3)
+				ON CONFLICT (headline, date)
+				DO UPDATE SET
+					thumbnail_url = COALESCE(EXCLUDED.thumbnail_url, info.member_news.thumbnail_url)
+				RETURNING id
+			`, headline, thumbnailURL(cfg, item.ThumbnailS3Key), newsDate).Scan(&newsID); err != nil {
 			return fmt.Errorf("upsert member_news headline=%q: %w", headline, err)
 		}
 
@@ -1438,6 +1464,29 @@ func upsertStoredPayloadToDB(ctx context.Context, pool *pgxpool.Pool, cfg Config
 		return fmt.Errorf("commit member_news tx: %w", err)
 	}
 	return nil
+}
+
+func findExistingMemberNewsIDByHeadline(ctx context.Context, tx pgx.Tx, headline string) (int64, error) {
+	var id int64
+	err := tx.QueryRow(ctx, `
+		SELECT id
+		FROM info.member_news
+		WHERE lower(regexp_replace(btrim(headline), '[[:space:]]+', ' ', 'g')) =
+		      lower(regexp_replace(btrim($1), '[[:space:]]+', ' ', 'g'))
+		ORDER BY date ASC, id ASC
+		LIMIT 1
+	`, headline).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+func canonicalHeadlineKey(headline string) string {
+	return strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(headline)), " "))
 }
 
 func payloadDate(payload storedPayload) time.Time {

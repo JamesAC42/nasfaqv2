@@ -89,3 +89,22 @@ func TestStoredPayloadMatchesSourcePost(t *testing.T) {
 		})
 	}
 }
+
+func TestCanonicalHeadlineKey(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "trims and lowercases", in: "  Same Story  ", want: "same story"},
+		{name: "collapses whitespace", in: "Same\tStory\nAgain", want: "same story again"},
+		{name: "empty", in: " \t ", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := canonicalHeadlineKey(tt.in); got != tt.want {
+				t.Fatalf("canonicalHeadlineKey(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}

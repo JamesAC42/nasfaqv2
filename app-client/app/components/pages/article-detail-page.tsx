@@ -27,6 +27,7 @@ import {
   FaRegBookmark,
   FaRegHeart,
   FaScaleBalanced,
+  FaTrashCan,
   FaUserPen,
   FaXmark,
   FaThumbsDown,
@@ -252,7 +253,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isSubmittingProposal, setIsSubmittingProposal] = useState(false);
-  const [adminActionBusy, setAdminActionBusy] = useState<"delete-article" | "delete-body" | "regenerate-thumbnail" | null>(null);
+  const [adminActionBusy, setAdminActionBusy] = useState<"delete-article" | "delete-news" | "delete-body" | "regenerate-thumbnail" | null>(null);
   const [proposalVoteBusyId, setProposalVoteBusyId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const effectTimeoutRef = useRef<number | null>(null);
@@ -493,6 +494,24 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
     }
   }
 
+  async function handleDeleteNewsArticle() {
+    if (!article || !user?.is_admin || !article.is_news) return;
+    const confirmed = window.confirm("Delete this imported news item? This removes it from the news archive and cannot be undone.");
+    if (!confirmed) return;
+    setAdminActionBusy("delete-news");
+    setError(null);
+    try {
+      await apiFetch<Record<string, unknown>>(`/api/admin/holonews/articles/${encodeURIComponent(article.slug)}`, {
+        method: "DELETE",
+      });
+      router.push("/news");
+    } catch (nextError) {
+      setError(String((nextError as Error).message || nextError));
+    } finally {
+      setAdminActionBusy((current) => (current === "delete-news" ? null : current));
+    }
+  }
+
   async function handleRegenerateNewsThumbnail() {
     if (!article || !user?.is_admin || !article.is_news) return;
     const confirmed = window.confirm("Regenerate this news thumbnail? This will call the image generator, upload a new S3 thumbnail, and update the news item.");
@@ -657,6 +676,17 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                       disabled={adminActionBusy !== null}
                     >
                       {adminActionBusy === "delete-body" ? "Deleting..." : "Delete body"}
+                    </button>
+                  ) : null}
+                  {user?.is_admin && article.is_news ? (
+                    <button
+                      type="button"
+                      className={styles.dangerButton}
+                      onClick={() => void handleDeleteNewsArticle()}
+                      disabled={adminActionBusy !== null}
+                    >
+                      <span className={styles.actionIcon}><FaTrashCan aria-hidden="true" /></span>
+                      <span>{adminActionBusy === "delete-news" ? "Deleting..." : "Delete news item"}</span>
                     </button>
                   ) : null}
                   {user?.is_admin && article.is_news ? (
