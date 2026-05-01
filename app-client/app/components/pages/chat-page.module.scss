@@ -713,6 +713,11 @@
   box-sizing: border-box;
 }
 
+.composerInput:focus {
+  outline: none;
+  border: none;
+}
+
 .composerInput::placeholder {
   color: color-mix(in srgb, var(--muted) 90%, transparent);
 }
