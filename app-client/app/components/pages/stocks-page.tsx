@@ -17,6 +17,7 @@ import { getUsableChannelColor } from "@/app/lib/color";
 import { computeDailyVolumeChange } from "@/app/lib/market-metrics";
 import { fmtDate, fmtInteger, fmtNumber } from "@/app/lib/format";
 import { normalizeCandles } from "@/app/lib/normalizers";
+import { pickTradeConfirmationImage } from "@/app/lib/trade-confirmation-images";
 import type { CandlePoint, MarketAsset } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useTheme } from "@/app/providers/theme-provider";
@@ -183,29 +184,6 @@ const CARD_GRAPH_OPTIONS: Array<{ value: CardGraphMetric; label: string }> = [
 ];
 
 const TRADE_CONFIRMATION_ANIMATION_MS = 280;
-const TRADE_CONFIRMATION_BUY_IMAGES = [
-  "/emojis/azki.jpg",
-  "/emojis/nenethinking.jpg",
-  "/emojis/polkaglove.jpg",
-  "/emojis/watamehat.png",
-] as const;
-const TRADE_CONFIRMATION_SELL_LOSS_IMAGES = [
-  "/emojis/ina.png",
-  "/emojis/kroniiok.jpg",
-  "/emojis/marineomg.jpg",
-  "/emojis/miotired.jpg",
-  "/emojis/ogey.jpg",
-  "/emojis/pekorasad.jpg",
-  "/emojis/suiseigun.jpg",
-] as const;
-const TRADE_CONFIRMATION_SELL_GAIN_IMAGES = [
-  "/emojis/amemoney.jpg",
-  "/emojis/fubukidab.jpg",
-  "/emojis/kaijiwin.jpg",
-  "/emojis/mikomoney.png",
-  "/emojis/moriwine.jpg",
-  "/emojis/pekoraboing.png",
-] as const;
 
 const MOBILE_SORT_OPTIONS: Array<{ value: `${SortKey}:${SortDirection}`; label: string }> = [
   { value: "symbol:asc", label: "Symbol A-Z" },
@@ -397,10 +375,6 @@ function getServerSavedStockViewsSnapshot() {
   return "[]";
 }
 
-function pickRandomItem<T>(items: readonly T[]): T {
-  return items[Math.floor(Math.random() * items.length)] as T;
-}
-
 function formatSignedCurrency(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   return `${value >= 0 ? "+" : "-"}${fmtNumber(Math.abs(value), "$")}`;
@@ -439,12 +413,7 @@ function buildTradeConfirmation(args: {
       ? (requestedQuantity * executedPrice) - fee - (previousAvgCost * requestedQuantity)
       : null;
   const themePnl = result.side === "sell" ? (expectedSellPnl ?? realizedPnl) : null;
-  const imageSrc =
-    result.side === "buy"
-      ? pickRandomItem(TRADE_CONFIRMATION_BUY_IMAGES)
-      : (themePnl ?? 0) >= 0
-        ? pickRandomItem(TRADE_CONFIRMATION_SELL_GAIN_IMAGES)
-        : pickRandomItem(TRADE_CONFIRMATION_SELL_LOSS_IMAGES);
+  const imageSrc = pickTradeConfirmationImage(result.side, themePnl);
 
   return {
     mode: isQueued ? "queued" : "filled",
