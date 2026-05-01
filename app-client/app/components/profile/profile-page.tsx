@@ -33,7 +33,7 @@ import { apiFetch } from "@/app/lib/api";
 import { createChannelChartTheme } from "@/app/lib/chart-theme";
 import { fmtInteger, fmtNumber } from "@/app/lib/format";
 import { normalizeArticleListResponse, normalizePredictionPortfolioResponse, normalizeProfileBundle } from "@/app/lib/normalizers";
-import type { ArticleSummary, MarketAsset, PortfolioOrder, PredictionPortfolioResponse, ProfileBundle, ProfileRelationUser } from "@/app/lib/types";
+import type { ArticleSummary, MarketAsset, PortfolioOrder, PredictionPortfolioResponse, ProfileBundle, ProfileNetworthPoint, ProfileRelationUser } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useAuthStore } from "@/app/stores/auth-store";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -81,6 +81,19 @@ function valueToneClass(value: number | null | undefined) {
   if (value > 0) return styles.positive;
   if (value < 0) return styles.negative;
   return styles.neutral;
+}
+
+function appendCurrentNetworthPoint(profile: ProfileBundle["profile"] | null): ProfileNetworthPoint[] {
+  if (!profile) return [];
+  return [
+    ...(profile.networth_history || []),
+    {
+      recorded_at: new Date().toISOString(),
+      cash_balance: profile.stats.cash_balance,
+      total_market_value: profile.stats.total_market_value,
+      total_equity: profile.stats.total_equity,
+    },
+  ];
 }
 
 function achievementIconFor(achievement: ProfileBundle["profile"]["achievements"][number]): IconType {
@@ -1143,13 +1156,17 @@ export function ProfilePage({ username }: { username?: string | null }) {
   const needsVerification = isSelf && userNeedsEmailVerification(user);
   const selectedProfilePictureId = detectSelectedProfilePictureId(profile?.profile_picture_url || null, profilePictures);
   const accentColor = profile?.profile_color || profile?.oshi_coin?.color || "var(--accent)";
+  const networthHistory = useMemo(
+    () => appendCurrentNetworthPoint(profile),
+    [profile]
+  );
   const networthDelta = useMemo(() => {
-    if (!profile?.networth_history?.length) return null;
-    const first = profile.networth_history[0]?.total_equity ?? null;
-    const last = profile.networth_history[profile.networth_history.length - 1]?.total_equity ?? null;
+    if (!networthHistory.length) return null;
+    const first = networthHistory[0]?.total_equity ?? null;
+    const last = networthHistory[networthHistory.length - 1]?.total_equity ?? null;
     if (first === null || last === null) return null;
     return last - first;
-  }, [profile?.networth_history]);
+  }, [networthHistory]);
   const holdingsSorted = useMemo(
     () => [...(profile?.holdings || [])].sort((a, b) => b.quantity - a.quantity),
     [profile?.holdings]
@@ -1172,7 +1189,7 @@ export function ProfilePage({ username }: { username?: string | null }) {
       name: "Net Worth",
       color: chartTheme.baseDeep,
       kind: "area" as const,
-      values: (profile?.networth_history || []).map((point) => ({
+      values: networthHistory.map((point) => ({
         time: point.recorded_at,
         value: point.total_equity,
       })),
@@ -1181,12 +1198,12 @@ export function ProfilePage({ username }: { username?: string | null }) {
       name: "Cash",
       color: chartTheme.complement,
       kind: "line" as const,
-      values: (profile?.networth_history || []).map((point) => ({
+      values: networthHistory.map((point) => ({
         time: point.recorded_at,
         value: point.cash_balance,
       })),
     },
-  ]), [chartTheme.baseDeep, chartTheme.complement, profile?.networth_history]);
+  ]), [chartTheme.baseDeep, chartTheme.complement, networthHistory]);
 
   return (
     <SiteShell>

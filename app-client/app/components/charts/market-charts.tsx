@@ -65,6 +65,15 @@ function toChartTime(value: string): Time | null {
   return Math.floor(parsed.getTime() / 1000) as Time;
 }
 
+function toTimestampChartTime(value: string): Time | null {
+  if (!value) return null;
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? Date.parse(`${value}T00:00:00Z`)
+    : Date.parse(value);
+  if (Number.isNaN(parsed)) return null;
+  return Math.floor(parsed / 1000) as Time;
+}
+
 function latestValue(points: Array<{ value: number | null }>) {
   for (let index = points.length - 1; index >= 0; index -= 1) {
     const candidate = points[index]?.value;
@@ -188,13 +197,22 @@ function chartTimeKey(time: Time) {
   return typeof time === "string" ? time : String(time);
 }
 
+function chartTimeSortValue(time: Time) {
+  if (typeof time === "number") return time;
+  if (typeof time === "string") {
+    const parsed = /^\d{4}-\d{2}-\d{2}$/.test(time)
+      ? Date.parse(`${time}T00:00:00Z`)
+      : Date.parse(time);
+    if (!Number.isNaN(parsed)) return Math.floor(parsed / 1000);
+    return Number.POSITIVE_INFINITY;
+  }
+  return Number.POSITIVE_INFINITY;
+}
+
 function compareChartTime(left: Time, right: Time) {
-  if (typeof left === "string" && typeof right === "string") {
-    return left.localeCompare(right);
-  }
-  if (typeof left === "number" && typeof right === "number") {
-    return left - right;
-  }
+  const leftValue = chartTimeSortValue(left);
+  const rightValue = chartTimeSortValue(right);
+  if (leftValue !== rightValue) return leftValue - rightValue;
   return chartTimeKey(left).localeCompare(chartTimeKey(right));
 }
 
@@ -207,7 +225,7 @@ function normalizeTrendData(points: TrendPoint[]) {
   const deduped = new Map<string, { time: Time; value: number }>();
 
   for (const point of points) {
-    const time = toChartTime(point.time);
+    const time = toTimestampChartTime(point.time);
     if (!time || point.value === null || !Number.isFinite(point.value)) continue;
     deduped.set(chartTimeKey(time), { time, value: point.value });
   }
