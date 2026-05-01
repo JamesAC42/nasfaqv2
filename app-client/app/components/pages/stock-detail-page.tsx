@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { FormEvent, Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { FormEvent, Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ColorType, LineSeries, createChart, type IChartApi, type ISeriesApi, type Time } from "lightweight-charts";
 import type { IconType } from "react-icons";
@@ -39,6 +39,7 @@ import { getBucketWsUrl } from "@/app/lib/ws";
 import { ARTICLE_COMMENT_MOODS } from "@/app/lib/types";
 import type {
   ArticleSummary,
+  AuthUser,
   AssetComment,
   AssetCommentListResponse,
   AssetSuperchatSummaryBundle,
@@ -455,6 +456,235 @@ function CommentMoodBadge({ comment }: { comment: AssetComment }) {
     </span>
   );
 }
+
+type ChannelBoardProps = {
+  assetSymbol: string;
+  assetCommentBoard: AssetCommentListResponse | null;
+  assetCommentBoardError: string | null;
+  canPostAssetComment: boolean;
+  commentVoteBusyId: number | null;
+  isLoadingAssetComments: boolean;
+  isLoadingPortfolio: boolean;
+  isSubmittingComment: boolean;
+  needsEmailVerification: boolean;
+  onCommentSubmit: (body: string, mood: ArticleCommentMood | null) => Promise<boolean>;
+  onCommentVote: (comment: AssetComment, value: 1 | -1) => void | Promise<void>;
+  onNextPage: () => void;
+  onPreviousPage: () => void;
+  totalAssetComments: number;
+  user: AuthUser | null;
+  viewerOwnedShares: number;
+};
+
+const ChannelBoard = memo(function ChannelBoard({
+  assetSymbol,
+  assetCommentBoard,
+  assetCommentBoardError,
+  canPostAssetComment,
+  commentVoteBusyId,
+  isLoadingAssetComments,
+  isLoadingPortfolio,
+  isSubmittingComment,
+  needsEmailVerification,
+  onCommentSubmit,
+  onCommentVote,
+  onNextPage,
+  onPreviousPage,
+  totalAssetComments,
+  user,
+  viewerOwnedShares,
+}: ChannelBoardProps) {
+  const [commentBody, setCommentBody] = useState("");
+  const [commentMood, setCommentMood] = useState<ArticleCommentMood | null>(null);
+  const assetCommentPagination = assetCommentBoard?.pagination || null;
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmedBody = commentBody.trim();
+    if (!trimmedBody) return;
+    const didSubmit = await onCommentSubmit(trimmedBody, commentMood);
+    if (didSubmit) {
+      setCommentBody("");
+      setCommentMood(null);
+    }
+  }
+
+  return (
+    <section className={styles.sectionCard}>
+      <div className={styles.sectionHeader}>
+        <div>
+          <h2 className={styles.sectionTitle}>Channel Board</h2>
+          <p className={styles.sectionCopy}>
+            {fmtInteger(totalAssetComments)} total comments. Only shareholders can post; votes are open to other signed-in users.
+          </p>
+        </div>
+        {user ? (
+          <span className={styles.commentBoardStatus}>
+            {isLoadingPortfolio && !assetCommentBoard ? "Checking holdings…" : `${fmtNumber(viewerOwnedShares)} shares owned`}
+          </span>
+        ) : null}
+      </div>
+      {assetCommentBoardError ? <div className="statusMessage statusMessageError">Board error: {assetCommentBoardError}</div> : null}
+      {user ? (
+        <form className={styles.commentComposer} onSubmit={handleSubmit}>
+          {needsEmailVerification ? <VerificationRequiredNotice action="post on the channel board" /> : null}
+          <div className={styles.commentMoodPicker}>
+            {ARTICLE_COMMENT_MOODS.map((mood) => {
+              const meta = COMMENT_MOOD_META[mood];
+              const Icon = meta.icon;
+              const isSelected = commentMood === mood;
+              return (
+                <button
+                  key={mood}
+                  type="button"
+                  className={`${styles.commentMoodOption} ${meta.optionClassName} ${isSelected ? styles.commentMoodOptionSelected : ""}`}
+                  onClick={() => setCommentMood((current) => (current === mood ? null : mood))}
+                  aria-pressed={isSelected}
+                >
+                  <Icon aria-hidden="true" />
+                  <span>{mood}</span>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              className={`${styles.commentMoodOption} ${commentMood === null ? styles.commentMoodOptionSelected : ""}`}
+              onClick={() => setCommentMood(null)}
+              aria-pressed={commentMood === null}
+            >
+              <FaCircleQuestion aria-hidden="true" />
+              <span>No mood</span>
+            </button>
+          </div>
+          <textarea
+            className={styles.commentInput}
+            placeholder={
+              canPostAssetComment
+                ? `What is your current read on ${assetSymbol}?`
+                : `Buy shares of ${assetSymbol} to unlock posting.`
+            }
+            value={commentBody}
+            onChange={(event) => setCommentBody(event.target.value)}
+            disabled={!canPostAssetComment}
+          />
+          <div className={styles.commentComposerFooter}>
+            <span>
+              {needsEmailVerification
+                ? "Verify your email before posting on the channel board."
+                : !user
+                  ? "Sign in to join the channel board."
+                  : canPostAssetComment
+                    ? `You can post because you currently own ${fmtNumber(viewerOwnedShares)} shares of ${assetSymbol}.`
+                    : `Posting is limited to shareholders. You currently own ${fmtNumber(viewerOwnedShares)} shares of ${assetSymbol}.`}
+            </span>
+            <button
+              type="submit"
+              className={styles.commentButton}
+              disabled={!canPostAssetComment || isSubmittingComment || !commentBody.trim()}
+            >
+              {isSubmittingComment ? "Posting…" : "Post Comment"}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className={styles.authCta}>
+          <p className={styles.sectionCopy}>Sign in to vote, and own shares of this coin to post on the board.</p>
+          <div className={styles.authLinks}>
+            <Link href="/login">Sign in</Link>
+            <Link href="/register">Create account</Link>
+          </div>
+        </div>
+      )}
+      {isLoadingAssetComments ? <div className={styles.empty}>Loading channel board…</div> : null}
+      {!isLoadingAssetComments && assetCommentBoard?.comments.length ? (
+        <>
+          <div className={styles.commentList}>
+            {assetCommentBoard.comments.map((comment) => {
+              const timeLabel = formatRelativeTime(comment.created_at);
+              const isOwnComment = user?.id === comment.author.id;
+              return (
+                <article key={comment.id} className={styles.commentCard}>
+                  <div className={styles.commentHeader}>
+                    <div className={styles.commentAuthor}>
+                      <Link href={`/profile/${encodeURIComponent(comment.author.username)}`} className={styles.commentAuthorAvatar}>
+                        {comment.author.profile_picture_url ? (
+                          <img src={comment.author.profile_picture_url} alt="" className={styles.commentAuthorAvatarImage} />
+                        ) : (
+                          <span className={styles.commentAuthorAvatarFallback} aria-hidden="true">
+                            {profileInitial(comment.author.username)}
+                          </span>
+                        )}
+                      </Link>
+                      <div className={styles.commentAuthorMeta}>
+                        <div className={styles.commentAuthorRow}>
+                          <Link href={`/profile/${encodeURIComponent(comment.author.username)}`} className={styles.commentAuthorName}>
+                            {comment.author.username}
+                          </Link>
+                          <span className={styles.commentSharePill}>{fmtNumber(comment.author_share_quantity)} shares</span>
+                        </div>
+                        <span title={timeLabel.absolute}>{timeLabel.relative}</span>
+                      </div>
+                    </div>
+                    <CommentMoodBadge comment={comment} />
+                  </div>
+                  <p className={styles.commentBody}>{comment.body}</p>
+                  <div className={styles.commentVoteRow}>
+                    <button
+                      type="button"
+                      className={`${styles.commentVoteButton} ${comment.viewer_vote === 1 ? styles.commentVoteButtonActive : ""}`.trim()}
+                      onClick={() => void onCommentVote(comment, 1)}
+                      disabled={!user || needsEmailVerification || isOwnComment || commentVoteBusyId === comment.id}
+                      aria-pressed={comment.viewer_vote === 1}
+                    >
+                      <FaThumbsUp aria-hidden="true" />
+                      <span>{fmtInteger(comment.upvotes)}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.commentVoteButton} ${comment.viewer_vote === -1 ? styles.commentVoteButtonActive : ""}`.trim()}
+                      onClick={() => void onCommentVote(comment, -1)}
+                      disabled={!user || needsEmailVerification || isOwnComment || commentVoteBusyId === comment.id}
+                      aria-pressed={comment.viewer_vote === -1}
+                    >
+                      <FaThumbsDown aria-hidden="true" />
+                      <span>{fmtInteger(comment.downvotes)}</span>
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          {assetCommentPagination && assetCommentPagination.page_count > 1 ? (
+            <div className={styles.commentPagination}>
+              <button
+                type="button"
+                className={styles.commentButton}
+                onClick={onPreviousPage}
+                disabled={!assetCommentPagination.has_previous_page}
+              >
+                Newer
+              </button>
+              <span>
+                Page {assetCommentPagination.page} of {assetCommentPagination.page_count}
+              </span>
+              <button
+                type="button"
+                className={styles.commentButton}
+                onClick={onNextPage}
+                disabled={!assetCommentPagination.has_next_page}
+              >
+                Older
+              </button>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+      {!isLoadingAssetComments && !assetCommentBoard?.comments.length ? (
+        <div className={styles.emptyComments}>No comments yet. Shareholders can start the first thread for this coin.</div>
+      ) : null}
+    </section>
+  );
+});
 
 function formatSignedPct(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
@@ -975,8 +1205,6 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
   const [assetCommentBoard, setAssetCommentBoard] = useState<AssetCommentListResponse | null>(null);
   const [assetCommentBoardError, setAssetCommentBoardError] = useState<string | null>(null);
   const [assetCommentPage, setAssetCommentPage] = useState(1);
-  const [commentBody, setCommentBody] = useState("");
-  const [commentMood, setCommentMood] = useState<ArticleCommentMood | null>(null);
   const [isLoadingAssetComments, setIsLoadingAssetComments] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [commentVoteBusyId, setCommentVoteBusyId] = useState<number | null>(null);
@@ -1104,8 +1332,6 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
 
   useEffect(() => {
     setAssetCommentPage(1);
-    setCommentBody("");
-    setCommentMood(null);
   }, [normalizedSymbol]);
 
   useEffect(() => {
@@ -1257,6 +1483,11 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     [normalizedSymbol, portfolio?.holdings]
   );
   const ownedShares = selectedHolding?.quantity ?? 0;
+  const viewerOwnedShares = assetCommentBoard?.viewer_context.owned_shares ?? ownedShares;
+  const needsEmailVerification = userNeedsEmailVerification(user);
+  const canPostAssetComment = user && !needsEmailVerification ? (assetCommentBoard?.viewer_context.can_post ?? ownedShares > 0) : false;
+  const assetCommentPagination = assetCommentBoard?.pagination || null;
+  const totalAssetComments = assetCommentPagination?.total ?? 0;
   const estimatedPositionValue = selectedHolding?.market_value ?? ((selectedAsset?.current_mid_price ?? 0) * ownedShares);
   const themeSafeAssetColor = useMemo(
     () => getUsableChannelColor(selectedAsset?.color, colorMode) || selectedAsset?.color || null,
@@ -1688,12 +1919,11 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     setLastTradeQuantityPreset(preset);
   }
 
-  async function handleCommentSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedAsset || !commentBody.trim()) return;
+  const handleCommentSubmit = useCallback(async (body: string, mood: ArticleCommentMood | null) => {
+    if (!selectedAsset || !body.trim()) return false;
     if (needsEmailVerification) {
       setAssetCommentBoardError("Verify your email before posting on the channel board.");
-      return;
+      return false;
     }
 
     setIsSubmittingComment(true);
@@ -1702,23 +1932,23 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
       const result = await apiFetch<Record<string, unknown>>(`/api/market/assets/${encodeURIComponent(selectedAsset.symbol)}/comments`, {
         method: "POST",
         body: JSON.stringify({
-          body: commentBody,
-          mood: commentMood,
+          body,
+          mood,
         }),
       });
       const nextBoard = normalizeAssetCommentListResponse(result);
       setAssetCommentBoard(nextBoard);
       setAssetCommentPage(1);
-      setCommentBody("");
-      setCommentMood(null);
+      return true;
     } catch (nextError) {
       setAssetCommentBoardError(commentFailureMessage(nextError));
+      return false;
     } finally {
       setIsSubmittingComment(false);
     }
-  }
+  }, [needsEmailVerification, selectedAsset]);
 
-  async function handleCommentVote(comment: AssetComment, value: 1 | -1) {
+  const handleCommentVote = useCallback(async (comment: AssetComment, value: 1 | -1) => {
     if (!selectedAsset || !user) return;
     if (needsEmailVerification) {
       setAssetCommentBoardError("Verify your email before voting on channel board comments.");
@@ -1741,7 +1971,15 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     } finally {
       setCommentVoteBusyId((current) => (current === comment.id ? null : current));
     }
-  }
+  }, [assetCommentPage, needsEmailVerification, selectedAsset, user]);
+
+  const handlePreviousAssetCommentPage = useCallback(() => {
+    setAssetCommentPage((current) => Math.max(1, current - 1));
+  }, []);
+
+  const handleNextAssetCommentPage = useCallback(() => {
+    setAssetCommentPage((current) => current + 1);
+  }, []);
 
   const openLivestreamModal = useCallback((item: LivestreamModalItem) => {
     setSelectedLivestreamItem(item);
@@ -1909,11 +2147,6 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
     () => relatedArticles.filter((article) => article.is_news),
     [relatedArticles]
   );
-  const viewerOwnedShares = assetCommentBoard?.viewer_context.owned_shares ?? ownedShares;
-  const needsEmailVerification = userNeedsEmailVerification(user);
-  const canPostAssetComment = user && !needsEmailVerification ? (assetCommentBoard?.viewer_context.can_post ?? ownedShares > 0) : false;
-  const assetCommentPagination = assetCommentBoard?.pagination || null;
-  const totalAssetComments = assetCommentPagination?.total ?? 0;
   const currentMidPrice = fmtNumber(selectedAsset?.current_mid_price, "$");
   const current24hMove = formatSignedPct(selectedAsset?.move_24h_pct);
   const isPositive = selectedAsset?.move_24h_pct !== null && selectedAsset?.move_24h_pct !== undefined && selectedAsset?.move_24h_pct >= 0;
@@ -2955,179 +3188,25 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
 
           </div>
 
-          <section className={styles.sectionCard}>
-            <div className={styles.sectionHeader}>
-              <div>
-                <h2 className={styles.sectionTitle}>Channel Board</h2>
-                <p className={styles.sectionCopy}>
-                  {fmtInteger(totalAssetComments)} total comments. Only shareholders can post; votes are open to other signed-in users.
-                </p>
-              </div>
-              {user ? (
-                <span className={styles.commentBoardStatus}>
-                  {isLoadingPortfolio && !assetCommentBoard ? "Checking holdings…" : `${fmtNumber(viewerOwnedShares)} shares owned`}
-                </span>
-              ) : null}
-            </div>
-            {assetCommentBoardError ? <div className="statusMessage statusMessageError">Board error: {assetCommentBoardError}</div> : null}
-            {user ? (
-              <form className={styles.commentComposer} onSubmit={handleCommentSubmit}>
-                {needsEmailVerification ? <VerificationRequiredNotice action="post on the channel board" /> : null}
-                <div className={styles.commentMoodPicker}>
-                  {ARTICLE_COMMENT_MOODS.map((mood) => {
-                    const meta = COMMENT_MOOD_META[mood];
-                    const Icon = meta.icon;
-                    const isSelected = commentMood === mood;
-                    return (
-                      <button
-                        key={mood}
-                        type="button"
-                        className={`${styles.commentMoodOption} ${meta.optionClassName} ${isSelected ? styles.commentMoodOptionSelected : ""}`}
-                        onClick={() => setCommentMood((current) => (current === mood ? null : mood))}
-                        aria-pressed={isSelected}
-                      >
-                        <Icon aria-hidden="true" />
-                        <span>{mood}</span>
-                      </button>
-                    );
-                  })}
-                  <button
-                    type="button"
-                    className={`${styles.commentMoodOption} ${commentMood === null ? styles.commentMoodOptionSelected : ""}`}
-                    onClick={() => setCommentMood(null)}
-                    aria-pressed={commentMood === null}
-                  >
-                    <FaCircleQuestion aria-hidden="true" />
-                    <span>No mood</span>
-                  </button>
-                </div>
-                <textarea
-                  className={styles.commentInput}
-                  placeholder={
-                    canPostAssetComment
-                      ? `What is your current read on ${selectedAsset?.symbol || normalizedSymbol}?`
-                      : `Buy shares of ${selectedAsset?.symbol || normalizedSymbol} to unlock posting.`
-                  }
-                  value={commentBody}
-                  onChange={(event) => setCommentBody(event.target.value)}
-                  disabled={!canPostAssetComment}
-                />
-                <div className={styles.commentComposerFooter}>
-                  <span>
-                    {needsEmailVerification
-                      ? "Verify your email before posting on the channel board."
-                      : !user
-                      ? "Sign in to join the channel board."
-                      : canPostAssetComment
-                        ? `You can post because you currently own ${fmtNumber(viewerOwnedShares)} shares of ${selectedAsset?.symbol || normalizedSymbol}.`
-                        : `Posting is limited to shareholders. You currently own ${fmtNumber(viewerOwnedShares)} shares of ${selectedAsset?.symbol || normalizedSymbol}.`}
-                  </span>
-                  <button
-                    type="submit"
-                    className={styles.commentButton}
-                    disabled={!canPostAssetComment || isSubmittingComment || !commentBody.trim()}
-                  >
-                    {isSubmittingComment ? "Posting…" : "Post Comment"}
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div className={styles.authCta}>
-                <p className={styles.sectionCopy}>Sign in to vote, and own shares of this coin to post on the board.</p>
-                <div className={styles.authLinks}>
-                  <Link href="/login">Sign in</Link>
-                  <Link href="/register">Create account</Link>
-                </div>
-              </div>
-            )}
-            {isLoadingAssetComments ? <div className={styles.empty}>Loading channel board…</div> : null}
-            {!isLoadingAssetComments && assetCommentBoard?.comments.length ? (
-              <>
-                <div className={styles.commentList}>
-                  {assetCommentBoard.comments.map((comment) => {
-                    const timeLabel = formatRelativeTime(comment.created_at);
-                    const isOwnComment = user?.id === comment.author.id;
-                    return (
-                      <article key={comment.id} className={styles.commentCard}>
-                        <div className={styles.commentHeader}>
-                          <div className={styles.commentAuthor}>
-                            <Link href={`/profile/${encodeURIComponent(comment.author.username)}`} className={styles.commentAuthorAvatar}>
-                              {comment.author.profile_picture_url ? (
-                                <img src={comment.author.profile_picture_url} alt="" className={styles.commentAuthorAvatarImage} />
-                              ) : (
-                                <span className={styles.commentAuthorAvatarFallback} aria-hidden="true">
-                                  {profileInitial(comment.author.username)}
-                                </span>
-                              )}
-                            </Link>
-                            <div className={styles.commentAuthorMeta}>
-                              <div className={styles.commentAuthorRow}>
-                                <Link href={`/profile/${encodeURIComponent(comment.author.username)}`} className={styles.commentAuthorName}>
-                                  {comment.author.username}
-                                </Link>
-                                <span className={styles.commentSharePill}>{fmtNumber(comment.author_share_quantity)} shares</span>
-                              </div>
-                              <span title={timeLabel.absolute}>{timeLabel.relative}</span>
-                            </div>
-                          </div>
-                          <CommentMoodBadge comment={comment} />
-                        </div>
-                        <p className={styles.commentBody}>{comment.body}</p>
-                        <div className={styles.commentVoteRow}>
-                          <button
-                            type="button"
-                            className={`${styles.commentVoteButton} ${comment.viewer_vote === 1 ? styles.commentVoteButtonActive : ""}`.trim()}
-                            onClick={() => void handleCommentVote(comment, 1)}
-                            disabled={!user || needsEmailVerification || isOwnComment || commentVoteBusyId === comment.id}
-                            aria-pressed={comment.viewer_vote === 1}
-                          >
-                            <FaThumbsUp aria-hidden="true" />
-                            <span>{fmtInteger(comment.upvotes)}</span>
-                          </button>
-                          <button
-                            type="button"
-                            className={`${styles.commentVoteButton} ${comment.viewer_vote === -1 ? styles.commentVoteButtonActive : ""}`.trim()}
-                            onClick={() => void handleCommentVote(comment, -1)}
-                            disabled={!user || needsEmailVerification || isOwnComment || commentVoteBusyId === comment.id}
-                            aria-pressed={comment.viewer_vote === -1}
-                          >
-                            <FaThumbsDown aria-hidden="true" />
-                            <span>{fmtInteger(comment.downvotes)}</span>
-                          </button>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-                {assetCommentPagination && assetCommentPagination.page_count > 1 ? (
-                  <div className={styles.commentPagination}>
-                    <button
-                      type="button"
-                      className={styles.commentButton}
-                      onClick={() => setAssetCommentPage((current) => Math.max(1, current - 1))}
-                      disabled={!assetCommentPagination.has_previous_page}
-                    >
-                      Newer
-                    </button>
-                    <span>
-                      Page {assetCommentPagination.page} of {assetCommentPagination.page_count}
-                    </span>
-                    <button
-                      type="button"
-                      className={styles.commentButton}
-                      onClick={() => setAssetCommentPage((current) => current + 1)}
-                      disabled={!assetCommentPagination.has_next_page}
-                    >
-                      Older
-                    </button>
-                  </div>
-                ) : null}
-              </>
-            ) : null}
-            {!isLoadingAssetComments && !assetCommentBoard?.comments.length ? (
-              <div className={styles.emptyComments}>No comments yet. Shareholders can start the first thread for this coin.</div>
-            ) : null}
-          </section>
+          <ChannelBoard
+            key={normalizedSymbol}
+            assetSymbol={selectedAsset?.symbol || normalizedSymbol}
+            assetCommentBoard={assetCommentBoard}
+            assetCommentBoardError={assetCommentBoardError}
+            canPostAssetComment={Boolean(canPostAssetComment)}
+            commentVoteBusyId={commentVoteBusyId}
+            isLoadingAssetComments={isLoadingAssetComments}
+            isLoadingPortfolio={isLoadingPortfolio}
+            isSubmittingComment={isSubmittingComment}
+            needsEmailVerification={needsEmailVerification}
+            onCommentSubmit={handleCommentSubmit}
+            onCommentVote={handleCommentVote}
+            onNextPage={handleNextAssetCommentPage}
+            onPreviousPage={handlePreviousAssetCommentPage}
+            totalAssetComments={totalAssetComments}
+            user={user}
+            viewerOwnedShares={viewerOwnedShares}
+          />
 
           {showDeferredSections ? (
             <>
