@@ -8,6 +8,7 @@ import { AssetCoin } from "@/app/components/common/asset-coin";
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { apiFetch } from "@/app/lib/api";
 import { fmtDate, fmtNumber, fmtPct } from "@/app/lib/format";
+import { pickTradeConfirmationImage } from "@/app/lib/trade-confirmation-images";
 import type { MarketAsset } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -79,29 +80,6 @@ type TradeConfirmation = {
 const QUICK_TRADE_CLOSE_ANIMATION_MS = 170;
 const TRADE_CONFIRMATION_ANIMATION_MS = 280;
 const TRADE_QUANTITY_PRESETS = ["1", "10", "25", "50", "100"] as const;
-const TRADE_CONFIRMATION_BUY_IMAGES = [
-  "/emojis/azki.jpg",
-  "/emojis/nenethinking.jpg",
-  "/emojis/polkaglove.jpg",
-  "/emojis/watamehat.png",
-] as const;
-const TRADE_CONFIRMATION_SELL_LOSS_IMAGES = [
-  "/emojis/ina.png",
-  "/emojis/kroniiok.jpg",
-  "/emojis/marineomg.jpg",
-  "/emojis/miotired.jpg",
-  "/emojis/ogey.jpg",
-  "/emojis/pekorasad.jpg",
-  "/emojis/suiseigun.jpg",
-] as const;
-const TRADE_CONFIRMATION_SELL_GAIN_IMAGES = [
-  "/emojis/amemoney.jpg",
-  "/emojis/fubukidab.jpg",
-  "/emojis/kaijiwin.jpg",
-  "/emojis/mikomoney.png",
-  "/emojis/moriwine.jpg",
-  "/emojis/pekoraboing.png",
-] as const;
 
 function formatPrice(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
@@ -148,10 +126,6 @@ function getTradeFailureNotice(errorCode: string, side: TradeSide, symbol: strin
   }
 }
 
-function pickRandomItem<T>(items: readonly T[]): T {
-  return items[Math.floor(Math.random() * items.length)] as T;
-}
-
 function buildTradeConfirmation(args: {
   result: TradeExecutionResult & { side: TradeSide; symbol: string };
   currentMidPrice: number | null | undefined;
@@ -185,12 +159,7 @@ function buildTradeConfirmation(args: {
       ? (requestedQuantity * executedPrice) - fee - (previousAvgCost * requestedQuantity)
       : null;
   const themePnl = result.side === "sell" ? (expectedSellPnl ?? realizedPnl) : null;
-  const imageSrc =
-    result.side === "buy"
-      ? pickRandomItem(TRADE_CONFIRMATION_BUY_IMAGES)
-      : (themePnl ?? 0) >= 0
-        ? pickRandomItem(TRADE_CONFIRMATION_SELL_GAIN_IMAGES)
-        : pickRandomItem(TRADE_CONFIRMATION_SELL_LOSS_IMAGES);
+  const imageSrc = pickTradeConfirmationImage(result.side, themePnl);
 
   return {
     mode: isQueued ? "queued" : "filled",
@@ -574,7 +543,6 @@ export function QuickTradeFlyout({
                         alt="Trade confirmation illustration"
                         width={320}
                         height={320}
-                        unoptimized
                         className={detailStyles.tradeConfirmationImage}
                       />
                     </div>

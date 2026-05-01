@@ -24,6 +24,7 @@ import { apiFetch } from "@/app/lib/api";
 import { adjustSaturation, createChannelChartTheme, rotateHue } from "@/app/lib/chart-theme";
 import { getUsableChannelColor, normalizeHexColor } from "@/app/lib/color";
 import { fmtDate, fmtDurationSeconds, fmtInteger, fmtNumber, fmtPct } from "@/app/lib/format";
+import { pickTradeConfirmationImage } from "@/app/lib/trade-confirmation-images";
 import {
   normalizeArticleListResponse,
   normalizeAssetCommentListResponse,
@@ -91,29 +92,6 @@ const INTRADAY_CANDLE_INTERVALS = [
 ] as const;
 
 type IntradayCandleInterval = (typeof INTRADAY_CANDLE_INTERVALS)[number]["value"];
-const TRADE_CONFIRMATION_BUY_IMAGES = [
-  "/emojis/azki.jpg",
-  "/emojis/nenethinking.jpg",
-  "/emojis/polkaglove.jpg",
-  "/emojis/watamehat.png",
-] as const;
-const TRADE_CONFIRMATION_SELL_LOSS_IMAGES = [
-  "/emojis/ina.png",
-  "/emojis/kroniiok.jpg",
-  "/emojis/marineomg.jpg",
-  "/emojis/miotired.jpg",
-  "/emojis/ogey.jpg",
-  "/emojis/pekorasad.jpg",
-  "/emojis/suiseigun.jpg",
-] as const;
-const TRADE_CONFIRMATION_SELL_GAIN_IMAGES = [
-  "/emojis/amemoney.jpg",
-  "/emojis/fubukidab.jpg",
-  "/emojis/kaijiwin.jpg",
-  "/emojis/mikomoney.png",
-  "/emojis/moriwine.jpg",
-  "/emojis/pekoraboing.png",
-] as const;
 const SUPERCHAT_TIMESERIES_OPTIONS = [
   { value: "7d", label: "Past 7 days" },
   { value: "14d", label: "Past 14 days" },
@@ -329,10 +307,6 @@ const COMMENT_MOOD_META: Record<ArticleCommentMood, { icon: IconType; badgeClass
   Watching: { icon: FaBinoculars, badgeClassName: styles.commentMoodBadgeWatching, optionClassName: styles.commentMoodOptionWatching },
   Accumulating: { icon: FaBoxesStacked, badgeClassName: styles.commentMoodBadgeAccumulating, optionClassName: styles.commentMoodOptionAccumulating },
 };
-
-function pickRandomItem<T>(items: readonly T[]): T {
-  return items[Math.floor(Math.random() * items.length)] as T;
-}
 
 function toTimestamp(value: string | null | undefined) {
   if (!value) return null;
@@ -644,12 +618,7 @@ function buildTradeConfirmation(args: {
       ? (requestedQuantity * executedPrice) - fee - (previousAvgCost * requestedQuantity)
       : null;
   const themePnl = result.side === "sell" ? (expectedSellPnl ?? realizedPnl) : null;
-  const imageSrc =
-    result.side === "buy"
-      ? pickRandomItem(TRADE_CONFIRMATION_BUY_IMAGES)
-      : (themePnl ?? 0) >= 0
-        ? pickRandomItem(TRADE_CONFIRMATION_SELL_GAIN_IMAGES)
-        : pickRandomItem(TRADE_CONFIRMATION_SELL_LOSS_IMAGES);
+  const imageSrc = pickTradeConfirmationImage(result.side, themePnl);
 
   return {
     mode: isQueued ? "queued" : "filled",
@@ -3697,9 +3666,11 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
             <div className={styles.tradeConfirmationBody}>
               <div className={styles.tradeConfirmationLayout}>
                 <div className={styles.tradeConfirmationImageSlot}>
-                  <img
+                  <Image
                     src={tradeConfirmation.imageSrc}
-                    alt="Moona illustration"
+                    alt="Trade confirmation illustration"
+                    width={320}
+                    height={320}
                     className={styles.tradeConfirmationImage}
                   />
                 </div>
