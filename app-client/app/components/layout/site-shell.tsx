@@ -465,6 +465,12 @@ export function SiteShell({
               <span className={styles.title}>nasfaq</span>
             </Link>
             <div className={styles.categoryRail}>
+              <Link
+                href="/stocks"
+                className={`${styles.stocksDirectLink} ${pathname === "/stocks" || pathname.startsWith("/stocks/") ? styles.stocksDirectLinkActive : ""}`.trim()}
+              >
+                Stocks
+              </Link>
               {CATEGORY_ITEMS.map((item) => {
                 const isOpen = openCategory === item.key;
                 return (
