@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -43,6 +44,7 @@ type Config struct {
 	QuotaDailyLimit       int
 	UploadsLookback       int
 	LogYTStats            bool
+	StatsOnly             bool
 
 	LiveDetectionPollLogEnabled bool
 	LiveChannelScrapeLogEnabled bool
@@ -91,6 +93,16 @@ func main() {
 	}
 
 	cfg := mustLoadConfig()
+
+	statsOnly := cfg.StatsOnly || os.Getenv("STATS_ONLY") != ""
+	if !statsOnly {
+		flag.BoolVar(&statsOnly, "stats-only", false, "only scrape daily YouTube stats; skip livestream monitoring")
+		flag.Parse()
+	}
+	if statsOnly {
+		cfg.EnableLivePoll = false
+		log.Printf("stats-only mode: livestream polling disabled")
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -1144,6 +1156,7 @@ func mustLoadConfig() Config {
 		QuotaDailyLimit:       getInt("YOUTUBE_DAILY_QUOTA_LIMIT", 0),
 		UploadsLookback:       getInt("UPLOADS_LOOKBACK", 25),
 		LogYTStats:            strings.ToLower(os.Getenv("LOG_YT_STATS")) == "true",
+		StatsOnly:             getBool("STATS_ONLY", false),
 
 		LiveDetectionPollLogEnabled:  getBool("LIVE_DETECTION_POLL_LOG_ENABLED", true),
 		LiveChannelScrapeLogEnabled: getBool("LIVE_CHANNEL_SCRAPE_LOG_ENABLED", true),

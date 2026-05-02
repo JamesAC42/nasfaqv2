@@ -709,7 +709,7 @@ router.post("/orders/buy", async (req, res, next) => {
         error: "live_order_limit_exceeded",
         limit: e.limit || null,
         submitted_shares: e.submittedShares ?? null,
-        remaining_tick_shares: e.remainingShares ?? null,
+        remaining_tick_shares: null,
         remaining_interval_shares: e.remainingShares ?? null,
       });
     }
@@ -747,7 +747,7 @@ router.post("/orders/sell", async (req, res, next) => {
         error: "live_order_limit_exceeded",
         limit: e.limit || null,
         submitted_shares: e.submittedShares ?? null,
-        remaining_tick_shares: e.remainingShares ?? null,
+        remaining_tick_shares: null,
         remaining_interval_shares: e.remainingShares ?? null,
       });
     }

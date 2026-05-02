@@ -77,12 +77,19 @@ Create a local `.env` file (you can start from `env.example`) or set environment
 - `REQUEST_DELAY_MS` (optional, default `150`)
   - Optional: `ENV_FILE` to point at a non-default env file path
   - Livestream polling: `LIVE_POLL_SECONDS` (default `300`), `LIVE_MAX_RESULTS`, `UPCOMING_MAX_RESULTS`
+  - Stats-only mode: set `STATS_ONLY=true` or pass `--stats-only` to skip livestream monitoring entirely (only scrapes daily YouTube channel stats)
 
 Run:
 
 ```bash
 cd brokerbot/ytscraper
 go run ./cmd/ytscraper
+```
+
+Or in stats-only mode:
+
+```bash
+go run ./cmd/ytscraper --stats-only
 ```
 
 ### CLI: add channels interactively

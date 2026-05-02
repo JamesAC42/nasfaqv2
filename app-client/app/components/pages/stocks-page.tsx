@@ -313,8 +313,8 @@ function getTradeFailureNotice(errorCode: string, side: TradeSide, symbol: strin
       };
     case "live_order_limit_exceeded":
       return {
-        title: "Live limit reached",
-        message: "This order would exceed your live share limit for the next execution tick.",
+        title: "Interval limit reached",
+        message: "This order would exceed your 180-share limit for the current adjustment interval. The limit resets with each 6-hour market adjustment.",
       };
     default:
       return {

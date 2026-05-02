@@ -3,7 +3,7 @@ const DEFAULT_TRANSIENT_HALF_LIFE_MINUTES = 60;
 const DEFAULT_TRANSIENT_IMPACT_WEIGHT = 0.7;
 const DEFAULT_PERSISTENT_IMPACT_WEIGHT = 0.15;
 const DEFAULT_EXECUTION_SLIPPAGE_WEIGHT = 0.5;
-const DEFAULT_LIVE_ORDER_SHARE_LIMIT_PER_TICK = 180;
+const DEFAULT_LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL = 180;
 const DEFAULT_LIVE_ORDER_BATCH_LIMIT = 100;
 const DEFAULT_LIVE_ORDER_WORKER_CONCURRENCY = 4;
 const DEFAULT_LIVE_ORDER_SCHEDULER_INTERVAL_MS = 1_000;
@@ -24,13 +24,13 @@ const TRANSIENT_HALF_LIFE_MINUTES = Number(process.env.MARKET_TRANSIENT_HALF_LIF
 const TRANSIENT_IMPACT_WEIGHT = Number(process.env.MARKET_TRANSIENT_IMPACT_WEIGHT || DEFAULT_TRANSIENT_IMPACT_WEIGHT);
 const PERSISTENT_IMPACT_WEIGHT = Number(process.env.MARKET_PERSISTENT_IMPACT_WEIGHT || DEFAULT_PERSISTENT_IMPACT_WEIGHT);
 const EXECUTION_SLIPPAGE_WEIGHT = Number(process.env.MARKET_EXECUTION_SLIPPAGE_WEIGHT || DEFAULT_EXECUTION_SLIPPAGE_WEIGHT);
-const LIVE_ORDER_SHARE_LIMIT_PER_TICK = Math.max(
+const LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL = Math.max(
   1,
   Number(
-    process.env.MARKET_LIVE_ORDER_SHARE_LIMIT_PER_TICK ||
     process.env.MARKET_LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL ||
-      process.env.MARKET_LIVE_ORDER_LIMIT_PER_INTERVAL ||
-      DEFAULT_LIVE_ORDER_SHARE_LIMIT_PER_TICK
+    process.env.MARKET_LIVE_ORDER_LIMIT_PER_INTERVAL ||
+    process.env.MARKET_LIVE_ORDER_SHARE_LIMIT_PER_TICK ||
+      DEFAULT_LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL
   )
 );
 const LIVE_ORDER_BATCH_LIMIT = Math.max(1, Number(process.env.MARKET_LIVE_ORDER_BATCH_LIMIT || DEFAULT_LIVE_ORDER_BATCH_LIMIT));
@@ -776,7 +776,23 @@ async function sumLiveOrderSharesForTick(client, { userId, executeAfter }) {
   return Number(rows[0]?.share_count || 0);
 }
 
-async function lockLiveOrderTick(client, { userId, executeAfter }) {
+async function sumLiveOrderSharesForInterval(client, { userId, marketDate, intervalKey }) {
+  const { rows } = await client.query(
+    `
+    SELECT COALESCE(SUM(requested_quantity), 0) AS share_count
+    FROM market.trade_orders
+    WHERE user_id = $1
+      AND order_type = 'live_market'
+      AND status = 'pending'
+      AND submitted_market_date IS NOT DISTINCT FROM $2::date
+      AND submitted_interval_key IS NOT DISTINCT FROM $3
+  `,
+    [userId, marketDate, intervalKey]
+  );
+  return Number(rows[0]?.share_count || 0);
+}
+
+async function lockLiveOrderInterval(client, { userId, marketDate, intervalKey }) {
   await client.query(
     `
     SELECT pg_advisory_xact_lock(
@@ -784,7 +800,7 @@ async function lockLiveOrderTick(client, { userId, executeAfter }) {
       hashtext($2)::integer
     )
   `,
-    [String(userId), String(executeAfter || "none")]
+    [String(userId), String(`${marketDate || "none"}/${intervalKey || "none"}`)]
   );
 }
 
@@ -858,19 +874,21 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
     const interval = await getCurrentLiveOrderInterval(client, { marketDate, now });
     const executeAfter = computeNextLiveOrderTick(now);
     const executeAfterIso = executeAfter.toISOString();
-    await lockLiveOrderTick(client, {
+    await lockLiveOrderInterval(client, {
       userId,
-      executeAfter: executeAfterIso,
+      marketDate: interval.marketDate,
+      intervalKey: interval.intervalKey,
     });
-    const submittedShares = await sumLiveOrderSharesForTick(client, {
+    const submittedShares = await sumLiveOrderSharesForInterval(client, {
       userId,
-      executeAfter: executeAfterIso,
+      marketDate: interval.marketDate,
+      intervalKey: interval.intervalKey,
     });
-    const remainingShares = Math.max(0, LIVE_ORDER_SHARE_LIMIT_PER_TICK - submittedShares);
+    const remainingShares = Math.max(0, LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL - submittedShares);
     if (parsedQuantity > remainingShares) {
       const error = new Error("live_order_limit_exceeded");
       error.code = "live_order_limit_exceeded";
-      error.limit = LIVE_ORDER_SHARE_LIMIT_PER_TICK;
+      error.limit = LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL;
       error.submittedShares = submittedShares;
       error.remainingShares = remainingShares;
       throw error;
@@ -910,7 +928,7 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
           queued_mid_price: roundForMetadata(liveMidBefore),
           queued_indicative_price: roundForMetadata(indicativePrice),
           queued_fee_rate: getTradingFeeRate(),
-          live_order_share_limit: LIVE_ORDER_SHARE_LIMIT_PER_TICK,
+          live_order_share_limit: LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL,
           submitted_interval_scheduled_at: interval.scheduledAt || null,
         }),
       ]
@@ -927,11 +945,11 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
       symbol: asset.symbol,
       requested_quantity: parsedQuantity,
       submitted_shares: submittedShares + parsedQuantity,
-      remaining_tick_shares: Math.max(0, remainingShares - parsedQuantity),
+      remaining_tick_shares: null,
       remaining_interval_shares: Math.max(0, remainingShares - parsedQuantity),
-      tick_share_limit: LIVE_ORDER_SHARE_LIMIT_PER_TICK,
-      interval_share_limit: LIVE_ORDER_SHARE_LIMIT_PER_TICK,
-      interval_limit: LIVE_ORDER_SHARE_LIMIT_PER_TICK,
+      tick_share_limit: null,
+      interval_share_limit: LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL,
+      interval_limit: LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL,
       submitted_market_date: interval.marketDate,
       submitted_interval_key: interval.intervalKey,
       execute_after: executeAfterIso,
@@ -1410,8 +1428,8 @@ async function getLiveOrderAdminHealth(pool, { batchLimit = 10 } = {}) {
       500,
       Number(process.env.MARKET_LIVE_ORDER_SCHEDULER_INTERVAL_MS || DEFAULT_LIVE_ORDER_SCHEDULER_INTERVAL_MS)
     ),
-    share_limit_per_tick: LIVE_ORDER_SHARE_LIMIT_PER_TICK,
-    share_limit_per_interval: LIVE_ORDER_SHARE_LIMIT_PER_TICK,
+    share_limit_per_tick: null,
+    share_limit_per_interval: LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL,
     batch_limit: LIVE_ORDER_BATCH_LIMIT,
     worker_concurrency: LIVE_ORDER_WORKER_CONCURRENCY,
     health: healthResult.rows[0] || {},
