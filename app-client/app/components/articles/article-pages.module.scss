@@ -2127,3 +2127,65 @@
     padding-top: 0;
   }
 }
+
+.commentSectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.8rem;
+}
+
+.commentSortRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+
+.commentSortSelect {
+  background: color-mix(in srgb, var(--surface-card) 94%, transparent);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.commentVoteRow {
+  display: flex;
+  gap: 0.45rem;
+  padding-top: 0.1rem;
+}
+
+.commentVoteButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 68%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 92%, transparent);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.commentVoteButton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--surface-card-highlight) 68%, transparent);
+  border-color: var(--border);
+}
+
+.commentVoteButton:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.commentVoteButtonActive {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 34%, transparent);
+  color: var(--accent);
+}

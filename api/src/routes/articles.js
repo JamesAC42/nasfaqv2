@@ -186,6 +186,17 @@ router.post("/:slug/save", async (req, res, next) => {
   }
 });
 
+router.post("/:slug/comments/:commentId/vote", async (req, res, next) => {
+  try {
+    const userId = requireVerifiedUserId(req);
+    await articleDb.setArticleCommentVote(req.ctx.pool, req.params.slug, req.params.commentId, userId, req.body?.value);
+    const article = await articleDb.getArticleBySlug(req.ctx.pool, req.params.slug, userId, true);
+    res.json({ article });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/:slug/proposals", async (req, res, next) => {
   try {
     const userId = requireVerifiedUserId(req);

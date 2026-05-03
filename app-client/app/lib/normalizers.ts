@@ -27,6 +27,8 @@ import {
   type GachaCatalogResponse,
   type GachaCatalogReward,
   type GachaPullResult,
+  type GachaSpendingLeaderboardEntry,
+  type GachaSpendingLeaderboardResponse,
   type AssetSuperchatTimeseriesBundle,
   type CandlePoint,
   type ChannelOverviewRow,
@@ -1564,6 +1566,29 @@ export function normalizeTickerTapLeaderboardResponse(value: Record<string, unkn
   };
 }
 
+export function normalizeGachaSpendingLeaderboardResponse(value: Record<string, unknown>): GachaSpendingLeaderboardResponse {
+  return {
+    game_key: String(value.game_key || "capsule-gacha"),
+    leaderboard: Array.isArray(value.leaderboard)
+      ? value.leaderboard
+        .map((entry) => {
+          const row = entry && typeof entry === "object" ? entry as Record<string, unknown> : null;
+          if (!row) return null;
+          return {
+            rank: Number(row.rank || 0),
+            user_id: Number(row.user_id || 0),
+            username: String(row.username || ""),
+            profile_color: row.profile_color ? String(row.profile_color) : null,
+            pull_count: Number(row.pull_count || 0),
+            total_spent_cash: Number(toNumber(row.total_spent_cash) || 0),
+            total_compensation_cash: Number(toNumber(row.total_compensation_cash) || 0),
+          };
+        })
+        .filter((entry): entry is GachaSpendingLeaderboardEntry => entry !== null)
+      : [],
+  };
+}
+
 export function normalizeLivestreams(rows: Array<Record<string, unknown>>): LivestreamItem[] {
   return rows.map((row, index) => ({
     id: String(row.id || row.video_id || row.stream_id || index),
@@ -1946,6 +1971,15 @@ function normalizeArticleComments(value: unknown): ArticleComment[] {
         mood: mood && moodSet.has(mood) ? mood : null,
         created_at: String(row.created_at || ""),
         updated_at: String(row.updated_at || ""),
+        upvotes: Number(toNumber(row.upvotes) || 0),
+        downvotes: Number(toNumber(row.downvotes) || 0),
+        viewer_vote: (
+          toNumber(row.viewer_vote) === 1
+            ? 1
+            : toNumber(row.viewer_vote) === -1
+              ? -1
+              : 0
+        ) as ArticleComment["viewer_vote"],
         author,
       };
     })
@@ -2134,7 +2168,9 @@ export function normalizeProfileBundle(value: Record<string, unknown>): ProfileB
       bio: profile?.bio ? String(profile.bio) : null,
       profile_picture_url: profile?.profile_picture_url ? String(profile.profile_picture_url) : null,
       profile_color: profile?.profile_color ? String(profile.profile_color) : null,
+      is_admin: Boolean(profile?.is_admin),
       permissions: {
+        can_manage_assets: Boolean(profile?.permissions && typeof profile.permissions === "object" && (profile.permissions as Record<string, unknown>).can_manage_assets),
         can_create_prediction_markets: Boolean(profile?.permissions && typeof profile.permissions === "object" && (profile.permissions as Record<string, unknown>).can_create_prediction_markets),
         can_approve_prediction_markets: Boolean(profile?.permissions && typeof profile.permissions === "object" && (profile.permissions as Record<string, unknown>).can_approve_prediction_markets),
         can_resolve_prediction_markets: Boolean(profile?.permissions && typeof profile.permissions === "object" && (profile.permissions as Record<string, unknown>).can_resolve_prediction_markets),
@@ -2181,6 +2217,10 @@ export function normalizeProfileBundle(value: Record<string, unknown>): ProfileB
             holdings: profile.holdings,
           }).holdings
         : [],
+      gacha_badges: Array.isArray(profile?.gacha_badges)
+        ? (profile.gacha_badges as Array<Record<string, unknown>>).map(normalizeGameItemLockerEntry)
+        : [],
+      gacha_total_spent_cash: Number(toNumber(profile?.gacha_total_spent_cash) || 0),
     },
     viewer_context: {
       is_authenticated: Boolean(viewer?.is_authenticated),

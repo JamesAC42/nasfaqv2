@@ -39,4 +39,17 @@ redesign todo:
 
     - add a hero image to the livestream monitor page
     - add a hero image to articles and news page
-    - 
+
+fixes:
+
+- visual bug on stock page quick stats
+- fix navbar appearance in mobile to be more compact
+- add tooltips and a how to play page
+- add an info page
+- add kofi link
+- show badge-type items on profile page
+- make invalid password message more clear when registering
+    - also make the registration option more clear that you don't need google
+- pending orders dropdown is fucked in mobile
+- market popup on article page for assoc. coins is fucked in mobile
+- explain the treasury system

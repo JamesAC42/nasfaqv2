@@ -27,8 +27,18 @@ function requireAdmin(req) {
   return req.ctx.user;
 }
 
+function requireAssetManager(req) {
+  if (!req.ctx?.user?.is_admin && !req.ctx?.user?.can_manage_assets) {
+    const error = new Error("forbidden");
+    error.code = "forbidden";
+    throw error;
+  }
+  return req.ctx.user;
+}
+
 module.exports = {
   requireUserId,
   requireVerifiedUserId,
   requireAdmin,
+  requireAssetManager,
 };

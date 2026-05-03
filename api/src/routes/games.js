@@ -185,4 +185,35 @@ router.get("/ticker-tap/leaderboard", async (req, res, next) => {
   }
 });
 
+router.get("/capsule-gacha/spending-leaderboard", async (req, res, next) => {
+  try {
+    const result = await gamesInventory.listGachaSpendingLeaderboard(req.ctx.pool, {
+      limit: req.query.limit,
+    });
+    res.json({
+      game_key: "capsule-gacha",
+      leaderboard: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/:username/item-locker", async (req, res, next) => {
+  try {
+    const { rows } = await req.ctx.pool.query(
+      `SELECT id FROM market.users WHERE username_normalized = $1 LIMIT 1`,
+      [String(req.params.username || "").trim().toLowerCase()]
+    );
+    if (!rows[0]) {
+      return res.status(404).json({ error: "profile_not_found" });
+    }
+    const targetUserId = Number(rows[0].id);
+    const locker = await gamesInventory.listUserItemLockerByUserId(req.ctx.pool, targetUserId);
+    res.json(locker);
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;

@@ -73,8 +73,8 @@ function getSuperchatTimeseriesConfig(range) {
       return {
         range: "7d",
         bucketUnit: "day",
-        startExpr: "current_date - interval '6 days'",
-        endExpr: "current_date",
+        startExpr: "current_date - interval '7 days'",
+        endExpr: "current_date - interval '1 day'",
         stepInterval: "1 day",
         bucketExpr: "date_trunc('day', started_at)::date",
       };
@@ -82,8 +82,8 @@ function getSuperchatTimeseriesConfig(range) {
       return {
         range: "14d",
         bucketUnit: "day",
-        startExpr: "current_date - interval '13 days'",
-        endExpr: "current_date",
+        startExpr: "current_date - interval '14 days'",
+        endExpr: "current_date - interval '1 day'",
         stepInterval: "1 day",
         bucketExpr: "date_trunc('day', started_at)::date",
       };
@@ -100,8 +100,8 @@ function getSuperchatTimeseriesConfig(range) {
       return {
         range: "1y",
         bucketUnit: "day",
-        startExpr: "current_date - interval '364 days'",
-        endExpr: "current_date",
+        startExpr: "current_date - interval '365 days'",
+        endExpr: "current_date - interval '1 day'",
         stepInterval: "1 day",
         bucketExpr: "date_trunc('day', started_at)::date",
       };
@@ -1492,8 +1492,8 @@ async function getAssetStreamTimeTimeseries(pool, symbol, { range = "7d" } = {})
     `
     WITH bounds AS (
       SELECT
-        (current_date - interval '6 days')::date AS start_date,
-        current_date::date AS end_date
+        (current_date - interval '7 days')::date AS start_date,
+        (current_date - interval '1 day')::date AS end_date
     ),
     buckets AS (
       SELECT generate_series(

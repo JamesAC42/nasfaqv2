@@ -7,6 +7,7 @@ import {
   normalizeGamesSummary,
   normalizeGachaCatalogResponse,
   normalizeGachaPullResult,
+  normalizeGachaSpendingLeaderboardResponse,
   normalizeTickerTapLeaderboardResponse,
   normalizeTickerTapSessionCreateResponse,
   normalizeTickerTapSubmitResponse,
@@ -68,4 +69,14 @@ export async function submitTickerTapSession(sessionId: number, payload: Record<
 export async function fetchTickerTapLeaderboard() {
   const result = await apiFetch<Record<string, unknown>>("/api/games/ticker-tap/leaderboard", { cache: "no-store" });
   return normalizeTickerTapLeaderboardResponse(result);
+}
+
+export async function fetchCapsuleGachaSpendingLeaderboard() {
+  const result = await apiFetch<Record<string, unknown>>("/api/games/capsule-gacha/spending-leaderboard", { cache: "no-store" });
+  return normalizeGachaSpendingLeaderboardResponse(result);
+}
+
+export async function fetchUserItemLocker(username: string) {
+  const result = await apiFetch<Record<string, unknown>>(`/api/games/${encodeURIComponent(username)}/item-locker`, { cache: "no-store" });
+  return normalizeGameItemLockerResponse(result);
 }

@@ -484,6 +484,7 @@ async function createProfilePicture(pool, { name, imageLargeDataUrl, imageSmallD
 module.exports = {
   createEmoji,
   createProfilePicture,
+  decodeDataUrl,
   isS3Configured,
   listActiveEmojis,
   listActiveProfilePictures,

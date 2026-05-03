@@ -4,7 +4,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FaArrowTrendUp, FaClock, FaScaleBalanced, FaShieldHalved } from "react-icons/fa6";
+import { FaArrowTrendUp, FaBookOpen, FaClock, FaScaleBalanced, FaShieldHalved } from "react-icons/fa6";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { TrendChartCard } from "@/app/components/charts/market-charts";
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { SiteShell } from "@/app/components/layout/site-shell";
@@ -113,6 +115,62 @@ function relativeCloseLabel(value: string | null | undefined) {
   }
   return fmtDate(value);
 }
+
+function LifecycleDiagram() {
+  return (
+    <div className={styles.lifecycleDiagram}>
+      <div className={styles.lifecycleStep}>
+        <span className={`${styles.lifecycleDot} ${styles.lifecycleDotDraft}`} />
+        <span className={styles.lifecycleLabel}>Draft</span>
+      </div>
+      <svg className={styles.lifecycleArrow} width="28" height="16" viewBox="0 0 28 16" fill="none">
+        <path d="M1 8h24M21 3l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <div className={styles.lifecycleStep}>
+        <span className={styles.lifecycleDot} />
+        <span className={styles.lifecycleLabel}>Pending<br />Approval</span>
+      </div>
+      <svg className={styles.lifecycleArrow} width="28" height="16" viewBox="0 0 28 16" fill="none">
+        <path d="M1 8h24M21 3l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <div className={styles.lifecycleStep}>
+        <span className={`${styles.lifecycleDot} ${styles.lifecycleDotOpen}`} />
+        <span className={styles.lifecycleLabel}>Open</span>
+      </div>
+      <svg className={styles.lifecycleArrow} width="28" height="16" viewBox="0 0 28 16" fill="none">
+        <path d="M1 8h24M21 3l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <div className={styles.lifecycleStep}>
+        <span className={styles.lifecycleDot} />
+        <span className={styles.lifecycleLabel}>Closed</span>
+      </div>
+      <svg className={styles.lifecycleArrow} width="28" height="16" viewBox="0 0 28 16" fill="none">
+        <path d="M1 8h24M21 3l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <div className={styles.lifecycleStep}>
+        <span className={styles.lifecycleDot} />
+        <span className={styles.lifecycleLabel}>Resolving</span>
+      </div>
+      <svg className={styles.lifecycleArrow} width="28" height="16" viewBox="0 0 28 16" fill="none">
+        <path d="M1 8h24M21 3l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <div className={styles.lifecycleStep}>
+        <span className={`${styles.lifecycleDot} ${styles.lifecycleDotResolved}`} />
+        <span className={`${styles.lifecycleLabel} ${styles.lifecycleActive}`}>Resolved</span>
+      </div>
+      <div className={styles.lifecycleBranchLabel}>or Voided</div>
+    </div>
+  );
+}
+
+const guideMarkdownComponents: Record<string, React.ComponentType<{ children?: React.ReactNode; className?: string }>> = {
+  code({ className, children, ...props }) {
+    if (className === "language-lifecycle") {
+      return <LifecycleDiagram />;
+    }
+    return <code className={className} {...props}>{children}</code>;
+  },
+};
 
 function bestPrice(levels: Array<{ price: number; quantity: number }>) {
   return levels[0]?.price ?? null;
@@ -426,6 +484,12 @@ export function PredictionsPage({
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [cancelBusyOrderId, setCancelBusyOrderId] = useState<number | null>(null);
+  const [isGuideDrawerOpen, setIsGuideDrawerOpen] = useState(false);
+  const [isGuideDrawerClosing, setIsGuideDrawerClosing] = useState(false);
+  const [guideContent, setGuideContent] = useState<string | null>(null);
+  const [guideLoading, setGuideLoading] = useState(false);
+  const [guideError, setGuideError] = useState<string | null>(null);
+  const guideDrawerCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const canShowMine = Boolean(user);
   const canShowReviewQueue = Boolean(user?.is_admin || user?.can_approve_prediction_markets);
@@ -436,6 +500,9 @@ export function PredictionsPage({
     return () => {
       if (createDrawerCloseTimerRef.current) {
         clearTimeout(createDrawerCloseTimerRef.current);
+      }
+      if (guideDrawerCloseTimerRef.current) {
+        clearTimeout(guideDrawerCloseTimerRef.current);
       }
     };
   }, []);
@@ -459,6 +526,25 @@ export function PredictionsPage({
     }, 180);
   }
 
+  function openGuideDrawer() {
+    if (guideDrawerCloseTimerRef.current) {
+      clearTimeout(guideDrawerCloseTimerRef.current);
+      guideDrawerCloseTimerRef.current = null;
+    }
+    setIsGuideDrawerClosing(false);
+    setIsGuideDrawerOpen(true);
+  }
+
+  function closeGuideDrawer() {
+    if (!isGuideDrawerOpen || isGuideDrawerClosing) return;
+    setIsGuideDrawerClosing(true);
+    guideDrawerCloseTimerRef.current = setTimeout(() => {
+      setIsGuideDrawerOpen(false);
+      setIsGuideDrawerClosing(false);
+      guideDrawerCloseTimerRef.current = null;
+    }, 180);
+  }
+
   useEffect(() => {
     if (scope === "mine" && !canShowMine) {
       setScope("public");
@@ -468,6 +554,26 @@ export function PredictionsPage({
       setScope("public");
     }
   }, [canShowMine, canShowReviewQueue, scope]);
+
+  useEffect(() => {
+    if (!isGuideDrawerOpen) return;
+    if (guideContent) return;
+    setGuideLoading(true);
+    setGuideError(null);
+    fetch("/guides/prediction-markets.md")
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to load guide (${res.status})`);
+        return res.text();
+      })
+      .then((text) => {
+        setGuideContent(text);
+        setGuideLoading(false);
+      })
+      .catch((error) => {
+        setGuideError(String(error?.message || error));
+        setGuideLoading(false);
+      });
+  }, [isGuideDrawerOpen, guideContent]);
 
   useEffect(() => {
     const url = getPredictionMarketWsUrl();
@@ -808,17 +914,20 @@ export function PredictionsPage({
               <div className={styles.eyebrow}>Community Prediction Markets</div>
               <h1 className={styles.title}>HoloBets</h1>
               <p className={styles.copy}>
-                Browse current and resolved binary markets, then open any contract for its chart, rules, depth, and trading ticket.
+                Put your money where your mouth is. Browse open markets, trade YES and NO shares, and climb the leaderboard by making smarter calls than the crowd.
               </p>
-            </div>
-            <div className={styles.heroActions}>
-              {isHub && canCreateMarket ? (
-                <button type="button" className={styles.primaryButton} onClick={openCreateDrawer}>
-                  Create market
+              <div className={styles.heroActions}>
+                {isHub && canCreateMarket ? (
+                  <button type="button" className={styles.primaryButton} onClick={openCreateDrawer}>
+                    Create market
+                  </button>
+                ) : null}
+                <button type="button" className={styles.secondaryButton} onClick={openGuideDrawer}>
+                  <FaBookOpen /> How to Play
                 </button>
-              ) : null}
-              <div className={styles.heroPill}><FaShieldHalved /> {canCreateMarket ? "Creator access enabled" : "Read-only access"}</div>
-              <div className={styles.heroPill}><FaScaleBalanced /> {canShowReviewQueue ? "Approval actions unlocked" : "Public market view"}</div>
+                <div className={styles.heroPill}><FaShieldHalved /> {canCreateMarket ? "Creator access enabled" : "Read-only access"}</div>
+                <div className={styles.heroPill}><FaScaleBalanced /> {canShowReviewQueue ? "Approval actions unlocked" : "Public market view"}</div>
+              </div>
             </div>
           </div>
 
@@ -946,6 +1055,41 @@ export function PredictionsPage({
                       </button>
                     </div>
                   </form>
+                </aside>
+              </div>
+            ) : null}
+
+            {isGuideDrawerOpen ? (
+              <div className={`${styles.drawerOverlay} ${isGuideDrawerClosing ? styles.drawerOverlayClosing : ""}`.trim()} onClick={closeGuideDrawer}>
+                <aside className={`${styles.createDrawer} ${isGuideDrawerClosing ? styles.createDrawerClosing : ""}`.trim()} onClick={(event) => event.stopPropagation()} aria-label="How to play prediction markets">
+                  <div className={styles.drawerHead}>
+                    <div>
+                      <div className={styles.eyebrow}>Player Guide</div>
+                      <h2 className={styles.panelTitle}>How HoloBets works</h2>
+                      <p className={styles.panelCopy}>Everything you need to know about prediction markets on NASFAQ.</p>
+                    </div>
+                    <button type="button" className={styles.drawerCloseButton} onClick={closeGuideDrawer} aria-label="Close guide">
+                      &times;
+                    </button>
+                  </div>
+                  <div className={styles.guideDrawerScroll}>
+                    {guideLoading ? (
+                      <div className={styles.guideDrawerLoading}>Loading guide…</div>
+                    ) : guideError ? (
+                      <div className={styles.error}>Failed to load guide: {guideError}</div>
+                    ) : guideContent ? (
+                      <div className={styles.guideDrawerContent}>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={guideMarkdownComponents}>
+                          {guideContent}
+                        </ReactMarkdown>
+                        <div className={styles.guideDrawerFooter}>
+                          <Image src="/roboco.png" alt="" width={96} height={96} />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className={styles.guideDrawerLoading}>Opening…</div>
+                    )}
+                  </div>
                 </aside>
               </div>
             ) : null}

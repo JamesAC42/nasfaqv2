@@ -45,6 +45,7 @@ router.get("/me", async (req, res) => {
       profile_picture_url: req.ctx.user.profile_picture_url || null,
       profile_color: req.ctx.user.profile_color || null,
       is_admin: Boolean(req.ctx.user.is_admin),
+      can_manage_assets: Boolean(req.ctx.user.can_manage_assets),
       can_create_prediction_markets: Boolean(req.ctx.user.can_create_prediction_markets),
       can_approve_prediction_markets: Boolean(req.ctx.user.can_approve_prediction_markets),
       can_resolve_prediction_markets: Boolean(req.ctx.user.can_resolve_prediction_markets),

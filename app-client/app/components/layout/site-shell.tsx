@@ -613,7 +613,17 @@ export function SiteShell({
                 nasfaqsite@gmail.com
               </a>
             </p>
+            <a href="https://ko-fi.com/L3L446W4T" target="_blank">
+              <img
+                height="36"
+                style={{ border: "0px", height: "36px" }}
+                src="https://storage.ko-fi.com/cdn/kofi5.png?v=6"
+                alt="Support NASFAQ at ko-fi.com"
+              />
+            </a>
+      
           </div>
+      
         </footer>
       ) : null}
     </div>

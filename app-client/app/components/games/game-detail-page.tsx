@@ -9,6 +9,7 @@ import { fmtDate, fmtNumber } from "@/app/lib/format";
 import {
   createTickerTapSession,
   fetchCapsuleGachaCatalog,
+  fetchCapsuleGachaSpendingLeaderboard,
   fetchGameCatalogEntry,
   fetchGamesInventory,
   fetchGamesSummary,
@@ -20,6 +21,7 @@ import type {
   GameCatalogEntry,
   GachaCatalogResponse,
   GachaCatalogReward,
+  GachaSpendingLeaderboardResponse,
   GameInventoryResponse,
   GamesSummary,
   GachaPullResult,
@@ -487,6 +489,8 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
   const [isPulling, setIsPulling] = useState(false);
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const [isLoadingGachaCatalog, setIsLoadingGachaCatalog] = useState(false);
+  const [gachaSpendingBoard, setGachaSpendingBoard] = useState<GachaSpendingLeaderboardResponse | null>(null);
+  const [isLoadingGachaSpendingBoard, setIsLoadingGachaSpendingBoard] = useState(false);
   const [isLoadingTickerTapBoard, setIsLoadingTickerTapBoard] = useState(false);
   const [gameError, setGameError] = useState<string | null>(null);
   const [accountError, setAccountError] = useState<string | null>(null);
@@ -713,10 +717,15 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
     void (async () => {
       setIsLoadingGachaCatalog(true);
       setGachaCatalogError(null);
+      setIsLoadingGachaSpendingBoard(true);
       try {
-        const catalogResult = await fetchCapsuleGachaCatalog();
+        const [catalogResult, boardResult] = await Promise.all([
+          fetchCapsuleGachaCatalog(),
+          fetchCapsuleGachaSpendingLeaderboard(),
+        ]);
         if (!cancelled) {
           setGachaCatalog(catalogResult);
+          setGachaSpendingBoard(boardResult);
         }
       } catch (error) {
         if (!cancelled) {
@@ -725,6 +734,7 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
       } finally {
         if (!cancelled) {
           setIsLoadingGachaCatalog(false);
+          setIsLoadingGachaSpendingBoard(false);
         }
       }
     })();
@@ -1012,6 +1022,39 @@ export function GameDetailPage({ gameKey }: { gameKey: string }) {
                     </span>
                   </article>
                 )) : <div className={styles.empty}>No sessions recorded for this game yet.</div>}
+              </div>
+
+              <div className={styles.sectionHead}>
+                <div>
+                  <h3 className={styles.sectionTitle}>Spending Leaderboard</h3>
+                  <p className={styles.sectionCopy}>Top spenders on Capsule Gacha.</p>
+                </div>
+                <FaMoneyBillTrendUp />
+              </div>
+
+              <div className={styles.boardList}>
+                {isLoadingGachaSpendingBoard ? (
+                  <div className={styles.empty}>Loading leaderboard…</div>
+                ) : gachaSpendingBoard?.leaderboard.length ? gachaSpendingBoard.leaderboard.slice(0, 8).map((entry) => (
+                  <Link
+                    key={entry.user_id}
+                    href={`/profile/${encodeURIComponent(entry.username)}`}
+                    className={styles.boardItem}
+                  >
+                    <div className={styles.boardHeading}>
+                      <span className={styles.boardRank}>#{entry.rank}</span>
+                      <strong className={styles.boardName} style={entry.profile_color ? { color: entry.profile_color } : undefined}>
+                        {entry.username}
+                      </strong>
+                      <span className={styles.boardScore}>{fmtNumber(entry.total_spent_cash, "$")}</span>
+                    </div>
+                    <span className={styles.itemMeta}>
+                      {entry.pull_count} pulls
+                    </span>
+                  </Link>
+                )) : (
+                  <div className={styles.empty}>No spending data yet.</div>
+                )}
               </div>
             </aside>
 

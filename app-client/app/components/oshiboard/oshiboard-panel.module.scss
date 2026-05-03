@@ -1,5 +1,8 @@
 .panel {
   --oshi-accent: var(--accent);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   border: 1px solid color-mix(in srgb, var(--oshi-accent) 24%, var(--border-soft));
   border-radius: 8px;
   background:
@@ -240,6 +243,7 @@
   border-radius: 8px;
   color: var(--text-muted);
   padding: 1rem;
+  overflow-wrap: anywhere;
 }
 
 .skeletonStack {
@@ -305,5 +309,16 @@
 
   .assetLink {
     width: fit-content;
+  }
+}
+
+@media (max-width: 900px) {
+  .panel {
+    animation: none;
+    transform: none;
+  }
+
+  .metricGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

@@ -47,6 +47,10 @@ async function applySchema(pool) {
   `);
   await pool.query(`
     ALTER TABLE market.users
+      ADD COLUMN IF NOT EXISTS can_manage_assets BOOLEAN NOT NULL DEFAULT false
+  `);
+  await pool.query(`
+    ALTER TABLE market.users
       ADD COLUMN IF NOT EXISTS email TEXT NULL,
       ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false,
       ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ NULL,
@@ -1385,6 +1389,36 @@ async function applySchema(pool) {
     CREATE INDEX IF NOT EXISTS market_trade_orders_live_user_interval_idx
       ON market.trade_orders (user_id, submitted_market_date, submitted_interval_key, requested_at DESC)
       WHERE order_type = 'live_market'
+  `);
+
+  // Article comment votes: add upvotes/downvotes counters and vote tracking table
+  await pool.query(`
+    ALTER TABLE content.article_comments
+      ADD COLUMN IF NOT EXISTS upvotes INTEGER NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS downvotes INTEGER NOT NULL DEFAULT 0
+  `);
+  await pool.query(`
+    ALTER TABLE content.article_comments
+      DROP CONSTRAINT IF EXISTS content_article_comments_vote_counts_check
+  `);
+  await pool.query(`
+    ALTER TABLE content.article_comments
+      ADD CONSTRAINT content_article_comments_vote_counts_check CHECK (upvotes >= 0 AND downvotes >= 0)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content.article_comment_votes (
+      comment_id BIGINT NOT NULL REFERENCES content.article_comments(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      value SMALLINT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (comment_id, user_id),
+      CONSTRAINT content_article_comment_votes_value_check CHECK (value IN (-1, 1))
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS content_article_comment_votes_user_idx
+      ON content.article_comment_votes (user_id, updated_at DESC)
   `);
 }
 

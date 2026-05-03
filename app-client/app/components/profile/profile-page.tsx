@@ -8,6 +8,7 @@ import {
   FaArrowTrendUp,
   FaAward,
   FaBookOpen,
+  FaBoxOpen,
   FaBullseye,
   FaCartShopping,
   FaCheck,
@@ -18,6 +19,7 @@ import {
   FaMoneyBillWave,
   FaPencil,
   FaRocket,
+  FaShieldHalved,
   FaStar,
   FaTrophy,
   FaUsers,
@@ -198,6 +200,11 @@ function ProfileIdentity({
             {profile.email_verified ? (
               <span className={styles.verifiedBadge} title="User is verified" aria-label="User is verified">
                 <FaCheck aria-hidden="true" />
+              </span>
+            ) : null}
+            {profile.is_admin ? (
+              <span className={styles.adminBadge} title="Administrator" aria-label="Administrator">
+                <FaShieldHalved aria-hidden="true" />
               </span>
             ) : null}
           </h1>
@@ -1261,6 +1268,39 @@ export function ProfilePage({ username }: { username?: string | null }) {
                       ))}
                     </div>
                   ) : null}
+                  {profile.gacha_badges.filter((b) => b.reward.type === "profile_badge").length ? (
+                    <div className={styles.gachaBadgePanel}>
+                      {profile.gacha_badges.filter((b) => b.reward.type === "profile_badge").slice(0, 6).map((badge) => (
+                        <img
+                          key={badge.reward.key}
+                          src={badge.reward.image_url}
+                          alt={badge.reward.display_name}
+                          className={styles.gachaBadgeImage}
+                          title={`${badge.reward.display_name} · ${badge.reward.rarity}`}
+                        />
+                      ))}
+                      {username ? (
+                        <Link
+                          href={`/games/item-locker/${encodeURIComponent(username)}`}
+                          className={styles.viewCollectionButton}
+                        >
+                          <FaBoxOpen />
+                          <span>View {username}&#39;s collection</span>
+                        </Link>
+                      ) : null}
+                    </div>
+                  ) : username ? (
+                    <div className={styles.gachaBadgePanel}>
+                      <span className={styles.gachaBadgeEmpty}>No gacha badges yet</span>
+                      <Link
+                        href={`/games/item-locker/${encodeURIComponent(username)}`}
+                        className={styles.viewCollectionButton}
+                      >
+                        <FaBoxOpen />
+                        <span>View {username}&#39;s collection</span>
+                      </Link>
+                    </div>
+                  ) : null}
                   <div className={styles.summaryGrid}>
                     <ProfileStatCard
                       label="Net worth"
@@ -1440,6 +1480,16 @@ export function ProfilePage({ username }: { username?: string | null }) {
                       <div className={styles.actions}>
                         <Link href="/admin/assets" className={styles.secondaryButton}>Manage assets</Link>
                         <Link href="/admin/market-tuning" className={styles.secondaryButton}>Tune market</Link>
+                      </div>
+                    </section>
+                  ) : isSelf && user?.can_manage_assets ? (
+                    <section className={styles.sectionPanel}>
+                      <div className={styles.sectionHead}>
+                        <h2 className={styles.sectionTitle}>Asset Manager</h2>
+                      </div>
+                      <p className={styles.muted}>Upload and manage emojis and profile pictures from the asset management page.</p>
+                      <div className={styles.actions}>
+                        <Link href="/admin/assets" className={styles.secondaryButton}>Manage assets</Link>
                       </div>
                     </section>
                   ) : null}

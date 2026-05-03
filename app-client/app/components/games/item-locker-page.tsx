@@ -453,7 +453,7 @@ export function ItemLockerPage() {
               <FaArrowLeft />
               <span>Back to Capsule Gacha</span>
             </Link>
-            <div>
+            <div className={styles.titleWrap}>
               <span className={styles.kicker}>Item Locker</span>
               <h1 className={styles.title}>My Collection</h1>
             </div>

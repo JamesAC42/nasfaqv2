@@ -6,6 +6,7 @@ export type AuthUser = {
   profile_picture_url: string | null;
   profile_color: string | null;
   is_admin: boolean;
+  can_manage_assets: boolean;
   can_create_prediction_markets: boolean;
   can_approve_prediction_markets: boolean;
   can_resolve_prediction_markets: boolean;
@@ -916,6 +917,21 @@ export type TickerTapLeaderboardResponse = {
   leaderboard: TickerTapLeaderboardEntry[];
 };
 
+export type GachaSpendingLeaderboardEntry = {
+  rank: number;
+  user_id: number;
+  username: string;
+  profile_color: string | null;
+  pull_count: number;
+  total_spent_cash: number;
+  total_compensation_cash: number;
+};
+
+export type GachaSpendingLeaderboardResponse = {
+  game_key: string;
+  leaderboard: GachaSpendingLeaderboardEntry[];
+};
+
 export type ReportRow = {
   asset_id?: number;
   symbol: string;
@@ -1366,6 +1382,9 @@ export type ArticleComment = {
   mood: ArticleCommentMood | null;
   created_at: string;
   updated_at: string;
+  upvotes: number;
+  downvotes: number;
+  viewer_vote: -1 | 0 | 1;
   author: ArticleAuthor;
 };
 
@@ -1476,7 +1495,9 @@ export type ProfileBundle = {
     bio: string | null;
     profile_picture_url: string | null;
     profile_color: string | null;
+    is_admin: boolean;
     permissions: {
+      can_manage_assets: boolean;
       can_create_prediction_markets: boolean;
       can_approve_prediction_markets: boolean;
       can_resolve_prediction_markets: boolean;
@@ -1505,6 +1526,8 @@ export type ProfileBundle = {
       outgoing: ProfileRelationUser[];
     } | null;
     holdings: PortfolioHolding[];
+    gacha_badges: GameItemLockerEntry[];
+    gacha_total_spent_cash: number;
   };
   viewer_context: ProfileViewerContext;
   articles: ArticleListResponse;

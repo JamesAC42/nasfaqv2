@@ -252,6 +252,8 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
   const [selectedProposalId, setSelectedProposalId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [commentSort, setCommentSort] = useState<"newest" | "oldest" | "top" | "bottom">("newest");
+  const [commentVoteBusyId, setCommentVoteBusyId] = useState<number | null>(null);
   const [isSubmittingProposal, setIsSubmittingProposal] = useState(false);
   const [adminActionBusy, setAdminActionBusy] = useState<"delete-article" | "delete-news" | "delete-body" | "regenerate-thumbnail" | null>(null);
   const [proposalVoteBusyId, setProposalVoteBusyId] = useState<number | null>(null);
@@ -278,6 +280,22 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
     () => (article && selectedProposal ? getProposalPreviewHeading(selectedProposal, article) : null),
     [article, selectedProposal]
   );
+
+  const sortedComments = useMemo(() => {
+    if (!article?.comments.length) return [];
+    const copy = [...article.comments];
+    switch (commentSort) {
+      case "oldest":
+        return copy.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      case "top":
+        return copy.sort((a, b) => (b.upvotes - b.downvotes) - (a.upvotes - a.downvotes));
+      case "bottom":
+        return copy.sort((a, b) => (a.upvotes - a.downvotes) - (b.upvotes - b.downvotes));
+      case "newest":
+      default:
+        return copy.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }
+  }, [article?.comments, commentSort]);
 
   const loadArticle = useCallback(async () => {
     setIsLoading(true);
@@ -388,6 +406,27 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
       setArticle(normalizeArticleDetail(result.article));
     } finally {
       setProposalVoteBusyId((current) => (current === proposal.id ? null : current));
+    }
+  }
+
+  async function handleCommentVote(comment: ArticleComment, value: 1 | -1) {
+    if (!user) return;
+    if (needsVerification) {
+      setError("Verify your email before you can vote on comments.");
+      return;
+    }
+    setCommentVoteBusyId(comment.id);
+    try {
+      const result = await apiFetch<{ article: Record<string, unknown> }>(
+        `/api/articles/${encodeURIComponent(slug)}/comments/${comment.id}/vote`,
+        {
+          method: "POST",
+          body: JSON.stringify({ value: comment.viewer_vote === value ? 0 : value }),
+        }
+      );
+      setArticle(normalizeArticleDetail(result.article));
+    } finally {
+      setCommentVoteBusyId((current) => (current === comment.id ? null : current));
     }
   }
 
@@ -519,7 +558,7 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
     setAdminActionBusy("regenerate-thumbnail");
     setError(null);
     try {
-      await apiFetch<Record<string, unknown>>("/api/admin/holonews/thumbnails/regenerate", {
+      const start = await apiFetch<{ job_id?: string; status?: string }>("/api/admin/holonews/thumbnails/regenerate", {
         method: "POST",
         body: JSON.stringify({
           news_id: article.news_item?.id || null,
@@ -528,6 +567,34 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
           reference_images: article.related_assets.map((asset) => asset.display_name).filter(Boolean),
         }),
       });
+
+      if (start.job_id && start.status === "pending") {
+        const jobId = start.job_id;
+        const deadline = Date.now() + 12 * 60 * 1000;
+        let finished = false;
+        while (Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          const state = await apiFetch<{
+            status: string;
+            result?: unknown;
+            code?: string;
+            message?: string;
+          }>(`/api/admin/holonews/thumbnails/regenerate/${encodeURIComponent(jobId)}`);
+          if (state.status === "done") {
+            finished = true;
+            break;
+          }
+          if (state.status === "error") {
+            throw new Error(state.message || state.code || "thumbnail_regeneration_failed");
+          }
+        }
+        if (!finished) {
+          throw new Error(
+            "Thumbnail regeneration is still running. Wait a bit and refresh the page, or try again."
+          );
+        }
+      }
+
       await loadArticle();
     } catch (nextError) {
       setError(String((nextError as Error).message || nextError));
@@ -781,9 +848,26 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
               ) : null}
 
               <section className={`${styles.detailCard} ${styles.commentsSection}`.trim()}>
-                <div>
-                  <h2 className={styles.sectionTitle}>Comments</h2>
-                  <p className={styles.sectionCopy}>{formatCountLabel(article.comment_count, "comment")} total</p>
+                <div className={styles.commentSectionHeader}>
+                  <div>
+                    <h2 className={styles.sectionTitle}>Comments</h2>
+                    <p className={styles.sectionCopy}>{formatCountLabel(article.comment_count, "comment")} total</p>
+                  </div>
+                  {article.comments.length ? (
+                    <div className={styles.commentSortRow}>
+                      <span className={styles.fieldLabel}>Sort</span>
+                      <select
+                        className={styles.commentSortSelect}
+                        value={commentSort}
+                        onChange={(event) => setCommentSort(event.target.value as typeof commentSort)}
+                      >
+                        <option value="newest">Newest first</option>
+                        <option value="oldest">Oldest first</option>
+                        <option value="top">Highest score</option>
+                        <option value="bottom">Lowest score</option>
+                      </select>
+                    </div>
+                  ) : null}
                 </div>
                 {user && needsVerification ? (
                   <VerificationRequiredNotice action="comment" />
@@ -841,20 +925,45 @@ export function ArticleDetailPage({ slug }: { slug: string }) {
                   <p className={styles.sectionCopy}>Sign in to comment.</p>
                 )}
 
-                {article.comments.length ? (
+                {sortedComments.length ? (
                   <div className={styles.commentList}>
-                    {article.comments.map((comment) => (
-                      <article key={comment.id} className={styles.commentCard}>
-                        <div className={styles.commentHeader}>
-                          <div className={styles.commentMeta}>
-                            <strong>{comment.author.username}</strong>
-                            <span className={styles.muted}>{formatDateTime(comment.created_at)}</span>
+                    {sortedComments.map((comment) => {
+                      const isOwnComment = user?.id === comment.author.id;
+                      return (
+                        <article key={comment.id} className={styles.commentCard}>
+                          <div className={styles.commentHeader}>
+                            <div className={styles.commentMeta}>
+                              <strong>{comment.author.username}</strong>
+                              <span className={styles.muted}>{formatDateTime(comment.created_at)}</span>
+                            </div>
+                            <CommentMoodBadge comment={comment} />
                           </div>
-                          <CommentMoodBadge comment={comment} />
-                        </div>
-                        <div className={styles.articleBody}>{comment.body}</div>
-                      </article>
-                    ))}
+                          <div className={styles.articleBody}>{comment.body}</div>
+                          <div className={styles.commentVoteRow}>
+                            <button
+                              type="button"
+                              className={`${styles.commentVoteButton} ${comment.viewer_vote === 1 ? styles.commentVoteButtonActive : ""}`.trim()}
+                              onClick={() => void handleCommentVote(comment, 1)}
+                              disabled={!user || needsVerification || isOwnComment || commentVoteBusyId === comment.id}
+                              aria-pressed={comment.viewer_vote === 1}
+                            >
+                              <FaThumbsUp aria-hidden="true" />
+                              <span>{fmtInteger(comment.upvotes)}</span>
+                            </button>
+                            <button
+                              type="button"
+                              className={`${styles.commentVoteButton} ${comment.viewer_vote === -1 ? styles.commentVoteButtonActive : ""}`.trim()}
+                              onClick={() => void handleCommentVote(comment, -1)}
+                              disabled={!user || needsVerification || isOwnComment || commentVoteBusyId === comment.id}
+                              aria-pressed={comment.viewer_vote === -1}
+                            >
+                              <FaThumbsDown aria-hidden="true" />
+                              <span>{fmtInteger(comment.downvotes)}</span>
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className={styles.empty}>No comments yet.</div>

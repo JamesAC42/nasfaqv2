@@ -2,6 +2,7 @@ const articleDb = require("./articleDb");
 const netWorth = require("./services/netWorth");
 const achievements = require("./services/achievements");
 const trading = require("./services/trading");
+const gamesInventory = require("./services/games/inventory");
 const PROFILE_PICTURE_CDN_BASE_URL = "https://images.nasfaq.biz/profile-pictures";
 
 function toInt(value, fallback, { min = 1, max = 100 } = {}) {
@@ -72,6 +73,8 @@ async function getUserByUsername(pool, username) {
       u.bio,
       ${profilePictureUrlSql("large")} AS profile_picture_url,
       u.profile_color,
+      u.is_admin,
+      u.can_manage_assets,
       u.can_create_prediction_markets,
       u.can_approve_prediction_markets,
       u.can_resolve_prediction_markets,
@@ -115,6 +118,8 @@ async function getUserById(pool, userId) {
       u.bio,
       ${profilePictureUrlSql("large")} AS profile_picture_url,
       u.profile_color,
+      u.is_admin,
+      u.can_manage_assets,
       u.can_create_prediction_markets,
       u.can_approve_prediction_markets,
       u.can_resolve_prediction_markets,
@@ -424,7 +429,7 @@ async function getProfileBundle(pool, {
   const profileUser = await resolveProfileUser(pool, { username, viewerUserId, selfOnly });
 
   const isSelf = Boolean(viewerUserId) && Number(profileUser.id) === Number(viewerUserId);
-  const [viewerContext, stats, friends, rivals, networth, articleResult, savedArticleResult, tradeResult, portfolio, userAchievements, streaks, leaderboardEntries, oshiboards] = await Promise.all([
+  const [viewerContext, stats, friends, rivals, networth, articleResult, savedArticleResult, tradeResult, portfolio, userAchievements, streaks, leaderboardEntries, oshiboards, gachaBadges, gachaTotalSpent] = await Promise.all([
     getViewerContext(pool, profileUser.id, viewerUserId),
     getProfileStats(pool, profileUser.id),
     listAcceptedFriends(pool, profileUser.id),
@@ -438,6 +443,8 @@ async function getProfileBundle(pool, {
     achievements.getUserTradeStreak(pool, profileUser.id),
     netWorth.listCurrentNetWorthByUserIds(pool, [profileUser.id]),
     netWorth.listUserOshiboardMemberships(pool, profileUser.id),
+    gamesInventory.listUserGachaBadges(pool, profileUser.id),
+    gamesInventory.getTotalGachaSpentCash(pool, profileUser.id),
   ]);
   const leaderboardEntry = leaderboardEntries[0] || null;
 
@@ -457,7 +464,9 @@ async function getProfileBundle(pool, {
       bio: profileUser.bio,
       profile_picture_url: profileUser.profile_picture_url,
       profile_color: profileUser.profile_color,
+      is_admin: Boolean(profileUser.is_admin),
       permissions: {
+        can_manage_assets: Boolean(profileUser.can_manage_assets),
         can_create_prediction_markets: Boolean(profileUser.can_create_prediction_markets),
         can_approve_prediction_markets: Boolean(profileUser.can_approve_prediction_markets),
         can_resolve_prediction_markets: Boolean(profileUser.can_resolve_prediction_markets),
@@ -490,6 +499,8 @@ async function getProfileBundle(pool, {
       rivals,
       pending_friend_requests: pending,
       holdings: isSelf ? portfolio.holdings : [],
+      gacha_badges: gachaBadges,
+      gacha_total_spent_cash: gachaTotalSpent,
     },
     viewer_context: viewerContext,
     articles: {

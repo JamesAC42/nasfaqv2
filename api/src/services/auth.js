@@ -61,6 +61,7 @@ function publicUser(user) {
     profile_picture_url: user.profile_picture_url || null,
     profile_color: user.profile_color || null,
     is_admin: Boolean(user.is_admin),
+    can_manage_assets: Boolean(user.can_manage_assets),
     can_create_prediction_markets: Boolean(user.can_create_prediction_markets),
     can_approve_prediction_markets: Boolean(user.can_approve_prediction_markets),
     can_resolve_prediction_markets: Boolean(user.can_resolve_prediction_markets),
@@ -176,8 +177,9 @@ async function createUser(pool, { username, email, password }) {
         password_params_json,
         email_verified,
         is_admin,
+        can_manage_assets,
         updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,false,false,now())
+      ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,false,false,false,now())
       RETURNING
         id,
         username,
@@ -186,6 +188,7 @@ async function createUser(pool, { username, email, password }) {
         NULL::TEXT AS profile_picture_url,
         profile_color,
         is_admin,
+        can_manage_assets,
         can_create_prediction_markets,
         can_approve_prediction_markets,
         can_resolve_prediction_markets,
@@ -345,6 +348,7 @@ async function findUserByLogin(pool, login) {
       ${profilePictureUrlSql("small")} AS profile_picture_url,
       u.profile_color,
       u.is_admin,
+      u.can_manage_assets,
       u.can_create_prediction_markets,
       u.can_approve_prediction_markets,
       u.can_resolve_prediction_markets,
@@ -373,6 +377,7 @@ async function findUserByGoogleSub(pool, googleSub) {
       ${profilePictureUrlSql("small")} AS profile_picture_url,
       u.profile_color,
       u.is_admin,
+      u.can_manage_assets,
       u.can_create_prediction_markets,
       u.can_approve_prediction_markets,
       u.can_resolve_prediction_markets,
@@ -440,6 +445,7 @@ async function getAuthenticatedUser(pool, req) {
       ${profilePictureUrlSql("small")} AS profile_picture_url,
       u.profile_color,
       u.is_admin,
+      u.can_manage_assets,
       u.can_create_prediction_markets,
       u.can_approve_prediction_markets,
       u.can_resolve_prediction_markets,
@@ -570,6 +576,7 @@ async function createOrLoginWithGoogle(pool, { idToken }) {
           NULL::TEXT AS profile_picture_url,
           profile_color,
           is_admin,
+          can_manage_assets,
           can_create_prediction_markets,
           can_approve_prediction_markets,
           can_resolve_prediction_markets,
@@ -598,8 +605,9 @@ async function createOrLoginWithGoogle(pool, { idToken }) {
               email_verified_at,
               google_sub,
               is_admin,
+              can_manage_assets,
               updated_at
-            ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,CASE WHEN $7::boolean THEN now() ELSE NULL END,$8,false,now())
+            ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,CASE WHEN $7::boolean THEN now() ELSE NULL END,$8,false,false,now())
             RETURNING
               id,
               username,
@@ -608,6 +616,7 @@ async function createOrLoginWithGoogle(pool, { idToken }) {
               NULL::TEXT AS profile_picture_url,
               profile_color,
               is_admin,
+              can_manage_assets,
               can_create_prediction_markets,
               can_approve_prediction_markets,
               can_resolve_prediction_markets,

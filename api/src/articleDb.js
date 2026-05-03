@@ -425,17 +425,27 @@ async function hydrateArticleDetail(client, articleRow, viewerUserId = null) {
         c.mood,
         c.created_at,
         c.updated_at,
+        c.upvotes,
+        c.downvotes,
         jsonb_build_object(
           'id', u.id,
           'username', u.username
-        ) AS author
+        ) AS author,
+        COALESCE(viewer_vote.value, 0) AS viewer_vote
       FROM content.article_comments c
       JOIN market.users u
         ON u.id = c.author_id
+      LEFT JOIN LATERAL (
+        SELECT value
+        FROM content.article_comment_votes v
+        WHERE v.comment_id = c.id
+          AND v.user_id = $2
+        LIMIT 1
+      ) viewer_vote ON TRUE
       WHERE c.article_id = $1
-      ORDER BY c.created_at ASC, c.id ASC
+      ORDER BY c.created_at DESC, c.id DESC
     `,
-      [articleRow.id]
+      [articleRow.id, viewerUserId]
     ),
     client.query(
       `
@@ -1360,6 +1370,130 @@ async function setProposalVote(pool, slug, proposalId, userId, value) {
   }
 }
 
+function voteCountDeltas(previousValue, nextValue) {
+  const previousUp = previousValue === 1 ? 1 : 0;
+  const previousDown = previousValue === -1 ? 1 : 0;
+  const nextUp = nextValue === 1 ? 1 : 0;
+  const nextDown = nextValue === -1 ? 1 : 0;
+  return {
+    upvotes: nextUp - previousUp,
+    downvotes: nextDown - previousDown,
+  };
+}
+
+async function setArticleCommentVote(pool, slug, commentId, userId, value) {
+  const safeCommentId = Number(commentId);
+  const safeValue = Number(value);
+  if (!Number.isInteger(safeCommentId) || safeCommentId <= 0) {
+    const error = new Error("article_comment_not_found");
+    error.code = "article_comment_not_found";
+    throw error;
+  }
+  if (![ -1, 0, 1 ].includes(safeValue)) {
+    const error = new Error("invalid_article_comment_vote");
+    error.code = "invalid_article_comment_vote";
+    throw error;
+  }
+
+  const article = await getArticleOwnership(pool, slug);
+  if (!article || article.status !== "published") {
+    const error = new Error("article_not_found");
+    error.code = "article_not_found";
+    throw error;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const commentResult = await client.query(
+      `
+      SELECT id, article_id, author_id
+      FROM content.article_comments
+      WHERE id = $1
+        AND article_id = $2
+      LIMIT 1
+      FOR UPDATE
+    `,
+      [safeCommentId, article.id]
+    );
+    const comment = commentResult.rows[0] || null;
+    if (!comment) {
+      const error = new Error("article_comment_not_found");
+      error.code = "article_comment_not_found";
+      throw error;
+    }
+    if (Number(comment.author_id) === userId) {
+      const error = new Error("article_comment_self_vote");
+      error.code = "article_comment_self_vote";
+      throw error;
+    }
+
+    const voteResult = await client.query(
+      `
+      SELECT value
+      FROM content.article_comment_votes
+      WHERE comment_id = $1
+        AND user_id = $2
+      LIMIT 1
+      FOR UPDATE
+    `,
+      [safeCommentId, userId]
+    );
+    const previousValue = voteResult.rows[0] ? Number(voteResult.rows[0].value) : 0;
+    const deltas = voteCountDeltas(previousValue, safeValue);
+
+    if (safeValue === 0) {
+      await client.query(
+        `
+        DELETE FROM content.article_comment_votes
+        WHERE comment_id = $1
+          AND user_id = $2
+      `,
+        [safeCommentId, userId]
+      );
+    } else if (voteResult.rows[0]) {
+      await client.query(
+        `
+        UPDATE content.article_comment_votes
+        SET value = $3, updated_at = now()
+        WHERE comment_id = $1
+          AND user_id = $2
+      `,
+        [safeCommentId, userId, safeValue]
+      );
+    } else {
+      await client.query(
+        `
+        INSERT INTO content.article_comment_votes (comment_id, user_id, value, created_at, updated_at)
+        VALUES ($1, $2, $3, now(), now())
+      `,
+        [safeCommentId, userId, safeValue]
+      );
+    }
+
+    if (deltas.upvotes !== 0 || deltas.downvotes !== 0) {
+      await client.query(
+        `
+        UPDATE content.article_comments
+        SET
+          upvotes = GREATEST(upvotes + $2, 0),
+          downvotes = GREATEST(downvotes + $3, 0),
+          updated_at = now()
+        WHERE id = $1
+      `,
+        [safeCommentId, deltas.upvotes, deltas.downvotes]
+      );
+    }
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   slugify,
   buildNewsSlugBase,
@@ -1377,6 +1511,7 @@ module.exports = {
   deleteNewsArticleBody,
   getArticleOwnership,
   createComment,
+  setArticleCommentVote,
   toggleArticlePreference,
   createProposal,
   approveProposal,

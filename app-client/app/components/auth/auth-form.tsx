@@ -29,6 +29,17 @@ declare global {
 const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
 const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
+const ERROR_MESSAGES: Record<string, string> = {
+  invalid_username: "Username must be 3\u201332 characters and can include letters, numbers, underscores, and spaces.",
+  invalid_email: "Please enter a valid email address.",
+  invalid_password: "Password must be at least 8 characters long.",
+  username_taken: "That username is already taken. Try another one.",
+  email_taken: "An account with that email already exists.",
+  invalid_credentials: "Username or password is incorrect \u2014 double-check and try again.",
+  turnstile_required: "Complete the security check before continuing.",
+  turnstile_failed: "Security check failed. Please try again.",
+};
+
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
   const { login, register, loginWithGoogle, resendVerification, error, isLoading, user } = useAuth();
@@ -158,6 +169,12 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
             ) : null}
             {verificationSent ? <div className="statusMessage statusMessageSuccess">Verification email sent. Open the link before posting or trading.</div> : null}
             {authNotice ? <div className="statusMessage statusMessageWarn">{authNotice}</div> : null}
+            {mode === "login" ? (
+              <div className={styles.registerPrompt}>
+                <span className={styles.registerPromptText}>New here? You can sign up with email &mdash; no Google needed.</span>
+                <Link href="/register" className={styles.registerPromptLink}>Create an account</Link>
+              </div>
+            ) : null}
             <form className={styles.form} onSubmit={(event) => void handleSubmit(event)}>
               <label className={styles.label}>
                 <span>{mode === "login" ? "Username or email" : "Username"}</span>
@@ -172,6 +189,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
               <label className={styles.label}>
                 <span>Password</span>
                 <input className={styles.input} type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+                {mode === "register" ? <span className={styles.passwordHint}>At least 8 characters</span> : null}
               </label>
               {mode === "register" ? (
                 <label className={styles.label}>
@@ -195,12 +213,10 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
               </div>
             ) : null}
             {mode === "register" ? (
-              <p>Already have an account? <Link href="/login" className={styles.altLink}>Go to login</Link>.</p>
-            ) : (
-              <p>Need an account? <Link href="/register" className={styles.altLink}>Go to registration</Link>.</p>
-            )}
+              <p className={styles.bottomLink}>Already have an account? <Link href="/login" className={styles.altLink}>Sign in here</Link>.</p>
+            ) : null}
             {ogeyError ? <div className={styles.ogeyError}>that&apos;s not ogey</div> : null}
-            {error && !ogeyError ? <div className="statusMessage statusMessageError">Auth error: {error}</div> : null}
+            {error && !ogeyError ? <div className="statusMessage statusMessageError">{ERROR_MESSAGES[error] || `Something went wrong (${error}). Please try again.`}</div> : null}
           </section>
         </div>
       </div>

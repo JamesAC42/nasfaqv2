@@ -399,10 +399,127 @@ async function getGamesSummary(pool, userId, { recentSessionLimit = 10 } = {}) {
   }
 }
 
+async function listUserItemLockerByUserId(pool, targetUserId) {
+  const { rows } = await pool.query(
+    `
+    SELECT
+      gp.id,
+      gp.game_id,
+      gp.game_session_id,
+      gp.cost_cash,
+      gp.reward_type,
+      gp.reward_key,
+      gp.duplicate_compensation_cash,
+      gp.metadata_json,
+      gp.created_at,
+      gpi.display_name AS prize_display_name,
+      gpi.cosmetic_type AS prize_cosmetic_type,
+      gpi.rarity AS prize_rarity,
+      gpi.image_key AS prize_image_key
+    FROM games.gacha_pulls gp
+    LEFT JOIN games.gacha_prize_items gpi
+      ON gpi.cosmetic_key = gp.reward_key
+    WHERE gp.user_id = $1
+    ORDER BY gp.created_at DESC, gp.id DESC
+  `,
+    [targetUserId]
+  );
+
+  const items = rows.map(mapLockerPullRow);
+  return {
+    user_id: Number(targetUserId),
+    items,
+    summary: {
+      total_items: items.length,
+      counts_by_type: items.reduce((acc, item) => {
+        acc[item.reward_type] = (acc[item.reward_type] || 0) + 1;
+        return acc;
+      }, {}),
+    },
+  };
+}
+
+async function listUserGachaBadges(pool, userId) {
+  const { rows } = await pool.query(
+    `
+    SELECT DISTINCT ON (gp.reward_key)
+      gp.id,
+      gp.game_id,
+      gp.game_session_id,
+      gp.cost_cash,
+      gp.reward_type,
+      gp.reward_key,
+      gp.duplicate_compensation_cash,
+      gp.metadata_json,
+      gp.created_at,
+      gpi.display_name AS prize_display_name,
+      gpi.cosmetic_type AS prize_cosmetic_type,
+      gpi.rarity AS prize_rarity,
+      gpi.image_key AS prize_image_key
+    FROM games.gacha_pulls gp
+    LEFT JOIN games.gacha_prize_items gpi
+      ON gpi.cosmetic_key = gp.reward_key
+    WHERE gp.user_id = $1
+      AND (gp.reward_type = 'profile_badge' OR gpi.cosmetic_type = 'profile_badge')
+    ORDER BY gp.reward_key, gp.created_at DESC
+  `,
+    [userId]
+  );
+
+  return rows.map(mapLockerPullRow);
+}
+
+async function getTotalGachaSpentCash(pool, userId) {
+  const { rows } = await pool.query(
+    `
+    SELECT COALESCE(SUM(cost_cash), 0)::numeric AS total_spent
+    FROM games.gacha_pulls
+    WHERE user_id = $1
+  `,
+    [userId]
+  );
+  return Number(rows[0]?.total_spent || 0);
+}
+
+async function listGachaSpendingLeaderboard(pool, { limit = 20 } = {}) {
+  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 20));
+  const { rows } = await pool.query(
+    `
+    SELECT
+      gp.user_id,
+      u.username,
+      u.profile_color,
+      COUNT(*)::int AS pull_count,
+      SUM(gp.cost_cash)::numeric AS total_spent_cash,
+      SUM(gp.duplicate_compensation_cash)::numeric AS total_compensation_cash
+    FROM games.gacha_pulls gp
+    JOIN market.users u ON u.id = gp.user_id
+    GROUP BY gp.user_id, u.username, u.profile_color
+    ORDER BY total_spent_cash DESC
+    LIMIT $1
+  `,
+    [safeLimit]
+  );
+
+  return rows.map((row, index) => ({
+    rank: index + 1,
+    user_id: Number(row.user_id),
+    username: String(row.username),
+    profile_color: row.profile_color ? String(row.profile_color) : null,
+    pull_count: Number(row.pull_count || 0),
+    total_spent_cash: Number(row.total_spent_cash || 0),
+    total_compensation_cash: Number(row.total_compensation_cash || 0),
+  }));
+}
+
 module.exports = {
   equipUserCosmetic,
   getGamesSummary,
   grantCosmeticWithClient,
   listUserInventory,
   listUserItemLocker,
+  listUserItemLockerByUserId,
+  listUserGachaBadges,
+  getTotalGachaSpentCash,
+  listGachaSpendingLeaderboard,
 };

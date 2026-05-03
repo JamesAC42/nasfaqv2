@@ -192,6 +192,77 @@
   @include empty-state;
 }
 
+/* ── Role Management ─────────────────────────────── */
+
+.roleManagerLayout {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: 1fr 1fr;
+}
+
+.roleManagerColumn {
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+}
+
+.roleManagerLabel {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.roleManagerList {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roleManagerItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-section-strong);
+}
+
+.roleManagerUsername {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.roleManagerHint {
+  font-weight: 400;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.92rem;
+  margin: 0;
+}
+
+.destructiveButton {
+  @include button-base;
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .roleManagerLayout {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 900px) {
   .sectionHead {
     align-items: start;

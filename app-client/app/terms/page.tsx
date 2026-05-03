@@ -12,7 +12,7 @@ export default function TermsPage() {
     <SiteShell>
       <section className="legalPage">
         <h1>Usage Policy</h1>
-        <p>Last updated: February 9, 2026</p>
+        <p>Last updated: May 3, 2026</p>
 
         <h2>Acceptance of Terms</h2>
         <p>
@@ -22,6 +22,21 @@ export default function TermsPage() {
           </a>
           .
         </p>
+
+        <h2>Accounts and Google Sign-In</h2>
+        <p>
+          Optional sign-in uses Google OAuth. When you authenticate, NASFAQ receives only your Google account email address
+          and name for identity and display within the service, as described in our{" "}
+          <Link href="/privacy">Privacy Policy</Link>.
+        </p>
+        <p>
+          Use of Sign in with Google is also subject to Google’s terms and privacy policies (
+          <a href="http://www.google.com/policies/privacy" target="_blank" rel="noreferrer">
+            Google Privacy Policy
+          </a>
+          ).
+        </p>
+        <p>You are responsible for keeping your Google account credentials secure.</p>
 
         <h2>YouTube API Services</h2>
         <p>
