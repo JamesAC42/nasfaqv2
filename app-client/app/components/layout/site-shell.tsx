@@ -471,6 +471,12 @@ export function SiteShell({
               >
                 Stocks
               </Link>
+              <Link
+                href="/how-to-play"
+                className={`${styles.guideDirectLink} ${pathname === "/how-to-play" ? styles.guideDirectLinkActive : ""}`.trim()}
+              >
+                How to Play
+              </Link>
               {CATEGORY_ITEMS.map((item) => {
                 const isOpen = openCategory === item.key;
                 return (
