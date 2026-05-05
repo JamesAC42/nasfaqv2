@@ -55,6 +55,12 @@ export function HowToPlayPage() {
           )}
         </div>
       </div>
+      <img
+        src="/tako.png"
+        alt=""
+        className={styles.takoSticky}
+        aria-hidden="true"
+      />
     </SiteShell>
   );
 }

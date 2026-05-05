@@ -1,0 +1,130 @@
+/* Cancel pending live order — shared with finance activity (MarketPage) */
+
+.cancelOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: color-mix(in srgb, var(--trade-confirmation-overlay-bg) 92%, rgba(120, 8, 32, 0.18));
+  backdrop-filter: blur(10px);
+}
+
+.cancelModal {
+  width: min(100%, 31rem);
+  border-radius: 1.35rem;
+  border: 0.125rem solid color-mix(in srgb, var(--trend-down) 72%, white 28%);
+  background: var(--trade-confirmation-surface);
+  box-shadow: 0 1.25rem 2.75rem color-mix(in srgb, var(--trend-down) 18%, transparent);
+  overflow: hidden;
+}
+
+.cancelModalHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+  padding: 1.1rem 1.2rem 1rem;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--trend-down) 18%, transparent), transparent);
+  border-bottom: 0.0625rem solid color-mix(in srgb, var(--trend-down) 26%, var(--border-soft));
+}
+
+.cancelModalTitle {
+  margin: 0;
+  font-size: 1.35rem;
+  color: var(--text);
+}
+
+.cancelModalClose {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border: 0.0625rem solid var(--trade-confirmation-close-border);
+  border-radius: var(--radius-sm);
+  background: var(--trade-confirmation-close-bg);
+  color: var(--muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: background 140ms ease;
+  flex-shrink: 0;
+}
+
+.cancelModalClose:hover {
+  background: color-mix(in srgb, var(--text) 16%, transparent);
+}
+
+.cancelModalBody {
+  padding: 1.15rem 1.2rem 1.2rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.cancelModalCopy {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.cancelModalHint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.cancelModalError {
+  padding: 0.5rem 0.75rem;
+  border: 0.0625rem solid color-mix(in srgb, var(--trend-down) 40%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--trend-down) 8%, transparent);
+  color: var(--trend-down);
+  font-size: 0.82rem;
+}
+
+.cancelModalActions {
+  display: flex;
+  gap: 0.7rem;
+  margin-top: 0.3rem;
+}
+
+.cancelModalConfirmBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.65rem 1.2rem;
+  border: 0.0625rem solid var(--trend-down);
+  border-radius: var(--radius-md);
+  background: var(--trend-down);
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 140ms ease;
+}
+
+.cancelModalConfirmBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cancelModalDismissBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.65rem 1.2rem;
+  border: 0.0625rem solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.cancelModalDismissBtn:hover {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border-color: var(--border);
+}

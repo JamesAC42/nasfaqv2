@@ -21,12 +21,14 @@ import {
   FaRocket,
   FaShieldHalved,
   FaStar,
+  FaTrashCan,
   FaTrophy,
   FaUsers,
 } from "react-icons/fa6";
 import type { IconType } from "react-icons";
 import { TrendChartCard } from "@/app/components/charts/market-charts";
 import { AssetCoin } from "@/app/components/common/asset-coin";
+import { CancelPendingOrderModal } from "@/app/components/common/cancel-pending-order-modal";
 import { AssetPicker } from "@/app/components/common/asset-picker";
 import { QuickTradeFlyout } from "@/app/components/common/quick-trade-flyout";
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
@@ -748,6 +750,35 @@ function PendingLiveOrdersPanel({
   orders: PortfolioOrder[];
   assets: ReturnType<typeof useMarketStore.getState>["assets"];
 }) {
+  const [cancelTarget, setCancelTarget] = useState<PortfolioOrder | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const refreshTradingState = useProfileStore((state) => state.refreshTradingState);
+
+  const closeCancelModal = () => {
+    setCancelTarget(null);
+    setCancelError(null);
+  };
+
+  const handleCancel = async () => {
+    if (!cancelTarget) return;
+    const orderId = cancelTarget.id;
+    setIsCancelling(true);
+    setCancelError(null);
+    try {
+      await apiFetch("/api/market/orders/cancel", {
+        method: "POST",
+        body: JSON.stringify({ order_id: orderId }),
+      });
+      closeCancelModal();
+      void refreshTradingState();
+    } catch (err) {
+      setCancelError(String((err as Error).message || err));
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   return (
     <section className={styles.sectionPanel}>
       <div className={styles.sectionHead}>
@@ -782,6 +813,18 @@ function PendingLiveOrdersPanel({
                   <span>Executes after</span>
                   <strong>{formatDateTime(order.execute_after)}</strong>
                 </div>
+                <div className={styles.pendingOrderActions}>
+                  <button
+                    type="button"
+                    className={styles.cancelOrderBtn}
+                    onClick={() => {
+                      setCancelError(null);
+                      setCancelTarget(order);
+                    }}
+                  >
+                    <FaTrashCan aria-hidden /> Cancel
+                  </button>
+                </div>
               </article>
             );
           })}
@@ -789,6 +832,15 @@ function PendingLiveOrdersPanel({
       ) : (
         <div className={styles.empty}>No queued live orders right now.</div>
       )}
+      {cancelTarget ? (
+        <CancelPendingOrderModal
+          order={cancelTarget}
+          onClose={closeCancelModal}
+          onConfirm={handleCancel}
+          isCancelling={isCancelling}
+          cancelError={cancelError}
+        />
+      ) : null}
     </section>
   );
 }

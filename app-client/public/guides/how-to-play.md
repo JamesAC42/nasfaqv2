@@ -1,6 +1,6 @@
-# 📈 How to Play NASFAQ
+# 📈 NASFAQ Player Guide
 
-> *Put your money where your mouth is — the VTuber stock market is open for business.*
+> *Put your money where your mouth is.*
 
 Welcome to NASFAQ, the virtual stock market where **every VTuber is an asset**, your trading skills determine your net worth, and the market moves with the YouTube algorithm. Whether you're here to build an empire, flip quick trades, or just mess around with your oshi's stock — this guide has you covered.
 
@@ -8,13 +8,15 @@ Welcome to NASFAQ, the virtual stock market where **every VTuber is an asset**, 
 
 ## 🎯 What Is NASFAQ?
 
-NASFAQ is a **VTuber stock market simulation**. Every major Hololive talent has their own stock — tickers like `GURA`, `PEKORA`, `MARINE`, `KORONE`, `SUISEI`, and dozens more. Their stock prices are calculated automatically from real YouTube metrics: subscribers, views, video uploads, superchat earnings, and streaming activity.
+NASFAQ is a **VTuber stock market simulation**. Every Hololive talent has their own stock — tickers like `GURA`, `PEKORA`, `MARINE`, `KORONE`, `SUISEI`, and dozens more. Their stock prices are driven by real YouTube metrics: subscribers, views, video uploads, superchat earnings, and streaming activity.
 
 **The goal is simple:** grow your cash into a fortune by buying low, selling high, and making smart bets on the future of your favorite talents.
 
+![AZKi](/how-to/azki.jfif)
+
 There's no real money involved — you get a starting cash balance when you join, and everything happens in in-game currency. You compete on the leaderboard against every other player on the site.
 
-> *The catch is that prices are algorithmic — if a talent's channel grows, their stock tends to rise. If they go quiet, their stock drifts down. You're not just gambling, you're trading on fundamentals.*
+> *Prices are algorithmic — if a talent's channel grows, their stock tends to rise. If they go quiet, their stock drifts down. You're not gambling, you're trading on fundamentals.*
 
 ---
 
@@ -36,6 +38,8 @@ New accounts start with a cash balance. Check your **Profile** page to see your 
 
 Head to the **Stocks** page, find a talent you know, and make your first trade. Start small — buy a few shares and watch what happens.
 
+![orca](/how-to/orca.png)
+
 ---
 
 ## 🏢 The Stock Market
@@ -47,21 +51,28 @@ Every VTuber is a public company. Their stock has a **ticker** (e.g., `GURA` for
 - **Trading activity** — when you buy, the price ticks up slightly. When you sell, it ticks down
 - **Streaming events** — live streams and major milestones can move sentiment
 
+![Screenshot of the Market Report page showing the daily session summary with green and red movers, and index performance bars](/how-to/market-graphs.png)
+
+![Stock page](/how-to/stock-page.png)
+
 ### The Trading Day
 
 The market operates in distinct periods:
 
-| Period | Time (ET) | What Happens |
-|--------|-----------|--------------|
-| **Open** | 9:00 AM – 3:00 PM | Full trading, active market |
-| **Lunch** | 3:00 PM – 9:00 PM | Trading continues, slower pace |
-| **Late** | 9:00 PM – 3:00 AM | Evening session |
-| **Overnight** | 3:00 AM – 9:00 AM | Market chill — limited activity |
+| Period | Start Time (ET) |
+|--------|-----------------|
+| **Open** | 9:00 AM |
+| **Lunch** | 3:00 PM |
+| **Late** | 9:00 PM |
+| **Overnight** | 3:00 AM |
+
+![Adjust schedule](/how-to/adjusts.png)
 
 Every 10 minutes, **live orders** are processed in batches. Place an order and it queues up for the next tick.
 
-> ![Screenshot of the Market Report page showing the trading day timeline with the four periods highlighted — Open, Lunch, Late, Overnight — and a countdown clock to the next tick]
-> *The Market Report page shows where we are in the trading day and how long until the next price tick.*
+![Screenshot of the Activity page showing the exchange board](/how-to/exchange.png)
+
+![Trade tape](/how-to/trade-tape.png)
 
 ---
 
@@ -77,8 +88,9 @@ Every 10 minutes, **live orders** are processed in batches. Place an order and i
 
 The price you get depends on **slippage** — larger orders move the price more. A small buy of 1–10 shares gets almost the current price. A huge buy of 500 shares might push the price up significantly.
 
-> ![Screenshot of the Buy/Sell trade ticket showing the quantity input, estimated cost breakdown with fee, and the confirm button]
-> *The trade ticket — choose how many shares and see the estimated cost before you commit.*
+![Screenshot of the Buy/Sell trade ticket showing the quantity input, estimated cost breakdown with fee, and the confirm button](/how-to/order-ticket.png)
+
+![Screenshot of the Activity page showing the live trade tape with recent buy and sell orders streaming in real time](/how-to/live-trade-tape.png)
 
 ### Selling Shares
 
@@ -92,8 +104,7 @@ When you place an order, it's a **live order** — it sits in a queue and execut
 
 Every trade has a **1% fee** that's burned — it goes to nobody. A $100 buy costs $101 total. The fee is there to prevent market spam and keeps trading meaningful.
 
-> ![Fun graphic of a VTuber character (like Korone or Okayu) holding a stock certificate with dollar signs, saying "BUY" and "SELL" speech bubbles around them]
-> *Artist's impression of you, making big trades.*
+![ina ina ina](/how-to/ina-buy.jfif)
 
 ---
 
@@ -109,8 +120,7 @@ Your **Profile** page is your command center:
 - **Order history** — all your past trades and live orders
 - **Prediction market portfolio** — manage your HoloBets positions
 
-> ![Screenshot of the Profile page showing the portfolio holdings table, net worth chart, and cash balance summary]
-> *Your Profile — every position, every order, all your money in one place.*
+![Screenshot of the Profile page showing the portfolio holdings table, net worth chart, and cash balance summary](/how-to/profile-section.png)
 
 ### Net Worth Rank
 
@@ -120,6 +130,8 @@ Your net worth determines your rank on the **Leaderboard**. The higher your net 
 
 ## 📰 Market Reports
 
+![Top coin prices](/how-to/top-prices-graph.png)
+
 The **Reports** page (under Finance > Reports) gives you a daily digest of the market:
 
 - **Market session summary** — how the full market moved today
@@ -128,10 +140,11 @@ The **Reports** page (under Finance > Reports) gives you a daily digest of the m
 - **Most active** — stocks with the highest trading volume
 - **Adjustment timeline** — when the next fair-value nudges happen
 
-> ![Screenshot of the Market Report page showing the daily session summary with green and red movers, and index performance bars]
-> *The daily Report — your at-a-glance market summary.*
+![Report page](/how-to/report.png)
 
 The **Activity** page (Finance > Activity) shows the same layout but focuses on the live trading feed — recent trades happening in real time.
+
+![reary](/how-to/reary.jpg)
 
 ---
 
@@ -149,8 +162,9 @@ Each index shows:
 - A **heatmap** (treemap) where each tile is a stock — bigger tiles = bigger market cap, green tiles = up, red tiles = down
 - 30-day sparkline chart
 
-> ![Screenshot of the Indexes page showing the treemap heatmap with green and red tiles of varying sizes, plus index line charts]
-> *The Indexes heatmap — see the whole market at a glance.*
+![Screenshot of the Indexes page showing the treemap heatmap with green and red tiles of varying sizes, plus index line charts](/how-to/indexes.png)
+
+![diamond hands](/how-to/not-selling.png)
 
 ---
 
@@ -174,8 +188,7 @@ Compare stocks across multiple metrics:
 
 Each ranking shows a chart of the top stock's performance over time.
 
-> ![Screenshot of Finance Rankings page with the metric selector and ranked table showing each stock's data]
-> *The Rankings page — sort stocks by whatever matters to you.*
+![Rankings page](/how-to/rankings.png)
 
 ### Leaderboard (Community > Leaderboard)
 
@@ -189,76 +202,13 @@ This is the **player leaderboard** — ranked by net worth. Three scopes:
 
 Windows: 1 Day, 7 Days, or All Time. Climb the ranks to flex on your friends.
 
----
+![Screenshot of Finance Rankings page with the metric selector and ranked table showing each stock's data](/how-to/leaderboard.png)
 
-## 🔮 Prediction Markets (HoloBets)
+The *oshiboard* ranks loyalty of players toward their favorite stock. To qualify, the coin must hold a plurality of your holdings and must be set as your oshi on your profile. 
 
-Bet on the outcome of yes/no questions with in-game cash. Each prediction market is an event contract:
+![Screenshot of Oshiboard page](/how-to/oshiboard.png)
 
-> *"Will Kobo Kanaeru reach 5 million subscribers by December 31st?"*
-
-You buy **Yes** shares if you think it'll happen, **No** shares if you think it won't.
-
-### Key Rules
-
-- Share prices range from **$0.01 to $0.99** — this IS the implied probability
-- If Yes is $0.75, the market thinks there's a 75% chance of Yes
-- Each winning share pays **$1.00** at settlement
-- Losers get $0
-- If a market is **voided**, everyone gets their money back
-
-### Market Lifecycle
-
-```
-Draft → Pending Approval → Open (trading) → Closed → Resolving → Resolved (paid out)
-                                                                    or
-                                                                 → Voided (refund)
-```
-
-Only authorized users can create, approve, and resolve markets. Anyone can trade when a market is **Open**.
-
-> ![Screenshot of a prediction market detail page showing the probability chart, order book with bids and asks, and the trade form]
-> *A HoloBets market in action — chart, order book, and trading controls.*
-
-Each prediction market has its own **player guide** with more detail — look for the "How to Play" button on the Predictions page.
-
----
-
-## 💬 Chat & Community
-
-NASFAQ has a real-time **chat system** with channels for every VTuber. Join a channel to:
-
-- Discuss market moves with other traders
-- Share hot tips and analysis
-- React with emojis
-- See who's online
-
-Chat requires **email verification** to post, and there are per-channel read states so you never lose your place.
-
-> ![Screenshot of the Chat page showing a list of VTuber channels on the left and a conversation on the right]
-> *The Chat page — discuss stocks, share tips, and talk VTubers.*
-
-### Articles
-
-The **Articles** section features community-written and staff-published content — market analysis, talent profiles, event recaps, and opinion pieces. Comment on articles to join the discussion.
-
-### /vt/ Threads
-
-The **/vt/** page (Community > /vt/) aggregates market-relevant discussion from the 4chan VTuber board — a pulse check on what the broader community is talking about.
-
----
-
-## 🎮 Games
-
-NASFAQ has mini-games you can play for in-game rewards and fun:
-
-### Gacha Game
-Spend in-game currency on gacha pulls to collect badges and profile cosmetics. Show off your rare pulls on your Profile page.
-
-### Rhythm Game
-A rhythm game that tests your reflexes. Play for high scores and earn bragging rights.
-
-**All games are accessible from the Games Hub** (Games > Games Hub in the navbar).
+![risu](/how-to/risu.png)
 
 ---
 
@@ -284,29 +234,33 @@ A rhythm game that tests your reflexes. Play for high scores and earn bragging r
 | **Liquidity Depth** | How many shares can trade before significant slippage occurs |
 | **Oshiboard** | Your personal "oshi" dashboard — track your favorite talents |
 | **Net Worth** | Cash + portfolio value — the number that determines your leaderboard rank |
+| **PnL (Profit and Loss)** | The difference between your buy price and sell price — green means you're winning, red means you're learning |
+| **ATH (All-Time High)** | The highest price a stock has ever reached |
+| **ATL (All-Time Low)** | The lowest price a stock has ever dropped to |
+| **Volume** | Total number of shares traded in a given period — higher volume means more activity |
+| **Volatility** | How much and how fast a stock's price moves up and down |
+| **Bid / Ask** | The price buyers are willing to pay (bid) versus what sellers want (ask) |
+| **Yield** | The percentage return a stock has generated over a period |
+| **Dividend** | A cash payout distributed to shareholders, proportional to shares held |
 
 ---
+
+![stonks](/how-to/stonks.jfif)
 
 ## 💡 Strategy Tips
 
 **Know your oshi.** If you follow a talent's channel closely, you have an edge — you know when they're about to hit a milestone, drop a big video, or go on hiatus.
 
-**Watch the premium.** If a stock is trading far above its fair value (high premium), it might be overpriced. If it's at a big discount, it could be a bargain — but there might be a reason nobody's buying.
-
-**Start small.** Buy 1–10 shares at first. Watch how slippage affects your fills. Learn the rhythm before going big.
-
 **Diversify.** Don't dump your entire cash balance into one stock. Spread it across a few talents — if one underperforms, others might carry you.
-
-**Watch the indexes.** If the Hololive index is down, most stocks are probably down too. It might be a bad day to buy aggressively.
 
 **Check the report.** The daily Market Report shows which stocks are moving and why. Use it as your morning briefing.
 
-**Set a target.** Decide your sell price before you buy. Greed is the fastest way to turn a winning trade into a loss.
-
-**Have fun.** This is a game. The leaderboard is bragging rights. Don't stress about it — enjoy watching the market dance with the talents you love.
+**Have fun.** This is a game. And remember, never buy Towa.
 
 ---
 
-*Questions? Bugs? Feature ideas? Hit us up at **nasfaqsite@gmail.com** or find us on the site.*
+*Questions? Bugs? Feature ideas? Contact us at **nasfaqsite@gmail.com**.*
 
 *Last updated: May 2026*
+
+![Gura pixel art](/how-to/gura-pixel-art.png)

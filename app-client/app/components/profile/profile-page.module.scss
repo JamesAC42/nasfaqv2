@@ -559,10 +559,10 @@
 }
 
 .pendingOrderCard {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  gap: 0.75rem 1rem;
   padding: 0.8rem;
   border: 0.0625rem solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: var(--radius-md);
@@ -594,7 +594,38 @@
 }
 
 .pendingOrderMeta {
-  text-align: right;
+  text-align: center;
+  justify-self: stretch;
+  min-width: 0;
+}
+
+.pendingOrderActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  justify-self: stretch;
+  min-width: 0;
+}
+
+.cancelOrderBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border: 0.0625rem solid color-mix(in srgb, var(--trend-down) 55%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--trend-down) 11%, transparent);
+  color: var(--trend-down);
+  font-size: 0.79rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.cancelOrderBtn:hover {
+  background: color-mix(in srgb, var(--trend-down) 22%, transparent);
+  border-color: var(--trend-down);
 }
 
 .sectionCount,

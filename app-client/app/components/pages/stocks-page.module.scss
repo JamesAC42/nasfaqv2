@@ -592,6 +592,22 @@
   letter-spacing: 0.06em;
 }
 
+.ownedRow {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.ownedRow:hover {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-card-highlight)) !important;
+}
+
+.ownedCard {
+  border-left: 2px solid color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+.ownedCard:hover {
+  border-left-color: color-mix(in srgb, var(--accent) 52%, transparent);
+}
+
 .sortHint {
   color: var(--muted);
   font-size: 0.92rem;

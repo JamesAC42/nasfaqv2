@@ -14,14 +14,18 @@ import {
   FaMoneyBillTrendUp,
   FaSignal,
   FaUsers,
+  FaTrashCan,
 } from "react-icons/fa6";
-import { TrendChartCard } from "@/app/components/charts/market-charts";
+import { CandleChartCard, TrendChartCard } from "@/app/components/charts/market-charts";
 import { AssetCoin } from "@/app/components/common/asset-coin";
+import { CancelPendingOrderModal } from "@/app/components/common/cancel-pending-order-modal";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { fmtDate, fmtInteger, fmtNumber, fmtPct, toNumber } from "@/app/lib/format";
-import { normalizeMarketAdjustmentSummary, normalizeMarketHubResponse, normalizeMarketHubTrade, normalizeMarketLiveOrderSummary } from "@/app/lib/normalizers";
-import type { MarketAdjustmentOutcome, MarketAdjustmentSummary, MarketAsset, MarketHubResponse, MarketHubTrade, MarketTradeEvent } from "@/app/lib/types";
+import { useProfileStore } from "@/app/stores/profile-store";
+import { useAuth } from "@/app/providers/auth-provider";
+import { normalizeAsset, normalizeCandles, normalizeMarketAdjustmentSummary, normalizeMarketHubResponse, normalizeMarketHubTrade, normalizeMarketLiveOrderFlow, normalizeMarketLiveOrderSummary, normalizePortfolioOrdersResponse } from "@/app/lib/normalizers";
+import type { CandlePoint, MarketAdjustmentOutcome, MarketAdjustmentSummary, MarketAsset, MarketHubResponse, MarketHubTrade, MarketLiveOrderFlow, MarketLiveOrderSummary, MarketTradeEvent, PortfolioOrder } from "@/app/lib/types";
 import { getMarketWsUrl } from "@/app/lib/ws";
 import styles from "@/app/components/pages/market-page.module.scss";
 import shellStyles from "@/app/components/pages/page-shell.module.scss";
@@ -34,6 +38,7 @@ import tako from "@/public/tako.png";
 const INITIAL_TRADE_LIMIT = 20;
 const LIVE_TRADE_CAP = 40;
 const RECONCILE_INTERVAL_MS = 60_000;
+const LIVE_ORDER_FLOW_RECONCILE_MS = 30_000;
 const HEARTBEAT_INDEX_START_DATE = "2025-10-06";
 const TICK_INTERVAL_ORDER = ["open", "lunch", "late", "overnight"] as const;
 const ADJUSTMENT_SUMMARY_RECENT_LIMIT = 500;
@@ -53,6 +58,14 @@ const TIMELINE_LABEL_PROGRESS: Record<(typeof TICK_INTERVAL_ORDER)[number], numb
   lunch: 62.5,
   late: 87.5,
 };
+const LIVE_ORDER_GRAPH_MODES = [
+  { key: "current" as const, label: "Current tick" },
+  { key: "minute" as const, label: "Per minute" },
+  { key: "day" as const, label: "24 hours" },
+] as const;
+
+type LiveOrderGraphMode = (typeof LIVE_ORDER_GRAPH_MODES)[number]["key"];
+type OrderFlash = { side: "buy" | "sell"; nonce: number };
 
 function formatSignedPct(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
@@ -517,6 +530,290 @@ function HotSymbolStrip({
   );
 }
 
+function chartBucketNow() {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  return now.toISOString();
+}
+
+function flowPointsForMode(flow: MarketLiveOrderFlow | null, mode: LiveOrderGraphMode) {
+  if (!flow) return [];
+  switch (mode) {
+    case "minute":
+      return flow.per_minute;
+    case "day":
+      return flow.cycles_24h;
+    case "current":
+    default:
+      return flow.current_tick;
+  }
+}
+
+function floorDateToStep(date: Date, stepMs: number) {
+  return new Date(Math.floor(date.getTime() / stepMs) * stepMs);
+}
+
+function fillOrderFlowPoints(
+  points: MarketLiveOrderFlow["current_tick"],
+  stepMs: number,
+  options: { start?: Date; end?: Date } = {}
+) {
+  const byBucket = new Map<number, { buy_quantity: number; sell_quantity: number }>();
+  for (const point of points) {
+    const timestamp = new Date(point.bucket).getTime();
+    if (!Number.isFinite(timestamp)) continue;
+    byBucket.set(floorDateToStep(new Date(timestamp), stepMs).getTime(), {
+      buy_quantity: point.buy_quantity,
+      sell_quantity: point.sell_quantity,
+    });
+  }
+
+  const now = new Date();
+  const end = floorDateToStep(options.end || now, stepMs);
+  const firstPointTime = byBucket.size ? Math.min(...byBucket.keys()) : end.getTime();
+  const start = floorDateToStep(options.start || new Date(firstPointTime), stepMs);
+  const filled: MarketLiveOrderFlow["current_tick"] = [];
+
+  for (let cursor = start.getTime(); cursor <= end.getTime(); cursor += stepMs) {
+    const existing = byBucket.get(cursor);
+    filled.push({
+      bucket: new Date(cursor).toISOString(),
+      buy_quantity: existing?.buy_quantity || 0,
+      sell_quantity: existing?.sell_quantity || 0,
+    });
+  }
+
+  return filled;
+}
+
+function orderFlowSeries(flow: MarketLiveOrderFlow | null, mode: LiveOrderGraphMode) {
+  const points = flowPointsForMode(flow, mode);
+  const now = new Date();
+  const filledPoints = mode === "day"
+    ? fillOrderFlowPoints(points, 10 * 60 * 1000, { start: new Date(now.getTime() - 24 * 60 * 60 * 1000), end: now })
+    : fillOrderFlowPoints(points, 60 * 1000, {
+        start: mode === "minute" ? new Date(now.getTime() - 60 * 60 * 1000) : undefined,
+        end: now,
+      });
+  const withCurrentPoint = mode === "current" && filledPoints.length === 0
+    ? [{ bucket: chartBucketNow(), buy_quantity: 0, sell_quantity: 0 }]
+    : filledPoints;
+
+  return [
+    {
+      name: "Buys",
+      color: "#22c55e",
+      kind: "line" as const,
+      values: withCurrentPoint.map((point) => ({ time: point.bucket, value: point.buy_quantity })),
+    },
+    {
+      name: "Sells",
+      color: "#ef4444",
+      kind: "line" as const,
+      values: withCurrentPoint.map((point) => ({ time: point.bucket, value: point.sell_quantity })),
+    },
+  ];
+}
+
+function LiveOrderTickerSection({
+  assets,
+  summary,
+  flow,
+  candles,
+  selectedSymbol,
+  graphMode,
+  isLoadingFlow,
+  isLoadingCandles,
+  orderFlashes,
+  onSelectSymbol,
+  onModeChange,
+}: {
+  assets: MarketAsset[];
+  summary: MarketLiveOrderSummary;
+  flow: MarketLiveOrderFlow | null;
+  candles: CandlePoint[];
+  selectedSymbol: string | null;
+  graphMode: LiveOrderGraphMode;
+  isLoadingFlow: boolean;
+  isLoadingCandles: boolean;
+  orderFlashes: Record<string, OrderFlash>;
+  onSelectSymbol: (symbol: string | null) => void;
+  onModeChange: (mode: LiveOrderGraphMode) => void;
+}) {
+  const orderBySymbol = useMemo(() => {
+    const map = new Map<string, MarketLiveOrderSummary["assets"][number]>();
+    for (const asset of summary.assets) {
+      map.set(asset.symbol.toUpperCase(), asset);
+    }
+    return map;
+  }, [summary.assets]);
+  const selectedAsset = selectedSymbol ? assets.find((asset) => asset.symbol === selectedSymbol) || null : null;
+  const selectedOrder = selectedSymbol ? orderBySymbol.get(selectedSymbol) || null : null;
+  const buyQuantity = selectedOrder?.pending_buy_quantity ?? summary.pending_buy_quantity;
+  const sellQuantity = selectedOrder?.pending_sell_quantity ?? summary.pending_sell_quantity;
+  const totalQuantity = buyQuantity + sellQuantity;
+  const totalOrders = selectedOrder?.pending_count ?? summary.pending_count;
+  const pointCount = flowPointsForMode(flow, graphMode).length;
+  const maxQuantity = Math.max(
+    1,
+    ...assets.map((asset) => {
+      const order = orderBySymbol.get(asset.symbol.toUpperCase());
+      return (order?.pending_buy_quantity || 0) + (order?.pending_sell_quantity || 0);
+    })
+  );
+  const graphTitle = selectedAsset ? `${selectedAsset.symbol} Order Flow` : "All-Market Order Flow";
+  const candleTitle = selectedAsset ? `${selectedAsset.symbol} 24H Candles` : "All-Market 24H Candles";
+  const graphSubtitle = graphMode === "day"
+    ? "10-minute execution cycles over the last 24 hours"
+    : graphMode === "minute"
+      ? "One-minute order flow over the last hour"
+      : "Pending next-tick order flow with one-minute ticks";
+
+  return (
+    <section className={styles.orderSignalPanel}>
+      <div className={styles.sectionHead}>
+        <div>
+          <h2 className={styles.sectionTitle}>Rrat Exchange</h2>
+          <p className={styles.sectionCopy}>Live order pressure by coin for the next market execution cycle.</p>
+        </div>
+        <div className={styles.sectionMeta}>
+          <FaSignal />
+          <span>{summary.next_execute_after ? `Next tick ${formatEt(summary.next_execute_after)}` : "No queued tick"}</span>
+        </div>
+      </div>
+
+      <div className={styles.orderSignalLayout}>
+        <div className={styles.orderCoinGrid} aria-label="Live order pressure by coin">
+          <button
+            type="button"
+            className={`${styles.orderAllCoin} ${selectedSymbol === null ? styles.orderCoinSelected : ""}`}
+            onClick={() => onSelectSymbol(null)}
+          >
+            <FaCircleNodes aria-hidden="true" />
+            <span>
+              <strong>ALL</strong>
+              <em>{fmtInteger(summary.pending_buy_quantity + summary.pending_sell_quantity)} sh</em>
+            </span>
+          </button>
+          {assets.map((asset) => {
+            const order = orderBySymbol.get(asset.symbol.toUpperCase());
+            const assetBuy = order?.pending_buy_quantity || 0;
+            const assetSell = order?.pending_sell_quantity || 0;
+            const assetTotal = assetBuy + assetSell;
+            const flowClass = assetBuy > assetSell ? styles.orderCoinBuy : assetSell > assetBuy ? styles.orderCoinSell : styles.orderCoinNeutral;
+            const flash = orderFlashes[asset.symbol.toUpperCase()] || null;
+            const brightness = 0.88 + Math.min(0.56, (assetTotal / maxQuantity) * 0.56);
+
+            return (
+              <button
+                key={asset.id}
+                type="button"
+                className={[
+                  styles.orderCoinButton,
+                  flowClass,
+                  assetTotal <= 0 ? styles.orderCoinDormant : "",
+                  selectedSymbol === asset.symbol ? styles.orderCoinSelected : "",
+                  flash?.side === "buy" ? styles.orderCoinFlashBuy : "",
+                  flash?.side === "sell" ? styles.orderCoinFlashSell : "",
+                ].filter(Boolean).join(" ")}
+                style={{
+                  "--coin-accent": asset.color || "var(--activity-cyan)",
+                  "--coin-brightness": brightness,
+                } as CSSProperties}
+                onClick={() => onSelectSymbol(asset.symbol)}
+                title={`${asset.symbol} ${fmtInteger(assetTotal)} queued shares`}
+              >
+                <AssetCoin symbol={asset.symbol} icon={asset.icon} color={asset.color} className={styles.orderCoinIcon} shape="circle" />
+                <span>{asset.symbol}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className={styles.orderGraphPanel}>
+          <div className={styles.orderGraphHeader}>
+            <div className={styles.orderGraphIdentity}>
+              {selectedAsset ? (
+                <AssetCoin symbol={selectedAsset.symbol} icon={selectedAsset.icon} color={selectedAsset.color} className={styles.orderGraphCoin} shape="circle" />
+              ) : (
+                <span className={styles.orderGraphMarketIcon}><FaCircleNodes aria-hidden="true" /></span>
+              )}
+              <div>
+                <strong>{selectedAsset ? selectedAsset.display_name : "All Market"}</strong>
+                <span>{selectedAsset ? selectedAsset.symbol : "Every listed coin"}</span>
+              </div>
+              {selectedAsset ? (
+                <span className={styles.orderHeaderPrice}>
+                  {fmtNumber(selectedAsset.current_mid_price, "$")}
+                  <span className={(selectedAsset.move_24h_pct ?? 0) >= 0 ? styles.orderHeaderPriceUp : styles.orderHeaderPriceDown}>
+                    {(selectedAsset.move_24h_pct ?? 0) >= 0 ? <FaArrowTrendUp aria-hidden="true" /> : <FaArrowTrendDown aria-hidden="true" />}
+                    {formatSignedPct(selectedAsset.move_24h_pct)}
+                  </span>
+                </span>
+              ) : null}
+            </div>
+            <div className={styles.orderModeToggle}>
+              {LIVE_ORDER_GRAPH_MODES.map((mode) => (
+                <button
+                  key={mode.key}
+                  type="button"
+                  className={graphMode === mode.key ? styles.orderModeActive : ""}
+                  onClick={() => onModeChange(mode.key)}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className={styles.orderStatsGrid}>
+            <div>
+              <span>Buy shares</span>
+              <strong className={styles.positive}>{fmtInteger(buyQuantity)}</strong>
+            </div>
+            <div>
+              <span>Sell shares</span>
+              <strong className={styles.negative}>{fmtInteger(sellQuantity)}</strong>
+            </div>
+            <div>
+              <span>Total flow</span>
+              <strong>{fmtInteger(totalQuantity)}</strong>
+            </div>
+            <div>
+              <span>Orders</span>
+              <strong>{fmtInteger(totalOrders)}</strong>
+            </div>
+          </div>
+
+          <div className={styles.orderChartWrap}>
+            {isLoadingFlow ? <span className={styles.orderChartLoading}>Updating</span> : null}
+            <TrendChartCard
+              title={graphTitle}
+              subtitle={`${graphSubtitle} · ${fmtInteger(pointCount)} points`}
+              series={orderFlowSeries(flow, graphMode)}
+              height={260}
+              compact
+              bare
+            />
+            <div className={styles.orderCandleChart}>
+              {isLoadingCandles ? <span className={styles.orderChartLoading}>Updating</span> : null}
+              <CandleChartCard
+                title={candleTitle}
+                subtitle="Hourly candles over the last 24 hours"
+                candles={candles}
+                height={250}
+                compact
+                bare
+                candlePalette="market"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function PendingLiveOrders({
   hub,
   now,
@@ -589,6 +886,131 @@ function PendingLiveOrders({
         )) : <div className={styles.empty}>No live orders are waiting for the next tick.</div>}
       </div>
     </section>
+  );
+}
+
+function YourPendingOrders({ assets }: { assets: MarketAsset[] }) {
+  const [orders, setOrders] = useState<PortfolioOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<PortfolioOrder | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const tradingRevision = useProfileStore((state) => state.tradingRevision);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) {
+      setOrders([]);
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    apiFetch<Record<string, unknown>>("/api/portfolio/me/orders?limit=50", { cache: "no-store" })
+      .then((result) => {
+        const parsed = normalizePortfolioOrdersResponse(result);
+        setOrders(parsed.orders.filter(
+          (order) => order.status === "pending" && order.order_type === "live_market"
+        ));
+      })
+      .catch((err) => setError(String((err as Error).message || err)))
+      .finally(() => setIsLoading(false));
+  }, [user, tradingRevision]);
+
+  const handleCancel = async () => {
+    if (!cancelTarget) return;
+    const orderId = cancelTarget.id;
+    setIsCancelling(true);
+    setCancelError(null);
+    try {
+      await apiFetch("/api/market/orders/cancel", {
+        method: "POST",
+        body: JSON.stringify({ order_id: orderId }),
+      });
+      setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      setCancelTarget(null);
+      void useProfileStore.getState().refreshTradingState();
+    } catch (err) {
+      setCancelError(String((err as Error).message || err));
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  if (!user) return null;
+
+  const modalOpen = cancelTarget !== null;
+
+  return (
+    <>
+      <section className={styles.liveOrderPanel}>
+        <div className={styles.sectionHead}>
+          <div>
+            <h2 className={styles.sectionTitle}>Your Pending Orders</h2>
+            <p className={styles.sectionCopy}>
+              Your queued market orders. Cancel any order before the next 10-minute execution tick.
+            </p>
+          </div>
+          <span className={styles.sectionMeta}>{orders.length}</span>
+        </div>
+
+        {error && <div className={styles.yourOrderError}>{error}</div>}
+
+        {isLoading ? (
+          <div className={styles.empty}>Loading...</div>
+        ) : orders.length ? (
+          <div className={styles.yourOrderList}>
+            {orders.map((order) => {
+              const assetMeta = assets.find((item) => item.symbol === order.symbol) || null;
+              return (
+              <div key={order.id} className={styles.yourOrderCard}>
+                <div className={styles.yourOrderMain}>
+                  <AssetCoin
+                    symbol={order.symbol}
+                    icon={assetMeta?.icon ?? null}
+                    color={assetMeta?.color ?? null}
+                    className={styles.yourOrderIcon}
+                    shape="circle"
+                  />
+                  <div className={styles.yourOrderInfo}>
+                    <strong>{order.side.toUpperCase()} {fmtInteger(order.requested_quantity)}</strong>
+                    <span>{order.symbol} · {order.display_name}</span>
+                  </div>
+                </div>
+                <div className={styles.yourOrderMeta}>
+                  <span>Executes after</span>
+                  <strong>{order.execute_after ? formatEt(order.execute_after) : "—"}</strong>
+                </div>
+                <button
+                  type="button"
+                  className={styles.yourOrderCancelBtn}
+                  onClick={() => setCancelTarget(order)}
+                >
+                  <FaTrashCan /> Cancel
+                </button>
+              </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className={styles.empty}>You have no pending orders.</div>
+        )}
+      </section>
+
+      {modalOpen ? (
+        <CancelPendingOrderModal
+          order={cancelTarget}
+          onClose={() => {
+            setCancelTarget(null);
+            setCancelError(null);
+          }}
+          onConfirm={handleCancel}
+          isCancelling={isCancelling}
+          cancelError={cancelError}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -789,6 +1211,7 @@ function TradeTape({
 
 export function MarketPage() {
   const [hub, setHub] = useState<MarketHubResponse | null>(null);
+  const [marketAssets, setMarketAssets] = useState<MarketAsset[]>([]);
   const [trades, setTrades] = useState<MarketHubTrade[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -801,6 +1224,16 @@ export function MarketPage() {
   const [showAllAdjustmentMovers, setShowAllAdjustmentMovers] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [tickToast, setTickToast] = useState<string | null>(null);
+  const [selectedOrderSymbol, setSelectedOrderSymbol] = useState<string | null>(null);
+  const [orderGraphMode, setOrderGraphMode] = useState<LiveOrderGraphMode>("current");
+  const [liveOrderSummary, setLiveOrderSummary] = useState<MarketLiveOrderSummary | null>(null);
+  const [liveOrderFlow, setLiveOrderFlow] = useState<MarketLiveOrderFlow | null>(null);
+  const [isLoadingLiveOrderFlow, setIsLoadingLiveOrderFlow] = useState(false);
+  const [liveOrderRefreshNonce, setLiveOrderRefreshNonce] = useState(0);
+  const [orderCandles, setOrderCandles] = useState<CandlePoint[]>([]);
+  const [isLoadingOrderCandles, setIsLoadingOrderCandles] = useState(false);
+  const [orderCandleRefreshNonce, setOrderCandleRefreshNonce] = useState(0);
+  const [orderFlashes, setOrderFlashes] = useState<Record<string, OrderFlash>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -811,6 +1244,7 @@ export function MarketPage() {
         if (cancelled) return;
         const normalized = normalizeMarketHubResponse(result);
         setHub(normalized);
+        setLiveOrderSummary((current) => current || normalized.activity.live_orders);
         setTrades(normalized.recent_trades.items);
         setNextCursor(normalized.recent_trades.next_cursor);
         setError(null);
@@ -835,6 +1269,84 @@ export function MarketPage() {
       window.clearInterval(timer);
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMarketAssets() {
+      try {
+        const result = await apiFetch<Array<Record<string, unknown>>>("/api/market/assets", { cache: "no-store" });
+        if (!cancelled) setMarketAssets(result.map(normalizeAsset));
+      } catch {}
+    }
+
+    void loadMarketAssets();
+    const timer = window.setInterval(() => void loadMarketAssets(), RECONCILE_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: number | null = null;
+
+    async function loadLiveOrderFlow() {
+      setIsLoadingLiveOrderFlow(true);
+      try {
+        const symbolQuery = selectedOrderSymbol ? `?symbol=${encodeURIComponent(selectedOrderSymbol)}` : "";
+        const [summaryResult, flowResult] = await Promise.all([
+          apiFetch<Record<string, unknown>>("/api/market/live-orders/summary?limit=200", { cache: "no-store" }),
+          apiFetch<Record<string, unknown>>(`/api/market/live-orders/flow${symbolQuery}`, { cache: "no-store" }),
+        ]);
+        if (cancelled) return;
+        setLiveOrderSummary(normalizeMarketLiveOrderSummary(summaryResult));
+        setLiveOrderFlow(normalizeMarketLiveOrderFlow(flowResult));
+      } catch {
+        if (!cancelled) setLiveOrderFlow(null);
+      } finally {
+        if (!cancelled) setIsLoadingLiveOrderFlow(false);
+      }
+    }
+
+    void loadLiveOrderFlow();
+    timer = window.setInterval(() => void loadLiveOrderFlow(), LIVE_ORDER_FLOW_RECONCILE_MS);
+
+    return () => {
+      cancelled = true;
+      if (timer !== null) window.clearInterval(timer);
+    };
+  }, [liveOrderRefreshNonce, selectedOrderSymbol]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: number | null = null;
+
+    async function loadOrderCandles() {
+      setIsLoadingOrderCandles(true);
+      try {
+        const candlePath = selectedOrderSymbol
+          ? `/api/market/assets/${encodeURIComponent(selectedOrderSymbol)}/candles?interval=1h&range=24h`
+          : "/api/market/candles?interval=1h&range=24h";
+        const result = await apiFetch<{ candles: Array<Record<string, unknown>> }>(candlePath, { cache: "no-store" });
+        if (!cancelled) setOrderCandles(normalizeCandles(result.candles || []));
+      } catch {
+        if (!cancelled) setOrderCandles([]);
+      } finally {
+        if (!cancelled) setIsLoadingOrderCandles(false);
+      }
+    }
+
+    void loadOrderCandles();
+    timer = window.setInterval(() => void loadOrderCandles(), RECONCILE_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      if (timer !== null) window.clearInterval(timer);
+    };
+  }, [orderCandleRefreshNonce, selectedOrderSymbol]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 1000);
@@ -900,11 +1412,35 @@ export function MarketPage() {
                 } : current);
               })
               .catch(() => {});
+            setLiveOrderRefreshNonce((current) => current + 1);
+          };
+          const flashOrderCoin = (orderPayload: unknown) => {
+            const order = orderPayload && typeof orderPayload === "object" ? orderPayload as Record<string, unknown> : null;
+            const symbol = String(order?.symbol || "").toUpperCase();
+            const side = String(order?.side || "").toLowerCase();
+            if (!symbol || (side !== "buy" && side !== "sell")) return;
+            const nonce = Date.now();
+            setOrderFlashes((current) => ({
+              ...current,
+              [symbol]: { side, nonce },
+            }));
+            window.setTimeout(() => {
+              setOrderFlashes((current) => {
+                if (current[symbol]?.nonce !== nonce) return current;
+                const next = { ...current };
+                delete next[symbol];
+                return next;
+              });
+            }, 850);
           };
 
           if (payload.type === "market.adjustments_applied") {
             const quotes = Array.isArray(payload.quotes) ? payload.quotes as Array<Record<string, unknown>> : [];
             setHub((current) => current ? patchHubWithQuotes(current, quotes) : current);
+            setMarketAssets((current) => current.map((asset) => {
+              const quote = quotes.find((item) => String(item.symbol || "").toUpperCase() === asset.symbol.toUpperCase());
+              return quote ? patchAssetFromQuote(asset, quote) : asset;
+            }));
             setTickToast(
               `${formatIntervalLabel(String(payload.interval_key || ""))} tick applied to ${fmtInteger(Number(payload.applied_count || quotes.length || 0))} assets`
             );
@@ -916,12 +1452,19 @@ export function MarketPage() {
 
           if (payload.type === "market.live_order_queued") {
             setTickToast("Live order queued for the next 10-minute execution tick");
+            flashOrderCoin(payload.order);
             refreshLiveOrderSummary();
             return;
           }
 
           if (payload.type === "market.live_order_rejected") {
             setTickToast("A live order was rejected during batch execution");
+            refreshLiveOrderSummary();
+            return;
+          }
+
+          if (payload.type === "market.live_order_cancelled") {
+            setTickToast("An order was cancelled");
             refreshLiveOrderSummary();
             return;
           }
@@ -954,7 +1497,9 @@ export function MarketPage() {
 
           setTrades((current) => mergeTrades(current, [normalizedTrade]));
           setHub((current) => current ? patchHubWithEvent(current, marketEvent) : current);
+          setMarketAssets((current) => current.map((asset) => patchAsset(asset, marketEvent)));
           setLastLiveAt(normalizedTrade.ts);
+          setOrderCandleRefreshNonce((current) => current + 1);
           refreshLiveOrderSummary();
         } catch {
           // Ignore malformed payloads.
@@ -1233,8 +1778,23 @@ export function MarketPage() {
               <StatCard label="Market Breadth" value={`${fmtInteger(allMarketIndex?.summary?.advancers)} / ${fmtInteger(allMarketIndex?.summary?.decliners)}`} meta={`${fmtInteger(allMarketIndex?.summary?.constituent_count)} tracked`} icon={<FaChartLine />} />
             </section>
 
+            <LiveOrderTickerSection
+              assets={marketAssets}
+              summary={liveOrderSummary || hub.activity.live_orders}
+              flow={liveOrderFlow}
+              candles={orderCandles}
+              selectedSymbol={selectedOrderSymbol}
+              graphMode={orderGraphMode}
+              isLoadingFlow={isLoadingLiveOrderFlow}
+              isLoadingCandles={isLoadingOrderCandles}
+              orderFlashes={orderFlashes}
+              onSelectSymbol={setSelectedOrderSymbol}
+              onModeChange={setOrderGraphMode}
+            />
+
             <div className={styles.liveActivityRow}>
               <PendingLiveOrders hub={hub} now={now} />
+              <YourPendingOrders assets={marketAssets} />
               <ActiveTraderPanel hub={hub} />
             </div>
 

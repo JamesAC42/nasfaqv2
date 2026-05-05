@@ -1066,6 +1066,20 @@ export type MarketLiveOrderSummary = {
   assets: MarketLiveOrderAssetSummary[];
 };
 
+export type MarketLiveOrderFlowPoint = {
+  bucket: string;
+  buy_quantity: number;
+  sell_quantity: number;
+};
+
+export type MarketLiveOrderFlow = {
+  generated_at: string;
+  symbol: string | null;
+  current_tick: MarketLiveOrderFlowPoint[];
+  per_minute: MarketLiveOrderFlowPoint[];
+  cycles_24h: MarketLiveOrderFlowPoint[];
+};
+
 export type MarketActivity = {
   windows: {
     "5m": MarketActivityWindow;

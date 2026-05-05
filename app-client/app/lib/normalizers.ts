@@ -44,6 +44,8 @@ import {
   type MarketActivityTrader,
   type MarketActivityWindow,
   type MarketLiveOrderAssetSummary,
+  type MarketLiveOrderFlow,
+  type MarketLiveOrderFlowPoint,
   type MarketLiveOrderSummary,
   type MarketAdjustmentHealth,
   type MarketAdjustmentOutcome,
@@ -859,6 +861,30 @@ export function normalizeMarketLiveOrderSummary(value: Record<string, unknown> |
     pending_sell_quantity: Number(toNumber(value?.pending_sell_quantity) || 0),
     assets: Array.isArray(value?.assets)
       ? (value.assets as Array<Record<string, unknown>>).map(normalizeMarketLiveOrderAssetSummary)
+      : [],
+  };
+}
+
+function normalizeMarketLiveOrderFlowPoint(value: Record<string, unknown>): MarketLiveOrderFlowPoint {
+  return {
+    bucket: String(value.bucket || ""),
+    buy_quantity: Number(toNumber(value.buy_quantity) || 0),
+    sell_quantity: Number(toNumber(value.sell_quantity) || 0),
+  };
+}
+
+export function normalizeMarketLiveOrderFlow(value: Record<string, unknown> | null): MarketLiveOrderFlow {
+  return {
+    generated_at: String(value?.generated_at || ""),
+    symbol: value?.symbol ? String(value.symbol) : null,
+    current_tick: Array.isArray(value?.current_tick)
+      ? (value.current_tick as Array<Record<string, unknown>>).map(normalizeMarketLiveOrderFlowPoint)
+      : [],
+    per_minute: Array.isArray(value?.per_minute)
+      ? (value.per_minute as Array<Record<string, unknown>>).map(normalizeMarketLiveOrderFlowPoint)
+      : [],
+    cycles_24h: Array.isArray(value?.cycles_24h)
+      ? (value.cycles_24h as Array<Record<string, unknown>>).map(normalizeMarketLiveOrderFlowPoint)
       : [],
   };
 }

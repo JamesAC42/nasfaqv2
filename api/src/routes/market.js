@@ -208,10 +208,20 @@ router.get("/adjustments/summary", async (req, res, next) => {
 
 router.get("/live-orders/summary", async (req, res, next) => {
   try {
-    const limit = parsePositiveInt(req.query.limit, 12, { min: 1, max: 50 });
+    const limit = parsePositiveInt(req.query.limit, 12, { min: 1, max: 200 });
     const symbol = req.query.symbol ? normalizeSymbol(req.query.symbol) : null;
     const summary = await marketDb.getPendingLiveOrderSummary(req.ctx.pool, { symbol, limit });
     res.json(summary);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/live-orders/flow", async (req, res, next) => {
+  try {
+    const symbol = req.query.symbol ? normalizeSymbol(req.query.symbol) : null;
+    const flow = await marketDb.getLiveOrderFlow(req.ctx.pool, { symbol });
+    res.json(flow);
   } catch (e) {
     next(e);
   }
@@ -300,6 +310,20 @@ router.get("/indexes/candles", async (req, res, next) => {
   } catch (e) {
     if (e?.code === "unsupported_group_by") {
       return res.status(400).json({ error: "unsupported_group_by" });
+    }
+    next(e);
+  }
+});
+
+router.get("/candles", async (req, res, next) => {
+  try {
+    const interval = String(req.query.interval || "1h");
+    const range = String(req.query.range || "24h");
+    const candles = await marketDb.getAllMarketCandles(req.ctx.pool, { interval, range });
+    res.json({ symbol: null, interval, range, candles });
+  } catch (e) {
+    if (e?.code === "unsupported_interval") {
+      return res.status(400).json({ error: "unsupported_interval" });
     }
     next(e);
   }
@@ -752,6 +776,28 @@ router.post("/orders/sell", async (req, res, next) => {
       });
     }
     if (e?.code === "invalid_quote") return res.status(409).json({ error: "invalid_quote" });
+    next(e);
+  }
+});
+
+router.post("/orders/cancel", async (req, res, next) => {
+  try {
+    const userId = requireVerifiedUserId(req);
+    const orderId = Number(req.body?.order_id);
+    if (!Number.isFinite(orderId) || orderId <= 0) {
+      return res.status(400).json({ error: "invalid_order_id" });
+    }
+
+    const result = await trading.cancelLiveOrder(req.ctx.pool, {
+      orderId,
+      userId,
+      redis: req.ctx.redis,
+    });
+
+    res.json(result);
+  } catch (e) {
+    if (e?.code === "unauthenticated") return res.status(401).json({ error: "unauthenticated" });
+    if (e?.code === "live_order_not_found_or_not_pending") return res.status(404).json({ error: e.code });
     next(e);
   }
 });

@@ -425,7 +425,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
             return;
           }
 
-          if (payload.type === "market.live_order_queued" || payload.type === "market.live_order_rejected") {
+          if (payload.type === "market.live_order_queued" || payload.type === "market.live_order_rejected" || payload.type === "market.live_order_cancelled") {
             scheduleOverviewRefresh(get().refreshOverview);
             scheduleTradingStateRefresh(payload);
             return;

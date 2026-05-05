@@ -968,7 +968,7 @@ async function getMarketActivityStats(pool) {
 
 async function getPendingLiveOrderSummary(pool, { symbol = null, limit = 12 } = {}) {
   const normalizedSymbol = symbol ? String(symbol).trim().toUpperCase() : null;
-  const safeLimit = Math.min(50, Math.max(1, Number.parseInt(String(limit || 12), 10) || 12));
+  const safeLimit = Math.min(200, Math.max(1, Number.parseInt(String(limit || 12), 10) || 12));
   const params = normalizedSymbol ? [normalizedSymbol, safeLimit] : [safeLimit];
   const symbolFilter = normalizedSymbol ? "AND a.symbol = $1" : "";
   const limitParam = normalizedSymbol ? "$2" : "$1";
@@ -1069,6 +1069,92 @@ async function getPendingLiveOrderSummary(pool, { symbol = null, limit = 12 } = 
       pending_buy_quantity: roundMetric(row.pending_buy_quantity) || 0,
       pending_sell_quantity: roundMetric(row.pending_sell_quantity) || 0,
     })),
+  };
+}
+
+async function getLiveOrderFlow(pool, { symbol = null } = {}) {
+  const normalizedSymbol = symbol ? String(symbol).trim().toUpperCase() : null;
+  const params = normalizedSymbol ? [normalizedSymbol] : [];
+  const symbolFilter = normalizedSymbol ? "AND a.symbol = $1" : "";
+
+  const [currentResult, minuteResult, cycleResult] = await Promise.all([
+    pool.query(
+      `
+      WITH pending AS (
+        SELECT
+          o.id,
+          o.side,
+          o.requested_quantity,
+          o.requested_at,
+          o.execute_after
+        FROM market.trade_orders o
+        JOIN market.market_assets a ON a.id = o.asset_id
+        WHERE o.order_type = 'live_market'
+          AND o.status = 'pending'
+          ${symbolFilter}
+      ),
+      next_tick AS (
+        SELECT MIN(execute_after) AS execute_after
+        FROM pending
+      )
+      SELECT
+        date_trunc('minute', p.requested_at) AS bucket,
+        COALESCE(SUM(p.requested_quantity) FILTER (WHERE p.side = 'buy'), 0) AS buy_quantity,
+        COALESCE(SUM(p.requested_quantity) FILTER (WHERE p.side = 'sell'), 0) AS sell_quantity
+      FROM pending p
+      JOIN next_tick nt ON p.execute_after = nt.execute_after
+      GROUP BY date_trunc('minute', p.requested_at)
+      ORDER BY bucket ASC
+    `,
+      params
+    ),
+    pool.query(
+      `
+      SELECT
+        date_trunc('minute', o.requested_at) AS bucket,
+        COALESCE(SUM(o.requested_quantity) FILTER (WHERE o.side = 'buy'), 0) AS buy_quantity,
+        COALESCE(SUM(o.requested_quantity) FILTER (WHERE o.side = 'sell'), 0) AS sell_quantity
+      FROM market.trade_orders o
+      JOIN market.market_assets a ON a.id = o.asset_id
+      WHERE o.order_type = 'live_market'
+        AND o.requested_at >= now() - interval '1 hour'
+        ${symbolFilter}
+      GROUP BY date_trunc('minute', o.requested_at)
+      ORDER BY bucket ASC
+    `,
+      params
+    ),
+    pool.query(
+      `
+      SELECT
+        o.execute_after AS bucket,
+        COALESCE(SUM(o.requested_quantity) FILTER (WHERE o.side = 'buy'), 0) AS buy_quantity,
+        COALESCE(SUM(o.requested_quantity) FILTER (WHERE o.side = 'sell'), 0) AS sell_quantity
+      FROM market.trade_orders o
+      JOIN market.market_assets a ON a.id = o.asset_id
+      WHERE o.order_type = 'live_market'
+        AND o.execute_after >= now() - interval '24 hours'
+        AND o.execute_after IS NOT NULL
+        ${symbolFilter}
+      GROUP BY o.execute_after
+      ORDER BY o.execute_after ASC
+    `,
+      params
+    ),
+  ]);
+
+  const mapPoint = (row) => ({
+    bucket: row.bucket || null,
+    buy_quantity: roundMetric(row.buy_quantity) || 0,
+    sell_quantity: roundMetric(row.sell_quantity) || 0,
+  });
+
+  return {
+    generated_at: new Date().toISOString(),
+    symbol: normalizedSymbol,
+    current_tick: currentResult.rows.map(mapPoint),
+    per_minute: minuteResult.rows.map(mapPoint),
+    cycles_24h: cycleResult.rows.map(mapPoint),
   };
 }
 
@@ -1734,6 +1820,51 @@ async function getAssetCandles(pool, symbol, { interval = "1d", range = "30d" } 
   return rows;
 }
 
+async function getAllMarketCandles(pool, { interval = "1h", range = "24h" } = {}) {
+  const bucket = parseCandleBucket(interval);
+  if (!bucket) {
+    const error = new Error("unsupported_interval");
+    error.code = "unsupported_interval";
+    throw error;
+  }
+
+  const windowInterval = parseRangeToInterval(range);
+  const { rows } = await pool.query(
+    `
+    WITH points AS (
+      SELECT
+        time_bucket($1::interval, tf.ts) AS bucket,
+        tf.ts,
+        tf.id,
+        tf.price,
+        tf.quantity,
+        tf.gross_cash
+      FROM market.trade_fills tf
+      WHERE tf.ts >= now() - $2::interval
+    )
+    SELECT
+      bucket,
+      (array_agg(price ORDER BY ts ASC, id ASC))[1] AS open,
+      MAX(price) AS high,
+      MIN(price) AS low,
+      (array_agg(price ORDER BY ts DESC, id DESC))[1] AS close,
+      NULL AS close_mark,
+      COALESCE(SUM(quantity), 0) AS volume_shares,
+      COALESCE(SUM(gross_cash), 0) AS volume_cash,
+      COUNT(*)::integer AS trade_count,
+      CASE
+        WHEN COALESCE(SUM(quantity), 0) = 0 THEN NULL
+        ELSE SUM(gross_cash) / NULLIF(SUM(quantity), 0)
+      END AS vwap
+    FROM points
+    GROUP BY bucket
+    ORDER BY bucket ASC
+  `,
+    [bucket, windowInterval]
+  );
+  return rows;
+}
+
 async function getLatestDailyReport(pool) {
   const { rows } = await pool.query(
     `
@@ -2264,11 +2395,13 @@ module.exports = {
   createAssetComment,
   setAssetCommentVote,
   getAssetCandles,
+  getAllMarketCandles,
   getAssetStats,
   getAssetTrades,
   listRecentMarketTrades,
   getMarketActivityStats,
   getPendingLiveOrderSummary,
+  getLiveOrderFlow,
   getMarketHub,
   getAssetSuperchatSummary,
   getAssetSuperchatRank,

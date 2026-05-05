@@ -354,6 +354,7 @@ app.use((err, _req, res, _next) => {
     || err?.code === "prediction_cash_invariant_failed"
     || err?.code === "prediction_order_not_found"
     || err?.code === "prediction_order_not_cancellable"
+    || err?.code === "live_order_not_found_or_not_pending"
     || err?.code === "game_session_not_active"
   ) {
     return res.status(409).json({ error: err.code });

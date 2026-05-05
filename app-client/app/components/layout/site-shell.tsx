@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { FaDiscord } from "react-icons/fa6";
 import { FiMoon, FiSun } from "react-icons/fi";
 import { Fragment, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Time } from "lightweight-charts";
@@ -619,15 +620,25 @@ export function SiteShell({
                 nasfaqsite@gmail.com
               </a>
             </p>
-            <a href="https://ko-fi.com/L3L446W4T" target="_blank">
-              <img
-                height="36"
-                style={{ border: "0px", height: "36px" }}
-                src="https://storage.ko-fi.com/cdn/kofi5.png?v=6"
-                alt="Support NASFAQ at ko-fi.com"
-              />
-            </a>
-      
+            <div className={styles.footerSocialRow}>
+              <a href="https://ko-fi.com/L3L446W4T" target="_blank">
+                <img
+                  height="36"
+                  style={{ border: "0px", height: "36px" }}
+                  src="https://storage.ko-fi.com/cdn/kofi5.png?v=6"
+                  alt="Support NASFAQ at ko-fi.com"
+                />
+              </a>
+              <a
+                href="https://discord.gg/Bw4S6EbBNW"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.footerDiscordLink}
+                aria-label="Join NASFAQ on Discord"
+              >
+                <FaDiscord aria-hidden />
+              </a>
+            </div>
           </div>
       
         </footer>

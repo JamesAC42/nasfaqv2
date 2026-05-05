@@ -1028,6 +1028,53 @@ async function rejectLiveOrder(pool, { orderId, reason, liveOrderBatchId = null 
   return rows[0] || null;
 }
 
+async function cancelLiveOrder(pool, { orderId, userId, redis = null }) {
+  const { rows } = await pool.query(
+    `UPDATE market.trade_orders
+     SET status = 'cancelled', updated_at = now()
+     WHERE id = $1
+       AND user_id = $2
+       AND status = 'pending'
+       AND order_type = 'live_market'
+     RETURNING
+       id,
+       user_id,
+       asset_id,
+       side,
+       order_type,
+       requested_quantity,
+       filled_quantity,
+       status,
+       quote_bid_at_submit,
+       quote_ask_at_submit,
+       rejection_reason,
+       execute_after,
+       live_order_batch_id,
+       submitted_market_date,
+       submitted_interval_key,
+       requested_at,
+       updated_at`,
+    [orderId, userId]
+  );
+  const order = rows[0] || null;
+  if (!order) {
+    const error = new Error("live_order_not_found_or_not_pending");
+    error.code = "live_order_not_found_or_not_pending";
+    throw error;
+  }
+
+  const assetSnapshot = await getOrderAssetSnapshot(pool, order.id);
+
+  void publishMarketEvent(redis, {
+    type: "market.live_order_cancelled",
+    order: assetSnapshot || order,
+    user_id: userId,
+    at: new Date().toISOString(),
+  });
+
+  return order;
+}
+
 async function getOrderAssetSnapshot(pool, orderId) {
   const { rows } = await pool.query(
     `
@@ -1440,6 +1487,7 @@ async function getLiveOrderAdminHealth(pool, { batchLimit = 10 } = {}) {
 module.exports = {
   executeOrder,
   submitLiveOrder,
+  cancelLiveOrder,
   processDueLiveOrders,
   startLiveOrderScheduler,
   getLiveOrderAdminHealth,

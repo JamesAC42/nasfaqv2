@@ -125,7 +125,9 @@
 .guideBody img {
   max-width: 100%;
   height: auto;
-  border-radius: var(--radius-md);
+  display: block;
+  margin: 1.5rem auto;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border-soft);
 }
 
@@ -158,4 +160,33 @@
 
 .guideBody em {
   color: var(--accent-strong, var(--accent));
+}
+
+.takoSticky {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  z-index: 10;
+  width: clamp(100px, 16vw, 200px);
+  height: auto;
+  pointer-events: none;
+  opacity: 0.35;
+  transform: translateY(8%);
+  transition: opacity 0.3s ease;
+  filter: drop-shadow(0 -4px 12px rgba(0, 0, 0, 0.4));
+}
+
+@media (hover: hover) {
+  .takoSticky {
+    opacity: 0.28;
+  }
+  .takoSticky:hover {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .takoSticky {
+    transition: none;
+  }
 }

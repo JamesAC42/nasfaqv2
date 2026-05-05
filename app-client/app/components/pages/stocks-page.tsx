@@ -883,6 +883,15 @@ export function StocksPage() {
     () => portfolio?.holdings.find((holding) => holding.symbol === quickTradeSymbol) || null,
     [portfolio?.holdings, quickTradeSymbol]
   );
+  const holdingsBySymbol = useMemo(() => {
+    const map = new Map<string, number>();
+    if (portfolio?.holdings) {
+      for (const h of portfolio.holdings) {
+        map.set(h.symbol, h.quantity);
+      }
+    }
+    return map;
+  }, [portfolio?.holdings]);
   const quickTradeEstimatedNotional = (quickTradeAsset?.current_mid_price ?? 0) * Math.max(Number(quickTradeQuantity) || 0, 0);
   const tradingOpen = marketStatus?.is_trading_open ?? true;
   const needsVerification = userNeedsEmailVerification(user);
@@ -1452,6 +1461,7 @@ export function StocksPage() {
                   <th>Trade</th>
                   <th>Queue</th>
                   <th>Icon</th>
+                  <th>Owned</th>
                   {SORTABLE_COLUMNS.slice(0, 3).map((column) => (
                     <th key={column.key}>
                       <button type="button" className={styles.sortButton} onClick={() => toggleDesktopSort(column.key)}>
@@ -1478,7 +1488,7 @@ export function StocksPage() {
                   return (
                     <tr
                       key={asset.symbol}
-                      className={`${shellStyles.stockRow} ${isSelected ? shellStyles.stockRowSelected : ""}`}
+                        className={`${shellStyles.stockRow} ${isSelected ? shellStyles.stockRowSelected : ""} ${(holdingsBySymbol.get(asset.symbol) ?? 0) > 0 ? styles.ownedRow : ""}`}
                       onClick={() => openRow(row)}
                       onKeyDown={(event) => {
                         if (event.key !== "Enter" && event.key !== " ") return;
@@ -1518,6 +1528,7 @@ export function StocksPage() {
                       <td>
                         <AssetCoin symbol={asset.symbol} icon={asset.icon} color={asset.color} />
                       </td>
+                      <td>{(holdingsBySymbol.get(asset.symbol) ?? 0) > 0 ? fmtInteger(holdingsBySymbol.get(asset.symbol)!) : "—"}</td>
                       <td className={shellStyles.symbolCell}>{asset.symbol}</td>
                       <td>{asset.display_name}</td>
                       <td>{asset.unit || "—"}</td>
@@ -1575,7 +1586,7 @@ export function StocksPage() {
                 return (
                   <article
                     key={asset.symbol}
-                    className={`${styles.stockCard} ${isSelected ? styles.stockCardSelected : ""}`}
+                    className={`${styles.stockCard} ${isSelected ? styles.stockCardSelected : ""} ${(holdingsBySymbol.get(asset.symbol) ?? 0) > 0 ? styles.ownedCard : ""}`}
                     onClick={() => openRow(row)}
                     onKeyDown={(event) => {
                       if (event.key !== "Enter" && event.key !== " ") return;
@@ -1649,6 +1660,7 @@ export function StocksPage() {
                     </div>
 
                     <dl className={styles.dataGrid}>
+                      <DataItem label="Owned" value={(holdingsBySymbol.get(asset.symbol) ?? 0) > 0 ? fmtInteger(holdingsBySymbol.get(asset.symbol)!) : "—"} />
                       <DataItem label="Medium" value={formatPrice(asset.current_bid_price)} />
                       <DataItem label="Next Tick Queue" value={`${fmtNumber(asset.pending_live_order_count ?? 0)} (${fmtNumber(asset.pending_live_buy_count ?? 0)}B / ${fmtNumber(asset.pending_live_sell_count ?? 0)}S)`} />
                       <DataItem label="24H Volume" value={fmtNumber(asset.volume_24h)} />

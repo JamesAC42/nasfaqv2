@@ -12,6 +12,7 @@
 .hero,
 .statCard,
 .pulsePanel,
+.orderSignalPanel,
 .liveOrderPanel,
 .hotPanel,
 .adjustmentClockDeck,
@@ -538,6 +539,398 @@
   gap: 0.75rem;
 }
 
+.orderSignalPanel {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.85rem;
+}
+
+.orderSignalLayout {
+  display: grid;
+  grid-template-columns: minmax(24rem, 0.92fr) minmax(28rem, 1.08fr);
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.orderCoinGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.35rem, 1fr));
+  gap: 0.42rem;
+  align-content: start;
+  box-sizing: border-box;
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.14rem 0.22rem 0.14rem 0.14rem;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--activity-cyan) 44%, var(--border)) transparent;
+}
+
+.orderAllCoin,
+.orderCoinButton {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card-soft) 76%, transparent);
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, opacity 140ms ease, transform 140ms ease, filter 140ms ease;
+}
+
+.orderAllCoin:hover,
+.orderCoinButton:hover {
+  border-color: color-mix(in srgb, var(--activity-cyan) 58%, var(--border));
+}
+
+.orderAllCoin {
+  display: flex;
+  grid-column: span 2;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 4.2rem;
+  padding: 0.58rem 0.7rem;
+  border-color: color-mix(in srgb, var(--activity-cyan) 34%, var(--border));
+  background: color-mix(in srgb, var(--activity-cyan) 9%, var(--surface-card-soft));
+  text-align: left;
+}
+
+.orderAllCoin svg {
+  color: var(--activity-cyan);
+  width: 1.35rem;
+  height: 1.35rem;
+  flex: 0 0 auto;
+}
+
+.orderAllCoin span {
+  display: grid;
+  min-width: 0;
+}
+
+.orderAllCoin em {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orderCoinButton {
+  --coin-accent: var(--activity-cyan);
+  --coin-brightness: 1;
+  display: grid;
+  justify-items: center;
+  gap: 0.32rem;
+  min-height: 5rem;
+  padding: 0.48rem 0.35rem;
+  filter: brightness(var(--coin-brightness));
+}
+
+.orderCoinButton span {
+  max-width: 100%;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 900;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orderCoinIcon {
+  width: 2.7rem;
+  height: 2.7rem;
+  box-shadow: 0 0 18px color-mix(in srgb, var(--coin-accent) 18%, transparent);
+}
+
+.orderCoinDormant {
+  opacity: 0.42;
+  filter: grayscale(0.22) brightness(0.82);
+}
+
+.orderCoinBuy {
+  border-color: color-mix(in srgb, var(--trend-up) 58%, var(--border));
+  background: color-mix(in srgb, var(--trend-up) 9%, var(--surface-card-soft));
+}
+
+.orderCoinSell {
+  border-color: color-mix(in srgb, var(--trend-down) 58%, var(--border));
+  background: color-mix(in srgb, var(--trend-down) 9%, var(--surface-card-soft));
+}
+
+.orderCoinNeutral {
+  border-color: color-mix(in srgb, var(--coin-accent) 36%, var(--border));
+}
+
+.orderCoinSelected {
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--activity-cyan) 78%, var(--border));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--activity-cyan) 42%, transparent),
+    0 0 24px color-mix(in srgb, var(--activity-cyan) 16%, transparent);
+}
+
+.orderCoinFlashBuy {
+  animation: orderCoinFlashBuy 850ms ease-out;
+}
+
+.orderCoinFlashSell {
+  animation: orderCoinFlashSell 850ms ease-out;
+}
+
+[data-theme="light"] .orderCoinButton {
+  filter: saturate(0.92) brightness(min(var(--coin-brightness), 1.12));
+}
+
+[data-theme="light"] .orderCoinIcon {
+  box-shadow: 0 0 10px color-mix(in srgb, var(--coin-accent) 10%, transparent);
+}
+
+[data-theme="light"] .orderCoinBuy {
+  border-color: color-mix(in srgb, var(--trend-up) 36%, var(--border));
+  background: color-mix(in srgb, var(--trend-up) 4%, var(--surface-card));
+}
+
+[data-theme="light"] .orderCoinSell {
+  border-color: color-mix(in srgb, var(--trend-down) 36%, var(--border));
+  background: color-mix(in srgb, var(--trend-down) 4%, var(--surface-card));
+}
+
+[data-theme="light"] .orderCoinNeutral {
+  border-color: color-mix(in srgb, var(--coin-accent) 24%, var(--border));
+  background: color-mix(in srgb, var(--coin-accent) 2%, var(--surface-card));
+}
+
+[data-theme="light"] .orderCoinSelected {
+  border-color: color-mix(in srgb, var(--activity-cyan) 62%, var(--border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 72%, transparent), color-mix(in srgb, var(--activity-cyan) 7%, var(--surface-card)));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, white 70%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--activity-cyan) 16%, transparent);
+}
+
+[data-theme="light"] .orderCoinDormant {
+  opacity: 0.5;
+  filter: grayscale(0.18) brightness(0.96) saturate(0.82);
+}
+
+.orderGraphPanel {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 0.7rem;
+  min-width: 0;
+  height: 100%;
+  padding: 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--activity-cyan) 20%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-card-soft) 64%, transparent);
+}
+
+.orderGraphHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.orderGraphIdentity {
+  display: flex;
+  align-items: center;
+  gap: 0.62rem;
+  min-width: 0;
+}
+
+.orderGraphIdentity > div {
+  display: grid;
+  min-width: 0;
+}
+
+.orderGraphIdentity strong,
+.orderGraphIdentity span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orderGraphIdentity span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.orderHeaderPrice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2rem;
+  margin-left: 0.45rem;
+  padding: 0 0.58rem;
+  border: 1px solid color-mix(in srgb, var(--activity-cyan) 32%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--activity-cyan) 8%, transparent);
+  color: var(--text) !important;
+  font-family: var(--font-mono);
+  font-size: 0.86rem !important;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.orderHeaderPriceUp,
+.orderHeaderPriceDown {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  font-size: 0.78rem;
+}
+
+.orderHeaderPriceUp,
+.orderHeaderPriceUp svg {
+  color: var(--trend-up);
+}
+
+.orderHeaderPriceDown,
+.orderHeaderPriceDown svg {
+  color: var(--trend-down);
+}
+
+.orderHeaderPriceUp svg,
+.orderHeaderPriceDown svg {
+  width: 0.82rem;
+  height: 0.82rem;
+  flex: 0 0 auto;
+}
+
+.orderGraphCoin,
+.orderGraphMarketIcon {
+  width: 2.45rem;
+  height: 2.45rem;
+  flex: 0 0 auto;
+}
+
+.orderGraphMarketIcon {
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--activity-cyan) 38%, var(--border));
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--activity-cyan) 12%, var(--surface-card-soft));
+  color: var(--activity-cyan);
+}
+
+.orderModeToggle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.orderModeToggle button {
+  min-height: 2rem;
+  padding: 0 0.58rem;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 900;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.orderModeToggle .orderModeActive {
+  border-color: color-mix(in srgb, var(--activity-cyan) 56%, var(--border));
+  background: color-mix(in srgb, var(--activity-cyan) 10%, transparent);
+  color: var(--activity-cyan);
+}
+
+.orderStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.48rem;
+}
+
+.orderStatsGrid div {
+  display: grid;
+  gap: 0.18rem;
+  min-height: 3.6rem;
+  padding: 0.48rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-card) 62%, transparent);
+}
+
+.orderStatsGrid span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.orderStatsGrid strong {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: clamp(1rem, 1.5vw, 1.35rem);
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orderChartWrap {
+  position: relative;
+  min-width: 0;
+}
+
+.orderCandleChart {
+  position: relative;
+  min-width: 0;
+  margin-top: 0.72rem;
+  padding-top: 0.72rem;
+  border-top: 1px solid color-mix(in srgb, var(--activity-cyan) 16%, var(--border));
+}
+
+.orderChartWrap :global(.chartBoxBare),
+.orderCandleChart :global(.chartBoxBare) {
+  padding: 0;
+}
+
+.orderChartLoading {
+  position: absolute;
+  top: 0.1rem;
+  right: 0.1rem;
+  z-index: 2;
+  padding: 0.22rem 0.44rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--activity-cyan) 12%, var(--surface-card));
+  color: var(--activity-cyan);
+  font-size: 0.66rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+@keyframes orderCoinFlashBuy {
+  0% {
+    border-color: color-mix(in srgb, var(--trend-up) 92%, white);
+    background: color-mix(in srgb, var(--trend-up) 42%, var(--surface-card-soft));
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--trend-up) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 1.2rem color-mix(in srgb, var(--trend-up) 0%, transparent);
+  }
+}
+
+@keyframes orderCoinFlashSell {
+  0% {
+    border-color: color-mix(in srgb, var(--trend-down) 92%, white);
+    background: color-mix(in srgb, var(--trend-down) 42%, var(--surface-card-soft));
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--trend-down) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 1.2rem color-mix(in srgb, var(--trend-down) 0%, transparent);
+  }
+}
+
 .liveOrderPanel {
   display: grid;
   gap: 0.75rem;
@@ -618,6 +1011,198 @@
   border-color: color-mix(in srgb, var(--activity-cyan) 45%, var(--border));
   background: color-mix(in srgb, var(--activity-cyan) 9%, var(--activity-panel-soft));
   transform: translateY(-1px);
+}
+
+.yourOrderRow {
+  cursor: default;
+}
+
+.yourOrderRow:hover {
+  border-color: color-mix(in srgb, var(--border) 78%, transparent);
+  background: color-mix(in srgb, var(--activity-panel-soft) 82%, transparent);
+  transform: none;
+}
+
+.yourOrderActions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.cancelOrderButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--trend-down) 50%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--trend-down) 12%, transparent);
+  color: var(--trend-down);
+  font-size: 0.79rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+  white-space: nowrap;
+}
+
+.cancelOrderButton:hover {
+  background: color-mix(in srgb, var(--trend-down) 24%, transparent);
+  border-color: var(--trend-down);
+}
+
+.confirmCancelGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.confirmCancelButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--trend-down);
+  border-radius: var(--radius-sm);
+  background: var(--trend-down);
+  color: white;
+  font-size: 0.79rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 140ms ease;
+  white-space: nowrap;
+}
+
+.confirmCancelButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.dismissCancelButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.dismissCancelButton:hover {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  border-color: var(--border);
+}
+
+.error {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--trend-down) 40%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--trend-down) 8%, transparent);
+  color: var(--trend-down);
+  font-size: 0.82rem;
+}
+
+/* ── Your Pending Orders (vertical card layout) ── */
+
+.yourOrderList {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.yourOrderCard {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--activity-panel-soft) 82%, transparent);
+}
+
+.yourOrderMain {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.yourOrderIcon {
+  width: 1.85rem;
+  height: 1.85rem;
+  flex-shrink: 0;
+}
+
+.yourOrderInfo {
+  display: grid;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.yourOrderInfo strong {
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.yourOrderInfo span {
+  font-size: 0.8rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yourOrderMeta {
+  display: grid;
+  gap: 0.05rem;
+  text-align: right;
+  flex: 0 0 auto;
+}
+
+.yourOrderMeta span {
+  font-size: 0.77rem;
+  color: var(--muted);
+}
+
+.yourOrderMeta strong {
+  font-size: 0.84rem;
+}
+
+.yourOrderCancelBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--trend-down) 55%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--trend-down) 11%, transparent);
+  color: var(--trend-down);
+  font-size: 0.79rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.yourOrderCancelBtn:hover {
+  background: color-mix(in srgb, var(--trend-down) 22%, transparent);
+  border-color: var(--trend-down);
+}
+
+.yourOrderError {
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--trend-down) 40%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--trend-down) 8%, transparent);
+  color: var(--trend-down);
+  font-size: 0.82rem;
 }
 
 .adjustmentFeedPanel {
@@ -1309,6 +1894,7 @@
   .adjustmentClockDeck,
   .clockWall,
   .controlDeck,
+  .orderSignalLayout,
   .liveActivityRow,
   .hotSymbolsRow,
   .liveOrderSummaryGrid,
@@ -1327,6 +1913,15 @@
 
   .adjustmentFeedImage {
     justify-content: flex-end;
+  }
+
+  .orderCoinGrid,
+  .orderGraphPanel {
+    height: auto;
+  }
+
+  .orderCoinGrid {
+    max-height: 24rem;
   }
 
   .hero {
@@ -1348,6 +1943,8 @@
 @media (max-width: 760px) {
   .pulsePanel,
   .activityGauge,
+  .orderGraphHeader,
+  .orderStatsGrid,
   .smallClockGrid,
   .tradeRow,
   .liveOrderAssetRow,
