@@ -783,7 +783,7 @@ async function sumLiveOrderSharesForInterval(client, { userId, marketDate, inter
     FROM market.trade_orders
     WHERE user_id = $1
       AND order_type = 'live_market'
-      AND status = 'pending'
+      AND status IN ('pending', 'filled')
       AND submitted_market_date IS NOT DISTINCT FROM $2::date
       AND submitted_interval_key IS NOT DISTINCT FROM $3
   `,

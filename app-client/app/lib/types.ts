@@ -1068,6 +1068,8 @@ export type MarketLiveOrderSummary = {
 
 export type MarketLiveOrderFlowPoint = {
   bucket: string;
+  buy_count: number;
+  sell_count: number;
   buy_quantity: number;
   sell_quantity: number;
 };

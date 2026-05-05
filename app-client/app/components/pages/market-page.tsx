@@ -558,11 +558,13 @@ function fillOrderFlowPoints(
   stepMs: number,
   options: { start?: Date; end?: Date } = {}
 ) {
-  const byBucket = new Map<number, { buy_quantity: number; sell_quantity: number }>();
+  const byBucket = new Map<number, { buy_count: number; sell_count: number; buy_quantity: number; sell_quantity: number }>();
   for (const point of points) {
     const timestamp = new Date(point.bucket).getTime();
     if (!Number.isFinite(timestamp)) continue;
     byBucket.set(floorDateToStep(new Date(timestamp), stepMs).getTime(), {
+      buy_count: point.buy_count,
+      sell_count: point.sell_count,
       buy_quantity: point.buy_quantity,
       sell_quantity: point.sell_quantity,
     });
@@ -578,6 +580,8 @@ function fillOrderFlowPoints(
     const existing = byBucket.get(cursor);
     filled.push({
       bucket: new Date(cursor).toISOString(),
+      buy_count: existing?.buy_count || 0,
+      sell_count: existing?.sell_count || 0,
       buy_quantity: existing?.buy_quantity || 0,
       sell_quantity: existing?.sell_quantity || 0,
     });
@@ -586,7 +590,7 @@ function fillOrderFlowPoints(
   return filled;
 }
 
-function orderFlowSeries(flow: MarketLiveOrderFlow | null, mode: LiveOrderGraphMode) {
+function displayOrderFlowPoints(flow: MarketLiveOrderFlow | null, mode: LiveOrderGraphMode) {
   const points = flowPointsForMode(flow, mode);
   const now = new Date();
   const filledPoints = mode === "day"
@@ -596,9 +600,13 @@ function orderFlowSeries(flow: MarketLiveOrderFlow | null, mode: LiveOrderGraphM
         end: now,
       });
   const withCurrentPoint = mode === "current" && filledPoints.length === 0
-    ? [{ bucket: chartBucketNow(), buy_quantity: 0, sell_quantity: 0 }]
+    ? [{ bucket: chartBucketNow(), buy_count: 0, sell_count: 0, buy_quantity: 0, sell_quantity: 0 }]
     : filledPoints;
+  return withCurrentPoint;
+}
 
+function orderFlowSeries(flow: MarketLiveOrderFlow | null, mode: LiveOrderGraphMode) {
+  const withCurrentPoint = displayOrderFlowPoints(flow, mode);
   return [
     {
       name: "Buys",
@@ -613,6 +621,21 @@ function orderFlowSeries(flow: MarketLiveOrderFlow | null, mode: LiveOrderGraphM
       values: withCurrentPoint.map((point) => ({ time: point.bucket, value: point.sell_quantity })),
     },
   ];
+}
+
+function sumOrderFlowStats(points: MarketLiveOrderFlow["current_tick"]) {
+  return points.reduce(
+    (acc, point) => ({
+      buyQuantity: acc.buyQuantity + (Number(point.buy_quantity) || 0),
+      sellQuantity: acc.sellQuantity + (Number(point.sell_quantity) || 0),
+      totalOrders: acc.totalOrders + (Number(point.buy_count) || 0) + (Number(point.sell_count) || 0),
+    }),
+    { buyQuantity: 0, sellQuantity: 0, totalOrders: 0 }
+  );
+}
+
+function hasOrderFlowStats(stats: { buyQuantity: number; sellQuantity: number; totalOrders: number }) {
+  return stats.buyQuantity > 0 || stats.sellQuantity > 0 || stats.totalOrders > 0;
 }
 
 function LiveOrderTickerSection({
@@ -649,11 +672,23 @@ function LiveOrderTickerSection({
   }, [summary.assets]);
   const selectedAsset = selectedSymbol ? assets.find((asset) => asset.symbol === selectedSymbol) || null : null;
   const selectedOrder = selectedSymbol ? orderBySymbol.get(selectedSymbol) || null : null;
-  const buyQuantity = selectedOrder?.pending_buy_quantity ?? summary.pending_buy_quantity;
-  const sellQuantity = selectedOrder?.pending_sell_quantity ?? summary.pending_sell_quantity;
-  const totalQuantity = buyQuantity + sellQuantity;
-  const totalOrders = selectedOrder?.pending_count ?? summary.pending_count;
-  const pointCount = flowPointsForMode(flow, graphMode).length;
+  const graphFlowPoints = displayOrderFlowPoints(flow, graphMode);
+  const rawFlowStats = sumOrderFlowStats(flowPointsForMode(flow, graphMode));
+  const displayFlowStats = sumOrderFlowStats(graphFlowPoints);
+  const currentSummaryStats = {
+    buyQuantity: selectedOrder?.pending_buy_quantity ?? summary.pending_buy_quantity,
+    sellQuantity: selectedOrder?.pending_sell_quantity ?? summary.pending_sell_quantity,
+    totalOrders: selectedOrder?.pending_count ?? summary.pending_count,
+  };
+  const stats = hasOrderFlowStats(rawFlowStats)
+    ? rawFlowStats
+    : hasOrderFlowStats(displayFlowStats)
+      ? displayFlowStats
+      : graphMode === "current"
+        ? currentSummaryStats
+        : rawFlowStats;
+  const totalQuantity = stats.buyQuantity + stats.sellQuantity;
+  const pointCount = graphFlowPoints.length;
   const maxQuantity = Math.max(
     1,
     ...assets.map((asset) => {
@@ -769,11 +804,11 @@ function LiveOrderTickerSection({
           <div className={styles.orderStatsGrid}>
             <div>
               <span>Buy shares</span>
-              <strong className={styles.positive}>{fmtInteger(buyQuantity)}</strong>
+              <strong className={styles.positive}>{fmtInteger(stats.buyQuantity)}</strong>
             </div>
             <div>
               <span>Sell shares</span>
-              <strong className={styles.negative}>{fmtInteger(sellQuantity)}</strong>
+              <strong className={styles.negative}>{fmtInteger(stats.sellQuantity)}</strong>
             </div>
             <div>
               <span>Total flow</span>
@@ -781,7 +816,7 @@ function LiveOrderTickerSection({
             </div>
             <div>
               <span>Orders</span>
-              <strong>{fmtInteger(totalOrders)}</strong>
+              <strong>{fmtInteger(stats.totalOrders)}</strong>
             </div>
           </div>
 

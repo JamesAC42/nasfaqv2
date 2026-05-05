@@ -1212,7 +1212,7 @@ export function ProfilePage({ username }: { username?: string | null }) {
     return last - first;
   }, [networthHistory]);
   const holdingsSorted = useMemo(
-    () => [...(profile?.holdings || [])].sort((a, b) => b.quantity - a.quantity),
+    () => [...(profile?.holdings || [])].filter((h) => h.quantity > 0).sort((a, b) => b.quantity - a.quantity),
     [profile?.holdings]
   );
   const holdingsWeightPct = profile && profile.stats.total_equity > 0

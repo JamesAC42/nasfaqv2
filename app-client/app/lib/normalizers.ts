@@ -868,6 +868,8 @@ export function normalizeMarketLiveOrderSummary(value: Record<string, unknown> |
 function normalizeMarketLiveOrderFlowPoint(value: Record<string, unknown>): MarketLiveOrderFlowPoint {
   return {
     bucket: String(value.bucket || ""),
+    buy_count: Number(toNumber(value.buy_count) || 0),
+    sell_count: Number(toNumber(value.sell_count) || 0),
     buy_quantity: Number(toNumber(value.buy_quantity) || 0),
     sell_quantity: Number(toNumber(value.sell_quantity) || 0),
   };

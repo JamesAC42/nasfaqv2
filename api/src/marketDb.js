@@ -1099,6 +1099,8 @@ async function getLiveOrderFlow(pool, { symbol = null } = {}) {
       )
       SELECT
         date_trunc('minute', p.requested_at) AS bucket,
+        COUNT(p.id) FILTER (WHERE p.side = 'buy')::int AS buy_count,
+        COUNT(p.id) FILTER (WHERE p.side = 'sell')::int AS sell_count,
         COALESCE(SUM(p.requested_quantity) FILTER (WHERE p.side = 'buy'), 0) AS buy_quantity,
         COALESCE(SUM(p.requested_quantity) FILTER (WHERE p.side = 'sell'), 0) AS sell_quantity
       FROM pending p
@@ -1112,6 +1114,8 @@ async function getLiveOrderFlow(pool, { symbol = null } = {}) {
       `
       SELECT
         date_trunc('minute', o.requested_at) AS bucket,
+        COUNT(o.id) FILTER (WHERE o.side = 'buy')::int AS buy_count,
+        COUNT(o.id) FILTER (WHERE o.side = 'sell')::int AS sell_count,
         COALESCE(SUM(o.requested_quantity) FILTER (WHERE o.side = 'buy'), 0) AS buy_quantity,
         COALESCE(SUM(o.requested_quantity) FILTER (WHERE o.side = 'sell'), 0) AS sell_quantity
       FROM market.trade_orders o
@@ -1128,6 +1132,8 @@ async function getLiveOrderFlow(pool, { symbol = null } = {}) {
       `
       SELECT
         o.execute_after AS bucket,
+        COUNT(o.id) FILTER (WHERE o.side = 'buy')::int AS buy_count,
+        COUNT(o.id) FILTER (WHERE o.side = 'sell')::int AS sell_count,
         COALESCE(SUM(o.requested_quantity) FILTER (WHERE o.side = 'buy'), 0) AS buy_quantity,
         COALESCE(SUM(o.requested_quantity) FILTER (WHERE o.side = 'sell'), 0) AS sell_quantity
       FROM market.trade_orders o
@@ -1145,6 +1151,8 @@ async function getLiveOrderFlow(pool, { symbol = null } = {}) {
 
   const mapPoint = (row) => ({
     bucket: row.bucket || null,
+    buy_count: Number(row.buy_count || 0),
+    sell_count: Number(row.sell_count || 0),
     buy_quantity: roundMetric(row.buy_quantity) || 0,
     sell_quantity: roundMetric(row.sell_quantity) || 0,
   });
