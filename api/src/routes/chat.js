@@ -75,6 +75,7 @@ router.get("/channels/:channelKey/messages", async (req, res, next) => {
       next_cursor: messages.next_cursor,
       history_limited: messages.history_limited,
       visible_days: messages.visible_days,
+      minimum_messages: messages.minimum_messages,
       oldest_visible_at: messages.oldest_visible_at,
     });
   } catch (error) {

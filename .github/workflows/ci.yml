@@ -8,6 +8,20 @@ on:
 jobs:
   node:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nasfaq_test
+          POSTGRES_PASSWORD: local-test-only
+          POSTGRES_DB: nasfaq_chat_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nasfaq_test -d nasfaq_chat_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      CHAT_TEST_DATABASE_URL: postgres://nasfaq_test:local-test-only@127.0.0.1:5432/nasfaq_chat_test
     strategy:
       fail-fast: false
       matrix:

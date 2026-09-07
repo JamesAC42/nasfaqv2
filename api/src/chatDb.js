@@ -8,6 +8,7 @@ const MESSAGE_MIN_LENGTH = 1;
 const MESSAGE_MAX_LENGTH = 1000;
 const MESSAGE_RATE_LIMIT_MS = 3000;
 const CHAT_HISTORY_VISIBLE_DAYS = Math.max(1, Number(process.env.CHAT_HISTORY_VISIBLE_DAYS || 30) || 30);
+const CHAT_HISTORY_MIN_MESSAGES = Math.max(1, Math.min(10000, Math.floor(Number(process.env.CHAT_HISTORY_MIN_MESSAGES) || 100)));
 const CHAT_ARCHIVE_BATCH_SIZE = Math.max(50, Math.min(5000, Number(process.env.CHAT_ARCHIVE_BATCH_SIZE || 1000) || 1000));
 
 function createError(code, extra = {}) {
@@ -236,6 +237,14 @@ async function archiveMessagesOlderThan(pool, { channelId = null, cutoffIso = bu
         FROM chat.messages m
         WHERE m.created_at < $1::timestamptz
           ${channelClause}
+          -- Keep at least the newest active messages in each room, even when old.
+          AND (m.status <> 'active' OR m.id < (
+            SELECT retained.id
+            FROM chat.messages retained
+            WHERE retained.channel_id = m.channel_id AND retained.status = 'active'
+            ORDER BY retained.id DESC
+            OFFSET ${CHAT_HISTORY_MIN_MESSAGES - 1} LIMIT 1
+          ))
         ORDER BY m.created_at ASC, m.id ASC
         LIMIT $${params.length}
       ),
@@ -641,12 +650,25 @@ async function listMessages(pool, channelId, { viewerUserId = null, beforeMessag
   let visibilityClause = "";
   if (!isAdminViewer) {
     params.push(visibleCutoffIso);
-    visibilityClause = ` AND m.created_at >= $${params.length}::timestamptz`;
+    visibilityClause = ` AND (m.created_at >= $${params.length}::timestamptz
+      OR m.id >= (SELECT MIN(id) FROM retained_messages))`;
   }
   params.push(safeLimit + 1);
 
   const { rows } = await pool.query(
     `
+    WITH channel_messages AS NOT MATERIALIZED (
+      SELECT id, channel_id, author_id, body, status, reply_to_message_id,
+        created_at, edited_at, moderated_at
+      FROM chat.messages WHERE channel_id = $1 AND status = 'active'
+      UNION ALL
+      SELECT id, channel_id, author_id, body, status, reply_to_message_id,
+        created_at, edited_at, moderated_at
+      FROM chat.archived_messages WHERE channel_id = $1 AND status = 'active'
+    ), retained_messages AS (
+      -- Compute this before applying the page cursor: the floor belongs to the room.
+      SELECT id FROM channel_messages ORDER BY id DESC LIMIT ${CHAT_HISTORY_MIN_MESSAGES}
+    )
     SELECT
       m.id,
       m.channel_id,
@@ -667,7 +689,7 @@ async function listMessages(pool, channelId, { viewerUserId = null, beforeMessag
       ma.display_name AS author_oshi_coin_display_name,
       yc.icon AS author_oshi_coin_icon,
       yc.color AS author_oshi_coin_color
-    FROM chat.messages m
+    FROM channel_messages m
     JOIN chat.channels c
       ON c.id = m.channel_id
     JOIN market.users u
@@ -698,6 +720,7 @@ async function listMessages(pool, channelId, { viewerUserId = null, beforeMessag
     next_cursor: hasMore && slice.length ? String(slice[0].id) : null,
     history_limited: !isAdminViewer,
     visible_days: !isAdminViewer ? CHAT_HISTORY_VISIBLE_DAYS : null,
+    minimum_messages: !isAdminViewer ? CHAT_HISTORY_MIN_MESSAGES : null,
     oldest_visible_at: !isAdminViewer ? visibleCutoffIso : null,
   };
 }
@@ -884,16 +907,27 @@ async function markChannelRead(pool, { channelId, userId, lastReadMessageId = nu
   if (targetMessageId) {
     const { rows } = await pool.query(
       `
-      SELECT id
-      FROM chat.messages
-      WHERE id = $1
-        AND channel_id = $2
+      SELECT id, archived FROM (
+        SELECT id, channel_id, false AS archived FROM chat.messages
+        UNION ALL
+        SELECT id, channel_id, true AS archived FROM chat.archived_messages
+      ) messages
+      WHERE id = $1 AND channel_id = $2
       LIMIT 1
     `,
       [targetMessageId, safeChannelId]
     );
     if (!rows[0]) {
       throw createError("invalid_chat_message");
+    }
+    if (rows[0].archived) {
+      // Unread counts and this FK track the active table. Advance through all
+      // active messages preceding the archived message without storing a dangling ID.
+      const result = await pool.query(
+        `SELECT id FROM chat.messages WHERE channel_id = $1 AND id <= $2 ORDER BY id DESC LIMIT 1`,
+        [safeChannelId, targetMessageId]
+      );
+      targetMessageId = result.rows[0]?.id ? Number(result.rows[0].id) : null;
     }
   } else {
     const { rows } = await pool.query(

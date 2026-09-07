@@ -55,6 +55,7 @@ type MessageListResponse = {
   next_cursor: string | null;
   history_limited: boolean;
   visible_days: number | null;
+  minimum_messages?: number | null;
   oldest_visible_at: string | null;
 };
 
@@ -619,6 +620,7 @@ export function ChatPage() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [historyLimited, setHistoryLimited] = useState(false);
   const [visibleDays, setVisibleDays] = useState<number | null>(null);
+  const [minimumMessages, setMinimumMessages] = useState<number | null>(null);
   const [pinnedChannelKeys, setPinnedChannelKeys] = useState<string[]>([]);
   const [emojis, setEmojis] = useState<EmojiAsset[]>([]);
   const [socketState, setSocketState] = useState<"connecting" | "open" | "closed">("connecting");
@@ -807,6 +809,7 @@ export function ChatPage() {
       setNextCursor(null);
       setHistoryLimited(false);
       setVisibleDays(null);
+      setMinimumMessages(null);
       setPendingNewMessageCount(0);
       setIsAtBottom(true);
       setAuthorNetWorthByUserId({});
@@ -824,6 +827,7 @@ export function ChatPage() {
       setNextCursor(null);
       setHistoryLimited(false);
       setVisibleDays(null);
+      setMinimumMessages(null);
       setPendingNewMessageCount(0);
       setIsAtBottom(true);
       try {
@@ -844,6 +848,7 @@ export function ChatPage() {
         setNextCursor(result.next_cursor || null);
         setHistoryLimited(Boolean(result.history_limited));
         setVisibleDays(result.visible_days ?? null);
+        setMinimumMessages(result.minimum_messages ?? null);
 
         const lastMessage = normalized[normalized.length - 1] || null;
         if (user && lastMessage) {
@@ -861,6 +866,7 @@ export function ChatPage() {
         setNextCursor(null);
         setHistoryLimited(false);
         setVisibleDays(null);
+        setMinimumMessages(null);
         setMessagesError(String((error as Error).message || error));
       } finally {
         if (!cancelled) {
@@ -981,6 +987,7 @@ export function ChatPage() {
       setNextCursor(result.next_cursor || null);
       setHistoryLimited(Boolean(result.history_limited));
       setVisibleDays(result.visible_days ?? null);
+      setMinimumMessages(result.minimum_messages ?? null);
 
       window.requestAnimationFrame(() => {
         if (!viewport) return;
@@ -1382,11 +1389,13 @@ export function ChatPage() {
                       ))}
                     </div>
                   ) : null}
-                  {!isShowingSkeleton && !displayedMessages.length ? <div className={shellStyles.empty}>No one has posted here yet.</div> : null}
+                  {!isShowingSkeleton && !displayedMessages.length ? <div className={shellStyles.empty}>No messages to show in this chat.</div> : null}
 
-                  {!isShowingSkeleton && !isLoadingOlder && historyLimited && displayedMessages.length ? (
+                  {!isShowingSkeleton && !isLoadingOlder && historyLimited ? (
                     <div className={styles.historyLoader}>
-                      {visibleDays ? `Visible history limited to the last ${visibleDays} days.` : "Visible history is limited in this room."}
+                      {visibleDays && minimumMessages
+                        ? `History includes the newest ${minimumMessages} messages and anything from the last ${visibleDays} days.`
+                        : visibleDays ? `Visible history limited to the last ${visibleDays} days.` : "Visible history is limited in this room."}
                     </div>
                   ) : null}
                   
