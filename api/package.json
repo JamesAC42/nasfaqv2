@@ -8,7 +8,8 @@
     "dev": "node src/server.js",
     "start": "node src/server.js",
     "migrate": "node scripts/migrate.js",
-    "prediction:canonical-check": "node scripts/exercise-prediction-market-canonical.js"
+    "prediction:canonical-check": "node scripts/exercise-prediction-market-canonical.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.864.0",

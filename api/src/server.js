@@ -211,14 +211,8 @@ let redis = null;
 
 const api = express.Router();
 
-api.get("/health", async (_req, res) => {
-  try {
-    const r = await pool.query("SELECT 1 AS ok");
-    res.json({ ok: true, db: r.rows[0].ok === 1 });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: String(e?.message || e) });
-  }
-});
+// Health endpoints bypass authentication and other database-dependent middleware.
+require("./health").registerHealthRoutes(app, pool);
 
 app.use(async (req, _res, next) => {
   try {

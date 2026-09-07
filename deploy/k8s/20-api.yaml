@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: api-web
-          image: ghcr.io/jamesac42/nasfaqv2-api:latest
+          image: ghcr.io/jamesac42/nasfaqv2-api:IMAGE_TAG
           ports:
             - containerPort: 5067
               name: http
@@ -40,13 +40,15 @@ spec:
             - name: LIVESTREAM_SNAPSHOT_OWNER
               value: "false"
           readinessProbe:
+            timeoutSeconds: 5
             httpGet:
               path: /api/health
               port: http
             periodSeconds: 5
           livenessProbe:
+            timeoutSeconds: 2
             httpGet:
-              path: /api/health
+              path: /api/live
               port: http
             initialDelaySeconds: 30
             periodSeconds: 15
@@ -78,6 +80,9 @@ metadata:
   namespace: nasfaq
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
+    rollingUpdate: null
   selector:
     matchLabels:
       app: api-scheduler
@@ -88,7 +93,7 @@ spec:
     spec:
       containers:
         - name: api-scheduler
-          image: ghcr.io/jamesac42/nasfaqv2-api:latest
+          image: ghcr.io/jamesac42/nasfaqv2-api:IMAGE_TAG
           ports:
             - containerPort: 5067
               name: http
@@ -105,13 +110,15 @@ spec:
             - name: LIVESTREAM_SNAPSHOT_OWNER
               value: "true"
           readinessProbe:
+            timeoutSeconds: 5
             httpGet:
               path: /api/health
               port: http
             periodSeconds: 10
           livenessProbe:
+            timeoutSeconds: 2
             httpGet:
-              path: /api/health
+              path: /api/live
               port: http
             initialDelaySeconds: 30
             periodSeconds: 30

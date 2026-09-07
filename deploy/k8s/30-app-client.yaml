@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: app-client
-          image: ghcr.io/jamesac42/nasfaqv2-app-client:latest
+          image: ghcr.io/jamesac42/nasfaqv2-app-client:IMAGE_TAG
           ports:
             - containerPort: 3000
               name: http

@@ -5,6 +5,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: nasfaq-production-release
+  cancel-in-progress: false
+
 permissions:
   contents: read
   packages: write
@@ -14,7 +18,12 @@ env:
   IMAGE_OWNER: jamesac42
 
 jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/ci.yml
+
   build:
+    needs: validate
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -55,7 +64,6 @@ jobs:
             NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/nasfaqv2-${{ matrix.name }}:sha-${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/nasfaqv2-${{ matrix.name }}:latest
 
   deploy:
     needs: build
@@ -65,29 +73,15 @@ jobs:
       - uses: digitalocean/action-doctl@v2
         with:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-      - run: doctl kubernetes cluster kubeconfig save ${{ secrets.DOKS_CLUSTER_NAME }}
+      - name: Configure production context
+        env:
+          CLUSTER: ${{ secrets.DOKS_CLUSTER_NAME }}
+        run: doctl kubernetes cluster kubeconfig save "$CLUSTER" --alias nasfaq-prod --set-current-context=false
 
-      - name: Apply base manifests
-        run: kubectl apply -f deploy/k8s/
-
-      - name: Run migrations
+      - name: Migrate then deploy the validated revision
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+          CLUSTER: ${{ secrets.DOKS_CLUSTER_NAME }}
         run: |
-          TAG=sha-${{ github.sha }}
-          sed "s|IMAGE_TAG|$TAG|g" deploy/jobs/api-migrate-job.yaml | kubectl apply -f -
-          kubectl -n nasfaq wait --for=condition=complete --timeout=300s "job/api-migrate-$TAG"
-
-      - name: Roll images
-        run: |
-          TAG=sha-${{ github.sha }}
-          kubectl -n nasfaq set image deploy/api-web api-web=ghcr.io/jamesac42/nasfaqv2-api:$TAG
-          kubectl -n nasfaq set image deploy/api-scheduler api-scheduler=ghcr.io/jamesac42/nasfaqv2-api:$TAG
-          kubectl -n nasfaq set image deploy/app-client app-client=ghcr.io/jamesac42/nasfaqv2-app-client:$TAG
-          kubectl -n nasfaq set image deploy/holonews holonews=ghcr.io/jamesac42/nasfaqv2-holonews:$TAG
-          kubectl -n nasfaq set image deploy/superchatscraper superchatscraper=ghcr.io/jamesac42/nasfaqv2-superchatscraper:$TAG
-          kubectl -n nasfaq set image deploy/ytscraper ytscraper=ghcr.io/jamesac42/nasfaqv2-ytscraper:$TAG
-          kubectl -n nasfaq rollout status deploy/api-web --timeout=300s
-          kubectl -n nasfaq rollout status deploy/api-scheduler --timeout=300s
-          kubectl -n nasfaq rollout status deploy/app-client --timeout=300s
-          kubectl -n nasfaq rollout status deploy/holonews --timeout=300s
-          kubectl -n nasfaq rollout status deploy/superchatscraper --timeout=300s
-          kubectl -n nasfaq rollout status deploy/ytscraper --timeout=300s
+          expected_server=$(doctl kubernetes cluster get "$CLUSTER" --format Endpoint --no-header)
+          bash deploy/release.sh "$RELEASE_SHA" nasfaq-prod "$expected_server"

@@ -5,6 +5,9 @@ metadata:
   namespace: nasfaq
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
+    rollingUpdate: null
   selector:
     matchLabels:
       app: holonews
@@ -15,7 +18,7 @@ spec:
     spec:
       containers:
         - name: holonews
-          image: ghcr.io/jamesac42/nasfaqv2-holonews:latest
+          image: ghcr.io/jamesac42/nasfaqv2-holonews:IMAGE_TAG
           envFrom:
             - configMapRef:
                 name: nasfaq-app-config
@@ -36,6 +39,9 @@ metadata:
   namespace: nasfaq
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
+    rollingUpdate: null
   selector:
     matchLabels:
       app: superchatscraper
@@ -46,7 +52,7 @@ spec:
     spec:
       containers:
         - name: superchatscraper
-          image: ghcr.io/jamesac42/nasfaqv2-superchatscraper:latest
+          image: ghcr.io/jamesac42/nasfaqv2-superchatscraper:IMAGE_TAG
           envFrom:
             - configMapRef:
                 name: nasfaq-app-config
@@ -67,6 +73,9 @@ metadata:
   namespace: nasfaq
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
+    rollingUpdate: null
   selector:
     matchLabels:
       app: ytscraper
@@ -77,7 +86,7 @@ spec:
     spec:
       containers:
         - name: ytscraper
-          image: ghcr.io/jamesac42/nasfaqv2-ytscraper:latest
+          image: ghcr.io/jamesac42/nasfaqv2-ytscraper:IMAGE_TAG
           envFrom:
             - configMapRef:
                 name: nasfaq-app-config

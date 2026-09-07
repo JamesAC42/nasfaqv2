@@ -20,6 +20,15 @@ function createPool(databaseUrl) {
     connectionTimeoutMillis: Number(process.env.PG_CONN_TIMEOUT_MS || 10000)
   });
 
+  // pg removes failed idle clients; handling this event prevents a process crash.
+  pool.on("error", (error) => {
+    // Never log the error/client object: it can contain connection credentials.
+    const code = typeof error?.code === "string" && /^[A-Z0-9_]{1,40}$/.test(error.code)
+      ? error.code
+      : "UNKNOWN";
+    console.error("PostgreSQL idle client disconnected", { code });
+  });
+
   pool.on("connect", (client) => {
     client.query("SET TIME ZONE 'UTC'").catch(() => {});
   });

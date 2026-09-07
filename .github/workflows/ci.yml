@@ -1,6 +1,7 @@
 name: ci
 
 on:
+  workflow_call:
   pull_request:
     branches: [main]
 
@@ -19,6 +20,8 @@ jobs:
           cache: npm
           cache-dependency-path: ${{ matrix.app }}/package-lock.json
       - run: npm ci
+        working-directory: ${{ matrix.app }}
+      - run: npm test --if-present
         working-directory: ${{ matrix.app }}
       - run: npm run build --if-present
         working-directory: ${{ matrix.app }}
@@ -39,3 +42,10 @@ jobs:
         working-directory: ${{ matrix.svc }}
       - run: go vet ./...
         working-directory: ${{ matrix.svc }}
+
+  deployment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest discover -s deploy/tests -v
+      - run: bash -n deploy/render-release.sh deploy/release.sh

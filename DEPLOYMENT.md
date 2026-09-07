@@ -1,3 +1,5 @@
+> Current release procedure: see [docs/ops/releasing.md](docs/ops/releasing.md). The historical examples below include `latest` images and planned infrastructure; do not apply them directly.
+
 # NASFAQV2 Deployment & CI/CD Runbook
 
 **Target:** `holo.nasfaq.biz` on DigitalOcean Kubernetes (DOKS)
