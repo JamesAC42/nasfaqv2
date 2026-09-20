@@ -304,8 +304,14 @@ function buildSettledAssetState(assetRow, previousState) {
   const premiumPct = computePremiumPct(midOpen, fairValue);
   const dailyEmission = computeDailyEmission(toNumber(assetRow.base_emission, 0), premiumPct);
   const emissionApplied = Math.min(dailyEmission, toNumber(assetRow.treasury_supply, 0));
-  const treasurySupplyEnd = toNumber(assetRow.treasury_supply, 0) - emissionApplied;
-  const circulatingSupplyEnd = toNumber(assetRow.circulating_supply, 0) + emissionApplied;
+
+  const { circulatingSupplyEnd, treasurySupplyEnd } = computeSettlementSupplies({
+    maxSupply: dilutedSupply,
+    circulatingSupply: toNumber(assetRow.circulating_supply, 0),
+    treasurySupply: toNumber(assetRow.treasury_supply, 0),
+    emissionApplied,
+  });
+
   const quotes = computeQuotes(midOpen, assetRow.spread_bps);
 
   return {
@@ -660,8 +666,15 @@ async function settleMarketDay(pool, { marketDate, sourceMarketDate = null, forc
   }
 }
 
+function computeSettlementSupplies({ maxSupply, circulatingSupply, treasurySupply, emissionApplied }) {
+  const circulatingSupplyEnd = Math.min(circulatingSupply + emissionApplied, maxSupply);
+  const treasurySupplyEnd = maxSupply - circulatingSupplyEnd;
+  return { circulatingSupplyEnd, treasurySupplyEnd };
+}
+
 module.exports = {
   settleMarketDay,
+  computeSettlementSupplies,
   async settleMarketRange(pool, { from, to, force = false, marketDateOffsetDays = 0, redis = null } = {}) {
     const client = await pool.connect();
     let datesResult;
