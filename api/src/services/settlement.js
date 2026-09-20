@@ -439,9 +439,9 @@ async function persistSettledAssetState(client, marketDate, state) {
       current_persistent_offset = $11,
       current_transient_offset = $12,
       offsets_updated_at = $13,
-      treasury_supply = $14,
-      circulating_supply = $15,
-      liquidity_depth = GREATEST(${DEFAULT_LIQUIDITY_DEPTH_FLOOR}, $15 * 1.0),
+      circulating_supply = LEAST($14::numeric, max_supply),
+      treasury_supply = max_supply - LEAST($14::numeric, max_supply),
+      liquidity_depth = GREATEST(${DEFAULT_LIQUIDITY_DEPTH_FLOOR}, LEAST($14::numeric, max_supply) * 1.0),
       updated_at = now()
     WHERE id = $1
   `,
@@ -459,7 +459,6 @@ async function persistSettledAssetState(client, marketDate, state) {
       state.persistentOffset,
       state.transientOffset,
       marketDate,
-      state.treasurySupplyEnd,
       state.circulatingSupplyEnd,
     ]
   );

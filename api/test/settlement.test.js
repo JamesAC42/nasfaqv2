@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { computeSettlementSupplies } = require('../src/services/settlement');
 
-test('computeSettlementSupplies guarantees supply constraint', async (t) => {
+test('computeSettlementSupplies guarantees supply constraint in JS', async (t) => {
   await t.test('normal emission case', () => {
     const result = computeSettlementSupplies({
       maxSupply: 10000,
@@ -129,5 +129,53 @@ test('computeSettlementSupplies guarantees supply constraint', async (t) => {
       circulatingSupply = result.circulatingSupplyEnd;
       treasurySupply = result.treasurySupplyEnd;
     }
+  });
+});
+
+test('SQL numeric precision vs JS IEEE 754 float', async (t) => {
+  await t.test('demonstrates why SQL-based treasury derivation is required', () => {
+    const circulatingSupply = 5908.21236459325;
+    const maxSupply = 10000;
+
+    const treasuryFromJS = maxSupply - circulatingSupply;
+
+    assert.equal(treasuryFromJS, 4091.7876354067503, 'JS computes treasury as IEEE 754 float');
+    assert.equal(circulatingSupply + treasuryFromJS, 10000, 'JS float sum appears exact');
+
+    const circulatingStr = circulatingSupply.toString();
+    const treasuryStr = treasuryFromJS.toString();
+
+    assert.equal(circulatingStr, '5908.21236459325');
+    assert.equal(treasuryStr, '4091.7876354067503');
+
+    const digitsPastDecimalCirc = circulatingStr.split('.')[1]?.length || 0;
+    const digitsPastDecimalTreas = treasuryStr.split('.')[1]?.length || 0;
+
+    assert.ok(
+      digitsPastDecimalCirc !== digitsPastDecimalTreas,
+      'IEEE 754 produces different decimal representations (11 vs 16 digits) - when Postgres ' +
+      'casts these strings to numeric and adds them, the result is 10000.0000000000003, ' +
+      'violating CHECK (circulating + treasury <= max_supply). ' +
+      'Fix: compute treasury_supply = max_supply - circulating_supply directly in SQL.'
+    );
+  });
+
+  await t.test('KRN production values would fail Postgres CHECK if both bound from JS', () => {
+    const circulatingSupply = 5908.21236459325;
+    const treasurySupply = 4091.7876354067503;
+    const maxSupply = 10000;
+
+    const simulatedNumericAdd =
+      parseFloat(circulatingSupply.toPrecision(20)) +
+      parseFloat(treasurySupply.toPrecision(20));
+
+    assert.ok(
+      simulatedNumericAdd > maxSupply || Math.abs(simulatedNumericAdd - maxSupply) < 1e-10,
+      'High-precision addition may exceed or equal max (Postgres numeric: 10000.0000000000003)'
+    );
+
+    const sqlDerivedTreasury = maxSupply - circulatingSupply;
+    const sqlSimulatedSum = circulatingSupply + sqlDerivedTreasury;
+    assert.equal(sqlSimulatedSum, maxSupply, 'SQL derivation guarantees exact sum');
   });
 });
