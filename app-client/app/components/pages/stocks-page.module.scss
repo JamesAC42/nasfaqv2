@@ -608,6 +608,20 @@
   border-left-color: color-mix(in srgb, var(--accent) 52%, transparent);
 }
 
+.peekedRow {
+  background: color-mix(in srgb, var(--asset-color, var(--accent)) var(--row-wash-opacity, 8%), transparent) !important;
+  border-left: 0.1875rem solid var(--asset-color, var(--terminal-accent));
+  
+  &:hover {
+    background: color-mix(in srgb, var(--asset-color, var(--accent)) 14%, var(--surface-card-highlight)) !important;
+  }
+}
+
+.peekedCard {
+  border-color: color-mix(in srgb, var(--asset-color, var(--accent)) 40%, transparent);
+  box-shadow: 0 0 1.5rem color-mix(in srgb, var(--asset-color, var(--accent)) 15%, transparent);
+}
+
 .sortHint {
   color: var(--muted);
   font-size: 0.92rem;

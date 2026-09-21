@@ -1,0 +1,343 @@
+.rail {
+  position: fixed;
+  top: var(--shell-chrome-height, 7.25rem);
+  right: 0;
+  bottom: var(--shell-status-height, 2.5rem);
+  width: var(--peek-rail-width, 24rem);
+  max-width: calc(100vw - 2rem);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem;
+  border-left: 0.0625rem solid var(--peek-rail-border, var(--terminal-border));
+  background: var(--peek-rail-bg, var(--terminal-surface));
+  backdrop-filter: blur(1.5rem) saturate(1.2);
+  box-shadow: -1.5rem 0 3rem rgba(0, 10, 16, 0.35);
+  transform: translateX(100%);
+  opacity: 0;
+  visibility: hidden;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.2s ease,
+              visibility 0.25s;
+  
+  &:focus {
+    outline: none;
+  }
+}
+
+.railOpen {
+  transform: translateX(0);
+  opacity: 1;
+  visibility: visible;
+}
+
+.railHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.railAsset {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.railCoin {
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+  border: 0.125rem solid color-mix(in srgb, var(--asset-color, var(--terminal-accent)) 40%, transparent);
+  box-shadow: 0 0 1rem color-mix(in srgb, var(--asset-color, var(--terminal-accent)) 25%, transparent);
+}
+
+.railAssetInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.railSymbol {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--terminal-muted, var(--muted));
+  text-transform: uppercase;
+}
+
+.railName {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  color: var(--terminal-text, var(--text));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.railClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border: 0.0625rem solid var(--terminal-border, var(--border));
+  border-radius: var(--radius-sm, 0.25rem);
+  background: transparent;
+  color: var(--terminal-muted, var(--muted));
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+  
+  &:hover {
+    color: var(--terminal-text, var(--text));
+    border-color: var(--terminal-border-strong, var(--border-strong));
+    background: var(--row-hover);
+  }
+  
+  svg {
+    width: 0.875rem;
+    height: 0.875rem;
+  }
+}
+
+.railPrice {
+  display: flex;
+  align-items: baseline;
+  gap: 0.625rem;
+  padding: 0.75rem 0;
+  border-bottom: 0.0625rem solid var(--terminal-border, var(--border));
+}
+
+.railPriceLabel {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--terminal-muted, var(--muted));
+}
+
+.railPriceValue {
+  font-family: var(--font-mono);
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--terminal-text, var(--text));
+  letter-spacing: -0.02em;
+}
+
+.railPriceChange {
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.toneUp {
+  color: var(--trend-up);
+}
+
+.toneDown {
+  color: var(--trend-down);
+}
+
+.toneNeutral {
+  color: var(--terminal-muted, var(--muted));
+}
+
+.railChart {
+  height: 4rem;
+  border-radius: var(--radius-sm, 0.25rem);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--terminal-surface, var(--surface-card)) 50%, transparent);
+}
+
+.railChartEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 0.75rem;
+  color: var(--terminal-muted, var(--muted));
+}
+
+.railQuotes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.railQuote {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1875rem;
+  padding: 0.625rem;
+  border: 0.0625rem solid var(--terminal-border, var(--border));
+  border-radius: var(--radius-sm, 0.25rem);
+  background: color-mix(in srgb, var(--terminal-surface-raised, var(--surface-card-soft)) 60%, transparent);
+}
+
+.railQuoteLabel {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--terminal-muted, var(--muted));
+}
+
+.railQuoteValue {
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--terminal-text, var(--text));
+}
+
+.railHolding {
+  padding: 0.75rem;
+  border: 0.0625rem solid color-mix(in srgb, var(--terminal-accent, var(--accent)) 25%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  background: color-mix(in srgb, var(--terminal-accent, var(--accent)) 6%, transparent);
+}
+
+.railHoldingLabel {
+  display: block;
+  margin-bottom: 0.375rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--terminal-accent, var(--accent));
+}
+
+.railHoldingRow {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.railHoldingQty {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--terminal-text, var(--text));
+}
+
+.railHoldingCost {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--terminal-muted, var(--muted));
+}
+
+.railActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.625rem;
+  margin-top: auto;
+}
+
+.railButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.625rem 1rem;
+  border: 0.0625rem solid transparent;
+  border-radius: var(--radius-sm, 0.25rem);
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  transition: transform 0.12s ease, opacity 0.15s ease, background-color 0.15s ease;
+  
+  &:hover:not(:disabled) {
+    transform: translateY(-0.0625rem);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(0.0625rem);
+  }
+  
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.railButtonBuy {
+  background: linear-gradient(135deg, var(--trend-up), color-mix(in srgb, var(--trend-up) 70%, #000));
+  color: #071a0f;
+  border-color: color-mix(in srgb, var(--trend-up) 60%, transparent);
+}
+
+.railButtonSell {
+  background: linear-gradient(135deg, var(--trend-down), color-mix(in srgb, var(--trend-down) 70%, #000));
+  color: #1a0710;
+  border-color: color-mix(in srgb, var(--trend-down) 60%, transparent);
+}
+
+.railDeskLink {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 0.0625rem solid var(--terminal-border-strong, var(--border-strong));
+  border-radius: var(--radius-sm, 0.25rem);
+  background: transparent;
+  color: var(--terminal-accent-strong, var(--accent-strong));
+  font-weight: 700;
+  font-size: 0.875rem;
+  text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  
+  &:hover {
+    background: var(--row-hover);
+    color: var(--terminal-accent, var(--accent));
+  }
+  
+  svg {
+    width: 0.75rem;
+    height: 0.75rem;
+    transition: transform 0.15s ease;
+  }
+  
+  &:hover svg {
+    transform: translateX(0.25rem);
+  }
+}
+
+@media (max-width: 48rem) {
+  .rail {
+    top: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    border-left: none;
+    border-top: 0.0625rem solid var(--peek-rail-border, var(--terminal-border));
+  }
+  
+  .railQuotes {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail {
+    transition: opacity 0.15s ease, visibility 0.15s;
+  }
+  
+  .railOpen {
+    transform: translateX(0);
+  }
+  
+  .railButton:hover:not(:disabled),
+  .railButton:active:not(:disabled) {
+    transform: none;
+  }
+  
+  .railDeskLink:hover svg {
+    transform: none;
+  }
+}

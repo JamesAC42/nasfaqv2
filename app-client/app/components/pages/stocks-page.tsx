@@ -11,6 +11,7 @@ import { AssetCoin } from "@/app/components/common/asset-coin";
 import { OptionPicker } from "@/app/components/common/option-picker";
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { SiteShell } from "@/app/components/layout/site-shell";
+import { PeekRail } from "@/app/components/terminal/peek-rail";
 import { apiFetch } from "@/app/lib/api";
 import { createChannelChartTheme } from "@/app/lib/chart-theme";
 import { getUsableChannelColor } from "@/app/lib/color";
@@ -719,6 +720,7 @@ export function StocksPage() {
   const [isQuickTradeSubmitting, setIsQuickTradeSubmitting] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("symbol");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [peekRailSymbol, setPeekRailSymbol] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -879,6 +881,14 @@ export function StocksPage() {
     () => assets.find((asset) => asset.symbol === quickTradeSymbol) || null,
     [assets, quickTradeSymbol]
   );
+  const peekRailAsset = useMemo(
+    () => peekRailSymbol ? assets.find((asset) => asset.symbol === peekRailSymbol) || null : null,
+    [assets, peekRailSymbol]
+  );
+  const peekRailHolding = useMemo(
+    () => peekRailSymbol ? portfolio?.holdings.find((h) => h.symbol === peekRailSymbol) : null,
+    [portfolio?.holdings, peekRailSymbol]
+  );
   const quickTradeHolding = useMemo(
     () => portfolio?.holdings.find((holding) => holding.symbol === quickTradeSymbol) || null,
     [portfolio?.holdings, quickTradeSymbol]
@@ -970,8 +980,22 @@ export function StocksPage() {
   }, [archiveViewMode, cardGraphMetric, sortedRowSymbols, sortedRowSymbolsKey]);
 
   function openRow(row: DerivedStockRow) {
+    setPeekRailSymbol(row.asset.symbol);
     setSelectedSymbol(row.asset.symbol);
-    router.push(row.href);
+  }
+
+  function closePeekRail() {
+    setPeekRailSymbol(null);
+  }
+
+  function handlePeekRailBuy(symbol: string) {
+    setQuickTradeSymbol(symbol);
+    setQuickTradeSide("buy");
+  }
+
+  function handlePeekRailSell(symbol: string) {
+    setQuickTradeSymbol(symbol);
+    setQuickTradeSide("sell");
   }
 
   function toggleDesktopSort(nextKey: SortKey) {
@@ -1488,7 +1512,13 @@ export function StocksPage() {
                   return (
                     <tr
                       key={asset.symbol}
-                        className={`${shellStyles.stockRow} ${isSelected ? shellStyles.stockRowSelected : ""} ${(holdingsBySymbol.get(asset.symbol) ?? 0) > 0 ? styles.ownedRow : ""}`}
+                      className={[
+                        shellStyles.stockRow,
+                        isSelected ? shellStyles.stockRowSelected : "",
+                        (holdingsBySymbol.get(asset.symbol) ?? 0) > 0 ? styles.ownedRow : "",
+                        peekRailSymbol === asset.symbol ? styles.peekedRow : "",
+                      ].filter(Boolean).join(" ")}
+                      style={peekRailSymbol === asset.symbol && asset.color ? { "--asset-color": asset.color } as React.CSSProperties : undefined}
                       onClick={() => openRow(row)}
                       onKeyDown={(event) => {
                         if (event.key !== "Enter" && event.key !== " ") return;
@@ -1496,8 +1526,9 @@ export function StocksPage() {
                         openRow(row);
                       }}
                       tabIndex={0}
-                      role="link"
-                      aria-label={`Open ${asset.symbol} detail page`}
+                      role="button"
+                      aria-label={`View ${asset.symbol} quick details`}
+                      aria-pressed={peekRailSymbol === asset.symbol}
                     >
                       <td onClick={(event) => event.stopPropagation()}>
                         <button
@@ -1586,7 +1617,13 @@ export function StocksPage() {
                 return (
                   <article
                     key={asset.symbol}
-                    className={`${styles.stockCard} ${isSelected ? styles.stockCardSelected : ""} ${(holdingsBySymbol.get(asset.symbol) ?? 0) > 0 ? styles.ownedCard : ""}`}
+                    className={[
+                      styles.stockCard,
+                      isSelected ? styles.stockCardSelected : "",
+                      (holdingsBySymbol.get(asset.symbol) ?? 0) > 0 ? styles.ownedCard : "",
+                      peekRailSymbol === asset.symbol ? styles.peekedCard : "",
+                    ].filter(Boolean).join(" ")}
+                    style={peekRailSymbol === asset.symbol && asset.color ? { "--asset-color": asset.color } as React.CSSProperties : undefined}
                     onClick={() => openRow(row)}
                     onKeyDown={(event) => {
                       if (event.key !== "Enter" && event.key !== " ") return;
@@ -1594,8 +1631,9 @@ export function StocksPage() {
                       openRow(row);
                     }}
                     tabIndex={0}
-                    role="link"
-                    aria-label={`Open ${asset.symbol} detail page`}
+                    role="button"
+                    aria-label={`View ${asset.symbol} quick details`}
+                    aria-pressed={peekRailSymbol === asset.symbol}
                   >
                     <div className={styles.cardHeader}>
                       <div className={styles.cardIdentity}>
@@ -1713,6 +1751,17 @@ export function StocksPage() {
             </div>
           </section>
         ) : null}
+
+        <PeekRail
+          asset={peekRailAsset}
+          candles={peekRailAsset?.sparkline_candles ?? []}
+          isOpen={Boolean(peekRailSymbol)}
+          onClose={closePeekRail}
+          onBuy={handlePeekRailBuy}
+          onSell={handlePeekRailSell}
+          holdingQuantity={peekRailHolding?.quantity}
+          holdingAvgCost={peekRailHolding?.avg_cost_basis}
+        />
 
         {tradeConfirmation && typeof document !== "undefined"
           ? createPortal(

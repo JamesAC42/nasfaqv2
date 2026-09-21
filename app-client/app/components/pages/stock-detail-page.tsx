@@ -18,7 +18,7 @@ import { AssetCoin } from "@/app/components/common/asset-coin";
 import { MarketSidebar } from "@/app/components/common/market-sidebar";
 import { OshiboardPanel } from "@/app/components/oshiboard/oshiboard-panel";
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
-import { SiteShell } from "@/app/components/layout/site-shell";
+import { TerminalShell, RoomHeader } from "@/app/components/layout/terminal-shell";
 import { LivestreamModal, type LivestreamModalItem } from "@/app/components/livestreams/livestream-modal";
 import { apiFetch } from "@/app/lib/api";
 import { adjustSaturation, createChannelChartTheme, rotateHue } from "@/app/lib/chart-theme";
@@ -2583,7 +2583,7 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
 
   if (!selectedAsset && !isLoadingOverview) {
     return (
-      <SiteShell>
+      <TerminalShell>
         <div className={styles.pageLayout}>
           <div className={styles.sidebarRail}>
             <MarketSidebar
@@ -2637,12 +2637,12 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
             </div>
           </div>
         </div>
-      </SiteShell>
+      </TerminalShell>
     );
   }
 
   return (
-    <SiteShell>
+    <TerminalShell>
       <div className={styles.pageLayout}>
         <div className={styles.sidebarRail}>
           <MarketSidebar
@@ -3907,6 +3907,6 @@ export function StockDetailPage({ symbol }: { symbol: string }) {
           </div>
         </div>
       ) : null}
-    </SiteShell>
+    </TerminalShell>
   );
 }

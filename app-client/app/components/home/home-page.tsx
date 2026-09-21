@@ -8,7 +8,7 @@ import { MarketSidebar } from "@/app/components/common/market-sidebar";
 import { LivestreamSection } from "@/app/components/home/livestream-section";
 import { MarketReportSection } from "@/app/components/home/market-report-section";
 import { CompactNewsGrid, NewsSection, partitionHomepageNewsItems } from "@/app/components/home/news-section";
-import { SiteShell } from "@/app/components/layout/site-shell";
+import { TerminalShell, RoomHeader } from "@/app/components/layout/terminal-shell";
 import { apiFetch } from "@/app/lib/api";
 import { getUsableChannelColor } from "@/app/lib/color";
 import { fmtInteger, fmtNumber, fmtPct } from "@/app/lib/format";
@@ -612,7 +612,7 @@ export function HomePage() {
   }, []);
 
   return (
-    <SiteShell>
+    <TerminalShell>
       <div className={styles.pageHeader}>
         <div className={styles.pageHeaderBg}>
           <Image src="/hero-image-12.jpg" alt="" width={2500} height={1643} />
@@ -1202,6 +1202,6 @@ export function HomePage() {
           />
         </div>
       </div>
-    </SiteShell>
+    </TerminalShell>
   );
 }
