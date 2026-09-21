@@ -16,9 +16,9 @@ body {
 body {
   min-height: 100dvh;
   background:
-    radial-gradient(circle at 18% -10%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 34rem),
-    radial-gradient(circle at 86% 8%, color-mix(in srgb, var(--trend-line) 9%, transparent), transparent 28rem),
-    linear-gradient(180deg, var(--bg-darker), var(--bg) 34rem, var(--bg-darkest));
+    radial-gradient(circle at 18% -10%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 36rem),
+    radial-gradient(circle at 86% 8%, color-mix(in srgb, var(--accent-gold) 7%, transparent), transparent 30rem),
+    linear-gradient(180deg, var(--bg-darker), var(--bg) 32rem, var(--bg-darkest));
   color: var(--text);
   font-family: var(--font-body);
   font-variant-numeric: tabular-nums;
@@ -31,10 +31,10 @@ body::before {
   inset: 0;
   z-index: 2147483647;
   pointer-events: none;
-  opacity: 0.34;
+  opacity: 0.28;
   background:
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.028) 0 1px, transparent 1px 4px),
-    radial-gradient(circle at 20% 10%, rgba(95, 222, 236, 0.08), transparent 24rem);
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.022) 0 1px, transparent 1px 4px),
+    radial-gradient(circle at 20% 10%, rgba(255, 107, 84, 0.05), transparent 26rem);
   mix-blend-mode: screen;
 }
 
@@ -125,6 +125,51 @@ main {
 .segmentedButton.active {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   color: var(--text);
+}
+
+// Holo Exchange — Expressive motion (Dial 4C)
+@keyframes selectionWash {
+  from {
+    background-color: var(--accent-soft);
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+  to {
+    background-color: var(--selected-row);
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+}
+
+@keyframes tickerPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.72; }
+}
+
+@keyframes rowEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes warmGlowPulse {
+  0%, 100% { 
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+  50% { 
+    box-shadow: 0 0 12px 2px color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+}
+
+.tickerLive {
+  animation: tickerPulse 2s ease-in-out infinite;
+}
+
+.rowAnimated {
+  animation: rowEnter var(--duration-normal, 180ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
 }
 
 .legalPage {

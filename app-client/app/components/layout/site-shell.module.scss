@@ -9,10 +9,12 @@
   top: 0;
   z-index: 30;
   width: 100%;
-  background: color-mix(in srgb, var(--bg-darker) 84%, transparent);
-  backdrop-filter: blur(22px) saturate(1.2);
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.035), 0 18px 42px rgba(0, 10, 16, 0.24);
+  background: color-mix(in srgb, var(--bg-darker) 90%, transparent);
+  backdrop-filter: blur(20px) saturate(1.15);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 
+    inset 0 -1px 0 color-mix(in srgb, var(--accent) 8%, transparent),
+    0 16px 40px rgba(0, 0, 0, 0.28);
 }
 
 .ribbonShell {
@@ -151,10 +153,10 @@
   margin: 0;
   font-family: var(--font-display);
   color: var(--accent);
-  font-size: clamp(1rem, 1.4vw, 1.35rem);
-  letter-spacing: 0;
+  font-size: clamp(1.0625rem, 1.5vw, 1.4rem);
+  letter-spacing: 0.01em;
   text-transform: lowercase;
-  text-shadow: 0 0 22px color-mix(in srgb, var(--accent) 46%, transparent);
+  text-shadow: 0 0 24px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .navbarEnd {
@@ -211,10 +213,10 @@
   border: 0.0625rem solid var(--bg-darker);
   border-radius: 999rem;
   background: var(--accent);
-  color: #071318;
+  color: var(--button-primary-text);
   font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 900;
+  font-size: 0.6875rem;
+  font-weight: 800;
   line-height: 1.1rem;
   text-align: center;
 }
@@ -261,6 +263,7 @@
 .ordersFlyoutHead strong {
   font-family: var(--font-display);
   font-size: 1.25rem;
+  color: var(--text-warm);
 }
 
 .ordersFlyoutHead span,
@@ -450,14 +453,14 @@
 .dropdownLabel {
   display: flex;
   align-items: center;
-  margin-right:1rem;
-  color: var(--accent-strong);
+  margin-right: 1rem;
+  color: var(--text-warm);
   font-family: var(--font-display);
-  font-size: 1.4rem;
+  font-size: 1.35rem;
   line-height: 1;
   text-transform: lowercase;
   padding-right: 3rem;
-  border-right: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-right: 1px solid var(--border);
 }
 
 .dropdownLinks {
@@ -489,11 +492,14 @@
 
 .ribbon {
   position: relative;
-  border-top: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   background:
-    linear-gradient(90deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent 20%, transparent 80%, color-mix(in srgb, var(--accent) 8%, transparent)),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent 24%, transparent 76%, color-mix(in srgb, var(--accent-gold) 6%, transparent)),
     var(--bg-darkest);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 10%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--accent-gold) 8%, transparent);
   overflow: hidden;
   overflow-y: hidden;
   isolation: isolate;
@@ -568,11 +574,11 @@
 }
 
 .ribbonName {
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--accent-strong);
+  color: var(--text-warm);
 }
 
 .ribbonValue,
@@ -679,10 +685,10 @@
 
 .footerTitle {
   margin: 0;
-  color: var(--accent);
+  color: var(--text-warm);
   font-family: var(--font-display);
-  font-size: 1.2rem;
-  letter-spacing: 0.04em;
+  font-size: 1.25rem;
+  letter-spacing: 0.03em;
   text-transform: lowercase;
 }
 
