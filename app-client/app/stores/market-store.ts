@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { useMomentStore } from "@/app/stores/moment-store";
 import { apiFetch } from "@/app/lib/api";
 import {
   normalizeAsset,
@@ -403,6 +404,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
           }
 
           if (payload.type === "market.adjustments_applied") {
+            useMomentStore.getState().pushTick(payload);
             const quotes = Array.isArray(payload.quotes)
               ? payload.quotes as Array<Record<string, unknown>>
               : [];

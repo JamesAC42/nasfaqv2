@@ -72,6 +72,7 @@ const TapeItem = memo(function TapeItem({
       href={`/stocks/${encodeURIComponent(symbol)}`}
       prefetch={false}
       className={styles.item}
+      data-peek-stock={symbol}
       tabIndex={focusable ? undefined : -1}
     >
       <Oshimark icon={icon} symbol={symbol} size={15} />

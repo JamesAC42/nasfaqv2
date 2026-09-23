@@ -1,0 +1,128 @@
+@use "../../styles/mixins" as *;
+
+.layer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 95;
+  pointer-events: none;
+  will-change: transform;
+
+  @media (hover: none) {
+    display: none;
+  }
+}
+
+.card {
+  @include popover;
+  width: 16.75rem;
+  border-top: 2px solid var(--c, var(--blue));
+  font-size: 0.75rem;
+  animation: peekIn var(--dur-fast) ease-out;
+}
+
+@keyframes peekIn {
+  from {
+    opacity: 0;
+  }
+}
+
+.head {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem 0.5rem;
+}
+
+.who {
+  min-width: 0;
+
+  b {
+    @include num(normal);
+    display: block;
+    font-size: 0.8125rem;
+  }
+
+  small {
+    display: block;
+    color: var(--dim);
+    font-size: 0.6875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.price {
+  @include num;
+  text-align: right;
+
+  b {
+    display: block;
+    font-size: 0.95rem;
+  }
+
+  span {
+    font-size: 0.6875rem;
+  }
+}
+
+.spark {
+  display: block;
+  width: 100%;
+  height: 2.5rem;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--rule);
+
+  span {
+    @include label;
+    display: block;
+    font-size: 0.56rem;
+  }
+
+  b {
+    @include num;
+    font-size: 0.72rem;
+  }
+}
+
+.holding {
+  @include num;
+  padding: 0.4rem 0.75rem;
+  border-top: 1px solid var(--rule);
+  background: var(--blue-wash);
+  font-size: 0.6875rem;
+}
+
+.foot {
+  @include label;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem 0.5rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.56rem;
+  letter-spacing: 0.06em;
+
+  b {
+    color: var(--blue);
+  }
+}
+
+.up {
+  color: var(--up);
+}
+
+.down {
+  color: var(--down);
+}
+
+.flat {
+  color: var(--mid);
+}
