@@ -1,4 +1,3 @@
-@use "./styles/fonts";
 @use "./styles/theme";
 @use "./styles/mixins" as *;
 
@@ -13,29 +12,27 @@ body {
   min-height: 100%;
 }
 
-body {
-  min-height: 100dvh;
-  background:
-    radial-gradient(circle at 18% -10%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 34rem),
-    radial-gradient(circle at 86% 8%, color-mix(in srgb, var(--trend-line) 9%, transparent), transparent 28rem),
-    linear-gradient(180deg, var(--bg-darker), var(--bg) 34rem, var(--bg-darkest));
-  color: var(--text);
-  font-family: var(--font-body);
-  font-variant-numeric: tabular-nums;
-  text-rendering: geometricPrecision;
+html {
+  background: var(--ink);
+  -webkit-text-size-adjust: 100%;
 }
 
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 2147483647;
-  pointer-events: none;
-  opacity: 0.34;
-  background:
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.028) 0 1px, transparent 1px 4px),
-    radial-gradient(circle at 20% 10%, rgba(95, 222, 236, 0.08), transparent 24rem);
-  mix-blend-mode: screen;
+body {
+  min-height: 100dvh;
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  text-wrap: balance;
 }
 
 a {
@@ -48,19 +45,15 @@ input,
 select,
 textarea {
   font: inherit;
+  color: inherit;
 }
 
 button {
   cursor: pointer;
 }
 
-button:focus-visible,
-a:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
-  outline-offset: 2px;
+:focus-visible {
+  @include focus-ring;
 }
 
 img {
@@ -72,8 +65,35 @@ main {
   display: block;
 }
 
+::selection {
+  background: var(--blue);
+  color: var(--blue-ink);
+}
+
+// ── Utilities (global on purpose: shared by every page) ─────────────────────
+.num {
+  @include num;
+}
+
+.up {
+  color: var(--up);
+}
+
+.down {
+  color: var(--down);
+}
+
+.flat {
+  color: var(--mid);
+}
+
 .appLink {
-  color: var(--accent);
+  color: var(--blue);
+
+  &:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
 }
 
 .statusMessage {
@@ -82,18 +102,18 @@ main {
 }
 
 .statusMessageError {
-  color: var(--danger);
-  border-color: var(--danger-soft-border);
+  color: var(--down);
+  border-color: color-mix(in srgb, var(--down) 40%, transparent);
 }
 
 .statusMessageSuccess {
-  color: var(--success);
-  border-color: var(--success-soft-border);
+  color: var(--up);
+  border-color: color-mix(in srgb, var(--up) 40%, transparent);
 }
 
 .statusMessageWarn {
-  color: var(--accent-strong);
-  border-color: var(--button-primary-border);
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 40%, transparent);
 }
 
 .sectionToolbar {
@@ -103,41 +123,26 @@ main {
 }
 
 .segmentedControl {
-  display: inline-flex;
-  gap: 0.25rem;
-  padding: 0.25rem;
-  border: 0.0625rem solid color-mix(in srgb, var(--text) 12%, transparent);
-  border-radius: 999rem;
-  background: color-mix(in srgb, var(--surface-card-soft) 88%, transparent);
+  @include tabs;
 }
 
 .segmentedButton {
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-weight: 650;
-  padding: 0.4rem 0.8rem;
-  border-radius: 999rem;
-  cursor: pointer;
+  @include tab;
 }
 
 .segmentedButton.active {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  color: var(--text);
+  @include tab-selected;
 }
 
 .legalPage {
   width: min(100%, 52rem);
   margin: 0 auto;
-  padding: 0.5rem 0 1.5rem;
+  padding: 1.5rem 0;
 
   h1,
   h2 {
-    font-family: var(--font-display);
-    color: var(--accent-strong);
+    @include display;
     line-height: 1.1;
-    text-transform: lowercase;
   }
 
   h1 {
@@ -152,9 +157,10 @@ main {
 
   p,
   li {
-    color: color-mix(in srgb, var(--text) 88%, transparent);
+    color: var(--mid);
     font-size: 1rem;
     line-height: 1.6;
+    max-width: 68ch;
   }
 
   ul {
@@ -162,6 +168,18 @@ main {
   }
 
   a {
-    color: var(--accent);
+    color: var(--blue);
   }
+}
+
+// ── Calm mode (html[data-calm="true"]) ──────────────────────────────────────
+// Kills flashes, marquees and entrance animations everywhere. Components that
+// animate with JS should also check isCalm() / useMotion().
+html[data-calm="true"] *,
+html[data-calm="true"] *::before,
+html[data-calm="true"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
 }

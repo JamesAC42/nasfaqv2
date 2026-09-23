@@ -1,186 +1,230 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// NASFAQ design tokens: "terminal + game moments"
+//
+// Layer 1 (below): the design system. Use these in new code.
+// Layer 2 (further down): legacy aliases so existing modules adopt the new
+// palette without edits. Migrate modules to layer-1 names as pages are redone,
+// then delete aliases that are no longer referenced.
+// See app-client/DESIGN.md for usage rules.
+// ─────────────────────────────────────────────────────────────────────────────
+
 :root,
 [data-theme="dark"] {
-  --bg: #020408;
-  --bg-darker: #070d14;
-  --bg-darkest: #040607;
-  --bg-accent: #0b1720;
-  --bg-radial-top: #101e43;
-  --bg-gradient-top: #0e0c31;
-  --bg-gradient-bottom: #050b11;
-  --surface: rgba(15, 35, 47, 0.92);
-  --surface-strong: #102637;
-  --surface-card: rgba(9, 21, 30, 0.94);
-  --surface-card-soft: rgba(16, 34, 46, 0.72);
-  --surface-card-strong: rgba(10, 24, 34, 0.88);
-  --surface-card-highlight: rgba(22, 60, 80, 0.82);
-  --surface-section: rgba(8, 18, 27, 0.96);
-  --surface-section-soft: rgba(13, 28, 39, 0.84);
-  --surface-section-strong: rgba(5, 12, 19, 0.98);
-  --surface-pill: rgba(15, 39, 52, 0.94);
-  --surface-nav-active: rgba(18, 53, 68, 0.82);
-  --border: rgba(82, 156, 225, 0.19);
-  --border-soft: rgba(105, 214, 238, 0.1);
-  --border-strong: rgba(137, 230, 248, 0.36);
-  --border-positive: rgba(15, 118, 110, 0.3);
-  --border-info: rgba(37, 99, 235, 0.3);
-  --text: #e9f8fb;
-  --muted: #7ca4b4;
-  --accent: #5fdeec;
-  --accent-gradient: #2f9fc2;
-  --accent-dark: #1f8099;
-  --bg-highlight: #0f2431;
-  --accent-strong: #c8f8ff;
-  --accent-soft: rgba(95, 222, 236, 0.16);
-  --trend-up: #24e589;
-  --trend-down: #ff5272;
-  --trend-down-light: #fb8989;
-  --trend-line: #71d9ff;
-  --tile-up-tint: rgba(15, 118, 110, 0.12);
-  --tile-down-tint: rgba(220, 38, 38, 0.1);
-  --selected-row: rgba(154, 52, 18, 0.08);
-  --panel-accent-glow: rgba(36, 169, 211, 0.24);
-  --chart-candle-glow: rgba(15, 118, 110, 0.12);
-  --chart-trend-glow: rgba(124, 58, 237, 0.1);
-  --panel-gradient-top: rgba(17, 37, 50, 0.98);
-  --panel-gradient-bottom: rgba(6, 13, 20, 0.96);
-  --success: #1ace2c;
-  --success-soft-border: rgba(22, 101, 52, 0.24);
-  --warning: #f59e0b;
-  --warning-soft: rgba(245, 158, 11, 0.16);
-  --danger: #b91c1c;
-  --danger-soft-border: rgba(185, 28, 28, 0.24);
-  --leaderboard-global-accent: #5fdeec;
-  --leaderboard-global-strong: #cafaff;
-  --leaderboard-global-soft: rgba(72, 181, 205, 0.22);
-  --leaderboard-friends-accent: #27c6b1;
-  --leaderboard-friends-strong: #94f7eb;
-  --leaderboard-friends-soft: rgba(21, 148, 138, 0.24);
-  --leaderboard-rivals-accent: #a73f53;
-  --leaderboard-rivals-strong: #f29aa8;
-  --leaderboard-rivals-soft: rgba(126, 33, 52, 0.26);
+  color-scheme: dark;
+
+  // Grounds, darkest to lightest. Surfaces are separated by hairlines, not shadows.
+  --ink: #0a0c11;
+  --ink-2: #0f1219;
+  --ink-3: #151923;
+  --ink-4: #1b2030;
+
+  // Hairlines
+  --rule: #222838;
+  --rule-2: #2e3548;
+
+  // Text
+  --text: #eceef2;
+  --mid: #a7aebe;
+  --dim: #7a8296;
+
+  // Brand accent: hololive blue. The chassis color: live state, ticks, focus, links.
+  --blue: #3fb8f5;
+  --blue-2: #8ad6ff;
+  --blue-ink: #02121c; // text on a --blue fill
+  --blue-wash: rgba(63, 184, 245, 0.12);
+  --blue-line: rgba(63, 184, 245, 0.4);
+
+  // Market semantics. Never use these as decoration.
+  --up: #2ee38e;
+  --up-ink: #04140c;
+  --up-wash: rgba(46, 227, 142, 0.14);
+  --down: #ff4460;
+  --down-ink: #1a0307;
+  --down-wash: rgba(255, 68, 96, 0.14);
+  --warn: #f5b83f;
+  --warn-wash: rgba(245, 184, 63, 0.14);
+
+  // Elevation is reserved for things that float above the page (peeks, menus, moments).
+  --shadow-pop: 0 18px 40px rgba(0, 0, 0, 0.55);
+  --scrim: rgba(5, 7, 11, 0.8);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --ink: #f4f6fa;
+  --ink-2: #ffffff;
+  --ink-3: #ebeff5;
+  --ink-4: #dee4ee;
+
+  --rule: #d5dce6;
+  --rule-2: #bcc6d4;
+
+  --text: #0c111a;
+  --mid: #3e4656;
+  --dim: #5e6778;
+
+  --blue: #0e8fd6;
+  --blue-2: #0a6fa8;
+  --blue-ink: #ffffff;
+  --blue-wash: rgba(14, 143, 214, 0.1);
+  --blue-line: rgba(14, 143, 214, 0.45);
+
+  --up: #00935a;
+  --up-ink: #ffffff;
+  --up-wash: rgba(0, 147, 90, 0.1);
+  --down: #d62846;
+  --down-ink: #ffffff;
+  --down-wash: rgba(214, 40, 70, 0.1);
+  --warn: #b77400;
+  --warn-wash: rgba(183, 116, 0, 0.12);
+
+  --shadow-pop: 0 18px 40px rgba(40, 56, 84, 0.2);
+  --scrim: rgba(12, 17, 26, 0.45);
+}
+
+// Theme-independent tokens
+:root {
+  // Type. Font files are loaded by next/font in app/fonts.ts, which defines
+  // --font-chicago, --font-martian and --font-zen on <html>.
+  --font-display: var(--font-chicago), "Zen Kaku Gothic New", "Arial Black", sans-serif; // Chicago: hololive's face. Headlines, names, moments. Weight 400 only.
+  --font-body: var(--font-zen), "Hiragino Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: var(--font-martian), ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; // every number
+
+  // Martian Mono width axis: condensed for tables, wide for hero numbers
+  --mono-narrow: "wdth" 82;
+  --mono-normal: "wdth" 95;
+  --mono-wide: "wdth" 112;
+
+  // Layout
+  --rail-height: 3rem;
+  --tape-height: 1.875rem;
+  --bottom-nav-height: 3.5rem;
+  --gutter: 1rem;
+  --page-max: 105rem;
+
+  // Squared-off terminal geometry
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+
+  // Motion
+  --ease-out: cubic-bezier(0.2, 0.9, 0.2, 1);
+  --ease-slam: cubic-bezier(0.2, 1.4, 0.3, 1);
+  --dur-fast: 120ms;
+  --dur-med: 240ms;
+  --dur-flash: 900ms;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Legacy aliases (layer 2). Declared on every themed element so var() resolves
+// against that element's theme.
+// ─────────────────────────────────────────────────────────────────────────────
+:root,
+[data-theme] {
+  --bg: var(--ink);
+  --bg-darker: var(--ink);
+  --bg-darkest: var(--ink);
+  --bg-accent: var(--ink-2);
+  --bg-radial-top: var(--ink);
+  --bg-gradient-top: var(--ink);
+  --bg-gradient-bottom: var(--ink);
+  --bg-highlight: var(--ink-3);
+
+  --surface: var(--ink-2);
+  --surface-strong: var(--ink-3);
+  --surface-card: var(--ink-2);
+  --surface-card-soft: var(--ink-3);
+  --surface-card-strong: var(--ink-2);
+  --surface-card-highlight: var(--ink-4);
+  --surface-section: var(--ink);
+  --surface-section-soft: var(--ink-2);
+  --surface-section-strong: var(--ink);
+  --surface-pill: var(--ink-3);
+  --surface-nav-active: var(--ink-3);
+  --surface-input: var(--ink-2);
+
+  --border: var(--rule);
+  --border-soft: var(--rule);
+  --border-strong: var(--rule-2);
+  --border-positive: color-mix(in srgb, var(--up) 40%, transparent);
+  --border-info: var(--blue-line);
+
+  --muted: var(--dim);
+  --text-primary: var(--text);
+  --text-secondary: var(--mid);
+  --text-muted: var(--dim);
+  --text-soft: var(--mid);
+
+  --accent: var(--blue);
+  --accent-gradient: var(--blue);
+  --accent-dark: var(--blue-ink);
+  --accent-strong: var(--blue-2);
+  --accent-soft: var(--blue-wash);
+  --accent-text: var(--blue-2);
+
+  --trend-up: var(--up);
+  --trend-down: var(--down);
+  --trend-down-light: color-mix(in srgb, var(--down) 70%, var(--text));
+  --trend-line: var(--blue);
+  --tile-up-tint: var(--up-wash);
+  --tile-down-tint: var(--down-wash);
+  --selected-row: var(--blue-wash);
+
+  --panel-accent-glow: transparent;
+  --chart-candle-glow: transparent;
+  --chart-trend-glow: transparent;
+  --panel-gradient-top: var(--ink-2);
+  --panel-gradient-bottom: var(--ink-2);
+
+  --success: var(--up);
+  --success-soft-border: color-mix(in srgb, var(--up) 30%, transparent);
+  --warning: var(--warn);
+  --warning-soft: var(--warn-wash);
+  --danger: var(--down);
+  --danger-soft-border: color-mix(in srgb, var(--down) 30%, transparent);
+
+  --leaderboard-global-accent: var(--blue);
+  --leaderboard-global-strong: var(--blue-2);
+  --leaderboard-global-soft: var(--blue-wash);
+  --leaderboard-friends-accent: #2ec4b6;
+  --leaderboard-friends-strong: #8ff0e6;
+  --leaderboard-friends-soft: rgba(46, 196, 182, 0.14);
+  --leaderboard-rivals-accent: var(--down);
+  --leaderboard-rivals-strong: color-mix(in srgb, var(--down) 60%, var(--text));
+  --leaderboard-rivals-soft: var(--down-wash);
   --leaderboard-podium-gold: #c9971d;
   --leaderboard-podium-gold-strong: #f0c95a;
   --leaderboard-podium-silver: #8490a6;
   --leaderboard-podium-silver-strong: #c9d2e2;
   --leaderboard-podium-bronze: #9c6137;
   --leaderboard-podium-bronze-strong: #d79a69;
-  --button-primary-text: #f3f3f3;
-  --button-primary-border: rgba(100, 177, 255, 0.6);
-  --button-secondary-bg: rgba(95, 222, 236, 0.12);
-  --input-bg: rgba(26, 26, 26, 0.86);
-  --table-border: rgba(20, 20, 28, 0.1);
-  --empty-border: rgba(17, 17, 23, 0.18);
-  --empty-bg: rgba(26, 21, 47, 0.45);
-  --trade-confirmation-overlay-bg: rgba(14, 15, 19, 0.8);
-  --trade-confirmation-surface: rgba(21, 24, 30, 0.96);
-  --trade-confirmation-hero-buy: linear-gradient(135deg, rgba(0, 255, 153, 0.26), rgba(12, 44, 28, 0.92));
-  --trade-confirmation-hero-sell: linear-gradient(135deg, rgba(255, 63, 116, 0.28), rgba(56, 12, 24, 0.92));
-  --trade-confirmation-hero-buy-border: #1dff98;
-  --trade-confirmation-hero-sell-border: #ff4f7d;
-  --trade-confirmation-pill-bg: rgba(37, 37, 49, 0.9);
-  --trade-confirmation-pill-text: #cafaff;
-  --trade-confirmation-copy: #578da8;
-  --trade-confirmation-close-bg: rgba(50, 50, 50, 0.68);
-  --trade-confirmation-close-border: rgba(95, 120, 145, 0.42);
-  --trade-confirmation-image-bg: rgba(28, 31, 37, 0.8);
-  --trade-confirmation-shadow: 0 24px 52px rgba(0, 11, 18, 0.58);
-  --page-header-mask-solid: #050b11;
-  --shadow: 0 22px 46px rgba(0, 11, 18, 0.46), 0 0 38px rgba(95, 222, 236, 0.055);
-  --shadow-tight: 0 10px 24px rgba(0, 11, 18, 0.34);
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --container: 100dvw;
-  --font-display: "Chicago", "Iowan Old Style", "Palatino Linotype", serif;
-  --font-body: "Rethink Sans", "Mukta", "Avenir Next", "Segoe UI", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif;
-  --font-mono: "Red Hat Mono", "JetBrains Mono", "Fira Code", "Monaco", monospace;
-}
 
-[data-theme="light"] {
-  --bg: #eef4fb;
-  --bg-darker: #eff4fe;
-  --bg-darkest: #e3ecf9;
-  --bg-accent: #f7fafc;
-  --bg-radial-top: rgb(236, 244, 255);
-  --bg-gradient-top: #ffffff;
-  --bg-gradient-bottom: #dce6f4;
-  --surface: rgba(255, 255, 255, 0.9);
-  --surface-strong: #e6edf8;
-  --surface-card: rgba(255, 255, 255, 0.94);
-  --surface-card-soft: rgba(232, 240, 250, 0.78);
-  --surface-card-strong: rgba(221, 231, 244, 0.88);
-  --surface-card-highlight: rgba(204, 219, 240, 0.88);
-  --surface-section: rgba(255, 255, 255, 0.96);
-  --surface-section-soft: rgba(240, 245, 251, 0.92);
-  --surface-section-strong: rgba(228, 237, 248, 0.98);
-  --surface-pill: rgba(225, 235, 248, 0.95);
-  --surface-nav-active: rgba(222, 233, 247, 0.96);
-  --border: rgba(96, 178, 229, 0.644);
-  --border-soft: rgba(92, 172, 215, 0.509);
-  --border-strong: rgba(96, 133, 177, 0.38);
-  --border-positive: rgba(44, 136, 176, 0.644);
-  --border-info: rgba(87, 178, 234, 0.669);
-  --text: #112033;
-  --muted: #4d6986;
-  --accent: #1aacbc;
-  --accent-gradient: rgb(53, 146, 208);
-  --accent-dark: #b8deff;
-  --bg-highlight: #dfe8f4;
-  --accent-strong: #0f5f88;
-  --accent-soft: rgba(120, 161, 214, 0.2);
-  --trend-up: #009f67;
-  --trend-down: #c92c49;
-  --trend-down-light: #ea7676;
-  --trend-line: #356ee6;
-  --tile-up-tint: rgba(15, 118, 110, 0.1);
-  --tile-down-tint: rgba(220, 38, 38, 0.08);
-  --selected-row: rgba(240, 147, 91, 0.12);
-  --panel-accent-glow: rgba(110, 136, 168, 0.16);
-  --chart-candle-glow: rgba(15, 118, 110, 0.08);
-  --chart-trend-glow: rgba(53, 110, 230, 0.08);
-  --panel-gradient-top: rgba(255, 255, 255, 0.98);
-  --panel-gradient-bottom: rgba(234, 241, 249, 0.94);
-  --success: #109f3d;
-  --success-soft-border: rgba(22, 163, 74, 0.2);
-  --warning: #d97706;
-  --warning-soft: rgba(217, 119, 6, 0.14);
-  --danger: #c43030;
-  --danger-soft-border: rgba(220, 38, 38, 0.18);
-  --leaderboard-global-accent: #1aacbc;
-  --leaderboard-global-strong: #0f5f88;
-  --leaderboard-global-soft: rgba(51, 166, 188, 0.18);
-  --leaderboard-friends-accent: #138f8b;
-  --leaderboard-friends-strong: #0f6d73;
-  --leaderboard-friends-soft: rgba(25, 150, 148, 0.18);
-  --leaderboard-rivals-accent: #b13e4d;
-  --leaderboard-rivals-strong: #7c1f2f;
-  --leaderboard-rivals-soft: rgba(177, 62, 77, 0.16);
-  --leaderboard-podium-gold: #f0c95a;
-  --leaderboard-podium-gold-strong: #bf8e15;
-  --leaderboard-podium-silver: #d8e0ee;
-  --leaderboard-podium-silver-strong: #7b869d;
-  --leaderboard-podium-bronze: #d79a69;
-  --leaderboard-podium-bronze-strong: #91592d;
-  --button-primary-text: #f5fbff;
-  --button-primary-border: rgba(57, 131, 206, 0.45);
-  --button-secondary-bg: rgba(96, 128, 228, 0.2);
-  --input-bg: rgba(255, 255, 255, 0.92);
-  --table-border: rgba(142, 162, 187, 0.18);
-  --empty-border: rgba(142, 162, 187, 0.2);
-  --empty-bg: rgba(222, 232, 247, 0.65);
-  --trade-confirmation-overlay-bg: rgba(17, 32, 51, 0.18);
-  --trade-confirmation-surface: rgba(255, 255, 255, 0.96);
-  --trade-confirmation-hero-buy: linear-gradient(135deg, rgba(0, 214, 122, 0.22), rgba(218, 255, 240, 0.96));
-  --trade-confirmation-hero-sell: linear-gradient(135deg, rgba(255, 69, 108, 0.2), rgba(255, 233, 238, 0.96));
-  --trade-confirmation-hero-buy-border: #00b86b;
-  --trade-confirmation-hero-sell-border: #eb365f;
-  --trade-confirmation-pill-bg: rgba(225, 235, 248, 0.95);
-  --trade-confirmation-pill-text: #0f5f88;
-  --trade-confirmation-copy: #4d6986;
-  --trade-confirmation-close-bg: rgba(232, 240, 250, 0.78);
-  --trade-confirmation-close-border: rgba(96, 133, 177, 0.38);
-  --trade-confirmation-image-bg: rgba(240, 245, 251, 0.92);
-  --trade-confirmation-shadow: 0 22px 48px rgba(108, 132, 166, 0.22);
-  --page-header-mask-solid: #ffffff;
-  --shadow: 0 18px 40px rgba(108, 132, 166, 0.18);
+  --button-primary-text: var(--blue-ink);
+  --button-primary-border: var(--blue);
+  --button-primary-bg: var(--blue);
+  --button-secondary-bg: var(--ink-3);
+  --input-bg: var(--ink-2);
+  --table-border: var(--rule);
+  --empty-border: var(--rule-2);
+  --empty-bg: var(--ink-2);
+
+  --trade-confirmation-overlay-bg: var(--scrim);
+  --trade-confirmation-surface: var(--ink);
+  --trade-confirmation-hero-buy: var(--up);
+  --trade-confirmation-hero-sell: var(--down);
+  --trade-confirmation-hero-buy-border: var(--up);
+  --trade-confirmation-hero-sell-border: var(--down);
+  --trade-confirmation-pill-bg: var(--ink-3);
+  --trade-confirmation-pill-text: var(--blue-2);
+  --trade-confirmation-copy: var(--mid);
+  --trade-confirmation-close-bg: var(--ink-3);
+  --trade-confirmation-close-border: var(--rule-2);
+  --trade-confirmation-image-bg: var(--ink-2);
+  --trade-confirmation-shadow: var(--shadow-pop);
+
+  --page-header-mask-solid: var(--ink);
+  --shadow: none;
+  --shadow-tight: none;
+  --container: 100dvw;
 }

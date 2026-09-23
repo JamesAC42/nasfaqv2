@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo } from "react";
+import { useRootAttribute } from "@/app/lib/use-root-attribute";
 
 type Theme = "dark" | "light";
 
@@ -14,38 +15,30 @@ const STORAGE_KEY = "nasfaq.theme";
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function getPreferredTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
-
-  const storedTheme = window.localStorage.getItem(STORAGE_KEY);
-  if (storedTheme === "dark" || storedTheme === "light") return storedTheme;
-
-  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-}
-
+// <html data-theme> is the source of truth: the boot script in app/layout.tsx
+// sets it before first paint (dark unless the player picked light).
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => getPreferredTheme());
+  const theme: Theme = useRootAttribute("theme", "dark") === "light" ? "light" : "dark";
 
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, theme);
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.style.colorScheme = theme;
-  }, [theme]);
+  const setTheme = useCallback((next: Theme) => {
+    document.documentElement.dataset.theme = next;
+    try {
+      window.localStorage.setItem(STORAGE_KEY, next);
+    } catch {
+      // storage can be unavailable (private mode); the choice still applies for this visit
+    }
+  }, []);
 
   const value = useMemo<ThemeContextValue>(
     () => ({
       theme,
       setTheme,
-      toggleTheme: () => setTheme((current) => (current === "dark" ? "light" : "dark")),
+      toggleTheme: () => setTheme(theme === "dark" ? "light" : "dark"),
     }),
-    [theme],
+    [setTheme, theme],
   );
 
-  return (
-    <ThemeContext.Provider value={value}>
-      <div data-theme={theme}>{children}</div>
-    </ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {

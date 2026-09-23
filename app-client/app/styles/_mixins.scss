@@ -1,88 +1,348 @@
-@mixin panel {
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-card) 96%, transparent), color-mix(in srgb, var(--bg-accent) 94%, transparent)),
-    var(--bg-accent);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow);
-  position:relative;
-  &::before {
-    content: "";
-    z-index: -1;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(to bottom, color-mix(in srgb, var(--accent) 76%, transparent), color-mix(in srgb, var(--accent-gradient) 44%, transparent));
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-tight);
-    transform:translate(-4px, 4px);
+// ─────────────────────────────────────────────────────────────────────────────
+// Design-system mixins. Rules of thumb (full version in app-client/DESIGN.md):
+// - Sections are separated by 1px hairlines (--rule), not cards with shadows.
+// - Numbers are always mono (@include num). Labels are small uppercase mono.
+// - Chicago (@include display) is for headlines, talent names and moments only.
+// - Blue is the chassis accent; green/red only ever mean up/down.
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+$bp-phone: 720px;
+$bp-tablet: 1020px;
+$bp-desktop: 1280px;
+
+@mixin phone {
+  @media (max-width: $bp-phone) {
+    @content;
   }
 }
 
+@mixin tablet-down {
+  @media (max-width: $bp-tablet) {
+    @content;
+  }
+}
+
+@mixin desktop-down {
+  @media (max-width: $bp-desktop) {
+    @content;
+  }
+}
+
+@mixin hover-device {
+  @media (hover: hover) and (pointer: fine) {
+    @content;
+  }
+}
+
+@mixin focus-ring {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+// ── Type ────────────────────────────────────────────────────────────────────
+@mixin display($size: null) {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: 0.005em;
+  @if $size {
+    font-size: $size;
+  }
+}
+
+@mixin num($width: narrow) {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  @if $width == wide {
+    font-variation-settings: var(--mono-wide);
+  } @else if $width == normal {
+    font-variation-settings: var(--mono-normal);
+  } @else {
+    font-variation-settings: var(--mono-narrow);
+  }
+}
+
+@mixin label {
+  font-family: var(--font-mono);
+  font-size: 0.656rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-variation-settings: "wdth" 100;
+  color: var(--dim);
+}
+
+@mixin section-heading {
+  @include label;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--text);
+}
+
+// ── Surfaces ────────────────────────────────────────────────────────────────
+// A section of the page. Use instead of a floating card.
+@mixin section($pad: 0.875rem 1rem) {
+  padding: $pad;
+  border-bottom: 1px solid var(--rule);
+}
+
+// A bordered block that stands apart (a table wrapper, an order ticket).
+@mixin panel {
+  background: var(--ink-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+}
+
+// Things that float above the page: menus, peeks, popovers.
+@mixin popover {
+  background: var(--ink-2);
+  border: 1px solid var(--rule-2);
+  box-shadow: var(--shadow-pop);
+}
+
+@mixin empty-state {
+  border: 1px dashed var(--rule-2);
+  padding: 1rem;
+  color: var(--dim);
+  background: transparent;
+}
+
+// ── Controls ────────────────────────────────────────────────────────────────
+@mixin button-base {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--rule-2);
+  padding: 0.6rem 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-variation-settings: "wdth" 95;
+  background: none;
+  color: var(--text);
+  transition:
+    background-color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease,
+    color var(--dur-fast) ease;
+
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
+@mixin button-primary {
+  @include button-base;
+  background: var(--blue);
+  border-color: var(--blue);
+  color: var(--blue-ink);
+
+  &:hover:not(:disabled) {
+    background: var(--blue-2);
+    border-color: var(--blue-2);
+  }
+}
+
+@mixin button-secondary {
+  @include button-base;
+
+  &:hover:not(:disabled) {
+    border-color: var(--text);
+  }
+}
+
+@mixin button-buy {
+  @include button-base;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1rem;
+  letter-spacing: 0.03em;
+  background: var(--up);
+  border-color: var(--up);
+  color: var(--up-ink);
+}
+
+@mixin button-sell {
+  @include button-buy;
+  background: var(--down);
+  border-color: var(--down);
+  color: var(--down-ink);
+}
+
+@mixin input-base {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--rule-2);
+  background: var(--ink-2);
+  padding: 0.65rem 0.8rem;
+  font: inherit;
+  color: var(--text);
+
+  &::placeholder {
+    color: var(--dim);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--text);
+  }
+}
+
+// Segmented tabs: [ 24H | 7D | 1M ]
+@mixin tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+}
+
+@mixin tab {
+  border: 0;
+  background: none;
+  padding: 0.35rem 0.7rem;
+  font-family: var(--font-mono);
+  font-size: 0.656rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-variation-settings: "wdth" 90;
+  color: var(--dim);
+
+  &:hover {
+    color: var(--text);
+  }
+}
+
+@mixin tab-selected {
+  background: var(--text);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+@mixin table-shell {
+  width: 100%;
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--rule);
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  th {
+    @include label;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+}
+
+// ── Market ──────────────────────────────────────────────────────────────────
+@mixin tone-colors {
+  &.up,
+  &[data-tone="up"] {
+    color: var(--up);
+  }
+
+  &.down,
+  &[data-tone="down"] {
+    color: var(--down);
+  }
+
+  &.flat,
+  &[data-tone="flat"] {
+    color: var(--mid);
+  }
+}
+
+// Price-change flash. Include once per module, then add .flashUp / .flashDown.
+@mixin flash-keyframes {
+  @keyframes flashUp {
+    0% {
+      box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--up) 45%, transparent);
+    }
+    100% {
+      box-shadow: inset 0 0 0 999px transparent;
+    }
+  }
+
+  @keyframes flashDown {
+    0% {
+      box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--down) 45%, transparent);
+    }
+    100% {
+      box-shadow: inset 0 0 0 999px transparent;
+    }
+  }
+
+  .flashUp {
+    animation: flashUp var(--dur-flash) ease-out;
+  }
+
+  .flashDown {
+    animation: flashDown var(--dur-flash) ease-out;
+  }
+}
+
+// ── Legacy mixins, kept so existing modules compile. Restyled to the new system.
 @mixin archive-grid-surface {
-  overflow: hidden;
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--accent) 8%, transparent) 0 1px, transparent 1px 100%),
-    linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, transparent) 0 1px, transparent 1px 100%),
-    radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 18%, transparent), transparent 32rem),
-    linear-gradient(135deg, color-mix(in srgb, var(--surface-card) 96%, transparent), color-mix(in srgb, var(--bg-accent) 94%, transparent));
-  background-size: 18px 18px, 18px 18px, auto, auto;
+  background: var(--ink-2);
 }
 
 @mixin archive-hero {
   @include panel;
-  @include archive-grid-surface;
   display: grid;
   align-items: end;
-  min-height: 10.25rem;
+  min-height: 8rem;
   padding: 1rem;
   gap: 0.8rem;
 }
 
 @mixin archive-eyebrow {
+  @include label;
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  color: var(--accent-strong);
-  font-size: 0.7rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  color: var(--blue);
 }
 
 @mixin archive-title {
-  @include section-title;
+  @include display;
   margin: 0;
-  color: var(--accent-strong);
-  font-size: clamp(2rem, 3.8vw, 3.7rem);
-  line-height: 0.96;
-  text-shadow: 0 0 30px color-mix(in srgb, var(--accent) 22%, transparent);
-
-  [data-theme="light"] & {
-    text-shadow: none;
-  }
+  font-size: clamp(2rem, 3.8vw, 3.4rem);
+  line-height: 0.98;
 }
 
 @mixin archive-metric {
   display: grid;
   align-content: center;
   gap: 0.16rem;
-  min-height: 4.7rem;
   padding: 0.62rem;
-  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border-soft));
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--surface-card) 84%, transparent);
+  border: 1px solid var(--rule);
 
   span,
   em {
-    color: var(--muted);
-    font-size: 0.72rem;
+    @include label;
     font-style: normal;
   }
 
   strong {
-    font-family: var(--font-mono);
+    @include num;
     font-size: 1rem;
   }
 }
@@ -95,23 +355,19 @@
 }
 
 @mixin section-title {
+  @include display;
   margin: 0;
-  font-family: var(--font-display);
-  font-size: clamp(1.35rem, 2vw, 1.9rem);
-  letter-spacing: 0;
-  text-wrap: balance;
+  font-size: clamp(1.35rem, 2vw, 1.8rem);
 }
 
 @mixin section-title-row($gap: 0.8rem) {
   @include section-title;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: $gap;
-  text-align: center;
 }
 
-@mixin section-title-icon($size: 1.1rem, $color: var(--accent)) {
+@mixin section-title-icon($size: 1.1rem, $color: var(--blue)) {
   width: $size;
   height: $size;
   color: $color;
@@ -119,92 +375,6 @@
 }
 
 @mixin subtle-copy {
-  color: var(--muted);
+  color: var(--dim);
   line-height: 1.6;
-}
-
-@mixin button-base {
-  appearance: none;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  padding: 0.72rem 1rem;
-  font: inherit;
-  font-weight: 600;
-  transition:
-    transform 140ms ease,
-    border-color 140ms ease,
-    background-color 140ms ease;
-
-  &:hover:not(:disabled) {
-    transform: translateY(-1px);
-  }
-
-  &:active:not(:disabled) {
-    transform: translateY(1px);
-  }
-
-  &:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--accent) 68%, transparent);
-    outline-offset: 2px;
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.55;
-  }
-}
-
-@mixin button-primary {
-  @include button-base;
-  background: var(--accent);
-  color: var(--bg-darkest);
-  border-color: var(--button-primary-border);
-}
-
-@mixin button-secondary {
-  @include button-base;
-  background: var(--button-secondary-bg);
-  color: var(--text);
-}
-
-@mixin input-base {
-  width: 100%;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--input-bg);
-  padding: 0.78rem 0.9rem;
-  font: inherit;
-  color: var(--text);
-  &:focus {
-    outline: 2px solid var(--accent-soft);
-  }
-}
-
-@mixin table-shell {
-  width: 100%;
-  border-collapse: collapse;
-
-  th,
-  td {
-    padding: 0.8rem 0.9rem;
-    border-bottom: 1px solid var(--table-border);
-    text-align: left;
-    vertical-align: top;
-  }
-
-  th {
-    color: var(--muted);
-    font-size: 0.82rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-}
-
-@mixin empty-state {
-  border: 1px dashed var(--empty-border);
-  border-radius: var(--radius-sm);
-  padding: 1rem;
-  color: var(--muted);
-  background: var(--empty-bg);
 }

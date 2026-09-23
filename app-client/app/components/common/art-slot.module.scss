@@ -1,0 +1,66 @@
+.slot {
+  --tal: var(--blue);
+  position: relative;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.keyart {
+  aspect-ratio: 4 / 5;
+}
+
+.chibi {
+  aspect-ratio: 1;
+}
+
+.image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+}
+
+// Idle chibis blink: the eyes-closed frame shows for ~120ms every few seconds.
+.blink {
+  opacity: 0;
+  animation: blink 4.6s steps(1, end) infinite;
+}
+
+@keyframes blink {
+  0%,
+  96% {
+    opacity: 0;
+  }
+  97%,
+  99% {
+    opacity: 1;
+  }
+}
+
+.placeholder {
+  background:
+    radial-gradient(120% 90% at 70% 100%, color-mix(in srgb, var(--tal) 26%, transparent), transparent 65%),
+    linear-gradient(180deg, transparent, color-mix(in srgb, var(--tal) 10%, transparent));
+}
+
+.halftone {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(color-mix(in srgb, var(--tal) 32%, transparent) 1px, transparent 1.4px) 0 0 / 7px 7px;
+  mask-image: linear-gradient(200deg, transparent 10%, #000 85%);
+}
+
+.watermark {
+  position: absolute;
+  right: 8%;
+  bottom: 8%;
+  opacity: 0.22;
+  filter: saturate(0.8);
+}
+
+.keyart .watermark {
+  right: 12%;
+  bottom: 14%;
+}
