@@ -1,0 +1,111 @@
+@use "../../styles/mixins" as *;
+
+.tape {
+  height: var(--tape-height);
+  overflow: hidden;
+  background: var(--ink-2);
+  border-bottom: 1px solid var(--rule);
+  position: relative;
+}
+
+.track {
+  display: flex;
+  width: max-content;
+  height: 100%;
+  animation: tape var(--tape-duration, 160s) linear infinite;
+  // Runs on the compositor, so socket-driven re-renders elsewhere don't stutter it.
+  will-change: transform;
+}
+
+.tape:hover .track,
+.tape:focus-within .track {
+  animation-play-state: paused;
+}
+
+@keyframes tape {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.loop {
+  display: flex;
+  height: 100%;
+}
+
+.item {
+  @include num;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 100%;
+  padding-inline: 0.8rem;
+  border-right: 1px solid var(--rule);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  color: var(--mid);
+
+  b {
+    color: var(--text);
+    font-weight: 700;
+  }
+
+  &:hover b {
+    color: var(--blue);
+  }
+}
+
+.price {
+  color: var(--mid);
+}
+
+.up {
+  color: var(--up);
+}
+
+.down {
+  color: var(--down);
+}
+
+.flat {
+  color: var(--dim);
+}
+
+.divider {
+  display: flex;
+  align-items: flex-end;
+  padding-inline: 0.75rem;
+  border-right: 1px solid var(--rule);
+}
+
+.dividerImage {
+  height: calc(var(--tape-height) - 2px);
+  width: auto;
+}
+
+.empty {
+  @include label;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding-inline: 1rem;
+}
+
+@include flash-keyframes;
+
+// Calm mode: a still, scrollable strip instead of a marquee.
+:global(html[data-calm="true"]) {
+  .tape {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .track {
+    animation: none !important;
+    transform: none;
+  }
+
+  .loop[aria-hidden] {
+    display: none;
+  }
+}
