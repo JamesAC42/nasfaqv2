@@ -34,6 +34,10 @@ const ERROR_STATUS = {
   invalid_deck: 400,
   invalid_bet: 400,
   card_pool_empty: 503,
+  game_session_not_found: 404,
+  game_session_not_active: 409,
+  run_too_fast: 409,
+  invalid_game_session: 400,
 };
 
 function sendGameError(res, next, error) {
@@ -234,59 +238,34 @@ router.post("/capsule-gacha/pull", async (req, res, next) => {
 
 router.post("/ticker-tap/sessions", async (req, res, next) => {
   try {
-    const userId = requireUserId(req);
-    const result = await gamesSessions.createTickerTapSession(req.ctx.pool, { userId });
-    res.status(201).json(result);
+    const userId = requireVerifiedUserId(req);
+    res.status(201).json(await gamesSessions.createTickerTapSession(req.ctx.pool, { userId }));
   } catch (error) {
-    if (error?.code === "unauthenticated") {
-      return res.status(401).json({ error: "unauthenticated" });
-    }
-    if (error?.code === "insufficient_cash") {
-      return res.status(409).json({ error: "insufficient_cash" });
-    }
-    next(error);
+    sendGameError(res, next, error);
   }
 });
 
 router.get("/ticker-tap/sessions/:id", async (req, res, next) => {
   try {
     const userId = requireUserId(req);
-    const session = await gamesSessions.getTickerTapSession(req.ctx.pool, {
-      userId,
-      sessionId: req.params.id,
-    });
-    res.json({ session });
+    res.json({ session: await gamesSessions.getTickerTapSession(req.ctx.pool, { userId, sessionId: req.params.id }) });
   } catch (error) {
-    if (error?.code === "unauthenticated") {
-      return res.status(401).json({ error: "unauthenticated" });
-    }
-    next(error);
+    sendGameError(res, next, error);
   }
 });
 
 router.post("/ticker-tap/sessions/:id/submit", async (req, res, next) => {
   try {
     const userId = requireUserId(req);
-    const result = await gamesSessions.submitTickerTapSession(req.ctx.pool, {
-      userId,
-      sessionId: req.params.id,
-      payload: req.body,
-    });
-    res.json(result);
+    res.json(await gamesSessions.submitTickerTapSession(req.ctx.pool, { userId, sessionId: req.params.id, payload: req.body }));
   } catch (error) {
-    if (error?.code === "unauthenticated") {
-      return res.status(401).json({ error: "unauthenticated" });
-    }
-    if (error?.code === "game_session_not_active") {
-      return res.status(409).json({ error: "game_session_not_active" });
-    }
-    next(error);
+    sendGameError(res, next, error);
   }
 });
 
 router.get("/ticker-tap/leaderboard", async (req, res, next) => {
   try {
-    const result = await gamesSessions.listTickerTapLeaderboard(req.ctx.pool);
+    const result = await gamesSessions.listTickerTapLeaderboard(req.ctx.pool, { userId: req.ctx?.user?.id || null });
     res.json(result);
   } catch (error) {
     next(error);

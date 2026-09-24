@@ -8,6 +8,8 @@ const VALID_ENTRY_TYPES = new Set([
   "game_refund",
   "pvp_stake_debit",
   "pvp_prize_payout",
+  "table_bet_debit",
+  "table_payout",
 ]);
 
 function toNumber(value, fallback = 0) {

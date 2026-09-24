@@ -26,6 +26,10 @@ const articleDb = require("./articleDb");
 const analysisRoutes = require("./routes/analysis");
 const leaderboardRoutes = require("./routes/leaderboard");
 const gamesRoutes = require("./routes/games");
+const gameTablesRoutes = require("./routes/gameTables");
+const gamesHub = require("./services/games/tables/hub");
+const pvpTables = require("./services/games/tables/pvp");
+const blackjackTables = require("./services/games/tables/blackjack");
 const marketRoutes = require("./routes/market");
 const internalMarketRoutes = require("./routes/internalMarket");
 const portfolioRoutes = require("./routes/portfolio");
@@ -236,6 +240,7 @@ api.use("/news", newsRoutes);
 api.use("/articles", articleRoutes);
 api.use("/analysis", analysisRoutes);
 api.use("/leaderboard", leaderboardRoutes);
+api.use("/games", gameTablesRoutes);
 api.use("/games", gamesRoutes);
 api.use("/market", marketRoutes);
 api.use("/portfolio", portfolioRoutes);
@@ -363,6 +368,9 @@ async function main() {
   }
   await achievements.syncDefinitions(pool);
   await gamesCatalog.syncCatalog(pool);
+  await pvpTables.init(pool);
+  await blackjackTables.init(pool);
+  require("./services/games/sessions").startWeeklySettlement(pool);
   await mediaCatalog.syncMediaCatalog(pool, console);
   await chatDb.ensureChatTopology(pool);
 
@@ -394,6 +402,7 @@ async function main() {
   const chatWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
   const marketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
   const predictionMarketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
+  const gamesWss = gamesHub.createGamesWss();
 
   const broadcastOnlineUserCount = () => {
     const payload = JSON.stringify({
@@ -605,6 +614,8 @@ async function main() {
                 ? marketWss
                 : pathname === "/api/prediction-markets/ws"
                   ? predictionMarketWss
+                  : pathname === "/api/games/ws"
+                    ? gamesWss
           : null;
 
     if (!target) {
@@ -672,7 +683,7 @@ async function main() {
   server.listen(cfg.port, () => {
     // eslint-disable-next-line no-console
     console.log(
-      `API listening on http://localhost:${cfg.port} (HTTP + WebSocket /api/livestreams/ws + /api/livestreams/buckets/ws + /api/stats/ws + /api/chat/ws + /api/market/ws + /api/prediction-markets/ws)`
+      `API listening on http://localhost:${cfg.port} (HTTP + WebSocket /api/livestreams/ws + /api/livestreams/buckets/ws + /api/stats/ws + /api/chat/ws + /api/market/ws + /api/prediction-markets/ws + /api/games/ws)`
     );
   });
 
