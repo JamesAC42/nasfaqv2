@@ -94,3 +94,87 @@
   font-size: 0.6rem;
   color: var(--dim);
 }
+
+.grid {
+  stroke: var(--rule);
+  vector-effect: non-scaling-stroke;
+}
+
+.areaUp {
+  fill: color-mix(in srgb, var(--up) 14%, transparent);
+}
+
+.areaDown {
+  fill: color-mix(in srgb, var(--down) 14%, transparent);
+}
+
+.lineUp,
+.lineDown,
+.compare {
+  fill: none;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.lineUp {
+  stroke: var(--up);
+}
+
+.lineDown {
+  stroke: var(--down);
+}
+
+.compare {
+  stroke: var(--mid);
+  stroke-width: 1.25;
+  stroke-dasharray: 4 3;
+  opacity: 0.6;
+}
+
+.yl,
+.tag {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  @include num;
+  font-size: 0.625rem;
+}
+
+.yl {
+  color: var(--dim);
+  width: 3.6rem;
+  text-align: left;
+  padding-left: 0.4rem;
+}
+
+.tag {
+  width: 3.6rem;
+  padding: 0.1rem 0.3rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.tagUp {
+  background: var(--up);
+}
+
+.tagDown {
+  background: var(--down);
+}
+
+.xl {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1rem;
+  @include num;
+  font-size: 0.6rem;
+  color: var(--dim);
+
+  span {
+    position: absolute;
+    bottom: 0;
+    white-space: nowrap;
+  }
+}

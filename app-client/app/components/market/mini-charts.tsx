@@ -98,3 +98,52 @@ export const AreaLine = memo(function AreaLine({ values, markerIndex, labels }: 
     </div>
   );
 });
+
+/** Index line with y labels, an optional dashed comparison and a tag on the last value. */
+export const IndexChart = memo(function IndexChart({ values, compare, tone, dates }: { values: number[]; compare?: number[] | null; tone: "up" | "down"; dates: string[] }) {
+  const W = 800;
+  const H = 300;
+  const padR = 64;
+  const padB = 22;
+  const all = [...values, ...(compare ?? [])].filter((value) => Number.isFinite(value));
+  if (values.length < 2 || !all.length) return <div className={styles.empty}>Not enough history yet.</div>;
+  let min = Math.min(...all);
+  let max = Math.max(...all);
+  const pad = (max - min) * 0.12 || 1;
+  min -= pad;
+  max += pad;
+  const x = (i: number, n: number) => (i / (n - 1)) * (W - padR);
+  const y = (v: number) => 8 + (1 - (v - min) / (max - min)) * (H - 8 - padB);
+  const path = (series: number[]) => series.map((value, i) => `${x(i, series.length).toFixed(1)},${y(value).toFixed(1)}`).join(" ");
+  const grid = [0, 1, 2, 3, 4].map((i) => min + ((max - min) * i) / 4);
+  const last = values[values.length - 1];
+  const ticks = [0, Math.floor(dates.length / 3), Math.floor((dates.length * 2) / 3)].filter((i, k, arr) => arr.indexOf(i) === k && dates[i]);
+  return (
+    <div className={styles.wrap}>
+      <svg className={styles.chart} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+        {grid.map((value) => (
+          <line key={value} x1="0" x2={W - padR} y1={y(value)} y2={y(value)} className={styles.grid} />
+        ))}
+        <polygon points={`0,${H - padB} ${path(values)} ${W - padR},${H - padB}`} className={tone === "up" ? styles.areaUp : styles.areaDown} />
+        {compare && compare.length > 1 ? <polyline points={path(compare)} className={styles.compare} /> : null}
+        <polyline points={path(values)} className={tone === "up" ? styles.lineUp : styles.lineDown} />
+      </svg>
+      {grid.map((value) => (
+        <span key={value} className={styles.yl} style={{ top: `${((y(value) / H) * 100).toFixed(2)}%` }}>
+          {value.toFixed(1)}
+        </span>
+      ))}
+      <span className={`${styles.tag} ${tone === "up" ? styles.tagUp : styles.tagDown}`} style={{ top: `${((y(last) / H) * 100).toFixed(2)}%` }}>
+        {last.toFixed(2)}
+      </span>
+      <div className={styles.xl}>
+        {ticks.map((i) => (
+          <span key={i} style={{ left: `${((x(i, dates.length) / W) * 100).toFixed(2)}%` }}>
+            {dates[i]}
+          </span>
+        ))}
+        <span style={{ right: `${((padR / W) * 100).toFixed(2)}%`, transform: "none" }}>NOW</span>
+      </div>
+    </div>
+  );
+});

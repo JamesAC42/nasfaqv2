@@ -1,5 +1,5 @@
-import { IndexesPage } from "@/app/components/pages/indexes-page";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <IndexesPage />;
+  redirect("/market/indexes");
 }
