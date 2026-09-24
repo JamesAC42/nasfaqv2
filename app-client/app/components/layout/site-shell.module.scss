@@ -30,6 +30,12 @@
   padding-inline: var(--gutter);
   border-bottom: 1px solid var(--rule);
 
+  // Laptop widths (1021-1280) still show the full rail; tighten it so the right
+  // side (orders, theme, profile) never gets pushed off screen.
+  @include desktop-down {
+    gap: 0.7rem;
+  }
+
   @include phone {
     gap: 0.6rem;
   }
@@ -77,6 +83,11 @@
   padding-inline: 0.65rem;
   border: 0;
   border-bottom: 2px solid transparent;
+
+  @include desktop-down {
+    padding-inline: 0.45rem;
+  }
+
   margin-bottom: -1px;
   background: none;
   color: var(--mid);
@@ -181,6 +192,10 @@
   display: flex;
   align-items: center;
   gap: 0.7rem;
+  // Last resort under pressure: the status clips before anything gets pushed out.
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
   font-size: 0.6875rem;
   white-space: nowrap;
 }
@@ -249,7 +264,14 @@
 }
 
 .nextWord {
-  @include phone {
+  @include desktop-down {
+    display: none;
+  }
+}
+
+// Narrow phones: just the countdown, no tick name.
+@media (max-width: 380px) {
+  .nextTick b:not(.countdown) {
     display: none;
   }
 }
@@ -387,6 +409,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+
+  // Just the avatar until there's room for the name next to the full clock.
+  @media (max-width: 1360px) {
+    display: none;
+  }
 }
 
 .signIn {
