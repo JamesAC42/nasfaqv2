@@ -150,7 +150,15 @@ function lobby() {
 function schedule(table, ms, fn) {
   clearTimeout(table.timer);
   table.deadline = Date.now() + ms;
-  table.timer = setTimeout(() => withLock(table.key, fn).catch((error) => console.error("blackjack error:", error)), ms);
+  table.timer = setTimeout(
+    () =>
+      withLock(table.key, fn).catch((error) => {
+        // A failed step (usually the database) retries rather than freezing the table with bets on it.
+        console.error("blackjack error, retrying:", error);
+        schedule(table, 2000, fn);
+      }),
+    ms
+  );
 }
 
 // ── Seats ──────────────────────────────────────────────────────────────────
@@ -264,11 +272,12 @@ async function deal(table) {
   const up = cardValue(table.dealer.hand[0]);
   if ((up === 11 || up === 10) && isBlackjack(table.dealer.hand)) {
     table.dealer.hidden = false;
+    schedule(table, DEAL_MS, () => settle(table));
     publish(table);
-    return schedule(table, DEAL_MS, () => settle(table));
+    return;
   }
-  publish(table);
   schedule(table, DEAL_MS, () => nextTurn(table, -1));
+  publish(table);
 }
 
 async function nextTurn(table, after) {
@@ -276,12 +285,13 @@ async function nextTurn(table, after) {
   if (next < 0) {
     table.turn = null;
     table.dealer.hidden = false;
+    schedule(table, DEALER_STEP_MS, () => dealerPlay(table));
     publish(table);
-    return schedule(table, DEALER_STEP_MS, () => dealerPlay(table));
+    return;
   }
   table.turn = next;
-  publish(table);
   schedule(table, TURN_MS, () => stand(table, next));
+  publish(table);
 }
 
 async function stand(table, index) {
@@ -308,8 +318,8 @@ async function act({ userId, tableKey, action }) {
       } else if (total === 21) {
         await stand(table, index);
       } else {
-        publish(table);
         schedule(table, TURN_MS, () => stand(table, index));
+        publish(table);
       }
     } else if (action === "double") {
       if (seat.hand.length !== 2 || seat.doubled) throw bjError("invalid_action");
@@ -343,8 +353,9 @@ async function dealerPlay(table) {
   // Stand on all 17s, soft ones included. Skip drawing if everyone busted or has blackjack.
   if (anyLive && total < 17) {
     table.dealer.hand.push(draw(table));
+    schedule(table, DEALER_STEP_MS, () => dealerPlay(table));
     publish(table);
-    return schedule(table, DEALER_STEP_MS, () => dealerPlay(table));
+    return;
   }
   return settle(table);
 }
@@ -406,8 +417,8 @@ async function settle(table) {
   ].slice(0, 8);
   table.phase = "results";
   table.turn = null;
-  publish(table);
   schedule(table, RESULT_MS, () => resetTable(table));
+  publish(table);
 }
 
 async function resetTable(table) {

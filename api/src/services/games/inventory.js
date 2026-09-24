@@ -298,6 +298,13 @@ async function equipUserCosmetic(pool, userId, {
   return listUserInventory(pool, userId);
 }
 
+/** Empty a slot (e.g. take the hat off). Idempotent. */
+async function unequipUserCosmetic(pool, userId, { slotKey }) {
+  const safeSlotKey = normalizeSlotKey(slotKey);
+  await pool.query(`DELETE FROM games.user_equipped_cosmetics WHERE user_id = $1 AND slot_key = $2`, [userId, safeSlotKey]);
+  return listUserInventory(pool, userId);
+}
+
 async function getGamesSummary(pool, userId, { recentSessionLimit = 10 } = {}) {
   const client = await pool.connect();
 
@@ -514,6 +521,7 @@ async function listGachaSpendingLeaderboard(pool, { limit = 20 } = {}) {
 
 module.exports = {
   equipUserCosmetic,
+  unequipUserCosmetic,
   getGamesSummary,
   grantCosmeticWithClient,
   listUserInventory,

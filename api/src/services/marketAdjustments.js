@@ -802,7 +802,15 @@ function startAdjustmentScheduler(pool, logger = console, redis = null) {
   async function tick() {
     if (!enabled || running) return;
     running = true;
-    const lockClient = await pool.connect();
+    let lockClient;
+    try {
+      lockClient = await pool.connect();
+    } catch (error) {
+      // Pool exhausted or the database is down: skip this tick instead of crashing the process.
+      running = false;
+      logger.error?.("market adjustment scheduler could not get a connection", error);
+      return;
+    }
     try {
       const locked = await acquireAdjustmentSchedulerLock(lockClient);
       if (!locked) return;

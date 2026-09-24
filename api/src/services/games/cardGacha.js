@@ -576,7 +576,7 @@ async function getPublicCollection(pool, username) {
 async function listRecentTopPulls(pool, { limit = 12 } = {}) {
   const { rows } = await pool.query(
     `
-    SELECT p.id, p.card_key, p.rarity, p.was_featured, p.created_at, u.username, u.profile_color, a.symbol, a.display_name
+    SELECT p.id, p.card_key, p.rarity, p.was_featured, p.created_at, u.username, u.profile_color, a.symbol
     FROM games.card_pulls p
     JOIN market.users u ON u.id = p.user_id
     JOIN market.market_assets a ON a.id = p.asset_id
@@ -586,17 +586,24 @@ async function listRecentTopPulls(pool, { limit = 12 } = {}) {
   `,
     [Math.max(1, Math.min(50, Number(limit) || 12))]
   );
-  return rows.map((row) => ({
-    id: Number(row.id),
-    card_key: row.card_key,
-    rarity: row.rarity,
-    was_featured: row.was_featured,
-    created_at: row.created_at,
-    username: row.username,
-    profile_color: row.profile_color,
-    symbol: row.symbol,
-    name: row.display_name,
-  }));
+  const talents = cards.talentMap(await cards.listTalents(pool));
+  return rows.map((row) => {
+    const talent = talents.get(row.symbol);
+    return {
+      id: Number(row.id),
+      card_key: row.card_key,
+      rarity: row.rarity,
+      was_featured: row.was_featured,
+      created_at: row.created_at,
+      username: row.username,
+      profile_color: row.profile_color,
+      symbol: row.symbol,
+      name: talent?.name ?? row.symbol,
+      icon: talent?.icon ?? null,
+      color: talent?.color ?? null,
+      unit: talent?.unit ?? null,
+    };
+  });
 }
 
 module.exports = {

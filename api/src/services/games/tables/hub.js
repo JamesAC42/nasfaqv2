@@ -2,7 +2,7 @@
 //   lobby:{gameKey}      → { type: "lobby", game, tables }
 //   table:{id}           → { type: "table", table }
 //   blackjack:{tableKey} → { type: "blackjack", table }
-// The hub is anonymous: everything it sends is public. Hidden information (duel picks before the
+// Every message carries its `channel`. The hub is anonymous: everything it sends is public. Hidden information (duel picks before the
 // reveal, the dealer's hole card) is withheld by the engines before it gets here.
 
 const { WebSocketServer } = require("ws");
@@ -32,7 +32,7 @@ function subscribe(ws, channel) {
   for (const provider of snapshotProviders) {
     const snapshot = provider(channel);
     if (snapshot) {
-      send(ws, snapshot);
+      send(ws, { ...snapshot, channel });
       break;
     }
   }
@@ -60,7 +60,7 @@ function count(channel) {
 function publish(channel, payload) {
   const set = channels.get(channel);
   if (!set?.size) return;
-  const text = JSON.stringify(payload);
+  const text = JSON.stringify({ ...payload, channel });
   for (const ws of set) send(ws, text);
 }
 

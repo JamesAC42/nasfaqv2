@@ -339,25 +339,37 @@ async function actOnTable({ userId, tableId, action }) {
 }
 
 async function afterChange(table) {
-  await persistState(table);
-  if (table.state.phase === "done") await settle(table);
-  else schedule(table);
+  try {
+    await persistState(table);
+    if (table.state.phase === "done") await settle(table);
+    else schedule(table);
+  } catch (error) {
+    schedule(table, 2000);
+    throw error;
+  }
   publishTable(table);
 }
 
-function schedule(table) {
+function schedule(table, delayMs = null) {
   clearTimeout(table.timer);
   const deadline = table.state?.deadline;
-  if (!deadline) return;
+  if (delayMs === null && !deadline) return;
   table.timer = setTimeout(
-    () => withLock(table.id, () => tickTable(table.id)).catch(logError),
-    Math.max(0, deadline - Date.now()) + 25
+    () =>
+      withLock(table.id, () => tickTable(table.id)).catch((error) => {
+        // Never leave a table frozen with stakes in escrow: retry the step (usually a DB blip).
+        logError(error);
+        if (tables.get(table.id)?.status === "playing") schedule(table, 2000);
+      }),
+    delayMs ?? Math.max(0, deadline - Date.now()) + 25
   );
 }
 
 async function tickTable(tableId) {
   const table = tables.get(tableId);
   if (!table || table.status !== "playing") return;
+  // A finished game whose settlement failed: settle again.
+  if (table.state.phase === "done") return afterChange(table);
   const engine = ENGINES[table.gameKey];
   const next = engine.tick(table.state, Date.now());
   if (next === table.state) {

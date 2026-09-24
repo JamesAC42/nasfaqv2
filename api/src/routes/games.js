@@ -210,10 +210,14 @@ router.get("/capsule-gacha/catalog", async (req, res, next) => {
 router.post("/me/cosmetics/equip", async (req, res, next) => {
   try {
     const userId = requireUserId(req);
-    const inventory = await gamesInventory.equipUserCosmetic(req.ctx.pool, userId, {
-      slotKey: req.body?.slot_key,
-      userCosmeticId: req.body?.user_cosmetic_id,
-    });
+    // user_cosmetic_id: null empties the slot.
+    const inventory =
+      req.body?.user_cosmetic_id === null
+        ? await gamesInventory.unequipUserCosmetic(req.ctx.pool, userId, { slotKey: req.body?.slot_key })
+        : await gamesInventory.equipUserCosmetic(req.ctx.pool, userId, {
+            slotKey: req.body?.slot_key,
+            userCosmeticId: req.body?.user_cosmetic_id,
+          });
     res.json(inventory);
   } catch (error) {
     if (error?.code === "unauthenticated") {
@@ -296,8 +300,12 @@ router.get("/:username/item-locker", async (req, res, next) => {
       return res.status(404).json({ error: "profile_not_found" });
     }
     const targetUserId = Number(rows[0].id);
-    const locker = await gamesInventory.listUserItemLockerByUserId(req.ctx.pool, targetUserId);
-    res.json(locker);
+    const [locker, inventory] = await Promise.all([
+      gamesInventory.listUserItemLockerByUserId(req.ctx.pool, targetUserId),
+      gamesInventory.listUserInventory(req.ctx.pool, targetUserId),
+    ]);
+    // Owned cosmetics (capsule prizes and set rewards) and what's equipped are public, like the showcase.
+    res.json({ ...locker, cosmetics: inventory.cosmetics, equipped: inventory.equipped });
   } catch (error) {
     next(error);
   }
