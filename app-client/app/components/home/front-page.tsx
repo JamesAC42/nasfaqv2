@@ -25,7 +25,7 @@ import styles from "@/app/components/home/front-page.module.scss";
 
 
 function newsHref(item: NewsItem) {
-  return item.article_slug ? `/articles/${encodeURIComponent(item.article_slug)}` : "/news";
+  return item.article_slug ? `/articles/${encodeURIComponent(item.article_slug)}` : "/articles?type=news";
 }
 
 // ── Masthead ──────────────────────────────────────────────────────────────────
@@ -202,7 +202,7 @@ function FrontNews({ items, isLoading }: { items: NewsItem[]; isLoading: boolean
             ) : null}
           </article>
         ))}
-        <Link href="/news" className={styles.more}>
+        <Link href="/articles?type=news" className={styles.more}>
           All headlines →
         </Link>
       </div>

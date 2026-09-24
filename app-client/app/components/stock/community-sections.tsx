@@ -13,20 +13,9 @@ import { money, signedPct, timeAgo, toneOf } from "@/app/lib/time";
 import { ARTICLE_COMMENT_MOODS, type ArticleCommentMood, type AssetComment, type AssetCommentListResponse, type MarketAsset } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMarketStore } from "@/app/stores/market-store";
+import { MOOD_COLORS } from "@/app/lib/moods";
 import styles from "@/app/components/stock/dossier.module.scss";
 
-const MOOD_COLORS: Record<ArticleCommentMood, string> = {
-  Bullish: "var(--up)",
-  Bearish: "var(--down)",
-  Neutral: "#A7AEBE",
-  Hodling: "var(--blue)",
-  "Dump Eet": "#FF8A3D",
-  "He Bought?": "#B4F25C",
-  "He Sold?": "#FF6FB5",
-  "Diamond Hands": "#8AD6FF",
-  Watching: "#C9A7FF",
-  Accumulating: "#F5C542",
-};
 
 const enc = encodeURIComponent;
 
@@ -341,7 +330,7 @@ export function NewsSection({ asset }: { asset: MarketAsset }) {
         <p className={styles.empty}>{articles.loading ? "Loading coverage…" : `No coverage of ${asset.display_name} yet.`}</p>
       )}
       <div className={styles.newsFoot}>
-        <Link href="/news">All HoloNews →</Link>
+        <Link href={`/articles?stock=${enc(asset.symbol)}`}>All coverage of {asset.symbol} →</Link>
         <Link href="/articles/new">Write about {asset.symbol} →</Link>
       </div>
 

@@ -184,7 +184,7 @@ function Breaking() {
         <button type="button" className={styles.brkNav} onClick={next} aria-label="Next headline">
           {(index % moving.length) + 1}/{moving.length}
         </button>
-        <Link key={swap} href={item.article_slug ? `/articles/${encodeURIComponent(item.article_slug)}` : "/news"} className={styles.brkHl}>
+        <Link key={swap} href={item.article_slug ? `/articles/${encodeURIComponent(item.article_slug)}` : "/articles?type=news"} className={styles.brkHl}>
           {item.headline}
         </Link>
         <div className={styles.impacts}>

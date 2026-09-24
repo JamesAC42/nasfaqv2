@@ -365,7 +365,7 @@ export function SiteShell({
             </Link>
             <nav className={styles.footerLinks} aria-label="Footer">
               <Link href="/how-to-play">How to play</Link>
-              <Link href="/news">News</Link>
+              <Link href="/articles">Articles</Link>
               <Link href="/stocks">Stocks</Link>
               <Link href="/chat">Chat</Link>
               <Link href="/games">Games</Link>
