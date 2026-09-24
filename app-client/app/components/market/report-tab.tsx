@@ -8,7 +8,7 @@ import { Oshimark } from "@/app/components/common/oshimark";
 import { StockChip } from "@/app/components/common/stock-chip";
 import { compactMoney, num, RankRow, Seg, toneClass, useAssetMap } from "@/app/components/market/bits";
 import { AreaLine } from "@/app/components/market/mini-charts";
-import { buildDays, dateLabel, fairIndex, type DayModel, type DayRow } from "@/app/components/market/report-model";
+import { buildDays, dateLabel, markIndex, type DayModel, type DayRow } from "@/app/components/market/report-model";
 import { apiFetch } from "@/app/lib/api";
 import { formatEtTime, TICKS } from "@/app/lib/market-clock";
 import { groupByUnit, unitLabel, unitName } from "@/app/lib/market-units";
@@ -129,7 +129,7 @@ function Lede({ date, rows, report }: { date: string; rows: DayRow[]; report: Da
   const cheap = [...rows].filter((row) => row.prem !== null).sort((a, b) => (a.prem ?? 0) - (b.prem ?? 0))[0];
   const head =
     up > down * 1.5
-      ? `A green settlement: ${up} of ${rows.length} fair values rise and ${top.asset.display_name} leads`
+      ? `A green settlement: ${up} of ${rows.length} marks rise and ${top.asset.display_name} leads`
       : down > up * 1.5
         ? `A red settlement: ${down} of ${rows.length} marked down, ${bottom.asset.display_name} hit hardest`
         : `A split settlement as ${top.asset.display_name} climbs and ${bottom.asset.display_name} slides`;
@@ -140,7 +140,7 @@ function Lede({ date, rows, report }: { date: string; rows: DayRow[]; report: Da
         <div className={styles.kick}>{label.long.toUpperCase()} · SETTLED 09:00 ET</div>
         <h2>{head}</h2>
         <p>
-          {top.asset.display_name} <StockChip symbol={top.asset.symbol} /> added the most fair value, from {num(top.fairBefore)} to {num(top.fairAfter)}. {bottom.asset.display_name}{" "}
+          {top.asset.display_name} <StockChip symbol={top.asset.symbol} /> marked up the most, from {num(top.markBefore)} to {num(top.markAfter)}. {bottom.asset.display_name}{" "}
           <StockChip symbol={bottom.asset.symbol} /> took the biggest markdown.
           {topEm ? (
             <>
@@ -151,7 +151,7 @@ function Lede({ date, rows, report }: { date: string; rows: DayRow[]; report: Da
           {cheap ? (
             <>
               {topEm ? ", and " : " "}
-              <b>{cheap.asset.symbol}</b> closed furthest under fair at {pct(cheap.prem)}.
+              <b>{cheap.asset.symbol}</b> closed furthest under its mark at {pct(cheap.prem)}.
             </>
           ) : (
             "."
@@ -190,7 +190,7 @@ function Kpis({ rows, report, indexValue }: { rows: DayRow[]; report: DailyRepor
   return (
     <div className={ui.kstrip} style={{ "--cols": 6 } as React.CSSProperties}>
       <div>
-        <span className={ui.label}>All-talent fair</span>
+        <span className={ui.label}>All-talent mark</span>
         <span className={ui.kv}>{indexValue ? indexValue.value.toFixed(2) : "—"}</span>
         <span className={`${ui.ks} ${indexValue ? ui[toneClass(indexValue.change)] : ""}`}>{indexValue ? `${indexValue.change >= 0 ? "▲" : "▼"} ${pct(indexValue.change)}` : "—"}</span>
       </div>
@@ -201,10 +201,10 @@ function Kpis({ rows, report, indexValue }: { rows: DayRow[]; report: DailyRepor
           <span className={ui.flat}> / </span>
           <span className={ui.down}>{down}</span>
         </span>
-        <span className={ui.ks}>fair up / down of {rows.length}</span>
+        <span className={ui.ks}>marked up / down of {rows.length}</span>
       </div>
       <div>
-        <span className={ui.label}>Avg fair move</span>
+        <span className={ui.label}>Avg mark move</span>
         <span className={`${ui.kv} ${ui[toneClass(avg)]}`}>{pct(avg)}</span>
         <span className={ui.ks}>
           max {pct(sorted[0].fd)} · min {pct(sorted[sorted.length - 1].fd)}
@@ -221,15 +221,15 @@ function Kpis({ rows, report, indexValue }: { rows: DayRow[]; report: DailyRepor
         <span className={ui.ks}>{volume.toLocaleString("en-US")} shares</span>
       </div>
       <div>
-        <span className={ui.label}>Median premium</span>
+        <span className={ui.label}>Median vs mark</span>
         <span className={`${ui.kv} ${median !== null && median > 0 ? ui.down : ui.up}`}>{pct(median)}</span>
-        <span className={ui.ks}>price vs fair at close</span>
+        <span className={ui.ks}>close vs settlement mark</span>
       </div>
     </div>
   );
 }
 
-// ── Swarm: every talent's oshimark placed by fair value move ─────────────
+// ── Swarm: every talent's oshimark placed by settlement mark move ─────────────
 function Swarm({ rows }: { rows: DayRow[] }) {
   const box = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
@@ -271,8 +271,8 @@ function Swarm({ rows }: { rows: DayRow[] }) {
   return (
     <section className={styles.swarmSec}>
       <div className={ui.secHead}>
-        <h2>Where every fair value landed</h2>
-        <span className={ui.aside}>each mark is a talent · hover to peek, click to open</span>
+        <h2>Where every mark landed</h2>
+        <span className={ui.aside}>each oshimark is a talent · hover to peek, click to open</span>
       </div>
       <div className={styles.swarm} ref={box} style={layout ? { height: layout.H + 22 } : undefined}>
         {layout ? (
@@ -402,7 +402,7 @@ function Ticks({ date }: { date: string }) {
         <div className={ui.sec}>
           <div className={ui.secHead}>
             <h2>Gap compression</h2>
-            <span className={ui.aside}>how much of the price-to-fair gap a tick closed</span>
+            <span className={ui.aside}>how much of the gap to target a tick closed</span>
           </div>
           {gap.length ? gap.map((item) => row(item, `${((item.gap_compression_pct ?? 0) * 100).toFixed(0)}%`, "flat")) : empty}
         </div>
@@ -432,24 +432,22 @@ function Lists({ rows, report }: { rows: DayRow[]; report: DailyReport | null | 
     const max = Math.max(0.0001, ...clean.map((row) => Math.abs(value(row) ?? 0)));
     return clean.map((row) => <RankRow key={row.symbol} symbol={row.symbol} icon={icon(row.symbol)} detail={detail(row)} bar={Math.abs(value(row) ?? 0) / max} tone={tone(row)} value={format(row)} />);
   };
-  const premiums = report?.largest_premiums ?? report?.largest_market_premiums;
-  const discounts = report?.largest_discounts ?? report?.largest_market_discounts;
   return (
     <div className={styles.grid}>
       {list(
-        "Fair value up",
-        "views & subs",
+        "Marked up",
+        "at settlement",
         "up",
-        byFd.slice(0, 6).map((row) => <RankRow key={row.asset.symbol} symbol={row.asset.symbol} icon={icon(row.asset.symbol)} detail={`${num(row.fairBefore)} → ${num(row.fairAfter)}`} bar={Math.abs(row.fd) / maxFd} tone="up" value={pct(row.fd)} />),
+        byFd.slice(0, 6).map((row) => <RankRow key={row.asset.symbol} symbol={row.asset.symbol} icon={icon(row.asset.symbol)} detail={`${num(row.markBefore)} → ${num(row.markAfter)}`} bar={Math.abs(row.fd) / maxFd} tone="up" value={pct(row.fd)} />),
       )}
       {list(
-        "Fair value down",
-        "stagnation",
+        "Marked down",
+        "at settlement",
         "down",
         byFd
           .slice(-6)
           .reverse()
-          .map((row) => <RankRow key={row.asset.symbol} symbol={row.asset.symbol} icon={icon(row.asset.symbol)} detail={`${num(row.fairBefore)} → ${num(row.fairAfter)}`} bar={Math.abs(row.fd) / maxFd} tone="down" value={pct(row.fd)} />),
+          .map((row) => <RankRow key={row.asset.symbol} symbol={row.asset.symbol} icon={icon(row.asset.symbol)} detail={`${num(row.markBefore)} → ${num(row.markAfter)}`} bar={Math.abs(row.fd) / maxFd} tone="down" value={pct(row.fd)} />),
       )}
       {list("Breakouts", "price, the session", "", fromReport(report?.biggest_winners, (row) => row.move_pct, (row) => pct(row.move_pct), (row) => `closed ${num(row.market_price)}`, () => "up"))}
       {list("Drawdowns", "price, the session", "", fromReport(report?.biggest_losers, (row) => row.move_pct, (row) => pct(row.move_pct), (row) => `closed ${num(row.market_price)}`, () => "down"))}
@@ -459,31 +457,9 @@ function Lists({ rows, report }: { rows: DayRow[]; report: DailyReport | null | 
         "",
         fromReport(report?.volume_winners, (row) => row.volume_change_pct, (row) => pct(row.volume_change_pct), (row) => `${compactMoney(row.volume_cash)} · ${(row.volume_shares ?? 0).toLocaleString("en-US")} sh`, (row) => toneClass(row.volume_change_pct)),
       )}
-      {list("Dilution watch", "new shares", "", fromReport(report?.notable_treasury_emissions, (row) => row.emission, (row) => `${num(row.emission, 1)} sh`, (row) => `premium ${pct(premOf(row))}`, () => "flat"))}
-      {list(
-        "Richest vs fair",
-        "dilution risk",
-        "",
-        premiums?.length
-          ? fromReport(premiums, premOf, (row) => pct(premOf(row)), (row) => `${num(row.market_price)} vs ${num(row.fair_value)}`, () => "down")
-          : [...rows]
-              .filter((row) => row.prem !== null)
-              .sort((a, b) => (b.prem ?? 0) - (a.prem ?? 0))
-              .slice(0, 6)
-              .map((row) => <RankRow key={row.asset.symbol} symbol={row.asset.symbol} icon={icon(row.asset.symbol)} detail={`${num(row.close)} vs ${num(row.fairAfter)}`} tone="down" value={pct(row.prem)} />),
-      )}
-      {list(
-        "Cheapest vs fair",
-        "upside if it catches up",
-        "",
-        discounts?.length
-          ? fromReport(discounts, premOf, (row) => pct(premOf(row)), (row) => `${num(row.market_price)} vs ${num(row.fair_value)}`, () => "up")
-          : [...rows]
-              .filter((row) => row.prem !== null)
-              .sort((a, b) => (a.prem ?? 0) - (b.prem ?? 0))
-              .slice(0, 6)
-              .map((row) => <RankRow key={row.asset.symbol} symbol={row.asset.symbol} icon={icon(row.asset.symbol)} detail={`${num(row.close)} vs ${num(row.fairAfter)}`} tone="up" value={pct(row.prem)} />),
-      )}
+      {list("Dilution watch", "new shares", "", fromReport(report?.notable_treasury_emissions, (row) => row.emission, (row) => `${num(row.emission, 1)} sh`, (row) => `closed ${num(row.market_price)}`, () => "flat"))}
+      {list("Most traded", "shares, the session", "", fromReport(report?.top_volume, (row) => row.volume_shares, (row) => `${(row.volume_shares ?? 0).toLocaleString("en-US")} sh`, (row) => compactMoney(row.volume_cash), () => "flat"))}
+      {list("Going quiet", "volume vs the session before", "", fromReport(report?.volume_losers, (row) => row.volume_change_pct, (row) => pct(row.volume_change_pct), (row) => `${compactMoney(row.volume_cash)} · ${(row.volume_shares ?? 0).toLocaleString("en-US")} sh`, (row) => toneClass(row.volume_change_pct)))}
     </div>
   );
 }
@@ -509,7 +485,7 @@ function Angle({ date, model }: { date: string; model: DayModel }) {
   const effects = holdings
     .map((holding) => {
       const row = model.bySymbol.get(holding.symbol.toUpperCase())?.get(date);
-      return { holding, row, effect: row ? holding.quantity * (row.fairAfter - row.fairBefore) : 0 };
+      return { holding, row, effect: row ? holding.quantity * (row.markAfter - row.markBefore) : 0 };
     })
     .sort((a, b) => b.effect - a.effect);
   const total = effects.reduce((sum, item) => sum + item.effect, 0);
@@ -552,7 +528,7 @@ function Angle({ date, model }: { date: string; model: DayModel }) {
                 key={holding.symbol}
                 symbol={holding.symbol}
                 icon={bySymbol.get(holding.symbol.toUpperCase())?.icon}
-                detail={`${holding.quantity.toLocaleString("en-US")} sh · fair ${row ? pct(row.fd) : "—"}`}
+                detail={`${holding.quantity.toLocaleString("en-US")} sh · mark ${row ? pct(row.fd) : "—"}`}
                 tone="flat"
                 valueTone={toneClass(effect)}
                 value={`${effect >= 0 ? "+" : "−"}${money(Math.abs(effect))}`}
@@ -560,7 +536,7 @@ function Angle({ date, model }: { date: string; model: DayModel }) {
             ))}
             {effects.length ? (
               <p className={ui.note}>
-                Your bags {total >= 0 ? "gained" : "lost"} <b className={ui[toneClass(total)]}>{money(Math.abs(total))}</b> of fair value at this settlement.
+                Your bags {total >= 0 ? "gained" : "lost"} <b className={ui[toneClass(total)]}>{money(Math.abs(total))}</b> in value when the marks reset at this settlement.
               </p>
             ) : (
               <p className={ui.empty}>No bags to read this report against.</p>
@@ -608,7 +584,7 @@ function Angle({ date, model }: { date: string; model: DayModel }) {
 }
 
 // ── Every stock ──────────────────────────────────────────────────────────
-type SortKey = "sym" | "unit" | "close" | "fairBefore" | "fairAfter" | "fd" | "prem" | "volume";
+type SortKey = "sym" | "unit" | "close" | "markBefore" | "markAfter" | "fd" | "prem" | "volume";
 
 function FullTable({ rows }: { rows: DayRow[] }) {
   const [open, setOpen] = useState(false);
@@ -625,9 +601,9 @@ function FullTable({ rows }: { rows: DayRow[] }) {
     ["sym", "Stock", true],
     ["unit", "Unit", true],
     ["close", "Close"],
-    ["fairBefore", "Fair before"],
-    ["fairAfter", "Fair after"],
-    ["fd", "Fair Δ"],
+    ["markBefore", "Mark before"],
+    ["markAfter", "Mark after"],
+    ["fd", "Mark Δ"],
     ["prem", "Premium"],
     ["volume", "Volume"],
   ];
@@ -670,8 +646,8 @@ function FullTable({ rows }: { rows: DayRow[] }) {
                   </td>
                   <td className={`${styles.l} ${styles.unit}`}>{unitLabel(row.asset.unit)}</td>
                   <td>{num(row.close)}</td>
-                  <td className={styles.dim}>{num(row.fairBefore)}</td>
-                  <td>{num(row.fairAfter)}</td>
+                  <td className={styles.dim}>{num(row.markBefore)}</td>
+                  <td>{num(row.markAfter)}</td>
                   <td>
                     <span className={`${styles.mv} ${styles[toneClass(row.fd)]}`}>{pct(row.fd)}</span>
                   </td>
@@ -713,12 +689,12 @@ function Heatmap({ model, date, onPick }: { model: DayModel; date: string; onPic
           const row = days?.get(day);
           return row ? (row[metric] as number | null) : null;
         });
-        const first = days?.get(dates[0])?.fairBefore;
-        const last = days?.get(dates[dates.length - 1])?.fairAfter;
+        const first = days?.get(dates[0])?.markBefore;
+        const last = days?.get(dates[dates.length - 1])?.markAfter;
         const total = first && last ? (last - first) / first : 0;
         const present = values.filter((value): value is number => value !== null);
         const vol = present.length ? Math.sqrt(present.reduce((sum, value) => sum + value * value, 0) / present.length) : 0;
-        const spark = dates.map((day) => days?.get(day)?.fairAfter).filter((value): value is number => value !== undefined);
+        const spark = dates.map((day) => days?.get(day)?.markAfter).filter((value): value is number => value !== undefined);
         return { asset, values, total, vol, spark };
       }),
     [assets, dates, metric, model.bySymbol],
@@ -806,8 +782,8 @@ function Heatmap({ model, date, onPick }: { model: DayModel; date: string; onPic
             value={metric}
             onChange={setMetric}
             options={[
-              { value: "fd", label: "FAIR Δ" },
-              { value: "prem", label: "PREMIUM AT CLOSE" },
+              { value: "fd", label: "MARK Δ" },
+              { value: "prem", label: "CLOSE VS MARK" },
               { value: "pchg", label: "PRICE Δ" },
             ]}
           />
@@ -824,11 +800,11 @@ function Heatmap({ model, date, onPick }: { model: DayModel; date: string; onPic
         </div>
       </div>
       <div className={styles.hmLegend}>
-        <span>{metric === "prem" ? `+${scale}% rich` : `−${scale}%`}</span>
+        <span>{metric === "prem" ? `+${scale}% above` : `−${scale}%`}</span>
         <i style={{ background: `linear-gradient(90deg, ${heatBg(-scale / 100, metric === "prem" ? "fd" : metric)}, var(--ink-3), ${heatBg(scale / 100, metric === "prem" ? "fd" : metric)})` }} />
-        <span>{metric === "prem" ? `−${scale}% cheap` : `+${scale}%`}</span>
+        <span>{metric === "prem" ? `−${scale}% below` : `+${scale}%`}</span>
         <span className={styles.hmNote}>
-          {metric === "fd" ? "fair value change at settlement" : metric === "prem" ? "price vs fair when the session closed" : "price change over the session"}
+          {metric === "fd" ? "settlement mark change" : metric === "prem" ? "closing price vs that session\u2019s mark" : "price change over the session"}
           {mine.size ? " · blue outline = your bags" : ""}
         </span>
       </div>
@@ -897,9 +873,9 @@ export function ReportTab({ initialDate, initialView }: { initialDate?: string; 
   const report = useReport(date);
   const rows = date ? model.byDate.get(date) ?? [] : [];
   const index = useMemo(() => {
-    const series = fairIndex(assets);
+    const series = markIndex(assets);
     if (!date || series.length < 2) return null;
-    // fairIndex aligns with the sparkline window; map the date to its position.
+    // markIndex aligns with the sparkline window; map the date to its position.
     const pos = model.dates.indexOf(date) + (series.length - model.dates.length);
     if (pos < 1 || pos >= series.length) return null;
     return { value: series[pos], change: (series[pos] - series[pos - 1]) / series[pos - 1] };
@@ -944,8 +920,8 @@ export function ReportTab({ initialDate, initialView }: { initialDate?: string; 
         </>
       )}
       <p className={ui.foot}>
-        Settlement runs at 09:00 ET. Each talent&apos;s fair value reprices from its YouTube views, subscribers and uploads, and the price is pulled toward it through the day&apos;s four ticks. The treasury prints new shares of
-        stocks trading above fair.
+        Settlement runs at 09:00 ET. Each talent&apos;s hidden fair value reprices from their YouTube views, subscribers and uploads, and the day&apos;s four ticks pull the price toward it. The mark is the settled price with
+        short-term order pressure stripped out. The treasury prints new shares of stocks trading above fair.
       </p>
     </>
   );

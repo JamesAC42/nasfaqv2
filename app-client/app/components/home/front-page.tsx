@@ -18,7 +18,7 @@ import { useTheme } from "@/app/providers/theme-provider";
 import { useLeaderboardStore } from "@/app/stores/leaderboard-store";
 import { useLivestreamStore } from "@/app/stores/livestream-store";
 import { useMarketStore } from "@/app/stores/market-store";
-import { fairSeries, UNIT_ORDER, unitLabel, unitName } from "@/app/lib/market-units";
+import { markSeries, UNIT_ORDER, unitLabel, unitName } from "@/app/lib/market-units";
 import { useNewsStore } from "@/app/stores/news-store";
 import { usePredictionMarketStore } from "@/app/stores/prediction-market-store";
 import styles from "@/app/components/home/front-page.module.scss";
@@ -39,7 +39,7 @@ function Masthead({ assets }: { assets: MarketAsset[] }) {
     const up = moves.filter((value) => value > 0.00005).length;
     const down = moves.filter((value) => value < -0.00005).length;
     // Equal-weight fair value index over the sparkline window, rebased to 100.
-    const series = assets.map(fairSeries).filter((values) => values.length > 1);
+    const series = assets.map(markSeries).filter((values) => values.length > 1);
     const length = Math.min(...series.map((values) => values.length));
     const index = Number.isFinite(length) && length > 1
       ? Array.from({ length }, (_, i) => (series.reduce((sum, values) => sum + values[values.length - length + i] / values[values.length - length], 0) / series.length) * 100)
@@ -81,7 +81,7 @@ function Masthead({ assets }: { assets: MarketAsset[] }) {
           {pulse.index.length > 1 ? (
             <div className={styles.pulseSpark}>
               <Sparkline values={pulse.index} tone={pulse.index[pulse.index.length - 1] >= pulse.index[0] ? "up" : "down"} width={120} height={36} fill dot />
-              <span className={styles.sub}>fair value, {pulse.index.length}d</span>
+              <span className={styles.sub}>settlement marks, {pulse.index.length}d</span>
             </div>
           ) : null}
           <div>
@@ -242,26 +242,25 @@ function fmt2(value: number | null | undefined) {
 
 function fairLines(rows: ReportRow[] | undefined): ReportLine[] {
   return (rows ?? []).slice(0, 5).map((row) => {
-    const change = row.fair_value_change_pct ?? (row.market_price && row.fair_value ? (row.fair_value - row.market_price) / row.market_price : null);
-    return { symbol: row.symbol, left: `${fmt2(row.market_price)} → ${fmt2(row.fair_value)}`, right: signedPct(change), tone: toneOf(change) };
+    // The API withholds the % change; show the settled price against the new fair value instead.
+    const gap = row.market_price && row.fair_value ? (row.fair_value - row.market_price) / row.market_price : null;
+    return { symbol: row.symbol, left: `px ${fmt2(row.market_price)} · fair ${fmt2(row.fair_value)}`, right: signedPct(gap), tone: toneOf(gap) };
   });
 }
 
 function SettlementReport({ assets }: { assets: MarketAsset[] }) {
   const report = useMarketStore((state) => state.report);
 
-  const cheapest = useMemo<ReportLine[]>(() => {
-    return assets
-      .map((asset) => {
-        const fair = asset.current_fair_value ?? fairSeries(asset).at(-1) ?? null;
-        const mid = asset.current_mid_price;
-        return fair && mid ? { asset, fair, mid, gap: (fair - mid) / mid } : null;
-      })
-      .filter((row): row is { asset: MarketAsset; fair: number; mid: number; gap: number } => row !== null && row.gap > 0)
-      .sort((a, b) => b.gap - a.gap)
+  const gappers = useMemo<ReportLine[]>(() => {
+    const rows = [...(report?.biggest_winners ?? []), ...(report?.biggest_losers ?? [])]
+      .filter((row) => row.move_pct !== null && row.move_pct !== undefined)
+      .sort((x, y) => Math.abs(y.move_pct ?? 0) - Math.abs(x.move_pct ?? 0));
+    const seen = new Set<string>();
+    return rows
+      .filter((row) => (seen.has(row.symbol) ? false : (seen.add(row.symbol), true)))
       .slice(0, 5)
-      .map((row) => ({ symbol: row.asset.symbol, left: `${fmt2(row.mid)} vs ${fmt2(row.fair)}`, right: signedPct(row.gap), tone: "up" as const }));
-  }, [assets]);
+      .map((row) => ({ symbol: row.symbol, left: `opened ${fmt2(row.market_price)}`, right: signedPct(row.move_pct), tone: toneOf(row.move_pct) }));
+  }, [report]);
 
   const dilution = useMemo<ReportLine[]>(() => {
     return (report?.notable_treasury_emissions ?? []).slice(0, 5).map((row) => {
@@ -281,10 +280,10 @@ function SettlementReport({ assets }: { assets: MarketAsset[] }) {
         </Link>
       </div>
       <div className={styles.report}>
-        <ReportColumn title="Fair value up" tone="up" lines={fairLines(report?.biggest_fair_value_increases)} note="Views and subs picked up. The price drifts toward fair through the day's ticks." />
+        <ReportColumn title="Fair value up" tone="up" lines={fairLines(report?.biggest_fair_value_increases)} note="Views and subs picked up. The % is the gap from price to fair that the day's ticks work on." />
         <ReportColumn title="Fair value down" tone="down" lines={fairLines(report?.biggest_fair_value_decreases)} note="Stagnant channels and missed uploads get marked down." />
         <ReportColumn title="Dilution watch" lines={dilution} note="The treasury prints more shares of stocks trading above fair value." />
-        <ReportColumn title="Cheapest vs fair" lines={cheapest} note="Upside if the price catches up to fair. Not financial advice, anon." />
+        <ReportColumn title="Gapped at the open" lines={gappers} note="Biggest price resets at settlement, either way. Not financial advice, anon." />
       </div>
     </section>
   );

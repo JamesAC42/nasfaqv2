@@ -1,18 +1,20 @@
-import { branchOf, fairSeries, finite, unitName } from "@/app/lib/market-units";
+import { branchOf, markSeries, finite, unitName } from "@/app/lib/market-units";
 import type { MarketAsset } from "@/app/lib/types";
 
 // Per-session rows derived from each asset's daily sparkline candles
-// (close = price at the day's close, close_mark = fair value that day).
+// (close = price at the day's close, close_mark = the settlement mark: the
+// price with short-term order impact stripped out). Live fair value is the
+// game's hidden target and never reaches the client, so marks stand in for it.
 
 export type DayRow = {
   asset: MarketAsset;
   date: string;
-  fairBefore: number;
-  fairAfter: number;
-  /** Fair value change at settlement (fraction). */
+  markBefore: number;
+  markAfter: number;
+  /** Settlement mark change (fraction). */
   fd: number;
   close: number | null;
-  /** Price vs fair value at the close (fraction). */
+  /** Closing price vs that session's mark (fraction). */
   prem: number | null;
   /** Price change over the session (fraction). */
   pchg: number | null;
@@ -35,20 +37,20 @@ export function buildDays(assets: MarketAsset[], maxDays = 14): DayModel {
     for (let i = 1; i < candles.length; i += 1) {
       const prev = candles[i - 1];
       const cur = candles[i];
-      const fairBefore = prev.close_mark ?? null;
-      const fairAfter = cur.close_mark ?? null;
-      if (!finite(fairBefore) || !finite(fairAfter) || fairBefore <= 0) continue;
+      const markBefore = prev.close_mark ?? null;
+      const markAfter = cur.close_mark ?? null;
+      if (!finite(markBefore) || !finite(markAfter) || markBefore <= 0) continue;
       const date = cur.bucket.slice(0, 10);
       const close = finite(cur.close) ? cur.close : null;
       const prevClose = finite(prev.close) ? prev.close : null;
       const row: DayRow = {
         asset,
         date,
-        fairBefore,
-        fairAfter,
-        fd: (fairAfter - fairBefore) / fairBefore,
+        markBefore,
+        markAfter,
+        fd: (markAfter - markBefore) / markBefore,
         close,
-        prem: close !== null && fairAfter > 0 ? (close - fairAfter) / fairAfter : null,
+        prem: close !== null && markAfter > 0 ? (close - markAfter) / markAfter : null,
         pchg: close !== null && prevClose ? (close - prevClose) / prevClose : null,
         volume: cur.volume_shares ?? 0,
       };
@@ -61,9 +63,9 @@ export function buildDays(assets: MarketAsset[], maxDays = 14): DayModel {
   return { dates, byDate, bySymbol };
 }
 
-/** Equal-weight fair value index over the window, rebased to 100 at the first mark. */
-export function fairIndex(assets: MarketAsset[]) {
-  const series = assets.map(fairSeries).filter((values) => values.length > 1);
+/** Equal-weight settlement-mark index over the window, rebased to 100 at the first mark. */
+export function markIndex(assets: MarketAsset[]) {
+  const series = assets.map(markSeries).filter((values) => values.length > 1);
   const length = Math.min(...series.map((values) => values.length));
   if (!Number.isFinite(length) || length < 2) return [];
   return Array.from({ length }, (_, i) => (series.reduce((sum, values) => sum + values[values.length - length + i] / values[values.length - length], 0) / series.length) * 100);

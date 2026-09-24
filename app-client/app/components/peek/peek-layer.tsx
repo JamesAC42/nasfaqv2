@@ -13,7 +13,7 @@ import styles from "@/app/components/peek/peek-layer.module.scss";
 
 // Hover previews ("peeks") that follow the cursor. Mark any element with
 // data-peek-stock="SYM" and hovering it for a moment shows the stock's price,
-// 15-day fair value line and your position before you click through.
+// 15-day price line and your position before you click through.
 // Desktop only (fine pointer + hover); touch devices never see them.
 
 const SHOW_DELAY_MS = 240;
@@ -47,8 +47,9 @@ function StockPeek({ symbol }: { symbol: string }) {
   if (!asset) return null;
   const mid = asset.current_mid_price;
   const move = asset.move_24h_pct;
-  const fair = asset.current_fair_value ?? (series.length > 1 ? series[series.length - 2] : null);
-  const vsFair = mid !== null && fair ? (mid - fair) / fair : null;
+  const start = series.length > 1 ? series[0] : null;
+  const d15 = mid !== null && start ? (mid - start) / start : null;
+  const open = asset.previous_settlement_mid_price;
   const float = asset.circulating_supply !== null ? asset.circulating_supply / 10_000 : null;
   const holdingPnl = holding && mid !== null && holding.avg_cost_basis ? (mid - holding.avg_cost_basis) / holding.avg_cost_basis : null;
   const clock = now ? getMarketClock(now) : null;
@@ -72,12 +73,12 @@ function StockPeek({ symbol }: { symbol: string }) {
       <Sparkline values={series} tone={tone(move) === "down" ? "down" : "up"} width={268} height={40} fill dot className={styles.spark} />
       <div className={styles.stats}>
         <div>
-          <span>FAIR</span>
-          <b>{fair !== null ? fair.toFixed(2) : "—"}</b>
+          <span>09:00 OPEN</span>
+          <b>{open !== null ? open.toFixed(2) : "—"}</b>
         </div>
         <div>
-          <span>VS FAIR</span>
-          <b className={styles[tone(vsFair)]}>{pctText(vsFair)}</b>
+          <span>15 DAYS</span>
+          <b className={styles[tone(d15)]}>{pctText(d15)}</b>
         </div>
         <div>
           <span>FLOAT</span>

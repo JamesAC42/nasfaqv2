@@ -37,8 +37,12 @@ export function groupByUnit(assets: MarketAsset[]) {
   return order.filter((unit) => byUnit.has(unit)).map((unit) => ({ unit, assets: byUnit.get(unit) ?? [] }));
 }
 
-/** Daily fair value (mark) closes over the sparkline window, oldest first. */
-export function fairSeries(asset: MarketAsset) {
+/**
+ * Daily settlement marks over the sparkline window, oldest first. The mark is
+ * the price with short-term order impact stripped out, not the fair value:
+ * live fair value is the game's hidden target and the API never sends it.
+ */
+export function markSeries(asset: MarketAsset) {
   return asset.sparkline_candles
     .map((candle) => candle.close_mark ?? candle.close)
     .filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0);

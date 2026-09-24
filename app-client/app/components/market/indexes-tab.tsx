@@ -7,7 +7,7 @@ import { Oshimark } from "@/app/components/common/oshimark";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { compactMoney, DivBar, num, Seg, toneClass } from "@/app/components/market/bits";
 import { IndexChart } from "@/app/components/market/mini-charts";
-import { branchOf, groupByUnit, UNIT_ORDER, unitLabel, unitName } from "@/app/lib/market-units";
+import { branchOf, groupByUnit, markSeries, UNIT_ORDER, unitLabel, unitName } from "@/app/lib/market-units";
 import { signedPct } from "@/app/lib/time";
 import type { MarketAsset, MarketIndexBundle } from "@/app/lib/types";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -31,18 +31,17 @@ type IndexView = {
   premium: number | null;
 };
 
-function premiumOf(asset: MarketAsset) {
-  if (asset.current_premium_pct !== null && asset.current_premium_pct !== undefined) return asset.current_premium_pct;
+/** Price now vs the first settlement mark in the sparkline window (~15 days). */
+function change15(asset: MarketAsset) {
+  const start = markSeries(asset)[0];
   const mid = asset.current_mid_price;
-  const fair = asset.current_fair_value;
-  return mid && fair ? (mid - fair) / fair : null;
+  return mid && start ? (mid - start) / start : null;
 }
 
 function fromBundle(id: string, name: string, kind: IndexView["kind"], bundle: MarketIndexBundle | undefined, members: MarketAsset[]): IndexView {
   const points = (bundle?.series ?? []).filter((point) => point.value !== null);
   const summary = bundle?.summary;
   const moves = members.map((asset) => asset.move_24h_pct).filter((value): value is number => value !== null && Number.isFinite(value));
-  const prems = members.map(premiumOf).filter((value): value is number => value !== null);
   return {
     id,
     name,
@@ -54,7 +53,7 @@ function fromBundle(id: string, name: string, kind: IndexView["kind"], bundle: M
     day: summary?.day_return_pct ?? (moves.length ? moves.reduce((sum, value) => sum + value, 0) / moves.length : null),
     total: summary?.total_return_pct ?? null,
     volume: summary?.total_volume_cash ?? null,
-    premium: summary?.avg_premium_pct ?? (prems.length ? prems.reduce((sum, value) => sum + value, 0) / prems.length : null),
+    premium: summary?.avg_premium_pct ?? null,
   };
 }
 
@@ -224,7 +223,7 @@ function Constituents({ view }: { view: IndexView }) {
         <span className={styles.nm}>Talent</span>
         <span className={`${styles.r} ${styles.w}`}>Weight</span>
         <span className={styles.r}>Price</span>
-        <span className={`${styles.r} ${styles.pm}`}>Premium</span>
+        <span className={`${styles.r} ${styles.pm}`}>15D</span>
         <span className={`${styles.r} ${styles.vo}`}>24h vol</span>
         <span className={styles.cb}>Contribution</span>
         <span className={styles.r}>Today</span>
@@ -237,7 +236,7 @@ function Constituents({ view }: { view: IndexView }) {
             <span className={styles.nm}>{row.asset.display_name}</span>
             <span className={`${styles.r} ${styles.w} ${ui.flat}`}>{(100 / n).toFixed(1)}%</span>
             <span className={styles.r}>{num(row.asset.current_mid_price)}</span>
-            <span className={`${styles.r} ${styles.pm} ${(premiumOf(row.asset) ?? 0) > 0 ? ui.down : ui.up}`}>{signedPct(premiumOf(row.asset))}</span>
+            <span className={`${styles.r} ${styles.pm} ${ui[toneClass(change15(row.asset))]}`}>{signedPct(change15(row.asset))}</span>
             <span className={`${styles.r} ${styles.vo} ${ui.flat}`}>{(row.asset.volume_24h ?? 0).toLocaleString("en-US")}</span>
             <DivBar value={row.contribution} max={max} className={styles.cb} />
             <span className={`${styles.r} ${ui[toneClass(row.asset.move_24h_pct)]}`}>{signedPct(row.asset.move_24h_pct)}</span>
@@ -403,7 +402,7 @@ export function IndexesTab({ initialIndex }: { initialIndex?: string }) {
             <div>
               <span>AVG PREMIUM</span>
               <b className={(view.premium ?? 0) > 0 ? ui.down : ui.up}>{signedPct(view.premium)}</b>
-              <small>price vs fair value</small>
+              <small>vs fair at the last settlement</small>
             </div>
           </div>
           <Constituents view={view} />
