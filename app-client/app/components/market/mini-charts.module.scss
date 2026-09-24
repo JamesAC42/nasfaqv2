@@ -65,3 +65,32 @@
   color: var(--dim);
   font-size: 0.78rem;
 }
+
+.area {
+  fill: color-mix(in srgb, var(--blue) 18%, transparent);
+}
+
+.line {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.marker {
+  stroke: var(--text);
+  stroke-dasharray: 2 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.labels {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1.1rem;
+  display: flex;
+  justify-content: space-between;
+  @include num;
+  font-size: 0.6rem;
+  color: var(--dim);
+}

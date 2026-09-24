@@ -66,3 +66,35 @@ export const MiniCandles = memo(function MiniCandles({ candles }: { candles: Can
     </div>
   );
 });
+
+/** Area line with an optional vertical marker at `markerIndex`. */
+export const AreaLine = memo(function AreaLine({ values, markerIndex, labels }: { values: number[]; markerIndex?: number | null; labels?: string[] }) {
+  const W = 600;
+  const H = 160;
+  const clean = values.filter((value) => Number.isFinite(value));
+  if (clean.length < 2) return <div className={styles.empty}>No index history yet.</div>;
+  const min = Math.min(...clean) * 0.98;
+  const max = Math.max(...clean) * 1.01;
+  const x = (i: number) => (i / (clean.length - 1)) * W;
+  const y = (v: number) => 4 + (1 - (v - min) / (max - min || 1)) * (H - 8);
+  const line = clean.map((value, i) => `${x(i).toFixed(1)},${y(value).toFixed(1)}`).join(" ");
+  const mi = markerIndex !== null && markerIndex !== undefined && markerIndex >= 0 && markerIndex < clean.length ? markerIndex : null;
+  return (
+    <div className={styles.wrap}>
+      <svg className={styles.chart} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+        <polygon points={`0,${H} ${line} ${W},${H}`} className={styles.area} />
+        <polyline points={line} className={styles.line} />
+        {mi !== null ? <line x1={x(mi)} x2={x(mi)} y1="0" y2={H} className={styles.marker} /> : null}
+      </svg>
+      <span className={styles.hi}>{max.toFixed(0)}</span>
+      <span className={styles.lo}>{min.toFixed(0)}</span>
+      {labels?.length ? (
+        <div className={styles.labels}>
+          {labels.map((label) => (
+            <span key={label}>{label}</span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+});
