@@ -137,17 +137,24 @@
   }
 }
 
+// Wraps on wider screens; a swipeable row on phones.
 .units {
   display: flex;
-  flex: 1 1 0;
+  flex: 1 1 24rem;
+  flex-wrap: wrap;
   gap: 0.35rem;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-  mask-image: linear-gradient(90deg, #000 calc(100% - 2rem), transparent);
 
-  &::-webkit-scrollbar {
-    display: none;
+  @include phone {
+    flex-basis: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    mask-image: linear-gradient(90deg, #000 calc(100% - 2rem), transparent);
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
   }
 }
 
@@ -469,6 +476,41 @@
   span {
     font-variant-numeric: tabular-nums;
   }
+}
+
+// ── Free chat rooms ────────────────────────────────────────────────────────
+.secNote {
+  margin: -0.4rem 0 0.6rem;
+  font-size: 0.78rem;
+  color: var(--dim);
+}
+
+.rooms {
+  border-top: 1px solid var(--rule-2);
+}
+
+.room {
+  opacity: 0.8;
+
+  time {
+    color: var(--mid);
+  }
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+.more {
+  margin-top: 0.6rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--blue);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 // ── Rail ───────────────────────────────────────────────────────────────────

@@ -11,16 +11,20 @@ import { markSeries, unitLabel } from "@/app/lib/market-units";
 import { normalizeCandles, normalizeLivestreams } from "@/app/lib/normalizers";
 import {
   assetForStream,
+  CHAT_ROOM_LABEL,
+  chatRoomKind,
   clockDuration,
   compactCount,
   localDateTime,
   localTime,
+  median,
   normalizePastStream,
   num,
   previewOf,
   shortDuration,
   untilLabel,
   youtubeUrl,
+  type PastStream,
   type PastStreamRow,
   type StreamPreview,
 } from "@/app/lib/streams";
@@ -52,6 +56,8 @@ type Session = {
   channel_name: string;
   channel_icon: string | null;
   channel_color: string | null;
+  /** Filled the day after a stream, once the superchat archive is scraped. */
+  superchats?: { total_in_yen: number; donation_count: number } | null;
 };
 
 type Bucket = { bucket_start: string; bucket_end: string; avg_viewers: number | null; max_viewers: number | null };
@@ -209,6 +215,15 @@ function StreamSheet({ id }: { id: string }) {
   const actual = session?.actual_start_at ?? (status !== "upcoming" ? preview?.actual_start_time ?? listed?.started_at ?? preview?.started_at ?? null : null);
   const ended = session?.ended_at ?? preview?.ended_at ?? null;
   const lateMins = actual && scheduled ? Math.round((Date.parse(actual) - Date.parse(scheduled)) / 60_000) : null;
+  const roomKind = status === "upcoming" ? chatRoomKind({ title: session?.video_title ?? listed?.title ?? preview?.title ?? "", started_at: scheduled }, now) : null;
+  const channel = useChannelStreams(channelId);
+  // Their typical peak over the last two weeks, for "1.8× usual".
+  const usualPeak = useMemo(() => {
+    const peaks = (channel?.past ?? []).filter((stream) => stream.id !== id).map((stream) => stream.max_viewers ?? NaN);
+    return peaks.filter(Number.isFinite).length >= 2 ? median(peaks) : null;
+  }, [channel, id]);
+  const liveRank = isLive ? liveList.findIndex((item) => item.id === id) : -1;
+  const superchats = session?.superchats ?? null;
   const watching = isLive ? listed?.viewer_count ?? preview?.viewer_count ?? null : null;
   const bucketPeak = buckets.reduce((max, bucket) => Math.max(max, bucket.max_viewers ?? 0), 0);
   const peak = Math.max(num(session?.max_concurrent_viewers) ?? 0, bucketPeak, watching ?? 0) || null;
@@ -231,7 +246,7 @@ function StreamSheet({ id }: { id: string }) {
       <div className={styles.scrim} onClick={close} aria-hidden="true" />
       <aside className={styles.sheet} role="dialog" aria-modal="true" aria-labelledby="stream-title" style={{ "--tal": accent } as React.CSSProperties}>
         <header className={styles.top}>
-          <StatusPill status={status} watching={watching} scheduled={scheduled} ended={ended} now={now} />
+          <StatusPill status={status} roomKind={roomKind} watching={watching} scheduled={scheduled} ended={ended} now={now} />
           <button type="button" className={styles.linkBtn} onClick={() => void copyLink()}>
             {copied ? "LINK COPIED" : "COPY LINK"}
           </button>
@@ -253,7 +268,7 @@ function StreamSheet({ id }: { id: string }) {
               <img src={thumb} alt="" />
               <span className={styles.play}>
                 <i aria-hidden="true">▶</i>
-                {status === "upcoming" ? "OPEN THE WAITING ROOM" : isLive ? "WATCH HERE" : "WATCH THE VOD"}
+                {roomKind ? "OPEN THE CHAT ROOM" : status === "upcoming" ? "OPEN THE WAITING ROOM" : isLive ? "WATCH HERE" : "WATCH THE VOD"}
               </span>
             </button>
           )}
@@ -276,15 +291,25 @@ function StreamSheet({ id }: { id: string }) {
         <section className={styles.stats}>
           {status === "upcoming" ? (
             <>
-              <Stat label="Starts" value={untilLabel(scheduled, now)} />
+              {roomKind ? <Stat label="Slot" value={CHAT_ROOM_LABEL[roomKind]} small /> : <Stat label="Starts" value={untilLabel(scheduled, now)} />}
               <Stat label="Scheduled" value={localDateTime(scheduled)} small />
+              {usualPeak ? <Stat label="Usual peak" value={compactCount(usualPeak)} sub="median, last 2 weeks" /> : null}
             </>
           ) : (
             <>
-              {isLive ? <Stat label="Watching now" value={compactCount(watching)} live /> : <Stat label="Views" value={compactCount(num(session?.total_views))} />}
-              <Stat label="Peak" value={compactCount(peak)} sub={session?.max_concurrent_viewers_at ? `at ${localTime(session.max_concurrent_viewers_at)}` : undefined} />
+              {isLive ? (
+                <Stat label="Watching now" value={compactCount(watching)} sub={liveRank >= 0 ? `#${liveRank + 1} of ${liveList.length} live` : undefined} live />
+              ) : (
+                <Stat label="Views" value={compactCount(num(session?.total_views))} />
+              )}
+              <Stat
+                label="Peak"
+                value={compactCount(peak)}
+                sub={[session?.max_concurrent_viewers_at ? `at ${localTime(session.max_concurrent_viewers_at)}` : null, peak && usualPeak ? `${(peak / usualPeak).toFixed(1)}× usual` : null].filter(Boolean).join(" · ") || undefined}
+              />
               <Stat label="Average" value={compactCount(average)} />
               <Stat label={isLive ? "On air" : "Length"} value={isLive ? clockDuration(duration) : shortDuration(duration)} />
+              {superchats && superchats.total_in_yen ? <Stat label="Superchats" value={`¥${compactCount(superchats.total_in_yen)}`} sub={`${superchats.donation_count.toLocaleString("en-US")} donations`} /> : null}
             </>
           )}
         </section>
@@ -297,12 +322,20 @@ function StreamSheet({ id }: { id: string }) {
         ) : null}
 
         {status === "upcoming" ? (
-          <p className={styles.note}>Viewer counts and the price overlay start once the stream goes live.</p>
+          <p className={styles.note}>
+            {roomKind === "free-chat"
+              ? "This looks like a free-chat room: a slot kept open for the community chat. These usually never go live."
+              : roomKind === "never-started"
+                ? "This slot is well past its start time and never went live. It's most likely being kept open for the chat."
+                : roomKind === "placeholder"
+                  ? "This slot is scheduled far enough out that it's probably a placeholder rather than a real start time."
+                  : "Viewer counts and the price overlay start once the stream goes live."}
+          </p>
         ) : (
           <StreamChart buckets={buckets} asset={asset} start={actual} end={status === "ended" ? ended : null} live={isLive} now={Math.floor(now / 30_000) * 30_000} loading={!loaded} error={error} />
         )}
 
-        {channelId ? <MoreFrom channelId={channelId} currentId={id} creator={creator} onOpen={openStream} /> : null}
+        {channelId && channel ? <MoreFrom data={channel} channelId={channelId} currentId={id} creator={creator} onOpen={openStream} /> : null}
 
         <footer className={styles.foot}>
           <span>Esc to close</span>
@@ -317,7 +350,8 @@ function StreamSheet({ id }: { id: string }) {
   );
 }
 
-function StatusPill({ status, watching, scheduled, ended, now }: { status: string; watching: number | null; scheduled: string | null; ended: string | null; now: number }) {
+function StatusPill({ status, roomKind, watching, scheduled, ended, now }: { status: string; roomKind: ReturnType<typeof chatRoomKind>; watching: number | null; scheduled: string | null; ended: string | null; now: number }) {
+  if (roomKind) return <span className={styles.pill}>{CHAT_ROOM_LABEL[roomKind].toUpperCase()} ROOM</span>;
   if (status === "live")
     return (
       <span className={`${styles.pill} ${styles.pillLive}`}>
@@ -356,7 +390,7 @@ function StockStrip({ asset, onTrade, onNavigate }: { asset: MarketAsset; onTrad
 }
 
 // ── Viewers × price chart ────────────────────────────────────────────────
-type PricePoint = { t: number; v: number };
+type PricePoint = { t: number; v: number; vol?: number };
 
 function useStreamCandles(symbol: string | null, start: string | null, live: boolean) {
   const [points, setPoints] = useState<PricePoint[] | null>(null);
@@ -372,7 +406,7 @@ function useStreamCandles(symbol: string | null, start: string | null, live: boo
         (raw) => {
           if (cancelled) return;
           const candles: CandlePoint[] = normalizeCandles(raw.candles ?? []);
-          setPoints(candles.filter((candle) => candle.close !== null).map((candle) => ({ t: Date.parse(candle.bucket), v: candle.close as number })));
+          setPoints(candles.filter((candle) => candle.close !== null).map((candle) => ({ t: Date.parse(candle.bucket), v: candle.close as number, vol: candle.volume_shares ?? 0 })));
         },
         () => {
           if (!cancelled) setPoints([]);
@@ -435,6 +469,7 @@ function StreamChart({ buckets, asset, start, end, live, now, loading, error }: 
     const inWindow = price.filter((point) => point.t >= t0);
     const before = price.filter((point) => point.t <= startMs).at(-1) ?? inWindow[0];
     const last = inWindow.at(-1);
+    const traded = inWindow.filter((point) => point.t >= startMs).reduce((sum, point) => sum + (point.vol ?? 0), 0);
     const change = before && last ? last.v / before.v - 1 : null;
     const pMin = Math.min(...inWindow.map((point) => point.v));
     const pMax = Math.max(...inWindow.map((point) => point.v));
@@ -447,7 +482,7 @@ function StreamChart({ buckets, asset, start, end, live, now, loading, error }: 
     const step = span > 10 * 3600_000 ? 3 * 3600_000 : span > 4 * 3600_000 ? 3600_000 : span > 90 * 60_000 ? 30 * 60_000 : 15 * 60_000;
     for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) ticks.push(t);
 
-    return { W, plotW, x, vy, py, t0, t1, startMs, views, vMax, avgLine, maxLine, inWindow, priceLine, change, before, last, pMin, pMax, ticks, vBottom, pTop, pBottom };
+    return { W, plotW, x, vy, py, t0, t1, startMs, views, vMax, avgLine, maxLine, inWindow, priceLine, change, before, last, traded, pMin, pMax, ticks, vBottom, pTop, pBottom };
   }, [buckets, end, live, livePrice, now, pricePoints, start, width]);
 
   const onMove = (event: PointerEvent<SVGSVGElement>) => {
@@ -480,6 +515,7 @@ function StreamChart({ buckets, asset, start, end, live, now, loading, error }: 
           {asset.symbol} {live ? "since the stream started" : "over the stream"}: <b className={styles[toneOf(model.change)]}>{signedPct(model.change)}</b>
           <span>
             {model.before?.v.toFixed(2)} → {model.last?.v.toFixed(2)}
+            {model.traded ? ` · ${model.traded.toLocaleString("en-US")} sh traded` : ""}
           </span>
         </p>
       ) : null}
@@ -562,41 +598,49 @@ function StreamChart({ buckets, asset, start, end, live, now, loading, error }: 
 }
 
 // ── More from this channel ───────────────────────────────────────────────
-function MoreFrom({ channelId, currentId, creator, onOpen }: { channelId: string; currentId: string; creator: string; onOpen: (item: StreamPreview) => void }) {
-  const [rows, setRows] = useState<Array<{ preview: StreamPreview; tag: string; meta: string; live: boolean }> | null>(null);
+type ChannelStreams = { live: LivestreamItem[]; upcoming: LivestreamItem[]; past: PastStream[] };
 
+/** The channel's current slots plus its last two weeks of finished streams. */
+function useChannelStreams(channelId: string | null) {
+  const [data, setData] = useState<{ key: string; value: ChannelStreams } | null>(null);
   useEffect(() => {
+    if (!channelId) return;
     let cancelled = false;
+    const enc = encodeURIComponent(channelId);
     Promise.allSettled([
-      apiFetch<{ live?: Array<Record<string, unknown>>; upcoming?: Array<Record<string, unknown>> }>(`/api/livestreams/channel/${encodeURIComponent(channelId)}`),
-      apiFetch<{ streams?: PastStreamRow[] }>(`/api/livestreams/history?page=0&channel=${encodeURIComponent(channelId)}`),
-    ]).then(([current, past]) => {
+      apiFetch<{ live?: Array<Record<string, unknown>>; upcoming?: Array<Record<string, unknown>> }>(`/api/livestreams/channel/${enc}`),
+      apiFetch<{ streams?: PastStreamRow[] }>(`/api/livestreams/history?page=0&channel=${enc}`),
+      apiFetch<{ streams?: PastStreamRow[] }>(`/api/livestreams/history?page=1&channel=${enc}`),
+    ]).then(([current, week0, week1]) => {
       if (cancelled) return;
-      const out: Array<{ preview: StreamPreview; tag: string; meta: string; live: boolean }> = [];
-      if (current.status === "fulfilled") {
-        const live: LivestreamItem[] = normalizeLivestreams(current.value.live ?? []);
-        const upcoming: LivestreamItem[] = normalizeLivestreams(current.value.upcoming ?? []);
-        for (const item of live) out.push({ preview: previewOf({ ...item, channel_id: item.channel_id ?? channelId }), tag: "LIVE", meta: `${compactCount(item.viewer_count)} watching`, live: true });
-        for (const item of upcoming) out.push({ preview: previewOf({ ...item, status: "upcoming", channel_id: item.channel_id ?? channelId }), tag: "NEXT", meta: localDateTime(item.started_at), live: false });
-      }
-      if (past.status === "fulfilled") {
-        for (const row of past.value.streams ?? []) {
-          const stream = normalizePastStream(row);
-          out.push({ preview: previewOf(stream), tag: stream.started_at ? new Date(stream.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase() : "PAST", meta: `${compactCount(stream.max_viewers)} peak · ${shortDuration(stream.duration_seconds)}`, live: false });
-        }
-      }
-      setRows(out.filter((row) => row.preview.id !== currentId).slice(0, 6));
+      const past = [week0, week1].flatMap((week) => (week.status === "fulfilled" ? (week.value.streams ?? []).map(normalizePastStream) : []));
+      setData({
+        key: channelId,
+        value: {
+          live: current.status === "fulfilled" ? normalizeLivestreams(current.value.live ?? []) : [],
+          upcoming: current.status === "fulfilled" ? normalizeLivestreams(current.value.upcoming ?? []) : [],
+          past,
+        },
+      });
     });
     return () => {
       cancelled = true;
     };
-  }, [channelId, currentId]);
+  }, [channelId]);
+  return data && data.key === channelId ? data.value : null;
+}
 
-  if (!rows?.length) return null;
+function MoreFrom({ data, channelId, currentId, creator, onOpen }: { data: ChannelStreams; channelId: string; currentId: string; creator: string; onOpen: (item: StreamPreview) => void }) {
+  const rows: Array<{ preview: StreamPreview; tag: string; meta: string; live: boolean }> = [];
+  for (const item of data.live) rows.push({ preview: previewOf({ ...item, channel_id: item.channel_id ?? channelId }), tag: "LIVE", meta: `${compactCount(item.viewer_count)} watching`, live: true });
+  for (const item of data.upcoming) rows.push({ preview: previewOf({ ...item, status: "upcoming", channel_id: item.channel_id ?? channelId }), tag: "NEXT", meta: localDateTime(item.started_at), live: false });
+  for (const stream of data.past) rows.push({ preview: previewOf(stream), tag: stream.started_at ? new Date(stream.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase() : "PAST", meta: `${compactCount(stream.max_viewers)} peak · ${shortDuration(stream.duration_seconds)}`, live: false });
+  const shown = rows.filter((row) => row.preview.id !== currentId).slice(0, 6);
+  if (!shown.length) return null;
   return (
     <section className={styles.more}>
       <h3>More from {creator}</h3>
-      {rows.map((row) => (
+      {shown.map((row) => (
         <button key={row.preview.id} type="button" onClick={() => onOpen(row.preview)}>
           <span className={row.live ? styles.tagLive : styles.tag}>{row.tag}</span>
           <b>{row.preview.title}</b>

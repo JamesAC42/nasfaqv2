@@ -178,3 +178,37 @@ export function dayHeading(iso: string | null | undefined, now: number) {
   if (date.toDateString() === tomorrow.toDateString()) return "Tomorrow";
   return date.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
 }
+
+// ── Free-chat rooms and placeholders ──────────────────────────────────────
+// Talents keep "upcoming" slots open for weeks as community chat rooms (free chat,
+// 控室, 交流場, schedule posts). They never go live, so they shouldn't sit in the
+// schedule looking late.
+const CHAT_ROOM_TITLE = /free\s*-?\s*chat|freechat|free\s*talk|フリー\s*チャット|フリーチャ|フリチャ|chat\s*room|控え?室|交流場|待機所|\bschedule\b|スケジュール|予定表/i;
+/** An upcoming slot this far past its start time has almost certainly been left open on purpose. */
+export const STALLED_AFTER_MS = 2 * 3600_000;
+/** Slots scheduled further out than this are placeholders, not real start times. */
+export const PLACEHOLDER_AFTER_MS = 30 * 86_400_000;
+
+export type ChatRoomKind = "free-chat" | "never-started" | "placeholder";
+
+export function chatRoomKind(item: { title: string; started_at?: string | null }, now: number): ChatRoomKind | null {
+  if (CHAT_ROOM_TITLE.test(item.title)) return "free-chat";
+  const at = item.started_at ? Date.parse(item.started_at) : NaN;
+  if (!Number.isFinite(at)) return null;
+  if (now - at > STALLED_AFTER_MS) return "never-started";
+  if (at - now > PLACEHOLDER_AFTER_MS) return "placeholder";
+  return null;
+}
+
+export const CHAT_ROOM_LABEL: Record<ChatRoomKind, string> = {
+  "free-chat": "free chat",
+  "never-started": "never started",
+  placeholder: "placeholder",
+};
+
+export function median(values: number[]) {
+  const sorted = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+  if (!sorted.length) return null;
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}

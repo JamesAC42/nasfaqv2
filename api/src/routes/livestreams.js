@@ -253,6 +253,24 @@ router.get("/:videoId", async (req, res, next) => {
     );
     const session = r.rows[0] || null;
 
+    // Superchat totals land the day after a stream (the hololyzer scrape is daily).
+    if (session) {
+      const sc = await pool.query(
+        `
+          SELECT
+            SUM(total_in_yen)::BIGINT AS total_in_yen,
+            SUM(donation_count)::BIGINT AS donation_count
+          FROM yt.youtube_superchat_currency_breakdowns
+          WHERE video_id = $1
+        `,
+        [videoId]
+      );
+      const row = sc.rows[0];
+      session.superchats = row && row.total_in_yen !== null
+        ? { total_in_yen: Number(row.total_in_yen), donation_count: Number(row.donation_count || 0) }
+        : null;
+    }
+
     res.json({ session, redis: redisItem });
   } catch (e) {
     next(e);

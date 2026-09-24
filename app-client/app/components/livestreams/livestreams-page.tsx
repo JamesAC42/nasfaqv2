@@ -8,6 +8,8 @@ import { apiFetch } from "@/app/lib/api";
 import { unitLabel, unitName, UNIT_ORDER } from "@/app/lib/market-units";
 import {
   assetForStream,
+  CHAT_ROOM_LABEL,
+  chatRoomKind,
   clockDuration,
   compactCount,
   dayHeading,
@@ -76,9 +78,18 @@ export function LivestreamsPage() {
   }, [assets, held, mine, query, units]);
 
   const liveShown = useMemo(() => live.filter((item) => matcher(item.creator, item.title, item.channel_id)), [live, matcher]);
-  const upcomingShown = useMemo(() => upcoming.filter((item) => matcher(item.creator, item.title, item.channel_id)), [matcher, upcoming]);
+  // Free-chat rooms and never-started slots get their own list at the bottom.
+  const minute = Math.floor(now / 60_000);
+  const { scheduled, rooms } = useMemo(() => {
+    const at = minute * 60_000;
+    const out: { scheduled: LivestreamItem[]; rooms: LivestreamItem[] } = { scheduled: [], rooms: [] };
+    for (const item of upcoming) (chatRoomKind(item, at) ? out.rooms : out.scheduled).push(item);
+    return out;
+  }, [minute, upcoming]);
+  const upcomingShown = useMemo(() => scheduled.filter((item) => matcher(item.creator, item.title, item.channel_id)), [matcher, scheduled]);
+  const roomsShown = useMemo(() => rooms.filter((item) => matcher(item.creator, item.title, item.channel_id)), [matcher, rooms]);
   const watching = live.reduce((sum, item) => sum + (item.viewer_count ?? 0), 0);
-  const next24 = upcoming.filter((item) => item.started_at && Date.parse(item.started_at) - now < 86_400_000 && Date.parse(item.started_at) > now - 3600_000).length;
+  const next24 = scheduled.filter((item) => item.started_at && Date.parse(item.started_at) - now < 86_400_000 && Date.parse(item.started_at) > now - 3600_000).length;
   const filtering = units.length > 0 || Boolean(query.trim()) || mine;
 
   return (
@@ -172,8 +183,10 @@ export function LivestreamsPage() {
                   <p className={styles.empty}>{filtering ? "No scheduled streams match these filters." : "Nothing's on the schedule yet."}</p>
                 )}
               </section>
+
+              {roomsShown.length ? <ChatRooms items={roomsShown} assets={assets} now={now} onOpen={(item) => openStream(previewOf({ ...item, status: "upcoming" }))} /> : null}
             </main>
-            <OnAirRail live={live} upcoming={upcoming} assets={assets} now={now} onOpen={(item) => openStream(previewOf(item))} />
+            <OnAirRail live={live} upcoming={scheduled} assets={assets} now={now} onOpen={(item) => openStream(previewOf(item))} />
           </div>
         ) : (
           <PastStreams matcher={matcher} filtering={filtering} onOpen={(stream) => openStream(previewOf(stream))} />
@@ -261,6 +274,49 @@ function Schedule({ items, assets, now, onOpen }: { items: LivestreamItem[]; ass
         </div>
       ))}
     </div>
+  );
+}
+
+// ── Free chat rooms ──────────────────────────────────────────────────────
+function ChatRooms({ items, assets, now, onOpen }: { items: LivestreamItem[]; assets: MarketAsset[]; now: number; onOpen: (item: LivestreamItem) => void }) {
+  const [open, setOpen] = useState(false);
+  const shown = open ? items : items.slice(0, 5);
+  return (
+    <section>
+      <h2 className={styles.secHead}>
+        Free chat & placeholders <small>{items.length}</small>
+      </h2>
+      <p className={styles.secNote}>Slots that are open for the chat rather than a broadcast: free-chat rooms, streams that never started, and far-off placeholders.</p>
+      <div className={styles.rooms}>
+        {shown.map((item) => {
+          const asset = assetForStream(assets, item.channel_id, item.creator);
+          const kind = chatRoomKind(item, now) ?? "free-chat";
+          const at = item.started_at ? new Date(item.started_at) : null;
+          return (
+            <button key={item.id} type="button" className={`${styles.slot} ${styles.room}`} onClick={() => onOpen(item)}>
+              <time suppressHydrationWarning>{at ? at.toLocaleDateString("en-US", { month: "short", day: "numeric", ...(at.getFullYear() !== new Date(now).getFullYear() ? { year: "numeric" } : {}) }) : "—"}</time>
+              <span className={styles.until}>{CHAT_ROOM_LABEL[kind]}</span>
+              {asset ? <Oshimark icon={asset.icon} symbol={asset.symbol} size={22} /> : <span className={styles.noMark} />}
+              <span className={styles.slotText}>
+                <b>{item.creator}</b>
+                <small>{item.title}</small>
+              </span>
+              {asset ? (
+                <span className={styles.slotTick}>
+                  {asset.symbol}
+                  <span className={styles[toneOf(asset.move_24h_pct)]}>{signedPct(asset.move_24h_pct, 1)}</span>
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+      {items.length > 5 ? (
+        <button type="button" className={styles.more} onClick={() => setOpen((value) => !value)}>
+          {open ? "SHOW FEWER" : `SHOW ALL ${items.length}`}
+        </button>
+      ) : null}
+    </section>
   );
 }
 
