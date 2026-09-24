@@ -1,0 +1,67 @@
+@use "../../styles/mixins" as *;
+
+.wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.chart {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.axis {
+  stroke: var(--rule-2);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.cursor {
+  stroke: var(--blue);
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.buy {
+  fill: var(--up);
+  stroke: var(--up);
+}
+
+.sell {
+  fill: var(--down);
+  stroke: var(--down);
+}
+
+.wick {
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.hi,
+.lo {
+  position: absolute;
+  right: 4px;
+  @include num;
+  font-size: 0.6rem;
+  color: var(--dim);
+  background: var(--ink);
+  padding: 0 2px;
+}
+
+.hi {
+  top: 0;
+}
+
+.lo {
+  bottom: 0;
+}
+
+.empty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--dim);
+  font-size: 0.78rem;
+}
