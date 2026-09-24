@@ -32,6 +32,16 @@ let activeIndexRequest: Promise<void> | null = null;
 
 const INDEX_REFRESH_STALE_MS = 5 * 60_000;
 
+// Raw websocket payloads, for views that keep their own derived state (the market hub).
+type MarketEventListener = (payload: Record<string, unknown>) => void;
+const marketEventListeners = new Set<MarketEventListener>();
+export function onMarketEvent(listener: MarketEventListener) {
+  marketEventListeners.add(listener);
+  return () => {
+    marketEventListeners.delete(listener);
+  };
+}
+
 function toNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
@@ -343,6 +353,11 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       wsRef.onmessage = (event) => {
         try {
           const payload = JSON.parse(String(event.data || "{}")) as Record<string, unknown>;
+          marketEventListeners.forEach((listener) => {
+            try {
+              listener(payload);
+            } catch {}
+          });
 
           if (payload.type === "market.trade_fill") {
             const trade = normalizeMarketHubTrade((payload.trade || {}) as Record<string, unknown>);

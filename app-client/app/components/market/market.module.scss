@@ -1,0 +1,441 @@
+@use "../../styles/mixins" as *;
+
+// Shared by every Market tab: page frame, the tab bar, and small primitives
+// (sections, KPI strips, ranked rows, segmented toggles).
+
+.page {
+  min-width: 0;
+
+  @include phone {
+    margin: -1rem calc(-1 * var(--gutter)) 0;
+  }
+}
+
+.up { color: var(--up); }
+.down { color: var(--down); }
+.flat { color: var(--mid); }
+
+// ── Tabs ─────────────────────────────────────────────────────────────────
+.tabs {
+  position: sticky;
+  top: calc(var(--rail-height) + var(--tape-height) + env(safe-area-inset-top, 0px));
+  z-index: 30;
+  display: flex;
+  align-items: stretch;
+  background: var(--ink);
+  border: 1px solid var(--rule);
+
+  @include phone {
+    border-inline: 0;
+  }
+}
+
+.tabList {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.tab {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 11rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 0.9rem;
+  row-gap: 0.2rem;
+  align-items: center;
+  padding: 0.85rem 1.35rem 0.8rem 1.1rem;
+  border-right: 1px solid var(--rule);
+  color: var(--mid);
+
+  kbd {
+    @include num;
+    grid-row: 1 / 3;
+    font-size: 0.656rem;
+    color: var(--dim);
+    border: 1px solid var(--rule-2);
+    padding: 0.18rem 0.42rem;
+  }
+
+  b {
+    @include display(1.25rem);
+    line-height: 1.1;
+    letter-spacing: 0.02em;
+  }
+
+  small {
+    @include num;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.656rem;
+    letter-spacing: 0.05em;
+    color: var(--dim);
+    white-space: nowrap;
+  }
+
+  &:hover {
+    color: var(--text);
+    background: var(--ink-2);
+  }
+
+  &[aria-current="page"] {
+    color: var(--text);
+    background: var(--ink-2);
+
+    &::before {
+      content: "";
+      position: absolute;
+      inset: -1px 0 auto;
+      height: 2px;
+      background: var(--blue);
+      box-shadow: 0 0 12px var(--blue-line);
+    }
+
+    kbd {
+      color: var(--blue);
+      border-color: var(--blue-line);
+    }
+  }
+
+  @include phone {
+    flex: 1 0 auto;
+    min-width: 0;
+    grid-template-columns: auto;
+    padding: 0.55rem 0.8rem 0.5rem;
+
+    kbd {
+      display: none;
+    }
+
+    b {
+      font-size: 1rem;
+    }
+
+    small {
+      font-size: 0.6rem;
+    }
+  }
+}
+
+.liveDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--up);
+  animation: livePulse 1.6s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.tabState {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0 1rem;
+  @include num;
+  font-size: 0.656rem;
+  color: var(--dim);
+  white-space: nowrap;
+
+  b {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .batch b {
+    color: var(--blue);
+  }
+
+  @include tablet-down {
+    .batch {
+      display: none;
+    }
+  }
+
+  @include phone {
+    display: none;
+  }
+}
+
+.pane {
+  border: 1px solid var(--rule);
+  border-top: 0;
+
+  @include phone {
+    border-inline: 0;
+  }
+}
+
+// ── Primitives ───────────────────────────────────────────────────────────
+.sec {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--rule);
+  min-width: 0;
+}
+
+.secHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.6rem;
+  margin-bottom: 0.6rem;
+
+  h2 {
+    @include section-heading;
+    margin: 0;
+  }
+}
+
+.aside {
+  @include num;
+  font-size: 0.656rem;
+  color: var(--dim);
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+a.aside,
+button.aside {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--blue);
+  }
+}
+
+.label {
+  @include label;
+}
+
+.empty {
+  margin: 0;
+  padding: 0.6rem 0;
+  color: var(--dim);
+  font-size: 0.8125rem;
+}
+
+.note {
+  margin: 0.6rem 0 0;
+  font-size: 0.72rem;
+  color: var(--dim);
+  line-height: 1.5;
+}
+
+.foot {
+  padding: 0.75rem 1rem;
+  @include num;
+  font-size: 0.625rem;
+  color: var(--dim);
+  line-height: 1.6;
+  border-bottom: 1px solid var(--rule);
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+
+// KPI strip: label, big number, sub line.
+.kstrip {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 5), minmax(0, 1fr));
+  border-bottom: 1px solid var(--rule);
+
+  > div {
+    padding: 0.75rem 1rem;
+    border-right: 1px solid var(--rule);
+    min-width: 0;
+
+    &:last-child {
+      border-right: 0;
+    }
+  }
+
+  @include desktop-down {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+
+    > div {
+      border-bottom: 1px solid var(--rule);
+      border-right: 1px solid var(--rule);
+    }
+  }
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.kv {
+  display: block;
+  @include num;
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1.2;
+  margin-top: 0.15rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ks {
+  display: block;
+  @include num;
+  font-size: 0.656rem;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pressure {
+  display: flex;
+  height: 8px;
+  margin: 0.45rem 0 0.3rem;
+  background: var(--down);
+
+  i {
+    display: block;
+    background: var(--up);
+    transition: width 0.6s;
+  }
+}
+
+// Ranked row: oshimark, ticker, detail + bar, value.
+.rrow {
+  display: grid;
+  grid-template-columns: 20px 40px minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.32rem 0;
+  border-top: 1px solid var(--rule);
+  font-size: 0.75rem;
+
+  &:first-of-type {
+    border-top: 0;
+  }
+
+  b {
+    @include num;
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  &:hover b {
+    color: var(--blue);
+  }
+}
+
+.rmid {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+
+  small {
+    @include num;
+    font-size: 0.625rem;
+    color: var(--dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  i {
+    display: block;
+    height: 3px;
+    max-width: 100%;
+    background: currentColor;
+    opacity: 0.75;
+  }
+}
+
+.rval {
+  @include num;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+
+// Segmented toggle: [ ALL | BUYS | SELLS ]
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--rule-2);
+
+  button {
+    border: 0;
+    background: none;
+    padding: 0.38rem 0.62rem;
+    @include num;
+    font-size: 0.656rem;
+    letter-spacing: 0.06em;
+    color: var(--dim);
+    white-space: nowrap;
+
+    &:hover {
+      color: var(--text);
+    }
+
+    &[aria-pressed="true"] {
+      background: var(--text);
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    &[aria-pressed="true"][data-tone="up"] {
+      background: var(--up);
+      color: var(--up-ink);
+    }
+
+    &[aria-pressed="true"][data-tone="down"] {
+      background: var(--down);
+      color: var(--down-ink);
+    }
+
+    &[aria-pressed="true"][data-tone="blue"] {
+      background: var(--blue);
+      color: var(--blue-ink);
+    }
+  }
+}
+
+// Diverging bar, zero in the middle.
+.dbar {
+  position: relative;
+  height: 10px;
+  background: var(--ink-3);
+
+  &::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: -2px;
+    bottom: -2px;
+    width: 1px;
+    background: var(--rule-2);
+  }
+
+  s {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    text-decoration: none;
+  }
+}

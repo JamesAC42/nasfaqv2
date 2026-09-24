@@ -1,0 +1,635 @@
+@use "../../styles/mixins" as *;
+
+// HoloNews front page: masthead, headlines, the settlement report, units, community.
+.page {
+  min-width: 0;
+}
+
+.up { color: var(--up); }
+.down { color: var(--down); }
+.flat { color: var(--mid); }
+
+.label {
+  @include label;
+}
+
+a.label:hover {
+  color: var(--blue);
+}
+
+.empty {
+  margin: 0;
+  color: var(--dim);
+  font-size: 0.8125rem;
+}
+
+.meta {
+  @include num;
+  font-size: 0.656rem;
+  color: var(--dim);
+}
+
+// ── Masthead ──────────────────────────────────────────────────────────────
+.masthead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem 2rem;
+  align-items: end;
+  padding: 0.6rem 0 1rem;
+  border-bottom: 2px solid var(--text);
+
+  h1 {
+    @include display(clamp(2.6rem, 6vw, 4.6rem));
+    margin: 0;
+    line-height: 0.9;
+
+    span {
+      color: var(--blue);
+    }
+  }
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.dateline {
+  @include label;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1.2rem;
+  margin-top: 0.7rem;
+}
+
+.pulse {
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  gap: 0.3rem 1.6rem;
+  align-items: end;
+
+  > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  @include phone {
+    grid-template-columns: repeat(2, auto);
+  }
+}
+
+.big {
+  @include num;
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.sub {
+  @include num;
+  font-size: 0.656rem;
+  color: var(--dim);
+}
+
+.pulseSpark svg {
+  display: block;
+  width: 120px;
+  height: 36px;
+}
+
+// ── Newbie strip ──────────────────────────────────────────────────────────
+.newbie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.8rem 1.4rem;
+  padding: 0.8rem 1rem;
+  margin-top: 1rem;
+  border: 1px solid var(--blue-line);
+  background: var(--blue-wash);
+
+  p {
+    flex: 1 1 26rem;
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--mid);
+
+    b {
+      @include display(1rem);
+      color: var(--text);
+      margin-right: 0.4rem;
+    }
+  }
+
+  @include phone {
+    position: relative;
+    padding-right: 2.5rem;
+  }
+}
+
+.newbieActions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.newbiePrimary {
+  @include button-primary;
+}
+
+.newbieGhost {
+  @include button-secondary;
+}
+
+.newbieClose {
+  border: 0;
+  background: none;
+  color: var(--dim);
+  padding: 0.4rem;
+  font-size: 0.9rem;
+
+  &:hover {
+    color: var(--text);
+  }
+
+  @include phone {
+    position: absolute;
+    right: 0.3rem;
+    top: 0.3rem;
+  }
+}
+
+// ── Headlines ────────────────────────────────────────────────────────────
+.front {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  border: 1px solid var(--rule);
+  border-top: 0;
+  margin-top: 1rem;
+  border-top: 1px solid var(--rule);
+
+  > .empty {
+    padding: 1.2rem;
+  }
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.lead {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 1rem;
+  border-right: 1px solid var(--rule);
+
+  h2 {
+    @include display(clamp(1.5rem, 2.6vw, 2.25rem));
+    margin: 0.4rem 0 0;
+    line-height: 1.08;
+  }
+
+  p {
+    margin: 0.5rem 0 0;
+    color: var(--mid);
+    line-height: 1.6;
+  }
+
+  @include tablet-down {
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+}
+
+.leadLink {
+  display: block;
+
+  &:hover h2 {
+    color: var(--blue-2);
+  }
+}
+
+.leadImage {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  object-fit: cover;
+  margin-bottom: 0.8rem;
+}
+
+.kicker {
+  @include label;
+  color: var(--blue);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.heads {
+  display: flex;
+  flex-direction: column;
+}
+
+.head {
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  h3 {
+    margin: 0 0 0.3rem;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+}
+
+.headLink {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: start;
+
+  &:hover h3 {
+    color: var(--blue-2);
+  }
+}
+
+.headImage {
+  display: block;
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+}
+
+.more {
+  @include label;
+  padding: 0.8rem 1rem;
+  margin-top: auto;
+
+  &:hover {
+    color: var(--blue);
+  }
+}
+
+// ── Blocks (report, units) ───────────────────────────────────────────────
+.block {
+  margin-top: 1.4rem;
+}
+
+.blockHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  padding: 0 0 0.7rem;
+  border-bottom: 1px solid var(--rule);
+
+  h2 {
+    @include display(1.375rem);
+    margin: 0;
+  }
+}
+
+.report {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--rule);
+  border-top: 0;
+
+  @include desktop-down {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.reportCol {
+  padding: 0.9rem 1rem;
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  min-width: 0;
+
+  h3 {
+    @include section-heading;
+    margin: 0 0 0.6rem;
+
+    &.up { color: var(--up); }
+    &.down { color: var(--down); }
+  }
+}
+
+.rep {
+  display: grid;
+  grid-template-columns: 22px 40px minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.38rem 0;
+  border-top: 1px solid var(--rule);
+  font-size: 0.75rem;
+
+  &:first-of-type {
+    border-top: 0;
+  }
+
+  b {
+    @include num;
+    font-size: 0.72rem;
+  }
+
+  &:hover b {
+    color: var(--blue);
+  }
+}
+
+.fromTo {
+  @include num;
+  font-size: 0.656rem;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.repValue {
+  @include num;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+.note {
+  margin: 0.6rem 0 0;
+  font-size: 0.72rem;
+  color: var(--dim);
+  line-height: 1.5;
+}
+
+.units {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  border-left: 1px solid var(--rule);
+
+  @include desktop-down {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.unit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.65rem 0.75rem;
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  min-width: 0;
+
+  &:hover {
+    background: var(--ink-3);
+  }
+}
+
+.unitName {
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.unitMarks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.unitSpark {
+  display: block;
+  width: 100%;
+  height: 24px;
+}
+
+.unitValue {
+  @include num;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+}
+
+// ── Community ────────────────────────────────────────────────────────────
+.community {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 1.4rem;
+  border: 1px solid var(--rule);
+
+  @include desktop-down {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.communityCol {
+  padding: 0.9rem 1rem;
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  min-width: 0;
+}
+
+.colHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+
+  h3 {
+    @include section-heading;
+    margin: 0;
+  }
+}
+
+.air {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--rule);
+
+  &:first-of-type {
+    border-top: 0;
+  }
+
+  &:hover b {
+    color: var(--blue);
+  }
+}
+
+.airText {
+  min-width: 0;
+
+  b {
+    display: block;
+    font-size: 0.8125rem;
+  }
+
+  small {
+    display: block;
+    color: var(--dim);
+    font-size: 0.72rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.live {
+  @include num;
+  font-size: 0.656rem;
+  color: var(--down);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+
+  &::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+}
+
+.post {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--rule);
+  font-size: 0.78rem;
+
+  &:first-of-type {
+    border-top: 0;
+  }
+
+  p {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-wrap: anywhere;
+  }
+}
+
+.postNo {
+  @include num;
+  font-size: 0.625rem;
+  color: var(--dim);
+  padding-top: 0.15rem;
+}
+
+.greentext {
+  color: #9bcf5a;
+}
+
+.pm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--rule);
+
+  &:first-of-type {
+    border-top: 0;
+  }
+}
+
+.pmQ {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.pmBar {
+  @include num;
+  display: flex;
+  height: 1.2rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+}
+
+.pmYes,
+.pmNo {
+  display: flex;
+  align-items: center;
+  padding-inline: 0.4rem;
+  white-space: nowrap;
+}
+
+.pmYes {
+  background: var(--up-wash);
+  color: var(--up);
+}
+
+.pmNo {
+  flex: 1;
+  justify-content: flex-end;
+  background: var(--down-wash);
+  color: var(--down);
+}
+
+.lb {
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.4rem 0;
+  border-top: 1px solid var(--rule);
+  font-size: 0.8rem;
+
+  &:first-of-type {
+    border-top: 0;
+  }
+
+  &:hover .lbName {
+    color: var(--blue);
+  }
+}
+
+.lbMe {
+  background: var(--blue-wash);
+}
+
+.rank {
+  @include num;
+  font-weight: 700;
+  color: var(--dim);
+  font-size: 0.72rem;
+}
+
+.lbName {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lbValue {
+  @include num;
+  font-size: 0.72rem;
+}
