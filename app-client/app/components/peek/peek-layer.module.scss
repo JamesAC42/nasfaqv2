@@ -113,6 +113,13 @@
   b {
     color: var(--blue);
   }
+
+  kbd {
+    padding: 0 0.25rem;
+    border: 1px solid var(--rule-2);
+    font-family: inherit;
+    color: var(--text);
+  }
 }
 
 .up {

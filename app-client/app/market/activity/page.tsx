@@ -4,10 +4,11 @@ import { MarketHub } from "@/app/components/market/market-hub";
 
 export const metadata: Metadata = { title: "Market activity" };
 
-export default function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ symbol?: string }> }) {
+  const { symbol } = await searchParams;
   return (
     <MarketHub tab="activity">
-      <ActivityTab />
+      <ActivityTab initialSymbol={typeof symbol === "string" ? symbol : ""} />
     </MarketHub>
   );
 }

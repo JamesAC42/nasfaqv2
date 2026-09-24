@@ -343,7 +343,7 @@ function useFriendSets(enabled: boolean) {
   return sets;
 }
 
-function Tape() {
+function Tape({ initialTicker = "" }: { initialTicker?: string }) {
   const liveTrades = useHubStore((state) => state.trades);
   const nextCursor = useHubStore((state) => state.nextCursor);
   const isLoadingMore = useHubStore((state) => state.isLoadingMore);
@@ -355,7 +355,7 @@ function Tape() {
   const [side, setSide] = useState<Side>("all");
   const [size, setSize] = useState<"0" | "100" | "1000">("0");
   const [who, setWho] = useState<Who>("all");
-  const [ticker, setTicker] = useState("");
+  const [ticker, setTicker] = useState(initialTicker.toUpperCase().slice(0, 4));
   const [live, setLive] = useState(true);
   const [frozen, setFrozen] = useState<MarketHubTrade[] | null>(null);
   const [limit, setLimit] = useState(PAGE_ROWS);
@@ -896,7 +896,7 @@ function Heartbeat() {
 }
 
 // ── Tab ──────────────────────────────────────────────────────────────────
-export function ActivityTab() {
+export function ActivityTab({ initialSymbol = "" }: { initialSymbol?: string }) {
   const trades = useHubStore((state) => state.trades);
   return (
     <>
@@ -904,7 +904,7 @@ export function ActivityTab() {
         <div className={styles.main}>
           <Kpis trades={trades} />
           <Queue />
-          <Tape />
+          <Tape initialTicker={initialSymbol} />
         </div>
         <aside className={styles.side}>
           <PendingOrders />

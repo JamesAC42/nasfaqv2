@@ -9,6 +9,7 @@ import { useNow } from "@/app/lib/use-now";
 import { useTheme } from "@/app/providers/theme-provider";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useProfileStore } from "@/app/stores/profile-store";
+import { useTradeStore } from "@/app/stores/trade-store";
 import styles from "@/app/components/peek/peek-layer.module.scss";
 
 // Hover previews ("peeks") that follow the cursor. Mark any element with
@@ -92,7 +93,9 @@ function StockPeek({ symbol }: { symbol: string }) {
         </div>
       ) : null}
       <div className={styles.foot}>
-        <span>click to open</span>
+        <span>
+          click to open · <kbd>B</kbd> buy · <kbd>S</kbd> sell
+        </span>
         {clock ? (
           <span>
             {clock.nextTick.label.toUpperCase()} in <b>{formatCountdown(clock.secondsToNextTick).slice(0, 5)}</b>
@@ -105,6 +108,9 @@ function StockPeek({ symbol }: { symbol: string }) {
 
 export function PeekLayer() {
   const [symbol, setSymbol] = useState<string | null>(null);
+  const openTrade = useTradeStore((state) => state.openTrade);
+  const shown = useRef<string | null>(null);
+  shown.current = symbol;
   const layerRef = useRef<HTMLDivElement | null>(null);
   const pointer = useRef({ x: 0, y: 0 });
   const frame = useRef(0);
@@ -156,18 +162,33 @@ export function PeekLayer() {
       if (!frame.current) frame.current = requestAnimationFrame(place);
     };
 
+    // B / S while a peek is up opens the trade drawer for that stock.
+    const onKey = (event: KeyboardEvent) => {
+      const current = shown.current;
+      if (!current || event.metaKey || event.ctrlKey || event.altKey) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      const key = event.key.toLowerCase();
+      if (key !== "b" && key !== "s") return;
+      event.preventDefault();
+      hide();
+      openTrade(current, key === "b" ? "buy" : "sell");
+    };
+
+    document.addEventListener("keydown", onKey);
     document.addEventListener("pointerover", onOver);
     document.addEventListener("pointermove", onMove, { passive: true });
     document.addEventListener("pointerdown", hide);
     window.addEventListener("scroll", hide, { passive: true });
     return () => {
       if (timer) clearTimeout(timer);
+      document.removeEventListener("keydown", onKey);
       document.removeEventListener("pointerover", onOver);
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerdown", hide);
       window.removeEventListener("scroll", hide);
     };
-  }, []);
+  }, [openTrade]);
 
   return (
     <div ref={layerRef} className={styles.layer} aria-hidden="true">
