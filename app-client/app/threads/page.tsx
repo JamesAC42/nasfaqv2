@@ -1,5 +1,5 @@
-import { NasfaqThreadPage } from "@/app/components/pages/nasfaq-thread-page";
+import { ThreadWatch } from "@/app/components/threads/thread-watch";
 
 export default function Page() {
-  return <NasfaqThreadPage />;
+  return <ThreadWatch />;
 }
