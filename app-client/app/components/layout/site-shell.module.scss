@@ -4,6 +4,9 @@
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  // Safety net: a page that's a few pixels too wide shouldn't make the whole site
+  // pan sideways on phones. `clip` (unlike `hidden`) keeps the sticky header working.
+  overflow-x: clip;
 
   @include tablet-down {
     padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
