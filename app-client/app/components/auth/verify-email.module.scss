@@ -1,0 +1,109 @@
+@use "../../styles/mixins" as *;
+
+.page {
+  width: 100%;
+  max-width: 34rem;
+  margin: 3rem auto;
+
+  @include phone {
+    margin-top: 1.5rem;
+  }
+}
+
+.card {
+  position: relative;
+  display: grid;
+  gap: 0.6rem;
+  padding: 1.75rem 1.5rem 1.5rem;
+  border: 1px solid var(--rule-2);
+  background: radial-gradient(120% 90% at 100% 0%, var(--blue-wash), transparent 60%), var(--ink);
+
+  h1 {
+    @include display(2rem);
+    margin: 0;
+    padding-right: 7rem;
+    line-height: 1.05;
+  }
+
+  p {
+    margin: 0;
+    padding-right: 7rem;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: var(--mid);
+  }
+
+  @include phone {
+    h1,
+    p {
+      padding-right: 0;
+    }
+  }
+}
+
+.chibi {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 96px;
+  height: 96px;
+
+  @include phone {
+    position: static;
+    width: 72px;
+    height: 72px;
+  }
+}
+
+.kicker {
+  @include label;
+  color: var(--blue);
+}
+
+.ok {
+  color: var(--blue);
+}
+
+.bad {
+  color: var(--down);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--mid);
+}
+
+.primary,
+.ghost {
+  display: inline-flex;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--rule-2);
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+.primary {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: var(--blue-ink);
+}
+
+.fail {
+  color: var(--warn);
+}

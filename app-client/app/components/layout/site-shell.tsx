@@ -77,6 +77,16 @@ export function SiteShell({
   const navRef = useRef<HTMLElement | null>(null);
   const ordersRef = useRef<HTMLDivElement | null>(null);
 
+  // Remember the last page outside the account screens, so signing in returns there.
+  useEffect(() => {
+    if (/^\/(login|register|verify-email|dev)(\/|$)/.test(pathname)) return;
+    try {
+      window.sessionStorage.setItem("nasfaq.returnTo", `${pathname}${window.location.search}`);
+    } catch {
+      /* storage blocked */
+    }
+  }, [pathname]);
+
   // ── Data ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (assets.length || hasRequestedOverviewRef.current) return;

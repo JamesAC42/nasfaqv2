@@ -3,69 +3,116 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { ArtSlot } from "@/app/components/common/art-slot";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { useAuth } from "@/app/providers/auth-provider";
+import styles from "@/app/components/auth/verify-email.module.scss";
 
-function VerifyEmailContent() {
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token") || "";
-  const { refreshSession } = useAuth();
-  const [status, setStatus] = useState<"pending" | "success" | "error">("pending");
-  const [error, setError] = useState("");
+const REASONS: Record<string, string> = {
+  missing_token: "The link is missing its token. Open it straight from the email.",
+  invalid_verification_token: "That link is invalid, has expired, or was already used.",
+};
+
+function VerifyEmail() {
+  const token = useSearchParams().get("token") || "";
+  const { user, refreshSession, resendVerification } = useAuth();
+  const [status, setStatus] = useState<"pending" | "success" | "error">(token ? "pending" : "error");
+  const [error, setError] = useState(token ? "" : "missing_token");
+  const [resent, setResent] = useState<"idle" | "busy" | "sent" | "failed">("idle");
 
   useEffect(() => {
-    if (!token) {
-      return;
-    }
-
+    if (!token) return;
     let cancelled = false;
-    async function verify() {
-      try {
-        await apiFetch<{ ok: boolean }>("/api/auth/verify-email", {
-          method: "POST",
-          body: JSON.stringify({ token }),
-        });
+    apiFetch<{ ok: boolean }>("/api/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) })
+      .then(async () => {
         if (cancelled) return;
         await refreshSession();
         setStatus("success");
-      } catch (err) {
+      })
+      .catch((reason) => {
         if (cancelled) return;
-        setError(String((err as Error).message || err));
+        setError(String((reason as Error).message || reason));
         setStatus("error");
-      }
-    }
-
-    void verify();
+      });
     return () => {
       cancelled = true;
     };
   }, [refreshSession, token]);
 
+  const resend = async () => {
+    setResent("busy");
+    try {
+      await resendVerification();
+      setResent("sent");
+    } catch {
+      setResent("failed");
+    }
+  };
+
   return (
-    <SiteShell>
-      <section className="contentPanel">
-        <h1>Email Verification</h1>
-        {token && status === "pending" ? <p>Verifying your email...</p> : null}
-        {status === "success" ? (
-          <p className="statusMessage statusMessageSuccess">
-            Email verified. You can now trade, chat, comment, and publish content. <Link href="/profile">Go to profile</Link>.
-          </p>
-        ) : null}
-        {!token || status === "error" ? (
-          <p className="statusMessage statusMessageError">
-            Verification failed: {!token ? "missing_token" : error || "invalid_verification_token"}. Sign in and resend the verification email.
-          </p>
-        ) : null}
-      </section>
-    </SiteShell>
+    <section className={styles.card} aria-live="polite">
+      <ArtSlot kind="chibi" pose={status === "success" ? "hype" : status === "error" ? "shock" : "idle"} symbol="VERIFY" accent="var(--blue)" width={120} className={styles.chibi} />
+      {status === "pending" ? (
+        <>
+          <span className={styles.kicker}>CHECKING</span>
+          <h1>Verifying your email…</h1>
+          <p>One second.</p>
+        </>
+      ) : status === "success" ? (
+        <>
+          <span className={`${styles.kicker} ${styles.ok}`}>VERIFIED</span>
+          <h1>You&apos;re in.</h1>
+          <p>Your email is verified. You can trade, chat, comment and write articles now.</p>
+          <div className={styles.actions}>
+            <Link href="/stocks" className={styles.primary}>
+              PICK YOUR FIRST STOCK
+            </Link>
+            <Link href="/profile" className={styles.ghost}>
+              YOUR PROFILE
+            </Link>
+          </div>
+        </>
+      ) : (
+        <>
+          <span className={`${styles.kicker} ${styles.bad}`}>COULDN&apos;T VERIFY</span>
+          <h1>That link didn&apos;t work.</h1>
+          <p>{REASONS[error] ?? `Verification failed (${error}).`}</p>
+          {user && !user.email_verified ? (
+            <div className={styles.actions}>
+              <button type="button" className={styles.primary} onClick={() => void resend()} disabled={resent === "busy" || resent === "sent"}>
+                {resent === "sent" ? "NEW LINK SENT" : resent === "busy" ? "SENDING…" : "SEND A NEW LINK"}
+              </button>
+              {resent === "failed" ? <span className={styles.fail}>Couldn&apos;t send it. Try again in a minute.</span> : null}
+            </div>
+          ) : user ? (
+            <div className={styles.actions}>
+              <span>Your account ({user.username}) is already verified.</span>
+              <Link href="/profile" className={styles.ghost}>
+                YOUR PROFILE
+              </Link>
+            </div>
+          ) : (
+            <div className={styles.actions}>
+              <Link href="/login?next=/profile" className={styles.primary}>
+                SIGN IN TO GET A NEW LINK
+              </Link>
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 
 export default function VerifyEmailPage() {
   return (
-    <Suspense fallback={<SiteShell><section className="contentPanel"><p>Loading verification...</p></section></SiteShell>}>
-      <VerifyEmailContent />
-    </Suspense>
+    <SiteShell>
+      <div className={styles.page}>
+        <Suspense fallback={<section className={styles.card}>Loading…</section>}>
+          <VerifyEmail />
+        </Suspense>
+      </div>
+    </SiteShell>
   );
 }

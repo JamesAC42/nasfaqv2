@@ -1,12 +1,15 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Script from "next/script";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ArtSlot } from "@/app/components/common/art-slot";
+import { Oshimark } from "@/app/components/common/oshimark";
 import { SiteShell } from "@/app/components/layout/site-shell";
+import { signedPct, toneOf } from "@/app/lib/time";
 import { useAuth } from "@/app/providers/auth-provider";
+import { useMarketStore } from "@/app/stores/market-store";
 import styles from "@/app/components/auth/auth-form.module.scss";
 
 declare global {
@@ -30,53 +33,82 @@ const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
 const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
 const ERROR_MESSAGES: Record<string, string> = {
-  invalid_username: "Username must be 3\u201332 characters and can include letters, numbers, underscores, and spaces.",
-  invalid_email: "Please enter a valid email address.",
-  invalid_password: "Password must be at least 8 characters long.",
-  username_taken: "That username is already taken. Try another one.",
-  email_taken: "An account with that email already exists.",
-  invalid_credentials: "Username or password is incorrect \u2014 double-check and try again.",
-  turnstile_required: "Complete the security check before continuing.",
-  turnstile_failed: "Security check failed. Please try again.",
+  invalid_username: "Usernames are 3–32 characters: letters, numbers, underscores and spaces.",
+  invalid_email: "That doesn't look like an email address.",
+  invalid_password: "Passwords need at least 8 characters.",
+  username_taken: "That username is taken. Try another.",
+  email_taken: "There's already an account with that email. Sign in instead?",
+  invalid_credentials: "Wrong username or password.",
+  turnstile_required: "Finish the security check first.",
+  turnstile_failed: "The security check failed. Try it again.",
 };
+
+const isLocalPath = (path: string) => path.startsWith("/") && !path.startsWith("//") && !/^\/(login|register)/.test(path);
+
+/** Where to go after signing in: ?next=, else the last page you were on, else the profile. */
+function nextPath() {
+  const next = new URLSearchParams(window.location.search).get("next") || "";
+  if (isLocalPath(next)) return next;
+  let last = "";
+  try {
+    last = window.sessionStorage.getItem("nasfaq.returnTo") || "";
+  } catch {
+    /* storage blocked */
+  }
+  return isLocalPath(last) && last !== "/" ? last : "/profile";
+}
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
   const { login, register, loginWithGoogle, resendVerification, error, isLoading, user } = useAuth();
+  const assets = useMarketStore((state) => state.assets);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [ogey, setOgey] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
-  const [verificationSent, setVerificationSent] = useState(false);
-  const [authNotice, setAuthNotice] = useState<string | null>(null);
-  const [googleScriptReady, setGoogleScriptReady] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [resent, setResent] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [googleReady, setGoogleReady] = useState(false);
   const turnstileRef = useRef<HTMLDivElement | null>(null);
-  const turnstileWidgetRef = useRef<string>("");
-  const googleButtonRef = useRef<HTMLDivElement | null>(null);
+  const turnstileWidget = useRef("");
   const turnstileTokenRef = useRef("");
-  const googleButtonRenderedRef = useRef(false);
+  const googleRef = useRef<HTMLDivElement | null>(null);
+  const googleRendered = useRef(false);
 
-  const turnstileIsRequired = Boolean(turnstileSiteKey);
-  const turnstileIsVerified = !turnstileIsRequired || Boolean(turnstileToken);
-  const ogeyError = error === "invalid_ogey";
+  const needsCaptcha = Boolean(turnstileSiteKey);
+  const captchaDone = !needsCaptcha || Boolean(turnstileToken);
+  const ogeyWrong = error === "invalid_ogey";
+  const shownError = submitted && error && !ogeyWrong ? ERROR_MESSAGES[error] || `Something went wrong (${error}). Try again.` : null;
+
+  const movers = useMemo(
+    () =>
+      [...assets]
+        .filter((asset) => asset.move_24h_pct !== null)
+        .sort((a, b) => Math.abs(b.move_24h_pct ?? 0) - Math.abs(a.move_24h_pct ?? 0))
+        .slice(0, 5),
+    [assets],
+  );
 
   function resetTurnstile() {
-    if (!turnstileWidgetRef.current || !window.turnstile) return;
-    window.turnstile.reset(turnstileWidgetRef.current);
-    setTurnstileToken("");
+    if (!turnstileWidget.current || !window.turnstile) return;
+    window.turnstile.reset(turnstileWidget.current);
     turnstileTokenRef.current = "";
+    setTurnstileToken("");
   }
 
   function renderTurnstile() {
-    if (!turnstileSiteKey || !window.turnstile || !turnstileRef.current || turnstileWidgetRef.current) return;
-    turnstileWidgetRef.current = window.turnstile.render(turnstileRef.current, {
+    if (!turnstileSiteKey || !window.turnstile || !turnstileRef.current || turnstileWidget.current) return;
+    turnstileWidget.current = window.turnstile.render(turnstileRef.current, {
       sitekey: turnstileSiteKey,
       appearance: "always",
+      theme: document.documentElement.dataset.theme === "light" ? "light" : "dark",
       callback: (token: string) => {
         turnstileTokenRef.current = token;
         setTurnstileToken(token);
-        setAuthNotice(null);
+        setNotice(null);
       },
       "expired-callback": () => {
         turnstileTokenRef.current = "";
@@ -89,8 +121,8 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     });
   }
 
-  function renderGoogleButton() {
-    if (!googleScriptReady || !googleClientId || !window.google || !googleButtonRef.current || googleButtonRenderedRef.current) return;
+  function renderGoogle() {
+    if (!googleReady || !googleClientId || !window.google || !googleRef.current || googleRendered.current) return;
     window.google.accounts.id.initialize({
       client_id: googleClientId,
       ux_mode: "popup",
@@ -99,46 +131,45 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       callback: async (response: { credential?: string }) => {
         if (!response.credential) return;
         const token = turnstileTokenRef.current;
-        if (turnstileIsRequired && !token) {
-          setAuthNotice("Complete the Turnstile check before signing in with Google.");
+        if (needsCaptcha && !token) {
+          setNotice("Finish the security check before using Google.");
           return;
         }
+        setSubmitted(true);
         try {
           await loginWithGoogle(response.credential, token);
-          router.push("/profile");
+          router.push(nextPath());
         } finally {
           resetTurnstile();
         }
       },
     });
-    window.google.accounts.id.renderButton(googleButtonRef.current, {
-      theme: "outline",
+    window.google.accounts.id.renderButton(googleRef.current, {
+      theme: "filled_black",
       size: "large",
+      shape: "rectangular",
       text: mode === "login" ? "signin_with" : "signup_with",
-      width: 320,
+      width: 300,
     });
-    googleButtonRenderedRef.current = true;
+    googleRendered.current = true;
   }
 
   useEffect(() => {
     renderTurnstile();
-    renderGoogleButton();
+    renderGoogle();
   });
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!turnstileIsVerified) {
-      setAuthNotice("Complete the Turnstile check before continuing.");
+    if (!captchaDone) {
+      setNotice("Finish the security check first.");
       return;
     }
+    setSubmitted(true);
     try {
-      if (mode === "login") {
-        await login(username, password, turnstileToken);
-      } else {
-        await register(username, email, password, ogey, turnstileToken);
-        setVerificationSent(true);
-      }
-      router.push("/profile");
+      if (mode === "login") await login(username.trim(), password, turnstileToken);
+      else await register(username.trim(), email.trim(), password, ogey, turnstileToken);
+      router.push(mode === "register" ? "/profile" : nextPath());
     } catch {
       resetTurnstile();
     }
@@ -147,78 +178,142 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   return (
     <SiteShell>
       {turnstileSiteKey ? <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" strategy="afterInteractive" onLoad={renderTurnstile} /> : null}
-      {googleClientId ? <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onLoad={() => setGoogleScriptReady(true)} /> : null}
-      <div className={styles.authStage}>
-        <div className={styles.cardWrap}>
-          <Image className={styles.sideImage} src="/okayuside.png" alt="" width={420} height={594} priority />
-          <section className={styles.panel}>
-            <h2 className={styles.title}>{mode === "login" ? "Login" : "Register"}</h2>
-            <p className={styles.copy}>
-              {mode === "login"
-                ? "Sign in with a password or Google. Email must be verified before trading or posting."
-                : "Create an account, verify your email, then you can trade, chat, comment, and write articles."}
+      {googleClientId ? <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onLoad={() => setGoogleReady(true)} /> : null}
+      <div className={styles.page}>
+        <section className={styles.card}>
+          <nav className={styles.tabs} aria-label="Account">
+            <Link href="/login" aria-current={mode === "login" ? "page" : undefined}>
+              SIGN IN
+            </Link>
+            <Link href="/register" aria-current={mode === "register" ? "page" : undefined}>
+              MAKE AN ACCOUNT
+            </Link>
+          </nav>
+
+          <div className={styles.body}>
+            <h1>{mode === "login" ? "Welcome back" : "Get your $10,000"}</h1>
+            <p className={styles.lede}>
+              {mode === "login" ? "Sign in with your username or email." : "Play money, real talents. Verify your email and you can trade, chat, comment and write."}
             </p>
-            {user ? <div className="statusMessage statusMessageSuccess">Already signed in as {user.username}.</div> : null}
-            {user && !user.email_verified ? (
-              <div className="statusMessage statusMessageError">
-                Email verification is required before trading or posting.{" "}
-                <button type="button" className={styles.inlineButton} onClick={() => void resendVerification()}>
-                  Resend verification email
-                </button>
+
+            {user ? (
+              <div className={styles.info}>
+                <span>
+                  Already signed in as <b>{user.username}</b>. <Link href="/profile">Go to your profile →</Link>
+                </span>
+                {!user.email_verified ? (
+                  <span className={styles.infoRow}>
+                    Your email isn&apos;t verified yet.{" "}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await resendVerification();
+                        setResent(true);
+                      }}
+                      disabled={resent}
+                    >
+                      {resent ? "Sent. Check your inbox." : "Resend the link"}
+                    </button>
+                  </span>
+                ) : null}
               </div>
             ) : null}
-            {verificationSent ? <div className="statusMessage statusMessageSuccess">Verification email sent. Open the link before posting or trading.</div> : null}
-            {authNotice ? <div className="statusMessage statusMessageWarn">{authNotice}</div> : null}
-            {mode === "login" ? (
-              <div className={styles.registerPrompt}>
-                <span className={styles.registerPromptText}>New here? You can sign up with email &mdash; no Google needed.</span>
-                <Link href="/register" className={styles.registerPromptLink}>Create an account</Link>
-              </div>
-            ) : null}
-            <form className={styles.form} onSubmit={(event) => void handleSubmit(event)}>
-              <label className={styles.label}>
-                <span>{mode === "login" ? "Username or email" : "Username"}</span>
-                <input className={styles.input} value={username} onChange={(event) => setUsername(event.target.value)} />
+
+            <form className={styles.form} onSubmit={(event) => void submit(event)}>
+              <label>
+                <span className={styles.label}>{mode === "login" ? "Username or email" : "Username"}</span>
+                <input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" maxLength={mode === "register" ? 32 : 254} required autoFocus />
+                {mode === "register" ? <small>3–32 characters. Letters, numbers, underscores, spaces.</small> : null}
               </label>
               {mode === "register" ? (
-                <label className={styles.label}>
-                  <span>Email</span>
-                  <input className={styles.input} type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+                <label>
+                  <span className={styles.label}>Email</span>
+                  <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
+                  <small>We send a link to verify it before you can trade or post.</small>
                 </label>
               ) : null}
-              <label className={styles.label}>
-                <span>Password</span>
-                <input className={styles.input} type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-                {mode === "register" ? <span className={styles.passwordHint}>At least 8 characters</span> : null}
+              <label>
+                <span className={styles.label}>Password</span>
+                <span className={styles.pw}>
+                  <input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "register" ? 8 : undefined} required />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} aria-pressed={showPassword} aria-label={showPassword ? "Hide password" : "Show password"}>
+                    {showPassword ? "HIDE" : "SHOW"}
+                  </button>
+                </span>
+                {mode === "register" ? <small className={password && password.length < 8 ? styles.warnText : undefined}>At least 8 characters{password ? ` · ${password.length}` : ""}.</small> : null}
               </label>
               {mode === "register" ? (
-                <label className={styles.label}>
-                  <span>ogey?</span>
-                  <input className={styles.input} type="text" value={ogey} onChange={(event) => setOgey(event.target.value)} required />
+                <label>
+                  <span className={styles.label}>ogey?</span>
+                  <input value={ogey} onChange={(event) => setOgey(event.target.value)} autoComplete="off" spellCheck={false} required className={ogeyWrong ? styles.bad : undefined} />
+                  {ogeyWrong ? <small className={styles.warnText}>that&apos;s not ogey</small> : null}
                 </label>
               ) : null}
-              {turnstileSiteKey ? <div ref={turnstileRef} className={styles.turnstile} /> : null}
-              <button type="submit" className={styles.submit} disabled={isLoading || !turnstileIsVerified}>
-                {mode === "login" ? "Sign In" : "Create User"}
+
+              {turnstileSiteKey ? <div ref={turnstileRef} className={styles.captcha} /> : null}
+              {notice ? <p className={styles.notice}>{notice}</p> : null}
+              {shownError ? (
+                <p className={styles.error} role="alert">
+                  {shownError}
+                </p>
+              ) : null}
+
+              <button type="submit" className={styles.submit} disabled={isLoading || !captchaDone}>
+                {isLoading ? "…" : mode === "login" ? "SIGN IN" : "CREATE ACCOUNT"}
               </button>
             </form>
+
             {googleClientId ? (
-              <div className={styles.googleWrap}>
-                <div className={styles.divider}>or</div>
-                <div className={styles.googleButtonFrame}>
-                  <div ref={googleButtonRef} className={styles.googleButton} />
-                  {!turnstileIsVerified ? <div className={styles.googleButtonShield} aria-hidden="true" /> : null}
+              <div className={styles.google}>
+                <span className={styles.or}>or</span>
+                <div className={styles.googleFrame}>
+                  <div ref={googleRef} />
+                  {!captchaDone ? <div className={styles.googleShield} aria-hidden="true" /> : null}
                 </div>
-                {!turnstileIsVerified ? <div className={styles.googleHint}>Complete captcha to continue.</div> : null}
+                {!captchaDone ? <small>Finish the security check to use Google.</small> : null}
               </div>
             ) : null}
-            {mode === "register" ? (
-              <p className={styles.bottomLink}>Already have an account? <Link href="/login" className={styles.altLink}>Sign in here</Link>.</p>
-            ) : null}
-            {ogeyError ? <div className={styles.ogeyError}>that&apos;s not ogey</div> : null}
-            {error && !ogeyError ? <div className="statusMessage statusMessageError">{ERROR_MESSAGES[error] || `Something went wrong (${error}). Please try again.`}</div> : null}
-          </section>
-        </div>
+
+            <p className={styles.switch}>
+              {mode === "login" ? (
+                <>
+                  New here? <Link href="/register">Make an account</Link>. No Google needed.
+                </>
+              ) : (
+                <>
+                  Already have one? <Link href="/login">Sign in</Link>.
+                </>
+              )}
+            </p>
+          </div>
+        </section>
+
+        <aside className={styles.pitch} aria-label="What is nasfaq">
+          <ArtSlot kind="chibi" pose="hype" symbol={movers[0]?.symbol ?? "NASFAQ"} icon={movers[0]?.icon} accent="var(--blue)" width={160} className={styles.chibi} />
+          <h2>Every hololive talent is a stock.</h2>
+          <ul>
+            <li>Start with $10,000 of play money.</li>
+            <li>Prices follow each channel&apos;s real growth, plus whatever the other players buy and sell.</li>
+            <li>Orders fill in 10-minute batches. Four ticks a day pull every stock toward its hidden target.</li>
+            <li>Climb the leaderboard, run up your oshi&apos;s board, argue in chat.</li>
+          </ul>
+          {movers.length ? (
+            <div className={styles.movers}>
+              <span className={styles.label}>Moving today</span>
+              {movers.map((asset) => (
+                <Link key={asset.symbol} href={`/stocks/${encodeURIComponent(asset.symbol)}`} className={styles.mover}>
+                  <Oshimark icon={asset.icon} symbol={asset.symbol} size={18} />
+                  <b>{asset.symbol}</b>
+                  <span>{asset.current_mid_price?.toFixed(2)}</span>
+                  <span className={styles[toneOf(asset.move_24h_pct)]}>{signedPct(asset.move_24h_pct)}</span>
+                </Link>
+              ))}
+            </div>
+          ) : null}
+          <Link href="/how-to-play" className={styles.how}>
+            How to play →
+          </Link>
+        </aside>
       </div>
     </SiteShell>
   );

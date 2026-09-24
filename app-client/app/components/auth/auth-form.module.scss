@@ -1,205 +1,323 @@
 @use "../../styles/mixins" as *;
 
-.authStage {
-  display: flex;
-  justify-content: flex-end;
+.up { color: var(--up); }
+.down { color: var(--down); }
+.flat { color: var(--mid); }
+
+.page {
+  display: grid;
+  grid-template-columns: minmax(0, 440px) minmax(0, 380px);
+  justify-content: center;
+  align-items: start;
+  gap: 0;
   width: 100%;
-  min-height: calc(100dvh - 14rem);
-  padding: 1rem clamp(1rem, 5vw, 4.5rem) 2rem;
+  margin: 2rem auto 3rem;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 480px);
+    margin-top: 1rem;
+  }
 }
 
-.cardWrap {
-  isolation: isolate;
-  position: relative;
-  align-self: center;
-  width: min(560px, 100%);
+.label {
+  @include label;
+  display: block;
 }
 
-.sideImage {
-  position: absolute;
-  right: calc(100% - 1px);
-  bottom: 0;
-  z-index: -2;
-  width: clamp(8.5rem, 15vw, 13.75rem);
-  height: auto;
-  pointer-events: none;
-  user-select: none;
+.card {
+  border: 1px solid var(--rule-2);
+  background: var(--ink);
 }
 
-.panel {
-  @include panel;
-  padding: 1.4rem;
-  width: 100%;
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--rule);
+
+  a {
+    padding: 0.8rem;
+    font-family: var(--font-mono);
+    font-size: 0.656rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-align: center;
+    text-decoration: none;
+    color: var(--dim);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+
+    &:hover {
+      color: var(--text);
+    }
+
+    &[aria-current="page"] {
+      color: var(--text);
+      border-bottom-color: var(--blue);
+    }
+  }
 }
 
-.title {
-  @include section-title;
+.body {
+  padding: 1.5rem;
+
+  h1 {
+    @include display(2rem);
+    margin: 0;
+    line-height: 1.05;
+  }
+
+  @include phone {
+    padding: 1.1rem;
+  }
 }
 
-.copy {
-  @include subtle-copy;
-  margin: 0.35rem 0 1rem;
+.lede {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--mid);
+}
+
+.info {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--blue-line);
+  background: var(--blue-wash);
+  font-size: 0.8125rem;
+
+  a,
+  button {
+    color: var(--blue-2);
+  }
+
+  button {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+}
+
+.infoRow {
+  color: var(--mid);
 }
 
 .form {
   display: grid;
   gap: 0.9rem;
+  margin-top: 1.25rem;
+
+  label {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  input {
+    @include input-base;
+    width: 100%;
+  }
+
+  small {
+    font-size: 0.72rem;
+    color: var(--dim);
+  }
 }
 
-.label {
-  display: grid;
-  gap: 0.35rem;
+.pw {
+  display: flex;
+
+  input {
+    flex: 1;
+    min-width: 0;
+    border-right: 0 !important;
+  }
+
+  button {
+    padding: 0 0.8rem;
+    border: 1px solid var(--rule-2);
+    background: var(--ink-2);
+    font-family: var(--font-mono);
+    font-size: 0.594rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--dim);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--text);
+    }
+  }
 }
 
-.input {
-  @include input-base;
+.bad {
+  border-color: var(--down) !important;
+}
+
+.warnText {
+  color: var(--warn) !important;
+}
+
+.captcha {
+  min-height: 65px;
+}
+
+.notice,
+.error {
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.notice {
+  border: 1px dashed var(--warn);
+  color: var(--warn);
+}
+
+.error {
+  border: 1px solid var(--down);
+  background: var(--down-wash);
 }
 
 .submit {
   @include button-primary;
+  padding: 0.8rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
 }
 
-.turnstile {
-  display: flex;
-  justify-content: center;
-  min-height: 4.0625rem;
-}
-
-.registerPrompt {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-  padding: 0.75rem 1rem;
-  border: 0.125rem solid var(--accent);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface-card));
-}
-
-.registerPromptText {
-  font-size: 0.88rem;
-  color: var(--text);
-}
-
-.registerPromptLink {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.35rem 0.85rem;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: var(--accent-text, #fff);
-  font-size: 0.88rem;
-  font-weight: 600;
-  text-decoration: none;
-  white-space: nowrap;
-  transition: opacity 0.15s;
-}
-
-.registerPromptLink:hover {
-  opacity: 0.85;
-}
-
-.passwordHint {
-  display: block;
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  margin-top: -0.35rem;
-}
-
-.bottomLink {
-  margin-top: 0.5rem;
-  font-size: 0.88rem;
-  text-align: center;
-}
-
-.googleWrap {
+.google {
   display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+
+  small {
+    font-size: 0.72rem;
+    color: var(--dim);
+  }
+}
+
+.or {
+  display: flex;
+  align-items: center;
   gap: 0.75rem;
-  margin: 1rem 0;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dim);
+
+  &::before,
+  &::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--rule);
+  }
 }
 
-.divider {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  text-align: center;
-}
-
-.googleButton {
-  display: flex;
-  justify-content: center;
-}
-
-.googleButtonFrame {
+.googleFrame {
   position: relative;
-  display: flex;
-  justify-content: center;
-  justify-self: center;
-  width: min(320px, 100%);
-  min-height: 42px;
+  min-height: 44px;
 }
 
-.googleButtonShield {
+.googleShield {
   position: absolute;
   inset: 0;
-  z-index: 2;
-  border-radius: 999px;
-  background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.34)),
-    color-mix(in srgb, var(--surface-card) 16%, transparent);
+  background: color-mix(in oklab, var(--ink) 60%, transparent);
   cursor: not-allowed;
 }
 
-.googleHint {
-  color: var(--text-muted);
-  font-size: 0.82rem;
-  justify-self: center;
+.switch {
+  margin: 1.25rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.8125rem;
+  color: var(--mid);
+
+  a {
+    color: var(--blue-2);
+  }
 }
 
-.inlineButton {
-  border: 0;
-  background: transparent;
-  color: var(--accent);
-  cursor: pointer;
-  font: inherit;
-  padding: 0;
-  text-decoration: underline;
-}
+// ── Pitch ────────────────────────────────────────────────────────────────
+.pitch {
+  position: relative;
+  display: grid;
+  gap: 0.8rem;
+  padding: 1.5rem;
+  border: 1px solid var(--rule);
+  border-left: 0;
+  background:
+    radial-gradient(120% 90% at 100% 0%, var(--blue-wash), transparent 70%),
+    var(--ink-2);
 
-.altLink {
-  color: var(--accent);
-}
-
-.ogeyError {
-  margin-top: 1rem;
-  padding: 1rem 1.05rem;
-  border: 0.125rem solid var(--danger);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--danger) 16%, var(--surface-card));
-  color: var(--danger);
-  font-family: var(--font-display);
-  font-size: clamp(1.25rem, 2vw, 1.7rem);
-  font-weight: 900;
-  letter-spacing: 0;
-  text-align: center;
-}
-
-@media (max-width: 760px) {
-  .authStage {
-    justify-content: center;
-    min-height: auto;
-    padding-left: 0;
-    padding-right: 0;
+  h2 {
+    @include display(1.6rem);
+    margin: 0;
+    max-width: 14ch;
+    line-height: 1.1;
   }
 
-  .cardWrap {
-    padding-top: 4.5rem;
+  ul {
+    display: grid;
+    gap: 0.45rem;
+    margin: 0;
+    padding-left: 1.1rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--mid);
   }
 
-  .sideImage {
-    right: auto;
-    left: 0;
-    bottom: calc(100% - 4.6rem);
-    width: 7rem;
+  @include tablet-down {
+    border-left: 1px solid var(--rule);
+    border-top: 0;
   }
+}
+
+.chibi {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  width: 96px;
+  height: 96px;
+
+  @include phone {
+    display: none;
+  }
+}
+
+.movers {
+  display: grid;
+  margin-top: 0.4rem;
+}
+
+.mover {
+  @include num;
+  display: grid;
+  grid-template-columns: 18px 3rem minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.75rem;
+  color: inherit;
+  text-decoration: none;
+
+  &:hover b {
+    color: var(--blue);
+  }
+}
+
+.how {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--blue-2);
 }
