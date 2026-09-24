@@ -4,9 +4,123 @@ const gamesGacha = require("../services/games/gacha");
 const gachaPrizeCatalog = require("../services/games/gachaPrizeCatalog");
 const gamesInventory = require("../services/games/inventory");
 const gamesSessions = require("../services/games/sessions");
-const { requireUserId } = require("../userContext");
+const cardGacha = require("../services/games/cardGacha");
+const { requireUserId, requireVerifiedUserId } = require("../userContext");
 
 const router = express.Router();
+
+// Known game errors → HTTP status. Anything else falls through to the 500 handler.
+const ERROR_STATUS = {
+  unauthenticated: 401,
+  email_verification_required: 403,
+  forbidden: 403,
+  insufficient_cash: 409,
+  insufficient_shards: 409,
+  reward_already_claimed: 409,
+  set_incomplete: 409,
+  card_not_owned: 409,
+  table_full: 409,
+  table_not_open: 409,
+  already_seated: 409,
+  not_your_turn: 409,
+  invalid_action: 409,
+  game_not_found: 404,
+  banner_not_found: 404,
+  table_not_found: 404,
+  invalid_pull_count: 400,
+  invalid_card: 400,
+  invalid_reward: 400,
+  invalid_stake: 400,
+  invalid_deck: 400,
+  invalid_bet: 400,
+  card_pool_empty: 503,
+};
+
+function sendGameError(res, next, error) {
+  const status = ERROR_STATUS[error?.code];
+  if (!status) return next(error);
+  const body = { error: error.code };
+  for (const key of ["cash_balance", "required_cash", "shards", "required_shards"]) {
+    if (error[key] !== undefined) body[key] = error[key];
+  }
+  return res.status(status).json(body);
+}
+
+// ── Talent cards ─────────────────────────────────────────────────────────
+router.get("/cards/banners", async (req, res, next) => {
+  try {
+    const talents = await require("../services/games/cards").listTalents(req.ctx.pool);
+    const banners = await cardGacha.getBanners(req.ctx.pool, talents);
+    const game = await gamesCatalog.getGameByKey(req.ctx.pool, cardGacha.GAME_KEY);
+    res.json({ banners, pull_cost_cash: Number(game?.config_json?.pull_cost_cash ?? 100), ten_pull_cost_cash: Number(game?.config_json?.ten_pull_cost_cash ?? 900) });
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.get("/cards/collection", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    res.json(await cardGacha.getCollection(req.ctx.pool, userId));
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.post("/cards/pull", async (req, res, next) => {
+  try {
+    const userId = requireVerifiedUserId(req);
+    const result = await cardGacha.pullCards(req.ctx.pool, { userId, bannerKey: req.body?.banner, count: req.body?.count });
+    res.status(201).json(result);
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.post("/cards/craft", async (req, res, next) => {
+  try {
+    const userId = requireVerifiedUserId(req);
+    res.status(201).json(await cardGacha.craftCard(req.ctx.pool, { userId, cardKey: req.body?.card_key }));
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.post("/cards/claim", async (req, res, next) => {
+  try {
+    const userId = requireVerifiedUserId(req);
+    res.status(201).json(await cardGacha.claimReward(req.ctx.pool, { userId, rewardKey: String(req.body?.reward_key || "") }));
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.put("/cards/showcase", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    res.json(await cardGacha.setShowcase(req.ctx.pool, { userId, cardKeys: req.body?.card_keys }));
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.get("/cards/feed", async (req, res, next) => {
+  try {
+    res.json({ pulls: await cardGacha.listRecentTopPulls(req.ctx.pool, { limit: req.query.limit }) });
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.get("/cards/profile/:username", async (req, res, next) => {
+  try {
+    const result = await cardGacha.getPublicCollection(req.ctx.pool, req.params.username);
+    if (!result) return res.status(404).json({ error: "profile_not_found" });
+    res.json(result);
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
 
 router.get("/catalog", async (req, res, next) => {
   try {
@@ -107,20 +221,14 @@ router.post("/me/cosmetics/equip", async (req, res, next) => {
 
 router.post("/capsule-gacha/pull", async (req, res, next) => {
   try {
-    const userId = requireUserId(req);
+    const userId = requireVerifiedUserId(req);
     const result = await gamesGacha.pullCapsuleGacha(req.ctx.pool, {
       userId,
       count: req.body?.count,
     });
     res.status(201).json(result);
   } catch (error) {
-    if (error?.code === "unauthenticated") {
-      return res.status(401).json({ error: "unauthenticated" });
-    }
-    if (error?.code === "insufficient_cash") {
-      return res.status(409).json({ error: "insufficient_cash" });
-    }
-    next(error);
+    sendGameError(res, next, error);
   }
 });
 
@@ -215,5 +323,7 @@ router.get("/:username/item-locker", async (req, res, next) => {
     next(error);
   }
 });
+
+router.sendGameError = sendGameError;
 
 module.exports = router;

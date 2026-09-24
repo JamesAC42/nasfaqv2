@@ -1,6 +1,8 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+const { applyGamesSchema } = require("./gamesSchema");
+
 async function applySchema(pool) {
   // Reuse the schema from the Go service so API and scraper stay aligned.
   const schemaPath = process.env.YT_SCHEMA_PATH
@@ -1420,6 +1422,14 @@ async function applySchema(pool) {
     CREATE INDEX IF NOT EXISTS content_article_comment_votes_user_idx
       ON content.article_comment_votes (user_id, updated_at DESC)
   `);
+  await pool.query(`
+    ALTER TABLE games.game_catalog DROP CONSTRAINT IF EXISTS games_game_catalog_type_check
+  `);
+  await pool.query(`
+    ALTER TABLE games.game_catalog
+      ADD CONSTRAINT games_game_catalog_type_check CHECK (game_type IN ('single_player', 'gacha', 'pvp', 'idle', 'table'))
+  `);
+  await applyGamesSchema(pool);
 }
 
 module.exports = { applySchema };
