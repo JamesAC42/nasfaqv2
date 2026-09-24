@@ -1,0 +1,452 @@
+@use "../../../styles/mixins" as *;
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.error {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--down);
+}
+
+.primary {
+  @include button-primary;
+  text-decoration: none;
+}
+
+.secondary {
+  @include button-secondary;
+  text-decoration: none;
+}
+
+.danger {
+  @include button-base;
+  border-color: var(--down);
+  color: var(--down);
+  padding: 0.4rem 0.7rem;
+
+  &:hover:not(:disabled) {
+    background: var(--down-wash);
+  }
+}
+
+.linkish {
+  @include label;
+  border: 0;
+  background: none;
+  padding: 0.3rem 0;
+  color: var(--mid);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+
+  &:hover:not(:disabled) {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+// ── Player tag ─────────────────────────────────────────────────────────────
+.player {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.playerText {
+  display: grid;
+  min-width: 0;
+  line-height: 1.2;
+
+  b,
+  .playerName {
+    overflow: hidden;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--text);
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .playerName:hover {
+    color: var(--blue);
+  }
+
+  small {
+    @include label;
+    font-size: 0.6rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.player[data-empty] b {
+  color: var(--dim);
+}
+
+.emptySeat {
+  flex: none;
+  border: 1px dashed var(--rule-2);
+}
+
+.watchers {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--mid);
+
+  b {
+    @include num;
+    color: var(--text);
+  }
+}
+
+.stakeStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.4rem;
+  margin: 0;
+
+  div {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  dt {
+    @include label;
+    font-size: 0.6rem;
+  }
+
+  dd {
+    @include num;
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 700;
+  }
+}
+
+.expires {
+  @include label;
+  white-space: nowrap;
+
+  b {
+    @include num;
+    color: var(--text);
+  }
+
+  &[data-urgent] b {
+    color: var(--warn);
+  }
+}
+
+// ── Waiting room ───────────────────────────────────────────────────────────
+.waiting {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 1.5rem 2.5rem;
+  align-items: center;
+  padding: 2rem 0;
+  border-bottom: 1px solid var(--rule);
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 1.25rem 0;
+  }
+}
+
+.waitingSeats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem 1.25rem;
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--blue) 12%, transparent), transparent 70%),
+    var(--ink-2);
+  border: 1px solid var(--rule);
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+    gap: 0.6rem;
+    padding: 1rem;
+  }
+}
+
+.vs {
+  @include display(1.6rem);
+  color: var(--blue);
+
+  @include phone {
+    font-size: 1rem;
+    padding-left: 0.4rem;
+  }
+}
+
+.waitingBody {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.waitingTitle {
+  @include display(1.6rem);
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  line-height: 1.1;
+
+  @include phone {
+    font-size: 1.3rem;
+  }
+}
+
+.dots {
+  display: inline-flex;
+  gap: 0.2rem;
+
+  i {
+    width: 0.3rem;
+    height: 0.3rem;
+    border-radius: 50%;
+    background: var(--blue);
+    animation: dot 1.2s ease-in-out infinite;
+
+    &:nth-child(2) {
+      animation-delay: 0.15s;
+    }
+
+    &:nth-child(3) {
+      animation-delay: 0.3s;
+    }
+  }
+}
+
+@keyframes dot {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.waitingLine {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--mid);
+
+  > b {
+    @include num;
+    color: var(--text);
+  }
+}
+
+.waitingActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.share {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+
+  label {
+    @include label;
+  }
+
+  > div {
+    display: flex;
+    min-width: 0;
+  }
+
+  input {
+    @include input-base;
+    @include num;
+    min-width: 0;
+    flex: 1;
+    font-size: 0.75rem;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  button {
+    @include button-secondary;
+    flex: none;
+    border-left: 0;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+}
+
+// ── Forfeit ────────────────────────────────────────────────────────────────
+.forfeit {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.forfeitConfirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--text);
+}
+
+// ── Result moment ──────────────────────────────────────────────────────────
+.moment {
+  --tone: var(--blue);
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  width: min(100%, 26rem);
+  margin: 0 auto;
+  padding: 1.4rem 1.25rem 1.2rem;
+  text-align: center;
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--tone) 55%, var(--rule-2));
+  background:
+    radial-gradient(90% 70% at 50% 0%, color-mix(in srgb, var(--tone) 22%, transparent), transparent 75%),
+    var(--ink-2);
+  box-shadow: var(--shadow-pop);
+  animation: momentIn 520ms var(--ease-slam) both;
+
+  &[data-tone="win"] {
+    --tone: var(--up);
+  }
+
+  &[data-tone="lose"] {
+    --tone: var(--down);
+  }
+
+  &[data-tone="draw"] {
+    --tone: var(--mid);
+  }
+}
+
+@keyframes momentIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.momentKicker {
+  @include label;
+}
+
+.momentHead {
+  @include display(2.6rem);
+  line-height: 1;
+  color: var(--tone);
+
+  [data-tone="watch"] & {
+    color: var(--text);
+    font-size: 1.9rem;
+  }
+
+  @include phone {
+    font-size: 2.1rem;
+  }
+}
+
+.momentAmount {
+  @include num(wide);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--tone);
+
+  [data-tone="watch"] & {
+    color: var(--text);
+  }
+}
+
+.momentLine {
+  margin: 0.15rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--mid);
+}
+
+.momentActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+// ── Gone ───────────────────────────────────────────────────────────────────
+.gone {
+  @include empty-state;
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+  margin: 1.5rem 0;
+
+  strong {
+    @include display(1.3rem);
+    color: var(--text);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.875rem;
+  }
+}
+
+// ── Win pips ───────────────────────────────────────────────────────────────
+.pips {
+  display: inline-flex;
+  gap: 0.25rem;
+
+  i {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    border: 1px solid var(--rule-2);
+    background: var(--ink-3);
+    transition: background-color var(--dur-med) ease;
+
+    &[data-on] {
+      border-color: var(--blue);
+      background: var(--blue);
+      box-shadow: 0 0 8px color-mix(in srgb, var(--blue) 60%, transparent);
+    }
+  }
+}
+
+:global(html[data-calm="true"]) {
+  .moment,
+  .dots i {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .moment,
+  .dots i {
+    animation: none;
+  }
+}

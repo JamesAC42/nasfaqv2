@@ -1,0 +1,340 @@
+@use "../../../styles/mixins" as *;
+
+// Capsule prizes as cards. Frames follow the talent card ladder: common steel, rare blue,
+// epic violet, legendary gold foil. Scales off --w with container units.
+
+.card,
+.back,
+.miniBall {
+  --r-a: #3a4050;
+  --r-b: #8d95a8;
+  --r-c: #c7ccd8;
+  --r-ink: #b7bdcc;
+}
+
+.card,
+.back {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: var(--w, 168px);
+  max-width: 100%;
+  aspect-ratio: 5 / 7;
+  container-type: inline-size;
+  color: #fff;
+}
+
+.card[data-rarity="rare"],
+.back[data-rarity="rare"],
+.miniBall[data-rarity="rare"] {
+  --r-a: #0f4f78;
+  --r-b: #3fb8f5;
+  --r-c: #b5e6ff;
+  --r-ink: #6fcaf8;
+}
+
+.card[data-rarity="epic"],
+.back[data-rarity="epic"],
+.miniBall[data-rarity="epic"] {
+  --r-a: #3d2690;
+  --r-b: #9a74ff;
+  --r-c: #e6dcff;
+  --r-ink: #c2a8ff;
+}
+
+.card[data-rarity="legendary"],
+.back[data-rarity="legendary"],
+.miniBall[data-rarity="legendary"] {
+  --r-a: #7a5a0c;
+  --r-b: #f5c542;
+  --r-c: #fff4c2;
+  --r-ink: #ffd766;
+}
+
+.frame {
+  position: absolute;
+  inset: 0;
+  display: block;
+  padding: 2.4cqi;
+  border-radius: 5cqi;
+  background: linear-gradient(145deg, var(--r-a), var(--r-b) 42%, var(--r-c) 52%, var(--r-b) 62%, var(--r-a));
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 1.2cqi 4cqi rgba(0, 0, 0, 0.45);
+}
+
+.card[data-rarity="legendary"] .frame {
+  background: linear-gradient(115deg, #6b4e08 0%, #f5c542 18%, #fff6cf 30%, #d9a520 44%, #fff0a8 58%, #b98710 74%, #f5c542 88%, #6b4e08 100%) 0 0 / 240% 240%;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 0 6cqi color-mix(in srgb, #f5c542 40%, transparent),
+    0 1.2cqi 4cqi rgba(0, 0, 0, 0.45);
+  animation: foil 5s ease-in-out infinite alternate;
+}
+
+@keyframes foil {
+  to {
+    background-position: 100% 100%;
+  }
+}
+
+.face {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 3cqi;
+  background: radial-gradient(120% 75% at 50% 42%, color-mix(in srgb, var(--r-b) 38%, #0b0e15), #07090e 80%);
+  isolation: isolate;
+}
+
+.rays {
+  position: absolute;
+  inset: -30%;
+  background: repeating-conic-gradient(from 0deg at 50% 45%, color-mix(in srgb, var(--r-b) 26%, transparent) 0deg 6deg, transparent 6deg 18deg);
+  mask-image: radial-gradient(closest-side at 50% 45%, #000 20%, transparent 75%);
+  opacity: 0.5;
+}
+
+.card[data-rarity="common"] .rays {
+  opacity: 0.18;
+}
+
+.card[data-rarity="epic"] .rays,
+.card[data-rarity="legendary"] .rays {
+  opacity: 0.9;
+  animation: raySpin 40s linear infinite;
+}
+
+@keyframes raySpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sheen {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.card[data-rarity="legendary"] .sheen {
+  opacity: 0.55;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 232, 150, 0.55) 45%, rgba(255, 255, 255, 0.7) 50%, rgba(255, 232, 150, 0.55) 55%, transparent 70%) 0 0 / 250% 250%;
+  mix-blend-mode: overlay;
+  animation: sweep 3.8s ease-in-out infinite;
+}
+
+@keyframes sweep {
+  0%,
+  35% {
+    background-position: 110% 110%;
+  }
+  75%,
+  100% {
+    background-position: -10% -10%;
+  }
+}
+
+.art {
+  position: relative;
+  z-index: 1;
+  width: 70cqi;
+  height: 70cqi;
+  margin-top: -14cqi;
+  object-fit: contain;
+  filter: drop-shadow(0 2cqi 3cqi rgba(0, 0, 0, 0.6)) drop-shadow(0 0 5cqi color-mix(in srgb, var(--r-b) 55%, transparent));
+}
+
+.glyph {
+  display: grid;
+  place-items: center;
+  font-size: 40cqi;
+  color: var(--r-c);
+
+  svg {
+    width: 1em;
+    height: 1em;
+  }
+}
+
+.rarity {
+  @include num;
+  position: absolute;
+  z-index: 4;
+  top: 3.5cqi;
+  left: 3.5cqi;
+  padding: 1cqi 2.6cqi 0.8cqi;
+  border-radius: 1.6cqi;
+  font-size: 5.6cqi;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--r-ink);
+  background: rgba(4, 6, 10, 0.72);
+  box-shadow: inset 0 0 0 0.5cqi color-mix(in srgb, var(--r-ink) 55%, transparent);
+}
+
+.newTag {
+  @include display;
+  position: absolute;
+  z-index: 4;
+  top: 3.5cqi;
+  right: 3.5cqi;
+  padding: 0.6cqi 2.4cqi 0.2cqi;
+  border-radius: 1.4cqi;
+  font-size: 6.4cqi;
+  color: var(--blue-ink);
+  background: var(--blue);
+}
+
+.plate {
+  position: absolute;
+  z-index: 4;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  gap: 1.2cqi;
+  padding: 10cqi 5cqi 5cqi;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85) 45%);
+}
+
+.name {
+  @include display;
+  overflow: hidden;
+  font-size: 10cqi;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.type {
+  @include num;
+  font-size: 5.4cqi;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--r-ink);
+}
+
+// ── Sealed capsule ─────────────────────────────────────────────────────────
+.back {
+  display: grid;
+  place-items: center;
+}
+
+.ball {
+  position: relative;
+  width: 78cqi;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 72%, #ffffff, #d9dee8 55%, #9aa3b5);
+  box-shadow:
+    0 0 0 0.8cqi rgba(0, 0, 0, 0.35),
+    0 0 10cqi color-mix(in srgb, var(--r-b) 45%, transparent);
+  animation: bob 2.6s ease-in-out infinite alternate;
+}
+
+.back[data-rarity="common"] .ball {
+  box-shadow: 0 0 0 0.8cqi rgba(0, 0, 0, 0.35);
+}
+
+.top {
+  position: absolute;
+  inset: 0 0 50% 0;
+  background: radial-gradient(circle at 36% 40%, var(--r-c), var(--r-b) 45%, var(--r-a));
+}
+
+.seam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(50% - 2.5cqi);
+  height: 5cqi;
+  background: linear-gradient(#1a1e28, #3a4050);
+}
+
+.shine {
+  position: absolute;
+  top: 10%;
+  left: 18%;
+  width: 26%;
+  height: 16%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+  filter: blur(1px);
+  transform: rotate(-30deg);
+}
+
+.shadow {
+  position: absolute;
+  bottom: 12%;
+  left: 50%;
+  width: 56cqi;
+  height: 8cqi;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.55), transparent);
+  transform: translateX(-50%);
+}
+
+.back[data-rarity="epic"] .ball,
+.back[data-rarity="legendary"] .ball {
+  animation:
+    bob 2.6s ease-in-out infinite alternate,
+    capsuleGlow 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes bob {
+  to {
+    transform: translateY(-3cqi) rotate(4deg);
+  }
+}
+
+@keyframes capsuleGlow {
+  to {
+    box-shadow:
+      0 0 0 0.8cqi rgba(0, 0, 0, 0.35),
+      0 0 22cqi var(--r-b),
+      0 0 6cqi var(--r-c);
+  }
+}
+
+// Balls in the machine globe.
+.miniBall {
+  position: absolute;
+  overflow: hidden;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 72%, #ffffff, #d9dee8 55%, #9aa3b5);
+  box-shadow: inset 0 -2px 3px rgba(0, 0, 0, 0.35);
+
+  .top {
+    background: radial-gradient(circle at 36% 40%, var(--r-c), var(--r-b) 50%, var(--r-a));
+  }
+
+  .shine {
+    top: 12%;
+    left: 20%;
+  }
+}
+
+:global(html[data-calm="true"]) {
+  .frame,
+  .sheen,
+  .rays,
+  .ball {
+    animation: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame,
+  .sheen,
+  .rays,
+  .ball {
+    animation: none !important;
+  }
+}

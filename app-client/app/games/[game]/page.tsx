@@ -1,10 +1,18 @@
-import { GameDetailPage } from "@/app/components/games/game-detail-page";
+import { notFound, redirect } from "next/navigation";
 
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ game: string }>;
-}) {
+// Old /games/{catalog-key} links from before the games redesign.
+const LEGACY_ROUTES: Record<string, string> = {
+  "talent-cards": "/games/cards",
+  "capsule-gacha": "/games/capsule",
+  "oshi-duel": "/games/duel",
+  "high-low": "/games/high-low",
+  blackjack: "/games/blackjack",
+  "ticker-tap": "/games/ticker-tap",
+};
+
+export default async function Page({ params }: { params: Promise<{ game: string }> }) {
   const { game } = await params;
-  return <GameDetailPage gameKey={decodeURIComponent(game)} />;
+  const target = LEGACY_ROUTES[decodeURIComponent(game)];
+  if (!target) notFound();
+  redirect(target);
 }

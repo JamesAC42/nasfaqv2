@@ -1,0 +1,76 @@
+@use "../../../styles/mixins" as *;
+
+.teaser {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  align-items: center;
+  gap: 1.5rem 2rem;
+  min-width: 0;
+  padding: 1.5rem 0 2rem;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.copy {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+
+  h2 {
+    @include display(1.8rem);
+    margin: 0;
+    line-height: 1.05;
+  }
+
+  p {
+    margin: 0;
+    max-width: 30rem;
+    color: var(--mid);
+  }
+}
+
+.fan {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  height: 17rem;
+  padding: 0.5rem 0;
+  overflow-x: clip;
+
+  @include phone {
+    height: 12.5rem;
+  }
+}
+
+.slot {
+  position: absolute;
+  left: 50%;
+  top: 0.5rem;
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+  width: 150px;
+  margin-left: -75px;
+  transform-origin: 50% 130%;
+  transform: translateX(calc(var(--i) * 104px)) rotate(calc(var(--i) * 6deg)) translateY(calc(var(--i) * var(--i) * 5px));
+  z-index: calc(10 - var(--i) * var(--i));
+
+  small {
+    @include num;
+    font-size: 0.65rem;
+    color: var(--dim);
+  }
+
+  @include phone {
+    width: 104px;
+    margin-left: -52px;
+    transform: translateX(calc(var(--i) * 60px)) rotate(calc(var(--i) * 7deg)) translateY(calc(var(--i) * var(--i) * 4px));
+
+    > :first-child {
+      width: 104px !important;
+    }
+  }
+}

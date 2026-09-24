@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
+import { ShowcaseStrip } from "@/app/components/games/locker/showcase-strip";
 import { apiFetch } from "@/app/lib/api";
 import { formatEtTime } from "@/app/lib/market-clock";
 import { normalizeArticleListResponse } from "@/app/lib/normalizers";
@@ -380,7 +381,8 @@ export function RecentFills({ bundle, base, onPage }: { bundle: ProfileBundle; b
 export function GachaBadges({ profile, isSelf }: { profile: Profile; isSelf: boolean }) {
   const badges = profile.gacha_badges;
   return (
-    <Sec title="Gacha badges" aside={<Link href={isSelf ? "/games/item-locker" : `/games/item-locker/${enc(profile.username)}`}>locker →</Link>}>
+    <Sec title="Showcase & badges" aside={<Link href={isSelf ? "/games/item-locker" : `/games/item-locker/${enc(profile.username)}`}>locker →</Link>}>
+      <ShowcaseStrip username={profile.username} isSelf={isSelf} />
       {badges.length ? (
         <div className={styles.gacha}>
           {badges.slice(0, 12).map((badge) => (

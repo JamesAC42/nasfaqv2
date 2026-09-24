@@ -1,0 +1,41 @@
+@use "../../../styles/mixins" as *;
+
+.timer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 6rem;
+
+  b {
+    @include num;
+    min-width: 2.2rem;
+    font-size: 0.8125rem;
+    text-align: right;
+    color: var(--blue);
+  }
+
+  &[data-urgent] b {
+    color: var(--warn);
+  }
+}
+
+.track {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--ink-4);
+
+  i {
+    position: absolute;
+    inset: 0;
+    background: var(--blue);
+    transform-origin: left;
+    transition: transform 100ms linear;
+  }
+
+  [data-urgent] & i {
+    background: var(--warn);
+  }
+}

@@ -1,0 +1,588 @@
+@use "../../../styles/mixins" as *;
+
+.counts {
+  display: flex;
+  gap: 1.25rem;
+  margin: 0;
+
+  div {
+    display: grid;
+    justify-items: end;
+    gap: 0.1rem;
+  }
+
+  dt {
+    @include label;
+    font-size: 0.6rem;
+  }
+
+  dd {
+    @include num(wide);
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+
+  @include phone {
+    div {
+      justify-items: start;
+    }
+  }
+}
+
+.resume {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--blue-line);
+  border-radius: var(--radius-sm);
+  background: var(--blue-wash);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.875rem;
+
+  em {
+    @include label;
+    margin-left: auto;
+    font-style: normal;
+    color: var(--blue);
+  }
+
+  &:hover em {
+    color: var(--blue-2);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.liveDot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--blue);
+  animation: pulse 1.8s ease-out infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--blue) 60%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+.deckRow {
+  grid-area: deck;
+  min-width: 0;
+  padding: 1rem 0 1.25rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22rem;
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "main side";
+  gap: 0 2rem;
+  min-width: 0;
+
+  &[data-deck] {
+    grid-template-areas:
+      "deck side"
+      "main side";
+  }
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "side"
+      "main";
+
+    &[data-deck] {
+      grid-template-areas:
+        "deck"
+        "side"
+        "main";
+    }
+  }
+}
+
+.side {
+  grid-area: side;
+  min-width: 0;
+  padding-left: 2rem;
+  border-left: 1px solid var(--rule);
+  margin-left: -1rem;
+
+  @include tablet-down {
+    padding-left: 0;
+    border-left: 0;
+    margin-left: 0;
+  }
+
+  @include tablet-down {
+    border-bottom: 1px solid var(--rule);
+  }
+}
+
+.main {
+  grid-area: main;
+  min-width: 0;
+}
+
+.block {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem 0 1.25rem;
+  min-width: 0;
+
+  & + & {
+    border-top: 1px solid var(--rule);
+  }
+}
+
+.heading {
+  @include section-heading;
+  margin: 0;
+}
+
+.headRow {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.count {
+  @include num;
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+.note {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+.empty {
+  @include empty-state;
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.errorLine {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--down);
+}
+
+.primary {
+  @include button-primary;
+  text-decoration: none;
+}
+
+.secondary {
+  @include button-secondary;
+  text-decoration: none;
+}
+
+// ── Create ─────────────────────────────────────────────────────────────────
+.stakeField {
+  display: grid;
+  gap: 0.45rem;
+
+  label {
+    @include label;
+  }
+}
+
+.stakeInput {
+  position: relative;
+  display: flex;
+  align-items: center;
+
+  span {
+    @include num(wide);
+    position: absolute;
+    left: 0.8rem;
+    font-size: 1.25rem;
+    color: var(--dim);
+  }
+
+  input {
+    @include input-base;
+    @include num(wide);
+    padding-left: 2rem;
+    font-size: 1.35rem;
+    font-weight: 700;
+
+    &[aria-invalid] {
+      border-color: var(--down);
+    }
+  }
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+
+  button {
+    @include num;
+    padding: 0.3rem 0.55rem;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    background: none;
+    font-size: 0.75rem;
+    color: var(--mid);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--text);
+      border-color: var(--text);
+    }
+
+    &[aria-pressed="true"] {
+      border-color: var(--blue);
+      background: var(--blue-wash);
+      color: var(--text);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.stakeLine {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--mid);
+
+  b {
+    @include num;
+    color: var(--text);
+  }
+
+  &[data-bad] {
+    color: var(--warn);
+  }
+}
+
+// ── Your table ─────────────────────────────────────────────────────────────
+.yours {
+  padding: 1rem;
+  margin-top: 1rem;
+  border: 1px solid var(--blue-line);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, var(--blue-wash), transparent 70%);
+}
+
+.yoursWait {
+  @include display(1.25rem);
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.dots {
+  display: inline-flex;
+  gap: 0.2rem;
+
+  i {
+    width: 0.28rem;
+    height: 0.28rem;
+    border-radius: 50%;
+    background: var(--blue);
+    animation: dot 1.2s ease-in-out infinite;
+
+    &:nth-child(2) {
+      animation-delay: 0.15s;
+    }
+
+    &:nth-child(3) {
+      animation-delay: 0.3s;
+    }
+  }
+}
+
+@keyframes dot {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.yoursStats {
+  display: flex;
+  gap: 1.5rem;
+  margin: 0;
+
+  div {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  dt {
+    @include label;
+    font-size: 0.6rem;
+  }
+
+  dd {
+    @include num(wide);
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+}
+
+.yoursActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+// ── Rows ───────────────────────────────────────────────────────────────────
+.rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 8.5rem;
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+  padding: 0.65rem 0.25rem;
+  border-bottom: 1px solid var(--rule);
+
+  &[data-mine] {
+    background: linear-gradient(90deg, var(--blue-wash), transparent 60%);
+    box-shadow: inset 2px 0 0 var(--blue);
+    padding-left: 0.6rem;
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "main action"
+      "money money";
+    gap: 0.4rem 0.75rem;
+  }
+}
+
+.rowMain {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+
+  @include phone {
+    grid-area: main;
+  }
+}
+
+.rowSub {
+  @include label;
+  font-size: 0.6rem;
+}
+
+.rowMoney {
+  display: flex;
+  gap: 1.25rem;
+
+  span {
+    display: grid;
+    justify-items: end;
+    gap: 0.05rem;
+  }
+
+  small {
+    @include label;
+    font-size: 0.56rem;
+  }
+
+  b {
+    @include num;
+    font-size: 0.875rem;
+    font-weight: 700;
+  }
+
+  @include phone {
+    grid-area: money;
+    gap: 1.5rem;
+
+    span {
+      justify-items: start;
+      grid-auto-flow: column;
+      align-items: baseline;
+      gap: 0.4rem;
+    }
+  }
+}
+
+.win {
+  color: var(--up);
+}
+
+.rowAction {
+  display: flex;
+  justify-content: flex-end;
+
+  @include phone {
+    grid-area: action;
+  }
+}
+
+.rowJoin {
+  @include button-primary;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  text-decoration: none;
+  white-space: nowrap;
+
+  @include phone {
+    width: auto;
+  }
+}
+
+.rowGhost {
+  @include button-secondary;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  text-decoration: none;
+
+  @include phone {
+    width: auto;
+  }
+}
+
+.rowError {
+  grid-column: 1 / -1;
+}
+
+.match {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+
+  b {
+    overflow: hidden;
+    font-size: 0.875rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.score {
+  @include num(wide);
+  flex: none;
+  font-size: 0.875rem;
+  color: var(--dim);
+
+  em {
+    font-style: normal;
+    font-weight: 700;
+    color: var(--blue);
+  }
+}
+
+// ── Recent ─────────────────────────────────────────────────────────────────
+.recent {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recentRow + .recentRow {
+  border-top: 1px solid var(--rule);
+}
+
+.recentLink {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 4.5rem;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.5rem 0.25rem;
+  color: var(--mid);
+  text-decoration: none;
+  font-size: 0.8125rem;
+
+  &:hover {
+    background: var(--ink-2);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.1rem 0.75rem;
+  }
+}
+
+.recentText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  b {
+    color: var(--text);
+  }
+
+  span {
+    color: var(--text);
+  }
+}
+
+.recentAmount {
+  @include num;
+  font-weight: 700;
+  color: var(--dim);
+
+  &[data-tone="up"] {
+    color: var(--up);
+  }
+}
+
+.recentTime {
+  @include num;
+  font-size: 0.6875rem;
+  color: var(--dim);
+  text-align: right;
+
+  @include phone {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+}
+
+:global(html[data-calm="true"]) {
+  .liveDot,
+  .dots i {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .liveDot,
+  .dots i {
+    animation: none;
+  }
+}

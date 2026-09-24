@@ -1,0 +1,524 @@
+@use "../../../styles/mixins" as *;
+
+// Capsule machine page: the machine and its controls on the left, the prize pool on the right.
+
+.layout {
+  display: grid;
+  grid-template-columns: 22rem minmax(0, 1fr);
+  gap: 1.75rem 2.5rem;
+  width: 100%;
+  min-width: 0;
+  padding-top: 1.25rem;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.machineCol {
+  display: grid;
+  align-content: start;
+  gap: 1.35rem;
+  min-width: 0;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 18rem) minmax(0, 1fr);
+    align-items: start;
+
+    .machine {
+      grid-row: span 3;
+    }
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+
+    .machine {
+      grid-row: auto;
+    }
+  }
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--rule);
+
+  h2 {
+    @include section-heading;
+    margin: 0;
+  }
+
+  span {
+    @include label;
+    font-size: 0.6rem;
+    text-align: right;
+  }
+}
+
+.empty {
+  @include empty-state;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+// ── The machine ────────────────────────────────────────────────────────────
+.machine {
+  display: grid;
+  justify-items: center;
+  width: min(100%, 19rem);
+  margin: 0 auto;
+
+  @include phone {
+    width: min(100%, 15rem);
+  }
+}
+
+.globe {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 75%, rgba(63, 184, 245, 0.16), transparent 60%),
+    radial-gradient(circle at 50% 50%, #121a2b, #070a12 75%);
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.14),
+    0 0 0 9px #1b2030,
+    0 0 0 10px rgba(0, 0, 0, 0.5),
+    inset 0 -18px 40px rgba(0, 0, 0, 0.55);
+}
+
+.balls {
+  position: absolute;
+  inset: 10% 8% 6%;
+
+  > * {
+    width: 21% !important;
+    height: auto !important;
+    aspect-ratio: 1;
+    transition: transform 400ms var(--ease-out);
+  }
+}
+
+.machine[data-cranking] .balls > * {
+  animation: jiggle 260ms ease-in-out infinite alternate;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes jiggle {
+  from {
+    transform: translate(-4px, 3px) rotate(-12deg);
+  }
+  to {
+    transform: translate(4px, -9px) rotate(14deg);
+  }
+}
+
+.glass {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.38), transparent 18%),
+    radial-gradient(circle at 72% 80%, rgba(255, 255, 255, 0.08), transparent 30%),
+    linear-gradient(160deg, rgba(255, 255, 255, 0.08), transparent 45%);
+  pointer-events: none;
+}
+
+.season {
+  @include display(0.78rem);
+  position: absolute;
+  left: 50%;
+  top: 8%;
+  padding: 0.15rem 0.5rem 0.05rem;
+  border-radius: var(--radius-sm);
+  color: #02121c;
+  background: #3fb8f5;
+  transform: translateX(-50%) rotate(-3deg);
+  white-space: nowrap;
+}
+
+.neck {
+  width: 34%;
+  height: 0.9rem;
+  margin-top: 0.25rem;
+  background: linear-gradient(90deg, #1a1e28, #3a4050 50%, #1a1e28);
+}
+
+.body {
+  position: relative;
+  width: 86%;
+  height: 8.5rem;
+  border-radius: 12px 12px 4px 4px;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.22), transparent 18%, transparent 82%, rgba(0, 0, 0, 0.3)),
+    linear-gradient(180deg, #45bdf7, #1678ad);
+  box-shadow:
+    inset 0 -6px 0 rgba(0, 0, 0, 0.22),
+    inset 0 2px 0 rgba(255, 255, 255, 0.35);
+}
+
+.price {
+  position: absolute;
+  top: 0.85rem;
+  left: 0.85rem;
+  display: grid;
+  gap: 0.05rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: var(--radius-sm);
+  background: #0a0c11;
+  color: #eceef2;
+
+  small {
+    @include label;
+    font-size: 0.52rem;
+    color: #7a8296;
+  }
+
+  b {
+    @include num(wide);
+    font-size: 1.05rem;
+  }
+}
+
+.crank {
+  position: absolute;
+  top: 0.8rem;
+  right: 0.9rem;
+  width: 4.1rem;
+  height: 4.1rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #ffffff, #c7ccd8 50%, #7a8296);
+  box-shadow:
+    0 3px 0 rgba(0, 0, 0, 0.3),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.25);
+
+  i {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 78%;
+    height: 0.85rem;
+    border-radius: 0.5rem;
+    background: linear-gradient(#2a3040, #0a0c11);
+    transform: translate(-50%, -50%) rotate(-25deg);
+    transition: transform 300ms ease;
+  }
+}
+
+.machine[data-cranking] .crank i {
+  animation: crank 900ms var(--ease-out) infinite;
+}
+
+@keyframes crank {
+  from {
+    transform: translate(-50%, -50%) rotate(-25deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(335deg);
+  }
+}
+
+.chute {
+  position: absolute;
+  left: 50%;
+  bottom: 0.85rem;
+  width: 3.6rem;
+  height: 3.1rem;
+  overflow: hidden;
+  border-radius: 8px 8px 3px 3px;
+  background: #05070b;
+  box-shadow:
+    inset 0 6px 12px rgba(0, 0, 0, 0.9),
+    0 0 0 3px rgba(0, 0, 0, 0.2);
+  transform: translateX(-50%);
+
+  > * {
+    left: calc(50% - 14px);
+    top: auto;
+    bottom: 0.3rem;
+    animation: drop 700ms 350ms var(--ease-slam) both;
+  }
+}
+
+@keyframes drop {
+  from {
+    transform: translateY(-3.5rem);
+  }
+}
+
+.base {
+  width: 94%;
+  height: 0.8rem;
+  border-radius: 0 0 4px 4px;
+  background: linear-gradient(#2a3040, #151923);
+}
+
+// ── Controls ───────────────────────────────────────────────────────────────
+.controls {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+
+  > p {
+    margin: 0;
+  }
+}
+
+.pullButtons {
+  display: flex;
+  gap: 0.5rem;
+
+  > * {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 0.6rem;
+  }
+}
+
+.error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--down);
+}
+
+.pity {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.rules {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+  color: var(--mid);
+
+  b {
+    @include num;
+    color: var(--text);
+  }
+}
+
+.lockerLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color var(--dur-fast) ease;
+
+  span {
+    display: grid;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  small {
+    @include label;
+    font-size: 0.6rem;
+  }
+
+  b {
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  em {
+    font-style: normal;
+    color: var(--blue);
+  }
+
+  &:hover {
+    border-color: var(--blue);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+// ── Prize pool ─────────────────────────────────────────────────────────────
+.pool {
+  display: grid;
+  align-content: start;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.75rem 2rem;
+  min-width: 0;
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.group {
+  display: grid;
+  align-content: start;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.groupHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.85rem;
+  padding-left: 0.6rem;
+  border-left: 3px solid var(--rc);
+
+  b {
+    @include num;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--rc);
+  }
+
+  span {
+    @include num(wide);
+    font-size: 1rem;
+  }
+
+  small {
+    @include label;
+    margin-left: auto;
+    font-size: 0.6rem;
+  }
+}
+
+.prizes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+}
+
+.prize {
+  display: grid;
+  justify-items: start;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.prizeMeta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 148px;
+}
+
+.odds {
+  @include num;
+  font-size: 0.8rem;
+}
+
+.owned,
+.missing {
+  @include label;
+  font-size: 0.58rem;
+}
+
+.owned {
+  color: var(--blue);
+  font-weight: 700;
+
+  &::before {
+    content: "✓ ";
+  }
+}
+
+.details {
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+
+  summary {
+    padding: 0.85rem 0;
+    cursor: pointer;
+    list-style: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+
+    span {
+      @include section-heading;
+
+      &::before {
+        content: "+";
+        display: inline-block;
+        width: 1rem;
+        color: var(--blue);
+      }
+    }
+  }
+
+  &[open] summary span::before {
+    content: "−";
+  }
+
+  ul {
+    margin: 0 0 1rem;
+    padding-left: 1.1rem;
+  }
+
+  li {
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: var(--mid);
+  }
+
+  a {
+    color: var(--blue);
+  }
+}
+
+:global(html[data-calm="true"]) {
+  .balls > *,
+  .crank i,
+  .chute > * {
+    animation: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .balls > *,
+  .crank i,
+  .chute > * {
+    animation: none !important;
+  }
+}

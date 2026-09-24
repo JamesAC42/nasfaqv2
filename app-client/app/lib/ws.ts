@@ -4,6 +4,7 @@ const SITE_STATS_WS_PATH = "/api/stats/ws";
 const CHAT_WS_PATH = "/api/chat/ws";
 const MARKET_WS_PATH = "/api/market/ws";
 const PREDICTION_MARKET_WS_PATH = "/api/prediction-markets/ws";
+const GAMES_WS_PATH = "/api/games/ws";
 
 function toWsBase(base: string) {
   const trimmed = base.trim().replace(/\/+$/, "");
@@ -48,4 +49,10 @@ export function getPredictionMarketWsUrl() {
   const explicitBase = process.env.NEXT_PUBLIC_WS_API_BASE ? toWsBase(process.env.NEXT_PUBLIC_WS_API_BASE) : "";
   const base = explicitBase || (typeof window !== "undefined" ? window.location.origin.replace(/^http/, "ws") : "");
   return base ? `${base}${PREDICTION_MARKET_WS_PATH}` : "";
+}
+
+export function getGamesWsUrl() {
+  const explicitBase = process.env.NEXT_PUBLIC_WS_API_BASE ? toWsBase(process.env.NEXT_PUBLIC_WS_API_BASE) : "";
+  const base = explicitBase || (typeof window !== "undefined" ? window.location.origin.replace(/^http/, "ws") : "");
+  return base ? `${base}${GAMES_WS_PATH}` : "";
 }

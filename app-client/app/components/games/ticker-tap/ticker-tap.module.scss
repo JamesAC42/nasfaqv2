@@ -1,0 +1,669 @@
+@use "../../../styles/mixins" as *;
+
+// Ticker Tap lobby + results. Terminal frame: hairlines, mono numbers, one hero number (the pool).
+
+.page {
+  --gold: #f5c542;
+  --silver: #c7ceda;
+  --bronze: #d99a62;
+
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  scroll-margin-top: 4rem;
+}
+
+:global(html[data-theme="light"]) .page {
+  --gold: #b68300;
+  --silver: #6e7888;
+  --bronze: #a2602a;
+}
+
+.lobby {
+  display: grid;
+  min-width: 0;
+}
+
+.secHead {
+  @include section-heading;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+
+  small {
+    @include label;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+  }
+}
+
+.inlineError {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--down);
+}
+
+.empty {
+  @include empty-state;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+// ── Hero: the pool ─────────────────────────────────────────────────────────
+.hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 1.5rem 2.5rem;
+  padding: 1.5rem 0;
+  border-bottom: 1px solid var(--rule);
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.heroCompact {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 1.1rem 0;
+
+  .pool {
+    font-size: clamp(2.2rem, 6vw, 3.4rem);
+  }
+}
+
+.poolBlock {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.poolLabel {
+  @include section-heading;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  color: var(--blue);
+}
+
+.pool {
+  @include num(wide);
+  margin: 0;
+  font-size: clamp(3.2rem, 9vw, 6rem);
+  font-weight: 700;
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  text-shadow: 0 0 40px color-mix(in srgb, var(--gold) 22%, transparent);
+  overflow-wrap: anywhere;
+}
+
+.poolDollar {
+  margin-right: 0.08em;
+  color: var(--gold);
+  font-size: 0.6em;
+  vertical-align: 0.42em;
+}
+
+.poolFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.75rem;
+  margin: 0.6rem 0 0;
+
+  div {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  dt {
+    @include label;
+    font-size: 0.58rem;
+  }
+
+  dd {
+    @include num;
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    white-space: nowrap;
+
+    small {
+      font-size: 0.72rem;
+      font-weight: 400;
+      color: var(--dim);
+    }
+  }
+}
+
+.playBlock {
+  display: grid;
+  align-content: end;
+  gap: 0.8rem;
+  min-width: 0;
+  padding-left: 2.5rem;
+  border-left: 1px solid var(--rule);
+
+  @include tablet-down {
+    padding: 1.25rem 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--rule);
+  }
+}
+
+.myBest {
+  display: grid;
+  gap: 0.35rem;
+
+  p {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem 0.8rem;
+    margin: 0;
+  }
+}
+
+.myBestLabel {
+  @include label;
+}
+
+.myScore {
+  @include num(wide);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.myRank {
+  @include num;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--blue);
+  border-radius: var(--radius-sm);
+  color: var(--blue);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.myPay {
+  font-size: 0.85rem;
+  color: var(--mid);
+
+  b {
+    @include num;
+    color: var(--up);
+  }
+}
+
+.noRun {
+  color: var(--mid);
+  font-size: 0.9rem;
+}
+
+.myBest p.rung {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--mid);
+
+  b {
+    @include num;
+    color: var(--text);
+  }
+}
+
+.playButton {
+  @include button-primary;
+  width: 100%;
+  min-height: 3.25rem;
+  font-size: 0.875rem;
+  letter-spacing: 0.14em;
+}
+
+.secondaryButton {
+  @include button-secondary;
+  min-height: 3.25rem;
+}
+
+.linkButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--blue);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+// ── Board + side ───────────────────────────────────────────────────────────
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 1.75rem 2.5rem;
+  padding: 1.5rem 0 2rem;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.board {
+  min-width: 0;
+}
+
+.ladder,
+.winners {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+}
+
+.rung10,
+.winners li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto 5.5rem;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0 0.5rem 0 0.25rem;
+  border-bottom: 1px solid var(--rule);
+
+  @include phone {
+    grid-template-columns: 1.6rem minmax(0, 1fr) auto 4.6rem;
+    gap: 0.5rem;
+  }
+}
+
+.rung10 {
+  &[data-mine] {
+    background: var(--blue-wash);
+    box-shadow: inset 2px 0 0 var(--blue);
+  }
+
+  &[data-open] {
+    color: var(--dim);
+  }
+}
+
+.shareBar {
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: var(--share);
+  height: 1px;
+  background: color-mix(in srgb, var(--gold) 70%, transparent);
+  pointer-events: none;
+}
+
+.rankNum {
+  @include num;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--mid);
+
+  [data-rank="1"] > &,
+  &[data-rank="1"] {
+    color: var(--gold);
+  }
+
+  [data-rank="2"] > &,
+  &[data-rank="2"] {
+    color: var(--silver);
+  }
+
+  [data-rank="3"] > &,
+  &[data-rank="3"] {
+    color: var(--bronze);
+  }
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  font-size: 0.9rem;
+
+  > span:not(:first-child) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  em {
+    @include label;
+    flex: none;
+    font-style: normal;
+    color: var(--blue);
+  }
+}
+
+.openSeat {
+  @include label;
+  color: var(--dim);
+}
+
+.score {
+  @include num;
+  font-size: 0.9rem;
+  text-align: right;
+}
+
+.payout,
+.share,
+.paid {
+  @include num;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+.payout,
+.paid {
+  color: var(--up);
+}
+
+.share {
+  color: var(--dim);
+  font-weight: 400;
+}
+
+.meBelow {
+  margin: 0.6rem 0 0;
+  font-size: 0.85rem;
+  color: var(--mid);
+
+  b {
+    @include num;
+    color: var(--blue);
+  }
+}
+
+.fine {
+  margin: 0.75rem 0 0;
+  font-size: 0.78rem;
+  color: var(--dim);
+}
+
+.side {
+  display: grid;
+  align-content: start;
+  gap: 1.75rem;
+  min-width: 0;
+}
+
+.legendList {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+
+  li {
+    --kc: var(--mid);
+
+    display: grid;
+    grid-template-columns: 1.9rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.7rem;
+    min-height: 2.5rem;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.875rem;
+
+    b {
+      @include num;
+      font-size: 0.95rem;
+      color: var(--kc);
+    }
+
+    &[data-kind="up"] {
+      --kc: var(--up);
+    }
+
+    &[data-kind="gold"] {
+      --kc: var(--gold);
+    }
+
+    &[data-kind="down"] {
+      --kc: var(--down);
+    }
+
+    &[data-kind="miss"] b {
+      color: var(--dim);
+    }
+  }
+}
+
+.chip {
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 1px solid var(--kc);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--kc) 14%, transparent);
+  color: var(--kc);
+  font-size: 0.8rem;
+}
+
+.comboRule,
+.keys {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+  color: var(--mid);
+
+  b {
+    color: var(--text);
+  }
+
+  span {
+    @include num;
+    color: var(--blue);
+    font-weight: 700;
+  }
+}
+
+.keys {
+  font-size: 0.8rem;
+  color: var(--dim);
+
+  kbd {
+    @include num;
+    display: inline-block;
+    min-width: 1.3rem;
+    padding: 0.05rem 0.3rem;
+    border: 1px solid var(--rule-2);
+    border-bottom-width: 2px;
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 0.72rem;
+    text-align: center;
+  }
+}
+
+.winners li {
+  grid-template-columns: 2rem minmax(0, 1fr) auto auto;
+  min-height: 2.4rem;
+}
+
+// ── Results ────────────────────────────────────────────────────────────────
+.results {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  grid-template-areas:
+    "main stats"
+    "main actions";
+  gap: 1rem 2.5rem;
+  padding: 1.5rem 0;
+  border-bottom: 1px solid var(--rule);
+  animation: resultsIn 360ms var(--ease-out) both;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "main"
+      "stats"
+      "actions";
+  }
+}
+
+@keyframes resultsIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.6rem);
+  }
+}
+
+:global(html[data-calm="true"]) .results {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .results {
+    animation: none;
+  }
+}
+
+.resultsMain {
+  grid-area: main;
+  display: grid;
+  align-content: start;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.resKicker {
+  @include label;
+  margin: 0;
+  color: var(--blue);
+}
+
+.resTitle {
+  @include display(2.4rem);
+  margin: 0;
+  line-height: 1.05;
+
+  .results[data-pb] & {
+    color: var(--gold);
+  }
+
+  @include phone {
+    font-size: 1.9rem;
+  }
+}
+
+.resScore {
+  @include num(wide);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.2rem 0 0.1rem;
+  font-size: clamp(3rem, 8vw, 4.5rem);
+  font-weight: 700;
+  line-height: 1;
+
+  &[data-pending] {
+    color: var(--dim);
+  }
+}
+
+.pbBadge {
+  @include num;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--gold) 16%, transparent);
+  color: var(--gold);
+  font-size: 0.9rem;
+  letter-spacing: 0.1em;
+}
+
+.resNote {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--mid);
+
+  b {
+    @include num;
+    color: var(--text);
+  }
+}
+
+.gain {
+  color: var(--up) !important;
+}
+
+.resHint {
+  @include label;
+  margin: 0.3rem 0 0;
+  color: var(--warn);
+}
+
+.stats {
+  grid-area: stats;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border-top: 1px solid var(--rule);
+  border-left: 1px solid var(--rule);
+
+  div {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.6rem 0.7rem;
+    border-right: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    min-width: 0;
+  }
+
+  dt {
+    @include label;
+    font-size: 0.56rem;
+    white-space: nowrap;
+  }
+
+  dd {
+    @include num;
+    margin: 0;
+    font-size: 1.3rem;
+    font-weight: 700;
+  }
+
+  [data-kind="up"] dd {
+    color: var(--up);
+  }
+
+  [data-kind="gold"] dd {
+    color: var(--gold);
+  }
+
+  [data-kind="down"] dd {
+    color: var(--down);
+  }
+}
+
+.resActions {
+  grid-area: actions;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.6rem;
+
+  .playButton {
+    flex: 1 1 14rem;
+    width: auto;
+  }
+
+  .secondaryButton {
+    flex: 0 0 auto;
+  }
+
+  .inlineError {
+    flex-basis: 100%;
+  }
+}

@@ -1,0 +1,897 @@
+@use "../../../styles/mixins" as *;
+
+// The reveal stage is a "moment" surface: always dark, richer than the page chrome.
+// --aura is the best rarity in the batch (it tints the floor before anything flips, like a
+// shooting star colour), --glow is per card, --m is the colour of the current SSR/UR moment.
+
+$stage-text: #eceef2;
+$stage-dim: rgba(236, 238, 242, 0.58);
+$stage-rule: rgba(255, 255, 255, 0.09);
+
+.stage {
+  --aura: #3fb8f5;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  overflow: hidden;
+  color: $stage-text;
+  background: #04060a;
+  outline: none;
+  animation: stageIn 260ms ease-out both;
+}
+
+@keyframes stageIn {
+  from {
+    opacity: 0;
+  }
+}
+
+// ── Backdrop ───────────────────────────────────────────────────────────────
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(90% 55% at 50% 108%, color-mix(in srgb, var(--aura) 34%, transparent), transparent 70%),
+    radial-gradient(70% 60% at 50% 38%, #111a2d, #04060a 72%);
+  transition: background 600ms ease;
+}
+
+.rays {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 190vmax;
+  height: 190vmax;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--aura) 13%, transparent) 0deg 3deg, transparent 3deg 12deg);
+  mask-image: radial-gradient(closest-side, #000 8%, transparent 62%);
+  opacity: 0.35;
+  transform: translate(-50%, -50%);
+  animation: spin 90s linear infinite;
+}
+
+.stage[data-aura="on"] .rays {
+  opacity: 0.8;
+}
+
+.stage[data-aura-big] .rays {
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgba(255, 122, 217, 0.14) 0deg 3deg,
+    transparent 3deg 9deg,
+    rgba(125, 216, 255, 0.14) 9deg 12deg,
+    transparent 12deg 18deg
+  );
+}
+
+.floor {
+  position: absolute;
+  left: -50%;
+  right: -50%;
+  bottom: -8%;
+  height: 46%;
+  background:
+    linear-gradient(color-mix(in srgb, var(--aura) 22%, transparent) 1px, transparent 1px) 0 0 / 64px 64px,
+    linear-gradient(90deg, color-mix(in srgb, var(--aura) 22%, transparent) 1px, transparent 1px) 0 0 / 64px 64px;
+  mask-image: linear-gradient(transparent, #000 70%);
+  opacity: 0.45;
+  transform: perspective(420px) rotateX(58deg);
+  transform-origin: 50% 100%;
+}
+
+@keyframes spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+// ── Bar ────────────────────────────────────────────────────────────────────
+.bar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid $stage-rule;
+  background: rgba(4, 6, 10, 0.55);
+}
+
+.barTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  min-width: 0;
+
+  b {
+    @include label;
+    overflow: hidden;
+    font-weight: 700;
+    color: $stage-text;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  span {
+    @include num;
+    flex: 0 0 auto;
+    font-size: 0.75rem;
+    color: $stage-dim;
+  }
+}
+
+.barActions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.4rem;
+}
+
+.stage kbd {
+  @include num;
+  padding: 0.05rem 0.3rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--radius-sm);
+  font-size: 0.6rem;
+  color: $stage-dim;
+}
+
+.ghostButton,
+.doneButton {
+  @include button-secondary;
+  padding: 0.45rem 0.75rem;
+  color: $stage-text;
+  border-color: rgba(255, 255, 255, 0.2);
+
+  &:hover:not(:disabled) {
+    border-color: $stage-text;
+  }
+
+  kbd {
+    margin-left: 0.2rem;
+
+    @include phone {
+      display: none;
+    }
+  }
+}
+
+.closeButton {
+  @include button-secondary;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  color: $stage-text;
+  border-color: rgba(255, 255, 255, 0.2);
+  font-size: 1.1rem;
+
+  &:hover:not(:disabled) {
+    border-color: $stage-text;
+  }
+}
+
+// ── Field ──────────────────────────────────────────────────────────────────
+.field {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 1rem;
+  overscroll-behavior: contain;
+
+  @include phone {
+    align-items: start;
+    padding: 1rem 0.75rem 1.25rem;
+  }
+}
+
+.field[data-single] {
+  align-items: center;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), var(--cw));
+  gap: var(--gap);
+  justify-content: center;
+  padding: 0.5rem 0;
+}
+
+.slot {
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  animation: deal 520ms var(--ease-out) both;
+  animation-delay: calc(var(--i) * 70ms);
+}
+
+@keyframes deal {
+  from {
+    opacity: 0;
+    transform: translateY(70px) rotate(-7deg) scale(0.82);
+  }
+}
+
+.cardBox {
+  position: relative;
+  width: var(--w);
+  aspect-ratio: 5 / 7;
+  perspective: 1200px;
+}
+
+.flipper {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transition: transform 640ms cubic-bezier(0.3, 1.25, 0.4, 1);
+}
+
+.slot[data-flipped] .flipper {
+  transform: rotateY(180deg);
+}
+
+.slot:not([data-flipped]):hover .flipper {
+  @include hover-device {
+    transform: translateY(-6px);
+  }
+}
+
+.side {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+
+  > * {
+    width: 100% !important;
+  }
+}
+
+.front {
+  transform: rotateY(180deg);
+}
+
+.hit {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 4px;
+  }
+}
+
+// Light behind a revealed card, in its rarity colour.
+.halo {
+  position: absolute;
+  inset: -16% -22%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--glow), transparent);
+  opacity: 0;
+  filter: blur(10px);
+  pointer-events: none;
+  transition: opacity 400ms ease;
+}
+
+.slot[data-flipped][data-glow] .halo {
+  opacity: 0.4;
+  animation: haloIn 800ms ease-out;
+}
+
+.slot[data-flipped][data-high] .halo {
+  opacity: 0.85;
+  animation:
+    haloIn 800ms ease-out,
+    haloPulse 2.4s 800ms ease-in-out infinite alternate;
+}
+
+.slot[data-charging] .halo {
+  opacity: 1;
+  transform: scale(1.25);
+  transition:
+    opacity 200ms ease,
+    transform 500ms ease-out;
+}
+
+.slot[data-charging] .flipper {
+  animation: charge 520ms ease-in both;
+}
+
+@keyframes haloIn {
+  from {
+    opacity: 1;
+    transform: scale(1.6);
+  }
+}
+
+@keyframes haloPulse {
+  to {
+    opacity: 0.5;
+    transform: scale(0.92);
+  }
+}
+
+@keyframes charge {
+  0% {
+    transform: none;
+  }
+  20% {
+    transform: translateX(-3px) rotate(-1.5deg) scale(1.03);
+  }
+  40% {
+    transform: translateX(3px) rotate(1.5deg) scale(1.05);
+  }
+  60% {
+    transform: translateX(-4px) rotate(-2deg) scale(1.07);
+  }
+  80% {
+    transform: translateX(4px) rotate(2deg) scale(1.09);
+  }
+  100% {
+    transform: scale(1.1);
+    filter: brightness(1.8);
+  }
+}
+
+// ── Tags under a card ──────────────────────────────────────────────────────
+.tags,
+.momentTags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem;
+  min-height: 1.35rem;
+  max-width: 100%;
+
+  span {
+    @include num;
+    padding: 0.18rem 0.35rem 0.12rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    line-height: 1.2;
+    white-space: nowrap;
+    color: $stage-dim;
+    background: rgba(255, 255, 255, 0.06);
+    animation: tagIn 300ms 380ms ease-out both;
+  }
+
+  [data-tone="new"] {
+    color: var(--blue-ink);
+    background: var(--blue);
+  }
+
+  [data-tone="stars"] {
+    color: #ffd766;
+    background: rgba(245, 197, 66, 0.12);
+  }
+
+  [data-tone="shards"] {
+    color: #c9b3ff;
+    background: rgba(154, 116, 255, 0.14);
+
+    &::before {
+      content: "";
+      display: inline-block;
+      width: 0.5em;
+      height: 0.68em;
+      margin-right: 0.3em;
+      background: linear-gradient(160deg, #e6dcff, #9a74ff 55%, #3d2690);
+      clip-path: polygon(50% 0, 100% 35%, 50% 100%, 0 35%);
+      vertical-align: -0.04em;
+    }
+  }
+
+  [data-tone="featured"] {
+    color: #1a1204;
+    background: linear-gradient(90deg, #f5c542, #fff0a8, #f5c542);
+  }
+}
+
+.momentTags {
+  span {
+    padding: 0.3rem 0.55rem 0.22rem;
+    font-size: 0.75rem;
+    animation-delay: 700ms;
+  }
+}
+
+@keyframes tagIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+// ── Foot: hint and summary ─────────────────────────────────────────────────
+.foot {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  padding: 0.75rem 1rem calc(0.9rem + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid $stage-rule;
+  background: rgba(4, 6, 10, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.hint {
+  @include label;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem 1.25rem;
+  margin: 0;
+  color: $stage-dim;
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+
+    @include phone {
+      display: none;
+    }
+  }
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem 2rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  animation: summaryIn 420ms 120ms var(--ease-out) both;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.65rem;
+  }
+}
+
+@keyframes summaryIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+.best {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.bestCard {
+  flex: 0 0 auto;
+  width: 58px;
+}
+
+.bestText {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+
+  small {
+    @include label;
+    font-size: 0.6rem;
+    color: $stage-dim;
+  }
+
+  b {
+    @include display(1.15rem);
+    overflow: hidden;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  em {
+    @include num;
+    font-size: 0.7rem;
+    font-style: normal;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--c);
+  }
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.75rem;
+  margin: 0;
+
+  div {
+    display: grid;
+    gap: 0.1rem;
+    min-width: 0;
+  }
+
+  dt {
+    @include label;
+    font-size: 0.6rem;
+    color: $stage-dim;
+  }
+
+  dd {
+    @include num(wide);
+    margin: 0;
+    font-size: 1.35rem;
+    line-height: 1.1;
+
+    @include phone {
+      font-size: 1.1rem;
+    }
+  }
+
+  [data-tone="new"] dd {
+    color: var(--blue);
+  }
+
+  [data-tone="shards"] dd {
+    color: #c9b3ff;
+  }
+}
+
+.summaryActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+
+  @include tablet-down {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+
+    > * {
+      flex: 1 1 auto;
+    }
+  }
+
+  a {
+    @include label;
+    color: var(--blue);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.againButton {
+  @include button-primary;
+  padding: 0.75rem 1.2rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.doneButton {
+  padding: 0.75rem 1.2rem;
+}
+
+.error {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 0.8rem;
+  text-align: right;
+  color: #ff8a9b;
+
+  @include tablet-down {
+    text-align: left;
+  }
+}
+
+// ── The moment ─────────────────────────────────────────────────────────────
+.moment {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: radial-gradient(60% 50% at 50% 50%, color-mix(in srgb, var(--m) 22%, rgba(3, 4, 8, 0.9)), rgba(3, 4, 8, 0.94));
+  cursor: pointer;
+  animation: stageIn 160ms ease-out both;
+}
+
+.flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 45%, #fff, var(--m) 45%, color-mix(in srgb, var(--m) 60%, #000));
+  opacity: 0;
+  pointer-events: none;
+  animation: flash 900ms ease-out both;
+}
+
+.moment[data-big] .flash {
+  animation: flashBig 1400ms ease-out both;
+}
+
+.moment[data-holo] .flash {
+  background: conic-gradient(from 0deg at 50% 45%, #ff7ad9, #ffd36e, #7dffcf, #6ecbff, #b28cff, #ff7ad9);
+  animation: flashHolo 1400ms ease-out both;
+}
+
+@keyframes flash {
+  0% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes flashBig {
+  0% {
+    opacity: 1;
+    filter: brightness(1.6);
+  }
+  25% {
+    opacity: 0.2;
+  }
+  38% {
+    opacity: 0.85;
+    filter: brightness(1.3);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes flashHolo {
+  0% {
+    opacity: 1;
+    filter: brightness(1.6);
+  }
+  25% {
+    opacity: 0.2;
+  }
+  38% {
+    opacity: 0.85;
+    filter: hue-rotate(120deg) brightness(1.4);
+  }
+  100% {
+    opacity: 0;
+    filter: hue-rotate(240deg);
+  }
+}
+
+.burst {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 170vmax;
+  height: 170vmax;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--m) 34%, transparent) 0deg 4deg, transparent 4deg 13deg);
+  mask-image: radial-gradient(closest-side, #000 6%, transparent 58%);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation:
+    burstIn 900ms var(--ease-out) both,
+    spin 26s linear infinite;
+}
+
+.moment[data-holo] .burst {
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgba(255, 122, 217, 0.55) 0deg 4deg,
+    transparent 4deg 10deg,
+    rgba(255, 211, 110, 0.5) 10deg 14deg,
+    transparent 14deg 20deg,
+    rgba(125, 216, 255, 0.5) 20deg 24deg,
+    transparent 24deg 30deg
+  );
+}
+
+@keyframes burstIn {
+  from {
+    opacity: 0;
+    scale: 0.15;
+  }
+}
+
+.ring {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 36vmin;
+  height: 36vmin;
+  border: 6px solid var(--m);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: ringOut 1100ms 80ms ease-out both;
+}
+
+@keyframes ringOut {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.2);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(3.2);
+    border-width: 1px;
+  }
+}
+
+.momentBody {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+  padding: 1rem;
+}
+
+.slam {
+  @include display;
+  position: relative;
+  z-index: 2;
+  margin: 0 0 -1.6rem;
+  font-size: clamp(3.4rem, 11vw, 7.5rem);
+  line-height: 0.9;
+  letter-spacing: 0.02em;
+  color: var(--m);
+  text-shadow:
+    0 0 28px color-mix(in srgb, var(--m) 80%, transparent),
+    0 5px 0 rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+  transform: rotate(-5deg);
+  animation: slam 620ms var(--ease-slam) both;
+
+  @include phone {
+    margin-bottom: -1rem;
+  }
+
+  &[data-long] {
+    margin-bottom: -1rem;
+    font-size: clamp(2.3rem, 7.5vw, 5rem);
+  }
+}
+
+.moment[data-big] .ring {
+  border-width: 10px;
+  animation-duration: 1400ms;
+}
+
+.moment[data-holo] .slam {
+  color: transparent;
+  background: linear-gradient(90deg, #ff7ad9, #ffd36e, #7dffcf, #6ecbff, #b28cff, #ff7ad9) 0 0 / 200% 100% text;
+  text-shadow: none;
+  filter: drop-shadow(0 0 18px rgba(255, 122, 217, 0.7)) drop-shadow(0 5px 0 rgba(0, 0, 0, 0.55));
+  animation:
+    slam 720ms var(--ease-slam) both,
+    holoText 2.4s 720ms linear infinite;
+}
+
+@keyframes slam {
+  0% {
+    opacity: 0;
+    transform: rotate(-5deg) scale(3.4);
+  }
+  55% {
+    opacity: 1;
+    transform: rotate(-5deg) scale(0.92);
+  }
+  100% {
+    transform: rotate(-5deg) scale(1);
+  }
+}
+
+@keyframes holoText {
+  to {
+    background-position: 200% 0;
+  }
+}
+
+.bigCard {
+  position: relative;
+  z-index: 1;
+  animation: land 760ms 160ms var(--ease-slam) both;
+}
+
+@keyframes land {
+  0% {
+    opacity: 0;
+    transform: translateY(-50px) scale(1.4) rotateY(-50deg);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+  }
+}
+
+.continue {
+  @include label;
+  margin-top: 0.25rem;
+  padding: 0.4rem 0.8rem;
+  border: 0;
+  background: none;
+  color: $stage-dim;
+  cursor: pointer;
+  animation: blink 1.4s 1s ease-in-out infinite;
+
+  &:focus-visible {
+    @include focus-ring;
+    animation: none;
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+// Calm mode / reduced motion: no deal, flash, slam or burst. Cards are simply there.
+.stage[data-calm],
+:global(html[data-calm="true"]) .stage {
+  animation: none;
+
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .flash,
+  .ring {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage,
+  .stage *,
+  .stage *::before,
+  .stage *::after {
+    animation: none !important;
+    transition-duration: 1ms !important;
+  }
+
+  .flash,
+  .ring {
+    display: none;
+  }
+}

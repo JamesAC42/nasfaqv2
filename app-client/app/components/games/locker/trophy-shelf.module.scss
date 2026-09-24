@@ -1,0 +1,295 @@
+@use "../../../styles/mixins" as *;
+
+// A lit display case. Always dark, whatever the site theme: the cards are the light source.
+.case {
+  position: relative;
+  min-width: 0;
+  margin: 1rem 0 0;
+  padding: 2.5rem 1rem 0;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(55% 70% at 50% 0%, rgba(150, 175, 230, 0.2), transparent 70%),
+    linear-gradient(180deg, #0e121c 0%, #080a10 70%, #05060a 100%);
+  color: #fff;
+
+  &[data-empty] {
+    padding: 3rem 1rem;
+  }
+
+  @include phone {
+    padding: 1.75rem 0 0;
+  }
+}
+
+// Faint back wall panelling.
+.wall {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 96px);
+  mask-image: linear-gradient(180deg, #000 20%, transparent 80%);
+  pointer-events: none;
+}
+
+.row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1.75rem;
+  margin: 0;
+  padding: 0 0 0;
+  list-style: none;
+
+  @include tablet-down {
+    gap: 1rem;
+  }
+
+  @include phone {
+    justify-content: flex-start;
+    gap: 0.9rem;
+    padding: 0 1rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 1rem;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}
+
+// Ace in the middle: 4 · 2 · 1 · 3 · 5
+.slot {
+  --rc: #8d95a8;
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0;
+  flex: 0 1 188px;
+  min-width: 0;
+
+  &[data-slot="1"] {
+    order: 3;
+    flex-basis: 236px;
+  }
+
+  &[data-slot="2"] {
+    order: 2;
+  }
+
+  &[data-slot="3"] {
+    order: 4;
+  }
+
+  &[data-slot="4"] {
+    order: 1;
+  }
+
+  &[data-slot="5"] {
+    order: 5;
+  }
+
+  &[data-rarity="R"] {
+    --rc: #3fb8f5;
+  }
+
+  &[data-rarity="SR"] {
+    --rc: #b28cff;
+  }
+
+  &[data-rarity="SSR"] {
+    --rc: #f5c542;
+  }
+
+  &[data-rarity="UR"] {
+    --rc: #ff7ad9;
+  }
+
+  @include phone {
+    order: 0 !important;
+    flex: 0 0 150px;
+    scroll-snap-align: start;
+
+    &[data-slot="1"] {
+      flex-basis: 184px;
+    }
+  }
+}
+
+.beam {
+  position: absolute;
+  z-index: 0;
+  top: -2.5rem;
+  left: 50%;
+  width: 180%;
+  height: calc(100% + 2.5rem);
+  transform: translateX(-50%);
+  background:
+    conic-gradient(from 160deg at 50% 0%, transparent 0deg, color-mix(in srgb, var(--rc) 22%, transparent) 20deg, color-mix(in srgb, var(--rc) 22%, transparent) 20deg, transparent 40deg),
+    radial-gradient(45% 55% at 50% 45%, color-mix(in srgb, var(--rc) 22%, transparent), transparent 75%);
+  mask-image: linear-gradient(180deg, #000 60%, transparent);
+  pointer-events: none;
+
+  [data-rarity="C"] > & {
+    opacity: 0.4;
+  }
+
+  [data-rarity="UR"] > & {
+    background:
+      conic-gradient(from 160deg at 50% 0%, transparent 0deg, rgba(255, 122, 217, 0.28) 20deg, transparent 40deg),
+      radial-gradient(40% 50% at 40% 45%, rgba(255, 122, 217, 0.3), transparent 75%),
+      radial-gradient(40% 50% at 60% 55%, rgba(125, 216, 255, 0.26), transparent 75%);
+    animation: breathe 4s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes breathe {
+  to {
+    opacity: 0.7;
+  }
+}
+
+.cardWrap {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+
+  // A pool of the card's light on the shelf.
+  &::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    left: 4%;
+    right: 4%;
+    bottom: -0.9rem;
+    height: 1.8rem;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--rc) 55%, transparent), transparent);
+    opacity: 0.8;
+  }
+}
+
+.card {
+  width: 100% !important;
+}
+
+.plaque {
+  @include num;
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  margin: 1.35rem 0 0.95rem;
+  padding: 0.25rem 0.55rem;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, #1a1f2c, #10131b);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.65);
+
+  b {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 0.75rem;
+    letter-spacing: 0.02em;
+    color: var(--rc);
+  }
+
+  [data-rarity="UR"] > & b {
+    color: transparent;
+    background: linear-gradient(90deg, #ff7ad9, #ffd36e, #7dffcf, #6ecbff) text;
+  }
+
+  &[data-blank] {
+    color: rgba(255, 255, 255, 0.25);
+  }
+
+  @include phone {
+    span:not(.stars) {
+      display: none;
+    }
+  }
+}
+
+.stars {
+  color: var(--rc);
+  letter-spacing: 0;
+}
+
+.emptySlot {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  aspect-ratio: 5 / 7;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 5%;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.025) 0 6px, transparent 6px 12px);
+  color: rgba(255, 255, 255, 0.5);
+  text-decoration: none;
+
+  span {
+    @include label;
+    color: inherit;
+  }
+
+  &:hover {
+    border-color: var(--blue);
+    border-style: solid;
+    color: var(--blue);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.ledge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(3.55rem - 1px);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3) 20%, rgba(255, 255, 255, 0.45) 50%, rgba(255, 255, 255, 0.3) 80%, transparent);
+  box-shadow: 0 0 22px 3px rgba(140, 170, 230, 0.2);
+
+  &::after {
+    content: "";
+    position: absolute;
+    top: 1px;
+    left: 0;
+    right: 0;
+    height: 3.55rem;
+    background: linear-gradient(180deg, rgba(40, 50, 72, 0.45), transparent);
+  }
+}
+
+.emptyNote {
+  @include label;
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+:global(html[data-calm="true"]) .beam {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .beam {
+    animation: none;
+  }
+}

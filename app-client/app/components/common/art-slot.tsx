@@ -15,6 +15,8 @@ type ArtSlotProps = {
   /** Rendered width in px, used to choose an export size. */
   width?: number;
   priority?: boolean;
+  /** Drawn instead of the default placeholder while the talent has no art. */
+  fallback?: React.ReactNode;
 } & ({ kind: "keyart" } | { kind: "chibi"; pose?: ChibiPose });
 
 /**
@@ -23,7 +25,7 @@ type ArtSlotProps = {
  * faded oshimark, so pages look finished before the art lands.
  */
 export function ArtSlot(props: ArtSlotProps) {
-  const { symbol, icon, accent, className, width = 256, priority = false } = props;
+  const { symbol, icon, accent, className, width = 256, priority = false, fallback } = props;
   const manifest = useArtStore((state) => state.manifest);
   const ensureLoaded = useArtStore((state) => state.ensureLoaded);
 
@@ -79,6 +81,14 @@ export function ArtSlot(props: ArtSlotProps) {
         </div>
       );
     }
+  }
+
+  if (fallback) {
+    return (
+      <div className={classes} style={style} aria-hidden="true">
+        {fallback}
+      </div>
+    );
   }
 
   return (

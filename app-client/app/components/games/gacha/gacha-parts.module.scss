@@ -1,0 +1,142 @@
+@use "../../../styles/mixins" as *;
+
+// ── Pity bars ──────────────────────────────────────────────────────────────
+.pity {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.pityHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+
+  span {
+    @include label;
+    color: var(--mid);
+  }
+
+  b {
+    @include num(wide);
+    font-size: 1.25rem;
+    line-height: 1;
+    color: var(--c);
+
+    small {
+      @include label;
+      font-size: 0.6rem;
+      font-weight: 500;
+    }
+  }
+}
+
+.track {
+  position: relative;
+  height: 0.5rem;
+  overflow: visible;
+  border-radius: 1px;
+  background: var(--ink-4);
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 1px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 55%, transparent), var(--c));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c) 45%, transparent);
+  transition: width 600ms var(--ease-out);
+}
+
+.pity[data-hot] .fill {
+  background: repeating-linear-gradient(-45deg, var(--c) 0 6px, color-mix(in srgb, var(--c) 70%, #fff) 6px 12px);
+  background-size: 17px 17px;
+  animation: hotStripes 700ms linear infinite;
+}
+
+@keyframes hotStripes {
+  to {
+    background-position: 17px 0;
+  }
+}
+
+.tick {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 1px;
+  background: var(--text);
+  opacity: 0.55;
+}
+
+.pityFoot {
+  @include num;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.68rem;
+  color: var(--dim);
+}
+
+.note {
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+.shard {
+  display: inline-block;
+  width: 0.55em;
+  height: 0.72em;
+  margin-right: 0.2em;
+  background: linear-gradient(160deg, #e6dcff, #9a74ff 55%, #3d2690);
+  clip-path: polygon(50% 0, 100% 35%, 50% 100%, 0 35%);
+  vertical-align: -0.05em;
+}
+
+// ── Pull buttons ───────────────────────────────────────────────────────────
+.pullPrimary,
+.pullSecondary {
+  @include button-base;
+  gap: 0.45rem;
+  min-height: 3.1rem;
+  padding: 0.7rem 1.35rem;
+  white-space: nowrap;
+}
+
+.pullPrimary {
+  @include button-primary;
+  min-height: 3.1rem;
+  padding: 0.7rem 1.5rem;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--blue) 40%, transparent), 0 6px 22px color-mix(in srgb, var(--blue) 30%, transparent);
+}
+
+.pullSecondary {
+  @include button-secondary;
+  min-height: 3.1rem;
+  background: var(--ink-2);
+}
+
+.pullLabel {
+  @include display(1.05rem);
+  letter-spacing: 0.03em;
+  text-transform: none;
+}
+
+.pullCost {
+  @include num;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+:global(html[data-calm="true"]) .pity[data-hot] .fill {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pity[data-hot] .fill {
+    animation: none;
+  }
+}

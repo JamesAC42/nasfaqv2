@@ -1,0 +1,522 @@
+@use "../../../styles/mixins" as *;
+
+// Pieces that sit on the felt: chips, fanned hands, the shoe, a seat.
+// The felt is always dark navy, so these use fixed light-on-dark colours rather than theme
+// tokens where the token would flip in light mode.
+
+$felt-ink: #e9f1ff;
+$felt-dim: rgba(214, 228, 255, 0.62);
+$felt-line: rgba(190, 215, 255, 0.28);
+
+// ── Chips ──────────────────────────────────────────────────────────────────
+.chip {
+  --size: 44px;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, var(--chip) 0 52%, transparent 53%),
+    repeating-conic-gradient(var(--chip-edge) 0 18deg, var(--chip) 18deg 45deg);
+  box-shadow:
+    inset 0 0 0 2px rgba(0, 0, 0, 0.25),
+    0 2px 0 rgba(0, 0, 0, 0.45),
+    0 3px 8px rgba(0, 0, 0, 0.35);
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 22%;
+    border-radius: 50%;
+    border: 1px dashed color-mix(in srgb, var(--chip-ink) 45%, transparent);
+  }
+
+  b {
+    @include num;
+    position: relative;
+    font-size: calc(var(--size) * 0.26);
+    font-weight: 700;
+    color: var(--chip-ink);
+  }
+}
+
+.stackWrap {
+  --size: 32px;
+  display: inline-grid;
+  justify-items: center;
+  gap: 0.2rem;
+}
+
+.stacks {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.stack {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  width: var(--size);
+
+  i {
+    display: block;
+    width: var(--size);
+    height: calc(var(--size) * 0.3);
+    margin-top: calc(var(--size) * -0.19);
+    border-radius: 50%;
+    background: repeating-linear-gradient(90deg, var(--chip) 0 18%, var(--chip-edge) 18% 26%);
+    box-shadow:
+      inset 0 -1px 0 rgba(0, 0, 0, 0.35),
+      0 1px 1px rgba(0, 0, 0, 0.4);
+    transform: translateX(calc((var(--i) - 2) * 0.4px));
+
+    &:last-child {
+      background: radial-gradient(ellipse at 50% 45%, var(--chip) 0 55%, var(--chip-edge) 56% 64%, var(--chip) 65%);
+    }
+  }
+}
+
+.stackAmount {
+  @include num;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: $felt-ink;
+  white-space: nowrap;
+
+  em {
+    font-style: normal;
+    font-size: 0.625rem;
+    padding: 0 0.2rem;
+    border-radius: var(--radius-sm);
+    background: #f5b83f;
+    color: #1f1300;
+  }
+}
+
+// ── Hands ──────────────────────────────────────────────────────────────────
+.hand {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+.slot {
+  position: absolute;
+  display: block;
+  line-height: 0;
+
+  // Stagger the deal: the card's own `deal` animation, delayed by dealing order.
+  > span {
+    animation-delay: var(--delay, 0ms);
+  }
+}
+
+// ── Shoe ───────────────────────────────────────────────────────────────────
+.shoe {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: $felt-ink;
+}
+
+.shoeBox {
+  --cw: 30px;
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: calc(var(--cw) + 14px);
+  height: calc(var(--cw) * 1.4 + 8px);
+  border-radius: 3px;
+  background: linear-gradient(180deg, #0a1426, #050a14);
+  box-shadow:
+    inset 0 0 0 1px rgba(138, 214, 255, 0.18),
+    0 4px 10px rgba(0, 0, 0, 0.4);
+
+  > span {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+  }
+
+  > span:nth-child(2) {
+    left: 7px;
+  }
+
+  > span:nth-child(3) {
+    left: 10px;
+  }
+}
+
+.shoeText {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 3.4rem;
+
+  small {
+    @include label;
+    font-size: 0.56rem;
+    color: $felt-dim;
+  }
+
+  b {
+    @include num;
+    font-size: 0.875rem;
+    line-height: 1;
+  }
+}
+
+.shoeBar {
+  position: relative;
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+
+  i {
+    position: absolute;
+    inset: 0;
+    border-radius: 2px;
+    background: #8ad6ff;
+    transform-origin: left;
+  }
+
+  em {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 2px;
+    background: #f5b83f;
+  }
+}
+
+.shoe[data-compact] {
+  gap: 0.35rem;
+
+  .shoeBox {
+    --cw: 22px;
+  }
+
+  .shoeText {
+    min-width: 2.6rem;
+  }
+
+  .shoeText b {
+    font-size: 0.75rem;
+  }
+}
+
+// ── Seats ──────────────────────────────────────────────────────────────────
+.seat {
+  --spot: 4.2rem;
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto auto auto;
+  justify-items: center;
+  align-content: end;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.5rem 0.25rem 0.55rem;
+  border-radius: var(--radius-lg);
+  color: $felt-ink;
+  transition:
+    background-color var(--dur-med) ease,
+    box-shadow var(--dur-med) ease;
+
+  &[data-turn] {
+    background: rgba(63, 184, 245, 0.12);
+    box-shadow:
+      inset 0 0 0 1px rgba(63, 184, 245, 0.75),
+      0 0 24px rgba(63, 184, 245, 0.25);
+  }
+
+  &[data-out] .cards,
+  &[data-out] .who {
+    opacity: 0.55;
+  }
+
+  @include phone {
+    --spot: 2.8rem;
+    gap: 0.25rem;
+    padding: 0.35rem 0.1rem 0.4rem;
+  }
+}
+
+.cards {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 78px;
+  min-width: 0;
+  max-width: 100%;
+
+  @include phone {
+    min-height: 48px;
+  }
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  min-height: 1.35rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.value {
+  @include num;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(3, 10, 22, 0.72);
+  box-shadow: inset 0 0 0 1px $felt-line;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+
+  &[data-bust] {
+    color: var(--down);
+  }
+
+  @include phone {
+    font-size: 0.625rem;
+    padding: 0.05rem 0.3rem;
+  }
+}
+
+.tag {
+  @include label;
+  font-size: 0.56rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-sm);
+  background: rgba(3, 10, 22, 0.6);
+  color: $felt-dim;
+
+  @include phone {
+    font-size: 0.5rem;
+    letter-spacing: 0.06em;
+  }
+}
+
+.badge {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0 0.3rem;
+  padding: 0.12rem 0.45rem 0.15rem;
+  border-radius: var(--radius-sm);
+  line-height: 1.15;
+  animation: stamp 420ms var(--ease-slam) both;
+
+  strong {
+    @include display(0.8125rem);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  em {
+    @include num;
+    font-style: normal;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  &[data-kind="win"] {
+    background: #2ee38e;
+    color: #04140c;
+  }
+
+  &[data-kind="bj"] {
+    background: linear-gradient(100deg, #ffe7a3, #f5b83f 45%, #fff4d6 60%, #f5b83f);
+    color: #1f1300;
+    box-shadow: 0 0 18px rgba(245, 184, 63, 0.45);
+  }
+
+  &[data-kind="loss"] {
+    background: #ff4460;
+    color: #1a0307;
+  }
+
+  &[data-kind="push"] {
+    background: rgba(233, 241, 255, 0.85);
+    color: #0b1830;
+  }
+
+  @include phone {
+    padding: 0.08rem 0.25rem;
+
+    strong {
+      font-size: 0.625rem;
+    }
+
+    em {
+      font-size: 0.5625rem;
+    }
+  }
+}
+
+@keyframes stamp {
+  from {
+    opacity: 0;
+    transform: scale(1.6) rotate(-6deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.spot {
+  display: grid;
+  place-items: center;
+  width: var(--spot);
+  height: var(--spot);
+  border-radius: 50%;
+  border: 1.5px solid $felt-line;
+  background: rgba(255, 255, 255, 0.025);
+  color: $felt-dim;
+
+  small {
+    @include label;
+    font-size: 0.56rem;
+    color: $felt-dim;
+  }
+
+  &[data-bet] {
+    border-color: rgba(190, 215, 255, 0.4);
+    align-items: end;
+    padding-bottom: 0.3rem;
+  }
+
+  &[data-open] {
+    appearance: none;
+    border-style: dashed;
+    border-color: rgba(138, 214, 255, 0.6);
+    cursor: pointer;
+    font: inherit;
+
+    span {
+      @include label;
+      font-weight: 700;
+      color: #8ad6ff;
+    }
+
+    &:hover:not(:disabled) {
+      background: rgba(63, 184, 245, 0.16);
+      border-style: solid;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+
+  @include phone {
+    &[data-bet] {
+      padding-bottom: 0.15rem;
+      border: 0;
+      background: none;
+    }
+  }
+}
+
+.seat[data-me] .spot {
+  border-color: rgba(138, 214, 255, 0.7);
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-width: 0;
+  max-width: 100%;
+
+  &[data-empty] {
+    color: $felt-dim;
+  }
+}
+
+.name {
+  @include label;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  color: $felt-ink;
+
+  [data-empty] > & {
+    color: $felt-dim;
+    text-transform: uppercase;
+  }
+
+  @include phone {
+    font-size: 0.5625rem;
+    letter-spacing: 0.02em;
+  }
+}
+
+.you {
+  @include label;
+  flex: 0 0 auto;
+  font-size: 0.5rem;
+  font-weight: 700;
+  padding: 0.05rem 0.25rem;
+  border-radius: var(--radius-sm);
+  background: var(--blue);
+  color: #02121c;
+
+  @include phone {
+    display: none;
+  }
+}
+
+.seat[data-me] .name {
+  color: #8ad6ff;
+  font-weight: 700;
+}
+
+.turnTimer {
+  width: 100%;
+  min-width: 0;
+  padding: 0 0.3rem;
+
+  > div {
+    min-width: 0;
+  }
+
+  @include phone {
+    padding: 0;
+
+    b {
+      display: none;
+    }
+  }
+}
+
+:global(html[data-calm="true"]) .badge {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge {
+    animation: none;
+  }
+
+  .slot > span {
+    animation: none;
+  }
+}

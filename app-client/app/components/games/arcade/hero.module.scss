@@ -1,0 +1,338 @@
+@use "../../../styles/mixins" as *;
+
+// The featured banner hero: the one "moment" on the arcade page, so it gets a stage.
+
+.hero {
+  --tal: var(--blue);
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.5rem 2.5rem;
+  min-width: 0;
+  padding: 2rem 2.5rem 2rem 0;
+  overflow: hidden;
+  isolation: isolate;
+  border-bottom: 1px solid var(--rule);
+  background:
+    radial-gradient(60% 120% at 78% 50%, color-mix(in srgb, var(--tal) 22%, transparent), transparent 70%),
+    linear-gradient(90deg, var(--ink) 20%, color-mix(in srgb, var(--tal) 6%, var(--ink)));
+
+  @include tablet-down {
+    padding-right: 0;
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    padding: 1.25rem 0 1.5rem;
+    background:
+      radial-gradient(90% 55% at 50% 24%, color-mix(in srgb, var(--tal) 24%, transparent), transparent 75%),
+      var(--ink);
+  }
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.keyart {
+  position: absolute;
+  right: 12%;
+  bottom: -8%;
+  width: min(34rem, 48%);
+  opacity: 0.55;
+  mask-image: radial-gradient(closest-side, #000 45%, transparent);
+
+  @include phone {
+    right: -10%;
+    top: -4%;
+    bottom: auto;
+    width: 120%;
+    opacity: 0.4;
+  }
+}
+
+.ghost {
+  @include display;
+  position: absolute;
+  right: -0.04em;
+  bottom: -0.2em;
+  font-size: clamp(8rem, 20vw, 17rem);
+  line-height: 1;
+  color: color-mix(in srgb, var(--tal) 12%, transparent);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+
+  @include phone {
+    top: 0.1em;
+    bottom: auto;
+    font-size: 9rem;
+  }
+}
+
+// ── Copy ──────────────────────────────────────────────────────────────────
+.copy {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 0.6rem;
+  min-width: 0;
+  max-width: 36rem;
+}
+
+.kicker {
+  @include label;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--mid);
+}
+
+.rateUp {
+  padding: 0.18rem 0.45rem;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(100deg, #ff7ad9, #7dd8ff 55%, #f5c542);
+  color: #10131a;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.name {
+  @include display(clamp(2.4rem, 5vw, 4.25rem));
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  margin: 0.1rem 0 0;
+  line-height: 0.95;
+  min-width: 0;
+  overflow-wrap: anywhere;
+
+  @include phone {
+    font-size: 2.35rem;
+  }
+}
+
+.mark {
+  flex: none;
+}
+
+.unit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--mid);
+
+  b {
+    @include num;
+    color: var(--tal);
+    font-weight: 700;
+  }
+}
+
+.hook {
+  margin: 0.2rem 0 0;
+  font-size: 1rem;
+  line-height: 1.45;
+  color: var(--text);
+  max-width: 30rem;
+
+  @include phone {
+    font-size: 0.9375rem;
+  }
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin: 0.4rem 0 0.2rem;
+
+  div {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0 1.25rem;
+    border-left: 1px solid var(--rule-2);
+
+    &:first-child {
+      padding-left: 0;
+      border-left: 0;
+    }
+
+    @include phone {
+      padding: 0 0.9rem;
+    }
+  }
+
+  dt {
+    @include label;
+  }
+
+  dd {
+    @include num(wide);
+    margin: 0;
+    font-size: 1.25rem;
+    color: var(--text);
+
+    @include phone {
+      font-size: 1.05rem;
+    }
+  }
+}
+
+.ur {
+  background: linear-gradient(100deg, #ff9fe4, #9fe2ff 60%, #ffe28a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+}
+
+.ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+
+  @include phone {
+    width: 100%;
+
+    a {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+  }
+}
+
+.primary {
+  @include button-primary;
+  padding: 0.85rem 1.4rem;
+  font-size: 0.75rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.secondary {
+  @include button-secondary;
+  padding: 0.85rem 1.2rem;
+  font-size: 0.75rem;
+  text-decoration: none;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--ink) 60%, transparent);
+}
+
+.pity {
+  @include label;
+  margin: 0.15rem 0 0;
+  color: var(--mid);
+}
+
+// ── The fan ───────────────────────────────────────────────────────────────
+.fan {
+  position: relative;
+  display: block;
+  width: calc(var(--front) + var(--side) * 1.05);
+  height: calc(var(--front) * 1.4 + 1.5rem);
+  flex: none;
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-lg);
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  @include phone {
+    order: -1;
+    justify-self: center;
+    height: calc(var(--front) * 1.4 + 0.5rem);
+    max-width: 100%;
+  }
+}
+
+.front,
+.left,
+.right {
+  position: absolute !important;
+  transition: transform var(--dur-med) var(--ease-out);
+}
+
+.front {
+  left: 50%;
+  top: 0;
+  z-index: 2;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 22px 34px rgba(0, 0, 0, 0.55));
+  animation: float 5.5s ease-in-out infinite;
+}
+
+.left,
+.right {
+  top: 14%;
+  z-index: 1;
+  filter: brightness(0.8) drop-shadow(0 12px 20px rgba(0, 0, 0, 0.5));
+}
+
+.left {
+  left: 0;
+  transform: rotate(-11deg);
+}
+
+.right {
+  right: 0;
+  transform: rotate(11deg);
+}
+
+@include hover-device {
+  .fan:hover .left {
+    transform: rotate(-15deg) translate(-6%, 2%);
+  }
+
+  .fan:hover .right {
+    transform: rotate(15deg) translate(6%, 2%);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -6px;
+  }
+}
+
+:global(html[data-calm="true"]) .front {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .front {
+    animation: none;
+  }
+}
+
+// ── Loading ───────────────────────────────────────────────────────────────
+.skelName,
+.skelLine {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: var(--ink-3);
+}
+
+.skelName {
+  width: min(22rem, 80%);
+  height: 3.2rem;
+}
+
+.skelLine {
+  width: min(28rem, 90%);
+  height: 1rem;
+}

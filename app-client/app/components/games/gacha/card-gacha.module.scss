@@ -1,0 +1,1009 @@
+@use "../../../styles/mixins" as *;
+
+// Card gacha page. The banner hero is a "moment" surface (always dark, talent colour, rays);
+// everything around it is the terminal: hairlines, mono numbers, small labels.
+
+.page {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+}
+
+.loadError {
+  @include empty-state;
+  margin: 1rem 0 0;
+  color: var(--down);
+  font-size: 0.85rem;
+}
+
+// ── Banner tabs ────────────────────────────────────────────────────────────
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.85rem 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.tab,
+.tabGhost {
+  position: relative;
+  display: flex;
+  flex: 0 1 19rem;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  min-height: 3.4rem;
+  padding: 0.5rem 0.8rem;
+  overflow: hidden;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-md);
+  background: var(--ink-2);
+}
+
+.tabGhost {
+  flex-basis: 15rem;
+  opacity: 0.5;
+}
+
+.tab {
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) ease,
+    background var(--dur-fast) ease;
+
+  &:hover {
+    border-color: var(--mid);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  &[aria-selected="true"] {
+    border-color: var(--blue);
+    background: linear-gradient(100deg, color-mix(in srgb, var(--tal, var(--blue)) 22%, var(--ink-2)), var(--ink-2) 70%);
+    box-shadow: inset 0 -2px 0 var(--blue);
+  }
+
+  @include phone {
+    flex: 1 1 0;
+    gap: 0.5rem;
+    padding: 0.45rem 0.6rem;
+  }
+}
+
+.tabMark {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+}
+
+.tabFan {
+  position: relative;
+  width: 1.5rem;
+  height: 1.5rem;
+
+  &::before,
+  &::after {
+    content: "";
+    position: absolute;
+    left: 0.35rem;
+    top: 0.1rem;
+    width: 0.8rem;
+    height: 1.15rem;
+    border-radius: 2px;
+    background: linear-gradient(145deg, #0f4f78, #3fb8f5);
+    box-shadow: 0 0 0 1px var(--ink);
+    transform: rotate(-16deg) translateX(-0.25rem);
+  }
+
+  &::after {
+    background: linear-gradient(145deg, #7a5a0c, #f5c542, #fff4c2);
+    transform: rotate(14deg) translateX(0.25rem);
+  }
+}
+
+.tabText {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+
+  small {
+    @include label;
+    font-size: 0.6rem;
+  }
+
+  b {
+    @include display(0.98rem);
+    overflow: hidden;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.tabLeft {
+  @include num;
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 0.15rem 0.35rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  font-size: 0.68rem;
+  color: var(--mid);
+
+  @include phone {
+    display: none;
+  }
+}
+
+// ── Layout ─────────────────────────────────────────────────────────────────
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 21rem;
+  gap: 1.5rem 1.75rem;
+  min-width: 0;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.main {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+}
+
+.rail {
+  display: grid;
+  align-content: start;
+  gap: 1.75rem;
+  min-width: 0;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+// ── Hero ───────────────────────────────────────────────────────────────────
+.hero,
+.heroLoading {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  min-width: 0;
+  min-height: 26rem;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: #07090e;
+  color: #fff;
+  isolation: isolate;
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+}
+
+.heroLoading {
+  background: var(--ink-2);
+  border: 1px solid var(--rule);
+}
+
+.hero {
+  --tal: #3fb8f5;
+  --s: 1;
+
+  @include desktop-down {
+    --s: 0.9;
+  }
+
+  @include phone {
+    --s: 0.72;
+  }
+}
+
+.heroBg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  background:
+    radial-gradient(70% 90% at 76% 50%, color-mix(in srgb, var(--tal) 58%, #07090e), transparent 72%),
+    linear-gradient(100deg, #07090e 30%, color-mix(in srgb, var(--tal) 24%, #07090e));
+}
+
+.hero[data-kind="standard"] .heroBg {
+  background:
+    radial-gradient(40% 70% at 62% 60%, rgba(63, 184, 245, 0.45), transparent 70%),
+    radial-gradient(40% 70% at 86% 40%, rgba(245, 197, 66, 0.35), transparent 70%),
+    radial-gradient(40% 60% at 75% 100%, rgba(178, 140, 255, 0.35), transparent 70%),
+    linear-gradient(100deg, #07090e 30%, #0d1424);
+}
+
+.heroRays {
+  position: absolute;
+  left: 76%;
+  top: 50%;
+  width: 1500px;
+  height: 1500px;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.09) 0deg 4deg, transparent 4deg 13deg);
+  mask-image: radial-gradient(closest-side, #000 5%, transparent 60%);
+  transform: translate(-50%, -50%);
+  animation: raySpin 90s linear infinite;
+
+  @include phone {
+    left: 50%;
+    top: 24%;
+  }
+}
+
+@keyframes raySpin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+.heroDots {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(color-mix(in srgb, var(--tal) 55%, transparent) 1.3px, transparent 1.8px) 0 0 / 11px 11px;
+  mask-image: linear-gradient(200deg, transparent 35%, #000 95%);
+  opacity: 0.45;
+}
+
+.heroGhost {
+  @include display;
+  position: absolute;
+  right: -1rem;
+  top: -2.5rem;
+  font-size: 15rem;
+  line-height: 1;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke: 2px color-mix(in srgb, var(--tal) 55%, transparent);
+  opacity: 0.3;
+
+  @include phone {
+    font-size: 9rem;
+    top: -1rem;
+  }
+}
+
+.marquee {
+  position: absolute;
+  z-index: 0;
+  left: 38%;
+  right: -10%;
+  bottom: 2.6rem;
+  display: flex;
+  overflow: hidden;
+  padding: 0.35rem 0 0.25rem;
+  background: var(--tal);
+  color: #07090e;
+  transform: rotate(-5deg);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+
+  span {
+    @include display(0.92rem);
+    flex: 0 0 auto;
+    padding-right: 0.5rem;
+    white-space: nowrap;
+    animation: marquee 22s linear infinite;
+  }
+
+  @include phone {
+    left: -10%;
+    top: 14.5rem;
+    bottom: auto;
+  }
+}
+
+@keyframes marquee {
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+.heroCopy {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 2rem 1rem 2rem 2rem;
+
+  @include phone {
+    order: 2;
+    padding: 1rem 1rem 1.25rem;
+    background: linear-gradient(transparent, rgba(7, 9, 14, 0.85) 18%);
+  }
+}
+
+.heroKicker {
+  @include label;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.rateUp,
+.always {
+  @include display(0.85rem);
+  padding: 0.2rem 0.55rem 0.1rem;
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  transform: skewX(-10deg);
+}
+
+.rateUp {
+  color: #1a1204;
+  background: linear-gradient(90deg, #f5c542, #fff0a8, #f5c542);
+  box-shadow: 0 0 18px rgba(245, 197, 66, 0.45);
+}
+
+.always {
+  color: #02121c;
+  background: #3fb8f5;
+}
+
+.heroName {
+  @include display;
+  margin: 0;
+  max-width: 100%;
+  font-size: clamp(2.3rem, 4.4vw, 4.1rem);
+  line-height: 0.95;
+  text-shadow:
+    0 3px 0 rgba(0, 0, 0, 0.45),
+    0 0 36px color-mix(in srgb, var(--tal) 55%, transparent);
+  overflow-wrap: anywhere;
+}
+
+.heroUnit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+
+  b {
+    @include num;
+    font-size: 0.8rem;
+    color: var(--tal);
+  }
+
+  span {
+    @include label;
+    color: rgba(255, 255, 255, 0.7);
+  }
+}
+
+.heroPitch {
+  max-width: 27rem;
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.84);
+}
+
+.heroChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+
+  span {
+    @include num;
+    padding: 0.25rem 0.5rem 0.2rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  [data-r="UR"] {
+    color: #120a14;
+    background: linear-gradient(90deg, #ff7ad9, #ffd36e, #7dffcf, #6ecbff, #b28cff);
+  }
+
+  [data-r="SSR"] {
+    color: #1a1204;
+    background: linear-gradient(90deg, #f5c542, #fff0a8, #f5c542);
+  }
+}
+
+.heroTimer {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.35);
+
+  small {
+    @include label;
+    color: rgba(255, 255, 255, 0.65);
+  }
+
+  b {
+    @include num(wide);
+    font-size: 1.2rem;
+  }
+}
+
+.heroStats {
+  display: flex;
+  gap: 1.5rem;
+  margin: 0.2rem 0 0;
+
+  div {
+    display: grid;
+  }
+
+  dt {
+    @include label;
+    color: rgba(255, 255, 255, 0.65);
+  }
+
+  dd {
+    @include num(wide);
+    margin: 0;
+    font-size: 1.4rem;
+  }
+}
+
+.heroStage {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  min-height: 26rem;
+
+  @include phone {
+    order: 1;
+    min-height: 17rem;
+  }
+}
+
+.heroArt {
+  position: absolute !important;
+  inset: 0;
+  width: 100% !important;
+  height: 100%;
+  aspect-ratio: auto !important;
+  background: none !important;
+  mask-image: linear-gradient(90deg, transparent, #000 35%);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 15%;
+  }
+}
+
+.heroCardBack,
+.heroCardFront {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+}
+
+.heroCardBack {
+  transform: translate(-96%, -50%) scale(var(--s)) rotate(-11deg);
+  transform-origin: 100% 50%;
+  filter: brightness(0.82) saturate(0.9);
+}
+
+.heroCardFront {
+  transform: translate(-30%, -48%) scale(var(--s)) rotate(5deg);
+  transform-origin: 30% 50%;
+  filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.55));
+  animation: float 5s ease-in-out infinite alternate;
+
+  @include phone {
+    transform: translate(-36%, -50%) scale(var(--s)) rotate(5deg);
+  }
+}
+
+@keyframes float {
+  to {
+    translate: 0 -10px;
+  }
+}
+
+.fan {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  transform: scale(var(--s));
+
+  @include phone {
+    top: 50%;
+  }
+}
+
+.fanCard {
+  position: absolute;
+  left: -75px;
+  top: -105px;
+  transform: rotate(calc(var(--f) * 12deg)) translateY(calc(var(--f) * var(--f) * 4px));
+  transform-origin: 50% 200%;
+  filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.5));
+  transition: transform 360ms var(--ease-out);
+}
+
+.hero[data-kind="standard"]:hover .fanCard {
+  @include hover-device {
+    transform: rotate(calc(var(--f) * 16deg)) translateY(calc(var(--f) * var(--f) * 4px - 8px));
+  }
+}
+
+// ── Pull bar ───────────────────────────────────────────────────────────────
+.pullBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  min-width: 0;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.pullMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.2rem;
+  min-width: 0;
+
+  span {
+    @include label;
+    color: var(--mid);
+  }
+
+  b {
+    @include num(wide);
+    font-size: 0.95rem;
+    color: var(--text);
+  }
+
+  [data-hot] {
+    color: var(--warn);
+    font-weight: 700;
+  }
+}
+
+.pullButtons {
+  display: flex;
+  gap: 0.5rem;
+
+  @include phone {
+    width: 100%;
+
+    > * {
+      flex: 1 1 0;
+      min-width: 0;
+      padding-inline: 0.6rem;
+    }
+  }
+}
+
+.pullError {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 0.85rem;
+  text-align: right;
+  color: var(--down);
+
+  @include phone {
+    text-align: left;
+  }
+}
+
+.signedOut {
+  width: 100%;
+
+  > p {
+    margin: 0;
+  }
+}
+
+// ── Rail ───────────────────────────────────────────────────────────────────
+.railHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--rule);
+
+  h2 {
+    @include section-heading;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0;
+  }
+
+  i {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--blue);
+    animation: live 1.8s ease-out infinite;
+  }
+
+  span {
+    @include label;
+    font-size: 0.6rem;
+  }
+}
+
+@keyframes live {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--blue) 60%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+.pityPanel {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.rateLine {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+
+  span {
+    @include label;
+    color: var(--mid);
+  }
+
+  b {
+    @include num(wide);
+    font-size: 1rem;
+  }
+
+  &[data-hot] b {
+    color: var(--warn);
+  }
+}
+
+.fifty {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--tal) 8%, var(--ink-2));
+
+  span {
+    display: grid;
+    gap: 0.1rem;
+    min-width: 0;
+  }
+
+  small {
+    @include label;
+    font-size: 0.6rem;
+  }
+
+  b {
+    @include display(0.98rem);
+    line-height: 1.15;
+  }
+
+  &[data-guaranteed] {
+    border-color: var(--tal);
+    box-shadow: inset 3px 0 0 var(--tal);
+  }
+}
+
+.pityTotal {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0;
+
+  span {
+    @include label;
+  }
+
+  b {
+    @include num;
+    font-size: 0.8rem;
+  }
+}
+
+.pityRules {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+  color: var(--mid);
+
+  b {
+    @include num;
+    color: var(--text);
+  }
+}
+
+// ── Feed ───────────────────────────────────────────────────────────────────
+.feed {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+}
+
+.feedEmpty {
+  @include empty-state;
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+}
+
+.feedList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    min-width: 0;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--rule);
+  }
+}
+
+.feedMain {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.feedCard {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+
+  b {
+    @include num;
+    flex: 0 0 auto;
+    padding: 0.1rem 0.3rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--rc);
+    background: #0b0e15;
+  }
+
+  span {
+    overflow: hidden;
+    font-size: 0.85rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  em {
+    @include num;
+    flex: 0 0 auto;
+    font-size: 0.58rem;
+    font-style: normal;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--warn);
+  }
+}
+
+.feedWho {
+  display: flex;
+  gap: 0.5rem;
+  min-width: 0;
+  font-size: 0.75rem;
+
+  a {
+    overflow: hidden;
+    color: var(--blue);
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    &:hover {
+      text-decoration: underline;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+
+  time {
+    @include num;
+    flex: 0 0 auto;
+    color: var(--dim);
+  }
+}
+
+// ── Rates ──────────────────────────────────────────────────────────────────
+.rates {
+  border-bottom: 1px solid var(--rule);
+
+  summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.35rem 1rem;
+    padding: 0.9rem 0;
+    cursor: pointer;
+    list-style: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+
+    span {
+      @include section-heading;
+
+      &::before {
+        content: "+";
+        display: inline-block;
+        width: 1rem;
+        color: var(--blue);
+      }
+    }
+
+    small {
+      @include num;
+      font-size: 0.7rem;
+      color: var(--dim);
+    }
+  }
+
+  &[open] summary span::before {
+    content: "−";
+  }
+}
+
+.ratesBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 1.5rem 2.5rem;
+  padding-bottom: 1.5rem;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.tableWrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.rateTable {
+  @include table-shell;
+
+  th,
+  td {
+    padding: 0.55rem 0.6rem;
+  }
+
+  td {
+    @include num;
+    font-size: 0.85rem;
+    text-align: right;
+  }
+
+  thead th:not(:first-child) {
+    text-align: right;
+  }
+
+  tbody th {
+    font-size: 0.85rem;
+    font-weight: 400;
+    white-space: nowrap;
+
+    b {
+      @include num;
+      display: inline-block;
+      min-width: 2.6rem;
+      margin-right: 0.35rem;
+      padding: 0.12rem 0.3rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-align: center;
+      color: var(--rc);
+      background: #0b0e15;
+    }
+  }
+}
+
+.rules {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+
+  section {
+    min-width: 0;
+  }
+
+  h3 {
+    @include section-heading;
+    margin: 0 0 0.35rem;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 1.1rem;
+  }
+
+  li {
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: var(--mid);
+  }
+
+  a {
+    color: var(--blue);
+  }
+}
+
+:global(html[data-calm="true"]) {
+  .heroRays,
+  .marquee span,
+  .heroCardFront,
+  .railHead i {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heroRays,
+  .marquee span,
+  .heroCardFront,
+  .railHead i {
+    animation: none;
+  }
+}

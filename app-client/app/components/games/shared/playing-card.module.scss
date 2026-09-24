@@ -1,0 +1,97 @@
+@use "../../../styles/mixins" as *;
+
+// Paper playing cards. Red suits use a raspberry ink rather than --down: on this site red
+// means "price went down", and a heart isn't that.
+
+.card {
+  --suit: #14161c;
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: var(--w, 72px);
+  aspect-ratio: 5 / 7;
+  container-type: inline-size;
+  border-radius: calc(var(--w, 72px) * 0.08);
+  background: linear-gradient(160deg, #ffffff, #eef0f5);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 3px 8px rgba(0, 0, 0, 0.45);
+  color: var(--suit);
+  user-select: none;
+
+  &[data-red] {
+    --suit: #c2185b;
+  }
+}
+
+.corner {
+  position: absolute;
+  top: 5cqi;
+  left: 7cqi;
+  display: grid;
+  justify-items: center;
+  line-height: 0.9;
+
+  b {
+    @include display;
+    font-size: 26cqi;
+  }
+
+  i {
+    font-style: normal;
+    font-size: 20cqi;
+  }
+}
+
+.flip {
+  top: auto;
+  left: auto;
+  right: 7cqi;
+  bottom: 5cqi;
+  transform: rotate(180deg);
+}
+
+.pip {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 52cqi;
+  line-height: 1;
+}
+
+.down {
+  background:
+    repeating-linear-gradient(45deg, rgba(63, 184, 245, 0.18) 0 3px, transparent 3px 8px),
+    repeating-linear-gradient(-45deg, rgba(63, 184, 245, 0.18) 0 3px, transparent 3px 8px),
+    #0f2340;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 calc(var(--w, 72px) * 0.05) #16305a,
+    0 3px 8px rgba(0, 0, 0, 0.45);
+}
+
+.highlight {
+  box-shadow:
+    0 0 0 2px var(--blue),
+    0 0 calc(var(--w, 72px) * 0.14) color-mix(in srgb, var(--blue) 60%, transparent);
+}
+
+.deal {
+  animation: deal 380ms var(--ease-out) both;
+}
+
+@keyframes deal {
+  from {
+    opacity: 0;
+    transform: translate(-30%, -40%) rotate(-12deg) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+:global(html[data-calm="true"]) .deal {
+  animation: none;
+}

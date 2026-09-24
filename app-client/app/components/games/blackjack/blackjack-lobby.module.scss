@@ -1,0 +1,318 @@
+@use "../../../styles/mixins" as *;
+
+.empty {
+  @include empty-state;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+}
+
+.tables {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+  min-width: 0;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--rule);
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+}
+
+.skeleton {
+  height: 22rem;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, #16407a, #0a2149);
+  opacity: 0.35;
+}
+
+.tile {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-lg);
+  background: var(--ink-2);
+  overflow: hidden;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+    grid-template-rows: none;
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+// A slice of felt: the table seen from above.
+.felt {
+  position: relative;
+  display: block;
+  height: 11rem;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(138, 214, 255, 0.18), transparent 60%),
+    linear-gradient(180deg, #16407a 0%, #0f2f5e 55%, #0a2149 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(138, 214, 255, 0.18),
+    inset 0 -24px 40px rgba(0, 0, 0, 0.3);
+  color: #e9f1ff;
+  text-decoration: none;
+
+  &:focus-visible {
+    @include focus-ring;
+    outline-offset: -2px;
+  }
+
+  @include tablet-down {
+    height: auto;
+    min-height: 10rem;
+  }
+
+  @include phone {
+    min-height: 7.5rem;
+  }
+}
+
+.tile[data-key="mid"] .felt {
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(154, 116, 255, 0.2), transparent 60%),
+    linear-gradient(180deg, #1c3a86 0%, #152c69 55%, #0c1c4a 100%);
+}
+
+.tile[data-key="high"] .felt {
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(245, 184, 63, 0.2), transparent 60%),
+    linear-gradient(180deg, #152a58 0%, #0e1d42 55%, #080f26 100%);
+}
+
+.arc {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  top: -60%;
+  height: 130%;
+  border-radius: 50%;
+  border: 1.5px solid rgba(190, 215, 255, 0.18);
+}
+
+.dot {
+  position: absolute;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: -0.55rem 0 0 -0.55rem;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(190, 215, 255, 0.4);
+
+  &[data-taken] {
+    border: 0;
+    background: radial-gradient(circle at 35% 30%, #d6f0ff, #3fb8f5 60%, #1a6f9c);
+    box-shadow: 0 0 10px rgba(63, 184, 245, 0.6);
+  }
+}
+
+.chips {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  display: flex;
+  transform: translateX(-60%);
+
+  > span {
+    display: inline-block;
+    margin-left: -26px;
+    filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.4));
+  }
+}
+
+.phase {
+  @include label;
+  position: absolute;
+  left: 0.75rem;
+  top: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-sm);
+  background: rgba(3, 10, 22, 0.6);
+  color: rgba(214, 228, 255, 0.7);
+  font-size: 0.56rem;
+
+  &[data-live] {
+    color: #8ad6ff;
+    font-weight: 700;
+  }
+
+  i {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 50%;
+    background: #3fb8f5;
+    animation: pulse 1.8s ease-out infinite;
+  }
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(63, 184, 245, 0.6);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+.watch {
+  @include num;
+  position: absolute;
+  right: 0.75rem;
+  top: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.6875rem;
+  color: rgba(214, 228, 255, 0.7);
+}
+
+.info {
+  display: grid;
+  align-content: start;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0.9rem 1rem 1rem;
+}
+
+.nameRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+
+  h2 {
+    @include display(1.35rem);
+    margin: 0;
+    min-width: 0;
+  }
+}
+
+.seatCount {
+  @include label;
+  white-space: nowrap;
+
+  b {
+    @include num;
+    color: var(--text);
+  }
+}
+
+.limits {
+  @include num(wide);
+  display: flex;
+  align-items: baseline;
+  gap: 0.2rem;
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.1;
+
+  span {
+    color: var(--dim);
+  }
+
+  @include phone {
+    font-size: 1.25rem;
+  }
+}
+
+.flavor {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--mid);
+}
+
+.buttons {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.sit {
+  @include button-primary;
+  flex: 1;
+}
+
+.watchButton {
+  @include button-secondary;
+  flex: 1;
+  text-decoration: none;
+}
+
+.error {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--down);
+}
+
+// ── Rules ──────────────────────────────────────────────────────────────────
+.rulesSection {
+  padding: 1.25rem 0 1.5rem;
+}
+
+.secHead {
+  @include section-heading;
+  margin: 0 0 0.75rem;
+}
+
+.rules {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+
+  li {
+    display: grid;
+    grid-template-columns: 3rem minmax(0, 1fr);
+    align-items: baseline;
+    gap: 0.6rem;
+    min-width: 0;
+    padding: 0.7rem 0.75rem 0.7rem 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.875rem;
+    color: var(--mid);
+  }
+
+  b {
+    @include num(wide);
+    font-size: 1.125rem;
+    color: var(--blue);
+  }
+
+  @include tablet-down {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.fine {
+  margin: 0.75rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--dim);
+}
+
+:global(html[data-calm="true"]) .phase i {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phase i {
+    animation: none;
+  }
+}

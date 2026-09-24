@@ -1,10 +1,14 @@
-import { UserItemLockerPage } from "@/app/components/games/user-item-locker-page";
+import type { Metadata } from "next";
+import { PublicLockerPage } from "@/app/components/games/locker/public-locker-page";
 
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ username: string }>;
-}) {
+type Params = { params: Promise<{ username: string }> };
+
+export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { username } = await params;
-  return <UserItemLockerPage username={decodeURIComponent(username)} />;
+  return { title: `${decodeURIComponent(username)}'s locker` };
+}
+
+export default async function Page({ params }: Params) {
+  const { username } = await params;
+  return <PublicLockerPage username={decodeURIComponent(username)} />;
 }

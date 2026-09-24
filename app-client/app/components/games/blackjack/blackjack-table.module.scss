@@ -1,0 +1,599 @@
+@use "../../../styles/mixins" as *;
+
+// The blackjack table. The felt is the "moment": deep hololive-blue baize with a padded rail,
+// printed arc lettering and seats along the curve. Green felt is out: green means "price up".
+
+$felt-ink: #e9f1ff;
+$felt-dim: rgba(214, 228, 255, 0.62);
+$felt-line: rgba(190, 215, 255, 0.24);
+
+.up {
+  color: var(--up);
+}
+
+.down {
+  color: var(--down);
+}
+
+.empty {
+  @include empty-state;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+
+  a {
+    color: var(--blue);
+  }
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+// ── Header aside ───────────────────────────────────────────────────────────
+.back {
+  @include label;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.2rem;
+  color: var(--mid);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.switcher {
+  @include tabs;
+
+  a {
+    @include tab;
+    padding: 0.45rem 0.85rem;
+    text-decoration: none;
+
+    &[aria-current="page"] {
+      @include tab-selected;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+// ── Layout ─────────────────────────────────────────────────────────────────
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 19rem;
+  gap: 0 1.5rem;
+  min-width: 0;
+  padding-top: 1rem;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  @include phone {
+    padding-top: 0.75rem;
+  }
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+// ── Felt ───────────────────────────────────────────────────────────────────
+.felt {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 1rem 1.25rem 1.1rem;
+  overflow: hidden;
+  color: $felt-ink;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  // Padded rail on three sides, felt inside it.
+  border: 10px solid #07101f;
+  border-bottom: 0;
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(138, 214, 255, 0.16), transparent 60%),
+    radial-gradient(90% 60% at 50% 100%, rgba(3, 10, 22, 0.55), transparent 70%),
+    repeating-radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #16407a 0%, #0f2f5e 45%, #0a2149 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(138, 214, 255, 0.2),
+    inset 0 18px 40px rgba(0, 0, 0, 0.35),
+    inset 0 -40px 60px rgba(0, 0, 0, 0.3),
+    0 0 0 1px var(--rule-2);
+
+  // The table edge: a big inner arc line along the players' side.
+  &::before {
+    content: "";
+    position: absolute;
+    left: 4%;
+    right: 4%;
+    top: 33%;
+    height: 120%;
+    border-radius: 50%;
+    border: 1.5px solid rgba(190, 215, 255, 0.14);
+    pointer-events: none;
+  }
+
+  @include phone {
+    padding: 0.6rem 0.35rem 0.6rem;
+    border-width: 6px;
+    border-bottom: 0;
+    margin: 0 calc(var(--gutter) * -1);
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+}
+
+.feltSkeleton {
+  height: 34rem;
+  margin-top: 1rem;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, #16407a, #0a2149);
+  opacity: 0.4;
+}
+
+.feltTop {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem;
+
+  @include phone {
+    gap: 0.35rem;
+    padding: 0 0.3rem;
+  }
+}
+
+.feltInfo {
+  display: grid;
+  justify-items: end;
+  gap: 0.3rem;
+  min-width: 0;
+
+  span {
+    @include label;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.56rem;
+    color: $felt-dim;
+    white-space: nowrap;
+  }
+
+  @include phone {
+    span {
+      font-size: 0.5rem;
+      letter-spacing: 0.06em;
+    }
+  }
+}
+
+.dealer {
+  display: grid;
+  justify-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.dealerLabel {
+  @include label;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: $felt-dim;
+}
+
+.dealerCards {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 96px;
+
+  @include phone {
+    min-height: 60px;
+  }
+}
+
+.dealerEmpty {
+  width: 66px;
+  height: 92px;
+  border: 1.5px dashed $felt-line;
+  border-radius: 5px;
+
+  @include phone {
+    width: 42px;
+    height: 59px;
+  }
+}
+
+.dealerValue {
+  @include num;
+  min-width: 2.4rem;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(3, 10, 22, 0.72);
+  box-shadow: inset 0 0 0 1px $felt-line;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+
+  // The dealer busting is good news for the table: amber, not the "down" red.
+  &[data-bust] {
+    background: #f5b83f;
+    color: #1f1300;
+    box-shadow: none;
+  }
+}
+
+.dealerRule {
+  @include label;
+  font-size: 0.56rem;
+  color: $felt-dim;
+}
+
+// ── Phase banner ───────────────────────────────────────────────────────────
+.banner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  margin: 0.9rem auto 0;
+  width: min(100%, 24rem);
+  min-width: 0;
+  text-align: center;
+
+  strong {
+    @include display(1.5rem);
+    line-height: 1.1;
+    color: $felt-ink;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+    animation: bannerIn 360ms var(--ease-out) both;
+  }
+
+  > span:not(.srOnly) {
+    @include label;
+    font-size: 0.625rem;
+    color: $felt-dim;
+  }
+
+  &[data-tone="blue"] strong {
+    color: #8ad6ff;
+  }
+
+  &[data-tone="up"] strong {
+    color: #2ee38e;
+    animation: bannerSlam 520ms var(--ease-slam) both;
+  }
+
+  &[data-tone="down"] strong {
+    color: #ff6b80;
+  }
+
+  &[data-tone="gold"] strong {
+    background: linear-gradient(100deg, #ffe7a3, #f5b83f 40%, #fff4d6 55%, #f5b83f 70%, #ffe7a3);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-size: 2rem;
+    animation:
+      bannerSlam 520ms var(--ease-slam) both,
+      foil 2.4s linear infinite;
+  }
+
+  @include phone {
+    margin-top: 0.5rem;
+
+    strong {
+      font-size: 1.15rem;
+    }
+
+    &[data-tone="gold"] strong {
+      font-size: 1.4rem;
+    }
+  }
+}
+
+.bannerTimer {
+  width: min(100%, 14rem);
+  margin-top: 0.2rem;
+
+  > div {
+    min-width: 0;
+  }
+}
+
+@keyframes bannerIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes bannerSlam {
+  from {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+@keyframes foil {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+// Printed lettering on the baize, behind the seats.
+.print {
+  position: absolute;
+  z-index: -1;
+  top: -0.4rem;
+  left: 50%;
+  display: block;
+  width: min(100%, 40rem);
+  transform: translateX(-50%);
+  pointer-events: none;
+
+  text {
+    fill: rgba(214, 228, 255, 0.2);
+    letter-spacing: 0.12em;
+  }
+
+  @include phone {
+    top: -0.2rem;
+  }
+}
+
+.printBig {
+  font-family: var(--font-display);
+  font-size: 30px;
+}
+
+.printSmall {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+// ── Seats ──────────────────────────────────────────────────────────────────
+.seats {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: start;
+  gap: 0.5rem;
+  min-width: 0;
+  padding-top: 2.6rem;
+
+  @include phone {
+    gap: 0.15rem;
+    padding-top: 1.4rem;
+  }
+}
+
+.seatWrap {
+  min-width: 0;
+  margin-top: calc(var(--arc, 0) * 2rem);
+
+  @include phone {
+    margin-top: calc(var(--arc, 0) * 1.1rem);
+  }
+}
+
+// ── Rail (history, tally, rules) ───────────────────────────────────────────
+.rail {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+
+  @include tablet-down {
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 0 1.5rem;
+    margin-top: 1rem;
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.block {
+  min-width: 0;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--rule);
+
+  &:first-child {
+    padding-top: 0;
+  }
+
+  @include tablet-down {
+    &:first-child {
+      padding-top: 0.9rem;
+    }
+  }
+}
+
+.secHead {
+  @include section-heading;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0 0 0.6rem;
+
+  small {
+    @include num;
+    color: var(--dim);
+  }
+}
+
+.tally {
+  display: grid;
+  gap: 0.25rem;
+
+  b {
+    @include num(wide);
+    font-size: 1.75rem;
+    line-height: 1;
+  }
+
+  span {
+    font-size: 0.8125rem;
+    color: var(--mid);
+  }
+
+  em {
+    @include num;
+    font-style: normal;
+    color: var(--text);
+  }
+}
+
+.quiet {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--dim);
+}
+
+.history {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: 3.4rem 3.2rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    padding: 0.4rem 0;
+    border-top: 1px solid var(--rule);
+
+    &:first-child {
+      border-top: 0;
+    }
+  }
+}
+
+.histRound {
+  @include num;
+  font-size: 0.6875rem;
+  color: var(--dim);
+}
+
+.histDealer {
+  @include num;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+
+  small {
+    @include label;
+    font-size: 0.5rem;
+  }
+
+  &[data-bust] {
+    color: var(--mid);
+  }
+}
+
+.histSeats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  min-width: 0;
+
+  span {
+    @include num;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0.05rem 0.3rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.625rem;
+    background: var(--ink-3);
+    color: var(--mid);
+
+    &[data-outcome="win"],
+    &[data-outcome="blackjack"] {
+      background: var(--up-wash);
+      color: var(--up);
+    }
+
+    &[data-outcome="loss"],
+    &[data-outcome="bust"] {
+      background: var(--down-wash);
+      color: var(--down);
+    }
+
+    &[data-me] {
+      box-shadow: inset 0 0 0 1px var(--blue-line);
+      font-weight: 700;
+    }
+  }
+}
+
+.histNet {
+  @include num;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.rules {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: 2.4rem minmax(0, 1fr);
+    align-items: baseline;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--mid);
+  }
+
+  b {
+    @include num;
+    color: var(--blue);
+    font-size: 0.8125rem;
+  }
+}
+
+:global(html[data-calm="true"]) .banner strong {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .banner strong {
+    animation: none;
+  }
+}
