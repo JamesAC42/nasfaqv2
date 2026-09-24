@@ -1,0 +1,785 @@
+@use "../../styles/mixins" as *;
+
+.up { color: var(--up); }
+.down { color: var(--down); }
+.flat { color: var(--mid); }
+.dim { color: var(--dim); }
+
+.page {
+  width: 100%;
+  min-width: 0;
+  max-width: var(--page-max);
+  margin: 0 auto;
+}
+
+.label {
+  @include label;
+  display: block;
+}
+
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  @include empty-state;
+  margin: 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.aside {
+  @include num;
+  margin-left: auto;
+  font-size: 0.656rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.foot {
+  margin: 1rem 0 0;
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+// ── Header ───────────────────────────────────────────────────────────────
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 0 1rem;
+
+  h1 {
+    @include display;
+    margin: 0;
+    font-size: clamp(2.25rem, 5vw, 3.25rem);
+    line-height: 1;
+  }
+
+  p {
+    margin: 0.4rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--mid);
+  }
+}
+
+.tabs {
+  display: flex;
+  border: 1px solid var(--rule-2);
+
+  a {
+    padding: 0.55rem 0.9rem;
+    font-family: var(--font-mono);
+    font-size: 0.656rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-decoration: none;
+    color: var(--dim);
+
+    &:hover {
+      color: var(--text);
+    }
+
+    &[aria-current="page"] {
+      background: var(--text);
+      color: var(--ink);
+    }
+  }
+}
+
+// ── KPI strip ────────────────────────────────────────────────────────────
+.kstrip {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  border: 1px solid var(--rule);
+
+  > div {
+    display: grid;
+    gap: 0.2rem;
+    min-width: 0;
+    padding: 0.8rem 1rem;
+    border-right: 1px solid var(--rule);
+
+    &:last-child {
+      border-right: 0;
+    }
+  }
+
+  b {
+    @include num;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+
+  small {
+    @include num;
+    font-size: 0.625rem;
+    color: var(--dim);
+  }
+
+  @include desktop-down {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+
+    > div:nth-child(3n) {
+      border-right: 0;
+    }
+
+    > div:nth-child(-n + 3) {
+      border-bottom: 1px solid var(--rule);
+    }
+  }
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    > div {
+      padding: 0.6rem 0.75rem;
+      border-right: 1px solid var(--rule) !important;
+      border-bottom: 1px solid var(--rule);
+
+      &:nth-child(2n) {
+        border-right: 0 !important;
+      }
+
+      &:nth-last-child(-n + 2) {
+        border-bottom: 0;
+      }
+    }
+
+    b {
+      font-size: 0.95rem;
+    }
+  }
+}
+
+// ── Controls ─────────────────────────────────────────────────────────────
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--rule);
+  border-top: 0;
+
+  @include phone {
+    .aside {
+      margin-left: 0;
+      flex-basis: 100%;
+    }
+  }
+}
+
+.seg {
+  display: flex;
+  border: 1px solid var(--rule-2);
+
+  button {
+    padding: 0.35rem 0.75rem;
+    border: 0;
+    background: none;
+    font-family: var(--font-mono);
+    font-size: 0.656rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--dim);
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      color: var(--text);
+    }
+
+    &[aria-pressed="true"] {
+      background: var(--text);
+      color: var(--ink);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+  }
+}
+
+// ── Podium ───────────────────────────────────────────────────────────────
+.podium {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr 1fr;
+  align-items: end;
+  border: 1px solid var(--rule);
+  border-top: 0;
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+
+    .r1 {
+      order: -1;
+    }
+  }
+}
+
+.step {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  min-width: 0;
+  padding: 1.5rem 1rem 1rem;
+  border-right: 1px solid var(--rule);
+  background: linear-gradient(180deg, transparent 30%, color-mix(in oklab, var(--pc) 18%, transparent));
+  color: inherit;
+  text-decoration: none;
+  isolation: isolate;
+
+  &:last-child {
+    border-right: 0;
+  }
+
+  &.r1 {
+    padding-top: 2.5rem;
+  }
+
+  &:hover .stepName {
+    color: var(--blue);
+  }
+
+  @include phone {
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+    padding: 1rem;
+
+    &.r1 {
+      padding-top: 1rem;
+    }
+  }
+}
+
+.stepAvatar {
+  flex: none;
+}
+
+.stepBody {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.stepRank {
+  @include display;
+  font-size: 3.5rem;
+  line-height: 0.9;
+  color: var(--pc);
+
+  .r1 & {
+    font-size: 4.5rem;
+  }
+}
+
+.stepName {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  overflow: hidden;
+  font-size: 1rem;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.stepEq {
+  @include num;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.stepMeta {
+  @include num;
+  font-size: 0.656rem;
+  color: var(--dim);
+}
+
+// ── You ──────────────────────────────────────────────────────────────────
+.me {
+  display: grid;
+  grid-template-columns: auto repeat(4, minmax(0, 1fr)) minmax(0, 1.6fr);
+  border: 1px solid var(--blue-line);
+  border-top: 0;
+  background: var(--blue-wash);
+
+  > div {
+    display: grid;
+    align-content: start;
+    gap: 0.2rem;
+    min-width: 0;
+    padding: 0.8rem 1rem;
+    border-right: 1px solid var(--blue-line);
+
+    &:last-child {
+      border-right: 0;
+    }
+  }
+
+  b {
+    @include num;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  small {
+    @include num;
+    font-size: 0.625rem;
+    color: var(--dim);
+  }
+
+  @include desktop-down {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+
+    > div {
+      border-bottom: 1px solid var(--blue-line);
+    }
+
+    .near {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    .meRank {
+      grid-column: 1 / -1;
+    }
+  }
+}
+
+.meRank b {
+  @include display;
+  font-size: 2.25rem;
+  line-height: 1;
+  color: var(--blue);
+}
+
+.near {
+  a {
+    @include num;
+    display: grid;
+    grid-template-columns: 3.5rem minmax(0, 1fr) auto;
+    gap: 0.5rem;
+    padding: 0.1rem 0;
+    font-size: 0.72rem;
+    color: inherit;
+    text-decoration: none;
+
+    b {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.72rem;
+    }
+
+    em {
+      font-style: normal;
+    }
+
+    &:hover b {
+      color: var(--blue);
+    }
+  }
+}
+
+// ── Table ────────────────────────────────────────────────────────────────
+.tableWrap {
+  border: 1px solid var(--rule);
+  border-top: 0;
+  overflow-x: auto;
+}
+
+.table {
+  @include num;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+
+  th {
+    @include label;
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.594rem;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid var(--rule);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  tbody tr:hover {
+    background: var(--ink-2);
+  }
+
+  .l {
+    text-align: left;
+  }
+
+  .mine {
+    background: var(--blue-wash);
+    box-shadow: inset 2px 0 0 var(--blue);
+  }
+
+  @include tablet-down {
+    .hideM {
+      display: none;
+    }
+  }
+
+  @include phone {
+    font-size: 0.72rem;
+
+    th,
+    td {
+      padding: 0.5rem 0.45rem;
+    }
+
+    .hideS {
+      display: none;
+    }
+  }
+}
+
+.rank {
+  color: var(--dim);
+  width: 2.5rem;
+}
+
+.who {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  max-width: 100%;
+  color: inherit;
+  text-decoration: none;
+  font-family: var(--font-body);
+
+  b {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 700;
+  }
+
+  &:hover b {
+    color: var(--blue);
+  }
+}
+
+.tag,
+.tagMe,
+.tagRival {
+  padding: 0 0.3rem;
+  border: 1px solid var(--blue-line);
+  font-family: var(--font-mono);
+  font-size: 0.563rem;
+  letter-spacing: 0.08em;
+  color: var(--blue-2);
+}
+
+.tagMe {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: var(--blue-ink);
+}
+
+.tagRival {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.expo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  i {
+    display: block;
+    width: 60px;
+    height: 5px;
+    background: var(--ink-4);
+  }
+
+  s {
+    display: block;
+    height: 100%;
+    background: var(--blue);
+  }
+}
+
+.bag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: inherit;
+  text-decoration: none;
+
+  &:hover b {
+    color: var(--blue);
+  }
+}
+
+.badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+
+  i {
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    transform: rotate(45deg);
+    background: var(--bc);
+    font-style: normal;
+    font-size: 0.563rem;
+    font-weight: 800;
+    color: #0b0d12;
+
+    &::first-letter {
+      display: inline-block;
+    }
+  }
+
+  small {
+    margin-left: 4px;
+    font-size: 0.625rem;
+    color: var(--dim);
+  }
+}
+
+.noBadge {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  transform: rotate(45deg);
+  border: 1px dashed var(--rule-2);
+}
+
+.streak {
+  color: var(--blue);
+}
+
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.656rem;
+  color: var(--dim);
+
+  button {
+    @include button-secondary;
+    padding: 0.3rem 0.65rem;
+    font-size: 0.625rem;
+  }
+}
+
+// ── By talent ────────────────────────────────────────────────────────────
+.oshi {
+  display: grid;
+  grid-template-columns: 330px minmax(0, 1fr);
+  border: 1px solid var(--rule);
+  border-top: 0;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.picker {
+  padding: 0.75rem;
+  border-right: 1px solid var(--rule);
+
+  @include tablet-down {
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--rule-2);
+  color: var(--dim);
+
+  input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.5rem 0;
+    border: 0;
+    background: none;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text);
+    outline: none;
+  }
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 3px;
+  max-height: 560px;
+  overflow-y: auto;
+
+  @include tablet-down {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 50px;
+    max-height: none;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+}
+
+.cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border: 1px solid var(--rule);
+  background: none;
+  cursor: pointer;
+
+  small {
+    @include num;
+    position: absolute;
+    right: 3px;
+    bottom: 1px;
+    font-size: 0.563rem;
+    color: var(--dim);
+  }
+
+  &:hover {
+    border-color: var(--text);
+  }
+
+  &[aria-selected="true"] {
+    border-color: var(--blue);
+    background: var(--blue-wash);
+    box-shadow: inset 0 0 0 1px var(--blue);
+  }
+}
+
+.detail {
+  min-width: 0;
+
+  .tableWrap {
+    border: 0;
+  }
+}
+
+.dHead {
+  position: relative;
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 1.25rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--rule);
+  background: radial-gradient(80% 140% at 0% 0%, color-mix(in oklab, var(--tal) 18%, transparent), transparent 70%);
+
+  h2 {
+    @include display;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0.2rem 0 0;
+    font-size: clamp(1.6rem, 3.4vw, 2.4rem);
+    line-height: 1.05;
+  }
+
+  p {
+    margin: 0.3rem 0 0;
+    font-size: 0.8125rem;
+  }
+
+  @include phone {
+    grid-template-columns: 90px minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+}
+
+.dArt {
+  align-self: start;
+  border: 1px solid var(--rule);
+}
+
+.kick {
+  @include label;
+  color: var(--blue);
+}
+
+.dPx {
+  @include num;
+
+  a {
+    color: var(--mid);
+    text-underline-offset: 3px;
+
+    &:hover {
+      color: var(--blue);
+    }
+  }
+}
+
+.rule {
+  max-width: 56ch;
+  color: var(--dim);
+}
+
+.dStats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-bottom: 1px solid var(--rule);
+
+  > div {
+    display: grid;
+    gap: 0.2rem;
+    min-width: 0;
+    padding: 0.7rem 1rem;
+    border-right: 1px solid var(--rule);
+
+    &:last-child {
+      border-right: 0;
+    }
+  }
+
+  b {
+    @include num;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    > div {
+      border-bottom: 1px solid var(--rule);
+
+      &:nth-child(2n) {
+        border-right: 0;
+      }
+    }
+  }
+}

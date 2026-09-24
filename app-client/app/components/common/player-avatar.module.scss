@@ -1,0 +1,43 @@
+@use "../../styles/mixins" as *;
+
+.avatar {
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: var(--s);
+  height: var(--s);
+  background: var(--pc);
+
+  img:not(.hat) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  b {
+    @include num;
+    font-size: calc(var(--s) * 0.4);
+    font-weight: 800;
+    color: #0b0d12;
+    mix-blend-mode: normal;
+  }
+}
+
+.plain {
+  border: 1px solid var(--rule-2);
+
+  b {
+    color: var(--mid);
+  }
+}
+
+.hat {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--s) * -0.42);
+  width: calc(var(--s) * 0.9);
+  height: auto;
+  transform: translateX(-50%);
+  pointer-events: none;
+}

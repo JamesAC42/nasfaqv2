@@ -75,7 +75,7 @@ export function HoldersSection({ asset }: { asset: MarketAsset }) {
           ) : (
             <p className={styles.empty}>{board.loading ? "Loading holders…" : `Nobody has picked ${asset.symbol} as their oshi yet.`}</p>
           )}
-          <Link href="/oshiboard" className={styles.more}>
+          <Link href={`/leaderboard?tab=talent&coin=${enc(asset.symbol)}`} className={styles.more}>
             Full oshiboard →
           </Link>
         </div>
