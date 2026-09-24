@@ -33,6 +33,7 @@ export function PriceChart({
   avgCost,
   livePrice,
   accent,
+  height,
 }: {
   candles: CandlePoint[];
   range: ChartRange;
@@ -43,6 +44,8 @@ export function PriceChart({
   avgCost: number | null;
   livePrice: number | null;
   accent: string;
+  /** Fixed plot height in px; defaults to the dossier's size. */
+  height?: number;
 }) {
   const box = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -130,7 +133,7 @@ export function PriceChart({
   };
 
   return (
-    <div className={`${styles.box} ${styles[tone]}`} ref={box} style={{ "--tal": accent } as React.CSSProperties}>
+    <div className={`${styles.box} ${styles[tone]}`} ref={box} style={{ "--tal": accent, ...(height ? { height } : {}) } as React.CSSProperties}>
       {model ? (
         <svg width={W} height={H} onPointerMove={onMove} onPointerLeave={() => setHover(null)} role="img" aria-label={`Price chart, ${points.length} points`}>
           <defs>

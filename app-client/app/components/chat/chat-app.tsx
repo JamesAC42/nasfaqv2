@@ -9,6 +9,7 @@ import { RichText, type Emoji } from "@/app/components/common/rich-text";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { ChatComposer } from "@/app/components/chat/chat-composer";
+import { RoomRail } from "@/app/components/chat/room-rail";
 import { apiFetch } from "@/app/lib/api";
 import { markSeries, unitName } from "@/app/lib/market-units";
 import { normalizeChatChannel, normalizeChatMessage } from "@/app/lib/normalizers";
@@ -129,6 +130,7 @@ export function ChatApp() {
   const [pins, setPins] = useState<string[]>([]);
   const [filter, setFilter] = useState("");
   const [drawer, setDrawer] = useState(false);
+  const [railOpen, setRailOpen] = useState(false);
   const activeKey = params.get("channel") || "market:global";
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -180,6 +182,7 @@ export function ChatApp() {
   const selectRoom = useCallback(
     (key: string) => {
       setDrawer(false);
+      setRailOpen(false);
       if (key === activeRef.current) return;
       setUnseen(0);
       router.replace(`/chat?channel=${encodeURIComponent(key)}`, { scroll: false });
@@ -427,14 +430,21 @@ export function ChatApp() {
 
   return (
     <SiteShell fullBleed hideFooter>
-      <div className={styles.app}>
-        <div className={`${styles.scrim} ${drawer ? styles.scrimOn : ""}`} onClick={() => setDrawer(false)} aria-hidden="true" />
+      <div className={`${styles.app} ${room?.section === "asset" ? styles.appWide : ""}`}>
+        <div
+          className={`${styles.scrim} ${drawer || railOpen ? styles.scrimOn : ""} ${railOpen ? styles.scrimRail : ""}`}
+          onClick={() => {
+            setDrawer(false);
+            setRailOpen(false);
+          }}
+          aria-hidden="true"
+        />
         <RoomList rooms={rooms} active={roomKey} pins={pins} filter={filter} onFilter={setFilter} onSelect={selectRoom} onPin={togglePin} loading={loadingRooms} error={roomsError} open={drawer} assetMap={assetMap} />
 
         <section className={styles.main}>
           {room ? (
             <>
-              <RoomHeader room={room} socket={socket} count={Math.max(room.channel.message_count, shown.length)} unreadElsewhere={unreadTotal - room.channel.unread_count} onOpenRooms={() => setDrawer(true)} assetMap={assetMap} assets={assets} />
+              <RoomHeader room={room} socket={socket} count={Math.max(room.channel.message_count, shown.length)} unreadElsewhere={unreadTotal - room.channel.unread_count} onOpenRooms={() => setDrawer(true)} onOpenRail={() => setRailOpen(true)} assetMap={assetMap} assets={assets} />
               <div className={styles.viewport} ref={viewport} onScroll={onScroll}>
                 {loadingOlder ? <p className={styles.sys}>loading older messages…</p> : null}
                 {!hasMore && history.limited && shown.length ? (
@@ -468,7 +478,7 @@ export function ChatApp() {
           )}
         </section>
 
-        {room ? <ContextRail room={room} voices={voices} worth={worth} assets={assets} assetMap={assetMap} /> : null}
+        {room ? <RoomRail room={room} voices={voices} worth={worth} open={railOpen} onClose={() => setRailOpen(false)} /> : null}
       </div>
     </SiteShell>
   );
@@ -562,7 +572,7 @@ function RoomList({
 }
 
 // ── Room header ──────────────────────────────────────────────────────────
-function RoomHeader({ room, socket, count, unreadElsewhere, onOpenRooms, assetMap, assets }: { room: Room; socket: "connecting" | "open" | "closed"; count: number; unreadElsewhere: number; onOpenRooms: () => void; assetMap: Map<string, MarketAsset>; assets: MarketAsset[] }) {
+function RoomHeader({ room, socket, count, unreadElsewhere, onOpenRooms, onOpenRail, assetMap, assets }: { room: Room; socket: "connecting" | "open" | "closed"; count: number; unreadElsewhere: number; onOpenRooms: () => void; onOpenRail: () => void; assetMap: Map<string, MarketAsset>; assets: MarketAsset[] }) {
   const openTrade = useTradeStore((state) => state.openTrade);
   const asset = room.symbol ? assetMap.get(room.symbol) : undefined;
   const members = room.section === "unit" ? assets.filter((entry) => entry.unit && room.unit && unitName(entry.unit) === unitName(room.unit)) : [];
@@ -612,6 +622,9 @@ function RoomHeader({ room, socket, count, unreadElsewhere, onOpenRooms, assetMa
           ))}
         </div>
       ) : null}
+      <button type="button" className={styles.railBtn} onClick={onOpenRail}>
+        {room.section === "asset" ? "CHART" : "STATS"}
+      </button>
     </header>
   );
 }
@@ -688,65 +701,5 @@ function Skeleton() {
         </div>
       ))}
     </div>
-  );
-}
-
-// ── Context rail ─────────────────────────────────────────────────────────
-function ContextRail({ room, voices, worth, assets, assetMap }: { room: Room; voices: Array<{ id: number; username: string; color: string | null; picture: string | null; at: string; count: number }>; worth: Record<number, Worth>; assets: MarketAsset[]; assetMap: Map<string, MarketAsset> }) {
-  const asset = room.symbol ? assetMap.get(room.symbol) : undefined;
-  const movers = useMemo(() => {
-    const pool = room.section === "unit" ? assets.filter((entry) => entry.unit && room.unit && unitName(entry.unit) === unitName(room.unit)) : assets;
-    return [...pool].sort((a, b) => Math.abs(b.move_24h_pct ?? 0) - Math.abs(a.move_24h_pct ?? 0)).slice(0, 6);
-  }, [assets, room.section, room.unit]);
-  return (
-    <aside className={styles.rail} aria-label="About this room">
-      {asset ? (
-        <section className={styles.railSec}>
-          <h2>{asset.symbol} today</h2>
-          <dl className={styles.kv}>
-            <dt>Price</dt>
-            <dd>{asset.current_mid_price?.toFixed(2) ?? "—"}</dd>
-            <dt>Today</dt>
-            <dd className={styles[toneOf(asset.move_24h_pct)]}>{signedPct(asset.move_24h_pct)}</dd>
-            <dt>24h volume</dt>
-            <dd>{(asset.volume_24h ?? 0).toLocaleString("en-US")} sh</dd>
-            <dt>Oshi&apos;d by</dt>
-            <dd>{asset.oshicoin_users ?? "—"}</dd>
-          </dl>
-          <Link href={`/stocks/${encodeURIComponent(asset.symbol)}`} className={styles.railLink}>
-            Open the dossier →
-          </Link>
-        </section>
-      ) : (
-        <section className={styles.railSec}>
-          <h2>{room.section === "unit" ? `${room.label} movers` : "Moving today"}</h2>
-          {movers.map((entry) => (
-            <Link key={entry.symbol} href={`/chat?channel=${encodeURIComponent(`asset:${entry.id}`)}`} className={styles.mover} data-peek-stock={entry.symbol}>
-              <Oshimark icon={entry.icon} symbol={entry.symbol} size={18} />
-              <b>{entry.symbol}</b>
-              <span>{entry.current_mid_price?.toFixed(2)}</span>
-              <span className={styles[toneOf(entry.move_24h_pct)]}>{signedPct(entry.move_24h_pct, 1)}</span>
-            </Link>
-          ))}
-        </section>
-      )}
-      <section className={styles.railSec}>
-        <h2>Talking here</h2>
-        {voices.length ? (
-          voices.map((voice) => {
-            const rank = worth[voice.id];
-            return (
-              <Link key={voice.id} href={`/profile/${encodeURIComponent(voice.username)}`} className={styles.voice}>
-                <PlayerAvatar username={voice.username} pictureUrl={voice.picture} color={voice.color} size={20} />
-                <b style={voice.color ? { color: voice.color } : undefined}>{voice.username}</b>
-                <small>{rank?.rank ? `#${rank.rank.toLocaleString("en-US")}` : ""}</small>
-              </Link>
-            );
-          })
-        ) : (
-          <p className={styles.dim}>Nobody yet.</p>
-        )}
-      </section>
-    </aside>
   );
 }
