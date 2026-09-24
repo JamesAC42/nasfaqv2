@@ -1,5 +1,5 @@
-import { FinanceRankingsPage } from "@/app/components/pages/finance-rankings-page";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <FinanceRankingsPage />;
+  redirect("/stocks?view=sc");
 }

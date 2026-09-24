@@ -7,7 +7,9 @@ import { FiMoon, FiSun } from "react-icons/fi";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MarketTape } from "@/app/components/layout/market-tape";
 import { MobileNav } from "@/app/components/layout/mobile-nav";
+import { FillMomentLayer } from "@/app/components/moments/fill-moment";
 import { TickMomentLayer } from "@/app/components/moments/tick-moment";
+import { TradeDrawer } from "@/app/components/trade/trade-drawer";
 import { PeekLayer } from "@/app/components/peek/peek-layer";
 import { isActivePath, isGroupActive, NAV } from "@/app/components/layout/nav-config";
 import { RailStatus, RailWorth } from "@/app/components/layout/rail-status";
@@ -397,6 +399,8 @@ export function SiteShell({
       <MobileNav />
       <PeekLayer />
       <TickMomentLayer />
+      <FillMomentLayer />
+      <TradeDrawer />
     </div>
   );
 }

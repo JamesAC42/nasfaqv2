@@ -13,7 +13,26 @@ export type TickMoment = {
   moves: TickMove[];
 };
 
+export type FillMoment = {
+  id: string;
+  side: "buy" | "sell";
+  symbol: string;
+  name: string;
+  quantity: number;
+  price: number;
+  fee: number;
+  gross: number;
+  /** Realized P/L for sells when known. */
+  realized: number | null;
+  /** Average cost after the fill (buys) or before it (sells). */
+  avgCost: number | null;
+  at: string;
+};
+
 type MomentStore = {
+  fill: FillMoment | null;
+  pushFill: (fill: FillMoment) => void;
+  dismissFill: () => void;
   tick: TickMoment | null;
   /** A tick that landed while the tab was hidden; shown when the player comes back. */
   missedTick: TickMoment | null;
@@ -45,6 +64,9 @@ export function parseTickPayload(payload: Record<string, unknown>): TickMoment |
 }
 
 export const useMomentStore = create<MomentStore>((set, get) => ({
+  fill: null,
+  pushFill: (fill) => set({ fill }),
+  dismissFill: () => set({ fill: null }),
   tick: null,
   missedTick: null,
   pushTick: (payload) => {
