@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Sparkline } from "@/app/components/common/sparkline";
-import type { LivestreamModalItem } from "@/app/components/livestreams/livestream-modal";
+import type { StreamPreview } from "@/app/lib/streams";
 import { fmtBig, yen, type Rank } from "@/app/components/stock/format";
 import { streamSeconds, usePastStreams, useStats, type Loaded, type PastStream, type useSuperchats } from "@/app/components/stock/use-stock-data";
 import { formatEtTime, MARKET_TIME_ZONE } from "@/app/lib/market-clock";
@@ -245,11 +245,11 @@ export function SuperchatSection({ asset, superchats, hasChannel }: { asset: Mar
 }
 
 // ── Streams ──────────────────────────────────────────────────────────────
-function toModal(item: LivestreamItem): LivestreamModalItem {
-  return { id: item.id, title: item.title, creator: item.creator, creator_icon: item.creator_icon, channel_color: item.channel_color, thumbnail_url: item.thumbnail_url, started_at: item.started_at, status: item.status, viewer_count: item.viewer_count, url: item.url };
+function toModal(item: LivestreamItem): StreamPreview {
+  return { id: item.id, title: item.title, creator: item.creator, channel_id: item.channel_id ?? null, creator_icon: item.creator_icon, channel_color: item.channel_color, thumbnail_url: item.thumbnail_url, started_at: item.started_at, status: item.status, viewer_count: item.viewer_count, url: item.url };
 }
 
-function pastToModal(stream: PastStream): LivestreamModalItem {
+function pastToModal(stream: PastStream): StreamPreview {
   return {
     id: stream.video_id,
     title: stream.video_title || "Untitled stream",
@@ -261,7 +261,7 @@ function pastToModal(stream: PastStream): LivestreamModalItem {
     actual_start_time: stream.actual_start_at,
     ended_at: stream.ended_at,
     status: "ended",
-    viewer_count: stream.max_concurrent_viewers,
+    viewer_count: null,
     url: `https://www.youtube.com/watch?v=${encodeURIComponent(stream.video_id)}`,
   };
 }
@@ -271,7 +271,7 @@ const DOW = ["S", "M", "T", "W", "T", "F", "S"];
 /** Day of week (0 = Sunday) in New York time. */
 const etDay = (ms: number) => new Date(new Date(ms).toLocaleString("en-US", { timeZone: MARKET_TIME_ZONE })).getDay();
 
-export function StreamsSection({ asset, channelId, streams, onOpen }: { asset: MarketAsset; channelId: string | null; streams: Streams; onOpen: (item: LivestreamModalItem) => void }) {
+export function StreamsSection({ asset, channelId, streams, onOpen }: { asset: MarketAsset; channelId: string | null; streams: Streams; onOpen: (item: StreamPreview) => void }) {
   const [page, setPage] = useState(0);
   const past = usePastStreams(channelId, page);
   const thisWeek = usePastStreams(channelId, 0);

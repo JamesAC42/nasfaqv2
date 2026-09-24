@@ -1,0 +1,829 @@
+@use "../../styles/mixins" as *;
+
+.page {
+  width: 100%;
+  min-width: 0;
+  max-width: var(--page-max);
+  margin: 0 auto;
+}
+
+.up {
+  color: var(--up);
+}
+
+.down {
+  color: var(--down);
+}
+
+.flat {
+  color: var(--mid);
+}
+
+.empty {
+  @include empty-state;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+// ── Header ─────────────────────────────────────────────────────────────────
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.title {
+  h1 {
+    @include display(2rem);
+    margin: 0.15rem 0 0.3rem;
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--mid);
+
+    b {
+      @include num;
+      color: var(--text);
+    }
+  }
+}
+
+.kicker {
+  @include label;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--blue);
+
+  i {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--blue);
+    animation: onAir 1.8s ease-out infinite;
+  }
+}
+
+@keyframes onAir {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--blue) 60%, transparent);
+  }
+
+  70%,
+  100% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+.tabs {
+  @include tabs;
+
+  button {
+    @include tab;
+    padding: 0.5rem 0.9rem;
+
+    &[aria-selected="true"] {
+      @include tab-selected;
+    }
+  }
+}
+
+// ── Filters ────────────────────────────────────────────────────────────────
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.search {
+  display: flex;
+  flex: 0 1 16rem;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 10rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: var(--ink-2);
+  color: var(--dim);
+
+  &:focus-within {
+    border-color: var(--text);
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.4rem 0;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.85rem;
+    outline: none;
+  }
+
+  @include phone {
+    flex-basis: 100%;
+  }
+}
+
+.units {
+  display: flex;
+  flex: 1 1 0;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  mask-image: linear-gradient(90deg, #000 calc(100% - 2rem), transparent);
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.chip {
+  @include tab;
+  flex: none;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+
+  &[aria-pressed="true"] {
+    border-color: var(--blue);
+    background: var(--blue-wash);
+    color: var(--blue);
+    font-weight: 700;
+  }
+}
+
+.clear {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--blue);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+// ── Layout ─────────────────────────────────────────────────────────────────
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18rem;
+  gap: 0 1.75rem;
+  align-items: start;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.main {
+  display: grid;
+  gap: 1.75rem;
+  min-width: 0;
+  padding-top: 1.25rem;
+}
+
+.secHead {
+  @include section-heading;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+
+  small {
+    @include num;
+    color: var(--dim);
+  }
+}
+
+// ── Live cards ─────────────────────────────────────────────────────────────
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+  gap: 1.1rem 1rem;
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem 0.75rem;
+  }
+}
+
+.card {
+  display: grid;
+  gap: 0.55rem;
+  align-content: start;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover .cardTitle,
+  &:focus-visible .cardTitle {
+    color: var(--blue);
+  }
+
+  &:hover .thumb img {
+    transform: scale(1.03);
+  }
+
+  &:focus-visible {
+    outline: none;
+
+    .thumb {
+      @include focus-ring;
+    }
+  }
+}
+
+.thumb {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-sm);
+  background: var(--ink-3);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.25s var(--ease-out);
+  }
+}
+
+.onAir,
+.uptime {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.onAir {
+  top: 0.4rem;
+  left: 0.4rem;
+
+  i {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 50%;
+    background: var(--blue);
+    animation: onAir 1.8s ease-out infinite;
+  }
+}
+
+.uptime {
+  right: 0.4rem;
+  bottom: 0.4rem;
+  font-weight: 500;
+}
+
+.cardBody {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+
+  b {
+    overflow: hidden;
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
+
+.tick {
+  display: inline-flex;
+  flex: none;
+  gap: 0.3rem;
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: var(--mid);
+
+  span {
+    font-variant-numeric: tabular-nums;
+  }
+
+  @include phone {
+    display: none;
+  }
+}
+
+.cardTitle {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  color: var(--mid);
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.cardSkeleton {
+  aspect-ratio: 16 / 11;
+  background: var(--ink-2);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+// ── Schedule ───────────────────────────────────────────────────────────────
+.schedule {
+  display: grid;
+  gap: 1rem;
+}
+
+.day {
+  @include label;
+  margin: 0 0 0.25rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--rule-2);
+  color: var(--text);
+}
+
+.slot {
+  display: grid;
+  grid-template-columns: 4.6rem 5.6rem auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.5rem 0.25rem;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  time {
+    @include num;
+    font-size: 0.8rem;
+    color: var(--text);
+  }
+
+  &:hover {
+    background: var(--ink-2);
+
+    b {
+      color: var(--blue);
+    }
+  }
+
+  @include phone {
+    grid-template-columns: 4.2rem auto minmax(0, 1fr);
+    gap: 0.25rem 0.6rem;
+
+    .until,
+    .soon {
+      grid-column: 1;
+      grid-row: 2;
+    }
+
+    .slotTick {
+      display: none;
+    }
+  }
+}
+
+.until,
+.soon {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.soon {
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.noMark {
+  width: 22px;
+}
+
+.slotText {
+  display: grid;
+  min-width: 0;
+
+  b {
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+
+  small {
+    overflow: hidden;
+    font-size: 0.78rem;
+    color: var(--mid);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
+
+.slotTick {
+  display: inline-flex;
+  gap: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: var(--mid);
+
+  span {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// ── Rail ───────────────────────────────────────────────────────────────────
+.rail {
+  position: sticky;
+  top: calc(var(--rail-height) + var(--tape-height) + 1rem);
+  margin-top: 1.25rem;
+  border: 1px solid var(--rule);
+
+  // Below the grid on small screens: every card already carries its ticker.
+  @include tablet-down {
+    position: static;
+    margin-top: 1.75rem;
+  }
+}
+
+.railSec {
+  @include section(0.9rem 1rem);
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  h2 {
+    @include section-heading;
+    margin: 0 0 0.6rem;
+  }
+}
+
+.railNote {
+  margin: 0 0 0.6rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--mid);
+
+  b {
+    @include num;
+  }
+}
+
+.nextUp {
+  display: grid;
+  gap: 0.15rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  b {
+    @include num;
+    font-size: 1.4rem;
+    font-weight: 600;
+  }
+
+  span {
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  small {
+    overflow: hidden;
+    font-size: 0.75rem;
+    color: var(--mid);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  &:hover span {
+    color: var(--blue);
+  }
+}
+
+.airRow {
+  display: grid;
+  grid-template-columns: auto 2.6rem 1fr auto 3.2rem;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.3rem 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+
+  b {
+    font-family: var(--font-mono);
+    text-align: left;
+  }
+
+  span,
+  small {
+    @include num;
+    text-align: right;
+  }
+
+  small {
+    color: var(--dim);
+  }
+
+  &:hover b {
+    color: var(--blue);
+  }
+}
+
+// ── Past ───────────────────────────────────────────────────────────────────
+.past {
+  padding-top: 1rem;
+}
+
+.weekBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+
+  b {
+    @include label;
+    color: var(--text);
+    text-align: center;
+  }
+
+  button {
+    @include tab;
+    flex: none;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+
+    &:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+  }
+}
+
+.weekStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 1rem;
+  border: 1px solid var(--rule);
+
+  > div,
+  > button {
+    display: grid;
+    gap: 0.1rem;
+    padding: 0.65rem 0.85rem;
+    border: 0;
+    border-right: 1px solid var(--rule);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+
+    &:last-child {
+      border-right: 0;
+    }
+  }
+
+  > button {
+    cursor: pointer;
+
+    &:hover small {
+      color: var(--blue);
+    }
+  }
+
+  span {
+    @include label;
+    font-size: 0.58rem;
+  }
+
+  b {
+    @include num;
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+
+  small {
+    overflow: hidden;
+    font-size: 0.72rem;
+    color: var(--mid);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
+
+.sortRow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin: 1rem 0 0.5rem;
+
+  > span {
+    @include label;
+  }
+}
+
+.seg {
+  @include tabs;
+
+  button {
+    @include tab;
+
+    &[aria-pressed="true"] {
+      @include tab-selected;
+    }
+  }
+}
+
+.tableSkeleton {
+  height: 20rem;
+  background: var(--ink-2);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.table {
+  display: grid;
+  border-top: 1px solid var(--rule-2);
+  transition: opacity 0.15s;
+}
+
+.stale {
+  opacity: 0.5;
+}
+
+.tHead,
+.tRow {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) 4.5rem 4.5rem 4.5rem 4.5rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.25rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.tHead {
+  span {
+    @include label;
+    font-size: 0.58rem;
+
+    &:nth-child(n + 3) {
+      text-align: right;
+    }
+  }
+
+  @include phone {
+    display: none;
+  }
+}
+
+.tRow {
+  width: 100%;
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--ink-2);
+
+    b {
+      color: var(--blue);
+    }
+  }
+
+  @include phone {
+    grid-template-columns: repeat(3, auto) 1fr;
+    gap: 0.35rem 1rem;
+
+    .tStream {
+      grid-column: 1 / -1;
+      grid-row: 1;
+    }
+
+    .tWhen {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      display: flex;
+      gap: 0.4rem;
+    }
+
+    .tNum {
+      grid-row: 3;
+      text-align: left;
+      white-space: nowrap;
+
+      &:last-child {
+        display: none;
+      }
+
+      &::before {
+        content: attr(data-label) " ";
+        color: var(--dim);
+        font-size: 0.6rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+    }
+  }
+}
+
+.tWhen {
+  display: grid;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+
+  small {
+    font-size: 0.66rem;
+    color: var(--dim);
+  }
+}
+
+.tStream {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+
+  > span:last-child {
+    display: grid;
+    min-width: 0;
+  }
+
+  b {
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+
+  small {
+    overflow: hidden;
+    font-size: 0.78rem;
+    color: var(--mid);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
+
+.tNum {
+  @include num;
+  font-size: 0.78rem;
+  text-align: right;
+}
+
+.tPeak {
+  color: var(--text);
+  font-weight: 600;
+}

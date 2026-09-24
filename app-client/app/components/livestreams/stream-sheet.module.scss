@@ -1,0 +1,639 @@
+@use "../../styles/mixins" as *;
+
+.up {
+  color: var(--up);
+  stroke: var(--up);
+}
+
+.down {
+  color: var(--down);
+  stroke: var(--down);
+}
+
+.flat {
+  color: var(--mid);
+  stroke: var(--mid);
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: var(--scrim);
+  backdrop-filter: blur(2px);
+  animation: fadeIn 0.18s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+// Wider than the trade drawer so the player and chart have room; the trade drawer
+// (z 75) opens on top of it.
+.sheet {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 71;
+  display: flex;
+  flex-direction: column;
+  width: min(42rem, 100%);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-left: 1px solid var(--rule-2);
+  background: var(--ink);
+  box-shadow: -24px 0 60px rgba(0, 0, 0, 0.5);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  animation: slideIn 0.26s var(--ease-out);
+
+  @include phone {
+    top: auto;
+    max-height: 94dvh;
+    border-top: 2px solid var(--tal);
+    border-left: 0;
+    animation: slideUp 0.26s var(--ease-out);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(48px);
+    opacity: 0;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(48px);
+    opacity: 0;
+  }
+}
+
+// ── Top bar ────────────────────────────────────────────────────────────────
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem 0.6rem 1rem;
+  border-bottom: 1px solid var(--rule);
+  background: var(--ink);
+}
+
+.pill {
+  @include label;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  margin-right: auto;
+  overflow: hidden;
+  color: var(--mid);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pillLive {
+  color: var(--text);
+  font-weight: 700;
+
+  i {
+    flex: none;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--blue);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--blue) 60%, transparent);
+    animation: onAir 1.6s ease-out infinite;
+  }
+}
+
+@keyframes onAir {
+  70% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.pillUp {
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.linkBtn {
+  @include tab;
+  flex: none;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+}
+
+.close {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  background: none;
+  color: var(--mid);
+  font-size: 1rem;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text);
+  }
+}
+
+// ── Player ─────────────────────────────────────────────────────────────────
+.player {
+  position: relative;
+  flex: none;
+  aspect-ratio: 16 / 9;
+  background: #000;
+
+  iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+}
+
+.poster {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: #000;
+  cursor: pointer;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.8;
+    transition: opacity 0.15s;
+  }
+
+  &:hover img,
+  &:focus-visible img {
+    opacity: 0.6;
+  }
+}
+
+.play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 1rem 0.6rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  transform: translate(-50%, -50%);
+
+  i {
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: var(--tal);
+    color: #000;
+    font-size: 0.8rem;
+    font-style: normal;
+  }
+}
+
+// ── Title + stock ──────────────────────────────────────────────────────────
+.head {
+  padding: 0.9rem 1rem 0.75rem;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tal) 12%, transparent), transparent);
+
+  h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+}
+
+.who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.6rem;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--mid);
+
+  b {
+    @include display(1rem);
+    color: var(--text);
+  }
+
+  a {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--blue);
+    text-decoration: none;
+  }
+}
+
+.stock {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 1rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--rule-2);
+  border-left: 2px solid var(--tal);
+  background: var(--ink-2);
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr) auto;
+
+    .stockSpark {
+      display: none;
+    }
+  }
+}
+
+.stockId {
+  display: grid;
+  line-height: 1.2;
+  color: inherit;
+  text-decoration: none;
+
+  b {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+  }
+
+  span {
+    @include num;
+    font-size: 0.75rem;
+  }
+
+  &:hover b {
+    color: var(--blue);
+  }
+}
+
+.stockSpark {
+  width: 100%;
+  height: 28px;
+}
+
+.trade {
+  @include button-primary;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.72rem;
+}
+
+// ── Stats ──────────────────────────────────────────────────────────────────
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  margin: 0.9rem 1rem 0;
+  border: 1px solid var(--rule);
+}
+
+.stat {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.6rem 0.75rem;
+  border-right: 1px solid var(--rule);
+
+  &:last-child {
+    border-right: 0;
+  }
+
+  span {
+    @include label;
+    font-size: 0.58rem;
+  }
+
+  b {
+    @include num;
+    font-size: 1.2rem;
+    font-weight: 600;
+  }
+
+  small {
+    @include num;
+    font-size: 0.65rem;
+    color: var(--dim);
+  }
+
+  @include phone {
+    border-bottom: 1px solid var(--rule);
+  }
+}
+
+.statSmall {
+  font-size: 0.85rem !important;
+}
+
+.statLive b {
+  color: var(--text);
+}
+
+.when {
+  margin: 0.4rem 1rem 0;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--dim);
+}
+
+.note {
+  @include empty-state;
+  margin: 1rem;
+  font-size: 0.8rem;
+}
+
+// ── Chart ──────────────────────────────────────────────────────────────────
+.chartSec {
+  margin: 1rem 1rem 0;
+}
+
+.chartHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+
+  h3 {
+    @include section-heading;
+    margin: 0;
+  }
+}
+
+.legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--dim);
+
+  i {
+    display: inline-block;
+    width: 0.9rem;
+    height: 2px;
+    margin-left: 0.4rem;
+  }
+}
+
+.lgAvg {
+  background: var(--tal);
+}
+
+.lgMax {
+  border-top: 1px dashed var(--tal);
+  opacity: 0.7;
+}
+
+.lgPx {
+  background: var(--mid);
+}
+
+.chartLede {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.6rem;
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  color: var(--mid);
+
+  b {
+    @include num;
+    font-size: 0.95rem;
+  }
+
+  span {
+    @include num;
+    font-size: 0.7rem;
+    color: var(--dim);
+  }
+}
+
+.chartBox {
+  position: relative;
+  min-height: 228px;
+  margin-top: 0.5rem;
+  touch-action: pan-y;
+
+  svg {
+    display: block;
+  }
+
+  .note {
+    margin: 0;
+  }
+}
+
+.chartSkeleton {
+  height: 228px;
+  background: var(--ink-2);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.grid {
+  stroke: var(--rule);
+  stroke-dasharray: 2 4;
+}
+
+.base {
+  stroke: var(--rule-2);
+}
+
+.axis {
+  fill: var(--dim);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+}
+
+.vArea {
+  fill: var(--tal);
+  opacity: 0.16;
+}
+
+.vAvg {
+  fill: none;
+  stroke: var(--tal);
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+}
+
+.vMax {
+  fill: none;
+  stroke: var(--tal);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0.6;
+}
+
+.pLine {
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.startLine {
+  stroke: var(--text);
+  stroke-dasharray: 2 3;
+  opacity: 0.45;
+}
+
+.startLbl {
+  fill: var(--mid);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+}
+
+.cross {
+  line {
+    stroke: var(--mid);
+    stroke-dasharray: 2 2;
+  }
+
+  circle {
+    fill: var(--ink);
+    stroke: var(--text);
+    stroke-width: 1.5;
+  }
+}
+
+.tip {
+  @include popover;
+  position: absolute;
+  top: 0;
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.35rem 0.55rem;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+
+  span {
+    color: var(--mid);
+  }
+}
+
+// ── More from ──────────────────────────────────────────────────────────────
+.more {
+  margin: 1.25rem 1rem 0;
+
+  h3 {
+    @include section-heading;
+    margin: 0 0 0.4rem;
+  }
+
+  button {
+    display: grid;
+    grid-template-columns: 3.4rem minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.5rem 0;
+    border: 0;
+    border-bottom: 1px solid var(--rule);
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    b {
+      overflow: hidden;
+      font-size: 0.82rem;
+      font-weight: 500;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    small {
+      @include num;
+      font-size: 0.65rem;
+      color: var(--dim);
+      white-space: nowrap;
+    }
+
+    &:hover b {
+      color: var(--blue);
+    }
+
+    @include phone {
+      grid-template-columns: 3.4rem minmax(0, 1fr);
+
+      small {
+        grid-column: 2;
+      }
+    }
+  }
+}
+
+.tag,
+.tagLive {
+  @include label;
+  font-size: 0.58rem;
+}
+
+.tagLive {
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding: 1.25rem 1rem 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: var(--dim);
+
+  a {
+    font-weight: 700;
+    color: var(--blue);
+    text-decoration: none;
+  }
+
+  @include phone {
+    span {
+      display: none;
+    }
+  }
+}

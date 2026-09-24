@@ -9,6 +9,7 @@ import { MarketTape } from "@/app/components/layout/market-tape";
 import { MobileNav } from "@/app/components/layout/mobile-nav";
 import { FillMomentLayer } from "@/app/components/moments/fill-moment";
 import { TickMomentLayer } from "@/app/components/moments/tick-moment";
+import { StreamSheetHost } from "@/app/components/livestreams/stream-sheet";
 import { TradeDrawer } from "@/app/components/trade/trade-drawer";
 import { PeekLayer } from "@/app/components/peek/peek-layer";
 import { isActivePath, isGroupActive, NAV } from "@/app/components/layout/nav-config";
@@ -410,6 +411,7 @@ export function SiteShell({
       <PeekLayer />
       <TickMomentLayer />
       <FillMomentLayer />
+      <StreamSheetHost />
       <TradeDrawer />
     </div>
   );

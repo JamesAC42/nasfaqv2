@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { SiteShell } from "@/app/components/layout/site-shell";
-import { LivestreamModal, type LivestreamModalItem } from "@/app/components/livestreams/livestream-modal";
 import { ChartSection, TicksSection } from "@/app/components/stock/market-sections";
 import { ChannelSection, StreamsSection, SuperchatSection } from "@/app/components/stock/channel-sections";
 import { BoardSection, HoldersSection, NewsSection } from "@/app/components/stock/community-sections";
@@ -21,6 +20,8 @@ import { useTheme } from "@/app/providers/theme-provider";
 import { useChannelStore } from "@/app/stores/channel-store";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useProfileStore } from "@/app/stores/profile-store";
+import { useOpenStream } from "@/app/stores/stream-store";
+import { previewOf } from "@/app/lib/streams";
 import { useTradeStore } from "@/app/stores/trade-store";
 import styles from "@/app/components/stock/dossier.module.scss";
 
@@ -91,7 +92,7 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
   const portfolio = useProfileStore((state) => state.portfolio);
   const pendingLiveOrders = useProfileStore((state) => state.pendingLiveOrders);
   const openTrade = useTradeStore((state) => state.openTrade);
-  const [modalItem, setModalItem] = useState<LivestreamModalItem | null>(null);
+  const openStream = useOpenStream();
   const [expanded, setExpanded] = useState(false);
   const active = useScrollSpy(useMemo(() => SECTIONS.map(([id]) => id), []));
 
@@ -139,7 +140,7 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
 
   const openLive = () =>
     live &&
-    setModalItem({ id: live.id, title: live.title, creator: live.creator, creator_icon: live.creator_icon, channel_color: live.channel_color, thumbnail_url: live.thumbnail_url, started_at: live.started_at, status: live.status, viewer_count: live.viewer_count, url: live.url });
+    openStream(previewOf({ ...live, channel_id: live.channel_id ?? channelId }));
 
   return (
     <SiteShell>
@@ -242,7 +243,7 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
             <TicksSection asset={asset} />
             <ChannelSection asset={asset} ranks={ranks} streams={streams} />
             <SuperchatSection asset={asset} superchats={superchats} hasChannel={Boolean(channelId)} />
-            <StreamsSection asset={asset} channelId={channelId} streams={streams} onOpen={setModalItem} />
+            <StreamsSection asset={asset} channelId={channelId} streams={streams} onOpen={openStream} />
             <HoldersSection asset={asset} />
             <BoardSection asset={asset} />
             <NewsSection asset={asset} />
@@ -323,7 +324,6 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
         </button>
       </div>
 
-      <LivestreamModal open={Boolean(modalItem)} item={modalItem} onClose={() => setModalItem(null)} />
     </SiteShell>
   );
 }

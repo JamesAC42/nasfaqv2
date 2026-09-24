@@ -17,6 +17,8 @@ import { useAuth } from "@/app/providers/auth-provider";
 import { useTheme } from "@/app/providers/theme-provider";
 import { useLeaderboardStore } from "@/app/stores/leaderboard-store";
 import { useLivestreamStore } from "@/app/stores/livestream-store";
+import { useOpenStream } from "@/app/stores/stream-store";
+import { previewOf } from "@/app/lib/streams";
 import { useMarketStore } from "@/app/stores/market-store";
 import { markSeries, UNIT_ORDER, unitLabel, unitName } from "@/app/lib/market-units";
 import { useNewsStore } from "@/app/stores/news-store";
@@ -348,6 +350,7 @@ function UnitIndexes({ assets }: { assets: MarketAsset[] }) {
 // ── Community row ────────────────────────────────────────────────────────────
 function OnAir() {
   const live = useLivestreamStore((state) => state.live);
+  const openStream = useOpenStream();
   const items = live.slice(0, 5);
   return (
     <div className={styles.communityCol}>
@@ -359,14 +362,14 @@ function OnAir() {
       </div>
       {items.length ? (
         items.map((item) => (
-          <a key={item.id} href={item.url ?? "/livestreams"} target={item.url ? "_blank" : undefined} rel="noopener noreferrer" className={styles.air}>
+          <button key={item.id} type="button" onClick={() => openStream(previewOf(item))} className={styles.air}>
             <Oshimark icon={item.creator_icon} symbol={item.creator} size={26} />
             <span className={styles.airText}>
               <b>{item.creator}</b>
               <small>{item.title}</small>
             </span>
             <span className={styles.live}>{item.viewer_count !== null ? item.viewer_count.toLocaleString("en-US") : "LIVE"}</span>
-          </a>
+          </button>
         ))
       ) : (
         <p className={styles.empty}>Nobody&apos;s live right now.</p>
