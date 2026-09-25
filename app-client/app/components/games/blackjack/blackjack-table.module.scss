@@ -97,6 +97,7 @@ $felt-line: rgba(190, 215, 255, 0.24);
 // ── Felt ───────────────────────────────────────────────────────────────────
 .felt {
   position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -139,6 +140,16 @@ $felt-line: rgba(190, 215, 255, 0.24);
     border-radius: 0;
     border-left: 0;
     border-right: 0;
+  }
+}
+
+// Drop-in baize art: hidden while it's a placeholder; once it exists it lies over the CSS felt.
+.feltArt {
+  z-index: -1;
+  pointer-events: none;
+
+  &[data-slot] {
+    display: none;
   }
 }
 

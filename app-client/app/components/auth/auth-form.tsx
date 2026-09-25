@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Script from "next/script";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
+import { SceneArt } from "@/app/components/common/scene-art";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { signedPct, toneOf } from "@/app/lib/time";
@@ -289,7 +290,8 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         </section>
 
         <aside className={styles.pitch} aria-label="What is nasfaq">
-          <ArtSlot kind="chibi" pose="hype" symbol={movers[0]?.symbol ?? "NASFAQ"} icon={movers[0]?.icon} accent="var(--blue)" width={160} className={styles.chibi} />
+          <SceneArt slot="site.auth-pitch" width={420} className={styles.pitchArt} />
+          {movers[0] ? <ArtSlot kind="chibi" pose="hype" symbol={movers[0].symbol} icon={movers[0].icon} accent="var(--blue)" width={160} className={styles.chibi} /> : null}
           <h2>Every hololive talent is a stock.</h2>
           <ul>
             <li>Start with $10,000 of play money.</li>

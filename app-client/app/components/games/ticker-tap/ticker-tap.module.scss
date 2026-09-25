@@ -64,6 +64,14 @@
     position: relative;
   }
 
+  // The arcade behind the pool and the demo cabinet, fading out toward the board.
+  > .heroScene {
+    position: absolute;
+    opacity: 0.5;
+    -webkit-mask-image: linear-gradient(180deg, #000 35%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 35%, transparent 100%);
+  }
+
   @include desktop-down {
     grid-template-columns: minmax(0, 1fr) minmax(14rem, 17rem);
 

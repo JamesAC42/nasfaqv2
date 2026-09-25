@@ -1,281 +1,505 @@
 @use "../../styles/mixins" as *;
 
-.page {
-  display: grid;
-  gap: 1.5rem;
+// /admin/assets: upload rows, tile grids for emojis and pictures, and the capsule prize list.
+
+.filename {
+  @include num;
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.66rem;
+  color: var(--dim);
 }
 
-.hero {
-  display: grid;
-  gap: 0.75rem;
-  padding: 1.5rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
+// ── Thumbs ─────────────────────────────────────────────────────────────────
+.thumb {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: var(--s);
+  height: var(--s);
+  border-radius: var(--radius-sm);
   background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 18%, transparent), transparent 32%),
-    linear-gradient(145deg, var(--surface-section-strong), var(--surface-section));
-  box-shadow: var(--shadow);
-}
+    repeating-conic-gradient(var(--ink-3) 0% 25%, var(--ink-2) 0% 50%) 50% / 12px 12px;
+  overflow: hidden;
 
-.eyebrow {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  color: var(--muted);
-}
-
-.title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: clamp(2rem, 4vw, 3rem);
-}
-
-.copy {
-  margin: 0;
-  max-width: 60rem;
-  color: var(--text);
-  line-height: 1.6;
-}
-
-.section {
-  display: grid;
-  gap: 1rem;
-  padding: 1.25rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  background: var(--surface-section);
-  box-shadow: var(--shadow);
-}
-
-.sectionHead {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: center;
-}
-
-.sectionTitle {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.2rem;
-}
-
-.sectionNote {
-  color: var(--muted);
-  font-size: 0.95rem;
-}
-
-.formGrid {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  align-items: end;
-}
-
-.field {
-  display: grid;
-  gap: 0.45rem;
-}
-
-.field label {
-  font-size: 0.88rem;
-  color: var(--muted);
-}
-
-.input,
-.fileInput,
-.textarea {
-  @include input-base;
-}
-
-.textarea {
-  min-height: 4.8rem;
-  resize: vertical;
-}
-
-.checkbox {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  font-size: 0.92rem;
-  color: var(--text);
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.createRow {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-}
-
-.createAction {
-  display: flex;
-  align-items: end;
-}
-
-.primaryButton,
-.secondaryButton {
-  font-weight: 700;
-}
-
-.primaryButton {
-  @include button-secondary;
-}
-
-.secondaryButton {
-  @include button-secondary;
-}
-
-.tableWrap {
-  overflow-x: auto;
-}
-
-.table {
-  @include table-shell;
-  min-width: 820px;
-  
-  td {
-    vertical-align: middle;
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
   }
 }
 
-.prizeTable {
-  min-width: 72rem;
-}
-
-.prizeFields {
+.thumbMissing {
+  @include label;
   display: grid;
-  gap: 0.55rem;
-  min-width: 12rem;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border: 1px dashed var(--rule-2);
+  border-radius: inherit;
+  background: var(--ink-2);
+  font-size: 0.62rem;
+  color: var(--dim);
 }
 
-.previewCell {
+// ── Upload ─────────────────────────────────────────────────────────────────
+.upload {
+  display: grid;
+  grid-template-columns: minmax(0, 14rem) minmax(0, 26rem) auto;
+  justify-content: start;
+  align-items: end;
+  gap: 0.6rem 0.9rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--rule);
+  min-width: 0;
+
+  > button {
+    margin-bottom: 1px;
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+
+    > button {
+      justify-self: start;
+    }
+  }
+}
+
+.uploadWide {
+  grid-template-columns: minmax(0, 14rem) minmax(0, 22rem) minmax(0, 22rem) auto;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.uploadHead {
+  grid-column: 1 / -1;
   display: flex;
-  gap: 0.75rem;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.8rem;
+
+  b {
+    @include section-heading;
+  }
+
+  span {
+    font-size: 0.78rem;
+    color: var(--dim);
+  }
 }
 
-.previewImage {
-  width: 3rem;
-  height: 3rem;
+.filePick {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+
+  input {
+    flex: 1 1 auto;
+  }
+}
+
+.filePreview,
+.filePreviewEmpty {
+  flex: 0 0 auto;
+  width: 2.2rem;
+  height: 2.2rem;
   border-radius: var(--radius-sm);
   object-fit: cover;
-  background: var(--surface-section-strong);
-  background-position: center;
-  background-size: cover;
-  border: 1px solid var(--border);
 }
 
-.filename {
-  font-family: var(--font-mono);
-  font-size: 0.82rem;
-  color: var(--muted);
+.filePreviewEmpty {
+  border: 1px dashed var(--rule-2);
 }
 
-.statusDeleted {
-  color: var(--danger);
-  font-weight: 700;
+.fileSize {
+  @include num;
+  font-size: 0.66rem;
+  color: var(--dim);
+
+  &[data-over] {
+    color: var(--warn);
+  }
 }
 
-.statusActive {
-  color: var(--success);
-  font-weight: 700;
+// ── Grid tools ─────────────────────────────────────────────────────────────
+.gridTools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.9rem 0 0.7rem;
 }
 
-.empty {
-  @include empty-state;
+.filter {
+  flex: 0 1 18rem;
+  min-width: 0;
 }
 
-/* ── Role Management ─────────────────────────────── */
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--mid);
+  cursor: pointer;
 
-.roleManagerLayout {
+  input {
+    accent-color: var(--blue);
+  }
+}
+
+// ── Tile grids ─────────────────────────────────────────────────────────────
+.grid {
   display: grid;
-  gap: 1.5rem;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  margin: 0 0 1.5rem;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+  border-left: 1px solid var(--rule);
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
-.roleManagerColumn {
+.gridPics {
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.tile {
   display: grid;
-  gap: 0.75rem;
   align-content: start;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+
+  input {
+    font-size: 0.82rem;
+  }
+
+  &[data-removed] .tileImage,
+  &[data-removed] .picPair {
+    opacity: 0.4;
+    filter: grayscale(1);
+  }
+
+  @include phone {
+    padding: 0.6rem;
+  }
 }
 
-.roleManagerLabel {
+.tileImage {
+  justify-self: center;
+  margin: 0.2rem 0;
+}
+
+.picPair {
+  position: relative;
+  justify-self: center;
+  margin: 0.2rem 0.6rem 0.2rem 0;
+}
+
+.picSmall {
+  position: absolute;
+  right: -0.9rem;
+  bottom: -0.4rem;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--ink);
+}
+
+.tileRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.tileStatus:empty {
+  display: none;
+}
+
+// ── Prizes ─────────────────────────────────────────────────────────────────
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  padding: 1rem 0 0.8rem;
+}
+
+.help {
+  flex: 1 1 22rem;
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 1rem;
-  color: var(--text);
+  font-size: 0.8rem;
+  color: var(--mid);
+
+  code {
+    @include num;
+    font-size: 0.78rem;
+    color: var(--text);
+  }
 }
 
-.roleManagerList {
+$rarities: (
+  common: #b7bdcc,
+  rare: #6fcaf8,
+  epic: #c2a8ff,
+  legendary: #ffd766,
+);
+
+.odds {
   display: grid;
   gap: 0.45rem;
+  padding: 0.75rem 0 0.9rem;
+  border-top: 1px solid var(--rule);
+}
+
+.oddsHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.7rem;
+
+  b {
+    @include section-heading;
+  }
+
+  span {
+    @include num;
+    font-size: 0.72rem;
+    color: var(--dim);
+  }
+}
+
+.oddsBar {
+  display: flex;
+  gap: 2px;
+  height: 0.55rem;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--ink-3);
+
+  i {
+    flex-basis: 0;
+    min-width: 3px;
+    transition: flex-grow var(--dur-med) var(--ease-out);
+  }
+}
+
+.oddsLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1.1rem;
   margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    @include label;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.6rem;
+
+    i {
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 1px;
+    }
+
+    b {
+      @include num;
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0;
+      color: var(--text);
+    }
+  }
+}
+
+@each $name, $color in $rarities {
+  .oddsBar i[data-rarity="#{$name}"],
+  .oddsLegend li[data-rarity="#{$name}"] i {
+    background: $color;
+  }
+
+  .prizeImg[data-rarity="#{$name}"] {
+    --rc: #{$color};
+  }
+
+  .prizeKind select[data-rarity="#{$name}"] {
+    color: $color;
+  }
+}
+
+.prizes {
+  display: grid;
+  margin: 0 0 1.5rem;
   padding: 0;
   list-style: none;
 }
 
-.roleManagerItem {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.55rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-section-strong);
-}
+.prize {
+  display: grid;
+  grid-template-columns: auto minmax(12rem, 1.4fr) minmax(8rem, 0.8fr) minmax(12rem, 1fr) minmax(8.5rem, auto);
+  align-items: start;
+  gap: 0.6rem 1rem;
+  min-width: 0;
+  padding: 0.85rem 0;
+  border-top: 1px solid var(--rule);
 
-.roleManagerUsername {
-  font-weight: 600;
-  color: var(--text);
-}
+  &[data-dirty] {
+    box-shadow: inset 2px 0 0 var(--blue);
+    padding-left: 0.7rem;
+  }
 
-.roleManagerHint {
-  font-weight: 400;
-  font-size: 0.82rem;
-  color: var(--muted);
-}
+  &[data-off] .prizeImg {
+    opacity: 0.45;
+    filter: grayscale(1);
+  }
 
-.muted {
-  color: var(--muted);
-  font-size: 0.92rem;
-  margin: 0;
-}
+  @include desktop-down {
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
 
-.destructiveButton {
-  @include button-base;
-  background: color-mix(in srgb, var(--danger) 14%, transparent);
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
-  font-weight: 700;
-}
+    .prizeOdds {
+      grid-column: 2 / span 2;
+    }
 
-@media (max-width: 640px) {
-  .roleManagerLayout {
-    grid-template-columns: 1fr;
+    .prizeSave {
+      grid-column: 2 / span 2;
+      flex-direction: row;
+      justify-content: flex-start;
+    }
+  }
+
+  @include phone {
+    grid-template-columns: auto minmax(0, 1fr);
+
+    .prizeKind,
+    .prizeOdds,
+    .prizeSave {
+      grid-column: 1 / -1;
+    }
   }
 }
 
-@media (max-width: 900px) {
-  .sectionHead {
-    align-items: start;
-    flex-direction: column;
-  }
-
-  .table {
-    min-width: 640px;
-  }
+.prizeImg {
+  --rc: var(--rule-2);
+  padding: 3px;
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--rc);
+  background: color-mix(in srgb, var(--rc) 10%, transparent);
 }
 
-@media (max-width: 720px) {
-  .createRow {
+.prizeText {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.desc {
+  resize: vertical;
+  min-height: 2.6rem;
+  font-size: 0.8rem;
+}
+
+.prizeKind {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+
+  @include desktop-down {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.prizeOdds {
+  display: grid;
+  grid-template-columns: minmax(0, 5.5rem) minmax(0, 1fr) minmax(0, 4.2rem);
+  align-items: end;
+  gap: 0.5rem;
+  min-width: 0;
+
+  input[aria-invalid] {
+    border-color: var(--warn);
+  }
+}
+
+.chance {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+  padding-bottom: 0.15rem;
+
+  small {
+    @include label;
+    font-size: 0.56rem;
+    white-space: nowrap;
+  }
+
+  b {
+    @include num(wide);
+    font-size: 1.15rem;
+    font-weight: 500;
+    line-height: 1.1;
+  }
+
+  em {
+    @include num;
+    font-style: normal;
+    font-size: 0.66rem;
+    color: var(--dim);
+  }
+
+  &[data-changed] b {
+    color: var(--blue);
+  }
+}
+
+.prizeSave {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-width: 0;
+
+  p {
+    width: 100%;
+    text-align: right;
+  }
+
+  @include desktop-down {
+    align-items: center;
+
+    p {
+      text-align: left;
+    }
   }
 }

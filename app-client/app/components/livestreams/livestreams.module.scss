@@ -25,6 +25,21 @@
   font-size: 0.85rem;
 }
 
+.emptyArt {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  text-align: center;
+
+  p {
+    margin: 0;
+  }
+}
+
+.offair {
+  width: min(100%, 13.75rem);
+}
+
 // ── Header ─────────────────────────────────────────────────────────────────
 .top {
   display: flex;

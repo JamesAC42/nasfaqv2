@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { Oshimark } from "@/app/components/common/oshimark";
+import { SceneArt } from "@/app/components/common/scene-art";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { StockChip } from "@/app/components/common/stock-chip";
 import { SiteShell } from "@/app/components/layout/site-shell";
@@ -115,6 +116,7 @@ function NewbieStrip() {
   if (user || isLoading || dismissed) return null;
   return (
     <aside className={styles.newbie}>
+      <SceneArt slot="home.welcome" width={132} className={styles.newbieArt} />
       <p>
         <b>New here?</b> Everyone starts with $10,000 of play money. Every hololive talent is a stock, and prices follow their real YouTube
         growth plus what players buy and sell.
@@ -144,10 +146,17 @@ function NewsThumb({ item, lead = false }: { item: NewsItem; lead?: boolean }) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={item.thumbnail_url} alt="" className={lead ? styles.leadImage : styles.headImage} loading={lead ? "eager" : "lazy"} decoding="async" />;
   }
+  if (!symbol) {
+    return (
+      <span className={`${lead ? styles.leadImage : styles.headImage} ${styles.thumbBox}`}>
+        <SceneArt slot="market.news-fallback" fill width={lead ? 640 : 96} />
+      </span>
+    );
+  }
   return (
     <ArtSlot
       kind="keyart"
-      symbol={symbol ?? "NEWS"}
+      symbol={symbol}
       icon={asset?.icon}
       accent={talentAccent(asset?.color, theme)}
       width={lead ? 640 : 96}

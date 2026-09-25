@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { CSSProperties } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { Oshimark } from "@/app/components/common/oshimark";
+import { SceneArt } from "@/app/components/common/scene-art";
 import { CardBack, TalentCard } from "@/app/components/games/cards/talent-card";
 import { fmtCash, fmtLeft } from "@/app/components/games/arcade/arcade-format";
 import { usePhone } from "@/app/components/games/arcade/use-media";
@@ -18,6 +19,11 @@ const POWER: Record<Rarity, number> = { C: 10, R: 14, SR: 19, SSR: 25, UR: 32 };
 
 /** Family-name-first talents go by the last word: "Ayunda Risu" is Risu. */
 export const callName = (name: string) => name.trim().split(/\s+/).pop() ?? name;
+
+/** The arcade hall behind the hero in every state; the talent's colour and key art go over it. */
+function HeroScene() {
+  return <SceneArt slot="games.arcade-hero" fill position="70% 30%" width={1440} priority className={styles.scene} />;
+}
 
 export function FeaturedHero({
   banners,
@@ -48,6 +54,9 @@ export function FeaturedHero({
   if (!banners && unavailable) {
     return (
       <section className={styles.hero} aria-label="Featured banner">
+        <div className={styles.backdrop} aria-hidden="true">
+          <HeroScene />
+        </div>
         <div className={styles.copy}>
           <span className={styles.kicker}>Featured banner</span>
           <h2 className={styles.name}>Back shortly</h2>
@@ -63,6 +72,9 @@ export function FeaturedHero({
   if (!banners) {
     return (
       <section className={styles.hero} aria-busy="true" aria-label="Featured banner">
+        <div className={styles.backdrop} aria-hidden="true">
+          <HeroScene />
+        </div>
         <div className={styles.copy}>
           <span className={styles.kicker}>Featured banner</span>
           <span className={styles.skelName} />
@@ -78,6 +90,9 @@ export function FeaturedHero({
   if (!talent) {
     return (
       <section className={styles.hero} aria-label="Card gacha">
+        <div className={styles.backdrop} aria-hidden="true">
+          <HeroScene />
+        </div>
         <div className={styles.copy}>
           <span className={styles.kicker}>Standard banner</span>
           <h2 className={styles.name}>Every talent. Every rarity.</h2>
@@ -113,6 +128,7 @@ export function FeaturedHero({
   return (
     <section className={styles.hero} style={{ "--tal": accent } as CSSProperties} aria-labelledby="arcade-featured">
       <div className={styles.backdrop} aria-hidden="true">
+        <HeroScene />
         <ArtSlot kind="keyart" symbol={talent.symbol} icon={talent.icon} accent={accent} width={720} className={styles.keyart} priority />
         <span className={styles.ghost}>{talent.symbol}</span>
       </div>

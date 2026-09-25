@@ -49,6 +49,7 @@
 // A slice of felt: the table seen from above.
 .felt {
   position: relative;
+  isolation: isolate;
   display: block;
   height: 11rem;
   overflow: hidden;
@@ -314,5 +315,15 @@
 @media (prefers-reduced-motion: reduce) {
   .phase i {
     animation: none;
+  }
+}
+
+// Drop-in baize art: hidden while it's a placeholder; once it exists it lies over the CSS felt.
+.feltArt {
+  z-index: -1;
+  pointer-events: none;
+
+  &[data-slot] {
+    display: none;
   }
 }

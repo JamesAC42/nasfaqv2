@@ -122,6 +122,26 @@
   }
 }
 
+// Event markets with no talent: the market's own picture, or the event badge.
+.eventMark {
+  --tal: var(--blue);
+  overflow: hidden;
+}
+
+.eventMark .eventImg {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+}
+
+.eventArt {
+  width: 44px;
+
+  @include phone {
+    width: 32px;
+  }
+}
+
 .headText {
   min-width: 0;
   flex: 1;
@@ -332,10 +352,15 @@
 }
 
 .verdict {
+  position: relative;
   display: grid;
   gap: 0.2rem;
   padding: 1.25rem 0 1.1rem;
   border-bottom: 1px solid var(--rule);
+
+  @media (min-width: 721px) {
+    padding-right: 7rem;
+  }
 
   small {
     @include label;
@@ -353,6 +378,17 @@
     margin: 0.2rem 0 0;
     font-size: 0.875rem;
     color: var(--mid);
+  }
+}
+
+.verdictArt {
+  position: absolute;
+  top: 1rem;
+  right: 0;
+  width: 6rem;
+
+  @include phone {
+    display: none;
   }
 }
 

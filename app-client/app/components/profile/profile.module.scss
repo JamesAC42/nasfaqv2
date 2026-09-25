@@ -173,6 +173,14 @@
     var(--ink-2);
 }
 
+// The floor behind every banner; the player's colour washes over it and it fades out under the name.
+.bannerBg {
+  z-index: -2;
+  opacity: 0.55;
+  -webkit-mask-image: linear-gradient(180deg, #000 25%, transparent 95%);
+  mask-image: linear-gradient(180deg, #000 25%, transparent 95%);
+}
+
 .bannerArt {
   position: absolute !important;
   top: 0;

@@ -34,6 +34,17 @@ $felt-line: rgba(190, 215, 255, 0.28);
     border: 1px dashed color-mix(in srgb, var(--chip-ink) 45%, transparent);
   }
 
+  // Drop-in greyscale chip art, tinted by the chip colour underneath; hidden while a placeholder.
+  .chipArt {
+    border-radius: 50%;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+
+    &[data-slot] {
+      display: none;
+    }
+  }
+
   b {
     @include num;
     position: relative;

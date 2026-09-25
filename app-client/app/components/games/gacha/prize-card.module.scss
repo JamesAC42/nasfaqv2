@@ -270,6 +270,21 @@
   transform: rotate(-30deg);
 }
 
+// Drop-in shell art: hidden while it's a placeholder; once it exists it replaces the drawn shell.
+.shellArt[data-slot] {
+  display: none;
+}
+
+.ball:has(> .shellArt:not([data-slot])) {
+  background: none;
+
+  > .top,
+  > .seam,
+  > .shine {
+    display: none;
+  }
+}
+
 .shadow {
   position: absolute;
   bottom: 12%;

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
+import { SceneArt } from "@/app/components/common/scene-art";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { StockChip } from "@/app/components/common/stock-chip";
@@ -334,7 +335,7 @@ function Bell() {
           <div className={styles.bellName}>{clock ? clock.nextTick.label.toUpperCase() : "—"}</div>
           <div className={styles.bellCount}>{clock ? formatCountdown(clock.secondsToNextTick) : "--:--:--"}</div>
         </div>
-        <ArtSlot kind="chibi" pose="idle" symbol="BELL" accent="var(--blue)" width={92} className={styles.bellArt} />
+        <SceneArt slot="market.bell" width={92} className={styles.bellArt} />
       </div>
       <p className={styles.bellNote}>
         Every stock reprices on the tick. How hard is secret until it lands.

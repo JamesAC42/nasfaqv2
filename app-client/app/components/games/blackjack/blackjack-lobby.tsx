@@ -13,6 +13,7 @@ import { primeChannel, useGamesChannel, useGamesConnected, useSeedChannel } from
 import { useAuth } from "@/app/providers/auth-provider";
 import { Chip } from "@/app/components/games/blackjack/bj-parts";
 import { HOUSE_RULES, chipsFor } from "@/app/components/games/blackjack/bj-utils";
+import { SceneArt } from "@/app/components/common/scene-art";
 import styles from "@/app/components/games/blackjack/blackjack-lobby.module.scss";
 
 type LobbyPayload = { type: "lobby"; game: "blackjack"; tables: BlackjackLobbyRow[] };
@@ -109,6 +110,7 @@ export function BlackjackLobbyPage() {
           return (
             <article key={table.key} className={styles.tile} data-key={table.key}>
               <Link href={`/games/blackjack/${table.key}`} className={styles.felt} aria-label={`Watch the ${table.name}`}>
+                <SceneArt slot="games.felt" fill width={480} className={styles.feltArt} />
                 <span className={styles.phase} data-live={phase.live || undefined}>
                   {phase.live ? <i aria-hidden="true" /> : null}
                   {phase.label}

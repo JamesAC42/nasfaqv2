@@ -1,0 +1,448 @@
+{
+  "area": "games",
+  "slots": [
+    {
+      "id": "games.og-arcade",
+      "title": "Share image: arcade",
+      "where": [
+        "/games and every /games/* page without its own share image"
+      ],
+      "kind": "social",
+      "w": 1200,
+      "h": 630,
+      "transparent": false,
+      "priority": "medium",
+      "brief": "An arcade corner inside a trading floor at night: a glowing capsule machine, a fan of three face-down trading cards with blue foil backs, a stack of casino chips and a blackjack card pair on a blue felt edge, all lit by a ticker board glowing hololive blue (#3fb8f5) behind. Dark ink (#0a0c11), flat shapes, halftone bloom. Left 45% calm for the wordmark and 'Arcade' title composited later.",
+      "notes": "Safe area: centre 1080×566. No text in the art. Not wired yet: hook it in app/games/page.tsx metadata.openGraph.images (and as the default for the games routes) once served at /art/og/arcade.png with metadataBase set."
+    },
+    {
+      "id": "games.arcade-hero",
+      "title": "Arcade: hero backdrop",
+      "where": [
+        "/games (featured banner hero)"
+      ],
+      "kind": "backdrop",
+      "w": 2400,
+      "h": 1000,
+      "transparent": false,
+      "priority": "high",
+      "brief": "A night-time game center built into a stock exchange: rows of arcade cabinets and a big capsule machine glowing along a long wall, ticker boards running above them like a marquee, neon floor reflections, light haze. Hololive blue (#3fb8f5) dominant with small pink and gold neon accents. The left 45% is darker and quieter (title, stats and pull buttons sit there); the right side has a clear pool of light where a talent's key art and a fan of cards are layered on top.",
+      "notes": "Behind the featured-banner hero in every state (featured, standard, loading, down). The UI tints it with the featured talent's colour and adds a left-to-right dark gradient. On phones it's cropped around 70% 30%. No text, no real talents."
+    },
+    {
+      "id": "games.tile-cards",
+      "title": "Arcade tile: card gacha",
+      "where": [
+        "/games (Games grid)"
+      ],
+      "kind": "backdrop",
+      "w": 1200,
+      "h": 600,
+      "transparent": false,
+      "priority": "medium",
+      "brief": "A summoning altar for trading cards: a round glowing platform with light rays shooting up, loose foil card silhouettes drifting in the air at the edges, sparkles, deep violet-to-blue gradient light. Dark ink (#0a0c11) ground, hololive blue (#3fb8f5) key, flat shapes, halftone.",
+      "notes": "Backdrop for the tile's stage; the UI draws three real talent cards fanned in the centre, so keep the centre a calm pool of light and put the interest at the edges. Displayed ~350×168 on desktop and cropped to a ~116px square (centre) on phones."
+    },
+    {
+      "id": "games.tile-duel",
+      "title": "Arcade tile: Oshi duel",
+      "where": [
+        "/games (Games grid)"
+      ],
+      "kind": "backdrop",
+      "w": 1200,
+      "h": 600,
+      "transparent": false,
+      "priority": "medium",
+      "brief": "A face-off arena: a diagonal split down the middle, cool blue light on the left half and warm magenta on the right, two spotlight circles on a dark mat, lightning crackle along the split, a big faint stock chart behind both sides. Flat shapes, halftone, dark ink (#0a0c11).",
+      "notes": "The UI puts two talent cards and a VS in the centre; keep the split behind them and the detail at the edges. Same crops as games.tile-cards."
+    },
+    {
+      "id": "games.tile-blackjack",
+      "title": "Arcade tile: blackjack",
+      "where": [
+        "/games (Games grid)"
+      ],
+      "kind": "backdrop",
+      "w": 1200,
+      "h": 600,
+      "transparent": false,
+      "priority": "medium",
+      "brief": "Looking down onto the curve of a blackjack table: deep hololive-blue baize (not green), a padded dark rail, a faint printed arc line, a dealer shoe at the top right and a few loose chips at the edges, one warm overhead lamp. Flat shapes, halftone, dark ink (#0a0c11) at the corners.",
+      "notes": "The UI draws an A+K hand, '21' and a chip stack in the centre; keep the middle clear felt. Same crops as games.tile-cards."
+    },
+    {
+      "id": "games.tile-high-low",
+      "title": "Arcade tile: high-low",
+      "where": [
+        "/games (Games grid)"
+      ],
+      "kind": "backdrop",
+      "w": 1200,
+      "h": 600,
+      "transparent": false,
+      "priority": "medium",
+      "brief": "A two-card showdown on a dark card mat: a big faint up-arrow rising on the left and a big faint down-arrow falling on the right, both built from halftone dots in hololive blue (#3fb8f5), a single hanging lamp making a soft pool of light in the middle. Flat shapes, dark ink (#0a0c11).",
+      "notes": "The UI draws a face-up card, up/down calls and a face-down card in the centre. Same crops as games.tile-cards."
+    },
+    {
+      "id": "games.tile-ticker-tap",
+      "title": "Arcade tile: Ticker Tap",
+      "where": [
+        "/games (Games grid)"
+      ],
+      "kind": "backdrop",
+      "w": 1200,
+      "h": 600,
+      "transparent": false,
+      "priority": "medium",
+      "brief": "Inside a rhythm-game cabinet screen: five tall glowing lanes in perspective receding upward, a hit line glowing at the bottom, streaks of light racing down the lanes, scanlines and a soft CRT bloom. Hololive blue (#3fb8f5) lanes with a touch of gold. Flat shapes, halftone, dark ink (#0a0c11).",
+      "notes": "The UI animates ticker tiles falling down five lanes on top, so the lanes in the art should be subtle and vertical. Same crops as games.tile-cards."
+    },
+    {
+      "id": "games.tile-capsule",
+      "title": "Arcade tile: capsule machine",
+      "where": [
+        "/games (Games grid)"
+      ],
+      "kind": "backdrop",
+      "w": 1200,
+      "h": 600,
+      "transparent": false,
+      "priority": "medium",
+      "brief": "A corner of a toy shop at night: shelves of little prize boxes and plush silhouettes fading into the dark at both edges, a warm spotlight from above onto an empty spot in the middle of the floor, pastel capsule halves scattered on the ground. Hololive blue (#3fb8f5), pink and gold accents on dark ink (#0a0c11). Flat shapes, halftone.",
+      "notes": "The UI draws a capsule machine in the centre spotlight. Same crops as games.tile-cards."
+    },
+    {
+      "id": "games.gacha-hero",
+      "title": "Card gacha: banner stage",
+      "where": [
+        "/games/cards (featured and standard banner heroes)"
+      ],
+      "kind": "backdrop",
+      "w": 2400,
+      "h": 1000,
+      "transparent": false,
+      "priority": "high",
+      "brief": "A summoning stage for cards: a raised circular dais on the right with a column of light pouring up from it, concentric glowing rings on the floor, floating shards of foil and sparkles, a starfield-like halftone sky. Hololive blue (#3fb8f5) with violet and gold highlights, dark ink (#0a0c11). The left 50% is darker and simpler (banner name, pitch and timer sit there).",
+      "notes": "Behind both banner heroes. The UI layers light rays, a talent key art and two or five real cards over the right half and tints everything with the featured talent's colour, so the art should be mid-contrast. On phones it is cropped to the top centre."
+    },
+    {
+      "id": "games.reveal-stage",
+      "title": "Gacha reveal: stage backdrop",
+      "where": [
+        "/games/cards (pull reveal)",
+        "/games/capsule (capsule reveal)"
+      ],
+      "kind": "backdrop",
+      "w": 2400,
+      "h": 1350,
+      "transparent": false,
+      "priority": "high",
+      "brief": "The reveal moment's full-screen stage: a dark shrine-like hall with a glowing circular floor sigil at the bottom centre, tall faint pillars of light at the sides, dust motes and sparkles hanging in the air, a deep vignette. Near-black ink (#04060a) with hololive blue (#3fb8f5) glow; the centre is kept open because up to ten cards flip there.",
+      "notes": "Full-screen behind the card/capsule flips on every device (cropped to cover, centre). The UI adds rotating rays and recolours the glow per rarity (blue, violet, gold, pink holo) on top, so keep the art's own glow neutral blue and low. No text."
+    },
+    {
+      "id": "games.card-back",
+      "title": "Talent card: back",
+      "where": [
+        "every face-down talent card (gacha reveal, arcade hero, card gacha standard banner, starter pack)"
+      ],
+      "kind": "object",
+      "w": 750,
+      "h": 1050,
+      "transparent": false,
+      "priority": "high",
+      "brief": "The back of a NASFAQ talent card, full bleed at 5:7: a symmetric pattern of interlocking diamonds and tiny candlestick glyphs in hololive blue (#3fb8f5) on deep navy (#0b1630), a fine metallic inner border, a starburst radiating from the centre, halftone shading toward the corners. The centre is an empty ornate oval medallion where the UI prints the NASFAQ wordmark.",
+      "notes": "Drop-in: CardBack draws a CSS version until this exists, then shows the art under its wordmark. Keep the medallion (centre ~45% × 30%) plain. Rounded corners are applied by the UI. Must stay legible from 54px to 330px wide."
+    },
+    {
+      "id": "games.frame-c",
+      "title": "Card frame: C (steel)",
+      "where": [
+        "every talent card of rarity C"
+      ],
+      "kind": "object",
+      "w": 750,
+      "h": 1050,
+      "transparent": true,
+      "priority": "low",
+      "brief": "An overlay frame for a 5:7 trading card: a brushed-steel border about 3% thick with small riveted corner plates and a thin inner bevel, flat-shaded with halftone. The whole interior is fully transparent (the talent art shows through).",
+      "notes": "One of five frames (C, R, SR, SSR, UR) that must share the same geometry so cards line up in grids. Drop-in overlay above the card art and below the rarity/name plates; keep the top-left corner (rarity badge) and bottom 22% (name plate) free of ornaments. Rounded corners (5% radius)."
+    },
+    {
+      "id": "games.frame-r",
+      "title": "Card frame: R (blue)",
+      "where": [
+        "every talent card of rarity R"
+      ],
+      "kind": "object",
+      "w": 750,
+      "h": 1050,
+      "transparent": true,
+      "priority": "low",
+      "brief": "The same frame geometry as games.frame-c in polished hololive-blue (#3fb8f5) enamel with silver edges and small diamond studs at the corners. Transparent interior.",
+      "notes": "Same geometry and safe areas as games.frame-c."
+    },
+    {
+      "id": "games.frame-sr",
+      "title": "Card frame: SR (violet)",
+      "where": [
+        "every talent card of rarity SR"
+      ],
+      "kind": "object",
+      "w": 750,
+      "h": 1050,
+      "transparent": true,
+      "priority": "medium",
+      "brief": "The same frame geometry in deep violet (#9a74ff) crystal with a faceted edge that catches light, small star-shaped corner gems. Transparent interior.",
+      "notes": "Same geometry and safe areas as games.frame-c. The UI adds a moving sheen on top."
+    },
+    {
+      "id": "games.frame-ssr",
+      "title": "Card frame: SSR (gold foil)",
+      "where": [
+        "every talent card of rarity SSR"
+      ],
+      "kind": "object",
+      "w": 750,
+      "h": 1050,
+      "transparent": true,
+      "priority": "medium",
+      "brief": "The same frame geometry in embossed gold foil (#f5c542 with pale highlights and amber shadows): filigree scrollwork along the edges, a crown-like crest at the top centre, ornate corner pieces. Transparent interior.",
+      "notes": "Same geometry and safe areas as games.frame-c. The UI animates a foil sweep over it; keep the metal mid-tone so the sweep reads."
+    },
+    {
+      "id": "games.frame-ur",
+      "title": "Card frame: UR (holo)",
+      "where": [
+        "every talent card of rarity UR"
+      ],
+      "kind": "object",
+      "w": 750,
+      "h": 1050,
+      "transparent": true,
+      "priority": "medium",
+      "brief": "The same frame geometry as a prismatic holographic border: iridescent pink-gold-mint-blue-violet bands (#ff7ad9, #ffd36e, #7dffcf, #6ecbff, #b28cff), star and sparkle cutouts, a winged crest at the top centre, extra-ornate corners. Transparent interior.",
+      "notes": "Same geometry and safe areas as games.frame-c. The UI spins a holo gradient behind it and adds glare, so fine iridescent detail beats heavy colour."
+    },
+    {
+      "id": "games.capsule-common",
+      "title": "Capsule: common shell",
+      "where": [
+        "/games/capsule (sealed capsules in the reveal)"
+      ],
+      "kind": "object",
+      "w": 512,
+      "h": 512,
+      "transparent": true,
+      "priority": "medium",
+      "brief": "A closed toy capsule seen slightly from above: top half translucent slate-grey plastic (#8d95a8), bottom half opaque white, a clean seam band around the middle, one crisp specular highlight and a soft contact shadow. Flat shapes with halftone shading.",
+      "notes": "One of four matching capsules (common, rare, epic, legendary): same shape, lighting and size, only the top colour and trim change. Drop-in: the CSS capsule shows until this exists, then the art replaces it inside a round window (clipped to a circle ~78% of the card width), so the capsule should fill a centred circle. It bobs and glows via CSS. Rendered 90–170px."
+    },
+    {
+      "id": "games.capsule-rare",
+      "title": "Capsule: rare shell",
+      "where": [
+        "/games/capsule (sealed capsules in the reveal)"
+      ],
+      "kind": "object",
+      "w": 512,
+      "h": 512,
+      "transparent": true,
+      "priority": "medium",
+      "brief": "The same capsule as games.capsule-common with a translucent hololive-blue (#3fb8f5) top half and a thin silver seam band.",
+      "notes": "Must match games.capsule-common's shape and lighting."
+    },
+    {
+      "id": "games.capsule-epic",
+      "title": "Capsule: epic shell",
+      "where": [
+        "/games/capsule (sealed capsules in the reveal)"
+      ],
+      "kind": "object",
+      "w": 512,
+      "h": 512,
+      "transparent": true,
+      "priority": "medium",
+      "brief": "The same capsule with a translucent violet (#b28cff) top half, a faint sparkle pattern inside the plastic and a pearlescent seam band.",
+      "notes": "Must match games.capsule-common's shape and lighting."
+    },
+    {
+      "id": "games.capsule-legendary",
+      "title": "Capsule: legendary shell",
+      "where": [
+        "/games/capsule (sealed capsules in the reveal)"
+      ],
+      "kind": "object",
+      "w": 512,
+      "h": 512,
+      "transparent": true,
+      "priority": "medium",
+      "brief": "The same capsule with a gold (#f5c542) metallic-flake top half, a star-embossed gold seam band and a few sparkles escaping from the seam.",
+      "notes": "Must match games.capsule-common's shape and lighting."
+    },
+    {
+      "id": "games.capsule-prizes",
+      "title": "Capsule prizes (sheet: one image per prize)",
+      "where": [
+        "/games/capsule (prize pool, reveal)",
+        "/games/item-locker",
+        "profile hats and flair"
+      ],
+      "kind": "object",
+      "w": 512,
+      "h": 512,
+      "transparent": true,
+      "priority": "high",
+      "brief": "A sheet of cosmetic prize icons, one 512×512 transparent PNG each, all in one consistent style: a single object, three-quarter view, flat shapes with halftone shading and a clean dark outline, sized to fill ~80% of the square. Current pool: hat-common-cap (a baseball cap in hololive blue with a white diamond patch), hat-common-beanie (a slouchy knit beanie with a pom-pom), frame-rare-gold (a square gold picture frame with rounded corners and small diamond corner studs, empty centre), flair-rare-star (a chunky five-point star badge with a blue enamel centre), hat-epic-crown (a small tilted violet-and-gold crown with gems), hat-legendary-halo (a floating golden halo with sparkles and a soft glow).",
+      "notes": "Not a SceneArt slot: the API sets image_url to https://images.nasfaq.biz/gachaprizes/<key>.png, so export each prize under its key there. Until then PrizeArt draws an icon glyph. Hats are also drawn on player avatars, so keep them readable at 24px. New prizes added to the catalog need an image in the same style."
+    },
+    {
+      "id": "games.capsule-shop",
+      "title": "Capsule machine: shop backdrop",
+      "where": [
+        "/games/capsule (behind the machine)"
+      ],
+      "kind": "backdrop",
+      "w": 1200,
+      "h": 1500,
+      "transparent": false,
+      "priority": "medium",
+      "brief": "A narrow toy-shop nook at night, portrait: pegboard wall with a few hanging prize boxes and plush silhouettes at the edges, a string of small bulbs across the top, a warm spotlight from above onto the empty centre of the floor, pastel capsule halves scattered on the floor. Dark ink (#0a0c11) with hololive blue (#3fb8f5), pink and gold accents. Flat shapes, halftone.",
+      "notes": "Behind the CSS capsule machine (which stands in the centre, ~270px wide). Keep the centre 60% calm. Displayed ~350×470 on desktop, full width on phones (cropped to the centre)."
+    },
+    {
+      "id": "games.starter-pack",
+      "title": "Collection: starter booster pack",
+      "where": [
+        "/games/collection (free starter pack, first visit)"
+      ],
+      "kind": "object",
+      "w": 800,
+      "h": 1100,
+      "transparent": true,
+      "priority": "medium",
+      "brief": "A sealed foil booster pack standing slightly tilted: crimped top and bottom edges, glossy hololive-blue (#3fb8f5) foil with a big diamond emblem and a burst of stars, a small 'x5' style badge shape without the number, a tear notch at the top right. Flat shapes, one sweeping foil highlight, halftone shading.",
+      "notes": "Drop-in: shown in front of the fan of five card backs once it exists (~150px wide on desktop, ~120px on phones). No text or numbers."
+    },
+    {
+      "id": "games.felt",
+      "title": "Blackjack: table felt",
+      "where": [
+        "/games/blackjack (lobby tables)",
+        "/games/blackjack/[key] (the table)"
+      ],
+      "kind": "texture",
+      "w": 2048,
+      "h": 1024,
+      "transparent": false,
+      "priority": "medium",
+      "brief": "Blackjack baize seen from above: deep hololive-blue felt (#16407a to #0a2149, never green), fine fibre texture, a faint printed arc and a small diamond emblem at the top centre, soft darker vignette toward the edges and a lighter pool at the top under the lamp.",
+      "notes": "Drop-in: drawn with CSS until this exists, then laid over the felt with object-fit cover (so it does not need to tile). Seats, cards, chips and text sit on top; keep it low-contrast and free of lettering."
+    },
+    {
+      "id": "games.table-mat",
+      "title": "Duel and high-low: play mat",
+      "where": [
+        "/games/duel/[id]",
+        "/games/high-low/[id]"
+      ],
+      "kind": "texture",
+      "w": 2048,
+      "h": 1024,
+      "transparent": false,
+      "priority": "low",
+      "brief": "A dark rubber card-game play mat: ink-navy (#0d1424) with a very faint printed grid, two subtle card-zone outlines on each half, a thin hololive-blue (#3fb8f5) centre line with a small diamond, a soft central glow.",
+      "notes": "Drop-in behind the duel and high-low boards (CSS grid shows until then), cover-fitted. Cards, clocks and scores sit on top; keep it quiet."
+    },
+    {
+      "id": "games.chip",
+      "title": "Casino chip (tintable)",
+      "where": [
+        "/games/blackjack (bet picker, lobby tiles)"
+      ],
+      "kind": "object",
+      "w": 256,
+      "h": 256,
+      "transparent": true,
+      "priority": "low",
+      "brief": "A single casino chip seen straight from above in neutral light greys: raised outer rim with six rectangular edge inserts, an inner ring of tiny diamonds, a flat empty centre disc. Flat shapes with a soft top-left highlight and halftone shading.",
+      "notes": "Drop-in: laid over the CSS chip with a multiply/overlay blend so the UI's per-value colour tints it and the value label sits in the empty centre. Greyscale only."
+    },
+    {
+      "id": "games.trophy-case",
+      "title": "Locker: trophy case wall",
+      "where": [
+        "/games/item-locker",
+        "/games/item-locker/[username]"
+      ],
+      "kind": "backdrop",
+      "w": 2400,
+      "h": 900,
+      "transparent": false,
+      "priority": "medium",
+      "brief": "The inside of a lit glass display case, head-on: dark velvet back wall (deep navy #0b1226) with a subtle diamond damask pattern, five small downlights along the top casting soft cones, glass shelf edge catching a thin highlight at the bottom, faint reflections on the glass. Calm and premium.",
+      "notes": "Behind the five pinned showcase cards (the centre one biggest). The UI adds rarity-tinted beams per slot, so keep the cones soft and centred on 10%, 30%, 50%, 70%, 90%. On phones the row scrolls; cropped to the centre."
+    },
+    {
+      "id": "games.tickertap-hero",
+      "title": "Ticker Tap: cabinet backdrop",
+      "where": [
+        "/games/ticker-tap (lobby)"
+      ],
+      "kind": "backdrop",
+      "w": 2400,
+      "h": 800,
+      "transparent": false,
+      "priority": "medium",
+      "brief": "An arcade at night framing a rhythm-game cabinet: neon light strips and scrolling ticker tape running across the upper wall, a glossy floor with reflections, other cabinets silhouetted at both edges. The centre third is a dark soft glow where the UI's demo cabinet sits. Hololive blue (#3fb8f5) with gold accents on dark ink (#0a0c11). Flat shapes, halftone.",
+      "notes": "Behind the pool / demo / play row at the top of the lobby, masked to fade out at the bottom. The left third carries the pool number, so keep it dark. No text."
+    },
+    {
+      "id": "games.moment-win",
+      "title": "Table result: you win",
+      "where": [
+        "/games/duel/[id]",
+        "/games/high-low/[id] (match over)"
+      ],
+      "kind": "spot",
+      "w": 512,
+      "h": 512,
+      "transparent": true,
+      "priority": "medium",
+      "brief": "A small victory trophy cup overflowing with play-money bills and chips, confetti and stars bursting around it. Gold and hololive blue (#3fb8f5), flat shapes, halftone shading, punchy.",
+      "notes": "Part of a set of three (win, lose, draw) in one style. Shown above the 'YOU WIN' headline, ~96px. Also used when a spectator sees who won."
+    },
+    {
+      "id": "games.moment-lose",
+      "title": "Table result: you lose",
+      "where": [
+        "/games/duel/[id]",
+        "/games/high-low/[id] (match over)"
+      ],
+      "kind": "spot",
+      "w": 512,
+      "h": 512,
+      "transparent": true,
+      "priority": "medium",
+      "brief": "An empty wallet turned upside down with one moth fluttering out and a single chip rolling away, a tiny rain cloud above. Muted greys and blues with a red (#ff4460) accent. Flat shapes, halftone, funny rather than sad.",
+      "notes": "Same set and size as games.moment-win."
+    },
+    {
+      "id": "games.moment-draw",
+      "title": "Table result: draw",
+      "where": [
+        "/games/duel/[id]",
+        "/games/high-low/[id] (match over)"
+      ],
+      "kind": "spot",
+      "w": 512,
+      "h": 512,
+      "transparent": true,
+      "priority": "low",
+      "brief": "Two chip stacks of exactly equal height side by side with a balance scale perfectly level above them. Hololive blue (#3fb8f5) and greys, flat shapes, halftone.",
+      "notes": "Same set and size as games.moment-win."
+    }
+  ]
+}

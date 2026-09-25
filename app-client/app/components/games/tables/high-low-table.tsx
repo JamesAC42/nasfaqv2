@@ -26,6 +26,7 @@ import { useGamesConnected } from "@/app/lib/games/use-games-socket";
 import { useRemaining } from "@/app/lib/games/use-remaining";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useProfileStore } from "@/app/stores/profile-store";
+import { SceneArt } from "@/app/components/common/scene-art";
 import styles from "@/app/components/games/tables/high-low-table.module.scss";
 
 // High-low duel (GAMES_DESIGN.md §5). One shared deck, nine calls. Both players call higher or
@@ -216,6 +217,7 @@ function HighLowBoard({ table, mySeat }: { table: GameTable<HighLowState>; mySea
   return (
     <div className={styles.layout}>
       <div className={styles.board} data-phase={done ? "done" : state.phase}>
+        <SceneArt slot="games.table-mat" fill width={1100} className={styles.matArt} />
         <div className={styles.top}>
           {renderSeat(left, "left")}
           <div className={styles.roundBox}>

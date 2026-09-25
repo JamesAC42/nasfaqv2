@@ -2,6 +2,7 @@
 
 import { useState, type CSSProperties } from "react";
 import { FaCrown, FaHatCowboy, FaIdBadge, FaMedal, FaRegCircle, FaStar } from "react-icons/fa6";
+import { SceneArt } from "@/app/components/common/scene-art";
 import { TYPE_LABEL, type CapsuleRarity } from "@/app/components/games/gacha/capsule-types";
 import styles from "@/app/components/games/gacha/prize-card.module.scss";
 
@@ -75,6 +76,7 @@ export function CapsuleBack({ rarity, width = 168 }: { rarity: CapsuleRarity; wi
         <span className={styles.top} />
         <span className={styles.seam} />
         <span className={styles.shine} />
+        <SceneArt slot={`games.capsule-${rarity}`} fill width={width} className={styles.shellArt} />
       </span>
       <span className={styles.shadow} />
     </div>

@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useMemo, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
+import { SceneArt } from "@/app/components/common/scene-art";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { unitLabel, unitName, UNIT_ORDER } from "@/app/lib/market-units";
@@ -169,7 +170,10 @@ export function LivestreamsPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className={styles.empty}>{filtering ? "Nobody matching these filters is live." : "Nobody's live right now. Check who's up next below."}</p>
+                  <div className={`${styles.empty} ${styles.emptyArt}`}>
+                    {filtering ? null : <SceneArt slot="market.offair" width={220} className={styles.offair} />}
+                    <p>{filtering ? "Nobody matching these filters is live." : "Nobody's live right now. Check who's up next below."}</p>
+                  </div>
                 )}
               </section>
 

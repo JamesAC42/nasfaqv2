@@ -11,6 +11,7 @@ import type { Fill, LimitOrder, Outcome, Portfolio, PortfolioPosition, SocketMes
 import { usePredictionFeed } from "@/app/lib/predictions/use-prediction-feed";
 import { useNow } from "@/app/lib/use-now";
 import { useAuth } from "@/app/providers/auth-provider";
+import { SceneArt } from "@/app/components/common/scene-art";
 import styles from "@/app/components/predictions/portfolio/portfolio.module.scss";
 
 type Flash = { dir: "up" | "down"; n: number };
@@ -139,9 +140,12 @@ function Totals({ portfolio }: { portfolio: Portfolio }) {
 function Positions({ rows, looks, flashes }: { rows: PortfolioPosition[]; looks: Map<string, OutcomeLook>; flashes: Record<string, Flash> }) {
   if (!rows.length) {
     return (
-      <p className={styles.empty}>
-        No open bets. <Link href="/predictions">Hit the floor</Link> and make a call.
-      </p>
+      <div className={`${styles.empty} ${styles.emptyArt}`}>
+        <SceneArt slot="predictions.portfolio-empty" width={200} className={styles.emptyPic} />
+        <p>
+          No open bets. <Link href="/predictions">Hit the floor</Link> and make a call.
+        </p>
+      </div>
     );
   }
   return (

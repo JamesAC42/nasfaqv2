@@ -30,6 +30,7 @@ import { fmtInteger } from "@/app/lib/format";
 import { isCalm } from "@/app/providers/motion-provider";
 import { useGamesStore } from "@/app/stores/games-store";
 import { useProfileStore } from "@/app/stores/profile-store";
+import { SceneArt } from "@/app/components/common/scene-art";
 import styles from "@/app/components/games/gacha/capsule-gacha.module.scss";
 
 // The capsule machine (GAMES_DESIGN.md §2): cosmetic prizes, $50 / $450, epic every 10th pull,
@@ -189,6 +190,7 @@ export function CapsuleGachaPage() {
       <div className={styles.layout}>
         <section className={styles.machineCol} aria-label="Capsule machine">
           <div className={styles.machineWrap}>
+            <SceneArt slot="games.capsule-shop" fill width={420} className={styles.shopArt} />
             <CapsuleMachine price={costOne} state={cranking || busy !== null ? "cranking" : "idle"} drop={drop} turns={busy === 10 || lastCount === 10 ? 2 : 1} />
           </div>
 

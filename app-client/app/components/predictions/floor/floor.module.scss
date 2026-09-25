@@ -220,6 +220,21 @@
   font-size: 0.875rem;
 }
 
+.emptyArt {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  text-align: center;
+
+  p {
+    margin: 0;
+  }
+}
+
+.emptyPic {
+  width: min(100%, 12.5rem);
+}
+
 .error {
   margin: 0 0 0.75rem;
   font-size: 0.8125rem;

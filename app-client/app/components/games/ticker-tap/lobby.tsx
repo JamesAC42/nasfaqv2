@@ -10,6 +10,7 @@ import { POINTS, PAYOUT_SPLIT } from "@/app/components/games/ticker-tap/engine";
 import { fmtInteger, fmtNumber } from "@/app/lib/format";
 import type { TickerTapBoard } from "@/app/lib/games/types";
 import { isCalm } from "@/app/providers/motion-provider";
+import { SceneArt } from "@/app/components/common/scene-art";
 import styles from "@/app/components/games/ticker-tap/ticker-tap.module.scss";
 
 type LobbyProps = {
@@ -102,6 +103,7 @@ export function Lobby({ board, boardError, signedIn, userId, needsVerification, 
   return (
     <div className={styles.lobby}>
       <section className={`${styles.hero} ${compactHero ? styles.heroCompact : ""}`} aria-labelledby="tt-pool">
+        <SceneArt slot="games.tickertap-hero" fill width={1440} className={styles.heroScene} />
         <TapeWall talents={demoTalents} />
         <div className={styles.poolBlock}>
           <h2 id="tt-pool" className={styles.poolLabel}>

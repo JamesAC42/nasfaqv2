@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
+import { SceneArt } from "@/app/components/common/scene-art";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { money } from "@/app/lib/predictions/format";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -76,6 +77,7 @@ export function PredictionsFrame({ kicker, title, blurb, aside, live = false, ba
         </nav>
         {bare ? null : (
           <header className={styles.head}>
+            {pathname.startsWith("/predictions/manage") ? null : <SceneArt slot="predictions.hero" fill position="80% 50%" width={1440} className={styles.headArt} />}
             <div className={styles.title}>
               <span className={styles.kicker}>
                 {live ? <i aria-hidden="true" /> : null}

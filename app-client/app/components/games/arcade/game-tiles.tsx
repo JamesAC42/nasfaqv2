@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 import { FiArrowRight } from "react-icons/fi";
 import { Oshimark } from "@/app/components/common/oshimark";
+import { SceneArt } from "@/app/components/common/scene-art";
 import { TalentCard, type CardFace } from "@/app/components/games/cards/talent-card";
 import { PlayingCard } from "@/app/components/games/shared/playing-card";
 import styles from "@/app/components/games/arcade/tiles.module.scss";
@@ -30,6 +31,7 @@ export function GameTiles({ tiles, faces, phone }: { tiles: ArcadeTile[]; faces:
           <li key={tile.key} className={styles.cell}>
             <Link href={tile.href} className={styles.tile} data-game={tile.key}>
               <span className={styles.stage} aria-hidden="true">
+                <SceneArt slot={`games.tile-${tile.key}`} fill width={phone ? 140 : 420} className={styles.scene} />
                 <TileArt game={tile.key} faces={faces} phone={phone} />
               </span>
               <span className={styles.body}>

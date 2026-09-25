@@ -1,0 +1,62 @@
+@use "../../styles/mixins" as *;
+
+// 404 and crash pages: one picture, one line, a way back.
+
+.page {
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+  max-width: 40rem;
+  margin: 2.5rem auto 3.5rem;
+  text-align: center;
+
+  @include phone {
+    margin: 1.25rem auto 2.5rem;
+  }
+}
+
+.art {
+  width: min(100%, 35rem);
+  margin-bottom: 0.5rem;
+}
+
+.kicker {
+  @include label;
+  color: var(--blue);
+}
+
+.title {
+  @include display(2.6rem);
+  margin: 0;
+  line-height: 1.05;
+
+  @include phone {
+    font-size: 2rem;
+  }
+}
+
+.line {
+  margin: 0;
+  max-width: 32rem;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--mid);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.primary {
+  @include button-primary;
+}
+
+.secondary {
+  @include button-secondary;
+}

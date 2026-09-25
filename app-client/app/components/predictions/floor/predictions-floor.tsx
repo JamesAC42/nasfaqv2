@@ -3,6 +3,7 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FiSearch, FiX } from "react-icons/fi";
+import { SceneArt } from "@/app/components/common/scene-art";
 import { PredictionsFrame } from "@/app/components/predictions/shell/predictions-frame";
 import { Forecasters, HowItWorks, MyBetsSummary } from "@/app/components/predictions/floor/floor-side";
 import { LiveTape, type TapeItem } from "@/app/components/predictions/floor/live-tape";
@@ -344,7 +345,10 @@ export function PredictionsFloor() {
               ))}
             </div>
           ) : (
-            <p className={styles.empty}>{error ?? (q || category ? "No markets match that." : EMPTY_COPY[tab])}</p>
+            <div className={`${styles.empty} ${styles.emptyArt}`}>
+              {error ? null : <SceneArt slot="predictions.floor-empty" width={200} className={styles.emptyPic} />}
+              <p>{error ?? (q || category ? "No markets match that." : EMPTY_COPY[tab])}</p>
+            </div>
           )}
 
           {hasMore ? (

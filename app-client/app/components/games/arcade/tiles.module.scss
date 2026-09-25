@@ -82,6 +82,12 @@
   }
 }
 
+// Each game's environment, behind the drawn props.
+.scene {
+  z-index: -1;
+  opacity: 0.85;
+}
+
 .body {
   display: grid;
   align-content: start;

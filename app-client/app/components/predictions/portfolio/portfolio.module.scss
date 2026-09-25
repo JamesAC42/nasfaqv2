@@ -189,6 +189,21 @@
   }
 }
 
+.emptyArt {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  text-align: center;
+
+  p {
+    margin: 0;
+  }
+}
+
+.emptyPic {
+  width: min(100%, 12.5rem);
+}
+
 // ── Tables (rows become stacked blocks on phones) ──────────────────────────
 .table {
   @include table-shell;

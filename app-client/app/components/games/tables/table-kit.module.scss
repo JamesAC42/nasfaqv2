@@ -353,6 +353,15 @@
   }
 }
 
+.momentArt {
+  width: 5.5rem;
+  margin: -0.4rem 0 0.1rem;
+
+  @include phone {
+    width: 4.5rem;
+  }
+}
+
 .momentKicker {
   @include label;
 }

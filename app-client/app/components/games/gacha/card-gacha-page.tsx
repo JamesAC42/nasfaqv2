@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
+import { SceneArt } from "@/app/components/common/scene-art";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { CardBack, TalentCard } from "@/app/components/games/cards/talent-card";
 import { PityBar, PullButton, ShardGlyph, fmtCountdown, fmtLeft } from "@/app/components/games/gacha/gacha-parts";
@@ -284,6 +285,7 @@ function FeaturedHero({ banner }: { banner: Banner }) {
   return (
     <section className={styles.hero} data-kind="featured" style={{ "--tal": accent } as CSSProperties} aria-labelledby="banner-name">
       <div className={styles.heroBg} aria-hidden="true">
+        <SceneArt slot="games.gacha-hero" fill position="75% 50%" width={1100} priority className={styles.heroScene} />
         <span className={styles.heroRays} />
         <span className={styles.heroDots} />
         <span className={styles.heroGhost}>{talent.symbol}</span>
@@ -343,6 +345,7 @@ function StandardHero({ talents, poolSize, signedIn }: { talents: Talent[]; pool
   return (
     <section className={styles.hero} data-kind="standard" aria-labelledby="banner-name">
       <div className={styles.heroBg} aria-hidden="true">
+        <SceneArt slot="games.gacha-hero" fill position="75% 50%" width={1100} priority className={styles.heroScene} />
         <span className={styles.heroRays} />
         <span className={styles.heroDots} />
         <span className={styles.heroGhost}>ALL</span>

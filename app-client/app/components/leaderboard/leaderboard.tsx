@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
+import { SceneArt } from "@/app/components/common/scene-art";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { OshiboardTab } from "@/app/components/leaderboard/oshiboard-tab";
@@ -13,6 +14,8 @@ import { useAuth } from "@/app/providers/auth-provider";
 import { useLeaderboardStore } from "@/app/stores/leaderboard-store";
 import { useMarketStore } from "@/app/stores/market-store";
 import styles from "@/app/components/leaderboard/leaderboard.module.scss";
+
+const MEDALS: Record<number, string> = { 1: "site.medal-gold", 2: "site.medal-silver", 3: "site.medal-bronze" };
 
 export type LeaderboardTab = "players" | "talent";
 
@@ -166,10 +169,12 @@ function PlayersTab() {
 
       {podium.length ? (
         <div className={styles.podium}>
+          <SceneArt slot="market.leaderboard-podium" fill width={1400} className={styles.podiumArt} />
           {podium.map((entry) => {
             const change = windowChange(entry, window);
             return (
               <Link key={entry.user_id} href={`/profile/${encodeURIComponent(entry.username)}`} className={`${styles.step} ${styles[`r${entry.rank}`]}`} style={{ "--pc": entry.profile_color || "var(--blue)" } as React.CSSProperties}>
+                {MEDALS[entry.rank] ? <SceneArt slot={MEDALS[entry.rank]} width={48} className={styles.stepMedal} /> : null}
                 <PlayerAvatar username={entry.username} pictureUrl={entry.profile_picture_url} color={entry.profile_color} hat={entry.equipped_hat} size={entry.rank === 1 ? 96 : 80} className={styles.stepAvatar} />
                 <span className={styles.stepBody}>
                   <span className={styles.stepRank}>{entry.rank}</span>

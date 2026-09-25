@@ -592,7 +592,23 @@
   }
 }
 
+// Drop-in art (frames and the back): hidden while it's still a placeholder, so the drawn
+// version shows until the generated image lands; then the image sits on top of it.
+.frameArt,
+.backArt {
+  pointer-events: none;
+
+  &[data-slot] {
+    display: none;
+  }
+}
+
+.frameArt {
+  border-radius: 5cqi;
+}
+
 .backMark {
+  position: relative;
   display: grid;
   justify-items: center;
   gap: 1.4cqi;

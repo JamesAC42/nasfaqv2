@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
+import { SceneArt } from "@/app/components/common/scene-art";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { StockChip } from "@/app/components/common/stock-chip";
 import { SiteShell } from "@/app/components/layout/site-shell";
@@ -103,7 +104,10 @@ function Thumb({ story, size }: { story: Story; size: "lead" | "row" }) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={size === "row" ? getCompactNewsThumbnailUrl(story.thumb) || story.thumb : story.thumb} alt="" loading={size === "lead" ? "eager" : "lazy"} decoding="async" className={size === "lead" ? styles.leadImg : styles.rowImg} />;
   }
-  const symbol = story.symbols[0] ?? "NEWS";
+  const symbol = story.symbols[0];
+  if (!symbol) {
+    return <SceneArt slot={story.kind === "news" ? "market.news-fallback" : "market.article-fallback"} width={size === "lead" ? 640 : 120} className={size === "lead" ? styles.leadImg : styles.rowImg} />;
+  }
   const asset = assets.find((entry) => entry.symbol === symbol);
   return <ArtSlot kind="keyart" symbol={symbol} icon={asset?.icon} accent={talentAccent(asset?.color, theme)} width={size === "lead" ? 640 : 120} className={size === "lead" ? styles.leadImg : styles.rowImg} />;
 }

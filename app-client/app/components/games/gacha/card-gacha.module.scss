@@ -237,6 +237,19 @@
     linear-gradient(100deg, #07090e 30%, #0d1424);
 }
 
+// The summoning stage; the talent tint above still colours it.
+.heroScene {
+  opacity: 0.55;
+  mix-blend-mode: screen;
+  -webkit-mask-image: linear-gradient(100deg, transparent 20%, #000 60%);
+  mask-image: linear-gradient(100deg, transparent 20%, #000 60%);
+
+  @include phone {
+    -webkit-mask-image: linear-gradient(180deg, #000 30%, transparent 90%);
+    mask-image: linear-gradient(180deg, #000 30%, transparent 90%);
+  }
+}
+
 .heroRays {
   position: absolute;
   left: 76%;

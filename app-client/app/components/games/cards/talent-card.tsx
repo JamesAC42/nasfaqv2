@@ -3,6 +3,7 @@
 import { useRef, type CSSProperties, type ReactNode } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { Oshimark } from "@/app/components/common/oshimark";
+import { SceneArt } from "@/app/components/common/scene-art";
 import { MAX_STARS, RARITY_NAME } from "@/app/lib/games/rarity";
 import type { Rarity } from "@/app/lib/games/types";
 import { unitLabel } from "@/app/lib/market-units";
@@ -44,6 +45,9 @@ type TalentCardProps = {
   /** Pointer-tracked tilt and glare. Defaults on for SR and up. */
   tilt?: boolean;
 };
+
+/** Illustrated frame overlays per rarity (drop-in: the CSS frame shows until the art exists). */
+const FRAME_ART: Record<Rarity, string> = { C: "games.frame-c", R: "games.frame-r", SR: "games.frame-sr", SSR: "games.frame-ssr", UR: "games.frame-ur" };
 
 /**
  * A talent card. Rarity drives the frame: steel (C), blue (R), violet (SR), gold foil (SSR),
@@ -165,6 +169,7 @@ export function TalentCard({
         {!owned ? <span className={styles.lock} aria-hidden="true" /> : null}
         {overlay ? <span className={styles.overlay}>{overlay}</span> : null}
       </span>
+      <SceneArt slot={FRAME_ART[card.rarity]} fill width={width * 2} className={styles.frameArt} />
     </span>
   );
 
@@ -215,6 +220,7 @@ export function CardBack({ width = 168, glow = null, className }: { width?: numb
   return (
     <div className={[styles.back, className].filter(Boolean).join(" ")} style={{ "--w": `${width}px` } as CSSProperties} data-glow={glow ?? undefined} aria-hidden="true">
       <span className={styles.backInner}>
+        <SceneArt slot="games.card-back" fill width={width * 2} className={styles.backArt} />
         <span className={styles.backMark}>
           <b>NASFAQ</b>
           <small>TALENT CARD</small>

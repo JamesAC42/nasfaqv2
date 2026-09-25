@@ -24,11 +24,19 @@ export type ArtTalent = {
   chibi?: Partial<Record<ChibiPose, ArtChibi>>;
 };
 
+/** Non-talent art (backdrops, illustrations, spots), keyed by scene slot id (see app/lib/art/scene-slots.ts). */
+export type ArtScene = {
+  src: string;
+  srcset?: Partial<Record<"600" | "1200" | "2400", string>>;
+  w: number;
+  h: number;
+};
+
 export type ArtManifest = {
   version: number;
   generated_at?: string;
   talents: Record<string, ArtTalent>;
-  scenes?: Record<string, unknown>;
+  scenes?: Record<string, ArtScene>;
 };
 
 export const ART_MANIFEST_URL = process.env.NEXT_PUBLIC_ART_MANIFEST_URL || "/art/manifest.json";

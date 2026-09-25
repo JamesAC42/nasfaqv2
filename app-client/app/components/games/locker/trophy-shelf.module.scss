@@ -24,6 +24,12 @@
 }
 
 // Faint back wall panelling.
+// The lit display case behind the pinned cards.
+.caseArt {
+  opacity: 0.85;
+  pointer-events: none;
+}
+
 .wall {
   position: absolute;
   inset: 0;

@@ -7,6 +7,7 @@ import { TimerBar } from "@/app/components/games/shared/timer-bar";
 import { fmtInteger, fmtNumber } from "@/app/lib/format";
 import type { BlackjackCard, BlackjackSeat, BlackjackTable } from "@/app/lib/games/types";
 import { BJ_TURN_MS, CHIP_COLOR, chipLabel, chipStack, handValue, netOf, valueText, wagerOf } from "@/app/components/games/blackjack/bj-utils";
+import { SceneArt } from "@/app/components/common/scene-art";
 import styles from "@/app/components/games/blackjack/bj-parts.module.scss";
 
 const chipStyle = (value: number) => {
@@ -18,6 +19,7 @@ const chipStyle = (value: number) => {
 export function Chip({ value, size = 44 }: { value: number; size?: number }) {
   return (
     <span className={styles.chip} style={{ ...chipStyle(value), "--size": `${size}px` } as CSSProperties} aria-hidden="true">
+      <SceneArt slot="games.chip" fill width={size * 2} className={styles.chipArt} />
       <b>{chipLabel(value)}</b>
     </span>
   );

@@ -1,0 +1,687 @@
+@use "../../styles/mixins" as *;
+
+// Legal reading layout (privacy + usage policy). Terminal chrome, book-like text column.
+
+$toc-w: 14.5rem;
+$measure: 44rem; // ~70 characters of body copy
+$sticky-top: calc(var(--rail-height) + var(--tape-height) + 1.25rem);
+
+.page {
+  width: 100%;
+  min-width: 0;
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+// ── Header ─────────────────────────────────────────────────────────────────
+.head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 1.5rem 2.5rem;
+  padding: 0.5rem 0 1.5rem;
+  border-bottom: 1px solid var(--rule);
+
+  h1 {
+    @include display(clamp(2.1rem, 5vw, 3.25rem));
+    margin: 0.9rem 0 0.55rem;
+    line-height: 1;
+    color: var(--text);
+  }
+}
+
+.headText {
+  min-width: 0;
+}
+
+.switch {
+  @include tabs;
+
+  a {
+    @include tab;
+    padding: 0.45rem 0.8rem;
+    text-decoration: none;
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+
+    &[aria-current="page"] {
+      @include tab-selected;
+    }
+  }
+}
+
+.meta {
+  @include num(normal);
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text);
+
+  span {
+    @include label;
+    margin-right: 0.35rem;
+  }
+}
+
+.intro {
+  max-width: $measure;
+  margin-top: 1rem;
+
+  p {
+    margin: 0;
+    font-size: 1.0625rem;
+    line-height: 1.65;
+    color: var(--mid);
+  }
+
+  strong {
+    color: var(--text);
+    font-weight: 700;
+  }
+
+  a {
+    color: var(--blue);
+    text-underline-offset: 0.18em;
+  }
+}
+
+.spot {
+  width: 11rem;
+  align-self: center;
+
+  @include phone {
+    display: none;
+  }
+}
+
+// ── The short version ──────────────────────────────────────────────────────
+.short {
+  margin: 1.5rem 0 0;
+  padding: 1.1rem 1.25rem 1rem;
+  background: var(--ink-2);
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--blue);
+  border-radius: var(--radius-sm);
+
+  h2 {
+    @include section-heading;
+    margin: 0 0 0.75rem;
+    color: var(--blue);
+  }
+
+  ul {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem 2rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    @include tablet-down {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  li {
+    position: relative;
+    min-width: 0;
+    padding-left: 1.2rem;
+    font-size: 0.975rem;
+    line-height: 1.55;
+    color: var(--text);
+
+    &::before {
+      content: ">";
+      position: absolute;
+      left: 0;
+      top: 0.05em;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: var(--blue);
+    }
+  }
+
+  strong {
+    font-weight: 700;
+  }
+
+  a {
+    color: var(--blue);
+    text-underline-offset: 0.18em;
+  }
+
+  @include phone {
+    padding: 1rem 1rem 0.9rem;
+  }
+}
+
+.shortNote {
+  @include label;
+  margin: 0.95rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rule);
+  letter-spacing: 0.08em;
+  text-transform: none;
+  font-size: 0.6875rem;
+}
+
+// ── Body grid ──────────────────────────────────────────────────────────────
+.layout {
+  display: grid;
+  grid-template-columns: $toc-w minmax(0, $measure);
+  justify-content: start;
+  gap: 3.5rem;
+  margin-top: 2rem;
+
+  @include desktop-down {
+    gap: 2.5rem;
+  }
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    margin-top: 1.25rem;
+  }
+}
+
+// Desktop: sticky list
+.toc {
+  position: sticky;
+  top: $sticky-top;
+  align-self: start;
+  max-height: calc(100vh - var(--rail-height) - var(--tape-height) - 2.5rem);
+  overflow-y: auto;
+  padding-top: 0.2rem;
+
+  @include tablet-down {
+    display: none;
+  }
+
+  ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-left: 1px solid var(--rule);
+  }
+
+  a {
+    display: grid;
+    grid-template-columns: 1.6rem minmax(0, 1fr);
+    gap: 0.35rem;
+    margin-left: -1px;
+    padding: 0.36rem 0.5rem 0.36rem 0.8rem;
+    border-left: 2px solid transparent;
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    color: var(--dim);
+    text-decoration: none;
+    transition:
+      color var(--dur-fast) ease,
+      border-color var(--dur-fast) ease;
+
+    &:hover {
+      color: var(--text);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+
+    &[aria-current="location"] {
+      color: var(--text);
+      border-left-color: var(--blue);
+
+      .tocNum {
+        color: var(--blue);
+      }
+    }
+  }
+}
+
+.tocHead {
+  @include section-heading;
+  margin: 0 0 0.7rem;
+}
+
+.tocNum {
+  @include num;
+  font-size: 0.6875rem;
+  padding-top: 0.12em;
+  color: var(--dim);
+}
+
+// Tablet + phone: collapsible "On this page"
+.tocMobile {
+  display: none;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+
+  @include tablet-down {
+    display: block;
+  }
+
+  summary {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 0.1rem;
+    cursor: pointer;
+    list-style: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+
+    > span:first-child {
+      @include section-heading;
+    }
+
+    &::after {
+      content: "+";
+      margin-left: auto;
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      line-height: 1;
+      color: var(--blue);
+    }
+  }
+
+  &[open] summary::after {
+    content: "−";
+  }
+
+  ol {
+    margin: 0;
+    padding: 0 0 0.6rem;
+    list-style: none;
+  }
+
+  a {
+    display: grid;
+    grid-template-columns: 1.8rem minmax(0, 1fr);
+    gap: 0.3rem;
+    padding: 0.55rem 0.1rem;
+    border-top: 1px solid var(--rule);
+    font-size: 0.9375rem;
+    line-height: 1.35;
+    color: var(--mid);
+    text-decoration: none;
+
+    &[aria-current="location"] {
+      color: var(--text);
+
+      .tocNum {
+        color: var(--blue);
+      }
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.tocCount {
+  @include label;
+  letter-spacing: 0.08em;
+}
+
+// ── Sections ───────────────────────────────────────────────────────────────
+.body {
+  min-width: 0;
+}
+
+.section {
+  padding: 2rem 0 0.5rem;
+  border-top: 1px solid var(--rule);
+  scroll-margin-top: calc(var(--rail-height) + var(--tape-height) + 0.75rem);
+
+  &:first-child {
+    border-top: 0;
+    padding-top: 0.25rem;
+
+    @include tablet-down {
+      padding-top: 1.5rem;
+    }
+  }
+
+  @include phone {
+    padding-top: 1.6rem;
+  }
+}
+
+.sectionHead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+  font-weight: 400;
+}
+
+.num {
+  @include num;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--blue);
+}
+
+.sectionTitle {
+  @include display(clamp(1.3rem, 2.4vw, 1.6rem));
+  line-height: 1.15;
+  color: var(--text);
+}
+
+.anchor {
+  @include num;
+  font-size: 0.875rem;
+  color: var(--dim);
+  text-decoration: none;
+  opacity: 0.55;
+  transition:
+    opacity var(--dur-fast) ease,
+    color var(--dur-fast) ease;
+
+  &:hover,
+  &:focus-visible {
+    opacity: 1;
+    color: var(--blue);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  @include hover-device {
+    opacity: 0;
+
+    .section:hover & {
+      opacity: 0.8;
+    }
+  }
+}
+
+// Body copy
+.prose {
+  font-size: 1rem;
+  line-height: 1.72;
+  color: var(--mid);
+
+  :where(p, ul, ol, dl, h3) {
+    margin: 0;
+  }
+
+  > * + * {
+    margin-top: 0.9rem;
+  }
+
+  > * + h3 {
+    margin-top: 1.75rem;
+  }
+
+  > h3 + * {
+    margin-top: 0.45rem;
+  }
+
+  h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--text);
+  }
+
+  strong {
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  a {
+    color: var(--blue);
+    text-decoration: underline;
+    text-decoration-color: var(--blue-line);
+    text-underline-offset: 0.18em;
+    overflow-wrap: anywhere;
+
+    &:hover {
+      text-decoration-color: currentColor;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+
+  code {
+    @include num(normal);
+    padding: 0.05em 0.35em;
+    font-size: 0.8125em;
+    color: var(--text);
+    background: var(--ink-3);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-sm);
+    overflow-wrap: anywhere;
+  }
+
+  ul,
+  ol {
+    padding-left: 0;
+    list-style: none;
+  }
+
+  ul > li,
+  ol > li {
+    position: relative;
+    padding-left: 1.35rem;
+
+    + li {
+      margin-top: 0.45rem;
+    }
+  }
+
+  ul > li::before {
+    content: "";
+    position: absolute;
+    left: 0.3rem;
+    top: 0.78em;
+    width: 0.45rem;
+    height: 1px;
+    background: var(--dim);
+  }
+
+  ol {
+    counter-reset: item;
+  }
+
+  ol > li {
+    counter-increment: item;
+
+    &::before {
+      content: counter(item) ".";
+      position: absolute;
+      left: 0;
+      @include num;
+      font-size: 0.8125rem;
+      line-height: 2.1;
+      color: var(--dim);
+    }
+  }
+}
+
+// Label → detail rows
+.facts {
+  border-top: 1px solid var(--rule);
+}
+
+.fact {
+  display: grid;
+  grid-template-columns: 10.5rem minmax(0, 1fr);
+  gap: 0.25rem 1.25rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--rule);
+
+  dt {
+    @include section-heading;
+    padding-top: 0.3rem;
+    line-height: 1.45;
+  }
+
+  dd {
+    margin: 0;
+    min-width: 0;
+
+    > * + * {
+      margin-top: 0.5rem;
+    }
+
+    p {
+      margin: 0;
+    }
+
+    ul {
+      margin-top: 0.35rem;
+    }
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.3rem;
+
+    dt {
+      padding-top: 0;
+    }
+  }
+}
+
+.factsMono .fact {
+  grid-template-columns: 13.5rem minmax(0, 1fr);
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.factsMono .fact dt {
+  @include num(normal);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.callout {
+  padding: 0.9rem 1.1rem;
+  background: var(--blue-wash);
+  border: 1px solid var(--blue-line);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+
+  p {
+    margin: 0;
+  }
+
+  > * + * {
+    margin-top: 0.5rem;
+  }
+}
+
+.calloutTitle {
+  @include section-heading;
+  color: var(--blue) !important;
+}
+
+// ── End of document ────────────────────────────────────────────────────────
+.end {
+  display: grid;
+  gap: 1rem;
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--rule);
+}
+
+.endCard {
+  position: relative;
+  display: grid;
+  gap: 0.2rem;
+  padding: 1rem 3rem 1rem 1.1rem;
+  background: var(--ink-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color var(--dur-fast) ease;
+
+  &:hover {
+    border-color: var(--blue-line);
+
+    .endArrow {
+      transform: translateX(3px);
+    }
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  strong {
+    @include display(1.35rem);
+    line-height: 1.2;
+  }
+}
+
+.endLabel {
+  @include label;
+  color: var(--blue);
+}
+
+.endBlurb {
+  font-size: 0.9rem;
+  color: var(--mid);
+}
+
+.endArrow {
+  position: absolute;
+  right: 1.1rem;
+  top: 50%;
+  margin-top: -0.7rem;
+  font-family: var(--font-mono);
+  font-size: 1.2rem;
+  line-height: 1.4rem;
+  color: var(--blue);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.endMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  font-size: 0.9rem;
+  color: var(--mid);
+
+  p {
+    margin: 0;
+  }
+
+  a {
+    color: var(--blue);
+    text-underline-offset: 0.18em;
+  }
+}
+
+.backTop {
+  @include label;
+  color: var(--blue) !important;
+  text-decoration: none;
+}
+
+:global(html[data-calm="true"]) .endCard:hover .endArrow {
+  transform: none;
+}

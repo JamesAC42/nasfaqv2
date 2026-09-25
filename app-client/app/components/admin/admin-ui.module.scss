@@ -1,0 +1,475 @@
+@use "../../styles/mixins" as *;
+
+// Shared pieces for the /admin pages. Hairlines between sections, mono numbers, small radii.
+
+.section {
+  min-width: 0;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--rule);
+  scroll-margin-top: 4rem;
+}
+
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.8rem;
+  padding: 1.1rem 0 0.7rem;
+  min-width: 0;
+
+  h2 {
+    @include section-heading;
+    margin: 0;
+
+    b {
+      @include num;
+      margin-left: 0.45rem;
+      color: var(--dim);
+
+      &[data-tone="warn"] {
+        color: var(--warn);
+      }
+    }
+  }
+}
+
+.hint {
+  min-width: 0;
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+.sectionActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+  margin-left: auto;
+}
+
+// ── Notices ────────────────────────────────────────────────────────────────
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin: 0.75rem 0 0;
+  padding: 0.55rem 0.75rem;
+  border-left: 2px solid var(--warn);
+  background: var(--warn-wash);
+  font-size: 0.85rem;
+  color: var(--text);
+  overflow-wrap: anywhere;
+
+  span {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  &[data-tone="ok"] {
+    border-left-color: var(--blue);
+    background: var(--blue-wash);
+  }
+
+  &[data-tone="info"] {
+    border-left-color: var(--rule-2);
+    background: transparent;
+    color: var(--mid);
+  }
+
+  button {
+    flex: 0 0 auto;
+    border: 0;
+    background: none;
+    color: var(--dim);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--text);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.inlineError {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--warn);
+  overflow-wrap: anywhere;
+}
+
+.inlineOk {
+  @include label;
+  margin: 0;
+  color: var(--blue);
+}
+
+// ── Stat strip ─────────────────────────────────────────────────────────────
+.strip {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
+  border-bottom: 1px solid var(--rule);
+
+  @include tablet-down {
+    grid-template-columns: repeat(var(--cols-tablet, 4), minmax(0, 1fr));
+  }
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.stat {
+  display: grid;
+  align-content: start;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0.75rem 0.9rem;
+  border-left: 1px solid var(--rule);
+  border-top: 1px solid var(--rule);
+  margin-top: -1px;
+  margin-left: -1px;
+  color: var(--text);
+  text-decoration: none;
+
+  small {
+    @include label;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  b {
+    @include num(wide);
+    font-size: 1.35rem;
+    font-weight: 500;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  em {
+    font-style: normal;
+    font-size: 0.72rem;
+    color: var(--dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &[data-tone="warn"] b {
+    color: var(--warn);
+  }
+
+  &[data-tone="blue"] b {
+    color: var(--blue);
+  }
+
+  &[data-tone="dim"] b {
+    color: var(--dim);
+  }
+
+  @at-root a#{&}:hover small {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  @include phone {
+    padding: 0.6rem 0.7rem;
+
+    b {
+      font-size: 1.15rem;
+    }
+  }
+}
+
+// The strip clips its outer hairlines so cells only show inner rules.
+.stripWrap {
+  overflow: hidden;
+  min-width: 0;
+}
+
+// ── Buttons ────────────────────────────────────────────────────────────────
+.btn {
+  @include button-secondary;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.625rem;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.btnPrimary {
+  @include button-primary;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.625rem;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.btnDanger {
+  @include button-secondary;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.625rem;
+  white-space: nowrap;
+  color: var(--down);
+  border-color: color-mix(in srgb, var(--down) 40%, var(--rule-2));
+
+  &:hover:not(:disabled) {
+    border-color: var(--down);
+  }
+}
+
+.btnDangerSolid {
+  @include button-base;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.625rem;
+  white-space: nowrap;
+  background: var(--down);
+  border-color: var(--down);
+  color: var(--down-ink);
+}
+
+.btnGhost {
+  @include button-base;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.625rem;
+  border-color: transparent;
+  color: var(--dim);
+
+  &:hover:not(:disabled) {
+    color: var(--text);
+  }
+}
+
+// ── Inputs ─────────────────────────────────────────────────────────────────
+.field {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+
+  > span {
+    @include label;
+    font-size: 0.58rem;
+    white-space: nowrap;
+  }
+}
+
+.input {
+  @include input-base;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+  min-width: 0;
+}
+
+.inputNum {
+  @include input-base;
+  @include num;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.85rem;
+  min-width: 0;
+}
+
+.select {
+  @include input-base;
+  padding: 0.42rem 0.5rem;
+  font-size: 0.82rem;
+  min-width: 0;
+}
+
+.file {
+  @include input-base;
+  padding: 0.35rem 0.45rem;
+  font-size: 0.78rem;
+  min-width: 0;
+
+  &::file-selector-button {
+    @include button-base;
+    padding: 0.3rem 0.55rem;
+    margin-right: 0.6rem;
+    font-size: 0.58rem;
+    background: var(--ink-3);
+  }
+}
+
+// ── Switch ─────────────────────────────────────────────────────────────────
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.25rem 0.5rem 0.25rem 0.3rem;
+  border: 1px solid var(--rule-2);
+  border-radius: 999px;
+  background: none;
+  color: var(--dim);
+  cursor: pointer;
+  white-space: nowrap;
+
+  i {
+    position: relative;
+    flex: 0 0 auto;
+    width: 1.9rem;
+    height: 1.05rem;
+    border-radius: 999px;
+    background: var(--ink-3);
+    border: 1px solid var(--rule-2);
+    transition: background-color var(--dur-fast) ease;
+
+    &::after {
+      content: "";
+      position: absolute;
+      top: 1px;
+      left: 1px;
+      width: calc(1.05rem - 4px);
+      height: calc(1.05rem - 4px);
+      border-radius: 50%;
+      background: var(--mid);
+      transition: transform var(--dur-fast) var(--ease-out);
+    }
+  }
+
+  span {
+    @include label;
+    min-width: 1.6rem;
+  }
+
+  &[aria-checked="true"] {
+    border-color: var(--blue-line);
+
+    i {
+      background: var(--blue);
+      border-color: var(--blue);
+
+      &::after {
+        transform: translateX(0.85rem);
+        background: var(--blue-ink);
+      }
+    }
+
+    span {
+      color: var(--blue);
+    }
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+// ── Tabs ───────────────────────────────────────────────────────────────────
+.tabs {
+  display: flex;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--rule);
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  button {
+    @include label;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    padding: 0.8rem 0.85rem 0.7rem;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: none;
+    color: var(--mid);
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:first-child {
+      padding-left: 0;
+    }
+
+    small {
+      @include num;
+      font-size: 0.66rem;
+      color: var(--dim);
+
+      &[data-tone="warn"] {
+        color: var(--warn);
+      }
+    }
+
+    &:hover {
+      color: var(--text);
+    }
+
+    &[aria-selected="true"] {
+      color: var(--text);
+      border-bottom-color: var(--text);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+// ── Pills ──────────────────────────────────────────────────────────────────
+.pill {
+  @include label;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.12rem 0.4rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  font-size: 0.58rem;
+  color: var(--mid);
+  white-space: nowrap;
+
+  &[data-tone="blue"] {
+    color: var(--blue);
+    border-color: var(--blue-line);
+  }
+
+  &[data-tone="warn"] {
+    color: var(--warn);
+    border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  }
+
+  &[data-tone="dim"] {
+    color: var(--dim);
+  }
+
+  i {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 50%;
+    background: currentColor;
+  }
+}
+
+.empty {
+  margin: 0;
+  padding: 0.9rem 0;
+  font-size: 0.85rem;
+  color: var(--dim);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

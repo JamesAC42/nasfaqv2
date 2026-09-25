@@ -49,7 +49,9 @@
   height: 96px;
 
   @include phone {
-    position: static;
+    position: relative;
+    top: auto;
+    right: auto;
     width: 72px;
     height: 72px;
   }

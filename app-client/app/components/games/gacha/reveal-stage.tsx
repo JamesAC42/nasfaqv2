@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { createPortal } from "react-dom";
 import { FiX } from "react-icons/fi";
 import { isCalm } from "@/app/providers/motion-provider";
+import { SceneArt } from "@/app/components/common/scene-art";
 import styles from "@/app/components/games/gacha/reveal-stage.module.scss";
 
 // The pull reveal: a full-screen stage over the page. Cards (or capsules) arrive face down with a
@@ -253,6 +254,7 @@ function Stage({ items, title, stats, againLabel, onAgain, againBusy, againError
       style={{ "--aura": aura ?? "#3fb8f5" } as CSSProperties}
     >
       <div className={styles.backdrop} aria-hidden="true">
+        <SceneArt slot="games.reveal-stage" fill width={1920} priority className={styles.scene} />
         <span className={styles.rays} />
         <span className={styles.floor} />
       </div>

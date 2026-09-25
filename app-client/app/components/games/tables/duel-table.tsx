@@ -28,6 +28,7 @@ import { useRemaining } from "@/app/lib/games/use-remaining";
 import { talentAccent } from "@/app/lib/talent-color";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useProfileStore } from "@/app/stores/profile-store";
+import { SceneArt } from "@/app/components/common/scene-art";
 import styles from "@/app/components/games/tables/duel-table.module.scss";
 
 // Oshi Card Duel table (GAMES_DESIGN.md §3). Opponent's deck across the top, yours across the
@@ -309,6 +310,7 @@ function DuelBoard({ table, mySeat }: { table: GameTable<DuelState>; mySeat: num
   return (
     <div className={styles.layout}>
       <div className={styles.board} data-phase={done ? "done" : state.phase}>
+        <SceneArt slot="games.table-mat" fill width={1100} className={styles.matArt} />
         <div className={styles.seatRow} data-place="top">
           {renderPlate(top, "top")}
           {renderDeck(top, "top")}

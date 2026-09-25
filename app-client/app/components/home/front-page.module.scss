@@ -127,6 +127,15 @@ a.label:hover {
   }
 }
 
+.newbieArt {
+  flex: 0 0 8.25rem;
+  margin: -0.4rem 0;
+
+  @include phone {
+    display: none;
+  }
+}
+
 .newbieActions {
   display: flex;
   gap: 0.5rem;
@@ -266,6 +275,13 @@ a.label:hover {
   width: 72px;
   height: 72px;
   object-fit: cover;
+}
+
+// A picture-less story with no talent: the HoloNews stand-in fills the same box.
+.thumbBox {
+  position: relative;
+  flex: none;
+  overflow: hidden;
 }
 
 .more {

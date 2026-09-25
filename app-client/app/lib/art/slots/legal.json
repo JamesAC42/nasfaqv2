@@ -1,0 +1,29 @@
+{
+  "area": "legal",
+  "slots": [
+    {
+      "id": "legal.privacy-spot",
+      "title": "Privacy Policy: header spot",
+      "where": ["/privacy"],
+      "kind": "spot",
+      "w": 768,
+      "h": 768,
+      "transparent": true,
+      "priority": "low",
+      "brief": "A chunky flat-graphic padlock fused with a small retro CRT terminal: the screen shows abstract blue bar-chart glyphs (no letters or numbers) and the keyhole glows hololive blue (#3fb8f5). A few halftone dots and thin hairline sparkles around it. Clean vector shapes, blue key colour with deep ink-navy (#0a0c11) shading and one crisp white highlight. Centred, three-quarter view, generous padding.",
+      "notes": "Shown at about 176px to the right of the page title on desktop, hidden on phones, over both light and dark page backgrounds: bold silhouette, few details, transparent background, no text."
+    },
+    {
+      "id": "legal.terms-spot",
+      "title": "Usage policy: header spot",
+      "where": ["/terms"],
+      "kind": "spot",
+      "w": 768,
+      "h": 768,
+      "transparent": true,
+      "priority": "low",
+      "brief": "A small closed rulebook with a blue bookmark ribbon, a referee's whistle resting on it, and two stacked poker-style play-money chips leaning against it (plain star emblem on the chips, no letters, numbers or currency signs). Clean flat-graphic vector shapes with light halftone shading, hololive blue (#3fb8f5) as the key colour, deep ink-navy (#0a0c11) shading and one crisp white highlight. Centred, three-quarter view, generous padding.",
+      "notes": "Shown at about 176px to the right of the page title on desktop, hidden on phones, over both light and dark page backgrounds: bold silhouette, few details, transparent background, no text."
+    }
+  ]
+}

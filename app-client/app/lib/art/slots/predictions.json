@@ -1,0 +1,77 @@
+{
+  "area": "predictions",
+  "slots": [
+    {
+      "id": "predictions.og",
+      "title": "Share image: predictions",
+      "where": ["/predictions", "/predictions/[slug] (default)"],
+      "kind": "social",
+      "w": 1200,
+      "h": 630,
+      "transparent": false,
+      "priority": "medium",
+      "brief": "A betting board for calls: a big split price bar glowing hololive blue (#3fb8f5) on one side and warm orange on the other, floating yes/no ballot tokens, a crystal ball on a small stand reflecting a stock chart, faint probability curves across a dark ink (#0a0c11) background. Flat shapes, halftone bloom. Left 45% calm for the title composited later.",
+      "notes": "Safe area: centre 1080×566. No text or numbers. Not wired yet: app/predictions/page.tsx and [slug]/page.tsx export no metadata today; add metadata.openGraph.images there once served at /art/og/predictions.png with metadataBase set. A per-market card could later composite the market title over this plate."
+    },
+    {
+      "id": "predictions.hero",
+      "title": "Predictions: header backdrop",
+      "where": ["/predictions", "/predictions/portfolio", "/predictions/create"],
+      "kind": "backdrop",
+      "w": 2400,
+      "h": 500,
+      "transparent": false,
+      "priority": "medium",
+      "brief": "A wide, low strip: a long glowing tote board of probability bars and small yes/no tokens receding to the right, a faint crystal ball silhouette and a few floating ballot slips, soft haze. Dark ink (#0a0c11) with hololive blue (#3fb8f5) and a little warm orange. The left 50% fades to near-black (page title and blurb sit there).",
+      "notes": "Behind the page header (kicker, title, blurb), which is ~120px tall; the UI masks it so it fades out to the left and bottom. On phones it is cropped to the right. No text or numbers."
+    },
+    {
+      "id": "predictions.floor-empty",
+      "title": "Predictions: nothing on this tab",
+      "where": ["/predictions (empty tab or search)"],
+      "kind": "spot",
+      "w": 800,
+      "h": 600,
+      "transparent": true,
+      "priority": "low",
+      "brief": "An empty betting window: a small ticket booth with its shutter half down, a 'back soon' clock sign with no text on it, a crystal ball resting on the counter showing only swirling mist. Muted blues and greys with a hololive-blue (#3fb8f5) glow in the ball. Flat shapes, halftone.",
+      "notes": "Above the empty-tab message, ~200px wide, centred. Transparent background."
+    },
+    {
+      "id": "predictions.portfolio-empty",
+      "title": "My bets: no open bets",
+      "where": ["/predictions/portfolio (no open positions)"],
+      "kind": "spot",
+      "w": 800,
+      "h": 600,
+      "transparent": true,
+      "priority": "medium",
+      "brief": "A fresh pad of blank bet slips and a pen on a desk, a single yes/no token balanced on its edge about to fall either way, a tiny crystal ball glinting beside it. Hololive blue (#3fb8f5) and warm orange accents, flat shapes, halftone.",
+      "notes": "Above 'No open bets. Hit the floor and make a call', ~200px wide. Transparent background."
+    },
+    {
+      "id": "predictions.event-mark",
+      "title": "Prediction market: event badge",
+      "where": ["/predictions/[slug] (event markets with no talent or image)"],
+      "kind": "icon",
+      "w": 256,
+      "h": 256,
+      "transparent": true,
+      "priority": "low",
+      "brief": "A compact emblem for 'an event call': a crystal ball on a small stand with a tiny up-arrow and down-arrow orbiting it, hololive blue (#3fb8f5) glass, dark outline. Flat, bold, readable at 44px.",
+      "notes": "Shown in the market header where talent markets show the talent's logo. If a market has a featured_image_url that image is shown instead."
+    },
+    {
+      "id": "predictions.verdict",
+      "title": "Prediction market: the call is in",
+      "where": ["/predictions/[slug] (resolved binary market)"],
+      "kind": "spot",
+      "w": 512,
+      "h": 512,
+      "transparent": true,
+      "priority": "low",
+      "brief": "A judge's gavel mid-strike on a round sound block, a burst of flat impact lines and a few confetti bits, plus a rubber stamp shape beside it. Hololive blue (#3fb8f5) and white with warm wood tones. Flat shapes, halftone.",
+      "notes": "Beside the big 'The call: YES/NO' verdict, ~96px. The verdict colour comes from the UI, so keep the art neutral."
+    }
+  ]
+}

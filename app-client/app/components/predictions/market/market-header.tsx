@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
+import { SceneArt } from "@/app/components/common/scene-art";
 import { centsFine, inkOn, statusOf, useNow } from "@/app/components/predictions/market/shared";
 import { cents, centsDelta, compactMoney, outcomeColor, percent, TEMPLATE_LABEL, timeAgo, timeLeft } from "@/app/lib/predictions/format";
 import type { Outcome, PredictionMarketDetail } from "@/app/lib/predictions/types";
@@ -40,6 +41,15 @@ export function MarketHeader({ market, talent }: { market: PredictionMarketDetai
       {talent ? (
         <span className={styles.headMark} style={{ "--tal": talent.color ?? "var(--blue)" } as CSSProperties}>
           <Oshimark icon={talent.icon} symbol={talent.symbol} size={44} title={talent.name ?? talent.symbol} />
+        </span>
+      ) : market.kind === "event" ? (
+        <span className={`${styles.headMark} ${styles.eventMark}`}>
+          {market.featured_image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={market.featured_image_url} alt="" className={styles.eventImg} loading="eager" decoding="async" />
+          ) : (
+            <SceneArt slot="predictions.event-mark" width={44} className={styles.eventArt} />
+          )}
         </span>
       ) : null}
       <div className={styles.headText}>
@@ -105,6 +115,7 @@ export function MarketCall({ market, order, flash, onBuy }: { market: Prediction
       const color = winner ? outcomeColor(market, winner) : "var(--dim)";
       return (
         <section className={styles.verdict} style={{ "--oc": color } as CSSProperties} aria-label="Result">
+          {market.status === "voided" ? null : <SceneArt slot="predictions.verdict" width={96} className={styles.verdictArt} />}
           <small>{market.status === "voided" ? "No contest" : "The call"}</small>
           <strong>{market.status === "voided" ? "VOID" : upperLabel(winner)}</strong>
           <p>{market.status === "voided" ? "Voided. Everyone got their net cost back." : `${winner?.label ?? "?"} shares paid $1.00. Last traded at ${percent(yes.price)} ${yes.label}.`}</p>

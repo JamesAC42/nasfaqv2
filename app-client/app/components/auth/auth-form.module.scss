@@ -282,6 +282,13 @@
   }
 }
 
+// Bleeds to the panel edges above the heading.
+.pitch .pitchArt {
+  max-width: none;
+  margin: -1.5rem -1.5rem 0.2rem;
+  border-bottom: 1px solid var(--rule);
+}
+
 .chibi {
   position: absolute;
   top: 0.6rem;

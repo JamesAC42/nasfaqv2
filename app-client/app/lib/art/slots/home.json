@@ -1,0 +1,17 @@
+{
+  "area": "home",
+  "slots": [
+    {
+      "id": "home.welcome",
+      "title": "Home: new-here starter kit",
+      "where": ["/ (signed-out 'New here?' strip)"],
+      "kind": "spot",
+      "w": 768,
+      "h": 512,
+      "transparent": true,
+      "priority": "medium",
+      "brief": "A starter kit laid out like a gift: a fat stack of play-money bills in a paper band stamped with a hololive-blue (#3fb8f5) diamond, a blank lanyard trader badge draped over it, and a tiny ticker screen propped beside it showing a single blue up-arrow. A couple of sparkles. Flat graphic shapes, halftone shading, white and blue with warm paper tones.",
+      "notes": "Sits at the left end of the 'New here? Everyone starts with $10,000' strip, about 132px wide, vertically centred; hidden on phones. Transparent background, readable silhouette at small size, no numbers on the bills."
+    }
+  ]
+}

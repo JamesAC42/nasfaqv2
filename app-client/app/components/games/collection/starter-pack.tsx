@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, type CSSProperties } from "react";
+import { SceneArt } from "@/app/components/common/scene-art";
 import { CardBack, TalentCard } from "@/app/components/games/cards/talent-card";
 import { claimReward } from "@/app/lib/games/api";
 import { gameErrorText } from "@/app/lib/games/errors";
@@ -99,6 +100,7 @@ export function StarterPack({ onDone }: { onDone: () => void }) {
             <CardBack width={104} glow={index === 2 ? "R" : null} />
           </span>
         ))}
+        <SceneArt slot="games.starter-pack" width={150} className={styles.packArt} />
       </div>
     </section>
   );

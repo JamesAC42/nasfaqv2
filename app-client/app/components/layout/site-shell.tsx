@@ -187,6 +187,16 @@ export function SiteShell({
   }, []);
 
   const visiblePendingOrders = user ? pendingOrders : [];
+  // Staff get a way into the back office (/admin); everyone else never sees it.
+  const isStaffUser = Boolean(
+    user &&
+      (user.is_admin ||
+        user.can_manage_assets ||
+        user.can_create_prediction_markets ||
+        user.can_approve_prediction_markets ||
+        user.can_resolve_prediction_markets ||
+        user.can_void_prediction_markets),
+  );
   const profileHref = user ? "/profile" : "/login";
   const profileInitial = user?.username?.trim()?.charAt(0)?.toUpperCase() || "N";
   const profileImageUrl = user?.profile_picture_url?.trim() || null;
@@ -258,6 +268,11 @@ export function SiteShell({
                 </div>
               );
             })}
+            {isStaffUser ? (
+              <Link href="/admin" className={styles.navItem} aria-current={isActivePath(pathname, "/admin") ? "page" : undefined}>
+                Admin
+              </Link>
+            ) : null}
           </nav>
 
           <div className={styles.spacer} />

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { ArtSlot } from "@/app/components/common/art-slot";
+import { SceneArt } from "@/app/components/common/scene-art";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -52,7 +52,7 @@ function VerifyEmail() {
 
   return (
     <section className={styles.card} aria-live="polite">
-      <ArtSlot kind="chibi" pose={status === "success" ? "hype" : status === "error" ? "shock" : "idle"} symbol="VERIFY" accent="var(--blue)" width={120} className={styles.chibi} />
+      <SceneArt key={status} slot={status === "success" ? "site.verify-ok" : status === "error" ? "site.verify-failed" : "site.verify-pending"} width={96} className={styles.chibi} />
       {status === "pending" ? (
         <>
           <span className={styles.kicker}>CHECKING</span>

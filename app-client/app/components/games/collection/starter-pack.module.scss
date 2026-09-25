@@ -98,6 +98,25 @@
   }
 }
 
+// Drop-in: the sealed pack stands in front of the fan once its art exists.
+.packArt {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 1;
+  width: 7.5rem;
+  transform: translateX(-50%) rotate(-4deg);
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.5));
+
+  &[data-slot] {
+    display: none;
+  }
+
+  @include phone {
+    width: 6.5rem;
+  }
+}
+
 @keyframes fanIn {
   from {
     transform: rotate(0deg) translateY(12px);

@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { CSSProperties } from "react";
 import { FaPlus } from "react-icons/fa6";
 import { Oshimark } from "@/app/components/common/oshimark";
+import { SceneArt } from "@/app/components/common/scene-art";
 import { TalentCard } from "@/app/components/games/cards/talent-card";
 import { MAX_STARS, RARITY_NAME } from "@/app/lib/games/rarity";
 import type { TalentCard as Card } from "@/app/lib/games/types";
@@ -29,6 +30,7 @@ export function TrophyShelf({ cards, editable = false, owner }: Props) {
   if (!filled.length && !editable) {
     return (
       <section className={styles.case} data-empty aria-label="Showcase">
+        <SceneArt slot="games.trophy-case" fill width={1400} className={styles.caseArt} />
         <p className={styles.emptyNote}>{owner ? `${owner} hasn't pinned any cards yet.` : "No cards pinned yet."}</p>
       </section>
     );
@@ -36,6 +38,7 @@ export function TrophyShelf({ cards, editable = false, owner }: Props) {
 
   return (
     <section className={styles.case} aria-label="Showcase">
+      <SceneArt slot="games.trophy-case" fill width={1400} className={styles.caseArt} />
       <span className={styles.wall} aria-hidden="true" />
       <ol className={styles.row}>
         {filled.map((card, index) => (

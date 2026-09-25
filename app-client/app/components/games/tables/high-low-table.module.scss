@@ -52,6 +52,7 @@
 
 .board {
   position: relative;
+  isolation: isolate;
   display: grid;
   gap: 1rem;
   min-width: 0;
@@ -609,5 +610,15 @@
   .delta,
   .between svg {
     animation: none;
+  }
+}
+
+// Drop-in play mat art: hidden while it's a placeholder; once it exists it lies under the board.
+.matArt {
+  z-index: -1;
+  pointer-events: none;
+
+  &[data-slot] {
+    display: none;
   }
 }

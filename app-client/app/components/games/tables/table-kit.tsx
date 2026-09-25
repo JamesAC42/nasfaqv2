@@ -13,6 +13,7 @@ import { useRemaining } from "@/app/lib/games/use-remaining";
 import { fmtNumber } from "@/app/lib/format";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useProfileStore } from "@/app/stores/profile-store";
+import { SceneArt } from "@/app/components/common/scene-art";
 import styles from "@/app/components/games/tables/table-kit.module.scss";
 
 // Shared pieces for the two-player staked tables (Oshi Card Duel, High-low): the live table
@@ -376,6 +377,7 @@ export function ResultMoment({ table, mySeat, detail }: { table: GameTable; mySe
 
   return (
     <div className={styles.moment} data-tone={tone} role="status" aria-live="polite">
+      <SceneArt key={tone} slot={tone === "lose" ? "games.moment-lose" : tone === "draw" ? "games.moment-draw" : "games.moment-win"} width={96} className={styles.momentArt} />
       <span className={styles.momentKicker}>Match over</span>
       <strong className={styles.momentHead}>{headline}</strong>
       {amount ? <span className={styles.momentAmount}>{amount}</span> : null}
