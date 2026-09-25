@@ -261,7 +261,9 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
             <div className={styles.sideSticky}>
               <div className={styles.ticket}>
                 <div className={styles.ticketTop}>
-                  <ArtSlot kind="chibi" pose="idle" symbol={sym} icon={asset.icon} accent={accent} width={72} className={styles.ticketChibi} />
+                  <span className={styles.ticketMark} aria-hidden="true">
+                    <Oshimark icon={asset.icon} symbol={sym} size={34} />
+                  </span>
                   <div>
                     <h2>Trade {sym}</h2>
                     <p>Market order, filled at the next 10-minute batch.</p>

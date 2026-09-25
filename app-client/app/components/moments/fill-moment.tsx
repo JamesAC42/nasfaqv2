@@ -116,35 +116,89 @@ function useOwnFills() {
   }, [user]);
 }
 
+type Slide = FillMoment & { count: number };
+
+/** One slide per stock and side: several fills of the same order side merge (shares add, price averages). */
+function toSlides(fills: FillMoment[]): Slide[] {
+  const by = new Map<string, Slide>();
+  for (const fill of fills) {
+    const key = `${fill.symbol}:${fill.side}`;
+    const prev = by.get(key);
+    if (!prev) {
+      by.set(key, { ...fill, count: 1 });
+      continue;
+    }
+    const quantity = prev.quantity + fill.quantity;
+    by.set(key, {
+      ...prev,
+      quantity,
+      price: (prev.price * prev.quantity + fill.price * fill.quantity) / quantity,
+      gross: prev.gross + fill.gross,
+      fee: prev.fee + fill.fee,
+      realized: prev.realized === null && fill.realized === null ? null : (prev.realized ?? 0) + (fill.realized ?? 0),
+      count: prev.count + 1,
+    });
+  }
+  // Biggest first: the slideshow opens on the trade that matters most.
+  return [...by.values()].sort((a, b) => b.gross - a.gross);
+}
+
+const AUTO_MS = 4200;
+
 export function FillMomentLayer() {
   useOwnFills();
   const fills = useMomentStore((state) => state.fills);
   const dismiss = useMomentStore((state) => state.dismissFill);
   const setFillPopups = useMomentStore((state) => state.setFillPopups);
   const setNotice = useMomentStore((state) => state.setNotice);
-  // One fill, or a whole batch: the biggest trade leads (its talent reacts, its greentext is posted).
-  const fill = useMemo(() => (fills.length ? fills.reduce((best, entry) => (entry.gross > best.gross ? entry : best), fills[0]) : null), [fills]);
+  const slides = useMemo(() => toSlides(fills), [fills]);
+  const multi = slides.length > 1;
+  const pages = multi ? slides.length + 1 : 1; // + the summary page
+  const batchKey = fills.map((fill) => fill.id).join(",");
+  const [view, setView] = useState<{ key: string; index: number; dir: 1 | -1; auto: boolean }>({ key: "", index: 0, dir: 1, auto: true });
+  const index = view.key === batchKey ? Math.min(view.index, pages - 1) : 0;
+  const auto = view.key === batchKey ? view.auto : true;
+  const dir = view.key === batchKey ? view.dir : 1;
+  const onSummary = multi && index === slides.length;
+  const fill = slides.length ? slides[onSummary ? 0 : index] : null;
   const assets = useMarketStore((state) => state.assets);
   const asset = fill ? assets.find((entry) => entry.symbol === fill.symbol) ?? null : null;
   const { theme } = useTheme();
   const { calm } = useMotion();
-  // Per-moment state keyed by the lead fill, so a new moment starts fresh without resetting in an effect.
   const [roll, setRoll] = useState<{ id: string; n: number }>({ id: "", n: 0 });
   const [copiedState, setCopiedState] = useState<{ id: string; text: string } | null>(null);
-  const fillKey = fill?.id ?? "";
-  const seed = (Number(fillKey.replace(/\D/g, "").slice(-6)) || fillKey.length * 97) + (roll.id === fillKey ? roll.n : 0);
-  const copied = copiedState && copiedState.id === fillKey ? copiedState.text : null;
-  const setCopied = (text: string | null) => setCopiedState(text ? { id: fillKey, text } : null);
-  const setSeed = (next: (current: number) => number) => setRoll({ id: fillKey, n: next(roll.id === fillKey ? roll.n : 0) });
   const closeRef = useRef<HTMLButtonElement | null>(null);
+  const swipe = useRef<{ x: number; y: number } | null>(null);
+
+  const fillKey = fill ? `${fill.id}:${index}` : "";
+  const seed = (Number(String(fill?.id ?? "").replace(/\D/g, "").slice(-6)) || fillKey.length * 97) + (roll.id === fillKey ? roll.n : 0);
+  const copied = copiedState && copiedState.id === fillKey ? copiedState.text : null;
+
+  const go = (next: number, manual = true) => {
+    if (!pages) return;
+    const target = (next + pages) % pages;
+    setView({ key: batchKey, index: target, dir: target >= index ? 1 : -1, auto: manual ? false : auto });
+  };
+
+  // The slideshow advances on its own until the player touches it (not in calm mode, not on the summary).
+  useEffect(() => {
+    if (!multi || calm || !auto || onSummary) return;
+    const timer = window.setTimeout(() => setView({ key: batchKey, index: index + 1, dir: 1, auto: true }), AUTO_MS);
+    return () => window.clearTimeout(timer);
+  }, [auto, batchKey, calm, index, multi, onSummary]);
 
   useEffect(() => {
-    if (!fill) return;
+    if (!fills.length) return;
     closeRef.current?.focus();
-    const onKey = (event: KeyboardEvent) => event.key === "Escape" && dismiss();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") dismiss();
+      if (!multi) return;
+      if (event.key === "ArrowRight") setView((current) => ({ key: batchKey, index: Math.min(pages - 1, (current.key === batchKey ? current.index : 0) + 1), dir: 1, auto: false }));
+      if (event.key === "ArrowLeft") setView((current) => ({ key: batchKey, index: Math.max(0, (current.key === batchKey ? current.index : 0) - 1), dir: -1, auto: false }));
+    };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [dismiss, fill]);
+  }, [batchKey, dismiss, fills.length, multi, pages]);
 
   const text = useMemo(() => {
     if (!fill) return "";
@@ -155,20 +209,19 @@ export function FillMomentLayer() {
   }, [fill, seed]);
 
   if (!fill) return null;
-  const batch = fills.length > 1;
-  const buys = fills.filter((entry) => entry.side === "buy");
-  const sells = fills.filter((entry) => entry.side === "sell");
+
+  const buys = slides.filter((entry) => entry.side === "buy");
+  const sells = slides.filter((entry) => entry.side === "sell");
   const spent = buys.reduce((sum, entry) => sum + entry.gross + entry.fee, 0);
   const received = sells.reduce((sum, entry) => sum + entry.gross - entry.fee, 0);
-  const fees = fills.reduce((sum, entry) => sum + entry.fee, 0);
+  const fees = slides.reduce((sum, entry) => sum + entry.fee, 0);
   const realizedKnown = sells.filter((entry) => entry.realized !== null);
   const realized = realizedKnown.length ? realizedKnown.reduce((sum, entry) => sum + (entry.realized ?? 0), 0) : null;
-  const buy = batch ? sells.length === 0 : fill.side === "buy";
-  // Her reaction follows the biggest trade in the batch.
-  const pose = fill.side === "buy" ? "hype" : (fill.realized ?? 0) >= 0 ? "smug" : "cope";
+
+  const buy = fill.side === "buy";
+  const pose = onSummary ? (realized !== null ? (realized >= 0 ? "smug" : "cope") : "hype") : buy ? "hype" : (fill.realized ?? 0) >= 0 ? "smug" : "cope";
   const total = buy ? fill.gross + fill.fee : fill.gross - fill.fee;
-  // A mixed batch is neither a buy nor a sell: blue. All buys green, all sells green or red on P/L.
-  const tone = batch
+  const tone = onSummary
     ? buys.length && sells.length
       ? "var(--blue)"
       : buys.length
@@ -180,15 +233,16 @@ export function FillMomentLayer() {
       ? "var(--up)"
       : "var(--down)";
   const time = new Date(fill.at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/New_York" });
+  const title = onSummary ? `${fills.length} ORDERS FILLED` : buy ? "FILLED" : "SOLD";
 
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied("COPIED");
+      setCopiedState({ id: fillKey, text: "COPIED" });
     } catch {
-      setCopied("COPY FAILED");
+      setCopiedState({ id: fillKey, text: "COPY FAILED" });
     }
-    window.setTimeout(() => setCopied(null), 1800);
+    window.setTimeout(() => setCopiedState(null), 1800);
   };
 
   const toastsOnly = () => {
@@ -197,36 +251,64 @@ export function FillMomentLayer() {
     setNotice("Fill popups off. Fills show here instead; turn them back on from this toast.");
   };
 
+  const onPointerDown = (event: React.PointerEvent) => {
+    swipe.current = { x: event.clientX, y: event.clientY };
+  };
+  const onPointerUp = (event: React.PointerEvent) => {
+    const start = swipe.current;
+    swipe.current = null;
+    if (!multi || !start) return;
+    const dx = event.clientX - start.x;
+    if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(event.clientY - start.y)) go(index + (dx < 0 ? 1 : -1));
+  };
+
   return (
     <div className={styles.scrim} role="dialog" aria-modal="true" aria-labelledby="fill-title" onClick={(event) => event.target === event.currentTarget && dismiss()}>
-      <div className={`${styles.card} ${calm ? "" : styles.play}`} style={{ "--side": tone, "--tal": talentAccent(asset?.color, theme) } as React.CSSProperties}>
+      <div
+        className={`${styles.card} ${calm ? "" : styles.play}`}
+        style={{ "--side": tone, "--tal": talentAccent(asset?.color, theme) } as React.CSSProperties}
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onMouseEnter={() => multi && auto && setView({ key: batchKey, index, dir, auto: false })}
+      >
         <div className={styles.band}>
-          <h2 id="fill-title">{batch ? `${fills.length} ORDERS FILLED` : buy ? "FILLED" : "SOLD"}</h2>
-          <span>{time} ET</span>
+          <h2 id="fill-title" key={title}>
+            {title}
+          </h2>
+          <span>
+            {multi ? `${Math.min(index + 1, pages)}/${pages} · ` : ""}
+            {time} ET
+          </span>
         </div>
-        <div className={styles.body}>
-          <ArtSlot kind="reaction" pose={pose} symbol={fill.symbol} icon={asset?.icon} accent={talentAccent(asset?.color, theme)} width={170} className={styles.art} />
+        {multi && !calm && auto && !onSummary ? <div key={`timer-${index}`} className={styles.timer} style={{ animationDuration: `${AUTO_MS}ms` }} /> : null}
+
+        <div key={`${batchKey}:${index}`} className={`${styles.body} ${calm ? "" : dir > 0 ? styles.fromRight : styles.fromLeft}`}>
+          <div className={styles.artCol}>
+            <ArtSlot kind="reaction" pose={pose} symbol={fill.symbol} icon={asset?.icon} accent={talentAccent(asset?.color, theme)} width={340} vignette fadeLength={0.3} className={styles.art} />
+          </div>
           <div className={styles.info}>
-            {batch ? (
+            {onSummary ? (
               <ul className={styles.rows}>
-                {fills.map((entry) => {
+                {slides.map((entry, slideIndex) => {
                   const rowAsset = assets.find((item) => item.symbol === entry.symbol);
                   return (
-                    <li key={entry.id}>
-                      <Oshimark icon={rowAsset?.icon} symbol={entry.symbol} size={20} />
-                      <b className={entry.side === "buy" ? styles.up : styles.down}>{entry.side === "buy" ? "BUY" : "SELL"}</b>
-                      <span>
-                        {entry.quantity.toLocaleString("en-US")} {entry.symbol}
-                      </span>
-                      <small>@ {entry.price.toFixed(2)}</small>
-                      {entry.realized !== null && entry.side === "sell" ? (
-                        <em className={entry.realized >= 0 ? styles.up : styles.down}>
-                          {entry.realized >= 0 ? "+" : "−"}
-                          {money(Math.abs(entry.realized))}
-                        </em>
-                      ) : (
-                        <em>{money(entry.side === "buy" ? entry.gross + entry.fee : entry.gross - entry.fee)}</em>
-                      )}
+                    <li key={`${entry.symbol}:${entry.side}`}>
+                      <button type="button" onClick={() => go(slideIndex)} title={`Show ${entry.symbol}`}>
+                        <Oshimark icon={rowAsset?.icon} symbol={entry.symbol} size={20} />
+                        <b className={entry.side === "buy" ? styles.up : styles.down}>{entry.side === "buy" ? "BUY" : "SELL"}</b>
+                        <span>
+                          {entry.quantity.toLocaleString("en-US")} {entry.symbol}
+                        </span>
+                        <small>@ {entry.price.toFixed(2)}</small>
+                        {entry.realized !== null && entry.side === "sell" ? (
+                          <em className={entry.realized >= 0 ? styles.up : styles.down}>
+                            {entry.realized >= 0 ? "+" : "−"}
+                            {money(Math.abs(entry.realized))}
+                          </em>
+                        ) : (
+                          <em>{money(entry.side === "buy" ? entry.gross + entry.fee : entry.gross - entry.fee)}</em>
+                        )}
+                      </button>
                     </li>
                   );
                 })}
@@ -236,22 +318,25 @@ export function FillMomentLayer() {
                 <Oshimark icon={asset?.icon} symbol={fill.symbol} size={34} />
                 <span>
                   {buy ? "Bought" : "Sold"} {fill.quantity.toLocaleString("en-US")} {fill.symbol}
-                  <small>@ {fill.price.toFixed(2)}</small>
+                  <small>
+                    @ {fill.price.toFixed(2)}
+                    {fill.count > 1 ? ` avg · ${fill.count} orders` : ""}
+                  </small>
                 </span>
               </div>
             )}
             <dl className={styles.est}>
-              {batch ? (
+              {onSummary ? (
                 <>
                   {buys.length ? (
                     <>
-                      <dt>Paid · {buys.length} buy{buys.length === 1 ? "" : "s"}</dt>
+                      <dt>Paid · {buys.length} stock{buys.length === 1 ? "" : "s"}</dt>
                       <dd>{money(spent)}</dd>
                     </>
                   ) : null}
                   {sells.length ? (
                     <>
-                      <dt>Received · {sells.length} sell{sells.length === 1 ? "" : "s"}</dt>
+                      <dt>Received · {sells.length} stock{sells.length === 1 ? "" : "s"}</dt>
                       <dd>{money(received)}</dd>
                     </>
                   ) : null}
@@ -285,27 +370,64 @@ export function FillMomentLayer() {
                 </>
               )}
             </dl>
-            <div className={styles.brag}>
-              <span className={styles.hdr}>
-                <b>Anonymous</b> No.{(Number(fill.id) || seed) % 100000000}
-              </span>
-              {text}
+            {!onSummary ? (
+              <div className={styles.brag}>
+                <span className={styles.hdr}>
+                  <b>Anonymous</b> No.{(Number(fill.id) || seed) % 100000000}
+                </span>
+                {text}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className={styles.foot}>
+          {multi ? (
+            <div className={styles.pager}>
+              <button type="button" className={styles.arrow} onClick={() => go(index - 1)} aria-label="Previous">
+                ‹
+              </button>
+              <div className={styles.dots} role="tablist" aria-label="Fills">
+                {Array.from({ length: pages }, (_, page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    role="tab"
+                    aria-selected={page === index}
+                    aria-label={page === slides.length ? "Summary" : slides[page].symbol}
+                    className={page === slides.length ? styles.dotSum : undefined}
+                    onClick={() => go(page)}
+                  />
+                ))}
+              </div>
+              <button type="button" className={styles.arrow} onClick={() => go(index + 1)} aria-label="Next">
+                ›
+              </button>
             </div>
-            <div className={styles.actions}>
-              <button type="button" className={styles.primary} onClick={() => void copy()}>
-                {copied ?? "COPY FOR /VT/"}
+          ) : null}
+          <div className={styles.actions}>
+            {!onSummary ? (
+              <>
+                <button type="button" className={styles.primary} onClick={() => void copy()}>
+                  {copied ?? "COPY FOR /VT/"}
+                </button>
+                <button type="button" onClick={() => setRoll({ id: fillKey, n: (roll.id === fillKey ? roll.n : 0) + 1 })}>
+                  REROLL
+                </button>
+              </>
+            ) : null}
+            {multi && !onSummary ? (
+              <button type="button" onClick={() => go(slides.length)}>
+                SUMMARY
               </button>
-              <button type="button" onClick={() => setSeed((current) => current + 1)}>
-                REROLL
-              </button>
-              <button type="button" ref={closeRef} onClick={dismiss}>
-                NICE
-              </button>
-            </div>
-            <button type="button" className={styles.quiet} onClick={toastsOnly}>
-              Just toasts from now on
+            ) : null}
+            <button type="button" ref={closeRef} onClick={dismiss}>
+              NICE
             </button>
           </div>
+          <button type="button" className={styles.quiet} onClick={toastsOnly}>
+            Just toasts from now on
+          </button>
         </div>
       </div>
     </div>

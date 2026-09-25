@@ -10,6 +10,7 @@ import { money } from "@/app/lib/time";
 import { buildTradeConfirmation, getTradeFailureNotice, type TradeConfirmation, type TradeExecutionResult, type TradeFailureNotice, type TradeSide } from "@/app/lib/trade";
 import type { MarketAsset } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
+import { useMotion } from "@/app/providers/motion-provider";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useMomentStore } from "@/app/stores/moment-store";
 import { useProfileStore } from "@/app/stores/profile-store";
@@ -33,8 +34,11 @@ export function TradeTicket({
   autoFocus = false,
   onClose,
   onFilled,
+  artSize = "large",
 }: {
   asset: MarketAsset;
+  /** Size of her reaction in the queued state: full width in the stock page sidebar, smaller in the drawer. */
+  artSize?: "large" | "small";
   initialSide?: TradeSide;
   autoFocus?: boolean;
   /** Called when a link inside the ticket navigates away, or on Done. */
@@ -43,6 +47,7 @@ export function TradeTicket({
   onFilled?: () => void;
 }) {
   const trackOrder = useTradeStore((state) => state.trackOrder);
+  const { calm } = useMotion();
   const marketStatus = useMarketStore((state) => state.marketStatus);
   const portfolio = useProfileStore((state) => state.portfolio);
   const refreshTradingState = useProfileStore((state) => state.refreshTradingState);
@@ -135,10 +140,13 @@ export function TradeTicket({
 
   return (
     queued ? (
-          <div className={styles.queued}>
-            <div className={styles.qHead}>
-              <ArtSlot kind="reaction" pose={queued.side === "buy" ? "moon" : "smug"} symbol={symbol} icon={asset.icon} width={144} className={styles.qArt} />
-              <div className={styles.qBand}>QUEUED</div>
+          <div key={queued.orderId ?? queued.requestedQuantity} className={`${styles.queued} ${calm ? "" : styles.qPlay}`} data-side={queued.side} data-art={artSize}>
+            <div className={styles.qStage}>
+              <ArtSlot kind="reaction" pose={queued.side === "buy" ? "moon" : "smug"} symbol={symbol} icon={asset.icon} width={artSize === "large" ? 520 : 260} vignette fadeLength={0.3} className={styles.qArt} />
+              <div className={styles.qBand}>
+                <span>QUEUED</span>
+                <small>{queued.executeAfter ? `${formatEtTime(new Date(queued.executeAfter))} ET batch` : "next batch"}</small>
+              </div>
             </div>
             <p>
               <b className={queued.side === "buy" ? styles.up : styles.down}>

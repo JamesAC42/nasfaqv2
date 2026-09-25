@@ -114,7 +114,7 @@ export function TradeDrawer() {
           </div>
         ) : null}
 
-        <TradeTicket key={`${symbol}:${session}`} asset={asset} initialSide={initialSide} autoFocus onClose={close} onFilled={closeTrade} />
+        <TradeTicket key={`${symbol}:${session}`} asset={asset} initialSide={initialSide} autoFocus onClose={close} onFilled={closeTrade} artSize="small" />
         <footer className={styles.foot}>
           <Link href={`/stocks/${encodeURIComponent(asset.symbol)}`} onClick={close}>
             Open the {asset.symbol} dossier →

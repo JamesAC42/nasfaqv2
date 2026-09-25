@@ -64,3 +64,9 @@
   right: 12%;
   bottom: 14%;
 }
+
+// Every edge fades out in a soft ellipse, so crops at the sides or bottom never show as hard lines.
+.vignette {
+  -webkit-mask-image: radial-gradient(ellipse 58% 56% at 50% 44%, #000 62%, transparent 100%);
+  mask-image: radial-gradient(ellipse 58% 56% at 50% 44%, #000 62%, transparent 100%);
+}

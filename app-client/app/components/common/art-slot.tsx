@@ -23,6 +23,8 @@ type Common = {
   alt?: string;
   /** object-position for scenes shown with fit cover; overrides the pipeline's focus anchor. */
   position?: string;
+  /** Soft elliptical fade on every edge of the box (for reactions shown large, where side crops show). */
+  vignette?: boolean;
   /** Fade the cutout's crop edges (waist cut, clipped braids) into the page. On by default for key art and reactions. */
   fade?: boolean;
   /** Fade length as a fraction of the figure's height (default 0.22 for key art, 0.12 for reactions). */
@@ -82,7 +84,7 @@ export function ArtSlot(props: ArtSlotProps) {
 
   const shape = slot === "keyart" ? styles.keyart : slot === "reaction" ? styles.chibi : null;
   const style = accent ? ({ "--tal": accent } as React.CSSProperties) : undefined;
-  const classes = [styles.slot, shape, className].filter(Boolean).join(" ");
+  const classes = [styles.slot, shape, props.vignette ? styles.vignette : null, className].filter(Boolean).join(" ");
 
   if (chosen) {
     const { id, image } = chosen;

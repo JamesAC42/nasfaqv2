@@ -138,3 +138,22 @@ gains:
   the reveal, the dealer's hole card), which is withheld until it's public.
 - Single API process assumption: tables live in memory. If the API ever runs more than one process,
   table ownership moves to Redis.
+
+## Later: card trading and an auction house (not built yet)
+
+With 365 cards (73 talents x 5 rarities), per-rarity art and a gallery that unlocks by owning, players
+will want to swap and sell cards. Noted for a later phase; nothing below exists yet.
+
+- **Direct trades.** Offer cards, shards and cash for another player's cards and shards. Both sides
+  confirm a locked offer; items sit in escrow until it completes or is cancelled. Trade history on
+  both profiles.
+- **Auction house.** List a card with a starting bid and a duration (12/24/48h), optional buy-now.
+  Bids lock cash in escrow; a late bid extends the end by a few minutes (no sniping). A listing fee
+  or cut of the sale is a cash sink.
+- **Price history per card** (last sales, floor price by rarity), shown on the card sheet and in the
+  gallery, so collections have a visible value.
+- **Guard rails.** Minimum account age and verified email to trade; daily trade limits; flag lopsided
+  trades between new accounts (alt farming); starter-pack cards untradeable; stars and the first copy
+  rules (duplicates to shards) need a decision before trading ships.
+- **Interplay.** Crafting and shard prices set a soft ceiling on what cards are worth; the gallery
+  unlock should follow the card when it's traded away (decide whether art stays unlocked).

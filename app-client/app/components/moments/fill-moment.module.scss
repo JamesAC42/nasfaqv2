@@ -80,21 +80,158 @@
 
 .body {
   display: grid;
-  grid-template-columns: 10.5rem minmax(0, 1fr);
+  grid-template-columns: 13.5rem minmax(0, 1fr);
+  min-height: 15rem;
 
   @include phone {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
-.art {
-  min-height: 13.75rem;
+// Her reaction, big, fading into the card on every edge; a glow in her color behind.
+.artCol {
+  position: relative;
+  display: grid;
+  place-items: end center;
+  overflow: hidden;
   border-right: 1px solid var(--rule);
+  background: radial-gradient(70% 60% at 50% 55%, color-mix(in oklab, var(--tal) 26%, transparent), transparent 75%);
 
   @include phone {
-    min-height: 7rem;
     border-right: 0;
     border-bottom: 1px solid var(--rule);
+  }
+}
+
+.art {
+  width: 100%;
+  max-width: 15rem;
+  height: auto !important;
+  aspect-ratio: 1 !important;
+
+  @include phone {
+    max-width: 11rem;
+  }
+}
+
+// Slides enter from the side they came from.
+.fromRight {
+  animation: slideFromRight 0.38s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+
+  .art {
+    animation: artPop 0.5s 0.05s cubic-bezier(0.2, 0.9, 0.25, 1.2) both;
+  }
+}
+
+.fromLeft {
+  animation: slideFromLeft 0.38s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+
+  .art {
+    animation: artPop 0.5s 0.05s cubic-bezier(0.2, 0.9, 0.25, 1.2) both;
+  }
+}
+
+@keyframes slideFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(36px);
+  }
+}
+
+@keyframes slideFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-36px);
+  }
+}
+
+@keyframes artPop {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.9);
+  }
+}
+
+// Auto-advance progress under the band.
+.timer {
+  height: 2px;
+  background: var(--side);
+  opacity: 0.8;
+  transform-origin: left;
+  animation: timer linear both;
+}
+
+@keyframes timer {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.foot {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.75rem 1.1rem 0.9rem;
+  border-top: 1px solid var(--rule);
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+}
+
+.arrow {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--rule-2);
+  background: none;
+  color: var(--text);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--side);
+  }
+}
+
+.dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+  max-width: 70%;
+
+  button {
+    width: 0.55rem;
+    height: 0.55rem;
+    padding: 0;
+    border: 1px solid var(--rule-2);
+    background: none;
+    cursor: pointer;
+
+    &[aria-selected="true"] {
+      background: var(--side);
+      border-color: var(--side);
+    }
+  }
+
+  .dotSum {
+    width: 1.1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fromRight,
+  .fromLeft,
+  .fromRight .art,
+  .fromLeft .art,
+  .timer {
+    animation: none !important;
   }
 }
 
@@ -205,17 +342,27 @@
   list-style: none;
   border: 1px solid var(--rule);
 
-  li {
+  li + li {
+    border-top: 1px solid var(--rule);
+  }
+
+  button {
     display: grid;
     grid-template-columns: 20px 2.6rem minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 0.5rem;
+    width: 100%;
     padding: 0.35rem 0.55rem;
+    border: 0;
+    background: none;
+    color: inherit;
+    text-align: left;
     font-family: var(--font-mono);
     font-size: 0.75rem;
+    cursor: pointer;
 
-    & + li {
-      border-top: 1px solid var(--rule);
+    &:hover {
+      background: color-mix(in oklab, var(--text) 6%, transparent);
     }
   }
 

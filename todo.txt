@@ -53,3 +53,6 @@ fixes:
 - pending orders dropdown is fucked in mobile
 - market popup on article page for assoc. coins is fucked in mobile
 - explain the treasury system
+
+later:
+- card trading + auction house for talent cards (sketch in docs/games/GAMES_DESIGN.md, "Later")
