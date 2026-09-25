@@ -135,7 +135,8 @@ export function cutoutMask(
   // Side and top cuts fade over a shorter run so the figure keeps its width.
   if (shape?.cut.right) layers.push(svg(image.w, image.h, "right", Math.max(x0, x1 - figW * length * 0.6), x1));
   if (shape?.cut.left) layers.push(svg(image.w, image.h, "left", Math.max(0, 1 - x0 - figW * length * 0.6), 1 - x0));
-  if (shape?.cut.top) layers.push(svg(image.w, image.h, "up", Math.max(0, 1 - y0 - figH * length * 0.5), 1 - y0));
+  // Tops are cut by hats, ears and headdresses right above the hair line: keep that fade short.
+  if (shape?.cut.top) layers.push(svg(image.w, image.h, "up", Math.max(0, 1 - y0 - figH * length * 0.22), 1 - y0));
   if (!layers.length) return undefined;
   const size = fit === "cover" ? "cover" : "contain";
   const image_ = layers.join(", ");
