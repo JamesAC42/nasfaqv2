@@ -713,7 +713,7 @@ async function applySchema(pool) {
   `);
   await pool.query(`
     ALTER TABLE market.prediction_market_trades
-      ADD CONSTRAINT prediction_market_trades_kind_check CHECK (trade_kind IN ('secondary', 'mint', 'redeem'))
+      ADD CONSTRAINT prediction_market_trades_kind_check CHECK (trade_kind IN ('secondary', 'mint', 'redeem', 'amm'))
   `);
   await pool.query(`
     ALTER TABLE market.prediction_market_trades
