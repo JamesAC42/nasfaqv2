@@ -28,16 +28,26 @@ import { useGamesChannel, useSeedChannel } from "@/app/lib/games/use-games-socke
 // the Ticker Tap board poll, and only while the tab is visible.
 
 function usePolled<T>(load: () => Promise<T>, everyMs: number | null): T | null {
+  return usePolledState(load, everyMs).value;
+}
+
+/** Like usePolled, plus whether the last load failed (so a page can stop showing a skeleton). */
+function usePolledState<T>(load: () => Promise<T>, everyMs: number | null): { value: T | null; failed: boolean } {
   const [value, setValue] = useState<T | null>(null);
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     let alive = true;
     const run = () => {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       load()
         .then((result) => {
-          if (alive) setValue(result);
+          if (!alive) return;
+          setValue(result);
+          setFailed(false);
         })
-        .catch(() => {});
+        .catch(() => {
+          if (alive) setFailed(true);
+        });
     };
     run();
     const timer = everyMs ? window.setInterval(run, everyMs) : null;
@@ -53,10 +63,10 @@ function usePolled<T>(load: () => Promise<T>, everyMs: number | null): T | null 
     // `load` is a module-level fetcher; polling restarts only when the interval changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [everyMs]);
-  return value;
+  return { value, failed };
 }
 
-export const useBanners = () => usePolled<BannersResponse>(fetchBanners, null);
+export const useBanners = () => usePolledState<BannersResponse>(fetchBanners, null);
 export const useCatalog = () => usePolled<{ games: GameEntry[] }>(fetchCatalog, null);
 export const usePullFeed = () => usePolled<{ pulls: FeedPull[] }>(() => fetchPullFeed(12), 30_000);
 export const useTapBoard = () => usePolled<TickerTapBoard>(fetchTickerTapBoard, 60_000);

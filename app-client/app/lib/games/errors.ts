@@ -23,6 +23,8 @@ const COPY: Record<string, string> = {
   card_pool_empty: "The card pool is empty right now.",
   game_not_found: "That game isn't available.",
   run_too_fast: "That run ended too early to count.",
+  games_api_outdated: "The arcade is being updated. Back shortly.",
+  "404": "The arcade is being updated. Back shortly.",
   game_session_not_active: "That run was already submitted.",
 };
 

@@ -49,7 +49,7 @@ export function ArcadePage() {
   const collection = useGamesStore((state) => state.collection);
   const collectionLoading = useGamesStore((state) => state.loading);
 
-  const banners = useBanners();
+  const { value: banners, failed: bannersFailed } = useBanners();
   const catalog = useCatalog();
   const feed = usePullFeed();
   const board = useTapBoard();
@@ -107,7 +107,7 @@ export function ArcadePage() {
       <div className={styles.page}>
         {seats.length ? <SeatBanner seats={seats} me={me} /> : null}
 
-        <FeaturedHero banners={banners} signedIn={signedIn} pity={collection?.pity.featured ?? null} owned={collection?.cards ?? null} />
+        <FeaturedHero banners={banners} unavailable={bannersFailed} signedIn={signedIn} pity={collection?.pity.featured ?? null} owned={collection?.cards ?? null} />
 
         <LiveStrip duel={duel.tables} highLow={highLow.tables} blackjack={blackjack} recent={recent} me={me} signedIn={signedIn} />
 

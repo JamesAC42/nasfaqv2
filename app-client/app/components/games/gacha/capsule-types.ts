@@ -79,8 +79,17 @@ export type CapsulePullResponse = {
 
 export type OwnedCosmetic = { id: number; cosmetic_key: string; cosmetic_type: string; rarity: string };
 
-export const fetchCapsuleCatalog = () => apiFetch<CapsuleCatalog>("/api/games/capsule-gacha/catalog", { cache: "no-store" });
-export const fetchInventory = () => apiFetch<{ cosmetics: OwnedCosmetic[] }>("/api/games/me/inventory", { cache: "no-store" });
+// Shape checks: an API without the games rework answers with other shapes; fail the fetch instead.
+export const fetchCapsuleCatalog = () =>
+  apiFetch<CapsuleCatalog>("/api/games/capsule-gacha/catalog", { cache: "no-store" }).then((value) => {
+    if (!value?.game || !Array.isArray(value.rewards)) throw new Error("games_api_outdated");
+    return { ...value, game: { ...value.game, config: value.game.config ?? {} } };
+  });
+export const fetchInventory = () =>
+  apiFetch<{ cosmetics: OwnedCosmetic[] }>("/api/games/me/inventory", { cache: "no-store" }).then((value) => {
+    if (!Array.isArray(value?.cosmetics)) throw new Error("games_api_outdated");
+    return value;
+  });
 export const pullCapsule = (count: 1 | 10) =>
   apiFetch<CapsulePullResponse>("/api/games/capsule-gacha/pull", { method: "POST", body: JSON.stringify({ count }) });
 

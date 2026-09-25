@@ -21,11 +21,14 @@ export const callName = (name: string) => name.trim().split(/\s+/).pop() ?? name
 
 export function FeaturedHero({
   banners,
+  unavailable = false,
   signedIn,
   pity,
   owned,
 }: {
   banners: BannersResponse | null;
+  /** The banners couldn't load (API down or not updated yet). */
+  unavailable?: boolean;
   signedIn: boolean;
   pity: Pity | null;
   owned: OwnedCard[] | null;
@@ -41,6 +44,21 @@ export function FeaturedHero({
 
   const front = phone ? 176 : 248;
   const side = phone ? 128 : 184;
+
+  if (!banners && unavailable) {
+    return (
+      <section className={styles.hero} aria-label="Featured banner">
+        <div className={styles.copy}>
+          <span className={styles.kicker}>Featured banner</span>
+          <h2 className={styles.name}>Back shortly</h2>
+          <p className={styles.hook}>The gacha machine is being restocked. Banners, pulls and the live tables return when it&apos;s done.</p>
+        </div>
+        <div className={styles.fan} style={{ "--front": `${front}px`, "--side": `${side}px` } as CSSProperties}>
+          <CardBack width={front} className={styles.front} />
+        </div>
+      </section>
+    );
+  }
 
   if (!banners) {
     return (
