@@ -21,8 +21,9 @@ import {
   type CapsuleRarity,
 } from "@/app/components/games/gacha/capsule-types";
 import { PityBar, PullButton, ShardGlyph } from "@/app/components/games/gacha/gacha-parts";
-import { CapsuleBack, CapsuleBall, PrizeCard } from "@/app/components/games/gacha/prize-card";
+import { CapsuleBack, PrizeCard } from "@/app/components/games/gacha/prize-card";
 import { RevealStage, type RevealItem, type RevealStat } from "@/app/components/games/gacha/reveal-stage";
+import { CapsuleMachine } from "@/app/components/games/gacha/capsule-machine";
 import { GamesFrame, SignInToPlay, useGamesWallet } from "@/app/components/games/shell/games-frame";
 import { gameErrorText } from "@/app/lib/games/errors";
 import { fmtInteger } from "@/app/lib/format";
@@ -62,26 +63,6 @@ function toRevealItem(pull: CapsulePull, index: number): RevealItem {
   };
 }
 
-// Capsules in the globe: fixed positions so the machine looks the same every render.
-const GLOBE_BALLS: { x: number; y: number; r: CapsuleRarity }[] = [
-  { x: 4, y: 70, r: "common" },
-  { x: 22, y: 76, r: "rare" },
-  { x: 41, y: 79, r: "common" },
-  { x: 60, y: 77, r: "epic" },
-  { x: 78, y: 70, r: "common" },
-  { x: 12, y: 55, r: "rare" },
-  { x: 31, y: 60, r: "common" },
-  { x: 50, y: 61, r: "legendary" },
-  { x: 69, y: 56, r: "rare" },
-  { x: 84, y: 50, r: "common" },
-  { x: 21, y: 40, r: "common" },
-  { x: 40, y: 44, r: "rare" },
-  { x: 59, y: 40, r: "common" },
-  { x: 6, y: 36, r: "epic" },
-  { x: 75, y: 32, r: "rare" },
-  { x: 46, y: 26, r: "common" },
-];
-
 export function CapsuleGachaPage() {
   const wallet = useGamesWallet();
   const signedIn = wallet.signedIn;
@@ -92,6 +73,7 @@ export function CapsuleGachaPage() {
   const [owned, setOwned] = useState<Set<string> | null>(null);
   const [pityOverride, setPityOverride] = useState<CapsulePity | null>(null);
   const [busy, setBusy] = useState<1 | 10 | null>(null);
+  const [lastCount, setLastCount] = useState<1 | 10>(1);
   const [drop, setDrop] = useState<CapsuleRarity | null>(null);
   const cranking = drop !== null;
   const [error, setError] = useState<string | null>(null);
@@ -141,6 +123,7 @@ export function CapsuleGachaPage() {
       if (inFlight.current) return;
       inFlight.current = true;
       setBusy(count);
+      setLastCount(count);
       setError(null);
       try {
         const response = await pullCapsule(count);
@@ -205,33 +188,8 @@ export function CapsuleGachaPage() {
     >
       <div className={styles.layout}>
         <section className={styles.machineCol} aria-label="Capsule machine">
-          <div className={styles.machine} data-cranking={cranking || busy !== null || undefined}>
-            <div className={styles.globe} aria-hidden="true">
-              <div className={styles.balls}>
-                {GLOBE_BALLS.map((ball, index) => (
-                  <CapsuleBall
-                    key={index}
-                    rarity={ball.r}
-                    size={20}
-                    style={{ left: `${ball.x}%`, top: `${ball.y}%`, "--d": `${(index % 5) * 90}ms` } as CSSProperties}
-                  />
-                ))}
-              </div>
-              <span className={styles.glass} />
-              <span className={styles.season}>Season 1</span>
-            </div>
-            <div className={styles.neck} aria-hidden="true" />
-            <div className={styles.body} aria-hidden="true">
-              <span className={styles.price}>
-                <small>1 capsule</small>
-                <b>${costOne ?? 50}</b>
-              </span>
-              <span className={styles.crank}>
-                <i />
-              </span>
-              <span className={styles.chute}>{drop ? <CapsuleBall rarity={drop} size={28} /> : null}</span>
-            </div>
-            <div className={styles.base} aria-hidden="true" />
+          <div className={styles.machineWrap}>
+            <CapsuleMachine price={costOne} state={cranking || busy !== null ? "cranking" : "idle"} drop={drop} turns={busy === 10 || lastCount === 10 ? 2 : 1} />
           </div>
 
           <div className={styles.controls}>

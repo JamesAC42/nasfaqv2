@@ -1,0 +1,213 @@
+@use "../../../styles/mixins" as *;
+
+// The gashapon cabinet. Idle: the marquee bulbs chase and the pile settles now and then.
+// Cranking: the crank turns (--turns), the pile shakes, the bulbs race, and a capsule in the
+// best prize's colour (--drop) falls into the door. Calm mode keeps the drawing, drops the motion.
+
+.machine {
+  width: min(100%, 20rem);
+  margin: 0 auto;
+  filter: drop-shadow(0 18px 30px rgba(0, 0, 0, 0.45));
+
+  @include phone {
+    width: min(100%, 16rem);
+  }
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+// ── Sign ───────────────────────────────────────────────────────────────────
+.signText {
+  font-family: var(--font-display);
+  font-size: 30px;
+  letter-spacing: 0.08em;
+  fill: #0e6fa8;
+}
+
+.bulb {
+  fill: #4a5166;
+  stroke: #0a0c11;
+  stroke-width: 1.5;
+  animation: chase 1.6s steps(1, end) infinite;
+  animation-delay: calc(var(--i) * 115ms);
+}
+
+@keyframes chase {
+  0%,
+  100% {
+    fill: #fff4c2;
+    filter: drop-shadow(0 0 4px #f5c542) drop-shadow(0 0 2px #fff4c2);
+  }
+  30% {
+    fill: #4a5166;
+    filter: none;
+  }
+}
+
+.machine[data-state="cranking"] .bulb {
+  animation-duration: 0.45s;
+}
+
+// ── Pile ───────────────────────────────────────────────────────────────────
+.pileCap {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: settle 7s ease-in-out infinite;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes settle {
+  0%,
+  88%,
+  100% {
+    transform: none;
+  }
+  92% {
+    transform: translateY(-2px) rotate(-4deg);
+  }
+  96% {
+    transform: translateY(1px) rotate(3deg);
+  }
+}
+
+.machine[data-state="cranking"] .pileCap {
+  animation: shake 180ms ease-in-out infinite alternate;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes shake {
+  from {
+    transform: translate(-3px, 2px) rotate(-10deg);
+  }
+  to {
+    transform: translate(3px, -6px) rotate(12deg);
+  }
+}
+
+// ── Panel ──────────────────────────────────────────────────────────────────
+.plateLabel {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  fill: #7a8296;
+}
+
+.platePrice {
+  font-family: var(--font-mono);
+  font-size: 26px;
+  font-weight: 700;
+  fill: #eceef2;
+}
+
+.sticker {
+  font-family: var(--font-display);
+  font-size: 11px;
+  fill: #1a1204;
+}
+
+.crank {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  transform: rotate(-20deg);
+}
+
+.machine[data-state="cranking"] .crank {
+  animation: crank calc(var(--turns, 1) * 700ms) var(--ease-out) both;
+}
+
+@keyframes crank {
+  from {
+    transform: rotate(-20deg);
+  }
+  to {
+    transform: rotate(calc(-20deg + var(--turns, 1) * 360deg));
+  }
+}
+
+// ── Door ───────────────────────────────────────────────────────────────────
+.doorGlow {
+  fill: var(--drop);
+  opacity: 0;
+  filter: blur(8px);
+}
+
+.machine[data-drop] .doorGlow {
+  animation: glow 900ms 450ms ease-out both;
+}
+
+@keyframes glow {
+  to {
+    opacity: 0.85;
+  }
+}
+
+.machine[data-drop="legendary"] .doorGlow {
+  animation:
+    glow 900ms 450ms ease-out both,
+    pulse 700ms 1350ms ease-in-out infinite alternate;
+}
+
+@keyframes pulse {
+  from {
+    opacity: 0.85;
+  }
+  to {
+    opacity: 0.4;
+  }
+}
+
+.dropCap {
+  animation: drop 650ms 380ms var(--ease-slam) both;
+}
+
+@keyframes drop {
+  from {
+    transform: translateY(-64px);
+  }
+}
+
+.flap {
+  fill: rgba(63, 184, 245, 0.18);
+  stroke: rgba(255, 255, 255, 0.2);
+  transform-box: fill-box;
+  transform-origin: 50% 0;
+}
+
+.machine[data-drop] .flap {
+  animation: flap 500ms 300ms ease-out both;
+}
+
+@keyframes flap {
+  40% {
+    transform: scaleY(-1);
+  }
+  to {
+    transform: none;
+  }
+}
+
+// Calm: no chase, no shake; the crank and the drop still read as states.
+:global(html[data-calm="true"]) .machine {
+  .bulb,
+  .pileCap,
+  .crank,
+  .flap,
+  .dropCap {
+    animation: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bulb,
+  .pileCap,
+  .crank,
+  .flap,
+  .dropCap {
+    animation: none !important;
+  }
+}

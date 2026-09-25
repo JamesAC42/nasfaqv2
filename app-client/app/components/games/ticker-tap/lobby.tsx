@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { SignInToPlay } from "@/app/components/games/shell/games-frame";
+import { AttractLanes, type DemoTalent } from "@/app/components/games/ticker-tap/attract";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { VerificationRequiredNotice } from "@/app/components/common/verification-required-notice";
 import { fmtCountdown, fmtPayout, nextRung } from "@/app/components/games/ticker-tap/board-math";
@@ -23,7 +24,30 @@ type LobbyProps = {
   onPlay: () => void;
   /** Hide the play block (the results panel above has its own). */
   compactHero?: boolean;
+  /** Talents for the attract-mode demo and the tape wall. */
+  demoTalents?: DemoTalent[];
 };
+
+/** Rows of scrolling tickers behind the pool: the tape the game is made of. */
+function TapeWall({ talents }: { talents: DemoTalent[] }) {
+  if (!talents.length) return null;
+  const rows = [0, 1, 2].map((row) =>
+    talents
+      .filter((_, index) => index % 3 === row)
+      .map((talent, index) => `${talent.symbol} ${(index + row) % 3 === 0 ? "▼" : "▲"}`)
+      .join("   "),
+  );
+  return (
+    <div className={styles.tapeWall} aria-hidden="true">
+      {rows.map((row, index) => (
+        <div key={index} className={styles.tapeRow} data-row={index}>
+          <span>{row}</span>
+          <span>{row}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function useClock(stepMs = 1000) {
   const [now, setNow] = useState(() => Date.now());
@@ -62,7 +86,7 @@ function useCountUp(value: number | null, durationMs = 900) {
   return shown;
 }
 
-export function Lobby({ board, boardError, signedIn, userId, needsVerification, fee, starting, startError, onPlay, compactHero = false }: LobbyProps) {
+export function Lobby({ board, boardError, signedIn, userId, needsVerification, fee, starting, startError, onPlay, compactHero = false, demoTalents = [] }: LobbyProps) {
   const now = useClock();
   const pool = board?.week.pool ?? null;
   const shownPool = useCountUp(pool);
@@ -78,6 +102,7 @@ export function Lobby({ board, boardError, signedIn, userId, needsVerification, 
   return (
     <div className={styles.lobby}>
       <section className={`${styles.hero} ${compactHero ? styles.heroCompact : ""}`} aria-labelledby="tt-pool">
+        <TapeWall talents={demoTalents} />
         <div className={styles.poolBlock}>
           <h2 id="tt-pool" className={styles.poolLabel}>
             This week&apos;s pool
@@ -108,6 +133,12 @@ export function Lobby({ board, boardError, signedIn, userId, needsVerification, 
           </dl>
           {boardError ? <p className={styles.inlineError}>{boardError}</p> : null}
         </div>
+
+        {!compactHero ? (
+          <div className={styles.attract}>
+            <AttractLanes talents={demoTalents} />
+          </div>
+        ) : null}
 
         {!compactHero ? (
           <div className={styles.playBlock}>

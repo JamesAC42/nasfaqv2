@@ -54,14 +54,83 @@
 .hero {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.2fr) minmax(15rem, 19rem) minmax(0, 1fr);
   gap: 1.5rem 2.5rem;
   padding: 1.5rem 0;
+  overflow: hidden;
   border-bottom: 1px solid var(--rule);
 
-  @include tablet-down {
+  > * {
+    position: relative;
+  }
+
+  @include desktop-down {
+    grid-template-columns: minmax(0, 1fr) minmax(14rem, 17rem);
+
+    .playBlock {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @include phone {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.attract {
+  min-width: 0;
+  height: 17rem;
+
+  @include phone {
+    height: 14rem;
+  }
+}
+
+// Faint tape rows scrolling behind the pool.
+.tapeWall {
+  position: absolute !important;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+  align-content: center;
+  gap: 0.9rem;
+  overflow: hidden;
+  pointer-events: none;
+  mask-image: linear-gradient(90deg, #000 0%, rgba(0, 0, 0, 0.6) 45%, transparent 75%);
+  opacity: 0.07;
+}
+
+.tapeRow {
+  @include num(wide);
+  display: flex;
+  width: max-content;
+  font-size: 2.4rem;
+  font-weight: 700;
+  white-space: nowrap;
+  animation: tape 90s linear infinite;
+
+  span {
+    padding-right: 3rem;
+  }
+
+  &[data-row="1"] {
+    animation-duration: 120s;
+    animation-direction: reverse;
+  }
+
+  &[data-row="2"] {
+    animation-duration: 75s;
+  }
+}
+
+@keyframes tape {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+:global(html[data-calm="true"]) .tapeRow {
+  animation: none;
 }
 
 .heroCompact {
@@ -147,7 +216,7 @@
   padding-left: 2.5rem;
   border-left: 1px solid var(--rule);
 
-  @include tablet-down {
+  @include desktop-down {
     padding: 1.25rem 0 0;
     border-left: 0;
     border-top: 1px solid var(--rule);

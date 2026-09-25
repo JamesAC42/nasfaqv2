@@ -1,6 +1,7 @@
 // Seeds a LOCAL dev database so the site has something to trade and play with.
 //
-//   node scripts/seed-dev.js                 talents: YouTube channels, market assets, today's prices
+//   node scripts/seed-dev.js                 talents (channels, assets, today's prices) + capsule prizes
+//   node scripts/seed-dev.js prizes          capsule prizes only (copied from prod's public catalog)
 //   node scripts/seed-dev.js verify <user>   mark an account's email verified (games and trading need it)
 //   node scripts/seed-dev.js cash <user> <n> set an account's cash (for the high-limit tables)
 //
@@ -87,6 +88,21 @@ const TALENTS = [
   ["ZET", "Vestia Zeta", "hololive Indonesia", "zeta", "#bdbdc3", 11.03, 11.32, 7876]
 ];
 
+// Capsule prizes are copied from prod's public catalog, so names, odds and images (served from the
+// CDN) match the real machine. If prod can't be reached, this small set stands in (no images).
+const PROD_CATALOG_URL = process.env.SEED_PRIZES_FROM || "https://holo.nasfaq.biz/api/games/capsule-gacha/catalog";
+const FALLBACK_PRIZES = [
+  // [cosmetic_key, display name, type, rarity, weight]
+  ["dev-hat-common-cap", "Cap", "hat", "common", 32],
+  ["dev-hat-common-beanie", "Beanie", "hat", "common", 32],
+  ["dev-frame-rare-gold", "Gold frame", "profile_frame", "rare", 12],
+  ["dev-flair-rare-star", "Star flair", "chat_flair", "rare", 12],
+  ["dev-badge-rare-ribbon", "Ribbon badge", "profile_badge", "rare", 12],
+  ["dev-hat-epic-crown", "Crown", "hat", "epic", 4],
+  ["dev-frame-epic-neon", "Neon frame", "profile_frame", "epic", 4],
+  ["dev-hat-legendary-halo", "Halo", "hat", "legendary", 1],
+];
+
 function assertLocal(url) {
   let host = "";
   try {
@@ -139,6 +155,73 @@ async function seedTalents(pool) {
   console.log(`seeded ${TALENTS.length} talents`);
 }
 
+async function fetchProdPrizes() {
+  try {
+    const response = await fetch(PROD_CATALOG_URL, { signal: AbortSignal.timeout(15_000) });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const body = await response.json();
+    const rewards = Array.isArray(body?.rewards) ? body.rewards : [];
+    if (!rewards.length) throw new Error("no rewards in the catalog");
+    return rewards.map((reward, index) => ({
+      cosmeticKey: reward.cosmetic_key || reward.key,
+      displayName: reward.display_name || reward.cosmetic_key,
+      description: reward.description || "",
+      type: reward.cosmetic_type || reward.type || "profile_badge",
+      rarity: reward.rarity || "common",
+      slotKey: reward.slot_key || null,
+      weight: Number(reward.pull_weight ?? reward.weight ?? 1),
+      imageKey: reward.image_key,
+      filename: reward.filename || String(reward.image_key || "").split("/").pop(),
+      metadata: reward.metadata || {},
+      sortOrder: Number(reward.sort_order ?? index),
+    }));
+  } catch (error) {
+    console.warn(`couldn't copy prizes from ${PROD_CATALOG_URL} (${error.message}); using the built-in set without images`);
+    return null;
+  }
+}
+
+async function seedPrizes(pool) {
+  const copied = await fetchProdPrizes();
+  const prizes =
+    copied ??
+    FALLBACK_PRIZES.map(([cosmeticKey, displayName, type, rarity, weight], index) => ({
+      cosmeticKey,
+      displayName,
+      description: "",
+      type,
+      rarity,
+      slotKey: type,
+      weight,
+      imageKey: `gachaprizes/${cosmeticKey}.png`,
+      filename: `${cosmeticKey}.png`,
+      metadata: {},
+      sortOrder: index,
+    }));
+  for (const prize of prizes) {
+    if (!prize.cosmeticKey || !prize.imageKey) continue;
+    await pool.query(
+      `INSERT INTO games.gacha_prize_items (game_key, cosmetic_key, display_name, description, cosmetic_type, rarity, slot_key,
+         pull_weight, image_key, filename, metadata_json, is_active, is_deleted, sort_order, updated_at)
+       VALUES ('capsule-gacha', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, false, $11, now())
+       ON CONFLICT (game_key, cosmetic_key) DO UPDATE SET display_name = EXCLUDED.display_name, description = EXCLUDED.description,
+         cosmetic_type = EXCLUDED.cosmetic_type, rarity = EXCLUDED.rarity, slot_key = EXCLUDED.slot_key, pull_weight = EXCLUDED.pull_weight,
+         image_key = EXCLUDED.image_key, filename = EXCLUDED.filename, metadata_json = EXCLUDED.metadata_json, is_active = true,
+         is_deleted = false, sort_order = EXCLUDED.sort_order, updated_at = now()`,
+      [prize.cosmeticKey, prize.displayName, prize.description, prize.type, prize.rarity, prize.slotKey, prize.weight, prize.imageKey, prize.filename,
+        JSON.stringify(prize.metadata), prize.sortOrder]
+    );
+  }
+  if (copied) {
+    // The real pool replaces any stand-ins from an earlier offline run.
+    await pool.query(`UPDATE games.gacha_prize_items SET is_deleted = true, updated_at = now() WHERE game_key = 'capsule-gacha' AND NOT (cosmetic_key = ANY($1::text[]))`, [
+      prizes.map((prize) => prize.cosmeticKey),
+    ]);
+  }
+  const counts = prizes.reduce((acc, prize) => ({ ...acc, [prize.rarity]: (acc[prize.rarity] || 0) + 1 }), {});
+  console.log(`seeded ${prizes.length} capsule prizes (${Object.entries(counts).map(([rarity, n]) => `${n} ${rarity}`).join(", ")})`);
+}
+
 async function findUser(pool, username) {
   const { rows } = await pool.query(`SELECT id, username FROM market.users WHERE username_normalized = lower($1)`, [String(username || "")]);
   if (!rows[0]) throw new Error(`no user called ${username}. Register on the site first.`);
@@ -184,7 +267,10 @@ async function main() {
   const pool = createPool(process.env.DATABASE_URL);
   const [command, ...args] = process.argv.slice(2);
   try {
-    if (!command) await seedTalents(pool);
+    if (!command) {
+      await seedTalents(pool);
+      await seedPrizes(pool);
+    } else if (command === "prizes") await seedPrizes(pool);
     else if (command === "verify") await verify(pool, args[0]);
     else if (command === "cash") await setCash(pool, args[0], args[1]);
     else throw new Error(`unknown command ${command}`);

@@ -11,6 +11,8 @@ import { fetchTickerTapBoard, startTickerTap, submitTickerTap } from "@/app/lib/
 import { gameErrorText } from "@/app/lib/games/errors";
 import type { Talent, TickerTapBoard, TickerTapSession } from "@/app/lib/games/types";
 import { useAuth } from "@/app/providers/auth-provider";
+import { useMarketStore } from "@/app/stores/market-store";
+import type { DemoTalent } from "@/app/components/games/ticker-tap/attract";
 import { useGamesStore } from "@/app/stores/games-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/games/ticker-tap/ticker-tap.module.scss";
@@ -32,6 +34,15 @@ export function TickerTapPage() {
 
   const talents = useMemo(() => new Map<string, Talent>((collection?.talents ?? []).map((talent) => [talent.symbol, talent])), [collection]);
   const fee = board?.game?.entry_fee_cash ?? 100;
+  // The lobby's attract demo and tape wall: your collection's talents, or the market's when signed out.
+  const assets = useMarketStore((state) => state.assets);
+  const demoTalents = useMemo<DemoTalent[]>(
+    () =>
+      collection?.talents.length
+        ? collection.talents.map((talent) => ({ symbol: talent.symbol, icon: talent.icon, color: talent.color }))
+        : assets.map((asset) => ({ symbol: asset.symbol, icon: asset.icon ?? null, color: asset.color ?? null })),
+    [collection, assets],
+  );
 
   const loadBoard = useCallback(async () => {
     try {
@@ -152,6 +163,7 @@ export function TickerTapPage() {
           startError={posted ? null : startError}
           onPlay={play}
           compactHero={Boolean(posted)}
+          demoTalents={demoTalents}
         />
       </div>
       {active ? <RunStage session={active.session} talents={talents} board={board} userId={userId} personalBest={active.best} onEnd={onEnd} /> : null}
