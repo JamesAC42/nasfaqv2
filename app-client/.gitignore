@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# art pipeline output (py scripts\build.py --copy-to ..\app-client\public\art); moves to images.nasfaq.biz later
+/public/art/

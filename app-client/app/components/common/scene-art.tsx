@@ -61,6 +61,9 @@ export function SceneArt({ slot, className, fill = false, position, width = 800,
 
   if (art) {
     const srcSet = artSrcSet(art);
+    // An explicit position wins; otherwise crop around the pipeline's focus point, if it sent one.
+    const focus = art.anchors?.focus;
+    const objectPosition = position ?? (focus ? `${Math.round(focus[0] * 100)}% ${Math.round(focus[1] * 100)}%` : undefined);
     return (
       <div className={classes} style={style} data-art-id={id} aria-hidden={alt ? undefined : true}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -72,7 +75,7 @@ export function SceneArt({ slot, className, fill = false, position, width = 800,
           width={art.w}
           height={art.h}
           alt={alt}
-          style={position ? { objectPosition: position } : undefined}
+          style={objectPosition ? { objectPosition } : undefined}
           loading={priority ? "eager" : "lazy"}
           decoding="async"
           fetchPriority={priority ? "high" : undefined}
