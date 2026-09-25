@@ -1,10 +1,5 @@
-import { Suspense } from "react";
-import { PredictionsPage } from "@/app/components/pages/predictions-page";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return (
-    <Suspense fallback={null}>
-      <PredictionsPage initialScope="review_queue" />
-    </Suspense>
-  );
+  redirect("/predictions/manage");
 }

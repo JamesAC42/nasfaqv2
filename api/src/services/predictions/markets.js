@@ -287,6 +287,7 @@ function marketView(market, outcomes, historyBy = new Map()) {
     total_volume_cash: round2(num(market.total_volume_cash)),
     liquidity_b: b,
     fee_bps: num(market.fee_bps),
+    dispute_hours: num(market.dispute_hours, 12),
     auto_template: market.auto_template,
     last_traded_probability: round6(headline),
     last_trade_at: market.last_trade_at,
@@ -560,12 +561,15 @@ async function listTape(pool, { limit = 40 } = {}) {
 
 async function getPortfolio(pool, userId) {
   const { rows } = await pool.query(
-    `SELECT p.*, o.outcome_code, o.label AS outcome_label, o.amm_shares, pm.slug, pm.title, pm.status, pm.market_type, pm.liquidity_b, pm.closes_at,
+    `SELECT p.*, o.outcome_code, o.label AS outcome_label, o.amm_shares, o.color AS outcome_color,
+            a.symbol AS asset_symbol, ch.icon AS asset_icon, ch.color AS asset_color, pm.slug, pm.title, pm.status, pm.market_type, pm.liquidity_b, pm.closes_at,
             pm.kind, pm.winning_outcome_id, pm.resolved_at, pm.voided_at,
             COALESCE((SELECT SUM(shares_reserved) FROM market.prediction_limit_orders l WHERE l.user_id = p.user_id AND l.outcome_id = p.outcome_id AND l.status = 'open'), 0) AS reserved
      FROM market.prediction_market_positions p
      JOIN market.prediction_market_outcomes o ON o.id = p.outcome_id
      JOIN market.prediction_markets pm ON pm.id = p.market_id
+     LEFT JOIN market.market_assets a ON a.id = o.asset_id
+     LEFT JOIN yt.youtube_channels ch ON ch.youtube_channel_id = a.youtube_channel_id
      WHERE p.user_id = $1
      ORDER BY pm.closes_at ASC`,
     [userId]
@@ -593,8 +597,11 @@ async function getPortfolio(pool, userId) {
       title: row.title,
       status: row.status,
       kind: row.kind,
+      market_type: row.market_type,
       closes_at: row.closes_at,
       outcome_id: Number(row.outcome_id),
+      outcome_color: row.outcome_color || null,
+      asset: row.asset_symbol ? { symbol: row.asset_symbol, icon: row.asset_icon, color: row.asset_color } : null,
       outcome_code: row.outcome_code,
       outcome_label: row.outcome_label,
       shares: round6(shares),
@@ -679,6 +686,7 @@ async function getAdminOverview(pool) {
           source_url: proposal.source_url,
           note: proposal.note,
           window_ends_at: proposal.window_ends_at,
+          created_at: proposal.created_at,
           proposer,
           disputes,
         }

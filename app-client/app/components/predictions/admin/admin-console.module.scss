@@ -1,0 +1,837 @@
+@use "../../../styles/mixins" as *;
+
+// The staff console at /predictions/manage.
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.loading {
+  padding: 2rem 0;
+  color: var(--dim);
+  font-size: 0.875rem;
+}
+
+.gate {
+  @include empty-state;
+  display: grid;
+  gap: 0.4rem;
+  max-width: 34rem;
+  margin: 1.5rem 0;
+  color: var(--mid);
+
+  b {
+    @include display(1.4rem);
+    color: var(--text);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+
+  a {
+    color: var(--blue);
+    font-size: 0.875rem;
+  }
+}
+
+.loadError {
+  margin: 1rem 0 0;
+  padding: 0.6rem 0.8rem;
+  border-left: 2px solid var(--warn);
+  font-size: 0.85rem;
+  color: var(--mid);
+
+  button {
+    @include button-secondary;
+    padding: 0.3rem 0.6rem;
+    margin-left: 0.5rem;
+  }
+}
+
+.synced {
+  @include label;
+}
+
+.newBtn {
+  @include button-primary;
+  text-decoration: none;
+}
+
+.empty {
+  margin: 0;
+  padding: 0.9rem 0;
+  font-size: 0.85rem;
+  color: var(--dim);
+}
+
+// ── Top strip ──────────────────────────────────────────────────────────────
+.strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-bottom: 1px solid var(--rule);
+
+  @include tablet-down {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.stripCell {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0.75rem 0.9rem;
+  border-left: 1px solid var(--rule);
+  color: var(--text);
+  text-decoration: none;
+
+  &:first-child {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  small {
+    @include label;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  b {
+    @include num(wide);
+    font-size: 1.35rem;
+    font-weight: 500;
+    line-height: 1.1;
+  }
+
+  &[data-tone="warn"] b {
+    color: var(--warn);
+  }
+
+  &[data-tone="blue"] b {
+    color: var(--blue);
+  }
+
+  &:hover small {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  @include tablet-down {
+    &:nth-child(4n + 1) {
+      padding-left: 0;
+      border-left: 0;
+    }
+
+    &:nth-child(n + 5) {
+      border-top: 1px solid var(--rule);
+    }
+  }
+
+  @include phone {
+    padding: 0.6rem 0.75rem;
+
+    &:nth-child(4n + 1) {
+      padding-left: 0.75rem;
+      border-left: 1px solid var(--rule);
+    }
+
+    &:nth-child(2n + 1) {
+      padding-left: 0;
+      border-left: 0;
+    }
+
+    &:nth-child(n + 3) {
+      border-top: 1px solid var(--rule);
+    }
+
+    b {
+      font-size: 1.15rem;
+    }
+  }
+}
+
+// ── Layout ─────────────────────────────────────────────────────────────────
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 19rem;
+  gap: 0 2rem;
+  min-width: 0;
+
+  @include desktop-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.main {
+  min-width: 0;
+}
+
+.side {
+  min-width: 0;
+  align-self: start;
+  position: sticky;
+  top: 1rem;
+
+  @include desktop-down {
+    position: static;
+    border-top: 1px solid var(--rule);
+  }
+}
+
+.section {
+  min-width: 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--rule);
+  scroll-margin-top: 4rem;
+}
+
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.8rem;
+  padding: 1.1rem 0 0.6rem;
+
+  h2 {
+    @include section-heading;
+    margin: 0;
+
+    b {
+      @include num;
+      margin-left: 0.3rem;
+      color: var(--dim);
+
+      &[data-tone="warn"] {
+        color: var(--warn);
+      }
+    }
+  }
+
+  span {
+    font-size: 0.75rem;
+    color: var(--dim);
+  }
+}
+
+// ── Items (proposals, queue, needs a call, drafts) ─────────────────────────
+.item {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0.9rem 0;
+  border-top: 1px solid var(--rule);
+
+  &[data-disputed] {
+    box-shadow: inset 2px 0 0 var(--warn);
+    padding-left: 0.8rem;
+  }
+}
+
+.itemHead {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+
+  h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+}
+
+.sub {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--mid);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0;
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--dim);
+
+  > span {
+    white-space: nowrap;
+
+    &:not(:last-child)::after {
+      content: "·";
+      margin: 0 0.45rem;
+      color: var(--rule-2);
+    }
+  }
+}
+
+.statusTag {
+  color: var(--mid);
+}
+
+.houseInline {
+  b {
+    @include num;
+    font-weight: 500;
+    color: var(--mid);
+
+    &[data-tone="up"] {
+      color: var(--up);
+    }
+
+    &[data-tone="down"] {
+      color: var(--down);
+    }
+  }
+}
+
+.itemSplit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 20rem);
+  gap: 0.8rem 1.5rem;
+  align-items: start;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.itemActions {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.itemRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem 0.6rem;
+  min-width: 0;
+}
+
+.readRules {
+  align-self: center;
+  font-size: 0.78rem;
+  color: var(--blue);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.prices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  min-width: 0;
+
+  > span {
+    --oc: var(--mid);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+    font-size: 0.82rem;
+    color: var(--mid);
+
+    i {
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 50%;
+      background: var(--oc);
+    }
+
+    b {
+      @include num;
+      color: var(--text);
+      font-weight: 500;
+    }
+  }
+
+  .more {
+    @include num;
+    color: var(--dim);
+  }
+}
+
+// ── Live table ─────────────────────────────────────────────────────────────
+.liveTools {
+  @include tabs;
+  margin-bottom: 0.6rem;
+
+  button {
+    @include tab;
+    display: inline-flex;
+    gap: 0.35rem;
+    align-items: baseline;
+
+    small {
+      @include num;
+      font-size: 0.6rem;
+      opacity: 0.75;
+    }
+
+    &[aria-selected="true"] {
+      @include tab-selected;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.liveTable {
+  display: grid;
+  min-width: 0;
+}
+
+$live-cols: minmax(0, 1fr) 8.5rem 5.2rem 5.2rem 4.8rem 4.8rem 5.8rem;
+
+.liveHead {
+  display: grid;
+  grid-template-columns: $live-cols;
+  gap: 0 0.75rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--rule);
+
+  span {
+    @include label;
+    font-size: 0.58rem;
+    white-space: nowrap;
+
+    &:nth-child(n + 2) {
+      text-align: right;
+    }
+  }
+
+  @include tablet-down {
+    display: none;
+  }
+}
+
+.liveRow {
+  display: grid;
+  grid-template-columns: $live-cols;
+  gap: 0.3rem 0.75rem;
+  align-items: center;
+  min-width: 0;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--rule);
+
+  &[data-halted] {
+    box-shadow: inset 2px 0 0 var(--warn);
+    padding-left: 0.6rem;
+  }
+
+  @include tablet-down {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: start;
+    padding: 0.75rem 0;
+  }
+}
+
+.liveName {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+
+  a {
+    font-size: 0.875rem;
+    font-weight: 600;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  small {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    font-size: 0.7rem;
+    color: var(--dim);
+
+    em {
+      @include label;
+      font-style: normal;
+      font-size: 0.56rem;
+      color: var(--warn);
+    }
+  }
+
+  @include tablet-down {
+    grid-column: 1 / -1;
+
+    a {
+      white-space: normal;
+    }
+  }
+}
+
+.livePrice {
+  min-width: 0;
+  text-align: right;
+
+  > span {
+    --oc: var(--mid);
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem;
+    max-width: 100%;
+    padding: 0.1rem 0.25rem;
+    border-radius: var(--radius-sm);
+
+    i {
+      flex: 0 0 auto;
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 50%;
+      background: var(--oc);
+    }
+
+    em {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-style: normal;
+      font-size: 0.75rem;
+      color: var(--mid);
+    }
+
+    b {
+      @include num;
+      font-size: 0.95rem;
+      font-weight: 500;
+    }
+  }
+}
+
+.liveNum {
+  @include num;
+  min-width: 0;
+  font-size: 0.82rem;
+  text-align: right;
+  white-space: nowrap;
+
+  small {
+    display: block;
+    font-size: 0.66rem;
+    color: var(--dim);
+  }
+
+  &[data-tone="up"] {
+    color: var(--up);
+  }
+
+  &[data-tone="down"] {
+    color: var(--down);
+  }
+
+  &[data-soon] {
+    color: var(--warn);
+  }
+}
+
+@include tablet-down {
+  .livePrice,
+  .liveNum {
+    text-align: left;
+
+    &::before {
+      content: attr(data-label);
+      display: block;
+      @include label;
+      font-size: 0.54rem;
+      margin-bottom: 0.1rem;
+    }
+
+    > span {
+      justify-content: flex-start;
+      padding-left: 0;
+    }
+  }
+
+  .livePrice {
+    grid-column: span 2;
+  }
+}
+
+.manageBtn {
+  @include button-secondary;
+  justify-self: end;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.58rem;
+
+  &[aria-expanded="true"] {
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+}
+
+.liveActions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem 0.6rem;
+  min-width: 0;
+  padding: 0.6rem 0 0.2rem;
+}
+
+@include flash-keyframes;
+
+:global(html[data-calm="true"]) .flashUp,
+:global(html[data-calm="true"]) .flashDown {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flashUp,
+  .flashDown {
+    animation: none;
+  }
+}
+
+// ── Auto templates ─────────────────────────────────────────────────────────
+.templates {
+  display: grid;
+}
+
+.template {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.85rem 0;
+  border-top: 1px solid var(--rule);
+
+  &[data-off] {
+    .templateName b,
+    .templateEx,
+    .params {
+      opacity: 0.55;
+    }
+  }
+}
+
+.templateHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.templateName {
+  display: grid;
+  min-width: 0;
+
+  b {
+    @include display(1.1rem);
+  }
+
+  code {
+    @include num;
+    font-size: 0.68rem;
+    color: var(--dim);
+  }
+}
+
+.templateEx {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--mid);
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.25rem 0.5rem 0.25rem 0.3rem;
+  border: 1px solid var(--rule-2);
+  border-radius: 999px;
+  background: none;
+  color: var(--dim);
+  cursor: pointer;
+
+  i {
+    position: relative;
+    width: 1.9rem;
+    height: 1.05rem;
+    border-radius: 999px;
+    background: var(--ink-3);
+    border: 1px solid var(--rule-2);
+    transition: background-color var(--dur-fast) ease;
+
+    &::after {
+      content: "";
+      position: absolute;
+      top: 1px;
+      left: 1px;
+      width: calc(1.05rem - 4px);
+      height: calc(1.05rem - 4px);
+      border-radius: 50%;
+      background: var(--mid);
+      transition: transform var(--dur-fast) var(--ease-out);
+    }
+  }
+
+  span {
+    @include label;
+    min-width: 1.6rem;
+  }
+
+  &[aria-checked="true"] {
+    border-color: var(--blue-line);
+    color: var(--blue);
+
+    i {
+      background: var(--blue);
+      border-color: var(--blue);
+
+      &::after {
+        transform: translateX(0.85rem);
+        background: var(--blue-ink);
+      }
+    }
+
+    span {
+      color: var(--blue);
+    }
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+  }
+}
+
+.params {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+
+  @include phone {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.param {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+
+  span {
+    @include label;
+    font-size: 0.56rem;
+    white-space: nowrap;
+  }
+
+  input {
+    @include input-base;
+    @include num;
+    padding: 0.35rem 0.45rem;
+    font-size: 0.85rem;
+    min-width: 0;
+  }
+
+  small {
+    font-size: 0.66rem;
+    color: var(--dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.templateStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+
+  div {
+    min-width: 0;
+  }
+
+  dt {
+    @include label;
+    font-size: 0.54rem;
+    white-space: nowrap;
+  }
+
+  dd {
+    @include num;
+    margin: 0.1rem 0 0;
+    font-size: 0.82rem;
+  }
+}
+
+.templateResult {
+  @include num;
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--dim);
+}
+
+.templateSave {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+
+  span {
+    font-size: 0.72rem;
+    color: var(--dim);
+  }
+}
+
+.btnSmall {
+  @include button-secondary;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.6rem;
+
+  &[data-tone="primary"] {
+    background: var(--blue);
+    border-color: var(--blue);
+    color: var(--blue-ink);
+  }
+}
+
+.btnGhostSmall {
+  @include button-base;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.6rem;
+  border-color: transparent;
+  color: var(--dim);
+}
+
+.manageCell {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+
+  @include tablet-down {
+    grid-column: span 2;
+    align-self: end;
+  }
+}

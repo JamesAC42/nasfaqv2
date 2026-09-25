@@ -1,0 +1,569 @@
+@use "../../../styles/mixins" as *;
+
+// Staff controls: the market page panel and the pieces the console reuses.
+
+// ── Panel (market page) ────────────────────────────────────────────────────
+.panel {
+  @include panel;
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.8rem 0.9rem 0.9rem;
+  border-top: 2px solid var(--blue-line);
+  container: staff / inline-size;
+}
+
+.panelHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  min-width: 0;
+
+  h2 {
+    @include section-heading;
+    margin: 0;
+    margin-right: auto;
+  }
+}
+
+.panelBody {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.panelFoot {
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--rule);
+
+  &:empty {
+    display: none;
+  }
+}
+
+.status {
+  @include label;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  color: var(--mid);
+
+  &[data-status="open"] {
+    color: var(--blue);
+    border-color: var(--blue-line);
+  }
+
+  &[data-status="disputed"],
+  &[data-status="halted"],
+  &[data-status="pending_approval"] {
+    color: var(--warn);
+    border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  }
+
+  &[data-status="proposed"] {
+    color: var(--text);
+  }
+}
+
+.autoTag {
+  @include label;
+  color: var(--dim);
+}
+
+// ── House numbers ──────────────────────────────────────────────────────────
+.house {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+
+  div {
+    min-width: 0;
+    padding: 0.4rem 0.5rem;
+    border-left: 1px solid var(--rule);
+
+    &:first-child {
+      border-left: 0;
+    }
+  }
+
+  dt {
+    @include label;
+    font-size: 0.56rem;
+    white-space: nowrap;
+  }
+
+  dd {
+    @include num;
+    margin: 0.1rem 0 0;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    &[data-tone="up"] {
+      color: var(--up);
+    }
+
+    &[data-tone="down"] {
+      color: var(--down);
+    }
+  }
+
+  @container staff (max-width: 300px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+// ── Buttons ────────────────────────────────────────────────────────────────
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.group {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+
+  > .btn {
+    justify-self: start;
+  }
+}
+
+.btn {
+  @include button-secondary;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.625rem;
+  white-space: nowrap;
+
+  &[data-tone="primary"] {
+    background: var(--blue);
+    border-color: var(--blue);
+    color: var(--blue-ink);
+
+    &:hover:not(:disabled) {
+      background: var(--blue-2);
+      border-color: var(--blue-2);
+    }
+  }
+
+  &[data-tone="danger"] {
+    color: var(--down);
+    border-color: color-mix(in srgb, var(--down) 40%, var(--rule-2));
+
+    &:hover:not(:disabled) {
+      border-color: var(--down);
+    }
+  }
+
+  &[data-tone="dangerSolid"] {
+    background: var(--down);
+    border-color: var(--down);
+    color: var(--down-ink);
+  }
+}
+
+.btnGhost {
+  @include button-base;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.625rem;
+  border-color: transparent;
+  color: var(--dim);
+
+  &:hover:not(:disabled) {
+    color: var(--text);
+  }
+}
+
+.confirm {
+  display: grid;
+  gap: 0.45rem;
+  flex: 1 1 100%;
+  min-width: 0;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+
+  &[data-tone="danger"] {
+    border-color: color-mix(in srgb, var(--down) 45%, var(--rule-2));
+  }
+
+  &[data-tone="primary"] {
+    border-color: var(--blue-line);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    color: var(--mid);
+  }
+}
+
+.input {
+  @include input-base;
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+
+  &[aria-invalid="true"] {
+    border-color: var(--warn);
+  }
+}
+
+.error {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--warn);
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.dimNote {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--dim);
+}
+
+.warnNote {
+  margin: 0;
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--warn);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--mid);
+}
+
+.unfold {
+  flex: 1 1 100%;
+  min-width: 0;
+  padding: 0.7rem;
+  border: 1px solid var(--blue-line);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+}
+
+// ── Countdown and tags ─────────────────────────────────────────────────────
+.countdown {
+  @include num;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--blue);
+  white-space: nowrap;
+
+  small {
+    @include label;
+    font-size: 0.56rem;
+  }
+
+  &[data-tone="soon"] {
+    color: var(--warn);
+  }
+
+  &[data-tone="done"] {
+    color: var(--dim);
+  }
+}
+
+.tag {
+  --oc: var(--mid);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.12rem 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--oc) 55%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--oc) 12%, transparent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  i {
+    flex: 0 0 auto;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--oc);
+  }
+}
+
+.tagVoid {
+  border-style: dashed;
+  border-color: var(--rule-2);
+  background: none;
+  color: var(--mid);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+// ── The call card ──────────────────────────────────────────────────────────
+.call {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+  padding-left: 0.7rem;
+  border-left: 2px solid var(--blue);
+
+  &[data-disputed] {
+    border-left-color: var(--warn);
+  }
+}
+
+.callHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+  min-width: 0;
+}
+
+.callKicker {
+  @include label;
+  color: var(--text);
+
+  .call[data-disputed] & {
+    color: var(--warn);
+  }
+}
+
+.callBy {
+  font-size: 0.78rem;
+  color: var(--dim);
+
+  b {
+    color: var(--mid);
+    font-weight: 600;
+  }
+}
+
+.callWindow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.6rem;
+}
+
+.source {
+  @include num;
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  min-width: 0;
+  font-size: 0.78rem;
+  color: var(--blue);
+  text-decoration: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+
+  span {
+    @include label;
+    font-size: 0.56rem;
+  }
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.note {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--mid);
+  overflow-wrap: anywhere;
+}
+
+.disputes {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.1rem 0 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    min-width: 0;
+    padding: 0.45rem 0.55rem;
+    border: 1px solid color-mix(in srgb, var(--warn) 30%, var(--rule));
+    border-radius: var(--radius-sm);
+    background: var(--warn-wash);
+
+    span {
+      font-size: 0.72rem;
+      color: var(--dim);
+
+      b {
+        color: var(--text);
+      }
+    }
+
+    p {
+      margin: 0.15rem 0 0;
+      font-size: 0.82rem;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+
+    &.dimNote {
+      border: 0;
+      background: none;
+      padding: 0;
+    }
+  }
+}
+
+// ── Call form ──────────────────────────────────────────────────────────────
+.callForm {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.picker {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+
+  legend {
+    @include label;
+    margin-bottom: 0.4rem;
+  }
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.choice {
+  --oc: var(--mid);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 100%;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  cursor: pointer;
+  min-width: 0;
+
+  input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  i {
+    flex: 0 0 auto;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--oc);
+  }
+
+  span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  small {
+    @include num;
+    font-size: 0.72rem;
+    color: var(--dim);
+  }
+
+  em {
+    @include label;
+    font-size: 0.5rem;
+    font-style: normal;
+  }
+
+  &[data-void] {
+    border-style: dashed;
+
+    i {
+      background: none;
+      border: 1px dashed var(--mid);
+    }
+  }
+
+  &:hover {
+    border-color: var(--mid);
+  }
+
+  &:has(input:checked) {
+    border-color: var(--oc);
+    background: color-mix(in srgb, var(--oc) 16%, transparent);
+    font-weight: 700;
+  }
+
+  &[data-void]:has(input:checked) {
+    --oc: var(--text);
+    background: var(--ink-3);
+  }
+
+  &:has(input:focus-visible) {
+    @include focus-ring;
+  }
+}
+
+.field {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+
+  > span {
+    @include label;
+  }
+}
+
+.fieldError {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  font-style: normal;
+  color: var(--warn);
+}
+
+.marketLink {
+  color: var(--text);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--blue);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.panelBody > .btn {
+  justify-self: start;
+}

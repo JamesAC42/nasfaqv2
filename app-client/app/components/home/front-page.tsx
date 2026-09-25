@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { Sparkline } from "@/app/components/common/sparkline";
@@ -22,7 +22,9 @@ import { previewOf } from "@/app/lib/streams";
 import { useMarketStore } from "@/app/stores/market-store";
 import { markSeries, UNIT_ORDER, unitLabel, unitName } from "@/app/lib/market-units";
 import { useNewsStore } from "@/app/stores/news-store";
-import { usePredictionMarketStore } from "@/app/stores/prediction-market-store";
+import { fetchFloor } from "@/app/lib/predictions/api";
+import { leader as predictionLeader, outcomeColor } from "@/app/lib/predictions/format";
+import type { PredictionMarket as PredictionMarketV2 } from "@/app/lib/predictions/types";
 import styles from "@/app/components/home/front-page.module.scss";
 
 
@@ -155,7 +157,7 @@ function NewsThumb({ item, lead = false }: { item: NewsItem; lead?: boolean }) {
 }
 
 function FrontNews({ items, isLoading }: { items: NewsItem[]; isLoading: boolean }) {
-  const now = Date.now();
+  const [now] = useState(() => Date.now());
   if (!items.length) {
     return <section className={styles.front}>{isLoading ? <p className={styles.empty}>Loading HoloNews…</p> : <p className={styles.empty}>No headlines yet today.</p>}</section>;
   }
@@ -412,8 +414,17 @@ function ThreadPulse() {
 }
 
 function PredictionsMini() {
-  const markets = usePredictionMarketStore((state) => state.markets);
-  const open = markets.filter((market) => market.status === "open").slice(0, 3);
+  const [markets, setMarkets] = useState<PredictionMarketV2[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetchFloor({ tab: "live", limit: 3 })
+      .then((result) => alive && setMarkets(result.items))
+      .catch(() => alive && setMarkets([]));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const open = markets ?? [];
   return (
     <div className={styles.communityCol}>
       <div className={styles.colHead}>
@@ -422,18 +433,29 @@ function PredictionsMini() {
           All markets →
         </Link>
       </div>
-      {open.length ? (
+      {markets === null ? (
+        <p className={styles.empty}>Loading markets…</p>
+      ) : open.length ? (
         open.map((market) => {
-          const yes = market.last_traded_probability !== null ? Math.round(market.last_traded_probability * 100) : null;
+          // Binary shows both sides with their labels (Yes/No, Up/Down); multi shows the leader.
+          const yes = market.outcomes.find((outcome) => outcome.outcome_code === "yes");
+          const no = market.outcomes.find((outcome) => outcome.outcome_code === "no");
+          const top = market.market_type === "multi" ? predictionLeader(market.outcomes) : null;
+          const main = top ?? yes;
+          const pct = main ? Math.round(main.price * 100) : null;
+          const barStyle = {
+            "--pm-a": main ? outcomeColor(market, main) : "var(--blue)",
+            "--pm-b": no && !top ? outcomeColor(market, no) : "var(--dim)",
+          } as CSSProperties;
           return (
             <Link key={market.id} href={`/predictions/${encodeURIComponent(market.slug)}`} className={styles.pm}>
               <span className={styles.pmQ}>{market.title}</span>
-              {yes !== null ? (
-                <span className={styles.pmBar}>
-                  <span className={styles.pmYes} style={{ width: `${Math.max(12, Math.min(88, yes))}%` }}>
-                    YES {yes}¢
+              {main && pct !== null ? (
+                <span className={styles.pmBar} style={barStyle}>
+                  <span className={styles.pmYes} style={{ width: `${Math.max(top ? 34 : 22, Math.min(78, pct))}%` }}>
+                    {main.label} {top ? `${pct}%` : `${pct}¢`}
                   </span>
-                  <span className={styles.pmNo}>NO {100 - yes}¢</span>
+                  <span className={styles.pmNo}>{top ? `${market.outcomes.length - 1} more` : `${no?.label ?? "No"} ${100 - pct}¢`}</span>
                 </span>
               ) : (
                 <span className={styles.meta}>No trades yet</span>
@@ -488,15 +510,13 @@ export function FrontPage() {
   const fetchNews = useNewsStore((state) => state.fetchNews);
   const fetchLivestreams = useLivestreamStore((state) => state.fetchLivestreams);
   const fetchLeaderboard = useLeaderboardStore((state) => state.fetchLeaderboard);
-  const fetchMarkets = usePredictionMarketStore((state) => state.fetchMarkets);
 
   useEffect(() => {
     void fetchNews();
     void fetchMarketIndexes();
     void fetchLivestreams();
     void fetchLeaderboard({ limit: 5 });
-    void fetchMarkets();
-  }, [fetchLeaderboard, fetchLivestreams, fetchMarketIndexes, fetchMarkets, fetchNews]);
+  }, [fetchLeaderboard, fetchLivestreams, fetchMarketIndexes, fetchNews]);
 
   return (
     <SiteShell>

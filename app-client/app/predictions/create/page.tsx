@@ -1,10 +1,7 @@
-import { Suspense } from "react";
-import { PredictionsPage } from "@/app/components/pages/predictions-page";
+import { CreateMarketForm } from "@/app/components/predictions/admin/create-market-form";
+
+export const metadata = { title: "New prediction market" };
 
 export default function Page() {
-  return (
-    <Suspense fallback={null}>
-      <PredictionsPage initialScope="mine" />
-    </Suspense>
-  );
+  return <CreateMarketForm />;
 }

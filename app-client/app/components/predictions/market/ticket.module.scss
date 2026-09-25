@@ -1,0 +1,620 @@
+@use "../../../styles/mixins" as *;
+
+// The order ticket. --oc is the selected outcome's colour; --oc-ink the text on it.
+
+.ticket {
+  position: relative;
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.tabs {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.tab {
+  @include display(1.05rem);
+  padding: 0.3rem 0.9rem 0.55rem 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: var(--dim);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &[aria-selected="true"] {
+    color: var(--text);
+    border-bottom-color: var(--blue);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.cash {
+  @include num;
+  align-self: center;
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--mid);
+  white-space: nowrap;
+
+  small {
+    @include label;
+    font-size: 0.56rem;
+    margin-right: 0.2rem;
+  }
+}
+
+.sideToggle {
+  @include tabs;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+
+  button {
+    @include tab;
+    padding: 0.5rem 0.4rem;
+    cursor: pointer;
+
+    &[aria-pressed="true"] {
+      @include tab-selected;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+// ── Outcome picker ─────────────────────────────────────────────────────────
+.binary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.big {
+  display: grid;
+  justify-items: center;
+  gap: 0.1rem;
+  min-width: 0;
+  padding: 0.7rem 0.5rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--oc) 45%, var(--rule-2));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--oc) 7%, transparent);
+  color: var(--oc);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) ease,
+    transform var(--dur-fast) ease;
+
+  span {
+    @include display(1.1rem);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  b {
+    @include num(wide);
+    font-size: 1.35rem;
+    font-weight: 600;
+  }
+
+  small {
+    @include num;
+    font-size: 0.6rem;
+    opacity: 0.8;
+  }
+
+  &:hover {
+    background: color-mix(in srgb, var(--oc) 16%, transparent);
+  }
+
+  &[aria-checked="true"] {
+    background: var(--oc);
+    border-color: var(--oc);
+    color: var(--oc-ink);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.multi {
+  display: grid;
+  max-height: 15.5rem;
+  overflow-y: auto;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  overscroll-behavior: contain;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.5rem 0.65rem;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-left: 3px solid transparent;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  > i {
+    width: 10px;
+    height: 10px;
+    justify-self: center;
+    border-radius: 50%;
+    background: var(--oc);
+  }
+
+  span {
+    overflow: hidden;
+    font-size: 0.8125rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  small {
+    @include num;
+    font-size: 0.6rem;
+    color: var(--dim);
+  }
+
+  b {
+    @include num;
+    font-size: 0.875rem;
+    color: var(--oc);
+  }
+
+  &:hover {
+    background: var(--ink-3);
+  }
+
+  &[aria-checked="true"] {
+    border-left-color: var(--oc);
+    background: color-mix(in srgb, var(--oc) 12%, transparent);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+    outline-offset: -2px;
+  }
+}
+
+// ── Fields ─────────────────────────────────────────────────────────────────
+.field {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+
+  label {
+    @include label;
+    display: flex;
+    justify-content: space-between;
+
+    span {
+      @include num;
+      letter-spacing: 0.04em;
+      color: var(--mid);
+    }
+  }
+}
+
+.input {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+
+  &:focus-within {
+    border-color: var(--text);
+  }
+
+  span {
+    @include num;
+    padding: 0 0.1rem 0 0.75rem;
+    font-size: 1.25rem;
+    color: var(--dim);
+
+    &:last-child {
+      padding: 0 0.75rem 0 0.1rem;
+    }
+  }
+
+  input {
+    @include num(wide);
+    width: 100%;
+    min-width: 0;
+    padding: 0.55rem 0.75rem 0.55rem 0.2rem;
+    border: 0;
+    background: none;
+    font-size: 1.35rem;
+    color: var(--text);
+
+    &:focus {
+      outline: none;
+    }
+
+    &::placeholder {
+      color: var(--dim);
+    }
+  }
+}
+
+.presets {
+  display: flex;
+  gap: 0.35rem;
+
+  button {
+    @include num;
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0.4rem 0.2rem;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    background: none;
+    font-size: 0.75rem;
+    color: var(--mid);
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--text);
+      color: var(--text);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.limitRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5.5rem;
+  align-items: center;
+  gap: 0.75rem;
+
+  input[type="range"] {
+    appearance: none;
+    width: 100%;
+    height: 1.5rem;
+    background: transparent;
+    cursor: pointer;
+
+    &::-webkit-slider-runnable-track {
+      height: 4px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, var(--oc) var(--fill), var(--rule-2) var(--fill));
+    }
+
+    &::-moz-range-track {
+      height: 4px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, var(--oc) var(--fill), var(--rule-2) var(--fill));
+    }
+
+    &::-webkit-slider-thumb {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      margin-top: -6px;
+      border: 2px solid var(--ink);
+      border-radius: 50%;
+      background: var(--oc);
+    }
+
+    &::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--ink);
+      border-radius: 50%;
+      background: var(--oc);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+
+  .input input {
+    padding-left: 0.6rem;
+    font-size: 1.1rem;
+    text-align: right;
+  }
+}
+
+.explain {
+  margin: 0;
+  padding: 0.6rem 0.7rem;
+  border-left: 2px solid var(--oc);
+  background: var(--ink-3);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--mid);
+
+  b {
+    font-weight: 600;
+    color: var(--text);
+  }
+}
+
+// ── Quote ──────────────────────────────────────────────────────────────────
+.quote {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  transition: opacity var(--dur-fast) ease;
+
+  > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  dt {
+    font-size: 0.78rem;
+    color: var(--dim);
+  }
+
+  dd {
+    @include num;
+    margin: 0;
+    font-size: 0.8125rem;
+    text-align: right;
+
+    em {
+      font-style: normal;
+      margin-left: 0.2rem;
+    }
+
+    small {
+      font-size: 0.7rem;
+    }
+  }
+
+  [data-tone="up"] {
+    color: var(--up);
+  }
+
+  [data-tone="down"] {
+    color: var(--down);
+  }
+
+  [data-tone="flat"] {
+    color: var(--mid);
+  }
+}
+
+.quoting {
+  opacity: 0.55;
+}
+
+.blank dd {
+  color: var(--dim);
+}
+
+.payout {
+  margin-top: 0.3rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--rule);
+
+  dt {
+    font-size: 0.8125rem;
+    color: var(--text);
+  }
+
+  dd {
+    @include num(wide);
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+}
+
+.profit dd {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.cap {
+  margin: 0.2rem 0 0;
+  font-size: 0.75rem;
+  color: var(--warn);
+}
+
+.moved {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent);
+  background: var(--warn-wash);
+  font-size: 0.78rem;
+
+  b {
+    color: var(--warn);
+  }
+}
+
+.problem,
+.error,
+.note {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.problem {
+  color: var(--warn);
+}
+
+.error {
+  color: var(--down);
+}
+
+.note {
+  color: var(--mid);
+}
+
+.linkish {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--blue);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+// ── Action ─────────────────────────────────────────────────────────────────
+.go {
+  @include button-base;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.7rem 0.75rem;
+  border-color: var(--oc);
+  background: var(--oc);
+  color: var(--oc-ink);
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+  }
+}
+
+.small {
+  @include label;
+  margin: -0.35rem 0 0;
+  font-size: 0.56rem;
+  text-align: center;
+}
+
+// ── Moments ────────────────────────────────────────────────────────────────
+.doneSlot:empty {
+  display: none;
+}
+
+.doneSlot {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  padding: 0.5rem;
+  background: color-mix(in srgb, var(--ink-2) 82%, transparent);
+  backdrop-filter: blur(3px);
+  animation: fadeIn var(--dur-med) var(--ease-out);
+}
+
+.done {
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 1.4rem 1rem 1.1rem;
+  border: 1px solid var(--oc);
+  background: var(--ink-2);
+  box-shadow: var(--shadow-pop), 0 0 40px color-mix(in srgb, var(--oc) 25%, transparent);
+  text-align: center;
+  animation: slam 420ms var(--ease-slam);
+
+  strong {
+    @include display(2.2rem);
+    line-height: 1;
+    color: var(--oc);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--mid);
+
+    b {
+      @include num;
+      color: var(--text);
+    }
+  }
+
+  button {
+    @include button-secondary;
+    min-width: 7rem;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes slam {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.closed {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+  border: 1px dashed var(--rule-2);
+
+  strong {
+    @include display(1.35rem);
+    color: var(--oc, var(--text));
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--mid);
+  }
+}
+
+:global(html[data-calm="true"]) {
+  .doneSlot,
+  .done {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doneSlot,
+  .done {
+    animation: none;
+  }
+}

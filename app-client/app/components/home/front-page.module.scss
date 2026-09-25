@@ -585,20 +585,23 @@ a.label:hover {
 .pmNo {
   display: flex;
   align-items: center;
+  min-width: 0;
   padding-inline: 0.4rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .pmYes {
-  background: var(--up-wash);
-  color: var(--up);
+  background: color-mix(in srgb, var(--pm-a, var(--blue)) 20%, transparent);
+  color: color-mix(in srgb, var(--pm-a, var(--blue)) 78%, var(--text));
 }
 
 .pmNo {
   flex: 1;
   justify-content: flex-end;
-  background: var(--down-wash);
-  color: var(--down);
+  background: color-mix(in srgb, var(--pm-b, var(--dim)) 14%, transparent);
+  color: color-mix(in srgb, var(--pm-b, var(--dim)) 78%, var(--text));
 }
 
 .lb {
