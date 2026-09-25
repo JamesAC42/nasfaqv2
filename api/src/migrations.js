@@ -3,12 +3,54 @@ const path = require("node:path");
 
 const { applyGamesSchema } = require("./gamesSchema");
 
+// ── Plain Postgres (local dev without TimescaleDB) ─────────────────────────
+// Production always has TimescaleDB. For a dev machine with a plain Postgres install, the schema
+// still applies: the extension and compression settings are skipped, and the three Timescale
+// functions the code uses get plain-SQL stand-ins (hypertables become ordinary tables).
+
+async function timescaleAvailable(pool) {
+  const { rows } = await pool.query(`SELECT 1 FROM pg_available_extensions WHERE name = 'timescaledb'`);
+  return rows.length > 0;
+}
+
+function stripTimescale(sql) {
+  return sql
+    .replace(/CREATE EXTENSION IF NOT EXISTS timescaledb\s*;/gi, "-- timescaledb not available: skipped")
+    .replace(/ALTER TABLE[^;]*?SET\s*\(\s*timescaledb\.compress[^;]*;/gis, "-- compression skipped (no timescaledb)");
+}
+
+async function installTimescaleStandIns(pool) {
+  await pool.query(`
+    CREATE OR REPLACE FUNCTION public.create_hypertable(relation TEXT, time_column_name TEXT, if_not_exists BOOLEAN DEFAULT FALSE,
+      migrate_data BOOLEAN DEFAULT FALSE, chunk_time_interval INTERVAL DEFAULT NULL)
+    RETURNS VOID LANGUAGE sql AS $$ SELECT NULL::VOID $$;
+
+    CREATE OR REPLACE FUNCTION public.add_compression_policy(relation TEXT, compress_after INTERVAL)
+    RETURNS INTEGER LANGUAGE sql AS $$ SELECT 0 $$;
+
+    CREATE OR REPLACE FUNCTION public.time_bucket(bucket_width INTERVAL, ts TIMESTAMPTZ)
+    RETURNS TIMESTAMPTZ LANGUAGE sql IMMUTABLE AS $$ SELECT date_bin(bucket_width, ts, TIMESTAMPTZ '2000-01-03 00:00:00+00') $$;
+
+    CREATE OR REPLACE FUNCTION public.time_bucket(bucket_width INTERVAL, ts TIMESTAMP)
+    RETURNS TIMESTAMP LANGUAGE sql IMMUTABLE AS $$ SELECT date_bin(bucket_width, ts, TIMESTAMP '2000-01-03 00:00:00') $$;
+
+    CREATE OR REPLACE FUNCTION public.time_bucket(bucket_width INTERVAL, ts DATE)
+    RETURNS DATE LANGUAGE sql IMMUTABLE AS $$ SELECT date_bin(bucket_width, ts::TIMESTAMP, TIMESTAMP '2000-01-03 00:00:00')::DATE $$;
+  `);
+}
+
 async function applySchema(pool) {
   // Reuse the schema from the Go service so API and scraper stay aligned.
   const schemaPath = process.env.YT_SCHEMA_PATH
     ? path.resolve(process.env.YT_SCHEMA_PATH)
     : path.resolve(__dirname, "..", "..", "ytscraper", "internal", "db", "schema.sql");
-  const sql = fs.readFileSync(schemaPath, "utf8");
+  let sql = fs.readFileSync(schemaPath, "utf8");
+  if (!(await timescaleAvailable(pool))) {
+    // eslint-disable-next-line no-console
+    console.warn("TimescaleDB is not installed: using plain-Postgres stand-ins (fine for local dev, not for production).");
+    await installTimescaleStandIns(pool);
+    sql = stripTimescale(sql);
+  }
   await pool.query(sql);
   await pool.query(`
     CREATE SCHEMA IF NOT EXISTS info

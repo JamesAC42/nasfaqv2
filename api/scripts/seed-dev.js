@@ -1,0 +1,199 @@
+// Seeds a LOCAL dev database so the site has something to trade and play with.
+//
+//   node scripts/seed-dev.js                 talents: YouTube channels, market assets, today's prices
+//   node scripts/seed-dev.js verify <user>   mark an account's email verified (games and trading need it)
+//   node scripts/seed-dev.js cash <user> <n> set an account's cash (for the high-limit tables)
+//
+// Refuses to run unless DATABASE_URL points at localhost, so it can never touch production.
+// Channel ids are made up, so YouTube stats and livestreams stay empty; real data needs a prod dump.
+
+const { loadEnv } = require("../src/config");
+const { createPool } = require("../src/db");
+
+// [symbol, name, unit, icon, colour, price, open, circulating supply]
+const TALENTS = [
+  ["AKI", "Aki Rosenthal", "hololive 1st Generation", "aki", "#feefbc", 10.96, 10.94, 7628],
+  ["AME", "Watson Amelia", "hololive English -Myth-", "amelia", "#ffd642", 10.28, 10.24, 6957],
+  ["AQU", "Minato Aqua", "hololive 2nd Generation", "aqua", "#3b42ab", 13.9, 13.9, 10000],
+  ["AYA", "Nakiri Ayame", "hololive 2nd Generation", "ayame", "#fe3434", 12.44, 12.44, 7133],
+  ["AZK", "AZKi", "hololive Generation 0", "azki", "#ff4d4d", 12.65, 12.5, 7700],
+  ["BIJ", "Koseki Bijou", "hololive English -Advent-", "koseki", "#b19abc", 10.42, 10.42, 7219],
+  ["BLD", "Elizabeth Rose Bloodflame", "hololive English -Justice-", "bloodflame", "#bd0f0f", 8.86, 9.29, 7129],
+  ["BLZ", "Hakos Baelz", "hololive English -Promise-", "baelz", "#fee020", 11.82, 11.82, 7725],
+  ["BOT", "Shishiro Botan", "hololive 5th Generation", "botan", "#dedede", 14.36, 14.32, 8537],
+  ["BYS", "FuwaMoco Abyssgard", "hololive English -Advent-", "fuwamoco", "#f0e5cc", 12.26, 12.37, 8116],
+  ["CHC", "Yuzuki Choco", "hololive 2nd Generation", "choco", "#ffdbdb", 11.32, 11.25, 9577],
+  ["CHH", "Rindo Chihaya", "hololive FLOW GLOW", "chihaya", "#3e9389", 8.91, 8.9, 7654],
+  ["CHL", "Sakamata Chloe", "hololive holoX", "chloe", "#7d0d0d", 10.73, 10.69, 7076],
+  ["CLI", "Mori Calliope", "hololive English -Myth-", "calliope", "#ffa3c8", 17.7, 17.71, 8946],
+  ["COC", "Kiryu Coco", "hololive 4th Generation", "coco", "#fe892a", 8.94, 8.93, 6871],
+  ["DRK", "La+ Darknesss", "hololive holoX", "laplus", "#3a256a", 12.83, 12.71, 7204],
+  ["FAU", "Ceres Fauna", "hololive English -Promise-", "fauna", "#9effbb", 9.16, 9.16, 7084],
+  ["FBK", "Shirakami Fubuki", "hololive 1st Generation", "fubuki", "#7cd2fe", 18.18, 18.14, 7590],
+  ["FFT", "Airani Iofifteen", "hololive Indonesia", "iofi", "#f52eac", 9.44, 9.48, 7850],
+  ["FLR", "Shiranui Flare", "hololive 3rd Generation", "flare", "#ffb36b", 11.26, 11.11, 8507],
+  ["GUR", "Gawr Gura", "hololive English -Myth-", "gura", "#3678a1", 18.58, 18.44, 7193],
+  ["HAT", "Akai Haato", "hololive 1st Generation", "haato", "#ff2929", 13.77, 13.71, 8798],
+  ["HIO", "Hiodoshi Ao", "hololive ReGLOSS", "ao", "#484960", 7.75, 7.75, 6874],
+  ["HJM", "Todoroki Hajime", "hololive ReGLOSS", "hajime", "#f7dbff", 13.24, 13.07, 8244],
+  ["HSH", "Moona Hoshinova", "hololive Indonesia", "moona", "#b468f3", 12.9, 13.04, 10000],
+  ["INA", "Ninomae Ina’nis", "hololive English -Myth-", "inanis", "#463b4e", 14.34, 14.32, 8439],
+  ["IRO", "Kazama Iroha", "hololive holoX", "iroha", "#74d2c8", 12.28, 12.35, 7969],
+  ["KAN", "Amane Kanata", "hololive 4th Generation", "kanata", "#dadce8", 11.97, 12.66, 9401],
+  ["KND", "Otonose Kanade", "hololive ReGLOSS", "kanade", "#ffeebf", 11.57, 11.52, 8531],
+  ["KNR", "Kobo Kanaeru", "hololive Indonesia", "kanaeru", "#addafb", 16.95, 16.76, 7376],
+  ["KRA", "Takanashi Kiara", "hololive English -Myth-", "kiara", "#ff8365", 14.18, 14.18, 8410],
+  ["KRE", "Inugami Korone", "hololive GAMERS", "korone", "#fff59c", 16.24, 16.16, 7877],
+  ["KRN", "Ouro Kronii", "hololive English -Promise-", "kronii", "#253bb3", 11.04, 11.04, 7555],
+  ["KVL", "Kaela Kovalskia", "hololive Indonesia", "kovalskia", "#f34552", 11.17, 11.17, 9060],
+  ["KYR", "Hakui Koyori", "hololive holoX", "koyori", "#f7d1d5", 13.89, 13.97, 8249],
+  ["LAM", "Yukihana Lamy", "hololive 5th Generation", "lamy", "#abdbff", 12.98, 12.98, 7795],
+  ["LUI", "Takane Lui", "hololive holoX", "lui", "#f2abac", 12.74, 13.38, 8020],
+  ["LUN", "Himemori Luna", "hololive 4th Generation", "luna", "#ffaadc", 12.16, 12.15, 8410],
+  ["MAR", "Houshou Marine", "hololive 3rd Generation", "marine", "#bf4848", 22.49, 22.59, 7824],
+  ["MIK", "Sakura Miko", "hololive Generation 0", "miko", "#ff5286", 18.23, 19.33, 8572],
+  ["MIO", "Ookami Mio", "hololive GAMERS", "mio", "#35323d", 13.56, 13.56, 7748],
+  ["MIZ", "Mizumiya Su", "hololive FLOW GLOW", "su", "#85effa", 10.85, 10.84, 8736],
+  ["MLF", "Anya Melfissa", "hololive Indonesia", "melfissa", "#9f7c80", 10.03, 9.96, 7631],
+  ["MMR", "Cecilia Immergreen", "hololive English -Justice-", "immergreen", "#10da7c", 8.22, 7.92, 7476],
+  ["MRN", "Gigi Murin", "hololive English -Justice-", "murin", "#fba92c", 8.43, 8.4, 7233],
+  ["MTS", "Natsuiro Matsuri", "hololive 1st Generation", "matsuri", "#fcd267", 14.48, 14.49, 8251],
+  ["MUM", "Nanashi Mumei", "hololive English -Promise-", "mumei", "#be9a8a", 9.79, 9.76, 7053],
+  ["NEN", "Momosuzu Nene", "hololive 5th Generation", "nene", "#fff2c0", 11.63, 11.66, 7422],
+  ["NIK", "Koganei Niko", "hololive FLOW GLOW", "niko", "#ea902b", 10.2, 9.82, 7818],
+  ["NOE", "Shirogane Noel", "hololive 3rd Generation", "noel", "#465f6b", 15.62, 15.08, 7679],
+  ["NVL", "Shiori Novella", "hololive English -Advent-", "shiori", "#705f8b", 9.26, 9.24, 7146],
+  ["OKY", "Nekomata Okayu", "hololive GAMERS", "okayu", "#dc76f4", 16.32, 16.33, 8635],
+  ["OLL", "Kureiji Ollie", "hololive Indonesia", "ollie", "#ee014c", 10.8, 10.8, 8086],
+  ["PEK", "Usada Pekora", "hololive 3rd Generation", "pekora", "#cedcf5", 18.94, 18.92, 8374],
+  ["PLK", "Omaru Polka", "hololive 5th Generation", "polka", "#3599ea", 13.09, 13.08, 7818],
+  ["PNT", "Raora Panthera", "hololive English -Justice-", "panthera", "#ff85c0", 9.6, 9.35, 8590],
+  ["RBC", "Robocosan", "hololive Generation 0", "roboco", "#ef4989", 12.6, 12.37, 7869],
+  ["RDN", "Juufuutei Raden", "hololive ReGLOSS", "raden", "#444153", 11.85, 11.86, 7312],
+  ["REI", "Pavolia Reine", "hololive Indonesia", "reine", "#73e2c8", 9.63, 9.63, 7458],
+  ["RIO", "Isaki Riona", "hololive FLOW GLOW", "riona", "#cdc5c3", 8.49, 8.47, 8203],
+  ["RIS", "Ayunda Risu", "hololive Indonesia", "risu", "#fdccc8", 9.93, 9.93, 7311],
+  ["RRK", "Ichijou Ririka", "hololive ReGLOSS", "ririka", "#fff0f8", 9.74, 9.75, 7474],
+  ["RVN", "Nerissa Ravencroft", "hololive English -Advent-", "nerissa", "#5167d9", 11.17, 11.11, 7264],
+  ["RYS", "IRyS", "hololive English -Promise-", "irys", "#c51072", 10.69, 10.69, 7657],
+  ["SAN", "Tsukumo Sana", "hololive English -Council-", "sana", "#2a24ca", 4.98, 4.96, 6891],
+  ["SBR", "Oozora Subaru", "hololive 2nd Generation", "subaru", "#e8f56a", 17.01, 16.96, 8920],
+  ["SHI", "Murasaki Shion", "hololive 2nd Generation", "shion", "#5c366e", 10.53, 10.51, 7097],
+  ["SRA", "Tokino Sora", "hololive Generation 0", "sora", "#8485f6", 13.48, 13.43, 8697],
+  ["SUI", "Hoshimachi Suisei", "hololive Generation 0", "suisei", "#9dc9f4", 19.09, 19.1, 7934],
+  ["TOW", "Tokoyami Towa", "hololive 4th Generation", "towa", "#c29edc", 15.04, 15.42, 8124],
+  ["VIV", "Kikirara Vivi", "hololive FLOW GLOW", "vivi", "#ae88fa", 10.77, 10.39, 8399],
+  ["WAT", "Tsunomaki Watame", "hololive 4th Generation", "watame", "#feffe6", 15.83, 15.86, 8682],
+  ["ZET", "Vestia Zeta", "hololive Indonesia", "zeta", "#bdbdc3", 11.03, 11.32, 7876]
+];
+
+function assertLocal(url) {
+  let host = "";
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    throw new Error("DATABASE_URL is missing or invalid");
+  }
+  if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(host)) {
+    throw new Error(`refusing to seed ${host}: seed-dev.js only runs against a local database`);
+  }
+}
+
+async function seedTalents(pool) {
+  const today = new Date().toISOString().slice(0, 10);
+  for (const [index, [symbol, name, unit, icon, color, price, open, circulating]] of TALENTS.entries()) {
+    const channelId = `UCdev${symbol}${String(index).padStart(3, "0")}`.padEnd(24, "0");
+    await pool.query(
+      `INSERT INTO yt.youtube_channels (youtube_channel_id, name_short, name_english, symbol, icon, color, unit)
+       VALUES ($1, $2, $2, $3, $4, $5, $6)
+       ON CONFLICT (youtube_channel_id) DO UPDATE SET name_short = EXCLUDED.name_short, name_english = EXCLUDED.name_english,
+         symbol = EXCLUDED.symbol, icon = EXCLUDED.icon, color = EXCLUDED.color, unit = EXCLUDED.unit`,
+      [channelId, name, symbol, icon, color, unit]
+    );
+    const asset = await pool.query(
+      `INSERT INTO market.market_assets (youtube_channel_id, symbol, display_name, status, max_supply, circulating_supply, treasury_supply,
+         liquidity_depth, spread_bps, current_mid_price, current_bid_price, current_ask_price)
+       VALUES ($1, $2, $3, 'active', 10000, $4, $5, 1000, 400, $6, $6 * 0.98, $6 * 1.02)
+       ON CONFLICT (symbol) DO UPDATE SET display_name = EXCLUDED.display_name
+       RETURNING id, current_mid_price`,
+      [channelId, symbol, name, circulating, 10000 - circulating, price]
+    );
+    const snapshot = await pool.query(
+      `INSERT INTO market.channel_daily_snapshots (youtube_channel_id, snapshot_date, subscriber_count, view_count)
+       VALUES ($1, $2, 1000000, 100000000)
+       ON CONFLICT DO NOTHING
+       RETURNING id`,
+      [channelId, today]
+    );
+    const snapshotId =
+      snapshot.rows[0]?.id ??
+      (await pool.query(`SELECT id FROM market.channel_daily_snapshots WHERE youtube_channel_id = $1 ORDER BY id DESC LIMIT 1`, [channelId])).rows[0].id;
+    await pool.query(
+      `INSERT INTO market.asset_daily_market_state (asset_id, market_date, snapshot_id, fair_value, mid_open, daily_emission,
+         treasury_supply_start, circulating_supply_start)
+       VALUES ($1, $2, $3, $4, $4, 10, $5, $6)
+       ON CONFLICT (asset_id, market_date) DO NOTHING`,
+      [asset.rows[0].id, today, snapshotId, open, 10000 - circulating, circulating]
+    );
+  }
+  console.log(`seeded ${TALENTS.length} talents`);
+}
+
+async function findUser(pool, username) {
+  const { rows } = await pool.query(`SELECT id, username FROM market.users WHERE username_normalized = lower($1)`, [String(username || "")]);
+  if (!rows[0]) throw new Error(`no user called ${username}. Register on the site first.`);
+  return rows[0];
+}
+
+async function verify(pool, username) {
+  const user = await findUser(pool, username);
+  await pool.query(`UPDATE market.users SET email_verified = true, email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1`, [user.id]);
+  console.log(`verified ${user.username}`);
+}
+
+async function setCash(pool, username, amount) {
+  const user = await findUser(pool, username);
+  const target = Number(amount);
+  if (!Number.isFinite(target) || target < 0) throw new Error("cash must be a number >= 0");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const current = await client.query(`SELECT cash_balance FROM market.portfolio_cash_balances WHERE user_id = $1 FOR UPDATE`, [user.id]);
+    if (!current.rows[0]) throw new Error(`${user.username} has no cash account yet. Sign in on the site once first.`);
+    const delta = target - Number(current.rows[0].cash_balance);
+    // Through the ledger, so balances still reconcile.
+    await client.query(
+      `INSERT INTO market.ledger_entries (user_id, asset_id, entry_type, quantity_delta, cash_delta, reference_type, reference_id)
+       VALUES ($1, NULL, 'admin_grant', 0, $2, 'dev_seed', $1)`,
+      [user.id, delta]
+    );
+    await client.query(`UPDATE market.portfolio_cash_balances SET cash_balance = $2, updated_at = now() WHERE user_id = $1`, [user.id, target]);
+    await client.query("COMMIT");
+    console.log(`${user.username} now has $${target}`);
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function main() {
+  loadEnv();
+  assertLocal(process.env.DATABASE_URL);
+  const pool = createPool(process.env.DATABASE_URL);
+  const [command, ...args] = process.argv.slice(2);
+  try {
+    if (!command) await seedTalents(pool);
+    else if (command === "verify") await verify(pool, args[0]);
+    else if (command === "cash") await setCash(pool, args[0], args[1]);
+    else throw new Error(`unknown command ${command}`);
+  } finally {
+    await pool.end();
+  }
+}
+
+main().catch((error) => {
+  console.error("seed-dev failed:", error.message);
+  process.exit(1);
+});
