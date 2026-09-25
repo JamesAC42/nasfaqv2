@@ -18,6 +18,7 @@ import { useAuth } from "@/app/providers/auth-provider";
 import { useMotion } from "@/app/providers/motion-provider";
 import { useTheme } from "@/app/providers/theme-provider";
 import { useMarketStore } from "@/app/stores/market-store";
+import { useMomentStore } from "@/app/stores/moment-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/layout/site-shell.module.scss";
 
@@ -69,7 +70,10 @@ export function SiteShell({
   const clearPendingLiveOrders = useProfileStore((state) => state.clearPendingLiveOrders);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [isOrdersOpen, setIsOrdersOpen] = useState(false);
-  const [liveOrderNotice, setLiveOrderNotice] = useState<string | null>(null);
+  const liveOrderNotice = useMomentStore((state) => state.notice);
+  const setLiveOrderNotice = useMomentStore((state) => state.setNotice);
+  const fillPopups = useMomentStore((state) => state.fillPopups);
+  const setFillPopups = useMomentStore((state) => state.setFillPopups);
   const hasRequestedOverviewRef = useRef(false);
   const hasRequestedPortfolioRef = useRef<number | null>(null);
   const pendingOrderIdsRef = useRef<Set<number> | null>(null);
@@ -135,26 +139,29 @@ export function SiteShell({
     pendingOrderIdsRef.current = nextIds;
     if (!previousIds) return;
     const completed = Array.from(previousIds).filter((id) => !nextIds.has(id));
-    const completedCount = completed.length;
-    if (!completedCount) return;
-    // If the live socket missed a fill (tab asleep, socket reconnecting), show its moment from the poll.
+    if (!completed.length) return;
+    // Fills get the popup (or their own toast when popups are off); anything else that left the
+    // queue (rejected, cancelled) gets this toast. The popup covers fills the live socket missed.
     const recent = useProfileStore.getState().recentOrders;
+    let others = 0;
     for (const id of completed) {
       const order = recent.find((entry) => String(entry.id) === String(id));
-      if (order) announceOrderFill(order);
+      if (order?.status === "filled") announceOrderFill(order);
+      else others++;
     }
+    if (!others) return;
     const timer = window.setTimeout(() => {
-      setLiveOrderNotice(`${completedCount} order${completedCount === 1 ? "" : "s"} filled or closed in the last batch.`);
+      setLiveOrderNotice(`${others} order${others === 1 ? "" : "s"} didn't fill in the last batch (rejected or cancelled).`);
       setIsOrdersOpen(false);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [pendingOrders, user]);
+  }, [pendingOrders, setLiveOrderNotice, user]);
 
   useEffect(() => {
     if (!liveOrderNotice) return;
     const timer = window.setTimeout(() => setLiveOrderNotice(null), 6200);
     return () => window.clearTimeout(timer);
-  }, [liveOrderNotice]);
+  }, [liveOrderNotice, setLiveOrderNotice]);
 
   // ── Menus close on outside click and Escape ──────────────────────────────
   useEffect(() => {
@@ -218,6 +225,11 @@ export function SiteShell({
           <Link href="/profile" onClick={() => setLiveOrderNotice(null)}>
             View orders
           </Link>
+          {!fillPopups ? (
+            <button type="button" onClick={() => (setFillPopups(true), setLiveOrderNotice(null))}>
+              Show fill popups
+            </button>
+          ) : null}
         </div>
       ) : null}
 

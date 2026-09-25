@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ArtSlot } from "@/app/components/common/art-slot";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { apiFetch } from "@/app/lib/api";
@@ -107,7 +108,8 @@ export function TradeTicket({
       if (confirmation.mode === "queued") {
         setQueued(confirmation);
         if (confirmation.orderId !== null) trackOrder(confirmation.orderId);
-      } else {
+      } else if (confirmation.filledQuantity > 0) {
+        // Instant fills (no batch): only when the response really carries a fill.
         pushFill({
           id: String(confirmation.orderId ?? Date.now()),
           side: confirmation.side,
@@ -134,7 +136,10 @@ export function TradeTicket({
   return (
     queued ? (
           <div className={styles.queued}>
-            <div className={styles.qBand}>QUEUED</div>
+            <div className={styles.qHead}>
+              <ArtSlot kind="reaction" pose={queued.side === "buy" ? "moon" : "smug"} symbol={symbol} icon={asset.icon} width={144} className={styles.qArt} />
+              <div className={styles.qBand}>QUEUED</div>
+            </div>
             <p>
               <b className={queued.side === "buy" ? styles.up : styles.down}>
                 {queued.side.toUpperCase()} {queued.requestedQuantity.toLocaleString("en-US")} {queued.symbol}

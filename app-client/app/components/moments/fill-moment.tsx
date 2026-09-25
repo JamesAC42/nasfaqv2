@@ -118,19 +118,28 @@ function useOwnFills() {
 
 export function FillMomentLayer() {
   useOwnFills();
-  const fill = useMomentStore((state) => state.fill);
+  const fills = useMomentStore((state) => state.fills);
   const dismiss = useMomentStore((state) => state.dismissFill);
-  const asset = useMarketStore((state) => (fill ? state.assets.find((entry) => entry.symbol === fill.symbol) ?? null : null));
+  const setFillPopups = useMomentStore((state) => state.setFillPopups);
+  const setNotice = useMomentStore((state) => state.setNotice);
+  // One fill, or a whole batch: the biggest trade leads (its talent reacts, its greentext is posted).
+  const fill = useMemo(() => (fills.length ? fills.reduce((best, entry) => (entry.gross > best.gross ? entry : best), fills[0]) : null), [fills]);
+  const assets = useMarketStore((state) => state.assets);
+  const asset = fill ? assets.find((entry) => entry.symbol === fill.symbol) ?? null : null;
   const { theme } = useTheme();
   const { calm } = useMotion();
-  const [seed, setSeed] = useState(0);
-  const [copied, setCopied] = useState<string | null>(null);
+  // Per-moment state keyed by the lead fill, so a new moment starts fresh without resetting in an effect.
+  const [roll, setRoll] = useState<{ id: string; n: number }>({ id: "", n: 0 });
+  const [copiedState, setCopiedState] = useState<{ id: string; text: string } | null>(null);
+  const fillKey = fill?.id ?? "";
+  const seed = (Number(fillKey.replace(/\D/g, "").slice(-6)) || fillKey.length * 97) + (roll.id === fillKey ? roll.n : 0);
+  const copied = copiedState && copiedState.id === fillKey ? copiedState.text : null;
+  const setCopied = (text: string | null) => setCopiedState(text ? { id: fillKey, text } : null);
+  const setSeed = (next: (current: number) => number) => setRoll({ id: fillKey, n: next(roll.id === fillKey ? roll.n : 0) });
   const closeRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!fill) return;
-    setSeed(Math.floor(Math.random() * 1000));
-    setCopied(null);
     closeRef.current?.focus();
     const onKey = (event: KeyboardEvent) => event.key === "Escape" && dismiss();
     document.addEventListener("keydown", onKey);
@@ -139,16 +148,38 @@ export function FillMomentLayer() {
 
   const text = useMemo(() => {
     if (!fill) return "";
-    const clock = getMarketClock(Date.now());
+    const clock = getMarketClock(new Date(fill.at).getTime());
     const hours = Math.floor(clock.secondsToNextTick / 3600);
     const minutes = Math.floor((clock.secondsToNextTick % 3600) / 60);
     return greentext(fill, seed, clock.nextTick.label.toLowerCase(), `${hours}h${String(minutes).padStart(2, "0")}m`);
   }, [fill, seed]);
 
   if (!fill) return null;
-  const buy = fill.side === "buy";
+  const batch = fills.length > 1;
+  const buys = fills.filter((entry) => entry.side === "buy");
+  const sells = fills.filter((entry) => entry.side === "sell");
+  const spent = buys.reduce((sum, entry) => sum + entry.gross + entry.fee, 0);
+  const received = sells.reduce((sum, entry) => sum + entry.gross - entry.fee, 0);
+  const fees = fills.reduce((sum, entry) => sum + entry.fee, 0);
+  const realizedKnown = sells.filter((entry) => entry.realized !== null);
+  const realized = realizedKnown.length ? realizedKnown.reduce((sum, entry) => sum + (entry.realized ?? 0), 0) : null;
+  const buy = batch ? sells.length === 0 : fill.side === "buy";
+  // Her reaction follows the biggest trade in the batch.
+  const pose = fill.side === "buy" ? "hype" : (fill.realized ?? 0) >= 0 ? "smug" : "cope";
   const total = buy ? fill.gross + fill.fee : fill.gross - fill.fee;
-  const pose = buy ? "hype" : (fill.realized ?? 0) >= 0 ? "smug" : "cope";
+  // A mixed batch is neither a buy nor a sell: blue. All buys green, all sells green or red on P/L.
+  const tone = batch
+    ? buys.length && sells.length
+      ? "var(--blue)"
+      : buys.length
+        ? "var(--up)"
+        : realized !== null && realized < 0
+          ? "var(--down)"
+          : "var(--up)"
+    : buy
+      ? "var(--up)"
+      : "var(--down)";
+  const time = new Date(fill.at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/New_York" });
 
   const copy = async () => {
     try {
@@ -160,37 +191,99 @@ export function FillMomentLayer() {
     window.setTimeout(() => setCopied(null), 1800);
   };
 
+  const toastsOnly = () => {
+    setFillPopups(false);
+    dismiss();
+    setNotice("Fill popups off. Fills show here instead; turn them back on from this toast.");
+  };
+
   return (
     <div className={styles.scrim} role="dialog" aria-modal="true" aria-labelledby="fill-title" onClick={(event) => event.target === event.currentTarget && dismiss()}>
-      <div className={`${styles.card} ${calm ? "" : styles.play}`} style={{ "--side": buy ? "var(--up)" : "var(--down)", "--tal": talentAccent(asset?.color, theme) } as React.CSSProperties}>
+      <div className={`${styles.card} ${calm ? "" : styles.play}`} style={{ "--side": tone, "--tal": talentAccent(asset?.color, theme) } as React.CSSProperties}>
         <div className={styles.band}>
-          <h2 id="fill-title">{buy ? "FILLED" : "SOLD"}</h2>
-          <span>{new Date(fill.at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/New_York" })} ET</span>
+          <h2 id="fill-title">{batch ? `${fills.length} ORDERS FILLED` : buy ? "FILLED" : "SOLD"}</h2>
+          <span>{time} ET</span>
         </div>
         <div className={styles.body}>
-          <ArtSlot kind="chibi" pose={pose} symbol={fill.symbol} icon={asset?.icon} accent={talentAccent(asset?.color, theme)} width={170} className={styles.art} />
+          <ArtSlot kind="reaction" pose={pose} symbol={fill.symbol} icon={asset?.icon} accent={talentAccent(asset?.color, theme)} width={170} className={styles.art} />
           <div className={styles.info}>
-            <div className={styles.line}>
-              <Oshimark icon={asset?.icon} symbol={fill.symbol} size={34} />
-              <span>
-                {buy ? "Bought" : "Sold"} {fill.quantity.toLocaleString("en-US")} {fill.symbol}
-                <small>@ {fill.price.toFixed(2)}</small>
-              </span>
-            </div>
+            {batch ? (
+              <ul className={styles.rows}>
+                {fills.map((entry) => {
+                  const rowAsset = assets.find((item) => item.symbol === entry.symbol);
+                  return (
+                    <li key={entry.id}>
+                      <Oshimark icon={rowAsset?.icon} symbol={entry.symbol} size={20} />
+                      <b className={entry.side === "buy" ? styles.up : styles.down}>{entry.side === "buy" ? "BUY" : "SELL"}</b>
+                      <span>
+                        {entry.quantity.toLocaleString("en-US")} {entry.symbol}
+                      </span>
+                      <small>@ {entry.price.toFixed(2)}</small>
+                      {entry.realized !== null && entry.side === "sell" ? (
+                        <em className={entry.realized >= 0 ? styles.up : styles.down}>
+                          {entry.realized >= 0 ? "+" : "−"}
+                          {money(Math.abs(entry.realized))}
+                        </em>
+                      ) : (
+                        <em>{money(entry.side === "buy" ? entry.gross + entry.fee : entry.gross - entry.fee)}</em>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <div className={styles.line}>
+                <Oshimark icon={asset?.icon} symbol={fill.symbol} size={34} />
+                <span>
+                  {buy ? "Bought" : "Sold"} {fill.quantity.toLocaleString("en-US")} {fill.symbol}
+                  <small>@ {fill.price.toFixed(2)}</small>
+                </span>
+              </div>
+            )}
             <dl className={styles.est}>
-              <dt>{buy ? "Paid" : "Received"}</dt>
-              <dd>{money(total)}</dd>
-              <dt>Fee</dt>
-              <dd>{money(fill.fee)}</dd>
-              {!buy && fill.realized !== null ? (
+              {batch ? (
                 <>
-                  <dt>Realized</dt>
-                  <dd className={fill.realized >= 0 ? styles.up : styles.down}>
-                    {fill.realized >= 0 ? "+" : "−"}
-                    {money(Math.abs(fill.realized))}
-                  </dd>
+                  {buys.length ? (
+                    <>
+                      <dt>Paid · {buys.length} buy{buys.length === 1 ? "" : "s"}</dt>
+                      <dd>{money(spent)}</dd>
+                    </>
+                  ) : null}
+                  {sells.length ? (
+                    <>
+                      <dt>Received · {sells.length} sell{sells.length === 1 ? "" : "s"}</dt>
+                      <dd>{money(received)}</dd>
+                    </>
+                  ) : null}
+                  <dt>Fees</dt>
+                  <dd>{money(fees)}</dd>
+                  {realized !== null ? (
+                    <>
+                      <dt>Realized</dt>
+                      <dd className={realized >= 0 ? styles.up : styles.down}>
+                        {realized >= 0 ? "+" : "−"}
+                        {money(Math.abs(realized))}
+                      </dd>
+                    </>
+                  ) : null}
                 </>
-              ) : null}
+              ) : (
+                <>
+                  <dt>{buy ? "Paid" : "Received"}</dt>
+                  <dd>{money(total)}</dd>
+                  <dt>Fee</dt>
+                  <dd>{money(fill.fee)}</dd>
+                  {!buy && fill.realized !== null ? (
+                    <>
+                      <dt>Realized</dt>
+                      <dd className={fill.realized >= 0 ? styles.up : styles.down}>
+                        {fill.realized >= 0 ? "+" : "−"}
+                        {money(Math.abs(fill.realized))}
+                      </dd>
+                    </>
+                  ) : null}
+                </>
+              )}
             </dl>
             <div className={styles.brag}>
               <span className={styles.hdr}>
@@ -209,6 +302,9 @@ export function FillMomentLayer() {
                 NICE
               </button>
             </div>
+            <button type="button" className={styles.quiet} onClick={toastsOnly}>
+              Just toasts from now on
+            </button>
           </div>
         </div>
       </div>

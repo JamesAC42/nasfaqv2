@@ -30,9 +30,16 @@ export type FillMoment = {
 };
 
 type MomentStore = {
-  fill: FillMoment | null;
+  /** The fills on screen as one moment: a single fill, or everything that landed in one batch. */
+  fills: FillMoment[];
   pushFill: (fill: FillMoment) => void;
   dismissFill: () => void;
+  /** Popups for fills can be turned off; fills then go to the toast. */
+  fillPopups: boolean;
+  setFillPopups: (on: boolean) => void;
+  /** The small toast in the corner (batch results, rejections, fills when popups are off). */
+  notice: string | null;
+  setNotice: (notice: string | null) => void;
   tick: TickMoment | null;
   /** A tick that landed while the tab was hidden; shown when the player comes back. */
   missedTick: TickMoment | null;
@@ -42,6 +49,24 @@ type MomentStore = {
 };
 
 const shownFills = new Set<string>();
+const POPUP_KEY = "nasfaq-fill-popups";
+// Fills from one batch arrive within a moment of each other; wait for the burst to finish so they
+// open as one popup instead of twenty.
+const GATHER_MS = 900;
+let gathered: FillMoment[] = [];
+let gatherTimer: ReturnType<typeof setTimeout> | null = null;
+
+function readPopupPref() {
+  try {
+    return typeof window === "undefined" || window.localStorage.getItem(POPUP_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+function fillLine(fill: FillMoment) {
+  return `${fill.side === "buy" ? "Bought" : "Sold"} ${fill.quantity.toLocaleString("en-US")} ${fill.symbol} @ ${fill.price.toFixed(2)}`;
+}
 
 function toNumber(value: unknown) {
   const parsed = Number(value);
@@ -66,14 +91,46 @@ export function parseTickPayload(payload: Record<string, unknown>): TickMoment |
 }
 
 export const useMomentStore = create<MomentStore>((set, get) => ({
-  fill: null,
+  fills: [],
   // A fill can arrive twice (the live socket and the order-poll fallback); show it once.
   pushFill: (fill) => {
     if (shownFills.has(fill.id)) return;
     shownFills.add(fill.id);
-    set({ fill });
+    if (!get().fillPopups) {
+      gathered.push(fill);
+      if (gatherTimer) clearTimeout(gatherTimer);
+      gatherTimer = setTimeout(() => {
+        const batch = gathered;
+        gathered = [];
+        gatherTimer = null;
+        set({ notice: batch.length === 1 ? `${fillLine(batch[0])}.` : `${batch.length} orders filled. ${fillLine(batch[0])}, +${batch.length - 1} more.` });
+      }, GATHER_MS);
+      return;
+    }
+    // A popup already open for this batch takes late arrivals.
+    if (get().fills.length) {
+      set({ fills: [...get().fills, fill] });
+      return;
+    }
+    gathered.push(fill);
+    if (gatherTimer) clearTimeout(gatherTimer);
+    gatherTimer = setTimeout(() => {
+      const batch = gathered;
+      gathered = [];
+      gatherTimer = null;
+      set({ fills: batch });
+    }, GATHER_MS);
   },
-  dismissFill: () => set({ fill: null }),
+  dismissFill: () => set({ fills: [] }),
+  fillPopups: readPopupPref(),
+  setFillPopups: (on) => {
+    try {
+      window.localStorage.setItem(POPUP_KEY, on ? "on" : "off");
+    } catch {}
+    set({ fillPopups: on });
+  },
+  notice: null,
+  setNotice: (notice) => set({ notice }),
   tick: null,
   missedTick: null,
   pushTick: (payload) => {

@@ -608,9 +608,18 @@
     color: var(--mid);
   }
 
-  a {
+  a,
+  button {
     @include label;
     color: var(--blue);
+  }
+
+  button {
+    border: 0;
+    background: none;
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
   }
 
   @include tablet-down {
