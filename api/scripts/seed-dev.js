@@ -2,6 +2,7 @@
 //
 //   node scripts/seed-dev.js                 talents (channels, assets, today's prices) + capsule prizes
 //   node scripts/seed-dev.js prizes          capsule prizes only (copied from prod's public catalog)
+//   node scripts/seed-dev.js ticks           schedule the next 3 days of price ticks (tick prediction markets need them)
 //   node scripts/seed-dev.js verify <user>   mark an account's email verified (games and trading need it)
 //   node scripts/seed-dev.js cash <user> <n> set an account's cash (for the high-limit tables)
 //
@@ -222,6 +223,24 @@ async function seedPrizes(pool) {
   console.log(`seeded ${prizes.length} capsule prizes (${Object.entries(counts).map(([rarity, n]) => `${n} ${rarity}`).join(", ")})`);
 }
 
+/**
+ * Price ticks locally: production schedules them after each daily settlement, which needs real
+ * YouTube data. Here we give every talent a fair value near its price and schedule the next few
+ * days, so ticks move prices and the tick prediction markets open.
+ */
+async function seedTicks(pool) {
+  const adjustments = require("../src/services/marketAdjustments");
+  await pool.query(
+    `UPDATE market.market_assets a SET current_fair_value = v.fv, current_fair_value_raw = v.fv, adjustment_enabled = true
+     FROM (SELECT id, current_mid_price * (0.85 + random() * 0.3) AS fv FROM market.market_assets) v
+     WHERE v.id = a.id AND (a.current_fair_value IS NULL OR a.current_fair_value <= 0) AND a.current_mid_price > 0`
+  );
+  const day = (offset) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date(Date.now() + offset * 86_400_000));
+  let intervals = 0;
+  for (const offset of [0, 1, 2]) intervals += (await adjustments.ensureAdjustmentSession(pool, { marketDate: day(offset) })).interval_count || 0;
+  console.log(`scheduled ticks for ${day(0)} to ${day(2)} (${intervals} talent-ticks)`);
+}
+
 async function findUser(pool, username) {
   const { rows } = await pool.query(`SELECT id, username FROM market.users WHERE username_normalized = lower($1)`, [String(username || "")]);
   if (!rows[0]) throw new Error(`no user called ${username}. Register on the site first.`);
@@ -270,7 +289,9 @@ async function main() {
     if (!command) {
       await seedTalents(pool);
       await seedPrizes(pool);
+      await seedTicks(pool);
     } else if (command === "prizes") await seedPrizes(pool);
+    else if (command === "ticks") await seedTicks(pool);
     else if (command === "verify") await verify(pool, args[0]);
     else if (command === "cash") await setCash(pool, args[0], args[1]);
     else throw new Error(`unknown command ${command}`);

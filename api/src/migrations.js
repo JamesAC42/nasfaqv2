@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { applyGamesSchema } = require("./gamesSchema");
+const { applyPredictionsSchema } = require("./services/predictions/schema");
 
 // ── Plain Postgres (local dev without TimescaleDB) ─────────────────────────
 // Production always has TimescaleDB. For a dev machine with a plain Postgres install, the schema
@@ -1472,6 +1473,7 @@ async function applySchema(pool) {
       ADD CONSTRAINT games_game_catalog_type_check CHECK (game_type IN ('single_player', 'gacha', 'pvp', 'idle', 'table'))
   `);
   await applyGamesSchema(pool);
+  await applyPredictionsSchema(pool);
 }
 
 module.exports = { applySchema };

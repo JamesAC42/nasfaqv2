@@ -14,7 +14,7 @@ const marketState = require("./services/marketState");
 const { startMarketScheduler, loadSchedulerConfig, computeNextScheduledAt } = require("./services/marketScheduler");
 const { startAdjustmentScheduler } = require("./services/marketAdjustments");
 const { startLiveOrderScheduler } = require("./services/trading");
-const { startPredictionScheduler } = require("./services/predictionScheduler");
+const { startPredictionsScheduler } = require("./services/predictions/scheduler");
 
 const channelsRoutes = require("./routes/channels");
 const { router: chatRoutes, CHAT_EVENTS_REDIS_CHANNEL } = require("./routes/chat");
@@ -34,7 +34,7 @@ const marketRoutes = require("./routes/market");
 const internalMarketRoutes = require("./routes/internalMarket");
 const portfolioRoutes = require("./routes/portfolio");
 const profileRoutes = require("./routes/profiles");
-const predictionMarketsRoutes = require("./routes/predictionMarkets");
+const predictionMarketsRoutes = require("./routes/predictions");
 const authRoutes = require("./routes/auth");
 const statsRoutes = require("./routes/stats");
 const nasfaqThreadRoutes = require("./routes/nasfaqThread");
@@ -697,7 +697,7 @@ async function main() {
     startLiveOrderScheduler(pool, console, redis);
   }
   if (cfg.enablePredictionMarketScheduler) {
-    startPredictionScheduler(pool, console, redis);
+    startPredictionsScheduler(pool, console, redis);
   }
 }
 
