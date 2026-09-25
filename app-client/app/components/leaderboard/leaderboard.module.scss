@@ -760,10 +760,10 @@
 
   img[data-art-img] {
     inset: auto !important;
-    top: -4% !important;
+    top: 0 !important;
     right: 6% !important;
     width: auto !important;
-    height: 160% !important;
+    height: 128% !important;
     max-width: none;
     filter: drop-shadow(0 0 20px color-mix(in oklab, var(--tal) 20%, transparent));
   }
