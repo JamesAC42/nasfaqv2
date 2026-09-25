@@ -95,7 +95,7 @@ export function MarketSection() {
     <Section
       id="market"
       title="Talents are stocks"
-      art="howto.market"
+      art="howto-market"
       lede={
         <>
           <p>
@@ -149,7 +149,7 @@ export function TradingSection() {
     <Section
       id="trading"
       title="Orders fill in batches"
-      art="howto.trading"
+      art="howto-trading"
       lede={
         <p>
           There&apos;s no instant fill on stocks. Your order joins a queue, and every 10 minutes (:00, :10, :20…) the whole queue fills at once, first in, first filled.
@@ -216,7 +216,7 @@ export function TicksSection() {
         { href: "/predictions", label: "Bet on the next tick" },
       ]}
     >
-      <SceneArt slot="howto.ticks" className={styles.ticksBand} width={1100} />
+      <SceneArt slot="howto-ticks" className={styles.ticksBand} width={1100} />
       <TickTimeline />
       <div className={styles.pulls}>
         <div className={styles.pullCard} data-tone="up">
@@ -257,7 +257,7 @@ export function GamesSection() {
     <Section
       id="games"
       title="The arcade"
-      art="howto.games"
+      art="howto-games"
       lede={
         <>
           <p>
@@ -323,7 +323,7 @@ export function PredictionsSection() {
     <Section
       id="predictions"
       title="Prices are chances"
-      art="howto.predictions"
+      art="howto-predictions"
       lede={
         <>
           <p>
@@ -374,7 +374,7 @@ export function CommunitySection() {
     <Section
       id="community"
       title="The floor talks"
-      art="howto.community"
+      art="howto-community"
       lede={
         <p>
           Half the game is the people. Shill your oshi in chat, write the due diligence, argue on the stock pages, and climb a leaderboard that everyone can see.

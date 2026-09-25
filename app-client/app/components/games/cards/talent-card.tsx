@@ -47,7 +47,7 @@ type TalentCardProps = {
 };
 
 /** Illustrated frame overlays per rarity (drop-in: the CSS frame shows until the art exists). */
-const FRAME_ART: Record<Rarity, string> = { C: "games.frame-c", R: "games.frame-r", SR: "games.frame-sr", SSR: "games.frame-ssr", UR: "games.frame-ur" };
+const FRAME_ART: Record<Rarity, string> = { C: "games-frame-c", R: "games-frame-r", SR: "games-frame-sr", SSR: "games-frame-ssr", UR: "games-frame-ur" };
 
 /**
  * A talent card. Rarity drives the frame: steel (C), blue (R), violet (SR), gold foil (SSR),
@@ -109,7 +109,8 @@ export function TalentCard({
     <span className={styles.frame}>
       <span className={styles.face}>
         <ArtSlot
-          kind="keyart"
+          slot={`card-${card.rarity.toLowerCase()}`}
+          fallbackSlots={["keyart"]}
           symbol={card.symbol}
           icon={card.icon}
           accent={talentAccent(card.color)}
@@ -220,7 +221,7 @@ export function CardBack({ width = 168, glow = null, className }: { width?: numb
   return (
     <div className={[styles.back, className].filter(Boolean).join(" ")} style={{ "--w": `${width}px` } as CSSProperties} data-glow={glow ?? undefined} aria-hidden="true">
       <span className={styles.backInner}>
-        <SceneArt slot="games.card-back" fill width={width * 2} className={styles.backArt} />
+        <SceneArt slot="games-card-back" fill width={width * 2} className={styles.backArt} />
         <span className={styles.backMark}>
           <b>NASFAQ</b>
           <small>TALENT CARD</small>

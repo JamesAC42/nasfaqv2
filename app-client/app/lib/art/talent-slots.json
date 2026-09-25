@@ -1,0 +1,350 @@
+{
+  "_comment": "Per-talent art slots (one image per listed talent, 73 today). Source of truth for art-pipeline/spec/slots.json together with the scene slots in ./slots. IDs are `SYMBOL/<slot>/<variant>`. Keep ids stable once art exists.",
+  "slots": [
+    {
+      "id": "keyart",
+      "title": "Key art portrait",
+      "priority": "P0",
+      "used_in": [
+        "Stock page header (components/stock/dossier.tsx): right 38% of the header at full header height (≥280), so ~270×340 shown; left edge faded; tablets 55% wide at 50% opacity. Content (name, price, stats) sits to her LEFT",
+        "Arcade featured hero, featured talent (components/games/arcade/featured-hero.tsx): up to ~544×680 (48% of the hero width) on the right, bottom ~8% cut off, radial fade from the centre, 55% opacity; phones 120% wide at 40% behind the copy. Copy sits to her LEFT",
+        "Card gacha featured hero (components/games/gacha/card-gacha-page.tsx): fills the right stage column (~330×416 contained; ~220×272 on phones), left edge faded, the SSR and UR preview cards overlap its lower centre. Copy sits to her LEFT",
+        "Profile banner, the player's oshi (components/profile/profile-view.tsx): right 34% of the banner at full banner height (250–320), so ~200×250 shown; both sides faded, 75% opacity (phones 60% wide at 35%). Name and avatar sit bottom-LEFT",
+        "Oshiboard detail header (components/leaderboard/oshiboard-tab.tsx): 150×188, framed",
+        "Stocks screener card view (components/stocks/screener.tsx): ~94×118 (72×90 on phones) at the top of each card",
+        "Articles index, a story with no picture that tags a talent (components/articles/articles-index.tsx): inside the 16:9 lead box (~600 wide) and the 150×94 row thumbs (96×60 on phones); contained and anchored bottom-centre, so she shows ~94–340 tall",
+        "Home HoloNews, same rule (components/home/front-page.tsx): inside the 2:1 lead box and the 72×72 headline thumbs",
+        "Card gallery: the talent's page header (planned; the gallery is being built)",
+        "Fallback for every card-* slot until the card's own art exists (cover-cropped to 5:7 at 50% 18%: ~5% trimmed from each side)"
+      ],
+      "display": {
+        "css_px": "72×90 to ~544×680 (usually 150–340 tall)",
+        "aspect": "4:5"
+      },
+      "export": {
+        "w": 1200,
+        "h": 1500,
+        "srcset": [
+          600,
+          1200
+        ],
+        "format": "webp (alpha)"
+      },
+      "crop": "Waist-up; the bottom edge cuts across the waist (the UI anchors her to the bottom-centre of its box with object-fit contain). Eyes ~24% from the top (anchor eye_y). Three-quarter view, body and face turned toward the LEFT of the image: every large placement (stock page, arcade hero, card gacha hero, profile banner) puts her on the right with the text to her left. Small margin above the head / ears / hat; keep ~6% free at each side (the card fallback trims the sides). Nothing important in the bottom 10% (the arcade hero cuts it off). The face must read in a 72px square.",
+      "background": "transparent cutout",
+      "subject": "The talent in her main outfit, friendly confident smile, relaxed pose, hands low or out of frame.",
+      "lighting": "neutral, soft key light from the left; no colored rim (the UI adds the talent's color behind her)",
+      "style": "character",
+      "variants": [
+        {
+          "name": "default"
+        }
+      ],
+      "animation": "none",
+      "fallback": "ArtSlot placeholder: talent colour wash + halftone + large faded oshimark (the card gacha hero shows nothing instead)",
+      "notes": "Most reused image on the site: it has to read at 72 px tall (face only) and at 680 px (detail). The arcade hero's radial mask fades everything outside a centred circle, so the face at eye_y 24% sits in the fade ring there (see open question). Twins (FUWAMOCO) share one image and one slot."
+    },
+    {
+      "id": "reaction",
+      "title": "Reaction set",
+      "priority": "P0",
+      "used_in": [
+        "Buy/sell fill moment dialog (components/moments/fill-moment.tsx): 168 px column, ≥220 tall (full card width on phones); hype on a buy, smug on a profitable sell, cope on a losing sell",
+        "Market floor spotlight (components/market/floor-tab.tsx): right 42% of each spotlight card, ~200 tall; hype for the top gainer, cope for the worst",
+        "Market daily report cast (components/market/report-tab.tsx): 112 px (88 on phones); hype for the top of the session, cope for the bottom",
+        "Stock page order ticket (components/stock/dossier.tsx): 72 px, idle",
+        "Stock page 'In the news' list (components/stock/community-sections.tsx): 64 px, idle, as the thumbnail of an article with no picture",
+        "Login / register pitch, today's top mover (components/auth/auth-form.tsx): 96 px, hype, top-right corner over site-auth-pitch; hidden on phones",
+        "How to play hero (components/how-to-play/how-to-play-page.tsx): 200 px moon (top gainer) and 168 px shock (rough day)",
+        "How to play ticks section (components/how-to-play/sections.tsx): 136 px (104 on phones), hype and cope",
+        "Card gallery: the talent's reaction strip (planned; the gallery is being built)"
+      ],
+      "display": {
+        "css_px": "64 to 200 square (the fill-moment column grows to ~340 on phones)",
+        "aspect": "1:1"
+      },
+      "export": {
+        "w": 768,
+        "h": 768,
+        "srcset": [
+          128,
+          256,
+          512,
+          768
+        ],
+        "format": "webp (alpha)"
+      },
+      "crop": "Waist-up, facing the viewer. Big readable face: head about 45% of the image height, eyes ~36% from the top (anchor eye_y), so it still reads at 64 px. Hands can enter the frame for the gesture. Centred; the UI anchors the image to the bottom-centre of its box (object-fit contain), so the waist cut sits on the bottom edge.",
+      "background": "transparent cutout",
+      "subject": "Same character, same outfit as key art. The expression and gesture carry the meaning; keep every pose cute and in character, never humiliating (fan-work guidelines).",
+      "lighting": "follows the variant: neutral for idle and smug, warm/green-tinted rim for hype and moon, cool/red-tinted rim for cope and shock (subtle: the UI also tints)",
+      "style": "character",
+      "variants": [
+        {
+          "name": "idle",
+          "subject": "Neutral happy, small smile, relaxed.",
+          "priority": "P0"
+        },
+        {
+          "name": "idle-blink",
+          "subject": "Exactly the idle image with the eyes closed (same pixels otherwise), for the blink loop.",
+          "priority": "P1"
+        },
+        {
+          "name": "hype",
+          "subject": "Celebrating a big win: arms up or fist pump, open-mouth grin, sparkles allowed.",
+          "priority": "P0"
+        },
+        {
+          "name": "moon",
+          "subject": "Pointing up to the sky, excited, 'to the moon' energy. Today only on the how-to-play hero (top gainer).",
+          "priority": "P1"
+        },
+        {
+          "name": "cope",
+          "subject": "Lost money but coping: nervous smile, sweat drop, thumbs up.",
+          "priority": "P0"
+        },
+        {
+          "name": "smug",
+          "subject": "Called it: smug grin, half-lidded eyes, hand on chin or arms crossed. Shown on every profitable sell.",
+          "priority": "P0"
+        },
+        {
+          "name": "shock",
+          "subject": "Something wild happened: wide eyes, hands on cheeks, jaw dropped (cute, not scared). Today only on the how-to-play hero (rough day).",
+          "priority": "P1"
+        }
+      ],
+      "animation": "blink: if <pose>-blink exists (only idle-blink is specified) the UI flashes it for ~0.1 s every 4.6 s (CSS, no video)",
+      "fallback": "Talent color wash + oshimark (ArtSlot placeholder)",
+      "notes": "Replaces the older chibi set: the UI reads v1 manifest chibi.<pose> for these IDs until v2 lands. Same style and proportions as key art so they can sit side by side. P0 poses are the ones the trading flow shows: idle, hype, cope, smug."
+    },
+    {
+      "id": "card-c",
+      "title": "Card art · C · Standard",
+      "priority": "P0",
+      "used_in": [
+        "Every talent card (components/games/cards/talent-card.tsx), 30 to 300 px wide: live pull feed 30, arcade side rail 60, arcade tile fans 54–94, showcase strip 96, duel hands and table 92–128, starter pack 132, binder / how-to rarity fan / standard banner fan 150, showcase and trophy shelf 168–236, heroes 176–248, card sheet 300",
+        "Pull reveal (components/games/gacha/reveal-stage.tsx): 80–184 in a ten-pull grid, up to 300 for a single pull, 58 in the best-card strip",
+        "Card gallery, full size, uncropped (planned; up to ~560 wide)"
+      ],
+      "display": {
+        "css_px": "30 to 300 wide on cards, up to ~560 in the planned gallery",
+        "aspect": "5:7"
+      },
+      "export": {
+        "w": 1000,
+        "h": 1400,
+        "srcset": [
+          500,
+          1000
+        ],
+        "format": "webp"
+      },
+      "crop": "Full card face, painted edge to edge (cover at 50% 18%, same aspect, so nothing is cropped). The UI covers: a ~2.5% frame on every edge; a top band ~12% tall with the rarity badge at the LEFT and the power badge at the RIGHT; NEW / RATE UP / FEATURED tags on the left just below the rarity badge (to ~22% down); the name plate with oshimark, name, symbol and stars over the bottom ~22% (with a dark text shadow). Put the face between 15% and 45% from the top, centred (eyes ~30%). At 30–60 px only the face and her colours read, so keep the face large.",
+      "background": "full scene",
+      "subject": "Waist-up in her main outfit, cheerful, on a simple graphic backdrop in her own colors (soft shapes, her oshimark motif). Clean and readable: the base card everyone owns.",
+      "lighting": "neutral, even studio light",
+      "style": "card",
+      "variants": [
+        {
+          "name": "default"
+        }
+      ],
+      "animation": "none",
+      "fallback": "keyart over the card's CSS rays (then the oshimark placeholder)",
+      "notes": "The five rarities of one talent are a set: same character, clearly escalating spectacle from C to UR. The planned gallery shows the whole image, so the full frame must be a finished picture."
+    },
+    {
+      "id": "card-r",
+      "title": "Card art · R · On stream",
+      "priority": "P1",
+      "used_in": [
+        "Every R talent card (see card-c for sizes)",
+        "Pull reveal",
+        "Card gallery (planned)"
+      ],
+      "display": {
+        "css_px": "30 to 300 wide on cards, up to ~560 in the planned gallery",
+        "aspect": "5:7"
+      },
+      "export": {
+        "w": 1000,
+        "h": 1400,
+        "srcset": [
+          500,
+          1000
+        ],
+        "format": "webp"
+      },
+      "crop": "Same safe areas as card-c.",
+      "background": "full scene",
+      "subject": "Streaming: at her desk with headset or mic, monitor glow on her face, reacting to chat (laughing, waving). Her room or stream setup reflects her character (use `home_setting` if the talent has one).",
+      "lighting": "cozy evening: warm room light plus cool monitor glow",
+      "style": "card",
+      "variants": [
+        {
+          "name": "default"
+        }
+      ],
+      "animation": "none",
+      "fallback": "keyart, then placeholder",
+      "notes": ""
+    },
+    {
+      "id": "card-sr",
+      "title": "Card art · SR · Outfit",
+      "priority": "P1",
+      "used_in": [
+        "Every SR talent card (see card-c for sizes)",
+        "Arcade featured hero, left card of the fan (184, 128 on phones) and the arcade Card gacha tile fan (84)",
+        "Pull reveal",
+        "Card gallery (planned)"
+      ],
+      "display": {
+        "css_px": "30 to 300 wide on cards, up to ~560 in the planned gallery",
+        "aspect": "5:7"
+      },
+      "export": {
+        "w": 1000,
+        "h": 1400,
+        "srcset": [
+          500,
+          1000
+        ],
+        "format": "webp"
+      },
+      "crop": "Same safe areas as card-c. Three-quarter or full body is fine; face still in the upper half.",
+      "background": "full scene",
+      "subject": "An alternate outfit (casual or seasonal; use the talent's known alt outfit from `alt_outfit` if set) in a themed location that fits her character, candid happy pose.",
+      "lighting": "bright daylight or golden hour",
+      "style": "card",
+      "variants": [
+        {
+          "name": "default"
+        }
+      ],
+      "animation": "none",
+      "fallback": "keyart, then placeholder",
+      "notes": "Foil sheen is added by CSS on top; avoid huge flat white areas that the foil would wash out."
+    },
+    {
+      "id": "card-ssr",
+      "title": "Card art · SSR · Idol",
+      "priority": "P1",
+      "used_in": [
+        "Every SSR talent card (see card-c for sizes)",
+        "Card gacha featured hero, the back preview card (176)",
+        "Arcade featured hero, right card of the fan (184) and the arcade tiles (Card gacha fan 84, Oshi Duel 84)",
+        "Pull reveal (the big moment)",
+        "Card gallery (planned)"
+      ],
+      "display": {
+        "css_px": "30 to 300 wide on cards, up to ~560 in the planned gallery",
+        "aspect": "5:7"
+      },
+      "export": {
+        "w": 1000,
+        "h": 1400,
+        "srcset": [
+          500,
+          1000
+        ],
+        "format": "webp"
+      },
+      "crop": "Same safe areas as card-c. Dynamic angle welcome (low angle, tilt).",
+      "background": "full scene",
+      "subject": "On a concert stage in an idol costume, singing into a mic mid-performance, dynamic pose, hair and costume in motion, crowd penlights in her colors as bokeh.",
+      "lighting": "dramatic stage light: spotlights, colored beams in her colors, lens flares allowed",
+      "style": "card",
+      "variants": [
+        {
+          "name": "default"
+        }
+      ],
+      "animation": "none",
+      "fallback": "keyart, then placeholder",
+      "notes": "Rainbow foil (CSS) sits on top."
+    },
+    {
+      "id": "card-ur",
+      "title": "Card art · UR · Legend",
+      "priority": "P1",
+      "used_in": [
+        "Every UR talent card (see card-c for sizes)",
+        "Card gacha featured hero, the front preview card with the RATE UP ribbon (232)",
+        "Arcade featured hero, front card with RATE UP (248, 176 on phones) and the arcade Card gacha tile fan (94)",
+        "Pull reveal (the rarest moment, 0.5%)",
+        "Card gallery, the chase piece (planned)"
+      ],
+      "display": {
+        "css_px": "30 to 300 wide on cards, up to ~560 in the planned gallery",
+        "aspect": "5:7"
+      },
+      "export": {
+        "w": 1000,
+        "h": 1400,
+        "srcset": [
+          500,
+          1000
+        ],
+        "format": "webp"
+      },
+      "crop": "Same safe areas as card-c.",
+      "background": "full scene",
+      "subject": "Her legend: a lore / concept illustration of who she is (use `lore` from talents.overrides.json, e.g. a pirate captain on her ship, a star idol among constellations, a shrine maiden in a festival night). Epic composition, magical effects, the most detailed piece of her set.",
+      "lighting": "epic and atmospheric, glowing magical light in her colors",
+      "style": "card",
+      "variants": [
+        {
+          "name": "default"
+        },
+        {
+          "name": "loop",
+          "subject": "Same image with subtle motion (particles, hair, light) as a 4 s seamless loop, webm/mp4.",
+          "priority": "P2"
+        }
+      ],
+      "animation": "none now; `loop` variant (4 s) later",
+      "fallback": "keyart, then placeholder",
+      "notes": "Animated holo frame (CSS) sits on top. This is the image players chase: worth extra candidates and review."
+    },
+    {
+      "id": "banner",
+      "title": "Featured banner art",
+      "priority": "P1",
+      "used_in": [
+        "Card gallery talent page header, 21:9 (16:10 on phones), locked/blurred until the player owns her SSR or UR (games/gallery/gallery-talent.tsx)",
+        "Gallery lightbox, full screen (games/gallery/lightbox.tsx)",
+        "Card gacha featured hero, full-bleed behind the banner text when this talent is featured and the art exists; otherwise the key art cutout stays (games/gacha/card-gacha-page.tsx)"
+      ],
+      "display": {
+        "css_px": "up to 1200×515",
+        "aspect": "21:9"
+      },
+      "export": {
+        "w": 2400,
+        "h": 1030,
+        "srcset": [
+          1200,
+          2400
+        ],
+        "format": "webp"
+      },
+      "crop": "She stands in the RIGHT 45% of the frame (face in the upper half there). The LEFT 55% stays calm and dark enough for the banner title, rates and pull buttons. Nothing important in the bottom 15% on phones (the image crops to ~4:3 around her).",
+      "background": "full scene",
+      "subject": "A wide promotional illustration for her banner: her SSR idol look or her legend setting, reaching toward the viewer, with her signature motifs across the scene.",
+      "lighting": "promotional: bright key light on her, background falls off into dark ink on the left",
+      "style": "card",
+      "variants": [
+        {
+          "name": "default"
+        }
+      ],
+      "animation": "none",
+      "fallback": "keyart cutout over the banner's blue halftone backdrop (_shared/games-gacha-hero)",
+      "notes": "Unlocks in the gallery when the player owns her SSR or UR card. Nothing on the site shows this slot today: if the gallery does not use it at launch, drop it to P2."
+    }
+  ]
+}

@@ -106,7 +106,7 @@ function Thumb({ story, size }: { story: Story; size: "lead" | "row" }) {
   }
   const symbol = story.symbols[0];
   if (!symbol) {
-    return <SceneArt slot={story.kind === "news" ? "market.news-fallback" : "market.article-fallback"} width={size === "lead" ? 640 : 120} className={size === "lead" ? styles.leadImg : styles.rowImg} />;
+    return <SceneArt slot={story.kind === "news" ? "market-news-fallback" : "market-article-fallback"} width={size === "lead" ? 640 : 120} className={size === "lead" ? styles.leadImg : styles.rowImg} />;
   }
   const asset = assets.find((entry) => entry.symbol === symbol);
   return <ArtSlot kind="keyart" symbol={symbol} icon={asset?.icon} accent={talentAccent(asset?.color, theme)} width={size === "lead" ? 640 : 120} className={size === "lead" ? styles.leadImg : styles.rowImg} />;

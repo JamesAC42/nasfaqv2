@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { SceneArt } from "@/app/components/common/scene-art";
+import { useArtImage } from "@/app/components/common/use-art-image";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { CardBack, TalentCard } from "@/app/components/games/cards/talent-card";
 import { PityBar, PullButton, ShardGlyph, fmtCountdown, fmtLeft } from "@/app/components/games/gacha/gacha-parts";
 import { PullFeed } from "@/app/components/games/gacha/pull-feed";
 import { RevealStage, type RevealItem, type RevealStat } from "@/app/components/games/gacha/reveal-stage";
 import { GamesFrame, SignInToPlay, useGamesWallet } from "@/app/components/games/shell/games-frame";
+import { artId } from "@/app/lib/art-manifest";
 import { fetchBanners, pullCards } from "@/app/lib/games/api";
 import { gameErrorText } from "@/app/lib/games/errors";
 import { MAX_STARS, RARITIES, RARITY_COLOR, RARITY_NAME, isHighRarity, rarityRank } from "@/app/lib/games/rarity";
@@ -159,6 +161,12 @@ export function CardGachaPage() {
     return list;
   }, [result]);
 
+  // First copies put new art up in the gallery: link straight to it from the reveal.
+  const newArt = useMemo(() => {
+    const symbols = [...new Set((result?.cards ?? []).filter((card) => card.was_new).map((card) => card.symbol))];
+    return symbols.length ? { count: result!.cards.filter((card) => card.was_new).length, href: symbols.length === 1 ? `/games/cards/gallery/${symbols[0]}` : "/games/cards/gallery" } : null;
+  }, [result]);
+
   const againCount = (result?.cards.length === 1 ? 1 : 10) as 1 | 10;
   const againCost = againCount === 1 ? costOne : costTen;
 
@@ -170,6 +178,12 @@ export function CardGachaPage() {
         <>
           <b>${costOne ?? 100}</b> a pull, <b>${costTen ?? 900}</b> for ten. Every 10th is SR or better.
         </>
+      }
+      aside={
+        <nav className={styles.headLinks} aria-label="Your cards">
+          <Link href="/games/collection">Collection</Link>
+          <Link href="/games/cards/gallery">Gallery</Link>
+        </nav>
       }
     >
       <div className={styles.page}>
@@ -243,6 +257,13 @@ export function CardGachaPage() {
           setResult(null);
           setError(null);
         }}
+        extra={
+          newArt ? (
+            <Link href={newArt.href} className={styles.newArt}>
+              {newArt.count === 1 ? "New art unlocked" : `${newArt.count} new illustrations`} in the gallery →
+            </Link>
+          ) : null
+        }
       />
     </GamesFrame>
   );
@@ -281,14 +302,23 @@ function FeaturedHero({ banner }: { banner: Banner }) {
   const left = useRemaining(banner.ends_at ? Date.parse(banner.ends_at) : null, 1000);
   const given = givenName(talent.name);
   const marquee = Array.from({ length: 8 }, () => `RATE UP ★ ${talent.symbol} ★ `).join("");
+  // Once her banner illustration exists it becomes the hero: full-bleed, her on the right, copy on
+  // the left (talent-slots.json "banner" crop). Until then, key art cutout + cards.
+  const bannerArt = useArtImage(artId(talent.symbol, "banner"));
 
   return (
-    <section className={styles.hero} data-kind="featured" style={{ "--tal": accent } as CSSProperties} aria-labelledby="banner-name">
+    <section className={styles.hero} data-kind="featured" data-art={bannerArt ? "banner" : undefined} style={{ "--tal": accent } as CSSProperties} aria-labelledby="banner-name">
       <div className={styles.heroBg} aria-hidden="true">
-        <SceneArt slot="games.gacha-hero" fill position="75% 50%" width={1100} priority className={styles.heroScene} />
-        <span className={styles.heroRays} />
-        <span className={styles.heroDots} />
-        <span className={styles.heroGhost}>{talent.symbol}</span>
+        {bannerArt ? (
+          <ArtSlot slot="banner" symbol={talent.symbol} icon={talent.icon} accent={accent} width={1200} priority fit="cover" className={styles.heroBanner} />
+        ) : (
+          <>
+            <SceneArt slot="games-gacha-hero" fill position="75% 50%" width={1100} priority className={styles.heroScene} />
+            <span className={styles.heroRays} />
+            <span className={styles.heroDots} />
+            <span className={styles.heroGhost}>{talent.symbol}</span>
+          </>
+        )}
       </div>
       <div className={styles.marquee} aria-hidden="true">
         <span>{marquee}</span>
@@ -322,13 +352,17 @@ function FeaturedHero({ banner }: { banner: Banner }) {
       </div>
 
       <div className={styles.heroStage} aria-hidden="true">
-        <ArtSlot kind="keyart" symbol={talent.symbol} icon={talent.icon} accent={accent} width={520} className={styles.heroArt} fallback={<span />} />
-        <div className={styles.heroCardBack}>
-          <TalentCard card={{ ...talent, rarity: "SSR", power: 25 }} width={176} tilt={false} />
-        </div>
-        <div className={styles.heroCardFront}>
-          <TalentCard card={{ ...talent, rarity: "UR", power: 32 }} width={232} ribbon="RATE UP" />
-        </div>
+        {bannerArt ? null : (
+          <>
+            <ArtSlot kind="keyart" symbol={talent.symbol} icon={talent.icon} accent={accent} width={520} className={styles.heroArt} fallback={<span />} />
+            <div className={styles.heroCardBack}>
+              <TalentCard card={{ ...talent, rarity: "SSR", power: 25 }} width={176} tilt={false} />
+            </div>
+            <div className={styles.heroCardFront}>
+              <TalentCard card={{ ...talent, rarity: "UR", power: 32 }} width={232} ribbon="RATE UP" />
+            </div>
+          </>
+        )}
       </div>
     </section>
   );
@@ -345,7 +379,7 @@ function StandardHero({ talents, poolSize, signedIn }: { talents: Talent[]; pool
   return (
     <section className={styles.hero} data-kind="standard" aria-labelledby="banner-name">
       <div className={styles.heroBg} aria-hidden="true">
-        <SceneArt slot="games.gacha-hero" fill position="75% 50%" width={1100} priority className={styles.heroScene} />
+        <SceneArt slot="games-gacha-hero" fill position="75% 50%" width={1100} priority className={styles.heroScene} />
         <span className={styles.heroRays} />
         <span className={styles.heroDots} />
         <span className={styles.heroGhost}>ALL</span>

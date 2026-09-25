@@ -48,7 +48,7 @@ export function MarketHeader({ market, talent }: { market: PredictionMarketDetai
             // eslint-disable-next-line @next/next/no-img-element
             <img src={market.featured_image_url} alt="" className={styles.eventImg} loading="eager" decoding="async" />
           ) : (
-            <SceneArt slot="predictions.event-mark" width={44} className={styles.eventArt} />
+            <SceneArt slot="predictions-event-mark" width={44} className={styles.eventArt} />
           )}
         </span>
       ) : null}
@@ -115,7 +115,7 @@ export function MarketCall({ market, order, flash, onBuy }: { market: Prediction
       const color = winner ? outcomeColor(market, winner) : "var(--dim)";
       return (
         <section className={styles.verdict} style={{ "--oc": color } as CSSProperties} aria-label="Result">
-          {market.status === "voided" ? null : <SceneArt slot="predictions.verdict" width={96} className={styles.verdictArt} />}
+          {market.status === "voided" ? null : <SceneArt slot="predictions-verdict" width={96} className={styles.verdictArt} />}
           <small>{market.status === "voided" ? "No contest" : "The call"}</small>
           <strong>{market.status === "voided" ? "VOID" : upperLabel(winner)}</strong>
           <p>{market.status === "voided" ? "Voided. Everyone got their net cost back." : `${winner?.label ?? "?"} shares paid $1.00. Last traded at ${percent(yes.price)} ${yes.label}.`}</p>

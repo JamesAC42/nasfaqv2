@@ -14,6 +14,7 @@ import predictions from "@/app/lib/art/slots/predictions.json";
 import howto from "@/app/lib/art/slots/howto.json";
 import admin from "@/app/lib/art/slots/admin.json";
 import legal from "@/app/lib/art/slots/legal.json";
+import gallery from "@/app/lib/art/slots/gallery.json";
 
 export type SceneKind =
   | "backdrop" // full-bleed behind a hero or section; text sits on top
@@ -40,11 +41,22 @@ export type SceneSlot = {
   priority: "high" | "medium" | "low";
   /** Anything that constrains generation: safe areas, must tile, light + dark versions, etc. */
   notes?: string;
+  // Optional art-pipeline fields (scripts/art-spec.mjs fills defaults by kind when absent).
+  /** Real rendered size in CSS px, e.g. "560×350 max; full width on phones". */
+  css?: string;
+  /** What must stay visible, safe areas for UI text, how the UI crops it. */
+  crop?: string;
+  lighting?: string;
+  style?: "character" | "card" | "scene" | "object" | "texture" | "social";
+  variants?: Array<{ name: string; subject?: string; priority?: "P0" | "P1" | "P2" }>;
+  animation?: string;
+  /** What the UI shows while the art is missing. */
+  fallback?: string;
 };
 
 type SlotFile = { area: string; slots: SceneSlot[] };
 
-export const SCENE_AREAS: SlotFile[] = [site, home, market, games, predictions, howto, admin, legal] as SlotFile[];
+export const SCENE_AREAS: SlotFile[] = [site, home, market, games, gallery, predictions, howto, admin, legal] as unknown as SlotFile[];
 
 export const SCENE_SLOTS: Record<string, SceneSlot> = Object.fromEntries(SCENE_AREAS.flatMap((file) => file.slots).map((slot) => [slot.id, slot]));
 

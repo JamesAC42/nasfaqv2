@@ -34,6 +34,9 @@ export function CollectionPage() {
       <Link href="/games/cards" className={styles.linkPrimary}>
         Pull cards
       </Link>
+      <Link href="/games/cards/gallery" className={styles.link}>
+        Gallery
+      </Link>
       <Link href="/games/item-locker" className={styles.link}>
         My locker
       </Link>

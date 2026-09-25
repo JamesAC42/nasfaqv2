@@ -18,7 +18,7 @@ export const useArtStore = create<ArtStore>((set, get) => ({
     fetch(ART_MANIFEST_URL, { cache: "force-cache" })
       .then((response) => (response.ok ? response.json() : null))
       .then((data: ArtManifest | null) => {
-        if (data && typeof data === "object" && data.talents) set({ status: "ready", manifest: data });
+        if (data && typeof data === "object" && (data.images || data.talents || data.scenes)) set({ status: "ready", manifest: data });
         else set({ status: "missing" });
       })
       .catch(() => set({ status: "missing" }));

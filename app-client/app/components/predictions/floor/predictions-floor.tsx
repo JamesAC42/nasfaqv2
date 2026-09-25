@@ -346,7 +346,7 @@ export function PredictionsFloor() {
             </div>
           ) : (
             <div className={`${styles.empty} ${styles.emptyArt}`}>
-              {error ? null : <SceneArt slot="predictions.floor-empty" width={200} className={styles.emptyPic} />}
+              {error ? null : <SceneArt slot="predictions-floor-empty" width={200} className={styles.emptyPic} />}
               <p>{error ?? (q || category ? "No markets match that." : EMPTY_COPY[tab])}</p>
             </div>
           )}

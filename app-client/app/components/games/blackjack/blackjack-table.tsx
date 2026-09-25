@@ -220,7 +220,7 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
       <div className={styles.layout}>
         <div className={styles.main}>
           <section className={styles.felt} data-phase={table.phase} aria-label={`${table.name} felt`}>
-            <SceneArt slot="games.felt" fill width={1200} className={styles.feltArt} />
+            <SceneArt slot="games-felt" fill width={1200} className={styles.feltArt} />
             <div className={styles.feltTop}>
               <Shoe remaining={table.shoe_remaining} size={table.shoe_size} compact={phone} />
               <div className={styles.dealer}>

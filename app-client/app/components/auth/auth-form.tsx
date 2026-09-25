@@ -290,7 +290,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         </section>
 
         <aside className={styles.pitch} aria-label="What is nasfaq">
-          <SceneArt slot="site.auth-pitch" width={420} className={styles.pitchArt} />
+          <SceneArt slot="site-auth-pitch" width={420} className={styles.pitchArt} />
           {movers[0] ? <ArtSlot kind="chibi" pose="hype" symbol={movers[0].symbol} icon={movers[0].icon} accent="var(--blue)" width={160} className={styles.chibi} /> : null}
           <h2>Every hololive talent is a stock.</h2>
           <ul>

@@ -254,7 +254,7 @@ function Stage({ items, title, stats, againLabel, onAgain, againBusy, againError
       style={{ "--aura": aura ?? "#3fb8f5" } as CSSProperties}
     >
       <div className={styles.backdrop} aria-hidden="true">
-        <SceneArt slot="games.reveal-stage" fill width={1920} priority className={styles.scene} />
+        <SceneArt slot="games-reveal-stage" fill width={1920} priority className={styles.scene} />
         <span className={styles.rays} />
         <span className={styles.floor} />
       </div>

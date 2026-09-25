@@ -20,6 +20,9 @@ export type ArcadeTile = {
   stat: TileStat;
 };
 
+/** Tiles that reuse another page's art instead of a tile image of their own. */
+const TILE_SCENE: Record<string, string> = { blackjack: "games-felt", capsule: "games-capsule-shop" };
+
 export function GameTiles({ tiles, faces, phone }: { tiles: ArcadeTile[]; faces: CardFace[]; phone: boolean }) {
   return (
     <section className={styles.section} aria-labelledby="arcade-games">
@@ -31,7 +34,7 @@ export function GameTiles({ tiles, faces, phone }: { tiles: ArcadeTile[]; faces:
           <li key={tile.key} className={styles.cell}>
             <Link href={tile.href} className={styles.tile} data-game={tile.key}>
               <span className={styles.stage} aria-hidden="true">
-                <SceneArt slot={`games.tile-${tile.key}`} fill width={phone ? 140 : 420} className={styles.scene} />
+                <SceneArt slot={TILE_SCENE[tile.key] ?? `games-tile-${tile.key}`} fill width={phone ? 140 : 420} className={styles.scene} />
                 <TileArt game={tile.key} faces={faces} phone={phone} />
               </span>
               <span className={styles.body}>

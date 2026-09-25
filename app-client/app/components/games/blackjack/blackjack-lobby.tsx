@@ -110,7 +110,7 @@ export function BlackjackLobbyPage() {
           return (
             <article key={table.key} className={styles.tile} data-key={table.key}>
               <Link href={`/games/blackjack/${table.key}`} className={styles.felt} aria-label={`Watch the ${table.name}`}>
-                <SceneArt slot="games.felt" fill width={480} className={styles.feltArt} />
+                <SceneArt slot="games-felt" fill width={480} className={styles.feltArt} />
                 <span className={styles.phase} data-live={phase.live || undefined}>
                   {phase.live ? <i aria-hidden="true" /> : null}
                   {phase.label}

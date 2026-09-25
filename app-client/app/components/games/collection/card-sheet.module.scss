@@ -112,6 +112,28 @@
   }
 }
 
+// Link to the talent's gallery page.
+.artLink {
+  @include label;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  color: var(--blue);
+  text-decoration: none;
+
+  &:hover {
+    border-color: var(--blue);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
 // ── Stage: the card, big, under its own light ──────────────────────────────
 .stage {
   position: relative;

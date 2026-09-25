@@ -108,7 +108,7 @@
   transform: translateX(-50%) rotate(-4deg);
   filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.5));
 
-  &[data-slot] {
+  &[data-art-missing] {
     display: none;
   }
 

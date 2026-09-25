@@ -418,7 +418,7 @@ export default function PrivacyPage() {
       doc="privacy"
       title="Privacy Policy"
       updated={{ iso: "2026-09-25", label: "September 25, 2026" }}
-      art="legal.privacy-spot"
+      art="legal-privacy-spot"
       intro={
         <p>
           What NASFAQ collects, why, what everyone can see, and how to get it deleted. The rules for playing are in the{" "}

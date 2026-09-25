@@ -19,7 +19,7 @@ const chipStyle = (value: number) => {
 export function Chip({ value, size = 44 }: { value: number; size?: number }) {
   return (
     <span className={styles.chip} style={{ ...chipStyle(value), "--size": `${size}px` } as CSSProperties} aria-hidden="true">
-      <SceneArt slot="games.chip" fill width={size * 2} className={styles.chipArt} />
+      <SceneArt slot="games-chip" fill width={size * 2} className={styles.chipArt} />
       <b>{chipLabel(value)}</b>
     </span>
   );

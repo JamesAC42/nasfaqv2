@@ -155,7 +155,7 @@ export function ProfileView({ username }: { username?: string | null }) {
         </Link>
 
         <header className={styles.banner}>
-          <SceneArt slot="market.profile-banner" fill width={1400} className={styles.bannerBg} />
+          <SceneArt slot="market-profile-banner" fill width={1400} className={styles.bannerBg} />
           {oshi ? <ArtSlot kind="keyart" symbol={oshi.symbol} icon={oshi.icon} accent={oshiAsset ? talentAccent(oshiAsset.color, theme) : undefined} width={480} className={styles.bannerArt} /> : null}
           <div className={styles.idRow}>
             <button type="button" className={styles.avatarBtn} onClick={() => isSelf && setModal("picture")} disabled={!isSelf} aria-label={isSelf ? "Change your icon" : undefined} title={isSelf ? "Change your icon" : undefined}>

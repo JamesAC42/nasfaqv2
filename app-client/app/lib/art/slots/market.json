@@ -2,88 +2,145 @@
   "area": "market",
   "slots": [
     {
-      "id": "market.bell",
+      "id": "market-bell",
       "title": "Market floor: the bell",
-      "where": ["/market (right column, 'The bell')"],
+      "where": [
+        "/market Floor tab → components/market/floor-tab.tsx 'The bell' panel (right column), right of the next-tick name and countdown"
+      ],
       "kind": "object",
       "w": 512,
       "h": 512,
       "transparent": true,
       "priority": "medium",
-      "brief": "A classic exchange opening bell: polished brass bell on a small dark wooden plinth with a hololive-blue (#3fb8f5) enamel band and a diamond plate on the front, mid-ring, with flat curved motion arcs on both sides and a few tiny sparkles. Flat graphic shapes, halftone shading, one strong highlight.",
-      "notes": "Replaces a fake 'BELL' talent placeholder. Rendered at 92px next to the next-tick countdown, so keep it bold and simple. Transparent background."
+      "css": "92×92",
+      "crop": "Bell and plinth centred, ~85% of the square; motion arcs may reach the edges.",
+      "lighting": "neutral studio light, one strong highlight on the brass",
+      "style": "object",
+      "animation": "none",
+      "fallback": "Soft blue radial glow with halftone dots, same size; the countdown still renders.",
+      "brief": "A classic exchange opening bell: polished brass bell on a small dark wooden plinth with a hololive-blue (#3fb8f5) enamel band and a diamond plate on the front, mid-ring, flat curved motion arcs on both sides, a few tiny sparkles. Flat graphic shapes, halftone shading, clean dark outline, one strong highlight.",
+      "notes": "Bold and simple: it reads at 92px."
     },
     {
-      "id": "market.news-fallback",
+      "id": "market-news-fallback",
       "title": "HoloNews: story without a picture",
-      "where": ["/ (front page headlines)", "/articles?type=news"],
+      "where": [
+        "/ → components/home/front-page.tsx HoloNews: the lead story image (2:1 box) and the 72×72 headline thumbs, when a story has no thumbnail and no tagged talent",
+        "/articles?type=news (and /news, which redirects there) → components/articles/articles-index.tsx: the 16:9 lead image and the 16:10 row thumbs, same rule"
+      ],
       "kind": "illustration",
       "w": 1200,
       "h": 675,
       "transparent": false,
       "priority": "medium",
-      "brief": "The HoloNews stand-in picture: a stack of freshly printed newspapers on a dark desk, front pages covered in blank grey headline bars and photo boxes (no readable text), a slim ticker ribbon curling across them in hololive blue (#3fb8f5), a press microphone leaning on the stack. Dark ink ground (#0a0c11), flat shapes, halftone shading, cool blue key light from the top right.",
-      "notes": "Used when a HoloNews story has no thumbnail and no talent to show. Shown both as the 16:9 lead image (~640px) and as a tiny ~96px square-ish crop, so keep the main shape centred. No text."
+      "css": "72×72 up to ~800×400; cropped (cover, centred) to 2:1 (home lead), 16:9 (articles lead, ~600 wide), 16:10 (articles rows, 150×94; 96×60 on phones) and 1:1 (home thumbs)",
+      "crop": "The main shape (paper stack + mic) sits inside the centre square (middle 56% of the width) so the 72px square crop still reads; the left and right ends are expendable ribbon and desk.",
+      "lighting": "neon: cool blue key light from the top right on a dark desk",
+      "style": "scene",
+      "animation": "none",
+      "fallback": "Blue-wash halftone placeholder filling the same box.",
+      "brief": "The HoloNews stand-in picture: a stack of freshly printed newspapers on a dark desk, front pages covered in blank grey headline bars and photo boxes (no readable text), a slim ticker ribbon in hololive blue (#3fb8f5) curling across the stack, a press microphone leaning on it. Dark ink ground (#0a0c11), flat shapes, halftone shading, crisp and newsy.",
+      "notes": "No text anywhere. A story that tags a talent shows that talent's key art instead. Sibling of market-article-fallback (same crops, same desk world)."
     },
     {
-      "id": "market.article-fallback",
+      "id": "market-article-fallback",
       "title": "Articles: player story without a picture",
-      "where": ["/articles?type=community", "/articles"],
+      "where": [
+        "/articles (player articles) → components/articles/articles-index.tsx: the 16:9 lead image and the 16:10 row thumbs, when an article has no image and no tagged talent"
+      ],
       "kind": "illustration",
       "w": 1200,
       "h": 675,
       "transparent": false,
       "priority": "low",
-      "brief": "A player's writing desk at night: a laptop open to a blank editor glowing blue, sticky notes doodled with up and down arrows, a mug with a small diamond logo, a glowstick being used as a pen, a mini ticker screen in the corner. Dark ink ground (#0a0c11), hololive blue (#3fb8f5) screen light, flat shapes with halftone shading, cosy.",
-      "notes": "Used when a player-written article has no image and no talent tag. Same crops as market.news-fallback (16:9 lead and ~120px row thumb). No readable text."
+      "css": "150×94 row thumbs (96×60 on phones) up to a ~600×338 lead; cover, centred",
+      "crop": "Laptop and mug inside the centre ~60% so the small 16:10 row thumb still reads.",
+      "lighting": "neon: blue screen glow on the face of the desk, cosy dark room",
+      "style": "scene",
+      "animation": "none",
+      "fallback": "Blue-wash halftone placeholder filling the same box.",
+      "brief": "A player's writing desk at night: a laptop open to a blank editor glowing blue, sticky notes doodled with up and down arrows, a mug with a small diamond logo, a glowstick being used as a pen, a mini ticker screen in the corner. Dark ink ground (#0a0c11), hololive-blue (#3fb8f5) screen light, flat shapes with halftone shading, cosy.",
+      "notes": "No readable text. Same desk world and crops as market-news-fallback."
     },
     {
-      "id": "market.profile-banner",
+      "id": "market-profile-banner",
       "title": "Profile: banner backdrop",
-      "where": ["/profile", "/profile/[username]"],
+      "where": [
+        "/profile and /profile/[username] → components/profile/profile-view.tsx banner header, behind the avatar, name, meta, bio and actions"
+      ],
       "kind": "backdrop",
       "w": 2400,
-      "h": 600,
+      "h": 480,
       "transparent": false,
       "priority": "medium",
-      "brief": "A wide, low-contrast panorama of the trading floor at night from a balcony: rows of desks with glowing monitors, a long curved ticker board along the far wall, soft volumetric light shafts. Mostly deep ink (#0a0c11) with hololive-blue (#3fb8f5) points of light; everything slightly out of focus so it reads as texture. The left half and the bottom third are the calmest parts.",
-      "notes": "Behind every profile banner. The UI lays the player's colour and a dark bottom fade on top, and the oshi's key art sits in the right third, so keep detail subtle and mid-frame. Cropped to ~250px tall at any width (object-position center)."
+      "css": "page width (up to 1680) × 250–320 (grows with the bio); cover, centred; 55% opacity",
+      "crop": "The UI fades the image out top to bottom (solid to 25%, gone by 95%), so the readable part is the upper half: put the lights and the long ticker board there; the lower half can be near-black floor. The avatar and name sit bottom-left, the actions bottom-right. The right third is behind the player's oshi key art (faded at its sides), so keep that area simple. At 1680 wide only the middle ~80% of the height shows.",
+      "lighting": "neon, low-key: out-of-focus blue points of light on ink; follows UI state: the player's colour and the oshi's colour are washed over it",
+      "style": "scene",
+      "animation": "none",
+      "fallback": "The banner's own CSS background (player-colour wash, oshi-colour glow, faint grid) with a faint blue halftone over it.",
+      "brief": "A wide, low-contrast panorama of the trading floor at night from a balcony: a long curved ticker board glowing along the far wall in the upper half, rows of desks with small glowing monitors below it, soft volumetric light shafts. Mostly deep ink (#0a0c11) with hololive-blue (#3fb8f5) points of light; everything slightly out of focus so it reads as texture.",
+      "notes": "Sits on the theme's panel colour at 55% opacity, so in light mode it reads as a grey-blue haze: keep values dark and contrast low (no bright whites)."
     },
     {
-      "id": "market.leaderboard-podium",
-      "title": "Leaderboard: podium stage",
-      "where": ["/leaderboard (top three)"],
+      "id": "market-leaderboard-podium",
+      "title": "Leaderboard: podium light",
+      "where": [
+        "/leaderboard (page 1, 3+ players) → components/leaderboard/leaderboard.tsx podium, behind the three steps (2nd, 1st, 3rd left to right)"
+      ],
       "kind": "backdrop",
       "w": 2400,
-      "h": 600,
-      "transparent": false,
+      "h": 400,
+      "transparent": true,
       "priority": "medium",
-      "brief": "A dark stage seen head-on with three tall spotlight beams coming down (the centre one brightest), light haze, a scatter of hololive-blue (#3fb8f5) and white confetti and a few falling order slips, a low glowing ticker strip along the stage lip. Dark ink (#0a0c11) everywhere else. Flat shapes with halftone in the beams.",
-      "notes": "Behind the three podium steps; avatars, names and numbers sit on top, so beams should land at roughly 17%, 50% and 83% across and stay soft. On phones the steps stack and the image is cropped to the centre."
+      "css": "page width (up to 1680) × ~170; phones: the steps stack (~360×400) and the image is cover-cropped to its centre; 70% opacity",
+      "crop": "Three soft vertical beams at 16%, 50% and 84% across (the step centres; the middle step is 15% wider), each running the full height so any horizontal band reads; the centre beam brightest and widest. Avatars sit at each step's left, rank numbers, names and equity to their right, all in the lower 70%: beams stay soft there. Phones show only the centre ~20% of the width, so the centre beam must carry it alone.",
+      "lighting": "neon: white and hololive-blue spotlight beams, no ambient fill",
+      "style": "scene",
+      "animation": "none",
+      "fallback": "Faint blue halftone over the podium's own step gradients (each step is tinted with the player's colour).",
+      "brief": "Stage light only, on a transparent background: three tall spotlight beams coming down from above (the centre one brightest), light haze inside the beams, a scatter of hololive-blue (#3fb8f5) and white confetti and a few falling order slips drifting through them, a faint glowing strip along the bottom edge like a stage lip. Flat shapes with halftone in the beams. No stage floor, wall or dark background.",
+      "notes": "Transparent on purpose: the podium sits on the theme background and its text uses the theme's text colour, so an opaque dark stage would bury the dark text in light mode. On dark ink the beams glow; on light paper the confetti and blue beams still show."
     },
     {
-      "id": "market.offair",
+      "id": "market-offair",
       "title": "Livestreams: nobody's live",
-      "where": ["/livestreams (empty live list)"],
+      "where": [
+        "/livestreams → components/livestreams/livestreams-page.tsx, live list empty state with no filters active, above 'Nobody's live right now'"
+      ],
       "kind": "spot",
       "w": 800,
       "h": 600,
       "transparent": true,
       "priority": "low",
-      "brief": "An empty streaming setup after hours: a gaming chair turned slightly away, a ring light switched off, a monitor showing a blank screen with a tiny sleeping crescent moon, a headset hung on the chair, cables on the floor. Muted blues and greys with one soft hololive-blue (#3fb8f5) standby glow. Flat shapes, halftone shading.",
-      "notes": "Shown above 'Nobody's live right now', ~220px wide, centred. Transparent background. No logos or brand marks on the gear."
+      "css": "220×165, centred",
+      "crop": "Setup centred, ~85% of the frame, a little floor shadow allowed.",
+      "lighting": "neutral, dim after-hours; one soft blue standby glow",
+      "style": "object",
+      "animation": "none",
+      "fallback": "Soft blue radial glow with halftone dots, same size; the empty-state line still renders.",
+      "brief": "An empty streaming setup after hours: a gaming chair turned slightly away, a ring light switched off, a monitor showing a blank screen with a tiny sleeping crescent moon, a headset hung on the chair, cables on the floor. Muted blues and greys with one soft hololive-blue (#3fb8f5) standby glow. Flat shapes, halftone shading, clean dark outline.",
+      "notes": "No logos or brand marks on the gear."
     },
     {
-      "id": "market.og-stock",
+      "id": "market-og-stock",
       "title": "Share image: stock page plate",
-      "where": ["/stocks/[symbol] (share card template)"],
+      "where": [
+        "/stocks/[symbol] share card template (planned: app/stocks/[stockName]/opengraph-image.tsx; not wired yet)"
+      ],
       "kind": "social",
       "w": 1200,
       "h": 630,
       "transparent": false,
       "priority": "medium",
-      "brief": "The background plate for per-stock share cards: dark ink (#0a0c11) with a large faint candlestick chart climbing left to right in hololive-blue (#3fb8f5) halftone, a thin glowing baseline and a subtle grid. The right 45% is left empty and soft (the talent's key art is composited there) and the top-left block is kept clear for the ticker, name and price.",
-      "notes": "A template, not a finished card. Not wired yet: hook it in app/stocks/[stockName]/opengraph-image.tsx (next/og ImageResponse) compositing this plate, the talent key art (talent set) and the live symbol/price. No text in the plate."
+      "css": "1200×630 as delivered; shown 300–600 wide in link previews",
+      "crop": "Safe area is the centre 1080×566. The right 45% stays empty and soft (the talent's key art is composited there, facing left); the top-left block stays clear for the ticker, name and price. The chart climbs through the lower left and middle.",
+      "lighting": "neon: blue halftone chart glow on dark ink",
+      "style": "social",
+      "animation": "none",
+      "fallback": "None today: link previews show the page title only.",
+      "brief": "The background plate for per-stock share cards: dark ink (#0a0c11) with a large faint candlestick chart climbing left to right in hololive-blue (#3fb8f5) halftone, a thin glowing baseline and a subtle grid. The right 45% is soft empty glow, the top-left corner calm.",
+      "notes": "A template, not a finished card. To wire: an ImageResponse in app/stocks/[stockName]/opengraph-image.tsx compositing this plate, the talent key art (SYMBOL/keyart) and the live symbol and price. No text in the plate."
     }
   ]
 }

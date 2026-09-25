@@ -377,7 +377,7 @@ export function ResultMoment({ table, mySeat, detail }: { table: GameTable; mySe
 
   return (
     <div className={styles.moment} data-tone={tone} role="status" aria-live="polite">
-      <SceneArt key={tone} slot={tone === "lose" ? "games.moment-lose" : tone === "draw" ? "games.moment-draw" : "games.moment-win"} width={96} className={styles.momentArt} />
+      <SceneArt key={tone} slot={tone === "lose" ? "games-moment-lose" : tone === "draw" ? "games-moment-draw" : "games-moment-win"} width={96} className={styles.momentArt} />
       <span className={styles.momentKicker}>Match over</span>
       <strong className={styles.momentHead}>{headline}</strong>
       {amount ? <span className={styles.momentAmount}>{amount}</span> : null}

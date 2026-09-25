@@ -1,0 +1,955 @@
+@use "../../../styles/mixins" as *;
+
+// A talent's room in the gallery: banner header (dark stage), key art breaking out of its bottom
+// edge, then the five card illustrations framed like prints with museum placards, then the
+// reaction strip. Art sits on dark mats in both themes; placards use the page tokens.
+
+.headNav {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.allLink,
+.stepLink {
+  @include button-secondary;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.7rem;
+  text-decoration: none;
+
+  svg {
+    width: 0.7rem;
+    height: 0.7rem;
+  }
+}
+
+.stepLink span {
+  @include num;
+}
+
+.error,
+.missing {
+  @include empty-state;
+  margin: 1rem 0;
+
+  a {
+    color: var(--blue);
+  }
+
+  button {
+    @include button-secondary;
+    margin-left: 0.5rem;
+    padding: 0.3rem 0.6rem;
+  }
+}
+
+.error {
+  color: var(--down);
+}
+
+.loading {
+  display: grid;
+  gap: 1.5rem;
+  padding-top: 0.25rem;
+
+  > span,
+  div span {
+    border-radius: var(--radius-lg);
+    background: linear-gradient(100deg, var(--ink-2) 30%, var(--ink-3) 50%, var(--ink-2) 70%) 0 0 / 300% 100%;
+    animation: shimmer 1.4s linear infinite;
+  }
+
+  > span {
+    aspect-ratio: 21 / 9;
+  }
+
+  div {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 1rem;
+
+    span {
+      aspect-ratio: 5 / 7;
+    }
+  }
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -150% 0;
+  }
+}
+
+.room {
+  width: 100%;
+  min-width: 0;
+  padding-bottom: 2.5rem;
+}
+
+// ── Banner header ──────────────────────────────────────────────────────────
+.stage {
+  --overlap: 7.5rem;
+  position: relative;
+  min-width: 0;
+  margin-top: 0.25rem;
+
+  @include phone {
+    --overlap: 3.75rem;
+  }
+}
+
+.bannerBox {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: #07090e;
+  isolation: isolate;
+
+  // Bottom fade into the page, so the key art and name sit on the stage's edge.
+  &::after {
+    content: "";
+    position: absolute;
+    z-index: 2;
+    inset: auto 0 0;
+    height: 35%;
+    background: linear-gradient(transparent, rgba(7, 9, 14, 0.55));
+    pointer-events: none;
+  }
+}
+
+.bannerArt {
+  // Very wide screens crop a little top and bottom rather than push the wall off screen.
+  max-height: 32rem;
+
+  img {
+    object-position: 70% 35% !important;
+  }
+
+  @include phone {
+    aspect-ratio: 16 / 10 !important;
+
+    img {
+      object-position: 78% 35% !important;
+    }
+  }
+}
+
+.bannerButton,
+.pieceButton,
+.reactionButton,
+.keyartBox {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: zoom-in;
+
+  &:focus-visible {
+    @include focus-ring;
+    outline-offset: 3px;
+  }
+}
+
+.expand {
+  position: absolute;
+  z-index: 3;
+  top: 0.6rem;
+  right: 0.6rem;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--radius-sm);
+  background: rgba(7, 9, 14, 0.55);
+  color: #fff;
+  font-size: 0.8rem;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+
+  .bannerButton:hover &,
+  .bannerButton:focus-visible &,
+  .pieceButton:hover &,
+  .pieceButton:focus-visible & {
+    opacity: 1;
+  }
+
+  @media (hover: none) {
+    opacity: 0.85;
+  }
+}
+
+.bannerLocked {
+  position: relative;
+}
+
+// The locked look: the piece is there, but behind frosted glass.
+.veiled {
+  filter: blur(12px) grayscale(0.6) brightness(0.62) contrast(1.05);
+  transform: scale(1.08);
+}
+
+.veil {
+  z-index: 1;
+  mix-blend-mode: screen;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.bannerLock {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  right: 8%;
+  display: grid;
+  justify-items: end;
+  gap: 0.3rem;
+  max-width: 22rem;
+  color: #fff;
+  text-align: right;
+  transform: translateY(-60%);
+
+  b {
+    @include display(1.35rem);
+  }
+
+  > span:not(.lockIcon) {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  small {
+    @include num;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  @include phone {
+    top: 42%;
+    right: 50%;
+    justify-items: center;
+    width: calc(100% - 2rem);
+    text-align: center;
+    transform: translate(50%, -50%);
+
+    b {
+      font-size: 1.05rem;
+    }
+
+    > span:not(.lockIcon) {
+      font-size: 0.8rem;
+    }
+  }
+}
+
+.lockIcon {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  margin-bottom: 0.2rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  background: rgba(7, 9, 14, 0.5);
+  font-size: 0.95rem;
+
+  @include phone {
+    width: 1.9rem;
+    height: 1.9rem;
+    font-size: 0.75rem;
+  }
+}
+
+.bannerTag {
+  @include label;
+  position: absolute;
+  z-index: 3;
+  top: 0.75rem;
+  left: 0.85rem;
+  padding: 0.2rem 0.45rem 0.15rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--radius-sm);
+  background: rgba(7, 9, 14, 0.55);
+  color: rgba(255, 255, 255, 0.78);
+  pointer-events: none;
+
+  &[data-open] {
+    border-color: color-mix(in srgb, var(--tal) 70%, transparent);
+    color: #fff;
+  }
+}
+
+// Key art breaks out of the banner's bottom edge; the name sits on the page beside it.
+.identity {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0 1.5rem;
+  margin-top: calc(var(--overlap) * -1);
+  padding: 0 1.5rem;
+
+  @include phone {
+    gap: 0 0.85rem;
+    padding: 0 0.75rem;
+  }
+}
+
+.keyartBox {
+  width: 13rem;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background:
+    radial-gradient(90% 65% at 50% 32%, color-mix(in srgb, var(--tal) 45%, #0b0e15), #07090e 85%),
+    #07090e;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 0 0 5px var(--ink),
+    0 18px 40px -12px rgba(0, 0, 0, 0.6);
+
+  @include phone {
+    width: 6.75rem;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 0 0 3px var(--ink),
+      0 12px 24px -10px rgba(0, 0, 0, 0.6);
+  }
+}
+
+.idText {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+  padding-top: calc(var(--overlap) + 0.9rem);
+
+  @include phone {
+    gap: 0.3rem;
+    padding-top: calc(var(--overlap) + 0.6rem);
+  }
+}
+
+.kicker {
+  @include label;
+}
+
+.name {
+  @include display;
+  margin: 0;
+  font-size: clamp(1.5rem, 3.6vw, 2.9rem);
+  line-height: 1;
+  overflow-wrap: anywhere;
+  text-shadow: 0 0 30px color-mix(in srgb, var(--tal) 35%, transparent);
+}
+
+.ticker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+
+  b {
+    @include num;
+    font-size: 0.8rem;
+    color: var(--text);
+  }
+
+  a {
+    @include label;
+    margin-left: 0.35rem;
+    color: var(--blue);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.8rem;
+  margin-top: 0.3rem;
+
+  em {
+    @include num;
+    font-style: normal;
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+}
+
+.flag {
+  @include label;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.45rem 0.1rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+
+  svg {
+    width: 0.55rem;
+    height: 0.55rem;
+  }
+
+  &[data-on] {
+    border-color: color-mix(in srgb, var(--tal) 60%, transparent);
+    color: var(--text);
+  }
+
+  @include phone {
+    padding: 0.1rem 0.35rem 0.05rem;
+    font-size: 0.56rem;
+  }
+}
+
+// ── Sections ───────────────────────────────────────────────────────────────
+.section {
+  min-width: 0;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+
+  @include phone {
+    margin-top: 1.5rem;
+  }
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+
+  h2 {
+    @include section-heading;
+    margin: 0;
+  }
+
+  small {
+    @include num;
+    font-size: 0.72rem;
+    color: var(--dim);
+  }
+}
+
+// ── Plates ─────────────────────────────────────────────────────────────────
+// Desktop: C, R, SR on the first row, SSR and UR larger on the second (the set escalates).
+.plates {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 2rem 1.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  @include tablet-down {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.75rem 1rem;
+  }
+
+  @include phone {
+    gap: 1.5rem 0.75rem;
+  }
+}
+
+.plate {
+  --rc: #8d95a8;
+  grid-column: span 2;
+  display: grid;
+  justify-items: center;
+  min-width: 0;
+
+  &[data-rarity="SSR"],
+  &[data-rarity="UR"] {
+    grid-column: span 3;
+  }
+
+  @include tablet-down {
+    grid-column: span 1 !important;
+
+    &[data-rarity="UR"] {
+      grid-column: 1 / -1 !important;
+    }
+  }
+}
+
+.figure {
+  display: grid;
+  align-content: start;
+  gap: 0.85rem;
+  width: 100%;
+  max-width: 26rem;
+  margin: 0;
+
+  .plate[data-rarity="SSR"] &,
+  .plate[data-rarity="UR"] & {
+    max-width: 30rem;
+  }
+
+  @include tablet-down {
+    .plate[data-rarity="UR"] & {
+      max-width: 26rem;
+    }
+  }
+}
+
+// The mat: a dark frame with a rarity-coloured hairline, lit from above.
+.mat {
+  position: relative;
+  padding: 0.6rem;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, #151a24, #0b0e14);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--rc) 45%, transparent),
+    0 14px 30px -18px rgba(0, 0, 0, 0.7);
+
+  &::before {
+    content: "";
+    position: absolute;
+    z-index: 2;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(70% 30% at 50% 0%, rgba(255, 255, 255, 0.1), transparent 70%);
+    pointer-events: none;
+  }
+
+  .plate[data-rarity="SSR"] & {
+    box-shadow:
+      inset 0 0 0 1px rgba(245, 197, 66, 0.7),
+      0 0 26px -8px rgba(245, 197, 66, 0.45),
+      0 14px 30px -18px rgba(0, 0, 0, 0.7);
+  }
+
+  .plate[data-rarity="UR"] & {
+    background:
+      linear-gradient(180deg, #151a24, #0b0e14) padding-box,
+      linear-gradient(135deg, #ff7ad9, #ffd36e, #7dffcf, #6ecbff, #b28cff) border-box;
+    border: 1px solid transparent;
+    box-shadow:
+      0 0 30px -8px rgba(255, 122, 217, 0.45),
+      0 14px 30px -18px rgba(0, 0, 0, 0.7);
+  }
+
+  .plate[data-locked] & {
+    background: linear-gradient(180deg, #11141b, #090b10);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    border-color: transparent;
+  }
+
+  @include phone {
+    padding: 0.35rem;
+  }
+}
+
+.pieceButton,
+.lockedPiece {
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+}
+
+.pieceButton {
+  transition: transform var(--dur-med) var(--ease-out);
+}
+
+@include hover-device {
+  .pieceButton:hover {
+    transform: translateY(-2px);
+  }
+}
+
+.lockedPiece {
+  position: relative;
+  isolation: isolate;
+}
+
+.lockBadge {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+  color: rgba(255, 255, 255, 0.82);
+  transform: translate(-50%, -50%);
+
+  svg {
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+
+  b {
+    @include display(1.6rem);
+    color: color-mix(in srgb, var(--rc) 70%, #fff);
+    text-shadow: 0 0 20px color-mix(in srgb, var(--rc) 60%, transparent);
+  }
+
+  @include phone {
+    svg {
+      width: 0.9rem;
+      height: 0.9rem;
+    }
+
+    b {
+      font-size: 1.15rem;
+    }
+  }
+}
+
+// Museum placard.
+.placard {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0 0.15rem;
+}
+
+.placardHead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+
+  b {
+    @include display(1.1rem);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  small {
+    @include num;
+    margin-left: auto;
+    font-size: 0.68rem;
+    color: var(--dim);
+  }
+
+  @include phone {
+    b {
+      font-size: 0.92rem;
+    }
+  }
+}
+
+.rarityChip {
+  @include display(0.78rem);
+  flex: none;
+  padding: 0.12rem 0.4rem 0.05rem;
+  border: 1px solid color-mix(in srgb, var(--rc) 70%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--rc);
+  letter-spacing: 0.02em;
+
+  .plate[data-rarity="SSR"] & {
+    border-color: transparent;
+    background: linear-gradient(90deg, #f5c542, #fff0a8, #f5c542);
+    color: #1a1204;
+  }
+
+  .plate[data-rarity="UR"] & {
+    border-color: transparent;
+    background: linear-gradient(90deg, #ff7ad9, #ffd36e, #7dffcf, #6ecbff, #b28cff);
+    color: #120a14;
+  }
+}
+
+.flavour {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--mid);
+
+  @include phone {
+    font-size: 0.78rem;
+  }
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.75rem;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--dim);
+
+  b {
+    color: var(--text);
+  }
+}
+
+.stars {
+  display: inline-flex;
+  gap: 0.15rem;
+
+  i {
+    width: 0.62rem;
+    height: 0.62rem;
+    background: var(--rule-2);
+    clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+
+    &[data-on] {
+      background: var(--rc);
+    }
+  }
+
+  .plate[data-rarity="C"] & i[data-on] {
+    background: var(--text);
+  }
+}
+
+.rateUp {
+  @include label;
+  padding: 0.1rem 0.35rem 0.05rem;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, #f5c542, #fff0a8, #f5c542);
+  color: #1a1204 !important;
+  font-weight: 700;
+}
+
+.unlock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+}
+
+.pullLink {
+  @include button-primary;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.7rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.craftButton {
+  @include button-secondary;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.7rem;
+  white-space: nowrap;
+
+  i {
+    width: 0.5rem;
+    height: 0.5rem;
+    background: #b28cff;
+    transform: rotate(45deg);
+  }
+}
+
+.short {
+  @include num;
+  flex-basis: 100%;
+  font-size: 0.68rem;
+  color: var(--dim);
+}
+
+// ── Reactions ──────────────────────────────────────────────────────────────
+.reactions {
+  position: relative;
+
+  ul {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 8.5rem));
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    @include phone {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.75rem 0.5rem;
+    }
+  }
+}
+
+.reaction {
+  display: grid;
+  justify-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.reactionButton,
+.reactionLocked {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 50%;
+  background:
+    radial-gradient(closest-side, color-mix(in srgb, var(--tal) 30%, #0b0e15), #07090e),
+    #07090e;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tal) 35%, transparent);
+}
+
+.reactionButton {
+  transition: transform var(--dur-med) var(--ease-out);
+}
+
+@include hover-device {
+  .reactionButton:hover {
+    transform: scale(1.04);
+  }
+}
+
+.reactionLocked {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+
+  .veiled {
+    filter: blur(8px) grayscale(1) brightness(0.4);
+    transform: none;
+  }
+}
+
+.poseLabel {
+  @include label;
+}
+
+.reactionsLock {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.9rem 0 0;
+  font-size: 0.85rem;
+  color: var(--mid);
+
+  svg {
+    width: 0.7rem;
+    height: 0.7rem;
+    color: var(--dim);
+  }
+}
+
+// ── Lightbox pieces ────────────────────────────────────────────────────────
+.lightboxKeyart,
+.lightboxReaction {
+  background:
+    radial-gradient(90% 65% at 50% 35%, color-mix(in srgb, var(--tal) 45%, #0b0e15), #07090e 85%),
+    #07090e;
+}
+
+// ── Pager ──────────────────────────────────────────────────────────────────
+.pager {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 2.5rem;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+
+.pagerLink {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 1rem 0.75rem;
+  color: inherit;
+  text-decoration: none;
+
+  > span:not(.pagerPips) {
+    display: grid;
+    gap: 0.1rem;
+    min-width: 0;
+  }
+
+  small {
+    @include label;
+  }
+
+  b {
+    @include display(1.05rem);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  > svg {
+    flex: none;
+    color: var(--dim);
+  }
+
+  &[data-dir="next"] {
+    justify-content: flex-end;
+    border-left: 1px solid var(--rule);
+    text-align: right;
+  }
+
+  &:hover {
+    background: color-mix(in srgb, var(--tal) 7%, transparent);
+
+    > svg {
+      color: var(--tal);
+    }
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  @include phone {
+    gap: 0.45rem;
+    padding: 0.8rem 0.4rem;
+
+    b {
+      font-size: 0.85rem;
+    }
+  }
+}
+
+.pagerPips {
+  flex: none;
+
+  [data-dir="prev"] & {
+    margin-left: auto;
+  }
+
+  [data-dir="next"] & {
+    margin-right: auto;
+  }
+
+  @include phone {
+    display: none;
+  }
+}
+
+:global(html[data-calm="true"]) {
+  .loading > span,
+  .loading div span {
+    animation: none;
+  }
+
+  .pieceButton,
+  .reactionButton,
+  .expand {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading > span,
+  .loading div span {
+    animation: none;
+  }
+
+  .pieceButton,
+  .reactionButton,
+  .expand {
+    transition: none;
+  }
+}

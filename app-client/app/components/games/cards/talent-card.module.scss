@@ -598,7 +598,7 @@
 .backArt {
   pointer-events: none;
 
-  &[data-slot] {
+  &[data-art-missing] {
     display: none;
   }
 }

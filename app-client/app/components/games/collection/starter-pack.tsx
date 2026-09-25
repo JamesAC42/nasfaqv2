@@ -100,7 +100,7 @@ export function StarterPack({ onDone }: { onDone: () => void }) {
             <CardBack width={104} glow={index === 2 ? "R" : null} />
           </span>
         ))}
-        <SceneArt slot="games.starter-pack" width={150} className={styles.packArt} />
+        <SceneArt slot="games-starter-pack" width={150} className={styles.packArt} />
       </div>
     </section>
   );

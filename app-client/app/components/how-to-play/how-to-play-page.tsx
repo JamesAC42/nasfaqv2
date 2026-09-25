@@ -42,7 +42,7 @@ function Hero() {
   const { up, down } = useMovers();
   return (
     <header className={styles.hero}>
-      <SceneArt slot="howto.hero" fill position="75% 40%" priority width={1600} className={styles.heroArt} />
+      <SceneArt slot="howto-hero" fill position="75% 40%" priority width={1600} className={styles.heroArt} />
       <div className={styles.heroScrim} aria-hidden="true" />
       <div className={styles.heroCopy}>
         <span className={styles.kicker}>

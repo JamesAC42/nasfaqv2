@@ -310,7 +310,7 @@ function DuelBoard({ table, mySeat }: { table: GameTable<DuelState>; mySeat: num
   return (
     <div className={styles.layout}>
       <div className={styles.board} data-phase={done ? "done" : state.phase}>
-        <SceneArt slot="games.table-mat" fill width={1100} className={styles.matArt} />
+        <SceneArt slot="games-table-mat" fill width={1100} className={styles.matArt} />
         <div className={styles.seatRow} data-place="top">
           {renderPlate(top, "top")}
           {renderDeck(top, "top")}

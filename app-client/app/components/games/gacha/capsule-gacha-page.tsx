@@ -190,7 +190,7 @@ export function CapsuleGachaPage() {
       <div className={styles.layout}>
         <section className={styles.machineCol} aria-label="Capsule machine">
           <div className={styles.machineWrap}>
-            <SceneArt slot="games.capsule-shop" fill width={420} className={styles.shopArt} />
+            <SceneArt slot="games-capsule-shop" fill width={420} className={styles.shopArt} />
             <CapsuleMachine price={costOne} state={cranking || busy !== null ? "cranking" : "idle"} drop={drop} turns={busy === 10 || lastCount === 10 ? 2 : 1} />
           </div>
 

@@ -52,7 +52,7 @@ function VerifyEmail() {
 
   return (
     <section className={styles.card} aria-live="polite">
-      <SceneArt key={status} slot={status === "success" ? "site.verify-ok" : status === "error" ? "site.verify-failed" : "site.verify-pending"} width={96} className={styles.chibi} />
+      <SceneArt key={status} slot={status === "success" ? "site-verify-ok" : status === "error" ? "site-verify-failed" : "site-verify-pending"} width={96} className={styles.chibi} />
       {status === "pending" ? (
         <>
           <span className={styles.kicker}>CHECKING</span>

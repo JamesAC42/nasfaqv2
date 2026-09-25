@@ -76,7 +76,7 @@ export function CapsuleBack({ rarity, width = 168 }: { rarity: CapsuleRarity; wi
         <span className={styles.top} />
         <span className={styles.seam} />
         <span className={styles.shine} />
-        <SceneArt slot={`games.capsule-${rarity}`} fill width={width} className={styles.shellArt} />
+        <SceneArt slot={`games-capsule-${rarity}`} fill width={width} className={styles.shellArt} />
       </span>
       <span className={styles.shadow} />
     </div>

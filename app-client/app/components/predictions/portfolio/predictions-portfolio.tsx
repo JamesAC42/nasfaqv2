@@ -141,7 +141,7 @@ function Positions({ rows, looks, flashes }: { rows: PortfolioPosition[]; looks:
   if (!rows.length) {
     return (
       <div className={`${styles.empty} ${styles.emptyArt}`}>
-        <SceneArt slot="predictions.portfolio-empty" width={200} className={styles.emptyPic} />
+        <SceneArt slot="predictions-portfolio-empty" width={200} className={styles.emptyPic} />
         <p>
           No open bets. <Link href="/predictions">Hit the floor</Link> and make a call.
         </p>

@@ -335,7 +335,7 @@ function Bell() {
           <div className={styles.bellName}>{clock ? clock.nextTick.label.toUpperCase() : "—"}</div>
           <div className={styles.bellCount}>{clock ? formatCountdown(clock.secondsToNextTick) : "--:--:--"}</div>
         </div>
-        <SceneArt slot="market.bell" width={92} className={styles.bellArt} />
+        <SceneArt slot="market-bell" width={92} className={styles.bellArt} />
       </div>
       <p className={styles.bellNote}>
         Every stock reprices on the tick. How hard is secret until it lands.

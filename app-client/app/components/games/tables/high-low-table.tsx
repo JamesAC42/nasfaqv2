@@ -217,7 +217,7 @@ function HighLowBoard({ table, mySeat }: { table: GameTable<HighLowState>; mySea
   return (
     <div className={styles.layout}>
       <div className={styles.board} data-phase={done ? "done" : state.phase}>
-        <SceneArt slot="games.table-mat" fill width={1100} className={styles.matArt} />
+        <SceneArt slot="games-table-mat" fill width={1100} className={styles.matArt} />
         <div className={styles.top}>
           {renderSeat(left, "left")}
           <div className={styles.roundBox}>

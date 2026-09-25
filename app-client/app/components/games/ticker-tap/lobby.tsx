@@ -103,7 +103,7 @@ export function Lobby({ board, boardError, signedIn, userId, needsVerification, 
   return (
     <div className={styles.lobby}>
       <section className={`${styles.hero} ${compactHero ? styles.heroCompact : ""}`} aria-labelledby="tt-pool">
-        <SceneArt slot="games.tickertap-hero" fill width={1440} className={styles.heroScene} />
+        <SceneArt slot="games-tickertap-hero" fill width={1440} className={styles.heroScene} />
         <TapeWall talents={demoTalents} />
         <div className={styles.poolBlock}>
           <h2 id="tt-pool" className={styles.poolLabel}>

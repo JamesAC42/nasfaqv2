@@ -116,7 +116,7 @@ function NewbieStrip() {
   if (user || isLoading || dismissed) return null;
   return (
     <aside className={styles.newbie}>
-      <SceneArt slot="home.welcome" width={132} className={styles.newbieArt} />
+      <SceneArt slot="home-welcome" width={132} className={styles.newbieArt} />
       <p>
         <b>New here?</b> Everyone starts with $10,000 of play money. Every hololive talent is a stock, and prices follow their real YouTube
         growth plus what players buy and sell.
@@ -149,7 +149,7 @@ function NewsThumb({ item, lead = false }: { item: NewsItem; lead?: boolean }) {
   if (!symbol) {
     return (
       <span className={`${lead ? styles.leadImage : styles.headImage} ${styles.thumbBox}`}>
-        <SceneArt slot="market.news-fallback" fill width={lead ? 640 : 96} />
+        <SceneArt slot="market-news-fallback" fill width={lead ? 640 : 96} />
       </span>
     );
   }

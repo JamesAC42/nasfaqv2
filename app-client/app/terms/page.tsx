@@ -340,7 +340,7 @@ export default function TermsPage() {
       doc="terms"
       title="Usage policy"
       updated={{ iso: "2026-09-25", label: "September 25, 2026" }}
-      art="legal.terms-spot"
+      art="legal-terms-spot"
       intro={
         <p>
           The house rules for NASFAQ. What we collect and what’s public is in the{" "}

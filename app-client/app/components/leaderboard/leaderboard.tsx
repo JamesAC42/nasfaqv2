@@ -15,7 +15,7 @@ import { useLeaderboardStore } from "@/app/stores/leaderboard-store";
 import { useMarketStore } from "@/app/stores/market-store";
 import styles from "@/app/components/leaderboard/leaderboard.module.scss";
 
-const MEDALS: Record<number, string> = { 1: "site.medal-gold", 2: "site.medal-silver", 3: "site.medal-bronze" };
+const MEDALS: Record<number, string> = { 1: "site-medal-gold", 2: "site-medal-silver", 3: "site-medal-bronze" };
 
 export type LeaderboardTab = "players" | "talent";
 
@@ -169,7 +169,7 @@ function PlayersTab() {
 
       {podium.length ? (
         <div className={styles.podium}>
-          <SceneArt slot="market.leaderboard-podium" fill width={1400} className={styles.podiumArt} />
+          <SceneArt slot="market-leaderboard-podium" fill width={1400} className={styles.podiumArt} />
           {podium.map((entry) => {
             const change = windowChange(entry, window);
             return (

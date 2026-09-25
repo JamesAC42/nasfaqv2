@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { FaThumbtack, FaXmark } from "react-icons/fa6";
+import { FaImage, FaThumbtack, FaXmark } from "react-icons/fa6";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { TalentCard } from "@/app/components/games/cards/talent-card";
 import { fmtInteger } from "@/app/lib/format";
@@ -25,12 +25,14 @@ type Props = {
   shards: number;
   showcase: ShowcaseControls;
   onClose: () => void;
+  /** "View art" link to the talent's gallery page (off when the sheet is opened from the gallery). */
+  artLink?: boolean;
 };
 
 type Moment = { id: number; text: string; rarity: Rarity };
 
 /** One talent's cards, big: flip through rarities, craft, pin. Side sheet on desktop, bottom sheet on phone. */
-export function CardSheet({ model, symbol, rarity, onRarity, shards, showcase, onClose }: Props) {
+export function CardSheet({ model, symbol, rarity, onRarity, shards, showcase, onClose, artLink = true }: Props) {
   const pocket = model.bySymbol.get(symbol);
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const [busy, setBusy] = useState(false);
@@ -107,6 +109,11 @@ export function CardSheet({ model, symbol, rarity, onRarity, shards, showcase, o
             <b>{talent.symbol}</b>
             {talent.unit ? <span>{unitLabel(talent.unit)}</span> : null}
           </span>
+          {artLink ? (
+            <Link href={`/games/cards/gallery/${encodeURIComponent(talent.symbol)}`} className={styles.artLink}>
+              <FaImage aria-hidden="true" /> View art
+            </Link>
+          ) : null}
           <button ref={closeRef} type="button" className={styles.close} onClick={onClose} aria-label="Close">
             <FaXmark aria-hidden="true" />
           </button>

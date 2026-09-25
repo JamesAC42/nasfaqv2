@@ -40,7 +40,7 @@ $felt-line: rgba(190, 215, 255, 0.28);
     mix-blend-mode: multiply;
     pointer-events: none;
 
-    &[data-slot] {
+    &[data-art-missing] {
       display: none;
     }
   }

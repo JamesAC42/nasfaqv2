@@ -22,7 +22,7 @@ export const callName = (name: string) => name.trim().split(/\s+/).pop() ?? name
 
 /** The arcade hall behind the hero in every state; the talent's colour and key art go over it. */
 function HeroScene() {
-  return <SceneArt slot="games.arcade-hero" fill position="70% 30%" width={1440} priority className={styles.scene} />;
+  return <SceneArt slot="games-arcade-hero" fill position="70% 30%" width={1440} priority className={styles.scene} />;
 }
 
 export function FeaturedHero({

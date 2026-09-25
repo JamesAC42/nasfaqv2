@@ -271,11 +271,11 @@
 }
 
 // Drop-in shell art: hidden while it's a placeholder; once it exists it replaces the drawn shell.
-.shellArt[data-slot] {
+.shellArt[data-art-missing] {
   display: none;
 }
 
-.ball:has(> .shellArt:not([data-slot])) {
+.ball:has(> .shellArt:not([data-art-missing])) {
   background: none;
 
   > .top,

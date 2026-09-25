@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { SCENE_AREAS, type SceneSlot } from "@/app/lib/art/scene-slots";
+import { lookupArt, sharedArtId } from "@/app/lib/art-manifest";
 import { useArtStore } from "@/app/stores/art-store";
 import styles from "@/app/components/dev/art-board.module.scss";
 
@@ -18,8 +19,8 @@ export function ArtBoard() {
   }, [ensureLoaded]);
 
   const all = useMemo(() => SCENE_AREAS.flatMap((area) => area.slots), []);
-  const done = all.filter((slot) => manifest?.scenes?.[slot.id]).length;
-  const keep = (slot: SceneSlot) => (filter === "missing" ? !manifest?.scenes?.[slot.id] : filter === "high" ? slot.priority === "high" : true);
+  const done = all.filter((slot) => lookupArt(manifest, sharedArtId(slot.id))).length;
+  const keep = (slot: SceneSlot) => (filter === "missing" ? !lookupArt(manifest, sharedArtId(slot.id)) : filter === "high" ? slot.priority === "high" : true);
 
   return (
     <SiteShell>
@@ -57,7 +58,7 @@ export function ArtBoard() {
                       <p className={styles.id}>
                         {slot.id}
                         <span data-priority={slot.priority}>{slot.priority}</span>
-                        {manifest?.scenes?.[slot.id] ? <span data-done>delivered</span> : null}
+                        {lookupArt(manifest, sharedArtId(slot.id)) ? <span data-done>delivered</span> : null}
                       </p>
                       <h3>{slot.title}</h3>
                       <p className={styles.spec}>

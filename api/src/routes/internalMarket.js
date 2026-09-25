@@ -19,6 +19,15 @@ const {
 
 const router = express.Router();
 
+// Every internal market route changes or exposes market state (open/close, settle, ticks, resets),
+// so all of them are admin only. Nothing outside the API calls these; production also blocks
+// /internal at the ingress (DEPLOYMENT.md §5), this is the route-level guard on top of that.
+router.use((req, res, next) => {
+  if (!req.ctx?.user) return res.status(401).json({ error: "unauthenticated" });
+  if (!req.ctx.user.is_admin) return res.status(403).json({ error: "forbidden" });
+  return next();
+});
+
 function optionalDate(value) {
   if (value === null || value === undefined || value === "") return null;
   const trimmed = String(value).trim();

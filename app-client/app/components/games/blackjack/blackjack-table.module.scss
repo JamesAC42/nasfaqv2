@@ -148,7 +148,7 @@ $felt-line: rgba(190, 215, 255, 0.24);
   z-index: -1;
   pointer-events: none;
 
-  &[data-slot] {
+  &[data-art-missing] {
     display: none;
   }
 }

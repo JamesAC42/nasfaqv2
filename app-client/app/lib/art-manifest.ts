@@ -1,9 +1,38 @@
-// Contract with the art pipeline (art-pipeline/dist/manifest.json).
-// Keep in sync with the pipeline thread; any asset that doesn't exist yet is
-// simply absent, and the UI falls back to a placeholder.
+// Contract with the art pipeline (art-pipeline/spec/slots.json → art-pipeline/dist/manifest.json).
+//
+// Every image has an ID: `SYMBOL/slot/variant` for talent art (e.g. `PEK/card-ssr/default`,
+// `PEK/reaction/hype`) and `_shared/slot/variant` for everything else (e.g. `_shared/howto-hero/default`).
+// The UI looks images up by ID through the manifest and never hardcodes filenames (they carry a
+// content hash). Missing IDs fall back to the slot's placeholder; missing art never breaks a page.
+//
+// Manifest v2 (proposed in art-pipeline/spec/ART_SPEC.md):
+//   { "version": 2, "generated_at": "...",
+//     "images": { "PEK/keyart/default": { "src": "PEK/keyart/default.3f2a1c9e.webp", "w": 1200, "h": 1500,
+//                 "srcset": { "600": "...", "1200": "..." }, "anchors": { "eye_y": 0.24 } } } }
+// Paths are relative to the manifest. The v1 shape (talents.keyart / talents.chibi / scenes) is still read.
 
 export type ChibiPose = "idle" | "moon" | "cope" | "smug" | "shock" | "hype";
 
+export type ArtAnchors = {
+  /** Eye line as a fraction of height. */
+  eye_y?: number;
+  eye_x?: number;
+  /** Feet line for full-body cutouts. */
+  feet_y?: number;
+  /** Point of interest for cropping, as [x, y] fractions. */
+  focus?: [number, number];
+};
+
+export type ArtImage = {
+  src: string;
+  w: number;
+  h: number;
+  /** width → path */
+  srcset?: Record<string, string>;
+  anchors?: ArtAnchors;
+};
+
+// ── v1 shapes (current pipeline output) ────────────────────────────────────
 export type ArtChibi = {
   sizes: Partial<Record<"128" | "256" | "512", string>>;
   blink?: Partial<Record<"128" | "256" | "512", string>> | null;
@@ -15,7 +44,6 @@ export type ArtKeyart = {
   srcset?: Partial<Record<"600" | "1200", string>>;
   w: number;
   h: number;
-  /** Eye line as a fraction of height, used to align heroes across talents. */
   eye_y?: number;
 };
 
@@ -24,7 +52,7 @@ export type ArtTalent = {
   chibi?: Partial<Record<ChibiPose, ArtChibi>>;
 };
 
-/** Non-talent art (backdrops, illustrations, spots), keyed by scene slot id (see app/lib/art/scene-slots.ts). */
+/** Kept for older manifests: non-talent art keyed by scene slot id. */
 export type ArtScene = {
   src: string;
   srcset?: Partial<Record<"600" | "1200" | "2400", string>>;
@@ -35,11 +63,18 @@ export type ArtScene = {
 export type ArtManifest = {
   version: number;
   generated_at?: string;
-  talents: Record<string, ArtTalent>;
+  images?: Record<string, ArtImage>;
+  talents?: Record<string, ArtTalent>;
   scenes?: Record<string, ArtScene>;
 };
 
-export const ART_MANIFEST_URL = process.env.NEXT_PUBLIC_ART_MANIFEST_URL || "/art/manifest.json";
+const BASE = (process.env.NEXT_PUBLIC_ART_BASE_URL || "/art").replace(/\/$/, "");
+export const ART_MANIFEST_URL = process.env.NEXT_PUBLIC_ART_MANIFEST_URL || `${BASE}/manifest.json`;
+
+export const SHARED = "_shared";
+
+export const artId = (owner: string, slot: string, variant = "default") => `${owner}/${slot}/${variant}`;
+export const sharedArtId = (slot: string, variant = "default") => artId(SHARED, slot, variant);
 
 /** Manifest paths are relative to the manifest file's location. */
 export function resolveArtUrl(path: string | null | undefined) {
@@ -57,4 +92,45 @@ export function pickChibiSize(sizes: ArtChibi["sizes"] | null | undefined, px: n
   if (!available.length) return null;
   const match = available.find((key) => Number(key) >= px) ?? available[available.length - 1];
   return sizes[match] ?? null;
+}
+
+function fromV1(manifest: ArtManifest, id: string): ArtImage | null {
+  const [owner, slot, variant = "default"] = id.split("/");
+  if (owner === SHARED) {
+    const scene = manifest.scenes?.[slot] ?? manifest.scenes?.[slot.replace("-", ".")];
+    return scene ? { src: scene.src, w: scene.w, h: scene.h, srcset: scene.srcset as Record<string, string> | undefined } : null;
+  }
+  const talent = manifest.talents?.[owner];
+  if (!talent) return null;
+  if (slot === "keyart" && talent.keyart) {
+    const art = talent.keyart;
+    return { src: art.src, w: art.w, h: art.h, srcset: art.srcset as Record<string, string> | undefined, anchors: art.eye_y ? { eye_y: art.eye_y } : undefined };
+  }
+  if (slot === "reaction") {
+    const blink = variant.endsWith("-blink");
+    const pose = (blink ? variant.slice(0, -6) : variant) as ChibiPose;
+    const chibi = talent.chibi?.[pose];
+    const sizes = blink ? chibi?.blink : chibi?.sizes;
+    if (!sizes) return null;
+    const entries = Object.entries(sizes).filter(([, path]) => path) as [string, string][];
+    if (!entries.length) return null;
+    const [largest, src] = entries.sort((a, b) => Number(b[0]) - Number(a[0]))[0];
+    return { src, w: Number(largest), h: Number(largest), srcset: Object.fromEntries(entries) };
+  }
+  return null;
+}
+
+/** Looks an image up by ID (v2), falling back to the v1 shape. */
+export function lookupArt(manifest: ArtManifest | null | undefined, id: string): ArtImage | null {
+  if (!manifest) return null;
+  return manifest.images?.[id] ?? fromV1(manifest, id);
+}
+
+/** `srcset` attribute for an image, or undefined. */
+export function artSrcSet(image: ArtImage) {
+  if (!image.srcset) return undefined;
+  const parts = Object.entries(image.srcset)
+    .map(([w, path]) => (path ? `${resolveArtUrl(path)} ${w}w` : null))
+    .filter(Boolean);
+  return parts.length ? parts.join(", ") : undefined;
 }

@@ -171,7 +171,7 @@ export function LivestreamsPage() {
                   </div>
                 ) : (
                   <div className={`${styles.empty} ${styles.emptyArt}`}>
-                    {filtering ? null : <SceneArt slot="market.offair" width={220} className={styles.offair} />}
+                    {filtering ? null : <SceneArt slot="market-offair" width={220} className={styles.offair} />}
                     <p>{filtering ? "Nobody matching these filters is live." : "Nobody's live right now. Check who's up next below."}</p>
                   </div>
                 )}

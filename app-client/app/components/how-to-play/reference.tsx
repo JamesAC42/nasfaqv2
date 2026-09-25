@@ -60,7 +60,7 @@ export function FaqSection() {
             </details>
           ))}
         </div>
-        <SceneArt slot="howto.help" className={styles.faqArt} width={240} />
+        <SceneArt slot="howto-help" className={styles.faqArt} width={240} />
       </div>
     </Section>
   );

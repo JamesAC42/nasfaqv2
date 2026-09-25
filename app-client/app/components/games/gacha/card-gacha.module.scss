@@ -1020,3 +1020,52 @@
     animation: none;
   }
 }
+
+// ── Links to the binder and the gallery (page header) ─────────────────────
+.headLinks {
+  display: flex;
+  gap: 0.5rem;
+
+  a {
+    @include button-secondary;
+    padding: 0.5rem 0.85rem;
+    text-decoration: none;
+  }
+}
+
+// Reveal summary: "New art unlocked in the gallery →"
+.newArt {
+  white-space: nowrap;
+}
+
+// ── Featured hero with the talent's banner illustration ───────────────────
+// The art is the whole backdrop: she stands in the right 45%, the copy sits on a left scrim.
+.heroBanner {
+  position: absolute !important;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+
+  @include phone {
+    img {
+      object-position: 76% 30% !important;
+    }
+  }
+}
+
+.hero[data-art="banner"] {
+  .heroBg::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(7, 9, 14, 0.9) 18%, rgba(7, 9, 14, 0.55) 45%, transparent 68%);
+
+    @include phone {
+      background: linear-gradient(180deg, transparent 35%, rgba(7, 9, 14, 0.9) 70%);
+    }
+  }
+
+  .marquee {
+    opacity: 0.9;
+  }
+}

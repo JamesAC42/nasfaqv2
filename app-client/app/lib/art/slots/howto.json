@@ -2,116 +2,164 @@
   "area": "howto",
   "slots": [
     {
-      "id": "howto.hero",
+      "id": "howto-hero",
       "title": "How to play: hero backdrop",
       "where": [
-        "/how-to-play"
+        "/how-to-play → components/how-to-play/how-to-play-page.tsx hero, full bleed behind the title, lede, stats and buttons (left) and today's two movers (reactions, bottom right)"
       ],
       "kind": "backdrop",
       "w": 2400,
       "h": 900,
       "transparent": false,
       "priority": "high",
-      "brief": "A late-night fan trading floor seen from a low angle: a curved wall of glowing ticker boards and candlestick charts in hololive blue (#3fb8f5), a few up-arrows in green and down-arrows in red scattered through the boards, and a small crowd of chibi-proportioned fan silhouettes in hoodies cheering at the screens, one holding up a glowing phone, another a light stick. Arcade cabinet glow and a capsule machine just visible at the far right edge, so it reads as 'stock market meets game center'. Dark ink ground (#0a0c11), flat graphic shapes with halftone shading, soft bloom on the screens. The left 45% stays quiet and dark (only faint board glow) because the page title, blurb and buttons sit there.",
-      "notes": "Must read under a left-to-right dark gradient and a bottom fade. No text, numbers or logos in the image. No real talents. On phones it is cropped to the right-hand third (object-position ~75% 40%), so keep the crowd and the brightest board there."
+      "css": "full bleed up to ~1680 × 464+ (29rem minimum); phones ~360 wide × the whole hero, of which only the top ~150px band is clear of the scrim; cover at object-position 75% 40%",
+      "crop": "Left 45% quiet and dark: title, lede, stats and buttons sit there under a left-to-right ink scrim. The bottom 45% fades to the page colour. The top gainer (moon, 200px) and the rough-day talent (shock, 168px) stand in the bottom-right ~25% × 55%, so keep that corner to plain floor and soft glow. The brightest boards and the fan crowd go in the upper right (x 55–95%, y 10–60%). Phones show only a ~22% wide slice around x 75% and its top third: put the brightest board there.",
+      "lighting": "neon: glowing blue boards as the key light, green up / red down arrows as small accents, arcade glow at the far right",
+      "style": "scene",
+      "animation": "none",
+      "fallback": "Blue-wash halftone placeholder behind the same scrims; the hero reads fine without it.",
+      "brief": "A late-night fan trading floor seen from a low angle: a curved wall of glowing ticker boards and candlestick charts in hololive blue (#3fb8f5) filling the upper right, a few green up-arrows and red down-arrows scattered through the boards, and a small crowd of chibi-proportioned fan silhouettes in hoodies in the middle right, cheering at the screens, one holding up a glowing phone, another a light stick. Arcade-cabinet glow and a capsule machine just visible at the far right edge, so it reads as 'stock market meets game center'. The left 45% is dark ink (#0a0c11) with only faint board glow; the lower right is plain floor. Flat graphic shapes, halftone shading, soft bloom on the screens.",
+      "notes": "No text, numbers or logos. No real talents (the UI stands real talents' reactions in front of it). The scrims use the page colour, so in light mode the left and bottom wash to paper and the art shows as a picture on the right: fine as is."
     },
     {
-      "id": "howto.market",
+      "id": "howto-market",
       "title": "How to play: talents are stocks",
       "where": [
-        "/how-to-play#market"
+        "/how-to-play#market → components/how-to-play/sections.tsx Section header, right of the title and lede (above the text on phones)"
       ],
       "kind": "illustration",
       "w": 1400,
       "h": 1000,
       "transparent": false,
       "priority": "high",
-      "brief": "Explainer illustration of where a price comes from. On the left, three floating YouTube-style signals drawn as simple flat icons with no logos: a play-button tile with a rising view counter bar, a notification bell with sparkles (subscribers), and a stack of video thumbnails (uploads). Glowing blue data streams flow from them to the right into a big retro terminal screen showing a single candlestick chart climbing toward a dotted target line (fair value). A small balance/weighing scale sits under the screen. Dark ink ground, hololive blue as the key colour, flat shapes with halftone shading, clean and diagrammatic like a trading-card game manual page.",
-      "notes": "Sits beside the section text on desktop (about 26rem wide) and full width on phones. No text or numbers. No real talents or channel art."
+      "css": "384×274 (24rem; 256×183 on tablets); phones: full width × 192 (cover, crops to ~1.9:1)",
+      "crop": "Framed panel (1px border, 3px radius). Keep the subject inside the middle 70% of the height: phones crop the top and bottom ~15%. Reads at 256px wide.",
+      "lighting": "neon: blue data streams and screen glow on dark ink",
+      "style": "scene",
+      "animation": "none",
+      "fallback": "Blue-wash halftone placeholder in the same framed box.",
+      "brief": "Explainer: where a price comes from. On the left, three floating signals drawn as simple flat icons with no logos: a play-button tile with a rising view-counter bar, a notification bell with sparkles (subscribers), a stack of video thumbnails (uploads). Glowing blue data streams flow from them to the right into a big retro terminal screen showing one candlestick chart climbing toward a dotted target line (fair value). A small balance scale sits under the screen. Dark ink ground (#0a0c11), hololive blue (#3fb8f5) key colour, flat shapes with halftone shading, clean and diagrammatic like a card-game manual page.",
+      "notes": "No text or numbers. No real talents or channel art. One of five section illustrations (market, trading, games, predictions, community) that must share framing, palette and rendering."
     },
     {
-      "id": "howto.trading",
+      "id": "howto-trading",
       "title": "How to play: orders fill in batches",
       "where": [
-        "/how-to-play#trading"
+        "/how-to-play#trading → components/how-to-play/sections.tsx Section header, right of the title and lede (above the text on phones)"
       ],
       "kind": "illustration",
       "w": 1400,
       "h": 1000,
       "transparent": false,
       "priority": "high",
-      "brief": "A playful 'order batch' machine: paper order slips (blank, green-edged for buys and red-edged for sells) ride a short conveyor belt into a chunky retro stamping press topped by a big round analog clock whose minute hand points at a 10-minute mark. Slips coming out the far side are stamped with a blue check-shaped seal. A little queue of slips waits at the front. Dark ink background, hololive blue metal and glow, green and red used only on the slip edges, flat graphic shapes with halftone shading, cozy game-manual vibe.",
-      "notes": "No text or digits on the slips or clock (tick marks only). Should read at 400px wide."
+      "css": "384×274 (24rem; 256×183 on tablets); phones: full width × 192 (cover, crops to ~1.9:1)",
+      "crop": "Framed panel. Machine and conveyor inside the middle 70% of the height (phones crop top and bottom); the clock may be partly cropped on phones.",
+      "lighting": "neon: blue metal glow; green and red only on the slip edges",
+      "style": "scene",
+      "animation": "none",
+      "fallback": "Blue-wash halftone placeholder in the same framed box.",
+      "brief": "A playful 'order batch' machine: paper order slips (blank, green-edged buys and red-edged sells) ride a short conveyor belt into a chunky retro stamping press topped by a round analog clock whose minute hand points at a 10-minute mark. Slips leaving the far side carry a blue check-shaped seal. A little queue of slips waits at the front. Dark ink ground (#0a0c11), hololive-blue (#3fb8f5) metal and glow, flat shapes, halftone shading, cosy game-manual vibe.",
+      "notes": "No text or digits on the slips or the clock (tick marks only). Same set as howto-market."
     },
     {
-      "id": "howto.ticks",
+      "id": "howto-ticks",
       "title": "How to play: the four daily ticks",
       "where": [
-        "/how-to-play#ticks"
+        "/how-to-play#ticks → components/how-to-play/sections.tsx, a band docked directly on top of the live TickTimeline (Open, Lunch, Late, Overnight)"
       ],
       "kind": "illustration",
       "w": 2400,
       "h": 560,
       "transparent": false,
       "priority": "medium",
-      "brief": "A wide panorama of one city skyline passing through a full day in four panels that blend into each other left to right: bright morning (Open), warm afternoon (Lunch), purple evening with neon (Late), deep blue night with stars (Overnight). A single glowing blue price line runs across the whole band, bending toward a faint dotted horizontal line (fair value) at each of the four panel boundaries, like a magnet pulling it back. Flat graphic shapes, halftone skies, hololive blue as the key colour on ink.",
-      "notes": "Sits as a band directly above the live tick timeline, full content width (about 1100px on desktop, 360px on phones, where it's cropped to 16:7 around the centre). No text, clock numerals or labels. Keep the four panel boundaries at roughly 12%, 37%, 62% and 87% of the width so they line up with the timeline stops below."
+      "css": "content width (~1100–1450) × ~260–340 at 4.3:1; phones ~360×158 (cropped to 16:7 around the centre)",
+      "crop": "Four equal panels (0–25%, 25–50%, 50–75%, 75–100% of the width), each centred over its tick stop in the timeline below at 12.5%, 37.5%, 62.5% and 87.5%. The price line snaps toward the fair-value line exactly at those four centres. The bottom edge docks onto the timeline (square bottom corners), so no bright band along it. Phones show only x 23–77% (Lunch and Late).",
+      "lighting": "follows the time of day per panel: bright morning, warm afternoon, purple neon evening, deep blue night; the price line is glowing hololive blue throughout",
+      "style": "scene",
+      "animation": "none",
+      "fallback": "Blue-wash halftone placeholder band; the live timeline below still works.",
+      "brief": "A wide panorama of one city skyline passing through a full day in four panels that blend into each other left to right: bright morning (Open), warm afternoon (Lunch), purple evening with neon (Late), deep blue night with stars (Overnight). A single glowing blue price line runs across the whole band and, at the centre of each panel, bends sharply toward a faint dotted horizontal line (fair value) as if a magnet pulled it. Flat graphic shapes, halftone skies, hololive blue (#3fb8f5) key colour on ink.",
+      "notes": "No text, clock numerals or labels."
     },
     {
-      "id": "howto.games",
+      "id": "howto-games",
       "title": "How to play: the arcade",
       "where": [
-        "/how-to-play#games"
+        "/how-to-play#games → components/how-to-play/sections.tsx Section header, right of the title and lede (above the text on phones)"
       ],
       "kind": "illustration",
       "w": 1400,
       "h": 1000,
       "transparent": false,
       "priority": "high",
-      "brief": "A cozy corner of a game center at night, seen at a slight angle: a big capsule gacha machine with a glowing blue dome full of colourful capsules, a fan of five trading cards floating above it with frames from steel grey to blue to violet to gold foil to rainbow holo (blank card faces), a small green-felt blackjack table edge with a stack of chips, and an upright arcade cabinet with a screen of falling green and red tiles. Dark ink ground, hololive blue light, warm neon accents, flat shapes with halftone shading.",
-      "notes": "No text, no card art of real talents (card faces are blank glows). Should still read cropped to a 4:3 box."
+      "css": "384×274 (24rem; 256×183 on tablets); phones: full width × 192 (cover, crops to ~1.9:1)",
+      "crop": "Framed panel. Capsule machine and card fan inside the middle 70% of the height; the arcade cabinet and blackjack edge can sit at the sides.",
+      "lighting": "neon: blue light with warm pink and gold accents",
+      "style": "scene",
+      "animation": "none",
+      "fallback": "Blue-wash halftone placeholder in the same framed box.",
+      "brief": "A cosy corner of a game center at night, at a slight angle: a big capsule machine with a glowing blue dome full of colourful capsules; a fan of five trading cards floating above it with frames from steel grey to blue to violet to gold foil to rainbow holo (blank glowing card faces); the edge of a hololive-blue blackjack table with a stack of chips; an upright arcade cabinet whose screen shows falling green and red tiles. Dark ink ground (#0a0c11), hololive blue (#3fb8f5) light, warm neon accents, flat shapes with halftone shading.",
+      "notes": "No text. Card faces are blank glows (no talents). Blackjack felt is blue, never green, to match games-felt. Same set as howto-market."
     },
     {
-      "id": "howto.predictions",
+      "id": "howto-predictions",
       "title": "How to play: prices are chances",
       "where": [
-        "/how-to-play#predictions"
+        "/how-to-play#predictions → components/how-to-play/sections.tsx Section header, right of the title and lede (above the text on phones)"
       ],
       "kind": "illustration",
       "w": 1400,
       "h": 1000,
       "transparent": false,
       "priority": "high",
-      "brief": "A big stylised gauge / dial like a speedometer, its needle resting a little past the middle, with the arc filled in hololive blue on one side and a soft pink-red on the other. In front of it, two neat stacks of poker-style tokens: a tall blue stack and a shorter pink stack, with a single gold coin mid-flip above them (the $1 payout). A small gavel and a magnifying glass rest on the table in the corner (the result gets called and checked). Dark ink ground, flat graphic shapes with halftone shading, clean and confident like a game-manual diagram.",
-      "notes": "No text, numbers, percent signs or YES/NO letters on anything."
+      "css": "384×274 (24rem; 256×183 on tablets); phones: full width × 192 (cover, crops to ~1.9:1)",
+      "crop": "Framed panel. Gauge and token stacks inside the middle 70% of the height; the gavel and magnifier in a lower corner may crop on phones.",
+      "lighting": "neon: blue on one side of the gauge, soft pink-red on the other, one gold glint on the coin",
+      "style": "scene",
+      "animation": "none",
+      "fallback": "Blue-wash halftone placeholder in the same framed box.",
+      "brief": "A big stylised gauge like a speedometer, its needle resting a little past the middle, the arc filled hololive blue on one side and soft pink-red on the other. In front of it, two neat stacks of poker-style tokens: a tall blue stack and a shorter pink stack, with a single gold coin mid-flip above them (the $1 payout). A small gavel and a magnifying glass rest on the table in a corner (the result gets called and checked). Dark ink ground (#0a0c11), flat graphic shapes with halftone shading, clean and confident like a game-manual diagram.",
+      "notes": "No text, numbers, percent signs or YES/NO letters. Same set as howto-market."
     },
     {
-      "id": "howto.community",
+      "id": "howto-community",
       "title": "How to play: the floor is social",
       "where": [
-        "/how-to-play#community"
+        "/how-to-play#community → components/how-to-play/sections.tsx Section header, right of the title and lede (above the text on phones)"
       ],
       "kind": "illustration",
       "w": 1400,
       "h": 1000,
       "transparent": false,
       "priority": "medium",
-      "brief": "A watch-party scene from behind: a row of chibi-proportioned fan silhouettes on a couch and beanbags, faces lit by a big screen showing an abstract livestream (a glowing play shape and floating heart particles). Above their heads float empty chat bubbles, small emoji-like reaction shapes, a trophy and a little podium with three steps. One fan holds up a phone showing a green up-arrow. Dark ink ground, hololive blue light spill, warm accents, flat shapes with halftone shading.",
-      "notes": "No text in the bubbles, no real talents on the screen, no platform logos."
+      "css": "384×274 (24rem; 256×183 on tablets); phones: full width × 192 (cover, crops to ~1.9:1)",
+      "crop": "Framed panel. The fans' heads and the screen inside the middle 70% of the height; floating bubbles may crop at the top on phones.",
+      "lighting": "neon: blue light spill from the big screen, warm accents",
+      "style": "scene",
+      "animation": "none",
+      "fallback": "Blue-wash halftone placeholder in the same framed box.",
+      "brief": "A watch party seen from behind: a row of chibi-proportioned fan silhouettes on a couch and beanbags, faces lit by a big screen showing an abstract livestream (a glowing play shape and floating heart particles). Above their heads float empty chat bubbles, small reaction shapes, a trophy and a little three-step podium. One fan holds up a phone showing a green up-arrow. Dark ink ground (#0a0c11), hololive-blue (#3fb8f5) light spill, warm accents, flat shapes with halftone shading.",
+      "notes": "No text in the bubbles, no real talents on the screen, no platform logos. Same set as howto-market."
     },
     {
-      "id": "howto.help",
+      "id": "howto-help",
       "title": "How to play: FAQ spot",
       "where": [
-        "/how-to-play#faq"
+        "/how-to-play#faq → components/how-to-play/reference.tsx, right of the FAQ list; hidden on tablets and phones"
       ],
       "kind": "spot",
       "w": 768,
       "h": 768,
       "transparent": true,
       "priority": "low",
-      "brief": "A small friendly object: a retro help-desk service bell on top of a thick, slightly worn game manual with a blue cover and a bookmark ribbon, a couple of sparkles popping off the bell as if it was just rung. Flat graphic shapes with halftone shading, hololive blue key colour, readable at 160px.",
-      "notes": "Transparent background, centred with a little padding. No text on the manual cover."
+      "css": "208×208 (13rem column), top-aligned with the list",
+      "crop": "Bell and manual centred with a little padding, ~80% of the square.",
+      "lighting": "neutral, soft top-left key",
+      "style": "object",
+      "animation": "none",
+      "fallback": "Soft blue radial glow with halftone dots, same size.",
+      "brief": "A small friendly object: a retro help-desk service bell on top of a thick, slightly worn game manual with a blue cover and a bookmark ribbon, a couple of sparkles popping off the bell as if it was just rung. Flat graphic shapes with halftone shading, hololive blue (#3fb8f5) key colour, clean dark outline.",
+      "notes": "No text on the manual cover."
     }
   ]
 }
