@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FiSearch, FiX } from "react-icons/fi";
 import { PredictionsFrame } from "@/app/components/predictions/shell/predictions-frame";
@@ -52,7 +52,6 @@ function tapeColor(market: PredictionMarket | undefined, code: string) {
 const humanize = (slug: string) => slug.replace(/-/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 
 export function PredictionsFloor() {
-  const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
   const { user } = useAuth();
@@ -66,6 +65,7 @@ export function PredictionsFloor() {
 
   const [markets, setMarkets] = useState<PredictionMarket[] | null>(null);
   const [total, setTotal] = useState(0);
+  const [counts, setCounts] = useState<Partial<Record<FloorTab, number>>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [flashes, setFlashes] = useState<Record<string, Record<string, Flash>>>({});
@@ -92,6 +92,7 @@ export function PredictionsFloor() {
         for (const market of result.items) known.current.set(market.slug, { title: market.title, market });
         setMarkets(result.items);
         setTotal(result.pagination.total);
+        if (result.counts) setCounts(result.counts);
         setError(null);
       } catch (err) {
         if (id !== request.current) return;
@@ -174,9 +175,8 @@ export function PredictionsFloor() {
     if (tab !== "live") params.set("tab", tab);
     if (category) params.set("cat", category);
     const next = params.toString() ? `${pathname}?${params}` : pathname;
-    router.replace(next, { scroll: false });
-    // Router identity isn't stable across renders in every Next version; the URL only follows state.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Shallow: a router.replace would refetch the route and re-suspend the page for a frame.
+    if (`${window.location.pathname}${window.location.search}` !== next) window.history.replaceState(window.history.state, "", next);
   }, [tab, category, pathname]);
 
   // ── Live ────────────────────────────────────────────────────────────────
@@ -295,7 +295,7 @@ export function PredictionsFloor() {
               {TABS.map((item) => (
                 <button key={item.key} type="button" role="tab" aria-selected={tab === item.key} onClick={() => selectTab(item.key)}>
                   {item.label}
-                  {tab === item.key && markets !== null && !loading ? <small>{total}</small> : null}
+                  <small>{counts[item.key] ?? "·"}</small>
                 </button>
               ))}
             </div>

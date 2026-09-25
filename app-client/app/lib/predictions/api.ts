@@ -50,7 +50,7 @@ const post = <T>(path: string, body?: unknown) => send<T>(path, "POST", body ?? 
 export const fetchFloor = (params: { tab?: FloorTab; category?: string; q?: string; page?: number; limit?: number } = {}) => {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) if (value !== undefined && value !== "") query.set(key, String(value));
-  return apiFetch<{ items: PredictionMarket[]; pagination: { total: number; page: number; page_count: number } }>(`${BASE}?${query}`, { cache: "no-store" });
+  return apiFetch<{ items: PredictionMarket[]; counts?: Partial<Record<FloorTab | "all", number>>; pagination: { total: number; page: number; page_count: number } }>(`${BASE}?${query}`, { cache: "no-store" });
 };
 export const fetchCategories = () => apiFetch<{ categories: Category[] }>(`${BASE}/categories`, { cache: "no-store" });
 export const fetchTape = (limit = 40) => apiFetch<{ trades: Trade[] }>(`${BASE}/tape?limit=${limit}`, { cache: "no-store" });

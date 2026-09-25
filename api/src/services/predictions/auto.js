@@ -103,7 +103,7 @@ async function generateTickMarkets(pool, templates) {
           probability: 0.5,
           closes_at: closesAt,
           resolves_after: tickAt,
-          liquidity_b: num(direction.params.liquidity_b, 120),
+          liquidity_b: num(direction.params.liquidity_b, 400),
           fee_bps: num(direction.params.fee_bps, 100),
         },
         { template: "tick-direction", autoKey, autoData: { asset_id: Number(asset.id), symbol: asset.symbol, tick_at: tickAt.toISOString(), interval_key: tick.interval_key } }
@@ -130,7 +130,7 @@ async function generateTickMarkets(pool, templates) {
           outcomes: [...assets.map((asset) => ({ label: asset.display_name, asset_symbol: asset.symbol, probability: each })), { label: "Someone else", probability: 0.55 }],
           closes_at: closesAt,
           resolves_after: tickAt,
-          liquidity_b: num(gainer.params.liquidity_b, 150),
+          liquidity_b: num(gainer.params.liquidity_b, 500),
           fee_bps: num(gainer.params.fee_bps, 100),
         },
         { template: "tick-top-gainer", autoKey, autoData: { tick_at: tickAt.toISOString(), interval_key: tick.interval_key, asset_ids: assets.map((asset) => Number(asset.id)) } }
@@ -222,7 +222,7 @@ async function generateStreamMarkets(pool, templates) {
         probability: 0.5,
         closes_at: closesAt,
         resolves_after: closesAt,
-        liquidity_b: num(template.params.liquidity_b, 150),
+        liquidity_b: num(template.params.liquidity_b, 500),
         fee_bps: num(template.params.fee_bps, 100),
       },
       { template: "stream-peak", autoKey, autoData: { video_id: stream.video_id, asset_id: Number(stream.asset_id), symbol: stream.symbol, line, median, sample: peaks.length, started_at: stream.actual_start_at } }

@@ -8,7 +8,7 @@ const { currentProposal } = require("./resolution");
 
 const { num, round2, round6, predictionError } = core;
 
-const DEFAULT_B = { binary: 250, multi: 200 };
+const DEFAULT_B = { binary: 1000, multi: 800 };
 const PUBLIC_STATUSES = ["open", "closed", "resolving", "proposed", "disputed", "resolved", "voided"];
 
 // ── Creation ───────────────────────────────────────────────────────────────
@@ -364,7 +364,29 @@ async function listMarkets(pool, { tab = "live", category = null, q = null, limi
   );
   const items = await decorate(pool, rows);
   if (safeTab === "live" && !status) items.sort((a, b) => b.volume_24h - a.volume_24h || 0);
-  return { items, total: num(rows[0]?.total_count), page: safePage, limit: safeLimit };
+  return { items, total: num(rows[0]?.total_count), page: safePage, limit: safeLimit, counts: await tabCounts(pool, { category, q }) };
+}
+
+/** Market counts for every floor tab under the same category and search, so the tabs never jump. */
+async function tabCounts(pool, { category = null, q = null } = {}) {
+  const params = [PUBLIC_STATUSES];
+  const where = [`pm.visibility = 'public'`, `pm.status = ANY($1::text[])`];
+  if (category) {
+    params.push(String(category));
+    where.push(`cat.slug = $${params.length}`);
+  }
+  if (q) {
+    params.push(`%${String(q).trim().slice(0, 80)}%`);
+    where.push(`(pm.title ILIKE $${params.length} OR COALESCE(pm.subtitle, '') ILIKE $${params.length})`);
+  }
+  const tabs = Object.keys(TAB_WHERE).filter((key) => key !== "all");
+  const { rows } = await pool.query(
+    `SELECT ${tabs.map((key) => `COUNT(*) FILTER (WHERE ${TAB_WHERE[key]})::int AS ${key}`).join(", ")}, COUNT(*)::int AS all
+     FROM market.prediction_markets pm LEFT JOIN market.prediction_market_categories cat ON cat.id = pm.category_id
+     WHERE ${where.join(" AND ")}`,
+    params
+  );
+  return rows[0] || {};
 }
 
 async function getMarketRow(db, slug) {

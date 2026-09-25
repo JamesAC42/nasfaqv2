@@ -5,6 +5,10 @@
 //   node scripts/seed-dev.js ticks           schedule the next 3 days of price ticks (tick prediction markets need them)
 //   node scripts/seed-dev.js verify <user>   mark an account's email verified (games and trading need it)
 //   node scripts/seed-dev.js cash <user> <n> set an account's cash (for the high-limit tables)
+//   node scripts/seed-dev.js admin <user>    make an account a site admin (create markets, control room, games admin)
+//   node scripts/seed-dev.js predictions [you]       prediction markets in every state, with history and trades;
+//                                                    pass your username to get bets, an order and settled results
+//   node scripts/seed-dev.js predictions-live [min]  sim traders keep trading so the floor moves (default 10 min)
 //
 // Refuses to run unless DATABASE_URL points at localhost, so it can never touch production.
 // Channel ids are made up, so YouTube stats and livestreams stay empty; real data needs a prod dump.
@@ -280,6 +284,12 @@ async function setCash(pool, username, amount) {
   }
 }
 
+async function makeAdmin(pool, username) {
+  const user = await findUser(pool, username);
+  await pool.query(`UPDATE market.users SET is_admin = true, email_verified = true, email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1`, [user.id]);
+  console.log(`${user.username} is now a site admin. Sign out and back in (or reload) to see the admin links.`);
+}
+
 async function main() {
   loadEnv();
   assertLocal(process.env.DATABASE_URL);
@@ -294,6 +304,17 @@ async function main() {
     else if (command === "ticks") await seedTicks(pool);
     else if (command === "verify") await verify(pool, args[0]);
     else if (command === "cash") await setCash(pool, args[0], args[1]);
+    else if (command === "admin") await makeAdmin(pool, args[0]);
+    else if (command === "predictions") await require("./seed-predictions").seedPredictions(pool, args[0] || null);
+    else if (command === "predictions-live") {
+      const { createRedis } = require("../src/redis");
+      const redis = await createRedis(process.env.REDIS_URL, process.env.REDIS_PASSWORD);
+      try {
+        await require("./seed-predictions").runLive(pool, redis, args[0]);
+      } finally {
+        await redis.quit().catch(() => {});
+      }
+    }
     else throw new Error(`unknown command ${command}`);
   } finally {
     await pool.end();

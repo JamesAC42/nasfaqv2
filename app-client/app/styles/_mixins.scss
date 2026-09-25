@@ -227,10 +227,10 @@ $bp-desktop: 1280px;
   }
 }
 
+// No weight change on select: bold text is wider and makes the whole row jump.
 @mixin tab-selected {
   background: var(--text);
   color: var(--ink);
-  font-weight: 700;
 }
 
 @mixin table-shell {

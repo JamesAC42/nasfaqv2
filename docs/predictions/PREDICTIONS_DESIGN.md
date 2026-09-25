@@ -48,12 +48,13 @@ has sold. With `S = Σ_j e^(q_j/b)`:
 - **Price rails.** A trade may not push any outcome's price above 99¢ or below 1¢; an order that
   would is filled up to the rail (buy-by-cash spends less) or rejected if it can't fill at all.
 - **House exposure.** The market maker is funded by the house. Its worst-case loss on a market is
-  `b · ln N` (N outcomes): about $69 at b = 100 on a binary market, $173 at b = 250. Fees (§3)
+  `b · ln N` (N outcomes): about $693 at b = 1000 on a binary market, $277 at b = 400. Fees (§3)
   and the spread the curve itself earns offset it. Each market tracks `house_net_cash` (cash in
   from trades and fees minus cash out to sells and payouts) so admins can see what liquidity costs.
-- **Choosing b.** Bigger b = deeper market (a $100 trade moves the price less). Defaults: event
-  binary 250, event multi 200, auto tick 120, auto stream 150. Set per market at creation; auto
-  templates carry their own.
+- **Choosing b.** Bigger b = deeper market (a $100 trade moves the price less). At 50¢ a $100 buy
+  moves a binary market about 20 points at b = 250 but about 5 at b = 1000, and players start with
+  $10k, so thin markets are easy to pin. Defaults: event binary 1000, event multi 800, auto tick
+  direction 400, top gainer and stream 500. Set per market at creation; auto templates carry their own.
 
 Precision: shares are stored to 6 decimals; cash to cents. Buys round the cost **up** to the cent,
 sells round proceeds **down**, so rounding never pays out more than the curve.

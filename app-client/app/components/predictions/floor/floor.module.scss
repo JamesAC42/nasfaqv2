@@ -97,8 +97,11 @@
 
     small {
       @include num;
+      display: inline-block;
+      min-width: 3ch;
       margin-left: 0.4rem;
       font-size: 0.625rem;
+      text-align: right;
       opacity: 0.65;
     }
 
@@ -149,7 +152,6 @@
     border-color: var(--blue);
     background: var(--blue-wash);
     color: var(--blue);
-    font-weight: 700;
   }
 
   &:focus-visible {
@@ -240,8 +242,12 @@
   min-width: 0;
   transition: opacity var(--dur-fast) ease;
 
+  transition: opacity 0.15s ease;
+
+  // Only dim when a load is actually slow; quick filter swaps shouldn't blink.
   &[data-loading] {
     opacity: 0.6;
+    transition-delay: 0.25s;
   }
 
   @include phone {

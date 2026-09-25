@@ -91,6 +91,7 @@ router.get(
     const pageCount = result.total > 0 ? Math.ceil(result.total / result.limit) : 1;
     res.json({
       items: result.items,
+      counts: result.counts,
       pagination: { total: result.total, page: result.page, limit: result.limit, page_count: pageCount, has_previous_page: result.page > 1, has_next_page: result.page < pageCount },
     });
   })

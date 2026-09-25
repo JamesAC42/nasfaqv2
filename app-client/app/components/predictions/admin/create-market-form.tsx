@@ -22,12 +22,12 @@ type Shape = "binary" | "multi";
 type OutcomeDraft = { key: number; label: string; symbol: string; weight: string };
 type Mode = "publish" | "submit" | "draft";
 
-const DEFAULT_B: Record<Shape, number> = { binary: 250, multi: 200 };
+const DEFAULT_B: Record<Shape, number> = { binary: 1000, multi: 800 };
 const B_PRESETS = [
-  { b: 100, label: "Thin" },
-  { b: 250, label: "Normal" },
-  { b: 500, label: "Deep" },
-  { b: 1000, label: "Very deep" },
+  { b: 300, label: "Thin" },
+  { b: 1000, label: "Normal" },
+  { b: 2500, label: "Deep" },
+  { b: 5000, label: "Very deep" },
 ];
 const LABEL_PRESETS = [
   ["Yes", "No"],

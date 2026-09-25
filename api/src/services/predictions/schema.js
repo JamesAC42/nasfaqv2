@@ -136,10 +136,17 @@ async function applyPredictionsSchema(pool) {
   `);
   await pool.query(`
     INSERT INTO market.prediction_auto_templates (key, enabled, params_json) VALUES
-      ('tick-direction', true, '{"count": 6, "liquidity_b": 120, "fee_bps": 100}'),
-      ('tick-top-gainer', true, '{"count": 6, "liquidity_b": 150, "fee_bps": 100}'),
-      ('stream-peak', true, '{"liquidity_b": 150, "fee_bps": 100, "min_past_streams": 3}')
+      ('tick-direction', true, '{"count": 6, "liquidity_b": 400, "fee_bps": 100}'),
+      ('tick-top-gainer', true, '{"count": 6, "liquidity_b": 500, "fee_bps": 100}'),
+      ('stream-peak', true, '{"liquidity_b": 500, "fee_bps": 100, "min_past_streams": 3}')
     ON CONFLICT (key) DO NOTHING
+  `);
+  // The first defaults (120/150) were far too thin: $100 moved a market 20+ points. Lift templates
+  // still on them; anything an admin changed is left alone.
+  await pool.query(`
+    UPDATE market.prediction_auto_templates t SET params_json = t.params_json || jsonb_build_object('liquidity_b', v.b)
+    FROM (VALUES ('tick-direction', '120', 400), ('tick-top-gainer', '150', 500), ('stream-peak', '150', 500)) AS v(key, old, b)
+    WHERE t.key = v.key AND t.params_json->>'liquidity_b' = v.old
   `);
 
   await pool.query(`
