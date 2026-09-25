@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
+import { useHasArt } from "@/app/components/common/use-art-image";
+import { artId } from "@/app/lib/art-manifest";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { ChartSection, TicksSection } from "@/app/components/stock/market-sections";
@@ -102,6 +104,8 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
 
   const sym = asset.symbol.toUpperCase();
   const accent = talentAccent(asset.color, theme);
+  // The wide banner illustration fills the hero once it exists; until then the key art cutout stands on the right.
+  const hasBanner = useHasArt(artId(sym, "banner"));
   const channelId = asset.youtube_channel_id?.trim() || null;
   const streams = useChannelStreams(channelId);
   const superchats = useSuperchats(sym, Boolean(channelId));
@@ -226,7 +230,11 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
               </div>
             ) : null}
           </div>
-          <ArtSlot kind="keyart" symbol={sym} icon={asset.icon} accent={accent} width={640} priority className={styles.heroArt} />
+          {hasBanner ? (
+            <ArtSlot slot="banner" symbol={sym} icon={asset.icon} accent={accent} width={1600} priority fit="cover" position="72% 28%" className={styles.heroBanner} />
+          ) : (
+            <ArtSlot kind="keyart" symbol={sym} icon={asset.icon} accent={accent} width={640} priority className={styles.heroArt} />
+          )}
         </header>
 
         <nav className={styles.snav} aria-label="Sections">

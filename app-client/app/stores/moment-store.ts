@@ -41,6 +41,8 @@ type MomentStore = {
   dismissTick: () => void;
 };
 
+const shownFills = new Set<string>();
+
 function toNumber(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
@@ -65,7 +67,12 @@ export function parseTickPayload(payload: Record<string, unknown>): TickMoment |
 
 export const useMomentStore = create<MomentStore>((set, get) => ({
   fill: null,
-  pushFill: (fill) => set({ fill }),
+  // A fill can arrive twice (the live socket and the order-poll fallback); show it once.
+  pushFill: (fill) => {
+    if (shownFills.has(fill.id)) return;
+    shownFills.add(fill.id);
+    set({ fill });
+  },
   dismissFill: () => set({ fill: null }),
   tick: null,
   missedTick: null,

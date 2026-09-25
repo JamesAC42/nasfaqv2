@@ -657,6 +657,12 @@ export type PortfolioOrder = {
   submitted_interval_key: string | null;
   requested_at: string | null;
   updated_at: string | null;
+  /** Set once the order has filled: the fill id (same id as market.trade_fill) and totals. */
+  fill_id?: string | null;
+  fill_ts?: string | null;
+  fill_price?: number | null;
+  fill_gross_cash?: number | null;
+  fill_fee_cash?: number | null;
 };
 
 export type PortfolioOrdersResponse = {

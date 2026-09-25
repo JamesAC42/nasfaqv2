@@ -36,10 +36,10 @@ By priority: P0 456, P1 621, P2 88.
 |---|---|
 | Export | 1200×1500 (4:5), srcset 600, 1200, webp (alpha) |
 | Display | 72×90 to ~544×680 (usually 150–340 tall) css px |
-| Crop | Waist-up; the bottom edge cuts across the waist (the UI anchors her to the bottom-centre of its box with object-fit contain). Eyes ~24% from the top (anchor eye_y). Three-quarter view, body and face turned toward the LEFT of the image: every large placement (stock page, arcade hero, card gacha hero, profile banner) puts her on the right with the text to her left. Small margin above the head / ears / hat; keep ~6% free at each side (the card fallback trims the sides). Nothing important in the bottom 10% (the arcade hero cuts it off). The face must read in a 72px square. |
+| Crop | Waist-up; the waist cut sits ON the bottom edge of the canvas: the figure reaches the bottom edge, and no crop line may fall inside the canvas. The same goes for the sides: if hair or arms are cut by the source frame, the cut must sit on the canvas edge (or be painted out), never float mid-canvas. Consistent scale across all talents: top of the head (not hat/ears) ~8% from the top, eyes 24% (anchor eye_y), chin ~36%, so the head is ~28-30% of the canvas height and the shoulders span ~60-75% of the width. Three-quarter view, body and face turned toward the LEFT of the image: every large placement (stock page, arcade hero, card gacha hero, profile banner, oshiboard) puts her on the right with the text to her left. Small margin above the head / ears / hat. The UI fades the bottom ~25% into the page and scales her up past the box on large placements, so nothing important below the chest. The face must read in a 72px square. |
 | Background | transparent cutout |
 | Subject | The talent in her main outfit, friendly confident smile, relaxed pose, hands low or out of frame. |
-| Lighting | neutral, soft key light from the left; no colored rim (the UI adds the talent's color behind her) |
+| Lighting | neutral, soft key light from the left; no colored rim light or glow (the UI adds the talent's color behind her) |
 | Style | character |
 | Variants | **default** |
 | Animation | none |
@@ -53,10 +53,10 @@ By priority: P0 456, P1 621, P2 88.
 |---|---|
 | Export | 768×768 (1:1), srcset 128, 256, 512, 768, webp (alpha) |
 | Display | 64 to 200 square (the fill-moment column grows to ~340 on phones) css px |
-| Crop | Waist-up, facing the viewer. Big readable face: head about 45% of the image height, eyes ~36% from the top (anchor eye_y), so it still reads at 64 px. Hands can enter the frame for the gesture. Centred; the UI anchors the image to the bottom-centre of its box (object-fit contain), so the waist cut sits on the bottom edge. |
+| Crop | Waist-up, facing the viewer. Big readable face: head about 45% of the image height, eyes ~36% from the top (anchor eye_y), so it still reads at 64 px. Hands can enter the frame for the gesture. Centred; the UI anchors the image to the bottom-centre of its box (object-fit contain), so the waist cut must sit ON the bottom edge of the canvas; no crop line inside the canvas. Same head scale for every pose of a talent and across talents. |
 | Background | transparent cutout |
 | Subject | Same character, same outfit as key art. The expression and gesture carry the meaning; keep every pose cute and in character, never humiliating (fan-work guidelines). |
-| Lighting | follows the variant: neutral for idle and smug, warm/green-tinted rim for hype and moon, cool/red-tinted rim for cope and shock (subtle: the UI also tints) |
+| Lighting | neutral and soft, identical across all variants; no colored rim light, glow or tint of any kind (the UI adds color). The expression and gesture carry the mood, not the lighting. |
 | Style | character |
 | Variants | **idle** (P0): Neutral happy, small smile, relaxed.<br>**idle-blink** (P1): Exactly the idle image with the eyes closed (same pixels otherwise), for the blink loop.<br>**hype** (P0): Celebrating a big win: arms up or fist pump, open-mouth grin, sparkles allowed.<br>**moon** (P1): Pointing up to the sky, excited, 'to the moon' energy. Today only on the how-to-play hero (top gainer).<br>**cope** (P0): Lost money but coping: nervous smile, sweat drop, thumbs up.<br>**smug** (P0): Called it: smug grin, half-lidded eyes, hand on chin or arms crossed. Shown on every profitable sell.<br>**shock** (P1): Something wild happened: wide eyes, hands on cheeks, jaw dropped (cute, not scared). Today only on the how-to-play hero (rough day). |
 | Animation | blink: if <pose>-blink exists (only idle-blink is specified) the UI flashes it for ~0.1 s every 4.6 s (CSS, no video) |
@@ -1413,6 +1413,8 @@ The UI already looks images up by ID and reads this shape (and still reads v1):
 - Paths are relative to manifest.json.
 - srcset keys are pixel widths; include the full size.
 - anchors (all optional, fractions 0..1): eye_y, eye_x, feet_y, focus [x, y] (the UI uses focus as object-position when it crops a scene).
+- anchors.content_box [x0, y0, x1, y1] for cutouts: the bounding box of opaque pixels (alpha > ~8%). The UI uses it to scale figures consistently and to place fades.
+- anchors.cut: the edges where the figure is cut by the frame, e.g. ["bottom"] for a waist-up portrait, ["bottom", "left"] if a braid is cut on the left. The UI fades those edges into the page. A cut must sit on the canvas edge.
 - A blink frame is its own ID: PEK/reaction/idle-blink.
 - Animated variants (e.g. PEK/card-ur/loop) add `video: { webm, mp4 }` next to a still `src` poster.
 - The UI still reads the v1 shape (talents.keyart, talents.chibi, scenes) until v2 ships.

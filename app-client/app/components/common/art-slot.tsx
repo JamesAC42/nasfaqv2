@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { cutoutMask, useCutoutShape } from "@/app/components/common/cutout-fade";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { artId, artSrcSet, lookupArt, resolveArtUrl, type ArtImage, type ChibiPose } from "@/app/lib/art-manifest";
 import { useArtStore } from "@/app/stores/art-store";
@@ -20,6 +21,12 @@ type Common = {
   /** `contain` for cutouts (default for key art and reactions), `cover` for full scenes. */
   fit?: "contain" | "cover";
   alt?: string;
+  /** object-position for scenes shown with fit cover; overrides the pipeline's focus anchor. */
+  position?: string;
+  /** Fade the cutout's crop edges (waist cut, clipped braids) into the page. On by default for key art and reactions. */
+  fade?: boolean;
+  /** Fade length as a fraction of the figure's height (default 0.22 for key art, 0.12 for reactions). */
+  fadeLength?: number;
 };
 
 type Target =
@@ -66,20 +73,41 @@ export function ArtSlot(props: ArtSlotProps) {
     }
   }
 
+  const chosenSlot = chosen ? chosen.id.split("/")[1] : null;
+  const cutout = chosenSlot === "keyart" || chosenSlot === "reaction";
+  const measureUrl = chosen && cutout && props.fade !== false ? resolveArtUrl(chosen.image.srcset?.["600"] ?? chosen.image.srcset?.["256"] ?? chosen.image.src) : null;
+  const cutShape = useCutoutShape(measureUrl, chosen?.image.anchors as Parameters<typeof useCutoutShape>[1]);
+  // The mask has to follow the image's fit and position, which page styles may override.
+  const [placement, setPlacement] = useState<{ fit: string; position: string } | null>(null);
+
   const shape = slot === "keyart" ? styles.keyart : slot === "reaction" ? styles.chibi : null;
   const style = accent ? ({ "--tal": accent } as React.CSSProperties) : undefined;
   const classes = [styles.slot, shape, className].filter(Boolean).join(" ");
 
   if (chosen) {
     const { id, image } = chosen;
-    const chosenSlot = id.split("/")[1];
     // Cutouts (key art, reactions) keep the stylesheet's fit, which pages may override; full scenes
     // (cards, banners) and an explicit `fit` are set inline.
-    const cutout = chosenSlot === "keyart" || chosenSlot === "reaction";
     const fit = props.fit && chosenSlot === slot ? props.fit : cutout ? null : "cover";
     const focus = image.anchors?.focus;
-    const imgStyle: React.CSSProperties | undefined = fit
-      ? { objectFit: fit, objectPosition: focus ? `${focus[0] * 100}% ${focus[1] * 100}%` : fit === "cover" ? "50% 30%" : undefined }
+    const placed: React.CSSProperties | undefined = fit
+      ? { objectFit: fit, objectPosition: props.position ?? (focus ? `${focus[0] * 100}% ${focus[1] * 100}%` : fit === "cover" ? "50% 30%" : undefined) }
+      : undefined;
+    const mask =
+      cutout && props.fade !== false
+        ? cutoutMask(cutShape, image, {
+            length: props.fadeLength ?? (chosenSlot === "reaction" ? 0.12 : 0.22),
+            fit: placement?.fit ?? "contain",
+            position: placement?.position ?? "50% 100%",
+          })
+        : undefined;
+    const imgStyle = placed || mask ? { ...placed, ...mask } : undefined;
+    const onLoad = cutout
+      ? (event: React.SyntheticEvent<HTMLImageElement>) => {
+          const computed = getComputedStyle(event.currentTarget);
+          const next = { fit: computed.objectFit, position: computed.objectPosition };
+          if (!placement || placement.fit !== next.fit || placement.position !== next.position) setPlacement(next);
+        }
       : undefined;
     // Idle reactions blink: an eyes-closed frame shows briefly every few seconds.
     const blink = chosenSlot === "reaction" ? lookupArt(manifest, `${id}-blink`) : null;
@@ -88,6 +116,7 @@ export function ArtSlot(props: ArtSlotProps) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           className={styles.image}
+          data-art-img=""
           style={imgStyle}
           src={resolveArtUrl(image.src) ?? undefined}
           srcSet={artSrcSet(image)}
@@ -98,11 +127,13 @@ export function ArtSlot(props: ArtSlotProps) {
           loading={priority ? "eager" : "lazy"}
           decoding="async"
           fetchPriority={priority ? "high" : undefined}
+          onLoad={onLoad}
         />
         {blink ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             className={`${styles.image} ${styles.blink}`}
+            data-art-img=""
             style={imgStyle}
             src={resolveArtUrl(blink.src) ?? undefined}
             srcSet={artSrcSet(blink)}

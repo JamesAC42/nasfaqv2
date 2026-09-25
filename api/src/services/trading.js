@@ -1404,9 +1404,21 @@ async function getPortfolioOrders(pool, userId, { limit = 100 } = {}) {
       o.submitted_market_date,
       o.submitted_interval_key,
       o.requested_at,
-      o.updated_at
+      o.updated_at,
+      f.fill_id,
+      f.fill_ts,
+      f.fill_price,
+      f.fill_gross_cash,
+      f.fill_fee_cash
     FROM market.trade_orders o
     JOIN market.market_assets a ON a.id = o.asset_id
+    -- The fill, so a client that missed the live market.trade_fill event can still show it.
+    LEFT JOIN LATERAL (
+      SELECT MAX(tf.id) AS fill_id, MAX(tf.ts) AS fill_ts,
+             SUM(tf.price * tf.quantity) / NULLIF(SUM(tf.quantity), 0) AS fill_price,
+             SUM(tf.gross_cash) AS fill_gross_cash, SUM(tf.fee_cash) AS fill_fee_cash
+      FROM market.trade_fills tf WHERE tf.order_id = o.id
+    ) f ON o.status = 'filled'
     WHERE o.user_id = $1
     ORDER BY o.requested_at DESC, o.id DESC
     LIMIT $2

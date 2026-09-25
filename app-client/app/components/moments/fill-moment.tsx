@@ -7,6 +7,7 @@ import { getMarketClock } from "@/app/lib/market-clock";
 import { normalizeMarketHubTrade } from "@/app/lib/normalizers";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money } from "@/app/lib/time";
+import type { PortfolioOrder } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMotion } from "@/app/providers/motion-provider";
 import { useTheme } from "@/app/providers/theme-provider";
@@ -50,10 +51,46 @@ function greentext(fill: FillMoment, seed: number, tick: string, until: string) 
   return lines[Math.abs(seed) % lines.length];
 }
 
+/** Shows the fill moment for one of the player's fills (deduped by fill id in the store). */
+export function announceFill(fill: { id: string; side: string; symbol: string; name: string; quantity: number; price: number; fee: number; gross: number; at: string }) {
+  const holding = useProfileStore.getState().portfolio?.holdings.find((item) => item.symbol.toUpperCase() === fill.symbol.toUpperCase());
+  const buy = fill.side.toLowerCase() === "buy";
+  const avgCost = holding?.avg_cost_basis ?? null;
+  useMomentStore.getState().pushFill({
+    id: fill.id,
+    side: buy ? "buy" : "sell",
+    symbol: fill.symbol,
+    name: fill.name,
+    quantity: fill.quantity,
+    price: fill.price,
+    fee: fill.fee,
+    gross: fill.gross,
+    realized: !buy && avgCost !== null ? (fill.price - avgCost) * fill.quantity - fill.fee : null,
+    avgCost,
+    at: fill.at,
+  });
+}
+
+/** Fallback for a missed socket event: an order that left the pending list with a fill. */
+export function announceOrderFill(order: PortfolioOrder) {
+  if (order.status !== "filled" || !order.fill_id || order.fill_price === null || order.fill_price === undefined) return;
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+  announceFill({
+    id: order.fill_id,
+    side: order.side,
+    symbol: order.symbol,
+    name: order.display_name,
+    quantity: order.filled_quantity,
+    price: order.fill_price,
+    fee: order.fill_fee_cash ?? 0,
+    gross: order.fill_gross_cash ?? order.fill_price * order.filled_quantity,
+    at: order.fill_ts ?? order.updated_at ?? new Date().toISOString(),
+  });
+}
+
 /** Watches the market socket for the player's own fills (live orders landing in a batch). */
 function useOwnFills() {
   const { user } = useAuth();
-  const pushFill = useMomentStore((state) => state.pushFill);
   useEffect(() => {
     if (!user) return;
     return onMarketEvent((payload) => {
@@ -63,25 +100,20 @@ function useOwnFills() {
       const tracked = useTradeStore.getState().pendingOrderIds;
       if (trade.order_id !== null && tracked.some((id) => String(id) === String(trade.order_id))) useTradeStore.getState().untrackOrder(trade.order_id);
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-      const holding = useProfileStore.getState().portfolio?.holdings.find((item) => item.symbol.toUpperCase() === trade.symbol.toUpperCase());
-      const buy = trade.side.toLowerCase() === "buy";
-      const avgCost = holding?.avg_cost_basis ?? null;
-      pushFill({
+      announceFill({
         id: String(trade.id),
-        side: buy ? "buy" : "sell",
+        side: trade.side,
         symbol: trade.symbol,
         name: trade.display_name,
         quantity: trade.quantity,
         price: trade.price,
         fee: trade.fee_cash,
         gross: trade.gross_cash,
-        realized: !buy && avgCost !== null ? (trade.price - avgCost) * trade.quantity - trade.fee_cash : null,
-        avgCost,
         at: trade.ts,
       });
       void useProfileStore.getState().refreshTradingState();
     });
-  }, [pushFill, user]);
+  }, [user]);
 }
 
 export function FillMomentLayer() {

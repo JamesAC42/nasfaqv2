@@ -124,6 +124,8 @@ const spec = {
       "Paths are relative to manifest.json.",
       "srcset keys are pixel widths; include the full size.",
       "anchors (all optional, fractions 0..1): eye_y, eye_x, feet_y, focus [x, y] (the UI uses focus as object-position when it crops a scene).",
+      "anchors.content_box [x0, y0, x1, y1] for cutouts: the bounding box of opaque pixels (alpha > ~8%). The UI uses it to scale figures consistently and to place fades.",
+      "anchors.cut: the edges where the figure is cut by the frame, e.g. [\"bottom\"] for a waist-up portrait, [\"bottom\", \"left\"] if a braid is cut on the left. The UI fades those edges into the page. A cut must sit on the canvas edge.",
       "A blink frame is its own ID: PEK/reaction/idle-blink.",
       "Animated variants (e.g. PEK/card-ur/loop) add `video: { webm, mp4 }` next to a still `src` poster.",
       "The UI still reads the v1 shape (talents.keyart, talents.chibi, scenes) until v2 ships.",

@@ -11,6 +11,8 @@ type AdminBusy = false | "reset" | "rebuild";
 type ProfileState = {
   portfolio: PortfolioSummary | null;
   pendingLiveOrders: PortfolioOrder[];
+  /** The latest orders of any status (filled ones carry their fill), for the fill-moment fallback. */
+  recentOrders: PortfolioOrder[];
   isLoadingPortfolio: boolean;
   isLoadingOrders: boolean;
   portfolioError: string | null;
@@ -30,6 +32,7 @@ type ProfileState = {
 export const useProfileStore = create<ProfileState>((set) => ({
   portfolio: null,
   pendingLiveOrders: [],
+  recentOrders: [],
   isLoadingPortfolio: false,
   isLoadingOrders: false,
   portfolioError: null,
@@ -55,10 +58,10 @@ export const useProfileStore = create<ProfileState>((set) => ({
     set({ isLoadingOrders: true, portfolioError: null });
     try {
       const result = await apiFetch<Record<string, unknown>>("/api/portfolio/me/orders?limit=50", { cache: "no-store" });
+      const orders = normalizePortfolioOrdersResponse(result).orders;
       set({
-        pendingLiveOrders: normalizePortfolioOrdersResponse(result).orders.filter(
-          (order) => order.status === "pending" && order.order_type === "live_market"
-        ),
+        recentOrders: orders,
+        pendingLiveOrders: orders.filter((order) => order.status === "pending" && order.order_type === "live_market"),
       });
     } catch (error) {
       set({

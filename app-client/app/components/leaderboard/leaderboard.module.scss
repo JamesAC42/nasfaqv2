@@ -708,14 +708,20 @@
   }
 }
 
+// The oshi stands on the right, bigger than the header, faded into it; the text sits on her left.
 .dHead {
   position: relative;
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
-  gap: 1.25rem;
-  padding: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  min-height: 220px;
+  padding: 1rem 42% 1rem 1rem;
   border-bottom: 1px solid var(--rule);
-  background: radial-gradient(80% 140% at 0% 0%, color-mix(in oklab, var(--tal) 18%, transparent), transparent 70%);
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(60% 120% at 82% 30%, color-mix(in oklab, var(--tal) 26%, transparent), transparent 70%),
+    radial-gradient(80% 140% at 0% 0%, color-mix(in oklab, var(--tal) 12%, transparent), transparent 70%);
 
   h2 {
     @include display;
@@ -733,14 +739,42 @@
   }
 
   @include phone {
-    grid-template-columns: 90px minmax(0, 1fr);
-    gap: 0.75rem;
+    min-height: 180px;
+    padding-right: 34%;
   }
 }
 
 .dArt {
-  align-self: start;
-  border: 1px solid var(--rule);
+  position: absolute !important;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: -1;
+  width: 50%;
+  height: 100% !important;
+  aspect-ratio: auto !important;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 30%), linear-gradient(180deg, #000 60%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent, #000 30%), linear-gradient(180deg, #000 60%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+
+  img[data-art-img] {
+    inset: auto !important;
+    top: -4% !important;
+    right: 6% !important;
+    width: auto !important;
+    height: 160% !important;
+    max-width: none;
+    filter: drop-shadow(0 0 20px color-mix(in oklab, var(--tal) 20%, transparent));
+  }
+
+  @include phone {
+    width: 58%;
+
+    img[data-art-img] {
+      right: -6% !important;
+    }
+  }
 }
 
 .kick {

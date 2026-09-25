@@ -30,10 +30,10 @@
         ],
         "format": "webp (alpha)"
       },
-      "crop": "Waist-up; the bottom edge cuts across the waist (the UI anchors her to the bottom-centre of its box with object-fit contain). Eyes ~24% from the top (anchor eye_y). Three-quarter view, body and face turned toward the LEFT of the image: every large placement (stock page, arcade hero, card gacha hero, profile banner) puts her on the right with the text to her left. Small margin above the head / ears / hat; keep ~6% free at each side (the card fallback trims the sides). Nothing important in the bottom 10% (the arcade hero cuts it off). The face must read in a 72px square.",
+      "crop": "Waist-up; the waist cut sits ON the bottom edge of the canvas: the figure reaches the bottom edge, and no crop line may fall inside the canvas. The same goes for the sides: if hair or arms are cut by the source frame, the cut must sit on the canvas edge (or be painted out), never float mid-canvas. Consistent scale across all talents: top of the head (not hat/ears) ~8% from the top, eyes 24% (anchor eye_y), chin ~36%, so the head is ~28-30% of the canvas height and the shoulders span ~60-75% of the width. Three-quarter view, body and face turned toward the LEFT of the image: every large placement (stock page, arcade hero, card gacha hero, profile banner, oshiboard) puts her on the right with the text to her left. Small margin above the head / ears / hat. The UI fades the bottom ~25% into the page and scales her up past the box on large placements, so nothing important below the chest. The face must read in a 72px square.",
       "background": "transparent cutout",
       "subject": "The talent in her main outfit, friendly confident smile, relaxed pose, hands low or out of frame.",
-      "lighting": "neutral, soft key light from the left; no colored rim (the UI adds the talent's color behind her)",
+      "lighting": "neutral, soft key light from the left; no colored rim light or glow (the UI adds the talent's color behind her)",
       "style": "character",
       "variants": [
         {
@@ -74,10 +74,10 @@
         ],
         "format": "webp (alpha)"
       },
-      "crop": "Waist-up, facing the viewer. Big readable face: head about 45% of the image height, eyes ~36% from the top (anchor eye_y), so it still reads at 64 px. Hands can enter the frame for the gesture. Centred; the UI anchors the image to the bottom-centre of its box (object-fit contain), so the waist cut sits on the bottom edge.",
+      "crop": "Waist-up, facing the viewer. Big readable face: head about 45% of the image height, eyes ~36% from the top (anchor eye_y), so it still reads at 64 px. Hands can enter the frame for the gesture. Centred; the UI anchors the image to the bottom-centre of its box (object-fit contain), so the waist cut must sit ON the bottom edge of the canvas; no crop line inside the canvas. Same head scale for every pose of a talent and across talents.",
       "background": "transparent cutout",
       "subject": "Same character, same outfit as key art. The expression and gesture carry the meaning; keep every pose cute and in character, never humiliating (fan-work guidelines).",
-      "lighting": "follows the variant: neutral for idle and smug, warm/green-tinted rim for hype and moon, cool/red-tinted rim for cope and shock (subtle: the UI also tints)",
+      "lighting": "neutral and soft, identical across all variants; no colored rim light, glow or tint of any kind (the UI adds color). The expression and gesture carry the mood, not the lighting.",
       "style": "character",
       "variants": [
         {

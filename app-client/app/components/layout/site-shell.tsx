@@ -7,7 +7,7 @@ import { FiMoon, FiSun } from "react-icons/fi";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MarketTape } from "@/app/components/layout/market-tape";
 import { MobileNav } from "@/app/components/layout/mobile-nav";
-import { FillMomentLayer } from "@/app/components/moments/fill-moment";
+import { announceOrderFill, FillMomentLayer } from "@/app/components/moments/fill-moment";
 import { TickMomentLayer } from "@/app/components/moments/tick-moment";
 import { StreamSheetHost } from "@/app/components/livestreams/stream-sheet";
 import { TradeDrawer } from "@/app/components/trade/trade-drawer";
@@ -134,8 +134,15 @@ export function SiteShell({
     const previousIds = pendingOrderIdsRef.current;
     pendingOrderIdsRef.current = nextIds;
     if (!previousIds) return;
-    const completedCount = Array.from(previousIds).filter((id) => !nextIds.has(id)).length;
+    const completed = Array.from(previousIds).filter((id) => !nextIds.has(id));
+    const completedCount = completed.length;
     if (!completedCount) return;
+    // If the live socket missed a fill (tab asleep, socket reconnecting), show its moment from the poll.
+    const recent = useProfileStore.getState().recentOrders;
+    for (const id of completed) {
+      const order = recent.find((entry) => String(entry.id) === String(id));
+      if (order) announceOrderFill(order);
+    }
     const timer = window.setTimeout(() => {
       setLiveOrderNotice(`${completedCount} order${completedCount === 1 ? "" : "s"} filled or closed in the last batch.`);
       setIsOrdersOpen(false);

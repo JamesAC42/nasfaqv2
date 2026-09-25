@@ -1208,6 +1208,11 @@ export function normalizePortfolioOrder(value: Record<string, unknown>): Portfol
     submitted_interval_key: value.submitted_interval_key ? String(value.submitted_interval_key) : null,
     requested_at: value.requested_at ? String(value.requested_at) : null,
     updated_at: value.updated_at ? String(value.updated_at) : null,
+    fill_id: value.fill_id === null || value.fill_id === undefined ? null : String(value.fill_id),
+    fill_ts: value.fill_ts ? String(value.fill_ts) : null,
+    fill_price: toNumber(value.fill_price),
+    fill_gross_cash: toNumber(value.fill_gross_cash),
+    fill_fee_cash: toNumber(value.fill_fee_cash),
   };
 }
 
