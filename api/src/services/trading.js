@@ -719,6 +719,45 @@ async function executeOrder(pool, {
   }
 }
 
+/** YYYY-MM-DD for a DATE column (node-pg gives a local-midnight Date) or a string. */
+function toDateKey(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+  }
+  return String(value).slice(0, 10);
+}
+
+/**
+ * The tick window from the clock alone: the market day starts at the 09:00 ET Open tick, then
+ * Lunch 15:00, Late 21:00 and Overnight 03:00 (which still belongs to the previous market day).
+ */
+function clockLiveOrderInterval(now = new Date()) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" })
+      .formatToParts(now)
+      .map((part) => [part.type, part.value])
+  );
+  const hour = Number(parts.hour);
+  const today = `${parts.year}-${parts.month}-${parts.day}`;
+  if (hour >= 9) return { marketDate: today, intervalKey: hour < 15 ? "open" : hour < 21 ? "lunch" : "late", scheduledAt: null };
+  const previous = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day) - 1)).toISOString().slice(0, 10);
+  return { marketDate: previous, intervalKey: hour < 3 ? "late" : "overnight", scheduledAt: null };
+}
+
+/**
+ * The window the per-player share limit counts against. Uses the settled market day's tick schedule
+ * when the market date is current; if the daily settlement hasn't advanced it (a stalled scheduler, or
+ * a local database without YouTube data), falls back to the clock so the limit still resets every tick
+ * instead of piling up in one window forever.
+ */
+async function resolveLiveOrderInterval(client, { statusMarketDate, now = new Date() }) {
+  const clock = clockLiveOrderInterval(now);
+  if (toDateKey(statusMarketDate) !== clock.marketDate) return clock;
+  return getCurrentLiveOrderInterval(client, { marketDate: statusMarketDate, now });
+}
+
 async function getCurrentLiveOrderInterval(client, { marketDate, now = new Date() } = {}) {
   if (!marketDate) {
     return { marketDate: null, intervalKey: "open", scheduledAt: null };
@@ -870,8 +909,8 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
       throw error;
     }
 
-    const marketDate = status?.last_settlement_market_date || status?.current_market_date || null;
-    const interval = await getCurrentLiveOrderInterval(client, { marketDate, now });
+    const statusMarketDate = status?.last_settlement_market_date || status?.current_market_date || null;
+    const interval = await resolveLiveOrderInterval(client, { statusMarketDate, now });
     const executeAfter = computeNextLiveOrderTick(now);
     const executeAfterIso = executeAfter.toISOString();
     await lockLiveOrderInterval(client, {
@@ -1507,4 +1546,5 @@ module.exports = {
   getPortfolioSummary,
   getPortfolioLedger,
   getPortfolioOrders,
+  _test: { clockLiveOrderInterval, resolveLiveOrderInterval },
 };
