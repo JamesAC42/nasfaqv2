@@ -735,6 +735,8 @@ router.post("/orders/buy", async (req, res, next) => {
         submitted_shares: e.submittedShares ?? null,
         remaining_tick_shares: null,
         remaining_interval_shares: e.remainingShares ?? null,
+        window: e.windowKey ?? null,
+        resets_at: e.resetsAt ?? null,
       });
     }
     if (e?.code === "invalid_quote") return res.status(409).json({ error: "invalid_quote" });
@@ -773,6 +775,8 @@ router.post("/orders/sell", async (req, res, next) => {
         submitted_shares: e.submittedShares ?? null,
         remaining_tick_shares: null,
         remaining_interval_shares: e.remainingShares ?? null,
+        window: e.windowKey ?? null,
+        resets_at: e.resetsAt ?? null,
       });
     }
     if (e?.code === "invalid_quote") return res.status(409).json({ error: "invalid_quote" });

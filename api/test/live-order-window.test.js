@@ -19,3 +19,8 @@ test("a stale settlement date falls back to the clock window", async () => {
   const window = await _test.resolveLiveOrderInterval(client, { statusMarketDate: new Date(2024, 0, 1), now: new Date("2026-09-25T13:30:00Z") });
   assert.deepEqual([window.marketDate, window.intervalKey], ["2026-09-25", "open"]);
 });
+
+test("the limit resets at the next tick", () => {
+  assert.equal(_test.nextLiveOrderWindowAt(new Date("2026-09-26T13:30:00Z")).toISOString(), "2026-09-26T19:00:00.000Z"); // 09:30 ET -> 15:00 ET
+  assert.equal(_test.nextLiveOrderWindowAt(new Date("2026-09-26T05:00:00Z")).toISOString(), "2026-09-26T07:00:00.000Z"); // 01:00 ET -> 03:00 ET
+});

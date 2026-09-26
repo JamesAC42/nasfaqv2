@@ -746,6 +746,18 @@ function clockLiveOrderInterval(now = new Date()) {
   return { marketDate: previous, intervalKey: hour < 3 ? "late" : "overnight", scheduledAt: null };
 }
 
+/** When the current tick window ends (the next Open/Lunch/Late/Overnight tick), to the minute. */
+function nextLiveOrderWindowAt(now = new Date()) {
+  const current = clockLiveOrderInterval(now);
+  const start = Math.ceil(now.getTime() / 60_000) * 60_000;
+  for (let minute = 0; minute <= 7 * 60; minute++) {
+    const at = new Date(start + minute * 60_000);
+    const next = clockLiveOrderInterval(at);
+    if (next.intervalKey !== current.intervalKey || next.marketDate !== current.marketDate) return at;
+  }
+  return null;
+}
+
 /**
  * The window the per-player share limit counts against. Uses the settled market day's tick schedule
  * when the market date is current; if the daily settlement hasn't advanced it (a stalled scheduler, or
@@ -930,6 +942,8 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
       error.limit = LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL;
       error.submittedShares = submittedShares;
       error.remainingShares = remainingShares;
+      error.windowKey = interval.intervalKey;
+      error.resetsAt = nextLiveOrderWindowAt(now)?.toISOString() ?? null;
       throw error;
     }
 
@@ -1546,5 +1560,5 @@ module.exports = {
   getPortfolioSummary,
   getPortfolioLedger,
   getPortfolioOrders,
-  _test: { clockLiveOrderInterval, resolveLiveOrderInterval },
+  _test: { clockLiveOrderInterval, resolveLiveOrderInterval, nextLiveOrderWindowAt },
 };

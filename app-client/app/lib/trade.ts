@@ -67,7 +67,9 @@ export type TradeConfirmation = {
 };
 
 
-export function getTradeFailureNotice(errorCode: string, side: TradeSide, symbol: string): TradeFailureNotice {
+const WINDOW_LABEL: Record<string, string> = { open: "Open", lunch: "Lunch", late: "Late", overnight: "Overnight" };
+
+export function getTradeFailureNotice(errorCode: string, side: TradeSide, symbol: string, details?: Record<string, unknown> | null): TradeFailureNotice {
   switch (errorCode) {
     case "insufficient_cash":
       return {
@@ -89,11 +91,21 @@ export function getTradeFailureNotice(errorCode: string, side: TradeSide, symbol
         title: "Invalid order size",
         message: `Enter a valid number of ${symbol} shares before submitting this ${side} order.`,
       };
-    case "live_order_limit_exceeded":
+    case "live_order_limit_exceeded": {
+      // Players get a share allowance per tick window (Open, Lunch, Late, Overnight), across all stocks.
+      const limit = Number(details?.limit) || null;
+      const remaining = Number.isFinite(Number(details?.remaining_interval_shares)) ? Number(details?.remaining_interval_shares) : null;
+      const used = limit !== null && remaining !== null ? limit - remaining : null;
+      const window = typeof details?.window === "string" ? WINDOW_LABEL[details.window] ?? details.window : null;
+      const resetsAt = typeof details?.resets_at === "string" ? new Date(details.resets_at) : null;
+      const resetLabel = resetsAt && !Number.isNaN(resetsAt.getTime()) ? resetsAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/New_York" }) : null;
+      const usage = limit !== null && used !== null ? `You've used ${used} of your ${limit} shares${window ? ` for the ${window} window` : " this tick window"}` : "You've used your share allowance for this tick window";
+      const room = remaining ? ` (${remaining} left, so try ${remaining} or fewer)` : "";
       return {
-        title: "Live limit reached",
-        message: "This order would exceed your live share limit for the next execution tick.",
+        title: remaining ? "Over your share limit" : "Share limit reached",
+        message: `${usage}${room}.${resetLabel ? ` It resets at the next tick, ${resetLabel} ET.` : " It resets at the next tick."}`,
       };
+    }
     default:
       return {
         title: "Trade failed",

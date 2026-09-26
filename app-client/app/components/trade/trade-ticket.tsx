@@ -132,7 +132,7 @@ export function TradeTicket({
       }
       await refreshTradingState();
     } catch (error) {
-      setFailure(getTradeFailureNotice(String((error as Error).message || error), side, asset.symbol));
+      setFailure(getTradeFailureNotice(String((error as Error).message || error), side, asset.symbol, (error as { body?: Record<string, unknown> | null }).body));
     } finally {
       setBusy(false);
     }
