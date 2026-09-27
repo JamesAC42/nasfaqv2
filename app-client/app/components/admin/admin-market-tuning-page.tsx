@@ -913,7 +913,7 @@ export function AdminMarketTuningPage() {
             <div className={styles.actions}>
               <div className={styles.action} data-danger>
                 <h3>Reset the market</h3>
-                <p>Clears derived market and portfolio state. Everyone goes back to starter cash.</p>
+                <p>Wipes everything players own or earned: holdings, orders, cash (back to starter), leaderboards, achievements, every prediction market, and all game currencies, cards, pulls and cosmetics. Accounts, profiles, oshi, chat, comments and articles stay, and so do the stocks. Then rebuild.</p>
                 <div className={styles.actionRow}>
                   <button type="button" className={ui.btnDanger} onClick={() => setConfirmAction("reset")} disabled={adminBusy !== false}>
                     {adminBusy === "reset" ? "Resetting…" : "Reset market"}
@@ -922,7 +922,7 @@ export function AdminMarketTuningPage() {
               </div>
               <div className={styles.action} data-danger>
                 <h3>Rebuild the market</h3>
-                <p>Recalculates assets, fundamentals and settlement history from scratch.</p>
+                <p>Recalculates fundamentals and replays every day&apos;s settlement and price adjustments from the YouTube data. Takes a minute or more.</p>
                 <div className={styles.actionRow}>
                   <button type="button" className={ui.btnDanger} onClick={() => setConfirmAction("rebuild")} disabled={adminBusy !== false}>
                     {adminBusy === "rebuild" ? "Rebuilding…" : "Rebuild market"}

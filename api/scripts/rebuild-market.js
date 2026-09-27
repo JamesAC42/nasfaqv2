@@ -51,6 +51,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("\nrebuild failed:", error.code || error.message);
+  console.error("\nrebuild failed:", error.message || error.code);
   process.exit(1);
 });
