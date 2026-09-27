@@ -1,5 +1,6 @@
 "use client";
 
+import { TalentReaction } from "@/app/components/common/talent-reaction";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { FaGavel, FaMagnifyingGlass, FaTag } from "react-icons/fa6";
@@ -288,6 +289,7 @@ export function MarketPage() {
             </div>
           ) : (
             <div className={styles.empty}>
+              <TalentReaction pose="idle" size={96} />
               <b>Nothing listed{kind || rarities.length || query ? " that matches" : " yet"}.</b>
               <p>
                 {user ? (

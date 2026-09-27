@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { artSrcSet, lookupArt, resolveArtUrl, sharedArtId } from "@/app/lib/art-manifest";
 import { getSceneSlot } from "@/app/lib/art/scene-slots";
 import { useArtStore } from "@/app/stores/art-store";
@@ -21,6 +21,11 @@ type SceneArtProps = {
   alt?: string;
   /** Named version of the slot (see its `variants`), e.g. `light`. */
   variant?: string;
+  /**
+   * The drawn version (SVG/CSS) that is the design until a `_shared` image for this slot ships in
+   * the manifest; the image replaces it when it does. Without one, the halftone panel is the design.
+   */
+  fallback?: ReactNode;
 };
 
 const DEBUG_KEY = "nasfaq-art-debug";
@@ -28,21 +33,22 @@ const subscribe = (callback: () => void) => {
   window.addEventListener("storage", callback);
   return () => window.removeEventListener("storage", callback);
 };
+// The drawn fallbacks are the finished design, so slot labels are opt-in (localStorage flag), even in dev.
 const readDebug = () => {
   try {
-    return process.env.NODE_ENV !== "production" || window.localStorage.getItem(DEBUG_KEY) === "1";
+    return window.localStorage.getItem(DEBUG_KEY) === "1";
   } catch {
-    return process.env.NODE_ENV !== "production";
+    return false;
   }
 };
 
 /**
  * A non-talent image (backdrop, illustration, spot), looked up in the art manifest by ID
- * (`_shared/<slot>/<variant>`, carried as `data-art-id`). Until the
- * art exists it draws a placeholder with the final aspect ratio; in development (or with
- * localStorage "nasfaq-art-debug" = "1") the placeholder is labelled with its slot id and size.
+ * (`_shared/<slot>/<variant>`, carried as `data-art-id`). When there's no image, the drawn
+ * `fallback` (or the halftone panel) is what shows, and that is the design, not a stand-in. With
+ * localStorage "nasfaq-art-debug" = "1" the panel is labelled with its slot id and size.
  */
-export function SceneArt({ slot, className, fill = false, position, width = 800, priority = false, alt = "", variant = "default" }: SceneArtProps) {
+export function SceneArt({ slot, className, fill = false, position, width = 800, priority = false, alt = "", variant = "default", fallback }: SceneArtProps) {
   const spec = getSceneSlot(slot);
   const manifest = useArtStore((state) => state.manifest);
   const ensureLoaded = useArtStore((state) => state.ensureLoaded);
@@ -80,6 +86,14 @@ export function SceneArt({ slot, className, fill = false, position, width = 800,
           decoding="async"
           fetchPriority={priority ? "high" : undefined}
         />
+      </div>
+    );
+  }
+
+  if (fallback !== undefined) {
+    return (
+      <div className={`${classes} ${styles.drawn}`} style={style} data-art-id={id} data-art-missing="" aria-hidden={alt ? undefined : true} role={alt ? "img" : undefined} aria-label={alt || undefined}>
+        {fallback}
       </div>
     );
   }

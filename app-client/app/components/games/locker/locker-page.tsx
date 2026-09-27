@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/app/components/common/empty-state";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
@@ -271,9 +272,9 @@ function MyLocker({ username, pictureUrl, color, aside }: { username: string; pi
         </h2>
         {inventory === null && !loadError ? <div className={styles.loading} aria-busy="true" /> : null}
         {inventory && capsuleGroups.length === 0 ? (
-          <p className={styles.empty}>
+          <EmptyState>
             Nothing from the capsule yet. <Link href="/games/capsule">Spin it</Link> for hats, frames and flair.
-          </p>
+          </EmptyState>
         ) : null}
         {capsuleGroups.map((group) => (
           <div key={group.type} className={styles.group}>

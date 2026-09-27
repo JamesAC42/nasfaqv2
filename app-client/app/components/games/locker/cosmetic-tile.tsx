@@ -1,8 +1,9 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
+import { Medal } from "@/app/components/common/medal";
 import { useState, type CSSProperties, type ReactNode } from "react";
-import { FaCommentDots, FaCrown, FaGem, FaHatWizard, FaLock, FaMedal, FaVectorSquare } from "react-icons/fa6";
+import { FaCommentDots, FaCrown, FaGem, FaHatWizard, FaLock, FaVectorSquare } from "react-icons/fa6";
 import { unitLabel } from "@/app/lib/market-units";
 import { COSMETIC_COLOR } from "@/app/components/games/locker/cosmetics";
 import styles from "@/app/components/games/locker/cosmetic-tile.module.scss";
@@ -10,7 +11,7 @@ import styles from "@/app/components/games/locker/cosmetic-tile.module.scss";
 const TYPE_ICON: Record<string, ReactNode> = {
   hat: <FaHatWizard />,
   profile_frame: <FaVectorSquare />,
-  profile_badge: <FaMedal />,
+  profile_badge: <Medal />,
   chat_flair: <FaCommentDots />,
   item: <FaGem />,
 };

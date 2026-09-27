@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/app/components/common/empty-state";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -248,7 +249,7 @@ export function TableLobby({ game }: { game: TableGame }) {
                 ))}
               </ul>
             ) : (
-              <p className={styles.empty}>Nobody&apos;s playing right now.</p>
+              <EmptyState>Nobody&apos;s playing right now.</EmptyState>
             )}
           </section>
 

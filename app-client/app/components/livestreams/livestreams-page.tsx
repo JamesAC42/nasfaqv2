@@ -1,6 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
+import { TalentReaction } from "@/app/components/common/talent-reaction";
 import { useEffect, useMemo, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { SceneArt } from "@/app/components/common/scene-art";
@@ -171,7 +172,7 @@ export function LivestreamsPage() {
                   </div>
                 ) : (
                   <div className={`${styles.empty} ${styles.emptyArt}`}>
-                    {filtering ? null : <SceneArt slot="market-offair" width={220} className={styles.offair} />}
+                    {filtering ? null : <SceneArt slot="market-offair" width={220} className={styles.offair} fallback={<TalentReaction pose="idle" size={120} />} />}
                     <p>{filtering ? "Nobody matching these filters is live." : "Nobody's live right now. Check who's up next below."}</p>
                   </div>
                 )}

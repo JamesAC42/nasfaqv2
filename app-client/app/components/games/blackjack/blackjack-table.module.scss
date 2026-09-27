@@ -263,6 +263,12 @@ $felt-line: rgba(190, 215, 255, 0.24);
 }
 
 // ── Phase banner ───────────────────────────────────────────────────────────
+// A talent reacting to your hand, beside the result line.
+.bannerReaction {
+  --size: 56px;
+  margin-bottom: 0.1rem;
+}
+
 .banner {
   position: relative;
   z-index: 1;

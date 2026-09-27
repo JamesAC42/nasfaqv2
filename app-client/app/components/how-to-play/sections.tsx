@@ -6,6 +6,7 @@ import { SceneArt } from "@/app/components/common/scene-art";
 import { StockChip } from "@/app/components/common/stock-chip";
 import { GAMES, SECTIONS, type SectionId } from "@/app/components/how-to-play/content";
 import { ChanceDemo, ChibiTag, PullDiagram, RarityFan, TalentStrip, TicketDemo, TickTimeline, useBusiestTalents } from "@/app/components/how-to-play/demos";
+import { GamesDiagram, MarketDiagram, PredictionsDiagram, TradingDiagram } from "@/app/components/how-to-play/diagrams";
 import styles from "@/app/components/how-to-play/how-to-play.module.scss";
 
 // ── Building blocks ─────────────────────────────────────────────────────────
@@ -15,11 +16,13 @@ type SectionProps = {
   title: string;
   lede: ReactNode;
   art?: string;
+  /** Drawn diagram for the art slot (a `_shared` image for the slot still replaces it). */
+  diagram?: ReactNode;
   links?: Array<{ href: string; label: string }>;
   children: ReactNode;
 };
 
-export function Section({ id, title, lede, art, links, children }: SectionProps) {
+export function Section({ id, title, lede, art, diagram, links, children }: SectionProps) {
   const index = SECTIONS.findIndex((section) => section.id === id);
   return (
     <section id={id} className={styles.section} aria-labelledby={`${id}-title`}>
@@ -40,7 +43,7 @@ export function Section({ id, title, lede, art, links, children }: SectionProps)
             </div>
           ) : null}
         </div>
-        {art ? <SceneArt slot={art} className={styles.sectionArt} width={520} /> : null}
+        {art ? <SceneArt slot={art} className={`${styles.sectionArt} ${diagram ? styles.sectionDiagram : ""}`} width={520} fallback={diagram} /> : null}
       </div>
       {children}
     </section>
@@ -96,6 +99,7 @@ export function MarketSection() {
       id="market"
       title="Talents are stocks"
       art="howto-market"
+      diagram={<MarketDiagram />}
       lede={
         <>
           <p>
@@ -151,6 +155,7 @@ export function TradingSection() {
       id="trading"
       title="Orders fill in batches"
       art="howto-trading"
+      diagram={<TradingDiagram />}
       lede={
         <p>
           There&apos;s no instant fill on stocks. Your order joins a queue, and every 10 minutes (:00, :10, :20…) the whole queue fills at once, first in, first filled.
@@ -259,6 +264,7 @@ export function GamesSection() {
       id="games"
       title="The arcade"
       art="howto-games"
+      diagram={<GamesDiagram />}
       lede={
         <>
           <p>
@@ -325,6 +331,7 @@ export function PredictionsSection() {
       id="predictions"
       title="Prices are chances"
       art="howto-predictions"
+      diagram={<PredictionsDiagram />}
       lede={
         <>
           <p>

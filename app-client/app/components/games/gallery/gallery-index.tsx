@@ -1,5 +1,6 @@
 "use client";
 
+import { TalentReaction } from "@/app/components/common/talent-reaction";
 import Link from "next/link";
 import { useDeferredValue, useMemo, useState, type CSSProperties } from "react";
 import { FaMagnifyingGlass, FaXmark } from "react-icons/fa6";
@@ -232,6 +233,7 @@ function Wall({ model, signedIn }: { model: CollectionModel; signedIn: boolean }
 
       {shown === 0 ? (
         <div className={styles.empty}>
+          <TalentReaction pose="idle" size={96} />
           <p>{show === "complete" && !search && !unit ? "No full sets yet. Five rarities of one talent hangs a set." : "Nothing on the wall matches that."}</p>
           {filtered ? (
             <button

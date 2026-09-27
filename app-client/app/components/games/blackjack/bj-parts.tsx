@@ -15,11 +15,27 @@ const chipStyle = (value: number) => {
   return { "--chip": color.face, "--chip-edge": color.edge, "--chip-ink": color.ink } as CSSProperties;
 };
 
-/** A round casino chip seen from above (the picker). */
+/** A chip face in SVG: rim with edge inserts, a dashed inlay ring, and a gloss. Colours from --chip*. */
+function ChipFace() {
+  return (
+    <svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+      <circle className={styles.chipRim} cx="50" cy="50" r="48.5" />
+      {Array.from({ length: 8 }, (_, index) => (
+        <rect key={index} className={styles.chipInsert} x="45" y="2" width="10" height="14" rx="1.6" transform={`rotate(${index * 45 + 22.5} 50 50)`} />
+      ))}
+      <circle className={styles.chipBand} cx="50" cy="50" r="36" />
+      <circle className={styles.chipInlay} cx="50" cy="50" r="31" />
+      <circle className={styles.chipRing} cx="50" cy="50" r="27" />
+      <path className={styles.chipGloss} d="M 14 44 A 37 37 0 0 1 60 13.5 A 44 44 0 0 0 14 44 Z" />
+    </svg>
+  );
+}
+
+/** A round casino chip seen from above (the picker). A `_shared/games-chip` image replaces the drawn face. */
 export function Chip({ value, size = 44 }: { value: number; size?: number }) {
   return (
     <span className={styles.chip} style={{ ...chipStyle(value), "--size": `${size}px` } as CSSProperties} aria-hidden="true">
-      <SceneArt slot="games-chip" fill width={size * 2} className={styles.chipArt} />
+      <SceneArt slot="games-chip" fill width={size * 2} className={styles.chipArt} fallback={<ChipFace />} />
       <b>{chipLabel(value)}</b>
     </span>
   );

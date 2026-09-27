@@ -14,6 +14,8 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
     <SiteShell>
       <StatusPage
         slot="site-error"
+        pose="cope"
+        caption="{name} is coping"
         kicker="Error"
         title="Something broke"
         line="This page tripped over its own cables. Try again; if it keeps happening, tell us in chat."

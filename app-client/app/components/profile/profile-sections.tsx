@@ -1,6 +1,8 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
+import { EmptyState } from "@/app/components/common/empty-state";
+import { Medal } from "@/app/components/common/medal";
 import Link from "next/link";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
@@ -238,7 +240,7 @@ export function Bags({ profile, isSelf }: { profile: Profile; isSelf: boolean })
           </table>
         </div>
       ) : (
-        <p className={styles.empty}>{isSelf ? "No bags yet. Pick a talent on Stocks and make your first trade." : "All cash, no bags."}</p>
+        <EmptyState symbol={profile.oshi_coin?.symbol}>{isSelf ? "No bags yet. Pick a talent on Stocks and make your first trade." : "All cash, no bags."}</EmptyState>
       )}
     </Sec>
   );
@@ -314,7 +316,7 @@ export function PredictionExposure({ portfolio }: { portfolio: PredictionPortfol
           </Link>
         ))
       ) : (
-        <p className={styles.empty}>No prediction positions.</p>
+        <EmptyState>No prediction positions.</EmptyState>
       )}
       {orders.length ? (
         <p className={styles.note}>
@@ -371,7 +373,7 @@ export function RecentFills({ bundle, base, onPage }: { bundle: ProfileBundle; b
           ) : null}
         </>
       ) : (
-        <p className={styles.empty}>No fills yet.</p>
+        <EmptyState>No fills yet.</EmptyState>
       )}
     </Sec>
   );
@@ -393,7 +395,7 @@ export function GachaBadges({ profile, isSelf }: { profile: Profile; isSelf: boo
           ))}
         </div>
       ) : (
-        <p className={styles.empty}>{isSelf ? "No pulls yet. Try the gacha on the Games page." : "No gacha badges yet."}</p>
+        <EmptyState>{isSelf ? "No pulls yet. Try the gacha on the Games page." : "No gacha badges yet."}</EmptyState>
       )}
       {profile.gacha_total_spent_cash ? <p className={styles.note}>{money(profile.gacha_total_spent_cash)} spent on pulls.</p> : null}
     </Sec>
@@ -517,7 +519,7 @@ export function FriendsRivals({ profile, isSelf, busy, relation }: { profile: Pr
         </Person>
       ))}
       {!incoming.length && !outgoing.length && !profile.friends.length && !profile.rivals.length ? (
-        <p className={styles.empty}>{isSelf ? "No friends or rivals yet. Add them from their profiles or the leaderboard." : "No friends or rivals yet."}</p>
+        <EmptyState>{isSelf ? "No friends or rivals yet. Add them from their profiles or the leaderboard." : "No friends or rivals yet."}</EmptyState>
       ) : null}
     </Sec>
   );
@@ -567,7 +569,7 @@ export function Articles({ bundle, base, isSelf, onChange }: { bundle: ProfileBu
           </Link>
         ))
       ) : (
-        <p className={styles.empty}>{tab === "saved" ? "Nothing saved yet." : isSelf ? "You haven't written anything yet." : "No articles yet."}</p>
+        <EmptyState>{tab === "saved" ? "Nothing saved yet." : isSelf ? "You haven't written anything yet." : "No articles yet."}</EmptyState>
       )}
       {list && list.pagination.page_count > 1 ? (
         <div className={styles.pager}>
@@ -600,7 +602,7 @@ export function Achievements({ profile }: { profile: Profile }) {
         <div className={styles.ach}>
           {list.map((achievement) => (
             <div key={achievement.key} className={styles.achItem} style={{ "--bc": achievement.badge_color || "var(--blue)" } as React.CSSProperties} title={achievement.earned_at ? `Earned ${new Date(achievement.earned_at).toLocaleDateString()}` : undefined}>
-              <i>{achievement.name.slice(0, 1)}</i>
+              <Medal color={achievement.badge_color || "#3fb8f5"} mark={achievement.name.slice(0, 1)} size={34} />
               <span>
                 <b>{achievement.name}</b>
                 <small>{achievement.description}</small>
@@ -610,7 +612,7 @@ export function Achievements({ profile }: { profile: Profile }) {
           ))}
         </div>
       ) : (
-        <p className={styles.empty}>No achievements yet. Your first trade earns one.</p>
+        <EmptyState>No achievements yet. Your first trade earns one.</EmptyState>
       )}
     </Sec>
   );

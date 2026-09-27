@@ -1,5 +1,6 @@
 "use client";
 
+import { TalentReaction } from "@/app/components/common/talent-reaction";
 import { useEffect, useState } from "react";
 import { fmtPayout, placementFor } from "@/app/components/games/ticker-tap/board-math";
 import type { RunEnd } from "@/app/components/games/ticker-tap/run-stage";
@@ -57,6 +58,7 @@ export function RunResults({ run, board, userId, fee, starting, startError, onPl
   return (
     <section className={styles.results} data-pb={personalBest || undefined} aria-labelledby="tt-result-title">
       <div className={styles.resultsMain} aria-live="polite">
+        {posted ? <TalentReaction pose={personalBest || placement.inMoney ? "hype" : "cope"} size={72} className={styles.resReaction} fresh /> : null}
         <p className={styles.resKicker}>{kicker}</p>
         <h2 id="tt-result-title" className={styles.resTitle}>
           {headline}

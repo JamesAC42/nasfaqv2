@@ -1,5 +1,6 @@
 "use client";
 
+import { TalentReaction } from "@/app/components/common/talent-reaction";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FiSearch, FiX } from "react-icons/fi";
@@ -346,7 +347,11 @@ export function PredictionsFloor() {
             </div>
           ) : (
             <div className={`${styles.empty} ${styles.emptyArt}`}>
-              {error ? null : <SceneArt slot="predictions-floor-empty" width={200} className={styles.emptyPic} />}
+              {error ? (
+                <TalentReaction pose="cope" size={120} />
+              ) : (
+                <SceneArt slot="predictions-floor-empty" width={200} className={styles.emptyPic} fallback={<TalentReaction pose="idle" size={120} />} />
+              )}
               <p>{error ?? (q || category ? "No markets match that." : EMPTY_COPY[tab])}</p>
             </div>
           )}

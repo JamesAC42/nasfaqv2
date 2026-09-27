@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Not found" };
 export default function NotFound() {
   return (
     <SiteShell>
-      <StatusPage slot="site-not-found" kicker="404" title="Off the chart" line="This page doesn't exist, got delisted, or never IPO'd. The line just stops here." />
+      <StatusPage slot="site-not-found" pose="shock" caption="Even {name} can’t find it" kicker="404" title="Off the chart" line="This page doesn't exist, got delisted, or never IPO'd. The line just stops here." />
     </SiteShell>
   );
 }

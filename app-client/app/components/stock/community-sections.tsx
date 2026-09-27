@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/app/components/common/empty-state";
 import Link from "next/link";
 import { useMemo, useState, type FormEvent } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
@@ -62,7 +63,7 @@ export function HoldersSection({ asset }: { asset: MarketAsset }) {
               </Link>
             ))
           ) : (
-            <p className={styles.empty}>{board.loading ? "Loading holders…" : `Nobody has picked ${asset.symbol} as their oshi yet.`}</p>
+            board.loading ? <p className={styles.empty}>Loading holders…</p> : <EmptyState symbol={asset.symbol}>Nobody has picked {asset.symbol} as their oshi yet.</EmptyState>
           )}
           <Link href={`/leaderboard?tab=talent&coin=${enc(asset.symbol)}`} className={styles.more}>
             Full oshiboard →
@@ -272,7 +273,7 @@ export function BoardSection({ asset }: { asset: MarketAsset }) {
           </article>
         ))
       ) : (
-        <p className={styles.empty}>{comments.loading ? "Loading the board…" : `Nobody has posted about ${sym} yet.`}</p>
+        comments.loading ? <p className={styles.empty}>Loading the board…</p> : <EmptyState symbol={sym}>Nobody has posted about {sym} yet.</EmptyState>
       )}
       {board && (board.pagination.has_next_page || page > 1) ? (
         <div className={styles.pager}>
@@ -327,7 +328,7 @@ export function NewsSection({ asset }: { asset: MarketAsset }) {
           ))}
         </div>
       ) : (
-        <p className={styles.empty}>{articles.loading ? "Loading coverage…" : `No coverage of ${asset.display_name} yet.`}</p>
+        articles.loading ? <p className={styles.empty}>Loading coverage…</p> : <EmptyState symbol={asset.symbol}>No coverage of {asset.display_name} yet.</EmptyState>
       )}
       <div className={styles.newsFoot}>
         <Link href={`/articles?stock=${enc(asset.symbol)}`}>All coverage of {asset.symbol} →</Link>

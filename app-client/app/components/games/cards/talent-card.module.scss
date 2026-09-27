@@ -592,19 +592,19 @@
   }
 }
 
-// Drop-in art (frames and the back): hidden while it's still a placeholder, so the drawn
-// version shows until the generated image lands; then the image sits on top of it.
+// Frames and the back: the drawn SVG (card-drawn.tsx), or a `_shared` image when one ships.
 .frameArt,
 .backArt {
   pointer-events: none;
-
-  &[data-art-missing] {
-    display: none;
-  }
 }
 
 .frameArt {
+  overflow: visible;
   border-radius: 5cqi;
+}
+
+.backArt {
+  border-radius: 3cqi;
 }
 
 .backMark {
@@ -612,10 +612,7 @@
   display: grid;
   justify-items: center;
   gap: 1.4cqi;
-  padding: 5cqi 6cqi;
-  border: 0.8cqi solid rgba(63, 184, 245, 0.5);
-  border-radius: 50% / 38%;
-  background: rgba(7, 11, 22, 0.8);
+  margin-top: 8cqi;
 
   b {
     @include display;

@@ -17,6 +17,7 @@ import { Hand, Seat, Shoe } from "@/app/components/games/blackjack/bj-parts";
 import { BlackjackControls, type BjAction } from "@/app/components/games/blackjack/bj-controls";
 import { BJ_BET_MS, BJ_TURN_MS, HOUSE_RULES, handValue, momentOf, netOf, usePhone, wagerOf, withLiveDeadline } from "@/app/components/games/blackjack/bj-utils";
 import { SceneArt } from "@/app/components/common/scene-art";
+import { TalentReaction } from "@/app/components/common/talent-reaction";
 import styles from "@/app/components/games/blackjack/blackjack-table.module.scss";
 
 type Payload = { type: "blackjack"; table: BlackjackTable; server_time?: number };
@@ -442,9 +443,12 @@ function PhaseBanner({ table, myIndex }: { table: BlackjackTable; myIndex: numbe
   }
 
   const announce = moment.kind === "betting" ? "Bets are open" : typeof head === "string" ? head : "";
+  // Your hand's result gets a talent reacting: hype for a win, cope for a loss.
+  const reaction = moment.kind === "results" && (tone === "up" || tone === "gold") ? "hype" : moment.kind === "results" && tone === "down" ? "cope" : null;
 
   return (
-    <div className={styles.banner} data-tone={tone} data-kind={moment.kind}>
+    <div className={styles.banner} data-tone={tone} data-kind={moment.kind} data-reacting={reaction ? "" : undefined}>
+      {reaction ? <TalentReaction key={`${table.round_id}-${reaction}`} pose={reaction} size={56} className={styles.bannerReaction} fresh /> : null}
       <span className={styles.srOnly} aria-live="polite">
         {announce}
       </span>

@@ -6,8 +6,12 @@ import { fontVariables } from "@/app/fonts";
 import Script from "next/script";
 
 export const metadata: Metadata = {
+  // Absolute URLs for the share images (app/**/opengraph-image.tsx). Set NEXT_PUBLIC_SITE_URL per deploy.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://nasfaq.biz"),
   title: "NASFAQ",
   description: "VTuber Numbers",
+  openGraph: { siteName: "NASFAQ", type: "website" },
+  twitter: { card: "summary_large_image" },
 };
 
 export const viewport: Viewport = {

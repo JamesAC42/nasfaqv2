@@ -1,0 +1,231 @@
+// How-to diagrams (diagrams.tsx). Theme tokens only, so they read in light and dark.
+
+.diagram {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--surface-section, transparent);
+  font-family: var(--font-zen), system-ui, sans-serif;
+  // Inherited defaults for text; classes and attributes below override them.
+  fill: var(--text);
+  text-anchor: middle;
+}
+
+.kicker {
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: 16px;
+  letter-spacing: 0.14em;
+  fill: var(--dim);
+  text-anchor: start;
+}
+
+.box,
+.boxStrong {
+  fill: var(--bg, transparent);
+  stroke: var(--rule-2, var(--rule));
+  stroke-width: 1.5;
+}
+
+.boxStrong {
+  stroke: var(--blue);
+  stroke-width: 2;
+  fill: color-mix(in srgb, var(--blue) 10%, var(--bg, transparent));
+}
+
+.boxLabel {
+  font-size: 22px;
+  font-weight: 700;
+  dominant-baseline: middle;
+}
+
+.boxTitle {
+  font-size: 22px;
+  font-weight: 700;
+  text-anchor: start;
+}
+
+.boxSub {
+  font-size: 17px;
+  fill: var(--dim);
+  dominant-baseline: middle;
+}
+
+.games {
+  font-size: 16px;
+  fill: var(--dim);
+  text-anchor: start;
+}
+
+.bracket,
+.tether {
+  fill: none;
+  stroke: var(--rule-2, var(--rule));
+  stroke-width: 1.5;
+}
+
+.tether {
+  stroke-dasharray: 3 4;
+}
+
+.arrow,
+.pull {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 2.2;
+}
+
+.pull {
+  stroke-width: 2.6;
+}
+
+.arrowHead {
+  fill: var(--blue);
+}
+
+.axisLine,
+.tickLine,
+.batchMark {
+  stroke: var(--rule-2, var(--rule));
+  stroke-width: 1.5;
+}
+
+.tickLine {
+  stroke-dasharray: 2 5;
+}
+
+.batchMark {
+  stroke: var(--text);
+  stroke-width: 2.5;
+}
+
+.axis {
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: 17px;
+  fill: var(--dim);
+}
+
+.fair {
+  fill: none;
+  stroke: var(--dim);
+  stroke-width: 2;
+  stroke-dasharray: 7 6;
+}
+
+.price {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+}
+
+.hype {
+  fill: none;
+  stroke: var(--down);
+  stroke-width: 1.8;
+}
+
+.note {
+  font-size: 18px;
+  fill: var(--dim);
+}
+
+.lineLabel {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.dim {
+  fill: var(--dim);
+  font-weight: 400;
+}
+
+.caption {
+  font-size: 18px;
+  fill: var(--dim);
+}
+
+.dot {
+  fill: var(--blue);
+}
+
+.fillDot {
+  fill: var(--bg, #000);
+  stroke: var(--text);
+  stroke-width: 2;
+}
+
+.buyRow,
+.sellRow {
+  stroke-width: 1.5;
+}
+
+.buyRow {
+  fill: color-mix(in srgb, var(--up) 14%, transparent);
+  stroke: color-mix(in srgb, var(--up) 60%, transparent);
+}
+
+.sellRow {
+  fill: color-mix(in srgb, var(--down) 14%, transparent);
+  stroke: color-mix(in srgb, var(--down) 60%, transparent);
+}
+
+.rowIndex {
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: 15px;
+  fill: var(--dim);
+  dominant-baseline: middle;
+}
+
+.rowLabel {
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: 17px;
+  font-weight: 700;
+  text-anchor: start;
+  dominant-baseline: middle;
+}
+
+.lock {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 3;
+}
+
+.lockBody {
+  fill: var(--blue);
+}
+
+.yesBar {
+  fill: color-mix(in srgb, var(--blue) 80%, transparent);
+}
+
+.noBar {
+  fill: color-mix(in srgb, var(--down) 55%, transparent);
+}
+
+.barLabel {
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: 20px;
+  font-weight: 700;
+  fill: #fff;
+}
+
+.payWin,
+.payZero {
+  font-family: var(--font-martian), ui-monospace, monospace;
+  font-size: 20px;
+  font-weight: 700;
+  dominant-baseline: middle;
+}
+
+.payWin {
+  fill: var(--up);
+}
+
+.payZero {
+  fill: var(--dim);
+}
+
+.stage {
+  font-size: 16px;
+  font-weight: 700;
+}

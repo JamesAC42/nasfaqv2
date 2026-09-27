@@ -159,6 +159,11 @@
     width: 1em;
     height: 1em;
   }
+
+  .medalGlyph {
+    width: 0.8em;
+    height: 1em;
+  }
 }
 
 .rarity {
@@ -220,6 +225,12 @@
   color: var(--r-ink);
 }
 
+.ornament {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 // ── Sealed capsule ─────────────────────────────────────────────────────────
 .back {
   display: grid;
@@ -230,59 +241,23 @@
   position: relative;
   width: 78cqi;
   aspect-ratio: 1;
-  overflow: hidden;
   border-radius: 50%;
-  background: radial-gradient(circle at 38% 72%, #ffffff, #d9dee8 55%, #9aa3b5);
-  box-shadow:
-    0 0 0 0.8cqi rgba(0, 0, 0, 0.35),
-    0 0 10cqi color-mix(in srgb, var(--r-b) 45%, transparent);
+  box-shadow: 0 0 10cqi color-mix(in srgb, var(--r-b) 45%, transparent);
   animation: bob 2.6s ease-in-out infinite alternate;
 }
 
 .back[data-rarity="common"] .ball {
-  box-shadow: 0 0 0 0.8cqi rgba(0, 0, 0, 0.35);
+  box-shadow: none;
 }
 
-.top {
-  position: absolute;
-  inset: 0 0 50% 0;
-  background: radial-gradient(circle at 36% 40%, var(--r-c), var(--r-b) 45%, var(--r-a));
+.shell {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
-.seam {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(50% - 2.5cqi);
-  height: 5cqi;
-  background: linear-gradient(#1a1e28, #3a4050);
-}
-
-.shine {
-  position: absolute;
-  top: 10%;
-  left: 18%;
-  width: 26%;
-  height: 16%;
+.shellArt {
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.7);
-  filter: blur(1px);
-  transform: rotate(-30deg);
-}
-
-// Drop-in shell art: hidden while it's a placeholder; once it exists it replaces the drawn shell.
-.shellArt[data-art-missing] {
-  display: none;
-}
-
-.ball:has(> .shellArt:not([data-art-missing])) {
-  background: none;
-
-  > .top,
-  > .seam,
-  > .shine {
-    display: none;
-  }
 }
 
 .shadow {
@@ -312,7 +287,6 @@
 @keyframes capsuleGlow {
   to {
     box-shadow:
-      0 0 0 0.8cqi rgba(0, 0, 0, 0.35),
       0 0 22cqi var(--r-b),
       0 0 6cqi var(--r-c);
   }
@@ -321,19 +295,7 @@
 // Balls in the machine globe.
 .miniBall {
   position: absolute;
-  overflow: hidden;
-  border-radius: 50%;
-  background: radial-gradient(circle at 38% 72%, #ffffff, #d9dee8 55%, #9aa3b5);
-  box-shadow: inset 0 -2px 3px rgba(0, 0, 0, 0.35);
-
-  .top {
-    background: radial-gradient(circle at 36% 40%, var(--r-c), var(--r-b) 50%, var(--r-a));
-  }
-
-  .shine {
-    top: 12%;
-    left: 20%;
-  }
+  display: block;
 }
 
 :global(html[data-calm="true"]) {

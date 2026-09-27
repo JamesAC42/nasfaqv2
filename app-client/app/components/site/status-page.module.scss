@@ -20,6 +20,14 @@
 .art {
   width: min(100%, 35rem);
   margin-bottom: 0.5rem;
+
+  // The talent reaction: its own size, not the illustration's 16:10 box.
+  &[data-art-missing] {
+    display: grid;
+    place-items: center;
+    aspect-ratio: auto !important;
+    overflow: visible;
+  }
 }
 
 .kicker {

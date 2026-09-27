@@ -18,30 +18,18 @@ $felt-line: rgba(190, 215, 255, 0.28);
   width: var(--size);
   height: var(--size);
   border-radius: 50%;
-  background:
-    radial-gradient(circle, var(--chip) 0 52%, transparent 53%),
-    repeating-conic-gradient(var(--chip-edge) 0 18deg, var(--chip) 18deg 45deg);
   box-shadow:
-    inset 0 0 0 2px rgba(0, 0, 0, 0.25),
     0 2px 0 rgba(0, 0, 0, 0.45),
     0 3px 8px rgba(0, 0, 0, 0.35);
 
-  &::before {
-    content: "";
-    position: absolute;
-    inset: 22%;
-    border-radius: 50%;
-    border: 1px dashed color-mix(in srgb, var(--chip-ink) 45%, transparent);
-  }
-
-  // Drop-in greyscale chip art, tinted by the chip colour underneath; hidden while a placeholder.
+  // The drawn face (ChipFace), or a `_shared/games-chip` image tinted by the chip colour.
   .chipArt {
     border-radius: 50%;
-    mix-blend-mode: multiply;
     pointer-events: none;
 
-    &[data-art-missing] {
-      display: none;
+    &:not([data-art-missing]) {
+      background: var(--chip);
+      mix-blend-mode: multiply;
     }
   }
 
@@ -52,6 +40,39 @@ $felt-line: rgba(190, 215, 255, 0.28);
     font-weight: 700;
     color: var(--chip-ink);
   }
+}
+
+.chipRim {
+  fill: var(--chip);
+  stroke: rgba(0, 0, 0, 0.35);
+  stroke-width: 1.5;
+}
+
+.chipInsert {
+  fill: var(--chip-edge);
+}
+
+.chipBand {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.18);
+  stroke-width: 2;
+}
+
+.chipInlay {
+  fill: color-mix(in srgb, var(--chip) 88%, #000);
+  stroke: color-mix(in srgb, var(--chip-edge) 70%, transparent);
+  stroke-width: 1.5;
+}
+
+.chipRing {
+  fill: none;
+  stroke: color-mix(in srgb, var(--chip-ink) 45%, transparent);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 2.6;
+}
+
+.chipGloss {
+  fill: rgba(255, 255, 255, 0.28);
 }
 
 .stackWrap {

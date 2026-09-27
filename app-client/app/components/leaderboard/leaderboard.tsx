@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { SceneArt } from "@/app/components/common/scene-art";
+import { Medal, type MedalTier } from "@/app/components/common/medal";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { OshiboardTab } from "@/app/components/leaderboard/oshiboard-tab";
@@ -16,6 +17,7 @@ import { useMarketStore } from "@/app/stores/market-store";
 import styles from "@/app/components/leaderboard/leaderboard.module.scss";
 
 const MEDALS: Record<number, string> = { 1: "site-medal-gold", 2: "site-medal-silver", 3: "site-medal-bronze" };
+const TIER: Record<number, MedalTier> = { 1: "gold", 2: "silver", 3: "bronze" };
 
 export type LeaderboardTab = "players" | "talent";
 
@@ -174,7 +176,9 @@ function PlayersTab() {
             const change = windowChange(entry, window);
             return (
               <Link key={entry.user_id} href={`/profile/${encodeURIComponent(entry.username)}`} className={`${styles.step} ${styles[`r${entry.rank}`]}`} style={{ "--pc": entry.profile_color || "var(--blue)" } as React.CSSProperties}>
-                {MEDALS[entry.rank] ? <SceneArt slot={MEDALS[entry.rank]} width={48} className={styles.stepMedal} /> : null}
+                {MEDALS[entry.rank] ? (
+                  <SceneArt slot={MEDALS[entry.rank]} width={48} className={styles.stepMedal} fallback={<Medal tier={TIER[entry.rank]} mark={entry.rank} />} />
+                ) : null}
                 <PlayerAvatar username={entry.username} pictureUrl={entry.profile_picture_url} color={entry.profile_color} hat={entry.equipped_hat} size={entry.rank === 1 ? 96 : 80} className={styles.stepAvatar} />
                 <span className={styles.stepBody}>
                   <span className={styles.stepRank}>{entry.rank}</span>

@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/app/components/common/empty-state";
 import { useMemo, useState } from "react";
 import { Sparkline } from "@/app/components/common/sparkline";
 import type { StreamPreview } from "@/app/lib/streams";
@@ -342,7 +343,9 @@ export function StreamsSection({ asset, channelId, streams, onOpen }: { asset: M
               ))}
             </>
           ) : null}
-          {!live.length && !upcoming.length ? <p className={styles.empty}>{streams.loading ? "Checking the schedule…" : "Nothing live or scheduled right now."}</p> : null}
+          {!live.length && !upcoming.length ? (
+            streams.loading ? <p className={styles.empty}>Checking the schedule…</p> : <EmptyState symbol={asset.symbol}>Nothing live or scheduled right now.</EmptyState>
+          ) : null}
         </div>
         <div>
           <div className={styles.label}>Hours streamed · last 7 days</div>

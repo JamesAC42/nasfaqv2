@@ -9,6 +9,7 @@ import type { Rarity } from "@/app/lib/games/types";
 import { unitLabel } from "@/app/lib/market-units";
 import { talentAccent } from "@/app/lib/talent-color";
 import { isCalm } from "@/app/providers/motion-provider";
+import { CardBackArt, CardOrnament } from "@/app/components/games/cards/card-drawn";
 import styles from "@/app/components/games/cards/talent-card.module.scss";
 
 export type CardFace = {
@@ -46,7 +47,7 @@ type TalentCardProps = {
   tilt?: boolean;
 };
 
-/** Illustrated frame overlays per rarity (drop-in: the CSS frame shows until the art exists). */
+/** Frame overlays per rarity: the drawn ornament, or a `_shared` image when the manifest has one. */
 const FRAME_ART: Record<Rarity, string> = { C: "games-frame-c", R: "games-frame-r", SR: "games-frame-sr", SSR: "games-frame-ssr", UR: "games-frame-ur" };
 
 /**
@@ -170,7 +171,7 @@ export function TalentCard({
         {!owned ? <span className={styles.lock} aria-hidden="true" /> : null}
         {overlay ? <span className={styles.overlay}>{overlay}</span> : null}
       </span>
-      <SceneArt slot={FRAME_ART[card.rarity]} fill width={width * 2} className={styles.frameArt} />
+      <SceneArt slot={FRAME_ART[card.rarity]} fill width={width * 2} className={styles.frameArt} fallback={<CardOrnament rarity={card.rarity} />} />
     </span>
   );
 
@@ -221,7 +222,7 @@ export function CardBack({ width = 168, glow = null, className }: { width?: numb
   return (
     <div className={[styles.back, className].filter(Boolean).join(" ")} style={{ "--w": `${width}px` } as CSSProperties} data-glow={glow ?? undefined} aria-hidden="true">
       <span className={styles.backInner}>
-        <SceneArt slot="games-card-back" fill width={width * 2} className={styles.backArt} />
+        <SceneArt slot="games-card-back" fill width={width * 2} className={styles.backArt} fallback={<CardBackArt />} />
         <span className={styles.backMark}>
           <b>NASFAQ</b>
           <small>TALENT CARD</small>

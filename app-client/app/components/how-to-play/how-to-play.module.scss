@@ -632,6 +632,16 @@ $sticky-top: calc(var(--rail-height) + var(--tape-height) + env(safe-area-inset-
   }
 }
 
+// A drawn diagram keeps its 7:5 shape everywhere (text inside it has to stay readable).
+.sectionDiagram {
+  @include phone {
+    order: 0;
+    height: auto;
+    max-height: none;
+    aspect-ratio: 7 / 5 !important;
+  }
+}
+
 .subHead {
   display: flex;
   align-items: baseline;

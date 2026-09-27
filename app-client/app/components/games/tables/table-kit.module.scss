@@ -357,6 +357,13 @@
   width: 5.5rem;
   margin: -0.4rem 0 0.1rem;
 
+  &[data-art-missing] {
+    aspect-ratio: auto !important;
+    overflow: visible;
+    display: grid;
+    place-items: center;
+  }
+
   @include phone {
     width: 4.5rem;
   }

@@ -938,17 +938,8 @@
   padding: 0.6rem;
   border: 1px solid var(--rule);
 
-  i {
-    display: grid;
-    place-items: center;
-    width: 30px;
-    height: 30px;
+  svg {
     margin: 0 auto;
-    transform: rotate(45deg);
-    background: var(--bc);
-    font-style: normal;
-    font-weight: 800;
-    color: #0b0d12;
   }
 
   b {

@@ -1,5 +1,6 @@
 "use client";
 
+import { TalentReaction } from "@/app/components/common/talent-reaction";
 import { useDeferredValue, useMemo, useState, type CSSProperties } from "react";
 import { FaMagnifyingGlass, FaXmark } from "react-icons/fa6";
 import { TalentCard } from "@/app/components/games/cards/talent-card";
@@ -155,6 +156,7 @@ export function Binder({ model, pinned, picking, onCancelPick, onPickCard, onOpe
 
       {shown === 0 ? (
         <div className={styles.empty}>
+          <TalentReaction pose="idle" size={96} />
           <p>Nothing in the binder matches that.</p>
           {filtered ? (
             <button type="button" onClick={reset}>

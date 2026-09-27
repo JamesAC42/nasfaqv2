@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/app/components/common/empty-state";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -319,7 +320,7 @@ export function ArticlesIndex({ initial }: { initial: FeedQuery }) {
               <Row key={story.key} story={story} />
             ))}
             {!loading && !stories.length && !error ? (
-              <p className={styles.empty}>{filtered ? "Nothing matches those filters." : query.type === "community" ? "No player articles yet. Be the first." : "No stories yet."}</p>
+              <EmptyState size="page">{filtered ? "Nothing matches those filters." : query.type === "community" ? "No player articles yet. Be the first." : "No stories yet."}</EmptyState>
             ) : null}
             {loading && !stories.length ? <p className={styles.empty}>Loading stories…</p> : null}
             {pagination.page_count > 1 ? (
