@@ -22,9 +22,14 @@ const dayCount = (from, to) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.
 async function runFullRebuild({ pool, redis = null }, { activeOnly = true, fillMissingDates = true, version = 1 } = {}, onProgress = () => {}) {
   const lockClient = await pool.connect();
   let locked = false;
+  let adjustmentsLocked = false;
   try {
     locked = await acquireSchedulerLock(lockClient);
     if (!locked) throw codedError("scheduler_running");
+    // The replay leaves past intervals briefly "scheduled"; the live adjustment scheduler must not
+    // pick them up and apply them at today's time. Holding its lock makes its ticks skip.
+    adjustmentsLocked = await marketAdjustments.acquireAdjustmentSchedulerLock(lockClient);
+    if (!adjustmentsLocked) throw codedError("scheduler_running");
 
     const range = await marketAdmin.getHistoricalMarketDateRange(pool, { activeOnly });
     if (!range.from || !range.to) throw codedError("no_historical_data");
@@ -78,6 +83,7 @@ async function runFullRebuild({ pool, redis = null }, { activeOnly = true, fillM
       adjustments_applied: adjustmentsApplied,
     };
   } finally {
+    if (adjustmentsLocked) await marketAdjustments.releaseAdjustmentSchedulerLock(lockClient);
     if (locked) await releaseSchedulerLock(lockClient).catch(() => {});
     lockClient.release();
   }
