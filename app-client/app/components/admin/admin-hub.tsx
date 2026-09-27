@@ -3,20 +3,24 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
+  closeTrading,
   fetchAdjustmentHealth,
   fetchAdminStats,
   fetchLiveOrderHealth,
   fetchMarketStatus,
+  reopenTrading,
   type AdjustmentHealth,
   type AdminOverviewStats,
   type LiveOrderHealth,
 } from "@/app/components/admin/admin-api";
 import { AdminFrame, AdminGate, AdminLoading, predictionsHref, useAdminAccess, useNow } from "@/app/components/admin/admin-frame";
 import { Notice, Section, adminErrorText, adminUi as ui, ago, etTime, fmtCash, fmtCount, until } from "@/app/components/admin/admin-ui";
+import { normalizeMarketStatus } from "@/app/lib/normalizers";
 import { fetchAdminOverview } from "@/app/lib/predictions/api";
 import type { AdminOverview } from "@/app/lib/predictions/types";
 import type { MarketStatus } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
+import { useMarketStore } from "@/app/stores/market-store";
 import styles from "@/app/components/admin/admin-hub.module.scss";
 
 // /admin: the back-office landing page. What needs a human first, then whether the machines are
@@ -165,6 +169,80 @@ function buildAttention({
   return items.sort((a, b) => (a.tone === b.tone ? 0 : a.tone === "warn" ? -1 : 1));
 }
 
+/** Pause / reopen trading. Players see the message; queued orders wait and fill after reopening. */
+function TradingControl({ status, onChanged }: { status: MarketStatus | null; onChanged: () => void }) {
+  const [composing, setComposing] = useState(false);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!status) return null;
+  const paused = status.trading_status === "manual_closed";
+  const settling = status.trading_status === "settling";
+
+  const run = async (action: () => Promise<{ status: Partial<MarketStatus> }>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await action();
+      // The header and trade tickets update from the socket too; this covers a dropped socket.
+      if (result?.status) useMarketStore.setState({ marketStatus: normalizeMarketStatus(result.status as Record<string, unknown>) });
+      setComposing(false);
+      setMessage("");
+      onChanged();
+    } catch (caught) {
+      setError(adminErrorText(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className={styles.tradingControl}>
+      {paused ? (
+        <>
+          <p className={styles.tradingNote}>Paused by hand. Queued orders are waiting; settlement catches up after you reopen.</p>
+          <button type="button" className={ui.btnPrimary} disabled={busy} onClick={() => void run(reopenTrading)}>
+            {busy ? "Reopening…" : "Reopen trading"}
+          </button>
+        </>
+      ) : composing ? (
+        <form
+          className={styles.tradingForm}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void run(() => closeTrading(message));
+          }}
+        >
+          <label className={ui.field}>
+            <span>Message for players</span>
+            <input
+              className={ui.input}
+              value={message}
+              maxLength={280}
+              placeholder="Trading is paused for maintenance. Back soon."
+              onChange={(event) => setMessage(event.target.value)}
+              autoFocus
+            />
+          </label>
+          <div className={styles.tradingButtons}>
+            <button type="submit" className={ui.btnDangerSolid} disabled={busy}>
+              {busy ? "Pausing…" : "Pause trading"}
+            </button>
+            <button type="button" className={ui.btnGhost} disabled={busy} onClick={() => setComposing(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <button type="button" className={ui.btnDanger} disabled={settling} onClick={() => setComposing(true)} title={settling ? "Wait for the settlement to finish" : undefined}>
+          Pause trading…
+        </button>
+      )}
+      {error ? <Notice tone="error">{error}</Notice> : null}
+    </div>
+  );
+}
+
 export function AdminHub() {
   const access = useAdminAccess();
   const { user } = useAuth();
@@ -299,7 +377,7 @@ export function AdminHub() {
               <div className={styles.healthCol}>
                 <h3>Market</h3>
                 <p className={styles.bigState} data-open={open === null ? undefined : String(open)}>
-                  {open === null ? "…" : open ? "Open" : m?.trading_status === "settling" ? "Settling" : "Closed"}
+                  {open === null ? "…" : open ? "Open" : m?.trading_status === "settling" ? "Settling" : m?.trading_status === "manual_closed" ? "Paused" : "Closed"}
                 </p>
                 <dl className={styles.rows}>
                   {isAdmin ? (
@@ -335,6 +413,7 @@ export function AdminHub() {
                   ) : null}
                   {m?.trading_message ? <Row label="Message">{m.trading_message}</Row> : null}
                 </dl>
+                {isAdmin ? <TradingControl status={(m as MarketStatus | null) ?? null} onChanged={() => void load()} /> : null}
               </div>
 
               {isAdmin ? (

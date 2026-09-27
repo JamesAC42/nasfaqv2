@@ -1232,6 +1232,12 @@ async function runWithConcurrency(items, concurrency, worker) {
 }
 
 async function processDueLiveOrders(pool, { now = new Date(), limit = LIVE_ORDER_BATCH_LIMIT, redis = null } = {}) {
+  // While trading is closed (settlement, or halted by an admin) queued orders wait for the next
+  // batch after it reopens instead of being rejected.
+  const marketStatus = await marketState.getMarketStatus(pool);
+  if (marketStatus && !marketStatus.is_trading_open) {
+    return { batch_id: null, attempted: 0, filled: 0, rejected: 0, skipped: "market_closed" };
+  }
   const dueOrders = await listDueLiveOrders(pool, { now, limit });
   if (dueOrders.length === 0) {
     return { batch_id: null, attempted: 0, filled: 0, rejected: 0 };

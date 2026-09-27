@@ -75,6 +75,11 @@ export const patchUserRoles = (userId: number, body: Partial<Record<RoleFlag | "
 
 export const fetchMarketStatus = () => apiFetch<Partial<MarketStatus>>("/api/market/status", { cache: "no-store" });
 
+/** Pause trading by hand (message shown to players) and bring it back. */
+export const closeTrading = (message: string) =>
+  apiFetch<{ status: Partial<MarketStatus> }>("/internal/market/close", { method: "POST", body: JSON.stringify({ message }) });
+export const reopenTrading = () => apiFetch<{ status: Partial<MarketStatus> }>("/internal/market/open", { method: "POST", body: JSON.stringify({}) });
+
 export type AdjustmentHealth = {
   next_scheduled_at: string | null;
   last_applied_at: string | null;

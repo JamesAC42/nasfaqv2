@@ -10,8 +10,10 @@ const settlement = require("../services/settlement");
 const trading = require("../services/trading");
 const { requireAdmin } = require("../userContext");
 const {
+  acquireSchedulerLock,
   computeNextScheduledAt,
   loadSchedulerConfig,
+  releaseSchedulerLock,
   runScheduledCycle,
 } = require("../services/marketScheduler");
 
@@ -54,12 +56,23 @@ router.get("/status", async (req, res, next) => {
   }
 });
 
+// Halting trading by hand. While closed: buys and sells are refused with the message, queued live
+// orders wait (they fill in the first batch after reopening), the daily settlement waits (the
+// scheduler catches up within a minute of reopening), and prices keep following fair value.
 router.post("/close", async (req, res, next) => {
   const client = await req.ctx.pool.connect();
+  let locked = false;
   try {
+    requireAdmin(req);
+    // Not in the middle of a settlement: it would reopen the market when it finishes.
+    locked = await acquireSchedulerLock(client);
+    if (!locked) return res.status(409).json({ error: "market_settling" });
+    const current = await marketState.getMarketStatusWithClient(client);
+    if (current?.trading_status === "settling") return res.status(409).json({ error: "market_settling" });
+    const message = String(req.body?.message || "").trim().slice(0, 280) || "Trading is paused for maintenance. Back soon.";
     const schedulerConfig = loadSchedulerConfig();
     const status = await marketState.setMarketManualClosed(client, {
-      message: req.body?.message ? String(req.body.message) : "Market manually closed for maintenance.",
+      message,
       nextScheduledSettlementAt: computeNextScheduledAt(new Date(), schedulerConfig).toISOString(),
     });
     void publishMarketStatusEvent(req.ctx.redis, status);
@@ -67,6 +80,7 @@ router.post("/close", async (req, res, next) => {
   } catch (e) {
     next(e);
   } finally {
+    if (locked) await releaseSchedulerLock(client);
     client.release();
   }
 });
@@ -74,12 +88,16 @@ router.post("/close", async (req, res, next) => {
 router.post("/open", async (req, res, next) => {
   const client = await req.ctx.pool.connect();
   try {
+    requireAdmin(req);
+    const current = await marketState.getMarketStatusWithClient(client);
+    if (current && current.trading_status !== "manual_closed") return res.status(409).json({ error: "market_not_closed", status: current });
     const schedulerConfig = loadSchedulerConfig();
     const status = await marketState.setMarketOpen(client, {
-      message: req.body?.message ? String(req.body.message) : "Market reopened.",
+      message: req.body?.message ? String(req.body.message).trim().slice(0, 280) || null : null,
       nextScheduledSettlementAt: computeNextScheduledAt(new Date(), schedulerConfig).toISOString(),
     });
     void publishMarketStatusEvent(req.ctx.redis, status);
+    await invalidateMarketAssetsCache(req.ctx.redis);
     res.json({ ok: true, status });
   } catch (e) {
     next(e);

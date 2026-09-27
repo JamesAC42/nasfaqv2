@@ -211,6 +211,8 @@ export function adminErrorText(error: unknown) {
     missing_market_date: "No market date to tick. Settle a day first.",
     settlement_already_completed: "That day is already settled.",
     invalid_market_date: "That market date isn't valid.",
+    market_settling: "The daily settlement is running. Try again in a minute.",
+    market_not_closed: "Trading isn't paused (it may have been reopened already).",
     "Failed to fetch": "Can't reach the API.",
   };
   return map[code] ?? (code || "Something went wrong.");

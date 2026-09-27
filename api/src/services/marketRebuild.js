@@ -66,11 +66,13 @@ async function runFullRebuild({ pool, redis = null }, { activeOnly = true, fillM
     });
 
     const latestSettled = settlementResult.settled_dates[settlementResult.settled_dates.length - 1]?.market_date || null;
-    const status = await marketState.setMarketOpen(lockClient, {
-      nextScheduledSettlementAt: computeNextScheduledAt(new Date(), schedulerConfig).toISOString(),
-      lastSettlementMarketDate: latestSettled,
-      clearError: true,
-    });
+    // A market an admin closed stays closed (close, rebuild, check, reopen).
+    const before = await marketState.getMarketStatusWithClient(lockClient);
+    const nextScheduledSettlementAt = computeNextScheduledAt(new Date(), schedulerConfig).toISOString();
+    const status =
+      before?.trading_status === "manual_closed"
+        ? await marketState.setMarketManualClosed(lockClient, { message: before.trading_message, nextScheduledSettlementAt, lastSettlementMarketDate: latestSettled })
+        : await marketState.setMarketOpen(lockClient, { nextScheduledSettlementAt, lastSettlementMarketDate: latestSettled, clearError: true });
     void publishMarketStatusEvent(redis, status);
     await invalidateMarketAssetsCache(redis);
 
