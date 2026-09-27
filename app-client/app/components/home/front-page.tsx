@@ -24,6 +24,7 @@ import { TradingPausedBanner } from "@/app/components/common/trading-paused-bann
 import { useMarketStore } from "@/app/stores/market-store";
 import { markSeries, UNIT_ORDER, unitLabel, unitName } from "@/app/lib/market-units";
 import { useNewsStore } from "@/app/stores/news-store";
+import { CHATTER_TOPIC, heatLabel, useChatterStore, type ChatterTalent } from "@/app/stores/chatter-store";
 import { fetchFloor } from "@/app/lib/predictions/api";
 import { leader as predictionLeader, outcomeColor } from "@/app/lib/predictions/format";
 import type { PredictionMarket as PredictionMarketV2 } from "@/app/lib/predictions/types";
@@ -283,7 +284,11 @@ const WIRE_TAGS: Record<string, string> = {
   exchange_sale: "Exchange",
   ur_pull: "Pull",
   prediction_resolved: "Called",
+  chatter_spike: "/vt/",
 };
+
+/** Stream events that feed fair value at the next settlement (see STREAM_EVENT_WEIGHTS in the API). */
+const LIFTS_FAIR_VALUE = new Set(["stream_three_d", "stream_new_outfit", "stream_original_song", "stream_anniversary", "stream_birthday", "stream_milestone", "stream_cover_song"]);
 
 function wireTone(kind: string) {
   if (kind.startsWith("stream_")) return "stream";
@@ -318,14 +323,15 @@ function WireThumb({ item }: { item: WireItem }) {
   );
 }
 
-const WIRE_FIRST = 8;
+const WIRE_PAGE = 10;
 
 /** Headlines the site writes itself, from facts: stream events, records, big moves, exchange sales. */
 function TheWire({ items }: { items: WireItem[] }) {
   const [now] = useState(() => Date.now());
-  const [all, setAll] = useState(false);
+  const [shownCount, setShownCount] = useState(WIRE_PAGE);
   if (!items.length) return null;
-  const shown = all ? items : items.slice(0, WIRE_FIRST);
+  const shown = items.slice(0, shownCount);
+  const left = items.length - shown.length;
   return (
     <section className={styles.wire} aria-label="The Wire">
       <header className={styles.wireHead}>
@@ -345,6 +351,11 @@ function TheWire({ items }: { items: WireItem[] }) {
                       {WIRE_TAGS[item.kind] ?? "Wire"}
                     </i>
                     <span className={when.live ? styles.wireLive : undefined}>{when.text}</span>
+                    {LIFTS_FAIR_VALUE.has(item.kind) ? (
+                      <span className={styles.wireLift} title="A big stream: lifts fair value at the next settlement">
+                        ▲ fair value
+                      </span>
+                    ) : null}
                   </span>
                   <b>{item.headline}</b>
                   {item.blurb ? <small>{item.blurb}</small> : null}
@@ -354,17 +365,113 @@ function TheWire({ items }: { items: WireItem[] }) {
           );
         })}
       </ol>
-      {items.length > WIRE_FIRST ? (
-        <button type="button" className={styles.more} onClick={() => setAll((value) => !value)}>
-          {all ? "Fewer" : `${items.length - WIRE_FIRST} more on the wire`} {all ? "↑" : "↓"}
+      {left > 0 ? (
+        <button type="button" className={styles.more} onClick={() => setShownCount((count) => count + WIRE_PAGE)}>
+          {Math.min(left, WIRE_PAGE)} more on the wire ↓
+        </button>
+      ) : items.length > WIRE_PAGE ? (
+        <button type="button" className={styles.more} onClick={() => setShownCount(WIRE_PAGE)}>
+          Fewer ↑
         </button>
       ) : null}
     </section>
   );
 }
 
+// ── Hot on /vt/ ──────────────────────────────────────────────────────────────
+/** Posts per hour over the last day; the recent window (what heat measures) is drawn in blue. */
+function HourlyBars({ hourly, recentHours }: { hourly: number[]; recentHours: number }) {
+  const max = Math.max(1, ...hourly);
+  const W = 120;
+  const H = 26;
+  const step = W / hourly.length;
+  return (
+    <svg className={styles.hotBars} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={`Posts per hour, last 24 hours: ${hourly.join(", ")}`}>
+      {hourly.map((count, index) => {
+        const hoursAgo = hourly.length - 1 - index;
+        const height = count ? Math.max(2, (count / max) * (H - 1)) : 1;
+        return (
+          <g key={index}>
+            <rect x={index * step + 0.5} y={H - height} width={Math.max(1, step - 1.5)} height={height} rx={0.8} className={hoursAgo < recentHours ? styles.hotBarNow : styles.hotBar} />
+            <rect x={index * step} y={0} width={step} height={H} fill="transparent">
+              <title>{`${hoursAgo === 0 ? "This hour" : `${hoursAgo}h ago`}: ${count} post${count === 1 ? "" : "s"}`}</title>
+            </rect>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function HotOnVt() {
+  const summary = useChatterStore((state) => state.summary);
+  const fetchChatter = useChatterStore((state) => state.fetchChatter);
+  const assets = useMarketStore((state) => state.assets);
+  useEffect(() => {
+    void fetchChatter();
+  }, [fetchChatter]);
+  const bySymbol = useMemo(() => new Map(assets.map((asset) => [asset.symbol, asset])), [assets]);
+  const pick = (symbols: string[] | undefined) =>
+    (symbols ?? [])
+      .map((symbol) => summary?.talents.find((talent) => talent.symbol === symbol))
+      .filter((talent): talent is ChatterTalent => Boolean(talent) && bySymbol.has(talent!.symbol))
+      .slice(0, 6);
+  // Three or more running hot makes a board; otherwise show who's simply busiest.
+  const heated = pick(summary?.hot);
+  const mode = heated.length >= 3 ? "hot" : "busiest";
+  const hot = mode === "hot" ? heated : pick(summary?.busiest);
+  if (!summary || hot.length < 2) return null;
+  return (
+    <section className={styles.hot} data-mode={mode} aria-label={`${mode === "hot" ? "Hot" : "Busiest"} on ${summary.board}`}>
+      <header className={styles.wireHead}>
+        <h2>{mode === "hot" ? "Hot" : "Busiest"} on {summary.board}</h2>
+        <span>
+          {mode === "hot" ? `Posts in hololive threads, last ${summary.recent_hours} hours, against each talent's usual` : `Most posts in hololive threads, last ${summary.recent_hours} hours`}
+        </span>
+      </header>
+      <ol className={styles.hotList} style={{ "--n": hot.length } as CSSProperties}>
+        {hot.map((talent, index) => {
+          const asset = bySymbol.get(talent.symbol)!;
+          const heat = mode === "hot" ? heatLabel(talent) : null;
+          return (
+            <li key={talent.symbol}>
+              <Link href={`/stocks/${encodeURIComponent(talent.symbol)}`} className={styles.hotTile} data-peek-stock={talent.symbol} prefetch={false}>
+                <span className={styles.hotWho}>
+                  <i className={styles.hotRank}>{index + 1}</i>
+                  <Oshimark icon={asset.icon} symbol={talent.symbol} size={24} />
+                  <b>{talent.symbol}</b>
+                  <small>{asset.display_name}</small>
+                </span>
+                <span className={styles.hotNumbers}>
+                  <strong>{heat ?? talent.posts_recent}</strong>
+                  <small>
+                    {heat ? `${talent.posts_recent} posts` : "posts"}
+                    {talent.topic ? ` · ${CHATTER_TOPIC[talent.topic]}` : ""}
+                  </small>
+                </span>
+                <HourlyBars hourly={talent.hourly} recentHours={summary.recent_hours} />
+              </Link>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
 // ── Settlement report ────────────────────────────────────────────────────────
-type ReportLine = { symbol: string; left: string; right: string; tone: "up" | "down" | "flat" };
+type ReportLine = { symbol: string; left: string; right: string; tone: "up" | "down" | "flat"; tag?: string };
+
+/** What a big stream is called on the report, when it's what lifted a fair value. */
+const EVENT_TAGS: Record<string, string> = {
+  three_d: "3D",
+  new_outfit: "Outfit",
+  original_song: "Song",
+  anniversary: "Anniv.",
+  birthday: "Bday",
+  milestone: "Milestone",
+  cover_song: "Cover",
+};
 
 function ReportColumn({ title, tone, lines, note }: { title: string; tone?: "up" | "down"; lines: ReportLine[]; note: string }) {
   const assets = useMarketStore((state) => state.assets);
@@ -377,7 +484,14 @@ function ReportColumn({ title, tone, lines, note }: { title: string; tone?: "up"
           <Link key={line.symbol} href={`/stocks/${encodeURIComponent(line.symbol)}`} className={styles.rep} data-peek-stock={line.symbol} prefetch={false}>
             <Oshimark icon={icons.get(line.symbol)} symbol={line.symbol} size={20} />
             <b>{line.symbol}</b>
-            <span className={styles.fromTo}>{line.left}</span>
+            <span className={styles.fromTo}>
+              {line.tag ? (
+                <i className={styles.repTag} title="A big stream lifted this fair value">
+                  {line.tag}
+                </i>
+              ) : null}
+              {line.left}
+            </span>
             <span className={`${styles.repValue} ${styles[line.tone]}`}>{line.right}</span>
           </Link>
         ))
@@ -397,7 +511,8 @@ function fairLines(rows: ReportRow[] | undefined): ReportLine[] {
   return (rows ?? []).slice(0, 5).map((row) => {
     // The API withholds the % change; show the settled price against the new fair value instead.
     const gap = row.market_price && row.fair_value ? (row.fair_value - row.market_price) / row.market_price : null;
-    return { symbol: row.symbol, left: `px ${fmt2(row.market_price)} · fair ${fmt2(row.fair_value)}`, right: signedPct(gap), tone: toneOf(gap) };
+    const event = row.events?.find((kind) => EVENT_TAGS[kind]);
+    return { symbol: row.symbol, left: `px ${fmt2(row.market_price)} · fair ${fmt2(row.fair_value)}`, right: signedPct(gap), tone: toneOf(gap), tag: event ? EVENT_TAGS[event] : undefined };
   });
 }
 
@@ -433,7 +548,7 @@ function SettlementReport({ assets }: { assets: MarketAsset[] }) {
         </Link>
       </div>
       <div className={styles.report}>
-        <ReportColumn title="Fair value up" tone="up" lines={fairLines(report?.biggest_fair_value_increases)} note="Views and subs picked up. The % is the gap from price to fair that the day's ticks work on." />
+        <ReportColumn title="Fair value up" tone="up" lines={fairLines(report?.biggest_fair_value_increases)} note="Views, subs or a big stream picked up. The % is the gap from price to fair that the day's ticks work on." />
         <ReportColumn title="Fair value down" tone="down" lines={fairLines(report?.biggest_fair_value_decreases)} note="Stagnant channels and missed uploads get marked down." />
         <ReportColumn title="Dilution watch" lines={dilution} note="The treasury prints more shares of stocks trading above fair value." />
         <ReportColumn title="Gapped at the open" lines={gappers} note="Biggest price resets at settlement, either way. Not financial advice, anon." />
@@ -684,6 +799,7 @@ export function FrontPage() {
         <NewbieStrip />
         <FrontNews items={frontItems} isLoading={isLoadingNews || (!newsItems.length && !wireLoaded)} />
         <TheWire items={wireItems} />
+        <HotOnVt />
         <SettlementReport assets={assets} />
         <UnitIndexes assets={assets} />
         <section className={styles.community} aria-label="Community">

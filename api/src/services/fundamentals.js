@@ -6,6 +6,20 @@ const SMOOTHING_RAW_WEIGHT = 0.6;
 const FAIR_VALUE_MOVE_CAP_MIN = 0.75;
 const FAIR_VALUE_MOVE_CAP_MAX = 1.25;
 
+// Big streams lift that day's momentum once; smoothing then lets it fade over the next few days.
+// Keys are stream events from content.wire_stream_labels (keywords, confirmed by Jev when set up).
+const STREAM_EVENT_WEIGHTS = {
+  three_d: 0.25,
+  new_outfit: 0.2,
+  original_song: 0.2,
+  anniversary: 0.15,
+  birthday: 0.1,
+  milestone: 0.1,
+  cover_song: 0.06,
+};
+const STREAM_EVENT_CAP = 0.3;
+const streamEventsEnabled = () => String(process.env.MARKET_STREAM_EVENTS || "").toLowerCase() !== "off";
+
 function getQueryTimeZone() {
   const candidate = String(process.env.MARKET_DATA_TIMEZONE || process.env.SCRAPE_TIMEZONE || DEFAULT_MARKET_DATA_TIME_ZONE).trim();
   try {
@@ -205,7 +219,46 @@ function computeUploadSignal(currentDate, historyByDate) {
   };
 }
 
-function computeDerivedSnapshot(current, historyByDate, previousDerived, version) {
+/** One day's event lift from the kinds of big stream that started that day. */
+function streamEventSignal(kinds) {
+  const unique = [...new Set(kinds ?? [])].filter((kind) => STREAM_EVENT_WEIGHTS[kind]);
+  const signal = Math.min(STREAM_EVENT_CAP, unique.reduce((sum, kind) => sum + STREAM_EVENT_WEIGHTS[kind], 0));
+  return { signal, kinds: unique.sort((a, b) => STREAM_EVENT_WEIGHTS[b] - STREAM_EVENT_WEIGHTS[a]) };
+}
+
+/**
+ * channel → date (market time zone) → event kinds, for streams that actually started in the
+ * window. Empty when the Wire hasn't labeled anything (or MARKET_STREAM_EVENTS=off).
+ */
+async function loadStreamEvents(client, { from = null, to = null, channelId = null } = {}) {
+  const out = new Map();
+  if (!streamEventsEnabled()) return out;
+  // Before the Wire's tables exist there's simply nothing to add (and a failed query would abort
+  // the caller's transaction, so check first).
+  const exists = await client.query(`SELECT to_regclass('content.wire_stream_labels') IS NOT NULL AS ok`);
+  if (!exists.rows[0]?.ok) return out;
+  const { rows } = await client.query(
+    `
+    SELECT s.youtube_channel_id, to_char((s.actual_start_at AT TIME ZONE $1)::date, 'YYYY-MM-DD') AS day, array_agg(DISTINCT l.event) AS kinds
+    FROM yt.livestream_sessions s
+    JOIN content.wire_stream_labels l ON l.video_id = s.video_id
+    WHERE s.actual_start_at IS NOT NULL
+      AND l.event = ANY($2::text[])
+      AND ($3::date IS NULL OR (s.actual_start_at AT TIME ZONE $1)::date >= $3::date)
+      AND ($4::date IS NULL OR (s.actual_start_at AT TIME ZONE $1)::date <= $4::date)
+      AND ($5::text IS NULL OR s.youtube_channel_id = $5)
+    GROUP BY 1, 2
+  `,
+    [getQueryTimeZone(), Object.keys(STREAM_EVENT_WEIGHTS), from, to, channelId]
+  );
+  for (const row of rows) {
+    if (!out.has(row.youtube_channel_id)) out.set(row.youtube_channel_id, new Map());
+    out.get(row.youtube_channel_id).set(row.day, row.kinds);
+  }
+  return out;
+}
+
+function computeDerivedSnapshot(current, historyByDate, previousDerived, version, eventKinds = null) {
   const currentDate = current.snapshot_date;
   const prev1 = historyByDate.get(shiftDateKey(currentDate, -1)) || null;
   const prev7 = historyByDate.get(shiftDateKey(currentDate, -7)) || null;
@@ -232,7 +285,8 @@ function computeDerivedSnapshot(current, historyByDate, previousDerived, version
   const subSignal = computeSubscriberSignal(current, prev7, prev30);
   const stagnationSignal = computeStagnationSignal(current, prev7, prev30);
 
-  const rawMomentum = 0.58 * viewSignal + 0.3 * subSignal + 0.12 * uploadSignal + stagnationSignal;
+  const event = streamEventSignal(eventKinds);
+  const rawMomentum = 0.58 * viewSignal + 0.3 * subSignal + 0.12 * uploadSignal + stagnationSignal + event.signal;
   const momentumRaw = clamp(rawMomentum, -1.35, 1.35);
   const momentumMultiplier = Math.exp(0.35 * momentumRaw);
   const fundamentalValueRaw = sizeAnchorRaw * momentumMultiplier;
@@ -256,6 +310,8 @@ function computeDerivedSnapshot(current, historyByDate, previousDerived, version
     view_signal: viewSignal,
     upload_signal: uploadSignal,
     sub_signal: subSignal,
+    event_signal: event.signal,
+    event_kinds: event.kinds.length ? event.kinds : null,
     momentum_raw: momentumRaw,
     momentum_multiplier: momentumMultiplier,
     fundamental_value_raw: fundamentalValueRaw,
@@ -378,11 +434,13 @@ async function upsertCalculatedSnapshot(client, snapshot) {
       calculation_version,
       calculation_status,
       calculation_error,
+      event_signal,
+      event_kinds,
       updated_at
     ) VALUES (
       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
       $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
-      $21,$22,$23,now()
+      $21,$22,$23,$24,$25,now()
     )
     ON CONFLICT (youtube_channel_id, snapshot_date)
     DO UPDATE SET
@@ -407,6 +465,8 @@ async function upsertCalculatedSnapshot(client, snapshot) {
       calculation_version = EXCLUDED.calculation_version,
       calculation_status = EXCLUDED.calculation_status,
       calculation_error = EXCLUDED.calculation_error,
+      event_signal = EXCLUDED.event_signal,
+      event_kinds = EXCLUDED.event_kinds,
       updated_at = now()
   `,
     [
@@ -433,6 +493,8 @@ async function upsertCalculatedSnapshot(client, snapshot) {
       snapshot.calculation_version,
       snapshot.calculation_status,
       snapshot.calculation_error,
+      snapshot.event_signal ?? 0,
+      snapshot.event_kinds ?? null,
     ]
   );
 }
@@ -590,6 +652,7 @@ async function recalculateFundamentals(pool, { from = null, to = null, version =
 
     const bufferedFrom = shiftInputDate(from, -35);
     const statsRows = await loadHistoricalDailyStats(client, { from: bufferedFrom, to, channelId, activeOnly });
+    const streamEvents = await loadStreamEvents(client, { from: bufferedFrom, to, channelId });
     const grouped = new Map();
 
     for (const row of statsRows) {
@@ -626,8 +689,9 @@ async function recalculateFundamentals(pool, { from = null, to = null, version =
       const historyByDate = new Map(denseRows.map((row) => [toDateKey(row.snapshot_date), row]));
       let previousDerived = null;
 
+      const channelEvents = streamEvents.get(currentChannelId) ?? null;
       for (const row of denseRows) {
-        const derived = computeDerivedSnapshot(row, historyByDate, previousDerived, version);
+        const derived = computeDerivedSnapshot(row, historyByDate, previousDerived, version, channelEvents?.get(toDateKey(row.snapshot_date)) ?? null);
         previousDerived = derived;
 
         const withinRequestedWindow =
@@ -681,6 +745,9 @@ async function recalculateFundamentals(pool, { from = null, to = null, version =
 }
 
 module.exports = {
+  STREAM_EVENT_WEIGHTS,
+  computeDerivedSnapshot,
+  streamEventSignal,
   listFundamentalsJobs,
   recalculateFundamentals,
   normalizeFundamentalToPrice,

@@ -85,7 +85,7 @@ export const useNewsStore = create<NewsState>((set, get) => ({
     if (state.wireFetchedAt && Date.now() - state.wireFetchedAt < NEWS_CACHE_TTL_MS) return;
     set({ wireFetchedAt: Date.now() });
     try {
-      const result = await apiFetch<Record<string, unknown>>("/api/overview/wire?limit=24");
+      const result = await apiFetch<Record<string, unknown>>("/api/overview/wire?limit=40");
       set({ wire: normalizeWire(result), wireLoaded: true });
     } catch {
       set({ wireLoaded: true });

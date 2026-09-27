@@ -380,6 +380,16 @@ a.label:hover {
   text-overflow: ellipsis;
 }
 
+// The big stream behind a fair value jump.
+.repTag {
+  @include label;
+  font-style: normal;
+  color: var(--blue);
+  border: 1px solid var(--blue-line);
+  padding: 0 0.3rem;
+  margin-right: 0.4rem;
+}
+
 .repValue {
   @include num;
   font-size: 0.72rem;
@@ -836,6 +846,12 @@ a.label:hover {
   }
 }
 
+.wireLift {
+  color: var(--up);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
 .wireLive {
   color: var(--down);
   display: inline-flex;
@@ -865,4 +881,138 @@ a.label:hover {
   text-align: left;
   cursor: pointer;
   color: var(--text);
+}
+
+// ── Hot on /vt/ ─────────────────────────────────────────────────────────
+.hot {
+  margin-top: 1rem;
+  border: 1px solid var(--rule);
+}
+
+// Same header as the Wire, with a steady red light instead of the teletype blink.
+.hot .wireHead h2::before {
+  animation: none;
+  background: var(--down);
+}
+
+.hot[data-mode="busiest"] .wireHead h2::before {
+  background: var(--dim);
+}
+
+.hotList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--n, 6), minmax(0, 1fr));
+
+  li {
+    min-width: 0;
+    border-right: 1px solid var(--rule);
+
+    &:last-child {
+      border-right: 0;
+    }
+  }
+
+  @include desktop-down {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+
+    li {
+      border-bottom: 1px solid var(--rule);
+    }
+
+    li:nth-child(3n) {
+      border-right: 0;
+    }
+  }
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    li:nth-child(3n) {
+      border-right: 1px solid var(--rule);
+    }
+
+    li:nth-child(2n) {
+      border-right: 0;
+    }
+  }
+}
+
+.hotTile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.75rem 0.9rem 0.8rem;
+  height: 100%;
+
+  &:hover b {
+    color: var(--blue-2);
+  }
+}
+
+.hotWho {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+
+  b {
+    @include num;
+    font-size: 0.8rem;
+  }
+
+  small {
+    color: var(--dim);
+    font-size: 0.72rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.hotRank {
+  @include label;
+  font-style: normal;
+  color: var(--dim);
+  width: 0.8rem;
+}
+
+.hotNumbers {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  min-width: 0;
+
+  strong {
+    @include num(wide);
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  small {
+    color: var(--dim);
+    font-size: 0.72rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.hotBars {
+  display: block;
+  width: 100%;
+  height: 26px;
+  margin-top: auto;
+}
+
+.hotBar {
+  fill: var(--rule-2);
+}
+
+.hotBarNow {
+  fill: var(--blue);
 }

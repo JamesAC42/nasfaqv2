@@ -920,7 +920,7 @@ export function ReportTab({ initialDate, initialView }: { initialDate?: string; 
         </>
       )}
       <p className={ui.foot}>
-        Settlement runs at 09:00 ET. Each talent&apos;s hidden fair value reprices from their YouTube views, subscribers and uploads, and the day&apos;s four ticks pull the price toward it. The mark is the settled price with
+        Settlement runs at 09:00 ET. Each talent&apos;s hidden fair value reprices from their YouTube views, subscribers and uploads (plus a one-day lift after a big stream: a 3D live, new outfit or original song), and the day&apos;s four ticks pull the price toward it. The mark is the settled price with
         short-term order pressure stripped out. The treasury prints new shares of stocks trading above fair.
       </p>
     </>

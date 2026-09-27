@@ -712,6 +712,8 @@ async function main() {
   require("./services/games/exchange").startExchangeScheduler(pool, console);
   // The Wire posts automatic headlines every 10 minutes (stream events judged by Jev when JEV_API_KEY is set).
   require("./services/wire").startWireScheduler(pool, console);
+  // The /vt/ chatter index scans hololive threads every 5 minutes (CHATTER_ENABLED=off to stop it).
+  require("./services/chatter").startChatterScheduler(pool, console);
 }
 
 main().catch((e) => {

@@ -2,6 +2,7 @@ const express = require("express");
 const db = require("../db");
 const articleDb = require("../articleDb");
 const wire = require("../services/wire");
+const chatter = require("../services/chatter");
 
 const router = express.Router();
 const HOLO_NEWS_META_KEY = "nasfaq_holonews:meta";
@@ -94,6 +95,16 @@ router.get("/holonews", async (req, res, next) => {
       updated_at: payload.updated_at || null,
       items
     });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Who /vt/'s hololive threads are talking about: posts per talent against their usual pace.
+router.get("/chatter", async (req, res, next) => {
+  try {
+    res.set("cache-control", "public, max-age=60");
+    res.json(await chatter.getSummary(req.ctx.pool));
   } catch (e) {
     next(e);
   }

@@ -100,7 +100,8 @@ export function MarketSection() {
         <>
           <p>
             Every listed hololive talent has a ticker. The price is whatever players pay for it, but underneath there&apos;s a <b>fair value</b>{" "}built from their real
-            YouTube channel. Prices wander on hype, and four times a day they get dragged back toward what the numbers say.
+            YouTube channel. Big streams count too: a 3D live, a new outfit or an original song lifts fair value for a day. Prices wander on hype, and four
+            times a day they get dragged back toward what the numbers say.
           </p>
           <p>You win by owning the right talents before everyone else figures it out.</p>
         </>

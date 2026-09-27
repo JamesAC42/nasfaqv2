@@ -957,6 +957,8 @@ export type ReportRow = {
   volume_shares?: number | null;
   volume_cash?: number | null;
   volume_cash_change_pct?: number | null;
+  /** Big streams that lifted this fair value at settlement ("three_d", "new_outfit"...). */
+  events?: string[];
 };
 
 export type DailyReport = {

@@ -317,9 +317,57 @@
   }
 }
 
+// Her reaction to her own stock: only when something's happening.
+.stockMood {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.15rem 0.7rem 0.15rem 0.15rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--surface-section);
+  animation: stockMoodIn var(--dur-med, 240ms) var(--ease-out, ease-out) both;
+
+  > span {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex: none;
+  }
+
+  small {
+    @include label;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  &[data-pose="moon"] small,
+  &[data-pose="smug"] small {
+    color: var(--up);
+  }
+
+  &[data-pose="shock"] small,
+  &[data-pose="cope"] small {
+    color: var(--down);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes stockMoodIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+  }
+}
+
 .quotes {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, auto));
+  grid-template-columns: repeat(7, minmax(0, auto));
   justify-content: start;
   gap: 0.3rem 1.4rem;
   margin: auto 0 0;
@@ -336,13 +384,18 @@
     font-size: 0.875rem;
     font-weight: 600;
     white-space: nowrap;
+
+    small {
+      font-size: 0.75rem;
+    }
   }
 
   @include desktop-down {
-    grid-template-columns: repeat(3, minmax(0, auto));
+    grid-template-columns: repeat(4, minmax(0, auto));
   }
 
   @include phone {
+    grid-template-columns: repeat(3, minmax(0, auto));
     justify-content: space-between;
     gap: 0.3rem 0.8rem;
 

@@ -25,6 +25,8 @@ import { useProfileStore } from "@/app/stores/profile-store";
 import { useOpenStream } from "@/app/stores/stream-store";
 import { previewOf } from "@/app/lib/streams";
 import { useTradeStore } from "@/app/stores/trade-store";
+import { StockMood } from "@/app/components/stock/stock-mood";
+import { heatLabel, useChatterStore } from "@/app/stores/chatter-store";
 import styles from "@/app/components/stock/dossier.module.scss";
 
 const SECTIONS = [
@@ -96,11 +98,16 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
   const openTrade = useTradeStore((state) => state.openTrade);
   const openStream = useOpenStream();
   const [expanded, setExpanded] = useState(false);
+  const chatterSummary = useChatterStore((state) => state.summary);
+  const fetchChatter = useChatterStore((state) => state.fetchChatter);
   const active = useScrollSpy(useMemo(() => SECTIONS.map(([id]) => id), []));
 
   useEffect(() => {
     if (!channels.length) void fetchChannels();
   }, [channels.length, fetchChannels]);
+  useEffect(() => {
+    void fetchChatter();
+  }, [fetchChatter]);
 
   const sym = asset.symbol.toUpperCase();
   const accent = talentAccent(asset.color, theme);
@@ -110,6 +117,7 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
   const streams = useChannelStreams(channelId);
   const superchats = useSuperchats(sym, Boolean(channelId));
   const live = streams.data?.live[0] ?? null;
+  const chatter = chatterSummary?.talents.find((talent) => talent.symbol === sym) ?? null;
 
   const channel = useMemo(() => channels.find((row) => row.channel.symbol?.toUpperCase() === sym || (channelId && row.channel.youtube_channel_id === channelId)) ?? null, [channelId, channels, sym]);
   const listed = useMemo(() => {
@@ -191,6 +199,7 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
               <span className={`${styles.chg} ${styles[toneOf(move)]}`}>
                 {(move ?? 0) > 0 ? "▲" : (move ?? 0) < 0 ? "▼" : "■"} {signedPct(move)}
               </span>
+              <StockMood asset={asset} assets={assets} chatter={chatter} live={Boolean(live)} move15d={d15} />
             </div>
             <dl className={styles.quotes}>
               <div>
@@ -219,6 +228,15 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
                 <dt>Oshi&apos;d by</dt>
                 <dd>{asset.oshicoin_users ?? "—"}</dd>
               </div>
+              {chatterSummary ? (
+                <div title={chatter?.usual_recent !== null && chatter?.usual_recent !== undefined ? `Usually about ${Math.round(chatter.usual_recent)} posts in ${chatterSummary.recent_hours} hours` : undefined}>
+                  <dt>{chatterSummary.board} · {chatterSummary.recent_hours}h</dt>
+                  <dd>
+                    {chatter?.posts_recent ?? 0} posts
+                    {chatter && heatLabel(chatter) ? <small className={chatter.heat !== null && chatter.heat >= 1.5 ? styles.up : undefined}> {heatLabel(chatter)}</small> : null}
+                  </dd>
+                </div>
+              ) : null}
             </dl>
             {heroRanks.length ? (
               <div className={styles.ranks}>

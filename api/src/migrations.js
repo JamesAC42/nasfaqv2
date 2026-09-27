@@ -1518,6 +1518,54 @@ async function applySchema(pool) {
       labeled_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
+  // /vt/ chatter index: which talent each hololive post mentions and what about. No post text.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content.vt_threads (
+      thread_no BIGINT PRIMARY KEY,
+      subject TEXT NULL,
+      symbol TEXT NULL,
+      last_modified BIGINT NOT NULL DEFAULT 0,
+      last_post_no BIGINT NOT NULL DEFAULT 0,
+      fetched_http_date TEXT NULL,
+      checked_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content.vt_mentions (
+      post_no BIGINT NOT NULL,
+      symbol TEXT NOT NULL,
+      thread_no BIGINT NOT NULL,
+      posted_at TIMESTAMPTZ NOT NULL,
+      via TEXT NOT NULL,
+      topic TEXT NULL,
+      confidence NUMERIC NULL,
+      classifier TEXT NOT NULL,
+      PRIMARY KEY (post_no, symbol)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS content_vt_mentions_time_idx ON content.vt_mentions (posted_at)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS content_vt_mentions_symbol_time_idx ON content.vt_mentions (symbol, posted_at)`);
+  // Article auto-tagging: which articles and news items have been judged, and what was added.
+  await pool.query(`
+    ALTER TABLE content.article_assets
+      ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'author'
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content.autotag_log (
+      kind TEXT NOT NULL,
+      ref_id BIGINT NOT NULL,
+      symbols TEXT[] NOT NULL DEFAULT '{}',
+      classifier TEXT NOT NULL,
+      judged_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (kind, ref_id)
+    )
+  `);
+  // Stream events in fair value: the day's event lift and what caused it.
+  await pool.query(`
+    ALTER TABLE market.channel_daily_snapshots
+      ADD COLUMN IF NOT EXISTS event_signal NUMERIC NULL,
+      ADD COLUMN IF NOT EXISTS event_kinds TEXT[] NULL
+  `);
   await applyGamesSchema(pool);
   await applyPredictionsSchema(pool);
 }

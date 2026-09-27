@@ -188,7 +188,8 @@ async function listAssetsForSettlement(client, sourceMarketDate) {
       s.view_count,
       s.video_count,
       s.fundamental_value_raw,
-      s.fundamental_value_smoothed
+      s.fundamental_value_smoothed,
+      s.event_kinds
     FROM market.market_assets a
     LEFT JOIN market.channel_daily_snapshots s
       ON s.youtube_channel_id = a.youtube_channel_id
@@ -322,6 +323,7 @@ function buildSettledAssetState(assetRow, previousState) {
     displayName: assetRow.display_name,
     snapshotId: assetRow.snapshot_id,
     snapshotDate: assetRow.snapshot_date,
+    eventKinds: Array.isArray(assetRow.event_kinds) && assetRow.event_kinds.length ? assetRow.event_kinds : null,
     fairValue,
     fairValueRaw,
     priorMidPrice: toNumber(priorMidPrice, 0) || null,
@@ -488,6 +490,8 @@ function buildDailyReport(marketDate, settledStates, previousStatesByAssetId, pr
       fair_value_change_pct:
         prevFairValue && prevFairValue > 0 ? roundMetric((state.fairValue - prevFairValue) / prevFairValue) : null,
       market_price: roundMetric(state.midOpen),
+      // Big streams that lifted this fair value (a 3D live, a new outfit...), for the report to name.
+      events: state.eventKinds ?? undefined,
       premium_discount_pct: roundMetric(state.premiumClosePct),
       premium_pct: roundMetric(state.premiumClosePct),
       emission: roundMetric(state.dailyEmission),

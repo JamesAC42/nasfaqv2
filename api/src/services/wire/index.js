@@ -10,6 +10,8 @@
 
 const crypto = require("node:crypto");
 const streams = require("./streams");
+const chatter = require("../chatter");
+const autotag = require("../autotag");
 
 const THUMB = (videoId) => `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 const WATCH = (videoId) => `https://www.youtube.com/watch?v=${videoId}`;
@@ -336,7 +338,39 @@ async function gameMoments(pool) {
   return { items: added };
 }
 
-const GENERATORS = { streamEvents, subscriberMilestones, viewerRecords, superchatLeader, marketMovers, gameMoments };
+// ── /vt/ chatter ───────────────────────────────────────────────────────────
+const CHATTER_TOPIC_BLURB = { stream: "Mostly about her streams.", music: "Mostly about her music.", collab: "Mostly about her collabs.", hype: "Mostly hype.", market: "Mostly about her stock." };
+
+async function chatterSpikes(pool) {
+  const summary = await chatter.getSummary(pool);
+  if (!summary.ready) return { items: 0, ready: false };
+  const { rows: assets } = await pool.query(`SELECT symbol, display_name FROM market.market_assets WHERE status = 'active'`);
+  const names = new Map(assets.map((row) => [row.symbol, row.display_name]));
+  const day = new Date().toISOString().slice(0, 10);
+  let added = 0;
+  for (const entry of summary.talents) {
+    if (!(entry.heat >= 3) || entry.posts_recent < 25 || !names.has(entry.symbol)) continue;
+    const name = names.get(entry.symbol);
+    added += await upsert(pool, {
+      kind: "chatter_spike",
+      dedupe_key: `chatter:${entry.symbol}:${day}`,
+      headline: pick(`${entry.symbol}${day}`, ["{name} is the talk of /vt/", "/vt/ can't stop talking about {name}", "All eyes on {name} in the threads"]).replace("{name}", name),
+      blurb: `${entry.posts_recent} posts in ${summary.recent_hours} hours, ${entry.heat.toFixed(1)}× the usual. ${CHATTER_TOPIC_BLURB[entry.topic] ?? ""}`.trim(),
+      symbols: [entry.symbol],
+      link_url: `/stocks/${entry.symbol}`,
+      importance: entry.heat >= 5 ? 3 : 2,
+      occurred_at: new Date(),
+      meta: { heat: entry.heat, posts: entry.posts_recent, topic: entry.topic },
+    });
+  }
+  return { items: added };
+}
+
+async function autotagArticles(pool) {
+  return autotag.runAutotag(pool);
+}
+
+const GENERATORS = { streamEvents, subscriberMilestones, viewerRecords, superchatLeader, marketMovers, gameMoments, chatterSpikes, autotagArticles };
 
 async function runWire(pool, logger = console) {
   const summary = {};
@@ -352,7 +386,7 @@ async function runWire(pool, logger = console) {
 }
 
 /** Recent items, most important and freshest first. */
-async function listWire(pool, { limit = 20, hours = 72 } = {}) {
+async function listWire(pool, { limit = 40, hours = 168 } = {}) {
   const { rows } = await pool.query(
     `
     SELECT id, kind, headline, blurb, symbols, image_url, link_url, importance, occurred_at, meta
@@ -361,7 +395,7 @@ async function listWire(pool, { limit = 20, hours = 72 } = {}) {
     ORDER BY (importance * 6 - EXTRACT(EPOCH FROM (now() - LEAST(occurred_at, now()))) / 3600) DESC, occurred_at DESC
     LIMIT $2
   `,
-    [String(Math.min(24 * 14, Math.max(1, Number(hours) || 72))), Math.min(60, Math.max(1, Number(limit) || 20))]
+    [String(Math.min(24 * 14, Math.max(1, Number(hours) || 168))), Math.min(60, Math.max(1, Number(limit) || 40))]
   );
   return rows.map((row) => ({
     id: Number(row.id),

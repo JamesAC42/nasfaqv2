@@ -289,6 +289,11 @@ async function runScheduledCycle(pool, schedulerConfig, logger = console, redis 
     });
     void publishMarketStatusEvent(redis, settlingStatus);
 
+    // Big streams count toward fair value: make sure yesterday's are labeled before pricing.
+    await require("./wire/streams")
+      .labelRecentStreams(pool, { hours: 96 })
+      .catch((error) => console.warn("stream labels before settlement failed", String(error?.message || error)));
+
     const fundamentalsResult = await fundamentals.recalculateFundamentals(pool, {
       from,
       to,
