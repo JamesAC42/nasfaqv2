@@ -4,16 +4,14 @@ const { publishMarketStatusEvent } = require("../services/marketEvents");
 const fundamentals = require("../services/fundamentals");
 const marketAdjustments = require("../services/marketAdjustments");
 const marketAdmin = require("../services/marketAdmin");
+const marketRebuild = require("../services/marketRebuild");
 const marketState = require("../services/marketState");
 const settlement = require("../services/settlement");
 const trading = require("../services/trading");
 const { requireAdmin } = require("../userContext");
 const {
-  acquireSchedulerLock,
   computeNextScheduledAt,
-  getCurrentDateKey,
   loadSchedulerConfig,
-  releaseSchedulerLock,
   runScheduledCycle,
 } = require("../services/marketScheduler");
 
@@ -261,94 +259,63 @@ router.post("/live-orders/apply-due", async (req, res, next) => {
   }
 });
 
+// The rebuild takes a minute or more on a year of data, longer than a proxied web request may stay
+// open, so it runs in the background: POST starts it (202), GET /rebuild-full reports progress.
+// One rebuild at a time per API process; the scheduler lock also keeps it off other processes.
+let rebuildJob = null;
+
+router.get("/rebuild-full", (req, res) => {
+  res.json({ job: rebuildJob });
+});
+
 router.post("/rebuild-full", async (req, res, next) => {
-  const lockClient = await req.ctx.pool.connect();
   try {
     requireAdmin(req);
     if (!hasConfirmation(req, "rebuild")) return res.status(400).json({ error: "invalid_confirmation" });
-    const locked = await acquireSchedulerLock(lockClient);
-    if (!locked) {
-      return res.status(409).json({ error: "scheduler_running" });
-    }
+    if (rebuildJob?.status === "running") return res.status(409).json({ error: "rebuild_running", job: rebuildJob });
 
     const activeOnly = req.body?.active_only === undefined ? true : Boolean(req.body.active_only);
     const fillMissingDates = req.body?.fill_missing_dates === undefined ? true : Boolean(req.body.fill_missing_dates);
     const version = Number.parseInt(String(req.body?.version ?? "1"), 10);
     if (!Number.isFinite(version) || version < 1) return res.status(400).json({ error: "invalid_version" });
 
-    const range = await marketAdmin.getHistoricalMarketDateRange(req.ctx.pool, { activeOnly });
-    if (!range.from || !range.to) {
-      return res.status(409).json({ error: "no_historical_data" });
-    }
+    const job = {
+      id: Date.now(),
+      status: "running",
+      started_at: new Date().toISOString(),
+      finished_at: null,
+      progress: { phase: "starting", done: 0, total: null, market_date: null },
+      result: null,
+      error: null,
+    };
+    rebuildJob = job;
+    const { pool, redis } = req.ctx;
+    marketRebuild
+      .runFullRebuild({ pool, redis }, { activeOnly, fillMissingDates, version }, (progress) => {
+        job.progress = progress;
+      })
+      .then((result) => {
+        job.status = "completed";
+        job.result = {
+          range: result.range,
+          fundamentals: { snapshots_processed: result.fundamentals?.snapshots_processed ?? null, failed_snapshots: result.fundamentals?.failed_snapshots ?? null },
+          settlement: { settled_count: result.settlement.settled_count, skipped_dates: result.settlement.skipped_dates.slice(0, 20) },
+          adjustments_applied: result.adjustments_applied,
+        };
+      })
+      .catch((error) => {
+        job.status = "failed";
+        job.error = String(error?.code || error?.message || error);
+        // eslint-disable-next-line no-console
+        console.error("market rebuild failed:", error);
+      })
+      .finally(() => {
+        job.finished_at = new Date().toISOString();
+      });
 
-    const schedulerConfig = loadSchedulerConfig();
-    const latestReadyDate = getCurrentDateKey(new Date(), schedulerConfig.timeZone);
-    if (!latestReadyDate || latestReadyDate < range.from) {
-      return res.status(409).json({ error: "no_ready_historical_data" });
-    }
-
-    const bootstrap = await marketAdmin.bootstrapAssets(req.ctx.pool, {
-      activeOnly,
-      syncExisting: true,
-    });
-    const fundamentalsResult = await fundamentals.recalculateFundamentals(req.ctx.pool, {
-      from: range.from,
-      to: latestReadyDate,
-      version,
-      activeOnly,
-      fillMissingDates,
-    });
-    // Each day's adjustments are replayed right after it settles; without them every day opens at
-    // the previous close and prices (and the indexes built on them) never move.
-    const rebuildStartedAt = new Date();
-    let adjustmentsApplied = 0;
-    const settlementResult = await settlement.settleMarketRange(req.ctx.pool, {
-      from: range.from,
-      to: latestReadyDate,
-      force: true,
-      redis: null,
-      afterDay: async (day) => {
-        const replay = await marketAdjustments.replayAdjustmentsForDate(req.ctx.pool, { marketDate: day.market_date, until: rebuildStartedAt });
-        adjustmentsApplied += replay.applied_count;
-      },
-    });
-    const latestSettled = settlementResult.settled_dates[settlementResult.settled_dates.length - 1]?.market_date || null;
-    const status = await marketState.setMarketOpen(lockClient, {
-      nextScheduledSettlementAt: computeNextScheduledAt(new Date(), schedulerConfig).toISOString(),
-      lastSettlementMarketDate: latestSettled,
-      clearError: true,
-    });
-    void publishMarketStatusEvent(req.ctx.redis, status);
-    await invalidateMarketAssetsCache(req.ctx.redis);
-
-    res.json({
-      ok: true,
-      range: {
-        from: range.from,
-        to: latestReadyDate,
-      },
-      bootstrap,
-      fundamentals: fundamentalsResult,
-      settlement: settlementResult,
-      adjustments_applied: adjustmentsApplied,
-    });
+    res.status(202).json({ job });
   } catch (e) {
-    if (e?.code === "scheduler_running") {
-      return res.status(409).json({ error: "scheduler_running" });
-    }
-    if (e?.code === "settlement_already_completed") {
-      return res.status(409).json({ error: "settlement_already_completed" });
-    }
-    if (e?.code === "missing_completed_snapshot") {
-      return res.status(409).json({ error: "missing_completed_snapshot" });
-    }
-    if (e?.code === "invalid_fair_value") {
-      return res.status(409).json({ error: "invalid_fair_value" });
-    }
     next(e);
-  } finally {
-    await releaseSchedulerLock(lockClient);
-    lockClient.release();
   }
 });
 
