@@ -26,6 +26,7 @@ import {
   slotFor,
   typeIndex,
   typeLabel,
+  TYPE_WHERE,
   type LockerPrize,
 } from "@/app/components/games/locker/cosmetics";
 import { TrophyShelf } from "@/app/components/games/locker/trophy-shelf";
@@ -283,6 +284,7 @@ function MyLocker({ username, pictureUrl, color, aside }: { username: string; pi
               <small>
                 {group.owned.length}/{group.owned.length + group.missing.length}
               </small>
+              {TYPE_WHERE[group.type] ? <em className={styles.groupWhere}>{TYPE_WHERE[group.type]}</em> : null}
             </h3>
             <ul className={styles.grid}>
               {group.owned.map(tile)}

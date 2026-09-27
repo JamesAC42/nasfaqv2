@@ -1,5 +1,6 @@
 const VALID_SCOPE_TYPES = new Set(["asset", "unit", "market", "meta"]);
 const VALID_POSTING_POLICIES = new Set(["authenticated", "admins_only", "read_only"]);
+const { equippedJsonSql, normalizeEquipped } = require("./services/games/equipped");
 const { profilePictureUrlSql } = require("./profilePictures");
 const reactions = require("./services/games/reactions");
 const VALID_MESSAGE_STATUSES = new Set(["active", "deleted", "moderated"]);
@@ -193,6 +194,7 @@ function mapMessageRow(row, viewerUserId = null) {
           username: row.author_username,
           profile_picture_url: row.author_profile_picture_url || null,
           profile_color: row.author_profile_color || null,
+          equipped: normalizeEquipped(row.author_equipped),
           oshi_coin: row.author_oshi_coin_id
             ? {
                 id: Number(row.author_oshi_coin_id),
@@ -348,6 +350,15 @@ async function syncAssetChannels(pool) {
       updated_at = now()
   `
   );
+  // Rooms are keyed by asset id: when a reset or a prod pull re-creates an asset under a new id, the
+  // old room would show up as a second copy of the talent. Close rooms whose asset no longer exists.
+  await pool.query(`
+    UPDATE chat.channels c
+    SET is_active = false, updated_at = now()
+    WHERE c.scope_type = 'asset'
+      AND c.is_active
+      AND NOT EXISTS (SELECT 1 FROM market.market_assets a WHERE a.id::text = c.scope_key)
+  `);
 }
 
 async function syncUnitChannels(pool) {
@@ -684,7 +695,8 @@ async function listMessages(pool, channelId, { viewerUserId = null, beforeMessag
       ma.symbol AS author_oshi_coin_symbol,
       ma.display_name AS author_oshi_coin_display_name,
       yc.icon AS author_oshi_coin_icon,
-      yc.color AS author_oshi_coin_color
+      yc.color AS author_oshi_coin_color,
+      ${equippedJsonSql("m.author_id")} AS author_equipped
     FROM channel_messages m
     JOIN chat.channels c
       ON c.id = m.channel_id
@@ -745,7 +757,8 @@ async function getMessageById(pool, messageId, { viewerUserId = null, includeIna
       ma.symbol AS author_oshi_coin_symbol,
       ma.display_name AS author_oshi_coin_display_name,
       yc.icon AS author_oshi_coin_icon,
-      yc.color AS author_oshi_coin_color
+      yc.color AS author_oshi_coin_color,
+      ${equippedJsonSql("m.author_id")} AS author_equipped
     FROM chat.messages m
     JOIN chat.channels c
       ON c.id = m.channel_id

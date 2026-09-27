@@ -1,0 +1,57 @@
+@use "../../styles/mixins" as *;
+
+.chip {
+  --sz: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: none;
+  vertical-align: middle;
+}
+
+.icon {
+  display: inline-grid;
+  place-items: center;
+  width: var(--sz);
+  height: var(--sz);
+  color: var(--tint);
+  font-size: calc(var(--sz) * 0.7);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  svg {
+    max-width: 100%;
+    max-height: 100%;
+  }
+}
+
+// On the profile header: a little tag with the name.
+.named {
+  padding: 0.15rem 0.5rem 0.15rem 0.3rem;
+  border: 1px solid color-mix(in srgb, var(--tint) 50%, transparent);
+  background: color-mix(in srgb, var(--tint) 10%, transparent);
+  font-size: 0.75rem;
+  color: var(--text);
+}
+
+.chip[data-rarity="legendary"] .icon,
+.chip[data-rarity="epic"] .icon {
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--tint) 60%, transparent));
+}
+
+.name {
+  white-space: nowrap;
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

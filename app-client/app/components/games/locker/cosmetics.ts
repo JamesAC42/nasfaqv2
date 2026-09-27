@@ -15,6 +15,16 @@ export const TYPE_LABEL: Record<string, string> = {
   portfolio_theme: "Themes",
 };
 
+/** Where an equipped cosmetic of each type shows up, so equipping one visibly does something. */
+export const TYPE_WHERE: Record<string, string> = {
+  hat: "On your avatar: chat, leaderboard, profile",
+  profile_frame: "Around your avatar: chat, leaderboard, profile",
+  profile_badge: "On your profile and the leaderboard",
+  chat_flair: "Next to your name in chat and on your profile",
+  item: "Held next to your name in chat and on your profile",
+  portfolio_theme: "Not shown anywhere yet",
+};
+
 export const COSMETIC_RARITIES = ["common", "rare", "epic", "legendary"] as const;
 
 /** Same ladder as the card rarities: steel, blue, violet, gold. */

@@ -190,8 +190,8 @@
 
 // The locked look: the piece is there, but behind frosted glass.
 .veiled {
-  filter: blur(12px) grayscale(0.6) brightness(0.62) contrast(1.05);
-  transform: scale(1.08);
+  filter: blur(22px) grayscale(1) brightness(0.36) contrast(1.05);
+  transform: scale(1.15);
 }
 
 .veil {
@@ -812,8 +812,8 @@
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 
   .veiled {
-    filter: blur(8px) grayscale(1) brightness(0.4);
-    transform: none;
+    filter: blur(12px) grayscale(1) brightness(0.3);
+    transform: scale(1.1);
   }
 }
 

@@ -56,3 +56,10 @@ fixes:
 
 later:
 - card exchange: wishlists + "a card you want was listed" alerts; admin view for lopsided trades between new accounts
+
+later (from the art + polish pass, Sep 27):
+- market reset/rebuild: only rebuild history back to 2026-01-01, not a full year (add a start date to scripts/rebuild-market.js and the admin rebuild)
+- art to the CDN: upload public/art (webp + the slim manifest) to images.nasfaq.biz/art and set NEXT_PUBLIC_ART_BASE_URL + NEXT_PUBLIC_ART_MANIFEST_URL; long cache on the hashed files, short cache on manifest.json; a small upload step after build.py
+- capsule prize images: several prizes point at images.nasfaq.biz/gachaprizes/*.png that may not exist; upload them (the site falls back to drawn glyphs meanwhile)
+- portfolio_theme cosmetics don't do anything yet
+- _shared scene art is gone; ~20 backdrop/spot slots show the quiet halftone panel (arcade/gacha/predictions/how-to heroes, felt, table mat, trophy case, login pitch). Replace any that feel empty with drawn versions or talent art

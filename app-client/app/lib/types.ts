@@ -46,6 +46,18 @@ export type ChatChannel = {
   updated_at: string;
 };
 
+/** One equipped capsule cosmetic (see api/src/services/games/equipped.js). */
+export type EquippedCosmetic = {
+  key: string;
+  type: string;
+  rarity: string;
+  display_name: string;
+  image_url: string | null;
+};
+
+/** Everything a player has equipped, keyed by slot: hat, profile_frame, profile_badge, chat_flair, item… */
+export type Equipped = Partial<Record<string, EquippedCosmetic>>;
+
 export type ChatMessage = {
   id: number;
   channel_id: number;
@@ -61,6 +73,7 @@ export type ChatMessage = {
     username: string;
     profile_picture_url: string | null;
     profile_color: string | null;
+    equipped?: Equipped;
     oshi_coin: {
       id: number;
       symbol: string;
@@ -1170,6 +1183,7 @@ export type LeaderboardEntry = {
   username: string;
   profile_picture_url: string | null;
   profile_color: string | null;
+  equipped?: Equipped;
   equipped_hat: {
     cosmetic_key: string;
     rarity: string;
@@ -1540,6 +1554,7 @@ export type ProfileBundle = {
     bio: string | null;
     profile_picture_url: string | null;
     profile_color: string | null;
+    equipped: Equipped;
     is_admin: boolean;
     permissions: {
       can_manage_assets: boolean;

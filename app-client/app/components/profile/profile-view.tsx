@@ -1,5 +1,6 @@
 "use client";
 
+import { CosmeticChip } from "@/app/components/common/cosmetic-chip";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -159,7 +160,7 @@ export function ProfileView({ username }: { username?: string | null }) {
           {oshi ? <ArtSlot kind="keyart" symbol={oshi.symbol} icon={oshi.icon} accent={oshiAsset ? talentAccent(oshiAsset.color, theme) : undefined} width={480} className={styles.bannerArt} /> : null}
           <div className={styles.idRow}>
             <button type="button" className={styles.avatarBtn} onClick={() => isSelf && setModal("picture")} disabled={!isSelf} aria-label={isSelf ? "Change your icon" : undefined} title={isSelf ? "Change your icon" : undefined}>
-              <PlayerAvatar username={profile.username} pictureUrl={profile.profile_picture_url} color={color} size={120} className={styles.avatar} />
+              <PlayerAvatar username={profile.username} pictureUrl={profile.profile_picture_url} color={color} equipped={profile.equipped} size={120} className={styles.avatar} />
               {isSelf ? <span className={styles.avatarEdit}>CHANGE</span> : null}
             </button>
             <div className={styles.id}>
@@ -173,6 +174,9 @@ export function ProfileView({ username }: { username?: string | null }) {
                 ) : null}
                 <span>Joined {new Date(profile.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
                 {profile.is_admin ? <span className={styles.tag}>ADMIN</span> : null}
+                <CosmeticChip cosmetic={profile.equipped.profile_badge} named />
+                <CosmeticChip cosmetic={profile.equipped.item} named />
+                <CosmeticChip cosmetic={profile.equipped.chat_flair} named />
                 {viewer.is_rivaled_by_profile ? <span className={styles.tagWarn}>RIVALS YOU</span> : null}
               </div>
               {profile.bio ? <p className={styles.bio}>{profile.bio}</p> : null}

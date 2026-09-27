@@ -1,5 +1,6 @@
 "use client";
 
+import { CosmeticChip } from "@/app/components/common/cosmetic-chip";
 import { ReactionFace } from "@/app/components/common/reaction-face";
 import { parseSticker, stickerPreview } from "@/app/lib/stickers";
 import Link from "next/link";
@@ -63,8 +64,18 @@ function buildRooms(channels: ChatChannel[], assets: MarketAsset[]): Room[] {
       rooms.push({ channel, section: "asset", key: channel.channel_key, label: channel.metadata.display_name || asset?.display_name || channel.display_name, short: symbol ?? "CHAT", symbol, icon: channel.metadata.icon || asset?.icon || null, subtitle: channel.metadata.unit || asset?.unit || null, unit: channel.metadata.unit || asset?.unit || null });
     }
   }
+  // One room per talent: if an old room for the same ticker is still around (its asset was
+  // re-created under a new id), keep the one tied to a listed asset.
+  const best = new Map<string, Room>();
+  for (const room of rooms) {
+    if (room.section !== "asset" || !room.symbol) continue;
+    const current = best.get(room.symbol);
+    const listed = (candidate: Room) => byId.has(Number(candidate.channel.metadata.asset_id));
+    if (!current || (!listed(current) && listed(room))) best.set(room.symbol, room);
+  }
+  const deduped = rooms.filter((room) => room.section !== "asset" || !room.symbol || best.get(room.symbol) === room);
   const order = { global: 0, unit: 1, asset: 2 };
-  return rooms.sort((a, b) => order[a.section] - order[b.section] || a.short.localeCompare(b.short));
+  return deduped.sort((a, b) => order[a.section] - order[b.section] || a.short.localeCompare(b.short));
 }
 
 function readPins(): string[] {
@@ -662,7 +673,7 @@ function Messages({ messages, worth, me, options }: { messages: ChatMessage[]; w
                 <span />
               ) : author ? (
                 <Link href={`/profile/${encodeURIComponent(author.username)}`} className={styles.msgAvatar} tabIndex={-1} aria-hidden="true">
-                  <PlayerAvatar username={author.username} pictureUrl={author.profile_picture_url} color={author.profile_color} size={28} />
+                  <PlayerAvatar username={author.username} pictureUrl={author.profile_picture_url} color={author.profile_color} equipped={author.equipped} size={28} />
                 </Link>
               ) : (
                 <span />
@@ -678,6 +689,8 @@ function Messages({ messages, worth, me, options }: { messages: ChatMessage[]; w
                       <span className={styles.msgName}>unknown</span>
                     )}
                     {author?.oshi_coin ? <Oshimark icon={author.oshi_coin.icon} symbol={author.oshi_coin.symbol} size={14} /> : null}
+                    <CosmeticChip cosmetic={author?.equipped?.chat_flair} size={16} />
+                    <CosmeticChip cosmetic={author?.equipped?.item} size={16} />
                     {rank && rank.rank > 0 ? (
                       <span className={`${styles.rank} ${rank.rank <= 3 ? styles.rankTop : rank.rank <= 10 ? styles.rankTen : ""}`} title={`Net worth ${money(rank.total_equity)}`}>
                         #{rank.rank.toLocaleString("en-US")} <span>{money(rank.total_equity, { compact: true })}</span>

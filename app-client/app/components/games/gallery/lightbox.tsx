@@ -31,7 +31,6 @@ type Props = {
 };
 
 const noopSubscribe = () => () => {};
-const DEV = process.env.NODE_ENV !== "production";
 
 export function Lightbox(props: Props) {
   const mounted = useSyncExternalStore(
@@ -138,7 +137,6 @@ function Viewer({ items, index, onIndex, onClose }: Props & { index: number }) {
             </span>
             <b>{item.title}</b>
             {item.caption ? <span className={styles.line}>{item.caption}</span> : null}
-            {DEV ? <code className={styles.id}>{item.artId}</code> : null}
           </figcaption>
         </figure>
       </div>

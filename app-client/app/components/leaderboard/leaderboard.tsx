@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { Medal, type MedalTier } from "@/app/components/common/medal";
+import { CosmeticChip } from "@/app/components/common/cosmetic-chip";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { OshiboardTab } from "@/app/components/leaderboard/oshiboard-tab";
@@ -71,10 +72,13 @@ function windowChange(entry: LeaderboardEntry, window: LeaderboardWindow) {
 
 function Badges({ entry }: { entry: LeaderboardEntry }) {
   const chips = entry.achievements.length ? entry.achievements.map((a) => ({ key: a.key, name: a.name, color: a.badge_color, description: a.description })) : entry.badges.map((name) => ({ key: name, name, color: null, description: null }));
-  if (!chips.length) return <span className={styles.noBadge} title="No badges yet" />;
+  const worn = entry.equipped?.profile_badge ?? null;
+  if (!chips.length && !worn) return <span className={styles.noBadge} title="No badges yet" />;
   return (
     <span className={styles.badges}>
-      {chips.slice(0, 4).map((chip) => (
+      {/* The badge they equipped from the capsule leads, then their achievements. */}
+      <CosmeticChip cosmetic={worn} size={18} />
+      {chips.slice(0, worn ? 3 : 4).map((chip) => (
         <i key={chip.key} style={{ "--bc": chip.color || "var(--blue)" } as React.CSSProperties} title={chip.description ? `${chip.name}: ${chip.description}` : chip.name}>
           {chip.name.slice(0, 1)}
         </i>
@@ -179,7 +183,7 @@ function PlayersTab() {
                 {MEDALS[entry.rank] ? (
                   <SceneArt slot={MEDALS[entry.rank]} width={48} className={styles.stepMedal} fallback={<Medal tier={TIER[entry.rank]} mark={entry.rank} />} />
                 ) : null}
-                <PlayerAvatar username={entry.username} pictureUrl={entry.profile_picture_url} color={entry.profile_color} hat={entry.equipped_hat} size={entry.rank === 1 ? 96 : 80} className={styles.stepAvatar} />
+                <PlayerAvatar username={entry.username} pictureUrl={entry.profile_picture_url} color={entry.profile_color} hat={entry.equipped_hat} equipped={entry.equipped} size={entry.rank === 1 ? 96 : 80} className={styles.stepAvatar} />
                 <span className={styles.stepBody}>
                   <span className={styles.stepRank}>{entry.rank}</span>
                   <span className={styles.stepName}>
@@ -268,7 +272,7 @@ function PlayersTab() {
                   <td className={`${styles.l} ${styles.rank}`}>{entry.rank}</td>
                   <td className={styles.l}>
                     <Link href={`/profile/${encodeURIComponent(entry.username)}`} className={styles.who}>
-                      <PlayerAvatar username={entry.username} pictureUrl={entry.profile_picture_url} color={entry.profile_color} hat={entry.equipped_hat} size={26} />
+                      <PlayerAvatar username={entry.username} pictureUrl={entry.profile_picture_url} color={entry.profile_color} hat={entry.equipped_hat} equipped={entry.equipped} size={26} />
                       <b>{entry.username}</b>
                       {entry.is_me ? <span className={styles.tagMe}>YOU</span> : entry.is_friend ? <span className={styles.tag}>FRIEND</span> : entry.is_rival ? <span className={styles.tagRival}>RIVAL</span> : null}
                     </Link>

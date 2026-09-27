@@ -1,3 +1,4 @@
+const { loadEquipped } = require("./services/games/equipped");
 const articleDb = require("./articleDb");
 const netWorth = require("./services/netWorth");
 const achievements = require("./services/achievements");
@@ -442,6 +443,7 @@ async function getProfileBundle(pool, {
     gamesInventory.listUserGachaBadges(pool, profileUser.id),
     gamesInventory.getTotalGachaSpentCash(pool, profileUser.id),
   ]);
+  const equipped = (await loadEquipped(pool, [profileUser.id])).get(Number(profileUser.id)) ?? {};
   const leaderboardEntry = leaderboardEntries[0] || null;
 
   const pending = isSelf
@@ -460,6 +462,7 @@ async function getProfileBundle(pool, {
       bio: profileUser.bio,
       profile_picture_url: profileUser.profile_picture_url,
       profile_color: profileUser.profile_color,
+      equipped,
       is_admin: Boolean(profileUser.is_admin),
       permissions: {
         can_manage_assets: Boolean(profileUser.can_manage_assets),

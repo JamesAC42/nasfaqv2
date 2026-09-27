@@ -51,7 +51,9 @@
   }
 }
 
-.keyart {
+// Doubled up so it beats ArtSlot's own `.slot { position: relative }` whichever sheet loads last:
+// the key art sits on the right, behind the card fan and offset from it.
+.backdrop .keyart {
   position: absolute;
   right: 12%;
   bottom: -8%;

@@ -495,10 +495,20 @@
     background: #0b0d13;
   }
 
+  // Not yours yet: only a dark, blurred shape of the art shows through, under a halftone screen.
   .art,
-  .sheen,
   .glare {
-    filter: grayscale(1) brightness(0.32) contrast(1.2);
+    filter: grayscale(1) brightness(0.24) contrast(1.1) blur(3.2cqi);
+    transform: scale(1.12);
+  }
+
+  .face::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background: radial-gradient(circle, rgba(167, 174, 190, 0.16) 0 0.9cqi, transparent 1cqi) 0 0 / 4.5cqi 4.5cqi;
   }
 
   .sheen {

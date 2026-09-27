@@ -1,4 +1,5 @@
 const DEFAULT_STARTER_CASH = 10000;
+const { loadEquipped } = require("./games/equipped");
 const { profilePictureUrlSql } = require("../profilePictures");
 
 function getStarterCash() {
@@ -149,6 +150,7 @@ function mapLeaderboardEntry(row, {
       : null,
     achievements: decoration?.achievements || [],
     equipped_hat: decoration?.equipped_hat || null,
+    equipped: decoration?.equipped || {},
     streaks: decoration?.streaks || {
       current_streak_days: 0,
       longest_streak_days: 0,
@@ -300,6 +302,12 @@ async function loadLeaderboardDecorations(pool, userIds) {
       longest_streak_days: toInt(row.longest_streak_days, 0),
       last_trade_day: row.last_trade_day ? String(row.last_trade_day) : null,
     };
+  }
+
+  // Everything equipped (frame, badge, flair, item as well as the hat), for avatars and badges.
+  const equipped = await loadEquipped(pool, safeUserIds);
+  for (const [userId, slots] of equipped) {
+    if (decorationByUserId.has(userId)) decorationByUserId.get(userId).equipped = slots;
   }
 
   return decorationByUserId;
@@ -926,6 +934,7 @@ async function listLeaderboardBundle(pool, { viewerUserId = null, scope = "globa
         profile_picture_url: entry.profile_picture_url,
         profile_color: entry.profile_color,
         equipped_hat: entry.equipped_hat,
+        equipped: entry.equipped,
       };
     });
 

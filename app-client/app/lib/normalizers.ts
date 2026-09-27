@@ -1,6 +1,7 @@
 import {
   ARTICLE_COMMENT_MOODS,
   type ArticleAsset,
+  type Equipped,
   type ArticleAuthor,
   type ArticleComment,
   type ArticleDetail,
@@ -1153,6 +1154,7 @@ export function normalizeChatMessage(value: Record<string, unknown>): ChatMessag
           username: String(author.username || ""),
           profile_picture_url: author.profile_picture_url ? String(author.profile_picture_url) : null,
           profile_color: author.profile_color ? String(author.profile_color) : null,
+          equipped: normalizeEquipped(author.equipped),
           oshi_coin:
             author.oshi_coin && typeof author.oshi_coin === "object"
               ? {
@@ -1638,6 +1640,24 @@ export function normalizeLivestreams(rows: Array<Record<string, unknown>>): Live
   }));
 }
 
+/** Equipped capsule cosmetics keyed by slot (hat, profile_frame, profile_badge, chat_flair, item…). */
+export function normalizeEquipped(value: unknown): Equipped {
+  if (!value || typeof value !== "object") return {};
+  const out: Equipped = {};
+  for (const [slot, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (!raw || typeof raw !== "object") continue;
+    const entry = raw as Record<string, unknown>;
+    out[slot] = {
+      key: String(entry.key || ""),
+      type: String(entry.type || slot),
+      rarity: String(entry.rarity || "common"),
+      display_name: String(entry.display_name || entry.key || slot),
+      image_url: entry.image_url ? String(entry.image_url) : null,
+    };
+  }
+  return out;
+}
+
 export function normalizeLeaderboard(rows: Array<Record<string, unknown>>): LeaderboardEntry[] {
   return rows.map((row, index) => ({
     user_id: Number(row.user_id || row.id || 0),
@@ -1645,6 +1665,7 @@ export function normalizeLeaderboard(rows: Array<Record<string, unknown>>): Lead
     username: String(row.username || row.label || "user"),
     profile_picture_url: row.profile_picture_url ? String(row.profile_picture_url) : null,
     profile_color: row.profile_color ? String(row.profile_color) : null,
+    equipped: normalizeEquipped(row.equipped),
     equipped_hat:
       row.equipped_hat && typeof row.equipped_hat === "object"
         ? {
@@ -2201,6 +2222,7 @@ export function normalizeProfileBundle(value: Record<string, unknown>): ProfileB
       bio: profile?.bio ? String(profile.bio) : null,
       profile_picture_url: profile?.profile_picture_url ? String(profile.profile_picture_url) : null,
       profile_color: profile?.profile_color ? String(profile.profile_color) : null,
+      equipped: normalizeEquipped(profile?.equipped),
       is_admin: Boolean(profile?.is_admin),
       permissions: {
         can_manage_assets: Boolean(profile?.permissions && typeof profile.permissions === "object" && (profile.permissions as Record<string, unknown>).can_manage_assets),
