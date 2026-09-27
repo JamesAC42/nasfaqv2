@@ -1,5 +1,6 @@
 "use client";
 
+import { TradingPausedBanner } from "@/app/components/common/trading-paused-banner";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, type ReactNode } from "react";
@@ -37,6 +38,7 @@ export function MarketHub({ tab, children }: { tab: MarketTab; children: ReactNo
   const marketIndexes = useMarketStore((state) => state.marketIndexes);
   const fetchMarketIndexes = useMarketStore((state) => state.fetchMarketIndexes);
   const hub = useHubStore((state) => state.hub);
+  const paused = useMarketStore((state) => state.marketStatus?.trading_status === "manual_closed");
 
   useEffect(() => {
     void fetchMarketIndexes();
@@ -109,13 +111,18 @@ export function MarketHub({ tab, children }: { tab: MarketTab; children: ReactNo
           </div>
           <div className={ui.tabState} suppressHydrationWarning>
             {hub?.status?.current_market_date ? <span>MARKET DAY <b>{shortDate(hub.status.current_market_date)}</b></span> : null}
-            {clock ? (
+            {paused ? (
+              <span className={ui.batch}>
+                BATCHES <b>HELD · TRADING PAUSED</b>
+              </span>
+            ) : clock ? (
               <span className={ui.batch}>
                 NEXT BATCH <b>{formatEtTime(clock.nextBatchAt)} · {formatCountdown(clock.secondsToNextBatch, { withHours: false })}</b>
               </span>
             ) : null}
           </div>
         </nav>
+        <TradingPausedBanner className={ui.paused} />
         <div className={ui.pane}>{children}</div>
       </div>
     </SiteShell>

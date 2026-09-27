@@ -101,6 +101,7 @@ function Kpis({ trades }: { trades: MarketHubTrade[] }) {
 function Queue() {
   const now = useNow();
   const assets = useMarketStore((state) => state.assets);
+  const paused = useMarketStore((state) => state.marketStatus?.trading_status === "manual_closed");
   const liveOrders = useHubStore((state) => state.liveOrders);
   const lastFlash = useHubStore((state) => state.lastFlash);
   const bySymbol = useAssetMap();
@@ -168,11 +169,11 @@ function Queue() {
       <div className={styles.qHead} suppressHydrationWarning>
         <div className={styles.when}>
           <small>NEXT BATCH</small>
-          {executeAt ? `${formatEtTime(executeAt)} ET` : "--:--"}
+          {paused ? "HELD" : executeAt ? `${formatEtTime(executeAt)} ET` : "--:--"}
         </div>
         <div className={styles.cnt}>
           <small>LANDS IN</small>
-          {formatCountdown(secondsLeft, { withHours: false })}
+          {paused ? "on resume" : formatCountdown(secondsLeft, { withHours: false })}
         </div>
         <div className={styles.pr}>
           <div className={ui.pressure}>
@@ -872,7 +873,7 @@ function Heartbeat() {
       <div className={styles.hst} suppressHydrationWarning>
         <div>
           <span>STATUS</span>
-          <b className={open ? ui.up : ui.down}>{open ? "OPEN" : (status?.trading_status ?? "closed").toUpperCase()}</b>
+          <b className={open ? ui.up : ui.down}>{open ? "OPEN" : status?.trading_status === "manual_closed" ? "PAUSED" : (status?.trading_status ?? "closed").toUpperCase()}</b>
           <em>{status?.trading_message || "Trading session operating normally."}</em>
         </div>
         <div>

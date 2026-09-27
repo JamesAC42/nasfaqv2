@@ -171,6 +171,16 @@
   }
 }
 
+// "Trading paused" banner between the tabs and the pane.
+.paused {
+  border-top: 0;
+
+  @include phone {
+    border-inline: 0;
+    border-left: 3px solid var(--warn);
+  }
+}
+
 .pane {
   border: 1px solid var(--rule);
   border-top: 0;

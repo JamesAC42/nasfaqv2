@@ -20,6 +20,7 @@ import { useLeaderboardStore } from "@/app/stores/leaderboard-store";
 import { useLivestreamStore } from "@/app/stores/livestream-store";
 import { useOpenStream } from "@/app/stores/stream-store";
 import { previewOf } from "@/app/lib/streams";
+import { TradingPausedBanner } from "@/app/components/common/trading-paused-banner";
 import { useMarketStore } from "@/app/stores/market-store";
 import { markSeries, UNIT_ORDER, unitLabel, unitName } from "@/app/lib/market-units";
 import { useNewsStore } from "@/app/stores/news-store";
@@ -531,6 +532,7 @@ export function FrontPage() {
     <SiteShell>
       <div className={styles.page}>
         <Masthead assets={assets} />
+        <TradingPausedBanner className={styles.paused} />
         <NewbieStrip />
         <FrontNews items={newsItems} isLoading={isLoadingNews} />
         <SettlementReport assets={assets} />
