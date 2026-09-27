@@ -710,6 +710,8 @@ async function main() {
   }
   // The card exchange closes auctions and expires listings and trade offers on its own clock.
   require("./services/games/exchange").startExchangeScheduler(pool, console);
+  // The Wire posts automatic headlines every 10 minutes (stream events judged by Jev when JEV_API_KEY is set).
+  require("./services/wire").startWireScheduler(pool, console);
 }
 
 main().catch((e) => {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { SceneArt } from "@/app/components/common/scene-art";
@@ -11,7 +11,7 @@ import { SiteShell } from "@/app/components/layout/site-shell";
 import { MARKET_TIME_ZONE } from "@/app/lib/market-clock";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct, timeAgo, toneOf } from "@/app/lib/time";
-import type { MarketAsset, NewsItem, ReportRow } from "@/app/lib/types";
+import type { MarketAsset, NewsItem, ReportRow, WireItem } from "@/app/lib/types";
 import { useLocalFlag } from "@/app/lib/use-local-flag";
 import { threadLines, useThreadPosts } from "@/app/lib/use-thread";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -31,7 +31,48 @@ import styles from "@/app/components/home/front-page.module.scss";
 
 
 function newsHref(item: NewsItem) {
+  if (item.source === "wire" && item.url) return item.url;
   return item.article_slug ? `/articles/${encodeURIComponent(item.article_slug)}` : "/articles?type=news";
+}
+
+/** Internal stories route through Next; Wire items can point at YouTube and open in a new tab. */
+function StoryLink({ href, className, children }: { href: string; className?: string; children: ReactNode }) {
+  if (/^https?:\/\//.test(href)) {
+    return (
+      <a href={href} className={className} target="_blank" rel="noopener noreferrer">
+        {children}
+      </a>
+    );
+  }
+  return (
+    <Link href={href} className={className}>
+      {children}
+    </Link>
+  );
+}
+
+/** "3h ago", or "in 40m" for a Wire story about a stream that hasn't started. */
+function storyWhen(item: NewsItem, now: number) {
+  const at = item.published_at ? Date.parse(item.published_at) : NaN;
+  if (Number.isFinite(at) && at > now + 60_000) {
+    const minutes = Math.round((at - now) / 60_000);
+    return minutes < 60 ? `in ${minutes}m` : `in ${Math.round(minutes / 60)}h`;
+  }
+  return timeAgo(item.published_at, now);
+}
+
+/** A Wire item dressed as a story, for the days the front page has nothing else to lead with. */
+function wireStory(item: WireItem): NewsItem {
+  return {
+    id: `wire-${item.id}`,
+    headline: item.headline,
+    source: "wire",
+    published_at: item.occurred_at,
+    thumbnail_url: item.image_url,
+    url: item.link_url,
+    summary: item.blurb,
+    stock_symbols: item.symbols,
+  };
 }
 
 // ── Masthead ──────────────────────────────────────────────────────────────────
@@ -176,14 +217,14 @@ function FrontNews({ items, isLoading }: { items: NewsItem[]; isLoading: boolean
   return (
     <section className={styles.front} aria-label="Headlines">
       <article className={styles.lead}>
-        <Link href={newsHref(lead)} className={styles.leadLink}>
+        <StoryLink href={newsHref(lead)} className={styles.leadLink}>
           <NewsThumb item={lead} lead />
           <span className={styles.kicker} suppressHydrationWarning>
-            LEAD STORY · {timeAgo(lead.published_at, now).toUpperCase()}
+            {lead.source === "wire" ? "ON THE WIRE" : "LEAD STORY"} · {storyWhen(lead, now).toUpperCase()}
           </span>
           <h2>{lead.headline}</h2>
           {lead.summary ? <p>{lead.summary}</p> : null}
-        </Link>
+        </StoryLink>
         {lead.stock_symbols?.length ? (
           <div>
             <div className={styles.label}>Market impact</div>
@@ -198,15 +239,15 @@ function FrontNews({ items, isLoading }: { items: NewsItem[]; isLoading: boolean
       <div className={styles.heads}>
         {rest.map((item) => (
           <article key={item.id} className={styles.head}>
-            <Link href={newsHref(item)} className={styles.headLink}>
+            <StoryLink href={newsHref(item)} className={styles.headLink}>
               <NewsThumb item={item} />
               <div>
                 <h3>{item.headline}</h3>
                 <span className={styles.meta} suppressHydrationWarning>
-                  {timeAgo(item.published_at, now)}
+                  {storyWhen(item, now)}
                 </span>
               </div>
-            </Link>
+            </StoryLink>
             {item.stock_symbols?.length ? (
               <div className={styles.chips}>
                 {item.stock_symbols.slice(0, 4).map((symbol) => (
@@ -220,6 +261,104 @@ function FrontNews({ items, isLoading }: { items: NewsItem[]; isLoading: boolean
           All headlines →
         </Link>
       </div>
+    </section>
+  );
+}
+
+// ── The Wire ────────────────────────────────────────────────────────────────
+const WIRE_TAGS: Record<string, string> = {
+  stream_three_d: "3D",
+  stream_new_outfit: "Outfit",
+  stream_original_song: "Original",
+  stream_cover_song: "Cover",
+  stream_birthday: "Birthday",
+  stream_anniversary: "Anniversary",
+  stream_milestone: "Milestone",
+  stream_announcement: "Announcement",
+  stream_endurance: "Endurance",
+  subscriber_milestone: "Subs",
+  viewer_record: "Record",
+  superchat_leader: "Superchats",
+  market_mover: "Market",
+  exchange_sale: "Exchange",
+  ur_pull: "Pull",
+  prediction_resolved: "Called",
+};
+
+function wireTone(kind: string) {
+  if (kind.startsWith("stream_")) return "stream";
+  if (kind === "market_mover") return "market";
+  if (kind === "exchange_sale" || kind === "ur_pull" || kind === "prediction_resolved") return "games";
+  return "record";
+}
+
+/** Live now, starting soon, or how long ago. */
+function wireWhen(item: WireItem, now: number): { text: string; live?: boolean } {
+  if (item.meta?.status === "live") return { text: "Live", live: true };
+  const at = Date.parse(item.meta?.status === "upcoming" && item.meta.starts_at ? item.meta.starts_at : item.occurred_at);
+  if (Number.isFinite(at) && at > now + 60_000) {
+    const minutes = Math.round((at - now) / 60_000);
+    return { text: minutes < 60 ? `in ${minutes}m` : minutes < 60 * 36 ? `in ${Math.round(minutes / 60)}h` : `in ${Math.round(minutes / 1440)}d` };
+  }
+  return { text: timeAgo(item.occurred_at, now).replace(" ago", "") };
+}
+
+function WireThumb({ item }: { item: WireItem }) {
+  const assets = useMarketStore((state) => state.assets);
+  const symbol = item.symbols[0];
+  const asset = symbol ? assets.find((entry) => entry.symbol === symbol) : null;
+  if (item.image_url) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={item.image_url} alt="" className={styles.wireImage} loading="lazy" decoding="async" />;
+  }
+  return (
+    <span className={`${styles.wireImage} ${styles.wireMark}`} data-tone={wireTone(item.kind)}>
+      {symbol ? <Oshimark icon={asset?.icon} symbol={symbol} size={34} /> : <b>{item.kind === "prediction_resolved" ? "✓" : (WIRE_TAGS[item.kind]?.slice(0, 1) ?? "·")}</b>}
+    </span>
+  );
+}
+
+const WIRE_FIRST = 8;
+
+/** Headlines the site writes itself, from facts: stream events, records, big moves, exchange sales. */
+function TheWire({ items }: { items: WireItem[] }) {
+  const [now] = useState(() => Date.now());
+  const [all, setAll] = useState(false);
+  if (!items.length) return null;
+  const shown = all ? items : items.slice(0, WIRE_FIRST);
+  return (
+    <section className={styles.wire} aria-label="The Wire">
+      <header className={styles.wireHead}>
+        <h2>The Wire</h2>
+        <span>Streams, records and market moves as they happen</span>
+      </header>
+      <ol className={styles.wireList}>
+        {shown.map((item) => {
+          const when = wireWhen(item, now);
+          return (
+            <li key={item.id} className={styles.wireRow}>
+              <StoryLink href={item.link_url || "/"} className={styles.wireLink}>
+                <WireThumb item={item} />
+                <span className={styles.wireText}>
+                  <span className={styles.wireMeta} suppressHydrationWarning>
+                    <i className={styles.wireTag} data-tone={wireTone(item.kind)}>
+                      {WIRE_TAGS[item.kind] ?? "Wire"}
+                    </i>
+                    <span className={when.live ? styles.wireLive : undefined}>{when.text}</span>
+                  </span>
+                  <b>{item.headline}</b>
+                  {item.blurb ? <small>{item.blurb}</small> : null}
+                </span>
+              </StoryLink>
+            </li>
+          );
+        })}
+      </ol>
+      {items.length > WIRE_FIRST ? (
+        <button type="button" className={styles.more} onClick={() => setAll((value) => !value)}>
+          {all ? "Fewer" : `${items.length - WIRE_FIRST} more on the wire`} {all ? "↑" : "↓"}
+        </button>
+      ) : null}
     </section>
   );
 }
@@ -518,15 +657,24 @@ export function FrontPage() {
   const newsItems = useNewsStore((state) => state.items);
   const isLoadingNews = useNewsStore((state) => state.isLoading);
   const fetchNews = useNewsStore((state) => state.fetchNews);
+  const wire = useNewsStore((state) => state.wire);
+  const wireLoaded = useNewsStore((state) => state.wireLoaded);
+  const fetchWire = useNewsStore((state) => state.fetchWire);
   const fetchLivestreams = useLivestreamStore((state) => state.fetchLivestreams);
   const fetchLeaderboard = useLeaderboardStore((state) => state.fetchLeaderboard);
 
   useEffect(() => {
     void fetchNews();
+    void fetchWire();
     void fetchMarketIndexes();
     void fetchLivestreams();
     void fetchLeaderboard({ limit: 5 });
-  }, [fetchLeaderboard, fetchLivestreams, fetchMarketIndexes, fetchNews]);
+  }, [fetchLeaderboard, fetchLivestreams, fetchMarketIndexes, fetchNews, fetchWire]);
+
+  // No articles at all: the Wire leads the front page, and its list carries on from there.
+  const wireLeads = !newsItems.length && !isLoadingNews && wire.length > 0;
+  const frontItems = wireLeads ? wire.slice(0, 6).map(wireStory) : newsItems;
+  const wireItems = wireLeads ? wire.slice(6) : wire;
 
   return (
     <SiteShell>
@@ -534,7 +682,8 @@ export function FrontPage() {
         <Masthead assets={assets} />
         <TradingPausedBanner className={styles.paused} />
         <NewbieStrip />
-        <FrontNews items={newsItems} isLoading={isLoadingNews} />
+        <FrontNews items={frontItems} isLoading={isLoadingNews || (!newsItems.length && !wireLoaded)} />
+        <TheWire items={wireItems} />
         <SettlementReport assets={assets} />
         <UnitIndexes assets={assets} />
         <section className={styles.community} aria-label="Community">

@@ -1485,6 +1485,39 @@ async function applySchema(pool) {
     ALTER TABLE games.game_catalog
       ADD CONSTRAINT games_game_catalog_type_check CHECK (game_type IN ('single_player', 'gacha', 'pvp', 'idle', 'table'))
   `);
+  // The Wire: short, automatic headlines built from facts the site already has (stream events
+  // from titles, subscriber milestones, viewer records, superchats, the market and the card
+  // exchange). See api/src/services/wire.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content.wire_items (
+      id BIGSERIAL PRIMARY KEY,
+      kind TEXT NOT NULL,
+      dedupe_key TEXT NOT NULL UNIQUE,
+      headline TEXT NOT NULL,
+      blurb TEXT NULL,
+      symbols TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+      image_url TEXT NULL,
+      link_url TEXT NULL,
+      importance SMALLINT NOT NULL DEFAULT 1,
+      occurred_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      meta JSONB NOT NULL DEFAULT '{}'::jsonb,
+      hidden BOOLEAN NOT NULL DEFAULT false
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS content_wire_items_recent_idx ON content.wire_items (occurred_at DESC) WHERE NOT hidden`);
+  // What each stream title was judged to be (so a title is classified once).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content.wire_stream_labels (
+      video_id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      event TEXT NOT NULL,
+      confidence NUMERIC NULL,
+      classifier TEXT NOT NULL,
+      probabilities JSONB NULL,
+      labeled_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
   await applyGamesSchema(pool);
   await applyPredictionsSchema(pool);
 }

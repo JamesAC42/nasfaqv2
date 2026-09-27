@@ -1,6 +1,7 @@
 const express = require("express");
 const db = require("../db");
 const articleDb = require("../articleDb");
+const wire = require("../services/wire");
 
 const router = express.Router();
 const HOLO_NEWS_META_KEY = "nasfaq_holonews:meta";
@@ -93,6 +94,15 @@ router.get("/holonews", async (req, res, next) => {
       updated_at: payload.updated_at || null,
       items
     });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// The Wire: automatic headlines from streams, milestones, the market and the games.
+router.get("/wire", async (req, res, next) => {
+  try {
+    res.json({ items: await wire.listWire(req.ctx.pool, { limit: req.query.limit, hours: req.query.hours }) });
   } catch (e) {
     next(e);
   }

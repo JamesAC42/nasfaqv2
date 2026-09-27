@@ -1306,6 +1306,27 @@ export type NewsCharacter = {
   unit?: string | null;
 };
 
+/** A fact-made headline from the Wire: stream events, records, market moves, exchange sales. */
+export type WireItem = {
+  id: number;
+  kind: string;
+  headline: string;
+  blurb: string | null;
+  symbols: string[];
+  image_url: string | null;
+  link_url: string | null;
+  importance: number;
+  occurred_at: string;
+  meta: {
+    status?: string | null;
+    starts_at?: string | null;
+    started_at?: string | null;
+    ended_at?: string | null;
+    peak_viewers?: number | null;
+    [key: string]: unknown;
+  };
+};
+
 export type NewsItem = {
   id: string;
   headline: string;
