@@ -11,6 +11,45 @@ function codedError(code) {
   return Object.assign(new Error(code), { code });
 }
 
+/** Market history starts here on a rebuild (YouTube data from before it still feeds the first days' momentum). */
+const DEFAULT_HISTORY_FROM = "2026-01-01";
+
+function historyFrom(requested) {
+  const value = String(requested || process.env.MARKET_HISTORY_FROM || DEFAULT_HISTORY_FROM).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw codedError("invalid_history_from");
+  return value;
+}
+
+/**
+ * Drops the market's own history from before the cutoff: settled days, reports, runs, adjustment
+ * sessions and their ticks, snapshots and the chart events they made. Players' trades are never
+ * touched (after a --reset there are none anyway).
+ */
+async function clearHistoryBefore(pool, from) {
+  const cleared = {};
+  const run = async (label, sql) => {
+    const exists = await pool.query(`SELECT to_regclass($1) IS NOT NULL AS ok`, [label]);
+    if (!exists.rows[0]?.ok) return;
+    cleared[label] = (await pool.query(sql, [from])).rowCount;
+  };
+  await run("market.asset_adjustment_intervals", `DELETE FROM market.asset_adjustment_intervals i USING market.adjustment_sessions s WHERE i.session_id = s.id AND s.market_date < $1::date`);
+  await run("market.adjustment_sessions", `DELETE FROM market.adjustment_sessions WHERE market_date < $1::date`);
+  await run("market.asset_daily_market_state", `DELETE FROM market.asset_daily_market_state WHERE market_date < $1::date`);
+  await run("market.daily_market_reports", `DELETE FROM market.daily_market_reports WHERE market_date < $1::date`);
+  await run("market.market_settlement_runs", `DELETE FROM market.market_settlement_runs WHERE market_date < $1::date`);
+  // Assets point at their latest snapshot; unhook any that point before the cutoff first.
+  await run(
+    "market.market_assets",
+    `UPDATE market.market_assets SET latest_snapshot_id = NULL, latest_snapshot_date = NULL WHERE latest_snapshot_date < $1::date`
+  );
+  await run("market.channel_daily_snapshots", `DELETE FROM market.channel_daily_snapshots WHERE snapshot_date < $1::date`);
+  await run(
+    "market.asset_price_events",
+    `DELETE FROM market.asset_price_events WHERE event_type IN ('daily_reset', 'interval_adjustment') AND ts < ($1::date::timestamp AT TIME ZONE 'America/New_York')`
+  );
+  return cleared;
+}
+
 const dayCount = (from, to) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
 
 /**
@@ -19,7 +58,7 @@ const dayCount = (from, to) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.
  * day at the previous close, so without the replay prices never move). Takes a minute or more on a
  * year of data, so callers run it in the background. `onProgress({ phase, done, total, market_date })`.
  */
-async function runFullRebuild({ pool, redis = null }, { activeOnly = true, fillMissingDates = true, version = 1 } = {}, onProgress = () => {}) {
+async function runFullRebuild({ pool, redis = null }, { activeOnly = true, fillMissingDates = true, version = 1, from: requestedFrom = null } = {}, onProgress = () => {}) {
   const lockClient = await pool.connect();
   let locked = false;
   let adjustmentsLocked = false;
@@ -31,8 +70,12 @@ async function runFullRebuild({ pool, redis = null }, { activeOnly = true, fillM
     adjustmentsLocked = await marketAdjustments.acquireAdjustmentSchedulerLock(lockClient);
     if (!adjustmentsLocked) throw codedError("scheduler_running");
 
-    const range = await marketAdmin.getHistoricalMarketDateRange(pool, { activeOnly });
-    if (!range.from || !range.to) throw codedError("no_historical_data");
+    const dataRange = await marketAdmin.getHistoricalMarketDateRange(pool, { activeOnly });
+    if (!dataRange.from || !dataRange.to) throw codedError("no_historical_data");
+    // The market starts at the cutoff (default 2026-01-01), or when the data does if that's later.
+    const cutoff = historyFrom(requestedFrom);
+    const range = { from: dataRange.from > cutoff ? dataRange.from : cutoff, to: dataRange.to };
+    const clearedBefore = await clearHistoryBefore(pool, range.from);
     const schedulerConfig = loadSchedulerConfig();
     const latestReadyDate = getCurrentDateKey(new Date(), schedulerConfig.timeZone);
     if (!latestReadyDate || latestReadyDate < range.from) throw codedError("no_ready_historical_data");
@@ -83,6 +126,7 @@ async function runFullRebuild({ pool, redis = null }, { activeOnly = true, fillM
       fundamentals: fundamentalsResult,
       settlement: settlementResult,
       adjustments_applied: adjustmentsApplied,
+      cleared_before: clearedBefore,
     };
   } finally {
     if (adjustmentsLocked) await marketAdjustments.releaseAdjustmentSchedulerLock(lockClient);
@@ -91,4 +135,4 @@ async function runFullRebuild({ pool, redis = null }, { activeOnly = true, fillM
   }
 }
 
-module.exports = { runFullRebuild };
+module.exports = { clearHistoryBefore, runFullRebuild };

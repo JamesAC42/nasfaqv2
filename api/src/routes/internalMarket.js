@@ -309,7 +309,8 @@ router.post("/rebuild-full", async (req, res, next) => {
     rebuildJob = job;
     const { pool, redis } = req.ctx;
     marketRebuild
-      .runFullRebuild({ pool, redis }, { activeOnly, fillMissingDates, version }, (progress) => {
+      // History starts at body.from, else MARKET_HISTORY_FROM, else 2026-01-01.
+      .runFullRebuild({ pool, redis }, { activeOnly, fillMissingDates, version, from: typeof req.body?.from === "string" ? req.body.from : null }, (progress) => {
         job.progress = progress;
       })
       .then((result) => {

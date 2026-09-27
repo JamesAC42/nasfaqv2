@@ -4,6 +4,8 @@
 //   node scripts/rebuild-market.js --yes            rebuild prices over the existing market
 //   node scripts/rebuild-market.js --reset --yes    reset first: deletes ALL trades, holdings,
 //                                                   leaderboards and assets, everyone gets starter cash
+//   --from 2026-03-01                               where the market's history starts (default
+//                                                   2026-01-01, or MARKET_HISTORY_FROM)
 //
 // Stop the API's market scheduler (or the API) first on a live server; the rebuild takes the
 // scheduler lock and refuses to run while a scheduled cycle holds it.
@@ -33,7 +35,9 @@ async function main() {
       console.log(`reset: everyone has ${reset.starter_cash} starter cash`);
     }
     let last = 0;
-    const result = await runFullRebuild({ pool, redis }, {}, (progress) => {
+    const fromIndex = argv.indexOf("--from");
+    const from = fromIndex > -1 ? argv[fromIndex + 1] : null;
+    const result = await runFullRebuild({ pool, redis }, { from }, (progress) => {
       if (progress.phase !== "settling") return console.log(`${progress.phase}…`);
       if (Date.now() - last < 2000 && progress.done !== progress.total) return;
       last = Date.now();

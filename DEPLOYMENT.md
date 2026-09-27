@@ -229,6 +229,34 @@ AWS_ENDPOINT_URL=https://nyc3.digitaloceanspaces.com   # add support in code if 
 
 For this runbook we assume S3 stays; Spaces is a future-cost optimization.
 
+#### 2.6.1 Character art on the CDN
+
+`app-client/public/art` is gitignored (about 80 MB of WebP per build), so production loads the art from `https://images.nasfaq.biz/art/`. After each art build:
+
+```bash
+cd art-pipeline && py scripts/build.py --copy-to ../app-client/public/art
+cd ../api && node scripts/upload-art.js --dry-run   # then without --dry-run
+```
+
+The script uploads only files the bucket doesn't have yet (names carry a content hash, cached for a year) and uploads `manifest.json` last with a 60-second cache, so the site switches to new art only once every file is there. It never deletes anything.
+
+Build the client with `NEXT_PUBLIC_ART_BASE_URL=https://images.nasfaq.biz/art` (a build-time value, so pass it as a Docker build arg). The browser fetches `manifest.json` from the CDN with `fetch()`, so `/art/*` must send `Access-Control-Allow-Origin` (images don't need it):
+
+- S3 bucket CORS: `[{"AllowedOrigins":["https://nasfaq.biz","https://www.nasfaq.biz","http://localhost:3000"],"AllowedMethods":["GET","HEAD"],"AllowedHeaders":["*"],"MaxAgeSeconds":86400}]`
+- CloudFront in front: attach the managed response headers policy `SimpleCORS` (or `CORS-With-Preflight`) to the behavior that serves `/art/*`.
+
+Upload key (optional, safer than the API's key): an IAM user with only this policy, keys in `api/.env` as `ART_UPLOAD_AWS_ACCESS_KEY_ID` / `ART_UPLOAD_AWS_SECRET_ACCESS_KEY`:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Effect": "Allow", "Action": ["s3:PutObject", "s3:GetObject"], "Resource": "arn:aws:s3:::BUCKET/art/*" },
+    { "Effect": "Allow", "Action": "s3:ListBucket", "Resource": "arn:aws:s3:::BUCKET", "Condition": { "StringLike": { "s3:prefix": ["art/*"] } } }
+  ]
+}
+```
+
 ### 2.7 Load Balancer (auto-provisioned, but understand it)
 
 When you install `ingress-nginx` in §3 with `service.type=LoadBalancer`, DOKS provisions a **DigitalOcean Load Balancer** (~$12/mo). You do **not** create it manually. To see it afterwards:

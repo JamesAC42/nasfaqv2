@@ -80,9 +80,9 @@ export const sharedArtId = (slot: string, variant = "default") => artId(SHARED, 
 export function resolveArtUrl(path: string | null | undefined) {
   if (!path) return null;
   if (/^https?:\/\//.test(path)) return path;
-  const base = typeof window === "undefined" ? `http://localhost${ART_MANIFEST_URL}` : new URL(ART_MANIFEST_URL, window.location.href).href;
-  const resolved = new URL(path, base);
-  return typeof window === "undefined" ? resolved.pathname : resolved.href;
+  // On a CDN: a full URL. Served from the site: a root-relative path, the same on server and client.
+  if (/^https?:\/\//.test(ART_MANIFEST_URL)) return new URL(path, ART_MANIFEST_URL).href;
+  return new URL(path, `http://localhost${ART_MANIFEST_URL.startsWith("/") ? "" : "/"}${ART_MANIFEST_URL}`).pathname;
 }
 
 /** Pick the smallest chibi export that is at least `px` wide (falls back to the largest). */
