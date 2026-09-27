@@ -292,7 +292,9 @@ function buildSettledAssetState(assetRow, previousState) {
     throw error;
   }
 
-  const priorMidPrice = previousState?.mid_close ?? assetRow.current_mid_price ?? assetRow.current_fair_value ?? null;
+  // A first day (a new listing, or the start of a historical rebuild) opens at that day's fair value.
+  // The asset's current price/fair value can't be used: a rebuild has already set them to today's.
+  const priorMidPrice = previousState?.mid_close ?? fairValue;
   const previousOffsets = derivePreviousOffsets(previousState);
   const opening = computeOpeningState({
     previousPersistentOffset: previousOffsets.persistentOffset,
@@ -674,7 +676,9 @@ function computeSettlementSupplies({ maxSupply, circulatingSupply, treasurySuppl
 module.exports = {
   settleMarketDay,
   computeSettlementSupplies,
-  async settleMarketRange(pool, { from, to, force = false, marketDateOffsetDays = 0, redis = null } = {}) {
+  // `afterDay(result)` runs after each settled day, before the next one settles (the historical
+  // rebuild replays that day's adjustments there, which the next day's open carries forward).
+  async settleMarketRange(pool, { from, to, force = false, marketDateOffsetDays = 0, redis = null, afterDay = null } = {}) {
     const client = await pool.connect();
     let datesResult;
     try {
@@ -690,8 +694,9 @@ module.exports = {
         ? row.snapshot_date.toISOString().slice(0, 10)
         : String(row.snapshot_date);
       const marketDate = shiftDateKey(sourceMarketDate, marketDateOffsetDays);
+      let result;
       try {
-        const result = await settleMarketDay(pool, { marketDate, sourceMarketDate, force, redis });
+        result = await settleMarketDay(pool, { marketDate, sourceMarketDate, force, redis });
         settled.push({
           market_date: result.market_date,
           source_market_date: result.source_market_date,
@@ -704,7 +709,9 @@ module.exports = {
           source_market_date: sourceMarketDate,
           error: String(error?.code || error?.message || error),
         });
+        continue;
       }
+      if (afterDay) await afterDay(result);
     }
 
     return {

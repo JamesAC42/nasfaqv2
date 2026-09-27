@@ -60,7 +60,9 @@ const TABLES = [
   { name: "info.member_news", refresh: true, upsert: true },
   { name: "info.member_news_channels", refresh: true },
   // HoloNews articles only (no author): player-written articles belong to users.
-  { name: "content.articles", where: "author_id IS NULL", refresh: true },
+  // Local ids start at 1e9 (`localIdsFrom`) so articles written locally never take an id production
+  // will use for a later HoloNews article.
+  { name: "content.articles", where: "author_id IS NULL", refresh: true, upsert: true, localIdsFrom: 1_000_000_000 },
   { name: "content.article_assets", refresh: true },
   { name: "games.gacha_prize_items" },
 ];
@@ -268,7 +270,7 @@ async function main() {
         for (const col of table.cols) {
           const { rows } = await local.query(`SELECT pg_get_serial_sequence($1, $2) AS seq`, [table.name, col]);
           if (!rows[0]?.seq) continue;
-          await local.query(`SELECT setval($1, GREATEST((SELECT COALESCE(MAX(${q(col)}), 0) FROM ${q(table.name)}), 1))`, [rows[0].seq]);
+          await local.query(`SELECT setval($1, GREATEST((SELECT COALESCE(MAX(${q(col)}), 0) FROM ${q(table.name)}), $2::bigint))`, [rows[0].seq, table.localIdsFrom ?? 1]);
         }
       }
       console.log(REFRESH ? "Refreshed. The local market settles from this data at 09:00 ET." : "Done. Start the API, then sign up / seed your test accounts (node scripts/seed-dev.js admin <you>, predictions <you>).");

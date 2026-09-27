@@ -298,11 +298,19 @@ router.post("/rebuild-full", async (req, res, next) => {
       activeOnly,
       fillMissingDates,
     });
+    // Each day's adjustments are replayed right after it settles; without them every day opens at
+    // the previous close and prices (and the indexes built on them) never move.
+    const rebuildStartedAt = new Date();
+    let adjustmentsApplied = 0;
     const settlementResult = await settlement.settleMarketRange(req.ctx.pool, {
       from: range.from,
       to: latestReadyDate,
       force: true,
-      redis: req.ctx.redis,
+      redis: null,
+      afterDay: async (day) => {
+        const replay = await marketAdjustments.replayAdjustmentsForDate(req.ctx.pool, { marketDate: day.market_date, until: rebuildStartedAt });
+        adjustmentsApplied += replay.applied_count;
+      },
     });
     const latestSettled = settlementResult.settled_dates[settlementResult.settled_dates.length - 1]?.market_date || null;
     const status = await marketState.setMarketOpen(lockClient, {
@@ -322,6 +330,7 @@ router.post("/rebuild-full", async (req, res, next) => {
       bootstrap,
       fundamentals: fundamentalsResult,
       settlement: settlementResult,
+      adjustments_applied: adjustmentsApplied,
     });
   } catch (e) {
     if (e?.code === "scheduler_running") {

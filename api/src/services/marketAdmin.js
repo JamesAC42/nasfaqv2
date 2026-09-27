@@ -374,6 +374,7 @@ async function resetMarketState(pool) {
     await client.query(`DELETE FROM market.daily_market_reports`);
     await client.query(`DELETE FROM market.market_settlement_runs`);
     await client.query(`DELETE FROM market.fundamental_calculation_runs`);
+    await client.query(`DELETE FROM market.adjustment_sessions`);
     await client.query(`DELETE FROM market.market_assets`);
     await client.query(`DELETE FROM market.channel_daily_snapshots`);
     await client.query(
