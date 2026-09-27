@@ -81,7 +81,7 @@ const q = (name) => name.split(".").map((part) => `"${part.replace(/"/g, '""')}"
 async function columns(db, table, withNulls = false) {
   const [schema, name] = table.split(".");
   const { rows } = await db.query(
-    `SELECT a.attname AS name, a.attnotnull AS notnull
+    `SELECT a.attname AS name, a.attnotnull AS notnull, a.atthasdef AS hasdef
      FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace
      WHERE n.nspname = $1 AND c.relname = $2 AND a.attnum > 0 AND NOT a.attisdropped AND a.attgenerated = ''
      ORDER BY a.attnum`,
@@ -166,8 +166,15 @@ async function main() {
       const cols = localCols.filter((col) => prodCols.includes(col));
       const pk = await primaryKey(local, table.name);
       // Production's schema has drifted from the local one in places (a column required locally
-      // that production allows to be empty): relax those locally so production's rows fit.
-      const relax = localInfo.filter((col) => col.notnull && !pk.includes(col.name) && prodInfo.some((p) => p.name === col.name && !p.notnull)).map((col) => col.name);
+      // that production allows to be empty, or doesn't have): relax those locally so production's rows fit.
+      // Also relax required columns production doesn't have at all (they'd arrive empty).
+      const relax = localInfo
+        .filter((col) => col.notnull && !pk.includes(col.name))
+        .filter((col) => {
+          const onProd = prodInfo.find((p) => p.name === col.name);
+          return onProd ? !onProd.notnull : !col.hasdef;
+        })
+        .map((col) => col.name);
       deps.set(table.name, await foreignKeys(local, table.name, names));
       plan.push({ ...table, cols, pk, relax });
     }
@@ -214,7 +221,7 @@ async function main() {
 
       for (const col of table.relax) {
         await local.query(`ALTER TABLE ${q(table.name)} ALTER COLUMN ${q(col)} DROP NOT NULL`);
-        console.log(`${table.name}.${col}: allowed empty values locally (production allows them)`);
+        console.log(`${table.name}.${col}: allowed empty values locally (production ${table.cols.includes(col) ? "allows them" : "has no such column"})`);
       }
 
       const conflict =
