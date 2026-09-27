@@ -1,0 +1,1825 @@
+@use "../../../styles/mixins" as *;
+
+// The card exchange: market, card pages, desk, trades. Terminal floor style: flat sections,
+// mono labels, rarity colours as the only loud accent, and motion only where money moves
+// (bid flashes, the auction clock's last minute, sale rows on the tape).
+
+// ── Shared bits ─────────────────────────────────────────────────────────────
+.cash {
+  @include num;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.big {
+  font-size: 1.35rem;
+}
+
+.note {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--dim);
+
+  a {
+    color: var(--blue);
+  }
+}
+
+.success {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border-left: 3px solid var(--up);
+  background: color-mix(in srgb, var(--up) 10%, transparent);
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.error {
+  margin: 0.5rem 0;
+  padding: 0.55rem 0.7rem;
+  border-left: 3px solid var(--down);
+  background: color-mix(in srgb, var(--down) 10%, transparent);
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.notice {
+  margin: 1rem 0 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--rule-2));
+  border-left: 3px solid var(--warn);
+  background: var(--warn-wash);
+  font-size: 0.85rem;
+}
+
+.warnText {
+  color: var(--warn);
+}
+
+.textLink {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--blue);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.backLink {
+  @extend .textLink;
+  display: inline-block;
+  margin: 1rem 0 0.25rem;
+}
+
+.btnPrimary {
+  @include button-primary;
+  text-decoration: none;
+}
+
+.btnSecondary {
+  @include button-secondary;
+  text-decoration: none;
+}
+
+.btnGhost {
+  @include button-base;
+  border-color: transparent;
+  color: var(--dim);
+  text-decoration: none;
+
+  &:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--rule-2);
+  }
+}
+
+.inlineButton {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--blue);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.input {
+  @include input-base;
+  box-sizing: border-box;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.88rem;
+  min-width: 0;
+}
+
+.select {
+  @include input-base;
+  width: auto;
+  flex: 0 0 auto;
+  padding: 0.45rem 0.5rem;
+  font-size: 0.82rem;
+}
+
+.sectionTitle {
+  @include section-heading;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 0.7rem;
+
+  small {
+    @include num;
+    margin-left: auto;
+    color: var(--dim);
+    font-weight: 500;
+    letter-spacing: 0;
+  }
+
+  svg {
+    color: var(--blue);
+  }
+}
+
+.panel {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--rule);
+  background: var(--ink);
+  min-width: 0;
+}
+
+.rarityTag {
+  @include num;
+  display: inline-block;
+  padding: 0.05rem 0.3rem;
+  border: 1px solid color-mix(in srgb, var(--r) 55%, transparent);
+  color: var(--r);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.cardName {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+
+  > span:not(.rarityTag) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+a.cardName:hover > span:not(.rarityTag) {
+  text-decoration: underline;
+}
+
+.clock {
+  @include num;
+  font-weight: 700;
+  font-size: 0.78rem;
+  color: var(--mid);
+  white-space: nowrap;
+
+  &[data-phase="close"] {
+    color: var(--warn);
+  }
+
+  &[data-phase="final"] {
+    color: var(--down);
+    animation: clock-pulse 1s ease-in-out infinite;
+  }
+
+  &[data-phase="done"] {
+    color: var(--dim);
+  }
+}
+
+@keyframes clock-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+
+  button {
+    @include num;
+    padding: 0.3rem 0.55rem;
+    border: 1px solid var(--rule);
+    background: none;
+    color: var(--mid);
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--rule-2);
+      color: var(--text);
+    }
+
+    &[aria-pressed="true"] {
+      border-color: var(--blue);
+      color: var(--text);
+      background: var(--blue-wash);
+    }
+  }
+}
+
+.segment {
+  display: inline-flex;
+  justify-self: start;
+  border: 1px solid var(--rule-2);
+
+  button {
+    display: grid;
+    gap: 0.1rem;
+    padding: 0.45rem 0.8rem;
+    border: 0;
+    background: none;
+    color: var(--mid);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: left;
+    cursor: pointer;
+
+    & + button {
+      border-left: 1px solid var(--rule-2);
+    }
+
+    small {
+      font-size: 0.6rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: none;
+      color: var(--dim);
+    }
+
+    &[aria-checked="true"] {
+      background: var(--blue-wash);
+      color: var(--text);
+      box-shadow: inset 0 -2px 0 var(--blue);
+    }
+  }
+}
+
+.field {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+
+  > span:first-child {
+    @include label;
+    font-size: 0.6rem;
+  }
+}
+
+.fieldRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.moneyInput {
+  @include input-base;
+  box-sizing: border-box;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.6rem;
+
+  i {
+    @include num;
+    font-style: normal;
+    color: var(--dim);
+  }
+
+  input {
+    @include num;
+    flex: 1;
+    min-width: 0;
+    padding: 0.5rem 0;
+    border: 0;
+    outline: none;
+    background: none;
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  &:focus-within {
+    border-color: var(--blue);
+  }
+}
+
+// ── Frame sub-nav ───────────────────────────────────────────────────────────
+.subnav {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.subtab {
+  @include button-secondary;
+  position: relative;
+  padding: 0.5rem 0.8rem;
+  text-decoration: none;
+
+  &[aria-current="page"] {
+    border-color: var(--blue);
+    background: var(--blue-wash);
+  }
+}
+
+.badge {
+  @include num;
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.25rem;
+  background: var(--blue);
+  color: var(--blue-ink);
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
+// ── Market: ticker, floors, rail ────────────────────────────────────────────
+.ticker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  margin-top: 1rem;
+  border: 1px solid var(--rule);
+  background: var(--ink);
+
+  > div {
+    display: grid;
+    align-content: center;
+    gap: 0.15rem;
+    padding: 0.7rem 1rem;
+    border-right: 1px solid var(--rule);
+    min-width: 7.5rem;
+
+    small {
+      @include label;
+      font-size: 0.58rem;
+    }
+
+    b {
+      @include num;
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+
+    em {
+      font-style: normal;
+      font-size: 0.66rem;
+      color: var(--dim);
+    }
+  }
+
+  @include phone {
+    > div {
+      flex: 1 1 33%;
+      min-width: 0;
+      padding: 0.55rem 0.7rem;
+      border-bottom: 1px solid var(--rule);
+
+      b {
+        font-size: 1rem;
+      }
+    }
+  }
+}
+
+.sellButton {
+  @include button-primary;
+  margin: 0.6rem 0.8rem 0.6rem auto;
+  align-self: center;
+
+  @include phone {
+    flex: 1 1 100%;
+    margin: 0.6rem;
+  }
+}
+
+.floors {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+
+  @include tablet-down {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    > * {
+      flex: 0 0 9.5rem;
+    }
+  }
+}
+
+.floor {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--rule);
+  border-top: 2px solid var(--r);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--r) 9%, transparent), transparent 70%), var(--ink);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+
+  small {
+    font-size: 0.64rem;
+    color: var(--dim);
+  }
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--r) 45%, var(--rule));
+  }
+
+  &[aria-pressed="true"] {
+    border-color: var(--r);
+    box-shadow: inset 0 0 0 1px var(--r);
+  }
+}
+
+.floorHead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+
+  b {
+    @include num;
+    color: var(--r);
+    font-size: 0.85rem;
+    font-weight: 800;
+  }
+
+  small {
+    @include label;
+    font-size: 0.55rem;
+  }
+}
+
+.floorPrice {
+  @include num;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.rail {
+  margin-top: 1.25rem;
+}
+
+.railScroll {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.4rem;
+  scrollbar-width: thin;
+
+  > * {
+    flex: 0 0 auto;
+  }
+}
+
+// ── Market: layout, filters, grid ───────────────────────────────────────────
+.marketLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 19rem;
+  gap: 1.25rem;
+  margin-top: 1.25rem;
+  padding-bottom: 2rem;
+
+  @include desktop-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.marketMain {
+  min-width: 0;
+}
+
+.marketAside {
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.9rem;
+}
+
+.search {
+  @include input-base;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1 1 10rem;
+  width: auto;
+  padding: 0 0.6rem;
+  color: var(--dim);
+
+  input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.45rem 0;
+    border: 0;
+    outline: none;
+    background: none;
+    color: var(--text);
+    font-size: 0.85rem;
+  }
+
+  &:focus-within {
+    border-color: var(--blue);
+  }
+}
+
+.freshPill {
+  @include button-secondary;
+  display: block;
+  margin: 0 auto 0.9rem;
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem 0.9rem;
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.8rem 0.6rem;
+  }
+}
+
+.ghostTile {
+  display: block;
+  aspect-ratio: 5 / 8.4;
+  background: linear-gradient(100deg, var(--ink-2) 30%, var(--ink-3) 50%, var(--ink-2) 70%) 0 0 / 300% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -150% 0;
+  }
+}
+
+.tile {
+  position: relative;
+  display: grid;
+  gap: 0.45rem;
+  justify-items: center;
+  padding: 0.5rem 0.5rem 0.6rem;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) ease,
+    background-color var(--dur-fast) ease;
+
+  &:hover {
+    border-color: var(--rule-2);
+    background: var(--ink);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  &[data-flash] {
+    animation: bid-flash 1.3s ease-out;
+  }
+
+  &[data-leading] {
+    border-color: color-mix(in srgb, var(--up) 45%, transparent);
+  }
+
+  @include phone {
+    padding: 0.35rem 0.2rem 0.5rem;
+  }
+}
+
+// In the two-column phone grid the card fills its column.
+.grid .tile > :first-child {
+  @include phone {
+    width: 100% !important;
+  }
+}
+
+.railScroll .tile {
+  width: 148px;
+}
+
+@keyframes bid-flash {
+  0% {
+    background: color-mix(in srgb, var(--blue) 30%, transparent);
+    border-color: var(--blue);
+  }
+}
+
+.tileBody {
+  display: grid;
+  gap: 0.1rem;
+  width: 100%;
+}
+
+.tileRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem;
+
+  small {
+    @include label;
+    font-size: 0.56rem;
+  }
+}
+
+.tilePrice {
+  @include num;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.tileSub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.66rem;
+  color: var(--dim);
+}
+
+.tilePriceRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.flag {
+  @include num;
+  flex: none;
+  padding: 0.1rem 0.35rem;
+  background: var(--ink-3);
+  color: var(--mid);
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+  &[data-tone="lead"] {
+    background: var(--up);
+    color: var(--up-ink);
+  }
+}
+
+.empty {
+  @include empty-state;
+  padding: 2rem 1.25rem;
+  text-align: center;
+
+  b {
+    display: block;
+    margin-bottom: 0.35rem;
+    color: var(--text);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.85rem;
+  }
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.25rem;
+
+  button {
+    @include button-secondary;
+    padding: 0.4rem 0.8rem;
+  }
+
+  span {
+    @include num;
+    color: var(--dim);
+    font-size: 0.8rem;
+  }
+}
+
+// ── Market aside: tape, big sales, rules ────────────────────────────────────
+.liveDot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--blue) 60%, transparent);
+  animation: live 1.8s ease-out infinite;
+}
+
+@keyframes live {
+  70% {
+    box-shadow: 0 0 0 0.45rem transparent;
+  }
+}
+
+.tape {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: 0.5rem;
+    align-items: center;
+    padding: 0.45rem 0;
+    border-top: 1px solid var(--rule);
+    animation: tape-in 420ms ease-out;
+
+    small {
+      grid-column: 2 / 4;
+      font-size: 0.66rem;
+      color: var(--dim);
+    }
+
+    &[data-type="sale"] .tapeTag {
+      background: var(--up);
+      color: var(--up-ink);
+    }
+
+    &[data-type="bid"] .tapeTag {
+      background: var(--blue);
+      color: var(--blue-ink);
+    }
+
+    &[data-big] {
+      background: linear-gradient(90deg, color-mix(in srgb, #f5c542 14%, transparent), transparent 70%);
+    }
+  }
+}
+
+@keyframes tape-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.35rem);
+  }
+}
+
+.tapeTag {
+  @include num;
+  padding: 0.08rem 0.3rem;
+  background: var(--ink-3);
+  color: var(--mid);
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.bigSales {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: 1.3rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.4rem 0;
+    border-top: 1px solid var(--rule);
+  }
+}
+
+.rank {
+  @include num;
+  color: var(--dim);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.rules {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0 0 0 1rem;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--mid);
+}
+
+// ── Dialogs ─────────────────────────────────────────────────────────────────
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: color-mix(in srgb, #05070b 72%, transparent);
+  backdrop-filter: blur(3px);
+  animation: fade 160ms ease-out;
+
+  @include phone {
+    align-items: end;
+    padding: 0;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.dialog {
+  @include popover;
+  width: min(40rem, 100%);
+  max-height: min(90vh, 52rem);
+  overflow-y: auto;
+  outline: none;
+  animation: rise 220ms cubic-bezier(0.2, 0.9, 0.3, 1.1);
+
+  &[data-wide] {
+    width: min(58rem, 100%);
+  }
+
+  @include phone {
+    width: 100%;
+    max-height: 88vh;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
+.dialogHead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--rule);
+  background: var(--ink-2);
+
+  h2 {
+    @include display(1.2rem);
+    margin: 0;
+  }
+
+  button {
+    border: 0;
+    background: none;
+    color: var(--dim);
+    font-size: 1rem;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--text);
+    }
+  }
+}
+
+.dealBody {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1.25rem;
+  padding: 1.1rem 1rem 1.2rem;
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.9rem;
+  }
+}
+
+.dealCard {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 0.6rem;
+  max-width: 190px;
+
+  @include phone {
+    max-width: none;
+  }
+}
+
+.dealInfo {
+  display: grid;
+  align-content: start;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.dealKicker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--mid);
+}
+
+.dealFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin: 0;
+
+  div {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  dt {
+    @include label;
+    font-size: 0.58rem;
+  }
+
+  dd {
+    display: grid;
+    margin: 0;
+
+    small {
+      font-size: 0.7rem;
+      color: var(--dim);
+    }
+  }
+}
+
+.dealActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bidForm {
+  display: grid;
+  gap: 0.55rem;
+  width: 100%;
+
+  label {
+    display: grid;
+    gap: 0.3rem;
+
+    > span:first-child {
+      @include label;
+      font-size: 0.6rem;
+    }
+  }
+}
+
+.quickBids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+
+  button {
+    @include num;
+    padding: 0.3rem 0.55rem;
+    border: 1px solid var(--rule);
+    background: none;
+    color: var(--mid);
+    font-size: 0.74rem;
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--blue);
+      color: var(--text);
+    }
+  }
+}
+
+.priceHint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--dim);
+
+  b {
+    @include num;
+    color: var(--text);
+  }
+}
+
+.receipt {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px dashed var(--rule-2);
+  font-size: 0.85rem;
+
+  b {
+    @include num;
+    font-size: 1.05rem;
+  }
+
+  small {
+    color: var(--dim);
+  }
+}
+
+.pickerBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem 0;
+
+  .input {
+    flex: 0 1 11rem;
+  }
+}
+
+.pickGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 0.6rem;
+  padding: 0.9rem 1rem 1.1rem;
+
+  &[data-compact] {
+    grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+    max-height: 22rem;
+    overflow-y: auto;
+    padding: 0.6rem 0 0.4rem;
+  }
+}
+
+.pickCard {
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--dim);
+  cursor: pointer;
+
+  small {
+    font-size: 0.64rem;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: var(--rule-2);
+    color: var(--text);
+  }
+
+  &[data-picked] {
+    border-color: var(--blue);
+    background: var(--blue-wash);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+}
+
+.pickerBar + .note,
+.dialog > .note {
+  padding: 1rem;
+}
+
+// ── Card page ───────────────────────────────────────────────────────────────
+.cardHero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2rem;
+  margin-top: 0.75rem;
+  padding: 1.25rem;
+  border: 1px solid var(--rule);
+  background: var(--ink);
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
+    padding: 1rem;
+  }
+}
+
+.cardHeroArt {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 0.8rem;
+}
+
+.rarityHop {
+  display: flex;
+  gap: 0.25rem;
+
+  a {
+    @include num;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--rule);
+    color: var(--mid);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-decoration: none;
+
+    &:hover {
+      color: var(--text);
+      border-color: var(--rule-2);
+    }
+
+    &[aria-current="page"] {
+      border-color: var(--blue);
+      color: var(--text);
+      background: var(--blue-wash);
+    }
+  }
+}
+
+.cardHeroInfo {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  border: 1px solid var(--rule);
+
+  div {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.6rem 0.75rem;
+    border-right: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+
+    &:nth-child(3n) {
+      border-right: 0;
+    }
+
+    &:nth-last-child(-n + 3) {
+      border-bottom: 0;
+    }
+  }
+
+  dt {
+    @include label;
+    font-size: 0.56rem;
+  }
+
+  dd {
+    @include num;
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+
+    small {
+      font-size: 0.66rem;
+      font-weight: 500;
+      color: var(--dim);
+    }
+  }
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    div {
+      &:nth-child(3n) {
+        border-right: 1px solid var(--rule);
+      }
+
+      &:nth-child(2n) {
+        border-right: 0;
+      }
+
+      &:nth-last-child(-n + 3) {
+        border-bottom: 1px solid var(--rule);
+      }
+
+      &:nth-last-child(-n + 2) {
+        border-bottom: 0;
+      }
+    }
+  }
+}
+
+.chart {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+
+  figcaption {
+    font-size: 0.78rem;
+    color: var(--dim);
+
+    b {
+      @include num;
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+  }
+
+  svg {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+}
+
+.chartEmpty {
+  @include empty-state;
+  font-size: 0.8rem;
+}
+
+.chartGrid {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+
+.chartAxis {
+  fill: var(--dim);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.chartFloor {
+  stroke: var(--up);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+  opacity: 0.8;
+}
+
+.chartFloorLabel {
+  fill: var(--up);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.chartLine {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.chartDot {
+  fill: var(--ink);
+  stroke: var(--blue);
+  stroke-width: 2;
+  cursor: pointer;
+  transition: r 120ms ease;
+
+  &[data-kind="auction"] {
+    stroke: #f5c542;
+  }
+}
+
+.cardColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0.75rem 0 2rem;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li + li {
+    border-top: 1px solid var(--rule);
+  }
+}
+
+.rowButton {
+  display: grid;
+  grid-template-columns: 5.2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.55rem 0.25rem;
+  border: 0;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--ink-2);
+  }
+}
+
+.rowKind {
+  @include num;
+  padding: 0.1rem 0.3rem;
+  border: 1px solid var(--rule-2);
+  color: var(--mid);
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: center;
+
+  &[data-kind="auction"] {
+    border-color: color-mix(in srgb, #f5c542 55%, transparent);
+    color: #f5c542;
+  }
+}
+
+.rowMain {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+
+  small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.68rem;
+    color: var(--dim);
+  }
+}
+
+.rowGo {
+  @include label;
+  color: var(--blue);
+}
+
+.rowEnd {
+  display: grid;
+  justify-items: end;
+  gap: 0.1rem;
+
+  small {
+    font-size: 0.66rem;
+    color: var(--dim);
+  }
+}
+
+.saleRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.5rem 0.25rem;
+
+  small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.7rem;
+    color: var(--dim);
+  }
+}
+
+// ── Desk ────────────────────────────────────────────────────────────────────
+.deskGrid {
+  display: grid;
+  align-items: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0.75rem 0 2rem;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.deskList {
+  display: grid;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  list-style: none;
+
+  li + li {
+    border-top: 1px solid var(--rule);
+  }
+}
+
+.deskRow {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.45rem 0.25rem;
+  border: 0;
+  border-left: 2px solid transparent;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--ink-2);
+  }
+
+  &[data-state="leading"] {
+    border-left-color: var(--up);
+  }
+
+  &[data-state="outbid"] {
+    border-left-color: var(--warn);
+
+    .rowMain small {
+      color: var(--warn);
+    }
+  }
+
+  &[data-state="sold"] .cash {
+    color: var(--up);
+  }
+
+  &[data-state="expired"],
+  &[data-state="cancelled"] {
+    opacity: 0.7;
+  }
+}
+
+// ── Trades ──────────────────────────────────────────────────────────────────
+.tradeTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin: 1rem 0 0.5rem;
+
+  .note {
+    flex: 1 1 18rem;
+  }
+}
+
+.tradeSection {
+  margin-top: 1.25rem;
+
+  &:last-of-type {
+    margin-bottom: 2rem;
+  }
+}
+
+.tradeList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 30rem), 1fr));
+  gap: 0.75rem;
+}
+
+.trade {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--rule);
+  background: var(--ink);
+
+  &[data-status="accepted"] {
+    border-left: 3px solid var(--up);
+  }
+
+  &[data-status="declined"],
+  &[data-status="expired"],
+  &[data-status="cancelled"],
+  &[data-status="countered"] {
+    opacity: 0.75;
+  }
+}
+
+.tradeHead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+
+  a {
+    color: var(--text);
+    font-weight: 700;
+  }
+
+  em {
+    font-style: normal;
+    color: var(--blue);
+    font-size: 0.75rem;
+  }
+}
+
+.tradeStatus {
+  @include label;
+  font-size: 0.58rem;
+
+  &[data-status="accepted"] {
+    color: var(--up);
+  }
+}
+
+.tradeMessage {
+  margin: 0;
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--rule-2);
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--mid);
+}
+
+.tradeSides {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: start;
+}
+
+.tradeSwap {
+  align-self: center;
+  color: var(--dim);
+}
+
+.tradeSide {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.sideLabel {
+  @include label;
+  font-size: 0.56rem;
+}
+
+.tradeCards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.tradeCard {
+  position: relative;
+}
+
+.qty {
+  @include num;
+  position: absolute;
+  right: -0.2rem;
+  bottom: -0.2rem;
+  padding: 0.05rem 0.3rem;
+  background: var(--blue);
+  color: var(--blue-ink);
+  font-size: 0.66rem;
+}
+
+.sideExtras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.shardAmount {
+  @include num;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #b28cff;
+
+  i {
+    width: 0.55rem;
+    height: 0.55rem;
+    background: #b28cff;
+    transform: rotate(45deg);
+  }
+}
+
+.meter {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0.9rem;
+
+  p {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.3rem 0.8rem;
+    margin: 0;
+    font-size: 0.74rem;
+    color: var(--dim);
+
+    b {
+      @include num;
+      color: var(--text);
+    }
+  }
+}
+
+.meterBar {
+  position: relative;
+  height: 0.4rem;
+  background: color-mix(in srgb, var(--down) 55%, var(--ink-3));
+
+  &[data-empty] {
+    background: var(--ink-3);
+
+    i {
+      display: none;
+    }
+  }
+
+  i {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: calc(var(--share) * 100%);
+    background: var(--up);
+    transition: width 320ms ease;
+  }
+
+  &::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: -0.2rem;
+    bottom: -0.2rem;
+    width: 1px;
+    background: var(--text);
+    opacity: 0.6;
+  }
+}
+
+.meterVerdict {
+  font-weight: 700;
+  color: var(--mid);
+
+  &[data-tone="up"] {
+    color: var(--up);
+  }
+
+  &[data-tone="down"] {
+    color: var(--warn);
+  }
+
+  &[data-tone="even"] {
+    color: var(--text);
+  }
+}
+
+// ── Trade builder ───────────────────────────────────────────────────────────
+.partnerBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.6rem;
+  margin: 0.75rem 0 1rem;
+
+  .field {
+    flex: 0 1 16rem;
+  }
+}
+
+.partnerChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--blue);
+  background: var(--blue-wash);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.builder {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.builderSide {
+  display: grid;
+  align-content: start;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--rule);
+  background: var(--ink);
+
+  .pickerBar {
+    padding: 0;
+  }
+}
+
+.picked {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-height: 5.5rem;
+  padding: 0.5rem;
+  border: 1px dashed var(--rule-2);
+}
+
+.pickedCard {
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--rule-2);
+
+  button {
+    display: grid;
+    place-items: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    border: 0;
+    background: none;
+    color: var(--mid);
+    font-size: 0.6rem;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      color: var(--text);
+      background: var(--ink-3);
+    }
+
+    &:disabled {
+      opacity: 0.35;
+    }
+  }
+
+  b {
+    @include num;
+    min-width: 1.2rem;
+    text-align: center;
+    font-size: 0.75rem;
+  }
+}
+
+:global(html[data-calm="true"]) {
+  .clock[data-phase="final"],
+  .liveDot,
+  .ghostTile,
+  .tape li,
+  .tile[data-flash],
+  .dialog,
+  .scrim {
+    animation: none;
+  }
+}

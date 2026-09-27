@@ -520,3 +520,38 @@
     animation: none;
   }
 }
+
+// Link to this card on the exchange, with its market value.
+.marketLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.25rem 0 0.75rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--rule);
+  color: var(--mid);
+  font-size: 0.78rem;
+  text-decoration: none;
+
+  b {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+
+  > span:last-child {
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--blue);
+    white-space: nowrap;
+  }
+
+  &:hover {
+    border-color: var(--blue);
+  }
+}

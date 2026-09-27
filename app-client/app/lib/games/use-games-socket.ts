@@ -45,7 +45,11 @@ function stampOf(payload: Payload | undefined) {
   return typeof table?.server_time === "number" ? table.server_time : null;
 }
 
+// Every message, not just the latest: feeds (the exchange tape, your alerts) need each one.
+const eventListeners = new Map<string, Set<(payload: Payload) => void>>();
+
 function accept(channel: string, payload: Payload) {
+  eventListeners.get(channel)?.forEach((handler) => handler(payload));
   const previous = latest.get(channel);
   // Spectator-count pings only carry the count: merge it into the table we already have.
   if (payload.type === "spectators") {
@@ -161,3 +165,27 @@ export function useSeedChannel(channel: string | null, payload: Payload | null) 
 export function serverNow() {
   return Date.now() + clockOffset;
 }
+
+/**
+ * Calls `handler` for every message on `channel` (`exchange`, or `me` for your own alerts when
+ * signed in). Keeps the channel subscribed while mounted.
+ */
+export function useGamesEvents(channel: string | null, handler: (payload: Payload) => void) {
+  useEffect(() => {
+    if (!channel) return;
+    let set = eventListeners.get(channel);
+    if (!set) {
+      set = new Set();
+      eventListeners.set(channel, set);
+    }
+    const listener = (payload: Payload) => handler(payload);
+    set.add(listener);
+    const release = addListener(channel, () => {});
+    return () => {
+      set.delete(listener);
+      release();
+    };
+  }, [channel, handler]);
+}
+
+export type GamesPayload = Payload;

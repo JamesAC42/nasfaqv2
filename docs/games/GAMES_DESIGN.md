@@ -139,21 +139,51 @@ gains:
 - Single API process assumption: tables live in memory. If the API ever runs more than one process,
   table ownership moves to Redis.
 
-## Later: card trading and an auction house (not built yet)
+## Card exchange
 
-With 365 cards (73 talents x 5 rarities), per-rarity art and a gallery that unlocks by owning, players
-will want to swap and sell cards. Noted for a later phase; nothing below exists yet.
+`/games/exchange`. Players buy, sell and auction talent cards for cash, and trade straight with
+each other. Code: `api/src/services/games/exchange.js` (routes under `/api/games/exchange/*`),
+`app-client/app/components/games/exchange/`.
 
-- **Direct trades.** Offer cards, shards and cash for another player's cards and shards. Both sides
-  confirm a locked offer; items sit in escrow until it completes or is cancelled. Trade history on
-  both profiles.
-- **Auction house.** List a card with a starting bid and a duration (12/24/48h), optional buy-now.
-  Bids lock cash in escrow; a late bid extends the end by a few minutes (no sniping). A listing fee
-  or cut of the sale is a cash sink.
-- **Price history per card** (last sales, floor price by rarity), shown on the card sheet and in the
-  gallery, so collections have a visible value.
-- **Guard rails.** Minimum account age and verified email to trade; daily trade limits; flag lopsided
-  trades between new accounts (alt farming); starter-pack cards untradeable; stars and the first copy
-  rules (duplicates to shards) need a decision before trading ships.
-- **Interplay.** Crafting and shard prices set a soft ceiling on what cards are worth; the gallery
-  unlock should follow the card when it's traded away (decide whether art stays unlocked).
+**What moves.** One copy at a time. Stars follow copies (stars = copies held, max 5): selling a
+duplicate drops a star while you hold fewer than five; a copy you receive adds one but never pays
+duplicate shards, so trading can't mint stars or shards. Starter-pack copies are bound
+(`games.user_cards.bound_copies`) and can't leave the account. When the last copy of a talent
+leaves, her reaction avatar goes with it (and the showcase slot).
+
+**Escrow.** Anything offered is out of the collection until it settles: a listed copy sits on the
+listing; a bid holds the bidder's cash and is refunded the moment they're outbid; a trade offer
+holds the proposer's whole side. Cancelling, declining, expiring and countering all hand escrow
+back. Every cash move goes through the games wallet ledger (`exchange_*` entry types).
+
+**Market.** One copy per listing.
+- *Buy now*: a fixed price, up for 7 days or until it sells. The seller can cancel any time.
+- *Auction*: an opening bid, an optional buy-now, and 1/12/24/48h. Bids step up by 5% (at least
+  $1). A bid in the last 2 minutes pushes the end to 2 minutes out (no sniping). Buy-now stays
+  available until the bidding reaches it; buying out refunds the leader. A bid at or over the
+  buy-now just buys it. Auctions with bids can't be cancelled.
+- The seller pays a 5% fee on every sale (a cash sink). Direct trades are free.
+- A scheduler (every 5s, advisory-locked) closes ended auctions (sold to the top bid, or back to
+  the seller) and expires listings and trade offers.
+
+**Direct trades.** Cards (up to 10 kinds, 20 copies), cash and shards each way; both sides must
+have something. Offers last 48 hours. The recipient accepts, declines or counters; a counter
+closes the original (refunding it) and opens a new offer the other way. The trade page shows a
+value meter from market prices.
+
+**Prices.** Every sale lands in `games.card_sales`. The price book gives each card a floor (cheapest
+buy-now), last sale and 7-day average; its "value" (last sale, else 7-day average, else floor)
+drives the trade value meter, the binder value on My desk and the price on the collection card
+sheet. Card pages chart every sale with the floor as a guide.
+
+**Live.** The games socket carries a public `exchange` tape (sales, bids, listings, trades) and a
+private `me` feed (outbid, sold, won, bought, bids received, trade offers and answers); the site
+shows `me` alerts as toasts anywhere and refreshes cash, binder and desk.
+
+**Guard rails.** Verified email; accounts at least 3 days old (`EXCHANGE_MIN_ACCOUNT_AGE_HOURS`,
+default 72); at most 25 active listings, 10 open offers, and 40 new listings plus offers a day
+(`EXCHANGE_DAILY_ACTIONS`). Prices from $1 to $1,000,000. Players can't buy or bid on their own
+listings or trade with themselves. A full market reset clears the exchange with everything else.
+
+**Not built yet.** Wishlists and "someone listed a card you want" alerts; admin tools for spotting
+alt-account funnelling (lopsided trades between new accounts).

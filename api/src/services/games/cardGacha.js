@@ -161,12 +161,14 @@ async function grantCardWithClient(client, { userId, talent, rarity, source, awa
   );
   const info = cards.RARITY_INFO[rarity];
   if (!rows[0]) {
+    // Starter-pack copies are bound to the account (they can't be traded or sold).
+    const bound = source === "starter" ? 1 : 0;
     await client.query(
       `
-      INSERT INTO games.user_cards (user_id, card_key, asset_id, rarity, stars, copies, first_source)
-      VALUES ($1,$2,$3,$4,1,1,$5)
+      INSERT INTO games.user_cards (user_id, card_key, asset_id, rarity, stars, copies, bound_copies, first_source)
+      VALUES ($1,$2,$3,$4,1,1,$6,$5)
     `,
-      [userId, key, talent.asset_id, rarity, source]
+      [userId, key, talent.asset_id, rarity, source, bound]
     );
     return { key, was_new: true, stars: 1, copies: 1, shards: 0 };
   }
@@ -174,8 +176,8 @@ async function grantCardWithClient(client, { userId, talent, rarity, source, awa
   const stars = maxed ? cards.MAX_STARS : Number(rows[0].stars) + 1;
   const copies = Number(rows[0].copies) + 1;
   await client.query(
-    `UPDATE games.user_cards SET stars = $2, copies = $3, last_obtained_at = now() WHERE id = $1`,
-    [rows[0].id, stars, copies]
+    `UPDATE games.user_cards SET stars = $2, copies = $3, bound_copies = bound_copies + $4, last_obtained_at = now() WHERE id = $1`,
+    [rows[0].id, stars, copies, source === "starter" ? 1 : 0]
   );
   const shards = awardShards ? (maxed ? info.dupShards * 2 : info.dupShards) : 0;
   return { key, was_new: false, stars, copies, shards };
@@ -390,10 +392,15 @@ async function craftCard(pool, { userId, cardKey }) {
 // ── Collection, sets, rewards ──────────────────────────────────────────────
 async function loadOwnedCards(db, userId) {
   const { rows } = await db.query(
-    `SELECT card_key, rarity, stars, copies, first_obtained_at FROM games.user_cards WHERE user_id = $1`,
+    `SELECT card_key, rarity, stars, copies, bound_copies, first_obtained_at FROM games.user_cards WHERE user_id = $1`,
     [userId]
   );
-  return new Map(rows.map((row) => [row.card_key, { rarity: row.rarity, stars: Number(row.stars), copies: Number(row.copies), first_obtained_at: row.first_obtained_at }]));
+  return new Map(
+    rows.map((row) => [
+      row.card_key,
+      { rarity: row.rarity, stars: Number(row.stars), copies: Number(row.copies), bound: Number(row.bound_copies ?? 0), first_obtained_at: row.first_obtained_at },
+    ])
+  );
 }
 
 function computeSets(talents, owned, claimed) {
@@ -450,7 +457,13 @@ async function getCollection(pool, userId) {
   for (const [key, row] of owned) {
     const entry = byKey.get(key);
     if (!entry) continue;
-    ownedCards.push({ ...cards.publicCard(entry.talent, entry.rarity, { stars: row.stars }), stars: row.stars, copies: row.copies, obtained_at: row.first_obtained_at });
+    ownedCards.push({
+      ...cards.publicCard(entry.talent, entry.rarity, { stars: row.stars }),
+      stars: row.stars,
+      copies: row.copies,
+      tradeable: Math.max(0, row.copies - row.bound),
+      obtained_at: row.first_obtained_at,
+    });
   }
   const pity = {};
   for (const row of pityRows.rows) {
@@ -607,6 +620,7 @@ async function listRecentTopPulls(pool, { limit = 12 } = {}) {
 }
 
 module.exports = {
+  lockShardsWithClient,
   GAME_KEY,
   HARD_PITY,
   HIGH_EVERY,

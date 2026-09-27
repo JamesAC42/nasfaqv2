@@ -231,6 +231,9 @@ export function ProfileView({ username }: { username?: string | null }) {
                   <button type="button" className={viewer.is_rival ? styles.rivalOn : styles.rival} disabled={busy !== null} onClick={() => void relation.rival(profile.username, !viewer.is_rival)}>
                     {viewer.is_rival ? "RIVAL ✓" : "DECLARE RIVAL"}
                   </button>
+                  <Link href={`/games/exchange/trades/new?to=${encodeURIComponent(profile.username)}`} className={styles.ghost} title="Offer this player a card trade">
+                    TRADE CARDS
+                  </Link>
                 </>
               ) : (
                 <Link href="/login" className={styles.ghost}>

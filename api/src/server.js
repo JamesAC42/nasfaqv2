@@ -632,6 +632,10 @@ async function main() {
       if (target === chatWss) {
         req.chatUser = await authService.getAuthenticatedUser(pool, req);
       }
+      if (target === gamesWss) {
+        // Optional: signed-in sockets can follow their own `me` feed.
+        req.gamesUser = await authService.getAuthenticatedUser(pool, req).catch(() => null);
+      }
       target.handleUpgrade(req, socket, head, (ws) => {
         target.emit("connection", ws, req);
       });
@@ -704,6 +708,8 @@ async function main() {
   if (cfg.enablePredictionMarketScheduler) {
     startPredictionsScheduler(pool, console, redis);
   }
+  // The card exchange closes auctions and expires listings and trade offers on its own clock.
+  require("./services/games/exchange").startExchangeScheduler(pool, console);
 }
 
 main().catch((e) => {

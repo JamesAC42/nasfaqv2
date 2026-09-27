@@ -10,6 +10,14 @@ const VALID_ENTRY_TYPES = new Set([
   "pvp_prize_payout",
   "table_bet_debit",
   "table_payout",
+  // Card exchange: bid holds and refunds, purchases, sale proceeds, trade escrow.
+  "exchange_bid_hold",
+  "exchange_bid_refund",
+  "exchange_purchase",
+  "exchange_sale",
+  "exchange_trade_escrow",
+  "exchange_trade_refund",
+  "exchange_trade_settle",
 ]);
 
 function toNumber(value, fallback = 0) {

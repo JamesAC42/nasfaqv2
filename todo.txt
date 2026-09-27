@@ -55,4 +55,4 @@ fixes:
 - explain the treasury system
 
 later:
-- card trading + auction house for talent cards (sketch in docs/games/GAMES_DESIGN.md, "Later")
+- card exchange: wishlists + "a card you want was listed" alerts; admin view for lopsided trades between new accounts

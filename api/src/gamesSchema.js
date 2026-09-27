@@ -206,6 +206,114 @@ async function applyGamesSchema(pool) {
       PRIMARY KEY (game_key, week_start)
     )
   `);
+
+  // ── Card exchange (docs/games/GAMES_DESIGN.md §Card exchange) ────────────
+  // Starter-pack copies are bound to the account: `copies - bound_copies` can be traded.
+  await pool.query(`ALTER TABLE games.user_cards ADD COLUMN IF NOT EXISTS bound_copies INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`
+    UPDATE games.user_cards SET bound_copies = 1
+    WHERE first_source = 'starter' AND bound_copies = 0
+  `);
+  await pool.query(`ALTER TABLE games.user_cards DROP CONSTRAINT IF EXISTS games_user_cards_bound_check`);
+  await pool.query(`
+    ALTER TABLE games.user_cards
+      ADD CONSTRAINT games_user_cards_bound_check CHECK (bound_copies >= 0 AND bound_copies <= copies)
+  `);
+
+  // One copy per listing: a fixed price (buy now) or an auction (optional buy now). The copy sits
+  // in escrow here while the listing is active; bids hold the bidder's cash.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS games.card_listings (
+      id BIGSERIAL PRIMARY KEY,
+      seller_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      card_key TEXT NOT NULL,
+      asset_id BIGINT NOT NULL REFERENCES market.market_assets(id) ON DELETE CASCADE,
+      rarity TEXT NOT NULL,
+      stars_at_listing SMALLINT NOT NULL DEFAULT 1,
+      kind TEXT NOT NULL,
+      price NUMERIC(18,2) NULL,
+      start_price NUMERIC(18,2) NULL,
+      current_bid NUMERIC(18,2) NULL,
+      current_bidder_id BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL,
+      bid_count INTEGER NOT NULL DEFAULT 0,
+      extensions INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      ends_at TIMESTAMPTZ NOT NULL,
+      closed_at TIMESTAMPTZ NULL,
+      buyer_id BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL,
+      sale_price NUMERIC(18,2) NULL,
+      fee NUMERIC(18,2) NULL,
+      CONSTRAINT games_card_listings_kind_check CHECK (kind IN ('fixed', 'auction')),
+      CONSTRAINT games_card_listings_status_check CHECK (status IN ('active', 'sold', 'cancelled', 'expired')),
+      CONSTRAINT games_card_listings_rarity_check CHECK (rarity IN ('C', 'R', 'SR', 'SSR', 'UR')),
+      CONSTRAINT games_card_listings_price_check CHECK (
+        (kind = 'fixed' AND price > 0)
+        OR (kind = 'auction' AND start_price > 0 AND (price IS NULL OR price > start_price))
+      )
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS games_card_listings_active_idx ON games.card_listings (status, ends_at)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS games_card_listings_card_idx ON games.card_listings (card_key, status)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS games_card_listings_seller_idx ON games.card_listings (seller_id, status, created_at DESC)`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS games.card_bids (
+      id BIGSERIAL PRIMARY KEY,
+      listing_id BIGINT NOT NULL REFERENCES games.card_listings(id) ON DELETE CASCADE,
+      bidder_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      amount NUMERIC(18,2) NOT NULL,
+      status TEXT NOT NULL DEFAULT 'leading',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT games_card_bids_status_check CHECK (status IN ('leading', 'outbid', 'won', 'refunded')),
+      CONSTRAINT games_card_bids_amount_check CHECK (amount > 0)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS games_card_bids_listing_idx ON games.card_bids (listing_id, amount DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS games_card_bids_bidder_idx ON games.card_bids (bidder_id, created_at DESC)`);
+
+  // Every completed market sale: the price history behind floors, charts and collection value.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS games.card_sales (
+      id BIGSERIAL PRIMARY KEY,
+      listing_id BIGINT NULL REFERENCES games.card_listings(id) ON DELETE SET NULL,
+      card_key TEXT NOT NULL,
+      asset_id BIGINT NOT NULL REFERENCES market.market_assets(id) ON DELETE CASCADE,
+      rarity TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      price NUMERIC(18,2) NOT NULL,
+      fee NUMERIC(18,2) NOT NULL DEFAULT 0,
+      seller_id BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL,
+      buyer_id BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS games_card_sales_card_idx ON games.card_sales (card_key, created_at DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS games_card_sales_recent_idx ON games.card_sales (created_at DESC)`);
+
+  // Direct trades between two players. The proposer's side is in escrow while pending; a counter
+  // closes the original (refunding it) and opens a new offer the other way.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS games.card_trades (
+      id BIGSERIAL PRIMARY KEY,
+      from_user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      to_user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'pending',
+      give_json JSONB NOT NULL,
+      ask_json JSONB NOT NULL,
+      message TEXT NULL,
+      counter_of BIGINT NULL REFERENCES games.card_trades(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      expires_at TIMESTAMPTZ NOT NULL,
+      responded_at TIMESTAMPTZ NULL,
+      CONSTRAINT games_card_trades_status_check CHECK (status IN ('pending', 'accepted', 'declined', 'cancelled', 'expired', 'countered')),
+      CONSTRAINT games_card_trades_users_check CHECK (from_user_id <> to_user_id),
+      CONSTRAINT games_card_trades_message_check CHECK (message IS NULL OR char_length(message) <= 200)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS games_card_trades_to_idx ON games.card_trades (to_user_id, status, created_at DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS games_card_trades_from_idx ON games.card_trades (from_user_id, status, created_at DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS games_card_trades_pending_idx ON games.card_trades (status, expires_at)`);
 }
 
 module.exports = { applyGamesSchema };

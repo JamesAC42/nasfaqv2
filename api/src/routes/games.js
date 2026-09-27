@@ -5,6 +5,7 @@ const gachaPrizeCatalog = require("../services/games/gachaPrizeCatalog");
 const gamesInventory = require("../services/games/inventory");
 const gamesSessions = require("../services/games/sessions");
 const cardGacha = require("../services/games/cardGacha");
+const exchange = require("../services/games/exchange");
 const { requireUserId, requireVerifiedUserId } = require("../userContext");
 
 const router = express.Router();
@@ -38,13 +39,36 @@ const ERROR_STATUS = {
   game_session_not_active: 409,
   run_too_fast: 409,
   invalid_game_session: 400,
+  // Card exchange
+  card_bound: 409,
+  card_not_tradeable: 409,
+  exchange_account_too_new: 403,
+  exchange_daily_limit: 429,
+  exchange_listing_limit: 409,
+  exchange_offer_limit: 409,
+  invalid_price: 400,
+  invalid_duration: 400,
+  invalid_listing: 400,
+  invalid_trade: 400,
+  trade_one_sided: 400,
+  trade_with_self: 400,
+  listing_not_found: 404,
+  trade_not_found: 404,
+  trade_partner_not_found: 404,
+  listing_closed: 409,
+  auction_has_bids: 409,
+  own_listing: 409,
+  buy_now_unavailable: 409,
+  not_an_auction: 409,
+  bid_too_low: 409,
+  trade_closed: 409,
 };
 
 function sendGameError(res, next, error) {
   const status = ERROR_STATUS[error?.code];
   if (!status) return next(error);
   const body = { error: error.code };
-  for (const key of ["cash_balance", "required_cash", "shards", "required_shards"]) {
+  for (const key of ["cash_balance", "required_cash", "shards", "required_shards", "min_bid", "available_at", "limit", "field", "card_key", "tradeable", "status"]) {
     if (error[key] !== undefined) body[key] = error[key];
   }
   return res.status(status).json(body);
@@ -121,6 +145,146 @@ router.get("/cards/profile/:username", async (req, res, next) => {
     const result = await cardGacha.getPublicCollection(req.ctx.pool, req.params.username);
     if (!result) return res.status(404).json({ error: "profile_not_found" });
     res.json(result);
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+// ── Card exchange ────────────────────────────────────────────────────────
+const viewerIdOf = (req) => (req.ctx?.user?.id ? Number(req.ctx.user.id) : null);
+const idParam = (value) => {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : 0;
+};
+
+router.get("/exchange/overview", async (req, res, next) => {
+  try {
+    res.json(await exchange.overview(req.ctx.pool, { viewerId: viewerIdOf(req) }));
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.get("/exchange/listings", async (req, res, next) => {
+  try {
+    const { rarity, kind, symbol, unit, q, sort, page } = req.query;
+    res.json(await exchange.browseListings(req.ctx.pool, { viewerId: viewerIdOf(req), rarity, kind, symbol, unit, q, sort, page }));
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.get("/exchange/prices", async (req, res, next) => {
+  try {
+    res.json({ prices: await exchange.priceBook(req.ctx.pool) });
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.get("/exchange/cards/:symbol/:rarity", async (req, res, next) => {
+  try {
+    const key = `card:${String(req.params.symbol).toUpperCase()}:${String(req.params.rarity).toUpperCase()}`;
+    res.json(await exchange.cardDetail(req.ctx.pool, { cardKey: key, viewerId: viewerIdOf(req) }));
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.get("/exchange/me", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    res.json(await exchange.myDesk(req.ctx.pool, { userId }));
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.post("/exchange/listings", async (req, res, next) => {
+  try {
+    const userId = requireVerifiedUserId(req);
+    const body = req.body || {};
+    const result = await exchange.createListing(req.ctx.pool, {
+      userId,
+      cardKey: String(body.card_key || ""),
+      kind: body.kind,
+      price: body.price,
+      startPrice: body.start_price,
+      buyNow: body.buy_now,
+      durationHours: body.duration_hours,
+    });
+    res.status(201).json(result);
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.delete("/exchange/listings/:id", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    res.json(await exchange.cancelListing(req.ctx.pool, { userId, listingId: idParam(req.params.id) }));
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.post("/exchange/listings/:id/buy", async (req, res, next) => {
+  try {
+    const userId = requireVerifiedUserId(req);
+    res.status(201).json(await exchange.buyListing(req.ctx.pool, { userId, listingId: idParam(req.params.id) }));
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.post("/exchange/listings/:id/bids", async (req, res, next) => {
+  try {
+    const userId = requireVerifiedUserId(req);
+    res.status(201).json(await exchange.placeBid(req.ctx.pool, { userId, listingId: idParam(req.params.id), amount: req.body?.amount }));
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.get("/exchange/trades", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    res.json(await exchange.listTrades(req.ctx.pool, { userId }));
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.post("/exchange/trades", async (req, res, next) => {
+  try {
+    const userId = requireVerifiedUserId(req);
+    const body = req.body || {};
+    const result = await exchange.proposeTrade(req.ctx.pool, {
+      userId,
+      toUsername: body.to_username,
+      give: body.give,
+      ask: body.ask,
+      message: body.message,
+      counterOf: body.counter_of ? idParam(body.counter_of) : null,
+    });
+    res.status(201).json(result);
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.post("/exchange/trades/:id/:action(accept|decline|cancel)", async (req, res, next) => {
+  try {
+    const userId = req.params.action === "accept" ? requireVerifiedUserId(req) : requireUserId(req);
+    res.json(await exchange.respondToTrade(req.ctx.pool, { userId, tradeId: idParam(req.params.id), action: req.params.action }));
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.get("/exchange/players/:username/cards", async (req, res, next) => {
+  try {
+    res.json(await exchange.tradeableCards(req.ctx.pool, { username: req.params.username }));
   } catch (error) {
     sendGameError(res, next, error);
   }

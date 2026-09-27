@@ -14,6 +14,7 @@ export const GAMES_NAV = [
   { href: "/games", label: "Arcade", exact: true },
   { href: "/games/cards", label: "Card gacha" },
   { href: "/games/collection", label: "Collection" },
+  { href: "/games/exchange", label: "Exchange" },
   { href: "/games/duel", label: "Oshi duel" },
   { href: "/games/blackjack", label: "Blackjack" },
   { href: "/games/high-low", label: "High-low" },

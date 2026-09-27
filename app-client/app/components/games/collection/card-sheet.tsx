@@ -7,11 +7,14 @@ import { Oshimark } from "@/app/components/common/oshimark";
 import { TalentCard } from "@/app/components/games/cards/talent-card";
 import { fmtInteger } from "@/app/lib/format";
 import { craftCard } from "@/app/lib/games/api";
+import { cardPath } from "@/app/lib/games/exchange";
 import { gameErrorText } from "@/app/lib/games/errors";
 import { MAX_STARS, RARITIES, RARITY_COLOR, RARITY_NAME } from "@/app/lib/games/rarity";
 import type { Rarity } from "@/app/lib/games/types";
 import { unitLabel } from "@/app/lib/market-units";
 import { talentAccent } from "@/app/lib/talent-color";
+import { money } from "@/app/lib/time";
+import { useExchangeStore } from "@/app/stores/exchange-store";
 import { useGamesStore } from "@/app/stores/games-store";
 import type { CollectionModel } from "@/app/components/games/collection/collection-model";
 import { SHOWCASE_SLOTS, type ShowcaseControls } from "@/app/components/games/collection/use-showcase";
@@ -38,6 +41,11 @@ export function CardSheet({ model, symbol, rarity, onRarity, shards, showcase, o
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [moment, setMoment] = useState<Moment | null>(null);
+  const market = useExchangeStore((state) => state.prices?.[`card:${symbol}:${rarity}`] ?? null);
+
+  useEffect(() => {
+    void useExchangeStore.getState().loadPrices();
+  }, []);
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
@@ -206,6 +214,22 @@ export function CardSheet({ model, symbol, rarity, onRarity, shards, showcase, o
             </dd>
           </div>
         </dl>
+
+        <Link href={cardPath(`card:${symbol}:${rarity}`)} className={styles.marketLink}>
+          <span>
+            <b>Exchange</b>
+            {market?.value != null ? (
+              <>
+                {" "}
+                worth ~{money(market.value)}
+                {market.floor != null ? ` · floor ${money(market.floor)}` : ""}
+              </>
+            ) : (
+              " no sales yet"
+            )}
+          </span>
+          <span>{owned && (card?.tradeable ?? 0) > 0 ? "Sell or buy →" : "Buy →"}</span>
+        </Link>
 
         <div className={styles.actions}>
           <div className={styles.action}>

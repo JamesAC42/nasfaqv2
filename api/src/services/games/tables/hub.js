@@ -7,7 +7,11 @@
 
 const { WebSocketServer } = require("ws");
 
-const CHANNEL_RE = /^(lobby:[a-z0-9-]{1,40}|table:\d{1,12}|blackjack:[a-z0-9-]{1,20})$/;
+const CHANNEL_RE = /^(lobby:[a-z0-9-]{1,40}|table:\d{1,12}|blackjack:[a-z0-9-]{1,20}|exchange)$/;
+// `me` is the signed-in player's own feed (exchange alerts: outbid, sold, trade offers). The
+// socket is authenticated at upgrade; `me` maps to `user:{id}` and is never public.
+const ME = "me";
+const userChannel = (userId) => `user:${userId}`;
 const MAX_CHANNELS_PER_CLIENT = 8;
 
 const channels = new Map(); // channel → Set<ws>
@@ -23,8 +27,14 @@ function send(ws, payload) {
   }
 }
 
-function subscribe(ws, channel) {
-  if (!CHANNEL_RE.test(channel)) return;
+function resolveChannel(ws, channel) {
+  if (channel === ME) return ws.userId ? userChannel(ws.userId) : null;
+  return CHANNEL_RE.test(channel) ? channel : null;
+}
+
+function subscribe(ws, requested) {
+  const channel = resolveChannel(ws, requested);
+  if (!channel) return;
   if (ws.gameChannels.size >= MAX_CHANNELS_PER_CLIENT && !ws.gameChannels.has(channel)) return;
   ws.gameChannels.add(channel);
   if (!channels.has(channel)) channels.set(channel, new Set());
@@ -39,7 +49,8 @@ function subscribe(ws, channel) {
   onCountChange(channel);
 }
 
-function unsubscribe(ws, channel) {
+function unsubscribe(ws, requested) {
+  const channel = resolveChannel(ws, requested) ?? requested;
   ws.gameChannels.delete(channel);
   const set = channels.get(channel);
   if (!set) return;
@@ -64,9 +75,18 @@ function publish(channel, payload) {
   for (const ws of set) send(ws, text);
 }
 
+/** Push to one player's `me` feed (every socket they have open). */
+function publishToUser(userId, payload) {
+  const set = channels.get(userChannel(userId));
+  if (!set?.size) return;
+  const text = JSON.stringify({ ...payload, channel: ME });
+  for (const ws of set) send(ws, text);
+}
+
 function createGamesWss() {
   wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
-  wss.on("connection", (ws) => {
+  wss.on("connection", (ws, req) => {
+    ws.userId = req?.gamesUser?.id ? Number(req.gamesUser.id) : null;
     ws.gameChannels = new Set();
     ws.isAlive = true;
     ws.on("pong", () => {
@@ -112,5 +132,6 @@ module.exports = {
   createGamesWss,
   onSubscriberCount: (listener) => countListeners.push(listener),
   publish,
+  publishToUser,
   registerSnapshotProvider: (provider) => snapshotProviders.push(provider),
 };

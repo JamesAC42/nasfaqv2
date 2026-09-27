@@ -21,6 +21,8 @@ export type TalentCard = Talent & {
   power: number;
   stars: number;
   copies?: number;
+  /** Copies that can be sold or traded (starter-pack copies are bound). */
+  tradeable?: number;
   obtained_at?: string | null;
 };
 

@@ -396,7 +396,12 @@ const RESET_TABLES = [
   "market.prediction_market_events",
   "market.prediction_market_outcomes",
   "market.prediction_markets",
-  // Games: currencies, cards, pulls, cosmetics, rewards, history
+  // Games: the card exchange (escrowed copies and held bids go with it), then currencies,
+  // cards, pulls, cosmetics, rewards, history
+  "games.card_bids",
+  "games.card_sales",
+  "games.card_listings",
+  "games.card_trades",
   "games.blackjack_bets",
   "games.blackjack_rounds",
   "games.pvp_match_players",

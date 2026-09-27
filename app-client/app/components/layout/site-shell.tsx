@@ -1,5 +1,6 @@
 "use client";
 
+import { ExchangeAlerts } from "@/app/components/games/exchange/exchange-alerts";
 import { ReactionFace, parseReaction } from "@/app/components/common/reaction-face";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -404,6 +405,7 @@ export function SiteShell({
       </header>
 
       <main className={[styles.main, fullBleed ? styles.mainFullBleed : ""].filter(Boolean).join(" ")}>{children}</main>
+      <ExchangeAlerts signedIn={Boolean(user)} />
 
       {!hideFooter ? (
         <footer className={styles.footer}>
