@@ -424,6 +424,8 @@ async function resetMarketState(pool) {
 
     const { rows: present } = await client.query(`SELECT name FROM unnest($1::text[]) AS name WHERE to_regclass(name) IS NOT NULL`, [RESET_TABLES]);
     const existing = new Set(present.map((row) => row.name));
+    // Reaction avatars came from cards, which go.
+    await client.query(`UPDATE market.users SET profile_reaction = NULL WHERE profile_reaction IS NOT NULL`);
     // Stocks stay; their snapshot pointers go before the snapshots do.
     await client.query(`UPDATE market.market_assets SET latest_snapshot_id = NULL, latest_snapshot_date = NULL`);
     const cleared = {};

@@ -1,5 +1,5 @@
 const DEFAULT_STARTER_CASH = 10000;
-const PROFILE_PICTURE_CDN_BASE_URL = "https://images.nasfaq.biz/profile-pictures";
+const { profilePictureUrlSql } = require("../profilePictures");
 
 function getStarterCash() {
   const parsed = Number(process.env.MARKET_STARTER_CASH || DEFAULT_STARTER_CASH);
@@ -21,11 +21,6 @@ function toRatio(numerator, denominator) {
   return numerator / denominator;
 }
 
-function profilePictureUrlSql(size, alias = "pp") {
-  const field = size === "large" ? "filename_large" : "filename_small";
-  const folder = size === "large" ? "large" : "small";
-  return `CASE WHEN ${alias}.id IS NULL OR ${alias}.is_deleted THEN NULL ELSE '${PROFILE_PICTURE_CDN_BASE_URL}/${folder}/' || ${alias}.${field} END`;
-}
 
 function getScopedRelationshipQuery(scope) {
   if (scope === "friends") {

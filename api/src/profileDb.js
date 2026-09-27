@@ -3,7 +3,8 @@ const netWorth = require("./services/netWorth");
 const achievements = require("./services/achievements");
 const trading = require("./services/trading");
 const gamesInventory = require("./services/games/inventory");
-const PROFILE_PICTURE_CDN_BASE_URL = "https://images.nasfaq.biz/profile-pictures";
+const { profilePictureUrlSql } = require("./profilePictures");
+const reactions = require("./services/games/reactions");
 
 function toInt(value, fallback, { min = 1, max = 100 } = {}) {
   const parsed = Number.parseInt(String(value ?? fallback), 10);
@@ -54,11 +55,6 @@ function optionalHexColor(value) {
   return /^#[0-9a-fA-F]{6}$/.test(trimmed) ? trimmed.toLowerCase() : null;
 }
 
-function profilePictureUrlSql(size, alias = "pp") {
-  const field = size === "large" ? "filename_large" : "filename_small";
-  const folder = size === "large" ? "large" : "small";
-  return `CASE WHEN ${alias}.id IS NULL OR ${alias}.is_deleted THEN NULL ELSE '${PROFILE_PICTURE_CDN_BASE_URL}/${folder}/' || ${alias}.${field} END`;
-}
 
 async function getUserByUsername(pool, username) {
   const safeUsername = normalizeUsername(username);
@@ -168,7 +164,7 @@ async function listAcceptedFriends(pool, userId) {
     SELECT
       friend.id,
       friend.username,
-      ${profilePictureUrlSql("small", "pp")} AS profile_picture_url,
+      ${profilePictureUrlSql("small", "pp", "friend")} AS profile_picture_url,
       friend.profile_color
     FROM market.user_friendships f
     JOIN market.users friend
@@ -527,7 +523,7 @@ async function resolveTargetUser(pool, username, viewerUserId) {
   return target;
 }
 
-async function setProfilePicture(pool, userId, profilePictureId) {
+async function setProfilePicture(pool, userId, profilePictureId, { reaction = null } = {}) {
   const safeUserId = Number(userId);
   if (!Number.isInteger(safeUserId) || safeUserId <= 0) {
     const error = new Error("invalid_profile_picture");
@@ -535,15 +531,26 @@ async function setProfilePicture(pool, userId, profilePictureId) {
     throw error;
   }
 
+  // A card reaction as the avatar ("PEK/hype"): needs a card of that talent. It takes precedence
+  // over the catalog picture, which is kept for when the reaction is cleared.
+  if (reaction) {
+    const { symbol, pose } = reactions.parseReactionId(reaction);
+    await reactions.assertOwnsReaction(pool, safeUserId, symbol);
+    await pool.query(`UPDATE market.users SET profile_reaction = $2 WHERE id = $1`, [safeUserId, `${symbol}/${pose}`]);
+    await refreshAvatarCopies(pool, safeUserId);
+    return;
+  }
+
   if (profilePictureId === null || profilePictureId === undefined) {
     await pool.query(
       `
       UPDATE market.users
-      SET profile_picture_id = NULL
+      SET profile_picture_id = NULL, profile_reaction = NULL
       WHERE id = $1
     `,
       [safeUserId]
     );
+    await refreshAvatarCopies(pool, safeUserId);
     return;
   }
 
@@ -574,12 +581,18 @@ async function setProfilePicture(pool, userId, profilePictureId) {
   await pool.query(
     `
     UPDATE market.users
-    SET profile_picture_id = $2
+    SET profile_picture_id = $2, profile_reaction = NULL
     WHERE id = $1
   `,
     [safeUserId, safeProfilePictureId]
   );
-  await netWorth.refreshCurrentOshiboards(pool, { userIds: [safeUserId] });
+  await refreshAvatarCopies(pool, safeUserId);
+}
+
+// The leaderboard and oshiboards keep a copy of each player's avatar URL.
+async function refreshAvatarCopies(pool, userId) {
+  await netWorth.refreshCurrentLeaderboard(pool, { userIds: [userId] });
+  await netWorth.refreshCurrentOshiboards(pool, { userIds: [userId] });
 }
 
 async function updateProfileSettings(pool, userId, { username, bio, profileColor, oshiCoinAssetId }) {

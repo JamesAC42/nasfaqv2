@@ -3,12 +3,16 @@
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
 import { AssetPicker } from "@/app/components/common/asset-picker";
+import Link from "next/link";
+import { Oshimark } from "@/app/components/common/oshimark";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
+import { parseReaction } from "@/app/components/common/reaction-face";
 import { apiFetch } from "@/app/lib/api";
 import { normalizeProfileBundle } from "@/app/lib/normalizers";
 import type { ProfileBundle } from "@/app/lib/types";
 import { useAuthStore } from "@/app/stores/auth-store";
 import { useMarketStore } from "@/app/stores/market-store";
+import { useReactionStore } from "@/app/stores/reaction-store";
 import styles from "@/app/components/profile/profile.module.scss";
 
 type Profile = ProfileBundle["profile"];
@@ -123,11 +127,16 @@ type Picture = { id: number; name: string; url_large: string; url_small: string 
 
 export function PictureModal({ open, profile, onClose, onSaved }: { open: boolean; profile: Profile; onClose: () => void; onSaved: (bundle: ProfileBundle) => void }) {
   const [pictures, setPictures] = useState<Picture[] | null>(null);
-  const [busy, setBusy] = useState<number | "none" | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const unlocked = useReactionStore((state) => state.unlocked);
+  const [talent, setTalent] = useState<string | null>(null);
+  const loadReactions = useReactionStore((state) => state.load);
 
   useEffect(() => {
-    if (!open || pictures) return;
+    if (!open) return;
+    void loadReactions(true);
+    if (pictures) return;
     apiFetch<{ profile_pictures?: Array<Record<string, unknown>> }>("/api/assets/profile-pictures")
       .then((raw) =>
         setPictures(
@@ -137,20 +146,29 @@ export function PictureModal({ open, profile, onClose, onSaved }: { open: boolea
         ),
       )
       .catch(() => setPictures([]));
-  }, [open, pictures]);
+  }, [open, pictures, loadReactions]);
 
   if (!open) return null;
-  const current = pictures?.find((item) => item.url_large === profile.profile_picture_url || item.url_small === profile.profile_picture_url)?.id ?? null;
+  const currentReaction = parseReaction(profile.profile_picture_url);
+  const shown = unlocked?.find((row) => row.symbol === (talent ?? currentReaction?.symbol)) ?? unlocked?.[0] ?? null;
+  const current = currentReaction ? null : pictures?.find((item) => item.url_large === profile.profile_picture_url || item.url_small === profile.profile_picture_url)?.id ?? null;
 
-  const pick = async (id: number | null) => {
-    setBusy(id ?? "none");
+  const pick = async (choice: { id: number | null } | { reaction: string }) => {
+    const key = "reaction" in choice ? choice.reaction : String(choice.id ?? "none");
+    setBusy(key);
     setError(null);
     try {
-      const raw = await apiFetch<Record<string, unknown>>("/api/profiles/me/profile-picture", { method: "PUT", body: JSON.stringify({ profile_picture_id: id }) });
-      onSaved(normalizeProfileBundle(raw));
+      const body = "reaction" in choice ? { reaction: choice.reaction } : { profile_picture_id: choice.id };
+      const raw = await apiFetch<Record<string, unknown>>("/api/profiles/me/profile-picture", { method: "PUT", body: JSON.stringify(body) });
+      const bundle = normalizeProfileBundle(raw);
+      onSaved(bundle);
+      // The header avatar reads the signed-in user.
+      const user = useAuthStore.getState().user;
+      if (user) useAuthStore.getState().setUser({ ...user, profile_picture_url: bundle.profile.profile_picture_url ?? null });
       onClose();
     } catch (reason) {
-      setError(String((reason as Error).message || reason));
+      const code = String((reason as Error).message || reason);
+      setError(code === "reaction_locked" ? "You need one of her cards to use that reaction." : code);
     } finally {
       setBusy(null);
     }
@@ -158,17 +176,65 @@ export function PictureModal({ open, profile, onClose, onSaved }: { open: boolea
 
   return (
     <Modal title="Choose your icon" onClose={onClose}>
-      <div className={styles.pics}>
-        <button type="button" aria-pressed={current === null && !profile.profile_picture_url} disabled={busy !== null} onClick={() => void pick(null)} title="Initials">
-          <PlayerAvatar username={profile.username} color={profile.profile_color} size={64} />
-        </button>
-        {(pictures ?? []).map((item) => (
-          <button key={item.id} type="button" aria-pressed={current === item.id} disabled={busy !== null} onClick={() => void pick(item.id)} title={item.name}>
-            <img src={item.url_small} alt={item.name} loading="lazy" />
+      <section className={styles.picSection} aria-labelledby="pic-reactions">
+        <h3 id="pic-reactions">
+          Card reactions <small>own any card of a talent to use her reactions</small>
+        </h3>
+        {unlocked === null ? (
+          <p className={styles.note}>Loading your reactions…</p>
+        ) : unlocked.length && shown ? (
+          <>
+            <div className={styles.reactionTalents} role="tablist" aria-label="Talents">
+              {unlocked.map((talent) => (
+                <button
+                  key={talent.symbol}
+                  type="button"
+                  role="tab"
+                  aria-selected={talent.symbol === shown.symbol}
+                  onClick={() => setTalent(talent.symbol)}
+                  title={talent.display_name}
+                  style={{ "--tal": talent.color || "var(--blue)" } as React.CSSProperties}
+                >
+                  <Oshimark icon={talent.icon} symbol={talent.symbol} size={16} />
+                  {talent.symbol}
+                </button>
+              ))}
+            </div>
+            <span className={styles.reactionName} style={{ "--tal": shown.color || "var(--blue)" } as React.CSSProperties}>
+              {shown.display_name}
+            </span>
+            <div className={styles.pics}>
+              {shown.poses.map((pose) => {
+                const id = `${shown.symbol}/${pose}`;
+                const selected = currentReaction?.symbol === shown.symbol && currentReaction.pose === pose;
+                return (
+                  <button key={pose} type="button" aria-pressed={selected} disabled={busy !== null} onClick={() => void pick({ reaction: id })} title={`${shown.display_name}: ${pose}`}>
+                    <PlayerAvatar username={profile.username} pictureUrl={`reaction:${id}`} color={profile.profile_color || shown.color} size={64} />
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <p className={styles.note}>
+            None yet. Pull a card from the <Link href="/games/cards">card gacha</Link> and that talent&apos;s six reactions unlock here and as chat stickers.
+          </p>
+        )}
+      </section>
+      <section className={styles.picSection} aria-labelledby="pic-icons">
+        <h3 id="pic-icons">Icons</h3>
+        <div className={styles.pics}>
+          <button type="button" aria-pressed={current === null && !profile.profile_picture_url} disabled={busy !== null} onClick={() => void pick({ id: null })} title="Initials">
+            <PlayerAvatar username={profile.username} color={profile.profile_color} size={64} />
           </button>
-        ))}
-      </div>
-      {pictures === null ? <p className={styles.note}>Loading icons…</p> : null}
+          {(pictures ?? []).map((item) => (
+            <button key={item.id} type="button" aria-pressed={current === item.id} disabled={busy !== null} onClick={() => void pick({ id: item.id })} title={item.name}>
+              <img src={item.url_small} alt={item.name} loading="lazy" />
+            </button>
+          ))}
+        </div>
+        {pictures === null ? <p className={styles.note}>Loading icons…</p> : null}
+      </section>
       {error ? <p className={styles.err}>{error}</p> : null}
     </Modal>
   );

@@ -312,6 +312,7 @@ app.use((err, _req, res, _next) => {
     || err?.code === "gemini_not_configured"
     || err?.code === "gemini_request_failed"
     || err?.code === "reference_images_missing"
+    || err?.code === "invalid_reaction"
   ) {
     return res.status(400).json({ error: err.code });
   }
@@ -319,6 +320,8 @@ app.use((err, _req, res, _next) => {
     err?.code === "asset_comment_requires_holding"
     || err?.code === "asset_comment_self_vote"
     || err?.code === "prediction_market_comment_requires_position"
+    || err?.code === "reaction_locked"
+    || err?.code === "sticker_locked"
   ) {
     return res.status(403).json({ error: err.code });
   }

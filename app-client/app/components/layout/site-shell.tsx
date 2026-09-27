@@ -1,5 +1,6 @@
 "use client";
 
+import { ReactionFace, parseReaction } from "@/app/components/common/reaction-face";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FaDiscord } from "react-icons/fa6";
@@ -214,6 +215,7 @@ export function SiteShell({
   const profileHref = user ? "/profile" : "/login";
   const profileInitial = user?.username?.trim()?.charAt(0)?.toUpperCase() || "N";
   const profileImageUrl = user?.profile_picture_url?.trim() || null;
+  const headerReaction = parseReaction(profileImageUrl);
   const currentYear = new Date().getFullYear();
 
   return (
@@ -379,7 +381,9 @@ export function SiteShell({
             {user ? (
               <>
                 <span className={styles.avatar} aria-hidden="true">
-                  {profileImageUrl ? (
+                  {headerReaction ? (
+                    <ReactionFace symbol={headerReaction.symbol} pose={headerReaction.pose} size={28} />
+                  ) : profileImageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={profileImageUrl} alt="" />
                   ) : (

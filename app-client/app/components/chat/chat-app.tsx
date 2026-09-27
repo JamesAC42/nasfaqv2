@@ -1,5 +1,7 @@
 "use client";
 
+import { ReactionFace } from "@/app/components/common/reaction-face";
+import { parseSticker, stickerPreview } from "@/app/lib/stickers";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -91,6 +93,8 @@ function upsert(list: ChatMessage[], message: ChatMessage) {
 }
 
 const preview = (body: string | null | undefined) => {
+  const sticker = stickerPreview(body);
+  if (sticker) return sticker;
   const text = String(body || "").replace(/\s+/g, " ").trim();
   return text.length > 60 ? `${text.slice(0, 60)}…` : text;
 };
@@ -642,6 +646,7 @@ function Messages({ messages, worth, me, options }: { messages: ChatMessage[]; w
         const rank = author ? worth[author.id] : undefined;
         const mentioned = Boolean(mentionRe && mentionRe.test(message.body));
         const removed = message.status !== "active";
+        const sticker = removed ? null : parseSticker(message.body);
         return (
           <div key={message.id}>
             {newDay ? (
@@ -680,7 +685,13 @@ function Messages({ messages, worth, me, options }: { messages: ChatMessage[]; w
                     ) : null}
                   </div>
                 ) : null}
-                {removed ? <p className={styles.removed}>{message.status === "moderated" ? "removed by a moderator" : "deleted"}</p> : <RichText text={message.body} options={options} className={styles.text} />}
+                {removed ? (
+                  <p className={styles.removed}>{message.status === "moderated" ? "removed by a moderator" : "deleted"}</p>
+                ) : sticker ? (
+                  <ReactionFace symbol={sticker.symbol} pose={sticker.pose} size={136} crop="full" className={styles.sticker} />
+                ) : (
+                  <RichText text={message.body} options={options} className={styles.text} />
+                )}
                 {message.edited_at && !removed ? <small className={styles.edited}>edited</small> : null}
               </div>
             </article>

@@ -2,7 +2,7 @@
 // Used by routes/admin.js (mounted at /api/admin). Every export here assumes the caller already
 // checked that the requester is a site admin.
 
-const PROFILE_PICTURE_CDN_BASE_URL = "https://images.nasfaq.biz/profile-pictures";
+const { profilePictureUrlSql } = require("../profilePictures");
 
 /** Role flags an admin can toggle from /admin/people, in display order. */
 const ROLE_FLAGS = [
@@ -82,8 +82,7 @@ const USER_COLUMNS = `
   u.email_verified,
   u.email_verified_at,
   u.profile_color,
-  CASE WHEN pp.id IS NULL OR pp.is_deleted THEN NULL
-       ELSE '${PROFILE_PICTURE_CDN_BASE_URL}/small/' || pp.filename_small END AS profile_picture_url,
+  ${profilePictureUrlSql("small")} AS profile_picture_url,
   ${ROLE_FLAGS.map((flag) => `u.${flag}`).join(",\n  ")},
   u.created_at,
   cb.cash_balance,

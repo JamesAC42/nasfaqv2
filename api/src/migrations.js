@@ -177,6 +177,19 @@ async function applySchema(pool) {
     ALTER TABLE market.users
       ADD COLUMN IF NOT EXISTS profile_picture_id BIGINT NULL REFERENCES market.profile_pictures(id) ON DELETE SET NULL
   `);
+  // A card reaction used as the avatar ("PEK/hype"), unlocked by owning any of that talent's cards.
+  await pool.query(`
+    ALTER TABLE market.users
+      ADD COLUMN IF NOT EXISTS profile_reaction TEXT NULL
+  `);
+  await pool.query(`
+    ALTER TABLE market.users
+      DROP CONSTRAINT IF EXISTS users_profile_reaction_check
+  `);
+  await pool.query(`
+    ALTER TABLE market.users
+      ADD CONSTRAINT users_profile_reaction_check CHECK (profile_reaction IS NULL OR profile_reaction ~ '^[A-Z0-9_]{1,16}/(idle|hype|moon|cope|smug|shock)$')
+  `);
   await pool.query(`
     ALTER TABLE market.users
       DROP CONSTRAINT IF EXISTS users_bio_length_check

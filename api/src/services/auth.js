@@ -6,13 +6,8 @@ const SESSION_COOKIE_NAME = process.env.AUTH_SESSION_COOKIE_NAME || "nasfaq_sess
 const SESSION_TTL_DAYS = Number(process.env.AUTH_SESSION_TTL_DAYS || 30);
 const EMAIL_VERIFICATION_TTL_HOURS = Number(process.env.EMAIL_VERIFICATION_TTL_HOURS || 24);
 const PASSWORD_KEYLEN = 64;
-const PROFILE_PICTURE_CDN_BASE_URL = "https://images.nasfaq.biz/profile-pictures";
+const { profilePictureUrlSql } = require("../profilePictures");
 
-function profilePictureUrlSql(size, alias = "pp") {
-  const field = size === "large" ? "filename_large" : "filename_small";
-  const folder = size === "large" ? "large" : "small";
-  return `CASE WHEN ${alias}.id IS NULL OR ${alias}.is_deleted THEN NULL ELSE '${PROFILE_PICTURE_CDN_BASE_URL}/${folder}/' || ${alias}.${field} END`;
-}
 
 function normalizeUsername(username) {
   return String(username || "").trim().toLowerCase();

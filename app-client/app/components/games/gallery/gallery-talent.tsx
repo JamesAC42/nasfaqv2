@@ -348,7 +348,7 @@ function Room({ model, pocket, position, total, prev, next, signedIn, ready, sha
       <section className={styles.section} aria-labelledby="reactions-title">
         <header className={styles.sectionHead}>
           <h2 id="reactions-title">Reactions</h2>
-          <small>{reactionsOpen ? `${REACTION_POSES.length} poses` : "Locked"}</small>
+          <small>{reactionsOpen ? `${REACTION_POSES.length} poses · chat stickers and avatars` : "Locked"}</small>
         </header>
         <div className={styles.reactions} data-locked={!reactionsOpen || undefined}>
           <ul>
@@ -358,7 +358,7 @@ function Room({ model, pocket, position, total, prev, next, signedIn, ready, sha
           </ul>
           {reactionsOpen ? null : (
             <p className={styles.reactionsLock}>
-              <FaLock aria-hidden="true" /> Own any {given} card to unlock her reactions.
+              <FaLock aria-hidden="true" /> Own any {given} card to unlock her reactions: send them as chat stickers and use one as your avatar.
             </p>
           )}
         </div>

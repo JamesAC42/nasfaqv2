@@ -1,12 +1,7 @@
 const marketState = require("./services/marketState");
 
-const PROFILE_PICTURE_CDN_BASE_URL = "https://images.nasfaq.biz/profile-pictures";
+const { profilePictureUrlSql } = require("./profilePictures");
 
-function profilePictureUrlSql(size, alias = "pp") {
-  const folder = size === "small" ? "small" : "large";
-  const field = size === "small" ? "filename_small" : "filename_large";
-  return `CASE WHEN ${alias}.id IS NULL OR ${alias}.is_deleted THEN NULL ELSE '${PROFILE_PICTURE_CDN_BASE_URL}/${folder}/' || ${alias}.${field} END`;
-}
 
 function parseRangeToInterval(range) {
   switch ((range || "").toLowerCase()) {
@@ -903,7 +898,7 @@ async function getMarketActivityStats(pool) {
       LEFT JOIN market.profile_pictures pp
         ON pp.id = u.profile_picture_id
       WHERE tf.ts >= now() - interval '24 hours'
-      GROUP BY tf.user_id, u.username, u.profile_color, u.profile_picture_url, pp.id, pp.is_deleted, pp.filename_small
+      GROUP BY tf.user_id, u.username, u.profile_color, u.profile_picture_url, u.profile_reaction, pp.id, pp.is_deleted, pp.filename_small
       ORDER BY trade_count DESC, volume_cash DESC, latest_trade_at DESC, tf.user_id DESC
       LIMIT 8
     `

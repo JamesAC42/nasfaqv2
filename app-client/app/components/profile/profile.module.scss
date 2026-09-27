@@ -1058,6 +1058,89 @@
   gap: 0.5rem;
 }
 
+.picSection {
+  padding: 0.9rem 1rem 0.2rem;
+
+  & + & {
+    border-top: 1px solid var(--rule);
+  }
+
+  h3 {
+    @include label;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.6rem;
+    margin: 0 0 0.6rem;
+    color: var(--text);
+
+    small {
+      font-size: 0.6rem;
+      letter-spacing: 0.08em;
+      color: var(--dim);
+      text-transform: none;
+    }
+  }
+
+  .pics {
+    padding: 0 0 0.8rem;
+  }
+
+  .note {
+    margin: 0 0 0.9rem;
+
+    a {
+      color: var(--blue);
+    }
+  }
+}
+
+.reactionTalents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  max-height: 6.2rem;
+  overflow-y: auto;
+  margin-bottom: 0.7rem;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.45rem 0.2rem 0.3rem;
+    border: 1px solid var(--rule);
+    background: none;
+    color: var(--dim);
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--rule-2);
+      color: var(--text);
+    }
+
+    &[aria-selected="true"] {
+      border-color: var(--tal);
+      background: color-mix(in srgb, var(--tal) 16%, transparent);
+      color: var(--text);
+    }
+  }
+}
+
+.reactionName {
+  margin-bottom: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+  border-left: 2px solid var(--tal);
+  padding-left: 0.45rem;
+}
+
 .pics {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));

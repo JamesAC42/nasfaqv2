@@ -43,7 +43,7 @@ function withLock(key, fn) {
 }
 
 async function loadUser(db, userId) {
-  const { rows } = await db.query(`SELECT id, username, profile_color, profile_picture_url FROM market.users WHERE id = $1`, [userId]);
+  const { rows } = await db.query(`SELECT id, username, profile_color, COALESCE('reaction:' || profile_reaction, profile_picture_url) AS profile_picture_url FROM market.users WHERE id = $1`, [userId]);
   if (!rows[0]) throw tableError("unauthenticated");
   return { user_id: Number(rows[0].id), username: rows[0].username, profile_color: rows[0].profile_color, profile_picture_url: rows[0].profile_picture_url };
 }
@@ -465,7 +465,7 @@ async function getTable(tableId) {
   if (!row || !ENGINES[row.game_key]) throw tableError("table_not_found");
   const players = await pool.query(
     `
-    SELECT p.seat, p.user_id, u.username, u.profile_color, u.profile_picture_url
+    SELECT p.seat, p.user_id, u.username, u.profile_color, COALESCE('reaction:' || u.profile_reaction, u.profile_picture_url) AS profile_picture_url
     FROM games.pvp_match_players p JOIN market.users u ON u.id = p.user_id
     WHERE p.match_id = $1 ORDER BY p.seat
   `,

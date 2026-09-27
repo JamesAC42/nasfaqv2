@@ -1,6 +1,7 @@
 const VALID_SCOPE_TYPES = new Set(["asset", "unit", "market", "meta"]);
 const VALID_POSTING_POLICIES = new Set(["authenticated", "admins_only", "read_only"]);
-const PROFILE_PICTURE_CDN_BASE_URL = "https://images.nasfaq.biz/profile-pictures";
+const { profilePictureUrlSql } = require("./profilePictures");
+const reactions = require("./services/games/reactions");
 const VALID_MESSAGE_STATUSES = new Set(["active", "deleted", "moderated"]);
 const VALID_REPORT_STATUSES = new Set(["open", "resolved", "dismissed"]);
 const VALID_MODERATION_ACTIONS = new Set(["mute", "ban"]);
@@ -207,11 +208,6 @@ function mapMessageRow(row, viewerUserId = null) {
   };
 }
 
-function profilePictureUrlSql(size, alias = "pp") {
-  const field = size === "large" ? "filename_large" : "filename_small";
-  const folder = size === "large" ? "large" : "small";
-  return `CASE WHEN ${alias}.id IS NULL OR ${alias}.is_deleted THEN NULL ELSE '${PROFILE_PICTURE_CDN_BASE_URL}/${folder}/' || ${alias}.${field} END`;
-}
 
 function buildVisibleHistoryCutoff() {
   return new Date(Date.now() - CHAT_HISTORY_VISIBLE_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -853,6 +849,9 @@ async function assertCanPost(pool, { channelId, viewer }) {
 async function createMessage(pool, { channelId, viewer, body, replyToMessageId = null }) {
   const channel = await assertCanPost(pool, { channelId, viewer });
   const normalizedBody = normalizeMessageBody(body);
+  // A sticker message ([[sticker:PEK/hype]]) needs a card of that talent.
+  const sticker = reactions.parseSticker(normalizedBody);
+  if (sticker) await reactions.assertOwnsReaction(pool, viewer.id, sticker.symbol, "sticker_locked");
   const safeReplyToMessageId = replyToMessageId ? parseMessageId(replyToMessageId) : null;
 
   if (safeReplyToMessageId) {

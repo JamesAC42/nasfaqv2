@@ -1,4 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
+import { ReactionFace, parseReaction } from "@/app/components/common/reaction-face";
 import type { LeaderboardEntry } from "@/app/lib/types";
 import styles from "@/app/components/common/player-avatar.module.scss";
 
@@ -19,9 +20,11 @@ export function PlayerAvatar({
   className?: string;
 }) {
   const initials = username.replace(/[^a-z0-9]/gi, "").slice(0, 2).toUpperCase() || "?";
+  // "reaction:PEK/hype": a card reaction the player picked as their avatar.
+  const reaction = parseReaction(pictureUrl);
   return (
     <span className={`${styles.avatar} ${color ? "" : styles.plain} ${className ?? ""}`} style={{ "--pc": color || "var(--ink-4)", "--s": `${size}px` } as React.CSSProperties} aria-hidden="true">
-      {pictureUrl ? <img src={pictureUrl} alt="" loading="lazy" /> : <b>{initials}</b>}
+      {reaction ? <ReactionFace symbol={reaction.symbol} pose={reaction.pose} size={size} /> : pictureUrl ? <img src={pictureUrl} alt="" loading="lazy" /> : <b>{initials}</b>}
       {hat?.image_url ? <img src={hat.image_url} alt="" className={styles.hat} title={hat.display_name} /> : null}
     </span>
   );

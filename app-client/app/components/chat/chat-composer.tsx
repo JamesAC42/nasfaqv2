@@ -1,6 +1,10 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
+import { FaRegFaceSmile } from "react-icons/fa6";
+import { StickerPicker } from "@/app/components/chat/sticker-picker";
+import type { ChibiPose } from "@/app/lib/art-manifest";
+import { stickerBody } from "@/app/lib/stickers";
 import Link from "next/link";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Emoji } from "@/app/components/common/rich-text";
@@ -48,6 +52,7 @@ export const ChatComposer = memo(function ChatComposer({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<number | null>(null);
+  const [stickers, setStickers] = useState(false);
   const input = useRef<HTMLTextAreaElement | null>(null);
   const verify = userNeedsEmailVerification(user);
 
@@ -114,6 +119,21 @@ export const ChatComposer = memo(function ChatComposer({
     } finally {
       setSending(false);
       requestAnimationFrame(() => input.current?.focus());
+    }
+  };
+
+  const sendSticker = async (symbol: string, pose: ChibiPose) => {
+    if (!canPost || sending) return;
+    setSending(true);
+    setError(null);
+    try {
+      await onSend(stickerBody(symbol, pose));
+      setStickers(false);
+    } catch (reason) {
+      const code = String((reason as Error).message || reason);
+      setError(code === "sticker_locked" ? "you need one of her cards for that sticker" : code);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -201,7 +221,19 @@ export const ChatComposer = memo(function ChatComposer({
           <small>↑↓ to pick · enter to insert</small>
         </div>
       ) : null}
+      {stickers ? <StickerPicker onPick={(symbol, pose) => void sendSticker(symbol, pose)} onClose={() => setStickers(false)} disabled={!canPost || sending} /> : null}
       <div className={styles.inputRow}>
+        <button
+          type="button"
+          className={styles.stickerBtn}
+          aria-label="Stickers"
+          aria-expanded={stickers}
+          title="Stickers: your card reactions"
+          disabled={!canPost}
+          onClick={() => setStickers((open) => !open)}
+        >
+          <FaRegFaceSmile aria-hidden="true" />
+        </button>
         <textarea
           ref={input}
           rows={1}
@@ -222,7 +254,7 @@ export const ChatComposer = memo(function ChatComposer({
         </button>
       </div>
       <div className={styles.composeHint}>
-        <span>enter to send · shift+enter for a new line · @ to mention · : for emoji · $TICKER links a stock</span>
+        <span>enter to send · shift+enter for a new line · @ to mention · : for emoji · ☺ for stickers · $TICKER links a stock</span>
         <span className={draft.length > MAX - 100 ? styles.warnText : undefined}>
           {draft.length}/{MAX}
         </span>

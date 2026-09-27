@@ -1,4 +1,5 @@
 const express = require("express");
+const reactions = require("../services/games/reactions");
 const profileDb = require("../profileDb");
 const { requireUserId } = require("../userContext");
 
@@ -81,10 +82,23 @@ router.get("/me/trades", async (req, res, next) => {
   }
 });
 
+// Talents whose card reactions the player has unlocked (chat stickers and avatars).
+router.get("/me/reactions", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    res.json({ reactions: await reactions.listUnlockedReactions(req.ctx.pool, userId) });
+  } catch (error) {
+    if (error?.code === "unauthenticated") {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    next(error);
+  }
+});
+
 router.put("/me/profile-picture", async (req, res, next) => {
   try {
     const userId = requireUserId(req);
-    await profileDb.setProfilePicture(req.ctx.pool, userId, req.body?.profile_picture_id ?? null);
+    await profileDb.setProfilePicture(req.ctx.pool, userId, req.body?.profile_picture_id ?? null, { reaction: req.body?.reaction ?? null });
     const bundle = await profileDb.getProfileBundle(req.ctx.pool, {
       viewerUserId: userId,
       selfOnly: true,
