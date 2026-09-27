@@ -7,6 +7,7 @@
 //     node scripts/pull-prod.js --refresh       top up YouTube/stream/superchat/news data only
 //     node scripts/pull-prod.js --days=60       how far back the heavy time series go (default 180; 14 on --refresh)
 //     node scripts/pull-prod.js --dry-run       show what would be copied
+//     node scripts/pull-prod.js --resume        finish a fresh load that stopped part way
 //
 // Fresh load: create an empty local database, point DATABASE_URL at it, run `node scripts/migrate.js`,
 // then this script. It refuses to mix production rows into a database that already has seed talents
@@ -28,6 +29,8 @@ const REFRESH = flag("refresh");
 // Heavy time series go back this far on a fresh load; a refresh only re-reads the last two weeks.
 const DAYS = Math.max(1, Number(option("days", REFRESH ? 14 : 180)) || 180);
 const DRY = flag("dry-run");
+// Finish a fresh load that stopped part way (already-copied rows are skipped or updated).
+const RESUME = flag("resume");
 const BATCH = 2000;
 
 // Tables copied, and how. `time`: column bounding heavy time series to the last --days.
@@ -74,16 +77,17 @@ function assertLocal(url) {
 
 const q = (name) => name.split(".").map((part) => `"${part.replace(/"/g, '""')}"`).join(".");
 
-async function columns(db, table) {
+/** Column names; with `withNulls`, [{ name, notnull }]. */
+async function columns(db, table, withNulls = false) {
   const [schema, name] = table.split(".");
   const { rows } = await db.query(
-    `SELECT a.attname AS name
+    `SELECT a.attname AS name, a.attnotnull AS notnull
      FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace
      WHERE n.nspname = $1 AND c.relname = $2 AND a.attnum > 0 AND NOT a.attisdropped AND a.attgenerated = ''
      ORDER BY a.attnum`,
     [schema, name]
   );
-  return rows.map((row) => row.name);
+  return withNulls ? rows : rows.map((row) => row.name);
 }
 
 async function primaryKey(db, table) {
@@ -147,28 +151,35 @@ async function main() {
     const plan = [];
     const deps = new Map();
     for (const table of wanted) {
-      const localCols = await columns(local, table.name);
+      const localInfo = await columns(local, table.name, true);
+      const localCols = localInfo.map((col) => col.name);
       if (!localCols.length) {
         console.log(`skip ${table.name}: not in the local schema (run node scripts/migrate.js)`);
         continue;
       }
-      const prodCols = await columns(prod, table.name).catch(() => []);
+      const prodInfo = await columns(prod, table.name, true).catch(() => []);
+      const prodCols = prodInfo.map((col) => col.name);
       if (!prodCols.length) {
         console.log(`skip ${table.name}: not on production`);
         continue;
       }
       const cols = localCols.filter((col) => prodCols.includes(col));
+      const pk = await primaryKey(local, table.name);
+      // Production's schema has drifted from the local one in places (a column required locally
+      // that production allows to be empty): relax those locally so production's rows fit.
+      const relax = localInfo.filter((col) => col.notnull && !pk.includes(col.name) && prodInfo.some((p) => p.name === col.name && !p.notnull)).map((col) => col.name);
       deps.set(table.name, await foreignKeys(local, table.name, names));
-      plan.push({ ...table, cols, pk: await primaryKey(local, table.name) });
+      plan.push({ ...table, cols, pk, relax });
     }
     const ordered = topoSort(plan, deps);
 
-    if (!REFRESH) {
+    if (!REFRESH && !RESUME) {
       const { rows } = await local.query(`SELECT (SELECT count(*) FROM yt.youtube_channels)::int AS channels, (SELECT count(*) FROM market.market_assets)::int AS assets`);
       if (rows[0].channels || rows[0].assets) {
         throw new Error(
           `the local database already has ${rows[0].channels} channels / ${rows[0].assets} assets (seed data?). ` +
-            "Production ids would collide with them: load into a fresh database (createdb, set DATABASE_URL, node scripts/migrate.js), or use --refresh to top up an earlier pull."
+            "Production ids would collide with them: load into a fresh database (createdb, set DATABASE_URL, node scripts/migrate.js). " +
+              "If this is an earlier pull that stopped part way, use --resume; to top up a finished pull, --refresh."
         );
       }
     }
@@ -199,6 +210,11 @@ async function main() {
         const { rows } = await prod.query(`SELECT count(*)::bigint AS n FROM ${q(table.name)}${where}`).catch((error) => ({ rows: [{ n: `error: ${error.message}` }] }));
         console.log(`${table.name}: ${rows[0].n} rows${where ? ` (${where.slice(7)})` : ""}`);
         continue;
+      }
+
+      for (const col of table.relax) {
+        await local.query(`ALTER TABLE ${q(table.name)} ALTER COLUMN ${q(col)} DROP NOT NULL`);
+        console.log(`${table.name}.${col}: allowed empty values locally (production allows them)`);
       }
 
       const conflict =
