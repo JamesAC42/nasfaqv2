@@ -169,6 +169,16 @@ export function ThreadWatch() {
   const [highlights, setHighlights] = useState(false);
   const [onlyYou, setOnlyYou] = useState(false);
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
+  // Full-size files 4chan's CDN refused to embed: those thumbnails open the file in a new tab instead.
+  const [unembeddable, setUnembeddable] = useState<Set<number>>(() => new Set());
+  const cannotEmbed = (postId: number) => {
+    setUnembeddable((current) => new Set(current).add(postId));
+    setExpanded((current) => {
+      const next = new Set(current);
+      next.delete(postId);
+      return next;
+    });
+  };
   const [preview, setPreview] = useState<Preview>(null);
   const [now, setNow] = useState(() => Date.now());
   const feedEnd = useRef<HTMLDivElement | null>(null);
@@ -392,9 +402,24 @@ export function ThreadWatch() {
           </button>
         </header>
         <div className={`${styles.postBody} ${open ? styles.postOpen : ""}`}>
-          {thumb ? (
+          {thumb && post.image_url && unembeddable.has(post.post_id) ? (
+            // The CDN won't serve this file embedded: open it directly (no referrer, which it allows).
+            <a className={styles.thumb} href={post.image_url} target="_blank" rel="noreferrer noopener" title="Open the full file in a new tab">
+              <img src={thumb} alt="" loading="lazy" referrerPolicy="no-referrer" onError={hideBroken} />
+              <span className={styles.thumbOpen}>open ↗</span>
+            </a>
+          ) : thumb ? (
             <button type="button" className={styles.thumb} onClick={() => setExpanded((current) => { const next = new Set(current); if (next.has(post.post_id)) next.delete(post.post_id); else next.add(post.post_id); return next; })} aria-label={open ? "Shrink image" : "Expand image"}>
-              {open && post.image_url ? isVideo(post.image_url) ? <video src={post.image_url} controls autoPlay loop /> : <img src={post.image_url} alt="" /> : <img src={thumb} alt="" loading="lazy" onError={hideBroken} />}
+              {/* 4chan's CDN refuses full-size files requested with another site as the referrer; with no referrer it serves them. */}
+              {open && post.image_url ? (
+                isVideo(post.image_url) ? (
+                  <video src={post.image_url} controls autoPlay loop onError={() => cannotEmbed(post.post_id)} />
+                ) : (
+                  <img src={post.image_url} alt="" referrerPolicy="no-referrer" onError={() => cannotEmbed(post.post_id)} />
+                )
+              ) : (
+                <img src={thumb} alt="" loading="lazy" referrerPolicy="no-referrer" onError={hideBroken} />
+              )}
             </button>
           ) : null}
           {featured && thread?.subject ? <h2 className={styles.subject}>{thread.subject}</h2> : null}
@@ -603,7 +628,7 @@ export function ThreadWatch() {
             <div className={styles.postBody}>
               {previewPost.thumbnail_url || (previewPost === op && previewPost.op_cdn_image_url) ? (
                 <span className={styles.thumb}>
-                  <img src={(previewPost === op && previewPost.op_cdn_image_url) || previewPost.thumbnail_url || ""} alt="" />
+                  <img src={(previewPost === op && previewPost.op_cdn_image_url) || previewPost.thumbnail_url || ""} alt="" referrerPolicy="no-referrer" />
                 </span>
               ) : null}
               <RichText text={previewPost.text_content} options={{ assets: assetMap, quote: (id) => <span className={styles.quote}>&gt;&gt;{id}</span> }} className={styles.text} />
