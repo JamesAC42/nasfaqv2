@@ -17,6 +17,7 @@ const {
 } = require("../marketCache");
 const trading = require("../services/trading");
 const marketAdjustments = require("../services/marketAdjustments");
+const { scrubPublicMarketPayload, publicDailyReport, revealedTargets } = require("../services/marketSecrecy");
 const marketState = require("../services/marketState");
 const { requireAdmin, requireVerifiedUserId } = require("../userContext");
 
@@ -59,43 +60,6 @@ function toMetricMap(rows, valueKeys) {
   );
 }
 
-const PUBLIC_MARKET_SENSITIVE_KEYS = new Set([
-  "base_rate",
-  "base_rate_change_pct",
-  "biggest_base_rate_increases",
-  "biggest_base_rate_decreases",
-  "current_fair_value",
-  "current_fair_value_raw",
-  "current_premium_pct",
-  "fair_value_change_pct",
-  "fundamental_value_raw",
-  "fundamental_value_smoothed",
-  "largest_discounts",
-  "largest_market_discounts",
-  "largest_market_premiums",
-  "largest_premiums",
-  "premium_close_pct",
-  "premium_discount_pct",
-  "premium_pct",
-  "top_base_rate",
-  "top_discounts",
-  "top_market_discounts",
-  "top_market_premiums",
-  "top_premiums",
-]);
-
-function scrubPublicMarketPayload(value) {
-  if (Array.isArray(value)) return value.map(scrubPublicMarketPayload);
-  if (value instanceof Date) return value;
-  if (!value || typeof value !== "object") return value;
-
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(([key]) => !PUBLIC_MARKET_SENSITIVE_KEYS.has(key))
-      .map(([key, item]) => [key, scrubPublicMarketPayload(item)])
-  );
-}
-
 function encodeCursor(cursor) {
   if (!cursor?.ts || !cursor?.id) return null;
   return Buffer.from(JSON.stringify({ ts: cursor.ts, id: cursor.id }), "utf8").toString("base64url");
@@ -116,8 +80,10 @@ router.get("/hub", async (req, res, next) => {
   try {
     const tradeLimit = parsePositiveInt(req.query.trade_limit, 20, { min: 1, max: 100 });
     const hub = await marketDb.getMarketHub(req.ctx.pool, { tradeLimit });
+    const [report, revealed] = await Promise.all([publicDailyReport(req.ctx.pool, hub.report), revealedTargets(req.ctx.pool)]);
     res.json({
       ...scrubPublicMarketPayload(hub),
+      report: report ? { ...report, revealed_targets: revealed } : null,
       recent_trades: {
         items: hub.recent_trades.items,
         next_cursor: encodeCursor(hub.recent_trades.next_cursor),
@@ -166,7 +132,8 @@ router.get("/report/daily/latest", async (req, res, next) => {
   try {
     const report = await marketDb.getLatestDailyReport(req.ctx.pool);
     if (!report) return res.status(404).json({ error: "report_not_found" });
-    res.json(scrubPublicMarketPayload(report));
+    const [publicReport, revealed] = await Promise.all([publicDailyReport(req.ctx.pool, report), revealedTargets(req.ctx.pool)]);
+    res.json({ ...publicReport, revealed_targets: revealed });
   } catch (e) {
     next(e);
   }
@@ -181,7 +148,7 @@ router.get("/report/daily/:date", async (req, res, next) => {
 
     const report = await marketDb.getDailyReportByDate(req.ctx.pool, marketDate);
     if (!report) return res.status(404).json({ error: "report_not_found" });
-    res.json(scrubPublicMarketPayload(report));
+    res.json(await publicDailyReport(req.ctx.pool, report));
   } catch (e) {
     next(e);
   }
@@ -306,7 +273,7 @@ router.get("/indexes/candles", async (req, res, next) => {
     const weighting = String(req.query.weighting || "equal");
 
     const result = await marketDb.getGroupIndex(req.ctx.pool, { groupBy, group, range, weighting });
-    res.json(result);
+    res.json(scrubPublicMarketPayload(result));
   } catch (e) {
     if (e?.code === "unsupported_group_by") {
       return res.status(400).json({ error: "unsupported_group_by" });
@@ -336,7 +303,7 @@ router.get("/indexes/overview", async (req, res, next) => {
     const weighting = String(req.query.weighting || "equal");
     const cacheKey = buildMarketIndexOverviewCacheKey({ groupBy, range, weighting });
     const cached = await getCachedJson(req.ctx.redis, cacheKey);
-    if (cached) return res.json(cached);
+    if (cached) return res.json(scrubPublicMarketPayload(cached));
 
     let pending = pendingIndexOverviewRequests.get(cacheKey);
     if (!pending) {
@@ -352,7 +319,7 @@ router.get("/indexes/overview", async (req, res, next) => {
     }
 
     const result = await pending;
-    res.json(result);
+    res.json(scrubPublicMarketPayload(result));
   } catch (e) {
     if (e?.code === "unsupported_group_by") {
       return res.status(400).json({ error: "unsupported_group_by" });

@@ -1,5 +1,6 @@
 const express = require("express");
 const netWorth = require("../services/netWorth");
+const { scrubPublicMarketPayload } = require("../services/marketSecrecy");
 const {
   buildAssetOshiboardCacheKey,
   getCachedJson,
@@ -77,9 +78,9 @@ router.get("/oshiboard/:symbol", async (req, res, next) => {
     const limit = parseLimit(req.query.limit, 50);
     const cacheKey = buildAssetOshiboardCacheKey(symbol, limit);
     const cached = await getCachedJson(req.ctx.redis, cacheKey);
-    if (cached) return res.json(cached);
+    if (cached) return res.json(scrubPublicMarketPayload(cached));
 
-    const board = await netWorth.getAssetOshiboard(req.ctx.pool, symbol, { limit });
+    const board = scrubPublicMarketPayload(await netWorth.getAssetOshiboard(req.ctx.pool, symbol, { limit }));
     if (!board) return res.status(404).json({ error: "asset_not_found" });
     await setCachedJson(req.ctx.redis, cacheKey, board, MARKET_ASSET_OSHIBOARD_CACHE_TTL_SECONDS);
     res.json(board);

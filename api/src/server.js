@@ -47,6 +47,7 @@ const mediaCatalog = require("./services/mediaCatalog");
 const achievements = require("./services/achievements");
 const gamesCatalog = require("./services/games/catalog");
 const { MARKET_EVENTS_REDIS_CHANNEL } = require("./services/marketEvents");
+const { scrubPublicMarketPayload } = require("./services/marketSecrecy");
 const { PREDICTION_MARKET_EVENTS_REDIS_CHANNEL } = require("./services/predictionMarketEvents");
 
 const LIVESTREAM_VIEWER_UPDATES_CHANNEL = "nasfaq_livestreams:viewer_updates";
@@ -672,7 +673,11 @@ async function main() {
     });
   });
   await redisSub.subscribe(MARKET_EVENTS_REDIS_CHANNEL, (message) => {
-    const payload = String(message);
+    // Every market socket is public: strip fair value and premiums (the hidden tick target) from
+    // settlement, tick and fill events before they go out.
+    const parsed = safeParseJSON(String(message));
+    if (!parsed) return;
+    const payload = JSON.stringify(scrubPublicMarketPayload(parsed));
     marketWss.clients.forEach((client) => {
       sendWsText(client, payload);
     });

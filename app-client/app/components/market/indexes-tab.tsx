@@ -28,7 +28,6 @@ type IndexView = {
   day: number | null;
   total: number | null;
   volume: number | null;
-  premium: number | null;
 };
 
 /** Price now vs the first settlement mark in the sparkline window (~15 days). */
@@ -53,7 +52,6 @@ function fromBundle(id: string, name: string, kind: IndexView["kind"], bundle: M
     day: summary?.day_return_pct ?? (moves.length ? moves.reduce((sum, value) => sum + value, 0) / moves.length : null),
     total: summary?.total_return_pct ?? null,
     volume: summary?.total_volume_cash ?? null,
-    premium: summary?.avg_premium_pct ?? null,
   };
 }
 
@@ -81,7 +79,6 @@ function branchView(id: "JP" | "EN" | "ID", name: string, units: IndexView[], me
     day: avg((unit) => unit.day),
     total: avg((unit) => unit.total),
     volume: parts.reduce((sum, unit) => sum + (unit.volume ?? 0), 0),
-    premium: avg((unit) => unit.premium),
   };
 }
 
@@ -400,9 +397,9 @@ export function IndexesTab({ initialIndex }: { initialIndex?: string }) {
               <small>across the basket</small>
             </div>
             <div>
-              <span>AVG PREMIUM</span>
-              <b className={(view.premium ?? 0) > 0 ? ui.down : ui.up}>{signedPct(view.premium)}</b>
-              <small>vs fair at the last settlement</small>
+              <span>TODAY</span>
+              <b className={ui[toneClass(view.day)]}>{signedPct(view.day)}</b>
+              <small>average move since the open</small>
             </div>
           </div>
           <Constituents view={view} />

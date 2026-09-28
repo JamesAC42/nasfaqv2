@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { PriceChart, type Overlays } from "@/app/components/stock/price-chart";
 import { CHART_RANGES, useCandles, useStats, useTickHistory, type ChartRange } from "@/app/components/stock/use-stock-data";
-import { formatCountdown, formatEtTime, getMarketClock, TICKS } from "@/app/lib/market-clock";
+import { formatCountdown, formatEtTime, getMarketClock, marketDateKey, TICKS } from "@/app/lib/market-clock";
 import { markSeries } from "@/app/lib/market-units";
 import { signedPct, timeAgo, toneOf } from "@/app/lib/time";
 import type { MarketAdjustmentOutcome, MarketAsset } from "@/app/lib/types";
@@ -85,8 +85,13 @@ export function TicksSection({ asset }: { asset: MarketAsset }) {
   const history = useTickHistory(asset.symbol);
   const clock = now ? getMarketClock(now) : null;
   const items = useMemo(() => history.data ?? [], [history.data]);
-  const today = useMemo(() => items.reduce((max, item) => (dayKey(item.market_date) > max ? dayKey(item.market_date) : max), ""), [items]);
-  const todays = useMemo(() => new Map(items.filter((item) => dayKey(item.market_date) === today).map((item) => [item.interval_key, item])), [items, today]);
+  // The market day in progress (09:00 ET to 09:00 ET), not simply the newest day in the history:
+  // a day whose ticks haven't been scheduled yet shows as all pending.
+  const today = now ? marketDateKey(now) : "";
+  const todays = useMemo(
+    () => new Map(items.filter((item) => today && dayKey(item.market_date) === today && (item.applied_at || item.skip_reason)).map((item) => [item.interval_key, item])),
+    [items, today],
+  );
   const log = useMemo(
     () =>
       items

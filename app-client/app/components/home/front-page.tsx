@@ -508,7 +508,7 @@ function fmt2(value: number | null | undefined) {
 
 function fairLines(rows: ReportRow[] | undefined): ReportLine[] {
   return (rows ?? []).slice(0, 5).map((row) => {
-    // The API withholds the % change; show the settled price against the new fair value instead.
+    // Revealed settlements only: the open against the target the day's ticks pulled toward.
     const gap = row.market_price && row.fair_value ? (row.fair_value - row.market_price) / row.market_price : null;
     const event = row.events?.find((kind) => EVENT_TAGS[kind]);
     return { symbol: row.symbol, left: `px ${fmt2(row.market_price)} · fair ${fmt2(row.fair_value)}`, right: signedPct(gap), tone: toneOf(gap), tag: event ? EVENT_TAGS[event] : undefined };
@@ -531,10 +531,14 @@ function SettlementReport({ assets }: { assets: MarketAsset[] }) {
 
   const dilution = useMemo<ReportLine[]>(() => {
     return (report?.notable_treasury_emissions ?? []).slice(0, 5).map((row) => {
-      const premium = row.premium_pct ?? row.premium_discount_pct ?? (row.market_price && row.fair_value ? (row.market_price - row.fair_value) / row.fair_value : null);
-      return { symbol: row.symbol, left: `premium ${signedPct(premium)}`, right: `${fmt2(row.emission)} sh`, tone: "flat" as const };
+      // The premium is withheld while the day's ticks are landing (it would give away the target).
+      const premium = row.premium_pct ?? row.premium_discount_pct ?? null;
+      return { symbol: row.symbol, left: premium !== null ? `premium ${signedPct(premium)}` : `closed ${fmt2(row.market_price)}`, right: `${fmt2(row.emission)} sh`, tone: "flat" as const };
     });
   }, [report]);
+  const revealed = report?.revealed_targets ?? null;
+  const revealedDay = revealed?.market_date ? revealed.market_date.slice(5, 10).replace("-", "/") : null;
+  const secretNote = report?.targets_revealed === false ? " Today's stay secret until Overnight lands: read the channels and guess." : "";
 
   if (!report && !assets.length) return null;
 
@@ -547,8 +551,18 @@ function SettlementReport({ assets }: { assets: MarketAsset[] }) {
         </Link>
       </div>
       <div className={styles.report}>
-        <ReportColumn title="Fair value up" tone="up" lines={fairLines(report?.biggest_fair_value_increases)} note="Views, subs or a big stream picked up. The % is the gap from price to fair that the day's ticks work on." />
-        <ReportColumn title="Fair value down" tone="down" lines={fairLines(report?.biggest_fair_value_decreases)} note="Stagnant channels and missed uploads get marked down." />
+        <ReportColumn
+          title={revealedDay ? `Fair value up · ${revealedDay}` : "Fair value up"}
+          tone="up"
+          lines={fairLines(revealed?.biggest_fair_value_increases)}
+          note={`Revealed once a day's four ticks have landed. The % is the gap from the open to the target those ticks pulled toward.${secretNote}`}
+        />
+        <ReportColumn
+          title={revealedDay ? `Fair value down · ${revealedDay}` : "Fair value down"}
+          tone="down"
+          lines={fairLines(revealed?.biggest_fair_value_decreases)}
+          note="Stagnant channels and missed uploads get marked down."
+        />
         <ReportColumn title="Dilution watch" lines={dilution} note="The treasury prints more shares of stocks trading above fair value." />
         <ReportColumn title="Gapped at the open" lines={gappers} note="Biggest price resets at settlement, either way. Not financial advice, anon." />
       </div>

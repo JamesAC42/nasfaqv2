@@ -28,7 +28,7 @@ const reportCache = new Map<string, DailyReport | null>();
 
 const pct = (value: number | null | undefined, digits = 2) => signedPct(value, digits);
 const premOf = (row: ReportRow) =>
-  row.premium_pct ?? row.premium_discount_pct ?? (row.market_price && row.fair_value ? (row.market_price - row.fair_value) / row.fair_value : null);
+  row.premium_pct ?? row.premium_discount_pct ?? null; // withheld while that day's ticks are still landing
 
 function useReport(date: string | null) {
   const latest = useMarketStore((state) => state.report);
@@ -145,7 +145,7 @@ function Lede({ date, rows, report }: { date: string; rows: DayRow[]; report: Da
           {topEm ? (
             <>
               {" "}
-              The treasury&apos;s biggest print went into <b>{topEm.symbol}</b> ({num(topEm.emission, 1)} new shares at a {pct(premOf(topEm))} premium)
+              The treasury&apos;s biggest print went into <b>{topEm.symbol}</b> ({num(topEm.emission, 1)} new shares{premOf(topEm) !== null ? <> at a {pct(premOf(topEm))} premium</> : null})
             </>
           ) : null}
           {cheap ? (

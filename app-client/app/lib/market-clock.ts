@@ -35,6 +35,13 @@ export function marketWallClock(now: number) {
   return { hour: get("hour") % 24, minute: get("minute"), second: get("second") };
 }
 
+const dateFormatter = new Intl.DateTimeFormat("en-CA", { timeZone: MARKET_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" });
+
+/** The market day in progress as YYYY-MM-DD: a market day runs from 09:00 ET (settlement) to 09:00 ET the next day. */
+export function marketDateKey(now: number) {
+  return dateFormatter.format(new Date(now - 9 * 3600 * 1000));
+}
+
 export type MarketClockState = {
   /** Wall-clock time in New York. */
   et: { hour: number; minute: number; second: number };

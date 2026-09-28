@@ -997,6 +997,16 @@ export type DailyReport = {
   volume_losers?: ReportRow[];
   top_volume?: ReportRow[];
   notable_treasury_emissions?: ReportRow[];
+  /** False while this settlement's ticks are still landing: its fair values and premiums are withheld. */
+  targets_revealed?: boolean;
+  /** When the last of those ticks is due, while they're withheld. */
+  targets_reveal_at?: string | null;
+  /** Fair value movers from the newest settlement whose ticks have all landed. */
+  revealed_targets?: {
+    market_date: string;
+    biggest_fair_value_increases: ReportRow[];
+    biggest_fair_value_decreases: ReportRow[];
+  } | null;
 };
 
 export type MarketStatus = {

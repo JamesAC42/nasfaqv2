@@ -462,12 +462,19 @@ export const useMarketStore = create<MarketState>((set, get) => ({
                   const incoming = bySymbol.get(asset.symbol.toUpperCase());
                   return incoming ? patchAssetFromSettlement(asset, incoming) : asset;
                 }),
-                report: payload.report && typeof payload.report === "object" ? payload.report as DailyReport : state.report,
+                // The new report's targets are secret; keep the last revealed ones until the refetch below.
+                report:
+                  payload.report && typeof payload.report === "object"
+                    ? { ...(payload.report as DailyReport), revealed_targets: state.report?.revealed_targets ?? null }
+                    : state.report,
                 detail: selectedIncoming ? null : state.detail,
               };
             });
 
             void get().fetchMarketIndexes({ force: true, silent: true });
+            void apiFetch<DailyReport>("/api/market/report/daily/latest")
+              .then((report) => set({ report }))
+              .catch(() => {});
             const selectedSymbol = get().selectedSymbol.trim().toUpperCase();
             if (selectedSymbol && bySymbol.has(selectedSymbol)) {
               void get().fetchAssetDetail(selectedSymbol);
