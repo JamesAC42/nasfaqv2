@@ -1,0 +1,138 @@
+@use "../../styles/mixins" as *;
+
+// Feed cards: small round faces peeking over the thumbnail's bottom-right corner.
+.overlay {
+  position: absolute;
+  right: 6px;
+  bottom: -10px;
+  display: flex;
+  flex-direction: row-reverse;
+  pointer-events: none;
+}
+
+.bubble {
+  --tal: var(--blue);
+  display: block;
+  margin-left: -8px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--tal);
+  background: var(--ink-2);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  animation: bob 0.5s cubic-bezier(0.2, 0.9, 0.25, 1.3) both;
+
+  &:nth-child(2) {
+    animation-delay: 0.08s;
+  }
+
+  &:nth-child(3) {
+    animation-delay: 0.16s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes bob {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+// Article page: the faces in a row under the headline, each with her name and the mood.
+.strip {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1rem 0 0.25rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--rule);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--blue) 6%, transparent), transparent 60%);
+}
+
+.kicker {
+  @include label;
+  color: var(--blue);
+}
+
+.faces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem 1.2rem;
+}
+
+.face {
+  --tal: var(--blue);
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  margin: 0;
+
+  figcaption {
+    display: grid;
+    justify-items: center;
+    line-height: 1.2;
+
+    b {
+      font-size: 0.78rem;
+    }
+
+    small {
+      @include label;
+      font-size: 0.58rem;
+      color: var(--tal);
+    }
+  }
+
+  &[data-mood="shock"] .ring {
+    animation: shake 0.5s 0.3s ease-in-out 2;
+  }
+
+  &[data-mood="hype"] .ring,
+  &[data-mood="moon"] .ring {
+    animation: hop 0.6s 0.3s cubic-bezier(0.3, 1.6, 0.5, 1) 2;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ring {
+      animation: none !important;
+    }
+  }
+}
+
+.ring {
+  display: block;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--tal);
+  background: var(--ink-2);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--tal) 18%, transparent);
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: none;
+  }
+  25% {
+    transform: translateX(-3px) rotate(-4deg);
+  }
+  75% {
+    transform: translateX(3px) rotate(4deg);
+  }
+}
+
+@keyframes hop {
+  0%,
+  100% {
+    transform: none;
+  }
+  40% {
+    transform: translateY(-6px);
+  }
+}

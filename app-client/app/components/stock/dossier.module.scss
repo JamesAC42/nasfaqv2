@@ -393,6 +393,7 @@
   dt {
     @include label;
     font-size: 0.594rem;
+    color: var(--mid);
   }
 
   dd {
@@ -411,13 +412,36 @@
     grid-template-columns: repeat(4, minmax(0, auto));
   }
 
+  // Narrow screens: the key art runs behind the numbers, so they sit on a frosted panel that keeps
+  // them readable in both themes, in two even rows (bid/ask is the widest, so it takes two columns).
+  @include tablet-down {
+    margin-top: auto;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid color-mix(in oklab, var(--rule) 70%, transparent);
+    background: color-mix(in oklab, var(--ink) 80%, transparent);
+    backdrop-filter: blur(8px);
+  }
+
   @include phone {
-    grid-template-columns: repeat(3, minmax(0, auto));
-    justify-content: space-between;
-    gap: 0.3rem 0.8rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.45rem 0.6rem;
+
+    > div:first-child {
+      grid-column: span 2;
+    }
+
+    dt {
+      white-space: nowrap;
+      letter-spacing: 0.06em;
+    }
 
     dd {
-      font-size: 0.8125rem;
+      font-size: 0.78rem;
+
+      small {
+        display: block;
+        font-size: 0.68rem;
+      }
     }
   }
 }

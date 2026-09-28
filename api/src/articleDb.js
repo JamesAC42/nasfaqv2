@@ -374,6 +374,11 @@ async function getArticleRowBySlug(client, slug, { includeDrafts = false } = {})
       a.updated_at,
       n.headline AS news_headline,
       n.date::text AS news_date,
+      COALESCE(
+        (SELECT json_agg(json_build_object('symbol', m.symbol, 'mood', m.mood) ORDER BY m.symbol)
+         FROM content.news_moods m WHERE m.news_id = a.news_id),
+        '[]'::json
+      ) AS news_moods,
       u.username AS author_username,
       COALESCE(comment_counts.comment_count, 0)::int AS comment_count,
       COALESCE(asset_rel.assets, '[]'::json) AS related_assets
@@ -557,6 +562,7 @@ async function hydrateArticleDetail(client, articleRow, viewerUserId = null) {
           id: articleRow.news_id,
           headline: articleRow.news_headline || articleRow.title,
           published_at: articleRow.news_date || null,
+          moods: Array.isArray(articleRow.news_moods) ? articleRow.news_moods : [],
         }
       : null,
     viewer_has_liked: Boolean(viewerStateResult.rows[0]?.has_liked),
@@ -646,6 +652,11 @@ async function listArticles(pool, {
       a.author_id,
       n.headline AS news_headline,
       n.date::text AS news_date,
+      COALESCE(
+        (SELECT json_agg(json_build_object('symbol', m.symbol, 'mood', m.mood) ORDER BY m.symbol)
+         FROM content.news_moods m WHERE m.news_id = a.news_id),
+        '[]'::json
+      ) AS news_moods,
       u.username AS author_username,
       COALESCE(comment_counts.comment_count, 0)::int AS comment_count,
       COALESCE(asset_rel.assets, '[]'::json) AS related_assets
@@ -750,6 +761,7 @@ async function listArticles(pool, {
           id: row.news_id,
           headline: row.news_headline || row.title,
           published_at: row.news_date || null,
+          moods: Array.isArray(row.news_moods) ? row.news_moods : [],
         }
       : null,
   }));

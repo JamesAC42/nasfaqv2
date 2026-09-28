@@ -379,7 +379,7 @@ export function RecentFills({ bundle, base, onPage }: { bundle: ProfileBundle; b
   );
 }
 
-// ── Gacha badges ─────────────────────────────────────────────────────────
+// ── Badges: every profile badge she owns (capsule pulls, finished card sets, trades, grants) ─────
 export function GachaBadges({ profile, isSelf }: { profile: Profile; isSelf: boolean }) {
   const badges = profile.gacha_badges;
   return (
@@ -388,14 +388,14 @@ export function GachaBadges({ profile, isSelf }: { profile: Profile; isSelf: boo
       {badges.length ? (
         <div className={styles.gacha}>
           {badges.slice(0, 12).map((badge) => (
-            <span key={badge.id} className={`${styles.gItem} ${styles[`rar_${badge.reward.rarity}`] ?? ""}`} title={`${badge.reward.display_name} · ${badge.reward.rarity}`}>
+            <span key={badge.id} className={`${styles.gItem} ${styles[`rar_${badge.reward.rarity}`] ?? ""}`} title={`${badge.reward.display_name} · ${badge.reward.rarity}${typeof badge.metadata?.description === "string" ? ` · ${badge.metadata.description}` : ""}`}>
               {badge.reward.image_url ? <img src={badge.reward.image_url} alt="" loading="lazy" /> : <i>{badge.reward.display_name.slice(0, 1)}</i>}
               <small>{badge.reward.display_name}</small>
             </span>
           ))}
         </div>
       ) : (
-        <EmptyState>{isSelf ? "No pulls yet. Try the gacha on the Games page." : "No gacha badges yet."}</EmptyState>
+        <EmptyState>{isSelf ? "No badges yet. Capsule pulls and finished card sets give them (Games page)." : "No badges yet."}</EmptyState>
       )}
       {profile.gacha_total_spent_cash ? <p className={styles.note}>{money(profile.gacha_total_spent_cash)} spent on pulls.</p> : null}
     </Sec>

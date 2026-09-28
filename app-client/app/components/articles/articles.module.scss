@@ -404,6 +404,13 @@
   }
 }
 
+// Holds a card's thumbnail and the reaction faces that sit over its corner.
+.thumbWrap {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
 .leadImg {
   display: block;
   width: 100%;

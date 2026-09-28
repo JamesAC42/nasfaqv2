@@ -21,6 +21,7 @@ import { useAuth } from "@/app/providers/auth-provider";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useTradeStore } from "@/app/stores/trade-store";
 import styles from "@/app/components/articles/articles.module.scss";
+import { StoryReactions } from "@/app/components/articles/story-reactions";
 
 const enc = encodeURIComponent;
 
@@ -190,6 +191,7 @@ export function ArticleView({ slug }: { slug: string }) {
               </div>
               <h1>{heading.title}</h1>
               {dek ? <p className={styles.dek}>{dek}</p> : null}
+              {isNews && article.news_item?.moods?.length ? <StoryReactions reactions={article.news_item.moods} variant="strip" size={72} /> : null}
               <div className={styles.meta} suppressHydrationWarning>
                 {article.author ? (
                   <Link href={`/profile/${enc(article.author.username)}`}>

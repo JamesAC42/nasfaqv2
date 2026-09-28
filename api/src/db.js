@@ -494,7 +494,12 @@ async function listNewsFeed(pool, {
         COALESCE(rel.related_names, ARRAY[]::text[]) AS related_names,
         COALESCE(rel.channel_ids, ARRAY[]::text[]) AS channel_ids,
         COALESCE(rel.stock_symbols, ARRAY[]::text[]) AS stock_symbols,
-        COALESCE(rel.units, ARRAY[]::text[]) AS units
+        COALESCE(rel.units, ARRAY[]::text[]) AS units,
+        COALESCE(
+          (SELECT json_agg(json_build_object('symbol', m.symbol, 'mood', m.mood) ORDER BY m.symbol)
+           FROM content.news_moods m WHERE m.news_id = mn.id),
+          '[]'::json
+        ) AS moods
       FROM info.member_news mn
       LEFT JOIN content.articles a
         ON a.news_id = mn.id

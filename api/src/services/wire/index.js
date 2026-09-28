@@ -12,6 +12,7 @@ const crypto = require("node:crypto");
 const streams = require("./streams");
 const chatter = require("../chatter");
 const autotag = require("../autotag");
+const newsMoods = require("../newsMoods");
 const { BUYBACK_START, BUYBACK_DAILY_STEP } = require("../marketSupply");
 
 const THUMB = (videoId) => `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
@@ -371,6 +372,11 @@ async function autotagArticles(pool) {
   return autotag.runAutotag(pool);
 }
 
+/** Talents' reaction faces for recent headlines (after tagging, so new tags get a mood too). */
+async function newsReactions(pool) {
+  return newsMoods.runNewsMoods(pool);
+}
+
 // ── The weekly evaluation, buybacks, sell-outs (docs/market/core-market.md) ──
 async function marketSupplyNews(pool) {
   let added = 0;
@@ -456,7 +462,7 @@ async function marketSupplyNews(pool) {
   return { items: added };
 }
 
-const GENERATORS = { streamEvents, subscriberMilestones, viewerRecords, superchatLeader, marketMovers, marketSupplyNews, gameMoments, chatterSpikes, autotagArticles };
+const GENERATORS = { streamEvents, subscriberMilestones, viewerRecords, superchatLeader, marketMovers, marketSupplyNews, gameMoments, chatterSpikes, autotagArticles, newsReactions };
 
 async function runWire(pool, logger = console) {
   const summary = {};

@@ -20,6 +20,24 @@
   z-index: 40;
   background: var(--ink);
   border-bottom: 1px solid var(--rule);
+  transition: transform 0.22s ease;
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+// Phones, scrolling down (site-shell.tsx): the header slides away and sticky page elements move up.
+.shell[data-chrome="hidden"] {
+  .header {
+    transform: translateY(calc(-100% - env(safe-area-inset-top, 0px)));
+  }
+
+  .main {
+    --rail-height: 0px;
+    --tape-height: 0px;
+    --site-shell-chrome-height: 0px;
+  }
 }
 
 .rail {

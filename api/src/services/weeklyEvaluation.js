@@ -59,6 +59,12 @@ function evaluationDateFor(now = new Date()) {
   return date.toISOString().slice(0, 10);
 }
 
+/** Today's date in New York, as YYYY-MM-DD: the key an on-demand (playtest) evaluation runs under. */
+function todayInNewYork(now = new Date()) {
+  const parts = Object.fromEntries(dateFormatter.formatToParts(now).map((part) => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
 function shiftDate(dateKey, days) {
   const date = new Date(`${dateKey}T12:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
@@ -230,7 +236,7 @@ async function addCash(client, userId, delta, { assetId, entryType, evaluationId
 }
 
 // ── The run ───────────────────────────────────────────────────────────────
-async function runWeeklyEvaluation(pool, { evalDate = evaluationDateFor(), dryRun = false, redis = null, logger = console } = {}) {
+async function runWeeklyEvaluation(pool, { evalDate = evaluationDateFor(), dryRun = false, onDemand = false, redis = null, logger = console } = {}) {
   const client = await pool.connect();
   const toPublish = [];
   let report = null;
@@ -402,6 +408,7 @@ async function runWeeklyEvaluation(pool, { evalDate = evaluationDateFor(), dryRu
       eval_date: evalDate,
       generated_at: new Date().toISOString(),
       first_evaluation: firstEvaluation,
+      on_demand: onDemand,
       asset_count: rows.length,
       dividends_total: round(dividendsTotal, 2),
       fees_total: round(feesTotal, 2),
@@ -558,6 +565,7 @@ module.exports = {
   CONFIG,
   evaluationDateFor,
   evaluationStartsAt,
+  todayInNewYork,
   pendingEvaluationDate,
   shiftDate,
   zScores,

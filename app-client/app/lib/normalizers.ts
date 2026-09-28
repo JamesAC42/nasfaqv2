@@ -43,6 +43,7 @@ import {
   type MarketAssetAdjustmentHistory,
   type MarketAsset,
   type MarketBuyback,
+  type NewsMood,
   type MarketActivity,
   type MarketActivityTrader,
   type MarketActivityWindow,
@@ -1920,6 +1921,7 @@ export function normalizeNews(rows: Array<Record<string, unknown>>): NewsItem[] 
       channel_ids: Array.isArray(row.channel_ids) ? row.channel_ids.map((item) => String(item)) : characters.map((item) => item.youtube_channel_id || "").filter(Boolean),
       stock_symbols: Array.isArray(row.stock_symbols) ? row.stock_symbols.map((item) => String(item)) : characters.map((item) => item.symbol || "").filter(Boolean),
       units: Array.isArray(row.units) ? row.units.map((item) => String(item)) : characters.map((item) => item.unit || "").filter(Boolean),
+      moods: normalizeNewsMoods(row.moods),
       article_id: toNumber(row.article_id),
       article_slug: row.article_slug ? String(row.article_slug) : null,
       is_news: Boolean(row.is_news ?? true),
@@ -2037,9 +2039,21 @@ export function normalizeArticleSummary(value: Record<string, unknown>): Article
           id: Number(newsItem.id || 0),
           headline: String(newsItem.headline || ""),
           published_at: newsItem.published_at ? String(newsItem.published_at) : null,
+          moods: normalizeNewsMoods(newsItem.moods),
         }
       : null,
   };
+}
+
+const NEWS_MOODS = new Set(["idle", "hype", "moon", "cope", "smug", "shock"]);
+
+/** Talents' reactions to a headline; anything unknown is dropped. */
+function normalizeNewsMoods(value: unknown): NewsMood[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((row) => (row && typeof row === "object" ? (row as Record<string, unknown>) : null))
+    .filter((row): row is Record<string, unknown> => Boolean(row && row.symbol && NEWS_MOODS.has(String(row.mood))))
+    .map((row) => ({ symbol: String(row.symbol).toUpperCase(), mood: String(row.mood) as NewsMood["mood"] }));
 }
 
 function normalizeArticleComments(value: unknown): ArticleComment[] {

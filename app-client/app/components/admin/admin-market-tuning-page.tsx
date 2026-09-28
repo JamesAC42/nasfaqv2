@@ -11,6 +11,7 @@ import {
 } from "@/app/components/admin/admin-api";
 import { AdminFrame, AdminGate, AdminLoading, useAdminAccess, useNow } from "@/app/components/admin/admin-frame";
 import { Notice, Section, Switch, Tabs, adminErrorText, adminUi as ui, etTime, fmtCount, marketDateKey, until, useHashTab } from "@/app/components/admin/admin-ui";
+import { EvaluationNow } from "@/app/components/admin/evaluation-now";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { apiFetch } from "@/app/lib/api";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -18,7 +19,8 @@ import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/admin/admin-market-tuning-page.module.scss";
 
 // /admin/market-tuning: the base-rate tick schedule (force the next tick, regenerate a day, the
-// session matrix), live-order batch health, per-stock guardrails and the reset/rebuild controls.
+// session matrix), live-order batch health, per-stock guardrails, the weekly evaluation on demand
+// (playtests) and the reset/rebuild controls.
 // Every list from the API goes through asArray(): a missing field used to crash the page with
 // "Cannot read properties of undefined (reading 'map')".
 
@@ -105,8 +107,8 @@ type AdjustmentInterval = {
   gap_compression_pct: number | null;
 };
 
-type TabKey = "ticks" | "live-orders" | "stocks" | "reset";
-const TAB_KEYS = ["ticks", "live-orders", "stocks", "reset"] as const;
+type TabKey = (typeof TAB_KEYS)[number];
+const TAB_KEYS = ["ticks", "live-orders", "stocks", "evaluation", "reset"] as const;
 const INTERVAL_KEYS = ["open", "lunch", "late", "overnight"] as const;
 const CADENCE_OPTIONS = ["weekly", "monthly", "quarterly", "manual"];
 
@@ -540,6 +542,7 @@ export function AdminMarketTuningPage() {
     { key: "ticks" as const, label: "Ticks", count: stuck ? `${stuck} stuck` : undefined, tone: stuck ? ("warn" as const) : undefined },
     { key: "live-orders" as const, label: "Live orders", count: liveHealth ? liveHealth.health.pending_count : undefined },
     { key: "stocks" as const, label: "Per-stock", count: assets.length || undefined },
+    { key: "evaluation" as const, label: "Weekly evaluation" },
     { key: "reset" as const, label: "Reset & rebuild" },
   ];
 
@@ -904,6 +907,12 @@ export function AdminMarketTuningPage() {
               <p className={ui.empty}>No stocks match that.</p>
             )}
           </Section>
+        </div>
+      ) : null}
+
+      {tab === "evaluation" ? (
+        <div role="tabpanel" id="panel-evaluation" aria-labelledby="tab-evaluation">
+          <EvaluationNow />
         </div>
       ) : null}
 

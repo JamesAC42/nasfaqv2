@@ -1451,6 +1451,7 @@ export type NewsItem = {
   channel_ids?: string[];
   stock_symbols?: string[];
   units?: string[];
+  moods?: NewsMood[];
   article_id?: number | null;
   article_slug?: string | null;
   is_news?: boolean;
@@ -1512,8 +1513,13 @@ export type ArticleSummary = {
     id: number;
     headline: string;
     published_at: string | null;
+    /** How each tagged talent reacts to the headline (a reaction face). */
+    moods?: NewsMood[];
   } | null;
 };
+
+/** A talent's reaction to a HoloNews headline: one of the reaction poses. */
+export type NewsMood = { symbol: string; mood: "idle" | "hype" | "moon" | "cope" | "smug" | "shock" };
 
 export const ARTICLE_COMMENT_MOODS = [
   "Bullish",

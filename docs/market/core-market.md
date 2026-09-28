@@ -87,6 +87,12 @@ stock against shares held, dividend and fee rates) without writing anything: it 
 transaction that is rolled back, so it is safe against production. Admins can also open
 `/api/market/evaluations/preview`, and `POST /internal/market/weekly-evaluation/run` runs one by hand.
 
+**On demand, for playtests.** Admin → Market tuning → Weekly evaluation previews and runs one right
+now (`POST /internal/market/weekly-evaluation/run-now`, `{ dry_run }` or `{ confirmation: "evaluate" }`).
+It is dated today in New York, so each date still runs once, and its report says `on_demand: true`.
+Saturday's evaluation still runs on schedule afterwards and, with the same revealed days behind it,
+pays about the same again, so it is a playtest tool, not something to press in the live game.
+
 Code: `api/src/services/marketSupply.js` (shares, buybacks), `api/src/services/weeklyEvaluation.js`
 (the evaluation), `api/src/services/trading.js` (fills), `api/src/services/settlement.js` (no daily
 print; buybacks end at the Open), tests in `api/test/core-market.test.js`.

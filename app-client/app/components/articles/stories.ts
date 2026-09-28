@@ -1,4 +1,4 @@
-import type { ArticleSummary, NewsItem } from "@/app/lib/types";
+import type { ArticleSummary, NewsItem, NewsMood } from "@/app/lib/types";
 
 /** One row in the articles feed, whether it came from the HoloNews importer or a player. */
 export type Story = {
@@ -13,6 +13,8 @@ export type Story = {
   source: string | null;
   symbols: string[];
   units: string[];
+  /** Tagged talents' reactions to a HoloNews headline. */
+  reactions: NewsMood[];
   views: number;
   likes: number;
   comments: number;
@@ -34,6 +36,7 @@ export function fromNews(item: NewsItem): Story {
     source: item.source || null,
     symbols: (item.stock_symbols ?? []).map((symbol) => symbol.toUpperCase()),
     units: item.units ?? [],
+    reactions: item.moods ?? [],
     views: item.view_count ?? 0,
     likes: item.like_count ?? 0,
     comments: item.comment_count ?? 0,
@@ -56,6 +59,7 @@ export function fromArticle(article: ArticleSummary): Story {
     source: null,
     symbols: article.related_assets.map((asset) => asset.symbol.toUpperCase()),
     units: [],
+    reactions: article.news_item?.moods ?? [],
     views: article.views,
     likes: article.likes,
     comments: article.comment_count,

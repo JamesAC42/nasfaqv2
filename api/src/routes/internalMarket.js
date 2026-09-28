@@ -174,6 +174,21 @@ router.post("/weekly-evaluation/run", async (req, res, next) => {
   }
 });
 
+// An evaluation right now, for playtests: dividends, fees, max shares and buybacks without waiting
+// for Saturday. It runs under today's New York date, so it still runs once (a second press the same
+// day is refused, and the Saturday run is a different date). Body: { dry_run?, confirmation: "evaluate" }.
+router.post("/weekly-evaluation/run-now", async (req, res, next) => {
+  try {
+    const dryRun = Boolean(req.body?.dry_run);
+    if (!dryRun && !hasConfirmation(req, "evaluate")) return res.status(400).json({ error: "invalid_confirmation" });
+    const evalDate = weeklyEvaluation.todayInNewYork();
+    const result = await weeklyEvaluation.runWeeklyEvaluation(req.ctx.pool, { evalDate, dryRun, onDemand: true, redis: req.ctx.redis });
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.post("/settle/:date", async (req, res, next) => {
   const client = await req.ctx.pool.connect();
   try {

@@ -13,7 +13,7 @@
 - the wire: its own page with more info and fun extras, plus an in-depth view of the "hot on /vt/" thread activity graphs
 - BBB phase 2: Credit vs Liquid (taxes, weekly conversion, licenses; dividends move to Credit), then contracts, bonds, gambits (docs/market/core-market.md)
 - before the first Saturday on prod: run `node scripts/weekly-evaluation.js preview` against prod and tune MARKET_MAX_SHARES_MIN/MAX if many stocks would sell out or start buybacks
-- post-trade leaderboard refreshes can deadlock each other when fills land back to back (fire-and-forget refreshCurrentLeaderboardForAsset); serialize or batch them
+- [done: one advisory lock for every leaderboard write + coalesced post-trade refreshes] post-trade leaderboard refreshes can deadlock each other when fills land back to back (fire-and-forget refreshCurrentLeaderboardForAsset); serialize or batch them
 - [done: bell + /notifications] notifications
 - achievements/ streaks
 - leaderboard
@@ -34,9 +34,9 @@ clean up things:
     - 
 - coin pages:
     - make sure the graph renders with the right background color on load every time
-    - fix label of quick stats in light mode to be readable
-    - show the rank next to quick stats
-    - have the graph match the height of the stats to the right
+    - [done] fix label of quick stats in light mode to be readable
+    - [done: rank chips under the stats] show the rank next to quick stats
+    - [n/a in the redesign: stats moved into the hero] have the graph match the height of the stats to the right
 
 
 redesign todo:
@@ -46,14 +46,14 @@ redesign todo:
 
 fixes:
 
-- visual bug on stock page quick stats
-- fix navbar appearance in mobile to be more compact
+- [done: frosted panel over the key art on phones, two even rows] visual bug on stock page quick stats
+- [done: header tucks away while scrolling down on phones, back on scroll up] fix navbar appearance in mobile to be more compact
 - [done: shared <Tip>/<Term> + /how-to-play] add tooltips and a how to play page
 - [done: /about] add an info page
-- add kofi link
-- show badge-type items on profile page
+- [done: footer] add kofi link
+- [done: every owned profile badge, not just pulls] show badge-type items on profile page
 - [done] make invalid password message more clear when registering
-    - also make the registration option more clear that you don't need google
+    - [done] also make the registration option more clear that you don't need google
 - [checked, fine now] pending orders dropdown is fucked in mobile
 - [checked: opens the trade drawer] market popup on article page for assoc. coins is fucked in mobile
 - [done: supply panel, tooltips, how-to-play Saturday section] explain the treasury system

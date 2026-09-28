@@ -708,10 +708,7 @@ async function executeOrder(pool, {
     await client.query("COMMIT");
 
     if (refreshDerivedState) {
-      netWorth.refreshCurrentLeaderboardForAsset(pool, asset.id, { extraUserIds: [effectiveUserId] }).catch((error) => {
-        // eslint-disable-next-line no-console
-        console.error("post-trade leaderboard refresh failed:", String(error?.message || error));
-      });
+      netWorth.queueLeaderboardRefresh(pool, asset.id, { extraUserIds: [effectiveUserId] });
     }
 
     void publishMarketEvent(redis, {
@@ -1394,12 +1391,7 @@ async function processDueLiveOrders(pool, { now = new Date(), limit = LIVE_ORDER
   });
 
   for (const [assetId, userIds] of refreshUserIdsByAsset.entries()) {
-    netWorth.refreshCurrentLeaderboardForAsset(pool, assetId, {
-      extraUserIds: Array.from(userIds),
-    }).catch((error) => {
-      // eslint-disable-next-line no-console
-      console.error("post-batch leaderboard refresh failed:", String(error?.message || error));
-    });
+    netWorth.queueLeaderboardRefresh(pool, assetId, { extraUserIds: Array.from(userIds) });
   }
 
   return {

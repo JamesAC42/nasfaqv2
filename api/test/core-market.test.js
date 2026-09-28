@@ -67,3 +67,13 @@ test("an evaluation starts at midnight New York time in both EDT and EST", () =>
   assert.equal(weekly.evaluationStartsAt("2026-09-26").toISOString(), "2026-09-26T04:00:00.000Z");
   assert.equal(weekly.evaluationStartsAt("2026-12-05").toISOString(), "2026-12-05T05:00:00.000Z");
 });
+
+test("headline moods from keywords when Jev can't say", () => {
+  const { keywordMood } = require("../src/services/newsMoods");
+  assert.equal(keywordMood("Minato Aqua graduation: final stream date set"), "cope");
+  assert.equal(keywordMood("Usada Pekora announces her 3D live concert"), "hype");
+  assert.equal(keywordMood("Suisei passes 2 million subscribers"), "moon");
+  assert.equal(keywordMood("Marine wins the Mario Kart tournament"), "smug");
+  assert.equal(keywordMood("Surprise collab leaks early"), "shock");
+  assert.equal(keywordMood("Mio merch restock this weekend"), "idle");
+});

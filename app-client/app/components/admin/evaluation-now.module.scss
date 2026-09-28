@@ -1,0 +1,116 @@
+@use "../../styles/mixins" as *;
+
+.wrap {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.6rem 0 0.2rem;
+  min-width: 0;
+}
+
+.blurb {
+  margin: 0;
+  max-width: 70ch;
+  font-size: 0.82rem;
+  color: var(--mid);
+}
+
+.small {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--mid);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+
+  input {
+    width: 9rem;
+  }
+}
+
+.summary {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px dashed var(--rule);
+  min-width: 0;
+
+  &[data-final] {
+    border-style: solid;
+    border-color: color-mix(in srgb, var(--up) 45%, var(--rule));
+  }
+}
+
+.kicker {
+  @include label;
+  color: var(--blue);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+
+  @include tablet-down {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  div {
+    display: grid;
+    gap: 0.1rem;
+    min-width: 0;
+  }
+
+  dt {
+    @include label;
+    font-size: 0.62rem;
+    color: var(--mid);
+  }
+
+  dd {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+
+    &[data-tone="up"] {
+      color: var(--up);
+    }
+
+    &[data-tone="down"] {
+      color: var(--down);
+    }
+  }
+
+  small {
+    font-size: 0.7rem;
+    color: var(--mid);
+  }
+}
+
+.lists {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.8rem;
+
+  h4 {
+    @include label;
+    margin: 0 0 0.3rem;
+    font-size: 0.62rem;
+    color: var(--mid);
+  }
+
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.15rem;
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+  }
+}

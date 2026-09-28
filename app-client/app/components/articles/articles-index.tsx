@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { HeroCast } from "@/app/components/common/hero-cast";
 import { HeadlineArt } from "@/app/components/articles/headline-art";
+import { StoryReactions } from "@/app/components/articles/story-reactions";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { StockChip } from "@/app/components/common/stock-chip";
 import { SiteShell } from "@/app/components/layout/site-shell";
@@ -99,7 +100,17 @@ function useFeed(query: FeedQuery) {
   return { stories, pagination, loading, error };
 }
 
+/** The thumbnail, with the tagged talents' reaction faces peeking over its corner. */
 function Thumb({ story, size }: { story: Story; size: "lead" | "row" }) {
+  return (
+    <span className={styles.thumbWrap}>
+      <ThumbImage story={story} size={size} />
+      <StoryReactions reactions={story.reactions} variant="overlay" size={size === "lead" ? 54 : 30} />
+    </span>
+  );
+}
+
+function ThumbImage({ story, size }: { story: Story; size: "lead" | "row" }) {
   const assets = useMarketStore((state) => state.assets);
   const { theme } = useTheme();
   if (story.thumb) {

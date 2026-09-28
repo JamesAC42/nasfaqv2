@@ -188,6 +188,48 @@ export function SiteShell({
     };
   }, [isOrdersOpen, openMenu]);
 
+  // Phones: the header (rail + tape) tucks away while you scroll down and comes back as soon as you
+  // scroll up, so the page gets the whole screen between the two. Sticky bits inside the page follow
+  // it: while it's hidden, <main> sees --rail-height/--tape-height/--site-shell-chrome-height as 0.
+  useEffect(() => {
+    const shell = shellRef.current;
+    if (!shell || typeof window.matchMedia !== "function") return;
+    const phone = window.matchMedia("(max-width: 720px)");
+    let lastY = window.scrollY;
+    let frame = 0;
+    const show = () => shell.removeAttribute("data-chrome");
+    const onScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        const y = window.scrollY;
+        const delta = y - lastY;
+        if (!phone.matches || y < 120 || headerRef.current?.contains(document.activeElement)) {
+          show();
+          lastY = y;
+          return;
+        }
+        if (Math.abs(delta) < 10) return;
+        if (delta > 0) shell.setAttribute("data-chrome", "hidden");
+        else show();
+        lastY = y;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    phone.addEventListener?.("change", show);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      phone.removeEventListener?.("change", show);
+      if (frame) window.cancelAnimationFrame(frame);
+      show();
+    };
+  }, []);
+
+  // A menu opening, or a new page, always brings the header back.
+  useEffect(() => {
+    shellRef.current?.removeAttribute("data-chrome");
+  }, [pathname, openMenu, isOrdersOpen]);
+
   // Pages use --site-shell-chrome-height to offset sticky elements below the header.
   useLayoutEffect(() => {
     const shell = shellRef.current;

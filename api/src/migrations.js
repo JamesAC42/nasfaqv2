@@ -1589,6 +1589,20 @@ async function applySchema(pool) {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS market_notifications_user_time_idx ON market.notifications (user_id, created_at DESC, id DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS market_notifications_unread_idx ON market.notifications (user_id) WHERE read_at IS NULL`);
+  // How each tagged talent reacts to a HoloNews headline (services/newsMoods.js).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content.news_moods (
+      news_id BIGINT NOT NULL REFERENCES info.member_news(id) ON DELETE CASCADE,
+      symbol TEXT NOT NULL,
+      mood TEXT NOT NULL,
+      confidence NUMERIC NULL,
+      classifier TEXT NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 1,
+      judged_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (news_id, symbol),
+      CONSTRAINT news_moods_mood_check CHECK (mood IN ('idle', 'hype', 'moon', 'cope', 'smug', 'shock'))
+    )
+  `);
   // ── The core market (docs/market/core-market.md) ─────────────────────────
   // Weekly share fees can put a player in the red; a buyback stock can have more shares held than
   // its (new, lower) max until the buyback closes.

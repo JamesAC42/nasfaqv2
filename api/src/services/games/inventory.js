@@ -446,34 +446,50 @@ async function listUserItemLockerByUserId(pool, targetUserId) {
   };
 }
 
+/**
+ * Every profile badge a player owns, whatever it came from (capsule pulls, set rewards, the card
+ * exchange, admin grants), newest first and one per badge. Shaped like a locker entry so the profile
+ * can show it the same way.
+ */
 async function listUserGachaBadges(pool, userId) {
   const { rows } = await pool.query(
     `
-    SELECT DISTINCT ON (gp.reward_key)
-      gp.id,
-      gp.game_id,
-      gp.game_session_id,
-      gp.cost_cash,
-      gp.reward_type,
-      gp.reward_key,
-      gp.duplicate_compensation_cash,
-      gp.metadata_json,
-      gp.created_at,
-      gpi.display_name AS prize_display_name,
-      gpi.cosmetic_type AS prize_cosmetic_type,
-      gpi.rarity AS prize_rarity,
-      gpi.image_key AS prize_image_key
-    FROM games.gacha_pulls gp
-    LEFT JOIN games.gacha_prize_items gpi
-      ON gpi.cosmetic_key = gp.reward_key
-    WHERE gp.user_id = $1
-      AND (gp.reward_type = 'profile_badge' OR gpi.cosmetic_type = 'profile_badge')
-    ORDER BY gp.reward_key, gp.created_at DESC
+    SELECT * FROM (
+      SELECT DISTINCT ON (uc.cosmetic_key)
+        uc.id,
+        uc.cosmetic_key AS reward_key,
+        uc.cosmetic_type AS reward_type,
+        uc.rarity,
+        uc.source_type,
+        uc.metadata_json,
+        uc.granted_at AS created_at,
+        gpi.display_name AS prize_display_name,
+        gpi.rarity AS prize_rarity,
+        gpi.image_key AS prize_image_key
+      FROM games.user_cosmetics uc
+      LEFT JOIN games.gacha_prize_items gpi
+        ON gpi.cosmetic_key = uc.cosmetic_key
+      WHERE uc.user_id = $1
+        AND uc.cosmetic_type = 'profile_badge'
+      ORDER BY uc.cosmetic_key, uc.granted_at DESC
+    ) badges
+    ORDER BY created_at DESC, id DESC
   `,
     [userId]
   );
 
-  return rows.map(mapLockerPullRow);
+  return rows.map((row) =>
+    mapLockerPullRow({
+      ...row,
+      game_id: 0,
+      game_session_id: null,
+      cost_cash: 0,
+      duplicate_compensation_cash: 0,
+      prize_cosmetic_type: "profile_badge",
+      prize_rarity: row.prize_rarity || row.rarity,
+      metadata_json: { ...(row.metadata_json || {}), source_type: row.source_type },
+    })
+  );
 }
 
 async function getTotalGachaSpentCash(pool, userId) {
