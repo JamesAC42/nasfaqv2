@@ -11,6 +11,9 @@
 - trade history page / market activity
 - bot? AI commentator? [SOON]
 - the wire: its own page with more info and fun extras, plus an in-depth view of the "hot on /vt/" thread activity graphs
+- BBB phase 2: Credit vs Liquid (taxes, weekly conversion, licenses; dividends move to Credit), then contracts, bonds, gambits (docs/market/core-market.md)
+- before the first Saturday on prod: run `node scripts/weekly-evaluation.js preview` against prod and tune MARKET_MAX_SHARES_MIN/MAX if many stocks would sell out or start buybacks
+- post-trade leaderboard refreshes can deadlock each other when fills land back to back (fire-and-forget refreshCurrentLeaderboardForAsset); serialize or batch them
 - [done: bell + /notifications] notifications
 - achievements/ streaks
 - leaderboard
