@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { ART_MANIFEST_URL, type ArtManifest } from "@/app/lib/art-manifest";
+import { ART_MANIFEST_FETCH_URL, type ArtManifest } from "@/app/lib/art-manifest";
 
 type ArtStatus = "idle" | "loading" | "ready" | "missing";
 
@@ -17,7 +17,7 @@ export const useArtStore = create<ArtStore>((set, get) => ({
     set({ status: "loading" });
     // Revalidate every page load: the pipeline rewrites the manifest after each picking session, and a
     // refresh should show the new art without a redeploy (image files themselves are content-hashed).
-    fetch(ART_MANIFEST_URL, { cache: "no-cache" })
+    fetch(ART_MANIFEST_FETCH_URL, { cache: "no-cache" })
       .then((response) => (response.ok ? response.json() : null))
       .then((data: ArtManifest | null) => {
         if (data && typeof data === "object" && (data.images || data.talents || data.scenes)) set({ status: "ready", manifest: data });

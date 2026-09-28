@@ -70,6 +70,8 @@ export type ArtManifest = {
 
 const BASE = (process.env.NEXT_PUBLIC_ART_BASE_URL || "/art").replace(/\/$/, "");
 export const ART_MANIFEST_URL = process.env.NEXT_PUBLIC_ART_MANIFEST_URL || `${BASE}/manifest.json`;
+/** Where the browser fetches it: through the site when it lives on another host (see app/art-manifest.json). */
+export const ART_MANIFEST_FETCH_URL = /^https?:\/\//.test(ART_MANIFEST_URL) ? "/art-manifest.json" : ART_MANIFEST_URL;
 
 export const SHARED = "_shared";
 
