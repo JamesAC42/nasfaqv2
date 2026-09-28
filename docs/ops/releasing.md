@@ -10,6 +10,9 @@ Scheduler, scrapers and Redis use Recreate for controlled Deployment updates, pr
 
 ## Release path
 
+Shipping the redesign branch for the first time: follow [redesign-launch.md](redesign-launch.md) alongside the steps below.
+
+
 1. Make changes on a branch based on current `origin/main`. Do not reset or merge over an older dirty checkout. Open a PR and inspect CI.
 2. PR CI runs API regressions, the existing frontend build and Go checks, and deployment-script tests. Deployment also calls that same CI workflow on the exact release commit before building images, so direct main pushes cannot bypass these checks.
 3. Merging/pushing main starts production deployment automatically. Manual dispatch is limited to main by the validation job condition. The entire release workflow is serialized with `cancel-in-progress: false`; a newer push will not cancel an active migration/rollout. GitHub can replace an older pending run with a newer pending run.

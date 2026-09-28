@@ -56,7 +56,7 @@ fixes:
     - also make the registration option more clear that you don't need google
 - [checked, fine now] pending orders dropdown is fucked in mobile
 - [checked: opens the trade drawer] market popup on article page for assoc. coins is fucked in mobile
-- explain the treasury system
+- [done: supply panel, tooltips, how-to-play Saturday section] explain the treasury system
 
 later:
 - [done] card exchange: wishlists + "a card you want was listed" alerts; admin view for lopsided trades between new accounts

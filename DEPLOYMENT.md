@@ -250,7 +250,7 @@ cd ../api && node scripts/upload-art.js --dry-run   # then without --dry-run
 
 The script uploads only files the bucket doesn't have yet (names carry a content hash, cached for a year) and uploads `manifest.json` last with a 60-second cache, so the site switches to new art only once every file is there. It never deletes anything.
 
-Build the client with `NEXT_PUBLIC_ART_BASE_URL=https://images.nasfaq.biz/art` (a build-time value, so pass it as a Docker build arg). Images load straight from the CDN; the manifest goes through the site at `/art-manifest.json` (app/art-manifest.json/route.ts), so the CDN needs no CORS setup. CloudFront keeps one cached copy per file whatever the Origin, so a CORS header from S3 would name whichever site asked first.
+The client is built with `NEXT_PUBLIC_ART_BASE_URL=https://images.nasfaq.biz/art` (a build-time value; it is the default build arg in `app-client/Dockerfile`). Images load straight from the CDN; the manifest goes through the site at `/art-manifest.json` (app/art-manifest.json/route.ts), so the CDN needs no CORS setup. CloudFront keeps one cached copy per file whatever the Origin, so a CORS header from S3 would name whichever site asked first.
 
 Upload key (optional, safer than the API's key): an IAM user with only this policy, keys in `api/.env` as `ART_UPLOAD_AWS_ACCESS_KEY_ID` / `ART_UPLOAD_AWS_SECRET_ACCESS_KEY`:
 
