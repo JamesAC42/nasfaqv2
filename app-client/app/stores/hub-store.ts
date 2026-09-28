@@ -142,12 +142,15 @@ function start() {
     void useHubStore.getState().loadAdjustments();
   }, RECONCILE_MS);
 
+  // The order queue panel after fills and new orders: every few seconds at most, jittered so every
+  // open /market tab doesn't refetch in the same instant (it was 400ms, i.e. ~2.5 requests a second
+  // per tab while a batch filled).
   const refreshLiveOrders = () => {
     if (liveOrderTimer !== null) return;
     liveOrderTimer = window.setTimeout(() => {
       liveOrderTimer = null;
       void useHubStore.getState().loadLiveOrders();
-    }, 400);
+    }, 3_000 + Math.random() * 2_000);
   };
 
   stopRealtime = onMarketEvent((payload) => {

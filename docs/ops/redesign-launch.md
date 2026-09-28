@@ -45,6 +45,16 @@ then the rollout. The migration adds, all backward compatible with the old pods 
 
 Watch: migration Job completes, all Deployments roll out, `https://holo.nasfaq.biz/api/health` is OK.
 
+**New Deployment: `api-games`.** Game tables (duels, high-low, blackjack) live in one process's
+memory, and a starting process refunds every unfinished match. With two `api-web` replicas they
+were split between pods, and any pod starting could refund a match another pod was still playing
+(so it could pay twice). Now one pod owns them: `api-games` (1 replica, Recreate), the ingress sends
+`/api/games` there, and every other API pod runs with `GAMES_TABLES_OWNER=false`. Games pushes
+(tables, lobbies, the bell's notifications) go through Redis, so they reach a socket on any pod.
+The old pods still own tables until they're replaced, so **release when no table is mid-game**
+(Games → the lobbies show no playing tables). `PG_POOL_MAX` goes from 4 to 8 per pod (the 4 GB
+database allows 97 connections). Capacity numbers: [`capacity.md`](capacity.md).
+
 ## 3. Right after the rollout
 
 - [ ] **Supply recount.** Old pods may have filled orders between the migration and the rollout:
@@ -70,6 +80,8 @@ Watch: migration Job completes, all Deployments roll out, `https://holo.nasfaq.b
   - [ ] Market → Dividends shows "The first Dividend Review lands Saturday" and a countdown
   - [ ] the bell (notifications) opens; capsule gacha shows the new prizes
   - [ ] a stock page's Holders & supply panel shows held / for sale / max shares
+  - [ ] two accounts sit at the same blackjack table (two browsers): both see each other's hands
+        update live; `kubectl -n nasfaq get pods` shows one `api-games` pod
 
 ## 4. Before the first Saturday 00:00 ET
 

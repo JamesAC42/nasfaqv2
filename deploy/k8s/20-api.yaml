@@ -39,6 +39,8 @@ spec:
               value: "false"
             - name: LIVESTREAM_SNAPSHOT_OWNER
               value: "false"
+            - name: GAMES_TABLES_OWNER
+              value: "false"
           readinessProbe:
             timeoutSeconds: 5
             httpGet:
@@ -109,6 +111,8 @@ spec:
               value: "false"
             - name: LIVESTREAM_SNAPSHOT_OWNER
               value: "true"
+            - name: GAMES_TABLES_OWNER
+              value: "false"
           readinessProbe:
             timeoutSeconds: 5
             httpGet:
@@ -129,3 +133,89 @@ spec:
             limits:
               cpu: 500m
               memory: 1Gi
+---
+# Game tables (duels, high-low, blackjack) live in one process's memory, and a process that starts
+# refunds every unfinished match (they can't survive a restart). So exactly one pod owns them:
+# this one. The ingress sends every /api/games request (and the /api/games/ws socket) here, and
+# Recreate makes sure an old and a new pod never both hold tables during a rollout.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-games
+  namespace: nasfaq
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+    rollingUpdate: null
+  selector:
+    matchLabels:
+      app: api-games
+  template:
+    metadata:
+      labels:
+        app: api-games
+    spec:
+      containers:
+        - name: api-games
+          image: ghcr.io/jamesac42/nasfaqv2-api:IMAGE_TAG
+          ports:
+            - containerPort: 5067
+              name: http
+          envFrom:
+            - configMapRef:
+                name: nasfaq-app-config
+            - secretRef:
+                name: nasfaq-app-secrets
+          env:
+            - name: PORT
+              value: "5067"
+            - name: ENABLE_MIGRATIONS
+              value: "false"
+            - name: MARKET_SETTLEMENT_SCHEDULER_ENABLED
+              value: "false"
+            - name: MARKET_ADJUSTMENT_SCHEDULER_ENABLED
+              value: "false"
+            - name: MARKET_LIVE_ORDER_SCHEDULER_ENABLED
+              value: "false"
+            - name: PREDICTION_MARKET_SCHEDULER_ENABLED
+              value: "false"
+            - name: MARKET_WEEKLY_EVALUATION_ENABLED
+              value: "false"
+            - name: LIVESTREAM_SNAPSHOT_OWNER
+              value: "false"
+            - name: GAMES_TABLES_OWNER
+              value: "true"
+          readinessProbe:
+            timeoutSeconds: 5
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            timeoutSeconds: 2
+            httpGet:
+              path: /api/live
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-games
+  namespace: nasfaq
+spec:
+  selector:
+    app: api-games
+  ports:
+    - port: 80
+      targetPort: http
+      name: http

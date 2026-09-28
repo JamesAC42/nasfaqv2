@@ -109,15 +109,26 @@ export function SiteShell({
     void fetchPortfolio();
   }, [fetchPortfolio, portfolio, user]);
 
+  // Your open orders: every 10s while one is waiting for its batch, otherwise once a minute (your own
+  // fills and cancels also refresh it from the market socket). Hidden tabs don't poll; coming back
+  // to the tab refreshes at once.
+  const hasPendingOrders = pendingOrders.length > 0;
   useEffect(() => {
     if (!user) {
       clearPendingLiveOrders();
       return;
     }
     void fetchPortfolioOrders();
-    const interval = window.setInterval(fetchPortfolioOrders, 10_000);
-    return () => window.clearInterval(interval);
-  }, [clearPendingLiveOrders, fetchPortfolioOrders, user]);
+    const poll = () => {
+      if (document.visibilityState === "visible") void fetchPortfolioOrders();
+    };
+    const interval = window.setInterval(poll, hasPendingOrders ? 10_000 : 60_000);
+    document.addEventListener("visibilitychange", poll);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", poll);
+    };
+  }, [clearPendingLiveOrders, fetchPortfolioOrders, user, hasPendingOrders]);
 
   useEffect(() => {
     if (!user || !pendingOrders.length) return;

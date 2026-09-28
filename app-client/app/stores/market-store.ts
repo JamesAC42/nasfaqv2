@@ -175,12 +175,30 @@ function scheduleIndexRefresh(fetchMarketIndexes: (options?: FetchMarketIndexesO
   }, 750);
 }
 
-function scheduleOverviewRefresh(refreshOverview: () => Promise<void>) {
-  if (typeof window === "undefined" || overviewRefreshTimer !== null) return;
+// How soon to refetch the board (assets + daily report + status) after a market event. Fills are
+// already patched into the board from the event itself, so they only need a slow reconcile (volume,
+// sparklines); every open tab doing a full refetch ~1s after every fill was the site's biggest load.
+// The jitter spreads tabs out so they don't all hit the API in the same instant.
+const RECONCILE_AFTER_FILL_MS = 20_000;
+const RECONCILE_JITTER_MS = 10_000;
+const REFRESH_SOON_MS = 700;
+let overviewRefreshDue = 0;
+let hasConnectedOnce = false;
+
+function scheduleOverviewRefresh(refreshOverview: () => Promise<void>, { soon = false }: { soon?: boolean } = {}) {
+  if (typeof window === "undefined") return;
+  const delay = soon ? REFRESH_SOON_MS + Math.random() * 2_000 : RECONCILE_AFTER_FILL_MS + Math.random() * RECONCILE_JITTER_MS;
+  const due = Date.now() + delay;
+  if (overviewRefreshTimer !== null) {
+    if (due >= overviewRefreshDue) return; // one already coming sooner
+    window.clearTimeout(overviewRefreshTimer);
+  }
+  overviewRefreshDue = due;
   overviewRefreshTimer = window.setTimeout(() => {
     overviewRefreshTimer = null;
+    overviewRefreshDue = 0;
     void refreshOverview();
-  }, 700);
+  }, delay);
 }
 
 function eventUserId(payload: Record<string, unknown>) {
@@ -362,145 +380,165 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       wsRef = new WebSocket(wsUrl);
 
       wsRef.onopen = () => {
+        // A reconnect may have missed fills, ticks or a settlement: refetch the board (jittered, so a
+        // whole site reconnecting after a deploy doesn't arrive at once). The first connect doesn't
+        // need it; the page loads the board itself.
+        if (hasConnectedOnce) scheduleOverviewRefresh(get().refreshOverview, { soon: true });
+        hasConnectedOnce = true;
         reconnectAttempt = 0;
+        try {
+          wsRef?.send(JSON.stringify({ type: "hello", bundles: true }));
+        } catch {}
+      };
+
+      const handlePayload = (payload: Record<string, unknown>) => {
+        marketEventListeners.forEach((listener) => {
+          try {
+            listener(payload);
+          } catch {}
+        });
+
+        if (payload.type === "market.trade_fill") {
+          const trade = normalizeMarketHubTrade((payload.trade || {}) as Record<string, unknown>);
+          const cacheKey = trade.symbol.trim().toUpperCase();
+          if (cacheKey) detailCache.delete(cacheKey);
+
+          set((state) => {
+            const detailMatches = state.detail && state.selectedSymbol.trim().toUpperCase() === cacheKey;
+            const statusPayload = payload.market_status && typeof payload.market_status === "object"
+              ? payload.market_status as Record<string, unknown>
+              : null;
+            return {
+              assets: state.assets.map((asset) => patchAssetFromTrade(asset, payload)),
+              marketStatus: statusPayload ? patchStatusFromTrade(state.marketStatus, statusPayload) : state.marketStatus,
+              detail: detailMatches
+                ? {
+                    ...state.detail!,
+                    trades: mergeDetailTrades(state.detail!.trades, trade),
+                  }
+                : state.detail,
+            };
+          });
+          scheduleIndexRefresh(get().fetchMarketIndexes, get().marketIndexes.length > 0);
+          scheduleOverviewRefresh(get().refreshOverview);
+          scheduleTradingStateRefresh(payload);
+          return;
+        }
+
+        if (payload.type === "market.snapshot") {
+          const assets = Array.isArray(payload.assets)
+            ? (payload.assets as Array<Record<string, unknown>>).map(normalizeAsset)
+            : [];
+          const status = payload.status && typeof payload.status === "object"
+            ? normalizeMarketStatus(payload.status as Record<string, unknown>)
+            : null;
+
+          if (assets.length || status) {
+            set((state) => {
+              const nextSymbol = state.selectedSymbol || assets[0]?.symbol || "";
+              return {
+                assets: assets.length ? assets : state.assets,
+                marketStatus: status || state.marketStatus,
+                selectedSymbol: assets.length && !assets.some((asset) => asset.symbol === nextSymbol)
+                  ? assets[0]?.symbol || ""
+                  : nextSymbol,
+              };
+            });
+          }
+          scheduleIndexRefresh(get().fetchMarketIndexes, get().marketIndexes.length > 0);
+          return;
+        }
+
+        if (payload.type === "market.status_update") {
+          const status = payload.status && typeof payload.status === "object"
+            ? normalizeMarketStatus(payload.status as Record<string, unknown>)
+            : null;
+          if (status) set({ marketStatus: status });
+          return;
+        }
+
+        if (payload.type === "market.adjustments_applied") {
+          useMomentStore.getState().pushTick(payload);
+          const quotes = Array.isArray(payload.quotes)
+            ? payload.quotes as Array<Record<string, unknown>>
+            : [];
+          const changedSymbols = new Set(quotes.map((quote) => String(quote.symbol || "").toUpperCase()).filter(Boolean));
+          changedSymbols.forEach((symbol) => detailCache.delete(symbol));
+
+          set((state) => ({
+            assets: state.assets.map((asset) => {
+              const quote = quotes.find((item) => String(item.symbol || "").toUpperCase() === asset.symbol.toUpperCase());
+              return quote ? patchAssetFromQuote(asset, quote) : asset;
+            }),
+            detail: changedSymbols.has(state.selectedSymbol.trim().toUpperCase()) ? null : state.detail,
+          }));
+
+          const selectedSymbol = get().selectedSymbol.trim().toUpperCase();
+          if (selectedSymbol && changedSymbols.has(selectedSymbol)) {
+            void get().fetchAssetDetail(selectedSymbol);
+          }
+          scheduleIndexRefresh(get().fetchMarketIndexes, get().marketIndexes.length > 0);
+          return;
+        }
+
+        if (payload.type === "market.live_order_queued" || payload.type === "market.live_order_rejected" || payload.type === "market.live_order_cancelled") {
+          scheduleOverviewRefresh(get().refreshOverview);
+          scheduleTradingStateRefresh(payload);
+          return;
+        }
+
+        // Dividends, fees, new max shares and buybacks: refetch the board (and the player's cash).
+        if (payload.type === "market.weekly_evaluation") {
+          scheduleOverviewRefresh(get().refreshOverview, { soon: true });
+          return;
+        }
+
+        if (payload.type === "market.settlement_completed") {
+          const incomingAssets = Array.isArray(payload.assets)
+            ? (payload.assets as Array<Record<string, unknown>>).map(normalizeAsset)
+            : [];
+          const bySymbol = new Map(incomingAssets.map((asset) => [asset.symbol.toUpperCase(), asset]));
+          incomingAssets.forEach((asset) => detailCache.delete(asset.symbol.toUpperCase()));
+
+          set((state) => {
+            const selectedIncoming = bySymbol.get(state.selectedSymbol.trim().toUpperCase()) || null;
+            return {
+              assets: state.assets.map((asset) => {
+                const incoming = bySymbol.get(asset.symbol.toUpperCase());
+                return incoming ? patchAssetFromSettlement(asset, incoming) : asset;
+              }),
+              // The new report's targets are secret; keep the last revealed ones until the refetch below.
+              report:
+                payload.report && typeof payload.report === "object"
+                  ? { ...(payload.report as DailyReport), revealed_targets: state.report?.revealed_targets ?? null }
+                  : state.report,
+              detail: selectedIncoming ? null : state.detail,
+            };
+          });
+
+          void get().fetchMarketIndexes({ force: true, silent: true });
+          // Buybacks can end at the Open; the settlement event doesn't carry supply, so refetch the board.
+          scheduleOverviewRefresh(get().refreshOverview, { soon: true });
+          void apiFetch<DailyReport>("/api/market/report/daily/latest")
+            .then((report) => set({ report }))
+            .catch(() => {});
+          const selectedSymbol = get().selectedSymbol.trim().toUpperCase();
+          if (selectedSymbol && bySymbol.has(selectedSymbol)) {
+            void get().fetchAssetDetail(selectedSymbol);
+          }
+        }
       };
 
       wsRef.onmessage = (event) => {
         try {
-          const payload = JSON.parse(String(event.data || "{}")) as Record<string, unknown>;
-          marketEventListeners.forEach((listener) => {
+          const parsed = JSON.parse(String(event.data || "{}")) as Record<string, unknown>;
+          // Events that land within ~100ms of each other (a batch of fills) arrive as one bundle.
+          const payloads = parsed.type === "market.bundle" && Array.isArray(parsed.events) ? (parsed.events as Array<Record<string, unknown>>) : [parsed];
+          for (const payload of payloads) {
             try {
-              listener(payload);
-            } catch {}
-          });
-
-          if (payload.type === "market.trade_fill") {
-            const trade = normalizeMarketHubTrade((payload.trade || {}) as Record<string, unknown>);
-            const cacheKey = trade.symbol.trim().toUpperCase();
-            if (cacheKey) detailCache.delete(cacheKey);
-
-            set((state) => {
-              const detailMatches = state.detail && state.selectedSymbol.trim().toUpperCase() === cacheKey;
-              const statusPayload = payload.market_status && typeof payload.market_status === "object"
-                ? payload.market_status as Record<string, unknown>
-                : null;
-              return {
-                assets: state.assets.map((asset) => patchAssetFromTrade(asset, payload)),
-                marketStatus: statusPayload ? patchStatusFromTrade(state.marketStatus, statusPayload) : state.marketStatus,
-                detail: detailMatches
-                  ? {
-                      ...state.detail!,
-                      trades: mergeDetailTrades(state.detail!.trades, trade),
-                    }
-                  : state.detail,
-              };
-            });
-            scheduleIndexRefresh(get().fetchMarketIndexes, get().marketIndexes.length > 0);
-            scheduleOverviewRefresh(get().refreshOverview);
-            scheduleTradingStateRefresh(payload);
-            return;
-          }
-
-          if (payload.type === "market.snapshot") {
-            const assets = Array.isArray(payload.assets)
-              ? (payload.assets as Array<Record<string, unknown>>).map(normalizeAsset)
-              : [];
-            const status = payload.status && typeof payload.status === "object"
-              ? normalizeMarketStatus(payload.status as Record<string, unknown>)
-              : null;
-
-            if (assets.length || status) {
-              set((state) => {
-                const nextSymbol = state.selectedSymbol || assets[0]?.symbol || "";
-                return {
-                  assets: assets.length ? assets : state.assets,
-                  marketStatus: status || state.marketStatus,
-                  selectedSymbol: assets.length && !assets.some((asset) => asset.symbol === nextSymbol)
-                    ? assets[0]?.symbol || ""
-                    : nextSymbol,
-                };
-              });
-            }
-            scheduleIndexRefresh(get().fetchMarketIndexes, get().marketIndexes.length > 0);
-            return;
-          }
-
-          if (payload.type === "market.status_update") {
-            const status = payload.status && typeof payload.status === "object"
-              ? normalizeMarketStatus(payload.status as Record<string, unknown>)
-              : null;
-            if (status) set({ marketStatus: status });
-            return;
-          }
-
-          if (payload.type === "market.adjustments_applied") {
-            useMomentStore.getState().pushTick(payload);
-            const quotes = Array.isArray(payload.quotes)
-              ? payload.quotes as Array<Record<string, unknown>>
-              : [];
-            const changedSymbols = new Set(quotes.map((quote) => String(quote.symbol || "").toUpperCase()).filter(Boolean));
-            changedSymbols.forEach((symbol) => detailCache.delete(symbol));
-
-            set((state) => ({
-              assets: state.assets.map((asset) => {
-                const quote = quotes.find((item) => String(item.symbol || "").toUpperCase() === asset.symbol.toUpperCase());
-                return quote ? patchAssetFromQuote(asset, quote) : asset;
-              }),
-              detail: changedSymbols.has(state.selectedSymbol.trim().toUpperCase()) ? null : state.detail,
-            }));
-
-            const selectedSymbol = get().selectedSymbol.trim().toUpperCase();
-            if (selectedSymbol && changedSymbols.has(selectedSymbol)) {
-              void get().fetchAssetDetail(selectedSymbol);
-            }
-            scheduleIndexRefresh(get().fetchMarketIndexes, get().marketIndexes.length > 0);
-            return;
-          }
-
-          if (payload.type === "market.live_order_queued" || payload.type === "market.live_order_rejected" || payload.type === "market.live_order_cancelled") {
-            scheduleOverviewRefresh(get().refreshOverview);
-            scheduleTradingStateRefresh(payload);
-            return;
-          }
-
-          // Dividends, fees, new max shares and buybacks: refetch the board (and the player's cash).
-          if (payload.type === "market.weekly_evaluation") {
-            scheduleOverviewRefresh(get().refreshOverview);
-            return;
-          }
-
-          if (payload.type === "market.settlement_completed") {
-            const incomingAssets = Array.isArray(payload.assets)
-              ? (payload.assets as Array<Record<string, unknown>>).map(normalizeAsset)
-              : [];
-            const bySymbol = new Map(incomingAssets.map((asset) => [asset.symbol.toUpperCase(), asset]));
-            incomingAssets.forEach((asset) => detailCache.delete(asset.symbol.toUpperCase()));
-
-            set((state) => {
-              const selectedIncoming = bySymbol.get(state.selectedSymbol.trim().toUpperCase()) || null;
-              return {
-                assets: state.assets.map((asset) => {
-                  const incoming = bySymbol.get(asset.symbol.toUpperCase());
-                  return incoming ? patchAssetFromSettlement(asset, incoming) : asset;
-                }),
-                // The new report's targets are secret; keep the last revealed ones until the refetch below.
-                report:
-                  payload.report && typeof payload.report === "object"
-                    ? { ...(payload.report as DailyReport), revealed_targets: state.report?.revealed_targets ?? null }
-                    : state.report,
-                detail: selectedIncoming ? null : state.detail,
-              };
-            });
-
-            void get().fetchMarketIndexes({ force: true, silent: true });
-            // Buybacks can end at the Open; the settlement event doesn't carry supply, so refetch the board.
-            scheduleOverviewRefresh(get().refreshOverview);
-            void apiFetch<DailyReport>("/api/market/report/daily/latest")
-              .then((report) => set({ report }))
-              .catch(() => {});
-            const selectedSymbol = get().selectedSymbol.trim().toUpperCase();
-            if (selectedSymbol && bySymbol.has(selectedSymbol)) {
-              void get().fetchAssetDetail(selectedSymbol);
+              handlePayload(payload);
+            } catch {
+              // one bad event doesn't stop the rest
             }
           }
         } catch {
@@ -512,7 +550,8 @@ export const useMarketStore = create<MarketState>((set, get) => ({
         wsRef = null;
         if (realtimeDisposed) return;
         reconnectAttempt += 1;
-        reconnectTimer = window.setTimeout(connect, Math.min(15_000, 1_000 * reconnectAttempt));
+        // Jittered, so a whole site dropped by a deploy doesn't reconnect in the same second.
+        reconnectTimer = window.setTimeout(connect, Math.min(15_000, 1_000 * reconnectAttempt) * (0.5 + Math.random()));
       };
 
       wsRef.onerror = () => {

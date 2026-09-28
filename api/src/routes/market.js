@@ -1,9 +1,7 @@
 const express = require("express");
 const marketDb = require("../marketDb");
 const {
-  getCachedAssets,
   invalidateMarketAssetsCache,
-  setCachedAssets,
   getCachedJson,
   setCachedJson,
   buildAssetSuperchatRankCacheKey,
@@ -20,6 +18,7 @@ const marketAdjustments = require("../services/marketAdjustments");
 const weeklyEvaluation = require("../services/weeklyEvaluation");
 const { scrubPublicMarketPayload, publicDailyReport, revealedTargets } = require("../services/marketSecrecy");
 const marketState = require("../services/marketState");
+const { sendPublicAssets, sendLatestReport, sendHub } = require("../publicMarketCache");
 const { requireAdmin, requireUserId, requireVerifiedUserId } = require("../userContext");
 
 const router = express.Router();
@@ -43,13 +42,6 @@ function normalizeMarketDate(value) {
   const text = String(value).trim();
   const match = text.match(/\d{4}-\d{2}-\d{2}/);
   return match ? match[0] : null;
-}
-
-function invalidateMarketAssetsCacheAsync(redis) {
-  invalidateMarketAssetsCache(redis).catch((error) => {
-    // eslint-disable-next-line no-console
-    console.error("market assets cache invalidation failed:", String(error?.message || error));
-  });
 }
 
 function toMetricMap(rows, valueKeys) {
@@ -80,15 +72,17 @@ function decodeCursor(value) {
 router.get("/hub", async (req, res, next) => {
   try {
     const tradeLimit = parsePositiveInt(req.query.trade_limit, 20, { min: 1, max: 100 });
-    const hub = await marketDb.getMarketHub(req.ctx.pool, { tradeLimit });
-    const [report, revealed] = await Promise.all([publicDailyReport(req.ctx.pool, hub.report), revealedTargets(req.ctx.pool)]);
-    res.json({
-      ...scrubPublicMarketPayload(hub),
-      report: report ? { ...report, revealed_targets: revealed } : null,
-      recent_trades: {
-        items: hub.recent_trades.items,
-        next_cursor: encodeCursor(hub.recent_trades.next_cursor),
-      },
+    await sendHub(req, res, tradeLimit, async (limit) => {
+      const hub = await marketDb.getMarketHub(req.ctx.pool, { tradeLimit: limit });
+      const [report, revealed] = await Promise.all([publicDailyReport(req.ctx.pool, hub.report), revealedTargets(req.ctx.pool)]);
+      return {
+        ...scrubPublicMarketPayload(hub),
+        report: report ? { ...report, revealed_targets: revealed } : null,
+        recent_trades: {
+          items: hub.recent_trades.items,
+          next_cursor: encodeCursor(hub.recent_trades.next_cursor),
+        },
+      };
     });
   } catch (e) {
     next(e);
@@ -114,16 +108,10 @@ router.get("/trades", async (req, res, next) => {
   }
 });
 
+// Every open tab reads the board: served from the shared cache (publicMarketCache.js).
 router.get("/assets", async (req, res, next) => {
   try {
-    const cachedAssets = await getCachedAssets(req.ctx.redis);
-    if (cachedAssets) {
-      return res.json(scrubPublicMarketPayload(cachedAssets));
-    }
-
-    const assets = scrubPublicMarketPayload(await marketDb.listAssets(req.ctx.pool));
-    await setCachedAssets(req.ctx.redis, assets);
-    res.json(assets);
+    await sendPublicAssets(req, res);
   } catch (e) {
     next(e);
   }
@@ -185,10 +173,7 @@ router.get("/me/dividends", async (req, res, next) => {
 
 router.get("/report/daily/latest", async (req, res, next) => {
   try {
-    const report = await marketDb.getLatestDailyReport(req.ctx.pool);
-    if (!report) return res.status(404).json({ error: "report_not_found" });
-    const [publicReport, revealed] = await Promise.all([publicDailyReport(req.ctx.pool, report), revealedTargets(req.ctx.pool)]);
-    res.json({ ...publicReport, revealed_targets: revealed });
+    await sendLatestReport(req, res);
   } catch (e) {
     next(e);
   }
@@ -740,7 +725,8 @@ router.post("/orders/buy", async (req, res, next) => {
       quantity,
       redis: req.ctx.redis,
     });
-    invalidateMarketAssetsCacheAsync(req.ctx.redis);
+    // No board invalidation here: a queued order only moves the board's pending counts, which the
+    // 5s cache picks up; rebuilding it on every order was a 20ms query per order.
 
     res.json(result);
   } catch (e) {
@@ -782,7 +768,8 @@ router.post("/orders/sell", async (req, res, next) => {
       quantity,
       redis: req.ctx.redis,
     });
-    invalidateMarketAssetsCacheAsync(req.ctx.redis);
+    // No board invalidation here: a queued order only moves the board's pending counts, which the
+    // 5s cache picks up; rebuilding it on every order was a 20ms query per order.
 
     res.json(result);
   } catch (e) {

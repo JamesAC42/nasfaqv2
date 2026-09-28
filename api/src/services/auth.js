@@ -425,6 +425,9 @@ async function revokeSession(pool, token) {
   );
 }
 
+const LAST_SEEN_EVERY_MS = 5 * 60_000;
+const lastSeenWrites = new Map(); // session id -> when this pod last wrote last_seen_at
+
 async function getAuthenticatedUser(pool, req) {
   const token = getSessionTokenFromRequest(req);
   if (!token) return null;
@@ -463,14 +466,22 @@ async function getAuthenticatedUser(pool, req) {
   const user = rows[0] || null;
   if (!user) return null;
 
-  await pool.query(
-    `
-    UPDATE market.user_sessions
-    SET last_seen_at = now()
-    WHERE id = $1
-  `,
-    [user.session_id]
-  );
+  // "Last seen" (the admin console shows it) moves at most every few minutes per session and pod,
+  // not on every request: that write was a Postgres UPDATE per authenticated API call.
+  const sessionKey = String(user.session_id);
+  const now = Date.now();
+  if ((lastSeenWrites.get(sessionKey) ?? 0) + LAST_SEEN_EVERY_MS <= now) {
+    lastSeenWrites.set(sessionKey, now);
+    if (lastSeenWrites.size > 50_000) lastSeenWrites.clear();
+    await pool.query(
+      `
+      UPDATE market.user_sessions
+      SET last_seen_at = now()
+      WHERE id = $1
+    `,
+      [user.session_id]
+    );
+  }
 
   return user;
 }

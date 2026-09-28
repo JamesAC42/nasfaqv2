@@ -19,7 +19,9 @@ data:
   UPCOMING_MAX_RESULTS: "5"
   MARKET_DATA_TIMEZONE: "America/New_York"
   MARKET_SETTLEMENT_TIMEZONE: "America/New_York"
-  PG_POOL_MAX: "4"
+  # Per API pod. The db-s-2vcpu-4gb plan allows 97 connections: api-web x2 (up to 6 if scaled),
+  # api-scheduler, api-games and the migration job at 8 each stay well under it.
+  PG_POOL_MAX: "8"
   GEMINI_TIMEOUT_SECONDS: "300"
   GEMINI_TEXT_MODEL: "gemini-3-flash-preview"
   GEMINI_IMAGE_MODEL: "gemini-3.1-flash-image-preview"

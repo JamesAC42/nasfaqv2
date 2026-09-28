@@ -68,19 +68,36 @@ function count(channel) {
   return channels.get(channel)?.size ?? 0;
 }
 
-function publish(channel, payload) {
-  const set = channels.get(channel);
+// With more than one API process (Kubernetes runs several), a push has to reach sockets held by the
+// other processes too: server.js sets a bridge that publishes through Redis, and every process
+// (this one included) delivers what arrives on it to its own sockets via deliverBridged().
+let bridge = null;
+function setBridge(fn) {
+  bridge = typeof fn === "function" ? fn : null;
+}
+
+function deliverLocal(channelKey, text) {
+  const set = channels.get(channelKey);
   if (!set?.size) return;
-  const text = JSON.stringify({ ...payload, channel });
   for (const ws of set) send(ws, text);
 }
 
-/** Push to one player's `me` feed (every socket they have open). */
+function publish(channel, payload) {
+  const text = JSON.stringify({ ...payload, channel });
+  if (bridge) return void bridge({ to: channel, text });
+  deliverLocal(channel, text);
+}
+
+/** Push to one player's `me` feed (every socket they have open, on any API process). */
 function publishToUser(userId, payload) {
-  const set = channels.get(userChannel(userId));
-  if (!set?.size) return;
   const text = JSON.stringify({ ...payload, channel: ME });
-  for (const ws of set) send(ws, text);
+  if (bridge) return void bridge({ to: userChannel(userId), text });
+  deliverLocal(userChannel(userId), text);
+}
+
+/** A push that came in over the bridge (from any process). */
+function deliverBridged(message) {
+  if (message && typeof message.to === "string" && typeof message.text === "string") deliverLocal(message.to, message.text);
 }
 
 function createGamesWss() {
@@ -133,5 +150,7 @@ module.exports = {
   onSubscriberCount: (listener) => countListeners.push(listener),
   publish,
   publishToUser,
+  setBridge,
+  deliverBridged,
   registerSnapshotProvider: (provider) => snapshotProviders.push(provider),
 };

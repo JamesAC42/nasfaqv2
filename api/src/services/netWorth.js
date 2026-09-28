@@ -606,9 +606,9 @@ async function refreshCurrentLeaderboardForAsset(pool, assetId, options = {}) {
 }
 
 // After trades: refresh the leaderboard for everyone holding the traded stocks, coalesced. Fills
-// queue here and one refresh runs per QUEUE_DELAY_MS for all of them together, so a burst of trades
+// queue here and one refresh runs every QUEUE_DELAY_MS (2s) for all of them together, so a burst of trades
 // in a popular stock recomputes its holders once instead of once per fill (and one at a time).
-const QUEUE_DELAY_MS = 750;
+const QUEUE_DELAY_MS = 2000;
 const refreshQueue = { assets: new Set(), users: new Set(), timer: null, running: false, pool: null };
 
 function queueLeaderboardRefresh(pool, assetId, { extraUserIds = [] } = {}) {

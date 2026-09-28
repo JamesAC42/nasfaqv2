@@ -28,6 +28,7 @@ const leaderboardRoutes = require("./routes/leaderboard");
 const gamesRoutes = require("./routes/games");
 const gameTablesRoutes = require("./routes/gameTables");
 const gamesHub = require("./services/games/tables/hub");
+const gameTablesOwner = String(process.env.GAMES_TABLES_OWNER || "true").toLowerCase() !== "false";
 const pvpTables = require("./services/games/tables/pvp");
 const blackjackTables = require("./services/games/tables/blackjack");
 const marketRoutes = require("./routes/market");
@@ -57,6 +58,33 @@ const LIVESTREAM_SNAPSHOT_REFRESH_MS = 30_000;
 function sendWsText(client, payload) {
   if (!client || client.readyState !== 1) return;
   client.send(payload, { binary: false, compress: false });
+}
+
+// Market events go out in bundles: everything that arrives within MARKET_BUNDLE_MS becomes one
+// message ({ type: "market.bundle", events: [...] }) for sockets that said they understand bundles,
+// so a batch of fills costs each socket a few sends instead of one per fill. Sending is the cost
+// that grows with sockets × events; older clients still get one message per event.
+const GAMES_EVENTS_REDIS_CHANNEL = "nasfaq_games:events";
+const MARKET_BUNDLE_MS = 100;
+let marketQueue = [];
+let marketFlushTimer = null;
+let marketWssRef = null;
+
+function queueMarketEvent(text) {
+  marketQueue.push(text);
+  if (!marketFlushTimer) marketFlushTimer = setTimeout(flushMarketEvents, MARKET_BUNDLE_MS);
+}
+
+function flushMarketEvents() {
+  marketFlushTimer = null;
+  const events = marketQueue;
+  marketQueue = [];
+  if (!events.length || !marketWssRef) return;
+  const bundle = events.length === 1 ? events[0] : `{"type":"market.bundle","events":[${events.join(",")}]}`;
+  marketWssRef.clients.forEach((client) => {
+    if (client.marketBundles) sendWsText(client, bundle);
+    else for (const text of events) sendWsText(client, text);
+  });
 }
 
 function safeParseJSON(s) {
@@ -243,7 +271,7 @@ api.use("/news", newsRoutes);
 api.use("/articles", articleRoutes);
 api.use("/analysis", analysisRoutes);
 api.use("/leaderboard", leaderboardRoutes);
-api.use("/games", gameTablesRoutes);
+if (gameTablesOwner) api.use("/games", gameTablesRoutes); // only the tables' owner serves them (see main())
 api.use("/games", gamesRoutes);
 api.use("/market", marketRoutes);
 api.use("/portfolio", portfolioRoutes);
@@ -377,8 +405,15 @@ async function main() {
   }
   await achievements.syncDefinitions(pool);
   await gamesCatalog.syncCatalog(pool);
-  await pvpTables.init(pool);
-  await blackjackTables.init(pool);
+  // Game tables live in this process's memory, and init() refunds every unfinished match it finds
+  // (they can't survive a restart). So exactly one process may own them: in Kubernetes that's the
+  // api-games Deployment (one replica; the ingress sends /api/games there), and every other API
+  // process sets GAMES_TABLES_OWNER=false. Two owners would split tables between them and refund
+  // matches the other one is still playing.
+  if (gameTablesOwner) {
+    await pvpTables.init(pool);
+    await blackjackTables.init(pool);
+  }
   require("./services/games/sessions").startWeeklySettlement(pool);
   await mediaCatalog.syncMediaCatalog(pool, console);
   await chatDb.ensureChatTopology(pool);
@@ -412,6 +447,34 @@ async function main() {
   const marketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
   const predictionMarketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
   const gamesWss = gamesHub.createGamesWss();
+
+  // Heartbeat for the plain sockets (the games hub has its own): ping every 30s and drop any that
+  // didn't answer the last one. Without it a phone that lost signal stays "connected" and keeps
+  // collecting market broadcasts in its send buffer until TCP gives up, which can take many minutes.
+  const HEARTBEAT_MS = 30_000;
+  for (const server of [wss, bucketWss, statsWss, chatWss, marketWss, predictionMarketWss]) {
+    server.on("connection", (socket) => {
+      socket.isAlive = true;
+      socket.on("pong", () => {
+        socket.isAlive = true;
+      });
+    });
+  }
+  const heartbeat = setInterval(() => {
+    for (const server of [wss, bucketWss, statsWss, chatWss, marketWss, predictionMarketWss]) {
+      server.clients.forEach((socket) => {
+        if (socket.isAlive === false) {
+          socket.terminate();
+          return;
+        }
+        socket.isAlive = false;
+        try {
+          socket.ping();
+        } catch {}
+      });
+    }
+  }, HEARTBEAT_MS);
+  heartbeat.unref?.();
 
   const broadcastOnlineUserCount = () => {
     const payload = JSON.stringify({
@@ -565,18 +628,22 @@ async function main() {
       ws.chatSubscriptions.clear();
     });
   });
+  marketWssRef = marketWss;
   marketWss.on("connection", (ws) => {
+    ws.on("message", (raw) => {
+      const hello = safeParseJSON(String(raw).slice(0, 512));
+      if (hello?.type === "hello" && hello.bundles === true) ws.marketBundles = true;
+    });
     (async () => {
       try {
-        const [assets, status] = await Promise.all([
-          marketDb.listAssets(pool),
-          marketState.getMarketStatus(pool),
-        ]);
+        // Status only. The board is 250+ KB of JSON and every page already loads it from
+        // /api/market/assets (cached, gzipped); sending it again down each new socket made a reconnect
+        // storm after a deploy cost a full board per socket. A client that reconnects refetches it.
+        const status = await marketState.getMarketStatus(pool);
         sendWsText(
           ws,
           JSON.stringify({
             type: "market.snapshot",
-            assets,
             status: status || null,
             at: new Date().toISOString(),
           })
@@ -662,6 +729,18 @@ async function main() {
       sendWsText(client, payload);
     });
   });
+  // Games pushes (tables, lobbies, each player's notifications) go through Redis so they reach the
+  // socket whichever API process holds it; see games/tables/hub.js.
+  if (redis) {
+    gamesHub.setBridge((message) => {
+      redis.publish(GAMES_EVENTS_REDIS_CHANNEL, JSON.stringify(message)).catch((error) => {
+        console.error("games push failed:", String(error?.message || error));
+      });
+    });
+    await redisSub.subscribe(GAMES_EVENTS_REDIS_CHANNEL, (message) => {
+      gamesHub.deliverBridged(safeParseJSON(String(message)));
+    });
+  }
   await redisSub.subscribe(CHAT_EVENTS_REDIS_CHANNEL, (message) => {
     const payload = String(message);
     const parsed = safeParseJSON(payload);
@@ -677,10 +756,7 @@ async function main() {
     // settlement, tick and fill events before they go out.
     const parsed = safeParseJSON(String(message));
     if (!parsed) return;
-    const payload = JSON.stringify(scrubPublicMarketPayload(parsed));
-    marketWss.clients.forEach((client) => {
-      sendWsText(client, payload);
-    });
+    queueMarketEvent(JSON.stringify(scrubPublicMarketPayload(parsed)));
   });
   await redisSub.subscribe(PREDICTION_MARKET_EVENTS_REDIS_CHANNEL, (message) => {
     const payload = String(message);
