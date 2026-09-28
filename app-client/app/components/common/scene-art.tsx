@@ -26,9 +26,25 @@ type SceneArtProps = {
    * the manifest; the image replaces it when it does. Without one, the halftone panel is the design.
    */
   fallback?: ReactNode;
+  /**
+   * A per-talent pipeline slot that takes this spot when any talent has art for it (e.g. `faq` →
+   * `LAM/faq/default`); the first one in the manifest wins over the `_shared` image.
+   */
+  talentSlot?: string;
 };
 
 const DEBUG_KEY = "nasfaq-art-debug";
+
+/** `SYM/<slot>/default` for the first talent (by symbol) that has art for a per-talent slot. */
+function firstTalentArt(images: Record<string, unknown> | undefined, slot: string) {
+  if (!images) return null;
+  const suffix = `/${slot}/default`;
+  return (
+    Object.keys(images)
+      .filter((key) => key.endsWith(suffix) && !key.startsWith("_shared/"))
+      .sort()[0] ?? null
+  );
+}
 const subscribe = (callback: () => void) => {
   window.addEventListener("storage", callback);
   return () => window.removeEventListener("storage", callback);
@@ -48,7 +64,7 @@ const readDebug = () => {
  * `fallback` (or the halftone panel) is what shows, and that is the design, not a stand-in. With
  * localStorage "nasfaq-art-debug" = "1" the panel is labelled with its slot id and size.
  */
-export function SceneArt({ slot, className, fill = false, position, width = 800, priority = false, alt = "", variant = "default", fallback }: SceneArtProps) {
+export function SceneArt({ slot, className, fill = false, position, width = 800, priority = false, alt = "", variant = "default", fallback, talentSlot }: SceneArtProps) {
   const spec = getSceneSlot(slot);
   const manifest = useArtStore((state) => state.manifest);
   const ensureLoaded = useArtStore((state) => state.ensureLoaded);
@@ -59,7 +75,8 @@ export function SceneArt({ slot, className, fill = false, position, width = 800,
   }, [ensureLoaded]);
 
   if (!spec && process.env.NODE_ENV !== "production") console.warn(`SceneArt: unknown slot "${slot}"`);
-  const id = sharedArtId(slot, variant);
+  const talentId = talentSlot ? firstTalentArt(manifest?.images, talentSlot) : null;
+  const id = talentId ?? sharedArtId(slot, variant);
   const art = lookupArt(manifest, id) ?? (variant !== "default" ? lookupArt(manifest, sharedArtId(slot)) : null);
   const ratio = art ? `${art.w} / ${art.h}` : spec ? `${spec.w} / ${spec.h}` : "16 / 9";
   const classes = [styles.slot, fill ? styles.fill : null, className].filter(Boolean).join(" ");

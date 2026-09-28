@@ -17,13 +17,15 @@ type SectionProps = {
   title: string;
   lede: ReactNode;
   art?: string;
+  /** Per-talent art that replaces the `_shared` image when a talent has it (see SceneArt). */
+  talentArt?: string;
   /** Drawn diagram for the art slot (a `_shared` image for the slot still replaces it). */
   diagram?: ReactNode;
   links?: Array<{ href: string; label: string }>;
   children: ReactNode;
 };
 
-export function Section({ id, title, lede, art, diagram, links, children }: SectionProps) {
+export function Section({ id, title, lede, art, talentArt, diagram, links, children }: SectionProps) {
   const index = SECTIONS.findIndex((section) => section.id === id);
   return (
     <section id={id} className={styles.section} aria-labelledby={`${id}-title`}>
@@ -44,7 +46,7 @@ export function Section({ id, title, lede, art, diagram, links, children }: Sect
             </div>
           ) : null}
         </div>
-        {art ? <SceneArt slot={art} className={`${styles.sectionArt} ${diagram ? styles.sectionDiagram : ""}`} width={520} fallback={diagram} /> : null}
+        {art ? <SceneArt slot={art} talentSlot={talentArt} className={`${styles.sectionArt} ${diagram ? styles.sectionDiagram : ""}`} width={520} fallback={diagram} /> : null}
       </div>
       {children}
     </section>
@@ -384,6 +386,7 @@ export function CommunitySection() {
       id="community"
       title="The floor talks"
       art="howto-community"
+      talentArt="floor"
       lede={
         <p>
           Half the game is the people. Shill your oshi in chat, write the due diligence, argue on the stock pages, and climb a leaderboard that everyone can see.
