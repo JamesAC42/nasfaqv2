@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore, type ReactNode } from "react";
-import { artSrcSet, lookupArt, resolveArtUrl, sharedArtId } from "@/app/lib/art-manifest";
+import { artSrcSet, firstTalentArtId, lookupArt, resolveArtUrl, sharedArtId } from "@/app/lib/art-manifest";
 import { getSceneSlot } from "@/app/lib/art/scene-slots";
 import { useArtStore } from "@/app/stores/art-store";
 import styles from "@/app/components/common/scene-art.module.scss";
@@ -35,16 +35,6 @@ type SceneArtProps = {
 
 const DEBUG_KEY = "nasfaq-art-debug";
 
-/** `SYM/<slot>/default` for the first talent (by symbol) that has art for a per-talent slot. */
-function firstTalentArt(images: Record<string, unknown> | undefined, slot: string) {
-  if (!images) return null;
-  const suffix = `/${slot}/default`;
-  return (
-    Object.keys(images)
-      .filter((key) => key.endsWith(suffix) && !key.startsWith("_shared/"))
-      .sort()[0] ?? null
-  );
-}
 const subscribe = (callback: () => void) => {
   window.addEventListener("storage", callback);
   return () => window.removeEventListener("storage", callback);
@@ -75,7 +65,7 @@ export function SceneArt({ slot, className, fill = false, position, width = 800,
   }, [ensureLoaded]);
 
   if (!spec && process.env.NODE_ENV !== "production") console.warn(`SceneArt: unknown slot "${slot}"`);
-  const talentId = talentSlot ? firstTalentArt(manifest?.images, talentSlot) : null;
+  const talentId = talentSlot ? firstTalentArtId(manifest, talentSlot) : null;
   const id = talentId ?? sharedArtId(slot, variant);
   const art = lookupArt(manifest, id) ?? (variant !== "default" ? lookupArt(manifest, sharedArtId(slot)) : null);
   const ratio = art ? `${art.w} / ${art.h}` : spec ? `${spec.w} / ${spec.h}` : "16 / 9";

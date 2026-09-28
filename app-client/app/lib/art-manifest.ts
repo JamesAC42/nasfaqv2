@@ -128,6 +128,16 @@ export function lookupArt(manifest: ArtManifest | null | undefined, id: string):
   return manifest.images?.[id] ?? fromV1(manifest, id);
 }
 
+/** `SYM/<slot>/default` for the first talent (by symbol) with art for a per-talent slot, or null. */
+export function firstTalentArtId(manifest: ArtManifest | null | undefined, slot: string) {
+  const suffix = `/${slot}/default`;
+  return (
+    Object.keys(manifest?.images ?? {})
+      .filter((key) => key.endsWith(suffix) && !key.startsWith(`${SHARED}/`))
+      .sort()[0] ?? null
+  );
+}
+
 /** `srcset` attribute for an image, or undefined. */
 export function artSrcSet(image: ArtImage) {
   if (!image.srcset) return undefined;

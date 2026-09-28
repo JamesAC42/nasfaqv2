@@ -25,7 +25,7 @@ type Common = {
   position?: string;
   /** Soft elliptical fade on every edge of the box (for reactions shown large, where side crops show). */
   vignette?: boolean;
-  /** Fade the cutout's crop edges (waist cut, clipped braids) into the page. On by default for key art and reactions. */
+  /** Fade the cutout's crop edges (waist cut, clipped braids) into the page. On by default for key art and reactions; `true` turns it on for any transparent slot. */
   fade?: boolean;
   /** Fade length as a fraction of the figure's height (default 0.22 for key art, 0.12 for reactions). */
   fadeLength?: number;
@@ -76,7 +76,7 @@ export function ArtSlot(props: ArtSlotProps) {
   }
 
   const chosenSlot = chosen ? chosen.id.split("/")[1] : null;
-  const cutout = chosenSlot === "keyart" || chosenSlot === "reaction";
+  const cutout = chosenSlot === "keyart" || chosenSlot === "reaction" || props.fade === true;
   const measureUrl = chosen && cutout && props.fade !== false ? resolveArtUrl(chosen.image.srcset?.["600"] ?? chosen.image.srcset?.["256"] ?? chosen.image.src) : null;
   const cutShape = useCutoutShape(measureUrl, chosen?.image.anchors as Parameters<typeof useCutoutShape>[1]);
   // The mask has to follow the image's fit and position, which page styles may override.

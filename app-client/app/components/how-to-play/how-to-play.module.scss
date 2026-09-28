@@ -1144,7 +1144,7 @@ $sticky-top: calc(var(--rail-height) + var(--tape-height) + env(safe-area-inset-
 // ── FAQ ──────────────────────────────────────────────────────────────────
 .faqWrap {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 13rem;
+  grid-template-columns: minmax(0, 1fr) 15rem;
   gap: 2rem;
   align-items: start;
 
@@ -1157,6 +1157,13 @@ $sticky-top: calc(var(--rail-height) + var(--tape-height) + env(safe-area-inset-
   @include tablet-down {
     display: none;
   }
+}
+
+.faqTalent {
+  width: 17rem;
+  max-width: none;
+  aspect-ratio: 1;
+  margin: -1rem -1rem 0;
 }
 
 .faq {

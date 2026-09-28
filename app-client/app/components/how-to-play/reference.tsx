@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { ArtSlot } from "@/app/components/common/art-slot";
 import { SceneArt } from "@/app/components/common/scene-art";
+import { firstTalentArtId } from "@/app/lib/art-manifest";
+import { useArtStore } from "@/app/stores/art-store";
 import { FAQ, GLOSSARY } from "@/app/components/how-to-play/content";
 import { Section } from "@/app/components/how-to-play/sections";
 import styles from "@/app/components/how-to-play/how-to-play.module.scss";
@@ -45,6 +48,18 @@ export function GlossarySection() {
   );
 }
 
+/** A talent puzzling over the list (SYM/faq/default), faded into the page like the fill card's reaction; the _shared spot until one exists. */
+function FaqArt() {
+  const manifest = useArtStore((state) => state.manifest);
+  const ensureLoaded = useArtStore((state) => state.ensureLoaded);
+  useEffect(() => {
+    ensureLoaded();
+  }, [ensureLoaded]);
+  const symbol = firstTalentArtId(manifest, "faq")?.split("/")[0];
+  if (!symbol) return <SceneArt slot="howto-help" className={styles.faqArt} width={240} />;
+  return <ArtSlot slot="faq" symbol={symbol} fade vignette fadeLength={0.3} width={272} className={`${styles.faqArt} ${styles.faqTalent}`} />;
+}
+
 export function FaqSection() {
   return (
     <Section id="faq" title="FAQ" lede={<p>The questions new players ask in chat every single day.</p>} links={[{ href: "/chat", label: "Still stuck? Ask the floor" }]}>
@@ -60,7 +75,7 @@ export function FaqSection() {
             </details>
           ))}
         </div>
-        <SceneArt slot="howto-help" talentSlot="faq" className={styles.faqArt} width={240} />
+        <FaqArt />
       </div>
     </Section>
   );
