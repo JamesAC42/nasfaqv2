@@ -30,7 +30,7 @@ export function GlossarySection() {
       {terms.length ? (
         <dl className={styles.glossary}>
           {terms.map((entry) => (
-            <div key={entry.term}>
+            <div key={entry.term} id={`term-${entry.key}`} className={styles.glossEntry}>
               <dt>{entry.term}</dt>
               <dd>
                 {entry.def}

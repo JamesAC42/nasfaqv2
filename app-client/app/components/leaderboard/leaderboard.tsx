@@ -16,6 +16,7 @@ import { useAuth } from "@/app/providers/auth-provider";
 import { useLeaderboardStore } from "@/app/stores/leaderboard-store";
 import { useMarketStore } from "@/app/stores/market-store";
 import styles from "@/app/components/leaderboard/leaderboard.module.scss";
+import { Term } from "@/app/components/common/tip";
 
 const MEDALS: Record<number, string> = { 1: "site-medal-gold", 2: "site-medal-silver", 3: "site-medal-bronze" };
 const TIER: Record<number, MedalTier> = { 1: "gold", 2: "silver", 3: "bronze" };
@@ -210,7 +211,9 @@ function PlayersTab() {
             <small>of {stats.user_count.toLocaleString("en-US")}</small>
           </div>
           <div>
-            <span className={styles.label}>Net worth</span>
+            <span className={styles.label}>
+              <Term k="net-worth">Net worth</Term>
+            </span>
             <b>{money(me.total_equity)}</b>
           </div>
           <div>
@@ -254,7 +257,9 @@ function PlayersTab() {
             <tr>
               <th className={styles.l}>#</th>
               <th className={styles.l}>Player</th>
-              <th>Net worth</th>
+              <th>
+                <Term k="net-worth" side="bottom">Net worth</Term>
+              </th>
               <th className={styles.hideS}>Exposure</th>
               <th>{WINDOW_LABEL[window]}</th>
               <th className={`${styles.l} ${styles.hideM}`}>Largest bag</th>

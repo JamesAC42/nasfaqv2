@@ -20,33 +20,48 @@ import styles from "@/app/components/moments/fill-moment.module.scss";
 // The fill moment's greentext: one line of thread culture per fill, picked by the fill id so it
 // stays put. {q} shares, {S} ticker, {px} fill price, {avg} your average, {pl} realized P/L,
 // {plp} % on the round trip, {first} her first name, {tick} next tick, {until} time to it.
+// Voice: the /vt/ /nasfaqg/ general. "ohhh adjusts", wao, goodnight anons, ANON WAKE UP, the morning
+// review, divegrass, two more weeks. Keep it SFW-ish and never punch at a talent.
 const BUY_LINES = [
-  ">buy {q} {S} at {px}\n>{tick} tick in {until}\n>refresh the page every 4 seconds like it helps",
+  ">buy {q} {S} at {px}\n>{tick} in {until}\n>refresh the page every 4 seconds like it helps",
   ">buying {S} at {px}\n>(he bought)\n>(dump it)",
-  ">ask the thread if {S} is a buy\n>everyone says no\n>buy {q} anyway\n>i am built different (poor)",
-  ">tfw 1% fee\n>tfw still buying {S}",
-  ">see {first} on the news\n>don't read the article\n>buy {q} {S}\n>this is called research",
+  ">ask the thread if {S} is a buy\n>thread is posting goodnight images\n>buy {q} anyway",
+  ">see {first} trending\n>don't read why\n>buy {q} {S}\n>this is called research",
   ">{first} streams for 6 hours\n>fair value goes up\n>i go up\n>simple as",
   ">buy {S} right before {tick}\n>if it dumps it was a long term hold\n>if it pumps i'm a genius",
   ">all in on my oshi\n>not financial advice\n>not even advice",
-  ">batch fills at {px}\n>chart immediately does the opposite\n>every time",
-  ">bought {q} {S}\n>told nobody\n>now telling everybody",
   ">be me\n>have a diversified portfolio\n>it's {first} in {q} different trenchcoats",
-  ">buy the dip\n>it keeps dipping\n>keep buying\n>average down to hell",
   ">{S} at {px}\n>we're so back",
+  ">ohhh adjusts\n>ohhh i have to buy {S}",
+  ">wake up\n>ANON WAKE UP\n>{q} {S} at {px}\n>ok i'm awake",
+  ">morning review says don't get baited\n>get baited\n>{q} {S} at {px}",
+  ">BUY BUY BUY\n>{q} {S}\n>what do you mean numbers?",
+  ">{S} to the moon in two more weeks\n>it's been two more weeks for two years\n>buying anyway",
+  ">new girls debut\n>no idea who they are yet\n>{q} {S} because the thread said wao",
+  ">skip lunch\n>buy {q} {S} with the lunch money\n>{tick} better feed me",
+  ">i ain't sellin\n>i'm buyin\n>{q} more {S} at {px}",
+  ">{first} posted a selfie\n>bullish\n>{q} {S}",
+  ">spend the divegrass bet budget on {S} instead\n>at least she can't lose 4-0",
+  ">page 10 thread\n>page 10 portfolio\n>buying {S} to feel something",
 ];
 const WHALE_LINES = [
   ">market buy {q} {S}\n>my own order moves the chart\n>i am become whale, mover of charts",
   ">{q} {S} in one batch\n>the shrimp in the thread start panic buying behind me\n>thank you for your service",
+  ">{q} {S}\n>the morning review is going to be about me\n>hi anons",
+  ">MONEEEEEEEY\n>{q} {S} at {px}\n>no further questions",
 ];
 const PROFIT_LINES = [
   ">sold {q} {S} at {px}\n>bought at {avg}\n>+{pl}\n>time to buy the top of something else",
-  ">take profits on {S}, +{plp}%\n>financial literacy achieved\n>{tick} tick moons it anyway probably",
+  ">take profits on {S}, +{plp}%\n>financial literacy achieved\n>{tick} moons it anyway probably",
   ">oshi money printer went brrr\n>+{pl} on {S}\n>thank you {first}",
   ">sold {S} for +{plp}%\n>screenshot for the thread\n>nobody asked\n>posting it anyway",
   ">+{pl}\n>could have held longer\n>could have also not\n>green is green",
-  ">sold the {tick} pump\n>first time i've ever sold a top\n>framing this fill",
-  ">{first} carried my portfolio today\n>bought a hat in the capsule with the gains\n>it's an item",
+  ">sold the pump\n>first time i've ever sold a top\n>framing this fill",
+  ">{first} carried my portfolio today\n>+{pl}\n>wao",
+  ">ohhh adjusts\n>ohhh +{plp}% on {S}\n>ohhh i'm rich",
+  ">cash money\n>+{pl} on {S}\n>thanks for the review!",
+  ">top of the morning review\n>+{plp}% on {S}\n>don't get baited, anons",
+  ">+{pl}\n>goodnight anons\n>sleeping well tonight",
 ];
 const LOSS_LINES = [
   ">sold {q} {S} at {px}\n>bought at {avg}\n>it's fine, i was in it for the streams",
@@ -54,9 +69,13 @@ const LOSS_LINES = [
   ">sold my {S} bags at {px}\n>she'll moon at {tick}\n>i know she will\n>i can feel it",
   ">{pl} on {S}\n>at least the chart is pretty",
   ">paper hands\n>{pl}\n>it's over",
-  ">sell {S} at {px}\n>treasury prints shares the next morning\n>was it the fundamentals? no. it was me",
   ">-{plp}% on {S}\n>copium reserves at 12%\n>switching to hopium",
   ">capitulate at {px}\n>the literal bottom\n>i can hear the thread laughing",
+  ">AIIIIIIII MY MARKET\n>{pl} on {S}",
+  ">ohhh adjusts\n>ohhh no\n>-{plp}% on {S}",
+  ">got baited\n>morning review literally said don't get baited\n>{pl}",
+  ">{pl} on {S}\n>it's monday isn't it\n>getsuyobi for my portfolio",
+  ">sell {S} at {px}\n>goodnight anons\n>i will not be having a good night",
 ];
 
 function greentext(fill: FillMoment, seed: number, tick: string, until: string) {

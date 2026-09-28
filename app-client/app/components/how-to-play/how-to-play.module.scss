@@ -1089,6 +1089,24 @@ $sticky-top: calc(var(--rail-height) + var(--tape-height) + env(safe-area-inset-
   }
 }
 
+// A glossary entry is a link target (#term-float from a tooltip): clear the sticky nav and flash it.
+.glossEntry {
+  scroll-margin-top: 6rem;
+
+  &:target {
+    animation: glossFlash 1.6s ease-out;
+  }
+}
+
+@keyframes glossFlash {
+  from {
+    background: color-mix(in srgb, var(--blue) 22%, transparent);
+  }
+  to {
+    background: transparent;
+  }
+}
+
 .glossary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

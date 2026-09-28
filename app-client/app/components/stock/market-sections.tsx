@@ -10,6 +10,7 @@ import type { MarketAdjustmentOutcome, MarketAsset } from "@/app/lib/types";
 import { useChannelData } from "@/app/lib/use-channel-data";
 import { useNow } from "@/app/lib/use-now";
 import styles from "@/app/components/stock/dossier.module.scss";
+import { Term, Tip } from "@/app/components/common/tip";
 
 const OVERLAYS: Array<[keyof Overlays, string]> = [
   ["mark", "MARK"],
@@ -67,7 +68,9 @@ export function ChartSection({ asset, accent, avgCost }: { asset: MarketAsset; a
         <span>
           volume <b>{volume.toLocaleString("en-US")} sh</b>
         </span>
-        {overlays.mark ? <span className={styles.legendNote}>dashed line = settlement mark, the price with short-term order pressure stripped out</span> : null}
+        {overlays.mark ? <span className={styles.legendNote}>
+            dashed line = settlement <Term k="mark">mark</Term>, the price with short-term order pressure stripped out
+          </span> : null}
       </div>
     </section>
   );
@@ -109,7 +112,7 @@ export function TicksSection({ asset }: { asset: MarketAsset }) {
         <span className={styles.aside}>four a day · the pull is secret until it lands</span>
       </div>
       <p className={styles.copy}>
-        Four times a day every stock gets pulled toward a hidden target set from its channel. You see the move when it lands, never the target.
+        Four times a day every stock gets <Term k="tick">pulled</Term> toward a <Term k="fair-value">hidden target</Term> set from its channel. You see each move when it lands; the target itself stays secret until the day&apos;s last tick, then the settlement report shows it.
         {todays.size ? (
           <>
             {" "}
@@ -155,7 +158,9 @@ export function TicksSection({ asset }: { asset: MarketAsset }) {
                 <span>Tick</span>
                 <span>Price</span>
                 <span>Move</span>
-                <span>Gap</span>
+                <span>
+                  <Tip content="How much of the distance to the target this tick closed. 100% lands right on it; over 100% overshoots.">Gap</Tip>
+                </span>
               </div>
               {log.map((item) => (
                 <TickLogRow key={`${item.market_date}-${item.interval_key}-${item.id ?? ""}`} item={item} />
@@ -186,7 +191,7 @@ function TickLogRow({ item }: { item: MarketAdjustmentOutcome }) {
             {item.price_before?.toFixed(2) ?? "—"} → {item.price_after?.toFixed(2) ?? "—"}
           </span>
           <span className={styles[toneOf(item.move_pct)]}>{signedPct(item.move_pct)}</span>
-          <span className={styles.dim} title="Share of the gap to the target this tick closed">
+          <span className={styles.dim}>
             {item.gap_compression_pct !== null && item.gap_compression_pct !== undefined ? `${Math.round(item.gap_compression_pct * 100)}%` : ""}
           </span>
         </>

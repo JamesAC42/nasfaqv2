@@ -5,11 +5,12 @@
 - better index page
 - better chat
     - emotes
-- oekaki
+- oekaki [SOON, with the AI commentator]
 - minigames
 - [done] pages with lots of socket updates like livestreams lags the ticker scroller
 - trade history page / market activity
-- bot? AI commentator? 
+- bot? AI commentator? [SOON]
+- the wire: its own page with more info and fun extras, plus an in-depth view of the "hot on /vt/" thread activity graphs
 - [done: bell + /notifications] notifications
 - achievements/ streaks
 - leaderboard
@@ -44,7 +45,7 @@ fixes:
 
 - visual bug on stock page quick stats
 - fix navbar appearance in mobile to be more compact
-- add tooltips and a how to play page
+- [done: shared <Tip>/<Term> + /how-to-play] add tooltips and a how to play page
 - [done: /about] add an info page
 - add kofi link
 - show badge-type items on profile page

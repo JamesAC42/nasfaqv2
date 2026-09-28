@@ -28,6 +28,7 @@ import { useTradeStore } from "@/app/stores/trade-store";
 import { StockMood } from "@/app/components/stock/stock-mood";
 import { heatLabel, useChatterStore } from "@/app/stores/chatter-store";
 import styles from "@/app/components/stock/dossier.module.scss";
+import { Term } from "@/app/components/common/tip";
 
 const SECTIONS = [
   ["s-chart", "Chart"],
@@ -203,13 +204,17 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
             </div>
             <dl className={styles.quotes}>
               <div>
-                <dt>Bid / ask</dt>
+                <dt>
+                  <Term k="spread">Bid / ask</Term>
+                </dt>
                 <dd>
                   {n2(asset.current_bid_price)} / {n2(asset.current_ask_price)}
                 </dd>
               </div>
               <div>
-                <dt>09:00 open</dt>
+                <dt>
+                  <Term k="settlement">09:00 open</Term>
+                </dt>
                 <dd>{n2(asset.previous_settlement_mid_price)}</dd>
               </div>
               <div>
@@ -221,7 +226,9 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
                 <dd>{(asset.volume_24h ?? 0).toLocaleString("en-US")} sh</dd>
               </div>
               <div>
-                <dt>Float</dt>
+                <dt>
+                  <Term k="float">Float</Term>
+                </dt>
                 <dd>{float !== null ? `${Math.round(float * 100)}%` : "—"}</dd>
               </div>
               <div>

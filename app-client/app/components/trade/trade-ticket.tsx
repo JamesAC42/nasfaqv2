@@ -16,6 +16,7 @@ import { useMomentStore } from "@/app/stores/moment-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import { useTradeStore } from "@/app/stores/trade-store";
 import styles from "@/app/components/trade/trade-drawer.module.scss";
+import { Term } from "@/app/components/common/tip";
 
 const PRESETS = [1, 10, 25, 50, 100];
 export const FEE_RATE = 0.01;
@@ -195,11 +196,15 @@ export function TradeTicket({
               ) : null}
             </div>
             <dl className={styles.est}>
-              <dt>{side === "buy" ? "Ask" : "Bid"}</dt>
+              <dt>
+                <Term k="spread">{side === "buy" ? "Ask" : "Bid"}</Term>
+              </dt>
               <dd>{n2(price)}</dd>
               <dt>Shares</dt>
               <dd>{qty.toLocaleString("en-US")}</dd>
-              <dt>Fee (~1%)</dt>
+              <dt>
+                <Term k="fee">Fee (~1%)</Term>
+              </dt>
               <dd>{money(fee)}</dd>
               <dt className={styles.total}>{side === "buy" ? "You pay" : "You get"}</dt>
               <dd className={styles.total}>{money(total)}</dd>
@@ -211,7 +216,7 @@ export function TradeTicket({
               </p>
             ) : null}
             <p className={styles.batch} suppressHydrationWarning>
-              Fills in the <b>{formatEtTime(batchAt)} ET</b> batch
+              Fills in the <b>{formatEtTime(batchAt)} ET</b> <Term k="batch">batch</Term>
               {queuedAhead ? ` · ${queuedAhead} order${queuedAhead === 1 ? "" : "s"} queued on ${asset.symbol}` : ""}. The final price is set when the batch executes.
             </p>
             {failure ? (

@@ -11,6 +11,7 @@ import { useMarketStore } from "@/app/stores/market-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import { useTradeStore } from "@/app/stores/trade-store";
 import styles from "@/app/components/peek/peek-layer.module.scss";
+import { Term } from "@/app/components/common/tip";
 
 // Hover previews ("peeks") that follow the cursor. Mark any element with
 // data-peek-stock="SYM" and hovering it for a moment shows the stock's price,
@@ -82,7 +83,9 @@ function StockPeek({ symbol }: { symbol: string }) {
           <b className={styles[tone(d15)]}>{pctText(d15)}</b>
         </div>
         <div>
-          <span>FLOAT</span>
+          <span>
+            <Term k="float">FLOAT</Term>
+          </span>
           <b>{float !== null ? `${Math.round(float * 100)}%` : "—"}</b>
         </div>
       </div>

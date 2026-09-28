@@ -14,6 +14,7 @@ import { useMarketStore } from "@/app/stores/market-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import { useTradeStore } from "@/app/stores/trade-store";
 import styles from "@/app/components/trade/trade-drawer.module.scss";
+import { Term } from "@/app/components/common/tip";
 
 /** The trade ticket as a side drawer (bottom sheet on phones). Mounted once in the shell. */
 export function TradeDrawer() {
@@ -90,15 +91,21 @@ export function TradeDrawer() {
         </div>
         <div className={styles.stats}>
           <div>
-            <span>BID</span>
+            <span>
+              <Term k="spread">BID</Term>
+            </span>
             <b>{n2(asset.current_bid_price)}</b>
           </div>
           <div>
-            <span>ASK</span>
+            <span>
+              <Term k="spread">ASK</Term>
+            </span>
             <b>{n2(asset.current_ask_price)}</b>
           </div>
           <div>
-            <span>09:00 OPEN</span>
+            <span>
+              <Term k="settlement">09:00 OPEN</Term>
+            </span>
             <b>
               {n2(openPx)} <small className={styles[toneOf(sinceOpen)]}>{signedPct(sinceOpen, 1)}</small>
             </b>

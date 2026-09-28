@@ -16,6 +16,7 @@ import { useAuth } from "@/app/providers/auth-provider";
 import { useMarketStore } from "@/app/stores/market-store";
 import { MOOD_COLORS } from "@/app/lib/moods";
 import styles from "@/app/components/stock/dossier.module.scss";
+import { Term } from "@/app/components/common/tip";
 
 
 const enc = encodeURIComponent;
@@ -99,16 +100,24 @@ export function HoldersSection({ asset }: { asset: MarketAsset }) {
             <i style={{ width: `${max ? (circulating / max) * 100 : 0}%` }} />
           </div>
           <dl className={styles.kv}>
-            <dt>Circulating</dt>
+            <dt>
+              <Term k="float">Circulating</Term>
+            </dt>
             <dd>{Math.round(circulating).toLocaleString("en-US")}</dd>
-            <dt>Treasury</dt>
+            <dt>
+              <Term k="treasury">Treasury</Term>
+            </dt>
             <dd>{Math.round(inTreasury).toLocaleString("en-US")}</dd>
-            <dt>Max supply</dt>
+            <dt>
+              <Term k="max-supply">Max supply</Term>
+            </dt>
             <dd>{Math.round(max).toLocaleString("en-US")}</dd>
-            <dt>Printed at settlement</dt>
+            <dt>
+              <Term k="emission">Printed at settlement</Term>
+            </dt>
             <dd>{emission ? `${emission.toFixed(2)} sh` : "none"}</dd>
           </dl>
-          <p className={styles.formula}>The treasury prints new shares of stocks trading above their target at settlement. Buying from the treasury is what moves them into circulation.</p>
+          <p className={styles.formula}>Each settlement prints new shares from the treasury into circulation, more of them for stocks trading above their target.</p>
         </div>
       </div>
     </section>
