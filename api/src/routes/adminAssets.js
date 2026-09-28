@@ -88,6 +88,7 @@ router.patch("/asset-managers/:userId", async (req, res, next) => {
 
 router.get("/", async (req, res, next) => {
   try {
+    requireAssetManager(req);
     // Admins see everything; asset managers see only emojis + profile pics
     const [emojis, profilePictures] = await Promise.all([
       mediaCatalog.listAdminEmojis(req.ctx.pool),

@@ -8,6 +8,8 @@ const {
   setCachedJson,
 } = require("../marketCache");
 
+const { sendCachedJson } = require("../responseCache");
+
 const router = express.Router();
 
 function parseLimit(value, fallback = 25) {
@@ -95,6 +97,15 @@ router.get("/", async (req, res, next) => {
     const page = parsePage(req.query.page, 1);
     const scope = parseScope(req.query.scope);
     const window = parseWindow(req.query.window);
+    // Signed-out visitors (the front page's top five) all see the same board: 15s cache.
+    if (!req.ctx.user && scope === "global") {
+      await sendCachedJson(req, res, `leaderboard:${window}:${page}:${limit}`, {
+        ttlSeconds: 15,
+        memoMs: 3000,
+        load: () => netWorth.listLeaderboardBundle(req.ctx.pool, { viewerUserId: null, scope, window, page, limit }),
+      });
+      return;
+    }
     const bundle = await netWorth.listLeaderboardBundle(req.ctx.pool, {
       viewerUserId: req.ctx.user?.id || null,
       scope,

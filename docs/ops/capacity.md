@@ -80,16 +80,76 @@ An active signed-in player averages about 0.25 requests a second, mostly page vi
 | 4 × `api-web` (or an autoscaler 2→6) | about 3,000 | about 4,500 | The database. Upgrade to `db-s-4vcpu-8gb` and add PgBouncer. |
 | Beyond that | | | Fan-out cost grows with sockets × events. Next steps: a separate socket Deployment, or a pub/sub service. |
 
-## Still open (not fixed here)
+## Second pass (same day)
 
-- **The leaderboard page costs about 60 ms of database time per view.** It's uncached, and each
-  viewer sees a different "you" row. Cache the shared part if the Ranks page gets busy.
+**More caching.** These now go through the same shared cache (Redis plus memory, one build at a
+time) with short TTLs:
+
+- status, the tick summary (cleared by every tick), the order-queue summary and flow
+- per-stock detail, candles, trades, stats and treasury
+- rankings
+- the front page's `/overview/latest`, `/overview/timeseries` (was one query per channel) and `/overview/wire`
+- the all-channels livestream list (was a Redis `SCAN` per visit)
+- browsing news (searches still go to the database)
+- the signed-out leaderboard
+
+The order-flow charts got indexes, so they no longer scan every order ever placed.
+
+**Writes taken off read paths:**
+
+- The article list re-synced every news article on each view; it no longer writes.
+- Chat rebuilt its channel table on every chat request and socket subscribe. It now syncs at most
+  every 5 minutes, and a socket can subscribe to at most 20 rooms.
+- The leaderboard counted every user on each request, and rebuilt the whole board whenever someone
+  new had signed up. It now adds only the missing players, at most once a minute.
+- A fill only rescans the player's trade history for achievements when they still have one to earn.
+- The orders poll only looks up fills for filled orders, inside recent chunks of the fills table.
+
+**Other fixes:**
+
+- Clients no longer refetch an unused "asset detail" at every tick.
+- The live-order scheduler can't crash the pod on a pool timeout.
+- Only the settlement owner reopens the market at boot.
+
+**Game tables:**
+
+- A Postgres lease guarantees one owner.
+- A match or blackjack round refunds or settles exactly once, even across a restart.
+
+**Security (from a review of the API):**
+
+- Channel writes are admin-only. Before, anyone could add, edit, delete, upload icons or trigger detection.
+- `/api/admin/assets` requires an asset manager.
+- Every socket caps frames at 16 KB and has an error handler. Before, one oversized frame crashed the process.
+- Socket upgrades check the Origin.
+- The email check can no longer be used to freeze a pod (ReDoS).
+- The fields that gave today's target away exactly are hidden (`size_anchor_raw`,
+  `momentum_multiplier`, and the other target ingredients).
+- Google sign-in requires a Google-verified email. It takes over an unverified local account with
+  the same address, and that account's password stops working.
+- Rate limits, in Redis and shared by pods:
+  - sign-in: per IP and per account name
+  - sign-up, Google sign-in and verification emails
+  - chat (one post in flight per player), comments, articles and friend requests
+- Request bodies are capped at 1 MB, except the admin image uploads.
+- The session cookie is Secure by default in production. Dev CORS origins are off in production.
+- A login to an unknown account takes as long as a wrong password.
+- Draft and private prediction markets are hidden on the chart, trades and quote routes.
+- Other people's profiles no longer show staff permission flags. The ADMIN tag stays, on purpose.
+- Security headers on the site (no framing by other sites, nosniff) and on the API.
+
+## Still open
+
+- **Ticker Tap sends the whole seeded run to the client up front.** A bot could compute a perfect
+  run. Stream the targets as the run plays, or reveal the seed only after submission.
+- **Password hashing** uses scrypt N=2^14. Raise it, and rehash on the next login.
+- **Every signed-in request still looks up the session in Postgres.** It's one indexed query; a
+  short in-memory cache would need invalidation on logout and on profile or permission changes.
+- **The stock page fetches some endpoints twice** (two components each call stats, tick history
+  and rankings). The server caches now absorb it, but a shared hook would halve the requests.
 - **No autoscaler, and `api-web` is fixed at 2 pods.** Add an HPA (DOKS needs metrics-server) or
   raise the replica count before a big announcement.
-- **DEPLOYMENT.md §6 assumes 47 connections.** The `db-s-2vcpu-4gb` plan has 97, so
-  `PG_POOL_MAX` is now 8.
 - **No `statement_timeout`.** One slow query can hold a pool connection indefinitely.
 - **`/internal/*` isn't blocked at the ingress**, although DEPLOYMENT.md §5 says it is. The routes
   are admin-only in the app, and the admin pages use them.
-- **Game tables are single-owner (`api-games`).** Two replicas of it would split tables again.
-  Moving table state to Redis would lift that.
+- **Game tables are single-owner (`api-games`).** Moving table state to Redis would let it scale out.

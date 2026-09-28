@@ -162,6 +162,10 @@ async function persistState(table) {
 }
 
 async function refundMatchWithClient(client, matchId, reason) {
+  // Only a match that is still open or in play can be refunded, and only once: the row lock makes a
+  // refund and a settlement (or two refunds) take turns, and the loser of that race does nothing.
+  const { rows: current } = await client.query(`SELECT status FROM games.pvp_matches WHERE id = $1 FOR UPDATE`, [matchId]);
+  if (current[0]?.status !== "queued" && current[0]?.status !== "active") return false;
   const players = await client.query(`SELECT user_id, stake_cash FROM games.pvp_match_players WHERE match_id = $1`, [matchId]);
   for (const player of players.rows) {
     const stake = Number(player.stake_cash);
@@ -174,6 +178,7 @@ async function refundMatchWithClient(client, matchId, reason) {
     `UPDATE games.pvp_matches SET status = 'cancelled', completed_at = now(), updated_at = now(), result_json = result_json || $2::jsonb WHERE id = $1`,
     [matchId, JSON.stringify({ cancelled: reason })]
   );
+  return true;
 }
 
 async function inTransaction(fn) {

@@ -537,14 +537,15 @@ async function getProfileBundle(pool, {
       profile_picture_url: profileUser.profile_picture_url,
       profile_color: profileUser.profile_color,
       equipped,
-      is_admin: Boolean(profileUser.is_admin),
-      permissions: {
+      is_admin: Boolean(profileUser.is_admin), // shown as the ADMIN tag on purpose
+      // The finer staff permissions are only yours to see.
+      permissions: isSelf ? {
         can_manage_assets: Boolean(profileUser.can_manage_assets),
         can_create_prediction_markets: Boolean(profileUser.can_create_prediction_markets),
         can_approve_prediction_markets: Boolean(profileUser.can_approve_prediction_markets),
         can_resolve_prediction_markets: Boolean(profileUser.can_resolve_prediction_markets),
         can_void_prediction_markets: Boolean(profileUser.can_void_prediction_markets),
-      },
+      } : {},
       rank: Number(leaderboardEntry?.rank || 0),
       oshiboards,
       oshi_coin: profileUser.oshi_coin,

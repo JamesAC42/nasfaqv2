@@ -1,6 +1,8 @@
 const express = require("express");
 const auth = require("../services/auth");
 
+const { rateLimit, byIp, byUser } = require("../rateLimit");
+
 const router = express.Router();
 
 async function verifyTurnstile(req) {
@@ -55,7 +57,7 @@ router.get("/me", async (req, res) => {
   });
 });
 
-router.post("/register", async (req, res, next) => {
+router.post("/register", rateLimit(byIp("register", 10, 3600)), async (req, res, next) => {
   try {
     await verifyTurnstile(req);
     if (String(req.body?.ogey || "").trim() !== "rrat") {
@@ -80,7 +82,10 @@ router.post("/register", async (req, res, next) => {
   }
 });
 
-router.post("/login", async (req, res, next) => {
+// Per address and per account name: slows password guessing without locking a shared network out.
+const loginLimit = rateLimit(byIp("login", 30, 300), { name: "login:name", limit: 10, windowSeconds: 900, key: (req) => String(req.body?.username || "").trim() || null });
+
+router.post("/login", loginLimit, async (req, res, next) => {
   try {
     await verifyTurnstile(req);
     const result = await auth.loginWithPassword(req.ctx.pool, {
@@ -98,7 +103,7 @@ router.post("/login", async (req, res, next) => {
   }
 });
 
-router.post("/google", async (req, res, next) => {
+router.post("/google", rateLimit(byIp("google", 30, 300)), async (req, res, next) => {
   try {
     await verifyTurnstile(req);
     const result = await auth.createOrLoginWithGoogle(req.ctx.pool, {
@@ -111,6 +116,7 @@ router.post("/google", async (req, res, next) => {
       e?.code === "google_auth_not_configured"
       || e?.code === "invalid_google_token"
       || e?.code === "google_login_failed"
+      || e?.code === "google_email_unverified"
       || e?.code === "turnstile_required"
       || e?.code === "turnstile_failed"
     ) return res.status(400).json({ error: e.code });
@@ -129,7 +135,7 @@ router.post("/verify-email", async (req, res, next) => {
   }
 });
 
-router.post("/resend-verification", async (req, res, next) => {
+router.post("/resend-verification", rateLimit(byUser("resend", 1, 60), byUser("resend-day", 5, 86400), byIp("resend", 10, 3600)), async (req, res, next) => {
   try {
     if (!req.ctx.user) return res.status(401).json({ error: "unauthenticated" });
     if (req.ctx.user.email_verified) return res.json({ ok: true });

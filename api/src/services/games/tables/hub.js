@@ -101,8 +101,9 @@ function deliverBridged(message) {
 }
 
 function createGamesWss() {
-  wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
+  wss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: 16 * 1024 });
   wss.on("connection", (ws, req) => {
+    ws.on("error", () => ws.terminate()); // a bad frame must not take the process down
     ws.userId = req?.gamesUser?.id ? Number(req.gamesUser.id) : null;
     ws.gameChannels = new Set();
     ws.isAlive = true;

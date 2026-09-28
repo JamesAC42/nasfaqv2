@@ -110,12 +110,12 @@ function Summary({ report, final }: { report: WeeklyEvaluation; final: boolean }
         <div>
           <dt>Dividends</dt>
           <dd data-tone="up">{money(report.dividends_total ?? 0)}</dd>
-          <small>{report.holders_paid} holders · {report.paying_count} stocks</small>
+          <small>{plural(report.holders_paid, "holder")} · {plural(report.paying_count, "stock")}</small>
         </div>
         <div>
           <dt>Share fees</dt>
           <dd data-tone="down">{money(report.fees_total ?? 0)}</dd>
-          <small>{report.holders_charged} holders · {report.charging_count} stocks</small>
+          <small>{plural(report.holders_charged, "holder")} · {plural(report.charging_count, "stock")}</small>
         </div>
         <div>
           <dt>Flat</dt>
@@ -144,10 +144,16 @@ function Summary({ report, final }: { report: WeeklyEvaluation; final: boolean }
           </div>
         ) : null}
       </div>
+      <p className={styles.small}>
+        Rates come from where each stock ranks this week on a bell curve, so the top and bottom rates mirror each other; what a stock pays depends on how many
+        shares players hold.
+      </p>
       {report.first_evaluation ? <p className={styles.small}>This is the first evaluation, so it never sets a max below what players already hold.</p> : null}
     </div>
   );
 }
+
+const plural = (count: number, word: string) => `${count.toLocaleString()} ${word}${count === 1 ? "" : "s"}`;
 
 function Rows({ title, rows }: { title: string; rows: EvaluationRow[] }) {
   if (!rows.length) return null;
@@ -156,8 +162,8 @@ function Rows({ title, rows }: { title: string; rows: EvaluationRow[] }) {
       <h4>{title}</h4>
       <ul>
         {rows.map((row) => (
-          <li key={row.symbol}>
-            <b>{row.symbol}</b> {signedPct(row.rate, 2)} · {money(row.paid)}
+          <li key={row.symbol} data-empty={row.held > 0 ? undefined : true}>
+            <b>{row.symbol}</b> {signedPct(row.rate, 2)} · {row.held > 0 ? `${money(row.paid)} on ${Math.round(row.held).toLocaleString()} sh` : "nobody holds it"}
           </li>
         ))}
       </ul>

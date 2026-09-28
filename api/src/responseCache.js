@@ -13,6 +13,7 @@ const zlib = require("zlib");
 
 const PREFIX = "resp:v1:";
 const memo = new Map(); // key -> { body, etag, gz, until }
+const MEMO_MAX = 2_000;
 const inflight = new Map(); // key -> Promise<entry>
 
 async function build(redis, key, ttlSeconds, load) {
@@ -34,6 +35,12 @@ async function getEntry(redis, key, { ttlSeconds, memoMs, load }) {
     pending = build(redis, key, ttlSeconds, load)
       .then((entry) => {
         const withExpiry = { ...entry, until: Date.now() + memoMs };
+        // Keys come partly from query strings, so keep the memory copy bounded.
+        if (memo.size >= MEMO_MAX) {
+          const now = Date.now();
+          for (const [k, v] of memo) if (v.until <= now) memo.delete(k);
+          if (memo.size >= MEMO_MAX) memo.clear();
+        }
         memo.set(key, withExpiry);
         return withExpiry;
       })

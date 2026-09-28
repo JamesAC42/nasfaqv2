@@ -800,20 +800,25 @@ async function ensureCurrentOshiboardsReady(pool) {
   }
 }
 
+// New players get a leaderboard row here (at most once a minute per process): only the missing
+// ones are computed. It used to count every user and leaderboard row on each request and rebuild
+// the whole board whenever anyone new had signed up.
+let leaderboardCheckedAt = 0;
+let leaderboardCheck = null;
 async function ensureCurrentLeaderboardReady(pool) {
-  const { rows } = await pool.query(
-    `
-    SELECT
-      (SELECT COUNT(*)::INTEGER FROM market.users) AS user_count,
-      (SELECT COUNT(*)::INTEGER FROM market.user_leaderboard_current) AS leaderboard_count
-  `
-  );
-
-  const userCount = toInt(rows[0]?.user_count, 0);
-  const leaderboardCount = toInt(rows[0]?.leaderboard_count, 0);
-  if (userCount > 0 && leaderboardCount < userCount) {
-    await refreshCurrentLeaderboard(pool);
+  if (Date.now() - leaderboardCheckedAt < 60_000) return;
+  if (!leaderboardCheck) {
+    leaderboardCheck = (async () => {
+      const { rows } = await pool.query(
+        `SELECT u.id FROM market.users u LEFT JOIN market.user_leaderboard_current l ON l.user_id = u.id WHERE l.user_id IS NULL LIMIT 5000`
+      );
+      if (rows.length) await refreshCurrentLeaderboard(pool, { userIds: rows.map((row) => toInt(row.id, 0)) });
+      leaderboardCheckedAt = Date.now();
+    })().finally(() => {
+      leaderboardCheck = null;
+    });
   }
+  await leaderboardCheck;
 }
 
 async function listScopedUserIds(pool, viewerUserId, scope) {

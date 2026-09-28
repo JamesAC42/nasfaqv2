@@ -5,8 +5,21 @@ const { promisify } = require("node:util");
 const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
 
 const db = require("../db");
+const { requireAdmin } = require("../userContext");
 
 const router = express.Router();
+
+// Adding, editing, deleting and detecting channels (and uploading their icons) is admin work; only
+// reading is public.
+router.use((req, res, next) => {
+  if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return next();
+  try {
+    requireAdmin(req);
+    return next();
+  } catch (error) {
+    return next(error);
+  }
+});
 const execFileAsync = promisify(execFile);
 const CHANNELSCRAPER_DIR = path.resolve(__dirname, "..", "..", "..", "channelscraper");
 const DETECT_TIMEOUT_MS = 300000;

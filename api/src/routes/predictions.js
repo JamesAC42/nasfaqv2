@@ -188,11 +188,27 @@ router.post(
 
 // ── Market reads ───────────────────────────────────────────────────────────
 router.get("/:slug", handle(async (req, res) => res.json({ market: await markets.getMarketDetail(req.ctx.pool, req.params.slug, req.ctx.user || null) })));
-router.get("/:slug/chart", handle(async (req, res) => res.json(await markets.getChart(req.ctx.pool, req.params.slug, { range: req.query.range }))));
-router.get("/:slug/trades", handle(async (req, res) => res.json({ trades: await markets.listTrades(req.ctx.pool, req.params.slug, { limit: req.query.limit }) })));
+// The chart, tape and quote follow the market page's rule: a draft or private market is only
+// visible to its creator and the approvers (anyone else gets not-found, not its title and outcomes).
+const visibleMarket = handle(async (req, res) => {
+  const { rows } = await req.ctx.pool.query(`SELECT status, visibility, creator_user_id FROM market.prediction_markets WHERE slug = $1`, [String(req.params.slug || "")]);
+  if (!rows[0] || !markets.canSeeMarket(rows[0], req.ctx.user || null)) {
+    const error = new Error("prediction_market_not_found");
+    error.code = "prediction_market_not_found";
+    throw error;
+  }
+  req.visibleMarketChecked = true;
+});
+const whenVisible = (fn) => async (req, res, next) => {
+  await visibleMarket(req, res, next);
+  if (req.visibleMarketChecked) return fn(req, res, next);
+};
+
+router.get("/:slug/chart", whenVisible(handle(async (req, res) => res.json(await markets.getChart(req.ctx.pool, req.params.slug, { range: req.query.range })))));
+router.get("/:slug/trades", whenVisible(handle(async (req, res) => res.json({ trades: await markets.listTrades(req.ctx.pool, req.params.slug, { limit: req.query.limit }) }))));
 router.get(
   "/:slug/quote",
-  handle(async (req, res) =>
+  whenVisible(handle(async (req, res) =>
     res.json(
       await trading.quote(req.ctx.pool, {
         slug: req.params.slug,
@@ -203,7 +219,7 @@ router.get(
         userId: req.ctx.user?.id ?? null,
       })
     )
-  )
+  ))
 );
 
 // ── Trading ────────────────────────────────────────────────────────────────

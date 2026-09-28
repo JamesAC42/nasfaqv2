@@ -104,6 +104,10 @@
     color: var(--mid);
   }
 
+  li[data-empty] {
+    color: var(--dim);
+  }
+
   ul {
     margin: 0;
     padding: 0;

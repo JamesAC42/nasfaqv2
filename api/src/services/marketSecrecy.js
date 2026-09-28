@@ -20,14 +20,23 @@ const ALWAYS_HIDDEN = new Set([
   "current_fair_value",
   "current_fair_value_raw",
   "current_premium_pct",
+  "event_signal",
   "fundamental_value_raw",
   "fundamental_value_smoothed",
   "latest_avg_premium_pct",
+  // The ingredients: today's raw target is size_anchor_raw × momentum_multiplier, so these would
+  // give it away exactly.
+  "momentum_multiplier",
+  "momentum_raw",
+  "size_anchor_raw",
+  "sub_signal",
   "top_base_rate",
   "top_discounts",
   "top_market_discounts",
   "top_market_premiums",
   "top_premiums",
+  "upload_signal",
+  "view_signal",
 ]);
 
 // Fair value as of a settlement: secret until that day's ticks have landed.

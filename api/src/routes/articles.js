@@ -2,6 +2,7 @@ const express = require("express");
 const articleDb = require("../articleDb");
 const { requireAdmin, requireUserId, requireVerifiedUserId } = require("../userContext");
 
+const { rateLimit, byUser } = require("../rateLimit");
 const router = express.Router();
 
 function paginationShape(result) {
@@ -28,18 +29,11 @@ router.get("/", async (req, res, next) => {
       includeDrafts: Boolean(req.ctx.user?.is_admin),
     });
 
-    const ensuredNewsArticles = await articleDb.ensureNewsArticles(
-      req.ctx.pool,
-      result.items.filter((item) => item.is_news && item.news_item?.id).map((item) => item.news_item.id)
-    );
-    const items = result.items.map((item) => {
-      if (!item.is_news || !item.news_item?.id) return item;
-      const ensured = ensuredNewsArticles.get(Number(item.news_item.id)) || null;
-      return ensured ? { ...item, slug: ensured.slug } : item;
-    });
-
+    // Listed articles already exist: news articles are made when the headline arrives (the
+    // HoloNews pipeline) and by the migration backfill. Re-syncing each one here made every page
+    // view a write transaction (~6 statements per headline).
     res.json({
-      items,
+      items: result.items,
       pagination: paginationShape(result),
     });
   } catch (error) {
@@ -47,7 +41,7 @@ router.get("/", async (req, res, next) => {
   }
 });
 
-router.post("/", async (req, res, next) => {
+router.post("/", rateLimit(byUser("article", 5, 3600)), async (req, res, next) => {
   try {
     const userId = requireVerifiedUserId(req);
     const created = await articleDb.createArticle(req.ctx.pool, {
@@ -153,7 +147,7 @@ router.delete("/:slug/body", async (req, res, next) => {
   }
 });
 
-router.post("/:slug/comments", async (req, res, next) => {
+router.post("/:slug/comments", rateLimit(byUser("article-comment", 10, 60)), async (req, res, next) => {
   try {
     const userId = requireVerifiedUserId(req);
     await articleDb.createComment(req.ctx.pool, req.params.slug, userId, req.body?.body, req.body?.mood);
@@ -197,7 +191,7 @@ router.post("/:slug/comments/:commentId/vote", async (req, res, next) => {
   }
 });
 
-router.post("/:slug/proposals", async (req, res, next) => {
+router.post("/:slug/proposals", rateLimit(byUser("article-proposal", 20, 3600)), async (req, res, next) => {
   try {
     const userId = requireVerifiedUserId(req);
     await articleDb.createProposal(req.ctx.pool, req.params.slug, userId, {

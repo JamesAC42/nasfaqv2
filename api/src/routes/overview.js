@@ -4,6 +4,8 @@ const articleDb = require("../articleDb");
 const wire = require("../services/wire");
 const chatter = require("../services/chatter");
 
+const { sendCachedJson } = require("../responseCache");
+
 const router = express.Router();
 const HOLO_NEWS_META_KEY = "nasfaq_holonews:meta";
 const HOLO_NEWS_ITEMS_KEY = "nasfaq_holonews:items";
@@ -113,7 +115,13 @@ router.get("/chatter", async (req, res, next) => {
 // The Wire: automatic headlines from streams, milestones, the market and the games.
 router.get("/wire", async (req, res, next) => {
   try {
-    res.json({ items: await wire.listWire(req.ctx.pool, { limit: req.query.limit, hours: req.query.hours }) });
+    const limit = Math.min(200, Math.max(1, Number.parseInt(req.query.limit, 10) || 40));
+    const hours = Math.min(24 * 30, Math.max(1, Number.parseInt(req.query.hours, 10) || 168));
+    await sendCachedJson(req, res, `overview:wire:${limit}:${hours}`, {
+      ttlSeconds: 30,
+      memoMs: 5000,
+      load: async () => ({ items: await wire.listWire(req.ctx.pool, { limit, hours }) }),
+    });
   } catch (e) {
     next(e);
   }
@@ -121,61 +129,68 @@ router.get("/wire", async (req, res, next) => {
 
 router.get("/latest", async (req, res, next) => {
   try {
-    const [channels, stats] = await Promise.all([
-      db.listChannels(req.ctx.pool, { activeOnly: true }),
-      db.getLatestStatsAll(req.ctx.pool)
-    ]);
-
-    const statsById = new Map(stats.map((s) => [s.youtube_channel_id, s]));
-
-    const out = channels.map((c) => {
-      const s = statsById.get(c.youtube_channel_id) || null;
-      return {
-        channel: c,
-        latest: s
-          ? {
-              ...s,
-              last_upload_url: toVideoLink(s.last_upload_video_id),
-              last_live_url: toVideoLink(s.last_live_video_id)
-            }
-          : null
-      };
-    });
-
-    res.json(out);
+    // Daily YouTube numbers: a minute old is fine, and the query reads the whole stats history.
+    await sendCachedJson(req, res, "overview:latest", { ttlSeconds: 60, memoMs: 10_000, load: () => loadLatest(req.ctx.pool) });
   } catch (e) {
     next(e);
   }
 });
+
+async function loadLatest(pool) {
+  const [channels, stats] = await Promise.all([
+    db.listChannels(pool, { activeOnly: true }),
+    db.getLatestStatsAll(pool)
+  ]);
+
+  const statsById = new Map(stats.map((s) => [s.youtube_channel_id, s]));
+
+  const out = channels.map((c) => {
+    const s = statsById.get(c.youtube_channel_id) || null;
+    return {
+      channel: c,
+      latest: s
+        ? {
+            ...s,
+            last_upload_url: toVideoLink(s.last_upload_video_id),
+            last_live_url: toVideoLink(s.last_live_video_id)
+          }
+        : null
+    };
+  });
+
+  return out;
+}
 
 router.get("/timeseries", async (req, res, next) => {
   try {
-    const days = Number(req.query.days || 90);
-    const limit = Number(req.query.limit || 400);
-    const end = new Date();
-    const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
-
-    const channels = await db.listChannels(req.ctx.pool, { activeOnly: true });
-
-    const series = await Promise.all(
-      channels.map(async (c) => {
-        const rows = await db.getTimeSeries(req.ctx.pool, c.youtube_channel_id, {
-          start: start.toISOString(),
-          end: end.toISOString(),
-          limit
-        });
-        return {
-          channel: c,
-          series: rows
-        };
-      })
-    );
-
-    res.json(series);
+    const days = Math.min(365, Math.max(1, Number.parseInt(req.query.days, 10) || 90));
+    const limit = Math.min(2000, Math.max(1, Number.parseInt(req.query.limit, 10) || 400));
+    // One query per channel on a miss, so it's cached for a few minutes (daily data).
+    await sendCachedJson(req, res, `overview:timeseries:${days}:${limit}`, { ttlSeconds: 300, memoMs: 30_000, load: () => loadTimeseries(req.ctx.pool, days, limit) });
   } catch (e) {
     next(e);
   }
 });
+
+async function loadTimeseries(pool, days, limit) {
+  const end = new Date();
+  const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+
+  const channels = await db.listChannels(pool, { activeOnly: true });
+
+  // Four channels at a time, so a rebuild never takes every pooled connection at once.
+  const series = [];
+  for (let i = 0; i < channels.length; i += 4) {
+    const batch = await Promise.all(
+      channels.slice(i, i + 4).map(async (c) => ({
+        channel: c,
+        series: await db.getTimeSeries(pool, c.youtube_channel_id, { start: start.toISOString(), end: end.toISOString(), limit }),
+      }))
+    );
+    series.push(...batch);
+  }
+  return series;
+}
 
 module.exports = router;
 

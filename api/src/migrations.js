@@ -1453,6 +1453,18 @@ async function applySchema(pool) {
       ON market.trade_orders (user_id, submitted_market_date, submitted_interval_key, requested_at DESC)
       WHERE order_type = 'live_market'
   `);
+  // The /market order-flow charts window live orders by when they were placed (last hour) and by
+  // their batch (last 24h); without these they scan every live order ever placed.
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_trade_orders_live_requested_idx
+      ON market.trade_orders (requested_at)
+      WHERE order_type = 'live_market'
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_trade_orders_live_execute_after_idx
+      ON market.trade_orders (execute_after)
+      WHERE order_type = 'live_market'
+  `);
 
   // Article comment votes: add upvotes/downvotes counters and vote tracking table
   await pool.query(`

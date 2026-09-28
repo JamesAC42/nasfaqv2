@@ -286,6 +286,11 @@ async function evaluateUserAchievementsWithClient(client, {
   }
 
   const earnedKeys = await listEarnedAchievementKeys(client, userId);
+  // The facts aggregate the player's whole trade history, so skip them when there's nothing left
+  // to earn (most fills, for anyone who's been around a while).
+  if (definitions.every((definition) => earnedKeys.has(`${definition.key}:${definition.version}`))) {
+    return { awarded: [] };
+  }
   const facts = await loadAchievementFacts(client, userId);
   const awarded = [];
 

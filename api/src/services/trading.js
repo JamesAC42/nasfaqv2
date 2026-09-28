@@ -1426,8 +1426,11 @@ function startLiveOrderScheduler(pool, logger = console, redis = null) {
   async function tick() {
     if (!enabled || running) return;
     running = true;
-    const lockClient = await pool.connect();
+    let lockClient = null;
     try {
+      // Inside the try: a pool timeout here used to be an unhandled rejection (a crashed pod) and
+      // left `running` stuck on.
+      lockClient = await pool.connect();
       const locked = await acquireLiveOrderSchedulerLock(lockClient);
       if (!locked) return;
       const result = await processDueLiveOrders(pool, { redis });
@@ -1438,8 +1441,10 @@ function startLiveOrderScheduler(pool, logger = console, redis = null) {
     } catch (error) {
       logger.error?.("market live order scheduler failed", error);
     } finally {
-      await releaseLiveOrderSchedulerLock(lockClient);
-      lockClient.release();
+      if (lockClient) {
+        await releaseLiveOrderSchedulerLock(lockClient).catch(() => {});
+        lockClient.release();
+      }
       running = false;
     }
   }
@@ -1552,18 +1557,20 @@ async function getPortfolioOrders(pool, userId, { limit = 100 } = {}) {
       f.fill_price,
       f.fill_gross_cash,
       f.fill_fee_cash
-    FROM market.trade_orders o
+    -- The newest orders first, then their fills (only for filled ones, and only fills after the
+    -- order was placed, so the lookup stays inside recent chunks of the fills table).
+    FROM (
+      SELECT * FROM market.trade_orders WHERE user_id = $1 ORDER BY requested_at DESC, id DESC LIMIT $2
+    ) o
     JOIN market.market_assets a ON a.id = o.asset_id
     -- The fill, so a client that missed the live market.trade_fill event can still show it.
     LEFT JOIN LATERAL (
       SELECT MAX(tf.id) AS fill_id, MAX(tf.ts) AS fill_ts,
              SUM(tf.price * tf.quantity) / NULLIF(SUM(tf.quantity), 0) AS fill_price,
              SUM(tf.gross_cash) AS fill_gross_cash, SUM(tf.fee_cash) AS fill_fee_cash
-      FROM market.trade_fills tf WHERE tf.order_id = o.id
-    ) f ON o.status = 'filled'
-    WHERE o.user_id = $1
+      FROM market.trade_fills tf WHERE o.status = 'filled' AND tf.order_id = o.id AND tf.ts >= o.requested_at
+    ) f ON true
     ORDER BY o.requested_at DESC, o.id DESC
-    LIMIT $2
   `,
     [userId, limit]
   );

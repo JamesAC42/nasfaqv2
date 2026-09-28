@@ -3,6 +3,7 @@ const reactions = require("../services/games/reactions");
 const profileDb = require("../profileDb");
 const { requireUserId } = require("../userContext");
 
+const { rateLimit, byUser } = require("../rateLimit");
 const router = express.Router();
 
 function parsePositiveInt(value, fallback, { min = 1, max = 100 } = {}) {
@@ -220,7 +221,7 @@ router.get("/:username/trades", async (req, res, next) => {
   }
 });
 
-router.post("/:username/friend-request", async (req, res, next) => {
+router.post("/:username/friend-request", rateLimit(byUser("friend-request", 30, 3600)), async (req, res, next) => {
   try {
     const userId = requireUserId(req);
     await profileDb.sendFriendRequest(req.ctx.pool, userId, req.params.username);

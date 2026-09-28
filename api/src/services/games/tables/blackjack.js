@@ -385,26 +385,40 @@ async function settle(table) {
     results.push({ index, seat, outcome, payout });
   }
   const client = await pool.connect();
+  let alreadyClosed = false;
   try {
     await client.query("BEGIN");
-    let totalPayout = 0;
-    for (const { index, seat, outcome, payout } of results) {
-      if (payout > 0) {
-        await gamesWallet.creditCashForGameWithClient(client, { userId: seat.user_id, amount: payout, entryType: "table_payout", referenceType: "blackjack_round", referenceId: table.roundId });
+    // A round pays once: if it was already settled or refunded (a restart's recovery got there
+    // first), nothing is credited.
+    const { rows: current } = await client.query(`SELECT status FROM games.blackjack_rounds WHERE id = $1 FOR UPDATE`, [table.roundId]);
+    if (current[0]?.status !== "betting" && current[0]?.status !== "playing") {
+      await client.query("ROLLBACK");
+      alreadyClosed = true;
+      for (const entry of results) {
+        entry.outcome = entry.seat.outcome = "refund";
+        entry.payout = entry.seat.payout = 0;
       }
-      totalPayout += payout;
-      await client.query(`UPDATE games.blackjack_bets SET outcome = $3, payout_cash = $4 WHERE round_id = $1 AND seat = $2`, [table.roundId, index, outcome, payout]);
     }
-    await client.query(
-      `UPDATE games.blackjack_rounds SET status = 'settled', settled_at = now(), total_payout_cash = $2, dealer_json = $3, seats_json = $4 WHERE id = $1`,
-      [
-        table.roundId,
-        round2(totalPayout),
-        JSON.stringify({ hand: table.dealer.hand, value: handValue(table.dealer.hand).total }),
-        JSON.stringify(results.map(({ index, seat, outcome, payout }) => ({ seat: index, user_id: seat.user_id, username: seat.username, hand: seat.hand, bet: seat.bet, doubled: seat.doubled, outcome, payout }))),
-      ]
-    );
-    await client.query("COMMIT");
+    let totalPayout = 0;
+    if (!alreadyClosed) {
+      for (const { index, seat, outcome, payout } of results) {
+        if (payout > 0) {
+          await gamesWallet.creditCashForGameWithClient(client, { userId: seat.user_id, amount: payout, entryType: "table_payout", referenceType: "blackjack_round", referenceId: table.roundId });
+        }
+        totalPayout += payout;
+        await client.query(`UPDATE games.blackjack_bets SET outcome = $3, payout_cash = $4 WHERE round_id = $1 AND seat = $2`, [table.roundId, index, outcome, payout]);
+      }
+      await client.query(
+        `UPDATE games.blackjack_rounds SET status = 'settled', settled_at = now(), total_payout_cash = $2, dealer_json = $3, seats_json = $4 WHERE id = $1`,
+        [
+          table.roundId,
+          round2(totalPayout),
+          JSON.stringify({ hand: table.dealer.hand, value: handValue(table.dealer.hand).total }),
+          JSON.stringify(results.map(({ index, seat, outcome, payout }) => ({ seat: index, user_id: seat.user_id, username: seat.username, hand: seat.hand, bet: seat.bet, doubled: seat.doubled, outcome, payout }))),
+        ]
+      );
+      await client.query("COMMIT");
+    }
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
@@ -445,6 +459,11 @@ async function recover() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      const { rows: current } = await client.query(`SELECT status FROM games.blackjack_rounds WHERE id = $1 FOR UPDATE`, [row.id]);
+      if (current[0]?.status !== "betting" && current[0]?.status !== "playing") {
+        await client.query("ROLLBACK");
+        continue;
+      }
       const bets = await client.query(`SELECT id, user_id, bet_cash, doubled FROM games.blackjack_bets WHERE round_id = $1 AND outcome IS NULL`, [row.id]);
       for (const betRow of bets.rows) {
         const amount = round2(Number(betRow.bet_cash) * (betRow.doubled ? 2 : 1));

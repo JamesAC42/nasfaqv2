@@ -65,6 +65,9 @@ function sendWsText(client, payload) {
 // so a batch of fills costs each socket a few sends instead of one per fill. Sending is the cost
 // that grows with sockets × events; older clients still get one message per event.
 const GAMES_EVENTS_REDIS_CHANNEL = "nasfaq_games:events";
+// Clients only ever send small control messages (subscribe, hello, ping); the ws default is 100 MiB.
+const WS_MAX_PAYLOAD = 16 * 1024;
+const allowLoopbackOrigins = process.env.NODE_ENV !== "production";
 const MARKET_BUNDLE_MS = 100;
 let marketQueue = [];
 let marketFlushTimer = null;
@@ -226,11 +229,23 @@ loadEnv();
 const cfg = getConfig();
 
 const app = express();
-app.use(express.json({ limit: "25mb" }));
+app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  // API responses are data: never framed, never sniffed as something else.
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  next();
+});
+// Big bodies only where images are uploaded as data URLs (admin tools); 1 MB everywhere else, so an
+// anonymous request can't make every pod parse 25 MB of JSON.
+app.use(["/api/admin/assets", "/api/channels"], express.json({ limit: "25mb" }));
+app.use(express.json({ limit: "1mb" }));
 app.use(
   cors({
     origin(origin, callback) {
-      const isAllowedLoopbackDevOrigin = /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(String(origin || ""));
+      // Local dev servers on any port, but never in production.
+      const isAllowedLoopbackDevOrigin = allowLoopbackOrigins && /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(String(origin || ""));
       if (!origin || cfg.corsOrigins.includes(origin) || isAllowedLoopbackDevOrigin) {
         callback(null, true);
         return;
@@ -271,7 +286,10 @@ api.use("/news", newsRoutes);
 api.use("/articles", articleRoutes);
 api.use("/analysis", analysisRoutes);
 api.use("/leaderboard", leaderboardRoutes);
-if (gameTablesOwner) api.use("/games", gameTablesRoutes); // only the tables' owner serves them (see main())
+// Only the process holding the tables lease serves table routes (see main()); elsewhere they fall
+// through to 404.
+let ownsGameTables = false;
+api.use("/games", (req, res, next) => (ownsGameTables ? gameTablesRoutes(req, res, next) : next()));
 api.use("/games", gamesRoutes);
 api.use("/market", marketRoutes);
 api.use("/portfolio", portfolioRoutes);
@@ -398,6 +416,30 @@ app.use((err, _req, res, _next) => {
   return res.status(500).json({ error: "internal_error" });
 });
 
+const GAME_TABLES_LEASE_KEY = 7_310_443;
+
+async function acquireGameTablesLease(db, { waitMs = Number(process.env.GAMES_TABLES_LEASE_WAIT_MS || 60_000) } = {}) {
+  const client = await db.connect();
+  const deadline = Date.now() + waitMs;
+  for (;;) {
+    const { rows } = await client.query("SELECT pg_try_advisory_lock($1) AS ok", [GAME_TABLES_LEASE_KEY]);
+    if (rows[0]?.ok) break;
+    if (Date.now() > deadline) {
+      client.release();
+      console.error("games: another process holds the game tables; this one runs without them");
+      return false;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+  }
+  // Losing this connection means losing the lease while tables are live: stop, and let the
+  // orchestrator restart us (the restart refunds anything unfinished, once).
+  client.on("error", (error) => {
+    console.error("games: lost the game tables lease:", String(error?.message || error));
+    process.exit(1);
+  });
+  return true;
+}
+
 async function main() {
   if (cfg.enableMigrations) {
     await applySchema(pool);
@@ -410,9 +452,13 @@ async function main() {
   // api-games Deployment (one replica; the ingress sends /api/games there), and every other API
   // process sets GAMES_TABLES_OWNER=false. Two owners would split tables between them and refund
   // matches the other one is still playing.
-  if (gameTablesOwner) {
+  // The lease is a Postgres session lock held for the life of the process: a second would-be owner
+  // (a misconfigured pod, a rollout overlap) waits for it, and if it never frees up, runs without
+  // tables rather than splitting them.
+  if (gameTablesOwner && (await acquireGameTablesLease(pool))) {
     await pvpTables.init(pool);
     await blackjackTables.init(pool);
+    ownsGameTables = true;
   }
   require("./services/games/sessions").startWeeklySettlement(pool);
   await mediaCatalog.syncMediaCatalog(pool, console);
@@ -422,9 +468,14 @@ async function main() {
   const stateClient = await pool.connect();
   try {
     await marketState.ensureMarketRuntimeState(stateClient);
-    const existingStatus = await marketState.getMarketStatusWithClient(stateClient);
+    // Only the process that runs settlement may reopen the market at boot. An api-web pod
+    // restarting while the scheduler is mid-settlement used to reopen trading under it.
+    const ownsSettlement = (process.env.MARKET_SETTLEMENT_SCHEDULER_ENABLED || "true").toLowerCase() !== "false";
+    const existingStatus = ownsSettlement ? await marketState.getMarketStatusWithClient(stateClient) : null;
     const nextScheduledAt = computeNextScheduledAt(new Date(), schedulerConfig).toISOString();
-    if (existingStatus?.trading_status === "manual_closed") {
+    if (!ownsSettlement) {
+      // leave the market state to the scheduler
+    } else if (existingStatus?.trading_status === "manual_closed") {
       await marketState.setNextScheduledSettlementAt(stateClient, nextScheduledAt);
     } else {
       await marketState.setMarketOpen(stateClient, {
@@ -440,12 +491,12 @@ async function main() {
   redis = await createRedis(cfg.redisUrl, cfg.redisPassword);
 
   const server = http.createServer(app);
-  const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
-  const bucketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
-  const statsWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
-  const chatWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
-  const marketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
-  const predictionMarketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
+  const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: WS_MAX_PAYLOAD });
+  const bucketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: WS_MAX_PAYLOAD });
+  const statsWss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: WS_MAX_PAYLOAD });
+  const chatWss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: WS_MAX_PAYLOAD });
+  const marketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: WS_MAX_PAYLOAD });
+  const predictionMarketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: WS_MAX_PAYLOAD });
   const gamesWss = gamesHub.createGamesWss();
 
   // Heartbeat for the plain sockets (the games hub has its own): ping every 30s and drop any that
@@ -454,6 +505,9 @@ async function main() {
   const HEARTBEAT_MS = 30_000;
   for (const server of [wss, bucketWss, statsWss, chatWss, marketWss, predictionMarketWss]) {
     server.on("connection", (socket) => {
+      // A bad frame (too big, malformed) surfaces as an 'error' on the socket; without a listener
+      // Node treats it as unhandled and the whole process exits. Drop just that socket.
+      socket.on("error", () => socket.terminate());
       socket.isAlive = true;
       socket.on("pong", () => {
         socket.isAlive = true;
@@ -575,13 +629,14 @@ async function main() {
 
       const action = String(payload.action || "").trim().toLowerCase();
       if (action === "subscribe") {
-        const requestedChannelKeys = normalizeChannelKeyList(payload.channel_keys);
+        // A handful of rooms at a time; one socket can't make the server look up thousands.
+        const requestedChannelKeys = normalizeChannelKeyList(payload.channel_keys).slice(0, 20);
         const subscribed = [];
         const rejected = [];
 
+        await chatDb.ensureChatTopologyRecent(pool).catch(() => {});
         for (const channelKey of requestedChannelKeys) {
           try {
-            await chatDb.ensureChatTopology(pool);
             const channel = await chatDb.getChannelByKey(pool, channelKey, {
               viewerUserId: req.chatUser?.id || null,
               includeInactive: Boolean(req.chatUser?.is_admin),
@@ -699,6 +754,15 @@ async function main() {
       return;
     }
 
+    // Browsers always send Origin on a socket upgrade; only our own site (or a local dev server)
+    // may open one with the player's cookie. Non-browser clients send none and are let through.
+    const origin = req.headers.origin;
+    if (origin && !cfg.corsOrigins.includes(origin) && !(allowLoopbackOrigins && /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin))) {
+      socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+
     try {
       if (target === chatWss) {
         req.chatUser = await authService.getAuthenticatedUser(pool, req);
@@ -803,6 +867,12 @@ async function main() {
   // The /vt/ chatter index scans hololive threads every 5 minutes (CHATTER_ENABLED=off to stop it).
   require("./services/chatter").startChatterScheduler(pool, console);
 }
+
+// A stray rejected promise is a bug to log, not a reason to drop every socket on this pod.
+process.on("unhandledRejection", (reason) => {
+  // eslint-disable-next-line no-console
+  console.error("unhandled rejection:", reason);
+});
 
 main().catch((e) => {
   // eslint-disable-next-line no-console

@@ -422,6 +422,26 @@ async function syncUnitChannels(pool) {
   );
 }
 
+// The request paths (chat routes, socket subscribes) only need the channel rows to exist, which
+// they almost always do: they sync at most every few minutes per process, one at a time. The full
+// sync still runs at startup (server.js).
+const TOPOLOGY_EVERY_MS = 5 * 60_000;
+let topologySyncedAt = 0;
+let topologyInflight = null;
+async function ensureChatTopologyRecent(pool) {
+  if (Date.now() - topologySyncedAt < TOPOLOGY_EVERY_MS) return;
+  if (!topologyInflight) {
+    topologyInflight = ensureChatTopology(pool)
+      .then(() => {
+        topologySyncedAt = Date.now();
+      })
+      .finally(() => {
+        topologyInflight = null;
+      });
+  }
+  await topologyInflight;
+}
+
 async function ensureChatTopology(pool) {
   await ensureCoreChannels(pool);
   await syncAssetChannels(pool);
@@ -1166,6 +1186,7 @@ module.exports = {
   createMessageReport,
   createModerationAction,
   ensureChatTopology,
+  ensureChatTopologyRecent,
   getChannelById,
   getChannelByKey,
   getMessageById,

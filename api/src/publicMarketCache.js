@@ -41,6 +41,9 @@ function sendHub(req, res, tradeLimit, build) {
   return sendCachedJson(req, res, hubKey(limit), { ttlSeconds: 5, memoMs: 1000, load: () => build(limit) });
 }
 
-const PUBLIC_MARKET_KEYS = [ASSETS_KEY, REPORT_KEY, ...HUB_TRADE_LIMITS.map(hubKey)];
+// /api/market/adjustments/summary is cached per recent_limit bucket (routes/market.js).
+const ADJUSTMENT_SUMMARY_LIMITS = [20, 50, 100];
 
-module.exports = { sendPublicAssets, sendLatestReport, sendHub, PUBLIC_MARKET_KEYS };
+const PUBLIC_MARKET_KEYS = [ASSETS_KEY, REPORT_KEY, "market:status", ...HUB_TRADE_LIMITS.map(hubKey), ...ADJUSTMENT_SUMMARY_LIMITS.map((limit) => `market:adjustments:${limit}`)];
+
+module.exports = { sendPublicAssets, sendLatestReport, sendHub, PUBLIC_MARKET_KEYS, ADJUSTMENT_SUMMARY_LIMITS };

@@ -473,10 +473,8 @@ export const useMarketStore = create<MarketState>((set, get) => ({
             detail: changedSymbols.has(state.selectedSymbol.trim().toUpperCase()) ? null : state.detail,
           }));
 
-          const selectedSymbol = get().selectedSymbol.trim().toUpperCase();
-          if (selectedSymbol && changedSymbols.has(selectedSymbol)) {
-            void get().fetchAssetDetail(selectedSymbol);
-          }
+          // (No asset-detail refetch here: nothing on the site reads the store's detail, and every
+          // open tab refetching five endpoints at the same tick was a thundering herd.)
           scheduleIndexRefresh(get().fetchMarketIndexes, get().marketIndexes.length > 0);
           return;
         }
@@ -522,10 +520,8 @@ export const useMarketStore = create<MarketState>((set, get) => ({
           void apiFetch<DailyReport>("/api/market/report/daily/latest")
             .then((report) => set({ report }))
             .catch(() => {});
-          const selectedSymbol = get().selectedSymbol.trim().toUpperCase();
-          if (selectedSymbol && bySymbol.has(selectedSymbol)) {
-            void get().fetchAssetDetail(selectedSymbol);
-          }
+          // (No asset-detail refetch here: nothing on the site reads the store's detail, and every
+          // open tab refetching five endpoints at the same tick was a thundering herd.)
         }
       };
 

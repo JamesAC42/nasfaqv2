@@ -27,13 +27,10 @@ function getConfig() {
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
-  const corsOrigins = Array.from(new Set([
-    ...configuredCorsOrigins,
-    "http://localhost:3000",
-    "http://localhost:3010",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:3010",
-  ]));
+  // The local dev origins only outside production: there, a page on the player's own machine
+  // shouldn't get to make credentialed calls.
+  const devOrigins = process.env.NODE_ENV === "production" ? [] : ["http://localhost:3000", "http://localhost:3010", "http://127.0.0.1:3000", "http://127.0.0.1:3010"];
+  const corsOrigins = Array.from(new Set([...configuredCorsOrigins, ...devOrigins]));
 
   return {
     port: Number(process.env.PORT || 5067),

@@ -42,6 +42,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_credentials: "Wrong username or password.",
   turnstile_required: "Finish the security check first.",
   turnstile_failed: "The security check failed. Try it again.",
+  google_email_unverified: "Google hasn't verified that email address. Verify it with Google, or sign up with a password.",
+  google_login_failed: "Google sign-in didn't work for that account. Sign in with your username and password.",
+  rate_limited: "Too many tries. Wait a minute and try again.",
 };
 
 const isLocalPath = (path: string) => path.startsWith("/") && !path.startsWith("//") && !/^\/(login|register)/.test(path);
@@ -92,6 +95,14 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         .slice(0, 5),
     [assets],
   );
+
+  // The face in the pitch panel: today's biggest gainer (a sign-up page should look happy), in her
+  // "to the moon" pose on a big day; the biggest loser, coping, only when nothing is up.
+  const featured = useMemo(() => {
+    const up = [...assets].filter((asset) => (asset.move_24h_pct ?? 0) > 0).sort((a, b) => (b.move_24h_pct ?? 0) - (a.move_24h_pct ?? 0))[0];
+    if (up) return { asset: up, pose: (up.move_24h_pct ?? 0) >= 0.03 ? ("moon" as const) : ("hype" as const) };
+    return movers[0] ? { asset: movers[0], pose: "cope" as const } : null;
+  }, [assets, movers]);
 
   function resetTurnstile() {
     if (!turnstileWidget.current || !window.turnstile) return;
@@ -290,8 +301,13 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         </section>
 
         <aside className={styles.pitch} aria-label="What is nasfaq">
-          <SceneArt slot="site-auth-pitch" width={420} className={styles.pitchArt} />
-          {movers[0] ? <ArtSlot kind="chibi" pose="hype" symbol={movers[0].symbol} icon={movers[0].icon} accent="var(--blue)" width={160} className={styles.chibi} /> : null}
+          {/* The day's top gainer stands in the art panel, faded into it (like the trade ticket's art). */}
+          <div className={styles.pitchStage}>
+            <SceneArt slot="site-auth-pitch" width={420} className={styles.pitchArt} />
+            {featured ? (
+              <ArtSlot kind="chibi" pose={featured.pose} symbol={featured.asset.symbol} icon={featured.asset.icon} accent="var(--blue)" width={360} fade vignette fadeLength={0.3} className={styles.chibi} />
+            ) : null}
+          </div>
           <h2>Every hololive talent is a stock.</h2>
           <ul>
             <li>Start with $10,000 of play money.</li>
