@@ -141,6 +141,7 @@ export function ProfileView({ username }: { username?: string | null }) {
   const { profile, viewer_context: viewer } = bundle;
   const color = profile.profile_color || "#3FB8F5";
   const oshi = profile.oshi_coin;
+  const banner = profile.profile_banner;
   const oshiAsset = oshi ? assets.find((asset) => asset.symbol.toUpperCase() === oshi.symbol.toUpperCase()) : undefined;
   const allTime = profile.stats.total_equity - START_CASH;
   const history = profile.networth_history;
@@ -155,9 +156,14 @@ export function ProfileView({ username }: { username?: string | null }) {
           ← LEADERBOARD
         </Link>
 
-        <header className={styles.banner}>
+        <header className={styles.banner} data-art={banner ? "" : undefined}>
           <SceneArt slot="market-profile-banner" fill width={1400} className={styles.bannerBg} />
-          {oshi ? <ArtSlot kind="keyart" symbol={oshi.symbol} icon={oshi.icon} accent={oshiAsset ? talentAccent(oshiAsset.color, theme) : undefined} width={480} className={styles.bannerArt} /> : null}
+          {banner ? (
+            <>
+              <ArtSlot slot="banner" symbol={banner.symbol} icon={banner.icon} width={1600} fit="cover" priority alt={`${banner.display_name} banner art`} className={styles.bannerPlate} fallback={<span />} />
+              <span className={styles.bannerScrim} aria-hidden="true" />
+            </>
+          ) : oshi ? <ArtSlot kind="keyart" symbol={oshi.symbol} icon={oshi.icon} accent={oshiAsset ? talentAccent(oshiAsset.color, theme) : undefined} width={480} className={styles.bannerArt} /> : null}
           <div className={styles.idRow}>
             <button type="button" className={styles.avatarBtn} onClick={() => isSelf && setModal("picture")} disabled={!isSelf} aria-label={isSelf ? "Change your icon" : undefined} title={isSelf ? "Change your icon" : undefined}>
               <PlayerAvatar username={profile.username} pictureUrl={profile.profile_picture_url} color={color} equipped={profile.equipped} size={120} className={styles.avatar} />

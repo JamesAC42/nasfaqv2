@@ -2198,6 +2198,20 @@ function normalizeTradeStreak(value: unknown): ProfileBundle["profile"]["streaks
   };
 }
 
+function normalizeProfileTalent(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const talent = value as Record<string, unknown>;
+  const symbol = String(talent.symbol || "");
+  if (!symbol) return null;
+  return {
+    id: Number(talent.id || 0),
+    symbol,
+    display_name: String(talent.display_name || symbol),
+    icon: talent.icon ? String(talent.icon) : null,
+    color: talent.color ? String(talent.color) : null,
+  };
+}
+
 export function normalizeProfileBundle(value: Record<string, unknown>): ProfileBundle {
   const profile = (value.profile || null) as Record<string, unknown> | null;
   const stats = (profile?.stats || null) as Record<string, unknown> | null;
@@ -2242,6 +2256,10 @@ export function normalizeProfileBundle(value: Record<string, unknown>): ProfileB
             color: oshiCoin.color ? String(oshiCoin.color) : null,
           }
         : null,
+      profile_banner: normalizeProfileTalent(profile?.profile_banner),
+      banner_options: Array.isArray(profile?.banner_options)
+        ? (profile.banner_options as unknown[]).map(normalizeProfileTalent).filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+        : [],
       stats: {
         cash_balance: Number(toNumber(stats?.cash_balance) || 0),
         total_market_value: Number(toNumber(stats?.total_market_value) || 0),

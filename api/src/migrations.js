@@ -140,6 +140,11 @@ async function applySchema(pool) {
       ADD COLUMN IF NOT EXISTS profile_color TEXT NULL,
       ADD COLUMN IF NOT EXISTS oshi_coin_asset_id BIGINT NULL REFERENCES market.market_assets(id) ON DELETE SET NULL
   `);
+  // A talent's banner art, shown behind the profile header while the player owns her SSR or UR card.
+  await pool.query(`
+    ALTER TABLE market.users
+      ADD COLUMN IF NOT EXISTS profile_banner_asset_id BIGINT NULL REFERENCES market.market_assets(id) ON DELETE SET NULL
+  `);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS market.emojis (
       id BIGSERIAL PRIMARY KEY,

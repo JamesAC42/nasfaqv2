@@ -953,3 +953,33 @@
     transition: none;
   }
 }
+
+// "Use on my profile", top right of an unlocked banner (left of the full-screen button; her key
+// art and name cover the bottom).
+.useBanner {
+  @include label;
+  position: absolute;
+  z-index: 3;
+  top: 0.6rem;
+  right: 3.1rem;
+  padding: 0.35rem 0.6rem 0.3rem;
+  border: 1px solid color-mix(in srgb, var(--tal) 70%, transparent);
+  border-radius: var(--radius-sm);
+  background: rgba(7, 9, 14, 0.62);
+  color: #fff;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--tal) 35%, rgba(7, 9, 14, 0.7));
+  }
+
+  &:disabled {
+    cursor: progress;
+    opacity: 0.7;
+  }
+
+  &[data-done] {
+    border-color: var(--up);
+  }
+}

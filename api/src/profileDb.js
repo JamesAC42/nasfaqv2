@@ -7,6 +7,74 @@ const gamesInventory = require("./services/games/inventory");
 const { profilePictureUrlSql } = require("./profilePictures");
 const reactions = require("./services/games/reactions");
 
+// Banner art counts only while the player still owns one of her SSR/UR cards (cards can be sold).
+const BANNER_RARITIES_SQL = "('SSR', 'UR')";
+const PROFILE_BANNER_JOIN = `
+    LEFT JOIN LATERAL (
+      SELECT jsonb_build_object('id', ba.id, 'symbol', ba.symbol, 'display_name', ba.display_name, 'icon', bc.icon, 'color', bc.color) AS banner
+      FROM market.market_assets ba
+      LEFT JOIN yt.youtube_channels bc ON bc.youtube_channel_id = ba.youtube_channel_id
+      WHERE ba.id = u.profile_banner_asset_id
+        AND EXISTS (
+          SELECT 1 FROM games.user_cards uc
+          WHERE uc.user_id = u.id AND uc.asset_id = ba.id AND uc.rarity IN ${BANNER_RARITIES_SQL}
+        )
+    ) pb ON true`;
+
+function profileError(code) {
+  const error = new Error(code);
+  error.code = code;
+  return error;
+}
+
+/** Talents whose banner the user has unlocked (owns her SSR or UR), for the profile banner picker. */
+async function listBannerOptions(pool, userId) {
+  const { rows } = await pool.query(
+    `
+    SELECT DISTINCT a.id, a.symbol, a.display_name, c.icon, c.color
+    FROM games.user_cards uc
+    JOIN market.market_assets a ON a.id = uc.asset_id
+    LEFT JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
+    WHERE uc.user_id = $1 AND uc.rarity IN ${BANNER_RARITIES_SQL}
+    ORDER BY a.symbol
+  `,
+    [userId]
+  );
+  return rows.map((row) => ({ id: Number(row.id), symbol: row.symbol, display_name: row.display_name, icon: row.icon || null, color: row.color || null }));
+}
+
+/** The asset behind `symbol` whose SSR/UR card the user owns, or null. */
+async function bannerAssetForSymbol(pool, userId, symbol) {
+  const { rows } = await pool.query(
+    `
+    SELECT uc.asset_id
+    FROM games.user_cards uc
+    JOIN market.market_assets a ON a.id = uc.asset_id
+    WHERE uc.user_id = $1 AND upper(a.symbol) = upper($2) AND uc.rarity IN ${BANNER_RARITIES_SQL}
+    LIMIT 1
+  `,
+    [userId, String(symbol || "")]
+  );
+  return rows[0] ? Number(rows[0].asset_id) : null;
+}
+
+/** Sets (or with null, clears) the profile banner. Throws banner_locked unless she's unlocked. */
+async function setProfileBanner(pool, userId, assetId) {
+  const safeUserId = Number(userId);
+  if (!Number.isInteger(safeUserId) || safeUserId <= 0) throw profileError("invalid_profile_update");
+  let safeAssetId = null;
+  if (assetId !== null && assetId !== undefined && assetId !== "") {
+    safeAssetId = Number(assetId);
+    if (!Number.isInteger(safeAssetId) || safeAssetId <= 0) throw profileError("invalid_profile_update");
+    const { rows } = await pool.query(
+      `SELECT 1 FROM games.user_cards WHERE user_id = $1 AND asset_id = $2 AND rarity IN ${BANNER_RARITIES_SQL} LIMIT 1`,
+      [safeUserId, safeAssetId]
+    );
+    if (!rows[0]) throw profileError("banner_locked");
+  }
+  await pool.query(`UPDATE market.users SET profile_banner_asset_id = $2, updated_at = now() WHERE id = $1`, [safeUserId, safeAssetId]);
+}
+
 function toInt(value, fallback, { min = 1, max = 100 } = {}) {
   const parsed = Number.parseInt(String(value ?? fallback), 10);
   if (!Number.isFinite(parsed)) return fallback;
@@ -86,7 +154,8 @@ async function getUserByUsername(pool, username) {
           'icon', yc.icon,
           'color', yc.color
         )
-      END AS oshi_coin
+      END AS oshi_coin,
+      pb.banner AS profile_banner
     FROM market.users u
     LEFT JOIN market.profile_pictures pp
       ON pp.id = u.profile_picture_id
@@ -94,6 +163,7 @@ async function getUserByUsername(pool, username) {
       ON ma.id = u.oshi_coin_asset_id
     LEFT JOIN yt.youtube_channels yc
       ON yc.youtube_channel_id = ma.youtube_channel_id
+    ${PROFILE_BANNER_JOIN}
     WHERE u.username_normalized = $1
     LIMIT 1
   `,
@@ -131,7 +201,8 @@ async function getUserById(pool, userId) {
           'icon', yc.icon,
           'color', yc.color
         )
-      END AS oshi_coin
+      END AS oshi_coin,
+      pb.banner AS profile_banner
     FROM market.users u
     LEFT JOIN market.profile_pictures pp
       ON pp.id = u.profile_picture_id
@@ -139,6 +210,7 @@ async function getUserById(pool, userId) {
       ON ma.id = u.oshi_coin_asset_id
     LEFT JOIN yt.youtube_channels yc
       ON yc.youtube_channel_id = ma.youtube_channel_id
+    ${PROFILE_BANNER_JOIN}
     WHERE u.id = $1
     LIMIT 1
   `,
@@ -444,6 +516,7 @@ async function getProfileBundle(pool, {
     gamesInventory.getTotalGachaSpentCash(pool, profileUser.id),
   ]);
   const equipped = (await loadEquipped(pool, [profileUser.id])).get(Number(profileUser.id)) ?? {};
+  const bannerOptions = isSelf ? await listBannerOptions(pool, profileUser.id) : [];
   const leaderboardEntry = leaderboardEntries[0] || null;
 
   const pending = isSelf
@@ -474,6 +547,8 @@ async function getProfileBundle(pool, {
       rank: Number(leaderboardEntry?.rank || 0),
       oshiboards,
       oshi_coin: profileUser.oshi_coin,
+      profile_banner: profileUser.profile_banner || null,
+      banner_options: bannerOptions,
       stats: {
         cash_balance: portfolio.cash_balance,
         total_market_value: portfolio.total_market_value,
@@ -598,7 +673,7 @@ async function refreshAvatarCopies(pool, userId) {
   await netWorth.refreshCurrentOshiboards(pool, { userIds: [userId] });
 }
 
-async function updateProfileSettings(pool, userId, { username, bio, profileColor, oshiCoinAssetId }) {
+async function updateProfileSettings(pool, userId, { username, bio, profileColor, oshiCoinAssetId, profileBannerAssetId }) {
   const safeUserId = Number(userId);
   if (!Number.isInteger(safeUserId) || safeUserId <= 0) {
     const error = new Error("invalid_profile_update");
@@ -648,6 +723,9 @@ async function updateProfileSettings(pool, userId, { username, bio, profileColor
       throw error;
     }
   }
+
+  // Left out of the request = unchanged. Checked first, so a locked banner saves nothing.
+  if (profileBannerAssetId !== undefined) await setProfileBanner(pool, safeUserId, profileBannerAssetId);
 
   try {
     await pool.query(
@@ -812,6 +890,8 @@ module.exports = {
   listProfileTrades,
   removeFriendship,
   resolveProfileUser,
+  bannerAssetForSymbol,
+  setProfileBanner,
   setProfilePicture,
   updateProfileSettings,
   sendFriendRequest,

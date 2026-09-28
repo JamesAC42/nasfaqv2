@@ -1566,6 +1566,10 @@ export type ProfileBundle = {
     rank: number;
     oshiboards: OshiboardMembership[];
     oshi_coin: ProfileOshiCoin | null;
+    /** A talent's banner art behind the profile header (only while she's unlocked). */
+    profile_banner: ProfileOshiCoin | null;
+    /** Your own profile only: talents whose banner you've unlocked (own her SSR or UR). */
+    banner_options: ProfileOshiCoin[];
     stats: {
       cash_balance: number;
       total_market_value: number;

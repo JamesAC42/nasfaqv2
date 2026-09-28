@@ -322,6 +322,7 @@ app.use((err, _req, res, _next) => {
     || err?.code === "prediction_market_comment_requires_position"
     || err?.code === "reaction_locked"
     || err?.code === "sticker_locked"
+    || err?.code === "banner_locked"
   ) {
     return res.status(403).json({ error: err.code });
   }

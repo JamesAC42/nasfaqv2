@@ -118,6 +118,30 @@ router.put("/me/profile-picture", async (req, res, next) => {
   }
 });
 
+// Set or clear just the profile banner (the gallery's "Use on my profile").
+router.put("/me/banner", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    let assetId = req.body?.asset_id ?? null;
+    // The gallery knows talents by symbol.
+    if (assetId === null && typeof req.body?.symbol === "string" && req.body.symbol) {
+      assetId = await profileDb.bannerAssetForSymbol(req.ctx.pool, userId, req.body.symbol);
+      if (assetId === null) {
+        const error = new Error("banner_locked");
+        error.code = "banner_locked";
+        throw error;
+      }
+    }
+    await profileDb.setProfileBanner(req.ctx.pool, userId, assetId);
+    res.json({ ok: true, profile_banner_asset_id: assetId === null ? null : Number(assetId) });
+  } catch (error) {
+    if (error?.code === "unauthenticated") {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    next(error);
+  }
+});
+
 router.put("/me", async (req, res, next) => {
   try {
     const userId = requireUserId(req);
@@ -126,6 +150,7 @@ router.put("/me", async (req, res, next) => {
       bio: req.body?.bio,
       profileColor: req.body?.profile_color,
       oshiCoinAssetId: req.body?.oshi_coin_asset_id,
+      profileBannerAssetId: req.body && "profile_banner_asset_id" in req.body ? req.body.profile_banner_asset_id : undefined,
     });
     const bundle = await profileDb.getProfileBundle(req.ctx.pool, {
       viewerUserId: userId,

@@ -24,6 +24,7 @@ import {
 } from "@/app/components/games/gallery/gallery-model";
 import { Lightbox, type LightboxItem } from "@/app/components/games/gallery/lightbox";
 import { GamesFrame, SignInToPlay } from "@/app/components/games/shell/games-frame";
+import { apiFetch } from "@/app/lib/api";
 import { artId } from "@/app/lib/art-manifest";
 import { fmtInteger } from "@/app/lib/format";
 import { fetchBanners } from "@/app/lib/games/api";
@@ -165,6 +166,33 @@ type RoomProps = {
   bannerInfo: BannerInfo;
 };
 
+/** Puts her banner behind your profile header (also in Edit profile → Banner). */
+function UseBanner({ symbol }: { symbol: string }) {
+  const [state, setState] = useState<"idle" | "busy" | "done" | "error">("idle");
+  useEffect(() => setState("idle"), [symbol]);
+  const use = async () => {
+    setState("busy");
+    try {
+      await apiFetch("/api/profiles/me/banner", { method: "PUT", body: JSON.stringify({ symbol }) });
+      setState("done");
+    } catch {
+      setState("error");
+    }
+  };
+  if (state === "done") {
+    return (
+      <Link href="/profile" className={styles.useBanner} data-done="">
+        On your profile ✓
+      </Link>
+    );
+  }
+  return (
+    <button type="button" className={styles.useBanner} onClick={() => void use()} disabled={state === "busy"}>
+      {state === "busy" ? "Saving…" : state === "error" ? "Couldn't save · retry" : "Use on my profile"}
+    </button>
+  );
+}
+
 function Room({ model, pocket, position, total, prev, next, signedIn, ready, shards, bannerInfo }: RoomProps) {
   const { talent } = pocket;
   const accent = talentAccent(talent.color);
@@ -190,7 +218,7 @@ function Room({ model, pocket, position, total, prev, next, signedIn, ready, sha
         title: talent.name,
         tag: "Banner",
         color: accent,
-        caption: "Featured banner art. Yours for owning her SSR or UR.",
+        caption: "Featured banner art. Yours for owning her SSR or UR, and it can hang behind your profile.",
         render: (width) => <BannerIllustration talent={talent} width={width} priority />,
       });
     }
@@ -280,6 +308,7 @@ function Room({ model, pocket, position, total, prev, next, signedIn, ready, sha
           <span className={styles.bannerTag} data-open={bannerOpen || undefined}>
             {bannerOpen ? "Banner" : "Banner · locked"}
           </span>
+          {bannerOpen && signedIn ? <UseBanner symbol={talent.symbol} /> : null}
         </div>
 
         <div className={styles.identity}>

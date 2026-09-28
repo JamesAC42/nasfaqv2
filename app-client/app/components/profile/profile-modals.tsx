@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
+import { ArtSlot } from "@/app/components/common/art-slot";
 import { AssetPicker } from "@/app/components/common/asset-picker";
 import Link from "next/link";
 import { Oshimark } from "@/app/components/common/oshimark";
@@ -44,6 +45,7 @@ export function SettingsModal({ open, profile, onClose, onSaved }: { open: boole
   const [bio, setBio] = useState(profile.bio ?? "");
   const [color, setColor] = useState(profile.profile_color || "#3FB8F5");
   const [oshi, setOshi] = useState(profile.oshi_coin?.symbol ?? "");
+  const [banner, setBanner] = useState(profile.profile_banner?.symbol ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,6 +55,7 @@ export function SettingsModal({ open, profile, onClose, onSaved }: { open: boole
     setBio(profile.bio ?? "");
     setColor(profile.profile_color || "#3FB8F5");
     setOshi(profile.oshi_coin?.symbol ?? "");
+    setBanner(profile.profile_banner?.symbol ?? "");
     setError(null);
   }, [open, profile]);
 
@@ -63,9 +66,16 @@ export function SettingsModal({ open, profile, onClose, onSaved }: { open: boole
     setError(null);
     try {
       const asset = assets.find((entry) => entry.symbol === oshi) ?? null;
+      const bannerTalent = profile.banner_options.find((entry) => entry.symbol === banner) ?? null;
       const raw = await apiFetch<Record<string, unknown>>("/api/profiles/me", {
         method: "PUT",
-        body: JSON.stringify({ username: name, bio, profile_color: color || null, oshi_coin_asset_id: asset?.id ?? null }),
+        body: JSON.stringify({
+          username: name,
+          bio,
+          profile_color: color || null,
+          oshi_coin_asset_id: asset?.id ?? null,
+          profile_banner_asset_id: bannerTalent?.id ?? null,
+        }),
       });
       onSaved(normalizeProfileBundle(raw));
       const current = useAuthStore.getState().user;
@@ -105,6 +115,7 @@ export function SettingsModal({ open, profile, onClose, onSaved }: { open: boole
             <AssetPicker assets={assets} value={oshi} onChange={setOshi} placeholder="Pick your oshi" emptyLabel="No oshi" />
           </div>
         </div>
+        <BannerChoice options={profile.banner_options} value={banner} onChange={setBanner} />
         {error ? (
           <p className={styles.err} role="alert">
             {error}
@@ -120,6 +131,32 @@ export function SettingsModal({ open, profile, onClose, onSaved }: { open: boole
         </div>
       </div>
     </Modal>
+  );
+}
+
+/** Banner art behind the profile header, from the talents whose SSR or UR card you own. */
+function BannerChoice({ options, value, onChange }: { options: Profile["banner_options"]; value: string; onChange: (symbol: string) => void }) {
+  return (
+    <div className={styles.bannerField}>
+      <span className={styles.label}>Banner</span>
+      {options.length ? (
+        <div className={styles.bannerGrid} role="radiogroup" aria-label="Profile banner">
+          <button type="button" role="radio" aria-checked={!value} className={`${styles.bannerChoice} ${styles.bannerNone}`} onClick={() => onChange("")}>
+            <span className={styles.bannerName}>None</span>
+          </button>
+          {options.map((talent) => (
+            <button key={talent.symbol} type="button" role="radio" aria-checked={value === talent.symbol} className={styles.bannerChoice} onClick={() => onChange(talent.symbol)} title={talent.display_name}>
+              <ArtSlot slot="banner" symbol={talent.symbol} icon={talent.icon} width={240} fit="cover" fallback={<span />} className={styles.bannerThumb} />
+              <span className={styles.bannerName}>{talent.display_name.split(" ").slice(-1)[0]}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <small>
+        {options.length ? "Yours while you own her SSR or UR card. " : "Own a talent's SSR or UR card to unlock her banner art here. "}
+        <Link href="/games/cards/gallery">Card gallery →</Link>
+      </small>
+    </div>
   );
 }
 
