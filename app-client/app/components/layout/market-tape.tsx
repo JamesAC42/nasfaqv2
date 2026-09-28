@@ -2,13 +2,15 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { memo, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { useMarketStore } from "@/app/stores/market-store";
 import styles from "@/app/components/layout/market-tape.module.scss";
 
 // Seconds per asset for one full loop of the tape. Slow enough to read.
 const SECONDS_PER_ITEM = 2.3;
+// Trades can land many times a second on busy pages; the tape catches up at most this often.
+const TAPE_REFRESH_MS = 1500;
 const EPOCH_KEY = "nasfaq.tapeEpoch";
 
 // The tape remounts on every navigation (each page renders SiteShell), so we
@@ -54,15 +56,15 @@ const TapeItem = memo(function TapeItem({
   const ref = useRef<HTMLAnchorElement | null>(null);
   const previous = useRef(price);
 
-  // Flash the item when its price changes. DOM-only, so no re-render.
+  // Flash the item when its price changes. DOM-only, so no re-render; alternating the two
+  // identical animations restarts it without forcing a layout.
   useEffect(() => {
     const el = ref.current;
     const before = previous.current;
     previous.current = price;
     if (!el || before === null || price === null || before === price) return;
-    el.classList.remove(styles.flashUp, styles.flashDown);
-    void el.offsetWidth;
-    el.classList.add(price > before ? styles.flashUp : styles.flashDown);
+    const turn = el.dataset.flash?.endsWith("a") ? "b" : "a";
+    el.dataset.flash = `${price > before ? "up" : "down"}-${turn}`;
   }, [price]);
 
   const change = formatMove(move);
@@ -86,8 +88,33 @@ const TapeItem = memo(function TapeItem({
 });
 
 /** The scrolling price tape under the top bar: every stock, with its oshimark. */
+function useTapeAssets() {
+  const [assets, setAssets] = useState(() => useMarketStore.getState().assets);
+  useEffect(() => {
+    let timer: number | null = null;
+    let last = 0;
+    const flush = () => {
+      timer = null;
+      last = Date.now();
+      setAssets(useMarketStore.getState().assets);
+    };
+    const unsubscribe = useMarketStore.subscribe((state, prev) => {
+      if (state.assets === prev.assets || timer !== null) return;
+      const wait = TAPE_REFRESH_MS - (Date.now() - last);
+      if (wait <= 0) flush();
+      else timer = window.setTimeout(flush, wait);
+    });
+    setAssets(useMarketStore.getState().assets);
+    return () => {
+      unsubscribe();
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, []);
+  return assets;
+}
+
 export const MarketTape = memo(function MarketTape() {
-  const assets = useMarketStore((state) => state.assets);
+  const assets = useTapeAssets();
   const trackRef = useRef<HTMLDivElement | null>(null);
 
   const rows = useMemo(

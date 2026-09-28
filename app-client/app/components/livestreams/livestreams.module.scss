@@ -51,6 +51,27 @@
   border-bottom: 1px solid var(--rule);
 }
 
+// With talents on air, the header grows into a stage for them (HeroCast on the right).
+.top[data-cast] {
+  position: relative;
+  min-height: 12.5rem;
+  overflow: hidden;
+  isolation: isolate;
+
+  > :not(:first-child) {
+    position: relative;
+    z-index: 1;
+  }
+
+  .tabs {
+    background: var(--ink);
+  }
+
+  @include phone {
+    min-height: 10rem;
+  }
+}
+
 .title {
   h1 {
     @include display(2rem);

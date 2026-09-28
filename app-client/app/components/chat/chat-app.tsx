@@ -272,6 +272,30 @@ export function ChatApp() {
     };
   }, [messages, worth]);
 
+  // Ranks and net worth move all day: refresh the badges we've shown every few minutes.
+  const worthIds = useRef<number[]>([]);
+  worthIds.current = Object.keys(worth).map(Number);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.hidden) return;
+      const ids = worthIds.current.slice(-200);
+      if (!ids.length) return;
+      apiFetch<{ entries: Array<Record<string, unknown>> }>(`/api/leaderboard/net-worth?user_ids=${ids.join(",")}`)
+        .then((raw) =>
+          setWorth((current) => {
+            const next = { ...current };
+            for (const entry of raw.entries || []) {
+              const id = Number(entry.user_id || 0);
+              if (id) next[id] = { rank: Number(entry.rank || 0), total_equity: Number(entry.total_equity || 0) };
+            }
+            return next;
+          })
+        )
+        .catch(() => undefined);
+    }, 5 * 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   // Keep the view pinned to the newest message when we should.
   useEffect(() => {
     const el = viewport.current;

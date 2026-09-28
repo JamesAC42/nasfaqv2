@@ -5,6 +5,7 @@ import { TalentReaction } from "@/app/components/common/talent-reaction";
 import { useEffect, useMemo, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { SceneArt } from "@/app/components/common/scene-art";
+import { HeroCast } from "@/app/components/common/hero-cast";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { unitLabel, unitName, UNIT_ORDER } from "@/app/lib/market-units";
@@ -57,8 +58,10 @@ export function LivestreamsPage() {
     void fetchLivestreams();
   }, [fetchLivestreams]);
 
+  // Minute-level labels only; the uptime clocks tick on their own (LiveClock), so the page
+  // (and the price tape above it) isn't re-rendered every second.
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -93,11 +96,21 @@ export function LivestreamsPage() {
   const watching = live.reduce((sum, item) => sum + (item.viewer_count ?? 0), 0);
   const next24 = scheduled.filter((item) => item.started_at && Date.parse(item.started_at) - now < 86_400_000 && Date.parse(item.started_at) > now - 3600_000).length;
   const filtering = units.length > 0 || Boolean(query.trim()) || mine;
+  // The header's cast: whoever has the most viewers right now.
+  const onAir = useMemo(() => {
+    const out: MarketAsset[] = [];
+    for (const item of [...live].sort((a, b) => (b.viewer_count ?? 0) - (a.viewer_count ?? 0))) {
+      const asset = assetForStream(assets, item.channel_id, item.creator);
+      if (asset && !out.some((entry) => entry.symbol === asset.symbol)) out.push(asset);
+    }
+    return out;
+  }, [assets, live]);
 
   return (
     <SiteShell>
       <div className={styles.page}>
-        <header className={styles.top}>
+        <header className={styles.top} data-cast={onAir.length ? "" : undefined}>
+          <HeroCast talents={onAir} />
           <div className={styles.title}>
             <span className={styles.kicker}>
               <i aria-hidden="true" /> ON AIR
@@ -202,8 +215,33 @@ export function LivestreamsPage() {
 }
 
 // ── Live cards ───────────────────────────────────────────────────────────
+// One shared one-second clock for every uptime on the page.
+const secondListeners = new Set<() => void>();
+let secondTimer: number | null = null;
+function subscribeSecond(listener: () => void) {
+  secondListeners.add(listener);
+  if (secondTimer === null) secondTimer = window.setInterval(() => secondListeners.forEach((fn) => fn()), 1000);
+  return () => {
+    secondListeners.delete(listener);
+    if (!secondListeners.size && secondTimer !== null) {
+      window.clearInterval(secondTimer);
+      secondTimer = null;
+    }
+  };
+}
+
+function LiveClock({ startedAt, now }: { startedAt: string | null | undefined; now: number }) {
+  const [tick, setTick] = useState(now);
+  useEffect(() => subscribeSecond(() => setTick(Date.now())), []);
+  const at = Math.max(tick, now);
+  return (
+    <time className={styles.uptime} suppressHydrationWarning>
+      {clockDuration(startedAt ? (at - Date.parse(startedAt)) / 1000 : null)}
+    </time>
+  );
+}
+
 function LiveCard({ item, asset, now, onOpen }: { item: LivestreamItem; asset: MarketAsset | null; now: number; onOpen: () => void }) {
-  const uptime = item.started_at ? (now - Date.parse(item.started_at)) / 1000 : null;
   return (
     <button type="button" className={styles.card} onClick={onOpen}>
       <span className={styles.thumb}>
@@ -212,9 +250,7 @@ function LiveCard({ item, asset, now, onOpen }: { item: LivestreamItem; asset: M
           <i aria-hidden="true" />
           {compactCount(item.viewer_count)}
         </span>
-        <time className={styles.uptime} suppressHydrationWarning>
-          {clockDuration(uptime)}
-        </time>
+        <LiveClock startedAt={item.started_at} now={now} />
       </span>
       <span className={styles.cardBody}>
         <span className={styles.who}>

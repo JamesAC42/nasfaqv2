@@ -3,6 +3,10 @@
 .tape {
   height: var(--tape-height);
   overflow: hidden;
+  // Its own layout and paint island: page updates don't repaint the tape, and its flashes
+  // don't repaint the page.
+  contain: strict;
+  width: 100%;
   background: var(--ink-2);
   border-bottom: 1px solid var(--rule);
   position: relative;
@@ -35,6 +39,7 @@
 
 .item {
   @include num;
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.45rem;
@@ -91,7 +96,49 @@
   padding-inline: 1rem;
 }
 
-@include flash-keyframes;
+// Price flash: an overlay that fades by opacity alone (composited, no repaint of the track).
+.item::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--flash, transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.item[data-flash^="up"]::after {
+  --flash: color-mix(in srgb, var(--up) 45%, transparent);
+}
+
+.item[data-flash^="down"]::after {
+  --flash: color-mix(in srgb, var(--down) 45%, transparent);
+}
+
+.item[data-flash$="-a"]::after {
+  animation: tapeFlashA var(--dur-flash, 900ms) ease-out;
+}
+
+.item[data-flash$="-b"]::after {
+  animation: tapeFlashB var(--dur-flash, 900ms) ease-out;
+}
+
+@keyframes tapeFlashA {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes tapeFlashB {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
 
 // Calm mode: a still, scrollable strip instead of a marquee.
 :global(html[data-calm="true"]) {
@@ -107,5 +154,15 @@
 
   .loop[aria-hidden] {
     display: none;
+  }
+
+  .item::after {
+    animation: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item::after {
+    animation: none !important;
   }
 }

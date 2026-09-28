@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { SceneArt } from "@/app/components/common/scene-art";
+import { HeroCast } from "@/app/components/common/hero-cast";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { StockChip } from "@/app/components/common/stock-chip";
 import { SiteShell } from "@/app/components/layout/site-shell";
@@ -224,6 +225,11 @@ export function ArticlesIndex({ initial }: { initial: FeedQuery }) {
     });
   }, [assets]);
 
+  // The header's cast: the stock being filtered to, else the talents these stories cover most.
+  const cast = useMemo(() => {
+    const symbols = stockAsset ? [stockAsset.symbol] : talents.map(([symbol]) => symbol);
+    return symbols.map((symbol) => assets.find((asset) => asset.symbol === symbol)).filter((asset): asset is NonNullable<typeof asset> => Boolean(asset));
+  }, [assets, stockAsset, talents]);
   const filtered = Boolean(query.q || query.stock || query.unit);
   const showLead = query.page === 1 && !filtered && stories.length > 3;
   const lead = showLead ? stories.find((story) => story.thumb) ?? stories[0] : null;
@@ -232,7 +238,8 @@ export function ArticlesIndex({ initial }: { initial: FeedQuery }) {
   return (
     <SiteShell>
       <div className={styles.page}>
-        <header className={styles.head}>
+        <header className={styles.head} data-cast={cast.length ? "" : undefined}>
+          <HeroCast talents={cast} />
           <div>
             <h1>Articles</h1>
             <p>HoloNews headlines as they land, and what players wrote about them.</p>

@@ -36,7 +36,7 @@ const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_username: "Usernames are 3–32 characters: letters, numbers, underscores and spaces.",
   invalid_email: "That doesn't look like an email address.",
-  invalid_password: "Passwords need at least 8 characters.",
+  invalid_password: "Your password needs 8 to 200 characters. Anything goes: letters, numbers, spaces, symbols.",
   username_taken: "That username is taken. Try another.",
   email_taken: "There's already an account with that email. Sign in instead?",
   invalid_credentials: "Wrong username or password.",
@@ -194,7 +194,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           <div className={styles.body}>
             <h1>{mode === "login" ? "Welcome back" : "Get your $10,000"}</h1>
             <p className={styles.lede}>
-              {mode === "login" ? "Sign in with your username or email." : "Play money, real talents. Verify your email and you can trade, chat, comment and write."}
+              {mode === "login" ? "Sign in with your username or email." : "Play money, real talents. All you need is a username, an email and a password (no Google account required). Verify the email and you can trade, chat, comment and write."}
             </p>
 
             {user ? (
@@ -236,12 +236,12 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
               <label>
                 <span className={styles.label}>Password</span>
                 <span className={styles.pw}>
-                  <input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "register" ? 8 : undefined} required />
+                  <input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "register" ? 8 : undefined} maxLength={200} required />
                   <button type="button" onClick={() => setShowPassword(!showPassword)} aria-pressed={showPassword} aria-label={showPassword ? "Hide password" : "Show password"}>
                     {showPassword ? "HIDE" : "SHOW"}
                   </button>
                 </span>
-                {mode === "register" ? <small className={password && password.length < 8 ? styles.warnText : undefined}>At least 8 characters{password ? ` · ${password.length}` : ""}.</small> : null}
+                {mode === "register" ? <small className={password && password.length < 8 ? styles.warnText : undefined}>{password && password.length < 8 ? `${8 - password.length} more character${8 - password.length === 1 ? "" : "s"} to go (8 minimum).` : `At least 8 characters${password ? ` · ${password.length} ✓` : ""}.`}</small> : null}
               </label>
               {mode === "register" ? (
                 <label>
@@ -266,7 +266,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
             {googleClientId ? (
               <div className={styles.google}>
-                <span className={styles.or}>or</span>
+                <span className={styles.or}>{mode === "register" ? "or, if you'd rather, use Google" : "or"}</span>
                 <div className={styles.googleFrame}>
                   <div ref={googleRef} />
                   {!captchaDone ? <div className={styles.googleShield} aria-hidden="true" /> : null}

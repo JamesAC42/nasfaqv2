@@ -164,7 +164,7 @@ function Lede({ date, rows, report }: { date: string; rows: DayRow[]; report: Da
           { row: bottom, pose: "cope" as const, label: "BOTTOM", tone: "down" as const },
         ].map(({ row, pose, label: caption, tone }) => (
           <Link key={caption} href={`/stocks/${encodeURIComponent(row.asset.symbol)}`} className={styles.castFig}>
-            <ArtSlot kind="chibi" pose={pose} symbol={row.asset.symbol} icon={row.asset.icon} accent={talentAccent(row.asset.color, theme)} width={112} className={styles.castArt} />
+            <ArtSlot kind="chibi" pose={pose} symbol={row.asset.symbol} icon={row.asset.icon} accent={talentAccent(row.asset.color, theme)} width={256} className={styles.castArt} />
             <span>
               <b className={ui[tone]}>{pct(row.fd)}</b>
               {caption}

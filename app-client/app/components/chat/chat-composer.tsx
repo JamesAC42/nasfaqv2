@@ -1,7 +1,8 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { FaRegFaceSmile } from "react-icons/fa6";
+import { FaRegFaceSmile, FaRegNoteSticky } from "react-icons/fa6";
+import { EmojiPicker } from "@/app/components/chat/emoji-picker";
 import { StickerPicker } from "@/app/components/chat/sticker-picker";
 import type { ChibiPose } from "@/app/lib/art-manifest";
 import { stickerBody } from "@/app/lib/stickers";
@@ -53,6 +54,7 @@ export const ChatComposer = memo(function ChatComposer({
   const [error, setError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<number | null>(null);
   const [stickers, setStickers] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const input = useRef<HTMLTextAreaElement | null>(null);
   const verify = userNeedsEmailVerification(user);
 
@@ -101,6 +103,23 @@ export const ChatComposer = memo(function ChatComposer({
     setCursor(position);
     requestAnimationFrame(() => {
       input.current?.focus();
+      input.current?.setSelectionRange(position, position);
+    });
+  };
+
+  // From the emoji grid: insert at the cursor (with a space either side as needed).
+  const insertEmoji = (emoji: Emoji) => {
+    const el = input.current;
+    const start = el ? el.selectionStart : draft.length;
+    const end = el ? el.selectionEnd : draft.length;
+    const lead = start > 0 && !/\s$/.test(draft.slice(0, start)) ? " " : "";
+    const text = `${lead}:${emoji.name}: `;
+    const next = `${draft.slice(0, start)}${text}${draft.slice(end)}`.slice(0, MAX);
+    const position = Math.min(start + text.length, next.length);
+    setDraft(next);
+    setCursor(position);
+    requestAnimationFrame(() => {
+      input.current?.focus({ preventScroll: true });
       input.current?.setSelectionRange(position, position);
     });
   };
@@ -221,6 +240,7 @@ export const ChatComposer = memo(function ChatComposer({
           <small>↑↓ to pick · enter to insert</small>
         </div>
       ) : null}
+      {emojiOpen ? <EmojiPicker emojis={emojis} onPick={insertEmoji} onClose={() => setEmojiOpen(false)} /> : null}
       {stickers ? <StickerPicker onPick={(symbol, pose) => void sendSticker(symbol, pose)} onClose={() => setStickers(false)} disabled={!canPost || sending} /> : null}
       <div className={styles.inputRow}>
         <button
@@ -230,7 +250,24 @@ export const ChatComposer = memo(function ChatComposer({
           aria-expanded={stickers}
           title="Stickers: your card reactions"
           disabled={!canPost}
-          onClick={() => setStickers((open) => !open)}
+          onClick={() => {
+            setEmojiOpen(false);
+            setStickers((open) => !open);
+          }}
+        >
+          <FaRegNoteSticky aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className={styles.stickerBtn}
+          aria-label="Emoji"
+          aria-expanded={emojiOpen}
+          title="Emoji"
+          disabled={!canPost}
+          onClick={() => {
+            setStickers(false);
+            setEmojiOpen((open) => !open);
+          }}
         >
           <FaRegFaceSmile aria-hidden="true" />
         </button>
@@ -254,7 +291,7 @@ export const ChatComposer = memo(function ChatComposer({
         </button>
       </div>
       <div className={styles.composeHint}>
-        <span>enter to send · shift+enter for a new line · @ to mention · : for emoji · ☺ for stickers · $TICKER links a stock</span>
+        <span>enter to send · shift+enter for a new line · @ to mention · : or ☺ for emoji · the note for stickers · $TICKER links a stock</span>
         <span className={draft.length > MAX - 100 ? styles.warnText : undefined}>
           {draft.length}/{MAX}
         </span>

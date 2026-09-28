@@ -214,8 +214,9 @@
 
 .cast {
   display: flex;
-  gap: 0.9rem;
+  gap: clamp(0.9rem, 2vw, 2rem);
   align-items: flex-end;
+  align-self: end;
 }
 
 .castFig {
@@ -240,12 +241,13 @@
 }
 
 .castArt {
-  width: 7rem;
-  height: 7rem;
+  // Big enough to read their faces; the header has the room on the right.
+  width: clamp(8rem, 12.5vw, 12.5rem);
+  height: clamp(8rem, 12.5vw, 12.5rem);
 
   @include phone {
-    width: 5.5rem;
-    height: 5.5rem;
+    width: 7rem;
+    height: 7rem;
   }
 }
 

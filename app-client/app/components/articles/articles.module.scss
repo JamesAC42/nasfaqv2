@@ -176,6 +176,29 @@
   }
 }
 
+// With a cast (HeroCast), the header grows into a stage for the talents in the news.
+.head[data-cast] {
+  position: relative;
+  min-height: 12.5rem;
+  padding-top: 2rem;
+  overflow: hidden;
+  isolation: isolate;
+  border-bottom: 1px solid var(--rule);
+
+  > :not(:first-child) {
+    position: relative;
+    z-index: 1;
+  }
+
+  .tabs {
+    background: var(--ink);
+  }
+
+  @include phone {
+    min-height: 10rem;
+  }
+}
+
 .tabs {
   display: flex;
   border: 1px solid var(--rule-2);
