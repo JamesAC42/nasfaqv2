@@ -8,17 +8,19 @@ import { SiteShell } from "@/app/components/layout/site-shell";
 import { formatCountdown, formatEtTime, getMarketClock } from "@/app/lib/market-clock";
 import { signedPct, toneOf } from "@/app/lib/time";
 import { useNow } from "@/app/lib/use-now";
+import { nextEvaluationAt, untilText } from "@/app/components/market/dividends-tab";
 import { useHubStore, useMarketHub } from "@/app/stores/hub-store";
 import { useMarketStore } from "@/app/stores/market-store";
 import ui from "@/app/components/market/market.module.scss";
 
-export type MarketTab = "floor" | "activity" | "report" | "indexes";
+export type MarketTab = "floor" | "activity" | "report" | "indexes" | "dividends";
 
 const TABS: Array<{ key: MarketTab; label: string; href: string }> = [
   { key: "floor", label: "Floor", href: "/market" },
   { key: "activity", label: "Activity", href: "/market/activity" },
   { key: "report", label: "Report", href: "/market/report" },
   { key: "indexes", label: "Indexes", href: "/market/indexes" },
+  { key: "dividends", label: "Dividends", href: "/market/dividends" },
 ];
 
 function shortDate(value: string | null | undefined) {
@@ -28,7 +30,7 @@ function shortDate(value: string | null | undefined) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toUpperCase();
 }
 
-/** The Market page: one live hub, four tabs (Floor · Activity · Report · Indexes). */
+/** The Market page: one live hub, five tabs (Floor · Activity · Report · Indexes · Dividends). */
 export function MarketHub({ tab, children }: { tab: MarketTab; children: ReactNode }) {
   useMarketHub();
   const router = useRouter();
@@ -50,7 +52,7 @@ export function MarketHub({ tab, children }: { tab: MarketTab; children: ReactNo
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
       if (target && (target.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(target.tagName))) return;
-      const index = ["1", "2", "3", "4"].indexOf(event.key);
+      const index = ["1", "2", "3", "4", "5"].indexOf(event.key);
       if (index >= 0) router.push(TABS[index].href);
     };
     window.addEventListener("keydown", onKey);
@@ -87,6 +89,7 @@ export function MarketHub({ tab, children }: { tab: MarketTab; children: ReactNo
       </>
     ),
     report: `${shortDate(report?.market_date)} · 09:00`,
+    dividends: now ? `SAT 00:00 · ${untilText(nextEvaluationAt(now) - now)}` : "weekly",
     indexes: allIndex?.index_value ? (
       <>
         ALL {allIndex.index_value.toFixed(1)} <span className={ui[toneOf(allIndex.day_return_pct)]}>{signedPct(allIndex.day_return_pct)}</span>

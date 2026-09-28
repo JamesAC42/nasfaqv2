@@ -206,6 +206,23 @@
   }
 }
 
+// Sold out / buyback, next to the ticker.
+.supplyPill {
+  @include num;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--down);
+  color: var(--down);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+
+  &[data-state="buyback"] {
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+}
+
 .livePill,
 .livePillSm {
   display: inline-flex;
@@ -1358,7 +1375,9 @@
   }
 }
 
+// Held by players (left), the broker's never-sold buffer (hatched, right), for sale in between.
 .supplyBar {
+  position: relative;
   height: 14px;
   background: var(--ink-4);
 
@@ -1367,6 +1386,22 @@
     height: 100%;
     background: var(--text);
     opacity: 0.8;
+  }
+
+  s {
+    position: absolute;
+    top: 0;
+    right: 0;
+    height: 100%;
+    background: repeating-linear-gradient(135deg, var(--rule-2) 0 3px, transparent 3px 6px);
+  }
+
+  &[data-state="soldout"] i {
+    background: var(--down);
+  }
+
+  &[data-state="buyback"] i {
+    background: var(--blue);
   }
 }
 

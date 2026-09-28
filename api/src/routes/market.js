@@ -17,9 +17,10 @@ const {
 } = require("../marketCache");
 const trading = require("../services/trading");
 const marketAdjustments = require("../services/marketAdjustments");
+const weeklyEvaluation = require("../services/weeklyEvaluation");
 const { scrubPublicMarketPayload, publicDailyReport, revealedTargets } = require("../services/marketSecrecy");
 const marketState = require("../services/marketState");
-const { requireAdmin, requireVerifiedUserId } = require("../userContext");
+const { requireAdmin, requireUserId, requireVerifiedUserId } = require("../userContext");
 
 const router = express.Router();
 const pendingIndexOverviewRequests = new Map();
@@ -124,6 +125,60 @@ router.get("/assets", async (req, res, next) => {
     await setCachedAssets(req.ctx.redis, assets);
     res.json(assets);
   } catch (e) {
+    next(e);
+  }
+});
+
+// ── The weekly evaluation (dividends, fees, max shares, buybacks) ─────────
+router.get("/evaluations", async (req, res, next) => {
+  try {
+    res.json({ items: await weeklyEvaluation.listEvaluations(req.ctx.pool, { limit: req.query.limit }) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/evaluations/preview", async (req, res, next) => {
+  try {
+    requireAdmin(req);
+    const evalDate = await weeklyEvaluation.pendingEvaluationDate(req.ctx.pool);
+    const result = await weeklyEvaluation.runWeeklyEvaluation(req.ctx.pool, { evalDate, dryRun: true });
+    res.json(result.report);
+  } catch (e) {
+    if (e?.code === "unauthenticated") return res.status(401).json({ error: "unauthenticated" });
+    if (e?.code === "forbidden") return res.status(403).json({ error: "forbidden" });
+    next(e);
+  }
+});
+
+router.get("/evaluations/latest", async (req, res, next) => {
+  try {
+    const report = await weeklyEvaluation.getEvaluation(req.ctx.pool);
+    if (!report) return res.status(404).json({ error: "evaluation_not_found" });
+    res.json(report);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/evaluations/:date", async (req, res, next) => {
+  try {
+    const date = String(req.params.date || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: "invalid_date" });
+    const report = await weeklyEvaluation.getEvaluation(req.ctx.pool, date);
+    if (!report) return res.status(404).json({ error: "evaluation_not_found" });
+    res.json(report);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/me/dividends", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    res.json({ weeks: await weeklyEvaluation.listUserDividends(req.ctx.pool, userId, { limit: req.query.limit }) });
+  } catch (e) {
+    if (e?.code === "unauthenticated") return res.status(401).json({ error: "unauthenticated" });
     next(e);
   }
 });
@@ -695,6 +750,8 @@ router.post("/orders/buy", async (req, res, next) => {
     if (e?.code === "asset_not_active") return res.status(409).json({ error: "asset_not_active" });
     if (e?.code === "market_closed") return res.status(409).json({ error: "market_closed", market_status: e.marketStatus || null });
     if (e?.code === "insufficient_cash") return res.status(409).json({ error: "insufficient_cash" });
+    if (e?.code === "sold_out") return res.status(409).json({ error: "sold_out" });
+    if (e?.code === "buyback_frozen") return res.status(409).json({ error: "buyback_frozen" });
     if (e?.code === "live_order_limit_exceeded") {
       return res.status(429).json({
         error: "live_order_limit_exceeded",

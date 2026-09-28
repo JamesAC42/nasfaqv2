@@ -12,6 +12,7 @@ const crypto = require("node:crypto");
 const streams = require("./streams");
 const chatter = require("../chatter");
 const autotag = require("../autotag");
+const { BUYBACK_START, BUYBACK_DAILY_STEP } = require("../marketSupply");
 
 const THUMB = (videoId) => `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 const WATCH = (videoId) => `https://www.youtube.com/watch?v=${videoId}`;
@@ -370,7 +371,92 @@ async function autotagArticles(pool) {
   return autotag.runAutotag(pool);
 }
 
-const GENERATORS = { streamEvents, subscriberMilestones, viewerRecords, superchatLeader, marketMovers, gameMoments, chatterSpikes, autotagArticles };
+// ── The weekly evaluation, buybacks, sell-outs (docs/market/core-market.md) ──
+async function marketSupplyNews(pool) {
+  let added = 0;
+  const { rows: evaluations } = await pool.query(`
+    SELECT eval_date::text AS eval_date, completed_at, report_json
+    FROM market.weekly_evaluations
+    WHERE status = 'completed' AND completed_at > now() - interval '7 days'
+    ORDER BY eval_date DESC LIMIT 1
+  `);
+  for (const row of evaluations) {
+    const report = row.report_json || {};
+    const top = (report.top_dividends || [])[0];
+    const worst = (report.top_fees || [])[0];
+    const pct = (value) => `${(Math.abs(Number(value)) * 100).toFixed(1)}%`;
+    added += await upsert(pool, {
+      kind: "dividend_review",
+      dedupe_key: `evaluation:${row.eval_date}`,
+      headline: top
+        ? pick(row.eval_date, ["DIVS: {sym} pays {pct} this week", "Dividend Review: {name} tops the payouts at {pct}", "{sym} leads the weekly dividends, {pct} a share"])
+            .replace("{sym}", top.symbol)
+            .replace("{name}", top.display_name)
+            .replace("{pct}", pct(top.rate))
+        : "Dividend Review: a quiet week, no dividends",
+      blurb: `${money(report.dividends_total || 0)} paid out, ${money(Math.abs(report.fees_total || 0))} in share fees${worst ? `; ${worst.symbol} charged the most (${pct(worst.rate)})` : ""}.`,
+      symbols: [top?.symbol, worst?.symbol].filter(Boolean),
+      link_url: "/market/dividends",
+      importance: 3,
+      occurred_at: row.completed_at,
+      meta: { eval_date: row.eval_date },
+    });
+  }
+  const { rows: buybacks } = await pool.query(`
+    SELECT b.id, b.status, b.started_at, b.ended_at, b.frozen_price, b.target_max_supply, b.held_at_start, b.forced_shares, a.symbol, a.display_name
+    FROM market.asset_buybacks b
+    JOIN market.market_assets a ON a.id = b.asset_id
+    WHERE b.started_at > now() - interval '8 days' OR b.ended_at > now() - interval '2 days'
+  `);
+  for (const row of buybacks) {
+    added += await upsert(pool, {
+      kind: "buyback",
+      dedupe_key: `buyback:${row.id}:start`,
+      headline: pick(row.id, ["Buyback: {sym} frozen, broker bids {price}", "{name} stock frozen for a buyback", "Broker announces a {sym} buyback"]).replace("{sym}", row.symbol).replace("{name}", row.display_name).replace("{price}", money(Number(row.frozen_price) * BUYBACK_START)),
+      blurb: `Max shares cut to ${Math.round(Number(row.target_max_supply)).toLocaleString("en-US")} with ${Math.round(Number(row.held_at_start)).toLocaleString("en-US")} held. Sell to the broker at ${Math.round(BUYBACK_START * 100)}%, ${Math.round(BUYBACK_DAILY_STEP * 100)} points less each day.`,
+      symbols: [row.symbol],
+      link_url: `/stocks/${row.symbol}`,
+      importance: 3,
+      occurred_at: row.started_at,
+      meta: { buyback_id: Number(row.id) },
+    });
+    if (row.status !== "active" && row.ended_at) {
+      added += await upsert(pool, {
+        kind: "buyback",
+        dedupe_key: `buyback:${row.id}:end`,
+        headline: row.status === "forced" ? `${row.symbol} buyback forced: ${Number(row.forced_shares).toFixed(0)} shares taken back` : `${row.symbol} buyback over, trading resumes`,
+        blurb: row.status === "forced" ? "The broker bought the excess from every holder at the base rate." : "Players sold enough; the stock is back under its max shares.",
+        symbols: [row.symbol],
+        link_url: `/stocks/${row.symbol}`,
+        importance: 2,
+        occurred_at: row.ended_at,
+        meta: { buyback_id: Number(row.id), status: row.status },
+      });
+    }
+  }
+  // Sold out: nothing left for sale (once a day per stock).
+  const { rows: soldOut } = await pool.query(`
+    SELECT symbol, display_name, max_supply FROM market.market_assets
+    WHERE status = 'active' AND trading_state = 'open' AND treasury_supply - broker_buffer_pct * max_supply <= 0 AND max_supply > 0
+  `);
+  const day = new Date().toISOString().slice(0, 10);
+  for (const row of soldOut) {
+    added += await upsert(pool, {
+      kind: "sold_out",
+      dedupe_key: `soldout:${row.symbol}:${day}`,
+      headline: pick(`${row.symbol}${day}`, ["{sym} is sold out", "Every {sym} share is taken", "SOLD OUT: {name}"]).replace("{sym}", row.symbol).replace("{name}", row.display_name),
+      blurb: `All ${Math.round(Number(row.max_supply)).toLocaleString("en-US")} shares are held. Buys wait for someone to sell.`,
+      symbols: [row.symbol],
+      link_url: `/stocks/${row.symbol}`,
+      importance: 2,
+      occurred_at: new Date(),
+      meta: { date: day },
+    });
+  }
+  return { items: added };
+}
+
+const GENERATORS = { streamEvents, subscriberMilestones, viewerRecords, superchatLeader, marketMovers, marketSupplyNews, gameMoments, chatterSpikes, autotagArticles };
 
 async function runWire(pool, logger = console) {
   const summary = {};

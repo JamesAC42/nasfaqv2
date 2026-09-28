@@ -1,4 +1,5 @@
 const marketState = require("./services/marketState");
+const supply = require("./services/marketSupply");
 
 const { profilePictureUrlSql } = require("./profilePictures");
 
@@ -429,6 +430,11 @@ async function listAssets(pool) {
       a.treasury_supply,
       a.circulating_supply,
       a.max_supply,
+      a.trading_state,
+      a.broker_buffer_pct,
+      CASE WHEN bb.id IS NULL THEN NULL ELSE jsonb_build_object(
+        'started_at', bb.started_at, 'frozen_price', bb.frozen_price, 'target_max_supply', bb.target_max_supply, 'shares_bought', bb.shares_bought
+      ) END AS active_buyback,
       a.latest_snapshot_date,
       COALESCE(v.volume_24h, 0) AS volume_24h,
       COALESCE(v.volume_cash_24h, 0) AS volume_cash_24h,
@@ -455,10 +461,18 @@ async function listAssets(pool) {
     LEFT JOIN latest_adjustment la ON la.asset_id = a.id
     LEFT JOIN pending_live_orders plo ON plo.asset_id = a.id
     LEFT JOIN oshicoin_users ou ON ou.asset_id = a.id
+    LEFT JOIN market.asset_buybacks bb ON bb.asset_id = a.id AND bb.status = 'active'
     ORDER BY a.symbol ASC
   `
   );
-  return rows;
+  return rows.map(withSupply);
+}
+
+/** Adds the public supply view (for sale, sold out, buyback offer) to an asset row. */
+function withSupply(row) {
+  if (!row) return row;
+  const { active_buyback: buyback, ...rest } = row;
+  return { ...rest, ...supply.supplyView(row, buyback) };
 }
 
 async function getAssetBySymbol(pool, symbol) {
@@ -575,6 +589,11 @@ async function getAssetBySymbol(pool, symbol) {
       a.circulating_supply,
       a.treasury_supply,
       a.base_emission,
+      a.trading_state,
+      a.broker_buffer_pct,
+      CASE WHEN bb.id IS NULL THEN NULL ELSE jsonb_build_object(
+        'started_at', bb.started_at, 'frozen_price', bb.frozen_price, 'target_max_supply', bb.target_max_supply, 'shares_bought', bb.shares_bought
+      ) END AS active_buyback,
       a.latest_snapshot_date,
       a.latest_snapshot_id,
       a.current_fair_value,
@@ -699,12 +718,13 @@ async function getAssetBySymbol(pool, symbol) {
     LEFT JOIN next_adjustment na ON true
     LEFT JOIN latest_adjustment la ON true
     LEFT JOIN pending_live_orders plo ON plo.asset_id = a.id
+    LEFT JOIN market.asset_buybacks bb ON bb.asset_id = a.id AND bb.status = 'active'
     WHERE a.symbol = $1
     LIMIT 1
   `,
     [symbol]
   );
-  return rows[0] || null;
+  return withSupply(rows[0] || null);
 }
 
 async function updateAssetMarketTuning(pool, symbol, patch = {}) {

@@ -21,6 +21,45 @@ import { Term } from "@/app/components/common/tip";
 const PRESETS = [1, 10, 25, 50, 100];
 export const FEE_RATE = 0.01;
 
+/** What the order runs into on the supply side: sold out, the last shares, or a buyback. */
+function SupplyNote({ asset, side, qty }: { asset: MarketAsset; side: TradeSide; qty: number }) {
+  const forSale = asset.shares_for_sale ?? null;
+  const max = asset.max_supply ?? null;
+  if (asset.trading_state === "buyback" && asset.buyback) {
+    const bb = asset.buyback;
+    const next = bb.next_step_at ? new Date(bb.next_step_at) : null;
+    return (
+      <p className={styles.supplyNote} data-tone="buyback">
+        <b>
+          <Term k="buyback">Buyback</Term>
+        </b>{" "}
+        The broker pays <b>{n2(bb.price)}</b> a share ({Math.round(bb.multiplier * 100)}% of the frozen {n2(bb.frozen_price)}) for the{" "}
+        {Math.ceil(bb.shares_over).toLocaleString("en-US")} shares still over the max
+        {next ? `, ${Math.round(Math.max(bb.floor, bb.multiplier - bb.daily_step) * 100)}% from ${next.toLocaleDateString("en-US", { weekday: "short", timeZone: "America/New_York" })} ${formatEtTime(next)} ET` : ""}. Past that, sells get the frozen price. No buys until it ends.
+      </p>
+    );
+  }
+  if (side !== "buy" || forSale === null) return null;
+  if (asset.sold_out) {
+    return (
+      <p className={styles.supplyNote} data-tone="soldout">
+        <b>
+          <Term k="sold-out">Sold out</Term>
+        </b>{" "}
+        Every share for sale is taken. Buys open again when someone sells.
+      </p>
+    );
+  }
+  const low = max !== null && max > 0 ? forSale / max < 0.1 : false;
+  if (!low && qty <= forSale) return null;
+  return (
+    <p className={styles.supplyNote} data-tone="low">
+      <b>{Math.floor(forSale).toLocaleString("en-US")}</b> <Term k="max-supply">shares left for sale</Term>
+      {qty > forSale ? ". Your batch fills what's left when it runs." : "."}
+    </p>
+  );
+}
+
 export function n2(value: number | null | undefined) {
   return value === null || value === undefined || !Number.isFinite(value) ? "—" : value.toFixed(2);
 }
@@ -54,7 +93,9 @@ export function TradeTicket({
   const refreshTradingState = useProfileStore((state) => state.refreshTradingState);
   const pushFill = useMomentStore((state) => state.pushFill);
   const { user } = useAuth();
-  const [side, setSide] = useState<TradeSide>(initialSide);
+  // A stock frozen for a buyback can only be sold (to the broker), so the ticket opens on Sell.
+  const startSide: TradeSide = asset.trading_state === "buyback" ? "sell" : initialSide;
+  const [side, setSide] = useState<TradeSide>(startSide);
   const [quantity, setQuantity] = useState("25");
   const [lastPreset, setLastPreset] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -63,7 +104,7 @@ export function TradeTicket({
   const qtyInput = useRef<HTMLInputElement | null>(null);
   const symbol = asset.symbol.toUpperCase();
 
-  useEffect(() => setSide(initialSide), [initialSide]);
+  useEffect(() => setSide(startSide), [startSide]);
   useEffect(() => {
     if (!autoFocus) return;
     const id = window.setTimeout(() => qtyInput.current?.focus(), 60);
@@ -74,7 +115,13 @@ export function TradeTicket({
   const close = () => onClose?.();
 
   const qty = Math.max(0, Math.floor(Number(quantity) || 0));
-  const price = side === "buy" ? asset.current_ask_price ?? asset.current_mid_price : asset.current_bid_price ?? asset.current_mid_price;
+  // Supply: a stock in a buyback takes no buys and the broker pays its buyback price for sells; a
+  // sold-out stock takes no buys until someone sells.
+  const frozen = asset.trading_state === "buyback";
+  const forSale = asset.shares_for_sale ?? null;
+  const soldOut = !frozen && Boolean(asset.sold_out);
+  const buyBlocked = side === "buy" && (frozen || soldOut);
+  const price = frozen && side === "sell" && asset.buyback ? asset.buyback.price : side === "buy" ? asset.current_ask_price ?? asset.current_mid_price : asset.current_bid_price ?? asset.current_mid_price;
   const gross = (price ?? 0) * qty;
   const fee = gross * FEE_RATE;
   const total = side === "buy" ? gross + fee : gross - fee;
@@ -210,11 +257,12 @@ export function TradeTicket({
               <dd className={styles.total}>{money(total)}</dd>
             </dl>
             {portfolio ? (
-              <p className={`${styles.note} ${tooMuch ? styles.warn : ""}`}>
+              <p className={`${styles.note} ${tooMuch || (side === "buy" && portfolio.cash_balance < 0) ? styles.warn : ""}`}>
                 {side === "buy" ? `Cash ${money(portfolio.cash_balance)}` : `You hold ${(holding?.quantity ?? 0).toLocaleString("en-US")} sh`}
-                {tooMuch ? (side === "buy" ? " · not enough cash" : " · you don't hold that many") : ""}
+                {side === "buy" && portfolio.cash_balance < 0 ? " · in the red: sell something first" : tooMuch ? (side === "buy" ? " · not enough cash" : " · you don't hold that many") : ""}
               </p>
             ) : null}
+            <SupplyNote asset={asset} side={side} qty={qty} />
             <p className={styles.batch} suppressHydrationWarning>
               Fills in the <b>{formatEtTime(batchAt)} ET</b> <Term k="batch">batch</Term>
               {queuedAhead ? ` · ${queuedAhead} order${queuedAhead === 1 ? "" : "s"} queued on ${asset.symbol}` : ""}. The final price is set when the batch executes.
@@ -236,8 +284,18 @@ export function TradeTicket({
                 ) : null}
               </div>
             ) : null}
-            <button type="submit" className={`${styles.submit} ${side === "sell" ? styles.sell : ""}`} disabled={busy || !qty || !tradingOpen}>
-              {busy ? "SENDING…" : tradingOpen ? `${side.toUpperCase()} ${qty.toLocaleString("en-US")} ${asset.symbol}` : "MARKET CLOSED"}
+            <button type="submit" className={`${styles.submit} ${side === "sell" ? styles.sell : ""}`} disabled={busy || !qty || !tradingOpen || buyBlocked}>
+              {busy
+                ? "SENDING…"
+                : !tradingOpen
+                  ? "MARKET CLOSED"
+                  : buyBlocked
+                    ? frozen
+                      ? "FROZEN FOR A BUYBACK"
+                      : "SOLD OUT"
+                    : frozen
+                      ? `SELL ${qty.toLocaleString("en-US")} TO THE BROKER`
+                      : `${side.toUpperCase()} ${qty.toLocaleString("en-US")} ${asset.symbol}${side === "buy" && forSale !== null && qty > forSale ? ` (${Math.floor(forSale).toLocaleString("en-US")} LEFT)` : ""}`}
             </button>
           </form>
         )

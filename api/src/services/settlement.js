@@ -1,4 +1,5 @@
 const { normalizeFundamentalToPrice } = require("./fundamentals");
+const supply = require("./marketSupply");
 const netWorth = require("./netWorth");
 const { publishMarketEvent } = require("./marketEvents");
 const DEFAULT_PERSISTENT_DAILY_DECAY = 0.9;
@@ -284,9 +285,9 @@ function buildSettledAssetState(assetRow, previousState) {
     throw error;
   }
 
-  const dilutedSupply = toNumber(assetRow.max_supply, 0);
-  const fairValue = toNumber(normalizeFundamentalToPrice(assetRow.fundamental_value_smoothed, dilutedSupply), 0);
-  const fairValueRaw = toNumber(normalizeFundamentalToPrice(assetRow.fundamental_value_raw, dilutedSupply), 0);
+  // Priced against a fixed reference supply, so the weekly max-share reset never reprices a stock.
+  const fairValue = toNumber(normalizeFundamentalToPrice(assetRow.fundamental_value_smoothed, supply.REFERENCE_SUPPLY), 0);
+  const fairValueRaw = toNumber(normalizeFundamentalToPrice(assetRow.fundamental_value_raw, supply.REFERENCE_SUPPLY), 0);
   if (!(fairValue > 0) || !(fairValueRaw > 0)) {
     const error = new Error(`invalid_fair_value:${assetRow.symbol}`);
     error.code = "invalid_fair_value";
@@ -305,15 +306,10 @@ function buildSettledAssetState(assetRow, previousState) {
   });
   const midOpen = opening.midOpen;
   const premiumPct = computePremiumPct(midOpen, fairValue);
-  const dailyEmission = computeDailyEmission(toNumber(assetRow.base_emission, 0), premiumPct);
-  const emissionApplied = Math.min(dailyEmission, toNumber(assetRow.treasury_supply, 0));
-
-  const { circulatingSupplyEnd, treasurySupplyEnd } = computeSettlementSupplies({
-    maxSupply: dilutedSupply,
-    circulatingSupply: toNumber(assetRow.circulating_supply, 0),
-    treasurySupply: toNumber(assetRow.treasury_supply, 0),
-    emissionApplied,
-  });
+  // No daily print any more: shares only change hands in trades and at the weekly evaluation.
+  const dailyEmission = 0;
+  const circulatingSupplyEnd = toNumber(assetRow.circulating_supply, 0);
+  const treasurySupplyEnd = toNumber(assetRow.treasury_supply, 0);
 
   const quotes = computeQuotes(midOpen, assetRow.spread_bps);
 
@@ -443,9 +439,9 @@ async function persistSettledAssetState(client, marketDate, state) {
       current_persistent_offset = $11,
       current_transient_offset = $12,
       offsets_updated_at = $13,
-      circulating_supply = LEAST($14::numeric, max_supply),
-      treasury_supply = max_supply - LEAST($14::numeric, max_supply),
-      liquidity_depth = GREATEST(${DEFAULT_LIQUIDITY_DEPTH_FLOOR}, LEAST($14::numeric, max_supply) * 1.0),
+      -- Shares only move in fills and at the weekly evaluation, never here (a stale count from the
+      -- unlocked read above would overwrite fills that landed meanwhile).
+      liquidity_depth = GREATEST(${DEFAULT_LIQUIDITY_DEPTH_FLOOR}, circulating_supply * 1.0),
       updated_at = now()
     WHERE id = $1
   `,
@@ -463,7 +459,6 @@ async function persistSettledAssetState(client, marketDate, state) {
       state.persistentOffset,
       state.transientOffset,
       marketDate,
-      state.circulatingSupplyEnd,
     ]
   );
 }
@@ -631,7 +626,42 @@ async function settleMarketDay(pool, { marketDate, sourceMarketDate = null, forc
       settledStates.push(state);
     }
 
+    // A buyback whose stock is back under its max shares ends at this Open (BBB: "cancelled at the
+    // next Open"); the stock unfreezes.
+    // Stock rows first, then their buybacks: the same lock order as a fill.
+    const { rows: backUnder } = await client.query(`
+      SELECT a.id FROM market.market_assets a
+      WHERE a.trading_state = 'buyback' AND a.circulating_supply <= a.max_supply
+      FOR UPDATE OF a
+    `);
+    const { rows: endedBuybacks } = backUnder.length
+      ? await client.query(
+          `
+      WITH ended AS (
+        UPDATE market.asset_buybacks b
+        SET status = 'met', ended_at = now()
+        WHERE b.status = 'active' AND b.asset_id = ANY($1::bigint[])
+        RETURNING b.asset_id, b.shares_bought, b.cash_paid
+      )
+      UPDATE market.market_assets a
+      SET trading_state = 'open', updated_at = now()
+      FROM ended
+      WHERE a.id = ended.asset_id
+      RETURNING a.symbol, a.display_name, ended.shares_bought, ended.cash_paid
+    `,
+          [backUnder.map((row) => row.id)]
+        )
+      : { rows: [] };
+    const supplyRows = await listSupplyWatch(client);
+
     const report = buildDailyReport(marketDate, settledStates, previousStatesByAssetId, priorStatesByAssetId);
+    report.supply_watch = supplyRows;
+    report.buybacks_ended = endedBuybacks.map((row) => ({
+      symbol: row.symbol,
+      display_name: row.display_name,
+      shares_bought: roundMetric(row.shares_bought),
+      cash_paid: roundMetric(row.cash_paid),
+    }));
     await persistDailyReport(client, marketDate, report);
     await netWorth.refreshCurrentLeaderboardWithClient(client);
     const userRows = await client.query(`SELECT id FROM market.users`);
@@ -669,6 +699,31 @@ async function settleMarketDay(pool, { marketDate, sourceMarketDate = null, forc
   } finally {
     client.release();
   }
+}
+
+/** Stocks worth watching for supply: buybacks, sold out, and the ones with the least left for sale. */
+async function listSupplyWatch(client) {
+  const { rows } = await client.query(`
+    SELECT a.symbol, a.display_name, a.max_supply, a.circulating_supply, a.treasury_supply, a.broker_buffer_pct, a.trading_state
+    FROM market.market_assets a
+    WHERE a.status = 'active'
+  `);
+  return rows
+    .map((row) => {
+      const forSale = supply.sharesForSale(row);
+      const max = toNumber(row.max_supply, 0);
+      return {
+        symbol: row.symbol,
+        display_name: row.display_name,
+        max_supply: roundMetric(max),
+        held: roundMetric(toNumber(row.circulating_supply, 0)),
+        shares_for_sale: roundMetric(forSale),
+        for_sale_pct: max > 0 ? roundMetric(forSale / max) : null,
+        trading_state: row.trading_state,
+      };
+    })
+    .sort((a, b) => (a.trading_state === "buyback" ? -1 : 0) - (b.trading_state === "buyback" ? -1 : 0) || (a.for_sale_pct ?? 1) - (b.for_sale_pct ?? 1))
+    .slice(0, 8);
 }
 
 function computeSettlementSupplies({ maxSupply, circulatingSupply, treasurySupply, emissionApplied }) {

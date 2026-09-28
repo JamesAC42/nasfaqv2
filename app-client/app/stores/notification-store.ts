@@ -12,7 +12,9 @@ export type NotificationKind =
   | "prediction_void"
   | "proposal_approved"
   | "exchange"
-  | "wishlist";
+  | "wishlist"
+  | "dividend"
+  | "buyback";
 
 export type NotificationItem = {
   id: number;

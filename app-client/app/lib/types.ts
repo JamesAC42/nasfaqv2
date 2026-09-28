@@ -385,7 +385,17 @@ export type MarketAsset = {
   current_premium_pct: number | null;
   current_daily_emission: number | null;
   treasury_supply: number | null;
+  /** Shares players hold. */
   circulating_supply: number | null;
+  /** Max shares this week (set from subscribers at the weekly evaluation). */
+  max_supply?: number | null;
+  /** "open", or "buyback" while frozen for a broker buyback. */
+  trading_state?: "open" | "buyback";
+  /** What buys can take right now (max − held − the broker's buffer); 0 = sold out. */
+  shares_for_sale?: number | null;
+  broker_buffer?: number | null;
+  sold_out?: boolean;
+  buyback?: MarketBuyback | null;
   latest_snapshot_date: string | null;
   volume_24h: number | null;
   move_24h_pct: number | null;
@@ -404,6 +414,73 @@ export type MarketAsset = {
   next_adjustment?: MarketAdjustment | null;
   latest_adjustment?: MarketAdjustment | null;
   sparkline_candles: CandlePoint[];
+};
+
+export type MarketBuyback = {
+  started_at: string;
+  frozen_price: number;
+  target_max_supply: number;
+  /** What the broker pays per share now (frozen price × multiplier). */
+  price: number;
+  multiplier: number;
+  next_step_at: string | null;
+  /** How much the multiplier drops each day, and where it stops. */
+  daily_step: number;
+  floor: number;
+  shares_bought: number;
+  shares_over: number;
+};
+
+export type SupplyWatchRow = {
+  symbol: string;
+  display_name: string;
+  max_supply: number;
+  held: number;
+  shares_for_sale: number;
+  for_sale_pct: number | null;
+  trading_state: string;
+};
+
+/** One stock's line in the Dividend Review. */
+export type EvaluationRow = {
+  symbol: string;
+  display_name: string;
+  rate: number;
+  per_share: number;
+  paid: number;
+  held: number;
+  max_supply_before: number;
+  max_supply_after: number;
+  buyback: string | null;
+};
+
+/** The Weekly Evaluation (Saturday 00:00 ET): dividends and fees, max shares, buybacks. */
+export type WeeklyEvaluation = {
+  eval_date: string;
+  generated_at: string;
+  first_evaluation: boolean;
+  asset_count: number;
+  dividends_total: number;
+  fees_total: number;
+  holders_paid: number;
+  holders_charged: number;
+  paying_count: number;
+  charging_count: number;
+  flat_count: number;
+  top_dividends: EvaluationRow[];
+  top_fees: EvaluationRow[];
+  max_shares_raised: EvaluationRow[];
+  max_shares_lowered: EvaluationRow[];
+  buybacks_started: Array<{ symbol: string; display_name: string; held: number; max_supply: number; over: number; frozen_price: number; offer: number }>;
+  buybacks_closed: Array<{ symbol: string; display_name: string; status: string; forced_shares: number | null; forced_price: number | null; shares_bought: number | null }>;
+  assets: EvaluationRow[];
+  config?: Record<string, number>;
+};
+
+export type MyDividendWeek = {
+  eval_date: string;
+  net: number;
+  lines: Array<{ symbol: string; display_name: string; quantity: number; per_share: number; amount: number }>;
 };
 
 export type MarketAdjustment = {
@@ -997,6 +1074,10 @@ export type DailyReport = {
   volume_losers?: ReportRow[];
   top_volume?: ReportRow[];
   notable_treasury_emissions?: ReportRow[];
+  /** Stocks worth watching for supply: buybacks, sold out, least left for sale. */
+  supply_watch?: SupplyWatchRow[];
+  /** Buybacks that ended at this Open (players sold back under the max). */
+  buybacks_ended?: Array<{ symbol: string; display_name: string; shares_bought: number | null; cash_paid: number | null }>;
   /** False while this settlement's ticks are still landing: its fair values and premiums are withheld. */
   targets_revealed?: boolean;
   /** When the last of those ticks is due, while they're withheld. */

@@ -42,6 +42,7 @@ import {
   type LivestreamItem,
   type MarketAssetAdjustmentHistory,
   type MarketAsset,
+  type MarketBuyback,
   type MarketActivity,
   type MarketActivityTrader,
   type MarketActivityWindow,
@@ -545,6 +546,23 @@ export function normalizePredictionPortfolioResponse(value: Record<string, unkno
   };
 }
 
+function normalizeBuyback(value: unknown): MarketBuyback | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  return {
+    started_at: String(row.started_at || ""),
+    frozen_price: toNumber(row.frozen_price) ?? 0,
+    target_max_supply: toNumber(row.target_max_supply) ?? 0,
+    price: toNumber(row.price) ?? 0,
+    multiplier: toNumber(row.multiplier) ?? 1,
+    next_step_at: row.next_step_at ? String(row.next_step_at) : null,
+    daily_step: toNumber(row.daily_step) ?? 0.1,
+    floor: toNumber(row.floor) ?? 0.5,
+    shares_bought: toNumber(row.shares_bought) ?? 0,
+    shares_over: toNumber(row.shares_over) ?? 0,
+  };
+}
+
 export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
   const nextAdjustment = asset.next_adjustment && typeof asset.next_adjustment === "object"
     ? asset.next_adjustment as Record<string, unknown>
@@ -571,6 +589,12 @@ export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
     current_daily_emission: toNumber(asset.current_daily_emission),
     treasury_supply: toNumber(asset.treasury_supply),
     circulating_supply: toNumber(asset.circulating_supply),
+    max_supply: toNumber(asset.max_supply),
+    trading_state: asset.trading_state === "buyback" ? "buyback" : "open",
+    shares_for_sale: toNumber(asset.shares_for_sale),
+    broker_buffer: toNumber(asset.broker_buffer),
+    sold_out: Boolean(asset.sold_out),
+    buyback: normalizeBuyback(asset.buyback),
     latest_snapshot_date: asset.latest_snapshot_date ? String(asset.latest_snapshot_date) : null,
     volume_24h: toNumber(asset.volume_24h),
     move_24h_pct: toNumber(asset.move_24h_pct),

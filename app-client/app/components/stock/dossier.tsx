@@ -145,7 +145,7 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
   const move = asset.move_24h_pct;
   const series = markSeries(asset);
   const d15 = series.length > 1 && asset.current_mid_price ? (asset.current_mid_price - series[0]) / series[0] : null;
-  const total = (asset.circulating_supply ?? 0) + (asset.treasury_supply ?? 0);
+  const total = asset.max_supply ?? (asset.circulating_supply ?? 0) + (asset.treasury_supply ?? 0);
   const float = total > 0 ? (asset.circulating_supply ?? 0) / total : null;
   const bio = channel?.channel.youtube_channel_description?.trim() ?? "";
   const bioShort = bio.split(/\n/)[0].slice(0, 160);
@@ -176,6 +176,15 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
                 <button type="button" className={styles.livePill} onClick={openLive}>
                   LIVE{live.viewer_count ? ` · ${fmtBig(live.viewer_count)}` : ""}
                 </button>
+              ) : null}
+              {asset.trading_state === "buyback" ? (
+                <a href="#s-holders" className={styles.supplyPill} data-state="buyback">
+                  <Term k="buyback">BUYBACK</Term>
+                </a>
+              ) : asset.sold_out ? (
+                <a href="#s-holders" className={styles.supplyPill} data-state="soldout">
+                  <Term k="sold-out">SOLD OUT</Term>
+                </a>
               ) : null}
             </div>
             <h1 className={styles.name}>

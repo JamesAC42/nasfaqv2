@@ -76,6 +76,16 @@ export function getTradeFailureNotice(errorCode: string, side: TradeSide, symbol
         title: "Not enough cash",
         message: `You do not have enough cash available to buy ${symbol}. Reduce the share count or add funds to your account balance.`,
       };
+    case "sold_out":
+      return {
+        title: "Sold out",
+        message: `Every ${symbol} share for sale is taken. Buys open again when someone sells, or when the weekly evaluation raises the max shares.`,
+      };
+    case "buyback_frozen":
+      return {
+        title: "Frozen for a buyback",
+        message: `${symbol} is over its max shares, so the broker is buying shares back and nobody can buy. You can sell to the broker at the buyback price.`,
+      };
     case "insufficient_holdings":
       return {
         title: "Not enough shares",

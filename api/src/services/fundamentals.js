@@ -1,4 +1,5 @@
 const { bootstrapAssetsWithClient } = require("./marketAdmin");
+const { REFERENCE_SUPPLY } = require("./marketSupply");
 const FAIR_VALUE_SCALE_MULTIPLIER = Number(process.env.MARKET_PRICE_SCALE_MULTIPLIER || 100);
 const DEFAULT_MARKET_DATA_TIME_ZONE = "America/New_York";
 const SMOOTHING_PREVIOUS_WEIGHT = 0.4;
@@ -506,8 +507,8 @@ async function refreshLatestAssetFairValues(client) {
     SET
       latest_snapshot_date = s.snapshot_date,
       latest_snapshot_id = s.id,
-      current_fair_value = (s.fundamental_value_smoothed / NULLIF(a.max_supply, 0)) * $1,
-      current_fair_value_raw = (s.fundamental_value_raw / NULLIF(a.max_supply, 0)) * $1,
+      current_fair_value = (s.fundamental_value_smoothed / ${REFERENCE_SUPPLY}) * $1,
+      current_fair_value_raw = (s.fundamental_value_raw / ${REFERENCE_SUPPLY}) * $1,
       updated_at = now()
     FROM (
       SELECT DISTINCT ON (youtube_channel_id)

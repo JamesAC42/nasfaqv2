@@ -286,6 +286,32 @@
   color: var(--warn);
 }
 
+// Sold out, the last shares for sale, or a buyback in progress.
+.supplyNote {
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--warn);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--text-2, var(--text));
+
+  b {
+    @include num;
+    color: var(--text);
+  }
+
+  &[data-tone="buyback"] {
+    border-left-color: var(--blue);
+    background: color-mix(in srgb, var(--blue) 7%, transparent);
+  }
+
+  &[data-tone="soldout"] {
+    border-left-color: var(--down);
+    background: var(--down-wash);
+  }
+}
+
 .batch {
   margin: 0;
   @include num;

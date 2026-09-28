@@ -30,6 +30,7 @@ import { fetchFloor } from "@/app/lib/predictions/api";
 import { leader as predictionLeader, outcomeColor } from "@/app/lib/predictions/format";
 import type { PredictionMarket as PredictionMarketV2 } from "@/app/lib/predictions/types";
 import styles from "@/app/components/home/front-page.module.scss";
+import { Term } from "@/app/components/common/tip";
 
 
 function newsHref(item: NewsItem) {
@@ -93,8 +94,9 @@ function Masthead({ assets }: { assets: MarketAsset[] }) {
     const index = Number.isFinite(length) && length > 1
       ? Array.from({ length }, (_, i) => (series.reduce((sum, values) => sum + values[values.length - length + i] / values[values.length - length], 0) / series.length) * 100)
       : [];
-    const emission = assets.reduce((sum, asset) => sum + (asset.current_daily_emission ?? 0), 0);
-    return { avgMove, up, down, index, emission };
+    const soldOut = assets.filter((asset) => asset.sold_out).length;
+    const buybacks = assets.filter((asset) => asset.trading_state === "buyback").length;
+    return { avgMove, up, down, index, soldOut, buybacks };
   }, [assets]);
 
   const today = new Date().toLocaleDateString("en-US", {
@@ -143,9 +145,11 @@ function Masthead({ assets }: { assets: MarketAsset[] }) {
             <span className={styles.sub}>up / down today</span>
           </div>
           <div>
-            <span className={styles.label}>New shares today</span>
-            <span className={styles.big}>{Math.round(pulse.emission).toLocaleString("en-US")}</span>
-            <span className={styles.sub}>treasury emission</span>
+            <span className={styles.label}>
+              <Term k="sold-out">Sold out</Term>
+            </span>
+            <span className={styles.big}>{pulse.soldOut}</span>
+            <span className={styles.sub}>{pulse.buybacks ? `${pulse.buybacks} in a buyback` : "stocks with nothing for sale"}</span>
           </div>
         </div>
       ) : null}
@@ -280,6 +284,9 @@ const WIRE_TAGS: Record<string, string> = {
   viewer_record: "Record",
   superchat_leader: "Superchats",
   market_mover: "Market",
+  dividend_review: "Divs",
+  buyback: "Buyback",
+  sold_out: "Sold out",
   exchange_sale: "Exchange",
   ur_pull: "Pull",
   prediction_resolved: "Called",
@@ -291,7 +298,7 @@ const LIFTS_FAIR_VALUE = new Set(["stream_three_d", "stream_new_outfit", "stream
 
 function wireTone(kind: string) {
   if (kind.startsWith("stream_")) return "stream";
-  if (kind === "market_mover") return "market";
+  if (kind === "market_mover" || kind === "dividend_review" || kind === "buyback" || kind === "sold_out") return "market";
   if (kind === "exchange_sale" || kind === "ur_pull" || kind === "prediction_resolved") return "games";
   return "record";
 }
@@ -529,12 +536,14 @@ function SettlementReport({ assets }: { assets: MarketAsset[] }) {
       .map((row) => ({ symbol: row.symbol, left: `opened ${fmt2(row.market_price)}`, right: signedPct(row.move_pct), tone: toneOf(row.move_pct) }));
   }, [report]);
 
-  const dilution = useMemo<ReportLine[]>(() => {
-    return (report?.notable_treasury_emissions ?? []).slice(0, 5).map((row) => {
-      // The premium is withheld while the day's ticks are landing (it would give away the target).
-      const premium = row.premium_pct ?? row.premium_discount_pct ?? null;
-      return { symbol: row.symbol, left: premium !== null ? `premium ${signedPct(premium)}` : `closed ${fmt2(row.market_price)}`, right: `${fmt2(row.emission)} sh`, tone: "flat" as const };
-    });
+  // Supply: buybacks first, then sold out, then the least left for sale.
+  const supplyLines = useMemo<ReportLine[]>(() => {
+    return (report?.supply_watch ?? []).slice(0, 5).map((row) => ({
+      symbol: row.symbol,
+      left: `${Math.round(row.held).toLocaleString("en-US")} of ${Math.round(row.max_supply).toLocaleString("en-US")} held`,
+      right: row.trading_state === "buyback" ? "BUYBACK" : row.shares_for_sale <= 0 ? "SOLD OUT" : `${Math.floor(row.shares_for_sale).toLocaleString("en-US")} left`,
+      tone: row.trading_state === "buyback" || row.shares_for_sale <= 0 ? ("down" as const) : ("flat" as const),
+    }));
   }, [report]);
   const revealed = report?.revealed_targets ?? null;
   const revealedDay = revealed?.market_date ? revealed.market_date.slice(5, 10).replace("-", "/") : null;
@@ -563,7 +572,7 @@ function SettlementReport({ assets }: { assets: MarketAsset[] }) {
           lines={fairLines(revealed?.biggest_fair_value_decreases)}
           note="Stagnant channels and missed uploads get marked down."
         />
-        <ReportColumn title="Dilution watch" lines={dilution} note="The treasury prints more shares of stocks trading above fair value." />
+        <ReportColumn title="Supply watch" lines={supplyLines} note="Buying takes shares from the broker. Sold out means buys wait for sellers; max shares reset every Saturday." />
         <ReportColumn title="Gapped at the open" lines={gappers} note="Biggest price resets at settlement, either way. Not financial advice, anon." />
       </div>
     </section>

@@ -1589,6 +1589,109 @@ async function applySchema(pool) {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS market_notifications_user_time_idx ON market.notifications (user_id, created_at DESC, id DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS market_notifications_unread_idx ON market.notifications (user_id) WHERE read_at IS NULL`);
+  // ── The core market (docs/market/core-market.md) ─────────────────────────
+  // Weekly share fees can put a player in the red; a buyback stock can have more shares held than
+  // its (new, lower) max until the buyback closes.
+  await pool.query(`ALTER TABLE market.portfolio_cash_balances DROP CONSTRAINT IF EXISTS portfolio_cash_balances_nonnegative_check`);
+  await pool.query(`ALTER TABLE market.market_assets DROP CONSTRAINT IF EXISTS market_assets_supply_bounds_check`);
+  await pool.query(`ALTER TABLE market.market_assets ADD COLUMN IF NOT EXISTS trading_state TEXT NOT NULL DEFAULT 'open'`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.weekly_evaluations (
+      id BIGSERIAL PRIMARY KEY,
+      eval_date DATE NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'started',
+      started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      completed_at TIMESTAMPTZ NULL,
+      report_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+      error_text TEXT NULL
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.weekly_asset_evaluations (
+      evaluation_id BIGINT NOT NULL REFERENCES market.weekly_evaluations(id) ON DELETE CASCADE,
+      asset_id BIGINT NOT NULL REFERENCES market.market_assets(id) ON DELETE CASCADE,
+      value_now NUMERIC NULL,
+      value_before NUMERIC NULL,
+      shift NUMERIC NULL,
+      z_score NUMERIC NULL,
+      dividend_rate NUMERIC NOT NULL DEFAULT 0,
+      value_basis NUMERIC NULL,
+      per_share NUMERIC NOT NULL DEFAULT 0,
+      held NUMERIC NOT NULL DEFAULT 0,
+      subscribers BIGINT NULL,
+      max_supply_before NUMERIC NULL,
+      max_supply_after NUMERIC NULL,
+      buyback_action TEXT NULL,
+      PRIMARY KEY (evaluation_id, asset_id)
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.dividend_payouts (
+      evaluation_id BIGINT NOT NULL REFERENCES market.weekly_evaluations(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL,
+      asset_id BIGINT NOT NULL REFERENCES market.market_assets(id) ON DELETE CASCADE,
+      quantity NUMERIC NOT NULL,
+      per_share NUMERIC NOT NULL,
+      amount NUMERIC NOT NULL,
+      PRIMARY KEY (evaluation_id, user_id, asset_id)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_dividend_payouts_user_idx ON market.dividend_payouts (user_id, evaluation_id DESC)`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.asset_buybacks (
+      id BIGSERIAL PRIMARY KEY,
+      asset_id BIGINT NOT NULL REFERENCES market.market_assets(id) ON DELETE CASCADE,
+      started_evaluation_id BIGINT NULL REFERENCES market.weekly_evaluations(id) ON DELETE SET NULL,
+      closed_evaluation_id BIGINT NULL REFERENCES market.weekly_evaluations(id) ON DELETE SET NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      ended_at TIMESTAMPTZ NULL,
+      frozen_price NUMERIC NOT NULL,
+      target_max_supply NUMERIC NOT NULL,
+      held_at_start NUMERIC NOT NULL,
+      shares_bought NUMERIC NOT NULL DEFAULT 0,
+      cash_paid NUMERIC NOT NULL DEFAULT 0,
+      forced_shares NUMERIC NOT NULL DEFAULT 0,
+      forced_price NUMERIC NULL,
+      CONSTRAINT asset_buybacks_status_check CHECK (status IN ('active', 'met', 'forced'))
+    )
+  `);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS market_asset_buybacks_one_active_idx ON market.asset_buybacks (asset_id) WHERE status = 'active'`);
+  // Shares held are the circulating supply; the broker holds the rest. The old daily print is gone.
+  // One time only (stocks still carrying the old base_emission): circulating is recomputed from the
+  // holdings with the holdings table locked against fills, and max shares are raised only where
+  // players already hold more than the max (to the next 100), so nothing starts over its max.
+  const { rows: needsRebase } = await pool.query(`SELECT 1 FROM market.market_assets WHERE base_emission <> 0 LIMIT 1`);
+  if (needsRebase.length) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("LOCK TABLE market.portfolio_holdings IN SHARE MODE");
+      await client.query(`
+        WITH held AS (
+          SELECT a.id, COALESCE(SUM(h.quantity), 0) AS held
+          FROM market.market_assets a
+          LEFT JOIN market.portfolio_holdings h ON h.asset_id = a.id
+          GROUP BY a.id
+        )
+        UPDATE market.market_assets a
+        SET max_supply = GREATEST(a.max_supply, CEIL(held.held / 100) * 100),
+            circulating_supply = held.held,
+            treasury_supply = GREATEST(GREATEST(a.max_supply, CEIL(held.held / 100) * 100) - held.held, 0),
+            base_emission = 0,
+            current_daily_emission = 0,
+            updated_at = now()
+        FROM held
+        WHERE held.id = a.id
+      `);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
   await applyGamesSchema(pool);
   await applyPredictionsSchema(pool);
 }

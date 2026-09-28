@@ -186,7 +186,9 @@ function Kpis({ rows, report, indexValue }: { rows: DayRow[]; report: DailyRepor
   const volumeCash = rows.reduce((sum, row) => sum + row.volume * (row.close ?? 0), 0);
   const prems = rows.map((row) => row.prem).filter((value): value is number => value !== null).sort((a, b) => a - b);
   const median = prems.length ? prems[Math.floor(prems.length / 2)] : null;
+  const supplyWatch = report?.supply_watch ?? null;
   const emission = (report?.notable_treasury_emissions ?? []).reduce((sum, row) => sum + (row.emission ?? 0), 0);
+  const tight = supplyWatch ? supplyWatch.filter((row) => row.trading_state === "buyback" || row.shares_for_sale <= 0).length : null;
   return (
     <div className={ui.kstrip} style={{ "--cols": 6 } as React.CSSProperties}>
       <div>
@@ -211,9 +213,19 @@ function Kpis({ rows, report, indexValue }: { rows: DayRow[]; report: DailyRepor
         </span>
       </div>
       <div>
-        <span className={ui.label}>New shares</span>
-        <span className={ui.kv}>{emission ? Math.round(emission).toLocaleString("en-US") : "—"}</span>
-        <span className={ui.ks}>notable treasury emissions</span>
+        {tight !== null ? (
+          <>
+            <span className={ui.label}>Sold out</span>
+            <span className={ui.kv}>{tight}</span>
+            <span className={ui.ks}>sold out or in a buyback</span>
+          </>
+        ) : (
+          <>
+            <span className={ui.label}>New shares</span>
+            <span className={ui.kv}>{emission ? Math.round(emission).toLocaleString("en-US") : "—"}</span>
+            <span className={ui.ks}>treasury print (old rules)</span>
+          </>
+        )}
       </div>
       <div>
         <span className={ui.label}>Session volume</span>
@@ -457,7 +469,24 @@ function Lists({ rows, report }: { rows: DayRow[]; report: DailyReport | null | 
         "",
         fromReport(report?.volume_winners, (row) => row.volume_change_pct, (row) => pct(row.volume_change_pct), (row) => `${compactMoney(row.volume_cash)} · ${(row.volume_shares ?? 0).toLocaleString("en-US")} sh`, (row) => toneClass(row.volume_change_pct)),
       )}
-      {list("Dilution watch", "new shares", "", fromReport(report?.notable_treasury_emissions, (row) => row.emission, (row) => `${num(row.emission, 1)} sh`, (row) => `closed ${num(row.market_price)}`, () => "flat"))}
+      {report?.supply_watch
+        ? list(
+            "Supply watch",
+            "left for sale",
+            "",
+            report.supply_watch.slice(0, 6).map((row) => (
+              <RankRow
+                key={row.symbol}
+                symbol={row.symbol}
+                icon={icon(row.symbol)}
+                detail={`${Math.round(row.held).toLocaleString("en-US")} of ${Math.round(row.max_supply).toLocaleString("en-US")} held`}
+                bar={row.max_supply ? Math.min(1, row.held / row.max_supply) : 0}
+                tone={row.trading_state === "buyback" || row.shares_for_sale <= 0 ? "down" : "flat"}
+                value={row.trading_state === "buyback" ? "BUYBACK" : row.shares_for_sale <= 0 ? "SOLD OUT" : `${Math.floor(row.shares_for_sale).toLocaleString("en-US")}`}
+              />
+            )),
+          )
+        : list("Dilution watch", "new shares", "", fromReport(report?.notable_treasury_emissions, (row) => row.emission, (row) => `${num(row.emission, 1)} sh`, (row) => `closed ${num(row.market_price)}`, () => "flat"))}
       {list("Most traded", "shares, the session", "", fromReport(report?.top_volume, (row) => row.volume_shares, (row) => `${(row.volume_shares ?? 0).toLocaleString("en-US")} sh`, (row) => compactMoney(row.volume_cash), () => "flat"))}
       {list("Going quiet", "volume vs the session before", "", fromReport(report?.volume_losers, (row) => row.volume_change_pct, (row) => pct(row.volume_change_pct), (row) => `${compactMoney(row.volume_cash)} · ${(row.volume_shares ?? 0).toLocaleString("en-US")} sh`, (row) => toneClass(row.volume_change_pct)))}
     </div>

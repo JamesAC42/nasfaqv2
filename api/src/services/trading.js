@@ -9,6 +9,7 @@ const DEFAULT_LIVE_ORDER_WORKER_CONCURRENCY = 4;
 const DEFAULT_LIVE_ORDER_SCHEDULER_INTERVAL_MS = 1_000;
 const LIVE_ORDER_SCHEDULER_LOCK_KEY = 9_204_003;
 const marketState = require("./marketState");
+const supply = require("./marketSupply");
 const netWorth = require("./netWorth");
 const achievements = require("./achievements");
 const { ensureUserCashAccount, getStarterCash } = require("./portfolioCash");
@@ -143,6 +144,9 @@ async function getLockedAssetBySymbol(client, symbol, { lock = true } = {}) {
       a.offsets_updated_at,
       a.circulating_supply,
       a.treasury_supply,
+      a.max_supply,
+      a.broker_buffer_pct,
+      a.trading_state,
       a.liquidity_depth,
       a.spread_bps,
       a.latest_snapshot_date,
@@ -392,6 +396,33 @@ async function updateAssetAfterTrade(client, asset, {
   };
 }
 
+/** A sell into a buyback: the price stays frozen; the broker's tally and the day's volume move. */
+async function recordBuybackSale(client, asset, buyback, { quantity, executionPrice, grossCash, marketDate }) {
+  await client.query(
+    `UPDATE market.asset_buybacks SET shares_bought = shares_bought + $2, cash_paid = cash_paid + $3 WHERE id = $1`,
+    [buyback.id, quantity, grossCash]
+  );
+  if (asset.latest_snapshot_id && marketDate) {
+    await client.query(
+      `
+      UPDATE market.asset_daily_market_state
+      SET volume_shares = volume_shares + $3, volume_cash = volume_cash + $4, trade_count = trade_count + 1, updated_at = now()
+      WHERE asset_id = $1 AND market_date = $2
+    `,
+      [asset.id, marketDate, quantity, executionPrice * quantity]
+    );
+  }
+  return {
+    mid_price: toNumber(asset.current_mid_price, 0),
+    bid_price: toNumber(asset.current_bid_price, 0),
+    ask_price: toNumber(asset.current_ask_price, 0),
+    premium_pct: toNumber(asset.current_premium_pct, 0),
+    persistent_offset: toNumber(asset.current_persistent_offset, 0),
+    transient_offset: toNumber(asset.current_transient_offset, 0),
+    buyback_price: executionPrice,
+  };
+}
+
 async function getLockedPendingLiveOrder(client, orderId) {
   const { rows } = await client.query(
     `
@@ -455,7 +486,7 @@ async function executeOrder(pool, {
       throw error;
     }
 
-    const parsedQuantity = requirePositiveQuantity(effectiveQuantity);
+    let parsedQuantity = requirePositiveQuantity(effectiveQuantity);
     const asset = await getLockedAssetBySymbol(client, effectiveSymbol);
     if (!asset) {
       const error = new Error("asset_not_found");
@@ -468,21 +499,44 @@ async function executeOrder(pool, {
       throw error;
     }
 
+    // Supply: buys take the broker's shares for sale (a partial fill takes the last of them); a
+    // stock in a buyback takes no buys and pays the broker's buyback price for sells.
+    let buyback = null;
+    if (asset.trading_state === "buyback") {
+      if (effectiveSide === "buy") {
+        const error = new Error("buyback_frozen");
+        error.code = "buyback_frozen";
+        throw error;
+      }
+      buyback = await supply.getActiveBuyback(client, asset.id, { lock: true });
+    }
+    if (effectiveSide === "buy") {
+      const forSale = Math.floor(supply.sharesForSale(asset) * 1e6) / 1e6;
+      if (!(forSale > 0)) {
+        const error = new Error("sold_out");
+        error.code = "sold_out";
+        throw error;
+      }
+      parsedQuantity = Math.min(parsedQuantity, forSale);
+    }
+
     const cashAccount = await ensureUserCashAccount(client, effectiveUserId);
     const holding = await getLockedHolding(client, effectiveUserId, asset.id);
     const feeRate = getTradingFeeRate();
     const now = new Date();
     const fairPrice = Math.max(toNumber(asset.current_fair_value, 0), 0.000001);
     const { persistentOffset, transientOffset } = getDecayedOffsets(asset, now);
-    const liveMidBefore = computeLiveMidPrice(fairPrice, persistentOffset, transientOffset);
+    const liveMidBefore = buyback ? toNumber(asset.current_mid_price, 0) : computeLiveMidPrice(fairPrice, persistentOffset, transientOffset);
     const quotesBefore = computeQuotes(liveMidBefore, asset.spread_bps);
-    const executablePrice = computeExecutionPrice({
-      side: effectiveSide,
-      bidPrice: quotesBefore.bidPrice,
-      askPrice: quotesBefore.askPrice,
-      quantity: parsedQuantity,
-      liquidityDepth: asset.liquidity_depth,
-    });
+    const executablePrice = buyback
+      ? supply.buybackFillPrice(asset, buyback, parsedQuantity, now)
+      : computeExecutionPrice({
+          side: effectiveSide,
+          bidPrice: quotesBefore.bidPrice,
+          askPrice: quotesBefore.askPrice,
+          quantity: parsedQuantity,
+          liquidityDepth: asset.liquidity_depth,
+        });
     if (!(executablePrice > 0)) {
       const error = new Error("invalid_quote");
       error.code = "invalid_quote";
@@ -623,16 +677,32 @@ async function executeOrder(pool, {
       avgCostBasis: nextAvgCost,
     });
 
-    const updatedQuote = await updateAssetAfterTrade(client, asset, {
-      side: effectiveSide,
-      quantity: parsedQuantity,
-      executionPrice: executablePrice,
-      fairPrice,
-      now,
-      marketDate: status?.last_settlement_market_date || null,
-      persistentOffset,
-      transientOffset,
-    });
+    const updatedQuote = buyback
+      ? await recordBuybackSale(client, asset, buyback, {
+          quantity: parsedQuantity,
+          executionPrice: executablePrice,
+          grossCash,
+          marketDate: status?.last_settlement_market_date || null,
+        })
+      : await updateAssetAfterTrade(client, asset, {
+          side: effectiveSide,
+          quantity: parsedQuantity,
+          executionPrice: executablePrice,
+          fairPrice,
+          now,
+          marketDate: status?.last_settlement_market_date || null,
+          persistentOffset,
+          transientOffset,
+        });
+    await supply.moveShares(client, asset.id, effectiveSide === "buy" ? parsedQuantity : -parsedQuantity);
+    // The stock's supply after this fill, for the live floor (sold out, shares left for sale).
+    const heldAfter = Math.max(0, toNumber(asset.circulating_supply, 0) + (effectiveSide === "buy" ? parsedQuantity : -parsedQuantity));
+    const supplyAfter = {
+      circulating_supply: heldAfter,
+      shares_for_sale: supply.sharesForSale({ ...asset, circulating_supply: heldAfter, treasury_supply: Math.max(0, toNumber(asset.max_supply, 0) - heldAfter) }),
+      trading_state: asset.trading_state || "open",
+    };
+    Object.assign(updatedQuote, supplyAfter);
 
     const userIdentity = await getUserTradeIdentity(client, effectiveUserId);
     await client.query("COMMIT");
@@ -661,6 +731,8 @@ async function executeOrder(pool, {
         side: effectiveSide,
         price: executablePrice,
         quantity: parsedQuantity,
+        requested_quantity: requirePositiveQuantity(effectiveQuantity),
+        buyback: Boolean(buyback),
         gross_cash: grossCash,
         fee_cash: feeCash,
         net_cash: effectiveSide === "buy" ? -(grossCash + feeCash) : grossCash - feeCash,
@@ -674,6 +746,9 @@ async function executeOrder(pool, {
         bid_price: updatedQuote.bid_price,
         ask_price: updatedQuote.ask_price,
         premium_pct: updatedQuote.premium_pct,
+        circulating_supply: supplyAfter.circulating_supply,
+        shares_for_sale: supplyAfter.shares_for_sale,
+        trading_state: supplyAfter.trading_state,
         updated_at: fillRow.ts,
       },
       market_status: {
@@ -888,6 +963,17 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
       throw error;
     }
 
+    if (normalizedSide === "buy" && asset.trading_state === "buyback") {
+      const error = new Error("buyback_frozen");
+      error.code = "buyback_frozen";
+      throw error;
+    }
+    if (normalizedSide === "buy" && !(supply.sharesForSale(asset) > 0)) {
+      const error = new Error("sold_out");
+      error.code = "sold_out";
+      throw error;
+    }
+
     const cashAccount = await ensureUserCashAccount(client, userId);
     const holding = await getLockedHolding(client, userId, asset.id);
     const now = new Date();
@@ -895,13 +981,16 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
     const { persistentOffset, transientOffset } = getDecayedOffsets(asset, now);
     const liveMidBefore = computeLiveMidPrice(fairPrice, persistentOffset, transientOffset);
     const quotesBefore = computeQuotes(liveMidBefore, asset.spread_bps);
-    const indicativePrice = computeExecutionPrice({
-      side: normalizedSide,
-      bidPrice: quotesBefore.bidPrice,
-      askPrice: quotesBefore.askPrice,
-      quantity: parsedQuantity,
-      liquidityDepth: asset.liquidity_depth,
-    });
+    const activeBuyback = asset.trading_state === "buyback" ? await supply.getActiveBuyback(client, asset.id) : null;
+    const indicativePrice = activeBuyback
+      ? supply.buybackFillPrice(asset, activeBuyback, parsedQuantity, now)
+      : computeExecutionPrice({
+          side: normalizedSide,
+          bidPrice: quotesBefore.bidPrice,
+          askPrice: quotesBefore.askPrice,
+          quantity: parsedQuantity,
+          liquidityDepth: asset.liquidity_depth,
+        });
     if (!(indicativePrice > 0)) {
       const error = new Error("invalid_quote");
       error.code = "invalid_quote";
@@ -1042,6 +1131,8 @@ function isLiveOrderRejectionCode(code) {
     "invalid_quote",
     "invalid_quantity",
     "live_order_not_pending",
+    "sold_out",
+    "buyback_frozen",
   ].includes(String(code || ""));
 }
 

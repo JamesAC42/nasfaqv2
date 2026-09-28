@@ -25,7 +25,9 @@ async function moveCash(client, userId, delta, { entryType, marketId, quantityDe
   const amount = round2(delta);
   const account = await ensureUserCashAccount(client, userId);
   const next = round2(num(account.cash_balance) + amount);
-  if (next < 0) throw predictionError("insufficient_cash", { cash_balance: num(account.cash_balance), required_cash: -amount });
+  // Only spending is refused; a payout or refund always lands, even for a player in the red from
+  // weekly share fees.
+  if (amount < 0 && next < 0) throw predictionError("insufficient_cash", { cash_balance: num(account.cash_balance), required_cash: -amount });
   if (amount !== 0) {
     await client.query(`UPDATE market.portfolio_cash_balances SET cash_balance = $2, updated_at = now() WHERE user_id = $1`, [userId, next]);
   }

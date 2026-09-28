@@ -4,12 +4,13 @@
 // - predictions: api/src/services/predictions/** and docs/predictions/PREDICTIONS_DESIGN.md
 // If a rule changes there, change it here too.
 
-export type SectionId = "market" | "trading" | "ticks" | "games" | "predictions" | "community" | "glossary" | "faq";
+export type SectionId = "market" | "trading" | "ticks" | "weekly" | "games" | "predictions" | "community" | "glossary" | "faq";
 
 export const SECTIONS: ReadonlyArray<{ id: SectionId; label: string }> = [
   { id: "market", label: "Market" },
   { id: "trading", label: "Trading" },
   { id: "ticks", label: "Ticks" },
+  { id: "weekly", label: "Dividends" },
   { id: "games", label: "Games" },
   { id: "predictions", label: "Predictions" },
   { id: "community", label: "Community" },
@@ -165,7 +166,15 @@ export const FAQ: ReadonlyArray<{ q: string; a: string }> = [
   },
   {
     q: "How do I get more cash?",
-    a: "Trade well. Achievements also pay: $100 for your first fill up to $2,500 for a 30-day trading streak. Games and predictions can pay out too, and they can also take it.",
+    a: "Trade well, and hold stocks that have good weeks: Saturday's dividends pay per share. Achievements also pay: $100 for your first fill up to $2,500 for a 30-day trading streak. Games and predictions can pay out too, and they can also take it.",
+  },
+  {
+    q: "Why is my cash negative?",
+    a: "Share fees. Every Saturday, stocks whose channels had a bad week charge a fee per share held, and it comes out even if you're short on cash. In the red you can't buy; sell something or earn it back.",
+  },
+  {
+    q: "Why can't I buy this stock?",
+    a: "Either it's sold out (players hold every share for sale; buys wait for a seller or next Saturday's new max) or it's frozen for a buyback (max shares dropped below what players hold; you can only sell to the broker until it's over).",
   },
   {
     q: "Are the games rigged?",

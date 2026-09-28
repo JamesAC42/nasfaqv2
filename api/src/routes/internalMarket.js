@@ -8,6 +8,7 @@ const marketRebuild = require("../services/marketRebuild");
 const marketState = require("../services/marketState");
 const settlement = require("../services/settlement");
 const trading = require("../services/trading");
+const weeklyEvaluation = require("../services/weeklyEvaluation");
 const { requireAdmin } = require("../userContext");
 const {
   acquireSchedulerLock,
@@ -149,6 +150,24 @@ router.post("/reset", async (req, res, next) => {
     if (!hasConfirmation(req, "reset")) return res.status(400).json({ error: "invalid_confirmation" });
     const result = await marketAdmin.resetMarketState(req.ctx.pool);
     await invalidateMarketAssetsCache(req.ctx.redis);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// The weekly evaluation by hand (normally Saturday 00:00 ET on its own). Body: { eval_date?, dry_run? }.
+// Each date runs once; a finished one is never re-run (it would pay twice).
+router.post("/weekly-evaluation/run", async (req, res, next) => {
+  try {
+    const dryRun = Boolean(req.body?.dry_run);
+    const evalDate =
+      req.body?.eval_date && /^\d{4}-\d{2}-\d{2}$/.test(req.body.eval_date)
+        ? req.body.eval_date
+        : dryRun
+          ? await weeklyEvaluation.pendingEvaluationDate(req.ctx.pool)
+          : weeklyEvaluation.evaluationDateFor();
+    const result = await weeklyEvaluation.runWeeklyEvaluation(req.ctx.pool, { evalDate, dryRun, redis: req.ctx.redis });
     res.json(result);
   } catch (e) {
     next(e);

@@ -1,8 +1,9 @@
 const { getStarterCash } = require("./trading");
 
 const DEFAULT_MAX_SUPPLY = 10_000;
-const DEFAULT_INITIAL_CIRCULATING_SUPPLY = 2_000;
-const DEFAULT_BASE_EMISSION = 10;
+// Circulating = shares players hold (nobody at listing); the weekly evaluation sets max shares.
+const DEFAULT_INITIAL_CIRCULATING_SUPPLY = 0;
+const DEFAULT_BASE_EMISSION = 0;
 const DEFAULT_SPREAD_BPS = 400;
 const DEFAULT_MARKET_DATA_TIME_ZONE = "America/New_York";
 
@@ -262,7 +263,14 @@ async function checkInvariants(pool) {
         FROM market.market_assets
         WHERE treasury_supply < 0
           OR circulating_supply < 0
-          OR circulating_supply + treasury_supply > max_supply
+          -- over the max is expected while a buyback is running
+          OR (circulating_supply + treasury_supply > max_supply AND trading_state <> 'buyback')
+        UNION ALL
+        SELECT
+          'asset_held_mismatch' AS issue_type,
+          COUNT(*)::BIGINT AS issue_count
+        FROM market.market_assets a
+        WHERE abs(a.circulating_supply - COALESCE((SELECT SUM(h.quantity) FROM market.portfolio_holdings h WHERE h.asset_id = a.id), 0)) > 0.001
         UNION ALL
         SELECT
           'asset_quote_invalid' AS issue_type,
@@ -271,12 +279,6 @@ async function checkInvariants(pool) {
         WHERE (current_bid_price IS NOT NULL AND current_ask_price IS NOT NULL AND current_bid_price > current_ask_price)
            OR current_mid_price < 0
            OR current_fair_value < 0
-        UNION ALL
-        SELECT
-          'negative_cash_balance' AS issue_type,
-          COUNT(*)::BIGINT AS issue_count
-        FROM market.portfolio_cash_balances
-        WHERE cash_balance < 0
         UNION ALL
         SELECT
           'negative_holding_quantity' AS issue_type,
@@ -377,6 +379,10 @@ const RESET_TABLES = [
   "market.achievement_evaluation_runs",
   // Prices and settlement history (rebuilt from the YouTube data)
   "market.asset_price_events",
+  "market.dividend_payouts",
+  "market.weekly_asset_evaluations",
+  "market.asset_buybacks",
+  "market.weekly_evaluations",
   "market.asset_daily_market_state",
   "market.daily_market_reports",
   "market.market_settlement_runs",
@@ -458,6 +464,7 @@ async function resetMarketState(pool) {
         current_daily_emission = NULL,
         current_persistent_offset = 0,
         current_transient_offset = 0,
+        trading_state = 'open',
         offsets_updated_at = now(),
         updated_at = now()
     `,

@@ -9,6 +9,7 @@ import { ChanceDemo, ChibiTag, PullDiagram, RarityFan, TalentStrip, TicketDemo, 
 import { TickKoma } from "@/app/components/how-to-play/tick-koma";
 import { GamesDiagram, MarketDiagram, PredictionsDiagram, TradingDiagram } from "@/app/components/how-to-play/diagrams";
 import styles from "@/app/components/how-to-play/how-to-play.module.scss";
+import { Term } from "@/app/components/common/tip";
 
 // ── Building blocks ─────────────────────────────────────────────────────────
 
@@ -136,8 +137,8 @@ export function MarketSection() {
           },
           {
             k: "supply",
-            title: "Float & treasury",
-            body: "Each talent has a max supply. The treasury releases new shares every day, and faster when the stock trades above fair value. Hype gets diluted.",
+            title: "Shares can sell out",
+            body: "Each talent has max shares, reset every Saturday from their subscriber count. Buying takes shares from the broker, selling gives them back. When nothing's left for sale, buys wait for a seller.",
           },
           {
             k: "score",
@@ -250,9 +251,48 @@ export function TicksSection() {
       <Rules
         cols={3}
         items={[
-          { k: "09:00 ET", title: "Settlement", body: "Once a day, fair values reprice from the latest YouTube numbers and the treasury prints the day's new shares. The Open tick lands the same hour." },
+          { k: "09:00 ET", title: "Settlement", body: "Once a day, fair values reprice from the latest YouTube numbers and each stock draws its four tick strengths. The Open tick lands the same hour." },
           { k: "per talent", title: "Your stock's next tick", body: "Every stock page shows the next scheduled tick and what the last one did." },
           { k: "trades", title: "Between ticks", body: "Prices only move when players trade. The four ticks are the tide; the trades are the waves." },
+        ]}
+      />
+    </Section>
+  );
+}
+
+// ── Weekly evaluation ───────────────────────────────────────────────────────
+
+export function WeeklySection() {
+  return (
+    <Section
+      id="weekly"
+      title="Saturday: dividends"
+      lede={
+        <>
+          <p>
+            Every <b>Saturday at 00:00</b>{" "}New York time the market takes stock. Each channel&apos;s week is ranked against every other channel on a bell curve. The best weeks pay a{" "}
+            <Term k="dividend">dividend</Term> on every share you hold; the worst charge a <b>share fee</b>. The middle pays nothing. Never more than 10% of the stock&apos;s value either way.
+          </p>
+          <p>
+            Fees come out of your cash even if that takes you below zero. In the red, you can&apos;t buy until you sell something or earn it back. Pick your bags like it matters.
+          </p>
+        </>
+      }
+      links={[{ href: "/market/dividends", label: "The Dividend Review" }]}
+    >
+      <Rules
+        cols={3}
+        items={[
+          { k: "dividends", title: "Good weeks pay", body: "A channel whose numbers grew faster than the rest of the market this week pays you per share. It's a race against every other channel, every week." },
+          { k: "share fees", title: "Bad weeks cost", body: "A channel that slipped against the rest charges holders per share. Holding a stock through a dead week costs you." },
+          { k: "max shares", title: "Supply resets", body: "Max shares reset from subscriber count: bigger channels, more shares. A stock can go from plenty for sale to sold out overnight." },
+          {
+            k: "buyback",
+            title: "Too many shares",
+            body: "If max shares drop below what players hold, the stock freezes: no buys, no ticks. The broker buys at 120% of the frozen price, 10 points less each day.",
+          },
+          { k: "forced", title: "Or else", body: "Whatever's still over at the next Saturday, the broker takes from every holder in proportion, at the base rate." },
+          { k: "the review", title: "Dividend Review", body: "Every payout, fee, max-share change and buyback, stock by stock, plus your own week, on the Market page." },
         ]}
       />
     </Section>

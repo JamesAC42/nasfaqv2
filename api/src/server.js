@@ -713,6 +713,10 @@ async function main() {
   if (cfg.enableMarketLiveOrderScheduler) {
     startLiveOrderScheduler(pool, console, redis);
   }
+  if (cfg.enableMarketSettlementScheduler) {
+    // Saturday 00:00 ET: dividends and fees, max shares, buybacks (MARKET_WEEKLY_EVALUATION_ENABLED=false to stop it).
+    require("./services/weeklyEvaluation").startWeeklyEvaluationScheduler(pool, console, redis);
+  }
   if (cfg.enablePredictionMarketScheduler) {
     startPredictionsScheduler(pool, console, redis);
   }

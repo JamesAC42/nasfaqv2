@@ -52,7 +52,7 @@ function StockPeek({ symbol }: { symbol: string }) {
   const start = series.length > 1 ? series[0] : null;
   const d15 = mid !== null && start ? (mid - start) / start : null;
   const open = asset.previous_settlement_mid_price;
-  const float = asset.circulating_supply !== null ? asset.circulating_supply / 10_000 : null;
+  const float = asset.circulating_supply !== null && (asset.max_supply ?? 0) > 0 ? asset.circulating_supply / (asset.max_supply as number) : null;
   const holdingPnl = holding && mid !== null && holding.avg_cost_basis ? (mid - holding.avg_cost_basis) / holding.avg_cost_basis : null;
   const clock = now ? getMarketClock(now) : null;
 
@@ -86,7 +86,7 @@ function StockPeek({ symbol }: { symbol: string }) {
           <span>
             <Term k="float">FLOAT</Term>
           </span>
-          <b>{float !== null ? `${Math.round(float * 100)}%` : "—"}</b>
+          <b>{asset.trading_state === "buyback" ? "BUYBACK" : asset.sold_out ? "SOLD OUT" : float !== null ? `${Math.round(float * 100)}%` : "—"}</b>
         </div>
       </div>
       {holding && holding.quantity > 0 ? (

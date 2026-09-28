@@ -20,7 +20,7 @@
 const { loadEnv } = require("../src/config");
 const { createPool } = require("../src/db");
 
-// [symbol, name, unit, icon, colour, price, open, circulating supply]
+// [symbol, name, unit, icon, colour, price, open, (old circulating supply: unused, players' holdings are the circulating supply now)]
 const TALENTS = [
   ["AKI", "Aki Rosenthal", "hololive 1st Generation", "aki", "#feefbc", 10.96, 10.94, 7628],
   ["AME", "Watson Amelia", "hololive English -Myth-", "amelia", "#ffd642", 10.28, 10.24, 6957],
@@ -126,7 +126,7 @@ function assertLocal(url) {
 
 async function seedTalents(pool) {
   const today = new Date().toISOString().slice(0, 10);
-  for (const [index, [symbol, name, unit, icon, color, price, open, circulating]] of TALENTS.entries()) {
+  for (const [index, [symbol, name, unit, icon, color, price, open]] of TALENTS.entries()) {
     const channelId = `UCdev${symbol}${String(index).padStart(3, "0")}`.padEnd(24, "0");
     await pool.query(
       `INSERT INTO yt.youtube_channels (youtube_channel_id, name_short, name_english, symbol, icon, color, unit)
@@ -141,7 +141,7 @@ async function seedTalents(pool) {
        VALUES ($1, $2, $3, 'active', 10000, $4, $5, 1000, 400, $6, $6 * 0.98, $6 * 1.02)
        ON CONFLICT (symbol) DO UPDATE SET display_name = EXCLUDED.display_name
        RETURNING id, current_mid_price`,
-      [channelId, symbol, name, circulating, 10000 - circulating, price]
+      [channelId, symbol, name, 0, 10000, price]
     );
     const snapshot = await pool.query(
       `INSERT INTO market.channel_daily_snapshots (youtube_channel_id, snapshot_date, subscriber_count, view_count)
@@ -156,9 +156,9 @@ async function seedTalents(pool) {
     await pool.query(
       `INSERT INTO market.asset_daily_market_state (asset_id, market_date, snapshot_id, fair_value, mid_open, daily_emission,
          treasury_supply_start, circulating_supply_start)
-       VALUES ($1, $2, $3, $4, $4, 10, $5, $6)
+       VALUES ($1, $2, $3, $4, $4, 0, $5, $6)
        ON CONFLICT (asset_id, market_date) DO NOTHING`,
-      [asset.rows[0].id, today, snapshotId, open, 10000 - circulating, circulating]
+      [asset.rows[0].id, today, snapshotId, open, 10000, 0]
     );
   }
   console.log(`seeded ${TALENTS.length} talents`);

@@ -33,7 +33,7 @@ const sections: LegalSection[] = [
         <ul>
           <li>Orders queue up and fill in 10-minute batches; the price is set when the batch runs.</li>
           <li>Four ticks a day pull every stock toward a target set by its channel: subscribers, views, uploads and big streams.</li>
-          <li>A daily settlement marks every stock and prints new shares from the treasury where there&apos;s demand.</li>
+          <li>Every Saturday the weekly evaluation pays dividends or charges share fees, resets each stock&apos;s max shares from its subscribers, and runs buybacks.</li>
         </ul>
         <p>
           The whole thing, with diagrams, is in <Link href="/how-to-play">How to play</Link>.

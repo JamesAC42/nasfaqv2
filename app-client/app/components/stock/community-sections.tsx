@@ -39,8 +39,9 @@ export function HoldersSection({ asset }: { asset: MarketAsset }) {
   const supply = treasury.data;
   const max = supply?.max_supply ?? (asset.circulating_supply ?? 0) + (asset.treasury_supply ?? 0);
   const circulating = supply?.circulating_supply ?? asset.circulating_supply ?? 0;
-  const inTreasury = supply?.treasury_supply ?? asset.treasury_supply ?? 0;
-  const emission = supply?.current_daily_emission ?? asset.current_daily_emission ?? 0;
+  const buffer = asset.broker_buffer ?? max * 0.02;
+  const forSale = asset.shares_for_sale ?? Math.max(0, max - circulating - buffer);
+  const buyback = asset.trading_state === "buyback" ? asset.buyback ?? null : null;
 
   return (
     <section className={styles.sec} id="s-holders">
@@ -96,28 +97,46 @@ export function HoldersSection({ asset }: { asset: MarketAsset }) {
           <div className={styles.label} style={{ margin: "1rem 0 0.4rem" }}>
             Supply
           </div>
-          <div className={styles.supplyBar} role="img" aria-label={`${circulating} circulating of ${max}`}>
-            <i style={{ width: `${max ? (circulating / max) * 100 : 0}%` }} />
+          <div
+            className={styles.supplyBar}
+            data-state={buyback ? "buyback" : asset.sold_out ? "soldout" : undefined}
+            role="img"
+            aria-label={`${Math.round(circulating)} held of ${Math.round(max)} max shares, ${Math.floor(forSale)} for sale`}
+          >
+            <i style={{ width: `${max ? Math.min(100, (circulating / max) * 100) : 0}%` }} />
+            <s style={{ width: `${max ? Math.min(100, (buffer / max) * 100) : 0}%` }} />
           </div>
           <dl className={styles.kv}>
             <dt>
-              <Term k="float">Circulating</Term>
+              <Term k="float">Held by players</Term>
             </dt>
             <dd>{Math.round(circulating).toLocaleString("en-US")}</dd>
             <dt>
-              <Term k="treasury">Treasury</Term>
+              <Term k={asset.sold_out ? "sold-out" : "treasury"}>For sale</Term>
             </dt>
-            <dd>{Math.round(inTreasury).toLocaleString("en-US")}</dd>
+            <dd className={asset.sold_out || buyback ? styles.down : undefined}>{buyback ? "frozen" : asset.sold_out ? "sold out" : Math.floor(forSale).toLocaleString("en-US")}</dd>
             <dt>
-              <Term k="max-supply">Max supply</Term>
+              <Term k="treasury">Broker&apos;s buffer</Term>
+            </dt>
+            <dd>{Math.round(buffer).toLocaleString("en-US")}</dd>
+            <dt>
+              <Term k="max-supply">Max shares</Term>
             </dt>
             <dd>{Math.round(max).toLocaleString("en-US")}</dd>
-            <dt>
-              <Term k="emission">Printed at settlement</Term>
-            </dt>
-            <dd>{emission ? `${emission.toFixed(2)} sh` : "none"}</dd>
           </dl>
-          <p className={styles.formula}>Each settlement prints new shares from the treasury into circulation, more of them for stocks trading above their target.</p>
+          {buyback ? (
+            <p className={styles.formula}>
+              <b>
+                <Term k="buyback">Buyback</Term>:
+              </b>{" "}
+              {Math.round(buyback.shares_over).toLocaleString("en-US")} shares over the max. The broker pays {buyback.price.toFixed(2)} a share ({Math.round(buyback.multiplier * 100)}% of the frozen {buyback.frozen_price.toFixed(2)}), 10 points less each day. What&apos;s still over at the next{" "}
+              <Term k="evaluation">weekly evaluation</Term> gets bought back from every holder at the base rate.
+            </p>
+          ) : (
+            <p className={styles.formula}>
+              Buying takes shares from the broker; selling gives them back. Max shares reset every Saturday at the <Term k="evaluation">weekly evaluation</Term>, from subscriber count.
+            </p>
+          )}
         </div>
       </div>
     </section>

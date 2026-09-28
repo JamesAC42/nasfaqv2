@@ -401,7 +401,8 @@ async function applyInterval(client, interval, now = new Date()) {
       current_transient_offset,
       offsets_updated_at,
       latest_snapshot_id,
-      spread_bps
+      spread_bps,
+      trading_state
     FROM market.market_assets
     WHERE id = $1
     FOR UPDATE
@@ -410,7 +411,9 @@ async function applyInterval(client, interval, now = new Date()) {
   );
   const asset = rows[0] || null;
 
-  if (!asset || asset.status !== "active" || !(toNumber(asset.current_fair_value, 0) > 0) || !(toNumber(asset.current_mid_price, 0) > 0)) {
+  // A stock in a buyback is frozen: the ticks skip it (its base rate still updates at settlement).
+  const frozen = asset?.trading_state === "buyback";
+  if (!asset || frozen || asset.status !== "active" || !(toNumber(asset.current_fair_value, 0) > 0) || !(toNumber(asset.current_mid_price, 0) > 0)) {
     await client.query(
       `
       UPDATE market.asset_adjustment_intervals
@@ -424,7 +427,7 @@ async function applyInterval(client, interval, now = new Date()) {
         interval.id,
         now,
         JSON.stringify({
-          skip_reason: !asset ? "asset_not_found" : "asset_not_adjustable",
+          skip_reason: !asset ? "asset_not_found" : frozen ? "buyback" : "asset_not_adjustable",
         }),
       ]
     );

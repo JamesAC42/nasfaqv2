@@ -80,10 +80,24 @@ function patchAssetFromTrade(asset: MarketAsset, payload: Record<string, unknown
     current_ask_price: toNumber(quote.ask_price) ?? asset.current_ask_price,
     current_premium_pct: null,
     premium_discount_pct: null,
+    ...supplyFromQuote(asset, quote),
     volume_24h: (asset.volume_24h ?? 0) + (toNumber(trade.quantity) ?? 0),
     move_24h_pct: nextMidPrice !== null && todayOpenPrice !== null && todayOpenPrice !== 0
       ? (nextMidPrice - todayOpenPrice) / todayOpenPrice
       : asset.move_24h_pct,
+  };
+}
+
+/** Supply after a fill (the fill event carries it): held, left for sale, sold out. */
+function supplyFromQuote(asset: MarketAsset, quote: Record<string, unknown>): Partial<MarketAsset> {
+  const forSale = toNumber(quote.shares_for_sale);
+  if (forSale === null) return {};
+  const state = quote.trading_state === "buyback" ? "buyback" : "open";
+  return {
+    shares_for_sale: forSale,
+    circulating_supply: toNumber(quote.circulating_supply) ?? asset.circulating_supply,
+    trading_state: state,
+    sold_out: state === "open" && forSale <= 0,
   };
 }
 
@@ -101,6 +115,7 @@ function patchAssetFromQuote(asset: MarketAsset, quote: Record<string, unknown>)
     current_ask_price: toNumber(quote.ask_price) ?? asset.current_ask_price,
     current_premium_pct: null,
     premium_discount_pct: null,
+    ...supplyFromQuote(asset, quote),
     move_24h_pct: nextMidPrice !== null && todayOpenPrice !== null && todayOpenPrice !== 0
       ? (nextMidPrice - todayOpenPrice) / todayOpenPrice
       : asset.move_24h_pct,
@@ -448,6 +463,12 @@ export const useMarketStore = create<MarketState>((set, get) => ({
             return;
           }
 
+          // Dividends, fees, new max shares and buybacks: refetch the board (and the player's cash).
+          if (payload.type === "market.weekly_evaluation") {
+            scheduleOverviewRefresh(get().refreshOverview);
+            return;
+          }
+
           if (payload.type === "market.settlement_completed") {
             const incomingAssets = Array.isArray(payload.assets)
               ? (payload.assets as Array<Record<string, unknown>>).map(normalizeAsset)
@@ -472,6 +493,8 @@ export const useMarketStore = create<MarketState>((set, get) => ({
             });
 
             void get().fetchMarketIndexes({ force: true, silent: true });
+            // Buybacks can end at the Open; the settlement event doesn't carry supply, so refetch the board.
+            scheduleOverviewRefresh(get().refreshOverview);
             void apiFetch<DailyReport>("/api/market/report/daily/latest")
               .then((report) => set({ report }))
               .catch(() => {});

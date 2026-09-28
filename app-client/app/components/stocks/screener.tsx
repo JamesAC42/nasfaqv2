@@ -274,7 +274,7 @@ export function Screener({ initialView }: { initialView?: string }) {
       const start = series.length > 1 ? series[0] : null;
       const before = asset.latest_adjustment?.price_before;
       const after = asset.latest_adjustment?.price_after;
-      const total = (asset.circulating_supply ?? 0) + (asset.treasury_supply ?? 0);
+      const total = asset.max_supply ?? (asset.circulating_supply ?? 0) + (asset.treasury_supply ?? 0);
       const channel = channels.get(sym);
       return {
         asset,

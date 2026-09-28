@@ -22,6 +22,8 @@ const KINDS = new Set([
   "proposal_approved",
   "exchange",
   "wishlist",
+  "dividend",
+  "buyback",
 ]);
 
 function money(value) {
