@@ -82,6 +82,7 @@ export function AdminFrame({ kicker = "Back office", title, blurb, aside, live =
     { href: "/admin/assets", label: "Assets & prizes", show: access.canAssets },
     { href: predictionsHref(access, user as Record<string, unknown> | null), label: "Predictions", show: access.canPredictions, external: true },
     { href: "/admin/people", label: "People & roles", show: access.isAdmin },
+    { href: "/admin/exchange", label: "Exchange review", show: access.isAdmin },
   ];
   const visible = items.filter((item) => item.show);
 

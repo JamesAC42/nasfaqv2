@@ -1571,6 +1571,24 @@ async function applySchema(pool) {
       ADD COLUMN IF NOT EXISTS event_signal NUMERIC NULL,
       ADD COLUMN IF NOT EXISTS event_kinds TEXT[] NULL
   `);
+  // The bell: one row per thing a player should hear about (friend requests, mentions, exchange
+  // alerts, payouts). Text is written at insert time; `data` keeps the details.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.notifications (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      href TEXT NULL,
+      actor_user_id BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL,
+      data JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      read_at TIMESTAMPTZ NULL
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_notifications_user_time_idx ON market.notifications (user_id, created_at DESC, id DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_notifications_unread_idx ON market.notifications (user_id) WHERE read_at IS NULL`);
   await applyGamesSchema(pool);
   await applyPredictionsSchema(pool);
 }

@@ -46,6 +46,7 @@ const ERROR_STATUS = {
   exchange_daily_limit: 429,
   exchange_listing_limit: 409,
   exchange_offer_limit: 409,
+  exchange_wishlist_full: 409,
   invalid_price: 400,
   invalid_duration: 400,
   invalid_listing: 400,
@@ -186,6 +187,26 @@ router.get("/exchange/cards/:symbol/:rarity", async (req, res, next) => {
   try {
     const key = `card:${String(req.params.symbol).toUpperCase()}:${String(req.params.rarity).toUpperCase()}`;
     res.json(await exchange.cardDetail(req.ctx.pool, { cardKey: key, viewerId: viewerIdOf(req) }));
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+// Wishlist: POST { card_key } adds, DELETE /exchange/wishlist/:symbol/:rarity removes.
+router.post("/exchange/wishlist", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    res.status(201).json(await exchange.addWish(req.ctx.pool, { userId, cardKey: req.body?.card_key }));
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.delete("/exchange/wishlist/:symbol/:rarity", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    const key = `card:${String(req.params.symbol).toUpperCase()}:${String(req.params.rarity).toUpperCase()}`;
+    res.json(await exchange.removeWish(req.ctx.pool, { userId, cardKey: key }));
   } catch (error) {
     sendGameError(res, next, error);
   }

@@ -314,6 +314,17 @@ async function applyGamesSchema(pool) {
   await pool.query(`CREATE INDEX IF NOT EXISTS games_card_trades_to_idx ON games.card_trades (to_user_id, status, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS games_card_trades_from_idx ON games.card_trades (from_user_id, status, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS games_card_trades_pending_idx ON games.card_trades (status, expires_at)`);
+
+  // Cards a player wants: a new listing of one rings their bell.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS games.card_wishlist (
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      card_key TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (user_id, card_key)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS games_card_wishlist_card_idx ON games.card_wishlist (card_key)`);
 }
 
 module.exports = { applyGamesSchema };

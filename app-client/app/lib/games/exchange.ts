@@ -75,7 +75,12 @@ export type CardDetail = {
   listings: Listing[];
   stats: { last: number | null; floor: number | null; high30d: number | null; low30d: number | null; sales30d: number; owners: number; in_circulation: number; in_escrow: number };
   mine: { stars: number; copies: number; tradeable: number } | null;
+  /** On your wishlist (a new listing rings your bell). */
+  wanted?: boolean;
+  wanted_by?: number;
 };
+
+export type Wish = { card_key: string; card: ExchangeCard | null; floor: number | null; listed: number; owned: boolean; added_at: string };
 
 export type Desk = {
   eligibility: { eligible: boolean; reason: string | null; available_at: string | null };
@@ -85,6 +90,7 @@ export type Desk = {
   closed: Listing[];
   bids: Listing[];
   won: Listing[];
+  wishlist?: Wish[];
 };
 
 export type TradeSide = { cards: ExchangeCard[]; cash: number; shards: number };
@@ -132,6 +138,9 @@ export const fetchListings = (params: Record<string, string | number | undefined
   return apiFetch<{ listings: Listing[]; total: number; page: number; limit: number }>(`/api/games/exchange/listings?${search}`, noStore);
 };
 export const fetchCardDetail = (symbol: string, rarity: string) => apiFetch<CardDetail>(`/api/games/exchange/cards/${encodeURIComponent(symbol)}/${encodeURIComponent(rarity)}`, noStore);
+export const addWish = (cardKey: string) => apiFetch<{ card_key: string; wanted: boolean }>("/api/games/exchange/wishlist", { method: "POST", body: JSON.stringify({ card_key: cardKey }) });
+export const removeWish = (symbol: string, rarity: string) =>
+  apiFetch<{ card_key: string; wanted: boolean }>(`/api/games/exchange/wishlist/${encodeURIComponent(symbol)}/${encodeURIComponent(rarity)}`, { method: "DELETE" });
 export const fetchDesk = () => apiFetch<Desk>("/api/games/exchange/me", noStore);
 export const fetchTrades = () => apiFetch<TradesResponse>("/api/games/exchange/trades", noStore);
 export const fetchTradeableCards = (username: string) =>

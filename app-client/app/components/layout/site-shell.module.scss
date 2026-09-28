@@ -200,6 +200,17 @@
   white-space: nowrap;
 }
 
+// Narrow phones: the bell and orders need the room, so the tick's name goes and its countdown stays.
+@media (max-width: 440px) {
+  .status {
+    gap: 0.45rem;
+  }
+
+  .nextTick b:not(.countdown) {
+    display: none;
+  }
+}
+
 .pill {
   display: inline-flex;
   align-items: center;

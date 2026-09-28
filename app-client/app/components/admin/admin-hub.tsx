@@ -310,6 +310,7 @@ export function AdminHub() {
     { href: predsLink, label: "Predictions control room", line: "Approvals, calls, disputes and auto templates.", show: canPredictions },
     { href: "/predictions/create", label: "New prediction market", line: "Write one up and send it for approval.", show: isAdmin || Boolean((user as Record<string, unknown> | null)?.can_create_prediction_markets) },
     { href: "/admin/people", label: "People & roles", line: "Find a player, hand out or take back roles.", show: isAdmin },
+    { href: "/admin/exchange", label: "Exchange review", line: "Lopsided card sales and trades involving new accounts.", show: isAdmin },
   ].filter((tool) => tool.show);
 
   return (

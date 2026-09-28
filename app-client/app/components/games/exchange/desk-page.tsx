@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TalentCard } from "@/app/components/games/cards/talent-card";
 import { SignInToPlay } from "@/app/components/games/shell/games-frame";
-import { cardValue, type Listing } from "@/app/lib/games/exchange";
+import { cardPath, cardValue, type Listing, type Wish } from "@/app/lib/games/exchange";
 import { useGamesEvents } from "@/app/lib/games/use-games-socket";
 import { money } from "@/app/lib/time";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -111,6 +111,7 @@ export function DeskPage() {
       <div className={styles.deskGrid}>
         <DeskSection title="Your bids" empty="You're not bidding on anything. Auctions ending soon are on the market page." listings={desk?.bids ?? null} onOpen={setOpen} kind="bids" />
         <DeskSection title="Selling" empty="Nothing listed. Sell a spare duplicate: it's how prices get set." listings={desk?.listings ?? null} onOpen={setOpen} kind="selling" />
+        <WishlistSection wishes={desk ? desk.wishlist ?? [] : null} />
         <DeskSection title="Won and bought" empty="Nothing yet." listings={desk?.won ?? null} onOpen={setOpen} kind="won" />
         <DeskSection title="Closed listings" empty="Nothing closed yet." listings={desk?.closed ?? null} onOpen={setOpen} kind="closed" />
       </div>
@@ -156,6 +157,40 @@ function DeskSection({ title, empty, listings, onOpen, kind }: { title: string; 
           See them in your binder →
         </Link>
       ) : null}
+    </section>
+  );
+}
+
+/** Cards you want: the bell rings when one is listed. Add them from a card's page. */
+function WishlistSection({ wishes }: { wishes: Wish[] | null }) {
+  return (
+    <section className={styles.panel} aria-label="Wishlist">
+      <h2 className={styles.sectionTitle}>
+        Wishlist
+        {wishes?.length ? <small>{wishes.length}</small> : null}
+      </h2>
+      {wishes === null ? (
+        <p className={styles.note}>Loading…</p>
+      ) : wishes.length ? (
+        <ul className={styles.deskList}>
+          {wishes.map((wish) =>
+            wish.card ? (
+              <li key={wish.card_key}>
+                <Link href={cardPath(wish.card_key)} className={styles.deskRow} data-state={wish.listed ? "leading" : undefined}>
+                  <TalentCard card={wish.card} width={56} compact tilt={false} />
+                  <span className={styles.rowMain}>
+                    <CardName card={wish.card} />
+                    <small>{wish.listed ? `${wish.listed} for sale now` : "None for sale · you'll get a notification"}{wish.owned ? " · you have one" : ""}</small>
+                  </span>
+                  <span className={styles.rowEnd}>{wish.floor !== null ? <b className={styles.cash}>{money(wish.floor)}</b> : <small>—</small>}</span>
+                </Link>
+              </li>
+            ) : null
+          )}
+        </ul>
+      ) : (
+        <p className={styles.note}>Nothing on it. Open any card on the market and tap “Want it”: you&apos;ll get a notification when someone lists it.</p>
+      )}
     </section>
   );
 }

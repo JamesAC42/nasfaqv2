@@ -4,6 +4,7 @@
 
 const express = require("express");
 const adminConsole = require("../services/adminConsole");
+const exchange = require("../services/games/exchange");
 const { requireAdmin } = require("../userContext");
 
 const router = express.Router();
@@ -46,6 +47,17 @@ router.get(
     requireSiteAdmin(req);
     res.set("Cache-Control", "no-store");
     res.json(await adminConsole.getOverview(req.ctx.pool));
+  })
+);
+
+// Card exchange transfers worth a look: lopsided sales and trades involving new accounts.
+router.get(
+  "/exchange-review",
+  handle(async (req, res) => {
+    requireSiteAdmin(req);
+    res.set("Cache-Control", "no-store");
+    const days = Math.min(90, Math.max(1, Number(req.query.days) || 14));
+    res.json(await exchange.reviewFlags(req.ctx.pool, { days }));
   })
 );
 

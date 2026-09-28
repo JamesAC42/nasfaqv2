@@ -1,3 +1,5 @@
+const notifications = require("./services/notifications");
+
 function slugify(value) {
   const normalized = String(value || "")
     .trim()
@@ -1221,7 +1223,7 @@ async function approveProposal(pool, slug, proposalId, reviewerId) {
 
     const proposalResult = await client.query(
       `
-      SELECT id, article_id, title, subtitle, tags, thumbnail_url, content
+      SELECT id, article_id, author_id, title, subtitle, tags, thumbnail_url, content
       FROM content.news_article_proposals
       WHERE id = $1
         AND article_id = $2
@@ -1279,7 +1281,21 @@ async function approveProposal(pool, slug, proposalId, reviewerId) {
       [article.id, proposal.title, proposal.subtitle, Array.isArray(proposal.tags) ? proposal.tags : [], proposal.thumbnail_url, proposal.content]
     );
 
+    const noted = await notifications.notify(
+      client,
+      proposal.author_id,
+      {
+        kind: "proposal_approved",
+        title: "Your article was picked",
+        body: `An editor made your draft the official version of “${proposal.title || article.title || "the story"}”.`,
+        href: `/articles/${encodeURIComponent(slug)}`,
+        actorUserId: reviewerId,
+        data: { article_id: Number(article.id), proposal_id: safeProposalId },
+      },
+      { publish: false }
+    );
     await client.query("COMMIT");
+    notifications.publish([noted]);
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

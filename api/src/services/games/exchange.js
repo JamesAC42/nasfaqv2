@@ -16,6 +16,7 @@ const cards = require("./cards");
 const cardGacha = require("./cardGacha");
 const gamesWallet = require("./wallet");
 const hub = require("./tables/hub");
+const notifications = require("../notifications");
 
 const FEE_RATE = 0.05;
 const MAX_PRICE = 1_000_000;
@@ -79,6 +80,16 @@ function createOutbox() {
     user(userId, alert) {
       if (userId) items.push({ kind: "user", userId: Number(userId), alert });
     },
+    userItems() {
+      return items.filter((item) => item.kind === "user");
+    },
+    /** A bell-only notification (no toast), e.g. "a card you want was listed". */
+    notice(userId, notification) {
+      if (userId) items.push({ kind: "notice", userId: Number(userId), notification });
+    },
+    notices() {
+      return items.filter((item) => item.kind === "notice");
+    },
     flush() {
       for (const item of items) {
         if (item.kind === "public") {
@@ -101,8 +112,12 @@ async function withTransaction(pool, work) {
   try {
     await client.query("BEGIN");
     const result = await work(client, outbox);
+    // The bell keeps them too, for players who weren't looking (or were offline).
+    const noted = await notifications.recordExchangeAlerts(client, outbox.userItems());
+    for (const item of outbox.notices()) noted.push(await notifications.notify(client, item.userId, item.notification, { publish: false }));
     await client.query("COMMIT");
     outbox.flush();
+    notifications.publish(noted);
     return result;
   } catch (error) {
     await client.query("ROLLBACK");
@@ -291,6 +306,22 @@ async function createListing(pool, { userId, cardKey, kind, price, startPrice, b
     );
     const listing = listingView(talents, await loadListing(client, rows[0].id), userId);
     outbox.public({ type: "listed", listing: { ...listing, is_mine: false } });
+    // Everyone who wants this card hears about it (the seller doesn't).
+    const { rows: wishers } = await client.query(`SELECT user_id FROM games.card_wishlist WHERE card_key = $1 AND user_id <> $2 LIMIT 500`, [cardKey, userId]);
+    const card = cardView(talents, cardKey);
+    const priceText =
+      kind === "fixed"
+        ? `Buy it now for ${notifications.money(fixedPrice)}.`
+        : `Auction from ${notifications.money(start)}${fixedPrice ? `, or ${notifications.money(fixedPrice)} to buy now` : ""}.`;
+    for (const wisher of wishers) {
+      outbox.notice(wisher.user_id, {
+        kind: "wishlist",
+        title: `On your wishlist: ${card ? `${card.name} ${card.rarity}` : "a card"} was listed`,
+        body: priceText,
+        href: `/games/exchange/card/${parsed.symbol}/${parsed.rarity}`,
+        data: { card_key: cardKey, listing_id: listing.id },
+      });
+    }
     return { listing };
   });
 }
@@ -909,8 +940,14 @@ async function cardDetail(pool, { cardKey, viewerId = null }) {
   const active = listings.rows.map((row) => listingView(talents, row, viewerId));
   const buyNowPrices = active.map((listing) => listing.buy_now).filter((value) => value !== null);
   const own = mine.rows[0];
+  const [{ rows: wantRows }, { rows: wantedBy }] = await Promise.all([
+    viewerId ? pool.query(`SELECT 1 FROM games.card_wishlist WHERE user_id = $1 AND card_key = $2`, [viewerId, cardKey]) : Promise.resolve({ rows: [] }),
+    pool.query(`SELECT count(*)::int AS n FROM games.card_wishlist WHERE card_key = $1`, [cardKey]),
+  ]);
   return {
     card: cardView(talents, cardKey),
+    wanted: wantRows.length > 0,
+    wanted_by: wantedBy[0]?.n ?? 0,
     card_key: cardKey,
     history,
     listings: active,
@@ -926,6 +963,146 @@ async function cardDetail(pool, { cardKey, viewerId = null }) {
     },
     mine: own ? { stars: Number(own.stars), copies: Number(own.copies), tradeable: Number(own.copies) - Number(own.bound_copies) } : null,
   };
+}
+
+// ── Admin: transfers worth a second look ─────────────────────────────────
+// Value moving between accounts for far less (or more) than it's worth, where at least one side is
+// a new account: the shape of alt accounts feeding a main. Card values come from the price book;
+// cards nobody has priced yet use the median sale for their rarity.
+async function reviewFlags(pool, { days = 14, newAccountDays = 14, ratio = 3, minValue = 25 } = {}) {
+  const talents = await talentLookup(pool);
+  const [prices, { rows: rarityRows }, { rows: sales }, { rows: trades }] = await Promise.all([
+    priceBook(pool),
+    pool.query(`SELECT rarity, percentile_cont(0.5) WITHIN GROUP (ORDER BY price) AS median FROM games.card_sales WHERE created_at > now() - interval '60 days' GROUP BY rarity`),
+    pool.query(
+      `
+      SELECT s.id, s.card_key, s.rarity, s.price, s.kind, s.created_at,
+        sel.id AS seller_id, sel.username AS seller, sel.created_at AS seller_joined,
+        buy.id AS buyer_id, buy.username AS buyer, buy.created_at AS buyer_joined
+      FROM games.card_sales s
+      JOIN market.users sel ON sel.id = s.seller_id
+      JOIN market.users buy ON buy.id = s.buyer_id
+      WHERE s.created_at > now() - make_interval(days => $1)
+        AND (sel.created_at > s.created_at - make_interval(days => $2) OR buy.created_at > s.created_at - make_interval(days => $2))
+      ORDER BY s.created_at DESC
+      LIMIT 500
+    `,
+      [days, newAccountDays]
+    ),
+    pool.query(
+      `
+      SELECT t.id, t.give_json, t.ask_json, t.responded_at AS at,
+        f.id AS from_id, f.username AS from_user, f.created_at AS from_joined,
+        u.id AS to_id, u.username AS to_user, u.created_at AS to_joined
+      FROM games.card_trades t
+      JOIN market.users f ON f.id = t.from_user_id
+      JOIN market.users u ON u.id = t.to_user_id
+      WHERE t.status = 'accepted' AND t.responded_at > now() - make_interval(days => $1)
+        AND (f.created_at > t.responded_at - make_interval(days => $2) OR u.created_at > t.responded_at - make_interval(days => $2))
+      ORDER BY t.responded_at DESC
+      LIMIT 500
+    `,
+      [days, newAccountDays]
+    ),
+  ]);
+  const rarityMedian = new Map(rarityRows.map((row) => [row.rarity, num(row.median)]));
+  const valueOf = (cardKey) => {
+    const known = prices[cardKey]?.value;
+    if (known !== null && known !== undefined) return known;
+    return rarityMedian.get(cards.parseCardKey(cardKey)?.rarity) ?? 0;
+  };
+  const ageDays = (joined, at) => Math.max(0, Math.floor((Date.parse(at) - Date.parse(joined)) / 86_400_000));
+  const flags = [];
+  for (const sale of sales) {
+    const price = num(sale.price);
+    const worth = round2(valueOf(sale.card_key));
+    if (worth < minValue && price < minValue) continue;
+    const off = worth > 0 && price > 0 ? Math.max(worth / price, price / worth) : Infinity;
+    if (off < ratio) continue;
+    flags.push({
+      type: "sale",
+      id: Number(sale.id),
+      at: sale.created_at,
+      from: { id: Number(sale.seller_id), username: sale.seller, age_days: ageDays(sale.seller_joined, sale.created_at) },
+      to: { id: Number(sale.buyer_id), username: sale.buyer, age_days: ageDays(sale.buyer_joined, sale.created_at) },
+      summary: `${cardView(talents, sale.card_key)?.name ?? sale.card_key} ${sale.rarity} sold for $${round2(price).toFixed(2)} (worth about $${worth.toFixed(2)})`,
+      paid: round2(price),
+      worth,
+      ratio: Number.isFinite(off) ? round2(off) : null,
+      // Who came out ahead: cheap sales favour the buyer, dear ones the seller.
+      favours: price < worth ? "to" : "from",
+    });
+  }
+  const sideValue = (side) => {
+    const s = side && typeof side === "object" ? side : {};
+    const cardsValue = (Array.isArray(s.cards) ? s.cards : []).reduce((sum, entry) => sum + valueOf(entry.card_key) * Number(entry.qty || 1), 0);
+    return { value: round2(cardsValue + Number(s.cash || 0)), shards: Number(s.shards || 0), cards: (s.cards || []).reduce((sum, entry) => sum + Number(entry.qty || 1), 0) };
+  };
+  for (const trade of trades) {
+    const give = sideValue(trade.give_json);
+    const ask = sideValue(trade.ask_json);
+    const high = Math.max(give.value, ask.value);
+    const low = Math.min(give.value, ask.value);
+    if (high < minValue) continue;
+    const off = low > 0 ? high / low : Infinity;
+    if (off < ratio) continue;
+    flags.push({
+      type: "trade",
+      id: Number(trade.id),
+      at: trade.at,
+      from: { id: Number(trade.from_id), username: trade.from_user, age_days: ageDays(trade.from_joined, trade.at) },
+      to: { id: Number(trade.to_id), username: trade.to_user, age_days: ageDays(trade.to_joined, trade.at) },
+      summary: `${trade.from_user} gave ${give.cards} card${give.cards === 1 ? "" : "s"}${give.shards ? ` + ${give.shards} shards` : ""} worth ~$${give.value.toFixed(2)} for ${ask.cards} card${ask.cards === 1 ? "" : "s"}${ask.shards ? ` + ${ask.shards} shards` : ""} worth ~$${ask.value.toFixed(2)}`,
+      paid: ask.value,
+      worth: give.value,
+      ratio: Number.isFinite(off) ? round2(off) : null,
+      favours: give.value > ask.value ? "to" : "from",
+    });
+  }
+  // Pairs that keep doing it.
+  const pairCount = new Map();
+  for (const flag of flags) {
+    const pair = [flag.from.id, flag.to.id].sort((a, b) => a - b).join(":");
+    pairCount.set(pair, (pairCount.get(pair) || 0) + 1);
+  }
+  for (const flag of flags) flag.pair_flags = pairCount.get([flag.from.id, flag.to.id].sort((a, b) => a - b).join(":"));
+  flags.sort((a, b) => (b.pair_flags - a.pair_flags) || ((b.ratio ?? 999) - (a.ratio ?? 999)) || Date.parse(b.at) - Date.parse(a.at));
+  return { window_days: days, new_account_days: newAccountDays, ratio, flags: flags.slice(0, 200) };
+}
+
+const MAX_WISHES = 60;
+
+async function addWish(pool, { userId, cardKey }) {
+  const parsed = cards.parseCardKey(cardKey);
+  if (!parsed) throw exchangeError("invalid_card");
+  const talents = await talentLookup(pool);
+  if (!talents.has(parsed.symbol)) throw exchangeError("invalid_card");
+  const { rows } = await pool.query(`SELECT count(*)::int AS n FROM games.card_wishlist WHERE user_id = $1`, [userId]);
+  if (rows[0].n >= MAX_WISHES) throw exchangeError("exchange_wishlist_full", { limit: MAX_WISHES });
+  await pool.query(`INSERT INTO games.card_wishlist (user_id, card_key) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [userId, cardKey]);
+  return { card_key: cardKey, wanted: true };
+}
+
+async function removeWish(pool, { userId, cardKey }) {
+  await pool.query(`DELETE FROM games.card_wishlist WHERE user_id = $1 AND card_key = $2`, [userId, cardKey]);
+  return { card_key: cardKey, wanted: false };
+}
+
+/** Your wishlist with each card's cheapest buy-now and how many are up. */
+async function listWishes(pool, talents, userId) {
+  const { rows } = await pool.query(
+    `
+    SELECT w.card_key, w.created_at,
+      (SELECT min(l.price) FROM games.card_listings l WHERE l.card_key = w.card_key AND l.status = 'active' AND l.ends_at > now() AND l.price IS NOT NULL) AS floor,
+      (SELECT count(*)::int FROM games.card_listings l WHERE l.card_key = w.card_key AND l.status = 'active' AND l.ends_at > now()) AS listed,
+      EXISTS (SELECT 1 FROM games.user_cards uc WHERE uc.user_id = w.user_id AND uc.card_key = w.card_key) AS owned
+    FROM games.card_wishlist w
+    WHERE w.user_id = $1
+    ORDER BY w.created_at DESC
+  `,
+    [userId]
+  );
+  return rows.map((row) => ({ card_key: row.card_key, card: cardView(talents, row.card_key), floor: num(row.floor), listed: row.listed, owned: row.owned, added_at: row.created_at }));
 }
 
 async function myDesk(pool, { userId }) {
@@ -952,7 +1129,9 @@ async function myDesk(pool, { userId }) {
     [userId]
   );
   const topBid = new Map(myBids.map((row) => [Number(row.listing_id), num(row.top)]));
+  const wishlist = await listWishes(pool, talents, userId);
   return {
+    wishlist,
     eligibility: status,
     limits: used,
     incoming_offers: trades.rows[0].n,
@@ -996,6 +1175,9 @@ function startExchangeScheduler(pool, logger = console, { intervalMs = 5_000 } =
 
 module.exports = {
   AUCTION_HOURS,
+  addWish,
+  removeWish,
+  reviewFlags,
   FEE_RATE,
   SNIPE_WINDOW_MS,
   browseListings,

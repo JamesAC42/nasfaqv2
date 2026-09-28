@@ -22,6 +22,7 @@ import { useTheme } from "@/app/providers/theme-provider";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useMomentStore } from "@/app/stores/moment-store";
 import { useProfileStore } from "@/app/stores/profile-store";
+import { NotificationBell } from "@/app/components/notifications/notification-bell";
 import styles from "@/app/components/layout/site-shell.module.scss";
 
 function formatQuantity(value: number | null | undefined) {
@@ -311,6 +312,8 @@ export function SiteShell({
           </div>
 
           {user ? (
+            <>
+            <NotificationBell userId={Number(user.id)} classes={{ button: styles.iconButton, hot: styles.iconButtonHot, badge: styles.badge, icon: styles.icon }} />
             <div ref={ordersRef} className={styles.ordersWrap}>
               <button
                 type="button"
@@ -356,6 +359,7 @@ export function SiteShell({
                 </div>
               ) : null}
             </div>
+            </>
           ) : null}
 
           <div className={styles.prefs}>

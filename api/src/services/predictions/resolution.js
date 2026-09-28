@@ -6,6 +6,7 @@
 const lmsr = require("./lmsr");
 const core = require("./core");
 const trading = require("./trading");
+const notifications = require("../notifications");
 
 const { num, round2, predictionError } = core;
 
@@ -206,10 +207,13 @@ async function settleWithClient(client, market, winningOutcomeId, { actorUserId 
   if (!winner) throw predictionError("invalid_outcome");
   const { rows: positions } = await client.query(`SELECT * FROM market.prediction_market_positions WHERE market_id = $1 AND shares > 0 FOR UPDATE`, [market.id]);
   let paid = 0;
+  const perUser = new Map(); // userId → { payout, won }
   for (const position of positions) {
     const shares = num(position.shares);
     const won = String(position.outcome_id) === String(winner.id);
     const payout = won ? round2(shares) : 0;
+    const mine = perUser.get(Number(position.user_id)) ?? { payout: 0, won: false };
+    perUser.set(Number(position.user_id), { payout: round2(mine.payout + payout), won: mine.won || won });
     await core.moveCash(client, position.user_id, payout, {
       entryType: won ? "prediction_payout_win" : "prediction_payout_loss",
       marketId: market.id,
@@ -232,6 +236,15 @@ async function settleWithClient(client, market, winningOutcomeId, { actorUserId 
     [market.id, winner.outcome_code, winner.id, actorUserId, round2(paid)]
   );
   await core.logEvent(client, market.id, "market_resolved", { outcome: winner.outcome_code, label: winner.label, paid_out: round2(paid), positions: positions.length }, actorUserId);
+  for (const [userId, { payout, won }] of perUser) {
+    await notifications.notify(client, userId, {
+      kind: won ? "prediction_won" : "prediction_lost",
+      title: won ? `You called it: ${market.title}` : `Resolved: ${market.title}`,
+      body: won ? `It resolved ${winner.label}. ${notifications.money(payout)} paid to your cash.` : `It resolved ${winner.label}. Your position didn't pay out this time.`,
+      href: `/predictions/${encodeURIComponent(market.slug)}`,
+      data: { market_id: Number(market.id), payout },
+    });
+  }
   return { id: Number(market.id), slug: market.slug, outcome: winner.outcome_code, paid_out: round2(paid) };
 }
 
@@ -248,6 +261,13 @@ async function voidWithClient(client, market, { actorUserId = null, reason = nul
     if (refund > 0 || num(row.shares) > 0) {
       await core.moveCash(client, row.user_id, refund, { entryType: "prediction_void_refund", marketId: market.id, quantityDelta: -num(row.shares), referenceType: "prediction_void" });
       refunded += refund;
+      await notifications.notify(client, row.user_id, {
+        kind: "prediction_void",
+        title: `Voided: ${market.title}`,
+        body: `${reason ? `${reason}. ` : ""}${notifications.money(refund)} back in your cash.`,
+        href: `/predictions/${encodeURIComponent(market.slug)}`,
+        data: { market_id: Number(market.id), refund },
+      });
     }
   }
   await client.query(`UPDATE market.prediction_market_positions SET shares = 0, updated_at = now() WHERE market_id = $1`, [market.id]);

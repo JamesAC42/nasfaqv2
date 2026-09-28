@@ -1,0 +1,196 @@
+@use "../../styles/mixins" as *;
+
+.wrap {
+  position: relative;
+}
+
+.panel {
+  @include popover;
+  position: absolute;
+  top: calc(100% + 0.6rem);
+  right: 0;
+  z-index: 50;
+  display: grid;
+  width: min(24rem, calc(100vw - 2rem));
+  max-height: min(34rem, calc(100vh - 6rem));
+  overflow: hidden;
+  grid-template-rows: auto minmax(0, 1fr);
+  animation: bellIn var(--dur-fast, 140ms) var(--ease-out, ease-out);
+
+  @include phone {
+    position: fixed;
+    top: calc(var(--site-shell-chrome-height, 3.5rem) + 0.25rem);
+    right: 1rem;
+    left: 1rem;
+    width: auto;
+  }
+}
+
+@keyframes bellIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.75rem 0.85rem 0.55rem;
+  border-bottom: 1px solid var(--rule);
+
+  strong {
+    @include section-heading;
+  }
+
+  a {
+    @include label;
+    color: var(--blue);
+  }
+}
+
+.list {
+  display: grid;
+  overflow-y: auto;
+}
+
+.empty {
+  @include empty-state;
+  margin: 0.85rem;
+  font-size: 0.75rem;
+}
+
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.9rem minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: start;
+  padding: 0.65rem 0.85rem;
+  border-top: 1px solid var(--rule);
+  color: inherit;
+  text-decoration: none;
+
+  &:first-child {
+    border-top: 0;
+  }
+
+  &[href]:hover {
+    background: var(--ink-2);
+
+    b {
+      color: var(--blue);
+    }
+  }
+
+  &[data-unread] {
+    background: color-mix(in srgb, var(--blue) 6%, transparent);
+  }
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 1px solid var(--rule-2, var(--rule));
+  color: var(--mid);
+  font-size: 0.8rem;
+
+  &[data-tone="win"] {
+    color: var(--up);
+    border-color: color-mix(in srgb, var(--up) 45%, transparent);
+  }
+
+  &[data-tone="down"] {
+    color: var(--down);
+    border-color: color-mix(in srgb, var(--down) 40%, transparent);
+  }
+
+  &[data-tone="blue"] {
+    color: var(--blue);
+    border-color: color-mix(in srgb, var(--blue) 45%, transparent);
+  }
+}
+
+.text {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+
+  b {
+    font-size: 0.8125rem;
+    line-height: 1.3;
+  }
+
+  time {
+    @include label;
+    font-size: 0.6rem;
+  }
+}
+
+.body {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+.dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-top: 0.35rem;
+  border-radius: 50%;
+  background: var(--blue);
+}
+
+// The /notifications page.
+.page {
+  display: grid;
+  gap: 1rem;
+  width: 100%;
+  max-width: 44rem;
+  margin-inline: auto;
+}
+
+.pageHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--rule);
+
+  h1 {
+    @include display(2rem);
+    margin: 0;
+  }
+
+  p {
+    margin: 0.3rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--mid);
+  }
+}
+
+.pageList {
+  display: grid;
+  border: 1px solid var(--rule);
+}
+
+.more {
+  @include button-secondary;
+  justify-self: center;
+  padding: 0.5rem 1rem;
+}
+
+.markAll {
+  @include button-secondary;
+  padding: 0.45rem 0.8rem;
+}

@@ -1,6 +1,7 @@
 const express = require("express");
 
 const chatDb = require("../chatDb");
+const notifications = require("../services/notifications");
 const { requireAdmin, requireUserId, requireVerifiedUserId } = require("../userContext");
 
 const router = express.Router();
@@ -109,6 +110,8 @@ router.post("/channels/:channelKey/messages", async (req, res, next) => {
       channel_key: created.channel.channel_key,
       message: created.message,
     });
+    // @mentions and replies ring the bell.
+    await notifications.notifyChatMessage(req.ctx.pool, { message: created.message, channel: created.channel, author: viewer }).catch(() => null);
 
     res.status(201).json({
       channel: created.channel,

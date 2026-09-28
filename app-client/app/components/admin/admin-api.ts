@@ -174,3 +174,23 @@ export const fetchAdjustmentHealth = async () =>
 
 export const fetchLiveOrderHealth = async (batchLimit = 8) =>
   normalizeLiveOrderHealth(await apiFetch<Record<string, unknown>>(`/api/market/live-orders/admin/health?batch_limit=${batchLimit}`, { cache: "no-store" }));
+
+// ── /api/admin/exchange-review ─────────────────────────────────────────
+
+export type ReviewParty = { id: number; username: string; age_days: number };
+export type ReviewFlag = {
+  type: "sale" | "trade";
+  id: number;
+  at: string;
+  from: ReviewParty;
+  to: ReviewParty;
+  summary: string;
+  paid: number;
+  worth: number;
+  ratio: number | null;
+  favours: "from" | "to";
+  pair_flags: number;
+};
+export type ExchangeReview = { window_days: number; new_account_days: number; ratio: number; flags: ReviewFlag[] };
+
+export const fetchExchangeReview = (days: number) => apiFetch<ExchangeReview>(`/api/admin/exchange-review?days=${days}`, { cache: "no-store" });

@@ -5,6 +5,7 @@ const {
   rebuildUserTradeStreakWithClient,
 } = require("./streaks");
 const { ensureUserCashAccount } = require("../portfolioCash");
+const notifications = require("../notifications");
 
 async function syncDefinitions(pool) {
   const definitions = listDefinitions();
@@ -323,6 +324,8 @@ async function evaluateUserAchievementsWithClient(client, {
     awarded.push({
       key: definition.key,
       version: definition.version,
+      name: definition.name,
+      description: definition.description,
       reward_cash: award.reward_cash,
     });
     earnedKeys.add(earnedKey);
@@ -350,7 +353,20 @@ async function handleTradeFill(pool, { userId, fillId }) {
       evaluationRunId,
     });
     await finishEvaluationRun(client, evaluationRunId, { status: "completed" });
+    const noted = [];
+    for (const award of result.awarded || []) {
+      const reward = Number(award.reward_cash) > 0 ? ` +${notifications.money(award.reward_cash)} added to your cash.` : "";
+      noted.push(
+        await notifications.notify(
+          client,
+          userId,
+          { kind: "achievement", title: `Achievement: ${award.name || award.key}`, body: `${award.description || ""}${reward}`.trim(), href: "/profile", data: { key: award.key } },
+          { publish: false }
+        )
+      );
+    }
     await client.query("COMMIT");
+    notifications.publish(noted);
     return result;
   } catch (error) {
     await client.query("ROLLBACK");

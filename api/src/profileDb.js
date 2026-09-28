@@ -6,6 +6,7 @@ const trading = require("./services/trading");
 const gamesInventory = require("./services/games/inventory");
 const { profilePictureUrlSql } = require("./profilePictures");
 const reactions = require("./services/games/reactions");
+const notifications = require("./services/notifications");
 
 // Banner art counts only while the player still owns one of her SSR/UR cards (cards can be sold).
 const BANNER_RARITIES_SQL = "('SSR', 'UR')";
@@ -800,6 +801,9 @@ async function sendFriendRequest(pool, viewerUserId, username) {
   `,
     [safeViewerUserId, target.id]
   );
+  await notifications
+    .notify(pool, target.id, { kind: "friend_request", title: "{actor} sent you a friend request", body: "Accept or decline it on your profile.", href: "/profile", actorUserId: safeViewerUserId })
+    .catch(() => null);
 }
 
 async function acceptFriendRequest(pool, viewerUserId, username) {
@@ -830,6 +834,16 @@ async function acceptFriendRequest(pool, viewerUserId, username) {
     error.code = "friend_request_not_found";
     throw error;
   }
+  const { rows: me } = await pool.query(`SELECT username FROM market.users WHERE id = $1`, [safeViewerUserId]);
+  await notifications
+    .notify(pool, target.id, {
+      kind: "friend_accepted",
+      title: "{actor} accepted your friend request",
+      body: "You're friends now: they show up on your friends leaderboard.",
+      href: me[0]?.username ? `/profile/${encodeURIComponent(me[0].username)}` : "/profile",
+      actorUserId: safeViewerUserId,
+    })
+    .catch(() => null);
 }
 
 async function removeFriendship(pool, viewerUserId, username) {

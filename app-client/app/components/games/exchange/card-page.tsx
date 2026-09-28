@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TalentCard } from "@/app/components/games/cards/talent-card";
-import { fetchCardDetail, type CardDetail, type Listing } from "@/app/lib/games/exchange";
+import { addWish, fetchCardDetail, removeWish, type CardDetail, type Listing } from "@/app/lib/games/exchange";
 import { gameErrorText } from "@/app/lib/games/errors";
 import { RARITIES, RARITY_NAME } from "@/app/lib/games/rarity";
 import type { Rarity } from "@/app/lib/games/types";
@@ -17,6 +17,35 @@ import { ExchangeFrame } from "@/app/components/games/exchange/exchange-frame";
 import { ListingDialog } from "@/app/components/games/exchange/listing-dialog";
 import { SellDialog } from "@/app/components/games/exchange/sell-dialog";
 import styles from "@/app/components/games/exchange/exchange.module.scss";
+
+/** Wishlist toggle: a new listing of this card then rings your bell. */
+function WantButton({ symbol, rarity, cardKey, wanted, count, onChange }: { symbol: string; rarity: string; cardKey: string; wanted: boolean; count: number; onChange: (wanted: boolean) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const toggle = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      if (wanted) await removeWish(symbol, rarity);
+      else await addWish(cardKey);
+      onChange(!wanted);
+    } catch (reason) {
+      setError(gameErrorText(reason));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const others = count - (wanted ? 1 : 0);
+  return (
+    <>
+      <button type="button" className={wanted ? styles.btnPrimary : styles.btnGhost} aria-pressed={wanted} disabled={busy} onClick={() => void toggle()} title={wanted ? "Take it off your wishlist" : "Get a notification when someone lists this card"}>
+        {wanted ? "♥ On your wishlist" : "♡ Want it"}
+      </button>
+      {others > 0 ? <span className={styles.note}>{others} other {others === 1 ? "player wants" : "players want"} it</span> : null}
+      {error ? <span className={styles.error}>{error}</span> : null}
+    </>
+  );
+}
 
 /** One card on the exchange: its price history, what's for sale now, and a way to sell yours. */
 export function CardPage({ symbol, rarity }: { symbol: string; rarity: Rarity }) {
@@ -123,6 +152,7 @@ export function CardPage({ symbol, rarity }: { symbol: string; rarity: Rarity })
                 ) : user ? (
                   <span className={styles.note}>You don&apos;t own this one yet.</span>
                 ) : null}
+                {user ? <WantButton symbol={symbol} rarity={rarity} cardKey={key} wanted={Boolean(detail.wanted)} count={detail.wanted_by ?? 0} onChange={(wanted) => setDetail((current) => (current ? { ...current, wanted, wanted_by: Math.max(0, (current.wanted_by ?? 0) + (wanted ? 1 : -1)) } : current))} /> : null}
                 <Link href={`/games/cards/gallery/${symbol}`} className={styles.btnGhost}>
                   Her gallery
                 </Link>
