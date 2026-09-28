@@ -516,6 +516,29 @@
   justify-self: end;
 }
 
+.ordersFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--rule);
+}
+
+.ordersPref {
+  @include label;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--mid);
+  cursor: pointer;
+
+  input {
+    accent-color: var(--blue);
+    margin: 0;
+  }
+}
+
 // ── Main + footer ───────────────────────────────────────────────────────────
 .main {
   display: grid;

@@ -1,5 +1,6 @@
 "use client";
 
+import { HeadlineArt } from "@/app/components/articles/headline-art";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
@@ -191,9 +192,7 @@ function NewsThumb({ item, lead = false }: { item: NewsItem; lead?: boolean }) {
   }
   if (!symbol) {
     return (
-      <span className={`${lead ? styles.leadImage : styles.headImage} ${styles.thumbBox}`}>
-        <SceneArt slot="market-news-fallback" fill width={lead ? 640 : 96} />
-      </span>
+      <HeadlineArt title={item.headline} kind="news" at={item.published_at} units={item.units ?? []} size={lead ? "lead" : "mini"} className={`${lead ? styles.leadImage : styles.headImage} ${styles.thumbBox}`} />
     );
   }
   return (

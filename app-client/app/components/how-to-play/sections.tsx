@@ -6,6 +6,7 @@ import { SceneArt } from "@/app/components/common/scene-art";
 import { StockChip } from "@/app/components/common/stock-chip";
 import { GAMES, SECTIONS, type SectionId } from "@/app/components/how-to-play/content";
 import { ChanceDemo, ChibiTag, PullDiagram, RarityFan, TalentStrip, TicketDemo, TickTimeline, useBusiestTalents } from "@/app/components/how-to-play/demos";
+import { TickKoma } from "@/app/components/how-to-play/tick-koma";
 import { GamesDiagram, MarketDiagram, PredictionsDiagram, TradingDiagram } from "@/app/components/how-to-play/diagrams";
 import styles from "@/app/components/how-to-play/how-to-play.module.scss";
 
@@ -222,7 +223,7 @@ export function TicksSection() {
         { href: "/predictions", label: "Bet on the next tick" },
       ]}
     >
-      <SceneArt slot="howto-ticks" className={styles.ticksBand} width={1100} />
+      <TickKoma className={styles.ticksBand} />
       <TickTimeline />
       <div className={styles.pulls}>
         <div className={styles.pullCard} data-tone="up">

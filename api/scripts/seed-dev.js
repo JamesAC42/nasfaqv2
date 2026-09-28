@@ -9,6 +9,10 @@
 //   node scripts/seed-dev.js predictions [you]       prediction markets in every state, with history and trades;
 //                                                    pass your username to get bets, an order and settled results
 //   node scripts/seed-dev.js predictions-live [min]  sim traders keep trading so the floor moves (default 10 min)
+//   node scripts/seed-dev.js unlock-all <user>  every capsule prize (hats, themes, badges…, inactive ones too),
+//                                               every talent card at every rarity (so every gallery banner,
+//                                               card and reaction is unlocked), 5,000 shards, email verified.
+//                                               Run `prizes` (or seed-gacha-prizes.js db) first for the prize list.
 //
 // Refuses to run unless DATABASE_URL points at localhost, so it can never touch production.
 // Channel ids are made up, so YouTube stats and livestreams stay empty; real data needs a prod dump.
@@ -284,6 +288,59 @@ async function setCash(pool, username, amount) {
   }
 }
 
+/** Everything unlockable, for looking at art and cosmetics: all prizes, all cards, some shards. */
+async function unlockAll(pool, username) {
+  const user = await findUser(pool, username);
+  const cards = require("../src/services/games/cards");
+  const cardGacha = require("../src/services/games/cardGacha");
+  const inventory = require("../src/services/games/inventory");
+  const catalog = require("../src/services/games/gachaPrizeCatalog");
+  const talents = await cards.listTalents(pool);
+  const prizes = (await catalog.listAdminPrizeItems(pool)).filter((prize) => !prize.is_deleted);
+  const client = await pool.connect();
+  let newCosmetics = 0;
+  let newCards = 0;
+  try {
+    await client.query("BEGIN");
+    await client.query(`UPDATE market.users SET email_verified = true, email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1`, [user.id]);
+    const { rows: owned } = await client.query(`SELECT cosmetic_key FROM games.user_cosmetics WHERE user_id = $1`, [user.id]);
+    const have = new Set(owned.map((row) => row.cosmetic_key));
+    for (const prize of prizes) {
+      if (have.has(prize.cosmetic_key)) continue;
+      // Same metadata a capsule pull records, so it shows (and equips) exactly like a won prize.
+      await inventory.grantCosmeticWithClient(client, {
+        userId: user.id,
+        cosmeticKey: prize.cosmetic_key,
+        cosmeticType: prize.cosmetic_type,
+        rarity: prize.rarity,
+        sourceType: "dev_seed",
+        metadata: { display_name: prize.display_name, description: prize.description, slot_key: prize.slot_key, image_key: prize.image_key, image_url: prize.image_url, ...(prize.metadata || {}) },
+      });
+      newCosmetics += 1;
+    }
+    const { rows: ownedCards } = await client.query(`SELECT card_key FROM games.user_cards WHERE user_id = $1`, [user.id]);
+    const haveCards = new Set(ownedCards.map((row) => row.card_key));
+    for (const talent of talents) {
+      for (const rarity of cards.RARITIES) {
+        if (haveCards.has(cards.cardKey(talent.symbol, rarity))) continue; // re-running doesn't pile up copies
+        const grant = await cardGacha.grantCardWithClient(client, { userId: user.id, talent, rarity, source: "dev_seed", awardShards: false });
+        if (grant.was_new) newCards += 1;
+      }
+    }
+    await cardGacha.changeShardsWithClient(client, user.id, 5000, "admin_grant", "dev_seed", "unlock-all");
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+  console.log(
+    `${user.username}: +${newCosmetics} cosmetics (${prizes.length} prizes in the catalog), +${newCards} cards (${talents.length} talents x ${cards.RARITIES.length}), +5,000 shards.\n` +
+      "Equip themes, hats and frames from /games/item-locker; set rewards can be claimed from the collection page."
+  );
+}
+
 async function makeAdmin(pool, username) {
   const user = await findUser(pool, username);
   await pool.query(`UPDATE market.users SET is_admin = true, email_verified = true, email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1`, [user.id]);
@@ -305,6 +362,7 @@ async function main() {
     else if (command === "verify") await verify(pool, args[0]);
     else if (command === "cash") await setCash(pool, args[0], args[1]);
     else if (command === "admin") await makeAdmin(pool, args[0]);
+    else if (command === "unlock-all") await unlockAll(pool, args[0]);
     else if (command === "predictions") await require("./seed-predictions").seedPredictions(pool, args[0] || null);
     else if (command === "predictions-live") {
       const { createRedis } = require("../src/redis");

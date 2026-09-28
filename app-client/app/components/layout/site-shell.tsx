@@ -353,9 +353,15 @@ export function SiteShell({
                   ) : (
                     <div className={styles.ordersEmpty}>Nothing queued.</div>
                   )}
-                  <Link href="/profile" className={styles.ordersLink} onClick={() => setIsOrdersOpen(false)}>
-                    All orders →
-                  </Link>
+                  <div className={styles.ordersFoot}>
+                    <label className={styles.ordersPref} title="The big card when your orders fill; off shows a short note instead">
+                      <input type="checkbox" checked={fillPopups} onChange={(event) => setFillPopups(event.target.checked)} />
+                      Fill popups
+                    </label>
+                    <Link href="/profile" className={styles.ordersLink} onClick={() => setIsOrdersOpen(false)}>
+                      All orders →
+                    </Link>
+                  </div>
                 </div>
               ) : null}
             </div>

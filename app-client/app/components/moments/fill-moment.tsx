@@ -17,38 +17,63 @@ import { useProfileStore } from "@/app/stores/profile-store";
 import { useTradeStore } from "@/app/stores/trade-store";
 import styles from "@/app/components/moments/fill-moment.module.scss";
 
+// The fill moment's greentext: one line of thread culture per fill, picked by the fill id so it
+// stays put. {q} shares, {S} ticker, {px} fill price, {avg} your average, {pl} realized P/L,
+// {plp} % on the round trip, {first} her first name, {tick} next tick, {until} time to it.
+const BUY_LINES = [
+  ">buy {q} {S} at {px}\n>{tick} tick in {until}\n>refresh the page every 4 seconds like it helps",
+  ">buying {S} at {px}\n>(he bought)\n>(dump it)",
+  ">ask the thread if {S} is a buy\n>everyone says no\n>buy {q} anyway\n>i am built different (poor)",
+  ">tfw 1% fee\n>tfw still buying {S}",
+  ">see {first} on the news\n>don't read the article\n>buy {q} {S}\n>this is called research",
+  ">{first} streams for 6 hours\n>fair value goes up\n>i go up\n>simple as",
+  ">buy {S} right before {tick}\n>if it dumps it was a long term hold\n>if it pumps i'm a genius",
+  ">all in on my oshi\n>not financial advice\n>not even advice",
+  ">batch fills at {px}\n>chart immediately does the opposite\n>every time",
+  ">bought {q} {S}\n>told nobody\n>now telling everybody",
+  ">be me\n>have a diversified portfolio\n>it's {first} in {q} different trenchcoats",
+  ">buy the dip\n>it keeps dipping\n>keep buying\n>average down to hell",
+  ">{S} at {px}\n>we're so back",
+];
+const WHALE_LINES = [
+  ">market buy {q} {S}\n>my own order moves the chart\n>i am become whale, mover of charts",
+  ">{q} {S} in one batch\n>the shrimp in the thread start panic buying behind me\n>thank you for your service",
+];
+const PROFIT_LINES = [
+  ">sold {q} {S} at {px}\n>bought at {avg}\n>+{pl}\n>time to buy the top of something else",
+  ">take profits on {S}, +{plp}%\n>financial literacy achieved\n>{tick} tick moons it anyway probably",
+  ">oshi money printer went brrr\n>+{pl} on {S}\n>thank you {first}",
+  ">sold {S} for +{plp}%\n>screenshot for the thread\n>nobody asked\n>posting it anyway",
+  ">+{pl}\n>could have held longer\n>could have also not\n>green is green",
+  ">sold the {tick} pump\n>first time i've ever sold a top\n>framing this fill",
+  ">{first} carried my portfolio today\n>bought a hat in the capsule with the gains\n>it's an item",
+];
+const LOSS_LINES = [
+  ">sold {q} {S} at {px}\n>bought at {avg}\n>it's fine, i was in it for the streams",
+  ">buy {S} at {avg}\n>sell at {px}\n>buy high sell low\n>just like the pros",
+  ">sold my {S} bags at {px}\n>she'll moon at {tick}\n>i know she will\n>i can feel it",
+  ">{pl} on {S}\n>at least the chart is pretty",
+  ">paper hands\n>{pl}\n>it's over",
+  ">sell {S} at {px}\n>treasury prints shares the next morning\n>was it the fundamentals? no. it was me",
+  ">-{plp}% on {S}\n>copium reserves at 12%\n>switching to hopium",
+  ">capitulate at {px}\n>the literal bottom\n>i can hear the thread laughing",
+];
+
 function greentext(fill: FillMoment, seed: number, tick: string, until: string) {
-  const q = fill.quantity.toLocaleString("en-US");
-  const S = fill.symbol;
-  const px = fill.price.toFixed(2);
-  const avg = fill.avgCost !== null ? fill.avgCost.toFixed(2) : "?";
   const pl = fill.realized ?? 0;
-  const plAbs = Math.abs(pl).toFixed(2);
-  const plp = fill.avgCost ? Math.abs(((fill.price - fill.avgCost) / fill.avgCost) * 100).toFixed(1) : "?";
-  const first = fill.name.split(" ").pop() ?? fill.name;
-  const lines =
-    fill.side === "buy"
-      ? [
-          `>buy ${q} ${S} at ${px}\n>${tick} tick in ${until}\n>refreshing the page every 4 seconds like it helps`,
-          `>buying ${S} at ${px}\n>(he bought)\n>(dump it)`,
-          `>ask the thread if ${S} is a buy\n>everyone says no\n>buy ${q} anyway\n>I am built different (poor)`,
-          `>tfw 1% fee\n>tfw still buying ${S}`,
-          `>be me\n>see ${fill.name} on the news\n>don't read the article\n>buy ${q} ${S}\n>this is called research`,
-          ...(fill.quantity >= 150 ? [`>market buy ${q} ${S}\n>my own order moves the chart\n>I am become whale, mover of charts`] : []),
-        ]
-      : pl >= 0
-        ? [
-            `>sold ${q} ${S} at ${px}\n>bought at ${avg}\n>+$${plAbs}\n>time to buy the top of something else`,
-            `>take profits on ${S}, +${plp}%\n>financial literacy achieved\n>${tick} tick moons it anyway probably`,
-            `>oshi money printer went brrr\n>+$${plAbs} on ${S}\n>thank you ${first}`,
-          ]
-        : [
-            `>sold ${q} ${S} at ${px}\n>bought at ${avg}\n>it's fine, I was in it for the streams`,
-            `>buy ${S} at ${avg}\n>sell at ${px}\n>buy high sell low\n>just like the pros`,
-            `>sold my ${S} bags at ${px}\n>she'll moon at ${tick}\n>I know she will\n>I can feel it`,
-            `>-$${plAbs} on ${S}\n>at least the chart is pretty`,
-          ];
-  return lines[Math.abs(seed) % lines.length];
+  const fields: Record<string, string> = {
+    q: fill.quantity.toLocaleString("en-US"),
+    S: fill.symbol,
+    px: fill.price.toFixed(2),
+    avg: fill.avgCost !== null ? fill.avgCost.toFixed(2) : "?",
+    pl: `${pl < 0 ? "-" : ""}$${Math.abs(pl).toFixed(2)}`,
+    plp: fill.avgCost ? Math.abs(((fill.price - fill.avgCost) / fill.avgCost) * 100).toFixed(1) : "?",
+    first: fill.name.split(" ").pop() ?? fill.name,
+    tick,
+    until,
+  };
+  const lines = fill.side === "buy" ? [...BUY_LINES, ...(fill.quantity >= 150 ? WHALE_LINES : [])] : pl >= 0 ? PROFIT_LINES : LOSS_LINES;
+  return lines[Math.abs(seed) % lines.length].replace(/\{(\w+)\}/g, (match, key: string) => fields[key] ?? match);
 }
 
 /** Shows the fill moment for one of the player's fills (deduped by fill id in the store). */
@@ -165,14 +190,11 @@ export function FillMomentLayer() {
   const asset = fill ? assets.find((entry) => entry.symbol === fill.symbol) ?? null : null;
   const { theme } = useTheme();
   const { calm } = useMotion();
-  const [roll, setRoll] = useState<{ id: string; n: number }>({ id: "", n: 0 });
-  const [copiedState, setCopiedState] = useState<{ id: string; text: string } | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const swipe = useRef<{ x: number; y: number } | null>(null);
 
   const fillKey = fill ? `${fill.id}:${index}` : "";
-  const seed = (Number(String(fill?.id ?? "").replace(/\D/g, "").slice(-6)) || fillKey.length * 97) + (roll.id === fillKey ? roll.n : 0);
-  const copied = copiedState && copiedState.id === fillKey ? copiedState.text : null;
+  const seed = Number(String(fill?.id ?? "").replace(/\D/g, "").slice(-6)) || fillKey.length * 97;
 
   const go = (next: number, manual = true) => {
     if (!pages) return;
@@ -235,20 +257,10 @@ export function FillMomentLayer() {
   const time = new Date(fill.at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/New_York" });
   const title = onSummary ? `${fills.length} ORDERS FILLED` : buy ? "FILLED" : "SOLD";
 
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedState({ id: fillKey, text: "COPIED" });
-    } catch {
-      setCopiedState({ id: fillKey, text: "COPY FAILED" });
-    }
-    window.setTimeout(() => setCopiedState(null), 1800);
-  };
-
   const toastsOnly = () => {
     setFillPopups(false);
     dismiss();
-    setNotice("Fill popups off. Fills show here instead; turn them back on from this toast.");
+    setNotice("Fill popups off: fills show as a note like this. Turn them back on from the orders menu (top right).");
   };
 
   const onPointerDown = (event: React.PointerEvent) => {
@@ -406,22 +418,12 @@ export function FillMomentLayer() {
             </div>
           ) : null}
           <div className={styles.actions}>
-            {!onSummary ? (
-              <>
-                <button type="button" className={styles.primary} onClick={() => void copy()}>
-                  {copied ?? "COPY FOR /VT/"}
-                </button>
-                <button type="button" onClick={() => setRoll({ id: fillKey, n: (roll.id === fillKey ? roll.n : 0) + 1 })}>
-                  REROLL
-                </button>
-              </>
-            ) : null}
             {multi && !onSummary ? (
               <button type="button" onClick={() => go(slides.length)}>
                 SUMMARY
               </button>
             ) : null}
-            <button type="button" ref={closeRef} onClick={dismiss}>
+            <button type="button" ref={closeRef} className={styles.primary} onClick={dismiss}>
               NICE
             </button>
           </div>
