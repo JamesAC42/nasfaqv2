@@ -1160,10 +1160,67 @@ $sticky-top: calc(var(--rail-height) + var(--tape-height) + env(safe-area-inset-
 }
 
 .faqTalent {
+  --tal: var(--blue);
+  position: relative;
   width: 17rem;
-  max-width: none;
+  margin: 0.5rem -1rem 0;
+}
+
+.faqFigure {
+  width: 100%;
   aspect-ratio: 1;
-  margin: -1rem -1rem 0;
+}
+
+// The question mark over her head: bobs and rocks a little, like she's still thinking it over.
+.faqQuestion {
+  position: absolute;
+  top: -1.4rem;
+  right: 17%;
+  font-family: var(--font-display);
+  font-size: 3.4rem;
+  line-height: 1;
+  color: var(--tal);
+  text-shadow:
+    0 0 0.9rem color-mix(in srgb, var(--tal) 55%, transparent),
+    0.12rem 0.14rem 0 color-mix(in srgb, var(--ink, #000) 70%, transparent);
+  transform-origin: 50% 90%;
+  pointer-events: none;
+  user-select: none;
+  animation:
+    faqPop 0.55s 0.3s cubic-bezier(0.2, 0.9, 0.25, 1.4) both,
+    faqPonder 3.2s 0.85s ease-in-out infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    transform: rotate(12deg);
+  }
+}
+
+@keyframes faqPop {
+  from {
+    opacity: 0;
+    transform: translateY(0.6rem) scale(0.4) rotate(0deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(12deg);
+  }
+}
+
+@keyframes faqPonder {
+  0%,
+  100% {
+    transform: translateY(0) rotate(12deg);
+  }
+  30% {
+    transform: translateY(-0.4rem) rotate(4deg);
+  }
+  55% {
+    transform: translateY(-0.15rem) rotate(16deg);
+  }
+  75% {
+    transform: translateY(-0.45rem) scale(1.06) rotate(10deg);
+  }
 }
 
 .faq {
