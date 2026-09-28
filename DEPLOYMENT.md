@@ -229,6 +229,16 @@ AWS_ENDPOINT_URL=https://nyc3.digitaloceanspaces.com   # add support in code if 
 
 For this runbook we assume S3 stays; Spaces is a future-cost optimization.
 
+#### 2.6.2 Capsule prizes
+
+The capsule pool lives in `api/seed/gacha-prizes/prizes.json` (carried over from the original site's ItemCatalogue.ts; the images sit beside it). Edit that file, not the admin page, for lasting changes:
+
+```bash
+cd api
+node scripts/seed-gacha-prizes.js upload --dry-run   # then without; WebP to gachaprizes/ on the CDN
+node scripts/seed-gacha-prizes.js db --retire-others   # once per database (local, then prod via DATABASE_URL)
+```
+
 #### 2.6.1 Character art on the CDN
 
 `app-client/public/art` is gitignored (about 80 MB of WebP per build), so production loads the art from `https://images.nasfaq.biz/art/`. After each art build:
@@ -248,8 +258,8 @@ Upload key (optional, safer than the API's key): an IAM user with only this poli
 {
   "Version": "2012-10-17",
   "Statement": [
-    { "Effect": "Allow", "Action": ["s3:PutObject", "s3:GetObject"], "Resource": "arn:aws:s3:::BUCKET/art/*" },
-    { "Effect": "Allow", "Action": "s3:ListBucket", "Resource": "arn:aws:s3:::BUCKET", "Condition": { "StringLike": { "s3:prefix": ["art/*"] } } }
+    { "Effect": "Allow", "Action": ["s3:PutObject", "s3:GetObject"], "Resource": ["arn:aws:s3:::BUCKET/art/*", "arn:aws:s3:::BUCKET/gachaprizes/*"] },
+    { "Effect": "Allow", "Action": "s3:ListBucket", "Resource": "arn:aws:s3:::BUCKET", "Condition": { "StringLike": { "s3:prefix": ["art/*", "gachaprizes/*"] } } }
   ]
 }
 ```

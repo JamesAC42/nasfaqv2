@@ -16,11 +16,10 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { S3Client, ListObjectsV2Command, PutObjectCommand } = require("@aws-sdk/client-s3");
 const { loadEnv } = require("../src/config");
+const { IMMUTABLE, uploadTarget, listKeys, putObject, mapLimit } = require("./lib/s3-upload");
 
 const CONTENT_TYPES = { ".webp": "image/webp", ".png": "image/png", ".jpg": "image/jpeg", ".json": "application/json" };
-const IMMUTABLE = "public, max-age=31536000, immutable";
 const MANIFEST_CACHE = "public, max-age=60, must-revalidate";
 
 function arg(name) {
@@ -37,37 +36,11 @@ function walk(dir, base = dir, out = []) {
   return out;
 }
 
-async function listKeys(client, bucket, prefix) {
-  const keys = new Set();
-  let token;
-  do {
-    const page = await client.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: `${prefix}/`, ContinuationToken: token }));
-    for (const item of page.Contents ?? []) keys.add(item.Key);
-    token = page.IsTruncated ? page.NextContinuationToken : undefined;
-  } while (token);
-  return keys;
-}
-
-async function mapLimit(items, limit, fn) {
-  let next = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, async () => {
-      while (next < items.length) await fn(items[next++]);
-    })
-  );
-}
-
 async function main() {
   loadEnv();
   const dryRun = process.argv.includes("--dry-run");
   const from = path.resolve(arg("--from") || path.join(__dirname, "..", "..", "app-client", "public", "art"));
-  const bucket = process.env.ART_S3_BUCKET || process.env.AWS_SW_BUCKET;
-  const region = process.env.ART_S3_REGION || process.env.AWS_REGION;
   const prefix = (process.env.ART_S3_PREFIX || "art").replace(/^\/+|\/+$/g, "");
-  const accessKeyId = process.env.ART_UPLOAD_AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.ART_UPLOAD_AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY;
-  if (!bucket || !region) throw new Error("Set ART_S3_BUCKET (or AWS_SW_BUCKET) and AWS_REGION in api/.env");
-  if (!accessKeyId || !secretAccessKey) throw new Error("Set ART_UPLOAD_AWS_ACCESS_KEY_ID / ART_UPLOAD_AWS_SECRET_ACCESS_KEY in api/.env");
   if (!fs.existsSync(path.join(from, "manifest.json"))) throw new Error(`No manifest.json in ${from}`);
 
   const manifest = JSON.parse(fs.readFileSync(path.join(from, "manifest.json"), "utf8"));
@@ -85,7 +58,7 @@ async function main() {
     if (onDisk.has(match[1])) named.add(match[1]);
   }
 
-  const client = new S3Client({ region, credentials: { accessKeyId, secretAccessKey }, followRegionRedirects: true });
+  const { client, bucket, region } = uploadTarget();
   const existing = await listKeys(client, bucket, prefix);
   const todo = [...named].filter((file) => !existing.has(`${prefix}/${file}`)).sort();
   const bytes = todo.reduce((sum, file) => sum + fs.statSync(path.join(from, file)).size, 0);
@@ -100,29 +73,13 @@ async function main() {
 
   let done = 0;
   await mapLimit(todo, 8, async (file) => {
-    await client.send(
-      new PutObjectCommand({
-        Bucket: bucket,
-        Key: `${prefix}/${file}`,
-        Body: fs.readFileSync(path.join(from, file)),
-        ContentType: CONTENT_TYPES[path.extname(file)] ?? "application/octet-stream",
-        CacheControl: IMMUTABLE,
-      })
-    );
+    await putObject(client, bucket, `${prefix}/${file}`, fs.readFileSync(path.join(from, file)), CONTENT_TYPES[path.extname(file)] ?? "application/octet-stream", IMMUTABLE);
     done += 1;
     if (done % 50 === 0 || done === todo.length) process.stdout.write(`\r${done}/${todo.length} uploaded   `);
   });
   if (todo.length) process.stdout.write("\n");
 
-  await client.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: `${prefix}/manifest.json`,
-      Body: fs.readFileSync(path.join(from, "manifest.json")),
-      ContentType: "application/json",
-      CacheControl: MANIFEST_CACHE,
-    })
-  );
+  await putObject(client, bucket, `${prefix}/manifest.json`, fs.readFileSync(path.join(from, "manifest.json")), "application/json", MANIFEST_CACHE);
   console.log(`manifest uploaded: ${prefix}/manifest.json (${manifest.generated_at ?? "no date"})`);
 }
 
