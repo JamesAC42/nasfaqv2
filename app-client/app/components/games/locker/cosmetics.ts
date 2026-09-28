@@ -22,7 +22,7 @@ export const TYPE_WHERE: Record<string, string> = {
   profile_badge: "On your profile and the leaderboard",
   chat_flair: "Next to your name in chat and on your profile",
   item: "Held next to your name in chat and on your profile",
-  portfolio_theme: "Not shown anywhere yet",
+  portfolio_theme: "Your profile page, for everyone who visits",
 };
 
 export const COSMETIC_RARITIES = ["common", "rare", "epic", "legendary"] as const;

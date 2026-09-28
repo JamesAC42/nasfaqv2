@@ -17,7 +17,7 @@ import { useTheme } from "@/app/providers/theme-provider";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import { useTradeStore } from "@/app/stores/trade-store";
-import { useChannelData, type Channel } from "@/app/lib/use-channel-data";
+import { CHANNEL_RANGES, useChannelData, type Channel, type ChannelRange } from "@/app/lib/use-channel-data";
 import styles from "@/app/components/stocks/screener.module.scss";
 
 // ── Data ─────────────────────────────────────────────────────────────────
@@ -215,7 +215,8 @@ export function Screener({ initialView }: { initialView?: string }) {
   const openTrade = useTradeStore((state) => state.openTrade);
   const { user } = useAuth();
   const { theme } = useTheme();
-  const channels = useChannelData();
+  const [range, setRange] = useState<ChannelRange>("7d");
+  const channels = useChannelData(range);
   const search = useRef<HTMLInputElement | null>(null);
   const startView = QUICK.find((entry) => entry.key === initialView) ?? QUICK[0];
   const [q, setQ] = useState("");
@@ -296,6 +297,7 @@ export function Screener({ initialView }: { initialView?: string }) {
         oshis: channel?.oshis ?? asset.oshicoin_users ?? null,
         subsCh: channel?.subsCh ?? null,
         viewsCh: channel?.viewsCh ?? null,
+        growthDays: channel?.growthDays ?? null,
       };
     });
   }, [assets, channels, portfolio]);
@@ -330,7 +332,22 @@ export function Screener({ initialView }: { initialView?: string }) {
   const dips = rows.filter((row) => (row.d15 ?? 0) < -0.00005).length;
   const traded = rows.reduce((sum, row) => sum + row.vol, 0);
   const bags = rows.filter((row) => row.heldQty > 0).length;
-  const cols = lens === "channel" ? CHANNEL_COLS : MARKET_COLS;
+  // The channel columns follow the chosen window: "30D superchat", "Subs 30d" and so on.
+  const rangeLabel = range.toUpperCase();
+  const cols =
+    lens === "channel"
+      ? CHANNEL_COLS.map((col) =>
+          col.key === "sc7"
+            ? { ...col, label: `${rangeLabel} superchat` }
+            : col.key === "stream7"
+              ? { ...col, label: `${rangeLabel} streamed` }
+              : col.key === "subsCh"
+                ? { ...col, label: `Subs ${range}` }
+                : col.key === "viewsCh"
+                  ? { ...col, label: `Views ${range}` }
+                  : col,
+        )
+      : MARKET_COLS;
   const filterCount = Object.values(filters).filter((value) => value !== "any").length;
   const unitList = UNIT_ORDER.filter((unit) => rows.some((row) => row.unit === unit));
 
@@ -457,7 +474,11 @@ export function Screener({ initialView }: { initialView?: string }) {
       case "subsCh":
       case "viewsCh":
         return (
-          <td key={key} className={`${styles[toneOf(row[key])]} ${cols.find((col) => col.key === key)?.hide === "wide" ? styles.wide : ""}`}>
+          <td
+            key={key}
+            className={`${styles[toneOf(row[key])]} ${cols.find((col) => col.key === key)?.hide === "wide" ? styles.wide : ""}`}
+            title={row.growthDays !== null && row[key] !== null ? `Over the last ${row.growthDays === 1 ? "day" : `${row.growthDays} days`} of data` : undefined}
+          >
             {signedPct(row[key])}
           </td>
         );
@@ -663,6 +684,15 @@ export function Screener({ initialView }: { initialView?: string }) {
                 CHANNEL
               </button>
             </div>
+            {lens === "channel" ? (
+              <div className={styles.mode} role="group" aria-label="Channel stats window" title="Window for superchats, stream time and growth">
+                {CHANNEL_RANGES.map((entry) => (
+                  <button key={entry} type="button" aria-pressed={range === entry} onClick={() => setRange(entry)}>
+                    {entry.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className={styles.mode} role="group" aria-label="Layout">
               <button type="button" aria-pressed={mode === "table"} onClick={() => setMode("table")}>
                 TABLE

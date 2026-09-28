@@ -52,6 +52,7 @@ function loadPrizes() {
       description: String(prize.description || "").trim(),
       weight: Number(prize.weight),
       active: prize.active !== false,
+      metadata: prize.metadata && typeof prize.metadata === "object" ? prize.metadata : {},
       source,
       bytes,
       filename,
@@ -118,6 +119,7 @@ async function seedDb(prizes, { dryRun, retireOthers }) {
         prize.filename,
         prize.active,
         prize.sortOrder,
+        JSON.stringify(prize.metadata),
       ];
       const { rows } = await client.query(
         `SELECT id FROM games.gacha_prize_items WHERE game_key = $1 AND (cosmetic_key = $2 OR image_key = $3) ORDER BY (cosmetic_key = $2) DESC LIMIT 1`,
@@ -127,8 +129,9 @@ async function seedDb(prizes, { dryRun, retireOthers }) {
         await client.query(
           `UPDATE games.gacha_prize_items
            SET cosmetic_key = $2, display_name = $3, description = $4, cosmetic_type = $5, rarity = $6, slot_key = $7,
-               pull_weight = $8, image_key = $9, filename = $10, is_active = $11, is_deleted = false, sort_order = $12, updated_at = now()
-           WHERE id = $13 AND game_key = $1`,
+               pull_weight = $8, image_key = $9, filename = $10, is_active = $11, is_deleted = false, sort_order = $12,
+               metadata_json = $13::jsonb, updated_at = now()
+           WHERE id = $14 AND game_key = $1`,
           [...values, rows[0].id]
         );
         counts.updated += 1;
@@ -136,7 +139,7 @@ async function seedDb(prizes, { dryRun, retireOthers }) {
         await client.query(
           `INSERT INTO games.gacha_prize_items (game_key, cosmetic_key, display_name, description, cosmetic_type, rarity, slot_key,
              pull_weight, image_key, filename, is_active, sort_order, metadata_json, is_deleted, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, '{}'::jsonb, false, now())`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, false, now())`,
           values
         );
         counts.created += 1;

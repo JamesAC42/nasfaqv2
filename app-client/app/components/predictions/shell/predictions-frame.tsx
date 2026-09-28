@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
+import { HeroCast, type HeroTalent } from "@/app/components/common/hero-cast";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { money } from "@/app/lib/predictions/format";
@@ -40,10 +41,12 @@ type FrameProps = {
   live?: boolean;
   /** The market page renders its own header. */
   bare?: boolean;
+  /** Talents to stand in the header (HeroCast), e.g. the ones the live markets are about. */
+  cast?: HeroTalent[];
   children: ReactNode;
 };
 
-export function PredictionsFrame({ kicker, title, blurb, aside, live = false, bare = false, children }: FrameProps) {
+export function PredictionsFrame({ kicker, title, blurb, aside, live = false, bare = false, cast, children }: FrameProps) {
   const pathname = usePathname() || "/predictions";
   const { isStaff, canCreate } = useStaff();
   const { signedIn, cash } = usePredictionCash();
@@ -78,6 +81,7 @@ export function PredictionsFrame({ kicker, title, blurb, aside, live = false, ba
         {bare ? null : (
           <header className={styles.head}>
             {pathname.startsWith("/predictions/manage") ? null : <SceneArt slot="predictions-hero" fill position="80% 50%" width={1440} className={styles.headArt} />}
+            {cast?.length ? <HeroCast talents={cast} className={styles.headCast} /> : null}
             <div className={styles.title}>
               <span className={styles.kicker}>
                 {live ? <i aria-hidden="true" /> : null}

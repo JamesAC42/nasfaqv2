@@ -16,6 +16,7 @@ import { compactMoney, outcomeColor } from "@/app/lib/predictions/format";
 import type { Category, Fill, FloorTab, Forecaster, Portfolio, PredictionMarket, SocketMessage, Trade } from "@/app/lib/predictions/types";
 import { usePredictionFeed } from "@/app/lib/predictions/use-prediction-feed";
 import { useAuth } from "@/app/providers/auth-provider";
+import { useMarketStore } from "@/app/stores/market-store";
 import styles from "@/app/components/predictions/floor/floor.module.scss";
 
 const TABS: { key: FloorTab; label: string }[] = [
@@ -281,6 +282,25 @@ export function PredictionsFloor() {
     );
   }, [live]);
 
+  // The header's cast: talents the busiest markets are about (their outcomes, or named in the title).
+  const assets = useMarketStore((state) => state.assets);
+  const cast = useMemo(() => {
+    if (!markets?.length || !assets.length) return [];
+    const byName = assets.map((asset) => ({ asset, names: [asset.symbol, ...asset.display_name.split(/\s+/).filter((word) => word.length >= 4)].map((name) => name.toLowerCase()) }));
+    const out: typeof assets = [];
+    const add = (symbol: string | null | undefined) => {
+      const asset = symbol ? assets.find((entry) => entry.symbol === symbol) : undefined;
+      if (asset && !out.includes(asset)) out.push(asset);
+    };
+    for (const market of [...markets].sort((a, b) => (b.volume_24h ?? 0) - (a.volume_24h ?? 0))) {
+      for (const outcome of market.outcomes ?? []) add(outcome.asset?.symbol);
+      const words = market.title.toLowerCase().split(/[^a-z0-9]+/);
+      for (const entry of byName) if (entry.names.some((name) => words.includes(name))) add(entry.asset.symbol);
+      if (out.length >= 3) break;
+    }
+    return out.slice(0, 3);
+  }, [assets, markets]);
+
   const selectTab = (next: FloorTab) => {
     if (next === tab) return;
     setTab(next);
@@ -289,7 +309,7 @@ export function PredictionsFloor() {
   };
 
   return (
-    <PredictionsFrame kicker="Live floor" title="Predictions" blurb={blurb} live>
+    <PredictionsFrame kicker="Live floor" title="Predictions" blurb={blurb} live cast={cast}>
       <div className={styles.layout}>
         <div className={styles.main}>
           <div className={styles.controls}>

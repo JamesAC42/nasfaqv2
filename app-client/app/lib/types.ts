@@ -47,12 +47,16 @@ export type ChatChannel = {
 };
 
 /** One equipped capsule cosmetic (see api/src/services/games/equipped.js). */
+export type CosmeticTheme = { accent: string; accent2: string | null; pattern: "petals" | "waves" | "grid" | "stripes" | "stars" | "plain" };
+
 export type EquippedCosmetic = {
   key: string;
   type: string;
   rarity: string;
   display_name: string;
   image_url: string | null;
+  /** Portfolio themes: the colours and pattern they put on the owner's profile. */
+  theme?: CosmeticTheme | null;
 };
 
 /** Everything a player has equipped, keyed by slot: hat, profile_frame, profile_badge, chat_flair, item… */

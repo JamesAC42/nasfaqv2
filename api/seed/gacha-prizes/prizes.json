@@ -1,5 +1,5 @@
 {
-  "about": "Capsule prizes carried over from the original NASFAQ (ItemCatalogue.ts). Seasonal items (Christmas, New Year, Valentine's, Easter, the anniversary certificate), the Honk items and the licenses are left out; Halloween is in. Items that were never in the old gacha (event and special items) are here but inactive, so an admin can switch them on. `weight` is the relative pull weight: together they aim at roughly 55% common, 30% rare, 13.5% epic, 1.5% legendary before pity. Seed with api/scripts/seed-gacha-prizes.js.",
+  "about": "Capsule prizes carried over from the original NASFAQ (ItemCatalogue.ts). Seasonal items (Christmas, New Year, Valentine's, Easter, the anniversary certificate), the Honk items and the licenses are left out; Halloween is in. Items that were never in the old gacha (event and special items) are here but inactive, so an admin can switch them on. `weight` is the relative pull weight: together they aim at roughly 55% common, 30% rare, 13.5% epic, 1.5% legendary before pity. Portfolio themes (type portfolio_theme) carry their colours and pattern in metadata.theme and restyle the owner's profile page. Seed with api/scripts/seed-gacha-prizes.js.",
   "prizes": [
     {
       "key": "KiryuKaiBadge",
@@ -175,7 +175,7 @@
       "rarity": "legendary",
       "image": "Jeb.png",
       "active": true,
-      "weight": 30
+      "weight": 25
     },
     {
       "key": "OllieBuns",
@@ -362,7 +362,7 @@
       "rarity": "legendary",
       "image": "SuiseiHat.png",
       "active": true,
-      "weight": 30
+      "weight": 25
     },
     {
       "key": "SoraHat",
@@ -824,7 +824,7 @@
       "rarity": "legendary",
       "image": "VoidGlasses.png",
       "active": true,
-      "weight": 30
+      "weight": 25
     },
     {
       "key": "AChanHat",
@@ -1275,7 +1275,7 @@
       "rarity": "rare",
       "image": "BloopPumpkin.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "Candy",
@@ -1286,7 +1286,7 @@
       "rarity": "rare",
       "image": "Candy.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "CandyApple",
@@ -1297,7 +1297,7 @@
       "rarity": "rare",
       "image": "CandyApple.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "Chocolate",
@@ -1308,7 +1308,7 @@
       "rarity": "rare",
       "image": "Chocolate.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "ChocolateEyeball",
@@ -1319,7 +1319,7 @@
       "rarity": "rare",
       "image": "ChocolateEyeball.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "Cookie",
@@ -1330,7 +1330,7 @@
       "rarity": "rare",
       "image": "Cookie.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "GhostHaaton",
@@ -1341,7 +1341,7 @@
       "rarity": "rare",
       "image": "GhostHaaton.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "HaatonPumpkin",
@@ -1352,7 +1352,7 @@
       "rarity": "rare",
       "image": "HaatonPumpkin.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "Lollipop",
@@ -1363,7 +1363,7 @@
       "rarity": "rare",
       "image": "Lollipop.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "PumpkinBasket",
@@ -1374,7 +1374,7 @@
       "rarity": "rare",
       "image": "PumpkinBasket.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "ShionPumpkinHat",
@@ -1385,7 +1385,7 @@
       "rarity": "legendary",
       "image": "ShionPumpkinHat.png",
       "active": true,
-      "weight": 30
+      "weight": 25
     },
     {
       "key": "TakodachiPumpkin",
@@ -1396,7 +1396,7 @@
       "rarity": "rare",
       "image": "TakodachiPumpkin.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "TakoIceCream",
@@ -1429,7 +1429,7 @@
       "rarity": "rare",
       "image": "Ghost35P.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "DevilRosetai",
@@ -1440,7 +1440,7 @@
       "rarity": "rare",
       "image": "DevilRosetai.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "ZombieMatsurisu",
@@ -1451,7 +1451,7 @@
       "rarity": "rare",
       "image": "ZombieMatsurisu.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "PumpkinNekko",
@@ -1462,7 +1462,7 @@
       "rarity": "rare",
       "image": "PumpkinNekko.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "PekoraHalloweenHat",
@@ -1473,7 +1473,7 @@
       "rarity": "legendary",
       "image": "PekoraHalloweenHat.png",
       "active": true,
-      "weight": 30
+      "weight": 25
     },
     {
       "key": "DevilSSRB",
@@ -1484,7 +1484,7 @@
       "rarity": "rare",
       "image": "DevilSSRB.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "GhostTako",
@@ -1495,7 +1495,7 @@
       "rarity": "rare",
       "image": "GhostTako.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "VampireYukimin",
@@ -1506,7 +1506,7 @@
       "rarity": "rare",
       "image": "VampireYukimin.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "GhostZain",
@@ -1517,7 +1517,7 @@
       "rarity": "rare",
       "image": "GhostZain.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "GhostJoshu",
@@ -1528,7 +1528,7 @@
       "rarity": "rare",
       "image": "GhostJoshu.png",
       "active": true,
-      "weight": 150
+      "weight": 130
     },
     {
       "key": "AkiKimonoCook",
@@ -2046,6 +2046,114 @@
       "image": "KapuminMemorial.png",
       "active": false,
       "weight": 11
+    },
+    {
+      "key": "ThemeSakuraDrift",
+      "cosmetic_key": "gacha-theme-sakura-drift",
+      "name": "Theme: Sakura Drift",
+      "description": "Petals over your profile. Soft pink, very seiso.",
+      "type": "portfolio_theme",
+      "rarity": "rare",
+      "image": "ThemeSakuraDrift.png",
+      "active": true,
+      "weight": 130,
+      "metadata": {
+        "theme": {
+          "accent": "#ff7eb6",
+          "accent2": "#3a1830",
+          "pattern": "petals"
+        }
+      }
+    },
+    {
+      "key": "ThemeDeepSea",
+      "cosmetic_key": "gacha-theme-deep-sea",
+      "name": "Theme: Deep Sea",
+      "description": "Your profile, fathoms down. Shrimp not included.",
+      "type": "portfolio_theme",
+      "rarity": "rare",
+      "image": "ThemeDeepSea.png",
+      "active": true,
+      "weight": 130,
+      "metadata": {
+        "theme": {
+          "accent": "#38b6ff",
+          "accent2": "#071a33",
+          "pattern": "waves"
+        }
+      }
+    },
+    {
+      "key": "ThemeCandlelight",
+      "cosmetic_key": "gacha-theme-candlelight",
+      "name": "Theme: Candlelight",
+      "description": "Warm light on graph paper, for late-night chart reading.",
+      "type": "portfolio_theme",
+      "rarity": "rare",
+      "image": "ThemeCandlelight.png",
+      "active": true,
+      "weight": 130,
+      "metadata": {
+        "theme": {
+          "accent": "#ffb347",
+          "accent2": "#2a1405",
+          "pattern": "grid"
+        }
+      }
+    },
+    {
+      "key": "ThemeNeonTape",
+      "cosmetic_key": "gacha-theme-neon-tape",
+      "name": "Theme: Neon Tape",
+      "description": "Terminal green on black. Every tick is a buy signal.",
+      "type": "portfolio_theme",
+      "rarity": "epic",
+      "image": "ThemeNeonTape.png",
+      "active": true,
+      "weight": 11,
+      "metadata": {
+        "theme": {
+          "accent": "#39ff88",
+          "accent2": "#07120c",
+          "pattern": "stripes"
+        }
+      }
+    },
+    {
+      "key": "ThemeBearMarket",
+      "cosmetic_key": "gacha-theme-bear-market",
+      "name": "Theme: Bear Market",
+      "description": "Red stripes for the ones who hold through it.",
+      "type": "portfolio_theme",
+      "rarity": "epic",
+      "image": "ThemeBearMarket.png",
+      "active": true,
+      "weight": 11,
+      "metadata": {
+        "theme": {
+          "accent": "#ff4d6d",
+          "accent2": "#1c0710",
+          "pattern": "stripes"
+        }
+      }
+    },
+    {
+      "key": "ThemeGoldenBull",
+      "cosmetic_key": "gacha-theme-golden-bull",
+      "name": "Theme: Golden Bull",
+      "description": "Gold dust on everything. You've made it (on paper).",
+      "type": "portfolio_theme",
+      "rarity": "legendary",
+      "image": "ThemeGoldenBull.png",
+      "active": true,
+      "weight": 25,
+      "metadata": {
+        "theme": {
+          "accent": "#ffd24a",
+          "accent2": "#241a00",
+          "pattern": "stars"
+        }
+      }
     }
   ]
 }

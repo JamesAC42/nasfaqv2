@@ -1,6 +1,7 @@
 import {
   ARTICLE_COMMENT_MOODS,
   type ArticleAsset,
+  type CosmeticTheme,
   type Equipped,
   type ArticleAuthor,
   type ArticleComment,
@@ -1653,9 +1654,19 @@ export function normalizeEquipped(value: unknown): Equipped {
       rarity: String(entry.rarity || "common"),
       display_name: String(entry.display_name || entry.key || slot),
       image_url: entry.image_url ? String(entry.image_url) : null,
+      ...(entry.theme && typeof entry.theme === "object" ? { theme: normalizeTheme(entry.theme as Record<string, unknown>) } : {}),
     };
   }
   return out;
+}
+
+const THEME_PATTERNS = ["petals", "waves", "grid", "stripes", "stars", "plain"] as const;
+function normalizeTheme(raw: Record<string, unknown>): CosmeticTheme | null {
+  const hex = (value: unknown) => (typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value : null);
+  const accent = hex(raw.accent);
+  if (!accent) return null;
+  const pattern = THEME_PATTERNS.find((entry) => entry === raw.pattern) ?? "plain";
+  return { accent, accent2: hex(raw.accent2), pattern };
 }
 
 export function normalizeLeaderboard(rows: Array<Record<string, unknown>>): LeaderboardEntry[] {

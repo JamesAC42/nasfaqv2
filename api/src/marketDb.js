@@ -1277,6 +1277,10 @@ async function listAssetRankingCore(pool) {
   return rows;
 }
 
+const RANGE_DAYS = { "24h": 1, "7d": 7, "30d": 30, "90d": 90, "1y": 365 };
+
+// Superchats, stream time and channel growth over a window ("7d" by default; the column names
+// keep their old _7d spelling for older clients).
 async function listAssetRankingWeeklyActivity(pool, { superchatRange = "7d" } = {}) {
   const interval = parseRangeToInterval(superchatRange);
   const { rows } = await pool.query(
@@ -1322,23 +1326,54 @@ async function listAssetRankingWeeklyActivity(pool, { superchatRange = "7d" } = 
       LEFT JOIN yt.livestream_sessions s
         ON s.youtube_channel_id = a.youtube_channel_id
        AND s.status = 'ended'
-       AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) >= now() - interval '7 days'
+       AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) >= now() - $1::interval
        AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) <= now()
       GROUP BY a.id, a.symbol
+    ),
+    -- Subscriber and view growth over the range, from the daily snapshots (the earliest one when
+    -- history is shorter than the range; growth_days says how far back it really reaches).
+    growth AS (
+      SELECT
+        a.id AS asset_id,
+        latest.subscriber_count AS subs_now,
+        latest.view_count AS views_now,
+        COALESCE(past.subscriber_count, first.subscriber_count) AS subs_then,
+        COALESCE(past.view_count, first.view_count) AS views_then,
+        latest.snapshot_date - COALESCE(past.snapshot_date, first.snapshot_date) AS growth_days
+      FROM market.market_assets a
+      LEFT JOIN LATERAL (
+        SELECT subscriber_count, view_count, snapshot_date FROM market.channel_daily_snapshots s
+        WHERE s.youtube_channel_id = a.youtube_channel_id ORDER BY snapshot_date DESC LIMIT 1
+      ) latest ON true
+      LEFT JOIN LATERAL (
+        SELECT subscriber_count, view_count, snapshot_date FROM market.channel_daily_snapshots s
+        WHERE s.youtube_channel_id = a.youtube_channel_id AND s.snapshot_date <= latest.snapshot_date - $2::int
+        ORDER BY snapshot_date DESC LIMIT 1
+      ) past ON true
+      LEFT JOIN LATERAL (
+        SELECT subscriber_count, view_count, snapshot_date FROM market.channel_daily_snapshots s
+        WHERE s.youtube_channel_id = a.youtube_channel_id ORDER BY snapshot_date ASC LIMIT 1
+      ) first ON true
     )
     SELECT
       a.id AS asset_id,
       a.symbol,
       COALESCE(st.superchat_earnings, 0) AS superchat_earnings,
-      COALESCE(sd.stream_duration_seconds_7d, 0) AS stream_duration_seconds_7d
+      COALESCE(sd.stream_duration_seconds_7d, 0) AS stream_duration_seconds_7d,
+      COALESCE(sd.stream_duration_seconds_7d, 0) AS stream_duration_seconds,
+      CASE WHEN g.subs_then > 0 AND g.growth_days > 0 THEN (g.subs_now - g.subs_then)::DOUBLE PRECISION / g.subs_then END AS subs_growth,
+      CASE WHEN g.views_then > 0 AND g.growth_days > 0 THEN (g.views_now - g.views_then)::DOUBLE PRECISION / g.views_then END AS views_growth,
+      g.growth_days
     FROM market.market_assets a
     LEFT JOIN superchat_totals st
       ON st.asset_id = a.id
     LEFT JOIN stream_duration_totals sd
       ON sd.asset_id = a.id
+    LEFT JOIN growth g
+      ON g.asset_id = a.id
     ORDER BY a.symbol ASC
   `,
-    [interval]
+    [interval, RANGE_DAYS[String(superchatRange).toLowerCase()] ?? 30]
   );
 
   return rows;

@@ -16,7 +16,7 @@ function buildAssetOshiboardCacheKey(symbol, limit = 50) {
 }
 
 function buildMarketRankingsWeeklyActivityCacheKey(range = "7d") {
-  return `market:rankings:weekly-activity:${String(range || "7d").trim().toLowerCase()}`;
+  return `market:rankings:activity:v2:${String(range || "7d").trim().toLowerCase()}`;
 }
 
 function buildMarketIndexOverviewCacheKey({ groupBy = "unit", range = "1y", weighting = "equal" } = {}) {

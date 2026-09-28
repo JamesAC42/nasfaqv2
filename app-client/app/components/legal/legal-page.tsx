@@ -5,7 +5,7 @@ import { SceneArt } from "@/app/components/common/scene-art";
 import { LegalToc } from "@/app/components/legal/legal-toc";
 import styles from "@/app/components/legal/legal.module.scss";
 
-export type LegalDoc = "privacy" | "terms";
+export type LegalDoc = "about" | "privacy" | "terms";
 
 export type LegalSection = {
   /** Anchor id, used in the URL (#id). Keep stable once published. */
@@ -15,6 +15,11 @@ export type LegalSection = {
 };
 
 const DOCS: Record<LegalDoc, { href: string; label: string; blurb: string }> = {
+  about: {
+    href: "/about",
+    label: "About",
+    blurb: "What NASFAQ is, who runs it, and where to find everyone.",
+  },
   privacy: {
     href: "/privacy",
     label: "Privacy Policy",
@@ -43,14 +48,19 @@ export function LegalPage({
   summary,
   sections,
   art,
+  summaryTitle = "The short version",
+  summaryNote = "The full text below is what counts. The short version is just the gist.",
 }: {
   doc: LegalDoc;
   title: string;
   /** ISO date and its display form, e.g. { iso: "2026-09-25", label: "September 25, 2026" }. */
-  updated: { iso: string; label: string };
+  updated?: { iso: string; label: string };
   intro: ReactNode;
   /** "The short version": 4–6 plain-language bullets. */
   summary: ReactNode[];
+  /** Heading over the summary, and the note under it (null hides it). Defaults suit a policy. */
+  summaryTitle?: string;
+  summaryNote?: ReactNode | null;
   sections: LegalSection[];
   /** Optional SceneArt slot for the header spot illustration. */
   art?: string;
@@ -63,7 +73,7 @@ export function LegalPage({
       <article className={styles.page} id="top">
         <header className={styles.head}>
           <div className={styles.headText}>
-            <nav className={styles.switch} aria-label="Site policies">
+            <nav className={styles.switch} aria-label="About the site">
               {(Object.keys(DOCS) as LegalDoc[]).map((key) => (
                 <Link key={key} href={DOCS[key].href} aria-current={key === doc ? "page" : undefined}>
                   {DOCS[key].label}
@@ -71,9 +81,11 @@ export function LegalPage({
               ))}
             </nav>
             <h1>{title}</h1>
-            <p className={styles.meta}>
-              <span>Last updated</span> <time dateTime={updated.iso}>{updated.label}</time>
-            </p>
+            {updated ? (
+              <p className={styles.meta}>
+                <span>Last updated</span> <time dateTime={updated.iso}>{updated.label}</time>
+              </p>
+            ) : null}
             <div className={styles.intro}>{intro}</div>
           </div>
           {art ? (
@@ -84,13 +96,13 @@ export function LegalPage({
         </header>
 
         <section className={styles.short} aria-labelledby="short-version">
-          <h2 id="short-version">The short version</h2>
+          <h2 id="short-version">{summaryTitle}</h2>
           <ul>
             {summary.map((item, index) => (
               <li key={index}>{item}</li>
             ))}
           </ul>
-          <p className={styles.shortNote}>The full text below is what counts. The short version is just the gist.</p>
+          {summaryNote ? <p className={styles.shortNote}>{summaryNote}</p> : null}
         </section>
 
         <div className={styles.layout}>

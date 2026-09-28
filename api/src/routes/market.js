@@ -526,7 +526,7 @@ router.get("/assets/:symbol/superchats", async (req, res, next) => {
 
 router.get("/rankings", async (req, res, next) => {
   try {
-    const superchatRange = String(req.query.superchat_range || "7d");
+    const superchatRange = ["24h", "7d", "30d", "90d", "1y"].includes(String(req.query.superchat_range)) ? String(req.query.superchat_range) : "7d";
     const weeklyActivityCacheKey = buildMarketRankingsWeeklyActivityCacheKey(superchatRange);
     const [coreRows, cachedWeeklyActivity, cachedOshicoinUsers] = await Promise.all([
       marketDb.listAssetRankingCore(req.ctx.pool),
@@ -559,7 +559,7 @@ router.get("/rankings", async (req, res, next) => {
           }),
     ]);
 
-    const weeklyActivityByAssetId = toMetricMap(weeklyActivityRows, ["superchat_earnings", "stream_duration_seconds_7d"]);
+    const weeklyActivityByAssetId = toMetricMap(weeklyActivityRows, ["superchat_earnings", "stream_duration_seconds_7d", "stream_duration_seconds", "subs_growth", "views_growth", "growth_days"]);
     const oshicoinUsersByAssetId = toMetricMap(oshicoinUserRows, ["oshicoin_users"]);
     const rows = coreRows.map((row) => ({
       ...row,

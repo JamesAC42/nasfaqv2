@@ -142,6 +142,8 @@ export function ProfileView({ username }: { username?: string | null }) {
   const color = profile.profile_color || "#3FB8F5";
   const oshi = profile.oshi_coin;
   const banner = profile.profile_banner;
+  // An equipped portfolio theme restyles the page (profile.module.scss, .page[data-theme-pattern]).
+  const pageTheme = profile.equipped.portfolio_theme?.theme ?? null;
   const oshiAsset = oshi ? assets.find((asset) => asset.symbol.toUpperCase() === oshi.symbol.toUpperCase()) : undefined;
   const allTime = profile.stats.total_equity - START_CASH;
   const history = profile.networth_history;
@@ -151,7 +153,17 @@ export function ProfileView({ username }: { username?: string | null }) {
 
   return (
     <SiteShell>
-      <div className={styles.page} style={{ "--pc": color, "--tal": oshiAsset ? talentAccent(oshiAsset.color, theme) : color } as React.CSSProperties}>
+      <div
+        className={styles.page}
+        data-theme-pattern={pageTheme ? pageTheme.pattern : undefined}
+        style={
+          {
+            "--pc": color,
+            "--tal": oshiAsset ? talentAccent(oshiAsset.color, theme) : color,
+            ...(pageTheme ? { "--th-a": pageTheme.accent, "--th-b": pageTheme.accent2 ?? pageTheme.accent } : {}),
+          } as React.CSSProperties
+        }
+      >
         <Link href="/leaderboard" className={styles.back}>
           ← LEADERBOARD
         </Link>

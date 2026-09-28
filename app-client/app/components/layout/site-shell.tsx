@@ -424,6 +424,7 @@ export function SiteShell({
               <Link href="/stocks">Stocks</Link>
               <Link href="/chat">Chat</Link>
               <Link href="/games">Games</Link>
+              <Link href="/about">About</Link>
               <Link href="/privacy">Privacy</Link>
               <Link href="/terms">Usage policy</Link>
             </nav>

@@ -196,7 +196,7 @@ function TickLogRow({ item }: { item: MarketAdjustmentOutcome }) {
 
 /** Public channel signals that feed the hidden target, read against the rest of the board. */
 function Signals({ asset }: { asset: MarketAsset }) {
-  const channels = useChannelData();
+  const channels = useChannelData("24h");
   const stats = useStats(asset.symbol);
   const sym = asset.symbol.toUpperCase();
 

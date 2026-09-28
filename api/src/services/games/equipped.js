@@ -10,12 +10,26 @@ function equippedJsonSql(userIdSql) {
       'type', uc.cosmetic_type,
       'rarity', uc.rarity,
       'display_name', COALESCE(uc.metadata_json->>'display_name', uc.cosmetic_key),
-      'image_url', uc.metadata_json->>'image_url'
+      'image_url', uc.metadata_json->>'image_url',
+      'theme', uc.metadata_json->'theme'
     ))
     FROM games.user_equipped_cosmetics ec
     JOIN games.user_cosmetics uc ON uc.id = ec.user_cosmetic_id
     WHERE ec.user_id = ${userIdSql}
   )`;
+}
+
+const THEME_PATTERNS = new Set(["petals", "waves", "grid", "stripes", "stars", "plain"]);
+const HEX = /^#[0-9a-f]{6}$/i;
+
+/** A portfolio theme's look ({ accent, accent2, pattern }), or null if it doesn't have a usable one. */
+function normalizeTheme(value) {
+  if (!value || typeof value !== "object" || !HEX.test(String(value.accent || ""))) return null;
+  return {
+    accent: String(value.accent),
+    accent2: HEX.test(String(value.accent2 || "")) ? String(value.accent2) : null,
+    pattern: THEME_PATTERNS.has(value.pattern) ? value.pattern : "plain",
+  };
 }
 
 function normalizeEquipped(value) {
@@ -29,6 +43,7 @@ function normalizeEquipped(value) {
       rarity: String(entry.rarity || "common"),
       display_name: String(entry.display_name || entry.key || slot),
       image_url: entry.image_url ? String(entry.image_url) : null,
+      ...(entry.theme ? { theme: normalizeTheme(entry.theme) } : {}),
     };
   }
   return out;

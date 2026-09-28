@@ -92,6 +92,22 @@
   border-bottom: 1px solid var(--rule);
 }
 
+// Talents the floor is about, standing on the right; the header grows to fit them.
+.head:has(.headCast) {
+  min-height: 11.5rem;
+  overflow: hidden;
+
+  > .title,
+  > .aside {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+.headCast {
+  z-index: 0;
+}
+
 // A tote board behind the title, fading out to the left where the words sit.
 .headArt {
   z-index: -1;

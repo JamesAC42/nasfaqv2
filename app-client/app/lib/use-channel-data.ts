@@ -3,21 +3,30 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/app/lib/api";
 
-/** Channel stats per ticker, from the rankings table plus a 3-day overview series for 24h growth. */
-export type Channel = { subs: number | null; views: number | null; videos: number | null; sc7: number | null; stream7: number | null; oshis: number | null; subsCh: number | null; viewsCh: number | null };
+/**
+ * Channel stats per ticker, from the rankings table. Superchats, stream time and subscriber/view
+ * growth cover `range` (sc7/stream7/subsCh/viewsCh keep their names whatever the range); for 24h the
+ * growth comes from a 3-day overview series instead of the daily snapshots.
+ */
+export type Channel = { subs: number | null; views: number | null; videos: number | null; sc7: number | null; stream7: number | null; oshis: number | null; subsCh: number | null; viewsCh: number | null; growthDays: number | null };
+
+export type ChannelRange = "24h" | "7d" | "30d" | "90d" | "1y";
+export const CHANNEL_RANGES: ChannelRange[] = ["24h", "7d", "30d", "90d", "1y"];
 
 const toNum = (value: unknown) => {
   const parsed = Number(value);
   return value === null || value === undefined || value === "" || !Number.isFinite(parsed) ? null : parsed;
 };
 
-export function useChannelData() {
+export function useChannelData(range: ChannelRange = "7d") {
   const [channels, setChannels] = useState<Map<string, Channel>>(new Map());
   useEffect(() => {
     let cancelled = false;
     Promise.allSettled([
-      apiFetch<{ rows?: Array<Record<string, unknown>> }>("/api/market/rankings?superchat_range=7d", { cache: "no-store" }),
-      apiFetch<Array<{ channel: { symbol?: string | null }; series?: Array<Record<string, unknown>> }>>("/api/overview/timeseries?days=3&limit=200", { cache: "no-store" }),
+      apiFetch<{ rows?: Array<Record<string, unknown>> }>(`/api/market/rankings?superchat_range=${range}`, { cache: "no-store" }),
+      range === "24h"
+        ? apiFetch<Array<{ channel: { symbol?: string | null }; series?: Array<Record<string, unknown>> }>>("/api/overview/timeseries?days=3&limit=200", { cache: "no-store" })
+        : Promise.resolve([] as Array<{ channel: { symbol?: string | null }; series?: Array<Record<string, unknown>> }>),
     ]).then(([rankings, series]) => {
       if (cancelled) return;
       const map = new Map<string, Channel>();
@@ -30,10 +39,11 @@ export function useChannelData() {
             views: toNum(row.views),
             videos: toNum(row.videos),
             sc7: toNum(row.superchat_earnings),
-            stream7: toNum(row.stream_duration_seconds_7d) !== null ? (toNum(row.stream_duration_seconds_7d) as number) / 3600 : null,
+            stream7: toNum(row.stream_duration_seconds ?? row.stream_duration_seconds_7d) !== null ? (toNum(row.stream_duration_seconds ?? row.stream_duration_seconds_7d) as number) / 3600 : null,
             oshis: toNum(row.oshicoin_users),
-            subsCh: null,
-            viewsCh: null,
+            subsCh: range === "24h" ? null : toNum(row.subs_growth),
+            viewsCh: range === "24h" ? null : toNum(row.views_growth),
+            growthDays: range === "24h" ? 1 : toNum(row.growth_days),
           });
         }
       }
@@ -50,7 +60,7 @@ export function useChannelData() {
             const then = prior ? toNum(prior[key]) : null;
             return now !== null && then ? (now - then) / then : null;
           };
-          const current = map.get(symbol) ?? { subs: null, views: null, videos: null, sc7: null, stream7: null, oshis: null, subsCh: null, viewsCh: null };
+          const current = map.get(symbol) ?? { subs: null, views: null, videos: null, sc7: null, stream7: null, oshis: null, subsCh: null, viewsCh: null, growthDays: 1 };
           map.set(symbol, {
             ...current,
             subs: current.subs ?? toNum(latest.subscriber_count),
@@ -66,7 +76,7 @@ export function useChannelData() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [range]);
   return channels;
 }
 
