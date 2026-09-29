@@ -1027,3 +1027,32 @@ a.label:hover {
 .hotBarNow {
   fill: var(--blue);
 }
+
+// ── The Dividend Review ──────────────────────────────────────────────────
+.reviewNext {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+
+  h3 {
+    margin-bottom: 0.35rem;
+  }
+}
+
+.reviewClock {
+  @include num;
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.reviewMine {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  color: var(--mid);
+
+  b {
+    @include num;
+    font-weight: 600;
+  }
+}

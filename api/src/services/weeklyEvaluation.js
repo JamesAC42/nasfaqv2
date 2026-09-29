@@ -525,6 +525,46 @@ async function listEvaluations(pool, { limit = 12 } = {}) {
   return rows;
 }
 
+/**
+ * One stock's past reviews, newest first: its rate (dividend > 0, fee < 0), per share, where its
+ * channel growth ranked that week, max shares before and after, and any buyback it started or ended.
+ */
+async function listAssetEvaluations(pool, symbol, { limit = 12 } = {}) {
+  const { rows } = await pool.query(
+    `
+    WITH ranked AS (
+      SELECT wae.*, e.eval_date, e.report_json->>'on_demand' AS on_demand,
+             RANK() OVER (PARTITION BY wae.evaluation_id ORDER BY wae.z_score DESC NULLS LAST) AS rank,
+             COUNT(*) OVER (PARTITION BY wae.evaluation_id) AS of
+      FROM market.weekly_asset_evaluations wae
+      JOIN market.weekly_evaluations e ON e.id = wae.evaluation_id AND e.status = 'completed'
+    )
+    SELECT r.eval_date::text AS eval_date, r.on_demand, r.dividend_rate, r.per_share, r.shift, r.held,
+           r.max_supply_before, r.max_supply_after, r.buyback_action, r.rank, r.of
+    FROM ranked r JOIN market.market_assets a ON a.id = r.asset_id
+    WHERE a.symbol = $1
+    ORDER BY r.eval_date DESC
+    LIMIT $2
+  `,
+    [String(symbol).toUpperCase(), Math.min(52, Math.max(1, Number(limit) || 12))]
+  );
+  return rows.map((row) => ({
+    eval_date: row.eval_date,
+    on_demand: row.on_demand === "true",
+    rate: toNumber(row.dividend_rate, 0),
+    per_share: toNumber(row.per_share, 0),
+    // The week's channel growth (from revealed days only): ln ratio as a percent.
+    growth_pct: row.shift === null ? null : round((Math.exp(Number(row.shift)) - 1) * 100, 2),
+    held: toNumber(row.held, 0),
+    paid: round(toNumber(row.per_share, 0) * toNumber(row.held, 0), 2),
+    max_supply_before: row.max_supply_before === null ? null : toNumber(row.max_supply_before, 0),
+    max_supply_after: row.max_supply_after === null ? null : toNumber(row.max_supply_after, 0),
+    buyback_action: row.buyback_action,
+    rank: Number(row.rank),
+    of: Number(row.of),
+  }));
+}
+
 async function getEvaluation(pool, evalDate = null) {
   const { rows } = await pool.query(
     evalDate
@@ -562,6 +602,7 @@ async function listUserDividends(pool, userId, { limit = 8 } = {}) {
 }
 
 module.exports = {
+  listAssetEvaluations,
   CONFIG,
   evaluationDateFor,
   evaluationStartsAt,

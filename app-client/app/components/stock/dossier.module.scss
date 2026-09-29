@@ -928,6 +928,23 @@
   font-size: 0.656rem;
 }
 
+.smallAt {
+  overflow: hidden;
+  color: var(--mid);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+
+  b {
+    font-weight: 600;
+  }
+}
+
+.smallSuffix {
+  @include phone {
+    display: none;
+  }
+}
+
 .smallSpark {
   display: block;
   width: 100%;
@@ -1400,6 +1417,29 @@
 }
 
 // Held by players (left), the broker's never-sold buffer (hatched, right), for sale in between.
+.heldHist {
+  margin: 0.7rem 0 0.2rem;
+}
+
+.heldHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.2rem 0.6rem;
+  margin-bottom: 0.3rem;
+}
+
+.heldRead {
+  @include num;
+  font-size: 0.68rem;
+  color: var(--mid);
+
+  b {
+    font-weight: 600;
+  }
+}
+
 .supplyBar {
   position: relative;
   height: 14px;

@@ -7,6 +7,7 @@ import { useHasArt } from "@/app/components/common/use-art-image";
 import { artId } from "@/app/lib/art-manifest";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { SiteShell } from "@/app/components/layout/site-shell";
+import { DividendsSection } from "@/app/components/stock/dividends-section";
 import { ChartSection, TicksSection } from "@/app/components/stock/market-sections";
 import { ChannelSection, StreamsSection, SuperchatSection } from "@/app/components/stock/channel-sections";
 import { BoardSection, HoldersSection, NewsSection } from "@/app/components/stock/community-sections";
@@ -33,6 +34,7 @@ import { Term } from "@/app/components/common/tip";
 const SECTIONS = [
   ["s-chart", "Chart"],
   ["s-ticks", "Ticks"],
+  ["s-divs", "Dividends"],
   ["s-channel", "Channel"],
   ["s-sc", "Superchats"],
   ["s-streams", "Streams"],
@@ -283,6 +285,7 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
           <div className={styles.main}>
             <ChartSection asset={asset} accent={accent} avgCost={holding && holding.quantity > 0 ? holding.avg_cost_basis : null} />
             <TicksSection asset={asset} />
+            <DividendsSection asset={asset} />
             <ChannelSection asset={asset} ranks={ranks} streams={streams} />
             <SuperchatSection asset={asset} superchats={superchats} hasChannel={Boolean(channelId)} />
             <StreamsSection asset={asset} channelId={channelId} streams={streams} onOpen={openStream} />

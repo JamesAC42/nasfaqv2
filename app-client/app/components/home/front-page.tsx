@@ -12,7 +12,10 @@ import { SiteShell } from "@/app/components/layout/site-shell";
 import { MARKET_TIME_ZONE } from "@/app/lib/market-clock";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct, timeAgo, toneOf } from "@/app/lib/time";
-import type { MarketAsset, NewsItem, ReportRow, WireItem } from "@/app/lib/types";
+import type { EvaluationRow, MarketAsset, MyDividendWeek, NewsItem, ReportRow, WeeklyEvaluation, WireItem } from "@/app/lib/types";
+import { apiFetch } from "@/app/lib/api";
+import { useNow } from "@/app/lib/use-now";
+import { nextEvaluationAt, untilText } from "@/app/components/market/dividends-tab";
 import { useLocalFlag } from "@/app/lib/use-local-flag";
 import { threadLines, useThreadPosts } from "@/app/lib/use-thread";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -542,6 +545,91 @@ function SettlementReport({ assets }: { assets: MarketAsset[] }) {
   );
 }
 
+// ── The Dividend Review ──────────────────────────────────────────────────────
+function shortEvalDate(value: string) {
+  return new Date(`${value}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+/** Last Saturday's review (who paid, who charged, whose max shares moved) and the countdown to the next. */
+function DividendReview() {
+  const { user } = useAuth();
+  const now = useNow();
+  const [review, setReview] = useState<WeeklyEvaluation | null | undefined>(undefined);
+  const [mine, setMine] = useState<MyDividendWeek | null>(null);
+  useEffect(() => {
+    let alive = true;
+    apiFetch<WeeklyEvaluation>("/api/market/evaluations/latest")
+      .then((result) => alive && setReview(result))
+      .catch(() => alive && setReview(null));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    apiFetch<{ weeks: MyDividendWeek[] }>("/api/market/me/dividends?limit=1")
+      .then((result) => alive && setMine(result.weeks[0] ?? null))
+      .catch(() => alive && setMine(null));
+    return () => {
+      alive = false;
+    };
+  }, [user]);
+
+  if (review === undefined) return null;
+  const next = now ? nextEvaluationAt(now) : null;
+  const day = review ? shortEvalDate(review.eval_date) : null;
+  const rateLine = (row: EvaluationRow): ReportLine => ({ symbol: row.symbol, left: `${money(Math.abs(row.per_share))} a share`, right: signedPct(row.rate, 2), tone: toneOf(row.rate) });
+  const supplyLines: ReportLine[] = review
+    ? [...review.max_shares_raised.slice(0, 3), ...review.max_shares_lowered.slice(0, 2)].map((row) => ({
+        symbol: row.symbol,
+        left: `${Math.round(row.max_supply_before).toLocaleString("en-US")} → ${Math.round(row.max_supply_after).toLocaleString("en-US")}`,
+        right: row.buyback ? "BUYBACK" : `${row.max_supply_after > row.max_supply_before ? "+" : ""}${Math.round(row.max_supply_after - row.max_supply_before).toLocaleString("en-US")}`,
+        tone: row.buyback || row.max_supply_after < row.max_supply_before ? "down" : "up",
+      }))
+    : [];
+  const myNet = user && review && mine?.eval_date === review.eval_date ? mine.net : null;
+
+  return (
+    <section className={styles.block} aria-labelledby="review-title">
+      <div className={styles.blockHead}>
+        <h2 id="review-title">
+          The <Term k="evaluation">Dividend Review</Term>
+        </h2>
+        <Link href="/market/dividends" className={styles.label}>
+          {day ? `${day} · ` : ""}full review →
+        </Link>
+      </div>
+      <div className={styles.report}>
+        <div className={`${styles.reportCol} ${styles.reviewNext}`}>
+          <h3>Next review</h3>
+          <b className={styles.reviewClock} suppressHydrationWarning>
+            {next && now ? untilText(next - now) : "—"}
+          </b>
+          <span className={styles.meta}>Saturday 00:00 ET</span>
+          {myNet !== null ? (
+            <p className={styles.reviewMine}>
+              Your last: <b className={styles[toneOf(myNet)]}>{myNet >= 0 ? "+" : ""}{money(myNet)}</b>
+            </p>
+          ) : null}
+          <p className={styles.note}>
+            {review
+              ? `Last week ${review.paying_count} stocks paid ${money(review.dividends_total, { compact: true })} and ${review.charging_count} charged ${money(Math.abs(review.fees_total), { compact: true })}. Hold at the review to collect.`
+              : "Channel growth over the week decides it: the top pays holders a dividend, the bottom charges a share fee. Hold at the review to collect."}
+          </p>
+        </div>
+        {review ? (
+          <>
+            <ReportColumn title={`Paid · ${day}`} tone="up" lines={review.top_dividends.slice(0, 5).map(rateLine)} note="Dividend per share held at the review." />
+            <ReportColumn title={`Charged · ${day}`} tone="down" lines={review.top_fees.slice(0, 5).map(rateLine)} note="The slowest-growing channels charge holders a fee." />
+            <ReportColumn title="Max shares moved" lines={supplyLines} note="Max shares follow subscribers. Held above the new max starts a buyback." />
+          </>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 // ── By unit ──────────────────────────────────────────────────────────────────
 function UnitIndexes({ assets }: { assets: MarketAsset[] }) {
   const marketIndexes = useMarketStore((state) => state.marketIndexes);
@@ -786,6 +874,7 @@ export function FrontPage() {
         <TheWire items={wireItems} />
         <HotOnVt />
         <SettlementReport assets={assets} />
+        <DividendReview />
         <UnitIndexes assets={assets} />
         <section className={styles.community} aria-label="Community">
           <OnAir />

@@ -47,7 +47,8 @@ type History = {
   hourly: number[];
   total: number;
   peak: { at: string; posts: number } | null;
-  topics: Array<{ topic: string; posts: number; day: number; counted: boolean }>;
+  /** `day` and `counted` are missing from an API older than the mood panel. */
+  topics: Array<{ topic: string; posts: number; day?: number; counted?: boolean }>;
   talents: Array<{ symbol: string; posts: number; in_thread: number }>;
   /** Posts in her own threads that don't name anyone (one talent only). */
   in_thread: number | null;
@@ -81,6 +82,9 @@ const VALENCE: Record<string, Valence> = {
   off_topic: "uncounted",
   unread: "passing",
 };
+/** Topics left out of every count, and how the page names them. */
+const SKIPPED = new Set(["rumour", "off_topic"]);
+const SKIPPED_TEXT: Record<string, string> = { rumour: "rumours", off_topic: "not about her" };
 /** "mostly …" phrases for a talent's leading topic. */
 const MOOD_TEXT: Record<string, string> = {
   hype: "mostly hype",
@@ -124,6 +128,13 @@ export function WirePage() {
   const [hours, setHours] = useState(168);
   const [symbol, setSymbol] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
+  const { theme } = useTheme();
+  const [todayCount, setTodayCount] = useState<number | null>(null);
+  useEffect(() => {
+    apiFetch<Counts>("/api/overview/wire/counts?hours=24")
+      .then((counts) => setTodayCount(counts.all ?? 0))
+      .catch(() => {});
+  }, []);
   const feedRef = useRef<HTMLElement | null>(null);
   const sideRef = useRef<HTMLElement | null>(null);
 
@@ -162,7 +173,7 @@ export function WirePage() {
   return (
     <SiteShell>
       <div className={styles.page}>
-        <header className={styles.top} data-cast={cast.length ? "" : undefined}>
+        <header className={styles.top} data-cast={cast.length ? "" : undefined} style={{ "--tal": cast[0] ? talentAccent(cast[0].color, theme) : "var(--blue)" } as CSSProperties}>
           <HeroCast talents={cast} />
           <div className={styles.title}>
             <span className={styles.kicker}>
@@ -170,6 +181,20 @@ export function WirePage() {
             </span>
             <h1>The Wire</h1>
             <p>Streams, records, market moves and game moments as they happen, and what {summary?.board ?? "/vt/"} is talking about.</p>
+            <dl className={styles.topStats}>
+              <div>
+                <dt>On the wire today</dt>
+                <dd>{todayCount === null ? "—" : todayCount}</dd>
+              </div>
+              <div>
+                <dt>{summary?.board ?? "/vt/"} · last {summary?.recent_hours ?? 6}h</dt>
+                <dd>{summary ? summary.talents.reduce((sum, talent) => sum + talent.posts_recent, 0).toLocaleString("en-US") : "—"}</dd>
+              </div>
+              <div>
+                <dt>Heating up</dt>
+                <dd>{summary ? (summary.hot.length ? summary.hot.slice(0, 3).join(" · ") : "nobody yet") : "—"}</dd>
+              </div>
+            </dl>
           </div>
         </header>
 
@@ -288,12 +313,13 @@ function RightNow({
  */
 function MoodPanel({ history }: { history: History | null }) {
   if (!history || !history.topics.length) return null;
-  const counted = history.topics.filter((entry) => entry.counted);
-  const uncounted = history.topics.filter((entry) => !entry.counted);
+  // `counted` comes from the API; an API from before it existed sent only counted topics.
+  const topics = history.topics.map((entry) => ({ ...entry, day: entry.day ?? 0, counted: entry.counted ?? !SKIPPED.has(entry.topic) }));
+  const counted = topics.filter((entry) => entry.counted);
+  const uncounted = topics.filter((entry) => !entry.counted);
   const total = counted.reduce((sum, entry) => sum + entry.posts, 0);
   const dayTotal = counted.reduce((sum, entry) => sum + entry.day, 0);
-  const all = history.topics.reduce((sum, entry) => sum + entry.posts, 0);
-  const max = Math.max(1, ...history.topics.map((entry) => entry.posts));
+  const max = Math.max(1, ...counted.map((entry) => entry.posts));
   const lead = counted.filter((entry) => entry.topic !== "passing" && entry.topic !== "unread")[0] ?? null;
   const share = (posts: number, of: number) => (of ? Math.round((posts / of) * 100) : 0);
   // The biggest move between the week's share and the last day's (in points), once there's a day.
@@ -303,7 +329,7 @@ function MoodPanel({ history }: { history: History | null }) {
           .map((entry) => ({ entry, delta: share(entry.day, dayTotal) - share(entry.posts, total) }))
           .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0]
       : null;
-  const row = (entry: History["topics"][number]) => (
+  const row = (entry: (typeof topics)[number]) => (
     <li key={entry.topic} data-valence={VALENCE[entry.topic] ?? "passing"}>
       <span>{TOPIC_LABEL[entry.topic] ?? entry.topic}</span>
       <i style={{ "--w": `${(entry.posts / max) * 100}%` } as CSSProperties} aria-hidden="true" />
@@ -329,12 +355,15 @@ function MoodPanel({ history }: { history: History | null }) {
         {counted.map(row)}
       </ul>
       {uncounted.length ? (
-        <>
-          <small className={styles.moodAside}>Left out of the counts ({share(uncounted.reduce((sum, entry) => sum + entry.posts, 0), all)}% of everything read)</small>
-          <ul className={`${styles.moodList} ${styles.moodOut}`} aria-label="Posts left out, by reason">
-            {uncounted.map(row)}
-          </ul>
-        </>
+        <p className={styles.moodSkip}>
+          Not counted:{" "}
+          {uncounted.map((entry, index) => (
+            <span key={entry.topic}>
+              {index ? ", " : ""}
+              <b>{entry.posts.toLocaleString("en-US")}</b> {SKIPPED_TEXT[entry.topic] ?? entry.topic}
+            </span>
+          ))}
+        </p>
       ) : null}
     </div>
   );
@@ -465,7 +494,7 @@ function WireFeed({
             </button>
           ))}
         </div>
-        <div className={styles.chips} role="group" aria-label="How far back">
+        <div className={`${styles.chips} ${styles.timeChips}`} role="group" aria-label="How far back">
           {WINDOWS.map((entry) => (
             <button key={entry.hours} type="button" className={styles.chip} aria-pressed={hours === entry.hours} onClick={() => onHours(entry.hours)}>
               {entry.label}
@@ -584,7 +613,9 @@ function useHistory(symbol: string | null, days: number) {
       cancelled = true;
     };
   }, [days, symbol, tick]);
-  return { history: history && history.symbol === (symbol ?? null) ? history : null, failed };
+  // `latest` is whatever loaded last, even for another talent: her week keeps showing it (dimmed)
+  // while the next one loads, instead of collapsing and jumping.
+  return { history: history && history.symbol === (symbol ?? null) ? history : null, latest: history, failed };
 }
 
 /** The board's week: posts per hour, the busiest hour, and who it was about. */
@@ -826,17 +857,19 @@ function Spark({ hourly, recentHours }: { hourly: number[]; recentHours: number 
 
 /** One talent's week on /vt/: posts per hour and what they were about. */
 function TalentWeek({ symbol, asset, onClose, onWire }: { symbol: string; asset: MarketAsset | null; onClose: () => void; onWire: () => void }) {
-  const { history } = useHistory(symbol, 7);
+  const { history: current, latest } = useHistory(symbol, 7);
+  const history = current ?? latest;
+  const loading = !current;
   const topicMax = Math.max(1, ...(history?.topics ?? []).map((entry) => entry.posts));
   return (
-    <section className={styles.week} aria-label={`${symbol} on /vt/ this week`}>
-      <header>
+    <section className={styles.week} aria-label={`${symbol} on /vt/ this week`} data-loading={loading || undefined}>
+      <header key={symbol} className={styles.weekHead}>
         <Oshimark icon={asset?.icon} symbol={symbol} size={28} />
         <span>
           <b>{asset?.display_name ?? symbol}</b>
           <small>
-            {history
-              ? `${history.total.toLocaleString("en-US")} posts ${coverageText(history)}${history.in_thread ? `, ${history.in_thread.toLocaleString("en-US")} of them in her own threads` : ""}`
+            {current
+              ? `${current.total.toLocaleString("en-US")} posts ${coverageText(current)}${current.in_thread ? `, ${current.in_thread.toLocaleString("en-US")} of them in her own threads` : ""}`
               : "Reading her week…"}
           </small>
         </span>
@@ -844,19 +877,21 @@ function TalentWeek({ symbol, asset, onClose, onWire }: { symbol: string; asset:
           ✕
         </button>
       </header>
-      <HourChart history={history} height={96} />
-      {history?.topics.length ? (
-        <ul className={styles.topics} aria-label="What the posts were about">
-          {history.topics.map((entry) => (
-            <li key={entry.topic} data-valence={VALENCE[entry.topic] ?? "passing"} data-out={entry.counted ? undefined : ""}>
-              <span>{TOPIC_LABEL[entry.topic] ?? entry.topic}</span>
-              <i style={{ "--w": `${(entry.posts / topicMax) * 100}%` } as CSSProperties} aria-hidden="true" />
-              <b>{entry.posts.toLocaleString("en-US")}</b>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {history?.topics.some((entry) => !entry.counted) ? <p className={styles.weekNote}>Rumours and posts that aren&apos;t about her are listed but not counted.</p> : null}
+      <div className={styles.weekBody}>
+        <HourChart history={history} height={96} />
+        {history?.topics.length ? (
+          <ul className={styles.topics} aria-label="What the posts were about">
+            {history.topics.map((entry) => (
+              <li key={entry.topic} data-valence={VALENCE[entry.topic] ?? "passing"} data-out={(entry.counted ?? !SKIPPED.has(entry.topic)) ? undefined : ""}>
+                <span>{TOPIC_LABEL[entry.topic] ?? entry.topic}</span>
+                <i style={{ "--w": `${(entry.posts / topicMax) * 100}%` } as CSSProperties} aria-hidden="true" />
+                <b>{entry.posts.toLocaleString("en-US")}</b>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {history?.topics.some((entry) => !(entry.counted ?? !SKIPPED.has(entry.topic))) ? <p className={styles.weekNote}>Dimmed ones don&apos;t count toward her numbers.</p> : null}
+      </div>
       <div className={styles.weekLinks}>
         <button type="button" onClick={onWire}>
           Her wire →

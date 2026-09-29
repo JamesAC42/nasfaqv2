@@ -1737,6 +1737,25 @@ async function getAssetTreasury(pool, symbol) {
   return rows[0] || null;
 }
 
+/** Shares held against max shares at each daily settlement (09:00 ET), oldest first. */
+async function getAssetHeldHistory(pool, symbol, { days = 90 } = {}) {
+  const { rows } = await pool.query(
+    `
+    SELECT d.market_date::text AS date,
+           d.circulating_supply_end AS held,
+           d.circulating_supply_end + COALESCE(d.treasury_supply_end, 0) AS max_supply
+    FROM market.asset_daily_market_state d
+    JOIN market.market_assets a ON a.id = d.asset_id
+    WHERE a.symbol = $1
+      AND d.circulating_supply_end IS NOT NULL
+      AND d.market_date >= current_date - $2::int
+    ORDER BY d.market_date ASC
+  `,
+    [symbol, Math.min(365, Math.max(7, Number(days) || 90))]
+  );
+  return rows.map((row) => ({ date: row.date, held: Math.round(Number(row.held) * 100) / 100, max_supply: Math.round(Number(row.max_supply)) }));
+}
+
 async function getAssetStats(pool, symbol, { range = "30d" } = {}) {
   const interval = parseRangeToInterval(range);
   const { rows } = await pool.query(
@@ -2455,6 +2474,7 @@ module.exports = {
   getAssetCandles,
   getAllMarketCandles,
   getAssetStats,
+  getAssetHeldHistory,
   getAssetTrades,
   listRecentMarketTrades,
   getMarketActivityStats,

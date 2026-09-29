@@ -2,7 +2,7 @@
 
 import { EmptyState } from "@/app/components/common/empty-state";
 import { useMemo, useState } from "react";
-import { Sparkline } from "@/app/components/common/sparkline";
+import { cleanCumulative, HoverSpark, type SparkPoint } from "@/app/components/common/hover-spark";
 import type { StreamPreview } from "@/app/lib/streams";
 import { fmtBig, yen, type Rank } from "@/app/components/stock/format";
 import { streamSeconds, usePastStreams, useStats, type Loaded, type PastStream, type useSuperchats } from "@/app/components/stock/use-stock-data";
@@ -32,11 +32,11 @@ export function ChannelSection({ asset, ranks, streams }: { asset: MarketAsset; 
     const end = points.length ? Date.parse(points[points.length - 1].snapshot_date) : 0;
     const windowed = points.filter((point) => Date.parse(point.snapshot_date) >= end - days * 86_400_000);
     const build = (key: "subscriber_count" | "view_count" | "video_count", label: string) => {
-      const values = windowed.map((point) => point[key]).filter((value): value is number => value !== null && Number.isFinite(value));
-      const last = values.at(-1) ?? null;
-      const first = values[0] ?? null;
+      const series = cleanCumulative(windowed.map((point) => ({ t: point.snapshot_date.slice(0, 10), v: point[key] ?? Number.NaN })));
+      const last = series.at(-1)?.v ?? null;
+      const first = series[0]?.v ?? null;
       const delta = last !== null && first !== null ? last - first : null;
-      return { label, values, last, delta, pct: delta !== null && first ? delta / first : null };
+      return { label, series, last, delta, pct: delta !== null && first ? delta / first : null };
     };
     return [build("subscriber_count", "Subscribers"), build("view_count", "Views"), build("video_count", "Videos")];
   }, [days, stats.data]);
@@ -58,14 +58,7 @@ export function ChannelSection({ asset, ranks, streams }: { asset: MarketAsset; 
       </div>
       <div className={styles.smalls}>
         {smalls.map((small) => (
-          <div key={small.label} className={styles.small}>
-            <span className={styles.label}>{small.label}</span>
-            <span className={styles.smallV}>{small.label === "Videos" ? (small.last ?? 0).toLocaleString("en-US") : fmtBig(small.last)}</span>
-            <span className={`${styles.smallD} ${styles[toneOf(small.delta)]}`}>
-              {small.delta !== null ? `${small.delta >= 0 ? "+" : "−"}${small.label === "Videos" ? Math.abs(small.delta).toLocaleString("en-US") : fmtBig(Math.abs(small.delta))} (${signedPct(small.pct)})` : stats.loading ? "…" : "—"}
-            </span>
-            {small.values.length > 1 ? <Sparkline values={small.values} tone="flat" width={220} height={46} fill className={styles.smallSpark} /> : null}
-          </div>
+          <ChannelSmall key={small.label} {...small} loading={stats.loading} />
         ))}
         <div className={styles.small}>
           <span className={styles.label}>Streamed · 7d</span>
@@ -92,6 +85,42 @@ export function ChannelSection({ asset, ranks, streams }: { asset: MarketAsset; 
         ))}
       </div>
     </section>
+  );
+}
+
+const shortDay = (date: string) =>
+  new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: date.slice(0, 4) === String(new Date().getUTCFullYear()) ? undefined : "numeric", timeZone: "UTC" });
+
+/** One channel number: its latest value and change over the range, or, while hovering the chart, that day's value and gain. */
+function ChannelSmall({ label, series, last, delta, pct, loading }: { label: string; series: SparkPoint[]; last: number | null; delta: number | null; pct: number | null; loading: boolean }) {
+  const [active, setActive] = useState<number | null>(null);
+  const count = (value: number) => (label === "Videos" ? Math.round(value).toLocaleString("en-US") : fmtBig(value));
+  const signed = (value: number) => `${value >= 0 ? "+" : "−"}${count(Math.abs(value))}`;
+  const point = active === null ? null : series[active];
+  const prev = active ? series[active - 1] : null;
+  // A gain between two snapshots more than a day apart is spread over the gap.
+  const gapDays = point && prev ? Math.max(1, Math.round((Date.parse(point.t) - Date.parse(prev.t)) / 86_400_000)) : 1;
+  const dayGain = point && prev ? (point.v - prev.v) / gapDays : null;
+  return (
+    <div className={styles.small}>
+      <span className={styles.label}>{label}</span>
+      <span className={styles.smallV}>{point ? count(point.v) : last !== null ? count(last) : "—"}</span>
+      {point ? (
+        <span className={`${styles.smallD} ${styles.smallAt}`}>
+          {shortDay(point.t)}
+          {dayGain !== null ? <b className={styles[toneOf(dayGain)]}>
+              {" "}
+              {signed(dayGain)}
+              <span className={styles.smallSuffix}>{gapDays > 1 ? " a day" : " that day"}</span>
+            </b> : null}
+        </span>
+      ) : (
+        <span className={`${styles.smallD} ${styles[toneOf(delta)]}`}>{delta !== null ? `${signed(delta)} (${signedPct(pct)})` : loading ? "…" : "—"}</span>
+      )}
+      {series.length > 1 ? (
+        <HoverSpark points={series} active={active} onActive={setActive} label={`${label}, daily`} color="var(--tal, var(--mid))" height={46} className={styles.smallSpark} />
+      ) : null}
+    </div>
   );
 }
 

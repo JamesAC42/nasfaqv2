@@ -145,9 +145,12 @@ router.get("/evaluations/preview", async (req, res, next) => {
 
 router.get("/evaluations/latest", async (req, res, next) => {
   try {
-    const report = await weeklyEvaluation.getEvaluation(req.ctx.pool);
-    if (!report) return res.status(404).json({ error: "evaluation_not_found" });
-    res.json(report);
+    await sendCachedJson(req, res, "market:evaluations:latest", {
+      ttlSeconds: 60,
+      memoMs: 10_000,
+      notFound: "evaluation_not_found",
+      load: () => weeklyEvaluation.getEvaluation(req.ctx.pool),
+    });
   } catch (e) {
     next(e);
   }
@@ -680,6 +683,38 @@ router.get("/assets/:symbol/stats", async (req, res, next) => {
       ttlSeconds: 60,
       memoMs: 5000,
       load: async () => scrubPublicMarketPayload({ symbol, range, stats: await marketDb.getAssetStats(req.ctx.pool, symbol, { range }) }),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Shares held vs max shares at each settlement (the stock page's Holders & supply).
+router.get("/assets/:symbol/held-history", async (req, res, next) => {
+  try {
+    const symbol = normalizeSymbol(req.params.symbol);
+    if (!symbol) return res.status(400).json({ error: "missing_symbol" });
+    const days = Math.min(365, Math.max(7, Number(req.query.days) || 90));
+    await sendCachedJson(req, res, `market:asset:${symbol}:held:${days}`, {
+      ttlSeconds: 300,
+      memoMs: 30_000,
+      load: async () => ({ symbol, days, points: await marketDb.getAssetHeldHistory(req.ctx.pool, symbol, { days }) }),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// One stock's past Dividend Reviews (the stock page's Dividends section).
+router.get("/assets/:symbol/evaluations", async (req, res, next) => {
+  try {
+    const symbol = normalizeSymbol(req.params.symbol);
+    if (!symbol) return res.status(400).json({ error: "missing_symbol" });
+    const limit = parsePositiveInt(req.query.limit, 12, { min: 1, max: 52 });
+    await sendCachedJson(req, res, `market:asset:${symbol}:evaluations:${limit}`, {
+      ttlSeconds: 60,
+      memoMs: 10_000,
+      load: async () => ({ symbol, items: await weeklyEvaluation.listAssetEvaluations(req.ctx.pool, symbol, { limit }) }),
     });
   } catch (e) {
     next(e);

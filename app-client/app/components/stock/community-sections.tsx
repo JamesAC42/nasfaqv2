@@ -6,7 +6,8 @@ import { useMemo, useState, type FormEvent } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
-import { useArticles, useBoardMood, useComments, useOshiboard, useTape, useTreasury } from "@/app/components/stock/use-stock-data";
+import { useApi, useArticles, useBoardMood, useComments, useOshiboard, useTape, useTreasury } from "@/app/components/stock/use-stock-data";
+import { HoverSpark } from "@/app/components/common/hover-spark";
 import { apiFetch } from "@/app/lib/api";
 import { formatEtTime } from "@/app/lib/market-clock";
 import { normalizeAssetCommentListResponse } from "@/app/lib/normalizers";
@@ -106,6 +107,7 @@ export function HoldersSection({ asset }: { asset: MarketAsset }) {
             <i style={{ width: `${max ? Math.min(100, (circulating / max) * 100) : 0}%` }} />
             <s style={{ width: `${max ? Math.min(100, (buffer / max) * 100) : 0}%` }} />
           </div>
+          <HeldHistory symbol={asset.symbol} />
           <dl className={styles.kv}>
             <dt>
               <Term k="float">Held by players</Term>
@@ -140,6 +142,49 @@ export function HoldersSection({ asset }: { asset: MarketAsset }) {
         </div>
       </div>
     </section>
+  );
+}
+
+type HeldPoint = { date: string; held: number; max_supply: number };
+
+/** Shares held (line) under max shares (dashed) at each morning's settlement, hoverable. Hidden until there's a week of it. */
+function HeldHistory({ symbol }: { symbol: string }) {
+  const history = useApi<HeldPoint[]>(`/api/market/assets/${enc(symbol)}/held-history?days=90`, (raw) =>
+    (Array.isArray(raw.points) ? (raw.points as Array<Record<string, unknown>>) : [])
+      .map((row) => ({ date: String(row.date ?? ""), held: Number(row.held), max_supply: Number(row.max_supply) }))
+      .filter((row) => row.date && Number.isFinite(row.held) && Number.isFinite(row.max_supply)),
+  );
+  const [active, setActive] = useState<number | null>(null);
+  const rows = useMemo(() => history.data ?? [], [history.data]);
+  const points = useMemo(() => rows.map((row) => ({ t: row.date, v: row.held })), [rows]);
+  const ceiling = useMemo(() => rows.map((row) => row.max_supply), [rows]);
+  if (rows.length < 7) return null;
+  const row = rows[active ?? rows.length - 1];
+  const first = rows[0];
+  const change = row.held - first.held;
+  const day = new Date(`${row.date}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  return (
+    <div className={styles.heldHist}>
+      <div className={styles.heldHead}>
+        <span className={styles.label}>Held · {rows.length}d</span>
+        <span className={styles.heldRead}>
+          {active === null ? (
+            <>
+              <b className={styles[toneOf(change)]}>
+                {change >= 0 ? "+" : "−"}
+                {Math.round(Math.abs(change)).toLocaleString("en-US")}
+              </b>{" "}
+              since {new Date(`${first.date}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+            </>
+          ) : (
+            <>
+              {day}: <b>{Math.round(row.held).toLocaleString("en-US")}</b> of {row.max_supply.toLocaleString("en-US")} ({row.max_supply ? Math.round((row.held / row.max_supply) * 100) : 0}%)
+            </>
+          )}
+        </span>
+      </div>
+      <HoverSpark points={points} ceiling={ceiling} active={active} onActive={setActive} zeroBase label="Shares held against max shares, daily" color="var(--tal, var(--blue))" height={52} />
+    </div>
   );
 }
 
