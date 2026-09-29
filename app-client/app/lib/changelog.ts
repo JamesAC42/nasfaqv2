@@ -14,6 +14,15 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-09-29",
+    title: "Profile themes, properly",
+    changes: [
+      { kind: "new", text: "Pick your theme in Edit profile, next to your banner." },
+      { kind: "improved", text: "Themes now style your whole profile: a backdrop in the theme's pattern, tinted panels, and accents on headings, tabs and your avatar." },
+      { kind: "improved", text: "With banner art on, the theme still shades the banner and colours the rest of the page." },
+    ],
+  },
+  {
+    date: "2026-09-29",
     title: "Who's around",
     changes: [{ kind: "new", text: "The front page shows how many people are on the site right now." }],
   },

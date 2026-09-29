@@ -1686,7 +1686,7 @@ export function normalizeEquipped(value: unknown): Equipped {
 }
 
 const THEME_PATTERNS = ["petals", "waves", "grid", "stripes", "stars", "plain"] as const;
-function normalizeTheme(raw: Record<string, unknown>): CosmeticTheme | null {
+export function normalizeTheme(raw: Record<string, unknown>): CosmeticTheme | null {
   const hex = (value: unknown) => (typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value : null);
   const accent = hex(raw.accent);
   if (!accent) return null;

@@ -1,22 +1,41 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
+import { displayName, equipCosmetic, slotFor, unequipCosmetic } from "@/app/components/games/locker/cosmetics";
 import { AssetPicker } from "@/app/components/common/asset-picker";
 import Link from "next/link";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { parseReaction } from "@/app/components/common/reaction-face";
 import { apiFetch } from "@/app/lib/api";
-import { normalizeProfileBundle } from "@/app/lib/normalizers";
-import type { ProfileBundle } from "@/app/lib/types";
+import { normalizeGameInventoryResponse, normalizeProfileBundle, normalizeTheme } from "@/app/lib/normalizers";
+import type { CosmeticTheme, GameInventoryResponse, ProfileBundle } from "@/app/lib/types";
 import { useAuthStore } from "@/app/stores/auth-store";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useReactionStore } from "@/app/stores/reaction-store";
 import styles from "@/app/components/profile/profile.module.scss";
 
 type Profile = ProfileBundle["profile"];
+
+/** A portfolio theme the player owns (a capsule prize), ready to show as a swatch and equip. */
+type OwnedTheme = { id: number; slot: string; name: string; theme: CosmeticTheme };
+const THEME_SLOT = "portfolio_theme";
+
+/** The themes in an inventory, one per kind (duplicates collapse, the equipped copy wins). */
+function ownedThemes(inventory: GameInventoryResponse): { themes: OwnedTheme[]; equipped: number | null } {
+  const equipped = inventory.equipped.find((entry) => entry.slot_key === THEME_SLOT)?.cosmetic.id ?? null;
+  const byKey = new Map<string, OwnedTheme>();
+  for (const cosmetic of inventory.cosmetics) {
+    if (cosmetic.cosmetic_type !== THEME_SLOT) continue;
+    const raw = cosmetic.metadata?.theme;
+    const theme = raw && typeof raw === "object" ? normalizeTheme(raw as Record<string, unknown>) : null;
+    if (!theme || (byKey.has(cosmetic.cosmetic_key) && cosmetic.id !== equipped)) continue;
+    byKey.set(cosmetic.cosmetic_key, { id: cosmetic.id, slot: slotFor(cosmetic), name: displayName(cosmetic).replace(/^Theme:\s*/i, ""), theme });
+  }
+  return { themes: [...byKey.values()], equipped };
+}
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   useEffect(() => {
@@ -46,6 +65,10 @@ export function SettingsModal({ open, profile, onClose, onSaved }: { open: boole
   const [color, setColor] = useState(profile.profile_color || "#3FB8F5");
   const [oshi, setOshi] = useState(profile.oshi_coin?.symbol ?? "");
   const [banner, setBanner] = useState(profile.profile_banner?.symbol ?? "");
+  // Themes come from the games inventory, loaded when the modal opens (null while it loads).
+  const [themes, setThemes] = useState<OwnedTheme[] | null>(null);
+  const [equippedTheme, setEquippedTheme] = useState<number | null>(null);
+  const [themeId, setThemeId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,6 +82,26 @@ export function SettingsModal({ open, profile, onClose, onSaved }: { open: boole
     setError(null);
   }, [open, profile]);
 
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setThemes(null);
+    apiFetch<Record<string, unknown>>("/api/games/me/inventory")
+      .then((raw) => {
+        if (cancelled) return;
+        const owned = ownedThemes(normalizeGameInventoryResponse(raw));
+        setThemes(owned.themes);
+        setEquippedTheme(owned.equipped);
+        setThemeId(owned.equipped);
+      })
+      .catch(() => {
+        if (!cancelled) setThemes([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
   if (!open) return null;
 
   const save = async () => {
@@ -67,6 +110,12 @@ export function SettingsModal({ open, profile, onClose, onSaved }: { open: boole
     try {
       const asset = assets.find((entry) => entry.symbol === oshi) ?? null;
       const bannerTalent = profile.banner_options.find((entry) => entry.symbol === banner) ?? null;
+      // The theme first, so the profile the save returns already wears it.
+      if (themes && themeId !== equippedTheme) {
+        const chosen = themes.find((entry) => entry.id === themeId);
+        if (chosen) await equipCosmetic(chosen.slot, chosen.id);
+        else await unequipCosmetic(themes.find((entry) => entry.id === equippedTheme)?.slot ?? THEME_SLOT);
+      }
       const raw = await apiFetch<Record<string, unknown>>("/api/profiles/me", {
         method: "PUT",
         body: JSON.stringify({
@@ -115,7 +164,13 @@ export function SettingsModal({ open, profile, onClose, onSaved }: { open: boole
             <AssetPicker assets={assets} value={oshi} onChange={setOshi} placeholder="Pick your oshi" emptyLabel="No oshi" />
           </div>
         </div>
+        <ThemeChoice themes={themes} value={themeId} onChange={setThemeId} />
         <BannerChoice options={profile.banner_options} value={banner} onChange={setBanner} />
+        {themeId !== null && banner ? (
+          <small className={styles.themeNote}>
+            Your banner art fills the header, in place of the theme&apos;s pattern there. The theme still shades the banner and colours the rest of your page.
+          </small>
+        ) : null}
         {error ? (
           <p className={styles.err} role="alert">
             {error}
@@ -131,6 +186,48 @@ export function SettingsModal({ open, profile, onClose, onSaved }: { open: boole
         </div>
       </div>
     </Modal>
+  );
+}
+
+/** Portfolio themes you own (capsule prizes): each swatch is drawn like the header it gives you. */
+function ThemeChoice({ themes, value, onChange }: { themes: OwnedTheme[] | null; value: number | null; onChange: (id: number | null) => void }) {
+  return (
+    <div className={styles.bannerField}>
+      <span className={styles.label}>Theme</span>
+      {themes?.length ? (
+        <div className={styles.bannerGrid} role="radiogroup" aria-label="Profile theme">
+          <button type="button" role="radio" aria-checked={value === null} className={`${styles.bannerChoice} ${styles.bannerNone}`} onClick={() => onChange(null)}>
+            <span className={styles.bannerName}>None</span>
+          </button>
+          {themes.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              role="radio"
+              aria-checked={value === entry.id}
+              className={styles.themeChoice}
+              data-theme-pattern={entry.theme.pattern}
+              style={{ "--th-a": entry.theme.accent, "--th-b": entry.theme.accent2 ?? entry.theme.accent } as CSSProperties}
+              onClick={() => onChange(entry.id)}
+              title={entry.name}
+            >
+              <span className={styles.bannerName}>{entry.name}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <small>
+        {themes === null ? (
+          "Loading your themes…"
+        ) : themes.length ? (
+          "Colours your whole profile page, for everyone who visits."
+        ) : (
+          <>
+            Themes come out of the capsule machine. <Link href="/games/capsule">Capsule machine →</Link>
+          </>
+        )}
+      </small>
+    </div>
   );
 }
 
