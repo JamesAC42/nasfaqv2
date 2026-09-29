@@ -290,12 +290,27 @@
   font-size: 0.78rem;
   min-width: 0;
 
+  // Not @include button-base: its :disabled and :focus-visible states aren't valid on a
+  // pseudo-element, and the production CSS parser rejects them (the dev server doesn't).
   &::file-selector-button {
-    @include button-base;
+    appearance: none;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--rule-2);
+    font-family: var(--font-mono);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text);
+    cursor: pointer;
+    transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease;
     padding: 0.3rem 0.55rem;
     margin-right: 0.6rem;
     font-size: 0.58rem;
     background: var(--ink-3);
+  }
+
+  &::file-selector-button:hover {
+    border-color: var(--mid);
   }
 }
 
