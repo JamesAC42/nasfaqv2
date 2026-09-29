@@ -1,0 +1,223 @@
+@use "../../../styles/mixins" as *;
+
+// Art boxes for the gallery. The ArtSlot root sizes itself from these; the placeholder is always a
+// dark "moment" surface (like the card face) so it reads the same in light and dark themes.
+
+.card,
+.banner,
+.keyart,
+.reaction {
+  display: block;
+  width: 100%;
+  container-type: inline-size;
+}
+
+.card {
+  aspect-ratio: 5 / 7;
+  background: #07090e;
+}
+
+.banner {
+  aspect-ratio: 21 / 9;
+  background: #07090e;
+}
+
+.keyart {
+  aspect-ratio: 4 / 5;
+}
+
+.reaction {
+  aspect-ratio: 1;
+}
+
+// ── Placeholder ────────────────────────────────────────────────────────────
+.placeholder {
+  --rc: #8d95a8;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 75% at 50% 40%, color-mix(in srgb, var(--tal) 40%, #0b0e15), #07090e 80%),
+    #07090e;
+
+  &[data-rarity="R"] {
+    --rc: #3fb8f5;
+  }
+
+  &[data-rarity="SR"] {
+    --rc: #b28cff;
+  }
+
+  &[data-rarity="SSR"] {
+    --rc: #f5c542;
+  }
+
+  &[data-rarity="UR"] {
+    --rc: #ff7ad9;
+  }
+
+  &[data-wide] {
+    background:
+      radial-gradient(55% 110% at 74% 50%, color-mix(in srgb, var(--tal) 55%, #0b0e15), transparent 75%),
+      linear-gradient(100deg, #07090e 35%, color-mix(in srgb, var(--tal) 22%, #07090e));
+    justify-items: end;
+  }
+}
+
+.rays {
+  position: absolute;
+  inset: -30%;
+  background: repeating-conic-gradient(from 0deg at 50% 44%, color-mix(in srgb, var(--rc) 26%, transparent) 0deg 5deg, transparent 5deg 16deg);
+  mask-image: radial-gradient(closest-side at 50% 44%, #000 15%, transparent 72%);
+  opacity: 0.45;
+
+  .placeholder:not([data-rarity]) & {
+    background: repeating-conic-gradient(from 0deg at 50% 44%, color-mix(in srgb, var(--tal) 22%, transparent) 0deg 5deg, transparent 5deg 16deg);
+    opacity: 0.35;
+  }
+
+  .placeholder[data-rarity="C"] & {
+    opacity: 0.2;
+  }
+
+  .placeholder[data-rarity="SSR"] & {
+    opacity: 0.75;
+  }
+
+  .placeholder[data-rarity="UR"] & {
+    background: repeating-conic-gradient(
+      from 0deg at 50% 44%,
+      rgba(255, 122, 217, 0.32) 0deg 4deg,
+      transparent 4deg 9deg,
+      rgba(125, 216, 255, 0.3) 9deg 13deg,
+      transparent 13deg 18deg,
+      rgba(255, 211, 110, 0.28) 18deg 22deg,
+      transparent 22deg 27deg
+    );
+    opacity: 0.9;
+  }
+
+  .placeholder[data-wide] & {
+    left: 30%;
+    background: repeating-conic-gradient(from 0deg at 62% 50%, color-mix(in srgb, var(--tal) 24%, transparent) 0deg 4deg, transparent 4deg 13deg);
+    mask-image: radial-gradient(closest-side at 62% 50%, #000 10%, transparent 75%);
+    opacity: 0.6;
+  }
+}
+
+.ghost {
+  @include display;
+  position: absolute;
+  top: 7%;
+  left: 50%;
+  font-size: 44cqi;
+  line-height: 1;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke: max(1px, 0.4cqi) color-mix(in srgb, var(--tal) 60%, transparent);
+  opacity: 0.35;
+  transform: translateX(-50%) rotate(-8deg);
+
+  .placeholder[data-wide] & {
+    top: -4%;
+    left: auto;
+    right: -2%;
+    font-size: 26cqi;
+    transform: none;
+  }
+}
+
+.halftone {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(color-mix(in srgb, var(--rc) 38%, transparent) 0.9cqi, transparent 1.25cqi) 0 0 / 5cqi 5cqi;
+  mask-image: linear-gradient(200deg, transparent 25%, #000 92%);
+  opacity: 0.5;
+
+  .placeholder:not([data-rarity]) & {
+    background-image: radial-gradient(color-mix(in srgb, var(--tal) 38%, transparent) 0.9cqi, transparent 1.25cqi);
+  }
+
+  .placeholder[data-wide] & {
+    background-size: 1.6cqi 1.6cqi;
+    background-image: radial-gradient(color-mix(in srgb, var(--tal) 40%, transparent) 0.3cqi, transparent 0.42cqi);
+    mask-image: linear-gradient(260deg, #000 10%, transparent 70%);
+  }
+}
+
+.mark {
+  position: relative;
+  width: 42cqi !important;
+  height: 42cqi !important;
+  margin-top: -12%;
+  filter: drop-shadow(0 0 4cqi color-mix(in srgb, var(--tal) 70%, transparent)) drop-shadow(0 1cqi 1cqi rgba(0, 0, 0, 0.6));
+
+  .placeholder:not([data-rarity]) & {
+    width: 46cqi !important;
+    height: 46cqi !important;
+  }
+
+  .placeholder[data-wide] & {
+    width: 15cqi !important;
+    height: 15cqi !important;
+    margin: 0 16cqi 0 0;
+  }
+}
+
+.reactionPlaceholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--tal) 34%, transparent), transparent);
+
+  .mark {
+    width: 50cqi !important;
+    height: 50cqi !important;
+    margin: 0;
+    opacity: 0.85;
+  }
+}
+
+// ── Pips ───────────────────────────────────────────────────────────────────
+.pips {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+
+  i {
+    width: 0.45rem;
+    height: 0.45rem;
+    border: 1px solid color-mix(in srgb, var(--rc) 60%, transparent);
+    transform: rotate(45deg);
+    opacity: 0.6;
+
+    &[data-on] {
+      background: var(--rc);
+      border-color: var(--rc);
+      opacity: 1;
+    }
+
+    &[data-rarity="SSR"][data-on] {
+      box-shadow: 0 0 5px rgba(245, 197, 66, 0.55);
+    }
+
+    &[data-rarity="UR"][data-on] {
+      background: linear-gradient(135deg, #ff7ad9, #ffd36e, #7dffcf, #6ecbff);
+      border-color: #ff7ad9;
+      box-shadow: 0 0 6px rgba(255, 122, 217, 0.6);
+    }
+  }
+
+  &[data-size="md"] {
+    gap: 0.4rem;
+
+    i {
+      width: 0.6rem;
+      height: 0.6rem;
+    }
+  }
+}

@@ -1,10 +1,10 @@
 import { Suspense } from "react";
-import { ChatPage } from "@/app/components/pages/chat-page";
+import { ChatApp } from "@/app/components/chat/chat-app";
 
 export default function Page() {
   return (
     <Suspense fallback={null}>
-      <ChatPage />
+      <ChatApp />
     </Suspense>
   );
 }

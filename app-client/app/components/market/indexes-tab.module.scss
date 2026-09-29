@@ -1,0 +1,599 @@
+@use "../../styles/mixins" as *;
+
+.loading {
+  padding: 2rem 1rem;
+  color: var(--dim);
+}
+
+.r {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22rem;
+  border-bottom: 1px solid var(--rule);
+
+  @include desktop-down {
+    grid-template-columns: minmax(0, 1fr) 18.5rem;
+  }
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.main {
+  min-width: 0;
+  border-right: 1px solid var(--rule);
+
+  @include tablet-down {
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.6rem 1.25rem;
+  padding: 1rem 1rem 0.6rem;
+  scroll-margin-top: 8rem;
+}
+
+.headL {
+  min-width: 0;
+
+  h2 {
+    @include display(clamp(1.5rem, 3vw, 2.1rem));
+    margin: 0.25rem 0 0;
+    line-height: 1.1;
+  }
+}
+
+.kick {
+  @include label;
+}
+
+.oms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-top: 0.4rem;
+  max-width: 34rem;
+}
+
+.val {
+  text-align: right;
+  @include num;
+  font-size: 0.75rem;
+
+  b {
+    display: block;
+    font-size: 1.875rem;
+    font-weight: 600;
+    line-height: 1.05;
+  }
+
+  @include phone {
+    b {
+      font-size: 1.5rem;
+    }
+  }
+}
+
+.ctl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0 1rem 0.5rem;
+}
+
+.chart {
+  height: 18.75rem;
+  padding: 0 0 1.2rem 0.75rem;
+
+  @include phone {
+    height: 14.5rem;
+    padding-left: 0.25rem;
+  }
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  padding: 0.4rem 1rem 0.75rem;
+  @include num;
+  font-size: 0.625rem;
+  color: var(--dim);
+
+  i {
+    display: inline-block;
+    width: 14px;
+    height: 2px;
+    margin-right: 0.4rem;
+    vertical-align: 3px;
+  }
+}
+
+.lgUp {
+  background: var(--up);
+}
+
+.lgDown {
+  background: var(--down);
+}
+
+.lgCmp {
+  background: repeating-linear-gradient(90deg, var(--mid) 0 4px, transparent 4px 7px);
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-top: 1px solid var(--rule);
+
+  > div {
+    padding: 0.6rem 1rem;
+    border-right: 1px solid var(--rule);
+    min-width: 0;
+
+    &:last-child {
+      border-right: 0;
+    }
+  }
+
+  > div > span {
+    @include label;
+    display: block;
+    font-size: 0.6rem;
+  }
+
+  b {
+    @include num;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  small {
+    display: block;
+    @include num;
+    font-size: 0.625rem;
+    color: var(--dim);
+  }
+
+  @include tablet-down {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+
+    > div {
+      border-bottom: 1px solid var(--rule);
+    }
+
+    > div:nth-child(3n) {
+      border-right: 0;
+    }
+  }
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    > div:nth-child(3n) {
+      border-right: 1px solid var(--rule);
+    }
+
+    > div:nth-child(2n) {
+      border-right: 0;
+    }
+  }
+}
+
+// ── Constituents ─────────────────────────────────────────────────────────
+.cons {
+  border-top: 1px solid var(--rule);
+
+  > div:first-child {
+    padding: 0.75rem 1rem 0;
+    margin: 0;
+  }
+}
+
+.crow {
+  display: grid;
+  grid-template-columns: 22px 2.75rem minmax(0, 1fr) 3.3rem 4rem 4.4rem 4.4rem minmax(5rem, 8rem) 3.6rem;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.38rem 1rem;
+  border-top: 1px solid var(--rule);
+  @include num;
+  font-size: 0.72rem;
+
+  &:hover {
+    background: var(--ink-2);
+  }
+
+  b {
+    font-weight: 700;
+  }
+
+  @include phone {
+    grid-template-columns: 20px 2.75rem minmax(0, 1fr) 4rem;
+
+    .nm,
+    .w,
+    .pm,
+    .vo,
+    .cb {
+      display: none;
+    }
+  }
+}
+
+.hd {
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+  padding-block: 0.5rem;
+
+  &:hover {
+    background: none;
+  }
+
+  .cb {
+    text-align: center;
+  }
+}
+
+.nm {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  color: var(--mid);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gap {
+  padding: 0.25rem;
+  text-align: center;
+  border-top: 1px solid var(--rule);
+  @include num;
+  font-size: 0.625rem;
+  color: var(--dim);
+}
+
+.more {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-top: 1px solid var(--rule);
+  background: none;
+  padding: 0.6rem;
+  @include num;
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+  color: var(--mid);
+
+  &:hover {
+    color: var(--blue);
+    background: var(--ink-2);
+  }
+}
+
+// ── Side ─────────────────────────────────────────────────────────────────
+.side {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+
+  @include tablet-down {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    .bcard:nth-child(odd) {
+      border-right: 1px solid var(--rule);
+    }
+
+    .rot {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+
+    .bcard:nth-child(odd) {
+      border-right: 0;
+    }
+  }
+}
+
+.bcard {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.15rem 0.75rem;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: none;
+  padding: 0.75rem 1rem;
+  text-align: left;
+
+  &:hover {
+    background: var(--ink-2);
+  }
+
+  &[aria-pressed="true"] {
+    background: var(--blue-wash);
+
+    &::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: var(--blue);
+    }
+  }
+}
+
+.bn {
+  @include display(1rem);
+  line-height: 1.1;
+
+  small {
+    @include num;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    color: var(--dim);
+    margin-left: 0.4rem;
+  }
+}
+
+.bv {
+  @include num;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-align: right;
+}
+
+.bspark {
+  display: block;
+  width: 100%;
+  height: 26px;
+}
+
+.bc {
+  @include num;
+  font-size: 0.6875rem;
+  text-align: right;
+}
+
+.rot {
+  padding: 0.75rem 1rem;
+}
+
+.rotrow {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr) 3.4rem;
+  gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.2rem 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  @include num;
+  font-size: 0.656rem;
+  color: var(--mid);
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &[aria-pressed="true"] {
+    color: var(--blue-2);
+  }
+}
+
+// ── Treemap ──────────────────────────────────────────────────────────────
+.treeSec {
+  padding: 0.875rem 1rem 1rem;
+  border-bottom: 1px solid var(--rule);
+
+  @include phone {
+    padding-inline: 0.6rem;
+  }
+}
+
+.tree {
+  position: relative;
+  height: 22.5rem;
+
+  @include phone {
+    height: 18.75rem;
+  }
+}
+
+.tm {
+  position: absolute;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 0.4rem 0.45rem;
+  border: 1px solid var(--ink);
+  @include num;
+  transition: filter 0.15s;
+
+  &:hover {
+    filter: brightness(1.35);
+    z-index: 1;
+  }
+}
+
+.tmT {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  font-size: 0.75rem;
+  white-space: nowrap;
+
+  b {
+    font-weight: 700;
+  }
+}
+
+.tmB {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.656rem;
+  white-space: nowrap;
+}
+
+.share {
+  color: color-mix(in srgb, var(--text) 60%, transparent);
+}
+
+.sm .tmB,
+.xs .tmB,
+.xs .tmT b {
+  display: none;
+}
+
+.xs {
+  padding: 0.2rem;
+  justify-content: center;
+  align-items: center;
+}
+
+// ── Unit cards ───────────────────────────────────────────────────────────
+.unitsHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.875rem 1rem 0.6rem;
+
+  h2 {
+    @include display(1.375rem);
+    margin: 0;
+  }
+}
+
+.units {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+
+  @include desktop-down {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.ucard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+  border: 0;
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: -1px;
+  background: none;
+  padding: 0.75rem 0.9rem;
+  text-align: left;
+
+  &:hover {
+    background: var(--ink-2);
+  }
+
+  &[aria-pressed="true"] {
+    background: var(--blue-wash);
+
+    &::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      height: 2px;
+      background: var(--blue);
+    }
+  }
+}
+
+.utop {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.un {
+  font-weight: 700;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.urk {
+  @include num;
+  font-size: 0.625rem;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.uoms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.uspark {
+  display: block;
+  width: 100%;
+  height: 34px;
+}
+
+.uv {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  @include num;
+  font-size: 0.72rem;
+  flex-wrap: wrap;
+
+  b {
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+}
+
+.best {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  @include num;
+  font-size: 0.625rem;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+}

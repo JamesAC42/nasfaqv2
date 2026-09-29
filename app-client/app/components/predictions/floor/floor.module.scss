@@ -1,0 +1,1054 @@
+@use "../../../styles/mixins" as *;
+
+@include flash-keyframes;
+
+.up {
+  color: var(--up);
+}
+
+.down {
+  color: var(--down);
+}
+
+.flat {
+  color: var(--mid);
+}
+
+// Outcome-coloured text that stays readable on both themes.
+@mixin oc-text {
+  color: color-mix(in srgb, var(--oc) 78%, var(--text));
+}
+
+// ── Layout ─────────────────────────────────────────────────────────────────
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: 0 1.5rem;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+
+  @include desktop-down {
+    grid-template-columns: minmax(0, 1fr) 17.5rem;
+  }
+
+  // One column: the tape jumps above the cards, everything else drops below.
+  @include tablet-down {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.main {
+  min-width: 0;
+  padding-bottom: 2rem;
+
+  @include tablet-down {
+    order: 0;
+    padding-bottom: 1rem;
+  }
+}
+
+.side {
+  min-width: 0;
+  padding-left: 1.25rem;
+  border-left: 1px solid var(--rule);
+
+  @include tablet-down {
+    display: contents;
+  }
+}
+
+// ── Controls ───────────────────────────────────────────────────────────────
+.controls {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.85rem 0;
+  min-width: 0;
+}
+
+.tabs {
+  @include tabs;
+  flex-wrap: nowrap;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  justify-self: start;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  button {
+    @include tab;
+    flex: none;
+    padding: 0.5rem 0.9rem;
+    white-space: nowrap;
+    cursor: pointer;
+
+    &[aria-selected="true"] {
+      @include tab-selected;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+      outline-offset: -2px;
+    }
+
+    small {
+      @include num;
+      display: inline-block;
+      min-width: 3ch;
+      margin-left: 0.4rem;
+      font-size: 0.625rem;
+      text-align: right;
+      opacity: 0.65;
+    }
+
+    @include phone {
+      padding: 0.5rem 0.7rem;
+    }
+  }
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.chips {
+  display: flex;
+  flex: 1 1 20rem;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-width: 0;
+
+  @include phone {
+    flex-basis: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    mask-image: linear-gradient(90deg, #000 calc(100% - 2rem), transparent);
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}
+
+.chip {
+  @include tab;
+  flex: none;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  cursor: pointer;
+
+  &[aria-pressed="true"] {
+    border-color: var(--blue);
+    background: var(--blue-wash);
+    color: var(--blue);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.search {
+  display: flex;
+  flex: 0 1 15rem;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 10rem;
+  padding: 0 0.3rem 0 0.6rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: var(--ink-2);
+  color: var(--dim);
+
+  &:focus-within {
+    border-color: var(--text);
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.42rem 0;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.85rem;
+    outline: none;
+
+    &::-webkit-search-cancel-button {
+      display: none;
+    }
+  }
+
+  button {
+    display: grid;
+    place-items: center;
+    padding: 0.25rem;
+    border: 0;
+    background: none;
+    color: var(--dim);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--text);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+
+  @include phone {
+    flex-basis: 100%;
+  }
+}
+
+.empty {
+  @include empty-state;
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+}
+
+.emptyArt {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  text-align: center;
+
+  p {
+    margin: 0;
+  }
+}
+
+.emptyPic {
+  width: min(100%, 12.5rem);
+}
+
+.error {
+  margin: 0 0 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--warn);
+}
+
+.loadMore {
+  @include button-secondary;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+// ── Market grid ────────────────────────────────────────────────────────────
+// Hairline grid: each card draws a 1px ring; neighbours' rings share the 1px gap.
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: 1px;
+  padding: 1px;
+  min-width: 0;
+  transition: opacity var(--dur-fast) ease;
+
+  transition: opacity 0.15s ease;
+
+  // Only dim when a load is actually slow; quick filter swaps shouldn't blink.
+  &[data-loading] {
+    opacity: 0.6;
+    transition-delay: 0.25s;
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.9rem 1rem 0.8rem;
+  background: var(--ink);
+  box-shadow: 0 0 0 1px var(--rule);
+  transition: background-color var(--dur-fast) ease;
+
+  @include hover-device {
+    &:hover {
+      background: color-mix(in srgb, var(--ink-2) 60%, var(--ink));
+    }
+  }
+
+  &[data-status="resolved"],
+  &[data-status="voided"] {
+    .cardTitle a {
+      color: var(--mid);
+    }
+  }
+}
+
+.skeleton {
+  min-height: 15rem;
+  background: linear-gradient(100deg, var(--ink) 30%, var(--ink-2) 50%, var(--ink) 70%);
+  background-size: 300% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.badge {
+  @include label;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0.18rem 0.4rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  font-size: 0.6rem;
+  color: var(--mid);
+  white-space: nowrap;
+
+  &[data-kind="auto"] {
+    border-color: var(--blue-line);
+    color: var(--blue);
+  }
+}
+
+.badgeTalent {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding-left: 0.4rem;
+  border-left: 1px solid var(--rule-2);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.countdown {
+  @include num;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  flex: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--blue);
+
+  small {
+    @include label;
+    font-size: 0.56rem;
+  }
+
+  &[data-soon] {
+    color: var(--warn);
+  }
+}
+
+.statusTag {
+  @include label;
+  flex: none;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--mid);
+
+  &[data-tone="warn"] {
+    color: var(--warn);
+  }
+
+  &[data-tone="blue"] {
+    color: var(--blue);
+  }
+}
+
+.ago {
+  @include label;
+  flex: none;
+  font-size: 0.6rem;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 0.975rem;
+  font-weight: 600;
+  line-height: 1.3;
+  min-height: 2.6em;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+
+  a {
+    color: var(--text);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.cardBody {
+  display: grid;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+// Binary: the big call + sparkline, then the two bet buttons.
+.binary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: end;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.call {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.55rem;
+}
+
+.big {
+  @include num(wide);
+  display: inline-block;
+  margin-left: -0.15rem;
+  padding: 0 0.15rem;
+  border-radius: var(--radius-sm);
+  font-size: 2.4rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.callMeta {
+  @include num;
+  display: grid;
+  gap: 0.15rem;
+  padding-bottom: 0.2rem;
+  font-size: 0.6875rem;
+  white-space: nowrap;
+}
+
+.callWord {
+  @include label;
+  font-size: 0.625rem;
+  font-weight: 700;
+}
+
+.spark {
+  width: 100%;
+  height: 2.6rem;
+}
+
+.buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.bet {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--oc) 45%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--oc) 11%, transparent);
+  @include oc-text;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition:
+    background-color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  b {
+    @include num;
+    font-size: 0.875rem;
+  }
+
+  &:hover {
+    background: color-mix(in srgb, var(--oc) 22%, transparent);
+    border-color: var(--oc);
+  }
+
+  &:active {
+    transform: translateY(1px);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+// Multi: top outcomes as bars.
+.bars {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.42rem 0.55rem;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--ink-2);
+  color: var(--text);
+  text-decoration: none;
+
+  &[data-winner] {
+    box-shadow: inset 0 0 0 1px var(--oc);
+  }
+
+  @at-root a#{&} {
+    &:hover .barFill {
+      background: color-mix(in srgb, var(--oc) 38%, transparent);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.barFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: color-mix(in srgb, var(--oc) 26%, transparent);
+  transition: width var(--dur-med) var(--ease-out);
+}
+
+.barLabel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+
+  > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.dot {
+  flex: none;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--oc);
+}
+
+.won {
+  @include label;
+  flex: none;
+  padding: 0.05rem 0.3rem;
+  border-radius: var(--radius-sm);
+  background: var(--oc);
+  color: var(--ink);
+  font-size: 0.55rem;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.barPrice {
+  @include num;
+  position: relative;
+  flex: none;
+  padding: 0 0.2rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.more {
+  @include label;
+  justify-self: start;
+  padding: 0.15rem 0;
+  color: var(--blue);
+  font-size: 0.6rem;
+  text-decoration: none;
+
+  &:hover {
+    color: var(--text);
+  }
+}
+
+// Resolved / voided result.
+.result {
+  display: grid;
+  gap: 0.2rem;
+
+  small {
+    @include label;
+    font-size: 0.6rem;
+  }
+
+  strong {
+    @include display(1.9rem);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    line-height: 1.05;
+    @include oc-text;
+  }
+
+  &[data-void] strong {
+    color: var(--mid);
+  }
+}
+
+.stats {
+  @include label;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  margin-top: auto;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.6rem;
+
+  b {
+    @include num;
+    color: var(--mid);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+}
+
+// ── Side column ────────────────────────────────────────────────────────────
+.sideBlock,
+.tape {
+  min-width: 0;
+  padding: 0.85rem 0 1rem;
+  border-bottom: 1px solid var(--rule);
+
+  @include tablet-down {
+    order: 1;
+  }
+}
+
+.tape {
+  @include tablet-down {
+    order: -1;
+    padding: 0.6rem 0 0.7rem;
+  }
+}
+
+.sideBlock:last-child {
+  border-bottom: 0;
+}
+
+.sideHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+
+  h2 {
+    @include section-heading;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0;
+  }
+}
+
+.sideMeta {
+  @include label;
+  font-size: 0.6rem;
+}
+
+.sideLink {
+  @include label;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--blue);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--text);
+  }
+}
+
+.sideEmpty {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--dim);
+}
+
+.sidePrompt {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--mid);
+
+  a {
+    color: var(--blue);
+  }
+}
+
+.sideNote {
+  margin: 0.6rem 0 0;
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+.liveDot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--dim);
+
+  &[data-on] {
+    background: var(--blue);
+    animation: livePulse 1.8s ease-out infinite;
+  }
+}
+
+@keyframes livePulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--blue) 60%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+// ── Tape ───────────────────────────────────────────────────────────────────
+.tapeList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  @include tablet-down {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    mask-image: linear-gradient(90deg, #000 calc(100% - 2.5rem), transparent);
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}
+
+.tapeRow {
+  min-width: 0;
+  border-top: 1px solid var(--rule);
+
+  &:first-child {
+    border-top: 0;
+  }
+
+  // Desktop shows the latest dozen; phones scroll through all of them.
+  &:nth-child(n + 15) {
+    display: none;
+  }
+
+  &[data-whale] {
+    background: var(--warn-wash);
+    box-shadow: inset 2px 0 0 var(--warn);
+  }
+
+  @include tablet-down {
+    flex: 0 0 15.5rem;
+    border-top: 0;
+    border-left: 1px solid var(--rule);
+    scroll-snap-align: start;
+
+    &:first-child {
+      border-left: 0;
+    }
+
+    &:nth-child(n + 15) {
+      display: block;
+    }
+  }
+}
+
+.fresh {
+  animation:
+    tapeIn var(--dur-med) var(--ease-out),
+    tapeGlow 1.6s ease-out;
+
+  @include tablet-down {
+    animation:
+      tapeInSide var(--dur-med) var(--ease-out),
+      tapeGlow 1.6s ease-out;
+  }
+}
+
+@keyframes tapeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-0.6rem);
+  }
+}
+
+@keyframes tapeInSide {
+  from {
+    opacity: 0;
+    transform: translateX(-1rem);
+  }
+}
+
+@keyframes tapeGlow {
+  0% {
+    background-color: var(--blue-wash);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.tapeLink {
+  display: grid;
+  gap: 0.12rem;
+  padding: 0.45rem 0.4rem;
+  color: var(--text);
+  text-decoration: none;
+
+  &:hover {
+    background: var(--ink-2);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+    outline-offset: -2px;
+  }
+}
+
+.tapeLine {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.tapeWho {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: var(--mid);
+
+  b {
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  em {
+    @include oc-text;
+    font-style: normal;
+    font-weight: 700;
+  }
+}
+
+.tapeCash {
+  @include num;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.whale {
+  @include label;
+  margin-right: 0.4rem;
+  padding: 0.02rem 0.28rem;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-sm);
+  color: var(--warn);
+  font-size: 0.52rem;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.tapeMarket {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  color: var(--dim);
+}
+
+.tapeAgo {
+  @include num;
+  flex: none;
+  font-size: 0.66rem;
+  color: var(--dim);
+}
+
+// ── Forecasters ────────────────────────────────────────────────────────────
+.board {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: 1.4rem minmax(0, 1fr) auto auto;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.38rem 0;
+    border-top: 1px solid var(--rule);
+
+    &:first-child {
+      border-top: 0;
+    }
+  }
+}
+
+.rank {
+  @include num;
+  font-size: 0.75rem;
+  color: var(--dim);
+
+  &[data-top] {
+    color: var(--text);
+    font-weight: 700;
+  }
+}
+
+.boardName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  color: var(--text);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--blue);
+  }
+}
+
+.boardMarkets {
+  @include label;
+  font-size: 0.56rem;
+}
+
+.boardPnl {
+  @include num;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+// ── Your bets ──────────────────────────────────────────────────────────────
+.mine {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem 1rem;
+  margin: 0;
+
+  dt {
+    @include label;
+    font-size: 0.58rem;
+  }
+
+  dd {
+    @include num;
+    margin: 0.1rem 0 0;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+}
+
+// ── How it works ───────────────────────────────────────────────────────────
+.how {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--mid);
+
+  b {
+    font-weight: 600;
+    color: var(--text);
+  }
+}
+
+// ── Calm ───────────────────────────────────────────────────────────────────
+:global(html[data-calm="true"]) {
+  .fresh,
+  .flashUp,
+  .flashDown,
+  .skeleton,
+  .liveDot {
+    animation: none;
+  }
+
+  .barFill {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fresh,
+  .flashUp,
+  .flashDown,
+  .skeleton,
+  .liveDot {
+    animation: none;
+  }
+}

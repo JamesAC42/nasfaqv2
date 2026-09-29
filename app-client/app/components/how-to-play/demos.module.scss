@@ -1,0 +1,870 @@
+@use "../../styles/mixins" as *;
+
+// Small live UI examples inside the guide. They borrow the real components' look (ticket, tick
+// clock, prediction ticket) at a smaller scale.
+
+.up {
+  color: var(--up);
+}
+
+.down {
+  color: var(--down);
+}
+
+.flat {
+  color: var(--mid);
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.demoTag {
+  @include label;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.demoNote {
+  @include label;
+  margin: 0;
+  padding: 0.55rem 0.9rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+}
+
+.count {
+  @include num;
+  color: var(--blue);
+}
+
+.liveDot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--blue);
+  animation: pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    box-shadow: 0 0 0 4px var(--blue-wash);
+  }
+}
+
+:global(html[data-calm="true"]) .liveDot {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .liveDot {
+    animation: none;
+  }
+}
+
+// ── Chibi with a price tag ─────────────────────────────────────────────────
+.chibi {
+  --tal: var(--blue);
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  color: var(--text);
+  text-decoration: none;
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.chibiArt {
+  width: 100%;
+  max-width: 13.75rem;
+}
+
+.chibiTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.22rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--tal) 55%, var(--rule-2));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--ink) 85%, transparent);
+  backdrop-filter: blur(4px);
+  white-space: nowrap;
+
+  b {
+    @include num;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  span {
+    @include num;
+    font-size: 0.72rem;
+  }
+}
+
+.chibiCaption {
+  @include label;
+  font-size: 0.56rem;
+}
+
+// ── Talent strip ────────────────────────────────────────────────────────
+.strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+
+  @include tablet-down {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.stripItem {
+  --tal: var(--blue);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.65rem 0.8rem;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--tal) 9%, transparent), transparent 55%), var(--ink);
+  color: var(--text);
+  text-decoration: none;
+  box-shadow: inset 2px 0 0 var(--tal);
+  transition: background-color var(--dur-fast) ease;
+
+  @include hover-device {
+    &:hover {
+      background: linear-gradient(90deg, color-mix(in srgb, var(--tal) 16%, transparent), transparent 70%), var(--ink-2);
+    }
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+    outline-offset: -2px;
+  }
+
+  @include phone {
+    padding: 0.55rem 0.6rem;
+    gap: 0.45rem;
+  }
+}
+
+.stripText {
+  display: grid;
+  min-width: 0;
+
+  b {
+    @include num;
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+
+  small {
+    overflow: hidden;
+    font-size: 0.72rem;
+    color: var(--dim);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
+
+.stripNums {
+  display: grid;
+  justify-items: end;
+
+  b {
+    @include num;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  small {
+    @include num;
+    font-size: 0.68rem;
+  }
+}
+
+.stripSkeleton {
+  height: 3.2rem;
+  background: var(--ink-2);
+}
+
+// ── Example ticket ─────────────────────────────────────────────────────────
+.ticket {
+  --tal: var(--blue);
+  @include panel;
+  display: grid;
+  min-width: 0;
+  box-shadow: inset 0 2px 0 var(--tal);
+}
+
+.ticketHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.pickRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+
+  button {
+    @include num;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.22rem 0.45rem;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--mid);
+    font-size: 0.7rem;
+    cursor: pointer;
+
+    &[aria-pressed="true"] {
+      border-color: var(--tal);
+      color: var(--text);
+      background: color-mix(in srgb, var(--tal) 12%, transparent);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.ticketBody {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+}
+
+.seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+
+  button {
+    @include display(1rem);
+    padding: 0.5rem;
+    border: 0;
+    background: none;
+    color: var(--dim);
+    cursor: pointer;
+
+    &[data-side="buy"][aria-pressed="true"] {
+      background: var(--up);
+      color: var(--up-ink);
+    }
+
+    &[data-side="sell"][aria-pressed="true"] {
+      background: var(--down);
+      color: var(--down-ink);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+      outline-offset: -2px;
+    }
+  }
+}
+
+.qty {
+  display: grid;
+  gap: 0.3rem;
+
+  span {
+    @include label;
+  }
+
+  input {
+    @include input-base;
+    @include num(wide);
+    font-size: 1.35rem;
+    padding: 0.45rem 0.7rem;
+  }
+}
+
+.presets,
+.spends {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+
+  button {
+    @include num;
+    flex: 1 1 auto;
+    min-width: 2.6rem;
+    padding: 0.35rem 0.45rem;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--mid);
+    font-size: 0.75rem;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--text);
+      border-color: var(--text);
+    }
+
+    &[aria-pressed="true"] {
+      color: var(--text);
+      border-color: var(--blue);
+      background: var(--blue-wash);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.est {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem 0;
+  margin: 0;
+  padding: 0.6rem 0 0;
+  border-top: 1px dashed var(--rule-2);
+
+  dt {
+    font-size: 0.82rem;
+    color: var(--dim);
+  }
+
+  dd {
+    @include num;
+    margin: 0;
+    padding-left: 1rem;
+    text-align: right;
+    font-size: 0.85rem;
+
+    small {
+      margin-left: 0.3rem;
+      font-size: 0.72rem;
+    }
+  }
+
+  .total {
+    padding-top: 0.35rem;
+    border-top: 1px solid var(--rule);
+    color: var(--text);
+    font-weight: 700;
+  }
+
+  dd.total {
+    font-size: 1rem;
+  }
+}
+
+.batch {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--mid);
+
+  b {
+    @include num;
+    color: var(--text);
+  }
+}
+
+.submit {
+  @include button-buy;
+  width: 100%;
+  text-decoration: none;
+
+  &.sell {
+    background: var(--down);
+    border-color: var(--down);
+    color: var(--down-ink);
+  }
+}
+
+// ── Tick timeline ──────────────────────────────────────────────────────────
+.timeline {
+  @include panel;
+  padding: 0.9rem 1rem 1.1rem;
+  min-width: 0;
+}
+
+.timelineHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 1rem;
+  margin-bottom: 1.2rem;
+}
+
+.timelineNow {
+  @include num;
+  font-size: 0.8rem;
+  color: var(--mid);
+
+  b {
+    color: var(--text);
+  }
+}
+
+.timelineNote {
+  margin: 0.9rem 0 0;
+  font-size: 0.82rem;
+  color: var(--dim);
+}
+
+// Four stops sit at 12.5%, 37.5%, 62.5%, 87.5%; the fill follows the day's progress between the first and last.
+.track {
+  --p: 0;
+  position: relative;
+  min-width: 0;
+}
+
+.trackRail,
+.trackFill {
+  position: absolute;
+  top: 0.55rem;
+  left: 12.5%;
+  height: 2px;
+  border-radius: 2px;
+}
+
+.trackRail {
+  right: 12.5%;
+  background: var(--rule-2);
+}
+
+.trackFill {
+  width: calc(75% * var(--p));
+  background: var(--blue);
+  box-shadow: 0 0 10px var(--blue-line);
+}
+
+.stops {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stop {
+  display: grid;
+  justify-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+  text-align: center;
+
+  b {
+    @include display(1.05rem);
+    margin-top: 0.45rem;
+    color: var(--mid);
+  }
+
+  small {
+    font-size: 0.68rem;
+    color: var(--dim);
+    white-space: nowrap;
+  }
+
+  em {
+    @include label;
+    margin-top: 0.3rem;
+    font-style: normal;
+    font-size: 0.55rem;
+  }
+
+  &[data-state="landed"] {
+    b {
+      color: var(--text);
+    }
+  }
+
+  &[data-state="next"] {
+    b {
+      color: var(--blue);
+    }
+
+    em {
+      padding: 0.1rem 0.4rem;
+      border-radius: var(--radius-sm);
+      background: var(--blue);
+      color: var(--blue-ink);
+      font-weight: 700;
+    }
+  }
+
+  @include phone {
+    b {
+      font-size: 0.85rem;
+    }
+
+    small {
+      font-size: 0.6rem;
+      white-space: normal;
+    }
+  }
+}
+
+.stopEt {
+  @include num;
+  font-size: 0.78rem;
+  color: var(--text);
+
+  @include phone {
+    font-size: 0.68rem;
+  }
+}
+
+.stopDot {
+  position: relative;
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 2px solid var(--rule-2);
+  border-radius: 50%;
+  background: var(--ink-2);
+
+  [data-state="landed"] & {
+    border-color: var(--blue);
+    background: var(--blue);
+  }
+
+  [data-state="next"] & {
+    border-color: var(--blue);
+    background: var(--ink-2);
+    box-shadow: 0 0 0 4px var(--blue-wash);
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+}
+
+:global(html[data-calm="true"]) .stopDot {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stopDot {
+    animation: none !important;
+  }
+}
+
+// ── Pull diagram ───────────────────────────────────────────────────────────
+.pull {
+  display: block;
+  width: 100%;
+  max-width: 12rem;
+  height: auto;
+  overflow: visible;
+}
+
+.pullFair {
+  stroke: var(--mid);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.pullBefore {
+  fill: none;
+  stroke: var(--dim);
+  stroke-width: 1.5;
+}
+
+.pullAfter {
+  fill: none;
+  stroke-width: 2;
+
+  [data-tone="up"] & {
+    stroke: var(--up);
+  }
+
+  [data-tone="down"] & {
+    stroke: var(--down);
+  }
+}
+
+.pullTick {
+  stroke: var(--blue);
+  stroke-width: 1;
+  opacity: 0.6;
+}
+
+// ── Rarity fan ─────────────────────────────────────────────────────────────
+.fan {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 15rem);
+  gap: 1.5rem 2rem;
+  align-items: center;
+  padding: 1.25rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background:
+    radial-gradient(60% 90% at 35% 60%, color-mix(in srgb, var(--blue) 12%, transparent), transparent 70%),
+    var(--ink);
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 1rem 0.75rem;
+  }
+}
+
+.fanCards {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  min-width: 0;
+  padding: 0.5rem 0 1.25rem;
+}
+
+.fanCard {
+  --i: 0;
+  width: clamp(4.6rem, 16vw, 9.4rem);
+  margin-left: calc(clamp(4.6rem, 16vw, 9.4rem) * -0.28);
+  transform: rotate(calc((var(--i) - 2) * 5deg)) translateY(calc(var(--d) * 0.5rem));
+  transform-origin: bottom center;
+  transition: transform var(--dur-med) var(--ease-out);
+
+  &:first-child {
+    margin-left: 0;
+  }
+
+  @include hover-device {
+    &:hover {
+      z-index: 2;
+      transform: rotate(0deg) translateY(-0.6rem) scale(1.04);
+    }
+  }
+}
+
+:global(html[data-calm="true"]) .fanCard {
+  transition: none;
+}
+
+.fanSkeleton {
+  display: block;
+  aspect-ratio: 5 / 7;
+  border-radius: 6px;
+  background: var(--ink-3);
+  border: 1px solid var(--rule);
+}
+
+.rates {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+
+  li {
+    display: grid;
+    grid-template-columns: 2.6rem minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding: 0.42rem 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  b {
+    @include num(wide);
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--r);
+  }
+
+  span {
+    font-size: 0.84rem;
+    color: var(--mid);
+  }
+
+  em {
+    @include num;
+    font-style: normal;
+    font-size: 0.82rem;
+  }
+}
+
+// ── Chance demo ─────────────────────────────────────────────────────────────
+.chance {
+  --no: #ff9e6b; // NO is coral on the predictions floor (lib/predictions/format.ts)
+  @include panel;
+  display: grid;
+  min-width: 0;
+}
+
+.chanceHead {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.8rem 0.95rem 0;
+}
+
+.chanceQ {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.02rem;
+}
+
+.chanceBig {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.7rem;
+  padding: 0.6rem 0.95rem 0.2rem;
+}
+
+.cents {
+  @include num(wide);
+  font-size: clamp(2.6rem, 6vw, 3.4rem);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--blue);
+
+  small {
+    font-size: 0.5em;
+  }
+}
+
+.equals {
+  @include num;
+  font-size: 1.4rem;
+  color: var(--dim);
+}
+
+.pct {
+  @include num(wide);
+  font-size: 1.5rem;
+  font-weight: 600;
+
+  small {
+    @include label;
+    margin-left: 0.2rem;
+  }
+}
+
+.slider {
+  display: block;
+  padding: 0.5rem 0.95rem 0;
+
+  input {
+    --v: 50%;
+    width: 100%;
+    height: 1.4rem;
+    margin: 0;
+    background: none;
+    appearance: none;
+    cursor: pointer;
+
+    &::-webkit-slider-runnable-track {
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(90deg, var(--blue) var(--v), var(--no) var(--v));
+    }
+
+    &::-moz-range-track {
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(90deg, var(--blue) var(--v), var(--no) var(--v));
+    }
+
+    &::-webkit-slider-thumb {
+      appearance: none;
+      width: 1.1rem;
+      height: 1.1rem;
+      margin-top: -0.3rem;
+      border: 2px solid var(--ink);
+      border-radius: 50%;
+      background: var(--text);
+      box-shadow: 0 0 0 1px var(--rule-2);
+    }
+
+    &::-moz-range-thumb {
+      width: 1rem;
+      height: 1rem;
+      border: 2px solid var(--ink);
+      border-radius: 50%;
+      background: var(--text);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.sliderEnds {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.15rem 0.95rem 0;
+
+  span {
+    @include num;
+    font-size: 0.68rem;
+    color: var(--dim);
+  }
+}
+
+.chanceTicket {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.8rem;
+  padding: 0.85rem 0.95rem 0.95rem;
+  border-top: 1px solid var(--rule);
+}
+
+.yesNo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+
+  button {
+    @include num;
+    padding: 0.55rem;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--mid);
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+
+    &[data-o="yes"][aria-pressed="true"] {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: var(--blue-ink);
+    }
+
+    &[data-o="no"][aria-pressed="true"] {
+      border-color: var(--no);
+      background: var(--no);
+      color: #1a0b04;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}

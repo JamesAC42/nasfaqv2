@@ -14,7 +14,7 @@ const marketState = require("./services/marketState");
 const { startMarketScheduler, loadSchedulerConfig, computeNextScheduledAt } = require("./services/marketScheduler");
 const { startAdjustmentScheduler } = require("./services/marketAdjustments");
 const { startLiveOrderScheduler } = require("./services/trading");
-const { startPredictionScheduler } = require("./services/predictionScheduler");
+const { startPredictionsScheduler } = require("./services/predictions/scheduler");
 
 const channelsRoutes = require("./routes/channels");
 const { router: chatRoutes, CHAT_EVENTS_REDIS_CHANNEL } = require("./routes/chat");
@@ -26,21 +26,29 @@ const articleDb = require("./articleDb");
 const analysisRoutes = require("./routes/analysis");
 const leaderboardRoutes = require("./routes/leaderboard");
 const gamesRoutes = require("./routes/games");
+const gameTablesRoutes = require("./routes/gameTables");
+const gamesHub = require("./services/games/tables/hub");
+const gameTablesOwner = String(process.env.GAMES_TABLES_OWNER || "true").toLowerCase() !== "false";
+const pvpTables = require("./services/games/tables/pvp");
+const blackjackTables = require("./services/games/tables/blackjack");
 const marketRoutes = require("./routes/market");
 const internalMarketRoutes = require("./routes/internalMarket");
 const portfolioRoutes = require("./routes/portfolio");
 const profileRoutes = require("./routes/profiles");
-const predictionMarketsRoutes = require("./routes/predictionMarkets");
+const notificationRoutes = require("./routes/notifications");
+const predictionMarketsRoutes = require("./routes/predictions");
 const authRoutes = require("./routes/auth");
 const statsRoutes = require("./routes/stats");
 const nasfaqThreadRoutes = require("./routes/nasfaqThread");
 const adminAssetsRoutes = require("./routes/adminAssets");
 const adminHolonewsRoutes = require("./routes/adminHolonews");
+const adminRoutes = require("./routes/admin");
 const assetsRoutes = require("./routes/assets");
 const mediaCatalog = require("./services/mediaCatalog");
 const achievements = require("./services/achievements");
 const gamesCatalog = require("./services/games/catalog");
 const { MARKET_EVENTS_REDIS_CHANNEL } = require("./services/marketEvents");
+const { scrubPublicMarketPayload } = require("./services/marketSecrecy");
 const { PREDICTION_MARKET_EVENTS_REDIS_CHANNEL } = require("./services/predictionMarketEvents");
 
 const LIVESTREAM_VIEWER_UPDATES_CHANNEL = "nasfaq_livestreams:viewer_updates";
@@ -50,6 +58,36 @@ const LIVESTREAM_SNAPSHOT_REFRESH_MS = 30_000;
 function sendWsText(client, payload) {
   if (!client || client.readyState !== 1) return;
   client.send(payload, { binary: false, compress: false });
+}
+
+// Market events go out in bundles: everything that arrives within MARKET_BUNDLE_MS becomes one
+// message ({ type: "market.bundle", events: [...] }) for sockets that said they understand bundles,
+// so a batch of fills costs each socket a few sends instead of one per fill. Sending is the cost
+// that grows with sockets × events; older clients still get one message per event.
+const GAMES_EVENTS_REDIS_CHANNEL = "nasfaq_games:events";
+// Clients only ever send small control messages (subscribe, hello, ping); the ws default is 100 MiB.
+const WS_MAX_PAYLOAD = 16 * 1024;
+const allowLoopbackOrigins = process.env.NODE_ENV !== "production";
+const MARKET_BUNDLE_MS = 100;
+let marketQueue = [];
+let marketFlushTimer = null;
+let marketWssRef = null;
+
+function queueMarketEvent(text) {
+  marketQueue.push(text);
+  if (!marketFlushTimer) marketFlushTimer = setTimeout(flushMarketEvents, MARKET_BUNDLE_MS);
+}
+
+function flushMarketEvents() {
+  marketFlushTimer = null;
+  const events = marketQueue;
+  marketQueue = [];
+  if (!events.length || !marketWssRef) return;
+  const bundle = events.length === 1 ? events[0] : `{"type":"market.bundle","events":[${events.join(",")}]}`;
+  marketWssRef.clients.forEach((client) => {
+    if (client.marketBundles) sendWsText(client, bundle);
+    else for (const text of events) sendWsText(client, text);
+  });
 }
 
 function safeParseJSON(s) {
@@ -191,11 +229,23 @@ loadEnv();
 const cfg = getConfig();
 
 const app = express();
-app.use(express.json({ limit: "25mb" }));
+app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  // API responses are data: never framed, never sniffed as something else.
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  next();
+});
+// Big bodies only where images are uploaded as data URLs (admin tools); 1 MB everywhere else, so an
+// anonymous request can't make every pod parse 25 MB of JSON.
+app.use(["/api/admin/assets", "/api/channels"], express.json({ limit: "25mb" }));
+app.use(express.json({ limit: "1mb" }));
 app.use(
   cors({
     origin(origin, callback) {
-      const isAllowedLoopbackDevOrigin = /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(String(origin || ""));
+      // Local dev servers on any port, but never in production.
+      const isAllowedLoopbackDevOrigin = allowLoopbackOrigins && /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(String(origin || ""));
       if (!origin || cfg.corsOrigins.includes(origin) || isAllowedLoopbackDevOrigin) {
         callback(null, true);
         return;
@@ -236,14 +286,20 @@ api.use("/news", newsRoutes);
 api.use("/articles", articleRoutes);
 api.use("/analysis", analysisRoutes);
 api.use("/leaderboard", leaderboardRoutes);
+// Only the process holding the tables lease serves table routes (see main()); elsewhere they fall
+// through to 404.
+let ownsGameTables = false;
+api.use("/games", (req, res, next) => (ownsGameTables ? gameTablesRoutes(req, res, next) : next()));
 api.use("/games", gamesRoutes);
 api.use("/market", marketRoutes);
 api.use("/portfolio", portfolioRoutes);
 api.use("/prediction-markets", predictionMarketsRoutes);
 api.use("/profiles", profileRoutes);
+api.use("/notifications", notificationRoutes);
 api.use("/stats", statsRoutes);
 api.use("/admin/assets", adminAssetsRoutes);
 api.use("/admin/holonews", adminHolonewsRoutes);
+api.use("/admin", adminRoutes);
 api.use("/assets", assetsRoutes);
 api.use("/", nasfaqThreadRoutes);
 
@@ -305,6 +361,7 @@ app.use((err, _req, res, _next) => {
     || err?.code === "gemini_not_configured"
     || err?.code === "gemini_request_failed"
     || err?.code === "reference_images_missing"
+    || err?.code === "invalid_reaction"
   ) {
     return res.status(400).json({ error: err.code });
   }
@@ -312,6 +369,9 @@ app.use((err, _req, res, _next) => {
     err?.code === "asset_comment_requires_holding"
     || err?.code === "asset_comment_self_vote"
     || err?.code === "prediction_market_comment_requires_position"
+    || err?.code === "reaction_locked"
+    || err?.code === "sticker_locked"
+    || err?.code === "banner_locked"
   ) {
     return res.status(403).json({ error: err.code });
   }
@@ -356,6 +416,30 @@ app.use((err, _req, res, _next) => {
   return res.status(500).json({ error: "internal_error" });
 });
 
+const GAME_TABLES_LEASE_KEY = 7_310_443;
+
+async function acquireGameTablesLease(db, { waitMs = Number(process.env.GAMES_TABLES_LEASE_WAIT_MS || 60_000) } = {}) {
+  const client = await db.connect();
+  const deadline = Date.now() + waitMs;
+  for (;;) {
+    const { rows } = await client.query("SELECT pg_try_advisory_lock($1) AS ok", [GAME_TABLES_LEASE_KEY]);
+    if (rows[0]?.ok) break;
+    if (Date.now() > deadline) {
+      client.release();
+      console.error("games: another process holds the game tables; this one runs without them");
+      return false;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+  }
+  // Losing this connection means losing the lease while tables are live: stop, and let the
+  // orchestrator restart us (the restart refunds anything unfinished, once).
+  client.on("error", (error) => {
+    console.error("games: lost the game tables lease:", String(error?.message || error));
+    process.exit(1);
+  });
+  return true;
+}
+
 async function main() {
   if (cfg.enableMigrations) {
     await applySchema(pool);
@@ -363,6 +447,20 @@ async function main() {
   }
   await achievements.syncDefinitions(pool);
   await gamesCatalog.syncCatalog(pool);
+  // Game tables live in this process's memory, and init() refunds every unfinished match it finds
+  // (they can't survive a restart). So exactly one process may own them: in Kubernetes that's the
+  // api-games Deployment (one replica; the ingress sends /api/games there), and every other API
+  // process sets GAMES_TABLES_OWNER=false. Two owners would split tables between them and refund
+  // matches the other one is still playing.
+  // The lease is a Postgres session lock held for the life of the process: a second would-be owner
+  // (a misconfigured pod, a rollout overlap) waits for it, and if it never frees up, runs without
+  // tables rather than splitting them.
+  if (gameTablesOwner && (await acquireGameTablesLease(pool))) {
+    await pvpTables.init(pool);
+    await blackjackTables.init(pool);
+    ownsGameTables = true;
+  }
+  require("./services/games/sessions").startWeeklySettlement(pool);
   await mediaCatalog.syncMediaCatalog(pool, console);
   await chatDb.ensureChatTopology(pool);
 
@@ -370,9 +468,14 @@ async function main() {
   const stateClient = await pool.connect();
   try {
     await marketState.ensureMarketRuntimeState(stateClient);
-    const existingStatus = await marketState.getMarketStatusWithClient(stateClient);
+    // Only the process that runs settlement may reopen the market at boot. An api-web pod
+    // restarting while the scheduler is mid-settlement used to reopen trading under it.
+    const ownsSettlement = (process.env.MARKET_SETTLEMENT_SCHEDULER_ENABLED || "true").toLowerCase() !== "false";
+    const existingStatus = ownsSettlement ? await marketState.getMarketStatusWithClient(stateClient) : null;
     const nextScheduledAt = computeNextScheduledAt(new Date(), schedulerConfig).toISOString();
-    if (existingStatus?.trading_status === "manual_closed") {
+    if (!ownsSettlement) {
+      // leave the market state to the scheduler
+    } else if (existingStatus?.trading_status === "manual_closed") {
       await marketState.setNextScheduledSettlementAt(stateClient, nextScheduledAt);
     } else {
       await marketState.setMarketOpen(stateClient, {
@@ -388,12 +491,44 @@ async function main() {
   redis = await createRedis(cfg.redisUrl, cfg.redisPassword);
 
   const server = http.createServer(app);
-  const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
-  const bucketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
-  const statsWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
-  const chatWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
-  const marketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
-  const predictionMarketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
+  const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: WS_MAX_PAYLOAD });
+  const bucketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: WS_MAX_PAYLOAD });
+  const statsWss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: WS_MAX_PAYLOAD });
+  const chatWss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: WS_MAX_PAYLOAD });
+  const marketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: WS_MAX_PAYLOAD });
+  const predictionMarketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: WS_MAX_PAYLOAD });
+  const gamesWss = gamesHub.createGamesWss();
+
+  // Heartbeat for the plain sockets (the games hub has its own): ping every 30s and drop any that
+  // didn't answer the last one. Without it a phone that lost signal stays "connected" and keeps
+  // collecting market broadcasts in its send buffer until TCP gives up, which can take many minutes.
+  const HEARTBEAT_MS = 30_000;
+  for (const server of [wss, bucketWss, statsWss, chatWss, marketWss, predictionMarketWss]) {
+    server.on("connection", (socket) => {
+      // A bad frame (too big, malformed) surfaces as an 'error' on the socket; without a listener
+      // Node treats it as unhandled and the whole process exits. Drop just that socket.
+      socket.on("error", () => socket.terminate());
+      socket.isAlive = true;
+      socket.on("pong", () => {
+        socket.isAlive = true;
+      });
+    });
+  }
+  const heartbeat = setInterval(() => {
+    for (const server of [wss, bucketWss, statsWss, chatWss, marketWss, predictionMarketWss]) {
+      server.clients.forEach((socket) => {
+        if (socket.isAlive === false) {
+          socket.terminate();
+          return;
+        }
+        socket.isAlive = false;
+        try {
+          socket.ping();
+        } catch {}
+      });
+    }
+  }, HEARTBEAT_MS);
+  heartbeat.unref?.();
 
   const broadcastOnlineUserCount = () => {
     const payload = JSON.stringify({
@@ -494,13 +629,14 @@ async function main() {
 
       const action = String(payload.action || "").trim().toLowerCase();
       if (action === "subscribe") {
-        const requestedChannelKeys = normalizeChannelKeyList(payload.channel_keys);
+        // A handful of rooms at a time; one socket can't make the server look up thousands.
+        const requestedChannelKeys = normalizeChannelKeyList(payload.channel_keys).slice(0, 20);
         const subscribed = [];
         const rejected = [];
 
+        await chatDb.ensureChatTopologyRecent(pool).catch(() => {});
         for (const channelKey of requestedChannelKeys) {
           try {
-            await chatDb.ensureChatTopology(pool);
             const channel = await chatDb.getChannelByKey(pool, channelKey, {
               viewerUserId: req.chatUser?.id || null,
               includeInactive: Boolean(req.chatUser?.is_admin),
@@ -547,18 +683,22 @@ async function main() {
       ws.chatSubscriptions.clear();
     });
   });
+  marketWssRef = marketWss;
   marketWss.on("connection", (ws) => {
+    ws.on("message", (raw) => {
+      const hello = safeParseJSON(String(raw).slice(0, 512));
+      if (hello?.type === "hello" && hello.bundles === true) ws.marketBundles = true;
+    });
     (async () => {
       try {
-        const [assets, status] = await Promise.all([
-          marketDb.listAssets(pool),
-          marketState.getMarketStatus(pool),
-        ]);
+        // Status only. The board is 250+ KB of JSON and every page already loads it from
+        // /api/market/assets (cached, gzipped); sending it again down each new socket made a reconnect
+        // storm after a deploy cost a full board per socket. A client that reconnects refetches it.
+        const status = await marketState.getMarketStatus(pool);
         sendWsText(
           ws,
           JSON.stringify({
             type: "market.snapshot",
-            assets,
             status: status || null,
             at: new Date().toISOString(),
           })
@@ -605,6 +745,8 @@ async function main() {
                 ? marketWss
                 : pathname === "/api/prediction-markets/ws"
                   ? predictionMarketWss
+                  : pathname === "/api/games/ws"
+                    ? gamesWss
           : null;
 
     if (!target) {
@@ -612,9 +754,22 @@ async function main() {
       return;
     }
 
+    // Browsers always send Origin on a socket upgrade; only our own site (or a local dev server)
+    // may open one with the player's cookie. Non-browser clients send none and are let through.
+    const origin = req.headers.origin;
+    if (origin && !cfg.corsOrigins.includes(origin) && !(allowLoopbackOrigins && /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin))) {
+      socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+
     try {
       if (target === chatWss) {
         req.chatUser = await authService.getAuthenticatedUser(pool, req);
+      }
+      if (target === gamesWss) {
+        // Optional: signed-in sockets can follow their own `me` feed.
+        req.gamesUser = await authService.getAuthenticatedUser(pool, req).catch(() => null);
       }
       target.handleUpgrade(req, socket, head, (ws) => {
         target.emit("connection", ws, req);
@@ -638,6 +793,18 @@ async function main() {
       sendWsText(client, payload);
     });
   });
+  // Games pushes (tables, lobbies, each player's notifications) go through Redis so they reach the
+  // socket whichever API process holds it; see games/tables/hub.js.
+  if (redis) {
+    gamesHub.setBridge((message) => {
+      redis.publish(GAMES_EVENTS_REDIS_CHANNEL, JSON.stringify(message)).catch((error) => {
+        console.error("games push failed:", String(error?.message || error));
+      });
+    });
+    await redisSub.subscribe(GAMES_EVENTS_REDIS_CHANNEL, (message) => {
+      gamesHub.deliverBridged(safeParseJSON(String(message)));
+    });
+  }
   await redisSub.subscribe(CHAT_EVENTS_REDIS_CHANNEL, (message) => {
     const payload = String(message);
     const parsed = safeParseJSON(payload);
@@ -649,10 +816,11 @@ async function main() {
     });
   });
   await redisSub.subscribe(MARKET_EVENTS_REDIS_CHANNEL, (message) => {
-    const payload = String(message);
-    marketWss.clients.forEach((client) => {
-      sendWsText(client, payload);
-    });
+    // Every market socket is public: strip fair value and premiums (the hidden tick target) from
+    // settlement, tick and fill events before they go out.
+    const parsed = safeParseJSON(String(message));
+    if (!parsed) return;
+    queueMarketEvent(JSON.stringify(scrubPublicMarketPayload(parsed)));
   });
   await redisSub.subscribe(PREDICTION_MARKET_EVENTS_REDIS_CHANNEL, (message) => {
     const payload = String(message);
@@ -672,7 +840,7 @@ async function main() {
   server.listen(cfg.port, () => {
     // eslint-disable-next-line no-console
     console.log(
-      `API listening on http://localhost:${cfg.port} (HTTP + WebSocket /api/livestreams/ws + /api/livestreams/buckets/ws + /api/stats/ws + /api/chat/ws + /api/market/ws + /api/prediction-markets/ws)`
+      `API listening on http://localhost:${cfg.port} (HTTP + WebSocket /api/livestreams/ws + /api/livestreams/buckets/ws + /api/stats/ws + /api/chat/ws + /api/market/ws + /api/prediction-markets/ws + /api/games/ws)`
     );
   });
 
@@ -685,10 +853,26 @@ async function main() {
   if (cfg.enableMarketLiveOrderScheduler) {
     startLiveOrderScheduler(pool, console, redis);
   }
-  if (cfg.enablePredictionMarketScheduler) {
-    startPredictionScheduler(pool, console, redis);
+  if (cfg.enableMarketSettlementScheduler) {
+    // Saturday 00:00 ET: dividends and fees, max shares, buybacks (MARKET_WEEKLY_EVALUATION_ENABLED=false to stop it).
+    require("./services/weeklyEvaluation").startWeeklyEvaluationScheduler(pool, console, redis);
   }
+  if (cfg.enablePredictionMarketScheduler) {
+    startPredictionsScheduler(pool, console, redis);
+  }
+  // The card exchange closes auctions and expires listings and trade offers on its own clock.
+  require("./services/games/exchange").startExchangeScheduler(pool, console);
+  // The Wire posts automatic headlines every 10 minutes (stream events judged by Jev when JEV_API_KEY is set).
+  require("./services/wire").startWireScheduler(pool, console);
+  // The /vt/ chatter index scans hololive threads every 5 minutes (CHATTER_ENABLED=off to stop it).
+  require("./services/chatter").startChatterScheduler(pool, console);
 }
+
+// A stray rejected promise is a bug to log, not a reason to drop every socket on this pod.
+process.on("unhandledRejection", (reason) => {
+  // eslint-disable-next-line no-console
+  console.error("unhandled rejection:", reason);
+});
 
 main().catch((e) => {
   // eslint-disable-next-line no-console

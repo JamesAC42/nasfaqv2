@@ -1,10 +1,10 @@
 import { Suspense } from "react";
-import { PredictionsPage } from "@/app/components/pages/predictions-page";
+import { PredictionsFloor } from "@/app/components/predictions/floor/predictions-floor";
 
 export default function Page() {
   return (
     <Suspense fallback={null}>
-      <PredictionsPage />
+      <PredictionsFloor />
     </Suspense>
   );
 }

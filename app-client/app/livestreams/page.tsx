@@ -1,10 +1,8 @@
-import { SiteShell } from "@/app/components/layout/site-shell";
-import { LivestreamListing } from "@/app/components/livestreams/livestream-listing";
+import type { Metadata } from "next";
+import { LivestreamsPage } from "@/app/components/livestreams/livestreams-page";
 
-export default function LivestreamsPage() {
-  return (
-    <SiteShell>
-      <LivestreamListing />
-    </SiteShell>
-  );
+export const metadata: Metadata = { title: "Livestreams" };
+
+export default function Page() {
+  return <LivestreamsPage />;
 }

@@ -46,6 +46,22 @@ export type ChatChannel = {
   updated_at: string;
 };
 
+/** One equipped capsule cosmetic (see api/src/services/games/equipped.js). */
+export type CosmeticTheme = { accent: string; accent2: string | null; pattern: "petals" | "waves" | "grid" | "stripes" | "stars" | "plain" };
+
+export type EquippedCosmetic = {
+  key: string;
+  type: string;
+  rarity: string;
+  display_name: string;
+  image_url: string | null;
+  /** Portfolio themes: the colours and pattern they put on the owner's profile. */
+  theme?: CosmeticTheme | null;
+};
+
+/** Everything a player has equipped, keyed by slot: hat, profile_frame, profile_badge, chat_flair, item… */
+export type Equipped = Partial<Record<string, EquippedCosmetic>>;
+
 export type ChatMessage = {
   id: number;
   channel_id: number;
@@ -61,6 +77,7 @@ export type ChatMessage = {
     username: string;
     profile_picture_url: string | null;
     profile_color: string | null;
+    equipped?: Equipped;
     oshi_coin: {
       id: number;
       symbol: string;
@@ -368,7 +385,17 @@ export type MarketAsset = {
   current_premium_pct: number | null;
   current_daily_emission: number | null;
   treasury_supply: number | null;
+  /** Shares players hold. */
   circulating_supply: number | null;
+  /** Max shares this week (set from subscribers at the weekly evaluation). */
+  max_supply?: number | null;
+  /** "open", or "buyback" while frozen for a broker buyback. */
+  trading_state?: "open" | "buyback";
+  /** What buys can take right now (max − held − the broker's buffer); 0 = sold out. */
+  shares_for_sale?: number | null;
+  broker_buffer?: number | null;
+  sold_out?: boolean;
+  buyback?: MarketBuyback | null;
   latest_snapshot_date: string | null;
   volume_24h: number | null;
   move_24h_pct: number | null;
@@ -387,6 +414,73 @@ export type MarketAsset = {
   next_adjustment?: MarketAdjustment | null;
   latest_adjustment?: MarketAdjustment | null;
   sparkline_candles: CandlePoint[];
+};
+
+export type MarketBuyback = {
+  started_at: string;
+  frozen_price: number;
+  target_max_supply: number;
+  /** What the broker pays per share now (frozen price × multiplier). */
+  price: number;
+  multiplier: number;
+  next_step_at: string | null;
+  /** How much the multiplier drops each day, and where it stops. */
+  daily_step: number;
+  floor: number;
+  shares_bought: number;
+  shares_over: number;
+};
+
+export type SupplyWatchRow = {
+  symbol: string;
+  display_name: string;
+  max_supply: number;
+  held: number;
+  shares_for_sale: number;
+  for_sale_pct: number | null;
+  trading_state: string;
+};
+
+/** One stock's line in the Dividend Review. */
+export type EvaluationRow = {
+  symbol: string;
+  display_name: string;
+  rate: number;
+  per_share: number;
+  paid: number;
+  held: number;
+  max_supply_before: number;
+  max_supply_after: number;
+  buyback: string | null;
+};
+
+/** The Weekly Evaluation (Saturday 00:00 ET): dividends and fees, max shares, buybacks. */
+export type WeeklyEvaluation = {
+  eval_date: string;
+  generated_at: string;
+  first_evaluation: boolean;
+  asset_count: number;
+  dividends_total: number;
+  fees_total: number;
+  holders_paid: number;
+  holders_charged: number;
+  paying_count: number;
+  charging_count: number;
+  flat_count: number;
+  top_dividends: EvaluationRow[];
+  top_fees: EvaluationRow[];
+  max_shares_raised: EvaluationRow[];
+  max_shares_lowered: EvaluationRow[];
+  buybacks_started: Array<{ symbol: string; display_name: string; held: number; max_supply: number; over: number; frozen_price: number; offer: number }>;
+  buybacks_closed: Array<{ symbol: string; display_name: string; status: string; forced_shares: number | null; forced_price: number | null; shares_bought: number | null }>;
+  assets: EvaluationRow[];
+  config?: Record<string, number>;
+};
+
+export type MyDividendWeek = {
+  eval_date: string;
+  net: number;
+  lines: Array<{ symbol: string; display_name: string; quantity: number; per_share: number; amount: number }>;
 };
 
 export type MarketAdjustment = {
@@ -657,6 +751,12 @@ export type PortfolioOrder = {
   submitted_interval_key: string | null;
   requested_at: string | null;
   updated_at: string | null;
+  /** Set once the order has filled: the fill id (same id as market.trade_fill) and totals. */
+  fill_id?: string | null;
+  fill_ts?: string | null;
+  fill_price?: number | null;
+  fill_gross_cash?: number | null;
+  fill_fee_cash?: number | null;
 };
 
 export type PortfolioOrdersResponse = {
@@ -951,6 +1051,8 @@ export type ReportRow = {
   volume_shares?: number | null;
   volume_cash?: number | null;
   volume_cash_change_pct?: number | null;
+  /** Big streams that lifted this fair value at settlement ("three_d", "new_outfit"...). */
+  events?: string[];
 };
 
 export type DailyReport = {
@@ -972,6 +1074,20 @@ export type DailyReport = {
   volume_losers?: ReportRow[];
   top_volume?: ReportRow[];
   notable_treasury_emissions?: ReportRow[];
+  /** Stocks worth watching for supply: buybacks, sold out, least left for sale. */
+  supply_watch?: SupplyWatchRow[];
+  /** Buybacks that ended at this Open (players sold back under the max). */
+  buybacks_ended?: Array<{ symbol: string; display_name: string; shares_bought: number | null; cash_paid: number | null }>;
+  /** False while this settlement's ticks are still landing: its fair values and premiums are withheld. */
+  targets_revealed?: boolean;
+  /** When the last of those ticks is due, while they're withheld. */
+  targets_reveal_at?: string | null;
+  /** Fair value movers from the newest settlement whose ticks have all landed. */
+  revealed_targets?: {
+    market_date: string;
+    biggest_fair_value_increases: ReportRow[];
+    biggest_fair_value_decreases: ReportRow[];
+  } | null;
 };
 
 export type MarketStatus = {
@@ -1162,6 +1278,7 @@ export type LeaderboardEntry = {
   username: string;
   profile_picture_url: string | null;
   profile_color: string | null;
+  equipped?: Equipped;
   equipped_hat: {
     cosmetic_key: string;
     rarity: string;
@@ -1300,6 +1417,27 @@ export type NewsCharacter = {
   unit?: string | null;
 };
 
+/** A fact-made headline from the Wire: stream events, records, market moves, exchange sales. */
+export type WireItem = {
+  id: number;
+  kind: string;
+  headline: string;
+  blurb: string | null;
+  symbols: string[];
+  image_url: string | null;
+  link_url: string | null;
+  importance: number;
+  occurred_at: string;
+  meta: {
+    status?: string | null;
+    starts_at?: string | null;
+    started_at?: string | null;
+    ended_at?: string | null;
+    peak_viewers?: number | null;
+    [key: string]: unknown;
+  };
+};
+
 export type NewsItem = {
   id: string;
   headline: string;
@@ -1313,6 +1451,7 @@ export type NewsItem = {
   channel_ids?: string[];
   stock_symbols?: string[];
   units?: string[];
+  moods?: NewsMood[];
   article_id?: number | null;
   article_slug?: string | null;
   is_news?: boolean;
@@ -1374,8 +1513,13 @@ export type ArticleSummary = {
     id: number;
     headline: string;
     published_at: string | null;
+    /** How each tagged talent reacts to the headline (a reaction face). */
+    moods?: NewsMood[];
   } | null;
 };
+
+/** A talent's reaction to a HoloNews headline: one of the reaction poses. */
+export type NewsMood = { symbol: string; mood: "idle" | "hype" | "moon" | "cope" | "smug" | "shock" };
 
 export const ARTICLE_COMMENT_MOODS = [
   "Bullish",
@@ -1511,6 +1655,7 @@ export type ProfileBundle = {
     bio: string | null;
     profile_picture_url: string | null;
     profile_color: string | null;
+    equipped: Equipped;
     is_admin: boolean;
     permissions: {
       can_manage_assets: boolean;
@@ -1522,6 +1667,10 @@ export type ProfileBundle = {
     rank: number;
     oshiboards: OshiboardMembership[];
     oshi_coin: ProfileOshiCoin | null;
+    /** A talent's banner art behind the profile header (only while she's unlocked). */
+    profile_banner: ProfileOshiCoin | null;
+    /** Your own profile only: talents whose banner you've unlocked (own her SSR or UR). */
+    banner_options: ProfileOshiCoin[];
     stats: {
       cash_balance: number;
       total_market_value: number;

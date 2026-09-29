@@ -1,0 +1,344 @@
+@use "../../../styles/mixins" as *;
+
+.wrap {
+  min-width: 0;
+  padding: 1.1rem 0 1.25rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.heading {
+  @include section-heading;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.6rem;
+  margin: 0;
+
+  small {
+    @include num;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    text-transform: none;
+    color: var(--dim);
+  }
+}
+
+.legend {
+  flex: 1 1 18rem;
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--dim);
+
+  b {
+    @include label;
+    color: var(--mid);
+  }
+}
+
+.headRight {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.summary {
+  @include num;
+  font-size: 0.75rem;
+  color: var(--blue);
+}
+
+.claimAll {
+  @include button-primary;
+  padding: 0.45rem 0.8rem;
+}
+
+// Hairline grid: the container draws top/left, each tile right/bottom.
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+  border-left: 1px solid var(--rule);
+
+  @include desktop-down {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  @include tablet-down {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+// Collapsed: two rows of sets (three on a phone).
+.grid:not([data-expanded]) > .set:nth-child(n + 9) {
+  display: none;
+}
+
+@include desktop-down {
+  .grid:not([data-expanded]) > .set:nth-child(n + 7) {
+    display: none;
+  }
+}
+
+@include tablet-down {
+  .grid:not([data-expanded]) > .set:nth-child(n + 5) {
+    display: none;
+  }
+}
+
+@include phone {
+  .grid:not([data-expanded]) > .set:nth-child(n + 4) {
+    display: none;
+  }
+}
+
+.more {
+  @include button-secondary;
+  width: 100%;
+  margin-top: -1px;
+  border-color: var(--rule);
+  border-radius: 0;
+  color: var(--mid);
+}
+
+.set {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.8rem 0.85rem 0.85rem;
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+
+  &[data-ready] {
+    background: linear-gradient(180deg, var(--blue-wash), transparent 70%);
+    box-shadow: inset 2px 0 0 var(--blue);
+  }
+
+  &[data-mastered] {
+    background: linear-gradient(180deg, rgba(245, 197, 66, 0.08), transparent 70%);
+    box-shadow: inset 2px 0 0 #f5c542;
+  }
+}
+
+.setHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.unit {
+  @include display(1.05rem);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count {
+  @include num;
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+.marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.member {
+  --rc: transparent;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--rule-2);
+  filter: grayscale(1);
+  opacity: 0.32;
+
+  &[data-on] {
+    filter: none;
+    opacity: 1;
+    box-shadow:
+      inset 0 0 0 2px var(--rc),
+      0 0 0 1px var(--ink);
+    background: color-mix(in srgb, var(--rc) 12%, transparent);
+  }
+
+  &[data-hi] {
+    box-shadow:
+      inset 0 0 0 2px var(--rc),
+      0 0 10px color-mix(in srgb, var(--rc) 55%, transparent);
+  }
+
+  &[data-rarity="UR"] {
+    background:
+      linear-gradient(var(--ink), var(--ink)) padding-box,
+      conic-gradient(#ff7ad9, #ffd36e, #7dffcf, #6ecbff, #b28cff, #ff7ad9) border-box;
+    border: 2px solid transparent;
+    box-shadow: 0 0 10px rgba(255, 122, 217, 0.5);
+  }
+}
+
+.tier {
+  display: grid;
+  grid-template-columns: 4.6rem minmax(1.5rem, 1fr) 2rem 7.4rem;
+  align-items: center;
+  gap: 0.3rem 0.55rem;
+  min-height: 2.35rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--rule);
+}
+
+.tierName {
+  @include label;
+  color: var(--mid);
+  cursor: help;
+}
+
+.bar {
+  height: 0.3rem;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--ink-3);
+
+  i {
+    display: block;
+    height: 100%;
+    background: var(--mid);
+    transition: width var(--dur-med) var(--ease-out);
+  }
+
+  [data-state="ready"] & i {
+    background: var(--blue);
+  }
+
+  [data-state="claimed"] & i {
+    background: var(--dim);
+  }
+}
+
+.have {
+  @include num;
+  font-size: 0.72rem;
+  text-align: right;
+  color: var(--mid);
+}
+
+.prize {
+  @include num;
+  justify-self: end;
+  display: inline-flex;
+  white-space: nowrap;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  color: var(--text);
+
+  [data-state="claimed"] & {
+    color: var(--dim);
+  }
+}
+
+.shard {
+  flex: none;
+  width: 0.5rem;
+  height: 0.65rem;
+  background: linear-gradient(160deg, #e6dcff, #9a74ff 55%, #3d2690);
+  clip-path: polygon(50% 0, 100% 35%, 50% 100%, 0 35%);
+}
+
+.claim {
+  @include button-primary;
+  justify-self: end;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  white-space: nowrap;
+
+  .shard {
+    background: currentColor;
+  }
+}
+
+.claimed {
+  @include label;
+  justify-self: end;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--mid);
+
+  svg {
+    width: 0.65rem;
+    height: 0.65rem;
+    color: var(--blue);
+  }
+}
+
+.pop {
+  @include num;
+  position: absolute;
+  right: 100%;
+  margin-right: 0.5rem;
+  font-size: 0.8rem;
+  font-style: normal;
+  font-weight: 700;
+  color: #c2a8ff;
+  white-space: nowrap;
+  animation: pop 1.4s var(--ease-slam) both;
+}
+
+@keyframes pop {
+  0% {
+    transform: translateY(6px) scale(0.6);
+    opacity: 0;
+  }
+  25% {
+    transform: translateY(-2px) scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.error {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--down);
+}
+
+:global(html[data-calm="true"]) .pop {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pop {
+    animation: none;
+  }
+}

@@ -9,6 +9,7 @@ const DEFAULT_LIVE_ORDER_WORKER_CONCURRENCY = 4;
 const DEFAULT_LIVE_ORDER_SCHEDULER_INTERVAL_MS = 1_000;
 const LIVE_ORDER_SCHEDULER_LOCK_KEY = 9_204_003;
 const marketState = require("./marketState");
+const supply = require("./marketSupply");
 const netWorth = require("./netWorth");
 const achievements = require("./achievements");
 const { ensureUserCashAccount, getStarterCash } = require("./portfolioCash");
@@ -143,6 +144,9 @@ async function getLockedAssetBySymbol(client, symbol, { lock = true } = {}) {
       a.offsets_updated_at,
       a.circulating_supply,
       a.treasury_supply,
+      a.max_supply,
+      a.broker_buffer_pct,
+      a.trading_state,
       a.liquidity_depth,
       a.spread_bps,
       a.latest_snapshot_date,
@@ -392,6 +396,33 @@ async function updateAssetAfterTrade(client, asset, {
   };
 }
 
+/** A sell into a buyback: the price stays frozen; the broker's tally and the day's volume move. */
+async function recordBuybackSale(client, asset, buyback, { quantity, executionPrice, grossCash, marketDate }) {
+  await client.query(
+    `UPDATE market.asset_buybacks SET shares_bought = shares_bought + $2, cash_paid = cash_paid + $3 WHERE id = $1`,
+    [buyback.id, quantity, grossCash]
+  );
+  if (asset.latest_snapshot_id && marketDate) {
+    await client.query(
+      `
+      UPDATE market.asset_daily_market_state
+      SET volume_shares = volume_shares + $3, volume_cash = volume_cash + $4, trade_count = trade_count + 1, updated_at = now()
+      WHERE asset_id = $1 AND market_date = $2
+    `,
+      [asset.id, marketDate, quantity, executionPrice * quantity]
+    );
+  }
+  return {
+    mid_price: toNumber(asset.current_mid_price, 0),
+    bid_price: toNumber(asset.current_bid_price, 0),
+    ask_price: toNumber(asset.current_ask_price, 0),
+    premium_pct: toNumber(asset.current_premium_pct, 0),
+    persistent_offset: toNumber(asset.current_persistent_offset, 0),
+    transient_offset: toNumber(asset.current_transient_offset, 0),
+    buyback_price: executionPrice,
+  };
+}
+
 async function getLockedPendingLiveOrder(client, orderId) {
   const { rows } = await client.query(
     `
@@ -455,7 +486,7 @@ async function executeOrder(pool, {
       throw error;
     }
 
-    const parsedQuantity = requirePositiveQuantity(effectiveQuantity);
+    let parsedQuantity = requirePositiveQuantity(effectiveQuantity);
     const asset = await getLockedAssetBySymbol(client, effectiveSymbol);
     if (!asset) {
       const error = new Error("asset_not_found");
@@ -468,21 +499,44 @@ async function executeOrder(pool, {
       throw error;
     }
 
+    // Supply: buys take the broker's shares for sale (a partial fill takes the last of them); a
+    // stock in a buyback takes no buys and pays the broker's buyback price for sells.
+    let buyback = null;
+    if (asset.trading_state === "buyback") {
+      if (effectiveSide === "buy") {
+        const error = new Error("buyback_frozen");
+        error.code = "buyback_frozen";
+        throw error;
+      }
+      buyback = await supply.getActiveBuyback(client, asset.id, { lock: true });
+    }
+    if (effectiveSide === "buy") {
+      const forSale = Math.floor(supply.sharesForSale(asset) * 1e6) / 1e6;
+      if (!(forSale > 0)) {
+        const error = new Error("sold_out");
+        error.code = "sold_out";
+        throw error;
+      }
+      parsedQuantity = Math.min(parsedQuantity, forSale);
+    }
+
     const cashAccount = await ensureUserCashAccount(client, effectiveUserId);
     const holding = await getLockedHolding(client, effectiveUserId, asset.id);
     const feeRate = getTradingFeeRate();
     const now = new Date();
     const fairPrice = Math.max(toNumber(asset.current_fair_value, 0), 0.000001);
     const { persistentOffset, transientOffset } = getDecayedOffsets(asset, now);
-    const liveMidBefore = computeLiveMidPrice(fairPrice, persistentOffset, transientOffset);
+    const liveMidBefore = buyback ? toNumber(asset.current_mid_price, 0) : computeLiveMidPrice(fairPrice, persistentOffset, transientOffset);
     const quotesBefore = computeQuotes(liveMidBefore, asset.spread_bps);
-    const executablePrice = computeExecutionPrice({
-      side: effectiveSide,
-      bidPrice: quotesBefore.bidPrice,
-      askPrice: quotesBefore.askPrice,
-      quantity: parsedQuantity,
-      liquidityDepth: asset.liquidity_depth,
-    });
+    const executablePrice = buyback
+      ? supply.buybackFillPrice(asset, buyback, parsedQuantity, now)
+      : computeExecutionPrice({
+          side: effectiveSide,
+          bidPrice: quotesBefore.bidPrice,
+          askPrice: quotesBefore.askPrice,
+          quantity: parsedQuantity,
+          liquidityDepth: asset.liquidity_depth,
+        });
     if (!(executablePrice > 0)) {
       const error = new Error("invalid_quote");
       error.code = "invalid_quote";
@@ -623,25 +677,38 @@ async function executeOrder(pool, {
       avgCostBasis: nextAvgCost,
     });
 
-    const updatedQuote = await updateAssetAfterTrade(client, asset, {
-      side: effectiveSide,
-      quantity: parsedQuantity,
-      executionPrice: executablePrice,
-      fairPrice,
-      now,
-      marketDate: status?.last_settlement_market_date || null,
-      persistentOffset,
-      transientOffset,
-    });
+    const updatedQuote = buyback
+      ? await recordBuybackSale(client, asset, buyback, {
+          quantity: parsedQuantity,
+          executionPrice: executablePrice,
+          grossCash,
+          marketDate: status?.last_settlement_market_date || null,
+        })
+      : await updateAssetAfterTrade(client, asset, {
+          side: effectiveSide,
+          quantity: parsedQuantity,
+          executionPrice: executablePrice,
+          fairPrice,
+          now,
+          marketDate: status?.last_settlement_market_date || null,
+          persistentOffset,
+          transientOffset,
+        });
+    await supply.moveShares(client, asset.id, effectiveSide === "buy" ? parsedQuantity : -parsedQuantity);
+    // The stock's supply after this fill, for the live floor (sold out, shares left for sale).
+    const heldAfter = Math.max(0, toNumber(asset.circulating_supply, 0) + (effectiveSide === "buy" ? parsedQuantity : -parsedQuantity));
+    const supplyAfter = {
+      circulating_supply: heldAfter,
+      shares_for_sale: supply.sharesForSale({ ...asset, circulating_supply: heldAfter, treasury_supply: Math.max(0, toNumber(asset.max_supply, 0) - heldAfter) }),
+      trading_state: asset.trading_state || "open",
+    };
+    Object.assign(updatedQuote, supplyAfter);
 
     const userIdentity = await getUserTradeIdentity(client, effectiveUserId);
     await client.query("COMMIT");
 
     if (refreshDerivedState) {
-      netWorth.refreshCurrentLeaderboardForAsset(pool, asset.id, { extraUserIds: [effectiveUserId] }).catch((error) => {
-        // eslint-disable-next-line no-console
-        console.error("post-trade leaderboard refresh failed:", String(error?.message || error));
-      });
+      netWorth.queueLeaderboardRefresh(pool, asset.id, { extraUserIds: [effectiveUserId] });
     }
 
     void publishMarketEvent(redis, {
@@ -661,6 +728,8 @@ async function executeOrder(pool, {
         side: effectiveSide,
         price: executablePrice,
         quantity: parsedQuantity,
+        requested_quantity: requirePositiveQuantity(effectiveQuantity),
+        buyback: Boolean(buyback),
         gross_cash: grossCash,
         fee_cash: feeCash,
         net_cash: effectiveSide === "buy" ? -(grossCash + feeCash) : grossCash - feeCash,
@@ -674,6 +743,9 @@ async function executeOrder(pool, {
         bid_price: updatedQuote.bid_price,
         ask_price: updatedQuote.ask_price,
         premium_pct: updatedQuote.premium_pct,
+        circulating_supply: supplyAfter.circulating_supply,
+        shares_for_sale: supplyAfter.shares_for_sale,
+        trading_state: supplyAfter.trading_state,
         updated_at: fillRow.ts,
       },
       market_status: {
@@ -717,6 +789,57 @@ async function executeOrder(pool, {
   } finally {
     client.release();
   }
+}
+
+/** YYYY-MM-DD for a DATE column (node-pg gives a local-midnight Date) or a string. */
+function toDateKey(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+  }
+  return String(value).slice(0, 10);
+}
+
+/**
+ * The tick window from the clock alone: the market day starts at the 09:00 ET Open tick, then
+ * Lunch 15:00, Late 21:00 and Overnight 03:00 (which still belongs to the previous market day).
+ */
+function clockLiveOrderInterval(now = new Date()) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" })
+      .formatToParts(now)
+      .map((part) => [part.type, part.value])
+  );
+  const hour = Number(parts.hour);
+  const today = `${parts.year}-${parts.month}-${parts.day}`;
+  if (hour >= 9) return { marketDate: today, intervalKey: hour < 15 ? "open" : hour < 21 ? "lunch" : "late", scheduledAt: null };
+  const previous = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day) - 1)).toISOString().slice(0, 10);
+  return { marketDate: previous, intervalKey: hour < 3 ? "late" : "overnight", scheduledAt: null };
+}
+
+/** When the current tick window ends (the next Open/Lunch/Late/Overnight tick), to the minute. */
+function nextLiveOrderWindowAt(now = new Date()) {
+  const current = clockLiveOrderInterval(now);
+  const start = Math.ceil(now.getTime() / 60_000) * 60_000;
+  for (let minute = 0; minute <= 7 * 60; minute++) {
+    const at = new Date(start + minute * 60_000);
+    const next = clockLiveOrderInterval(at);
+    if (next.intervalKey !== current.intervalKey || next.marketDate !== current.marketDate) return at;
+  }
+  return null;
+}
+
+/**
+ * The window the per-player share limit counts against. Uses the settled market day's tick schedule
+ * when the market date is current; if the daily settlement hasn't advanced it (a stalled scheduler, or
+ * a local database without YouTube data), falls back to the clock so the limit still resets every tick
+ * instead of piling up in one window forever.
+ */
+async function resolveLiveOrderInterval(client, { statusMarketDate, now = new Date() }) {
+  const clock = clockLiveOrderInterval(now);
+  if (toDateKey(statusMarketDate) !== clock.marketDate) return clock;
+  return getCurrentLiveOrderInterval(client, { marketDate: statusMarketDate, now });
 }
 
 async function getCurrentLiveOrderInterval(client, { marketDate, now = new Date() } = {}) {
@@ -837,6 +960,17 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
       throw error;
     }
 
+    if (normalizedSide === "buy" && asset.trading_state === "buyback") {
+      const error = new Error("buyback_frozen");
+      error.code = "buyback_frozen";
+      throw error;
+    }
+    if (normalizedSide === "buy" && !(supply.sharesForSale(asset) > 0)) {
+      const error = new Error("sold_out");
+      error.code = "sold_out";
+      throw error;
+    }
+
     const cashAccount = await ensureUserCashAccount(client, userId);
     const holding = await getLockedHolding(client, userId, asset.id);
     const now = new Date();
@@ -844,13 +978,16 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
     const { persistentOffset, transientOffset } = getDecayedOffsets(asset, now);
     const liveMidBefore = computeLiveMidPrice(fairPrice, persistentOffset, transientOffset);
     const quotesBefore = computeQuotes(liveMidBefore, asset.spread_bps);
-    const indicativePrice = computeExecutionPrice({
-      side: normalizedSide,
-      bidPrice: quotesBefore.bidPrice,
-      askPrice: quotesBefore.askPrice,
-      quantity: parsedQuantity,
-      liquidityDepth: asset.liquidity_depth,
-    });
+    const activeBuyback = asset.trading_state === "buyback" ? await supply.getActiveBuyback(client, asset.id) : null;
+    const indicativePrice = activeBuyback
+      ? supply.buybackFillPrice(asset, activeBuyback, parsedQuantity, now)
+      : computeExecutionPrice({
+          side: normalizedSide,
+          bidPrice: quotesBefore.bidPrice,
+          askPrice: quotesBefore.askPrice,
+          quantity: parsedQuantity,
+          liquidityDepth: asset.liquidity_depth,
+        });
     if (!(indicativePrice > 0)) {
       const error = new Error("invalid_quote");
       error.code = "invalid_quote";
@@ -870,8 +1007,8 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
       throw error;
     }
 
-    const marketDate = status?.last_settlement_market_date || status?.current_market_date || null;
-    const interval = await getCurrentLiveOrderInterval(client, { marketDate, now });
+    const statusMarketDate = status?.last_settlement_market_date || status?.current_market_date || null;
+    const interval = await resolveLiveOrderInterval(client, { statusMarketDate, now });
     const executeAfter = computeNextLiveOrderTick(now);
     const executeAfterIso = executeAfter.toISOString();
     await lockLiveOrderInterval(client, {
@@ -891,6 +1028,8 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
       error.limit = LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL;
       error.submittedShares = submittedShares;
       error.remainingShares = remainingShares;
+      error.windowKey = interval.intervalKey;
+      error.resetsAt = nextLiveOrderWindowAt(now)?.toISOString() ?? null;
       throw error;
     }
 
@@ -989,6 +1128,8 @@ function isLiveOrderRejectionCode(code) {
     "invalid_quote",
     "invalid_quantity",
     "live_order_not_pending",
+    "sold_out",
+    "buyback_frozen",
   ].includes(String(code || ""));
 }
 
@@ -1179,6 +1320,12 @@ async function runWithConcurrency(items, concurrency, worker) {
 }
 
 async function processDueLiveOrders(pool, { now = new Date(), limit = LIVE_ORDER_BATCH_LIMIT, redis = null } = {}) {
+  // While trading is closed (settlement, or halted by an admin) queued orders wait for the next
+  // batch after it reopens instead of being rejected.
+  const marketStatus = await marketState.getMarketStatus(pool);
+  if (marketStatus && !marketStatus.is_trading_open) {
+    return { batch_id: null, attempted: 0, filled: 0, rejected: 0, skipped: "market_closed" };
+  }
   const dueOrders = await listDueLiveOrders(pool, { now, limit });
   if (dueOrders.length === 0) {
     return { batch_id: null, attempted: 0, filled: 0, rejected: 0 };
@@ -1244,12 +1391,7 @@ async function processDueLiveOrders(pool, { now = new Date(), limit = LIVE_ORDER
   });
 
   for (const [assetId, userIds] of refreshUserIdsByAsset.entries()) {
-    netWorth.refreshCurrentLeaderboardForAsset(pool, assetId, {
-      extraUserIds: Array.from(userIds),
-    }).catch((error) => {
-      // eslint-disable-next-line no-console
-      console.error("post-batch leaderboard refresh failed:", String(error?.message || error));
-    });
+    netWorth.queueLeaderboardRefresh(pool, assetId, { extraUserIds: Array.from(userIds) });
   }
 
   return {
@@ -1284,8 +1426,11 @@ function startLiveOrderScheduler(pool, logger = console, redis = null) {
   async function tick() {
     if (!enabled || running) return;
     running = true;
-    const lockClient = await pool.connect();
+    let lockClient = null;
     try {
+      // Inside the try: a pool timeout here used to be an unhandled rejection (a crashed pod) and
+      // left `running` stuck on.
+      lockClient = await pool.connect();
       const locked = await acquireLiveOrderSchedulerLock(lockClient);
       if (!locked) return;
       const result = await processDueLiveOrders(pool, { redis });
@@ -1296,8 +1441,10 @@ function startLiveOrderScheduler(pool, logger = console, redis = null) {
     } catch (error) {
       logger.error?.("market live order scheduler failed", error);
     } finally {
-      await releaseLiveOrderSchedulerLock(lockClient);
-      lockClient.release();
+      if (lockClient) {
+        await releaseLiveOrderSchedulerLock(lockClient).catch(() => {});
+        lockClient.release();
+      }
       running = false;
     }
   }
@@ -1404,12 +1551,26 @@ async function getPortfolioOrders(pool, userId, { limit = 100 } = {}) {
       o.submitted_market_date,
       o.submitted_interval_key,
       o.requested_at,
-      o.updated_at
-    FROM market.trade_orders o
+      o.updated_at,
+      f.fill_id,
+      f.fill_ts,
+      f.fill_price,
+      f.fill_gross_cash,
+      f.fill_fee_cash
+    -- The newest orders first, then their fills (only for filled ones, and only fills after the
+    -- order was placed, so the lookup stays inside recent chunks of the fills table).
+    FROM (
+      SELECT * FROM market.trade_orders WHERE user_id = $1 ORDER BY requested_at DESC, id DESC LIMIT $2
+    ) o
     JOIN market.market_assets a ON a.id = o.asset_id
-    WHERE o.user_id = $1
+    -- The fill, so a client that missed the live market.trade_fill event can still show it.
+    LEFT JOIN LATERAL (
+      SELECT MAX(tf.id) AS fill_id, MAX(tf.ts) AS fill_ts,
+             SUM(tf.price * tf.quantity) / NULLIF(SUM(tf.quantity), 0) AS fill_price,
+             SUM(tf.gross_cash) AS fill_gross_cash, SUM(tf.fee_cash) AS fill_fee_cash
+      FROM market.trade_fills tf WHERE o.status = 'filled' AND tf.order_id = o.id AND tf.ts >= o.requested_at
+    ) f ON true
     ORDER BY o.requested_at DESC, o.id DESC
-    LIMIT $2
   `,
     [userId, limit]
   );
@@ -1495,4 +1656,5 @@ module.exports = {
   getPortfolioSummary,
   getPortfolioLedger,
   getPortfolioOrders,
+  _test: { clockLiveOrderInterval, resolveLiveOrderInterval, nextLiveOrderWindowAt },
 };

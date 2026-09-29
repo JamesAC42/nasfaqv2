@@ -1,0 +1,695 @@
+@use "../../styles/mixins" as *;
+
+// The Floor: your book and movers | headlines, spotlight and the board | the bell, whales, thread.
+
+.floor {
+  display: grid;
+  grid-template-columns: 17rem minmax(0, 1fr) 20rem;
+
+  @include desktop-down {
+    grid-template-columns: 15.5rem minmax(0, 1fr);
+  }
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.colL,
+.colC,
+.colR {
+  min-width: 0;
+  border-right: 1px solid var(--rule);
+}
+
+.colR {
+  border-right: 0;
+
+  @include desktop-down {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--rule);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    > section:nth-child(odd) {
+      border-right: 1px solid var(--rule);
+    }
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+
+    > section:nth-child(odd) {
+      border-right: 0;
+    }
+  }
+}
+
+.colC {
+  @include desktop-down {
+    border-right: 0;
+  }
+
+  @include tablet-down {
+    order: -1;
+  }
+}
+
+.colL {
+  @include tablet-down {
+    border-right: 0;
+    border-top: 1px solid var(--rule);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+
+    > section:first-child {
+      border-right: 1px solid var(--rule);
+    }
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+
+    > section:first-child {
+      border-right: 0;
+    }
+  }
+}
+
+// ── Book + movers ────────────────────────────────────────────────────────
+.bookTotal {
+  @include num;
+  font-size: 1.625rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.bookSub {
+  @include num;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  margin-top: 0.4rem;
+  font-size: 0.6875rem;
+}
+
+.bookCta {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.primary {
+  @include button-primary;
+}
+
+.ghost {
+  @include button-secondary;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  margin-top: 0.6rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 3.9rem minmax(0, 1fr) 3.4rem 4rem;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.42rem 0;
+  border-top: 1px solid var(--rule);
+
+  &:first-child {
+    border-top: 0;
+  }
+
+  &:hover {
+    background: linear-gradient(90deg, transparent, var(--ink-3) 20%, var(--ink-3) 80%, transparent);
+  }
+}
+
+.sym {
+  @include num(normal);
+  font-weight: 700;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.meta {
+  font-size: 0.72rem;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spark {
+  display: block;
+  width: 100%;
+  height: 18px;
+}
+
+.px,
+.chg {
+  @include num;
+  text-align: right;
+  font-size: 0.75rem;
+}
+
+.chg {
+  font-size: 0.6875rem;
+}
+
+// ── Breaking ─────────────────────────────────────────────────────────────
+.breaking {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 4rem;
+  border-bottom: 1px solid var(--rule);
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.brkTag {
+  @include display(0.875rem);
+  background: var(--blue);
+  color: var(--blue-ink);
+  padding: 0 0.9rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.15;
+
+  small {
+    @include num(normal);
+    font-size: 0.6rem;
+    letter-spacing: 0.12em;
+  }
+
+  @include phone {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.35rem 1rem;
+  }
+}
+
+.brkBody {
+  position: relative;
+  min-width: 0;
+  padding: 0.6rem 1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.brkHl {
+  font-weight: 700;
+  font-size: 0.97rem;
+  line-height: 1.3;
+  text-wrap: balance;
+  padding-right: 2rem;
+  animation: hlIn 0.5s var(--ease-out);
+
+  &:hover {
+    color: var(--blue-2);
+  }
+}
+
+@keyframes hlIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.brkNav {
+  position: absolute;
+  right: 0.75rem;
+  top: 0.6rem;
+  @include num;
+  font-size: 0.625rem;
+  color: var(--dim);
+  background: none;
+  border: 0;
+  padding: 0;
+
+  &:hover {
+    color: var(--text);
+  }
+}
+
+.impacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+// ── Spotlight ────────────────────────────────────────────────────────────
+.spot {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--rule);
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.spotCard {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42%;
+  gap: 0.75rem;
+  min-height: 12.5rem;
+  overflow: hidden;
+  border-right: 1px solid var(--rule);
+
+  &:last-child {
+    border-right: 0;
+  }
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(120% 90% at 100% 100%, color-mix(in srgb, var(--tal) 30%, transparent), transparent 60%);
+    pointer-events: none;
+  }
+
+  @include phone {
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+    min-height: 10.5rem;
+
+    &:last-child {
+      border-bottom: 0;
+    }
+  }
+}
+
+.spotText {
+  position: relative;
+  padding: 1rem;
+  min-width: 0;
+}
+
+.spotKicker {
+  @include display(0.875rem);
+}
+
+.spotSym {
+  @include num(wide);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+  font-size: 2.75rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+
+  @include phone {
+    font-size: 2.2rem;
+  }
+}
+
+.spotName {
+  margin-top: 0.4rem;
+  font-size: 0.8125rem;
+  color: var(--mid);
+}
+
+.spotMove {
+  @include num;
+  margin-top: 0.9rem;
+  font-size: 1.375rem;
+  font-weight: 700;
+
+  span {
+    font-size: 0.875rem;
+  }
+}
+
+.spotLine {
+  margin-top: 0.4rem;
+  max-width: 30ch;
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+.spotArt {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 12.5rem;
+  border-left: 1px solid var(--rule);
+
+  @include phone {
+    min-height: 10.5rem;
+  }
+}
+
+// ── The board ────────────────────────────────────────────────────────────
+.board {
+  padding: 0.875rem 1rem 1.1rem;
+}
+
+.legend {
+  @include num;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.625rem;
+  color: var(--dim);
+}
+
+.ramp {
+  width: 110px;
+  height: 6px;
+  background: linear-gradient(90deg, var(--down), #3a2a33 45%, var(--ink-4) 50%, #1f3a30 55%, var(--up));
+}
+
+.groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 0.875rem;
+  margin-top: 0.25rem;
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.grpHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.4rem;
+  border-bottom: 1px solid var(--rule);
+
+  a {
+    font-size: 0.75rem;
+    font-weight: 700;
+
+    &:hover {
+      color: var(--blue);
+    }
+  }
+
+  span {
+    @include num;
+    font-size: 0.656rem;
+  }
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
+  gap: 3px;
+
+  @include phone {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.tile {
+  position: relative;
+  min-height: 3.5rem;
+  padding: 0.45rem 0.45rem 0.4rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  background: var(--bg, var(--ink-3));
+
+  &:hover {
+    outline: 1px solid var(--text);
+    outline-offset: -1px;
+    z-index: 1;
+  }
+}
+
+.tSym {
+  @include num(normal);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.tPx {
+  @include num;
+  font-size: 0.6875rem;
+  color: var(--mid);
+}
+
+.tChg {
+  @include num;
+  font-size: 0.656rem;
+  font-weight: 600;
+}
+
+@include flash-keyframes;
+
+// ── Bell ─────────────────────────────────────────────────────────────────
+.bellTop {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.bellName {
+  @include display(1.875rem);
+  line-height: 1;
+  color: var(--blue);
+}
+
+.bellCount {
+  @include num;
+  margin-top: 0.4rem;
+  font-size: 1.875rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.bellArt {
+  width: 5.75rem;
+  height: 5.75rem;
+  flex: none;
+}
+
+.bellNote {
+  margin: 0.5rem 0 0;
+  max-width: 36ch;
+  font-size: 0.75rem;
+  color: var(--dim);
+
+  b {
+    color: var(--text);
+    font-weight: 500;
+  }
+}
+
+.day {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  margin-top: 1rem;
+
+  &::before {
+    content: "";
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    top: 5px;
+    height: 1px;
+    background: var(--rule-2);
+  }
+}
+
+.prog {
+  position: absolute;
+  left: 6px;
+  top: 5px;
+  height: 1px;
+  background: var(--blue);
+}
+
+.node {
+  @include num;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.625rem;
+
+  b {
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+
+  span {
+    color: var(--dim);
+  }
+}
+
+.pip {
+  width: 11px;
+  height: 11px;
+  border: 1px solid var(--rule-2);
+  background: var(--ink);
+  transform: rotate(45deg);
+}
+
+.done .pip {
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+.next .pip {
+  border-color: var(--blue);
+  animation: pipPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pipPulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.batch {
+  @include num;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--rule-2);
+  font-size: 0.6875rem;
+  color: var(--dim);
+
+  b {
+    color: var(--text);
+  }
+}
+
+.batchCount {
+  color: var(--blue);
+}
+
+// ── Feeds ────────────────────────────────────────────────────────────────
+.feedItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.25rem 0.6rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--rule);
+  font-size: 0.78rem;
+
+  &:first-of-type {
+    border-top: 0;
+  }
+
+  time {
+    @include num;
+    font-size: 0.625rem;
+    color: var(--dim);
+    padding-top: 0.15rem;
+  }
+}
+
+.who {
+  font-weight: 700;
+
+  &:hover {
+    color: var(--blue);
+  }
+}
+
+.whaleSym {
+  @include num;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 700;
+
+  &:hover {
+    color: var(--blue);
+  }
+}
+
+.whaleCash {
+  @include num;
+  color: var(--mid);
+}
+
+.post {
+  @include num;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.6875rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.greentext {
+  color: #9bcf5a;
+}
+
+.lb {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.38rem 0;
+  border-top: 1px solid var(--rule);
+  font-size: 0.78rem;
+
+  &:first-of-type {
+    border-top: 0;
+  }
+
+  &:hover .nm {
+    color: var(--blue);
+  }
+}
+
+.first .rk {
+  color: var(--blue);
+}
+
+.me {
+  background: var(--blue-wash);
+}
+
+.rk {
+  @include num;
+  font-weight: 700;
+  color: var(--dim);
+  font-size: 0.72rem;
+}
+
+.nm {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.v {
+  @include num;
+  font-size: 0.72rem;
+}

@@ -1,0 +1,1347 @@
+@use "../../styles/mixins" as *;
+
+// How to play. A field manual in the terminal style: hairline-split sections, mono labels,
+// Chicago for the voice, and illustrations placed where they explain something.
+
+$sticky-top: calc(var(--rail-height) + var(--tape-height) + env(safe-area-inset-top, 0px));
+
+.page {
+  width: 100%;
+  min-width: 0;
+  max-width: var(--page-max);
+  margin: 0 auto;
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.primary {
+  @include button-primary;
+  text-decoration: none;
+}
+
+.ghost {
+  @include button-secondary;
+  text-decoration: none;
+  background: color-mix(in srgb, var(--ink) 55%, transparent);
+}
+
+// ── Hero ───────────────────────────────────────────────────────────────────
+.hero {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 1.5rem 2rem;
+  min-height: 29rem;
+  margin: -1rem calc(-1 * var(--gutter)) 0;
+  padding: 3.5rem var(--gutter) 2.25rem;
+  overflow: hidden;
+  border-bottom: 1px solid var(--rule);
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  // Phones: let the art show as a band above the title.
+  @include phone {
+    padding-top: 9.25rem;
+    padding-bottom: 1.5rem;
+  }
+}
+
+.heroArt {
+  z-index: -2;
+}
+
+// Reads whether or not the art has landed: a left-to-right ink gradient plus a bottom fade.
+.heroScrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, var(--ink) 0%, color-mix(in srgb, var(--ink) 88%, transparent) 38%, color-mix(in srgb, var(--ink) 20%, transparent) 75%, transparent),
+    linear-gradient(0deg, var(--ink) 0%, transparent 45%);
+
+  @include phone {
+    background: linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--ink) 55%, transparent) 22%, color-mix(in srgb, var(--ink) 92%, transparent) 42%, var(--ink) 100%);
+  }
+}
+
+.heroCopy {
+  display: grid;
+  justify-items: start;
+  gap: 0.9rem;
+  min-width: 0;
+  max-width: 40rem;
+
+  h1 {
+    @include display(clamp(2.9rem, 6.4vw, 5.4rem));
+    margin: 0;
+    line-height: 0.92;
+    letter-spacing: -0.01em;
+    overflow-wrap: anywhere;
+  }
+}
+
+.kicker {
+  @include label;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--blue);
+
+  i {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--blue);
+    box-shadow: 0 0 0 3px var(--blue-wash);
+  }
+}
+
+.lede {
+  margin: 0;
+  max-width: 34rem;
+  font-size: clamp(1rem, 1.35vw, 1.15rem);
+  line-height: 1.55;
+  color: var(--mid);
+
+  b {
+    @include num;
+    color: var(--text);
+    font-weight: 600;
+  }
+}
+
+.heroStats {
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  gap: 0;
+  margin: 0.4rem 0 0;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--ink) 70%, transparent);
+  backdrop-filter: blur(6px);
+
+  div {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.6rem 1rem 0.65rem;
+    border-left: 1px solid var(--rule);
+
+    &:first-child {
+      border-left: 0;
+    }
+  }
+
+  dt {
+    @include label;
+    font-size: 0.58rem;
+  }
+
+  dd {
+    @include num(wide);
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 600;
+  }
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+
+    div {
+      padding: 0.55rem 0.75rem;
+
+      &:nth-child(3) {
+        border-left: 0;
+      }
+
+      &:nth-child(n + 3) {
+        border-top: 1px solid var(--rule);
+      }
+    }
+
+    dd {
+      font-size: 1rem;
+    }
+  }
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+}
+
+.heroCast {
+  display: grid;
+  grid-template-columns: repeat(2, 12.5rem);
+  align-items: end;
+  gap: 0.5rem;
+  min-width: 0;
+
+  > a {
+    min-width: 0;
+  }
+
+  > a:nth-child(2) {
+    width: 10.5rem;
+    justify-self: start;
+    margin-bottom: 2.5rem;
+  }
+
+  @include desktop-down {
+    grid-template-columns: repeat(2, 10rem);
+
+    > a:nth-child(2) {
+      width: 8.5rem;
+    }
+  }
+
+  // Smaller screens: the pair perches top-right, in the band above the title on phones.
+  @include tablet-down {
+    position: absolute;
+    top: 1.25rem;
+    right: var(--gutter);
+    grid-template-columns: repeat(2, 6.5rem);
+
+    > a:nth-child(2) {
+      width: 5.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    small {
+      display: none;
+    }
+  }
+
+  @include phone {
+    top: 0.6rem;
+    right: calc(var(--gutter) + 0.75rem);
+    grid-template-columns: repeat(2, 5rem);
+    column-gap: 2.25rem;
+    align-items: start;
+
+    > a:nth-child(2) {
+      width: 4.5rem;
+      margin: 0.9rem 0 0;
+    }
+  }
+}
+
+// ── Start here ─────────────────────────────────────────────────────────────
+.start {
+  padding: 1.75rem 0 2rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.startHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  margin-bottom: 1rem;
+
+  h2 {
+    @include display(clamp(1.4rem, 2.2vw, 1.85rem));
+    margin: 0;
+  }
+}
+
+.startSub {
+  @include label;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: none;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+
+  @include tablet-down {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.step {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 1rem 1.1rem 1.1rem;
+  border-left: 1px solid var(--rule);
+
+  &:first-child {
+    border-left: 0;
+  }
+
+  // Arrow between steps on the wide layout.
+  &:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 1.55rem;
+    right: -0.36rem;
+    z-index: 1;
+    width: 0.62rem;
+    height: 0.62rem;
+    border-top: 1px solid var(--rule-2);
+    border-right: 1px solid var(--rule-2);
+    background: var(--ink);
+    transform: rotate(45deg);
+  }
+
+  @include tablet-down {
+    &:nth-child(3) {
+      border-left: 0;
+    }
+
+    &:nth-child(n + 3) {
+      border-top: 1px solid var(--rule);
+    }
+
+    &::after {
+      display: none;
+    }
+  }
+
+  @include phone {
+    border-left: 0;
+    padding: 0.9rem 0.9rem 1rem;
+
+    &:nth-child(n + 2) {
+      border-top: 1px solid var(--rule);
+    }
+  }
+
+  h3 {
+    margin: 0 0 0.25rem;
+    font-size: 0.98rem;
+    font-weight: 700;
+  }
+
+  p {
+    margin: 0 0 0.55rem;
+    font-size: 0.86rem;
+    line-height: 1.45;
+    color: var(--mid);
+  }
+
+  &[data-done] {
+    background: linear-gradient(180deg, var(--blue-wash), transparent 70%);
+
+    h3 {
+      color: var(--blue);
+    }
+  }
+}
+
+.stepNum {
+  @include num(wide);
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--blue);
+
+  [data-done] & {
+    border-color: var(--blue);
+    background: var(--blue);
+    color: var(--blue-ink);
+  }
+}
+
+.stepText {
+  min-width: 0;
+}
+
+.stepLink {
+  @include label;
+  color: var(--blue);
+  text-decoration: none;
+  font-weight: 700;
+
+  &:hover {
+    color: var(--blue-2);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+// ── Body: sticky section nav + sections ───────────────────────────────────
+.body {
+  display: grid;
+  grid-template-columns: 11.5rem minmax(0, 1fr);
+  gap: 0 2.5rem;
+  align-items: start;
+  min-width: 0;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.sections {
+  min-width: 0;
+}
+
+.sectionNav {
+  position: sticky;
+  top: calc(#{$sticky-top} + 1.5rem);
+  display: grid;
+  gap: 0.6rem;
+  padding-top: 2.25rem;
+
+  @include tablet-down {
+    top: $sticky-top;
+    z-index: 20;
+    margin: 0 calc(-1 * var(--gutter));
+    padding: 0;
+    background: color-mix(in srgb, var(--ink) 94%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--rule);
+  }
+}
+
+.navLabel {
+  @include label;
+
+  @include tablet-down {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+
+.navList {
+  display: grid;
+  border-left: 1px solid var(--rule);
+
+  @include tablet-down {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0.55rem var(--gutter);
+    overflow-x: auto;
+    border-left: 0;
+    scrollbar-width: none;
+    mask-image: linear-gradient(90deg, #000 calc(100% - 1.5rem), transparent);
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}
+
+.navLink {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-left: -1px;
+  padding: 0.42rem 0 0.42rem 0.85rem;
+  border-left: 2px solid transparent;
+  color: var(--mid);
+  font-size: 0.9rem;
+  text-decoration: none;
+  transition: color var(--dur-fast) ease, border-color var(--dur-fast) ease;
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  &[aria-current="location"] {
+    color: var(--text);
+    border-left-color: var(--blue);
+
+    .navNum {
+      color: var(--blue);
+    }
+  }
+
+  @include tablet-down {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 0.38rem 0.7rem;
+    border: 1px solid var(--rule-2);
+    border-radius: 999px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+
+    &[aria-current="location"] {
+      border-color: var(--blue);
+      background: var(--blue-wash);
+    }
+  }
+}
+
+.navNum {
+  @include num;
+  font-size: 0.66rem;
+  color: var(--dim);
+
+  @include tablet-down {
+    display: none;
+  }
+}
+
+// ── Sections ──────────────────────────────────────────────────────────────
+.section {
+  padding: 2.5rem 0 2.75rem;
+  border-bottom: 1px solid var(--rule);
+  scroll-margin-top: calc(#{$sticky-top} + 0.75rem);
+  min-width: 0;
+
+  @include tablet-down {
+    // Clear the sticky chip bar too.
+    scroll-margin-top: calc(#{$sticky-top} + 3.25rem);
+  }
+
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+
+  @include phone {
+    padding: 2rem 0 2.25rem;
+    gap: 1.25rem;
+  }
+
+  > * {
+    min-width: 0;
+  }
+}
+
+.sectionHead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem 2.5rem;
+  align-items: center;
+
+  &[data-art] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 24rem);
+
+    @include tablet-down {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 16rem);
+    }
+
+    @include phone {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}
+
+.sectionCopy {
+  display: grid;
+  justify-items: start;
+  gap: 0.65rem;
+  min-width: 0;
+
+  h2 {
+    @include display(clamp(1.9rem, 3.4vw, 2.9rem));
+    margin: 0;
+    line-height: 1;
+  }
+}
+
+.sectionKicker {
+  @include label;
+  color: var(--blue);
+}
+
+.sectionLede {
+  display: grid;
+  gap: 0.6rem;
+  max-width: 42rem;
+  color: var(--mid);
+  font-size: 1rem;
+  line-height: 1.6;
+
+  p {
+    margin: 0;
+  }
+
+  b {
+    color: var(--text);
+    font-weight: 600;
+  }
+}
+
+.deepLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.1rem;
+  margin-top: 0.15rem;
+
+  a {
+    @include label;
+    font-weight: 700;
+    color: var(--blue);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--blue-2);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.sectionArt {
+  width: 100%;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+
+  @include phone {
+    order: -1;
+    max-height: 12rem;
+    aspect-ratio: auto !important;
+    height: 12rem;
+  }
+}
+
+// A drawn diagram keeps its 7:5 shape everywhere (text inside it has to stay readable).
+.sectionDiagram {
+  @include phone {
+    order: 0;
+    height: auto;
+    max-height: none;
+    aspect-ratio: 7 / 5 !important;
+  }
+}
+
+.subHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+
+  h3 {
+    @include section-heading;
+    margin: 0;
+  }
+
+  a {
+    @include label;
+    color: var(--blue);
+    text-decoration: none;
+  }
+}
+
+.subHead {
+  margin-bottom: -0.75rem;
+}
+
+// Hairline grid of rule cards.
+.rules {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+
+  &[data-cols="4"] {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+
+    @include desktop-down {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  &[data-cols="3"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+
+    @include tablet-down {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @include phone {
+    &[data-cols] {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  li {
+    display: grid;
+    align-content: start;
+    gap: 0.35rem;
+    min-width: 0;
+    padding: 1rem 1.1rem 1.1rem;
+    background: var(--ink);
+  }
+
+  h3 {
+    margin: 0;
+    font-size: 0.98rem;
+    font-weight: 700;
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.87rem;
+    line-height: 1.5;
+    color: var(--mid);
+  }
+}
+
+.ruleKey {
+  @include num;
+  justify-self: start;
+  padding: 0.12rem 0.4rem;
+  border: 1px solid var(--blue-line);
+  border-radius: var(--radius-sm);
+  background: var(--blue-wash);
+  color: var(--blue);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+// Numbered flow (trading steps, prediction lifecycle).
+.flow {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    position: relative;
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr);
+    gap: 0.85rem;
+    padding-bottom: 1.15rem;
+
+    // The rail joining the step numbers.
+    &:not(:last-child)::before {
+      content: "";
+      position: absolute;
+      top: 2rem;
+      bottom: 0.15rem;
+      left: calc(1rem - 0.5px);
+      width: 1px;
+      background: var(--rule-2);
+    }
+  }
+
+  h3 {
+    margin: 0.3rem 0 0.2rem;
+    font-size: 0.98rem;
+    font-weight: 700;
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--mid);
+  }
+}
+
+.flowNum {
+  @include num(wide);
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--blue-line);
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--blue);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.5rem 2.5rem;
+  align-items: start;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+// ── Ticks ────────────────────────────────────────────────────────────────
+.ticksBand {
+  width: 100%;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+
+  @include phone {
+    aspect-ratio: 16 / 7 !important;
+  }
+}
+
+// The live timeline docks straight under the band.
+.ticksBand {
+  margin-bottom: -1.5rem;
+  border-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+
+  @include phone {
+    margin-bottom: -1.25rem;
+  }
+}
+
+// The ticks 4koma: four square panels, each over its stop of the timeline below (which is split
+// into the same four columns); two by two on phones.
+.koma {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0.75rem 0.75rem 1.5rem;
+  list-style: none;
+  aspect-ratio: auto !important;
+  background: var(--ink-2);
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+    padding: 0.5rem 0.5rem 1.25rem;
+  }
+}
+
+.komaPanel {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 2px solid var(--text);
+  border-radius: 4px;
+  background: var(--ink);
+  box-shadow: 3px 3px 0 color-mix(in srgb, var(--text) 18%, transparent);
+
+  &[data-next] {
+    border-color: var(--blue);
+    box-shadow:
+      3px 3px 0 color-mix(in srgb, var(--blue) 35%, transparent),
+      0 0 0 3px color-mix(in srgb, var(--blue) 22%, transparent);
+  }
+}
+
+.komaArt {
+  position: absolute !important;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+
+  img {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.komaTag {
+  @include label;
+  position: absolute;
+  top: 0.4rem;
+  left: 0.4rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--text);
+  background: var(--ink);
+  color: var(--text);
+  font-size: 0.6rem;
+
+  .komaPanel[data-next] & {
+    border-color: var(--blue);
+    background: var(--blue);
+    color: var(--blue-ink, #fff);
+  }
+}
+
+.ticksBand + * {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.pulls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.pullCard {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+  min-width: 0;
+  padding: 1rem 1.1rem;
+  background: var(--ink);
+
+  h3 {
+    margin: 0.4rem 0 0.2rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+
+  p {
+    margin: 0 0 0.5rem;
+    font-size: 0.87rem;
+    line-height: 1.45;
+    color: var(--mid);
+  }
+
+  &[data-tone="up"] h3 {
+    color: var(--up);
+  }
+
+  &[data-tone="down"] h3 {
+    color: var(--down);
+  }
+
+  @include phone {
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+}
+
+.pullArtEmpty {
+  aspect-ratio: 1;
+  border: 1px dashed var(--rule-2);
+  border-radius: 50%;
+}
+
+// ── Games ────────────────────────────────────────────────────────────────
+.games {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+
+  @include desktop-down {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.game {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 1rem 1.1rem 1.05rem;
+  background: var(--ink);
+  transition: background-color var(--dur-fast) ease;
+
+  @include hover-device {
+    &:hover {
+      background: var(--ink-2);
+    }
+  }
+}
+
+.gameTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+
+  h3 {
+    @include display(1.2rem);
+    margin: 0;
+
+    a {
+      color: var(--text);
+      text-decoration: none;
+
+      &:hover {
+        color: var(--blue);
+      }
+
+      &:focus-visible {
+        @include focus-ring;
+      }
+    }
+  }
+}
+
+.gamePrice {
+  @include num;
+  font-size: 0.72rem;
+  color: var(--blue);
+}
+
+.gameLine {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.gameRules {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.1rem 0 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    position: relative;
+    padding-left: 0.85rem;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--mid);
+
+    &::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.55em;
+      width: 0.3rem;
+      height: 1px;
+      background: var(--blue);
+    }
+  }
+}
+
+.gameGo {
+  @include label;
+  margin-top: auto;
+  padding-top: 0.35rem;
+  align-self: flex-start;
+  color: var(--blue);
+  font-weight: 700;
+  text-decoration: none;
+
+  &:hover {
+    color: var(--blue-2);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.gameLocker {
+  background: linear-gradient(160deg, var(--blue-wash), transparent 60%), var(--ink);
+}
+
+// ── Glossary ─────────────────────────────────────────────────────────────
+.glossSearch {
+  display: block;
+  max-width: 22rem;
+
+  input {
+    @include input-base;
+    padding: 0.5rem 0.7rem;
+    font-size: 0.9rem;
+  }
+}
+
+// A glossary entry is a link target (#term-float from a tooltip): clear the sticky nav and flash it.
+.glossEntry {
+  scroll-margin-top: 6rem;
+
+  &:target {
+    animation: glossFlash 1.6s ease-out;
+  }
+}
+
+@keyframes glossFlash {
+  from {
+    background: color-mix(in srgb, var(--blue) 22%, transparent);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+.glossary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 2.5rem;
+  margin: 0;
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  div {
+    display: grid;
+    grid-template-columns: 9.5rem minmax(0, 1fr);
+    gap: 1rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--rule);
+
+    @include phone {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.2rem;
+    }
+  }
+
+  dt {
+    @include num;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  dd {
+    margin: 0;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--mid);
+
+    a {
+      @include label;
+      color: var(--blue);
+      text-decoration: none;
+      white-space: nowrap;
+    }
+  }
+}
+
+.empty {
+  @include empty-state;
+  margin: 0;
+}
+
+// ── FAQ ──────────────────────────────────────────────────────────────────
+.faqWrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 15rem;
+  gap: 2rem;
+  align-items: start;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.faqArt {
+  @include tablet-down {
+    display: none;
+  }
+}
+
+.faqTalent {
+  --tal: var(--blue);
+  position: relative;
+  width: 17rem;
+  margin: 0.5rem -1rem 0;
+}
+
+.faqFigure {
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+// The question mark over her head: bobs and rocks a little, like she's still thinking it over.
+.faqQuestion {
+  position: absolute;
+  top: -1.4rem;
+  right: 17%;
+  font-family: var(--font-display);
+  font-size: 3.4rem;
+  line-height: 1;
+  color: var(--tal);
+  text-shadow:
+    0 0 0.9rem color-mix(in srgb, var(--tal) 55%, transparent),
+    0.12rem 0.14rem 0 color-mix(in srgb, var(--ink, #000) 70%, transparent);
+  transform-origin: 50% 90%;
+  pointer-events: none;
+  user-select: none;
+  animation:
+    faqPop 0.55s 0.3s cubic-bezier(0.2, 0.9, 0.25, 1.4) both,
+    faqPonder 3.2s 0.85s ease-in-out infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    transform: rotate(12deg);
+  }
+}
+
+@keyframes faqPop {
+  from {
+    opacity: 0;
+    transform: translateY(0.6rem) scale(0.4) rotate(0deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(12deg);
+  }
+}
+
+@keyframes faqPonder {
+  0%,
+  100% {
+    transform: translateY(0) rotate(12deg);
+  }
+  30% {
+    transform: translateY(-0.4rem) rotate(4deg);
+  }
+  55% {
+    transform: translateY(-0.15rem) rotate(16deg);
+  }
+  75% {
+    transform: translateY(-0.45rem) scale(1.06) rotate(10deg);
+  }
+}
+
+.faq {
+  border-top: 1px solid var(--rule);
+}
+
+.faqItem {
+  border-bottom: 1px solid var(--rule);
+
+  summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 0.1rem;
+    font-weight: 600;
+    font-size: 0.98rem;
+    cursor: pointer;
+    list-style: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &:hover {
+      color: var(--blue);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+
+    i {
+      position: relative;
+      flex: 0 0 auto;
+      width: 0.8rem;
+      height: 0.8rem;
+
+      &::before,
+      &::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 0;
+        width: 100%;
+        height: 1.5px;
+        background: currentColor;
+        transition: transform var(--dur-med) var(--ease-out);
+      }
+
+      &::after {
+        transform: rotate(90deg);
+      }
+    }
+  }
+
+  &[open] summary {
+    color: var(--blue);
+
+    i::after {
+      transform: rotate(0deg);
+    }
+  }
+
+  p {
+    margin: 0;
+    padding: 0 2rem 1.1rem 0.1rem;
+    max-width: 46rem;
+    font-size: 0.92rem;
+    line-height: 1.6;
+    color: var(--mid);
+  }
+}
+
+:global(html[data-calm="true"]) .faqItem summary i::after {
+  transition: none;
+}
+
+// ── Fine print ───────────────────────────────────────────────────────────
+.fine {
+  padding: 1.75rem 0 0.5rem;
+  color: var(--dim);
+  font-size: 0.84rem;
+  line-height: 1.6;
+
+  p {
+    margin: 0 0 0.6rem;
+    max-width: 50rem;
+  }
+
+  b {
+    color: var(--text);
+  }
+}
+
+.fineLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+
+  a {
+    @include label;
+    color: var(--blue);
+    text-decoration: none;
+  }
+}

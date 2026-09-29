@@ -137,8 +137,8 @@ async function updateSettlementPhase(client, { marketDate, phase, message } = {}
   });
 }
 
-async function setMarketManualClosed(client, { message = null, nextScheduledSettlementAt = null } = {}) {
-  return updateMarketRuntimeState(client, {
+async function setMarketManualClosed(client, { message = null, nextScheduledSettlementAt = null, lastSettlementMarketDate } = {}) {
+  const changes = {
     trading_status: "manual_closed",
     active_phase: "idle",
     trading_message: message || "Market manually closed.",
@@ -146,7 +146,12 @@ async function setMarketManualClosed(client, { message = null, nextScheduledSett
     current_cycle_started_at: null,
     current_cycle_updated_at: null,
     next_scheduled_settlement_at: nextScheduledSettlementAt,
-  });
+  };
+  if (lastSettlementMarketDate !== undefined) {
+    changes.last_settlement_market_date = lastSettlementMarketDate;
+    changes.last_settlement_completed_at = lastSettlementMarketDate ? new Date() : null;
+  }
+  return updateMarketRuntimeState(client, changes);
 }
 
 async function setMarketCycleError(client, errorText, { nextScheduledSettlementAt = null } = {}) {

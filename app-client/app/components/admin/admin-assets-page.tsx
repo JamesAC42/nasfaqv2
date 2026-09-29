@@ -1,10 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { SiteShell } from "@/app/components/layout/site-shell";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { AdminFrame, AdminGate, AdminLoading, useAdminAccess } from "@/app/components/admin/admin-frame";
+import { Notice, Switch, Tabs, adminErrorText, adminUi as ui, useHashTab } from "@/app/components/admin/admin-ui";
 import { apiFetch } from "@/app/lib/api";
-import { useAuth } from "@/app/providers/auth-provider";
 import styles from "@/app/components/admin/admin-assets-page.module.scss";
+
+// /admin/assets: emojis and profile pictures (admins and asset managers) and the capsule prize
+// pool (admins only; the API leaves gacha_prizes out for asset managers). Uploads go to S3 through
+// the API; prize odds update live as you type a weight. Asset-manager grants moved to People & roles.
 
 type AdminEmojiAsset = {
   id: number;
@@ -42,51 +47,40 @@ type AdminGachaPrizeAsset = {
 };
 
 type AdminAssetsResponse = {
+  emojis?: AdminEmojiAsset[];
+  profile_pictures?: AdminProfilePictureAsset[];
+  gacha_prizes?: AdminGachaPrizeAsset[];
+};
+
+type Bundle = {
   emojis: AdminEmojiAsset[];
   profile_pictures: AdminProfilePictureAsset[];
   gacha_prizes: AdminGachaPrizeAsset[];
 };
 
-type AssetManagerUser = {
-  id: number;
-  username: string;
-  created_at?: string;
-};
+type TabKey = "emojis" | "pictures" | "prizes";
+const TAB_KEYS = ["emojis", "pictures", "prizes"] as const;
 
-type SearchedUser = {
-  id: number;
-  username: string;
-  is_admin: boolean;
-  can_manage_assets: boolean;
-};
+const COSMETIC_TYPES = [
+  ["profile_badge", "Profile badge"],
+  ["profile_frame", "Profile frame"],
+  ["chat_flair", "Chat flair"],
+  ["portfolio_theme", "Portfolio theme"],
+  ["hat", "Hat"],
+  ["item", "Item"],
+] as const;
 
-function StatusMessage({ error, success }: { error: string | null; success: string | null }) {
-  return (
-    <>
-      {error ? <div className="statusMessage statusMessageError">{error}</div> : null}
-      {success ? <div className="statusMessage statusMessageSuccess">{success}</div> : null}
-    </>
-  );
-}
+const PRIZE_RARITIES = ["common", "rare", "epic", "legendary"] as const;
 
-function AssetSection({
-  title,
-  note,
-  children,
-}: {
-  title: string;
-  note: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className={styles.section}>
-      <div className={styles.sectionHead}>
-        <h2 className={styles.sectionTitle}>{title}</h2>
-        <div className={styles.sectionNote}>{note}</div>
-      </div>
-      {children}
-    </section>
-  );
+const EMOJI_MAX_BYTES = 200 * 1024;
+const PICTURE_MAX_BYTES = 500 * 1024;
+
+function normalizeBundle(raw: AdminAssetsResponse): Bundle {
+  return {
+    emojis: Array.isArray(raw?.emojis) ? raw.emojis : [],
+    profile_pictures: Array.isArray(raw?.profile_pictures) ? raw.profile_pictures : [],
+    gacha_prizes: Array.isArray(raw?.gacha_prizes) ? raw.gacha_prizes : [],
+  };
 }
 
 async function fileToDataUrl(file: File) {
@@ -98,24 +92,104 @@ async function fileToDataUrl(file: File) {
   });
 }
 
-function EmojiRow({
-  item,
-  onUpdated,
-}: {
-  item: AdminEmojiAsset;
-  onUpdated: (next: AdminEmojiAsset) => void;
-}) {
+const kb = (bytes: number) => `${(bytes / 1024).toFixed(1)} KB`;
+
+function formatChance(value: number) {
+  if (!(value > 0)) return "0%";
+  const percent = value * 100;
+  return percent >= 10 ? `${percent.toFixed(1)}%` : percent >= 1 ? `${percent.toFixed(2)}%` : `${percent.toFixed(3)}%`;
+}
+
+/** An image that falls back to a labelled tile when the CDN can't serve it. */
+function Thumb({ src, alt, size, className }: { src: string; alt: string; size: number; className?: string }) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const failed = failedSrc === src;
+  return (
+    <span className={[styles.thumb, className].filter(Boolean).join(" ")} style={{ ["--s" as string]: `${size}px` }}>
+      {failed || !src ? (
+        <span className={styles.thumbMissing} role="img" aria-label={`${alt} (image missing)`}>
+          {alt.replace(/[^a-z0-9]/gi, "").slice(0, 2).toUpperCase() || "?"}
+        </span>
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={alt} loading="lazy" onError={() => setFailedSrc(src)} />
+      )}
+    </span>
+  );
+}
+
+/** A picked file with a local preview and its size against the limit. */
+function FilePick({ id, label, file, limit, onPick }: { id: string; label: string; file: File | null; limit: number; onPick: (file: File | null) => void }) {
+  const [preview, setPreview] = useState<string | null>(null);
+  useEffect(() => {
+    if (!file) {
+      const timer = setTimeout(() => setPreview(null), 0);
+      return () => clearTimeout(timer);
+    }
+    const url = URL.createObjectURL(file);
+    const timer = setTimeout(() => setPreview(url), 0);
+    return () => {
+      clearTimeout(timer);
+      URL.revokeObjectURL(url);
+    };
+  }, [file]);
+  const over = file ? file.size > limit : false;
+  return (
+    <div className={ui.field}>
+      <span>{label}</span>
+      <div className={styles.filePick}>
+        {preview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={preview} alt="" className={styles.filePreview} />
+        ) : (
+          <span className={styles.filePreviewEmpty} aria-hidden="true" />
+        )}
+        <input
+          id={id}
+          key={file ? "picked" : "empty"}
+          className={ui.file}
+          type="file"
+          accept="image/jpeg,image/*"
+          aria-label={label}
+          onChange={(event) => onPick(event.target.files?.[0] || null)}
+        />
+      </div>
+      {file ? (
+        <small className={styles.fileSize} data-over={over || undefined}>
+          {kb(file.size)} of {Math.round(limit / 1024)} KB
+        </small>
+      ) : null}
+    </div>
+  );
+}
+
+function useFlash() {
+  const [flash, setFlash] = useState<string | null>(null);
+  useEffect(() => {
+    if (!flash) return;
+    const timer = setTimeout(() => setFlash(null), 2200);
+    return () => clearTimeout(timer);
+  }, [flash]);
+  return [flash, setFlash] as const;
+}
+
+// ── Emojis ────────────────────────────────────────────────────────────────
+
+function EmojiTile({ item, onUpdated }: { item: AdminEmojiAsset; onUpdated: (next: AdminEmojiAsset) => void }) {
   const [name, setName] = useState(item.name);
   const [isDeleted, setIsDeleted] = useState(item.is_deleted);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
+  const [flash, setFlash] = useFlash();
+  const [synced, setSynced] = useState(item);
+  if (synced !== item) {
+    setSynced(item);
     setName(item.name);
     setIsDeleted(item.is_deleted);
-  }, [item.id, item.is_deleted, item.name]);
+  }
+  const dirty = name !== item.name || isDeleted !== item.is_deleted;
 
-  async function handleSave() {
+  async function save() {
     setBusy(true);
     setError(null);
     try {
@@ -124,61 +198,50 @@ function EmojiRow({
         body: JSON.stringify({ name, is_deleted: isDeleted }),
       });
       onUpdated(result.emoji);
-    } catch (nextError) {
-      setError(String((nextError as Error).message || nextError));
+      setFlash("Saved");
+    } catch (caught) {
+      setError(adminErrorText(caught));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <tr>
-      <td>
-        <div className={styles.previewCell}>
-          <img src={item.url} alt={item.name} className={styles.previewImage} />
-          <span className={styles.filename}>{item.filename}</span>
-        </div>
-      </td>
-      <td>
-        <input className={styles.input} value={name} onChange={(event) => setName(event.target.value)} />
-      </td>
-      <td>
-        <label className={styles.checkbox}>
-          <input type="checkbox" checked={isDeleted} onChange={(event) => setIsDeleted(event.target.checked)} />
-          {isDeleted ? "Deleted" : "Active"}
-        </label>
-      </td>
-      <td className={item.is_deleted ? styles.statusDeleted : styles.statusActive}>{item.is_deleted ? "Deleted" : "Active"}</td>
-      <td>
-        <div className={styles.actions}>
-          <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void handleSave()}>
-            {busy ? "Saving…" : "Save"}
-          </button>
-        </div>
-        {error ? <div className="statusMessage statusMessageError">{error}</div> : null}
-      </td>
-    </tr>
+    <li className={styles.tile} data-removed={item.is_deleted || undefined}>
+      <Thumb src={item.url} alt={item.name} size={64} className={styles.tileImage} />
+      <input className={ui.input} value={name} onChange={(event) => setName(event.target.value)} aria-label={`Name for emoji ${item.name}`} />
+      <small className={styles.filename} title={item.filename}>
+        {item.filename}
+      </small>
+      <div className={styles.tileRow}>
+        <Switch checked={!isDeleted} onChange={(next) => setIsDeleted(!next)} label={`${item.name} live`} on="Live" off="Hidden" />
+        <button type="button" className={dirty ? ui.btnPrimary : ui.btn} disabled={busy || !dirty} onClick={() => void save()}>
+          {busy ? "…" : "Save"}
+        </button>
+      </div>
+      <div aria-live="polite" className={styles.tileStatus}>
+        {error ? <p className={ui.inlineError}>{error}</p> : null}
+        {flash ? <p className={ui.inlineOk}>{flash}</p> : null}
+      </div>
+    </li>
   );
 }
 
-function ProfilePictureRow({
-  item,
-  onUpdated,
-}: {
-  item: AdminProfilePictureAsset;
-  onUpdated: (next: AdminProfilePictureAsset) => void;
-}) {
+function PictureTile({ item, onUpdated }: { item: AdminProfilePictureAsset; onUpdated: (next: AdminProfilePictureAsset) => void }) {
   const [name, setName] = useState(item.name);
   const [isDeleted, setIsDeleted] = useState(item.is_deleted);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
+  const [flash, setFlash] = useFlash();
+  const [synced, setSynced] = useState(item);
+  if (synced !== item) {
+    setSynced(item);
     setName(item.name);
     setIsDeleted(item.is_deleted);
-  }, [item.id, item.is_deleted, item.name]);
+  }
+  const dirty = name !== item.name || isDeleted !== item.is_deleted;
 
-  async function handleSave() {
+  async function save() {
     setBusy(true);
     setError(null);
     try {
@@ -187,174 +250,311 @@ function ProfilePictureRow({
         body: JSON.stringify({ name, is_deleted: isDeleted }),
       });
       onUpdated(result.profile_picture);
-    } catch (nextError) {
-      setError(String((nextError as Error).message || nextError));
+      setFlash("Saved");
+    } catch (caught) {
+      setError(adminErrorText(caught));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <tr>
-      <td>
-        <div className={styles.previewCell}>
-          <img src={item.url_large} alt={`${item.name} large`} className={styles.previewImage} />
-          <span className={styles.filename}>{item.filename_large}</span>
-        </div>
-      </td>
-      <td>
-        <div className={styles.previewCell}>
-          <img src={item.url_small} alt={`${item.name} small`} className={styles.previewImage} />
-          <span className={styles.filename}>{item.filename_small}</span>
-        </div>
-      </td>
-      <td>
-        <input className={styles.input} value={name} onChange={(event) => setName(event.target.value)} />
-      </td>
-      <td>
-        <label className={styles.checkbox}>
-          <input type="checkbox" checked={isDeleted} onChange={(event) => setIsDeleted(event.target.checked)} />
-          {isDeleted ? "Deleted" : "Active"}
-        </label>
-      </td>
-      <td className={item.is_deleted ? styles.statusDeleted : styles.statusActive}>{item.is_deleted ? "Deleted" : "Active"}</td>
-      <td>
-        <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void handleSave()}>
-          {busy ? "Saving…" : "Save"}
+    <li className={styles.tile} data-removed={item.is_deleted || undefined}>
+      <div className={styles.picPair}>
+        <Thumb src={item.url_large} alt={`${item.name} large`} size={96} />
+        <Thumb src={item.url_small} alt={`${item.name} small`} size={40} className={styles.picSmall} />
+      </div>
+      <input className={ui.input} value={name} onChange={(event) => setName(event.target.value)} aria-label={`Name for profile picture ${item.name}`} />
+      <small className={styles.filename} title={`${item.filename_large} · ${item.filename_small}`}>
+        {item.filename_large}
+      </small>
+      <div className={styles.tileRow}>
+        <Switch checked={!isDeleted} onChange={(next) => setIsDeleted(!next)} label={`${item.name} live`} on="Live" off="Hidden" />
+        <button type="button" className={dirty ? ui.btnPrimary : ui.btn} disabled={busy || !dirty} onClick={() => void save()}>
+          {busy ? "…" : "Save"}
         </button>
-        {error ? <div className="statusMessage statusMessageError">{error}</div> : null}
-      </td>
-    </tr>
+      </div>
+      <div aria-live="polite" className={styles.tileStatus}>
+        {error ? <p className={ui.inlineError}>{error}</p> : null}
+        {flash ? <p className={ui.inlineOk}>{flash}</p> : null}
+      </div>
+    </li>
   );
 }
 
-function formatChance(value: number) {
-  if (!(value > 0)) return "0%";
-  const percent = value * 100;
-  return percent >= 1 ? `${percent.toFixed(1)}%` : `${percent.toFixed(2)}%`;
+// ── Capsule prizes ────────────────────────────────────────────────────────
+
+type PrizeDraft = {
+  display_name: string;
+  description: string;
+  cosmetic_type: string;
+  rarity: string;
+  pull_weight: string;
+  sort_order: string;
+  is_active: boolean;
+};
+
+const draftOf = (item: AdminGachaPrizeAsset): PrizeDraft => ({
+  display_name: item.display_name,
+  description: item.description ?? "",
+  cosmetic_type: item.cosmetic_type,
+  rarity: item.rarity,
+  pull_weight: String(item.pull_weight),
+  sort_order: String(item.sort_order),
+  is_active: item.is_active,
+});
+
+const sameDraft = (a: PrizeDraft, b: PrizeDraft) => (Object.keys(a) as (keyof PrizeDraft)[]).every((key) => a[key] === b[key]);
+
+/** Weight that counts toward the pool: live, in S3, and positive. */
+function poolWeight(item: AdminGachaPrizeAsset, draft: PrizeDraft) {
+  const weight = Number(draft.pull_weight);
+  if (!draft.is_active || item.is_deleted || !Number.isFinite(weight) || weight <= 0) return 0;
+  return weight;
 }
 
-function GachaPrizeRow({
+function PrizeRow({
   item,
+  draft,
+  chance,
+  onDraft,
   onSaved,
 }: {
   item: AdminGachaPrizeAsset;
-  onSaved: () => Promise<void>;
+  draft: PrizeDraft;
+  chance: number;
+  onDraft: (patch: Partial<PrizeDraft>) => void;
+  onSaved: (message: string) => Promise<void>;
 }) {
-  const [displayName, setDisplayName] = useState(item.display_name);
-  const [description, setDescription] = useState(item.description);
-  const [cosmeticType, setCosmeticType] = useState(item.cosmetic_type);
-  const [rarity, setRarity] = useState(item.rarity);
-  const [pullWeight, setPullWeight] = useState(String(item.pull_weight));
-  const [sortOrder, setSortOrder] = useState(String(item.sort_order));
-  const [isActive, setIsActive] = useState(item.is_active);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dirty = !sameDraft(draft, draftOf(item));
+  const weightNum = Number(draft.pull_weight);
+  const weightBad = draft.pull_weight.trim() === "" || !Number.isFinite(weightNum) || weightNum < 0;
+  const serverChanged = Math.abs(chance - (item.is_active && !item.is_deleted ? item.pull_chance : 0)) > 1e-9;
 
-  useEffect(() => {
-    setDisplayName(item.display_name);
-    setDescription(item.description);
-    setCosmeticType(item.cosmetic_type);
-    setRarity(item.rarity);
-    setPullWeight(String(item.pull_weight));
-    setSortOrder(String(item.sort_order));
-    setIsActive(item.is_active);
-  }, [item]);
-
-  async function handleSave() {
+  async function save() {
+    if (weightBad) {
+      setError("Weight has to be zero or more.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       await apiFetch<{ gacha_prize: AdminGachaPrizeAsset | null; gacha_prizes: AdminGachaPrizeAsset[] }>(`/api/admin/assets/gacha-prizes/${item.id}`, {
         method: "PATCH",
         body: JSON.stringify({
-          display_name: displayName,
-          description,
-          cosmetic_type: cosmeticType,
-          rarity,
-          pull_weight: Number(pullWeight),
-          sort_order: Number(sortOrder),
-          is_active: isActive,
+          display_name: draft.display_name,
+          description: draft.description,
+          cosmetic_type: draft.cosmetic_type,
+          rarity: draft.rarity,
+          pull_weight: Number(draft.pull_weight),
+          sort_order: Number(draft.sort_order),
+          is_active: draft.is_active,
         }),
       });
-      await onSaved();
-    } catch (nextError) {
-      setError(String((nextError as Error).message || nextError));
+      await onSaved(`${draft.display_name || "Prize"} saved.`);
+    } catch (caught) {
+      setError(adminErrorText(caught));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <tr>
-      <td>
-        <div className={styles.previewCell}>
-          <div
-            className={styles.previewImage}
-            role="img"
-            aria-label={item.display_name}
-            style={{ backgroundImage: `url("${item.image_url}")` }}
-          />
-          <span className={styles.filename}>{item.filename}</span>
-        </div>
-      </td>
-      <td>
-        <div className={styles.prizeFields}>
-          <input className={styles.input} value={displayName} onChange={(event) => setDisplayName(event.target.value)} aria-label="Prize name" />
-          <textarea className={styles.textarea} value={description} onChange={(event) => setDescription(event.target.value)} aria-label="Prize description" />
-        </div>
-      </td>
-      <td>
-        <div className={styles.prizeFields}>
-          <select className={styles.input} value={cosmeticType} onChange={(event) => setCosmeticType(event.target.value)} aria-label="Cosmetic type">
-            <option value="profile_badge">Profile badge</option>
-            <option value="profile_frame">Profile frame</option>
-            <option value="chat_flair">Chat flair</option>
-            <option value="portfolio_theme">Portfolio theme</option>
-            <option value="hat">Hat</option>
-            <option value="item">Item</option>
+    <li className={styles.prize} data-off={!draft.is_active || item.is_deleted || undefined} data-dirty={dirty || undefined}>
+      <div className={styles.prizeImg} data-rarity={draft.rarity}>
+        <Thumb src={item.image_url} alt={item.display_name} size={64} />
+      </div>
+      <div className={styles.prizeText}>
+        <input className={ui.input} value={draft.display_name} onChange={(event) => onDraft({ display_name: event.target.value })} aria-label="Prize name" />
+        <textarea
+          className={`${ui.input} ${styles.desc}`}
+          value={draft.description}
+          rows={2}
+          placeholder="Flavour text for the capsule reveal"
+          onChange={(event) => onDraft({ description: event.target.value })}
+          aria-label="Prize description"
+        />
+        <small className={styles.filename} title={item.image_key}>
+          {item.filename} · slot {item.slot_key || draft.cosmetic_type}
+        </small>
+      </div>
+      <div className={styles.prizeKind}>
+        <label className={ui.field}>
+          <span>Type</span>
+          <select className={ui.select} value={draft.cosmetic_type} onChange={(event) => onDraft({ cosmetic_type: event.target.value })}>
+            {COSMETIC_TYPES.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
           </select>
-          <select className={styles.input} value={rarity} onChange={(event) => setRarity(event.target.value)} aria-label="Rarity">
-            <option value="common">Common</option>
-            <option value="rare">Rare</option>
-            <option value="epic">Epic</option>
-            <option value="legendary">Legendary</option>
-          </select>
-          <span className={styles.filename}>Equip slot: {item.slot_key || cosmeticType}</span>
-        </div>
-      </td>
-      <td>
-        <div className={styles.prizeFields}>
-          <input className={styles.input} type="number" min="0" step="0.01" value={pullWeight} onChange={(event) => setPullWeight(event.target.value)} aria-label="Pull chance weight" />
-          <span className={styles.filename}>Actual chance: {formatChance(item.pull_chance)}</span>
-        </div>
-      </td>
-      <td>
-        <input className={styles.input} type="number" step="1" value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} aria-label="Sort order" />
-      </td>
-      <td>
-        <label className={styles.checkbox}>
-          <input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} />
-          {isActive ? "Active" : "Inactive"}
         </label>
-        <div className={item.is_deleted ? styles.statusDeleted : styles.statusActive}>{item.is_deleted ? "Missing from S3" : "In S3"}</div>
-      </td>
-      <td>
-        <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void handleSave()}>
-          {busy ? "Saving..." : "Save"}
+        <label className={ui.field}>
+          <span>Rarity</span>
+          <select className={ui.select} value={draft.rarity} onChange={(event) => onDraft({ rarity: event.target.value })} data-rarity={draft.rarity}>
+            {PRIZE_RARITIES.map((rarity) => (
+              <option key={rarity} value={rarity}>
+                {rarity[0].toUpperCase() + rarity.slice(1)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className={styles.prizeOdds}>
+        <label className={ui.field}>
+          <span>Weight</span>
+          <input
+            className={ui.inputNum}
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            value={draft.pull_weight}
+            aria-invalid={weightBad || undefined}
+            onChange={(event) => onDraft({ pull_weight: event.target.value })}
+          />
+        </label>
+        <div className={styles.chance} data-changed={serverChanged || undefined}>
+          <small>Actual chance</small>
+          <b>{chance > 0 ? formatChance(chance) : draft.is_active && !item.is_deleted ? "0%" : "off"}</b>
+          {serverChanged ? <em>was {formatChance(item.is_active && !item.is_deleted ? item.pull_chance : 0)}</em> : null}
+        </div>
+        <label className={ui.field}>
+          <span>Sort</span>
+          <input className={ui.inputNum} type="number" step="1" value={draft.sort_order} onChange={(event) => onDraft({ sort_order: event.target.value })} />
+        </label>
+      </div>
+      <div className={styles.prizeSave}>
+        <Switch checked={draft.is_active} onChange={(next) => onDraft({ is_active: next })} label={`${item.display_name} in the pool`} on="In pool" off="Out" />
+        {item.is_deleted ? (
+          <span className={ui.pill} data-tone="warn">
+            Missing from S3
+          </span>
+        ) : null}
+        <button type="button" className={dirty ? ui.btnPrimary : ui.btn} disabled={busy || !dirty} onClick={() => void save()}>
+          {busy ? "Saving…" : "Save"}
         </button>
-        {error ? <div className="statusMessage statusMessageError">{error}</div> : null}
-      </td>
-    </tr>
+        {error ? <p className={ui.inlineError}>{error}</p> : null}
+      </div>
+    </li>
   );
 }
 
+function PrizePool({ bundle, reload, onMessage }: { bundle: Bundle; reload: () => Promise<void>; onMessage: (tone: "ok" | "error", text: string) => void }) {
+  const [drafts, setDrafts] = useState<Record<number, PrizeDraft>>({});
+  const [syncBusy, setSyncBusy] = useState(false);
+  const prizes = bundle.gacha_prizes;
+
+  // Drafts only hold edits; anything untouched reads straight from the server row.
+  const draftFor = useCallback((item: AdminGachaPrizeAsset) => drafts[item.id] ?? draftOf(item), [drafts]);
+
+  const total = useMemo(() => prizes.reduce((sum, item) => sum + poolWeight(item, draftFor(item)), 0), [prizes, draftFor]);
+  const byRarity = useMemo(() => {
+    const sums: Record<string, number> = {};
+    for (const item of prizes) {
+      const draft = draftFor(item);
+      sums[draft.rarity] = (sums[draft.rarity] ?? 0) + poolWeight(item, draft);
+    }
+    return PRIZE_RARITIES.map((rarity) => ({ rarity, share: total > 0 ? (sums[rarity] ?? 0) / total : 0 }));
+  }, [prizes, draftFor, total]);
+  const inPool = prizes.filter((item) => poolWeight(item, draftFor(item)) > 0).length;
+  const editing = Object.keys(drafts).filter((id) => {
+    const item = prizes.find((entry) => entry.id === Number(id));
+    return item && !sameDraft(drafts[Number(id)], draftOf(item));
+  }).length;
+
+  async function sync() {
+    setSyncBusy(true);
+    try {
+      const result = await apiFetch<{ sync: { total: number }; gacha_prizes: AdminGachaPrizeAsset[] }>("/api/admin/assets/gacha-prizes/sync", { method: "POST" });
+      await reload();
+      onMessage("ok", `Synced. Found ${result?.sync?.total ?? 0} image files in gachaprizes/.`);
+    } catch (caught) {
+      onMessage("error", adminErrorText(caught));
+    } finally {
+      setSyncBusy(false);
+    }
+  }
+
+  return (
+    <div role="tabpanel" id="panel-prizes" aria-labelledby="tab-prizes">
+      <div className={styles.toolbar}>
+        <p className={styles.help}>
+          Weight sets the odds; the chance updates as you type. Sort only changes display order. New art goes in S3 under <code>gachaprizes/</code>, then sync.
+        </p>
+        <button type="button" className={ui.btnPrimary} disabled={syncBusy} onClick={() => void sync()}>
+          {syncBusy ? "Syncing…" : "Sync from S3"}
+        </button>
+      </div>
+
+      {prizes.length ? (
+        <div className={styles.odds}>
+          <div className={styles.oddsHead}>
+            <b>Pool</b>
+            <span>
+              {inPool} of {prizes.length} prizes · weight {Number(total.toFixed(2))}
+              {editing ? ` · ${editing} unsaved` : ""}
+            </span>
+          </div>
+          <div className={styles.oddsBar} role="img" aria-label={byRarity.map((entry) => `${entry.rarity} ${formatChance(entry.share)}`).join(", ")}>
+            {byRarity.map((entry) => (entry.share > 0 ? <i key={entry.rarity} data-rarity={entry.rarity} style={{ flexGrow: entry.share }} /> : null))}
+          </div>
+          <ul className={styles.oddsLegend}>
+            {byRarity.map((entry) => (
+              <li key={entry.rarity} data-rarity={entry.rarity}>
+                <i aria-hidden="true" />
+                {entry.rarity}
+                <b>{formatChance(entry.share)}</b>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {prizes.length ? (
+        <ul className={styles.prizes}>
+          {prizes.map((item) => {
+            const draft = draftFor(item);
+            const weight = poolWeight(item, draft);
+            return (
+              <PrizeRow
+                key={item.id}
+                item={item}
+                draft={draft}
+                chance={total > 0 ? weight / total : 0}
+                onDraft={(patch) => setDrafts((current) => ({ ...current, [item.id]: { ...(current[item.id] ?? draftOf(item)), ...patch } }))}
+                onSaved={async (message) => {
+                  await reload();
+                  setDrafts((current) => {
+                    const next = { ...current };
+                    delete next[item.id];
+                    return next;
+                  });
+                  onMessage("ok", message);
+                }}
+              />
+            );
+          })}
+        </ul>
+      ) : (
+        <p className={ui.empty}>No prizes catalogued yet. Drop image files in S3 under gachaprizes/, then sync.</p>
+      )}
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────
+
 export function AdminAssetsPage() {
-  const { initialized, isLoading: isAuthLoading, user } = useAuth();
-  const [bundle, setBundle] = useState<AdminAssetsResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const access = useAdminAccess();
+  const [bundle, setBundle] = useState<Bundle | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const [tab, setTabState] = useState<TabKey>("emojis");
+  const setTab = useHashTab(TAB_KEYS, "emojis", setTabState);
+
   const [emojiName, setEmojiName] = useState("");
   const [emojiFile, setEmojiFile] = useState<File | null>(null);
   const [emojiBusy, setEmojiBusy] = useState(false);
@@ -362,135 +562,53 @@ export function AdminAssetsPage() {
   const [profileLargeFile, setProfileLargeFile] = useState<File | null>(null);
   const [profileSmallFile, setProfileSmallFile] = useState<File | null>(null);
   const [profileBusy, setProfileBusy] = useState(false);
-  const [gachaSyncBusy, setGachaSyncBusy] = useState(false);
-  const [assetManagers, setAssetManagers] = useState<AssetManagerUser[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchedUser[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [roleBusyUserId, setRoleBusyUserId] = useState<number | null>(null);
+  const [filter, setFilter] = useState("");
+  const [showHidden, setShowHidden] = useState(false);
 
-  const loadAdminAssets = useCallback(async (signal?: AbortSignal) => {
-    setIsLoading(true);
-    setError(null);
+  const { initialized, isAdmin, canAssets } = access;
+
+  const load = useCallback(async (signal?: AbortSignal) => {
     try {
-      const result = await apiFetch<AdminAssetsResponse>("/api/admin/assets", signal ? { signal } : undefined);
-      if (!signal?.aborted) setBundle(result);
-    } catch (nextError) {
-      if ((nextError as Error).name === "AbortError") return;
-      setError(String((nextError as Error).message || nextError));
-    } finally {
-      if (!signal?.aborted) setIsLoading(false);
+      const result = await apiFetch<AdminAssetsResponse>("/api/admin/assets", { cache: "no-store", ...(signal ? { signal } : {}) });
+      if (signal?.aborted) return;
+      setBundle(normalizeBundle(result));
+      setLoadError(null);
+    } catch (caught) {
+      if ((caught as Error).name === "AbortError") return;
+      setLoadError(adminErrorText(caught));
     }
   }, []);
 
   useEffect(() => {
-    if (!initialized || !(user?.is_admin || user?.can_manage_assets)) {
-      setIsLoading(false);
-      return;
-    }
-
+    if (!initialized || !canAssets) return;
     const controller = new AbortController();
-    void loadAdminAssets(controller.signal);
-    return () => controller.abort();
-  }, [initialized, loadAdminAssets, user?.is_admin, user?.can_manage_assets]);
+    const timer = setTimeout(() => void load(controller.signal), 0);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [initialized, canAssets, load]);
 
-  // ── Role management (admin only) ─────────────────────────────────────
-
-  const loadAssetManagers = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const result = await apiFetch<{ users: AssetManagerUser[] }>("/api/admin/assets/asset-managers", signal ? { signal } : undefined);
-      if (!signal?.aborted) setAssetManagers(result.users);
-    } catch (nextError) {
-      if ((nextError as Error).name === "AbortError") return;
-    }
-  }, []);
-
-  const handleSearchUsers = useCallback(async (q: string) => {
-    if (q.trim().length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    setIsSearching(true);
-    try {
-      const result = await apiFetch<{ users: SearchedUser[] }>(`/api/admin/assets/search-users?q=${encodeURIComponent(q.trim())}`);
-      setSearchResults(result.users);
-    } catch {
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!initialized || !user?.is_admin) return;
-    const controller = new AbortController();
-    void loadAssetManagers(controller.signal);
-    return () => controller.abort();
-  }, [initialized, loadAssetManagers, user?.is_admin]);
-
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  function handleSearchQueryChange(value: string) {
-    setSearchQuery(value);
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    debounceTimerRef.current = setTimeout(() => void handleSearchUsers(value), 250);
-  }
-
-  async function handleToggleRole(userId: number, grant: boolean) {
-    setRoleBusyUserId(userId);
-    setError(null);
-    setSuccess(null);
-    try {
-      await apiFetch<{ user: SearchedUser }>(`/api/admin/assets/asset-managers/${userId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ can_manage_assets: grant }),
-      });
-      if (grant) {
-        setSuccess("User added as asset manager.");
-      } else {
-        setSuccess("Asset manager role removed.");
-      }
-      // Refresh both lists
-      await Promise.all([
-        loadAssetManagers(),
-        handleSearchUsers(searchQuery),
-      ]);
-    } catch (nextError) {
-      setError(String((nextError as Error).message || nextError));
-    } finally {
-      setRoleBusyUserId(null);
-    }
-  }
+  const say = useCallback((tone: "ok" | "error", text: string) => setMessage({ tone, text }), []);
 
   async function handleCreateEmoji(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!emojiFile) {
-      setError("Choose an emoji image first.");
-      return;
-    }
-
-    if (emojiFile.size > 200 * 1024) {
-      setError(`Emoji image exceeds the 200 KB limit (${(emojiFile.size / 1024).toFixed(1)} KB). Use a small square 64×64 JPEG.`);
-      return;
-    }
-
+    if (!emojiFile) return say("error", "Pick an emoji image first.");
+    if (emojiFile.size > EMOJI_MAX_BYTES) return say("error", `That emoji is ${kb(emojiFile.size)}; the limit is 200 KB. Use a small square 64×64 JPEG.`);
     setEmojiBusy(true);
-    setError(null);
-    setSuccess(null);
+    setMessage(null);
     try {
       const imageDataUrl = await fileToDataUrl(emojiFile);
       const result = await apiFetch<{ emoji: AdminEmojiAsset }>("/api/admin/assets/emojis", {
         method: "POST",
-        body: JSON.stringify({
-          name: emojiName,
-          image_data_url: imageDataUrl,
-        }),
+        body: JSON.stringify({ name: emojiName, image_data_url: imageDataUrl }),
       });
-      setBundle((current) => current ? { ...current, emojis: [result.emoji, ...current.emojis.filter((item) => item.id !== result.emoji.id)] } : current);
+      setBundle((current) => (current ? { ...current, emojis: [result.emoji, ...current.emojis.filter((item) => item.id !== result.emoji.id)] } : current));
       setEmojiName("");
       setEmojiFile(null);
-      setSuccess("Emoji uploaded.");
-    } catch (nextError) {
-      setError(String((nextError as Error).message || nextError));
+      say("ok", `:${result.emoji.name}: is up.`);
+    } catch (caught) {
+      say("error", adminErrorText(caught));
     } finally {
       setEmojiBusy(false);
     }
@@ -498,352 +616,177 @@ export function AdminAssetsPage() {
 
   async function handleCreateProfilePicture(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!profileLargeFile || !profileSmallFile) {
-      setError("Choose both the large and small profile picture files.");
-      return;
-    }
-
-    if (profileLargeFile.size > 500 * 1024) {
-      setError(`Large profile picture exceeds the 500 KB limit (${(profileLargeFile.size / 1024).toFixed(1)} KB). Use a 256×256 JPEG.`);
-      return;
-    }
-    if (profileSmallFile.size > 500 * 1024) {
-      setError(`Small profile picture exceeds the 500 KB limit (${(profileSmallFile.size / 1024).toFixed(1)} KB). Use a 128×128 JPEG.`);
-      return;
-    }
-
+    if (!profileLargeFile || !profileSmallFile) return say("error", "Pick both the large and the small file.");
+    if (profileLargeFile.size > PICTURE_MAX_BYTES) return say("error", `The large picture is ${kb(profileLargeFile.size)}; the limit is 500 KB. Use a 256×256 JPEG.`);
+    if (profileSmallFile.size > PICTURE_MAX_BYTES) return say("error", `The small picture is ${kb(profileSmallFile.size)}; the limit is 500 KB. Use a 128×128 JPEG.`);
     setProfileBusy(true);
-    setError(null);
-    setSuccess(null);
+    setMessage(null);
     try {
-      const [largeDataUrl, smallDataUrl] = await Promise.all([
-        fileToDataUrl(profileLargeFile),
-        fileToDataUrl(profileSmallFile),
-      ]);
+      const [largeDataUrl, smallDataUrl] = await Promise.all([fileToDataUrl(profileLargeFile), fileToDataUrl(profileSmallFile)]);
       const result = await apiFetch<{ profile_picture: AdminProfilePictureAsset }>("/api/admin/assets/profile-pictures", {
         method: "POST",
-        body: JSON.stringify({
-          name: profileName,
-          image_large_data_url: largeDataUrl,
-          image_small_data_url: smallDataUrl,
-        }),
+        body: JSON.stringify({ name: profileName, image_large_data_url: largeDataUrl, image_small_data_url: smallDataUrl }),
       });
       setBundle((current) =>
-        current
-          ? {
-              ...current,
-              profile_pictures: [result.profile_picture, ...current.profile_pictures.filter((item) => item.id !== result.profile_picture.id)],
-            }
-          : current
+        current ? { ...current, profile_pictures: [result.profile_picture, ...current.profile_pictures.filter((item) => item.id !== result.profile_picture.id)] } : current,
       );
       setProfileName("");
       setProfileLargeFile(null);
       setProfileSmallFile(null);
-      setSuccess("Profile picture uploaded.");
-    } catch (nextError) {
-      setError(String((nextError as Error).message || nextError));
+      say("ok", `${result.profile_picture.name} is up.`);
+    } catch (caught) {
+      say("error", adminErrorText(caught));
     } finally {
       setProfileBusy(false);
     }
   }
 
-  async function handleSyncGachaPrizes() {
-    setGachaSyncBusy(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const result = await apiFetch<{ sync: { total: number }; gacha_prizes: AdminGachaPrizeAsset[] }>("/api/admin/assets/gacha-prizes/sync", {
-        method: "POST",
-      });
-      setBundle((current) => current ? { ...current, gacha_prizes: result.gacha_prizes } : current);
-      setSuccess(`Gacha prize sync complete. Found ${result.sync.total} image files in gachaprizes/.`);
-    } catch (nextError) {
-      setError(String((nextError as Error).message || nextError));
-    } finally {
-      setGachaSyncBusy(false);
-    }
-  }
+  const needle = filter.trim().toLowerCase();
+  const emojis = useMemo(
+    () => (bundle?.emojis ?? []).filter((item) => (showHidden || !item.is_deleted) && (!needle || `${item.name} ${item.filename}`.toLowerCase().includes(needle))),
+    [bundle?.emojis, showHidden, needle],
+  );
+  const pictures = useMemo(
+    () =>
+      (bundle?.profile_pictures ?? []).filter(
+        (item) => (showHidden || !item.is_deleted) && (!needle || `${item.name} ${item.filename_large}`.toLowerCase().includes(needle)),
+      ),
+    [bundle?.profile_pictures, showHidden, needle],
+  );
 
-  if (!initialized || isAuthLoading) {
-    return (
-      <SiteShell>
-        <div className={styles.empty}>Loading admin session…</div>
-      </SiteShell>
-    );
-  }
+  if (!initialized) return <AdminLoading title="Assets & prizes" />;
+  if (!canAssets) return <AdminGate title="Assets & prizes" signedIn={access.signedIn} need="admins and asset managers" />;
 
-  if (!user?.is_admin && !user?.can_manage_assets) {
-    return (
-      <SiteShell>
-        <div className={styles.empty}>This page is limited to admin and asset manager users.</div>
-      </SiteShell>
-    );
-  }
+  const activeTab: TabKey = tab === "prizes" && !isAdmin ? "emojis" : tab;
+  const hiddenEmojis = (bundle?.emojis ?? []).filter((item) => item.is_deleted).length;
+  const hiddenPictures = (bundle?.profile_pictures ?? []).filter((item) => item.is_deleted).length;
+  const hiddenHere = activeTab === "emojis" ? hiddenEmojis : hiddenPictures;
+  const livePrizes = (bundle?.gacha_prizes ?? []).filter((item) => item.is_active && !item.is_deleted).length;
+
+  const tabs = [
+    { key: "emojis" as const, label: "Emojis", count: bundle ? bundle.emojis.length - hiddenEmojis : "…" },
+    { key: "pictures" as const, label: "Profile pictures", count: bundle ? bundle.profile_pictures.length - hiddenPictures : "…" },
+    ...(isAdmin ? [{ key: "prizes" as const, label: "Capsule prizes", count: bundle ? livePrizes : "…" }] : []),
+  ];
+
+  const onEmojiUpdated = (next: AdminEmojiAsset) =>
+    setBundle((current) => (current ? { ...current, emojis: current.emojis.map((entry) => (entry.id === next.id ? next : entry)) } : current));
+  const onPictureUpdated = (next: AdminProfilePictureAsset) =>
+    setBundle((current) => (current ? { ...current, profile_pictures: current.profile_pictures.map((entry) => (entry.id === next.id ? next : entry)) } : current));
 
   return (
-    <SiteShell>
-      <div className={styles.page}>
-        <section className={styles.hero}>
-          <div className={styles.eyebrow}>Admin Portal</div>
-          <h1 className={styles.title}>Asset Management</h1>
-          <p className={styles.copy}>
-            Manage emoji assets and profile picture inventories synced from S3. New uploads are written to the bucket and tracked in the database catalog.
-            {user?.is_admin ? null : " Asset managers can upload and manage emojis and profile pictures, but gacha prize management is restricted to full admins."}
-          </p>
-          {!user?.is_admin ? (
-            <p className={styles.copy}>
-              <strong>Upload guidelines:</strong> Emojis should be small square 64&times;64 JPEG images under 200 KB. Profile pictures need two sizes — a large 256&times;256 and a small 128&times;128 JPEG, each under 500 KB. Use short descriptive names with hyphens for spaces (e.g., "smile-cat", "holo-logo"). Supported format: JPEG only.
-            </p>
-          ) : null}
-        </section>
-
-        {user?.is_admin ? (
-          <section className={styles.section}>
-            <div className={styles.sectionHead}>
-              <h2 className={styles.sectionTitle}>Asset Manager Role</h2>
-              <div className={styles.sectionNote}>Grant or revoke the asset manager role. Asset managers can upload emojis and profile pictures but cannot access gacha prizes or market tuning.</div>
-            </div>
-
-            <div className={styles.roleManagerLayout}>
-              <div className={styles.roleManagerColumn}>
-                <h3 className={styles.roleManagerLabel}>Current Asset Managers</h3>
-                {assetManagers.length === 0 ? (
-                  <p className={styles.muted}>No users have the asset manager role yet.</p>
-                ) : (
-                  <ul className={styles.roleManagerList}>
-                    {assetManagers.map((am) => (
-                      <li key={am.id} className={styles.roleManagerItem}>
-                        <span className={styles.roleManagerUsername}>{am.username}</span>
-                        <button
-                          type="button"
-                          className={styles.destructiveButton}
-                          disabled={roleBusyUserId === am.id}
-                          onClick={() => void handleToggleRole(am.id, false)}
-                        >
-                          {roleBusyUserId === am.id ? "Removing…" : "Remove"}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              <div className={styles.roleManagerColumn}>
-                <h3 className={styles.roleManagerLabel}>Add User</h3>
-                <input
-                  className={styles.input}
-                  type="text"
-                  placeholder="Search by username…"
-                  value={searchQuery}
-                  onChange={(event) => handleSearchQueryChange(event.target.value)}
-                />
-                {isSearching ? (
-                  <p className={styles.muted}>Searching…</p>
-                ) : searchResults.length === 0 && searchQuery.trim().length >= 2 ? (
-                  <p className={styles.muted}>No users found.</p>
-                ) : searchResults.length > 0 ? (
-                  <ul className={styles.roleManagerList}>
-                    {searchResults.map((su) => (
-                      <li key={su.id} className={styles.roleManagerItem}>
-                        <span className={styles.roleManagerUsername}>
-                          {su.username}
-                          {su.is_admin ? <span className={styles.roleManagerHint}> (admin)</span> : null}
-                          {su.can_manage_assets && !su.is_admin ? <span className={styles.roleManagerHint}> (already asset manager)</span> : null}
-                        </span>
-                        {su.can_manage_assets || su.is_admin ? null : (
-                          <button
-                            type="button"
-                            className={styles.secondaryButton}
-                            disabled={roleBusyUserId === su.id}
-                            onClick={() => void handleToggleRole(su.id, true)}
-                          >
-                            {roleBusyUserId === su.id ? "Adding…" : "Grant"}
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            </div>
-          </section>
-        ) : null}
-
-        <StatusMessage error={error} success={success} />
-        {isLoading && !bundle ? <div className={styles.empty}>Loading asset catalog…</div> : null}
-
-        {bundle ? (
+    <AdminFrame
+      title="Assets & prizes"
+      blurb={
+        bundle ? (
           <>
-            <AssetSection title="Emojis" note="Files sync from `emojis/` and use the `64_*.jpg` naming pattern.">
-              <form onSubmit={(event) => void handleCreateEmoji(event)}>
-                <div className={styles.createRow}>
-                  <div className={styles.formGrid}>
-                    <div className={styles.field}>
-                      <label htmlFor="emoji-name">Name</label>
-                      <input id="emoji-name" className={styles.input} value={emojiName} onChange={(event) => setEmojiName(event.target.value)} />
-                    </div>
-                    <div className={styles.field}>
-                      <label htmlFor="emoji-file">Image</label>
-                      <input id="emoji-file" className={styles.fileInput} type="file" accept="image/*" onChange={(event) => setEmojiFile(event.target.files?.[0] || null)} />
-                    </div>
-                  </div>
-                  <div className={styles.createAction}>
-                    <button type="submit" className={styles.primaryButton} disabled={emojiBusy}>
-                      {emojiBusy ? "Uploading…" : "Create Emoji"}
-                    </button>
-                  </div>
-                </div>
-              </form>
-
-              {bundle.emojis.length ? (
-                <div className={styles.tableWrap}>
-                  <table className={styles.table}>
-                    <thead>
-                      <tr>
-                        <th>Preview</th>
-                        <th>Name</th>
-                        <th>Deleted</th>
-                        <th>Status</th>
-                        <th>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {bundle.emojis.map((item) => (
-                        <EmojiRow
-                          key={item.id}
-                          item={item}
-                          onUpdated={(next) =>
-                            setBundle((current) =>
-                              current
-                                ? {
-                                    ...current,
-                                    emojis: current.emojis.map((entry) => (entry.id === next.id ? next : entry)),
-                                  }
-                                : current
-                            )
-                          }
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className={styles.empty}>No emojis are cataloged yet.</div>
-              )}
-            </AssetSection>
-
-            <AssetSection title="Profile Pictures" note="Files sync from `profile-pictures/large` and `profile-pictures/small`.">
-              <form onSubmit={(event) => void handleCreateProfilePicture(event)}>
-                <div className={styles.createRow}>
-                  <div className={styles.formGrid}>
-                    <div className={styles.field}>
-                      <label htmlFor="profile-name">Name</label>
-                      <input id="profile-name" className={styles.input} value={profileName} onChange={(event) => setProfileName(event.target.value)} />
-                    </div>
-                    <div className={styles.field}>
-                      <label htmlFor="profile-large">Large image</label>
-                      <input id="profile-large" className={styles.fileInput} type="file" accept="image/*" onChange={(event) => setProfileLargeFile(event.target.files?.[0] || null)} />
-                    </div>
-                    <div className={styles.field}>
-                      <label htmlFor="profile-small">Small image</label>
-                      <input id="profile-small" className={styles.fileInput} type="file" accept="image/*" onChange={(event) => setProfileSmallFile(event.target.files?.[0] || null)} />
-                    </div>
-                  </div>
-                  <div className={styles.createAction}>
-                    <button type="submit" className={styles.primaryButton} disabled={profileBusy}>
-                      {profileBusy ? "Uploading…" : "Create Profile Picture"}
-                    </button>
-                  </div>
-                </div>
-              </form>
-
-              {bundle.profile_pictures.length ? (
-                <div className={styles.tableWrap}>
-                  <table className={styles.table}>
-                    <thead>
-                      <tr>
-                        <th>Large</th>
-                        <th>Small</th>
-                        <th>Name</th>
-                        <th>Deleted</th>
-                        <th>Status</th>
-                        <th>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {bundle.profile_pictures.map((item) => (
-                        <ProfilePictureRow
-                          key={item.id}
-                          item={item}
-                          onUpdated={(next) =>
-                            setBundle((current) =>
-                              current
-                                ? {
-                                    ...current,
-                                    profile_pictures: current.profile_pictures.map((entry) => (entry.id === next.id ? next : entry)),
-                                  }
-                                : current
-                            )
-                          }
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className={styles.empty}>No profile pictures are cataloged yet.</div>
-              )}
-            </AssetSection>
-
-            {user?.is_admin ? (
-              <AssetSection title="Gacha Prize Catalogue" note="Click refresh to sync image files from the S3 `gachaprizes/` folder, then edit names, descriptions, and pull weights.">
-              <div className={styles.createRow}>
-                <p className={styles.sectionNote}>
-                  Pull weight controls chance. Sort only controls display order in the admin and player catalogue.
-                </p>
-                <div className={styles.createAction}>
-                  <button type="button" className={styles.primaryButton} disabled={gachaSyncBusy} onClick={() => void handleSyncGachaPrizes()}>
-                    {gachaSyncBusy ? "Refreshing..." : "Refresh From S3"}
-                  </button>
-                </div>
-              </div>
-
-              {bundle.gacha_prizes.length ? (
-                <div className={styles.tableWrap}>
-                  <table className={`${styles.table} ${styles.prizeTable}`.trim()}>
-                    <thead>
-                      <tr>
-                        <th>Image</th>
-                        <th>Name and Description</th>
-                        <th>Type</th>
-                        <th>Pull Weight</th>
-                        <th>Sort</th>
-                        <th>Status</th>
-                        <th>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {bundle.gacha_prizes.map((item) => (
-                        <GachaPrizeRow
-                          key={item.id}
-                          item={item}
-                          onSaved={async () => {
-                            setSuccess("Gacha prize saved.");
-                            await loadAdminAssets();
-                          }}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className={styles.empty}>No gacha prizes are cataloged yet. Add image files to S3 under `gachaprizes/`, then refresh.</div>
-              )}
-            </AssetSection>
+            <b>{bundle.emojis.length - hiddenEmojis}</b> emojis, <b>{bundle.profile_pictures.length - hiddenPictures}</b> profile pictures
+            {isAdmin ? (
+              <>
+                , <b>{livePrizes}</b> prizes in the capsule
+              </>
             ) : null}
+            .
           </>
-        ) : null}
-      </div>
-    </SiteShell>
+        ) : (
+          "Loading the catalogue…"
+        )
+      }
+      aside={
+        isAdmin ? (
+          <Link href="/admin/people?role=can_manage_assets" className={ui.btn}>
+            Asset managers →
+          </Link>
+        ) : null
+      }
+    >
+      <Tabs tabs={tabs} value={activeTab} onChange={(key) => setTab(key)} label="Asset type" />
+
+      {loadError ? (
+        <Notice>
+          {loadError}{" "}
+          <button type="button" className={ui.btnGhost} onClick={() => void load()}>
+            Retry
+          </button>
+        </Notice>
+      ) : null}
+      {message ? (
+        <Notice tone={message.tone} onClose={() => setMessage(null)}>
+          {message.text}
+        </Notice>
+      ) : null}
+
+      {!bundle ? (
+        loadError ? null : <p className={ui.empty}>Loading the catalogue…</p>
+      ) : activeTab === "prizes" ? (
+        <PrizePool bundle={bundle} reload={() => load()} onMessage={say} />
+      ) : (
+        <div role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
+          {activeTab === "emojis" ? (
+            <form className={styles.upload} onSubmit={(event) => void handleCreateEmoji(event)}>
+              <div className={styles.uploadHead}>
+                <b>Upload an emoji</b>
+                <span>Square 64×64 JPEG under 200 KB. Short hyphenated name: smile-cat, holo-logo.</span>
+              </div>
+              <label className={ui.field}>
+                <span>Name</span>
+                <input className={ui.input} value={emojiName} onChange={(event) => setEmojiName(event.target.value)} placeholder="smile-cat" />
+              </label>
+              <FilePick id="emoji-file" label="Image" file={emojiFile} limit={EMOJI_MAX_BYTES} onPick={setEmojiFile} />
+              <button type="submit" className={ui.btnPrimary} disabled={emojiBusy}>
+                {emojiBusy ? "Uploading…" : "Upload"}
+              </button>
+            </form>
+          ) : (
+            <form className={`${styles.upload} ${styles.uploadWide}`} onSubmit={(event) => void handleCreateProfilePicture(event)}>
+              <div className={styles.uploadHead}>
+                <b>Upload a profile picture</b>
+                <span>Two square JPEGs under 500 KB each: 256×256 large, 128×128 small.</span>
+              </div>
+              <label className={ui.field}>
+                <span>Name</span>
+                <input className={ui.input} value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="pekora-carrot" />
+              </label>
+              <FilePick id="profile-large" label="Large · 256" file={profileLargeFile} limit={PICTURE_MAX_BYTES} onPick={setProfileLargeFile} />
+              <FilePick id="profile-small" label="Small · 128" file={profileSmallFile} limit={PICTURE_MAX_BYTES} onPick={setProfileSmallFile} />
+              <button type="submit" className={ui.btnPrimary} disabled={profileBusy}>
+                {profileBusy ? "Uploading…" : "Upload"}
+              </button>
+            </form>
+          )}
+
+          <div className={styles.gridTools}>
+            <label className={styles.filter}>
+              <span className={ui.srOnly}>Filter</span>
+              <input className={ui.input} type="search" value={filter} placeholder="Filter by name" onChange={(event) => setFilter(event.target.value)} />
+            </label>
+            <label className={styles.check}>
+              <input type="checkbox" checked={showHidden} onChange={(event) => setShowHidden(event.target.checked)} />
+              Show hidden ({hiddenHere})
+            </label>
+          </div>
+
+          {activeTab === "emojis" ? (
+            emojis.length ? (
+              <ul className={styles.grid}>
+                {emojis.map((item) => (
+                  <EmojiTile key={item.id} item={item} onUpdated={onEmojiUpdated} />
+                ))}
+              </ul>
+            ) : (
+              <p className={ui.empty}>{bundle.emojis.length ? "Nothing matches." : "No emojis catalogued yet."}</p>
+            )
+          ) : pictures.length ? (
+            <ul className={`${styles.grid} ${styles.gridPics}`}>
+              {pictures.map((item) => (
+                <PictureTile key={item.id} item={item} onUpdated={onPictureUpdated} />
+              ))}
+            </ul>
+          ) : (
+            <p className={ui.empty}>{bundle.profile_pictures.length ? "Nothing matches." : "No profile pictures catalogued yet."}</p>
+          )}
+        </div>
+      )}
+    </AdminFrame>
   );
 }

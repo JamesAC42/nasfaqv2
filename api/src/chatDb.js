@@ -1,6 +1,8 @@
 const VALID_SCOPE_TYPES = new Set(["asset", "unit", "market", "meta"]);
 const VALID_POSTING_POLICIES = new Set(["authenticated", "admins_only", "read_only"]);
-const PROFILE_PICTURE_CDN_BASE_URL = "https://images.nasfaq.biz/profile-pictures";
+const { equippedJsonSql, normalizeEquipped } = require("./services/games/equipped");
+const { profilePictureUrlSql } = require("./profilePictures");
+const reactions = require("./services/games/reactions");
 const VALID_MESSAGE_STATUSES = new Set(["active", "deleted", "moderated"]);
 const VALID_REPORT_STATUSES = new Set(["open", "resolved", "dismissed"]);
 const VALID_MODERATION_ACTIONS = new Set(["mute", "ban"]);
@@ -192,6 +194,7 @@ function mapMessageRow(row, viewerUserId = null) {
           username: row.author_username,
           profile_picture_url: row.author_profile_picture_url || null,
           profile_color: row.author_profile_color || null,
+          equipped: normalizeEquipped(row.author_equipped),
           oshi_coin: row.author_oshi_coin_id
             ? {
                 id: Number(row.author_oshi_coin_id),
@@ -207,11 +210,6 @@ function mapMessageRow(row, viewerUserId = null) {
   };
 }
 
-function profilePictureUrlSql(size, alias = "pp") {
-  const field = size === "large" ? "filename_large" : "filename_small";
-  const folder = size === "large" ? "large" : "small";
-  return `CASE WHEN ${alias}.id IS NULL OR ${alias}.is_deleted THEN NULL ELSE '${PROFILE_PICTURE_CDN_BASE_URL}/${folder}/' || ${alias}.${field} END`;
-}
 
 function buildVisibleHistoryCutoff() {
   return new Date(Date.now() - CHAT_HISTORY_VISIBLE_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -352,6 +350,15 @@ async function syncAssetChannels(pool) {
       updated_at = now()
   `
   );
+  // Rooms are keyed by asset id: when a reset or a prod pull re-creates an asset under a new id, the
+  // old room would show up as a second copy of the talent. Close rooms whose asset no longer exists.
+  await pool.query(`
+    UPDATE chat.channels c
+    SET is_active = false, updated_at = now()
+    WHERE c.scope_type = 'asset'
+      AND c.is_active
+      AND NOT EXISTS (SELECT 1 FROM market.market_assets a WHERE a.id::text = c.scope_key)
+  `);
 }
 
 async function syncUnitChannels(pool) {
@@ -413,6 +420,26 @@ async function syncUnitChannels(pool) {
       )
   `
   );
+}
+
+// The request paths (chat routes, socket subscribes) only need the channel rows to exist, which
+// they almost always do: they sync at most every few minutes per process, one at a time. The full
+// sync still runs at startup (server.js).
+const TOPOLOGY_EVERY_MS = 5 * 60_000;
+let topologySyncedAt = 0;
+let topologyInflight = null;
+async function ensureChatTopologyRecent(pool) {
+  if (Date.now() - topologySyncedAt < TOPOLOGY_EVERY_MS) return;
+  if (!topologyInflight) {
+    topologyInflight = ensureChatTopology(pool)
+      .then(() => {
+        topologySyncedAt = Date.now();
+      })
+      .finally(() => {
+        topologyInflight = null;
+      });
+  }
+  await topologyInflight;
 }
 
 async function ensureChatTopology(pool) {
@@ -688,7 +715,8 @@ async function listMessages(pool, channelId, { viewerUserId = null, beforeMessag
       ma.symbol AS author_oshi_coin_symbol,
       ma.display_name AS author_oshi_coin_display_name,
       yc.icon AS author_oshi_coin_icon,
-      yc.color AS author_oshi_coin_color
+      yc.color AS author_oshi_coin_color,
+      ${equippedJsonSql("m.author_id")} AS author_equipped
     FROM channel_messages m
     JOIN chat.channels c
       ON c.id = m.channel_id
@@ -749,7 +777,8 @@ async function getMessageById(pool, messageId, { viewerUserId = null, includeIna
       ma.symbol AS author_oshi_coin_symbol,
       ma.display_name AS author_oshi_coin_display_name,
       yc.icon AS author_oshi_coin_icon,
-      yc.color AS author_oshi_coin_color
+      yc.color AS author_oshi_coin_color,
+      ${equippedJsonSql("m.author_id")} AS author_equipped
     FROM chat.messages m
     JOIN chat.channels c
       ON c.id = m.channel_id
@@ -853,6 +882,9 @@ async function assertCanPost(pool, { channelId, viewer }) {
 async function createMessage(pool, { channelId, viewer, body, replyToMessageId = null }) {
   const channel = await assertCanPost(pool, { channelId, viewer });
   const normalizedBody = normalizeMessageBody(body);
+  // A sticker message ([[sticker:PEK/hype]]) needs a card of that talent.
+  const sticker = reactions.parseSticker(normalizedBody);
+  if (sticker) await reactions.assertOwnsReaction(pool, viewer.id, sticker.symbol, "sticker_locked");
   const safeReplyToMessageId = replyToMessageId ? parseMessageId(replyToMessageId) : null;
 
   if (safeReplyToMessageId) {
@@ -1154,6 +1186,7 @@ module.exports = {
   createMessageReport,
   createModerationAction,
   ensureChatTopology,
+  ensureChatTopologyRecent,
   getChannelById,
   getChannelByKey,
   getMessageById,

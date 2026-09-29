@@ -16,7 +16,7 @@ function buildAssetOshiboardCacheKey(symbol, limit = 50) {
 }
 
 function buildMarketRankingsWeeklyActivityCacheKey(range = "7d") {
-  return `market:rankings:weekly-activity:${String(range || "7d").trim().toLowerCase()}`;
+  return `market:rankings:activity:v2:${String(range || "7d").trim().toLowerCase()}`;
 }
 
 function buildMarketIndexOverviewCacheKey({ groupBy = "unit", range = "1y", weighting = "equal" } = {}) {
@@ -57,6 +57,10 @@ async function setCachedAssets(redis, assets) {
 }
 
 async function invalidateMarketAssetsCache(redis) {
+  // The public board, report and hub (publicMarketCache.js) go with it, in Redis and this pod's memory.
+  const { invalidateCachedJson } = require("./responseCache");
+  const { PUBLIC_MARKET_KEYS } = require("./publicMarketCache");
+  await invalidateCachedJson(redis, PUBLIC_MARKET_KEYS);
   if (!redis) return;
   await redis.del(MARKET_ASSETS_CACHE_KEY);
 }

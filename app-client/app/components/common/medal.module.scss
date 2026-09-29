@@ -1,0 +1,15 @@
+.medal {
+  display: block;
+  flex: none;
+  overflow: visible;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.45));
+}
+
+.mark {
+  font-family: var(--font-chicago), "Arial Black", sans-serif;
+  font-weight: 400;
+  fill: rgba(20, 16, 6, 0.82);
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 0.8;
+}

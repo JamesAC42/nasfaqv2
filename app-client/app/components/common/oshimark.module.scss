@@ -1,0 +1,17 @@
+.mark {
+  display: inline-block;
+  flex: none;
+  object-fit: contain;
+  vertical-align: -0.2em;
+  user-select: none;
+}
+
+.fallback {
+  display: inline-grid;
+  place-items: center;
+  background: var(--ink-4);
+  color: var(--mid);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  line-height: 1;
+}

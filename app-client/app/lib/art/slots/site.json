@@ -1,0 +1,206 @@
+{
+  "area": "site",
+  "slots": [
+    {
+      "id": "site-og-default",
+      "title": "Share image: default (also the home page)",
+      "where": [
+        "Share card for every page without its own (planned: app/layout.tsx metadata.openGraph.images + twitter summary_large_image; not wired yet)",
+        "/ (home page share card)"
+      ],
+      "kind": "social",
+      "w": 1200,
+      "h": 630,
+      "transparent": false,
+      "priority": "high",
+      "css": "1200×630 as delivered; shown 300–600 wide in link previews, some platforms crop toward 1.91:1 or square",
+      "crop": "Safe area is the centre 1080×566. The left 55% stays dark, calm and nearly empty: the pipeline composites the NASFAQ wordmark and the line 'Every hololive talent is a stock' there. Boards and fans live in the right 45%. Nothing important within 60px of any edge.",
+      "lighting": "neon: glowing hololive-blue ticker boards are the key light on dark ink; small green up / red down accents on the tiles",
+      "style": "social",
+      "animation": "none",
+      "fallback": "None today: link previews show the page title and description only.",
+      "brief": "The NASFAQ share card. Dark ink ground (#0a0c11). In the right 45%, a wall of glowing ticker boards recedes to the right: rising candlestick bars and sparklines in hololive blue (#3fb8f5), a few small green up-arrow and red down-arrow tiles, a halftone bloom around the brightest board. Lower right: three or four generic chibi-proportioned fans in hoodies, seen from behind, cheering at the boards with glowsticks and phones. The left 55% is calm dark ink with only faint board glow. Flat graphic shapes, crisp edges, halftone shading, no banding gradients. Bright enough to read as a 300px thumbnail.",
+      "notes": "No text or logos in the generated art; the wordmark is composited afterwards. To wire: serve at /art/og/default.png, set metadata.metadataBase to the public origin, add metadata.openGraph.images and metadata.twitter.images in app/layout.tsx. Could be composited from the howto-hero master (same trading-floor world) if the pipeline wants to save a generation."
+    },
+    {
+      "id": "site-not-found",
+      "title": "404: off the chart",
+      "where": [
+        "Any unknown URL: app/not-found.tsx → components/site/status-page.tsx, the picture above the '404 / Off the chart' headline"
+      ],
+      "kind": "illustration",
+      "w": 1600,
+      "h": 1000,
+      "transparent": false,
+      "priority": "high",
+      "css": "560×350 max (35rem); full width minus the 16px gutters on phones (~340×213)",
+      "crop": "Self-contained dark panel with hard rectangular edges; do not feather into the page colour (the page is dark ink or light paper depending on theme). Subject (the broken line end and the fan) in the middle third; the headline sits directly below the image.",
+      "lighting": "neon: the glowing blue price line is the only strong light; everything past the edge falls to black",
+      "style": "scene",
+      "animation": "none",
+      "fallback": "Blue-wash halftone placeholder at 16:10; the headline, line and 'Back to the floor' buttons still render.",
+      "brief": "A dark trading-board grid seen slightly from above. A single glowing hololive-blue (#3fb8f5) price line runs across it from the left and simply stops at a jagged broken edge in the centre-right, beyond which the board drops away into black like a road ending at a cliff. A small generic chibi fan (hoodie, lanyard, no identifying features) stands at the broken end holding a flashlight, peering over the edge. A few loose grid tiles tumble down into the dark. Dark ink ground (#0a0c11), flat shapes, halftone shading, a little lonely but funny.",
+      "notes": "No numbers or text anywhere. Pairs with site-error (same StatusPage layout and size): draw them as a set."
+    },
+    {
+      "id": "site-error",
+      "title": "Error page: something broke",
+      "where": [
+        "A page crashed: app/error.tsx → components/site/status-page.tsx, the picture above 'Something broke' and the retry button"
+      ],
+      "kind": "illustration",
+      "w": 1600,
+      "h": 1000,
+      "transparent": false,
+      "priority": "medium",
+      "css": "560×350 max (35rem); full width minus the 16px gutters on phones (~340×213)",
+      "crop": "Self-contained dark panel with hard rectangular edges; do not feather into the page colour. Monitor and fan centred in the middle third; the headline sits directly below.",
+      "lighting": "neon: blue scanline glow from the monitor, a few warning-amber (#f5b83f) sparks",
+      "style": "scene",
+      "animation": "none",
+      "fallback": "Blue-wash halftone placeholder at 16:10; the message and retry button still render.",
+      "brief": "A trading-terminal monitor on a desk, its screen glitched into blue scanlines around one big blank error window. Two fat cables have come unplugged from the back and spark. A generic chibi fan stands beside it holding one cable end in each hand, puzzled, a sweat drop over its head. Dark ink ground (#0a0c11), hololive-blue (#3fb8f5) screen glow, warning amber (#f5b83f) only on the sparks, flat shapes with halftone shading.",
+      "notes": "No text on the screen. Same size, framing and fan design as site-not-found."
+    },
+    {
+      "id": "site-auth-pitch",
+      "title": "Sign in / register: the floor at the opening bell",
+      "where": [
+        "/login and /register → components/auth/auth-form.tsx pitch panel (right of the form; under it on tablets and phones): top of the panel, bleeding to its edges, above 'Every hololive talent is a stock.'"
+      ],
+      "kind": "illustration",
+      "w": 1600,
+      "h": 900,
+      "transparent": false,
+      "priority": "medium",
+      "css": "380×214 on desktop; 480×270 on tablets (panel stacks under the form); full width on phones",
+      "crop": "The top-right ~30% × 50% stays calm (plain boards, no key object): today's top mover is layered there as a 96px reaction (hype) on desktop and tablet. Welcome kit in the lower left and centre. The heading sits directly below the image, so no bright band along the bottom edge.",
+      "lighting": "neon: monitors lighting up in hololive blue down the row; a warm desk-lamp pool on the welcome kit",
+      "style": "scene",
+      "animation": "none",
+      "fallback": "Blue-wash halftone placeholder at 16:9 at the top of the panel; the pitch text and movers list still render.",
+      "brief": "An invitation onto the floor at the opening bell: looking down a row of trader desks, monitors lighting up in hololive blue (#3fb8f5) one after another, a big ticker board at the far end full of up-arrows, order slips fluttering in the air like confetti. On the nearest desk in the lower left, a welcome kit: a banded stack of play-money bills with a blue diamond stamp, a blank lanyard trader badge and a steaming mug. Dark ink ground (#0a0c11), flat shapes, halftone light, hopeful mood.",
+      "notes": "The welcome kit (banded bills with a diamond stamp, blank lanyard badge) must match home-welcome: same props, same design."
+    },
+    {
+      "id": "site-verify-pending",
+      "title": "Verify email: link in flight",
+      "where": [
+        "/verify-email while checking → app/verify-email/page.tsx card, top-right corner (above the text on phones)"
+      ],
+      "kind": "spot",
+      "w": 512,
+      "h": 512,
+      "transparent": true,
+      "priority": "low",
+      "css": "96×96; 72×72 on phones",
+      "crop": "Envelope centred, filling ~85% of the square; bold silhouette that still reads at 72px.",
+      "lighting": "neutral, soft top-left key",
+      "style": "object",
+      "animation": "none",
+      "fallback": "Soft blue radial glow with halftone dots, same size.",
+      "brief": "A sealed white envelope with a hololive-blue (#3fb8f5) wax seal shaped like a diamond, flying left to right with flat speed lines and two small sparkles. Flat graphic shapes, halftone shading, white paper with cool grey shadows, clean dark outline.",
+      "notes": "One of three verify spots (pending, ok, failed) that must read as a set: same envelope, same framing."
+    },
+    {
+      "id": "site-verify-ok",
+      "title": "Verify email: you're in",
+      "where": [
+        "/verify-email on success → app/verify-email/page.tsx card, top-right corner (above the text on phones)"
+      ],
+      "kind": "spot",
+      "w": 512,
+      "h": 512,
+      "transparent": true,
+      "priority": "medium",
+      "css": "96×96; 72×72 on phones",
+      "crop": "Same framing as site-verify-pending: centred, ~85% of the square.",
+      "lighting": "bull: bright, celebratory, a blue glow from the badge",
+      "style": "object",
+      "animation": "none",
+      "fallback": "Soft blue radial glow with halftone dots, same size.",
+      "brief": "The same envelope torn open at the top, a glowing hololive-blue (#3fb8f5) trader pass (a blank lanyard badge with a diamond) shooting up out of it, small confetti and stars bursting around. Flat graphic shapes, halftone shading, clean dark outline, celebratory.",
+      "notes": "Same envelope and framing as site-verify-pending."
+    },
+    {
+      "id": "site-verify-failed",
+      "title": "Verify email: bad link",
+      "where": [
+        "/verify-email on error → app/verify-email/page.tsx card, top-right corner (above the text on phones)"
+      ],
+      "kind": "spot",
+      "w": 512,
+      "h": 512,
+      "transparent": true,
+      "priority": "low",
+      "css": "96×96; 72×72 on phones",
+      "crop": "Same framing as site-verify-pending: centred, ~85% of the square.",
+      "lighting": "bear: muted greys, one red accent",
+      "style": "object",
+      "animation": "none",
+      "fallback": "Soft blue radial glow with halftone dots, same size.",
+      "brief": "The same envelope crumpled, its diamond wax seal cracked in two, a tiny grey rain cloud dripping on it. Muted greys with one red (#ff4460) accent on the cracked seal. Flat graphic shapes, halftone shading, clean dark outline, sad but cute.",
+      "notes": "Same envelope and framing as site-verify-pending."
+    },
+    {
+      "id": "site-medal-gold",
+      "title": "Medal: 1st place",
+      "where": [
+        "/leaderboard (page 1) → components/leaderboard/leaderboard.tsx podium, top-right corner of the 1st-place step"
+      ],
+      "kind": "object",
+      "w": 256,
+      "h": 256,
+      "transparent": true,
+      "priority": "medium",
+      "css": "44×44",
+      "crop": "Coin centred slightly low, short ribbon above it, the pair filling ~90% of the square. No detail finer than ~1/40 of the width; no numerals.",
+      "lighting": "neutral studio light, one sharp specular highlight top-left",
+      "style": "object",
+      "animation": "none",
+      "fallback": "Soft blue radial glow with halftone dots, same size; the big rank number on the step still says 1.",
+      "brief": "A gold medal seen straight on: a chunky coin with a raised diamond emblem in the centre and a small up-arrow notch at the top, hanging from a short hololive-blue (#3fb8f5) ribbon. Flat graphic shapes, one sharp specular highlight, halftone shading on the rim, clean dark outline.",
+      "notes": "Set of three (gold, silver, bronze): identical shape, ribbon and lighting; only the metal changes. Reuse candidate for other top-three lists (Ticker Tap weekly board, forecasters), not used there yet."
+    },
+    {
+      "id": "site-medal-silver",
+      "title": "Medal: 2nd place",
+      "where": [
+        "/leaderboard (page 1) → components/leaderboard/leaderboard.tsx podium, top-right corner of the 2nd-place step"
+      ],
+      "kind": "object",
+      "w": 256,
+      "h": 256,
+      "transparent": true,
+      "priority": "medium",
+      "css": "36×36",
+      "crop": "Same framing as site-medal-gold.",
+      "lighting": "neutral studio light, one sharp specular highlight top-left",
+      "style": "object",
+      "animation": "none",
+      "fallback": "Soft blue radial glow with halftone dots, same size.",
+      "brief": "The same medal as site-medal-gold in cool silver: chunky coin, raised diamond emblem, small up-arrow notch, short hololive-blue (#3fb8f5) ribbon. Flat shapes, one sharp highlight, halftone rim, clean dark outline.",
+      "notes": "Must match site-medal-gold exactly apart from the metal."
+    },
+    {
+      "id": "site-medal-bronze",
+      "title": "Medal: 3rd place",
+      "where": [
+        "/leaderboard (page 1) → components/leaderboard/leaderboard.tsx podium, top-right corner of the 3rd-place step"
+      ],
+      "kind": "object",
+      "w": 256,
+      "h": 256,
+      "transparent": true,
+      "priority": "medium",
+      "css": "36×36",
+      "crop": "Same framing as site-medal-gold.",
+      "lighting": "neutral studio light, one sharp specular highlight top-left",
+      "style": "object",
+      "animation": "none",
+      "fallback": "Soft blue radial glow with halftone dots, same size.",
+      "brief": "The same medal as site-medal-gold in warm bronze: chunky coin, raised diamond emblem, small up-arrow notch, short hololive-blue (#3fb8f5) ribbon. Flat shapes, one sharp highlight, halftone rim, clean dark outline.",
+      "notes": "Must match site-medal-gold exactly apart from the metal."
+    }
+  ]
+}

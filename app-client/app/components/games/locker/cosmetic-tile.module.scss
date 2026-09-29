@@ -1,0 +1,215 @@
+@use "../../../styles/mixins" as *;
+
+.tile {
+  --cc: #8d95a8;
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.6rem 0.6rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  background: var(--ink-2);
+
+  &[data-rarity="epic"] {
+    border-color: color-mix(in srgb, var(--cc) 40%, var(--rule));
+  }
+
+  &[data-rarity="legendary"] {
+    border-color: transparent;
+    background:
+      linear-gradient(var(--ink-2), var(--ink-2)) padding-box,
+      linear-gradient(125deg, #7a5a0c, #f5c542 30%, #fff4c2 45%, #d9a520 60%, #7a5a0c) border-box;
+    box-shadow: 0 0 18px -6px rgba(245, 197, 66, 0.55);
+  }
+
+  &[data-equipped] {
+    outline: 2px solid var(--blue);
+    outline-offset: 1px;
+  }
+
+  &[data-locked] {
+    border-style: dashed;
+    background: transparent;
+    opacity: 0.6;
+    box-shadow: none;
+  }
+}
+
+.art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background:
+    radial-gradient(70% 70% at 50% 45%, color-mix(in srgb, var(--cc) 30%, transparent), transparent 75%),
+    #07090e;
+
+  img {
+    width: 78%;
+    height: 78%;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5));
+  }
+
+  [data-rarity="legendary"] > & {
+    background:
+      repeating-conic-gradient(from 0deg at 50% 50%, rgba(245, 197, 66, 0.1) 0deg 8deg, transparent 8deg 20deg),
+      radial-gradient(70% 70% at 50% 45%, rgba(245, 197, 66, 0.35), transparent 75%),
+      #07090e;
+  }
+
+  [data-locked] > & {
+    background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0 6px, transparent 6px 12px);
+  }
+}
+
+.glyph {
+  display: grid;
+  place-items: center;
+  width: 46%;
+  height: 46%;
+  color: var(--cc);
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--cc) 60%, transparent));
+
+  svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  [data-locked] & {
+    width: 30%;
+    height: 30%;
+    color: var(--dim);
+    filter: none;
+  }
+}
+
+.equippedTag {
+  @include label;
+  position: absolute;
+  top: 0.35rem;
+  left: 0.35rem;
+  padding: 0.15rem 0.35rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: var(--blue-ink);
+  background: var(--blue);
+}
+
+.body {
+  display: grid;
+  align-content: start;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rarity {
+  @include label;
+  font-size: 0.58rem;
+  color: var(--cc);
+}
+
+.meta {
+  @include num;
+  font-size: 0.68rem;
+  color: var(--dim);
+}
+
+.action {
+  display: grid;
+
+  button {
+    @include button-secondary;
+    padding: 0.4rem 0.5rem;
+    font-size: 0.6rem;
+  }
+
+  button[data-on] {
+    border-color: var(--blue-line);
+    background: var(--blue-wash);
+    color: var(--blue);
+    opacity: 1;
+  }
+}
+
+.error {
+  font-size: 0.7rem;
+  color: var(--down);
+}
+
+// ── Drawn set crests ───────────────────────────────────────────────────────
+.crest {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 82%;
+  height: 82%;
+
+  &[data-tier="roster"] {
+    clip-path: polygon(50% 0, 93% 18%, 93% 62%, 50% 100%, 7% 62%, 7% 18%);
+    background: linear-gradient(160deg, #e6dcff, #9a74ff 45%, #3d2690);
+  }
+
+  &[data-tier="spotlight"] {
+    border-radius: 12%;
+    background: conic-gradient(from 20deg, #7a5a0c, #f5c542, #fff4c2, #d9a520, #7a5a0c, #f5c542, #7a5a0c);
+    box-shadow: 0 0 22px rgba(245, 197, 66, 0.45);
+  }
+}
+
+.crestInner {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.2rem;
+  width: calc(100% - 14%);
+  height: calc(100% - 14%);
+  padding: 0 6%;
+  text-align: center;
+  color: #fff;
+  background: radial-gradient(circle at 50% 30%, #1b1733, #07090e 80%);
+
+  [data-tier="roster"] > & {
+    clip-path: polygon(50% 0, 93% 18%, 93% 62%, 50% 100%, 7% 62%, 7% 18%);
+  }
+
+  [data-tier="spotlight"] > & {
+    border-radius: 8%;
+    background: radial-gradient(circle at 50% 30%, #2a2208, #07090e 80%);
+  }
+
+  small {
+    @include num;
+    font-size: 0.5rem;
+    letter-spacing: 0.18em;
+    color: rgba(255, 255, 255, 0.55);
+  }
+
+  b {
+    @include display;
+    font-size: 0.95rem;
+    line-height: 1.05;
+  }
+
+  [data-tier="roster"] > & b {
+    color: #d8c8ff;
+  }
+
+  [data-tier="spotlight"] > & b {
+    color: #ffd766;
+  }
+}

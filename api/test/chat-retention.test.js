@@ -17,9 +17,16 @@ test("chat retention against PostgreSQL", { skip: !databaseUrl }, async (t) => {
     CREATE SCHEMA IF NOT EXISTS chat;
     CREATE SCHEMA IF NOT EXISTS market;
     CREATE SCHEMA IF NOT EXISTS yt;
+    CREATE SCHEMA IF NOT EXISTS games;
+    CREATE TABLE IF NOT EXISTS games.user_cosmetics (
+      id bigint PRIMARY KEY, cosmetic_key text, cosmetic_type text, rarity text, metadata_json jsonb
+    );
+    CREATE TABLE IF NOT EXISTS games.user_equipped_cosmetics (
+      user_id bigint, slot_key text, user_cosmetic_id bigint
+    );
     CREATE TABLE IF NOT EXISTS market.users (
       id bigint PRIMARY KEY, username text, is_admin boolean DEFAULT false,
-      profile_color text, oshi_coin_asset_id bigint, profile_picture_id bigint
+      profile_color text, oshi_coin_asset_id bigint, profile_picture_id bigint, profile_reaction text
     );
     CREATE TABLE IF NOT EXISTS market.market_assets (
       id bigint PRIMARY KEY, symbol text, display_name text, youtube_channel_id text

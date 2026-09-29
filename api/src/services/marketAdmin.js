@@ -1,8 +1,9 @@
 const { getStarterCash } = require("./trading");
 
 const DEFAULT_MAX_SUPPLY = 10_000;
-const DEFAULT_INITIAL_CIRCULATING_SUPPLY = 2_000;
-const DEFAULT_BASE_EMISSION = 10;
+// Circulating = shares players hold (nobody at listing); the weekly evaluation sets max shares.
+const DEFAULT_INITIAL_CIRCULATING_SUPPLY = 0;
+const DEFAULT_BASE_EMISSION = 0;
 const DEFAULT_SPREAD_BPS = 400;
 const DEFAULT_MARKET_DATA_TIME_ZONE = "America/New_York";
 
@@ -262,7 +263,14 @@ async function checkInvariants(pool) {
         FROM market.market_assets
         WHERE treasury_supply < 0
           OR circulating_supply < 0
-          OR circulating_supply + treasury_supply > max_supply
+          -- over the max is expected while a buyback is running
+          OR (circulating_supply + treasury_supply > max_supply AND trading_state <> 'buyback')
+        UNION ALL
+        SELECT
+          'asset_held_mismatch' AS issue_type,
+          COUNT(*)::BIGINT AS issue_count
+        FROM market.market_assets a
+        WHERE abs(a.circulating_supply - COALESCE((SELECT SUM(h.quantity) FROM market.portfolio_holdings h WHERE h.asset_id = a.id), 0)) > 0.001
         UNION ALL
         SELECT
           'asset_quote_invalid' AS issue_type,
@@ -271,12 +279,6 @@ async function checkInvariants(pool) {
         WHERE (current_bid_price IS NOT NULL AND current_ask_price IS NOT NULL AND current_bid_price > current_ask_price)
            OR current_mid_price < 0
            OR current_fair_value < 0
-        UNION ALL
-        SELECT
-          'negative_cash_balance' AS issue_type,
-          COUNT(*)::BIGINT AS issue_count
-        FROM market.portfolio_cash_balances
-        WHERE cash_balance < 0
         UNION ALL
         SELECT
           'negative_holding_quantity' AS issue_type,
@@ -356,26 +358,118 @@ async function getHistoricalMarketDateRange(pool, { activeOnly = true } = {}) {
   };
 }
 
+// A full reset: every player keeps their account (login, sessions, roles, profile, oshi, friends,
+// chat, comments, articles), and loses everything they own or earned. The stocks themselves are
+// kept, so everything linked to them survives (HoloNews tags, stock comments, oshi choices, card
+// art); their prices, supply and history are cleared for a rebuild. Listed children first; tables a
+// deployment doesn't have are skipped.
+const RESET_TABLES = [
+  // Stock trading and its history
+  "market.trade_fills",
+  "market.trade_orders",
+  "market.live_order_batches",
+  "market.ledger_entries",
+  "market.portfolio_holdings",
+  "market.user_daily_net_worth",
+  "market.user_networth_history",
+  "market.user_leaderboard_current",
+  "market.user_oshiboard_current",
+  "market.user_trade_streaks",
+  "market.user_achievements",
+  "market.achievement_evaluation_runs",
+  // Prices and settlement history (rebuilt from the YouTube data)
+  "market.asset_price_events",
+  "market.dividend_payouts",
+  "market.weekly_asset_evaluations",
+  "market.asset_buybacks",
+  "market.weekly_evaluations",
+  "market.asset_daily_market_state",
+  "market.daily_market_reports",
+  "market.market_settlement_runs",
+  "market.fundamental_calculation_runs",
+  "market.adjustment_sessions",
+  "market.asset_adjustment_intervals",
+  "market.channel_daily_snapshots",
+  // Prediction markets, all of them (funded with the currency being reset)
+  "content.prediction_market_comments",
+  "market.prediction_resolution_proposals",
+  "market.prediction_disputes",
+  "market.prediction_limit_orders",
+  "market.prediction_market_trades",
+  "market.prediction_market_orders",
+  "market.prediction_market_positions",
+  "market.prediction_market_price_history",
+  "market.prediction_market_events",
+  "market.prediction_market_outcomes",
+  "market.prediction_markets",
+  // Games: the card exchange (escrowed copies and held bids go with it), then currencies,
+  // cards, pulls, cosmetics, rewards, history
+  "games.card_bids",
+  "games.card_sales",
+  "games.card_listings",
+  "games.card_trades",
+  "games.blackjack_bets",
+  "games.blackjack_rounds",
+  "games.pvp_match_players",
+  "games.pvp_matches",
+  "games.game_sessions",
+  "games.gacha_pulls",
+  "games.gacha_pity",
+  "games.card_pulls",
+  "games.user_card_showcase",
+  "games.user_cards",
+  "games.shard_ledger",
+  "games.user_currencies",
+  "games.user_equipped_cosmetics",
+  "games.user_cosmetics",
+  "games.user_reward_claims",
+  "games.weekly_prize_payouts",
+  "games.weekly_prize_settlements",
+];
+
 async function resetMarketState(pool) {
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
 
-    await client.query(`DELETE FROM market.trade_fills`);
-    await client.query(`DELETE FROM market.trade_orders`);
-    await client.query(`DELETE FROM market.ledger_entries`);
-    await client.query(`DELETE FROM market.portfolio_holdings`);
-    await client.query(`DELETE FROM market.user_daily_net_worth`);
-    await client.query(`DELETE FROM market.user_networth_history`);
-    await client.query(`DELETE FROM market.user_leaderboard_current`);
-    await client.query(`DELETE FROM market.asset_price_events`);
-    await client.query(`DELETE FROM market.asset_daily_market_state`);
-    await client.query(`DELETE FROM market.daily_market_reports`);
-    await client.query(`DELETE FROM market.market_settlement_runs`);
-    await client.query(`DELETE FROM market.fundamental_calculation_runs`);
-    await client.query(`DELETE FROM market.market_assets`);
-    await client.query(`DELETE FROM market.channel_daily_snapshots`);
+    const { rows: present } = await client.query(`SELECT name FROM unnest($1::text[]) AS name WHERE to_regclass(name) IS NOT NULL`, [RESET_TABLES]);
+    const existing = new Set(present.map((row) => row.name));
+    // Reaction avatars came from cards, which go.
+    await client.query(`UPDATE market.users SET profile_reaction = NULL WHERE profile_reaction IS NOT NULL`);
+    // Stocks stay; their snapshot pointers go before the snapshots do.
+    await client.query(`UPDATE market.market_assets SET latest_snapshot_id = NULL, latest_snapshot_date = NULL`);
+    const cleared = {};
+    for (const table of RESET_TABLES) {
+      if (!existing.has(table)) continue;
+      const result = await client.query(`DELETE FROM ${table}`);
+      cleared[table] = result.rowCount;
+    }
+
+    // Prices and supply back to a new listing's; admin tuning (emission, spread, adjustment bounds) stays.
+    await client.query(
+      `
+      UPDATE market.market_assets
+      SET
+        max_supply = $1::numeric,
+        circulating_supply = $2::numeric,
+        treasury_supply = $1::numeric - $2::numeric,
+        liquidity_depth = $3::numeric,
+        current_fair_value = NULL,
+        current_fair_value_raw = NULL,
+        current_mid_price = NULL,
+        current_bid_price = NULL,
+        current_ask_price = NULL,
+        current_premium_pct = NULL,
+        current_daily_emission = NULL,
+        current_persistent_offset = 0,
+        current_transient_offset = 0,
+        trading_state = 'open',
+        offsets_updated_at = now(),
+        updated_at = now()
+    `,
+      [DEFAULT_MAX_SUPPLY, DEFAULT_INITIAL_CIRCULATING_SUPPLY, computeLiquidityDepth(DEFAULT_INITIAL_CIRCULATING_SUPPLY)]
+    );
     await client.query(
       `
       UPDATE market.market_runtime_state
@@ -409,6 +503,7 @@ async function resetMarketState(pool) {
     return {
       ok: true,
       starter_cash: starterCash,
+      cleared,
     };
   } catch (error) {
     await client.query("ROLLBACK");

@@ -1,0 +1,223 @@
+@use "../../styles/mixins" as *;
+
+.pad {
+  padding: 1rem;
+}
+
+.lede {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.25rem;
+  padding: 1.4rem 1.25rem 1.25rem;
+  border-bottom: 1px solid var(--rule);
+
+  h2 {
+    @include display(clamp(1.5rem, 3.2vw, 2.4rem));
+    margin: 0;
+    line-height: 1.08;
+    max-width: 26ch;
+  }
+
+  p {
+    margin: 0.75rem 0 0;
+    max-width: 72ch;
+    color: var(--mid);
+    font-size: 0.875rem;
+    line-height: 1.8;
+
+    b {
+      color: var(--text);
+    }
+
+    a {
+      vertical-align: 1px;
+      margin-inline: 1px;
+    }
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 1.1rem 1rem;
+  }
+}
+
+.kick {
+  @include label;
+  color: var(--blue);
+  margin-bottom: 0.6rem;
+}
+
+.pick {
+  display: grid;
+  gap: 0.3rem;
+  align-self: start;
+
+  select {
+    @include num;
+    font-size: 0.75rem;
+    padding: 0.35rem 0.5rem;
+    background: var(--ink-2);
+    color: var(--text);
+    border: 1px solid var(--rule);
+  }
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid var(--rule);
+
+  > div {
+    border-right: 1px solid var(--rule);
+    border-bottom: 0;
+
+    &:last-child {
+      border-right: 0;
+    }
+  }
+
+  @include desktop-down {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    > div {
+      border-bottom: 1px solid var(--rule);
+
+      &:nth-child(2n) {
+        border-right: 0;
+      }
+    }
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+
+    > div {
+      border-right: 0;
+    }
+  }
+}
+
+.mine {
+  background: color-mix(in srgb, var(--blue) 4%, transparent);
+}
+
+.net {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin: 0 0 0.6rem;
+
+  b {
+    @include num;
+    font-size: 1.6rem;
+    font-weight: 700;
+  }
+
+  span {
+    @include label;
+  }
+}
+
+.mineRows {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.35rem 1.5rem;
+}
+
+.mineRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px dashed var(--rule);
+
+  small {
+    @include num;
+    color: var(--dim);
+    font-size: 0.66rem;
+  }
+
+  b {
+    @include num;
+    font-size: 0.8rem;
+  }
+}
+
+.table {
+  display: grid;
+}
+
+.thead,
+.trow {
+  display: grid;
+  grid-template-columns: minmax(6rem, 1.2fr) repeat(2, minmax(4.5rem, 0.8fr)) minmax(8rem, 1.4fr) minmax(4rem, 0.7fr);
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--rule);
+
+  > span:not(:first-child) {
+    @include num;
+    font-size: 0.75rem;
+    text-align: right;
+  }
+
+  @include phone {
+    grid-template-columns: minmax(5rem, 1fr) repeat(2, minmax(3.5rem, 0.7fr)) minmax(4rem, 1fr);
+
+    > span:last-child {
+      display: none;
+    }
+  }
+}
+
+.thead {
+  @include label;
+  border-bottom-color: var(--rule-2);
+
+  > span:not(:first-child) {
+    @include label;
+  }
+}
+
+.sym {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  color: var(--text);
+  text-decoration: none;
+
+  b {
+    @include num;
+    font-size: 0.75rem;
+  }
+
+  small {
+    color: var(--dim);
+    font-size: 0.72rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &:hover b {
+    color: var(--blue);
+  }
+}
+
+.more {
+  @include label;
+  margin-top: 0.6rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--rule);
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+}

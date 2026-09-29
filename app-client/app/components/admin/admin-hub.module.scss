@@ -1,0 +1,391 @@
+@use "../../styles/mixins" as *;
+
+// /admin hub.
+
+.synced {
+  @include label;
+}
+
+.muted {
+  color: var(--dim);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: 0 2.25rem;
+  min-width: 0;
+
+  @include desktop-down {
+    grid-template-columns: minmax(0, 1fr) 17rem;
+    gap: 0 1.5rem;
+  }
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.main,
+.side {
+  min-width: 0;
+}
+
+.side {
+  align-self: start;
+}
+
+// ── Needs attention ────────────────────────────────────────────────────────
+.attention {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.4rem 0.8rem;
+    min-width: 0;
+    padding: 0.7rem 0 0.7rem 0.8rem;
+    border-top: 1px solid var(--rule);
+    box-shadow: inset 2px 0 0 var(--rule-2);
+
+    > i {
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 50%;
+      background: var(--dim);
+    }
+
+    &[data-tone="warn"] {
+      box-shadow: inset 2px 0 0 var(--warn);
+
+      > i {
+        background: var(--warn);
+      }
+    }
+
+    @include phone {
+      grid-template-columns: auto minmax(0, 1fr);
+
+      > a {
+        grid-column: 2;
+        justify-self: start;
+      }
+    }
+  }
+}
+
+.attText {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+
+  b {
+    font-size: 0.92rem;
+    font-weight: 600;
+  }
+
+  span {
+    font-size: 0.78rem;
+    color: var(--mid);
+    overflow-wrap: anywhere;
+  }
+}
+
+.allQuiet {
+  margin: 0;
+  padding: 0.9rem 0 0.4rem;
+  font-size: 0.875rem;
+  color: var(--mid);
+
+  b {
+    @include display(1.1rem);
+    color: var(--text);
+    margin-right: 0.3rem;
+  }
+}
+
+// ── Health ─────────────────────────────────────────────────────────────────
+.health {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  min-width: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.healthCol {
+  min-width: 0;
+  padding: 0.85rem 1.1rem 0.4rem;
+  border-left: 1px solid var(--rule);
+
+  &:first-child {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  h3 {
+    @include label;
+    margin: 0 0 0.5rem;
+  }
+
+  @include phone {
+    padding: 0.85rem 0 0.4rem;
+    border-left: 0;
+    border-top: 1px solid var(--rule);
+
+    &:first-child {
+      border-top: 0;
+    }
+  }
+}
+
+// On wrap, auto-fit leaves the second row's first cell with a left rule; that's fine on desktop
+// widths where all three sit in one row.
+
+.bigState {
+  @include display(1.9rem);
+  margin: 0 0 0.5rem;
+  line-height: 1;
+  color: var(--mid);
+
+  &[data-open="true"] {
+    color: var(--blue);
+  }
+
+  &[data-open="false"] {
+    color: var(--warn);
+  }
+}
+
+.rows {
+  display: grid;
+  margin: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.32rem 0;
+  border-top: 1px solid var(--rule);
+
+  &:first-child {
+    border-top: 0;
+  }
+
+  dt {
+    @include label;
+    font-size: 0.58rem;
+    white-space: nowrap;
+  }
+
+  dd {
+    @include num;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.2rem 0.45rem;
+    margin: 0;
+    min-width: 0;
+    font-size: 0.82rem;
+
+    small {
+      font-size: 0.7rem;
+      color: var(--dim);
+    }
+  }
+
+  &[data-tone="blue"] dd {
+    color: var(--blue);
+  }
+
+  &[data-tone="warn"] dd {
+    color: var(--warn);
+  }
+}
+
+.queue {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li + li {
+    border-top: 1px solid var(--rule);
+  }
+
+  a {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.38rem 0;
+    color: var(--mid);
+    text-decoration: none;
+    font-size: 0.85rem;
+
+    b {
+      @include num(wide);
+      font-size: 1.15rem;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    &[data-tone="warn"] b {
+      color: var(--warn);
+    }
+
+    &[data-tone="blue"] b {
+      color: var(--blue);
+    }
+
+    &:hover span {
+      color: var(--text);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.queueFoot {
+  margin: 0.3rem 0 0;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.72rem;
+  color: var(--dim);
+
+  b {
+    @include num;
+    font-weight: 500;
+    color: var(--mid);
+  }
+}
+
+// ── Side ───────────────────────────────────────────────────────────────────
+.tools {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li + li {
+    border-top: 1px solid var(--rule);
+  }
+
+  a {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.6rem 0;
+    color: var(--text);
+    text-decoration: none;
+
+    b {
+      font-size: 0.92rem;
+      font-weight: 600;
+
+      &::after {
+        content: " →";
+        color: var(--blue);
+        transition: margin-left var(--dur-fast) var(--ease-out);
+      }
+    }
+
+    span {
+      font-size: 0.76rem;
+      color: var(--dim);
+    }
+
+    &:hover b {
+      color: var(--blue);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.bars {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.2rem 0.6rem;
+    align-items: baseline;
+    font-size: 0.8rem;
+    color: var(--mid);
+
+    span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    b {
+      @include num;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    i {
+      grid-column: 1 / -1;
+      height: 3px;
+      width: var(--w);
+      border-radius: 2px;
+      background: var(--blue);
+      opacity: 0.8;
+    }
+  }
+}
+
+.sideLink {
+  @include label;
+  color: var(--blue);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// ── Pause / reopen trading ─────────────────────────────────────────────────
+.tradingControl {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: start;
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--rule);
+}
+
+.tradingNote {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--dim);
+  line-height: 1.45;
+}
+
+.tradingForm {
+  display: grid;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.tradingButtons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}

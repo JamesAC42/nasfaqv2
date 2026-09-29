@@ -1,11 +1,14 @@
 const express = require("express");
 const netWorth = require("../services/netWorth");
+const { scrubPublicMarketPayload } = require("../services/marketSecrecy");
 const {
   buildAssetOshiboardCacheKey,
   getCachedJson,
   MARKET_ASSET_OSHIBOARD_CACHE_TTL_SECONDS,
   setCachedJson,
 } = require("../marketCache");
+
+const { sendCachedJson } = require("../responseCache");
 
 const router = express.Router();
 
@@ -77,9 +80,9 @@ router.get("/oshiboard/:symbol", async (req, res, next) => {
     const limit = parseLimit(req.query.limit, 50);
     const cacheKey = buildAssetOshiboardCacheKey(symbol, limit);
     const cached = await getCachedJson(req.ctx.redis, cacheKey);
-    if (cached) return res.json(cached);
+    if (cached) return res.json(scrubPublicMarketPayload(cached));
 
-    const board = await netWorth.getAssetOshiboard(req.ctx.pool, symbol, { limit });
+    const board = scrubPublicMarketPayload(await netWorth.getAssetOshiboard(req.ctx.pool, symbol, { limit }));
     if (!board) return res.status(404).json({ error: "asset_not_found" });
     await setCachedJson(req.ctx.redis, cacheKey, board, MARKET_ASSET_OSHIBOARD_CACHE_TTL_SECONDS);
     res.json(board);
@@ -94,6 +97,15 @@ router.get("/", async (req, res, next) => {
     const page = parsePage(req.query.page, 1);
     const scope = parseScope(req.query.scope);
     const window = parseWindow(req.query.window);
+    // Signed-out visitors (the front page's top five) all see the same board: 15s cache.
+    if (!req.ctx.user && scope === "global") {
+      await sendCachedJson(req, res, `leaderboard:${window}:${page}:${limit}`, {
+        ttlSeconds: 15,
+        memoMs: 3000,
+        load: () => netWorth.listLeaderboardBundle(req.ctx.pool, { viewerUserId: null, scope, window, page, limit }),
+      });
+      return;
+    }
     const bundle = await netWorth.listLeaderboardBundle(req.ctx.pool, {
       viewerUserId: req.ctx.user?.id || null,
       scope,

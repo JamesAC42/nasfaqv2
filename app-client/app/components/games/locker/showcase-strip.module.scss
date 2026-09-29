@@ -1,0 +1,84 @@
+@use "../../../styles/mixins" as *;
+
+.strip {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  margin-bottom: 0.85rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 96px));
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.cell {
+  display: block;
+  min-width: 0;
+}
+
+.card {
+  width: 100% !important;
+}
+
+.empty,
+.ghost {
+  display: block;
+  width: 100%;
+  aspect-ratio: 5 / 7;
+  border-radius: 5%;
+}
+
+.empty {
+  border: 1px dashed var(--rule-2);
+}
+
+.ghost {
+  background: var(--ink-3);
+}
+
+.line {
+  @include num;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.75rem;
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--dim);
+
+  a {
+    font-family: var(--font-body);
+    color: var(--blue);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  b {
+    color: var(--text);
+  }
+}
+
+.rarity {
+  font-family: var(--font-display);
+  color: var(--rc);
+
+  b {
+    font-family: var(--font-mono);
+    color: var(--text);
+  }
+
+  &[data-rarity="UR"] {
+    background: linear-gradient(90deg, #ff7ad9, #ffd36e, #7dffcf) text;
+    color: transparent;
+
+    b {
+      color: var(--text);
+    }
+  }
+}

@@ -1,6 +1,8 @@
 import {
   ARTICLE_COMMENT_MOODS,
   type ArticleAsset,
+  type CosmeticTheme,
+  type Equipped,
   type ArticleAuthor,
   type ArticleComment,
   type ArticleDetail,
@@ -40,6 +42,8 @@ import {
   type LivestreamItem,
   type MarketAssetAdjustmentHistory,
   type MarketAsset,
+  type MarketBuyback,
+  type NewsMood,
   type MarketActivity,
   type MarketActivityTrader,
   type MarketActivityWindow,
@@ -543,6 +547,23 @@ export function normalizePredictionPortfolioResponse(value: Record<string, unkno
   };
 }
 
+function normalizeBuyback(value: unknown): MarketBuyback | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  return {
+    started_at: String(row.started_at || ""),
+    frozen_price: toNumber(row.frozen_price) ?? 0,
+    target_max_supply: toNumber(row.target_max_supply) ?? 0,
+    price: toNumber(row.price) ?? 0,
+    multiplier: toNumber(row.multiplier) ?? 1,
+    next_step_at: row.next_step_at ? String(row.next_step_at) : null,
+    daily_step: toNumber(row.daily_step) ?? 0.1,
+    floor: toNumber(row.floor) ?? 0.5,
+    shares_bought: toNumber(row.shares_bought) ?? 0,
+    shares_over: toNumber(row.shares_over) ?? 0,
+  };
+}
+
 export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
   const nextAdjustment = asset.next_adjustment && typeof asset.next_adjustment === "object"
     ? asset.next_adjustment as Record<string, unknown>
@@ -569,6 +590,12 @@ export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
     current_daily_emission: toNumber(asset.current_daily_emission),
     treasury_supply: toNumber(asset.treasury_supply),
     circulating_supply: toNumber(asset.circulating_supply),
+    max_supply: toNumber(asset.max_supply),
+    trading_state: asset.trading_state === "buyback" ? "buyback" : "open",
+    shares_for_sale: toNumber(asset.shares_for_sale),
+    broker_buffer: toNumber(asset.broker_buffer),
+    sold_out: Boolean(asset.sold_out),
+    buyback: normalizeBuyback(asset.buyback),
     latest_snapshot_date: asset.latest_snapshot_date ? String(asset.latest_snapshot_date) : null,
     volume_24h: toNumber(asset.volume_24h),
     move_24h_pct: toNumber(asset.move_24h_pct),
@@ -1153,6 +1180,7 @@ export function normalizeChatMessage(value: Record<string, unknown>): ChatMessag
           username: String(author.username || ""),
           profile_picture_url: author.profile_picture_url ? String(author.profile_picture_url) : null,
           profile_color: author.profile_color ? String(author.profile_color) : null,
+          equipped: normalizeEquipped(author.equipped),
           oshi_coin:
             author.oshi_coin && typeof author.oshi_coin === "object"
               ? {
@@ -1208,6 +1236,11 @@ export function normalizePortfolioOrder(value: Record<string, unknown>): Portfol
     submitted_interval_key: value.submitted_interval_key ? String(value.submitted_interval_key) : null,
     requested_at: value.requested_at ? String(value.requested_at) : null,
     updated_at: value.updated_at ? String(value.updated_at) : null,
+    fill_id: value.fill_id === null || value.fill_id === undefined ? null : String(value.fill_id),
+    fill_ts: value.fill_ts ? String(value.fill_ts) : null,
+    fill_price: toNumber(value.fill_price),
+    fill_gross_cash: toNumber(value.fill_gross_cash),
+    fill_fee_cash: toNumber(value.fill_fee_cash),
   };
 }
 
@@ -1633,6 +1666,34 @@ export function normalizeLivestreams(rows: Array<Record<string, unknown>>): Live
   }));
 }
 
+/** Equipped capsule cosmetics keyed by slot (hat, profile_frame, profile_badge, chat_flair, item…). */
+export function normalizeEquipped(value: unknown): Equipped {
+  if (!value || typeof value !== "object") return {};
+  const out: Equipped = {};
+  for (const [slot, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (!raw || typeof raw !== "object") continue;
+    const entry = raw as Record<string, unknown>;
+    out[slot] = {
+      key: String(entry.key || ""),
+      type: String(entry.type || slot),
+      rarity: String(entry.rarity || "common"),
+      display_name: String(entry.display_name || entry.key || slot),
+      image_url: entry.image_url ? String(entry.image_url) : null,
+      ...(entry.theme && typeof entry.theme === "object" ? { theme: normalizeTheme(entry.theme as Record<string, unknown>) } : {}),
+    };
+  }
+  return out;
+}
+
+const THEME_PATTERNS = ["petals", "waves", "grid", "stripes", "stars", "plain"] as const;
+function normalizeTheme(raw: Record<string, unknown>): CosmeticTheme | null {
+  const hex = (value: unknown) => (typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value : null);
+  const accent = hex(raw.accent);
+  if (!accent) return null;
+  const pattern = THEME_PATTERNS.find((entry) => entry === raw.pattern) ?? "plain";
+  return { accent, accent2: hex(raw.accent2), pattern };
+}
+
 export function normalizeLeaderboard(rows: Array<Record<string, unknown>>): LeaderboardEntry[] {
   return rows.map((row, index) => ({
     user_id: Number(row.user_id || row.id || 0),
@@ -1640,6 +1701,7 @@ export function normalizeLeaderboard(rows: Array<Record<string, unknown>>): Lead
     username: String(row.username || row.label || "user"),
     profile_picture_url: row.profile_picture_url ? String(row.profile_picture_url) : null,
     profile_color: row.profile_color ? String(row.profile_color) : null,
+    equipped: normalizeEquipped(row.equipped),
     equipped_hat:
       row.equipped_hat && typeof row.equipped_hat === "object"
         ? {
@@ -1859,6 +1921,7 @@ export function normalizeNews(rows: Array<Record<string, unknown>>): NewsItem[] 
       channel_ids: Array.isArray(row.channel_ids) ? row.channel_ids.map((item) => String(item)) : characters.map((item) => item.youtube_channel_id || "").filter(Boolean),
       stock_symbols: Array.isArray(row.stock_symbols) ? row.stock_symbols.map((item) => String(item)) : characters.map((item) => item.symbol || "").filter(Boolean),
       units: Array.isArray(row.units) ? row.units.map((item) => String(item)) : characters.map((item) => item.unit || "").filter(Boolean),
+      moods: normalizeNewsMoods(row.moods),
       article_id: toNumber(row.article_id),
       article_slug: row.article_slug ? String(row.article_slug) : null,
       is_news: Boolean(row.is_news ?? true),
@@ -1976,9 +2039,21 @@ export function normalizeArticleSummary(value: Record<string, unknown>): Article
           id: Number(newsItem.id || 0),
           headline: String(newsItem.headline || ""),
           published_at: newsItem.published_at ? String(newsItem.published_at) : null,
+          moods: normalizeNewsMoods(newsItem.moods),
         }
       : null,
   };
+}
+
+const NEWS_MOODS = new Set(["idle", "hype", "moon", "cope", "smug", "shock"]);
+
+/** Talents' reactions to a headline; anything unknown is dropped. */
+function normalizeNewsMoods(value: unknown): NewsMood[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((row) => (row && typeof row === "object" ? (row as Record<string, unknown>) : null))
+    .filter((row): row is Record<string, unknown> => Boolean(row && row.symbol && NEWS_MOODS.has(String(row.mood))))
+    .map((row) => ({ symbol: String(row.symbol).toUpperCase(), mood: String(row.mood) as NewsMood["mood"] }));
 }
 
 function normalizeArticleComments(value: unknown): ArticleComment[] {
@@ -2172,6 +2247,20 @@ function normalizeTradeStreak(value: unknown): ProfileBundle["profile"]["streaks
   };
 }
 
+function normalizeProfileTalent(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const talent = value as Record<string, unknown>;
+  const symbol = String(talent.symbol || "");
+  if (!symbol) return null;
+  return {
+    id: Number(talent.id || 0),
+    symbol,
+    display_name: String(talent.display_name || symbol),
+    icon: talent.icon ? String(talent.icon) : null,
+    color: talent.color ? String(talent.color) : null,
+  };
+}
+
 export function normalizeProfileBundle(value: Record<string, unknown>): ProfileBundle {
   const profile = (value.profile || null) as Record<string, unknown> | null;
   const stats = (profile?.stats || null) as Record<string, unknown> | null;
@@ -2196,6 +2285,7 @@ export function normalizeProfileBundle(value: Record<string, unknown>): ProfileB
       bio: profile?.bio ? String(profile.bio) : null,
       profile_picture_url: profile?.profile_picture_url ? String(profile.profile_picture_url) : null,
       profile_color: profile?.profile_color ? String(profile.profile_color) : null,
+      equipped: normalizeEquipped(profile?.equipped),
       is_admin: Boolean(profile?.is_admin),
       permissions: {
         can_manage_assets: Boolean(profile?.permissions && typeof profile.permissions === "object" && (profile.permissions as Record<string, unknown>).can_manage_assets),
@@ -2215,6 +2305,10 @@ export function normalizeProfileBundle(value: Record<string, unknown>): ProfileB
             color: oshiCoin.color ? String(oshiCoin.color) : null,
           }
         : null,
+      profile_banner: normalizeProfileTalent(profile?.profile_banner),
+      banner_options: Array.isArray(profile?.banner_options)
+        ? (profile.banner_options as unknown[]).map(normalizeProfileTalent).filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+        : [],
       stats: {
         cash_balance: Number(toNumber(stats?.cash_balance) || 0),
         total_market_value: Number(toNumber(stats?.total_market_value) || 0),

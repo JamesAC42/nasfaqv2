@@ -1,0 +1,178 @@
+@use "../../../styles/mixins" as *;
+
+.page {
+  width: 100%;
+  min-width: 0;
+  max-width: var(--page-max);
+  margin: 0 auto;
+}
+
+// ── Sub-nav + wallet ───────────────────────────────────────────────────────
+.nav {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.navScroll {
+  display: flex;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  mask-image: linear-gradient(90deg, #000 calc(100% - 1.5rem), transparent);
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.navItem {
+  @include label;
+  flex: 0 0 auto;
+  padding: 0.75rem 0.8rem 0.65rem;
+  border-bottom: 2px solid transparent;
+  color: var(--mid);
+  text-decoration: none;
+  white-space: nowrap;
+
+  &:first-child {
+    padding-left: 0;
+  }
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &[aria-current="page"] {
+    color: var(--text);
+    font-weight: 700;
+    border-bottom-color: var(--blue);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.wallet {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 1.1rem;
+
+  span {
+    display: grid;
+    justify-items: end;
+    line-height: 1.15;
+  }
+
+  small {
+    @include label;
+    font-size: 0.56rem;
+  }
+
+  b {
+    @include num;
+    font-size: 0.875rem;
+  }
+
+  @include phone {
+    display: none;
+  }
+}
+
+.shards {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+
+  i {
+    width: 0.55rem;
+    height: 0.7rem;
+    background: linear-gradient(160deg, #e6dcff, #9a74ff 55%, #3d2690);
+    clip-path: polygon(50% 0, 100% 35%, 50% 100%, 0 35%);
+  }
+}
+
+// ── Header ─────────────────────────────────────────────────────────────────
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.title {
+  min-width: 0;
+
+  h1 {
+    @include display(2rem);
+    margin: 0.15rem 0 0.3rem;
+    line-height: 1.05;
+
+    @include phone {
+      font-size: 1.6rem;
+    }
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--mid);
+
+    b {
+      @include num;
+      color: var(--text);
+    }
+  }
+}
+
+.kicker {
+  @include label;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--blue);
+
+  i {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--blue);
+    animation: live 1.8s ease-out infinite;
+  }
+}
+
+@keyframes live {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--blue) 60%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+.aside {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.signIn {
+  @include empty-state;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+
+  a {
+    color: var(--blue);
+  }
+}

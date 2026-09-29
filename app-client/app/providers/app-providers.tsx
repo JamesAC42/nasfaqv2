@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { AuthProvider } from "@/app/providers/auth-provider";
+import { MotionProvider } from "@/app/providers/motion-provider";
 import { ThemeProvider } from "@/app/providers/theme-provider";
 import { useMarketStore } from "@/app/stores/market-store";
 
@@ -18,10 +19,12 @@ function MarketRealtimeConnector() {
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <MarketRealtimeConnector />
-        {children}
-      </AuthProvider>
+      <MotionProvider>
+        <AuthProvider>
+          <MarketRealtimeConnector />
+          {children}
+        </AuthProvider>
+      </MotionProvider>
     </ThemeProvider>
   );
 }

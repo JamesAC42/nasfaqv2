@@ -18,6 +18,14 @@ spec:
     - host: holo.nasfaq.biz
       http:
         paths:
+          # Game tables live on one pod (api-games, see 20-api.yaml); the longer prefix wins.
+          - path: /api/games
+            pathType: Prefix
+            backend:
+              service:
+                name: api-games
+                port:
+                  name: http
           - path: /api
             pathType: Prefix
             backend:

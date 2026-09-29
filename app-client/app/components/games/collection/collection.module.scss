@@ -1,0 +1,64 @@
+@use "../../../styles/mixins" as *;
+
+.links {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.link {
+  @include button-secondary;
+  padding: 0.5rem 0.85rem;
+  text-decoration: none;
+}
+
+.linkPrimary {
+  @include button-primary;
+  padding: 0.5rem 0.85rem;
+  text-decoration: none;
+}
+
+.anchor {
+  min-width: 0;
+  scroll-margin-top: calc(var(--rail-height, 3rem) + 0.5rem);
+}
+
+.error {
+  @include empty-state;
+  margin: 1rem 0;
+  color: var(--down);
+
+  button {
+    @include button-secondary;
+    margin-left: 0.5rem;
+    padding: 0.3rem 0.6rem;
+  }
+}
+
+.skeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 1rem;
+  padding: 1.5rem 0;
+
+  span {
+    aspect-ratio: 5 / 7;
+    border-radius: 5%;
+    background: linear-gradient(100deg, var(--ink-2) 30%, var(--ink-3) 50%, var(--ink-2) 70%) 0 0 / 300% 100%;
+    animation: shimmer 1.4s linear infinite;
+  }
+
+  @include phone {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -150% 0;
+  }
+}
+
+:global(html[data-calm="true"]) .skeleton span {
+  animation: none;
+}

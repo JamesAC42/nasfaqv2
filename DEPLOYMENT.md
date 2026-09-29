@@ -229,6 +229,41 @@ AWS_ENDPOINT_URL=https://nyc3.digitaloceanspaces.com   # add support in code if 
 
 For this runbook we assume S3 stays; Spaces is a future-cost optimization.
 
+#### 2.6.2 Capsule prizes
+
+The capsule pool lives in `api/seed/gacha-prizes/prizes.json` (carried over from the original site's ItemCatalogue.ts; the images sit beside it). Edit that file, not the admin page, for lasting changes:
+
+```bash
+cd api
+node scripts/seed-gacha-prizes.js upload --dry-run   # then without; WebP to gachaprizes/ on the CDN
+node scripts/seed-gacha-prizes.js db --retire-others   # once per database (local, then prod via DATABASE_URL)
+```
+
+#### 2.6.1 Character art on the CDN
+
+`app-client/public/art` is gitignored (about 80 MB of WebP per build), so production loads the art from `https://images.nasfaq.biz/art/`. After each art build:
+
+```bash
+cd art-pipeline && py scripts/build.py --copy-to ../app-client/public/art
+cd ../api && node scripts/upload-art.js --dry-run   # then without --dry-run
+```
+
+The script uploads only files the bucket doesn't have yet (names carry a content hash, cached for a year) and uploads `manifest.json` last with a 60-second cache, so the site switches to new art only once every file is there. It never deletes anything.
+
+The client is built with `NEXT_PUBLIC_ART_BASE_URL=https://images.nasfaq.biz/art` (a build-time value; it is the default build arg in `app-client/Dockerfile`). Images load straight from the CDN; the manifest goes through the site at `/art-manifest.json` (app/art-manifest.json/route.ts), so the CDN needs no CORS setup. CloudFront keeps one cached copy per file whatever the Origin, so a CORS header from S3 would name whichever site asked first.
+
+Upload key (optional, safer than the API's key): an IAM user with only this policy, keys in `api/.env` as `ART_UPLOAD_AWS_ACCESS_KEY_ID` / `ART_UPLOAD_AWS_SECRET_ACCESS_KEY`:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Effect": "Allow", "Action": ["s3:PutObject", "s3:GetObject"], "Resource": ["arn:aws:s3:::BUCKET/art/*", "arn:aws:s3:::BUCKET/gachaprizes/*"] },
+    { "Effect": "Allow", "Action": "s3:ListBucket", "Resource": "arn:aws:s3:::BUCKET", "Condition": { "StringLike": { "s3:prefix": ["art/*", "gachaprizes/*"] } } }
+  ]
+}
+```
+
 ### 2.7 Load Balancer (auto-provisioned, but understand it)
 
 When you install `ingress-nginx` in §3 with `service.type=LoadBalancer`, DOKS provisions a **DigitalOcean Load Balancer** (~$12/mo). You do **not** create it manually. To see it afterwards:

@@ -1,10 +1,6 @@
-import { ArticleDetailPage } from "@/app/components/pages/article-detail-page";
+import { ArticleView } from "@/app/components/articles/article-view";
 
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
+export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  return <ArticleDetailPage slug={decodeURIComponent(slug)} />;
+  return <ArticleView slug={decodeURIComponent(slug)} />;
 }

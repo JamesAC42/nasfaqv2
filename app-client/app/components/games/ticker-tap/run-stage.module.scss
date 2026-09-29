@@ -1,0 +1,1137 @@
+@use "../../../styles/mixins" as *;
+
+// The run: a full-viewport stage (a game moment, so it can be richer than the page). Five
+// terminal lanes; ▲ green is up, ▼ red is down, ★ gold is the bonus. Calm mode keeps every
+// signal (colour, text, the life bar) and drops the motion.
+
+.overlay {
+  --gold: #f5c542;
+  --gold-ink: #1d1500;
+  --gold-wash: rgba(245, 197, 66, 0.16);
+
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 44rem) minmax(0, 1fr);
+  background: var(--ink);
+
+  @media (max-width: 1100px) {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+  }
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+:global(html[data-theme="light"]) .overlay {
+  --gold: #b68300;
+  --gold-ink: #ffffff;
+  --gold-wash: rgba(182, 131, 0, 0.12);
+}
+
+.stage {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(100%, 44rem);
+  height: 100vh;
+  height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  border-inline: 1px solid var(--rule);
+  outline: none;
+
+  @include phone {
+    border-inline: 0;
+  }
+}
+
+// ── Desktop rails ──────────────────────────────────────────────────────────
+.rail {
+  display: grid;
+  align-content: start;
+  gap: 0.6rem;
+  width: min(100%, 19rem);
+  padding: 1.25rem 1.5rem;
+  pointer-events: none;
+
+  &[data-side="left"] {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  &[data-side="right"] {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  @media (max-width: 1100px) {
+    display: none;
+  }
+}
+
+.stage {
+  grid-column: 2;
+  grid-row: 1;
+
+  @media (max-width: 1100px) {
+    grid-column: 1;
+  }
+}
+
+.railHead {
+  @include section-heading;
+  margin: 0;
+  color: var(--blue);
+}
+
+.railPool {
+  @include num(wide);
+  margin: 0 0 0.4rem;
+  font-size: 2.2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.railLadder {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+
+  li {
+    display: grid;
+    grid-template-columns: 1.4rem minmax(0, 1fr) auto 3.4rem;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 1.9rem;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.78rem;
+    color: var(--mid);
+
+    span:first-child,
+    b,
+    em {
+      @include num;
+      font-style: normal;
+    }
+
+    span:nth-child(2) {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    b {
+      color: var(--text);
+    }
+
+    em {
+      text-align: right;
+      color: var(--up);
+    }
+
+    &[data-you] {
+      background: var(--blue-wash);
+      box-shadow: inset 2px 0 0 var(--blue);
+      color: var(--blue);
+      font-weight: 700;
+
+      b {
+        color: var(--blue);
+      }
+    }
+  }
+}
+
+.railLegend {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+
+  li {
+    --kc: var(--dim);
+
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: 2rem;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.82rem;
+    color: var(--mid);
+
+    span {
+      width: 1rem;
+      color: var(--kc);
+      text-align: center;
+    }
+
+    b {
+      @include num;
+      margin-left: auto;
+      color: var(--kc);
+    }
+
+    &[data-kind="up"] {
+      --kc: var(--up);
+    }
+
+    &[data-kind="gold"] {
+      --kc: var(--gold);
+    }
+
+    &[data-kind="down"] {
+      --kc: var(--down);
+    }
+  }
+}
+
+.railNote {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  color: var(--dim);
+
+  b {
+    @include num;
+    color: var(--blue);
+  }
+
+  kbd {
+    @include num;
+    padding: 0 0.25rem;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 0.68rem;
+  }
+}
+
+// ── HUD ────────────────────────────────────────────────────────────────────
+.hud {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.3rem 0.9rem;
+  padding: 0.6rem 0.8rem 0.5rem;
+  border-bottom: 1px solid var(--rule);
+  background: var(--ink-2);
+
+  @include phone {
+    gap: 0.25rem 0.6rem;
+    padding: 0.5rem 0.6rem 0.45rem;
+  }
+}
+
+.hudLabel {
+  @include label;
+  font-size: 0.56rem;
+}
+
+.quit {
+  @include button-secondary;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  font-size: 1rem;
+}
+
+.scoreBox,
+.timeBox {
+  display: grid;
+  line-height: 1;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.timeBox {
+  justify-items: end;
+}
+
+.score {
+  @include num(wide);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+
+  &[data-neg] {
+    color: var(--down);
+  }
+
+  @include phone {
+    font-size: 1.6rem;
+  }
+}
+
+.time {
+  @include num;
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1;
+
+  &[data-low] {
+    color: var(--warn);
+  }
+}
+
+.comboBox {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 0.15rem 0.45rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  color: var(--dim);
+  transition:
+    border-color var(--dur-fast) ease,
+    background-color var(--dur-fast) ease;
+
+  &[data-live] {
+    color: var(--text);
+  }
+
+  &:not([data-mult="1"]) {
+    border-color: var(--blue);
+    background: var(--blue-wash);
+
+    .mult {
+      color: var(--blue);
+    }
+  }
+
+  &[data-mult="3"] {
+    border-color: var(--gold);
+    background: var(--gold-wash);
+
+    .mult {
+      color: var(--gold);
+    }
+  }
+}
+
+.mult {
+  @include num(wide);
+  grid-row: span 2;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.combo {
+  @include num;
+  font-size: 0.8rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.comboPips {
+  display: flex;
+  gap: 2px;
+
+  i {
+    width: 0.5rem;
+    height: 3px;
+    background: var(--rule-2);
+
+    &[data-on] {
+      background: var(--blue);
+    }
+  }
+}
+
+.comboBox[data-mult="3"] .comboPips i[data-on] {
+  background: var(--gold);
+}
+
+.timeBar {
+  grid-column: 1 / -1;
+  height: 3px;
+  background: var(--rule);
+
+  i {
+    display: block;
+    height: 100%;
+    background: var(--blue);
+    transform-origin: left center;
+  }
+}
+
+.paceRow {
+  @include label;
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.6rem;
+  min-width: 0;
+
+  b {
+    @include num;
+    color: var(--text);
+    letter-spacing: 0;
+  }
+
+  span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  [data-beat] {
+    color: var(--blue);
+
+    b {
+      color: var(--blue);
+    }
+  }
+}
+
+.pacePay {
+  color: var(--up) !important;
+}
+
+// ── Lanes ──────────────────────────────────────────────────────────────────
+.lanes {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  min-height: 0;
+  overflow: hidden;
+
+  // The tape: faint rows scrolling down, faster as the run ramps. A transformed layer (composited,
+  // no repaint); JS feeds it the scroll modulo one row.
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -40px 0 0;
+    background-image: repeating-linear-gradient(180deg, transparent 0 39px, color-mix(in srgb, var(--rule) 70%, transparent) 39px 40px);
+    transform: translate3d(0, var(--scroll, 0), 0);
+    will-change: transform;
+    pointer-events: none;
+  }
+}
+
+.stage[data-ended] .lane {
+  pointer-events: none;
+}
+
+.lane {
+  position: relative;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--rule);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  overflow: hidden;
+
+  &:first-child {
+    border-left: 0;
+  }
+
+  // The hit rail: a tap anywhere in the column counts, this just anchors the eye.
+  &::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 2.1rem;
+    height: 1px;
+    background: var(--blue-line);
+    opacity: 0.5;
+  }
+
+  @include hover-device {
+    &:hover {
+      background: color-mix(in srgb, var(--ink-3) 55%, transparent);
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: -2px;
+  }
+}
+
+.laneKey {
+  @include label;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.7rem;
+  font-size: 0.56rem;
+  text-align: center;
+  color: var(--dim);
+  pointer-events: none;
+
+  @media (hover: none), (pointer: coarse) {
+    opacity: 0;
+  }
+}
+
+.press {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: press 260ms ease-out forwards;
+
+  &[data-tone="up"] {
+    background: linear-gradient(0deg, color-mix(in srgb, var(--up) 30%, transparent), var(--up-wash));
+  }
+
+  &[data-tone="gold"] {
+    background: linear-gradient(0deg, color-mix(in srgb, var(--gold) 38%, transparent), var(--gold-wash));
+  }
+
+  &[data-tone="down"] {
+    background: color-mix(in srgb, var(--down) 38%, transparent);
+    animation-duration: 420ms;
+  }
+
+  &[data-tone="miss"] {
+    background: color-mix(in srgb, var(--ink-4) 80%, transparent);
+  }
+}
+
+@keyframes press {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+// ── Targets ────────────────────────────────────────────────────────────────
+.tile {
+  --kc: var(--up);
+  --kw: var(--up-wash);
+  --drift: -1.4rem;
+
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 0.15rem;
+  height: 5rem;
+  padding: 0.35rem 0.2rem 0.55rem;
+  border: 1px solid var(--kc);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, var(--kw), color-mix(in srgb, var(--ink-2) 92%, transparent));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--kc) 20%, transparent), 0 8px 18px -10px var(--kc);
+  pointer-events: none;
+  transform: translateY(calc(-50% + var(--age) * var(--drift)));
+  animation: spawn 140ms var(--ease-slam) both;
+
+  &[data-kind="down"] {
+    --kc: var(--down);
+    --kw: var(--down-wash);
+    --drift: 1.4rem;
+  }
+
+  &[data-kind="gold"] {
+    --kc: var(--gold);
+    --kw: var(--gold-wash);
+
+    background:
+      linear-gradient(115deg, transparent 30%, color-mix(in srgb, var(--gold) 35%, transparent) 45%, transparent 60%) 0 0 / 250% 100%,
+      linear-gradient(180deg, color-mix(in srgb, var(--gold) 26%, transparent), color-mix(in srgb, var(--ink-2) 90%, transparent));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--gold) 45%, transparent), 0 0 22px -4px var(--gold);
+    animation:
+      spawn 140ms var(--ease-slam) both,
+      shimmer 900ms linear infinite;
+  }
+
+  &[data-urgent] {
+    animation: urgent 180ms steps(2, jump-none) infinite;
+  }
+
+  @include phone {
+    left: 6%;
+    right: 6%;
+    height: 4.6rem;
+  }
+}
+
+.glyph {
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--kc);
+}
+
+.mark {
+  display: block;
+}
+
+.sym {
+  @include num;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  text-overflow: clip;
+  white-space: nowrap;
+  border-bottom: 2px solid var(--tal);
+  padding-bottom: 1px;
+}
+
+// Life drains right to left; when it's gone the ticker escapes.
+.life {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  bottom: 3px;
+  height: 3px;
+  background: var(--kc);
+  transform: scaleX(calc(1 - var(--age)));
+  transform-origin: left center;
+}
+
+@keyframes spawn {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position:
+      100% 0,
+      0 0;
+  }
+
+  to {
+    background-position:
+      -150% 0,
+      0 0;
+  }
+}
+
+@keyframes urgent {
+  50% {
+    border-color: transparent;
+  }
+}
+
+// ── Feedback ───────────────────────────────────────────────────────────────
+.pop {
+  --kc: var(--up);
+
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: grid;
+  justify-items: center;
+  pointer-events: none;
+  transform: translateY(-50%);
+
+  &[data-kind="gold"] {
+    --kc: var(--gold);
+  }
+
+  &[data-kind="down"] {
+    --kc: var(--down);
+  }
+}
+
+.burst {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4.2rem;
+  height: 4.2rem;
+  border: 2px solid var(--kc);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--kc) 22%, transparent);
+  animation: burst 380ms var(--ease-out) forwards;
+}
+
+@keyframes burst {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.6) rotate(8deg);
+  }
+}
+
+.points {
+  @include num(wide);
+  position: relative;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--kc);
+  text-shadow: 0 2px 10px var(--ink);
+  animation: rise 650ms var(--ease-out) forwards;
+
+  .pop[data-kind="gold"] & {
+    font-size: 1.5rem;
+  }
+}
+
+.pointsMult {
+  @include num;
+  position: relative;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--blue);
+  animation: rise 650ms var(--ease-out) forwards;
+}
+
+.broke {
+  @include label;
+  position: relative;
+  font-size: 0.55rem;
+  color: var(--down);
+  white-space: nowrap;
+  animation: rise 650ms var(--ease-out) forwards;
+}
+
+@keyframes rise {
+  0% {
+    opacity: 0;
+    transform: translateY(0.4rem) scale(0.8);
+  }
+
+  18% {
+    opacity: 1;
+    transform: translateY(0) scale(1.12);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-2.2rem) scale(1);
+  }
+}
+
+.sparks {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+
+  i {
+    position: absolute;
+    font-style: normal;
+    font-size: 0.8rem;
+    color: var(--gold);
+    animation: spark 560ms var(--ease-out) forwards;
+  }
+}
+
+@keyframes spark {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(var(--a)) translateY(0) scale(1.2);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--a)) translateY(-3.4rem) scale(0.4);
+  }
+}
+
+.whiff {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 3.2rem;
+  display: grid;
+  justify-items: center;
+  pointer-events: none;
+  animation: rise 450ms var(--ease-out) forwards;
+
+  b {
+    @include num;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--mid);
+  }
+
+  small {
+    @include label;
+    font-size: 0.55rem;
+    color: var(--down);
+    white-space: nowrap;
+  }
+}
+
+.escFlash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--warn) 22%, transparent), transparent 70%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 55%, transparent);
+  animation: press 520ms ease-out forwards;
+}
+
+.escape {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+  pointer-events: none;
+  transform: translateY(-50%);
+
+  small {
+    @include label;
+    font-size: 0.52rem;
+    color: var(--warn);
+    text-align: center;
+    animation: press 600ms ease-in forwards;
+  }
+}
+
+.escTile {
+  display: grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border: 1px dashed var(--dim);
+  border-radius: var(--radius-md);
+  color: var(--dim);
+  animation: flee 600ms ease-in forwards;
+
+  .escape[data-kind="gold"] & {
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+}
+
+@keyframes flee {
+  from {
+    opacity: 0.9;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-3rem) scale(0.7);
+  }
+}
+
+.multBanner {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: slam 1000ms var(--ease-out) forwards;
+
+  b {
+    @include display(4.5rem);
+    line-height: 1;
+    color: var(--blue);
+    text-shadow:
+      0 0 24px color-mix(in srgb, var(--blue) 55%, transparent),
+      0 4px 0 var(--ink);
+  }
+
+  span {
+    @include label;
+    color: var(--text);
+    font-size: 0.7rem;
+  }
+
+  &[data-max] b {
+    color: var(--gold);
+    text-shadow:
+      0 0 28px color-mix(in srgb, var(--gold) 60%, transparent),
+      0 4px 0 var(--ink);
+  }
+}
+
+@keyframes slam {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.8);
+  }
+
+  14% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  75% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -62%) scale(1);
+  }
+}
+
+// ── Countdown, bell, quit ──────────────────────────────────────────────────
+.countdown {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.6rem;
+  padding: 1rem;
+  text-align: center;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--ink) 55%, transparent);
+
+  b {
+    @include display(8rem);
+    line-height: 1;
+    color: var(--blue);
+    animation: tick 1000ms var(--ease-out) both;
+  }
+
+  p {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--text);
+
+    span {
+      @include num;
+      font-weight: 700;
+
+      &[data-kind="up"] {
+        color: var(--up);
+      }
+
+      &[data-kind="down"] {
+        color: var(--down);
+      }
+
+      &[data-kind="gold"] {
+        color: var(--gold);
+      }
+    }
+  }
+}
+
+.countdown:has(.go) {
+  background: none;
+}
+
+.countKeys {
+  @include label;
+  font-size: 0.6rem !important;
+  color: var(--dim) !important;
+
+  @media (hover: none), (pointer: coarse) {
+    display: none;
+  }
+}
+
+.go {
+  animation: goOut 700ms var(--ease-out) forwards !important;
+}
+
+@keyframes tick {
+  0% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+
+  20% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  85% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.2;
+    transform: scale(0.92);
+  }
+}
+
+@keyframes goOut {
+  0% {
+    opacity: 1;
+    transform: scale(0.9);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+.timeUp {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.4rem;
+  background: color-mix(in srgb, var(--ink) 72%, transparent);
+  animation: fadeIn 200ms ease-out both;
+
+  b {
+    @include display(3rem);
+    color: var(--text);
+  }
+
+  span {
+    @include num(wide);
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: var(--blue);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+.hiddenNote {
+  @include label;
+  position: absolute;
+  left: 50%;
+  bottom: 2.6rem;
+  margin: 0;
+  padding: 0.35rem 0.6rem;
+  transform: translateX(-50%);
+  border: 1px solid var(--warn);
+  background: var(--ink-2);
+  color: var(--warn);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.quitSheet {
+  @include popover;
+  position: absolute;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  display: grid;
+  gap: 0.6rem;
+  padding: 1rem;
+  border-radius: var(--radius-lg);
+
+  b {
+    @include display(1.3rem);
+  }
+
+  p {
+    margin: 0;
+    color: var(--mid);
+    font-size: 0.875rem;
+  }
+
+  div {
+    display: flex;
+    gap: 0.5rem;
+
+    button {
+      flex: 1;
+      min-height: 2.75rem;
+    }
+  }
+}
+
+.keepPlaying {
+  @include button-primary;
+}
+
+.bail {
+  @include button-secondary;
+  color: var(--down);
+}
+
+// ── Calm ───────────────────────────────────────────────────────────────────
+:global(html[data-calm="true"]) {
+  .tile {
+    transform: translateY(-50%);
+    animation: none;
+
+    &[data-urgent] {
+      border-style: dashed;
+    }
+  }
+
+  .burst,
+  .sparks,
+  .escTile,
+  .multBanner,
+  .countdown b,
+  .timeUp {
+    animation: none;
+  }
+
+  // Flashes are colour, not motion: hold them briefly, then cut.
+  .press,
+  .escFlash {
+    animation: calmFade 220ms steps(1, end) forwards;
+  }
+
+  .points,
+  .pointsMult,
+  .broke,
+  .whiff,
+  .escape small {
+    animation: calmFade 600ms steps(1, end) forwards;
+  }
+
+  .multBanner {
+    animation: calmFade 900ms steps(1, end) forwards;
+  }
+
+  .lanes::before {
+    transform: none;
+  }
+}
+
+@keyframes calmFade {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile,
+  .burst,
+  .sparks,
+  .escTile,
+  .countdown b {
+    animation: none;
+  }
+
+  .tile {
+    transform: translateY(-50%);
+  }
+}

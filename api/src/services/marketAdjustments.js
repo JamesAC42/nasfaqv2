@@ -401,7 +401,8 @@ async function applyInterval(client, interval, now = new Date()) {
       current_transient_offset,
       offsets_updated_at,
       latest_snapshot_id,
-      spread_bps
+      spread_bps,
+      trading_state
     FROM market.market_assets
     WHERE id = $1
     FOR UPDATE
@@ -410,7 +411,9 @@ async function applyInterval(client, interval, now = new Date()) {
   );
   const asset = rows[0] || null;
 
-  if (!asset || asset.status !== "active" || !(toNumber(asset.current_fair_value, 0) > 0) || !(toNumber(asset.current_mid_price, 0) > 0)) {
+  // A stock in a buyback is frozen: the ticks skip it (its base rate still updates at settlement).
+  const frozen = asset?.trading_state === "buyback";
+  if (!asset || frozen || asset.status !== "active" || !(toNumber(asset.current_fair_value, 0) > 0) || !(toNumber(asset.current_mid_price, 0) > 0)) {
     await client.query(
       `
       UPDATE market.asset_adjustment_intervals
@@ -424,7 +427,7 @@ async function applyInterval(client, interval, now = new Date()) {
         interval.id,
         now,
         JSON.stringify({
-          skip_reason: !asset ? "asset_not_found" : "asset_not_adjustable",
+          skip_reason: !asset ? "asset_not_found" : frozen ? "buyback" : "asset_not_adjustable",
         }),
       ]
     );
@@ -610,6 +613,175 @@ async function applyDueAdjustments(pool, { now = new Date(), limit = DEFAULT_BAT
     skipped_count: skippedCount,
     adjustments: applied,
   };
+}
+
+/**
+ * Plays one past market day's adjustments at their scheduled times, as if the scheduler had run
+ * live. Used by the historical rebuild: settlement only carries the previous close forward, and it
+ * is these adjustments that move prices toward each day's fair value. Intervals after `until` stay
+ * scheduled for the live scheduler. Computed in memory and written in bulk (a rebuild replays
+ * hundreds of days).
+ */
+async function replayAdjustmentsForDate(pool, { marketDate, until = new Date() } = {}) {
+  // Price events from an earlier replay of this day go with its old session.
+  await pool.query(
+    `
+    DELETE FROM market.asset_price_events e
+    USING market.asset_adjustment_intervals i
+    JOIN market.adjustment_sessions s ON s.id = i.session_id
+    WHERE s.market_date = $1
+      AND e.event_type = 'interval_adjustment'
+      AND e.metadata_json->>'adjustment_interval_id' = i.id::text
+  `,
+    [marketDate]
+  );
+  const generated = await ensureAdjustmentSession(pool, { marketDate, force: true });
+  const sessionId = generated.session.id;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows: intervals } = await client.query(
+      `
+      SELECT id, asset_id, interval_key, scheduled_at, strength_pct, base_rate
+      FROM market.asset_adjustment_intervals
+      WHERE session_id = $1 AND status = 'scheduled' AND scheduled_at <= $2
+      ORDER BY scheduled_at ASC, id ASC
+    `,
+      [sessionId, until]
+    );
+    if (!intervals.length) {
+      await client.query("COMMIT");
+      return { market_date: marketDate, applied_count: 0, skipped_count: 0 };
+    }
+
+    const { rows: assetRows } = await client.query(
+      `
+      SELECT id, status, current_fair_value, current_mid_price, current_persistent_offset, spread_bps
+      FROM market.market_assets
+      WHERE id = ANY($1::bigint[])
+      FOR UPDATE
+    `,
+      [[...new Set(intervals.map((interval) => interval.asset_id))]]
+    );
+    const assets = new Map(assetRows.map((row) => [String(row.id), { ...row, high: null, low: null, last: null }]));
+
+    const applied = { id: [], before: [], after: [], at: [] };
+    const skipped = [];
+    const events = { asset: [], ts: [], before: [], after: [], fair: [], meta: [] };
+    for (const interval of intervals) {
+      const asset = assets.get(String(interval.asset_id));
+      const mid = toNumber(asset?.current_mid_price, 0);
+      if (!asset || asset.status !== "active" || !(toNumber(asset.current_fair_value, 0) > 0) || !(mid > 0)) {
+        skipped.push(interval.id);
+        continue;
+      }
+      const baseRate = toNumber(interval.base_rate, toNumber(asset.current_fair_value, 0));
+      const strengthPct = toNumber(interval.strength_pct, 0);
+      const priceAfter = Math.max(0.000001, computeAdjustedPrice(mid, baseRate, strengthPct));
+      const at = new Date(interval.scheduled_at);
+      asset.current_mid_price = priceAfter;
+      asset.high = Math.max(asset.high ?? priceAfter, priceAfter);
+      asset.low = Math.min(asset.low ?? priceAfter, priceAfter);
+      asset.last = { price: priceAfter, baseRate, at };
+      applied.id.push(interval.id);
+      applied.before.push(mid);
+      applied.after.push(priceAfter);
+      applied.at.push(at.toISOString());
+      events.asset.push(asset.id);
+      events.ts.push(at.toISOString());
+      events.before.push(mid);
+      events.after.push(priceAfter);
+      events.fair.push(baseRate);
+      events.meta.push(
+        JSON.stringify({
+          market_date: marketDate,
+          interval_key: interval.interval_key,
+          strength_pct: strengthPct,
+          session_id: sessionId,
+          adjustment_interval_id: interval.id,
+          replayed: true,
+        })
+      );
+    }
+
+    await client.query(
+      `
+      UPDATE market.asset_adjustment_intervals i
+      SET price_before = v.before, price_after = v.after, status = 'applied', applied_at = v.at, updated_at = now()
+      FROM unnest($1::bigint[], $2::numeric[], $3::numeric[], $4::timestamptz[]) AS v(id, before, after, at)
+      WHERE i.id = v.id
+    `,
+      [applied.id, applied.before, applied.after, applied.at]
+    );
+    if (skipped.length) {
+      await client.query(
+        `
+        UPDATE market.asset_adjustment_intervals
+        SET status = 'skipped', applied_at = scheduled_at, updated_at = now(),
+          metadata_json = COALESCE(metadata_json, '{}'::jsonb) || '{"skip_reason":"asset_not_adjustable"}'::jsonb
+        WHERE id = ANY($1::bigint[])
+      `,
+        [skipped]
+      );
+    }
+    await client.query(
+      `
+      INSERT INTO market.asset_price_events (asset_id, ts, event_type, old_mid_price, new_mid_price, fair_value_at_event, metadata_json)
+      SELECT asset_id, ts, 'interval_adjustment', before, after, fair, meta::jsonb
+      FROM unnest($1::bigint[], $2::timestamptz[], $3::numeric[], $4::numeric[], $5::numeric[], $6::text[]) AS v(asset_id, ts, before, after, fair, meta)
+    `,
+      [events.asset, events.ts, events.before, events.after, events.fair, events.meta]
+    );
+
+    const moved = [...assets.values()].filter((asset) => asset.last);
+    const finals = { id: [], mid: [], bid: [], ask: [], premium: [], transient: [], at: [], high: [], low: [] };
+    for (const asset of moved) {
+      const { price, baseRate, at } = asset.last;
+      const quotes = computeQuotes(price, asset.spread_bps);
+      finals.id.push(asset.id);
+      finals.mid.push(price);
+      finals.bid.push(quotes.bidPrice);
+      finals.ask.push(quotes.askPrice);
+      finals.premium.push(baseRate > 0 ? (price - baseRate) / baseRate : 0);
+      finals.transient.push(Math.log(price / Math.max(baseRate, 0.000001)) - toNumber(asset.current_persistent_offset, 0));
+      finals.at.push(at.toISOString());
+      finals.high.push(asset.high);
+      finals.low.push(asset.low);
+    }
+    await client.query(
+      `
+      UPDATE market.market_assets a
+      SET current_mid_price = v.mid, current_bid_price = v.bid, current_ask_price = v.ask, current_premium_pct = v.premium,
+        current_transient_offset = v.transient, offsets_updated_at = v.at, updated_at = now()
+      FROM unnest($1::bigint[], $2::numeric[], $3::numeric[], $4::numeric[], $5::numeric[], $6::numeric[], $7::timestamptz[])
+        AS v(id, mid, bid, ask, premium, transient, at)
+      WHERE a.id = v.id
+    `,
+      [finals.id, finals.mid, finals.bid, finals.ask, finals.premium, finals.transient, finals.at]
+    );
+    await client.query(
+      `
+      UPDATE market.asset_daily_market_state d
+      SET mid_close = v.mid,
+        mid_high = GREATEST(COALESCE(d.mid_high, d.mid_open), v.high),
+        mid_low = LEAST(COALESCE(d.mid_low, d.mid_open), v.low),
+        bid_close = v.bid, ask_close = v.ask, premium_close_pct = v.premium, updated_at = now()
+      FROM unnest($1::bigint[], $2::numeric[], $3::numeric[], $4::numeric[], $5::numeric[], $6::numeric[], $7::numeric[])
+        AS v(id, mid, bid, ask, premium, high, low)
+      WHERE d.asset_id = v.id AND d.market_date = $8
+    `,
+      [finals.id, finals.mid, finals.bid, finals.ask, finals.premium, finals.high, finals.low, marketDate]
+    );
+    await refreshCompletedSessions(client);
+    await client.query("COMMIT");
+    return { market_date: marketDate, applied_count: applied.id.length, skipped_count: skipped.length };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function forceNextAdjustment(pool, { marketDate, now = new Date(), redis = null } = {}) {
@@ -802,7 +974,15 @@ function startAdjustmentScheduler(pool, logger = console, redis = null) {
   async function tick() {
     if (!enabled || running) return;
     running = true;
-    const lockClient = await pool.connect();
+    let lockClient;
+    try {
+      lockClient = await pool.connect();
+    } catch (error) {
+      // Pool exhausted or the database is down: skip this tick instead of crashing the process.
+      running = false;
+      logger.error?.("market adjustment scheduler could not get a connection", error);
+      return;
+    }
     try {
       const locked = await acquireAdjustmentSchedulerLock(lockClient);
       if (!locked) return;
@@ -1290,8 +1470,11 @@ async function getAdminAdjustmentHealth(pool) {
 module.exports = {
   INTERVALS,
   INTERVAL_STRENGTH_TOTAL_PCT,
+  acquireAdjustmentSchedulerLock,
+  releaseAdjustmentSchedulerLock,
   applyDueAdjustments,
   ensureAdjustmentSession,
+  replayAdjustmentsForDate,
   forceNextAdjustment,
   getAdminAdjustmentHealth,
   getAdminAdjustmentSession,

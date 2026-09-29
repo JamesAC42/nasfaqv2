@@ -1,0 +1,57 @@
+// Friendly copy for the games API's error codes (api/src/routes/games.js ERROR_STATUS).
+
+const COPY: Record<string, string> = {
+  unauthenticated: "Sign in to play.",
+  forbidden: "That isn't yours to do.",
+  "Verify your email before using this feature.": "Verify your email to play for money.",
+  email_verification_required: "Verify your email to play for money.",
+  insufficient_cash: "Not enough cash for that.",
+  insufficient_shards: "Not enough shards.",
+  reward_already_claimed: "Already claimed.",
+  set_incomplete: "That set isn't complete yet.",
+  card_not_owned: "You don't own one of those cards.",
+  table_full: "Someone else took the seat.",
+  table_not_open: "That table isn't open anymore.",
+  table_not_found: "That table is gone.",
+  already_seated: "You're already at a table. Finish or cancel it first.",
+  not_your_turn: "Not your turn.",
+  invalid_action: "You can't do that right now.",
+  invalid_stake: "That stake is outside the table limits.",
+  invalid_deck: "Pick five different talents for your deck.",
+  invalid_bet: "That bet is outside the table limits.",
+  banner_not_found: "That banner has ended.",
+  card_pool_empty: "The card pool is empty right now.",
+  game_not_found: "That game isn't available.",
+  run_too_fast: "That run ended too early to count.",
+  games_api_outdated: "The arcade is being updated. Back shortly.",
+  "404": "The arcade is being updated. Back shortly.",
+  game_session_not_active: "That run was already submitted.",
+  // Card exchange
+  card_bound: "Starter-pack cards stay with you. They can't be sold or traded.",
+  card_not_tradeable: "You don't have a spare copy of that card to trade.",
+  exchange_account_too_new: "New accounts can trade a few days after signing up.",
+  exchange_daily_limit: "That's the daily limit for new listings and offers. Try again tomorrow.",
+  exchange_listing_limit: "You have the most listings you can run at once. Cancel or sell one first.",
+  exchange_offer_limit: "You have the most open offers you can. Wait for answers or withdraw one.",
+  invalid_price: "Prices go from $1 to $1,000,000 (and a buy-now has to beat the opening bid).",
+  invalid_duration: "Pick how long the auction runs.",
+  invalid_listing: "That listing isn't valid.",
+  invalid_trade: "Something in that offer isn't valid.",
+  trade_one_sided: "Both sides need something: cards, cash or shards.",
+  trade_with_self: "You can't trade with yourself.",
+  listing_not_found: "That listing is gone.",
+  trade_not_found: "That offer isn't open any more.",
+  trade_partner_not_found: "No player by that name.",
+  listing_closed: "Too late: that listing has closed.",
+  auction_has_bids: "Auctions with bids run to the end.",
+  own_listing: "That's your own listing.",
+  buy_now_unavailable: "The bidding passed the buy-now price.",
+  not_an_auction: "That listing isn't an auction.",
+  bid_too_low: "Someone bid higher. Raise yours.",
+  trade_closed: "That offer has already been answered.",
+};
+
+export function gameErrorText(error: unknown) {
+  const message = String((error as Error)?.message ?? error ?? "");
+  return COPY[message] ?? (message && !/^\d+$/.test(message) ? message.replace(/_/g, " ") : "Something went wrong. Try again.");
+}

@@ -1,0 +1,125 @@
+{
+  "area": "predictions",
+  "slots": [
+    {
+      "id": "predictions-og",
+      "title": "Share image: predictions",
+      "where": [
+        "/predictions and /predictions/[slug] share card (planned: metadata in app/predictions/page.tsx and [slug]/page.tsx; not wired yet)"
+      ],
+      "kind": "social",
+      "w": 1200,
+      "h": 630,
+      "transparent": false,
+      "priority": "medium",
+      "css": "1200×630 as delivered; shown 300–600 wide in link previews",
+      "crop": "Safe area is the centre 1080×566. The left 45% stays calm and dark for the title composited later; the price bar, tokens and crystal ball live in the right 55%.",
+      "lighting": "neon: hololive blue on one side, warm orange on the other (not market green/red: a call is not a price move)",
+      "style": "social",
+      "animation": "none",
+      "fallback": "None today: link previews show the page title only.",
+      "brief": "A betting board for calls: a big split price bar glowing hololive blue (#3fb8f5) on one side and warm orange on the other, floating yes/no ballot tokens, a crystal ball on a small stand reflecting a stock chart, faint probability curves across a dark ink (#0a0c11) background. Flat shapes, halftone bloom, bright enough to read as a thumbnail.",
+      "notes": "No text or numbers. To wire: serve at /art/og/predictions.png, set metadataBase, add metadata.openGraph.images. A per-market card could later composite the market title over this plate. Same props (crystal ball, yes/no tokens, tote bars) as predictions-hero."
+    },
+    {
+      "id": "predictions-hero",
+      "title": "Predictions: header backdrop",
+      "where": [
+        "/predictions, /predictions/portfolio and /predictions/create → components/predictions/shell/predictions-frame.tsx page header, behind the kicker, title, blurb (left) and the aside (right). Not on /predictions/manage, not on market pages (they use a bare frame)"
+      ],
+      "kind": "backdrop",
+      "w": 2400,
+      "h": 400,
+      "transparent": false,
+      "priority": "medium",
+      "css": "page width (up to 1680) × ~110–150; cover at object-position 80% 50%; 60% opacity",
+      "crop": "The UI masks it: fully transparent over the left 25%, fading in until 75% (phones: transparent to 35%, solid at 100%). Everything interesting lives in the right 40%, vertically centred: at desktop widths only the middle ~50% of the height shows. The aside (cash, stats) can sit over the right side, so keep it low-contrast.",
+      "lighting": "neon: thin glowing blue bars and a little warm orange on dark ink",
+      "style": "scene",
+      "animation": "none",
+      "fallback": "Nothing visible beyond a faint blue halftone at the right; the header text is unaffected.",
+      "brief": "A wide, low strip: a long glowing tote board of probability bars and small yes/no tokens receding to the right, a faint crystal ball silhouette and a few floating ballot slips in the right third, soft haze. Dark ink (#0a0c11) with hololive blue (#3fb8f5) and a little warm orange. The left half is plain dark ink.",
+      "notes": "No text or numbers. Sits on the theme background at 60%: in light mode it reads as a grey-blue band on the right, so keep it light-weight (thin lines, no large bright areas)."
+    },
+    {
+      "id": "predictions-floor-empty",
+      "title": "Predictions: nothing on this tab",
+      "where": [
+        "/predictions → components/predictions/floor/predictions-floor.tsx, empty tab or empty search result (not shown on load errors), above the empty message"
+      ],
+      "kind": "spot",
+      "w": 800,
+      "h": 600,
+      "transparent": true,
+      "priority": "low",
+      "css": "200×150, centred",
+      "crop": "Booth centred, ~85% of the frame.",
+      "lighting": "neutral, dim; a blue glow in the crystal ball",
+      "style": "object",
+      "animation": "none",
+      "fallback": "Soft blue radial glow with halftone dots, same size.",
+      "brief": "An empty betting window: a small ticket booth with its shutter half down, a blank 'back soon' clock sign hanging on it, a crystal ball on the counter showing only swirling mist. Muted blues and greys with a hololive-blue (#3fb8f5) glow in the ball. Flat shapes, halftone, clean dark outline.",
+      "notes": "No text on the sign. Same crystal ball as the other predictions art."
+    },
+    {
+      "id": "predictions-portfolio-empty",
+      "title": "My bets: no open bets",
+      "where": [
+        "/predictions/portfolio → components/predictions/portfolio/predictions-portfolio.tsx, no open positions, above 'No open bets. Hit the floor and make a call'"
+      ],
+      "kind": "spot",
+      "w": 800,
+      "h": 600,
+      "transparent": true,
+      "priority": "medium",
+      "css": "200×150, centred",
+      "crop": "Pad and token centred, ~85% of the frame.",
+      "lighting": "neutral, soft top-left key",
+      "style": "object",
+      "animation": "none",
+      "fallback": "Soft blue radial glow with halftone dots, same size.",
+      "brief": "A fresh pad of blank bet slips and a pen on a desk, a single yes/no token balanced on its edge about to fall either way, a tiny crystal ball glinting beside it. Hololive blue (#3fb8f5) and warm orange accents, flat shapes, halftone, clean dark outline.",
+      "notes": "No text on the slips."
+    },
+    {
+      "id": "predictions-event-mark",
+      "title": "Prediction market: event badge",
+      "where": [
+        "/predictions/[slug] → components/predictions/market/market-header.tsx, event markets with no talent and no featured_image_url: inside the round badge left of the title"
+      ],
+      "kind": "icon",
+      "w": 256,
+      "h": 256,
+      "transparent": true,
+      "priority": "low",
+      "css": "44×44 (32 on phones), centred in a 64px circle with a thin ring",
+      "crop": "Emblem fits a circle: keep it inside the central ~85% circle so it never touches the ring.",
+      "lighting": "neutral",
+      "style": "object",
+      "animation": "none",
+      "fallback": "Soft blue radial glow inside the ring.",
+      "brief": "A compact emblem for 'an event call': a crystal ball on a small stand with a tiny up-arrow and down-arrow orbiting it, hololive-blue (#3fb8f5) glass, bold dark outline. Flat, readable at 32px.",
+      "notes": "Talent markets show the talent's oshimark here instead; a featured_image_url replaces it."
+    },
+    {
+      "id": "predictions-verdict",
+      "title": "Prediction market: the call is in",
+      "where": [
+        "/predictions/[slug] → components/predictions/market/market-header.tsx MarketCall, resolved binary markets (not voided): top-right of the 'The call: YES/NO' block; hidden on phones"
+      ],
+      "kind": "spot",
+      "w": 512,
+      "h": 512,
+      "transparent": true,
+      "priority": "low",
+      "css": "96×96",
+      "crop": "Gavel and block centred, ~85% of the square.",
+      "lighting": "neutral: the verdict colour (yes/no) comes from the UI text, so the art stays neutral",
+      "style": "object",
+      "animation": "none",
+      "fallback": "Soft blue radial glow with halftone dots, same size.",
+      "brief": "A judge's gavel mid-strike on a round sound block, a burst of flat impact lines and a few confetti bits, a rubber stamp shape beside it. Hololive blue (#3fb8f5) and white with warm wood tones. Flat shapes, halftone, clean dark outline.",
+      "notes": "No text on the stamp."
+    }
+  ]
+}

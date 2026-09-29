@@ -515,7 +515,7 @@ async function listPredictionMarketComments(pool, slug, { page = 1, limit = 12, 
         jsonb_build_object(
           'id', u.id,
           'username', u.username,
-          'profile_picture_url', u.profile_picture_url,
+          'profile_picture_url', COALESCE('reaction:' || u.profile_reaction, u.profile_picture_url),
           'profile_color', u.profile_color,
           'total_equity', ranked.total_equity,
           'rank', ranked.rank

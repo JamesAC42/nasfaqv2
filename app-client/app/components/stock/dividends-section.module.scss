@@ -1,0 +1,128 @@
+@use "../../styles/mixins" as *;
+
+// Past Dividend Reviews as bars around a zero line: dividends up, fees down.
+
+.bars {
+  margin-top: 0.2rem;
+}
+
+.barsHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.3rem 0.8rem;
+  margin-bottom: 0.35rem;
+
+  small {
+    @include label;
+  }
+
+  span {
+    @include num;
+    font-size: 0.72rem;
+    color: var(--mid);
+  }
+
+  b {
+    font-weight: 600;
+  }
+}
+
+.plot {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 2px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.col {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: default;
+
+  small {
+    @include num;
+    overflow: hidden;
+    padding-bottom: 0.25rem;
+    font-size: 0.6rem;
+    color: var(--dim);
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  &[data-on] small {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  @include phone {
+    small {
+      visibility: hidden;
+    }
+
+    &:first-child small,
+    &:last-child small,
+    &[data-on] small {
+      visibility: visible;
+    }
+  }
+}
+
+.well {
+  position: relative;
+  display: block;
+  height: 96px;
+  border-radius: 2px;
+  transition: background 120ms ease;
+
+  // The zero line.
+  &::before {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    left: 0;
+    height: 1px;
+    content: "";
+    background: var(--rule-strong, var(--rule));
+  }
+
+  i {
+    position: absolute;
+    right: 22%;
+    left: 22%;
+    border-radius: 1px;
+    transition: height 240ms ease;
+
+    &[data-sign="up"] {
+      bottom: 50%;
+      background: var(--up);
+    }
+
+    &[data-sign="down"] {
+      top: 50%;
+      background: var(--down);
+    }
+  }
+
+  .col[data-on] & {
+    background: color-mix(in srgb, var(--text) 6%, transparent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+
+    i {
+      transition: none;
+    }
+  }
+}

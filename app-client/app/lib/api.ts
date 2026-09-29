@@ -12,16 +12,18 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
   if (!response.ok) {
     let message = `${response.status}`;
+    let body: Record<string, unknown> | null = null;
     try {
-      const body = (await response.json()) as { error?: string };
-      if (body?.error) {
+      body = (await response.json()) as Record<string, unknown>;
+      if (typeof body?.error === "string") {
         message = body.error;
       }
     } catch {}
     if (message === "email_verification_required") {
       message = "Verify your email before using this feature.";
     }
-    throw new Error(message);
+    // The parsed body rides along for callers that want the details (limits, reset times…).
+    throw Object.assign(new Error(message), { status: response.status, body });
   }
 
   return (await response.json()) as T;

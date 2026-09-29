@@ -1,0 +1,242 @@
+@use "../../../styles/mixins" as *;
+
+// The attract-mode cabinet in the Ticker Tap lobby: a small screen with five lanes playing
+// themselves. Tiles match the real run (green up, red down, gold): here green/red are price moves.
+
+.cabinet {
+  --gold: #f5c542;
+  --gold-wash: rgba(245, 197, 66, 0.16);
+
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  height: 100%;
+  min-height: 15rem;
+  overflow: hidden;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-lg);
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #0b1220, #070a12);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.6),
+    inset 0 0 40px rgba(63, 184, 245, 0.08),
+    0 18px 40px -20px rgba(63, 184, 245, 0.35);
+
+  // Screen glare.
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.06), transparent 35%);
+  }
+}
+
+.hud {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.45rem 0.7rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.demo {
+  @include label;
+  color: var(--blue);
+  animation: blink 1.2s steps(1, end) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.score {
+  @include num(wide);
+  margin-left: auto;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.mult {
+  @include num;
+  min-width: 2.6rem;
+  font-size: 0.8rem;
+  text-align: right;
+  color: var(--dim);
+
+  &[data-hot] {
+    color: var(--blue);
+  }
+}
+
+.lanes {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  min-height: 0;
+}
+
+.lane {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+
+  &:last-child {
+    border-right: 0;
+  }
+}
+
+.flash {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--up) 22%, transparent));
+  animation: fade 420ms ease-out both;
+
+  &[data-tone="gold"] {
+    background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--gold) 30%, transparent));
+  }
+
+  &[data-tone="down"] {
+    background: color-mix(in srgb, var(--down) 22%, transparent);
+  }
+}
+
+@keyframes fade {
+  to {
+    opacity: 0;
+  }
+}
+
+.tile {
+  --kc: var(--up);
+  --kw: var(--up-wash);
+
+  position: absolute;
+  left: 9%;
+  right: 9%;
+  display: grid;
+  justify-items: center;
+  gap: 0.1rem;
+  padding: 0.3rem 0.1rem 0.45rem;
+  border: 1px solid var(--kc);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, var(--kw), rgba(15, 18, 25, 0.92));
+  box-shadow: 0 6px 14px -8px var(--kc);
+  transform: translateY(-50%);
+  animation: spawn 140ms var(--ease-slam) both;
+
+  &[data-kind="down"] {
+    --kc: var(--down);
+    --kw: var(--down-wash);
+  }
+
+  &[data-kind="gold"] {
+    --kc: var(--gold);
+    --kw: var(--gold-wash);
+
+    box-shadow: 0 0 18px -4px var(--gold);
+  }
+}
+
+@keyframes spawn {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.6);
+  }
+}
+
+.glyph {
+  font-size: 0.75rem;
+  line-height: 1;
+  color: var(--kc);
+}
+
+.sym {
+  @include num;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--mid);
+}
+
+.life {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 3px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--kc);
+  transform-origin: left;
+  animation: drain var(--life, 1200ms) linear both;
+}
+
+@keyframes drain {
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.pop {
+  @include num;
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+  color: var(--up);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+  transform: translateY(-50%);
+  animation: rise 720ms var(--ease-out) both;
+
+  &[data-tone="big"] {
+    font-size: 0.8rem;
+    color: var(--gold);
+  }
+
+  &[data-tone="down"] {
+    color: var(--down);
+  }
+
+  &[data-tone="miss"] {
+    font-weight: 500;
+    color: var(--dim);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 1;
+    transform: translateY(-50%) scale(1.15);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-160%);
+  }
+}
+
+.combo {
+  @include label;
+  padding: 0.4rem 0.7rem;
+  border-top: 1px solid var(--rule);
+  text-align: center;
+
+  b {
+    @include num;
+    font-size: 0.8rem;
+    color: var(--blue);
+  }
+}
+
+:global(html[data-calm="true"]) .cabinet * {
+  animation: none !important;
+}

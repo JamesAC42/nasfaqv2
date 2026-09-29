@@ -1,0 +1,32 @@
+@use "../../styles/mixins" as *;
+
+.chip {
+  @include num;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--rule-2);
+  font-size: 0.656rem;
+  white-space: nowrap;
+
+  b {
+    font-weight: 700;
+  }
+
+  &:hover {
+    border-color: var(--text);
+  }
+}
+
+.up {
+  color: var(--up);
+}
+
+.down {
+  color: var(--down);
+}
+
+.flat {
+  color: var(--mid);
+}

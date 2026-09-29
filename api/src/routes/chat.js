@@ -1,8 +1,10 @@
 const express = require("express");
 
 const chatDb = require("../chatDb");
+const notifications = require("../services/notifications");
 const { requireAdmin, requireUserId, requireVerifiedUserId } = require("../userContext");
 
+const { rateLimit, byUser } = require("../rateLimit");
 const router = express.Router();
 
 const CHAT_EVENTS_REDIS_CHANNEL = "nasfaq_chat:events";
@@ -18,7 +20,7 @@ async function publishChatEvent(redis, payload) {
 }
 
 async function ensureTopology(pool) {
-  await chatDb.ensureChatTopology(pool);
+  await chatDb.ensureChatTopologyRecent(pool);
 }
 
 router.get("/channels", async (req, res, next) => {
@@ -83,10 +85,16 @@ router.get("/channels/:channelKey/messages", async (req, res, next) => {
   }
 });
 
-router.post("/channels/:channelKey/messages", async (req, res, next) => {
+router.post("/channels/:channelKey/messages", rateLimit(byUser("chat", 30, 60)), async (req, res, next) => {
   try {
     const viewer = req.ctx.user;
     requireVerifiedUserId(req);
+    // One message in flight per person: the 3-second rule below reads the last message and then
+    // inserts, so parallel posts could all pass it. This gate makes them take turns.
+    if (req.ctx.redis) {
+      const gate = await req.ctx.redis.set(`chat:posting:${viewer.id}`, "1", { NX: true, PX: 2500 }).catch(() => "OK");
+      if (gate !== "OK") return res.status(429).json({ error: "chat_rate_limited", retry_after: 3 });
+    }
     await ensureTopology(req.ctx.pool);
 
     const channel = await chatDb.getChannelByKey(req.ctx.pool, req.params.channelKey, {
@@ -109,6 +117,8 @@ router.post("/channels/:channelKey/messages", async (req, res, next) => {
       channel_key: created.channel.channel_key,
       message: created.message,
     });
+    // @mentions and replies ring the bell.
+    await notifications.notifyChatMessage(req.ctx.pool, { message: created.message, channel: created.channel, author: viewer }).catch(() => null);
 
     res.status(201).json({
       channel: created.channel,

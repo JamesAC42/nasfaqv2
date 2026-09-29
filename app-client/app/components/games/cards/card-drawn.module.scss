@@ -1,0 +1,198 @@
+// Drawn frame ornaments and card back (card-drawn.tsx). Colours come from the card's rarity
+// tokens (--r-a/--r-b/--r-c/--r-ink, set on .card in talent-card.module.scss).
+
+.ornament,
+.back {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.bezel {
+  fill: none;
+  stroke: color-mix(in srgb, var(--r-c, #fff) 55%, transparent);
+  stroke-width: 1.6;
+}
+
+.rivet {
+  fill: var(--r-c, #c7ccd8);
+  stroke: rgba(0, 0, 0, 0.45);
+  stroke-width: 1;
+}
+
+.bracket {
+  fill: none;
+  stroke: var(--r-c, #fff);
+  stroke-width: 3.2;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--r-b, #fff) 70%, transparent));
+}
+
+.rule {
+  fill: none;
+  stroke: var(--r-c, #fff);
+  stroke-width: 2;
+}
+
+.gem {
+  fill: var(--r-c, #fff);
+  stroke: var(--r-a, #000);
+  stroke-width: 1.5;
+}
+
+.foilLine {
+  fill: none;
+  stroke-width: 1.6;
+  opacity: 0.85;
+}
+
+.foilBracket {
+  fill: none;
+  stroke-width: 3.4;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+}
+
+.foilRay {
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.foilGem {
+  fill: #fff8dc;
+  stroke: #7a5a0c;
+  stroke-width: 1.5;
+}
+
+.crest {
+  stroke: rgba(0, 0, 0, 0.5);
+  stroke-width: 1.5;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.45));
+}
+
+.crestMark {
+  fill: #fffdf2;
+}
+
+.sparkle {
+  fill: #fff;
+  opacity: 0;
+  animation: twinkle 2.6s ease-in-out infinite;
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  45% {
+    opacity: 0.95;
+    transform: scale(1);
+  }
+  60% {
+    opacity: 0.6;
+    transform: scale(0.85) rotate(20deg);
+  }
+}
+
+// UR: the foil drifts through the spectrum.
+.holo {
+  animation: holoHue 6s linear infinite;
+}
+
+.holo .foilGem {
+  fill: #fff;
+  stroke: #b04ea0;
+}
+
+@keyframes holoHue {
+  to {
+    filter: hue-rotate(360deg);
+  }
+}
+
+// Binder-sized cards: keep the bezel and main shapes, drop the hairlines and sparkles.
+@container (max-width: 110px) {
+  .fine {
+    display: none;
+  }
+
+  .bracket,
+  .foilBracket {
+    stroke-width: 5;
+  }
+}
+
+// ── Back ───────────────────────────────────────────────────────────────────
+.lattice path {
+  fill: none;
+  stroke: rgba(63, 184, 245, 0.07);
+  stroke-width: 6;
+}
+
+.rosette ellipse,
+.rosette circle {
+  fill: none;
+  stroke: rgba(111, 202, 248, 0.2);
+  stroke-width: 1;
+}
+
+.ring {
+  fill: none;
+  stroke: rgba(111, 202, 248, 0.45);
+  stroke-width: 2;
+}
+
+.dashed {
+  stroke-dasharray: 3 6;
+}
+
+.hub {
+  fill: rgba(6, 10, 20, 0.82);
+  stroke: rgba(63, 184, 245, 0.55);
+  stroke-width: 2;
+}
+
+.border {
+  fill: none;
+  stroke: rgba(63, 184, 245, 0.5);
+  stroke-width: 2;
+}
+
+.backGem {
+  fill: #3fb8f5;
+  stroke: #0b1a33;
+  stroke-width: 2;
+}
+
+.logo {
+  fill: #3fb8f5;
+  filter: drop-shadow(0 0 8px rgba(63, 184, 245, 0.6));
+}
+
+:global(html[data-calm="true"]) {
+  .sparkle,
+  .holo {
+    animation: none;
+  }
+
+  .sparkle {
+    opacity: 0.7;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sparkle,
+  .holo {
+    animation: none;
+  }
+
+  .sparkle {
+    opacity: 0.7;
+  }
+}

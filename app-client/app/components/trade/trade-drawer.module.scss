@@ -1,0 +1,572 @@
+@use "../../styles/mixins" as *;
+
+.up { color: var(--up); }
+.down { color: var(--down); }
+.flat { color: var(--mid); }
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 74;
+  background: var(--scrim);
+  backdrop-filter: blur(2px);
+  animation: fadeIn 0.18s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 75;
+  width: min(25rem, 100%);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: var(--ink);
+  border-left: 1px solid var(--rule-2);
+  box-shadow: -24px 0 60px rgba(0, 0, 0, 0.5);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  animation: tdIn 0.26s var(--ease-out);
+
+  @include phone {
+    top: auto;
+    width: 100%;
+    max-height: 90dvh;
+    border-left: 0;
+    border-top: 2px solid var(--tal);
+    animation: tdUp 0.26s var(--ease-out);
+  }
+}
+
+@keyframes tdIn {
+  from {
+    transform: translateX(40px);
+    opacity: 0;
+  }
+}
+
+@keyframes tdUp {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+}
+
+.head {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 1.1rem 1rem 0.9rem 1.1rem;
+  border-bottom: 1px solid var(--rule);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--tal) 22%, transparent), transparent 70%);
+}
+
+.id {
+  min-width: 0;
+
+  h2 {
+    @include display(1.25rem);
+    margin: 0;
+    line-height: 1.05;
+  }
+
+  span {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.72rem;
+    color: var(--mid);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.px {
+  text-align: right;
+  @include num;
+
+  b {
+    display: block;
+    font-size: 1.375rem;
+  }
+
+  span {
+    font-size: 0.6875rem;
+  }
+}
+
+.close {
+  align-self: start;
+  border: 0;
+  background: none;
+  color: var(--dim);
+  font-size: 0.95rem;
+  padding: 0.2rem;
+
+  &:hover {
+    color: var(--text);
+  }
+}
+
+.spark {
+  padding: 0.6rem 1.1rem 0;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 56px;
+  }
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 0.6rem 1.1rem;
+  border-bottom: 1px solid var(--rule);
+
+  span {
+    @include label;
+    display: block;
+    font-size: 0.6rem;
+  }
+
+  b {
+    @include num;
+    font-size: 0.78rem;
+  }
+
+  small {
+    font-size: 0.625rem;
+  }
+}
+
+.pos {
+  padding: 0.6rem 1.1rem;
+  border-bottom: 1px solid var(--rule);
+  background: var(--blue-wash);
+  @include num;
+  font-size: 0.72rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem 1.1rem;
+}
+
+.seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--rule-2);
+
+  button {
+    border: 0;
+    background: none;
+    padding: 0.6rem;
+    @include display(1rem);
+    color: var(--dim);
+
+    &:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    &[aria-pressed="true"][data-side="buy"] {
+      background: var(--up);
+      color: var(--up-ink);
+    }
+
+    &[aria-pressed="true"][data-side="sell"] {
+      background: var(--down);
+      color: var(--down-ink);
+    }
+  }
+}
+
+.qty {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  border: 1px solid var(--rule-2);
+  background: var(--ink-2);
+
+  span {
+    @include label;
+    padding-left: 0.75rem;
+  }
+
+  input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    background: none;
+    padding: 0.6rem 0.75rem;
+    @include num;
+    font-size: 1.375rem;
+    font-weight: 600;
+    color: var(--text);
+    text-align: right;
+
+    &:focus {
+      outline: none;
+    }
+  }
+
+  &:focus-within {
+    border-color: var(--text);
+  }
+}
+
+.presets {
+  display: flex;
+  gap: 0.3rem;
+
+  button {
+    flex: 1;
+    border: 1px solid var(--rule-2);
+    background: none;
+    padding: 0.35rem 0;
+    @include num;
+    font-size: 0.6875rem;
+    color: var(--mid);
+
+    &:hover {
+      color: var(--text);
+      border-color: var(--text);
+    }
+  }
+}
+
+.est {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.3rem 0.6rem;
+  margin: 0;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.75rem;
+
+  dt {
+    color: var(--dim);
+  }
+
+  dd {
+    margin: 0;
+    text-align: right;
+    @include num;
+    font-size: 0.72rem;
+  }
+
+  .total {
+    padding-top: 0.4rem;
+    border-top: 1px dashed var(--rule-2);
+    font-weight: 700;
+    color: var(--text);
+    font-size: 0.8125rem;
+  }
+}
+
+.note {
+  margin: 0;
+  @include num;
+  font-size: 0.656rem;
+  color: var(--dim);
+}
+
+.warn {
+  color: var(--warn);
+}
+
+// Sold out, the last shares for sale, or a buyback in progress.
+.supplyNote {
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--warn);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--text-2, var(--text));
+
+  b {
+    @include num;
+    color: var(--text);
+  }
+
+  &[data-tone="buyback"] {
+    border-left-color: var(--blue);
+    background: color-mix(in srgb, var(--blue) 7%, transparent);
+  }
+
+  &[data-tone="soldout"] {
+    border-left-color: var(--down);
+    background: var(--down-wash);
+  }
+}
+
+.batch {
+  margin: 0;
+  @include num;
+  font-size: 0.656rem;
+  color: var(--dim);
+  line-height: 1.5;
+
+  b {
+    color: var(--blue);
+  }
+}
+
+.fail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--down) 50%, transparent);
+  background: var(--down-wash);
+  font-size: 0.78rem;
+
+  b {
+    color: var(--down);
+  }
+
+  span {
+    color: var(--mid);
+  }
+}
+
+.failLinks a {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.submit {
+  border: 0;
+  padding: 0.8rem;
+  @include display(1.06rem);
+  background: var(--up);
+  color: var(--up-ink);
+
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.sell {
+  background: var(--down);
+  color: var(--down-ink);
+}
+
+.queued {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem 1.1rem;
+
+  p {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+
+    b {
+      @include num;
+    }
+  }
+}
+
+// Queued: her reaction fills the ticket's width (capped), the band sits over its bottom edge.
+.qStage {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  margin: -0.25rem -0.25rem 0.1rem;
+}
+
+.qArt {
+  width: 100%;
+  max-width: 320px;
+  height: auto !important;
+  aspect-ratio: 1 !important;
+
+  [data-art="small"] & {
+    max-width: 180px;
+  }
+}
+
+.qBand {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  margin-top: -2.4rem;
+  padding: 0.35rem 0 0.4rem;
+  border-bottom: 2px solid var(--blue);
+
+  span {
+    @include display(1.5rem);
+    color: var(--blue);
+  }
+
+  small {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    color: var(--dim);
+  }
+
+  [data-side="sell"] & {
+    border-color: var(--down);
+
+    span {
+      color: var(--down);
+    }
+  }
+
+  [data-art="small"] & {
+    margin-top: -1.2rem;
+  }
+}
+
+// The queued state arrives in steps so it's obvious what changed: she pops up, the band wipes in,
+// then the lines and buttons follow.
+.qPlay {
+  animation: qPanel 0.5s ease-out both;
+
+  .qArt {
+    animation: qArt 0.55s cubic-bezier(0.2, 0.9, 0.25, 1.15) both;
+  }
+
+  .qBand {
+    animation: qBand 0.4s ease-out 0.18s both;
+  }
+
+  > p,
+  > div:not(.qStage) {
+    animation: qLine 0.35s ease-out both;
+  }
+
+  > p:nth-of-type(1) {
+    animation-delay: 0.3s;
+  }
+
+  > p:nth-of-type(2) {
+    animation-delay: 0.38s;
+  }
+
+  > div:last-child {
+    animation-delay: 0.46s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &,
+    .qArt,
+    .qBand,
+    > p,
+    > div {
+      animation: none !important;
+    }
+  }
+}
+
+@keyframes qPanel {
+  from {
+    box-shadow: inset 0 0 0 1px var(--blue), 0 0 0 0 color-mix(in oklab, var(--blue) 40%, transparent);
+  }
+  to {
+    box-shadow: inset 0 0 0 1px transparent, 0 0 0 12px transparent;
+  }
+}
+
+@keyframes qArt {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes qBand {
+  from {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes qLine {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.dim {
+  color: var(--dim);
+}
+
+.qActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.primary {
+  @include button-primary;
+  padding: 0.5rem 0.8rem;
+}
+
+.ghost {
+  @include button-secondary;
+  padding: 0.5rem 0.8rem;
+}
+
+.foot {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1.1rem;
+  border-top: 1px solid var(--rule);
+  @include num;
+  font-size: 0.656rem;
+  color: var(--dim);
+
+  a {
+    color: var(--text);
+
+    &:hover {
+      color: var(--blue);
+    }
+  }
+
+  @include phone {
+    span {
+      display: none;
+    }
+  }
+}

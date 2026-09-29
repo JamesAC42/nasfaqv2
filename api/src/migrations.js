@@ -1,12 +1,57 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+const { applyGamesSchema } = require("./gamesSchema");
+const { applyPredictionsSchema } = require("./services/predictions/schema");
+
+// ── Plain Postgres (local dev without TimescaleDB) ─────────────────────────
+// Production always has TimescaleDB. For a dev machine with a plain Postgres install, the schema
+// still applies: the extension and compression settings are skipped, and the three Timescale
+// functions the code uses get plain-SQL stand-ins (hypertables become ordinary tables).
+
+async function timescaleAvailable(pool) {
+  const { rows } = await pool.query(`SELECT 1 FROM pg_available_extensions WHERE name = 'timescaledb'`);
+  return rows.length > 0;
+}
+
+function stripTimescale(sql) {
+  return sql
+    .replace(/CREATE EXTENSION IF NOT EXISTS timescaledb\s*;/gi, "-- timescaledb not available: skipped")
+    .replace(/ALTER TABLE[^;]*?SET\s*\(\s*timescaledb\.compress[^;]*;/gis, "-- compression skipped (no timescaledb)");
+}
+
+async function installTimescaleStandIns(pool) {
+  await pool.query(`
+    CREATE OR REPLACE FUNCTION public.create_hypertable(relation TEXT, time_column_name TEXT, if_not_exists BOOLEAN DEFAULT FALSE,
+      migrate_data BOOLEAN DEFAULT FALSE, chunk_time_interval INTERVAL DEFAULT NULL)
+    RETURNS VOID LANGUAGE sql AS $$ SELECT NULL::VOID $$;
+
+    CREATE OR REPLACE FUNCTION public.add_compression_policy(relation TEXT, compress_after INTERVAL)
+    RETURNS INTEGER LANGUAGE sql AS $$ SELECT 0 $$;
+
+    CREATE OR REPLACE FUNCTION public.time_bucket(bucket_width INTERVAL, ts TIMESTAMPTZ)
+    RETURNS TIMESTAMPTZ LANGUAGE sql IMMUTABLE AS $$ SELECT date_bin(bucket_width, ts, TIMESTAMPTZ '2000-01-03 00:00:00+00') $$;
+
+    CREATE OR REPLACE FUNCTION public.time_bucket(bucket_width INTERVAL, ts TIMESTAMP)
+    RETURNS TIMESTAMP LANGUAGE sql IMMUTABLE AS $$ SELECT date_bin(bucket_width, ts, TIMESTAMP '2000-01-03 00:00:00') $$;
+
+    CREATE OR REPLACE FUNCTION public.time_bucket(bucket_width INTERVAL, ts DATE)
+    RETURNS DATE LANGUAGE sql IMMUTABLE AS $$ SELECT date_bin(bucket_width, ts::TIMESTAMP, TIMESTAMP '2000-01-03 00:00:00')::DATE $$;
+  `);
+}
+
 async function applySchema(pool) {
   // Reuse the schema from the Go service so API and scraper stay aligned.
   const schemaPath = process.env.YT_SCHEMA_PATH
     ? path.resolve(process.env.YT_SCHEMA_PATH)
     : path.resolve(__dirname, "..", "..", "ytscraper", "internal", "db", "schema.sql");
-  const sql = fs.readFileSync(schemaPath, "utf8");
+  let sql = fs.readFileSync(schemaPath, "utf8");
+  if (!(await timescaleAvailable(pool))) {
+    // eslint-disable-next-line no-console
+    console.warn("TimescaleDB is not installed: using plain-Postgres stand-ins (fine for local dev, not for production).");
+    await installTimescaleStandIns(pool);
+    sql = stripTimescale(sql);
+  }
   await pool.query(sql);
   await pool.query(`
     CREATE SCHEMA IF NOT EXISTS info
@@ -95,6 +140,11 @@ async function applySchema(pool) {
       ADD COLUMN IF NOT EXISTS profile_color TEXT NULL,
       ADD COLUMN IF NOT EXISTS oshi_coin_asset_id BIGINT NULL REFERENCES market.market_assets(id) ON DELETE SET NULL
   `);
+  // A talent's banner art, shown behind the profile header while the player owns her SSR or UR card.
+  await pool.query(`
+    ALTER TABLE market.users
+      ADD COLUMN IF NOT EXISTS profile_banner_asset_id BIGINT NULL REFERENCES market.market_assets(id) ON DELETE SET NULL
+  `);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS market.emojis (
       id BIGSERIAL PRIMARY KEY,
@@ -131,6 +181,19 @@ async function applySchema(pool) {
   await pool.query(`
     ALTER TABLE market.users
       ADD COLUMN IF NOT EXISTS profile_picture_id BIGINT NULL REFERENCES market.profile_pictures(id) ON DELETE SET NULL
+  `);
+  // A card reaction used as the avatar ("PEK/hype"), unlocked by owning any of that talent's cards.
+  await pool.query(`
+    ALTER TABLE market.users
+      ADD COLUMN IF NOT EXISTS profile_reaction TEXT NULL
+  `);
+  await pool.query(`
+    ALTER TABLE market.users
+      DROP CONSTRAINT IF EXISTS users_profile_reaction_check
+  `);
+  await pool.query(`
+    ALTER TABLE market.users
+      ADD CONSTRAINT users_profile_reaction_check CHECK (profile_reaction IS NULL OR profile_reaction ~ '^[A-Z0-9_]{1,16}/(idle|hype|moon|cope|smug|shock)$')
   `);
   await pool.query(`
     ALTER TABLE market.users
@@ -668,7 +731,7 @@ async function applySchema(pool) {
   `);
   await pool.query(`
     ALTER TABLE market.prediction_market_trades
-      ADD CONSTRAINT prediction_market_trades_kind_check CHECK (trade_kind IN ('secondary', 'mint', 'redeem'))
+      ADD CONSTRAINT prediction_market_trades_kind_check CHECK (trade_kind IN ('secondary', 'mint', 'redeem', 'amm'))
   `);
   await pool.query(`
     ALTER TABLE market.prediction_market_trades
@@ -1390,6 +1453,18 @@ async function applySchema(pool) {
       ON market.trade_orders (user_id, submitted_market_date, submitted_interval_key, requested_at DESC)
       WHERE order_type = 'live_market'
   `);
+  // The /market order-flow charts window live orders by when they were placed (last hour) and by
+  // their batch (last 24h); without these they scan every live order ever placed.
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_trade_orders_live_requested_idx
+      ON market.trade_orders (requested_at)
+      WHERE order_type = 'live_market'
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_trade_orders_live_execute_after_idx
+      ON market.trade_orders (execute_after)
+      WHERE order_type = 'live_market'
+  `);
 
   // Article comment votes: add upvotes/downvotes counters and vote tracking table
   await pool.query(`
@@ -1420,6 +1495,231 @@ async function applySchema(pool) {
     CREATE INDEX IF NOT EXISTS content_article_comment_votes_user_idx
       ON content.article_comment_votes (user_id, updated_at DESC)
   `);
+  await pool.query(`
+    ALTER TABLE games.game_catalog DROP CONSTRAINT IF EXISTS games_game_catalog_type_check
+  `);
+  await pool.query(`
+    ALTER TABLE games.game_catalog
+      ADD CONSTRAINT games_game_catalog_type_check CHECK (game_type IN ('single_player', 'gacha', 'pvp', 'idle', 'table'))
+  `);
+  // The Wire: short, automatic headlines built from facts the site already has (stream events
+  // from titles, subscriber milestones, viewer records, superchats, the market and the card
+  // exchange). See api/src/services/wire.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content.wire_items (
+      id BIGSERIAL PRIMARY KEY,
+      kind TEXT NOT NULL,
+      dedupe_key TEXT NOT NULL UNIQUE,
+      headline TEXT NOT NULL,
+      blurb TEXT NULL,
+      symbols TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+      image_url TEXT NULL,
+      link_url TEXT NULL,
+      importance SMALLINT NOT NULL DEFAULT 1,
+      occurred_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      meta JSONB NOT NULL DEFAULT '{}'::jsonb,
+      hidden BOOLEAN NOT NULL DEFAULT false
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS content_wire_items_recent_idx ON content.wire_items (occurred_at DESC) WHERE NOT hidden`);
+  // What each stream title was judged to be (so a title is classified once).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content.wire_stream_labels (
+      video_id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      event TEXT NOT NULL,
+      confidence NUMERIC NULL,
+      classifier TEXT NOT NULL,
+      probabilities JSONB NULL,
+      labeled_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  // /vt/ chatter index: which talent each hololive post mentions and what about. No post text.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content.vt_threads (
+      thread_no BIGINT PRIMARY KEY,
+      subject TEXT NULL,
+      symbol TEXT NULL,
+      last_modified BIGINT NOT NULL DEFAULT 0,
+      last_post_no BIGINT NOT NULL DEFAULT 0,
+      fetched_http_date TEXT NULL,
+      checked_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content.vt_mentions (
+      post_no BIGINT NOT NULL,
+      symbol TEXT NOT NULL,
+      thread_no BIGINT NOT NULL,
+      posted_at TIMESTAMPTZ NOT NULL,
+      via TEXT NOT NULL,
+      topic TEXT NULL,
+      confidence NUMERIC NULL,
+      classifier TEXT NOT NULL,
+      PRIMARY KEY (post_no, symbol)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS content_vt_mentions_time_idx ON content.vt_mentions (posted_at)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS content_vt_mentions_symbol_time_idx ON content.vt_mentions (symbol, posted_at)`);
+  // Article auto-tagging: which articles and news items have been judged, and what was added.
+  await pool.query(`
+    ALTER TABLE content.article_assets
+      ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'author'
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content.autotag_log (
+      kind TEXT NOT NULL,
+      ref_id BIGINT NOT NULL,
+      symbols TEXT[] NOT NULL DEFAULT '{}',
+      classifier TEXT NOT NULL,
+      judged_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (kind, ref_id)
+    )
+  `);
+  // Stream events in fair value: the day's event lift and what caused it.
+  await pool.query(`
+    ALTER TABLE market.channel_daily_snapshots
+      ADD COLUMN IF NOT EXISTS event_signal NUMERIC NULL,
+      ADD COLUMN IF NOT EXISTS event_kinds TEXT[] NULL
+  `);
+  // The bell: one row per thing a player should hear about (friend requests, mentions, exchange
+  // alerts, payouts). Text is written at insert time; `data` keeps the details.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.notifications (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      href TEXT NULL,
+      actor_user_id BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL,
+      data JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      read_at TIMESTAMPTZ NULL
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_notifications_user_time_idx ON market.notifications (user_id, created_at DESC, id DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_notifications_unread_idx ON market.notifications (user_id) WHERE read_at IS NULL`);
+  // How each tagged talent reacts to a HoloNews headline (services/newsMoods.js).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content.news_moods (
+      news_id BIGINT NOT NULL REFERENCES info.member_news(id) ON DELETE CASCADE,
+      symbol TEXT NOT NULL,
+      mood TEXT NOT NULL,
+      confidence NUMERIC NULL,
+      classifier TEXT NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 1,
+      judged_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (news_id, symbol),
+      CONSTRAINT news_moods_mood_check CHECK (mood IN ('idle', 'hype', 'moon', 'cope', 'smug', 'shock'))
+    )
+  `);
+  // ── The core market (docs/market/core-market.md) ─────────────────────────
+  // Weekly share fees can put a player in the red; a buyback stock can have more shares held than
+  // its (new, lower) max until the buyback closes.
+  await pool.query(`ALTER TABLE market.portfolio_cash_balances DROP CONSTRAINT IF EXISTS portfolio_cash_balances_nonnegative_check`);
+  await pool.query(`ALTER TABLE market.market_assets DROP CONSTRAINT IF EXISTS market_assets_supply_bounds_check`);
+  await pool.query(`ALTER TABLE market.market_assets ADD COLUMN IF NOT EXISTS trading_state TEXT NOT NULL DEFAULT 'open'`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.weekly_evaluations (
+      id BIGSERIAL PRIMARY KEY,
+      eval_date DATE NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'started',
+      started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      completed_at TIMESTAMPTZ NULL,
+      report_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+      error_text TEXT NULL
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.weekly_asset_evaluations (
+      evaluation_id BIGINT NOT NULL REFERENCES market.weekly_evaluations(id) ON DELETE CASCADE,
+      asset_id BIGINT NOT NULL REFERENCES market.market_assets(id) ON DELETE CASCADE,
+      value_now NUMERIC NULL,
+      value_before NUMERIC NULL,
+      shift NUMERIC NULL,
+      z_score NUMERIC NULL,
+      dividend_rate NUMERIC NOT NULL DEFAULT 0,
+      value_basis NUMERIC NULL,
+      per_share NUMERIC NOT NULL DEFAULT 0,
+      held NUMERIC NOT NULL DEFAULT 0,
+      subscribers BIGINT NULL,
+      max_supply_before NUMERIC NULL,
+      max_supply_after NUMERIC NULL,
+      buyback_action TEXT NULL,
+      PRIMARY KEY (evaluation_id, asset_id)
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.dividend_payouts (
+      evaluation_id BIGINT NOT NULL REFERENCES market.weekly_evaluations(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL,
+      asset_id BIGINT NOT NULL REFERENCES market.market_assets(id) ON DELETE CASCADE,
+      quantity NUMERIC NOT NULL,
+      per_share NUMERIC NOT NULL,
+      amount NUMERIC NOT NULL,
+      PRIMARY KEY (evaluation_id, user_id, asset_id)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_dividend_payouts_user_idx ON market.dividend_payouts (user_id, evaluation_id DESC)`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.asset_buybacks (
+      id BIGSERIAL PRIMARY KEY,
+      asset_id BIGINT NOT NULL REFERENCES market.market_assets(id) ON DELETE CASCADE,
+      started_evaluation_id BIGINT NULL REFERENCES market.weekly_evaluations(id) ON DELETE SET NULL,
+      closed_evaluation_id BIGINT NULL REFERENCES market.weekly_evaluations(id) ON DELETE SET NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      ended_at TIMESTAMPTZ NULL,
+      frozen_price NUMERIC NOT NULL,
+      target_max_supply NUMERIC NOT NULL,
+      held_at_start NUMERIC NOT NULL,
+      shares_bought NUMERIC NOT NULL DEFAULT 0,
+      cash_paid NUMERIC NOT NULL DEFAULT 0,
+      forced_shares NUMERIC NOT NULL DEFAULT 0,
+      forced_price NUMERIC NULL,
+      CONSTRAINT asset_buybacks_status_check CHECK (status IN ('active', 'met', 'forced'))
+    )
+  `);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS market_asset_buybacks_one_active_idx ON market.asset_buybacks (asset_id) WHERE status = 'active'`);
+  // Shares held are the circulating supply; the broker holds the rest. The old daily print is gone.
+  // One time only (stocks still carrying the old base_emission): circulating is recomputed from the
+  // holdings with the holdings table locked against fills, and max shares are raised only where
+  // players already hold more than the max (to the next 100), so nothing starts over its max.
+  const { rows: needsRebase } = await pool.query(`SELECT 1 FROM market.market_assets WHERE base_emission <> 0 LIMIT 1`);
+  if (needsRebase.length) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("LOCK TABLE market.portfolio_holdings IN SHARE MODE");
+      await client.query(`
+        WITH held AS (
+          SELECT a.id, COALESCE(SUM(h.quantity), 0) AS held
+          FROM market.market_assets a
+          LEFT JOIN market.portfolio_holdings h ON h.asset_id = a.id
+          GROUP BY a.id
+        )
+        UPDATE market.market_assets a
+        SET max_supply = GREATEST(a.max_supply, CEIL(held.held / 100) * 100),
+            circulating_supply = held.held,
+            treasury_supply = GREATEST(GREATEST(a.max_supply, CEIL(held.held / 100) * 100) - held.held, 0),
+            base_emission = 0,
+            current_daily_emission = 0,
+            updated_at = now()
+        FROM held
+        WHERE held.id = a.id
+      `);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+  await applyGamesSchema(pool);
+  await applyPredictionsSchema(pool);
 }
 
 module.exports = { applySchema };

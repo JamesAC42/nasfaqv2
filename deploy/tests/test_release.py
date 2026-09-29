@@ -52,7 +52,7 @@ class ReleaseTest(unittest.TestCase):
             self.assertNotIn('IMAGE_TAG', text)
             self.assertNotIn(':latest', text)
             images.extend(line.strip() for line in text.splitlines() if 'image: ghcr.io/' in line)
-        self.assertEqual(len(images), 7)  # six application Deployments + migration; API image shared
+        self.assertEqual(len(images), 8)  # seven application Deployments + migration; API image shared
         self.assertTrue(all(x.endswith(':sha-'+SHA) for x in images))
         self.assertIn('name: api-migrate-sha-'+SHA, (out/'migration.yaml').read_text())
 
@@ -66,7 +66,7 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual(len(prior_applies),2)
         self.assertIn('/bootstrap/',prior_applies[0][-1])
         self.assertTrue(prior_applies[1][-1].endswith('/migration.yaml'))
-        self.assertEqual(len([c for c in calls if 'rollout' in c]),7)
+        self.assertEqual(len([c for c in calls if 'rollout' in c]),8)
         self.assertEqual(calls[-1][0], 'curl')
         for call in calls:
             if call[0]=='kubectl': self.assertEqual(call[1:3],['--context','nasfaq-prod'])

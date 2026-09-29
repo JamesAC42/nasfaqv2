@@ -1,0 +1,269 @@
+@use "../../../styles/mixins" as *;
+
+.wrap {
+  min-width: 0;
+  padding: 1.1rem 0 1.25rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.heading {
+  @include section-heading;
+  margin: 0;
+
+  small {
+    @include num;
+    margin-left: 0.35rem;
+    color: var(--dim);
+  }
+}
+
+.status {
+  @include label;
+  text-transform: none;
+  letter-spacing: 0.02em;
+
+  &[data-state="saved"] {
+    color: var(--blue);
+  }
+
+  &[data-state="error"] {
+    color: var(--down);
+  }
+}
+
+// The display case: always dark, like a lit cabinet, whatever the site theme.
+.shelf {
+  --case: #07090e;
+  position: relative;
+  min-width: 0;
+  padding: 1.6rem 1rem 0;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(60% 90% at 50% -10%, rgba(120, 150, 210, 0.16), transparent 70%),
+    linear-gradient(180deg, #0d111a, var(--case) 80%);
+  color: #fff;
+
+  @include phone {
+    padding: 1.2rem 0 0;
+  }
+}
+
+.slots {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 168px));
+  justify-content: center;
+  gap: 1.25rem;
+  margin: 0;
+  padding: 0 0 0.9rem;
+  list-style: none;
+
+  @include tablet-down {
+    gap: 0.75rem;
+  }
+
+  @include phone {
+    display: flex;
+    justify-content: flex-start;
+    gap: 0.75rem;
+    padding: 0 1rem 0.9rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 1rem;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}
+
+.slot {
+  --rc: #8d95a8;
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+
+  @include phone {
+    flex: 0 0 132px;
+    scroll-snap-align: start;
+  }
+
+  &[data-rarity="R"] {
+    --rc: #3fb8f5;
+  }
+
+  &[data-rarity="SR"] {
+    --rc: #b28cff;
+  }
+
+  &[data-rarity="SSR"] {
+    --rc: #f5c542;
+  }
+
+  &[data-rarity="UR"] {
+    --rc: #ff7ad9;
+  }
+}
+
+.card {
+  position: relative;
+  z-index: 1;
+  width: 100% !important;
+}
+
+// Spotlight cone from above, tinted by rarity.
+.spot {
+  position: absolute;
+  z-index: 0;
+  top: -1.6rem;
+  left: 50%;
+  width: 170%;
+  height: calc(100% + 1.6rem);
+  transform: translateX(-50%);
+  background: radial-gradient(50% 80% at 50% 0%, color-mix(in srgb, var(--rc) 30%, transparent), transparent 75%);
+  pointer-events: none;
+
+  [data-rarity="C"] > & {
+    opacity: 0.45;
+  }
+}
+
+.slot[data-rarity="UR"] .spot {
+  background:
+    radial-gradient(50% 80% at 50% 0%, rgba(255, 122, 217, 0.32), transparent 75%),
+    radial-gradient(40% 60% at 50% 20%, rgba(125, 216, 255, 0.2), transparent 75%);
+}
+
+.empty {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  aspect-ratio: 5 / 7;
+  padding: 0;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 5%;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.025) 0 6px, transparent 6px 12px);
+  color: rgba(255, 255, 255, 0.55);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) ease,
+    color var(--dur-fast) ease;
+
+  span {
+    @include label;
+    color: inherit;
+  }
+
+  svg {
+    width: 1.1rem;
+    height: 1.1rem;
+  }
+
+  &:hover:not(:disabled),
+  &[data-active] {
+    border-color: var(--blue);
+    border-style: solid;
+    color: var(--blue);
+    background: color-mix(in srgb, var(--blue) 8%, transparent);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.55;
+  }
+}
+
+.slotNo {
+  @include num(wide);
+  font-size: 1.4rem !important;
+  opacity: 0.4;
+}
+
+.plate {
+  height: 1.7rem;
+}
+
+.controls {
+  display: inline-flex;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-sm);
+  background: rgba(7, 9, 14, 0.8);
+
+  button {
+    display: grid;
+    place-items: center;
+    width: 1.9rem;
+    height: 1.6rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+
+    & + button {
+      border-left: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    svg {
+      width: 0.7rem;
+      height: 0.7rem;
+    }
+
+    &:hover:not(:disabled) {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+
+    &:disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
+  }
+}
+
+// The ledge the cards stand on.
+.ledge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 2.9rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28) 20%, rgba(255, 255, 255, 0.4) 50%, rgba(255, 255, 255, 0.28) 80%, transparent);
+  box-shadow: 0 0 18px 2px rgba(140, 170, 230, 0.18);
+
+  &::after {
+    content: "";
+    position: absolute;
+    top: 1px;
+    left: 0;
+    right: 0;
+    height: 2.9rem;
+    background: linear-gradient(180deg, rgba(40, 50, 72, 0.5), transparent);
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "area": "home",
+  "slots": [
+    {
+      "id": "home-welcome",
+      "title": "Home: new-here starter kit",
+      "where": [
+        "/ signed out → components/home/front-page.tsx NewbieStrip, left end of the 'New here? Everyone starts with $10,000' strip; hidden on phones"
+      ],
+      "kind": "spot",
+      "w": 768,
+      "h": 512,
+      "transparent": true,
+      "priority": "medium",
+      "css": "132×88, vertically centred in the strip",
+      "crop": "The kit fills the frame edge to edge with little padding (the strip is only ~88px tall); centred, wider than tall.",
+      "lighting": "neutral, soft top-left key; warm paper tones",
+      "style": "object",
+      "animation": "none",
+      "fallback": "Soft blue radial glow with halftone dots, same size; the strip text and buttons still render.",
+      "brief": "A starter kit laid out like a gift, three-quarter view: a fat stack of play-money bills in a paper band stamped with a hololive-blue (#3fb8f5) diamond, a blank lanyard trader badge draped over it, and a tiny ticker screen propped beside it showing a single blue up-arrow. Two small sparkles. Flat graphic shapes, halftone shading, clean dark outline, white and blue with warm paper tones.",
+      "notes": "No numbers on the bills. Same welcome-kit props as site-auth-pitch (banded bills with the diamond stamp, blank lanyard badge)."
+    }
+  ]
+}

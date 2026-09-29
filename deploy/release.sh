@@ -20,7 +20,7 @@ server=$("${kube[@]}" config view --minify -o 'jsonpath={.clusters[0].cluster.se
 "${kube[@]}" -n nasfaq wait --for=condition=complete --timeout=300s "job/api-migrate-sha-$release_sha"
 # No application Deployment is touched until migrations have succeeded.
 "${kube[@]}" apply -f "$release_tmp/rendered/workloads/"
-for deployment in api-web api-scheduler app-client holonews superchatscraper ytscraper nasfaq-redis; do
+for deployment in api-web api-scheduler api-games app-client holonews superchatscraper ytscraper nasfaq-redis; do
   "${kube[@]}" -n nasfaq rollout status "deployment/$deployment" --timeout=300s
 done
 curl --fail --silent --show-error --connect-timeout 10 --max-time 20 --retry 3 \

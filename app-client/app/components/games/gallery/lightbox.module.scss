@@ -1,0 +1,206 @@
+@use "../../../styles/mixins" as *;
+
+// Full-screen viewer. Always dark, whatever the theme: it's a viewing room.
+
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  color: #fff;
+  animation: fadeIn 0.18s var(--ease-out, ease-out);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(70% 60% at 50% 45%, rgba(20, 26, 38, 0.9), rgba(4, 5, 8, 0.97) 75%),
+    rgba(4, 5, 8, 0.96);
+  backdrop-filter: blur(6px);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0.9rem 0.25rem 1.1rem;
+}
+
+.count {
+  @include num;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.6);
+
+  b {
+    color: #fff;
+  }
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-md);
+  background: rgba(10, 12, 17, 0.6);
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+
+  &:hover {
+    border-color: rgba(255, 255, 255, 0.5);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.nav {
+  position: absolute;
+  top: 50%;
+  translate: 0 -50%;
+  width: 3rem;
+  height: 3rem;
+
+  &[data-dir="prev"] {
+    left: 1rem;
+  }
+
+  &[data-dir="next"] {
+    right: 1rem;
+  }
+
+  @include phone {
+    top: auto;
+    bottom: 0.75rem;
+    translate: none;
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}
+
+.stage {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  padding: 0.5rem 4.5rem;
+  touch-action: pan-y;
+
+  @include phone {
+    padding: 0.5rem 0.75rem 4rem;
+    touch-action: none;
+  }
+}
+
+.figure {
+  display: grid;
+  justify-items: center;
+  gap: 0.8rem;
+  width: min(100%, calc(72dvh * var(--ar)), 1400px);
+  margin: 0;
+  animation: pieceIn 0.26s var(--ease-out, ease-out);
+}
+
+@keyframes pieceIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+.piece {
+  width: 100%;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 30px 80px rgba(0, 0, 0, 0.6);
+}
+
+.caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.35rem 0.7rem;
+  max-width: 100%;
+  text-align: center;
+
+  b {
+    @include display(1.25rem);
+    font-weight: 400;
+  }
+}
+
+.tag {
+  @include num;
+  padding: 0.15rem 0.45rem 0.1rem;
+  border: 1px solid color-mix(in srgb, var(--c) 60%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--c);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.line {
+  flex-basis: 100%;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.id {
+  flex-basis: 100%;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: rgba(63, 184, 245, 0.8);
+}
+
+.hint {
+  @include label;
+  margin: 0;
+  padding: 0.5rem 1rem 0.9rem;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.45);
+
+  kbd {
+    padding: 0.05rem 0.3rem;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  @include phone {
+    display: none;
+  }
+}
+
+:global(html[data-calm="true"]) {
+  .root,
+  .figure {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root,
+  .figure {
+    animation: none;
+  }
+}

@@ -1,0 +1,111 @@
+@use "../../styles/mixins" as *;
+
+.page {
+  width: 100%;
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 1.5rem 0 3rem;
+
+  h1 {
+    @include display(2.4rem);
+    margin: 0;
+  }
+
+  code {
+    padding: 0 0.25rem;
+    background: var(--ink-3);
+    font-family: var(--font-mono);
+    font-size: 0.8em;
+  }
+}
+
+.lede,
+.note {
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--mid);
+}
+
+.note {
+  font-size: 0.78rem;
+  color: var(--dim);
+}
+
+.state {
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--rule-2);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+
+  a {
+    color: var(--blue);
+  }
+
+  &.ok {
+    border-color: var(--blue-line);
+    background: var(--blue-wash);
+  }
+}
+
+.warn {
+  margin-top: 0.75rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px dashed var(--warn);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+
+  pre {
+    margin: 0.5rem 0;
+    padding: 0.5rem 0.7rem;
+    background: var(--ink-2);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+  }
+}
+
+.steps {
+  margin: 1rem 0;
+  padding-left: 1.2rem;
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+
+  input {
+    @include input-base;
+    flex: 1 1 18rem;
+    font-family: var(--font-mono);
+  }
+}
+
+.primary,
+.ghost {
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--rule-2);
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--text);
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+  }
+}
+
+.primary {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: var(--blue-ink);
+}
+
+.status {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}

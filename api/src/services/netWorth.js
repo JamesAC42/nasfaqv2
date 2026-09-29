@@ -1,5 +1,6 @@
 const DEFAULT_STARTER_CASH = 10000;
-const PROFILE_PICTURE_CDN_BASE_URL = "https://images.nasfaq.biz/profile-pictures";
+const { loadEquipped } = require("./games/equipped");
+const { profilePictureUrlSql } = require("../profilePictures");
 
 function getStarterCash() {
   const parsed = Number(process.env.MARKET_STARTER_CASH || DEFAULT_STARTER_CASH);
@@ -16,16 +17,20 @@ function toInt(value, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+// Every write to the current leaderboard and oshiboards takes this transaction lock first. Refreshes
+// for different trades upsert overlapping sets of users in different orders, and without it two of
+// them could deadlock each other (they did, when fills landed back to back). The lock is reentrant
+// within a transaction, and it is held only for the refresh's own transaction.
+const LEADERBOARD_LOCK_KEY = 7_310_442;
+async function lockLeaderboard(client) {
+  await client.query("SELECT pg_advisory_xact_lock($1)", [LEADERBOARD_LOCK_KEY]);
+}
+
 function toRatio(numerator, denominator) {
   if (!(denominator > 0)) return null;
   return numerator / denominator;
 }
 
-function profilePictureUrlSql(size, alias = "pp") {
-  const field = size === "large" ? "filename_large" : "filename_small";
-  const folder = size === "large" ? "large" : "small";
-  return `CASE WHEN ${alias}.id IS NULL OR ${alias}.is_deleted THEN NULL ELSE '${PROFILE_PICTURE_CDN_BASE_URL}/${folder}/' || ${alias}.${field} END`;
-}
 
 function getScopedRelationshipQuery(scope) {
   if (scope === "friends") {
@@ -154,6 +159,7 @@ function mapLeaderboardEntry(row, {
       : null,
     achievements: decoration?.achievements || [],
     equipped_hat: decoration?.equipped_hat || null,
+    equipped: decoration?.equipped || {},
     streaks: decoration?.streaks || {
       current_streak_days: 0,
       longest_streak_days: 0,
@@ -307,6 +313,12 @@ async function loadLeaderboardDecorations(pool, userIds) {
     };
   }
 
+  // Everything equipped (frame, badge, flair, item as well as the hat), for avatars and badges.
+  const equipped = await loadEquipped(pool, safeUserIds);
+  for (const [userId, slots] of equipped) {
+    if (decorationByUserId.has(userId)) decorationByUserId.get(userId).equipped = slots;
+  }
+
   return decorationByUserId;
 }
 
@@ -350,6 +362,7 @@ async function getCurrentNetWorth(pool, userId) {
 }
 
 async function refreshCurrentLeaderboardWithClient(client, { userIds = null } = {}) {
+  await lockLeaderboard(client);
   const starterCash = getStarterCash();
   const safeUserIds = Array.isArray(userIds) && userIds.length
     ? Array.from(new Set(userIds.map((value) => toInt(value, 0)).filter((value) => value > 0)))
@@ -592,11 +605,63 @@ async function refreshCurrentLeaderboardForAsset(pool, assetId, options = {}) {
   }
 }
 
+// After trades: refresh the leaderboard for everyone holding the traded stocks, coalesced. Fills
+// queue here and one refresh runs every QUEUE_DELAY_MS (2s) for all of them together, so a burst of trades
+// in a popular stock recomputes its holders once instead of once per fill (and one at a time).
+const QUEUE_DELAY_MS = 2000;
+const refreshQueue = { assets: new Set(), users: new Set(), timer: null, running: false, pool: null };
+
+function queueLeaderboardRefresh(pool, assetId, { extraUserIds = [] } = {}) {
+  refreshQueue.pool = pool;
+  if (toInt(assetId, 0) > 0) refreshQueue.assets.add(toInt(assetId, 0));
+  for (const value of extraUserIds) if (toInt(value, 0) > 0) refreshQueue.users.add(toInt(value, 0));
+  scheduleQueuedRefresh();
+}
+
+function scheduleQueuedRefresh() {
+  if (refreshQueue.timer || refreshQueue.running) return;
+  refreshQueue.timer = setTimeout(() => void flushQueuedRefresh(), QUEUE_DELAY_MS);
+  refreshQueue.timer.unref?.();
+}
+
+async function flushQueuedRefresh() {
+  refreshQueue.timer = null;
+  if (!refreshQueue.assets.size && !refreshQueue.users.size) return;
+  const assetIds = [...refreshQueue.assets];
+  const extra = [...refreshQueue.users];
+  refreshQueue.assets.clear();
+  refreshQueue.users.clear();
+  refreshQueue.running = true;
+  const client = await refreshQueue.pool.connect().catch((error) => {
+    console.error("post-trade leaderboard refresh failed:", String(error?.message || error));
+    return null;
+  });
+  try {
+    if (!client) return;
+    await client.query("BEGIN");
+    const { rows } = await client.query(`SELECT DISTINCT user_id FROM market.portfolio_holdings WHERE asset_id = ANY($1::bigint[]) AND quantity > 0`, [assetIds]);
+    const userIds = [...new Set([...rows.map((row) => toInt(row.user_id, 0)), ...extra])].filter((value) => value > 0).sort((a, b) => a - b);
+    if (userIds.length) {
+      await refreshCurrentLeaderboardWithClient(client, { userIds });
+      await refreshCurrentOshiboardsForUsersWithClient(client, userIds);
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client?.query("ROLLBACK").catch(() => {});
+    console.error("post-trade leaderboard refresh failed:", String(error?.message || error));
+  } finally {
+    client?.release();
+    refreshQueue.running = false;
+    if (refreshQueue.assets.size || refreshQueue.users.size) scheduleQueuedRefresh();
+  }
+}
+
 async function refreshCurrentOshiboardsForUsersWithClient(client, userIds) {
   const safeUserIds = Array.isArray(userIds)
     ? Array.from(new Set(userIds.map((value) => toInt(value, 0)).filter((value) => value > 0)))
     : [];
   if (!safeUserIds.length) return;
+  await lockLeaderboard(client);
 
   await client.query(
     `
@@ -735,20 +800,25 @@ async function ensureCurrentOshiboardsReady(pool) {
   }
 }
 
+// New players get a leaderboard row here (at most once a minute per process): only the missing
+// ones are computed. It used to count every user and leaderboard row on each request and rebuild
+// the whole board whenever anyone new had signed up.
+let leaderboardCheckedAt = 0;
+let leaderboardCheck = null;
 async function ensureCurrentLeaderboardReady(pool) {
-  const { rows } = await pool.query(
-    `
-    SELECT
-      (SELECT COUNT(*)::INTEGER FROM market.users) AS user_count,
-      (SELECT COUNT(*)::INTEGER FROM market.user_leaderboard_current) AS leaderboard_count
-  `
-  );
-
-  const userCount = toInt(rows[0]?.user_count, 0);
-  const leaderboardCount = toInt(rows[0]?.leaderboard_count, 0);
-  if (userCount > 0 && leaderboardCount < userCount) {
-    await refreshCurrentLeaderboard(pool);
+  if (Date.now() - leaderboardCheckedAt < 60_000) return;
+  if (!leaderboardCheck) {
+    leaderboardCheck = (async () => {
+      const { rows } = await pool.query(
+        `SELECT u.id FROM market.users u LEFT JOIN market.user_leaderboard_current l ON l.user_id = u.id WHERE l.user_id IS NULL LIMIT 5000`
+      );
+      if (rows.length) await refreshCurrentLeaderboard(pool, { userIds: rows.map((row) => toInt(row.id, 0)) });
+      leaderboardCheckedAt = Date.now();
+    })().finally(() => {
+      leaderboardCheck = null;
+    });
   }
+  await leaderboardCheck;
 }
 
 async function listScopedUserIds(pool, viewerUserId, scope) {
@@ -931,6 +1001,7 @@ async function listLeaderboardBundle(pool, { viewerUserId = null, scope = "globa
         profile_picture_url: entry.profile_picture_url,
         profile_color: entry.profile_color,
         equipped_hat: entry.equipped_hat,
+        equipped: entry.equipped,
       };
     });
 
@@ -1325,6 +1396,7 @@ module.exports = {
   recordDailyNetWorthSnapshot,
   refreshCurrentLeaderboard,
   refreshCurrentLeaderboardForAsset,
+  queueLeaderboardRefresh,
   refreshCurrentLeaderboardForAssetWithClient,
   refreshCurrentLeaderboardWithClient,
   refreshCurrentOshiboards,

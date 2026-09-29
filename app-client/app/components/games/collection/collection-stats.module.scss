@@ -1,0 +1,177 @@
+@use "../../../styles/mixins" as *;
+
+.stats {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem 2rem;
+  min-width: 0;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--rule);
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.hero {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.label {
+  @include label;
+}
+
+.pct {
+  @include num(wide);
+  font-size: 2.6rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+
+  small {
+    margin-left: 0.1rem;
+    font-size: 1.1rem;
+    color: var(--mid);
+  }
+}
+
+.sub {
+  @include num;
+  font-size: 0.75rem;
+  color: var(--dim);
+
+  b {
+    color: var(--text);
+  }
+}
+
+.right {
+  display: grid;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.bar {
+  display: flex;
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--ink-3);
+  box-shadow: inset 0 0 0 1px var(--rule);
+
+  i {
+    display: block;
+    height: 100%;
+    background: var(--rc);
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.35);
+  }
+
+  i[data-rarity="SSR"] {
+    background: linear-gradient(90deg, #d9a520, #fff0a8, #f5c542);
+  }
+
+  i[data-rarity="UR"] {
+    background: linear-gradient(90deg, #ff7ad9, #ffd36e, #7dffcf, #6ecbff, #b28cff);
+  }
+}
+
+.rarities {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  min-width: 0;
+
+  > div {
+    display: grid;
+    gap: 0.15rem;
+    min-width: 0;
+    padding: 0 0.75rem;
+    border-left: 1px solid var(--rule);
+
+    &:first-child {
+      padding-left: 0;
+      border-left: 0;
+    }
+
+    @include phone {
+      padding: 0 0.4rem;
+    }
+  }
+
+  dt {
+    @include display;
+    font-size: 0.95rem;
+    line-height: 1;
+    color: var(--rc);
+  }
+
+  [data-rarity="UR"] dt {
+    color: transparent;
+    background: linear-gradient(90deg, #ff7ad9, #ffd36e, #7dffcf, #6ecbff) text;
+  }
+
+  [data-empty] dt {
+    opacity: 0.45;
+  }
+
+  dd {
+    @include num;
+    display: flex;
+    align-items: baseline;
+    gap: 0.1rem;
+    min-width: 0;
+    margin: 0;
+    font-size: 0.95rem;
+    white-space: nowrap;
+
+    b {
+      font-weight: 700;
+    }
+
+    small {
+      font-size: 0.68rem;
+      color: var(--dim);
+
+      @include phone {
+        display: none;
+      }
+    }
+  }
+
+  @include phone {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 0.6rem;
+
+    > div:nth-child(4) {
+      padding-left: 0;
+      border-left: 0;
+    }
+  }
+}
+
+.shardCell {
+  dt {
+    @include label;
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    line-height: 1.6;
+    color: var(--dim);
+  }
+
+  dd {
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  i {
+    flex: none;
+    width: 0.55rem;
+    height: 0.7rem;
+    background: linear-gradient(160deg, #e6dcff, #9a74ff 55%, #3d2690);
+    clip-path: polygon(50% 0, 100% 35%, 50% 100%, 0 35%);
+  }
+}

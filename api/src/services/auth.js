@@ -6,13 +6,8 @@ const SESSION_COOKIE_NAME = process.env.AUTH_SESSION_COOKIE_NAME || "nasfaq_sess
 const SESSION_TTL_DAYS = Number(process.env.AUTH_SESSION_TTL_DAYS || 30);
 const EMAIL_VERIFICATION_TTL_HOURS = Number(process.env.EMAIL_VERIFICATION_TTL_HOURS || 24);
 const PASSWORD_KEYLEN = 64;
-const PROFILE_PICTURE_CDN_BASE_URL = "https://images.nasfaq.biz/profile-pictures";
+const { profilePictureUrlSql } = require("../profilePictures");
 
-function profilePictureUrlSql(size, alias = "pp") {
-  const field = size === "large" ? "filename_large" : "filename_small";
-  const folder = size === "large" ? "large" : "small";
-  return `CASE WHEN ${alias}.id IS NULL OR ${alias}.is_deleted THEN NULL ELSE '${PROFILE_PICTURE_CDN_BASE_URL}/${folder}/' || ${alias}.${field} END`;
-}
 
 function normalizeUsername(username) {
   return String(username || "").trim().toLowerCase();
@@ -44,7 +39,9 @@ function normalizeEmail(email) {
 
 function validateEmail(email) {
   const normalized = normalizeEmail(email);
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) || normalized.length > 320) {
+  // Length first, and a pattern with no overlapping repeats: the old one backtracked quadratically,
+  // so a long crafted address froze the process.
+  if (normalized.length > 320 || !/^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(normalized)) {
     const error = new Error("invalid_email");
     error.code = "invalid_email";
     throw error;
@@ -115,7 +112,9 @@ function getSessionTtlSeconds() {
 
 function buildSessionCookie(token) {
   const maxAge = getSessionTtlSeconds();
-  const secure = (process.env.AUTH_COOKIE_SECURE || "").toLowerCase() === "true";
+  // Secure unless explicitly turned off, and always in production (the site is HTTPS-only there).
+  const setting = (process.env.AUTH_COOKIE_SECURE || "").toLowerCase();
+  const secure = process.env.NODE_ENV === "production" ? setting !== "false" : setting === "true";
   return [
     `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}`,
     "Path=/",
@@ -129,7 +128,9 @@ function buildSessionCookie(token) {
 }
 
 function buildExpiredSessionCookie() {
-  const secure = (process.env.AUTH_COOKIE_SECURE || "").toLowerCase() === "true";
+  // Secure unless explicitly turned off, and always in production (the site is HTTPS-only there).
+  const setting = (process.env.AUTH_COOKIE_SECURE || "").toLowerCase();
+  const secure = process.env.NODE_ENV === "production" ? setting !== "false" : setting === "true";
   return [
     `${SESSION_COOKIE_NAME}=`,
     "Path=/",
@@ -358,7 +359,7 @@ async function findUserByLogin(pool, login) {
     LEFT JOIN market.profile_pictures pp
       ON pp.id = u.profile_picture_id
     WHERE u.username_normalized = $1
-       OR u.email = $2
+       OR lower(u.email) = $2
     LIMIT 1
   `,
     [normalizedUsername, normalizedEmail]
@@ -430,6 +431,9 @@ async function revokeSession(pool, token) {
   );
 }
 
+const LAST_SEEN_EVERY_MS = 5 * 60_000;
+const lastSeenWrites = new Map(); // session id -> when this pod last wrote last_seen_at
+
 async function getAuthenticatedUser(pool, req) {
   const token = getSessionTokenFromRequest(req);
   if (!token) return null;
@@ -468,14 +472,22 @@ async function getAuthenticatedUser(pool, req) {
   const user = rows[0] || null;
   if (!user) return null;
 
-  await pool.query(
-    `
-    UPDATE market.user_sessions
-    SET last_seen_at = now()
-    WHERE id = $1
-  `,
-    [user.session_id]
-  );
+  // "Last seen" (the admin console shows it) moves at most every few minutes per session and pod,
+  // not on every request: that write was a Postgres UPDATE per authenticated API call.
+  const sessionKey = String(user.session_id);
+  const now = Date.now();
+  if ((lastSeenWrites.get(sessionKey) ?? 0) + LAST_SEEN_EVERY_MS <= now) {
+    lastSeenWrites.set(sessionKey, now);
+    if (lastSeenWrites.size > 50_000) lastSeenWrites.clear();
+    await pool.query(
+      `
+      UPDATE market.user_sessions
+      SET last_seen_at = now()
+      WHERE id = $1
+    `,
+      [user.session_id]
+    );
+  }
 
   return user;
 }
@@ -489,7 +501,9 @@ async function loginWithPassword(pool, { username, password }) {
   }
   const safePassword = validatePassword(password);
   const user = await findUserByLogin(pool, safeUsername);
-  if (!user) {
+  if (!user || !user.password_hash || !user.password_salt) {
+    // Same work as a real check, so the response time doesn't say whether the account exists.
+    await hashPassword(safePassword, "0000000000000000").catch(() => {});
     const error = new Error("invalid_credentials");
     error.code = "invalid_credentials";
     throw error;
@@ -556,9 +570,32 @@ async function verifyGoogleIdToken(idToken) {
 
 async function createOrLoginWithGoogle(pool, { idToken }) {
   const profile = await verifyGoogleIdToken(idToken);
+  // Google must vouch for the address: we match accounts by email, so an unverified Google email
+  // could otherwise sign in as whoever registered that address here.
+  if (!profile.emailVerified) {
+    const error = new Error("google_email_unverified");
+    error.code = "google_email_unverified";
+    throw error;
+  }
   let user = await findUserByGoogleSub(pool, profile.sub);
   if (!user) {
     const existing = await findUserByLogin(pool, profile.email);
+    if (existing && existing.email && normalizeEmail(existing.email) !== profile.email) {
+      // The address matched someone's username, not their email: never link that.
+      const error = new Error("google_login_failed");
+      error.code = "google_login_failed";
+      throw error;
+    }
+    if (existing && !existing.email_verified) {
+      // Someone registered this address with a password but never proved they own it; the Google
+      // user just did. They get the account, and whatever password was set on it stops working.
+      const scrambled = await hashPassword(crypto.randomBytes(32).toString("hex"));
+      await pool.query(
+        `UPDATE market.users SET password_hash = $2, password_salt = $3, password_params_json = $4::jsonb, updated_at = now() WHERE id = $1`,
+        [existing.id, scrambled.hash, scrambled.salt, JSON.stringify(scrambled.params)]
+      );
+      await pool.query(`UPDATE market.user_sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`, [existing.id]);
+    }
     if (existing) {
       const { rows } = await pool.query(
         `

@@ -1,0 +1,97 @@
+@use "../../../styles/mixins" as *;
+
+.stack {
+  position: fixed;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 120;
+  display: grid;
+  gap: 0.5rem;
+  width: min(22rem, calc(100vw - 2rem));
+
+  @include phone {
+    left: 0.75rem;
+    right: 0.75rem;
+    width: auto;
+    bottom: calc(var(--bottom-nav-height, 3.5rem) + 0.6rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+.toast {
+  @include popover;
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: start;
+  padding: 0.7rem 0.75rem;
+  border-left: 3px solid var(--blue);
+  animation: slide-in 260ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+
+  &[data-tone="win"] {
+    border-left-color: var(--up);
+  }
+
+  &[data-tone="warn"] {
+    border-left-color: var(--warn);
+  }
+}
+
+.art {
+  width: 52px;
+}
+
+.body {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--text);
+
+  b {
+    @include label;
+    color: var(--text);
+    font-weight: 700;
+  }
+
+  a {
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--blue);
+    text-decoration: none;
+  }
+}
+
+.toast[data-tone="win"] .body b {
+  color: var(--up);
+}
+
+.toast[data-tone="warn"] .body b {
+  color: var(--warn);
+}
+
+.close {
+  border: 0;
+  background: none;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 0.8rem;
+
+  &:hover {
+    color: var(--text);
+  }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-1.5rem);
+  }
+}
+
+:global(html[data-calm="true"]) .toast {
+  animation: none;
+}

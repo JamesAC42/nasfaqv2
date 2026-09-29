@@ -1,0 +1,149 @@
+"use client";
+
+import { memo } from "react";
+import type { CandlePoint, MarketLiveOrderFlowPoint } from "@/app/lib/types";
+import styles from "@/app/components/market/mini-charts.module.scss";
+
+/** Buy bars up, sell bars down, from a live-order flow series. `cursor` (0-1) marks "now". */
+export const FlowBars = memo(function FlowBars({ points, cursor }: { points: MarketLiveOrderFlowPoint[]; cursor?: number | null }) {
+  const W = 400;
+  const H = 180;
+  const mid = H / 2;
+  const n = Math.max(points.length, 1);
+  const max = Math.max(1, ...points.map((point) => Math.max(point.buy_quantity, point.sell_quantity)));
+  const bw = W / n;
+  return (
+    <svg className={styles.chart} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+      <line x1="0" x2={W} y1={mid} y2={mid} className={styles.axis} />
+      {points.map((point, index) => {
+        const hb = (point.buy_quantity / max) * (mid - 6);
+        const hs = (point.sell_quantity / max) * (mid - 6);
+        const x = index * bw + bw * 0.12;
+        const w = Math.max(1, bw * 0.76);
+        return (
+          <g key={point.bucket || index}>
+            {hb > 0 ? <rect x={x} y={mid - hb} width={w} height={hb} className={styles.buy} /> : null}
+            {hs > 0 ? <rect x={x} y={mid + 1} width={w} height={hs} className={styles.sell} /> : null}
+          </g>
+        );
+      })}
+      {cursor !== null && cursor !== undefined ? <line x1={cursor * W} x2={cursor * W} y1="0" y2={H} className={styles.cursor} /> : null}
+    </svg>
+  );
+});
+
+/** Plain OHLC candles. */
+export const MiniCandles = memo(function MiniCandles({ candles }: { candles: CandlePoint[] }) {
+  const W = 400;
+  const H = 180;
+  const clean = candles.filter((candle) => candle.open !== null && candle.close !== null);
+  if (clean.length < 2) return <div className={styles.empty}>Not enough trading yet.</div>;
+  const lows = clean.map((candle) => candle.low ?? Math.min(candle.open!, candle.close!));
+  const highs = clean.map((candle) => candle.high ?? Math.max(candle.open!, candle.close!));
+  const min = Math.min(...lows);
+  const max = Math.max(...highs);
+  const range = max - min || 1;
+  const y = (value: number) => 6 + (1 - (value - min) / range) * (H - 12);
+  const bw = W / clean.length;
+  return (
+    <div className={styles.wrap}>
+      <svg className={styles.chart} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+        {clean.map((candle, index) => {
+          const up = candle.close! >= candle.open!;
+          const x = index * bw + bw / 2;
+          const top = y(Math.max(candle.open!, candle.close!));
+          const bottom = y(Math.min(candle.open!, candle.close!));
+          return (
+            <g key={candle.bucket || index} className={up ? styles.buy : styles.sell}>
+              <line x1={x} x2={x} y1={y(highs[index])} y2={y(lows[index])} className={styles.wick} />
+              <rect x={x - bw * 0.32} y={top} width={bw * 0.64} height={Math.max(1, bottom - top)} />
+            </g>
+          );
+        })}
+      </svg>
+      <span className={styles.hi}>{max.toFixed(2)}</span>
+      <span className={styles.lo}>{min.toFixed(2)}</span>
+    </div>
+  );
+});
+
+/** Area line with an optional vertical marker at `markerIndex`. */
+export const AreaLine = memo(function AreaLine({ values, markerIndex, labels }: { values: number[]; markerIndex?: number | null; labels?: string[] }) {
+  const W = 600;
+  const H = 160;
+  const clean = values.filter((value) => Number.isFinite(value));
+  if (clean.length < 2) return <div className={styles.empty}>No index history yet.</div>;
+  const min = Math.min(...clean) * 0.98;
+  const max = Math.max(...clean) * 1.01;
+  const x = (i: number) => (i / (clean.length - 1)) * W;
+  const y = (v: number) => 4 + (1 - (v - min) / (max - min || 1)) * (H - 8);
+  const line = clean.map((value, i) => `${x(i).toFixed(1)},${y(value).toFixed(1)}`).join(" ");
+  const mi = markerIndex !== null && markerIndex !== undefined && markerIndex >= 0 && markerIndex < clean.length ? markerIndex : null;
+  return (
+    <div className={styles.wrap}>
+      <svg className={styles.chart} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+        <polygon points={`0,${H} ${line} ${W},${H}`} className={styles.area} />
+        <polyline points={line} className={styles.line} />
+        {mi !== null ? <line x1={x(mi)} x2={x(mi)} y1="0" y2={H} className={styles.marker} /> : null}
+      </svg>
+      <span className={styles.hi}>{max.toFixed(0)}</span>
+      <span className={styles.lo}>{min.toFixed(0)}</span>
+      {labels?.length ? (
+        <div className={styles.labels}>
+          {labels.map((label) => (
+            <span key={label}>{label}</span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+});
+
+/** Index line with y labels, an optional dashed comparison and a tag on the last value. */
+export const IndexChart = memo(function IndexChart({ values, compare, tone, dates }: { values: number[]; compare?: number[] | null; tone: "up" | "down"; dates: string[] }) {
+  const W = 800;
+  const H = 300;
+  const padR = 64;
+  const padB = 22;
+  const all = [...values, ...(compare ?? [])].filter((value) => Number.isFinite(value));
+  if (values.length < 2 || !all.length) return <div className={styles.empty}>Not enough history yet.</div>;
+  let min = Math.min(...all);
+  let max = Math.max(...all);
+  const pad = (max - min) * 0.12 || 1;
+  min -= pad;
+  max += pad;
+  const x = (i: number, n: number) => (i / (n - 1)) * (W - padR);
+  const y = (v: number) => 8 + (1 - (v - min) / (max - min)) * (H - 8 - padB);
+  const path = (series: number[]) => series.map((value, i) => `${x(i, series.length).toFixed(1)},${y(value).toFixed(1)}`).join(" ");
+  const grid = [0, 1, 2, 3, 4].map((i) => min + ((max - min) * i) / 4);
+  const last = values[values.length - 1];
+  const ticks = [0, Math.floor(dates.length / 3), Math.floor((dates.length * 2) / 3)].filter((i, k, arr) => arr.indexOf(i) === k && dates[i]);
+  return (
+    <div className={styles.wrap}>
+      <svg className={styles.chart} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+        {grid.map((value) => (
+          <line key={value} x1="0" x2={W - padR} y1={y(value)} y2={y(value)} className={styles.grid} />
+        ))}
+        <polygon points={`0,${H - padB} ${path(values)} ${W - padR},${H - padB}`} className={tone === "up" ? styles.areaUp : styles.areaDown} />
+        {compare && compare.length > 1 ? <polyline points={path(compare)} className={styles.compare} /> : null}
+        <polyline points={path(values)} className={tone === "up" ? styles.lineUp : styles.lineDown} />
+      </svg>
+      {grid.map((value) => (
+        <span key={value} className={styles.yl} style={{ top: `${((y(value) / H) * 100).toFixed(2)}%` }}>
+          {value.toFixed(1)}
+        </span>
+      ))}
+      <span className={`${styles.tag} ${tone === "up" ? styles.tagUp : styles.tagDown}`} style={{ top: `${((y(last) / H) * 100).toFixed(2)}%` }}>
+        {last.toFixed(2)}
+      </span>
+      <div className={styles.xl}>
+        {ticks.map((i) => (
+          <span key={i} style={{ left: `${((x(i, dates.length) / W) * 100).toFixed(2)}%` }}>
+            {dates[i]}
+          </span>
+        ))}
+        <span style={{ right: `${((padR / W) * 100).toFixed(2)}%`, transform: "none" }}>NOW</span>
+      </div>
+    </div>
+  );
+});

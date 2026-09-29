@@ -1,5 +1,7 @@
 const express = require("express");
 
+const { sendCachedJson } = require("../responseCache");
+
 const router = express.Router();
 
 function safeParseJSON(s) {
@@ -128,12 +130,37 @@ const SESSION_SELECT = `
   JOIN yt.youtube_channels c ON c.youtube_channel_id = s.youtube_channel_id
 `;
 
+// Every per-channel hash (nasfaq_livestreams:{channelId}) folded into one list.
+async function loadAllStreams(redis) {
+  const live = [];
+  const upcoming = [];
+  for await (const key of redis.scanIterator({ MATCH: "nasfaq_livestreams:{*}", COUNT: 200 })) {
+    const channelID = channelIdFromRedisKey(key);
+    const h = await redis.hGetAll(key);
+    for (const [, val] of Object.entries(h)) {
+      const item = safeParseJSON(val);
+      if (!item || !item.video_id) continue;
+      const stream = withChannelId(item, channelID);
+      if (stream.status === "live") live.push(stream);
+      else if (stream.status === "upcoming") upcoming.push(stream);
+    }
+  }
+  sortStreams(live, upcoming);
+  return { live: live.map(toListStream), upcoming: upcoming.map(toListStream) };
+}
+
 router.get("/", async (req, res, next) => {
   try {
     const redis = req.ctx.redis;
     if (!redis) return res.status(500).json({ error: "redis_not_configured" });
 
     const channelFilter = req.query.channel ? req.query.channel.toString().trim() : null;
+    // The all-channels list walks every livestream hash in Redis; the front page asks for it on
+    // every visit, so it's built at most every 10s (viewer counts move every few minutes anyway).
+    if (!channelFilter) {
+      await sendCachedJson(req, res, "livestreams:all", { ttlSeconds: 10, memoMs: 3000, load: () => loadAllStreams(redis) });
+      return;
+    }
 
     const live = [];
     const upcoming = [];
@@ -142,20 +169,6 @@ router.get("/", async (req, res, next) => {
       const streams = await getChannelStreamsFromRedis(redis, channelFilter);
       live.push(...streams.live);
       upcoming.push(...streams.upcoming);
-    } else {
-      // Aggregate all per-channel hashes: nasfaq_livestreams:{channelId}
-      for await (const key of redis.scanIterator({ MATCH: "nasfaq_livestreams:{*}", COUNT: 200 })) {
-        const channelID = channelIdFromRedisKey(key);
-        const h = await redis.hGetAll(key);
-        for (const [, val] of Object.entries(h)) {
-          const item = safeParseJSON(val);
-          if (!item || !item.video_id) continue;
-          const stream = withChannelId(item, channelID);
-          if (stream.status === "live") live.push(stream);
-          else if (stream.status === "upcoming") upcoming.push(stream);
-        }
-      }
-      sortStreams(live, upcoming);
     }
 
     res.json({ live: live.map(toListStream), upcoming: upcoming.map(toListStream) });
@@ -252,6 +265,24 @@ router.get("/:videoId", async (req, res, next) => {
       [videoId]
     );
     const session = r.rows[0] || null;
+
+    // Superchat totals land the day after a stream (the hololyzer scrape is daily).
+    if (session) {
+      const sc = await pool.query(
+        `
+          SELECT
+            SUM(total_in_yen)::BIGINT AS total_in_yen,
+            SUM(donation_count)::BIGINT AS donation_count
+          FROM yt.youtube_superchat_currency_breakdowns
+          WHERE video_id = $1
+        `,
+        [videoId]
+      );
+      const row = sc.rows[0];
+      session.superchats = row && row.total_in_yen !== null
+        ? { total_in_yen: Number(row.total_in_yen), donation_count: Number(row.donation_count || 0) }
+        : null;
+    }
 
     res.json({ session, redis: redisItem });
   } catch (e) {

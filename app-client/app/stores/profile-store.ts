@@ -11,6 +11,8 @@ type AdminBusy = false | "reset" | "rebuild";
 type ProfileState = {
   portfolio: PortfolioSummary | null;
   pendingLiveOrders: PortfolioOrder[];
+  /** The latest orders of any status (filled ones carry their fill), for the fill-moment fallback. */
+  recentOrders: PortfolioOrder[];
   isLoadingPortfolio: boolean;
   isLoadingOrders: boolean;
   portfolioError: string | null;
@@ -30,6 +32,7 @@ type ProfileState = {
 export const useProfileStore = create<ProfileState>((set) => ({
   portfolio: null,
   pendingLiveOrders: [],
+  recentOrders: [],
   isLoadingPortfolio: false,
   isLoadingOrders: false,
   portfolioError: null,
@@ -55,10 +58,10 @@ export const useProfileStore = create<ProfileState>((set) => ({
     set({ isLoadingOrders: true, portfolioError: null });
     try {
       const result = await apiFetch<Record<string, unknown>>("/api/portfolio/me/orders?limit=50", { cache: "no-store" });
+      const orders = normalizePortfolioOrdersResponse(result).orders;
       set({
-        pendingLiveOrders: normalizePortfolioOrdersResponse(result).orders.filter(
-          (order) => order.status === "pending" && order.order_type === "live_market"
-        ),
+        recentOrders: orders,
+        pendingLiveOrders: orders.filter((order) => order.status === "pending" && order.order_type === "live_market"),
       });
     } catch (error) {
       set({
@@ -99,13 +102,26 @@ export const useProfileStore = create<ProfileState>((set) => ({
     }
   },
   rebuildMarket: async (confirmation) => {
-    set({ adminBusy: "rebuild", adminError: null, adminStatus: null });
-    try {
-      const result = await apiFetch<{
+    // The rebuild runs in the background on the API (it takes longer than a proxied request can
+    // stay open): start it, then poll its progress.
+    type RebuildJob = {
+      status: "running" | "completed" | "failed";
+      progress: { phase: string; done: number; total: number | null; market_date: string | null };
+      result: null | {
         range: { from: string; to: string };
-        fundamentals: { snapshots_processed: number; failed_snapshots: number };
-        settlement: { settled_count: number };
-      }>("/internal/market/rebuild-full", {
+        fundamentals: { snapshots_processed: number | null; failed_snapshots: number | null };
+        settlement: { settled_count: number; skipped_dates: Array<{ market_date: string; error: string }> };
+        adjustments_applied: number;
+      };
+      error: string | null;
+    };
+    const describe = (job: RebuildJob) =>
+      job.progress.phase === "settling" && job.progress.total
+        ? `Rebuilding… ${job.progress.done} of ~${job.progress.total} days${job.progress.market_date ? ` (${job.progress.market_date})` : ""}.`
+        : "Rebuilding… recalculating fundamentals.";
+    set({ adminBusy: "rebuild", adminError: null, adminStatus: "Starting rebuild…" });
+    try {
+      let { job } = await apiFetch<{ job: RebuildJob }>("/internal/market/rebuild-full", {
         method: "POST",
         body: JSON.stringify({
           active_only: true,
@@ -114,15 +130,27 @@ export const useProfileStore = create<ProfileState>((set) => ({
           confirmation,
           version: 1,
         }),
+      }).catch(async (error: Error & { status?: number; body?: { job?: RebuildJob } }) => {
+        // Already running (another tab, or a page reload): follow that one.
+        if (error.status === 409 && error.body?.job) return { job: error.body.job };
+        throw error;
       });
+      while (job.status === "running") {
+        set({ adminStatus: describe(job) });
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        job = (await apiFetch<{ job: RebuildJob | null }>("/internal/market/rebuild-full")).job ?? { ...job, status: "failed", error: "rebuild_lost (the API restarted)" };
+      }
+      if (job.status === "failed" || !job.result) throw new Error(`Rebuild failed: ${job.error ?? "unknown error"}`);
+      const { range, fundamentals, settlement, adjustments_applied } = job.result;
       set({
         adminStatus:
-          `Rebuild complete for ${result.range.from} to ${result.range.to}. ` +
-          `Fundamentals: ${result.fundamentals.snapshots_processed} snapshots, failed ${result.fundamentals.failed_snapshots}. ` +
-          `Settled days: ${result.settlement.settled_count}.`,
+          `Rebuild complete for ${range.from} to ${range.to}. ` +
+          `Fundamentals: ${fundamentals.snapshots_processed ?? "?"} snapshots, failed ${fundamentals.failed_snapshots ?? 0}. ` +
+          `Settled days: ${settlement.settled_count}, adjustments replayed: ${fmtNumber(adjustments_applied)}.` +
+          (settlement.skipped_dates.length ? ` Skipped ${settlement.skipped_dates.length} day(s), first ${settlement.skipped_dates[0].market_date}: ${settlement.skipped_dates[0].error}.` : ""),
       });
     } catch (error) {
-      set({ adminError: String((error as Error).message || error) });
+      set({ adminStatus: null, adminError: String((error as Error).message || error) });
     } finally {
       set({ adminBusy: false });
     }

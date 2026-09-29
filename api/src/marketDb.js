@@ -1,12 +1,8 @@
 const marketState = require("./services/marketState");
+const supply = require("./services/marketSupply");
 
-const PROFILE_PICTURE_CDN_BASE_URL = "https://images.nasfaq.biz/profile-pictures";
+const { profilePictureUrlSql } = require("./profilePictures");
 
-function profilePictureUrlSql(size, alias = "pp") {
-  const folder = size === "small" ? "small" : "large";
-  const field = size === "small" ? "filename_small" : "filename_large";
-  return `CASE WHEN ${alias}.id IS NULL OR ${alias}.is_deleted THEN NULL ELSE '${PROFILE_PICTURE_CDN_BASE_URL}/${folder}/' || ${alias}.${field} END`;
-}
 
 function parseRangeToInterval(range) {
   switch ((range || "").toLowerCase()) {
@@ -434,6 +430,11 @@ async function listAssets(pool) {
       a.treasury_supply,
       a.circulating_supply,
       a.max_supply,
+      a.trading_state,
+      a.broker_buffer_pct,
+      CASE WHEN bb.id IS NULL THEN NULL ELSE jsonb_build_object(
+        'started_at', bb.started_at, 'frozen_price', bb.frozen_price, 'target_max_supply', bb.target_max_supply, 'shares_bought', bb.shares_bought
+      ) END AS active_buyback,
       a.latest_snapshot_date,
       COALESCE(v.volume_24h, 0) AS volume_24h,
       COALESCE(v.volume_cash_24h, 0) AS volume_cash_24h,
@@ -460,10 +461,18 @@ async function listAssets(pool) {
     LEFT JOIN latest_adjustment la ON la.asset_id = a.id
     LEFT JOIN pending_live_orders plo ON plo.asset_id = a.id
     LEFT JOIN oshicoin_users ou ON ou.asset_id = a.id
+    LEFT JOIN market.asset_buybacks bb ON bb.asset_id = a.id AND bb.status = 'active'
     ORDER BY a.symbol ASC
   `
   );
-  return rows;
+  return rows.map(withSupply);
+}
+
+/** Adds the public supply view (for sale, sold out, buyback offer) to an asset row. */
+function withSupply(row) {
+  if (!row) return row;
+  const { active_buyback: buyback, ...rest } = row;
+  return { ...rest, ...supply.supplyView(row, buyback) };
 }
 
 async function getAssetBySymbol(pool, symbol) {
@@ -580,6 +589,11 @@ async function getAssetBySymbol(pool, symbol) {
       a.circulating_supply,
       a.treasury_supply,
       a.base_emission,
+      a.trading_state,
+      a.broker_buffer_pct,
+      CASE WHEN bb.id IS NULL THEN NULL ELSE jsonb_build_object(
+        'started_at', bb.started_at, 'frozen_price', bb.frozen_price, 'target_max_supply', bb.target_max_supply, 'shares_bought', bb.shares_bought
+      ) END AS active_buyback,
       a.latest_snapshot_date,
       a.latest_snapshot_id,
       a.current_fair_value,
@@ -704,12 +718,13 @@ async function getAssetBySymbol(pool, symbol) {
     LEFT JOIN next_adjustment na ON true
     LEFT JOIN latest_adjustment la ON true
     LEFT JOIN pending_live_orders plo ON plo.asset_id = a.id
+    LEFT JOIN market.asset_buybacks bb ON bb.asset_id = a.id AND bb.status = 'active'
     WHERE a.symbol = $1
     LIMIT 1
   `,
     [symbol]
   );
-  return rows[0] || null;
+  return withSupply(rows[0] || null);
 }
 
 async function updateAssetMarketTuning(pool, symbol, patch = {}) {
@@ -903,7 +918,7 @@ async function getMarketActivityStats(pool) {
       LEFT JOIN market.profile_pictures pp
         ON pp.id = u.profile_picture_id
       WHERE tf.ts >= now() - interval '24 hours'
-      GROUP BY tf.user_id, u.username, u.profile_color, u.profile_picture_url, pp.id, pp.is_deleted, pp.filename_small
+      GROUP BY tf.user_id, u.username, u.profile_color, u.profile_picture_url, u.profile_reaction, pp.id, pp.is_deleted, pp.filename_small
       ORDER BY trade_count DESC, volume_cash DESC, latest_trade_at DESC, tf.user_id DESC
       LIMIT 8
     `
@@ -1282,6 +1297,10 @@ async function listAssetRankingCore(pool) {
   return rows;
 }
 
+const RANGE_DAYS = { "24h": 1, "7d": 7, "30d": 30, "90d": 90, "1y": 365 };
+
+// Superchats, stream time and channel growth over a window ("7d" by default; the column names
+// keep their old _7d spelling for older clients).
 async function listAssetRankingWeeklyActivity(pool, { superchatRange = "7d" } = {}) {
   const interval = parseRangeToInterval(superchatRange);
   const { rows } = await pool.query(
@@ -1327,23 +1346,54 @@ async function listAssetRankingWeeklyActivity(pool, { superchatRange = "7d" } = 
       LEFT JOIN yt.livestream_sessions s
         ON s.youtube_channel_id = a.youtube_channel_id
        AND s.status = 'ended'
-       AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) >= now() - interval '7 days'
+       AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) >= now() - $1::interval
        AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) <= now()
       GROUP BY a.id, a.symbol
+    ),
+    -- Subscriber and view growth over the range, from the daily snapshots (the earliest one when
+    -- history is shorter than the range; growth_days says how far back it really reaches).
+    growth AS (
+      SELECT
+        a.id AS asset_id,
+        latest.subscriber_count AS subs_now,
+        latest.view_count AS views_now,
+        COALESCE(past.subscriber_count, first.subscriber_count) AS subs_then,
+        COALESCE(past.view_count, first.view_count) AS views_then,
+        latest.snapshot_date - COALESCE(past.snapshot_date, first.snapshot_date) AS growth_days
+      FROM market.market_assets a
+      LEFT JOIN LATERAL (
+        SELECT subscriber_count, view_count, snapshot_date FROM market.channel_daily_snapshots s
+        WHERE s.youtube_channel_id = a.youtube_channel_id ORDER BY snapshot_date DESC LIMIT 1
+      ) latest ON true
+      LEFT JOIN LATERAL (
+        SELECT subscriber_count, view_count, snapshot_date FROM market.channel_daily_snapshots s
+        WHERE s.youtube_channel_id = a.youtube_channel_id AND s.snapshot_date <= latest.snapshot_date - $2::int
+        ORDER BY snapshot_date DESC LIMIT 1
+      ) past ON true
+      LEFT JOIN LATERAL (
+        SELECT subscriber_count, view_count, snapshot_date FROM market.channel_daily_snapshots s
+        WHERE s.youtube_channel_id = a.youtube_channel_id ORDER BY snapshot_date ASC LIMIT 1
+      ) first ON true
     )
     SELECT
       a.id AS asset_id,
       a.symbol,
       COALESCE(st.superchat_earnings, 0) AS superchat_earnings,
-      COALESCE(sd.stream_duration_seconds_7d, 0) AS stream_duration_seconds_7d
+      COALESCE(sd.stream_duration_seconds_7d, 0) AS stream_duration_seconds_7d,
+      COALESCE(sd.stream_duration_seconds_7d, 0) AS stream_duration_seconds,
+      CASE WHEN g.subs_then > 0 AND g.growth_days > 0 THEN (g.subs_now - g.subs_then)::DOUBLE PRECISION / g.subs_then END AS subs_growth,
+      CASE WHEN g.views_then > 0 AND g.growth_days > 0 THEN (g.views_now - g.views_then)::DOUBLE PRECISION / g.views_then END AS views_growth,
+      g.growth_days
     FROM market.market_assets a
     LEFT JOIN superchat_totals st
       ON st.asset_id = a.id
     LEFT JOIN stream_duration_totals sd
       ON sd.asset_id = a.id
+    LEFT JOIN growth g
+      ON g.asset_id = a.id
     ORDER BY a.symbol ASC
   `,
-    [interval]
+    [interval, RANGE_DAYS[String(superchatRange).toLowerCase()] ?? 30]
   );
 
   return rows;
@@ -1685,6 +1735,25 @@ async function getAssetTreasury(pool, symbol) {
     [symbol]
   );
   return rows[0] || null;
+}
+
+/** Shares held against max shares at each daily settlement (09:00 ET), oldest first. */
+async function getAssetHeldHistory(pool, symbol, { days = 90 } = {}) {
+  const { rows } = await pool.query(
+    `
+    SELECT d.market_date::text AS date,
+           d.circulating_supply_end AS held,
+           d.circulating_supply_end + COALESCE(d.treasury_supply_end, 0) AS max_supply
+    FROM market.asset_daily_market_state d
+    JOIN market.market_assets a ON a.id = d.asset_id
+    WHERE a.symbol = $1
+      AND d.circulating_supply_end IS NOT NULL
+      AND d.market_date >= current_date - $2::int
+    ORDER BY d.market_date ASC
+  `,
+    [symbol, Math.min(365, Math.max(7, Number(days) || 90))]
+  );
+  return rows.map((row) => ({ date: row.date, held: Math.round(Number(row.held) * 100) / 100, max_supply: Math.round(Number(row.max_supply)) }));
 }
 
 async function getAssetStats(pool, symbol, { range = "30d" } = {}) {
@@ -2405,6 +2474,7 @@ module.exports = {
   getAssetCandles,
   getAllMarketCandles,
   getAssetStats,
+  getAssetHeldHistory,
   getAssetTrades,
   listRecentMarketTrades,
   getMarketActivityStats,

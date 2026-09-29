@@ -1,0 +1,29 @@
+{
+  "area": "gallery",
+  "slots": [
+    {
+      "id": "gallery-hero",
+      "title": "Card gallery: hero backdrop",
+      "where": ["/games/cards/gallery (progress header)"],
+      "kind": "backdrop",
+      "w": 2400,
+      "h": 720,
+      "transparent": false,
+      "priority": "high",
+      "brief": "A long, dim museum hall at night seen at a slight angle: a wall of empty picture frames in many sizes (tall 5:7 portrait frames, a few wide banner frames), each lit from above by a narrow spotlight cone in hololive blue (#3fb8f5), with a couple of frames glowing warm gold and one with a soft pink-cyan holo shimmer (the rare pieces). Polished dark floor with long reflections, faint halftone haze in the air. Frames are empty or show only abstract colour washes, no characters. The left 50% is darker and quieter (the big progress number and bar sit there); the frames get denser and brighter toward the right.",
+      "notes": "Sits behind white text under a left-to-right ink gradient (#07090e). On phones it crops to the right-hand 60% around 75% 50%. No text, no real talents, no people."
+    },
+    {
+      "id": "gallery-locked",
+      "title": "Card gallery: locked-art veil",
+      "where": ["/games/cards/gallery/[symbol] (locked card illustrations and the locked banner)"],
+      "kind": "texture",
+      "w": 1000,
+      "h": 1400,
+      "transparent": true,
+      "priority": "medium",
+      "brief": "A sheet of frosted, slightly scuffed museum glass seen straight on: soft vertical light streaks, fine diagonal scratches, a subtle halftone dot pattern fading from the bottom-left corner, and a faint diamond-shaped reflection in the upper third. Neutral grey-white on transparency so it can tint any colour. Mostly transparent in the centre so the blurred silhouette behind still shows through; denser toward the edges.",
+      "notes": "Laid over the blurred, darkened placeholder or art of a card the player doesn't own yet, with mix-blend-mode: screen at ~50% opacity. The same image is stretched to 21:9 over the locked banner, so keep it free of anything that looks wrong when squashed (no hard shapes, no text)."
+    }
+  ]
+}

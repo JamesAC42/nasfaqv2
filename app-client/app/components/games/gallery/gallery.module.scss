@@ -1,0 +1,721 @@
+@use "../../../styles/mixins" as *;
+
+// Card gallery index: a progress header (a dark "moment" band with the hall backdrop), then the
+// wall of talents. Tiles are the pieces: key art on a talent-lit dark mat, placard underneath on
+// the page ground, so light mode keeps its paper feel around dark art.
+
+.links {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.link {
+  @include button-secondary;
+  padding: 0.5rem 0.85rem;
+  text-decoration: none;
+}
+
+.linkPrimary {
+  @include button-primary;
+  padding: 0.5rem 0.85rem;
+  text-decoration: none;
+}
+
+.error {
+  @include empty-state;
+  margin: 1rem 0;
+  color: var(--down);
+
+  button {
+    @include button-secondary;
+    margin-left: 0.5rem;
+    padding: 0.3rem 0.6rem;
+  }
+}
+
+.skeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 1rem;
+  padding: 1.5rem 0;
+
+  span {
+    aspect-ratio: 4 / 5.6;
+    border-radius: var(--radius-md);
+    background: linear-gradient(100deg, var(--ink-2) 30%, var(--ink-3) 50%, var(--ink-2) 70%) 0 0 / 300% 100%;
+    animation: shimmer 1.4s linear infinite;
+  }
+
+  @include phone {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -150% 0;
+  }
+}
+
+// ── Progress hero ──────────────────────────────────────────────────────────
+.hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 1.5rem 2.5rem;
+  align-items: end;
+  min-width: 0;
+  margin-top: 0.25rem;
+  padding: 1.75rem 2rem 1.6rem;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: #07090e;
+  color: #fff;
+  isolation: isolate;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  @include phone {
+    padding: 1.25rem 1rem 1.1rem;
+    gap: 1.1rem;
+  }
+}
+
+.heroBg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(45% 90% at 82% 30%, rgba(63, 184, 245, 0.22), transparent 70%),
+    radial-gradient(25% 60% at 95% 90%, rgba(245, 197, 66, 0.14), transparent 70%);
+}
+
+.heroShade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(7, 9, 14, 0.94) 25%, rgba(7, 9, 14, 0.55) 60%, rgba(7, 9, 14, 0.25));
+
+  @include phone {
+    background: linear-gradient(180deg, rgba(7, 9, 14, 0.6), rgba(7, 9, 14, 0.92) 55%);
+  }
+}
+
+.heroMain {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.heroLabel {
+  @include label;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.heroCount {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.6rem;
+  margin: 0;
+
+  b {
+    @include num(wide);
+    font-size: clamp(2.6rem, 6vw, 4.2rem);
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  span {
+    @include num(wide);
+    font-size: clamp(1.1rem, 2.4vw, 1.6rem);
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  small {
+    @include num;
+    margin-left: 0.3rem;
+    padding: 0.15rem 0.4rem 0.1rem;
+    border: 1px solid rgba(63, 184, 245, 0.5);
+    border-radius: var(--radius-sm);
+    font-size: 0.72rem;
+    color: #7fd0fa;
+
+    &:empty {
+      display: none;
+    }
+  }
+}
+
+// One track per rarity, each filled by the share of talents you own it for.
+.bar {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 3px;
+  max-width: 40rem;
+
+  span {
+    position: relative;
+    height: 0.55rem;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--rc) 16%, rgba(255, 255, 255, 0.06));
+
+    &:first-child {
+      border-radius: 2px 0 0 2px;
+    }
+
+    &:last-child {
+      border-radius: 0 2px 2px 0;
+    }
+  }
+
+  i {
+    position: absolute;
+    inset: 0;
+    background: var(--rc);
+    transform: scaleX(var(--fill));
+    transform-origin: left;
+    transition: transform 0.6s var(--ease-out);
+  }
+
+  [data-rarity="UR"] i {
+    background: linear-gradient(90deg, #ff7ad9, #ffd36e, #7dffcf, #6ecbff);
+  }
+}
+
+.barKey {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 3px;
+  max-width: 40rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    gap: 0.1rem;
+    min-width: 0;
+  }
+
+  b {
+    @include display(0.85rem);
+    color: var(--rc);
+  }
+
+  span {
+    @include label;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: rgba(255, 255, 255, 0.55);
+  }
+
+  em {
+    @include num;
+    font-style: normal;
+    font-size: 0.85rem;
+
+    small {
+      color: rgba(255, 255, 255, 0.5);
+    }
+  }
+
+  @include phone {
+    span {
+      display: none;
+    }
+  }
+}
+
+.heroSide {
+  min-width: 0;
+}
+
+.heroStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+
+  div {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.7rem 0.75rem 0 0;
+
+    & + div {
+      padding-left: 0.75rem;
+      border-left: 1px solid rgba(255, 255, 255, 0.14);
+    }
+  }
+
+  dt {
+    @include label;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  dd {
+    @include num(wide);
+    margin: 0;
+    font-size: 1.45rem;
+
+    small {
+      font-size: 0.8rem;
+      color: rgba(255, 255, 255, 0.5);
+    }
+  }
+}
+
+.heroSignIn {
+  display: grid;
+  gap: 0.25rem;
+
+  > p {
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  // SignInToPlay is an empty-state box; on the dark band it becomes a plain line.
+  p:last-child {
+    margin: 0.4rem 0 0;
+    padding: 0.6rem 0.75rem;
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(0, 0, 0, 0.35);
+    color: rgba(255, 255, 255, 0.85);
+
+    a {
+      color: #7fd0fa;
+    }
+  }
+}
+
+// ── Wall ───────────────────────────────────────────────────────────────────
+.wall {
+  min-width: 0;
+  padding: 1.4rem 0 2.5rem;
+}
+
+.heading {
+  @include section-heading;
+  margin: 0;
+
+  small {
+    @include num;
+    margin-left: 0.4rem;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    color: var(--dim);
+  }
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.search {
+  display: flex;
+  flex: 0 1 15rem;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 9rem;
+  padding: 0 0.5rem 0 0.6rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: var(--ink-2);
+  color: var(--dim);
+
+  &:focus-within {
+    border-color: var(--text);
+  }
+
+  > svg {
+    flex: none;
+    width: 0.75rem;
+    height: 0.75rem;
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.4rem 0;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.85rem;
+    outline: none;
+
+    &::-webkit-search-cancel-button {
+      display: none;
+    }
+  }
+
+  button {
+    display: grid;
+    place-items: center;
+    width: 1.4rem;
+    height: 1.4rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--dim);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--text);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+
+  @include phone {
+    flex-basis: 100%;
+  }
+}
+
+.seg {
+  @include tabs;
+  flex: none;
+
+  button {
+    @include tab;
+    cursor: pointer;
+
+    & + button {
+      border-left: 1px solid var(--rule-2);
+    }
+
+    &[aria-pressed="true"] {
+      @include tab-selected;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+
+  span {
+    @include label;
+  }
+
+  select {
+    @include num;
+    padding: 0.32rem 0.5rem;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    background: var(--ink-2);
+    color: var(--text);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+
+  @include phone {
+    margin-left: 0;
+  }
+}
+
+.units {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-width: 0;
+
+  @include phone {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    mask-image: linear-gradient(90deg, #000 calc(100% - 2rem), transparent);
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}
+
+.chip {
+  @include tab;
+  flex: none;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  cursor: pointer;
+
+  &[aria-pressed="true"] {
+    border-color: var(--blue);
+    background: var(--blue-wash);
+    color: var(--blue);
+    font-weight: 700;
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.empty {
+  @include empty-state;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 1rem;
+
+  p {
+    margin: 0;
+  }
+
+  button {
+    @include button-secondary;
+    padding: 0.35rem 0.7rem;
+  }
+}
+
+.group {
+  min-width: 0;
+  padding-top: 1.2rem;
+}
+
+.groupHead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin: 0 0 0.8rem;
+  font-weight: 400;
+
+  span {
+    @include display(1.15rem);
+  }
+
+  small {
+    @include num;
+    font-size: 0.72rem;
+    color: var(--dim);
+  }
+
+  &::after {
+    content: "";
+    flex: 1;
+    align-self: center;
+    height: 1px;
+    background: var(--rule);
+  }
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  gap: 1.25rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  @include phone {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.9rem 0.5rem;
+  }
+}
+
+// ── Tile ───────────────────────────────────────────────────────────────────
+.tile {
+  min-width: 0;
+}
+
+.tileLink {
+  display: grid;
+  gap: 0.5rem;
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-md);
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.tileArt {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background:
+    radial-gradient(90% 60% at 50% 30%, color-mix(in srgb, var(--tal) 38%, #0b0e15), #07090e 85%),
+    #07090e;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  transition:
+    transform var(--dur-med) var(--ease-out),
+    box-shadow var(--dur-med) var(--ease-out);
+
+  // Spotlight from above, like a lit frame.
+  &::before {
+    content: "";
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    background: radial-gradient(60% 40% at 50% 0%, rgba(255, 255, 255, 0.12), transparent 70%);
+    pointer-events: none;
+  }
+
+  &::after {
+    content: "";
+    position: absolute;
+    z-index: 1;
+    inset: auto 0 0;
+    height: 30%;
+    background: linear-gradient(transparent, rgba(7, 9, 14, 0.7));
+    pointer-events: none;
+  }
+}
+
+.tileKeyart {
+  transition: filter var(--dur-med) var(--ease-out);
+}
+
+.tile[data-state="empty"] .tileKeyart {
+  filter: saturate(0.35) brightness(0.72);
+}
+
+.tile[data-state="complete"] .tileArt {
+  box-shadow:
+    inset 0 0 0 1px rgba(245, 197, 66, 0.7),
+    0 0 18px -4px rgba(245, 197, 66, 0.45);
+}
+
+@include hover-device {
+  .tileLink:hover .tileArt {
+    transform: translateY(-3px);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--tal) 70%, transparent),
+      0 10px 24px -10px color-mix(in srgb, var(--tal) 60%, transparent);
+  }
+
+  .tileLink:hover .tileKeyart {
+    filter: none;
+  }
+}
+
+.complete {
+  @include num;
+  position: absolute;
+  z-index: 2;
+  top: 0.45rem;
+  right: 0.45rem;
+  padding: 0.15rem 0.4rem 0.1rem;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, #f5c542, #fff0a8, #f5c542);
+  color: #1a1204;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+
+  @include phone {
+    top: 0.3rem;
+    right: 0.3rem;
+    font-size: 0.52rem;
+    padding: 0.1rem 0.3rem 0.05rem;
+  }
+}
+
+.tilePlate {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0 0.1rem;
+}
+
+.tileName {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+
+  > span {
+    flex: none;
+  }
+
+  b {
+    @include display(0.95rem);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @include phone {
+    gap: 0.3rem;
+
+    b {
+      font-size: 0.78rem;
+    }
+  }
+}
+
+.tileMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+
+  em {
+    @include num;
+    font-style: normal;
+    font-size: 0.72rem;
+    color: var(--dim);
+  }
+
+  .tile[data-state="complete"] & em {
+    color: var(--text);
+    font-weight: 700;
+  }
+}
+
+:global(html[data-calm="true"]) {
+  .skeleton span {
+    animation: none;
+  }
+
+  .tileArt,
+  .bar i {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton span {
+    animation: none;
+  }
+
+  .tileArt,
+  .bar i {
+    transition: none;
+  }
+}

@@ -1,0 +1,96 @@
+@use "../../../styles/mixins" as *;
+
+.chart {
+  min-width: 0;
+  padding: 0.75rem 0 0.5rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  min-width: 0;
+  margin-bottom: 0.4rem;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.9rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+    font-size: 0.75rem;
+    color: var(--mid);
+  }
+
+  i {
+    flex: none;
+    width: 0.6rem;
+    height: 2px;
+    background: var(--oc);
+  }
+
+  span {
+    overflow: hidden;
+    max-width: 10rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  b {
+    @include num;
+    color: var(--oc);
+  }
+}
+
+.ranges {
+  @include tabs;
+  flex: none;
+
+  button {
+    @include tab;
+    cursor: pointer;
+
+    &[aria-pressed="true"] {
+      @include tab-selected;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.plot {
+  position: relative;
+  height: 300px;
+
+  @include phone {
+    height: 220px;
+  }
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.empty {
+  @include label;
+  display: grid;
+  place-items: center;
+  height: 100%;
+  margin: 0;
+  border: 1px dashed var(--rule-2);
+}

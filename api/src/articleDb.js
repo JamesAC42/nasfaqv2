@@ -1,3 +1,5 @@
+const notifications = require("./services/notifications");
+
 function slugify(value) {
   const normalized = String(value || "")
     .trim()
@@ -372,6 +374,11 @@ async function getArticleRowBySlug(client, slug, { includeDrafts = false } = {})
       a.updated_at,
       n.headline AS news_headline,
       n.date::text AS news_date,
+      COALESCE(
+        (SELECT json_agg(json_build_object('symbol', m.symbol, 'mood', m.mood) ORDER BY m.symbol)
+         FROM content.news_moods m WHERE m.news_id = a.news_id),
+        '[]'::json
+      ) AS news_moods,
       u.username AS author_username,
       COALESCE(comment_counts.comment_count, 0)::int AS comment_count,
       COALESCE(asset_rel.assets, '[]'::json) AS related_assets
@@ -555,6 +562,7 @@ async function hydrateArticleDetail(client, articleRow, viewerUserId = null) {
           id: articleRow.news_id,
           headline: articleRow.news_headline || articleRow.title,
           published_at: articleRow.news_date || null,
+          moods: Array.isArray(articleRow.news_moods) ? articleRow.news_moods : [],
         }
       : null,
     viewer_has_liked: Boolean(viewerStateResult.rows[0]?.has_liked),
@@ -644,6 +652,11 @@ async function listArticles(pool, {
       a.author_id,
       n.headline AS news_headline,
       n.date::text AS news_date,
+      COALESCE(
+        (SELECT json_agg(json_build_object('symbol', m.symbol, 'mood', m.mood) ORDER BY m.symbol)
+         FROM content.news_moods m WHERE m.news_id = a.news_id),
+        '[]'::json
+      ) AS news_moods,
       u.username AS author_username,
       COALESCE(comment_counts.comment_count, 0)::int AS comment_count,
       COALESCE(asset_rel.assets, '[]'::json) AS related_assets
@@ -748,6 +761,7 @@ async function listArticles(pool, {
           id: row.news_id,
           headline: row.news_headline || row.title,
           published_at: row.news_date || null,
+          moods: Array.isArray(row.news_moods) ? row.news_moods : [],
         }
       : null,
   }));
@@ -1221,7 +1235,7 @@ async function approveProposal(pool, slug, proposalId, reviewerId) {
 
     const proposalResult = await client.query(
       `
-      SELECT id, article_id, title, subtitle, tags, thumbnail_url, content
+      SELECT id, article_id, author_id, title, subtitle, tags, thumbnail_url, content
       FROM content.news_article_proposals
       WHERE id = $1
         AND article_id = $2
@@ -1279,7 +1293,21 @@ async function approveProposal(pool, slug, proposalId, reviewerId) {
       [article.id, proposal.title, proposal.subtitle, Array.isArray(proposal.tags) ? proposal.tags : [], proposal.thumbnail_url, proposal.content]
     );
 
+    const noted = await notifications.notify(
+      client,
+      proposal.author_id,
+      {
+        kind: "proposal_approved",
+        title: "Your article was picked",
+        body: `An editor made your draft the official version of “${proposal.title || article.title || "the story"}”.`,
+        href: `/articles/${encodeURIComponent(slug)}`,
+        actorUserId: reviewerId,
+        data: { article_id: Number(article.id), proposal_id: safeProposalId },
+      },
+      { publish: false }
+    );
     await client.query("COMMIT");
+    notifications.publish([noted]);
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

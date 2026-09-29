@@ -1,0 +1,45 @@
+{
+  "area": "legal",
+  "slots": [
+    {
+      "id": "legal-privacy-spot",
+      "title": "Privacy Policy: header spot",
+      "where": [
+        "/privacy → components/legal/legal-page.tsx header, right of the title and intro; hidden on phones"
+      ],
+      "kind": "spot",
+      "w": 768,
+      "h": 768,
+      "transparent": true,
+      "priority": "low",
+      "css": "176×176, vertically centred beside the header text",
+      "crop": "Object centred, three-quarter view, ~80% of the square with even padding.",
+      "lighting": "neutral, soft top-left key, one crisp white highlight",
+      "style": "object",
+      "animation": "none",
+      "fallback": "Soft blue radial glow with halftone dots, same size.",
+      "brief": "A chunky padlock fused with a small retro CRT terminal: the screen shows abstract blue bar-chart glyphs (no letters or numbers) and the keyhole glows hololive blue (#3fb8f5). A few halftone dots and thin hairline sparkles around it. Clean flat vector shapes, blue key colour, deep ink-navy (#0a0c11) shading and outline, one crisp white highlight.",
+      "notes": "Shown on dark and light page backgrounds: bold silhouette with a dark outline, few details, no text. Pair with legal-terms-spot (same framing and rendering)."
+    },
+    {
+      "id": "legal-terms-spot",
+      "title": "Usage policy: header spot",
+      "where": [
+        "/terms → components/legal/legal-page.tsx header, right of the title and intro; hidden on phones"
+      ],
+      "kind": "spot",
+      "w": 768,
+      "h": 768,
+      "transparent": true,
+      "priority": "low",
+      "css": "176×176, vertically centred beside the header text",
+      "crop": "Object group centred, three-quarter view, ~80% of the square with even padding.",
+      "lighting": "neutral, soft top-left key, one crisp white highlight",
+      "style": "object",
+      "animation": "none",
+      "fallback": "Soft blue radial glow with halftone dots, same size.",
+      "brief": "A small closed rulebook with a blue bookmark ribbon, a referee's whistle resting on it, and two stacked play-money chips leaning against it (plain star emblem on the chips; no letters, numbers or currency signs). Clean flat vector shapes with light halftone shading, hololive blue (#3fb8f5) key colour, deep ink-navy (#0a0c11) shading and outline, one crisp white highlight.",
+      "notes": "Shown on dark and light page backgrounds: bold silhouette with a dark outline, few details, no text. Pair with legal-privacy-spot."
+    }
+  ]
+}

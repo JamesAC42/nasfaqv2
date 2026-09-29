@@ -1,0 +1,84 @@
+@use "../../styles/mixins" as *;
+
+.wrap {
+  --size: 160px;
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.disc {
+  position: relative;
+  display: block;
+  width: var(--size);
+  height: var(--size);
+  overflow: hidden;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--tal) 42%, transparent), transparent 70%),
+    color-mix(in srgb, var(--tal) 12%, var(--surface-section, #10131b));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--tal) 45%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--tal) 10%, transparent);
+}
+
+.face {
+  position: absolute;
+  inset: 4% 0 0;
+  animation: pop var(--dur-med, 240ms) var(--ease-out, ease-out) both;
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(8%) scale(0.96);
+  }
+}
+
+// Shock gets a jolt, hype a hop; both once.
+.wrap[data-pose="shock"] .face {
+  animation:
+    pop var(--dur-med, 240ms) var(--ease-out, ease-out) both,
+    jolt 420ms 240ms ease-out 1;
+}
+
+.wrap[data-pose="hype"] .face {
+  animation:
+    pop var(--dur-med, 240ms) var(--ease-out, ease-out) both,
+    hop 520ms 240ms ease-out 1;
+}
+
+@keyframes jolt {
+  20% {
+    transform: translateX(-3%);
+  }
+  40% {
+    transform: translateX(3%);
+  }
+  60% {
+    transform: translateX(-2%);
+  }
+}
+
+@keyframes hop {
+  40% {
+    transform: translateY(-6%);
+  }
+}
+
+.caption {
+  @include label;
+  color: var(--dim);
+  text-align: center;
+}
+
+:global(html[data-calm="true"]) .face {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .face {
+    animation: none !important;
+  }
+}

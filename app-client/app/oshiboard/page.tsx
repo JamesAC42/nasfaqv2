@@ -1,5 +1,7 @@
-import { OshiboardPage } from "@/app/components/pages/oshiboard-page";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return <OshiboardPage />;
+// The oshiboards now live on the leaderboard's "By talent" tab.
+export default async function Page({ searchParams }: { searchParams: Promise<{ coin?: string }> }) {
+  const { coin } = await searchParams;
+  redirect(`/leaderboard?tab=talent${typeof coin === "string" && coin ? `&coin=${encodeURIComponent(coin)}` : ""}`);
 }

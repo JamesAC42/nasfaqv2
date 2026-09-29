@@ -1,0 +1,1207 @@
+@use "../../styles/mixins" as *;
+
+.page {
+  width: 100%;
+  min-width: 0;
+  max-width: var(--page-max);
+  margin: 0 auto;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.empty {
+  @include empty-state;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+// ── Header ─────────────────────────────────────────────────────────────────
+// A lit stage, not a strip: tinted by the lead talent on the right (her art stands there), a faint
+// halftone, and the day's numbers along the bottom.
+.top {
+  --tal: var(--blue);
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: 15rem;
+  margin-top: 0.4rem;
+  padding: 1.6rem 1.4rem 1.2rem;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid var(--rule);
+  background:
+    radial-gradient(70% 130% at 88% 20%, color-mix(in oklab, var(--tal) 28%, transparent), transparent 62%),
+    linear-gradient(100deg, var(--ink-2) 35%, color-mix(in oklab, var(--tal) 10%, var(--ink-2))),
+    var(--ink-2);
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: radial-gradient(color-mix(in oklab, var(--text) 14%, transparent) 1px, transparent 1.4px) 0 0 / 7px 7px;
+    -webkit-mask-image: linear-gradient(90deg, #000, transparent 55%);
+    mask-image: linear-gradient(90deg, #000, transparent 55%);
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  > :not(:first-child) {
+    position: relative;
+    z-index: 1;
+  }
+
+  @include phone {
+    min-height: 12rem;
+    padding: 1.2rem 1rem 1rem;
+  }
+}
+
+.topStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.6rem;
+  margin: 1rem 0 0;
+
+  div {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  dt {
+    @include label;
+    font-size: 0.58rem;
+  }
+
+  dd {
+    @include num;
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+  }
+}
+
+.title {
+  max-width: 40rem;
+
+  h1 {
+    @include display(2.6rem);
+    margin: 0.15rem 0 0.3rem;
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--mid);
+  }
+}
+
+.kicker {
+  @include label;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--blue);
+
+  // The teletype light.
+  i {
+    width: 0.45rem;
+    height: 0.45rem;
+    background: var(--blue);
+    animation: blink 1.2s steps(1) infinite;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.2;
+  }
+}
+
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem 0.9rem;
+  margin-bottom: 0.7rem;
+
+  h2 {
+    @include section-heading;
+    margin: 0;
+  }
+
+  span {
+    font-size: 0.78rem;
+    color: var(--dim);
+  }
+}
+
+// ── /vt/ this week ─────────────────────────────────────────────────────────
+.pulse {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--rule);
+  background: var(--ink-2);
+}
+
+.pulseBody {
+  display: grid;
+  grid-template-columns: 13rem minmax(0, 1fr) 17rem;
+
+  @include desktop-down {
+    grid-template-columns: 13rem minmax(0, 1fr);
+
+    > :last-child {
+      grid-column: 1 / -1;
+    }
+  }
+  gap: 1.2rem;
+  align-items: end;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.pulseStats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+
+  @include tablet-down {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  @include phone {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.stat {
+  display: grid;
+  gap: 0.1rem;
+
+  small {
+    @include label;
+    font-size: 0.6rem;
+  }
+
+  b {
+    @include num;
+    font-size: 1.3rem;
+  }
+
+  span {
+    font-size: 0.72rem;
+    color: var(--dim);
+  }
+}
+
+.topTalk {
+  grid-column: 1 / -1;
+
+  @include tablet-down {
+    grid-column: auto;
+  }
+
+  @include phone {
+    grid-column: 1 / -1;
+  }
+
+  small {
+    @include label;
+    font-size: 0.6rem;
+  }
+
+  ol {
+    list-style: none;
+    margin: 0.3rem 0 0;
+    padding: 0;
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  button {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    width: 100%;
+    padding: 0.15rem 0;
+    border: 0;
+    background: none;
+    color: var(--text);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.8rem;
+    text-align: left;
+
+    span {
+      @include num;
+      margin-left: auto;
+      color: var(--mid);
+    }
+
+    &:hover b {
+      color: var(--blue-2);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+// The hour chart (board-wide or one talent).
+.chart {
+  position: relative;
+  min-width: 0;
+  padding-bottom: 1.1rem;
+  cursor: crosshair;
+  outline: none;
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.chartEmpty {
+  background: repeating-linear-gradient(90deg, var(--rule) 0 1px, transparent 1px 14%);
+  opacity: 0.4;
+}
+
+.bar {
+  fill: color-mix(in oklab, var(--blue) 62%, transparent);
+}
+
+.barOn {
+  fill: var(--blue);
+}
+
+.uncollected {
+  fill: color-mix(in oklab, var(--rule) 35%, transparent);
+}
+
+.uncollectedLabel {
+  @include label;
+  position: absolute;
+  top: 40%;
+  left: 0;
+  font-size: 0.56rem;
+  text-align: center;
+  color: var(--dim);
+  pointer-events: none;
+}
+
+.gridLine {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+
+.days {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1rem;
+
+  span {
+    @include label;
+    position: absolute;
+    top: 0.2rem;
+    padding-left: 0.25rem;
+    font-size: 0.56rem;
+  }
+}
+
+.readout {
+  position: absolute;
+  top: -0.3rem;
+  transform: translate(-50%, -100%);
+  display: grid;
+  justify-items: center;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--rule-2);
+  background: var(--ink-3);
+  font-size: 0.74rem;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
+
+  b {
+    @include num;
+  }
+
+  span {
+    color: var(--dim);
+    font-size: 0.66rem;
+  }
+}
+
+// ── Main grid ──────────────────────────────────────────────────────────────
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22rem;
+  gap: 1.2rem;
+  margin-top: 1rem;
+  align-items: start;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.feed {
+  min-width: 0;
+  scroll-margin-top: calc(var(--rail-height) + var(--tape-height) + 1rem);
+}
+
+.side {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  position: sticky;
+  top: calc(var(--rail-height) + var(--tape-height) + 0.75rem);
+
+  @include tablet-down {
+    position: static;
+  }
+}
+
+// Filters: one row of chips per question.
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.chip {
+  @include button-base;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.72rem;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--mid);
+
+  b {
+    @include num;
+    font-size: 0.66rem;
+    color: var(--dim);
+  }
+
+  &[aria-pressed="true"] {
+    border-color: var(--blue-line, var(--blue));
+    background: color-mix(in oklab, var(--blue) 14%, transparent);
+    color: var(--text);
+
+    b {
+      color: var(--blue-2, var(--blue));
+    }
+  }
+}
+
+// The window chips sit at the far end of the row, apart from what-kind.
+.timeChips {
+  margin-left: auto;
+}
+
+.talentChip {
+  span {
+    color: var(--dim);
+  }
+}
+
+.day {
+  h3 {
+    @include label;
+    position: sticky;
+    top: calc(var(--rail-height) + var(--tape-height));
+    z-index: 1;
+    margin: 0;
+    padding: 0.7rem 0 0.4rem;
+    background: var(--ink);
+    color: var(--mid);
+  }
+
+  ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+.entry {
+  position: relative;
+  border-bottom: 1px solid var(--rule);
+}
+
+.link {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 0.9rem;
+  align-items: start;
+  padding: 0.75rem 0;
+  color: inherit;
+
+  &:hover b {
+    color: var(--blue-2, var(--blue));
+  }
+
+  @include phone {
+    grid-template-columns: 84px minmax(0, 1fr);
+    gap: 0.7rem;
+  }
+}
+
+.thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: var(--surface-section, var(--ink-2));
+}
+
+.mark {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--rule);
+
+  b {
+    @include display(1.35rem);
+    color: var(--dim);
+  }
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+
+  b {
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+
+  small {
+    color: var(--mid);
+    font-size: 0.8rem;
+    line-height: 1.4;
+  }
+}
+
+.meta {
+  @include label;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--dim);
+}
+
+.tag {
+  font-style: normal;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text);
+
+  &::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    background: var(--tone, var(--dim));
+  }
+
+  &[data-tone="stream"] {
+    --tone: var(--blue);
+  }
+  &[data-tone="market"] {
+    --tone: var(--up);
+  }
+  &[data-tone="games"] {
+    --tone: var(--warn);
+  }
+  &[data-tone="record"] {
+    --tone: var(--down);
+  }
+}
+
+.lift {
+  color: var(--up);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.live {
+  color: var(--down);
+}
+
+// The talents in an item: click one to see only her.
+.who {
+  position: absolute;
+  right: 0;
+  bottom: 0.55rem;
+  display: flex;
+  gap: 0.25rem;
+
+  button {
+    @include label;
+    padding: 0.1rem 0.3rem;
+    border: 1px solid var(--rule);
+    background: var(--ink);
+    color: var(--dim);
+    font-size: 0.58rem;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--text);
+      border-color: var(--rule-2);
+    }
+  }
+
+  @include phone {
+    display: none;
+  }
+}
+
+.more {
+  @include button-base;
+  width: 100%;
+  margin-top: 0.8rem;
+  padding: 0.6rem;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+// ── Who /vt/ is talking about ──────────────────────────────────────────────
+.board {
+  padding: 0.9rem 1rem 0.6rem;
+  border: 1px solid var(--rule);
+}
+
+.sorts {
+  display: flex;
+  gap: 0.3rem;
+  margin-bottom: 0.4rem;
+
+  button {
+    @include label;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--rule);
+    background: transparent;
+    color: var(--dim);
+    font-size: 0.6rem;
+    cursor: pointer;
+
+    &[aria-pressed="true"] {
+      color: var(--text);
+      border-color: var(--rule-2);
+      background: var(--ink-3);
+    }
+  }
+}
+
+.talkList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: min(34rem, 60vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.talkRow {
+  display: grid;
+  grid-template-columns: 1.4rem 22px minmax(0, 1fr) 3.6rem 4.5rem;
+  gap: 0.55rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.45rem 0.4rem 0.45rem 0.7rem;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  > i {
+    @include num;
+    font-style: normal;
+    font-size: 0.7rem;
+    color: var(--dim);
+  }
+
+  &:hover,
+  &[aria-pressed="true"] {
+    background: var(--ink-2);
+  }
+
+  &[aria-pressed="true"] {
+    box-shadow: inset 2px 0 0 var(--blue);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.talkWho {
+  display: grid;
+  min-width: 0;
+
+  b {
+    font-size: 0.82rem;
+  }
+
+  small {
+    overflow: hidden;
+    font-size: 0.68rem;
+    color: var(--dim);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.talkNum {
+  display: grid;
+  justify-items: end;
+
+  b {
+    @include num;
+    font-size: 0.9rem;
+
+    &[data-hot] {
+      color: var(--down);
+    }
+  }
+
+  small {
+    font-size: 0.62rem;
+    color: var(--dim);
+    white-space: nowrap;
+  }
+}
+
+.spark {
+  width: 100%;
+  height: 20px;
+}
+
+.sparkBar {
+  fill: color-mix(in oklab, var(--mid) 45%, transparent);
+}
+
+.sparkNow {
+  fill: var(--blue);
+}
+
+// One talent's week. Opens with a short drop-in; switching talents crossfades instead of jumping
+// (the previous talent's numbers stay, dimmed, until hers arrive).
+.week {
+  animation: weekIn 0.28s ease-out both;
+  padding: 0.8rem 1rem 0.9rem;
+  border: 1px solid var(--rule);
+  background: var(--ink-2);
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.7rem;
+
+    span {
+      display: grid;
+      flex: 1;
+      min-width: 0;
+    }
+
+    b {
+      font-size: 0.95rem;
+    }
+
+    small {
+      font-size: 0.72rem;
+      color: var(--dim);
+    }
+  }
+}
+
+.close {
+  border: 0;
+  background: none;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 0.9rem;
+
+  &:hover {
+    color: var(--text);
+  }
+}
+
+.topics {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+
+  li {
+    display: grid;
+    grid-template-columns: 7.5rem minmax(0, 1fr) 2.5rem;
+    gap: 0.5rem;
+    align-items: center;
+    font-size: 0.74rem;
+  }
+
+  i {
+    display: block;
+    width: var(--w);
+    min-width: 2px;
+    height: 0.45rem;
+    border-radius: 0 4px 4px 0;
+    background: color-mix(in oklab, var(--blue) 70%, transparent);
+  }
+
+  b {
+    @include num;
+    justify-self: end;
+    font-size: 0.72rem;
+    color: var(--mid);
+  }
+}
+
+.weekLinks {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.8rem;
+  font-size: 0.78rem;
+
+  button {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--blue-2, var(--blue));
+    font: inherit;
+    cursor: pointer;
+  }
+
+  a {
+    color: var(--blue-2, var(--blue));
+  }
+}
+
+// ── Live stamp ─────────────────────────────────────────────────────────────
+.stamp {
+  color: var(--dim);
+  letter-spacing: 0.08em;
+}
+
+// ── Right now ──────────────────────────────────────────────────────────────
+.now {
+  margin-top: 1rem;
+}
+
+.nowHead {
+  @include label;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 0.5rem;
+  color: var(--text);
+
+  i {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--down);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--down) 60%, transparent);
+    animation: nowPing 1.8s ease-out infinite;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  }
+}
+
+@keyframes nowPing {
+  70%,
+  100% {
+    box-shadow: 0 0 0 7px transparent;
+  }
+}
+
+.nowList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.6rem;
+
+  @include desktop-down {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  // Phones: one row that scrolls sideways, a card and a bit at a time.
+  @include phone {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 82%;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+
+    > li {
+      scroll-snap-align: start;
+    }
+  }
+}
+
+.nowCard {
+  --tal: var(--blue);
+  position: relative;
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0.6rem 0.8rem 0.6rem 0.5rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--tal) 40%, var(--rule));
+  background:
+    radial-gradient(120% 140% at 0% 50%, color-mix(in oklab, var(--tal) 22%, transparent), transparent 60%),
+    var(--ink-2);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--tal);
+  }
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: var(--tal);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+
+    &:hover {
+      transform: none;
+    }
+  }
+}
+
+// Her face, faded into the card.
+.nowFace {
+  display: block;
+  width: 84px;
+  height: 84px;
+  -webkit-mask-image: radial-gradient(circle at 50% 45%, #000 50%, transparent 72%);
+  mask-image: radial-gradient(circle at 50% 45%, #000 50%, transparent 72%);
+}
+
+.nowText {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.nowWho {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+
+  b {
+    overflow: hidden;
+    font-size: 0.9rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  small {
+    @include label;
+    font-size: 0.58rem;
+    color: var(--dim);
+  }
+}
+
+.nowNumber {
+  font-size: 0.75rem;
+  color: var(--mid);
+
+  strong {
+    @include num;
+    margin-right: 0.2rem;
+    font-size: 1.35rem;
+    color: var(--text);
+  }
+}
+
+.nowSub {
+  overflow: hidden;
+  font-size: 0.72rem;
+  color: var(--dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  em {
+    font-style: normal;
+  }
+}
+
+// Mood colors (always beside their words): warm = hype/music, sour = complaints.
+.page [data-valence="warm"] {
+  --valence: var(--up);
+}
+
+.page [data-valence="content"] {
+  --valence: var(--blue);
+}
+
+.page [data-valence="passing"] {
+  --valence: var(--mid);
+}
+
+.page [data-valence="sour"] {
+  --valence: var(--down);
+}
+
+.page [data-valence="uncounted"] {
+  --valence: var(--dim);
+}
+
+.nowSub em,
+.talkWho small[data-valence],
+.moodLead b {
+  color: var(--valence);
+}
+
+// ── The mood ───────────────────────────────────────────────────────────────
+.mood {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  min-width: 0;
+  padding-left: 1.2rem;
+  border-left: 1px solid var(--rule);
+
+  @include desktop-down {
+    padding: 0.8rem 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--rule);
+  }
+}
+
+.moodKicker,
+.moodAside {
+  @include label;
+  font-size: 0.6rem;
+}
+
+.moodAside {
+  margin-top: 0.3rem;
+  color: var(--dim);
+}
+
+.moodLead {
+  margin: 0 0 0.2rem;
+  font-size: 0.85rem;
+
+  span {
+    color: var(--dim);
+    font-size: 0.75rem;
+  }
+}
+
+.moodList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.22rem;
+
+  li {
+    display: grid;
+    grid-template-columns: 7.2rem minmax(0, 1fr) 2.6rem;
+    gap: 0.5rem;
+    align-items: center;
+    font-size: 0.74rem;
+  }
+
+  i {
+    display: block;
+    width: var(--w);
+    min-width: 2px;
+    height: 0.5rem;
+    border-radius: 0 4px 4px 0;
+    background: var(--valence, var(--mid));
+    opacity: 0.85;
+  }
+
+  b {
+    @include num;
+    justify-self: end;
+    font-size: 0.72rem;
+    color: var(--mid);
+  }
+}
+
+.moodOut {
+  li {
+    color: var(--dim);
+  }
+
+  i {
+    opacity: 0.45;
+    background: repeating-linear-gradient(135deg, var(--dim) 0 2px, transparent 2px 4px);
+  }
+}
+
+// ── The feed: a new item flashes in ────────────────────────────────────────
+.entry[data-fresh] {
+  animation: freshIn 1.2s ease-out both;
+
+  &::after {
+    content: "NEW";
+    @include label;
+    position: absolute;
+    top: 0.75rem;
+    right: 0;
+    color: var(--blue);
+    font-size: 0.58rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes freshIn {
+  from {
+    background: color-mix(in oklab, var(--blue) 18%, transparent);
+    transform: translateY(-6px);
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+.weekNote {
+  margin: 0.4rem 0 0;
+  font-size: 0.68rem;
+  color: var(--dim);
+}
+
+.topics li[data-out] {
+  color: var(--dim);
+
+  i {
+    opacity: 0.45;
+    background: repeating-linear-gradient(135deg, var(--dim) 0 2px, transparent 2px 4px);
+  }
+}
+
+.topics li[data-valence] i {
+  background: var(--valence);
+}
+
+@keyframes weekIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.weekHead {
+  animation: weekFade 0.25s ease-out both;
+}
+
+@keyframes weekFade {
+  from {
+    opacity: 0.2;
+  }
+}
+
+.weekBody {
+  transition: opacity 0.25s ease;
+}
+
+.week[data-loading] .weekBody {
+  opacity: 0.4;
+}
+
+.topics i {
+  transition: width 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.moodSkip {
+  margin: 0.45rem 0 0;
+  font-size: 0.72rem;
+  color: var(--dim);
+
+  b {
+    @include num;
+    color: var(--mid);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .week,
+  .weekHead {
+    animation: none;
+  }
+
+  .weekBody,
+  .topics i {
+    transition: none;
+  }
+}

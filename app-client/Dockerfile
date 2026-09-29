@@ -7,11 +7,14 @@ FROM node:20-alpine AS build
 WORKDIR /app
 ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY=""
 ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID=""
+# Art loads from the CDN (app-client/public/art is not in the repo); see DEPLOYMENT.md 2.6.1.
+ARG NEXT_PUBLIC_ART_BASE_URL="https://images.nasfaq.biz/art"
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV SERVER_API_BASE=http://api-web.nasfaq.svc.cluster.local
 ENV NEXT_PUBLIC_API_BASE=
 ENV NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY
 ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=$NEXT_PUBLIC_GOOGLE_CLIENT_ID
+ENV NEXT_PUBLIC_ART_BASE_URL=$NEXT_PUBLIC_ART_BASE_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY app-client/ ./
 RUN npm run build
