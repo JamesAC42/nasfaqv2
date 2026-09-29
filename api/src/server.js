@@ -36,6 +36,7 @@ const internalMarketRoutes = require("./routes/internalMarket");
 const internalSiteRoutes = require("./routes/internalSite");
 const siteRoutes = require("./routes/site");
 const siteState = require("./services/siteState");
+const presence = require("./services/presence");
 const portfolioRoutes = require("./routes/portfolio");
 const profileRoutes = require("./routes/profiles");
 const notificationRoutes = require("./routes/notifications");
@@ -693,7 +694,11 @@ async function main() {
     });
   });
   marketWssRef = marketWss;
-  marketWss.on("connection", (ws) => {
+  // "N online" on the front page: every page keeps this socket open, so it's who's on the site.
+  const online = presence.startPresence({ redis, wss: marketWss, send: sendWsText, broadcast: queueMarketEvent });
+  marketWss.on("connection", (ws, req) => {
+    ws.visitor = presence.visitorKey(req?.marketUser);
+    void online.welcome(ws);
     ws.on("message", (raw) => {
       const hello = safeParseJSON(String(raw).slice(0, 512));
       if (hello?.type === "hello" && hello.bundles === true) ws.marketBundles = true;
@@ -779,6 +784,10 @@ async function main() {
       if (target === gamesWss) {
         // Optional: signed-in sockets can follow their own `me` feed.
         req.gamesUser = await authService.getAuthenticatedUser(pool, req).catch(() => null);
+      }
+      if (target === marketWss) {
+        // Only so a signed-in player with several tabs counts once as online.
+        req.marketUser = await authService.getAuthenticatedUser(pool, req).catch(() => null);
       }
       target.handleUpgrade(req, socket, head, (ws) => {
         target.emit("connection", ws, req);

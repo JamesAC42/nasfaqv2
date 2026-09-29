@@ -70,6 +70,34 @@ a.label:hover {
   margin-top: 0.7rem;
 }
 
+// People on the site right now: a live dot, like the market clock's.
+.online {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--up);
+
+  i {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--up);
+    animation: online-pulse 2s ease-in-out infinite;
+  }
+}
+
+@keyframes online-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .online i {
+    animation: none;
+  }
+}
+
 .pulse {
   display: grid;
   grid-template-columns: repeat(4, auto);

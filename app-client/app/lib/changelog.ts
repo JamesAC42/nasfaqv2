@@ -14,6 +14,11 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-09-29",
+    title: "Who's around",
+    changes: [{ kind: "new", text: "The front page shows how many people are on the site right now." }],
+  },
+  {
+    date: "2026-09-29",
     title: "Updates without the interruptions",
     changes: [
       { kind: "new", text: "Updates don't cut games off anymore. While one goes out, new games wait a few minutes and the ones in play finish first." },
