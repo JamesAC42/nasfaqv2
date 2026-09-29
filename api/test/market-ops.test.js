@@ -49,8 +49,18 @@ test("shared rebuild jobs and batched settlement on PostgreSQL", { skip: !url, t
   await pool.query("CREATE SCHEMA IF NOT EXISTS market");
   await pool.query(jobs.schema);
   await pool.query("TRUNCATE market.rebuild_jobs");
+  // A job records its final status before it lets go of the singleton lock (so a new job can't mark it
+  // interrupted in between). Wait for both, or the next startJob can land in that gap: rebuild_running.
   async function finished(id) {
-    for(let i=0;i<200;i++) { const j=await jobs.getJob(other,id); if(j.status!=="running") return j; await sleep(10); }
+    for(let i=0;i<200;i++) {
+      const j=await jobs.getJob(other,id);
+      if(j.status!=="running") {
+        const { rows }=await other.query(`SELECT NOT EXISTS (SELECT 1 FROM pg_locks WHERE locktype='advisory' AND granted
+          AND database=(SELECT oid FROM pg_database WHERE datname=current_database()) AND objid=$1 AND objsubid=1) AS free`,[jobs.JOB_LOCK_KEY]);
+        if(rows[0].free) return j;
+      }
+      await sleep(10);
+    }
     throw new Error("test job did not finish");
   }
   await t.test("progress and completion are visible from a different replica and job ID stays stable", async () => {
