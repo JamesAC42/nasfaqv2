@@ -413,6 +413,8 @@ export function TableGone({ game, cancelled }: { game: TableGame; cancelled?: st
         ? "The host pulled the table. Stake refunded."
         : cancelled === "server_restart"
           ? "The server restarted mid-match. Everyone got their stake back."
+          : cancelled === "maintenance"
+            ? "Games paused for an update before anyone joined. Stake refunded."
           : cancelled
             ? "This table closed. Any stakes were refunded."
             : "No table here. It might have finished a while ago.";

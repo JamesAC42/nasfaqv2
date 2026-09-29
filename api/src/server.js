@@ -33,6 +33,9 @@ const pvpTables = require("./services/games/tables/pvp");
 const blackjackTables = require("./services/games/tables/blackjack");
 const marketRoutes = require("./routes/market");
 const internalMarketRoutes = require("./routes/internalMarket");
+const internalSiteRoutes = require("./routes/internalSite");
+const siteRoutes = require("./routes/site");
+const siteState = require("./services/siteState");
 const portfolioRoutes = require("./routes/portfolio");
 const profileRoutes = require("./routes/profiles");
 const notificationRoutes = require("./routes/notifications");
@@ -277,6 +280,7 @@ app.use(async (req, _res, next) => {
 api.use("/auth", authRoutes);
 
 app.use("/internal/market", internalMarketRoutes);
+app.use("/internal/site", internalSiteRoutes);
 
 api.use("/channels", channelsRoutes);
 api.use("/chat", chatRoutes);
@@ -297,6 +301,7 @@ api.use("/prediction-markets", predictionMarketsRoutes);
 api.use("/profiles", profileRoutes);
 api.use("/notifications", notificationRoutes);
 api.use("/stats", statsRoutes);
+api.use("/site", siteRoutes);
 api.use("/admin/assets", adminAssetsRoutes);
 api.use("/admin/holonews", adminHolonewsRoutes);
 api.use("/admin", adminRoutes);
@@ -456,6 +461,10 @@ async function main() {
   // (a misconfigured pod, a rollout overlap) waits for it, and if it never frees up, runs without
   // tables rather than splitting them.
   if (gameTablesOwner && (await acquireGameTablesLease(pool))) {
+    // Maintenance pauses new games: know it before serving a table, and keep up with it (a release
+    // drains games before restarting this process; see scripts/maintenance.js).
+    await siteState.getSiteState(pool).catch((error) => console.warn("site state unavailable:", String(error?.message || error)));
+    siteState.startWatch(pool);
     await pvpTables.init(pool);
     await blackjackTables.init(pool);
     ownsGameTables = true;
@@ -820,6 +829,8 @@ async function main() {
     // settlement, tick and fill events before they go out.
     const parsed = safeParseJSON(String(message));
     if (!parsed) return;
+    // Maintenance and releases ride this channel too: this process hears them, then every page does.
+    if (parsed.type === siteState.SITE_EVENT) siteState.applyEvent(parsed.site);
     queueMarketEvent(JSON.stringify(scrubPublicMarketPayload(parsed)));
   });
   await redisSub.subscribe(PREDICTION_MARKET_EVENTS_REDIS_CHANNEL, (message) => {

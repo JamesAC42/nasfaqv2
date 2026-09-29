@@ -1721,6 +1721,7 @@ async function applySchema(pool) {
     }
   }
   await pool.query(require("./services/rebuildJobs").schema);
+  await pool.query(require("./services/siteState").schema);
   await applyGamesSchema(pool);
   await applyPredictionsSchema(pool);
 }

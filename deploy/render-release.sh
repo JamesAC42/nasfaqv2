@@ -16,3 +16,7 @@ for source in "$deploy_dir"/k8s/*.yaml; do
   sed "s/IMAGE_TAG/sha-$release_sha/g" "$source" > "$target"
 done
 sed "s/IMAGE_TAG/sha-$release_sha/g" "$deploy_dir/jobs/api-migrate-job.yaml" > "$output_dir/migration.yaml"
+# Maintenance around the restart (api/scripts/maintenance.js): drain games, then reopen and announce.
+for job in drain reopen abort; do
+  sed "s/IMAGE_TAG/sha-$release_sha/g" "$deploy_dir/jobs/api-$job-job.yaml" > "$output_dir/$job.yaml"
+done

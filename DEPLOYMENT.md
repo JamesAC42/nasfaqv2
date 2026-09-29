@@ -929,6 +929,10 @@ jobs:
 
 - Images are tagged with the git SHA so rollbacks are deterministic: `kubectl -n nasfaq set image deploy/api-web api=ghcr.io/jamesac42/nasfaqv2-api:sha-<prev>`.
 - The migration Job runs against **the new image** before pods roll, so schema changes land first.
+- Game tables live in `api-games`'s memory and a restart refunds whatever is unfinished, so `deploy/release.sh` drains games around the rollout (`api/scripts/maintenance.js`, run as Jobs with the new image): after migrations, `api-drain-sha-*` pauses new games (every page shows "Update going out"), refunds tables nobody joined, and waits up to 10 minutes for matches and blackjack rounds in play. Then the workloads roll. After the health check, `api-reopen-sha-*` reopens games and records the release in `market.site_state`. If the release fails after the drain, `api-abort-sha-*` reopens games without announcing the version. A drain that can't finish doesn't block the release.
+- Players on an older release are told to refresh: pages compare their build's `NEXT_PUBLIC_APP_VERSION` (`sha-<commit>`, from the workflow's `APP_VERSION` build arg) with `GET /api/site`, and the next navigation reloads by itself (Next.js `deploymentId`). A tab out of sight reloads after a minute unless it's holding a trade ticket, a game table or typed text.
+- Admins can pause games by hand (admin overview, "Games maintenance…"), with a message every page shows; a release never overrides or ends that. Trading has its own pause.
+- Player-facing notes for each release go in `app-client/app/lib/changelog.ts` (the `/changelog` page).
 - Set `deploy.yml` to require PR status checks from `ci.yml` (branch protection on `main`).
 - For bigger changes, cut a `preview` branch → staging namespace `nasfaq-stage` backed by a Postgres read replica or ephemeral DB.
 
