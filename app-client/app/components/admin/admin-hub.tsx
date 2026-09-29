@@ -11,6 +11,7 @@ import {
   fetchLiveOrderHealth,
   fetchMarketStatus,
   reopenTrading,
+  setSiteMaintenance,
   type AdjustmentHealth,
   type AdminOverviewStats,
   type LiveOrderHealth,
@@ -23,6 +24,7 @@ import type { AdminOverview } from "@/app/lib/predictions/types";
 import type { MarketStatus } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMarketStore } from "@/app/stores/market-store";
+import { connectSite, useSiteStore } from "@/app/stores/site-store";
 import styles from "@/app/components/admin/admin-hub.module.scss";
 
 // /admin: the back-office landing page. What needs a human first, then whether the machines are
@@ -245,6 +247,89 @@ function TradingControl({ status, onChanged }: { status: MarketStatus | null; on
   );
 }
 
+/**
+ * Maintenance by hand: pauses new games site-wide, with a message players see on every page (games
+ * in play finish). Releases do the same on their own while they go out, and reopen when live.
+ */
+function MaintenanceControl() {
+  const site = useSiteStore((state) => state.site);
+  const refreshSite = useSiteStore((state) => state.refresh);
+  const [composing, setComposing] = useState(false);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    connectSite();
+  }, []);
+  const state = site?.maintenance.state ?? "off";
+
+  const run = async (on: boolean) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await setSiteMaintenance(on, message);
+      // Every page hears it on the socket; this covers a dropped one here.
+      await refreshSite();
+      setComposing(false);
+      setMessage("");
+    } catch (caught) {
+      setError(adminErrorText(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className={styles.tradingControl}>
+      {state !== "off" ? (
+        <>
+          <p className={styles.tradingNote}>
+            {state === "draining"
+              ? "A release is going out: new games wait while the ones in play finish. Games reopen by themselves once it's live."
+              : `Games paused by hand${site?.maintenance.message ? `: "${site.maintenance.message}"` : ""}. Games in play finish; new ones wait.`}
+          </p>
+          <button type="button" className={ui.btnPrimary} disabled={busy} onClick={() => void run(false)}>
+            {busy ? "Reopening…" : state === "draining" ? "Reopen games now" : "End maintenance"}
+          </button>
+        </>
+      ) : composing ? (
+        <form
+          className={styles.tradingForm}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void run(true);
+          }}
+        >
+          <label className={ui.field}>
+            <span>Message for players</span>
+            <input
+              className={ui.input}
+              value={message}
+              maxLength={280}
+              placeholder="Games are paused for maintenance. Back soon."
+              onChange={(event) => setMessage(event.target.value)}
+              autoFocus
+            />
+          </label>
+          <div className={styles.tradingButtons}>
+            <button type="submit" className={ui.btnDangerSolid} disabled={busy}>
+              {busy ? "Pausing…" : "Pause games"}
+            </button>
+            <button type="button" className={ui.btnGhost} disabled={busy} onClick={() => setComposing(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <button type="button" className={ui.btnDanger} onClick={() => setComposing(true)}>
+          Games maintenance…
+        </button>
+      )}
+      {error ? <Notice tone="error">{error}</Notice> : null}
+    </div>
+  );
+}
+
 export function AdminHub() {
   const access = useAdminAccess();
   const { user } = useAuth();
@@ -417,6 +502,7 @@ export function AdminHub() {
                   {m?.trading_message ? <Row label="Message">{m.trading_message}</Row> : null}
                 </dl>
                 {isAdmin ? <TradingControl status={(m as MarketStatus | null) ?? null} onChanged={() => void load()} /> : null}
+                {isAdmin ? <MaintenanceControl /> : null}
               </div>
 
               {isAdmin ? (

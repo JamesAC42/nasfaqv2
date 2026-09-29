@@ -24,6 +24,7 @@ const COPY: Record<string, string> = {
   game_not_found: "That game isn't available.",
   run_too_fast: "That run ended too early to count.",
   games_api_outdated: "The arcade is being updated. Back shortly.",
+  games_paused: "New games are paused for an update. Back in a few minutes.",
   "404": "The arcade is being updated. Back shortly.",
   game_session_not_active: "That run was already submitted.",
   // Card exchange

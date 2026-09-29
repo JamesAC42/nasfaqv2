@@ -35,6 +35,7 @@ const ERROR_STATUS = {
   invalid_deck: 400,
   invalid_bet: 400,
   card_pool_empty: 503,
+  games_paused: 503,
   game_session_not_found: 404,
   game_session_not_active: 409,
   run_too_fast: 409,

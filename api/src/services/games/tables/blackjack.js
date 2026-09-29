@@ -2,10 +2,12 @@
 //
 // Flow: idle → (first bet) betting (15 s) → deal → players act in seat order (15 s each,
 // auto-stand) → dealer → settle → idle. Bets are debited when placed; payouts are credited at
-// settle in one transaction. A round still open at startup refunds its bets.
+// settle in one transaction. A round still open at startup refunds its bets. During maintenance
+// (siteState) no bets are taken, so no round starts; a round already dealt plays out.
 
 const crypto = require("node:crypto");
 const gamesWallet = require("../wallet");
+const siteState = require("../../siteState");
 const hub = require("./hub");
 
 const TABLES = [
@@ -199,6 +201,7 @@ function getTableOrThrow(tableKey) {
 // ── Betting ────────────────────────────────────────────────────────────────
 async function bet({ userId, tableKey, amount }) {
   return withLock(tableKey, async () => {
+    if (siteState.gamesPaused()) throw bjError("games_paused");
     const table = getTableOrThrow(tableKey);
     if (table.phase !== "idle" && table.phase !== "betting") throw bjError("invalid_action");
     const index = table.seats.findIndex((entry) => entry?.user_id === userId);

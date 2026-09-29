@@ -1,0 +1,30 @@
+# Before a release restarts anything: pause new games and wait (up to 10 minutes) for the ones in
+# play to finish. See api/scripts/maintenance.js.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: api-drain-IMAGE_TAG
+  namespace: nasfaq
+spec:
+  ttlSecondsAfterFinished: 86400
+  backoffLimit: 1
+  activeDeadlineSeconds: 840
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: api-drain
+          image: ghcr.io/jamesac42/nasfaqv2-api:IMAGE_TAG
+          command: ["node", "scripts/maintenance.js", "drain", "--timeout-seconds", "600"]
+          envFrom:
+            - configMapRef:
+                name: nasfaq-app-config
+            - secretRef:
+                name: nasfaq-app-secrets
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi

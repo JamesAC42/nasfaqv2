@@ -6,10 +6,13 @@
 //   - The winner is credited 95% of the pot (rake_bps from the catalog); a draw refunds both.
 //   - An open table that expires or is cancelled refunds its host.
 //   - Anything still open or playing when the API starts is refunded (tables live in memory).
+//   - During maintenance (siteState) no table opens or starts; open ones are refunded, and matches
+//     in play finish.
 
 const cards = require("../cards");
 const gamesCatalog = require("../catalog");
 const gamesWallet = require("../wallet");
+const siteState = require("../../siteState");
 const duelEngine = require("./duelEngine");
 const highLowEngine = require("./highLowEngine");
 const hub = require("./hub");
@@ -202,6 +205,7 @@ function createTable(args) {
 }
 
 async function createTableLocked({ userId, gameKey, stake, deck }) {
+  if (siteState.gamesPaused()) throw tableError("games_paused");
   const game = await getPvpGame(gameKey);
   const safeStake = parseStake(stake, game);
   if (userBusy(userId, gameKey)) throw tableError("already_seated");
@@ -262,6 +266,22 @@ async function expireTable(matchId) {
   tables.delete(matchId);
 }
 
+/** Maintenance: refunds every table still waiting for an opponent. Matches in play finish. */
+async function cancelOpenTables() {
+  for (const table of [...tables.values()]) {
+    if (table.status !== "open") continue;
+    await withLock(table.id, async () => {
+      if (table.status !== "open") return;
+      clearTimeout(table.timer);
+      await inTransaction((client) => refundMatchWithClient(client, table.id, "maintenance"));
+      table.status = "cancelled";
+      table.result = { cancelled: "maintenance" };
+      publishTable(table);
+      tables.delete(table.id);
+    }).catch(logError);
+  }
+}
+
 async function cancelTable({ userId, tableId }) {
   return withLock(tableId, async () => {
     const table = tables.get(tableId);
@@ -284,6 +304,7 @@ function joinTable(args) {
 
 async function joinTableLocked({ userId, tableId, deck }) {
   return withLock(tableId, async () => {
+    if (siteState.gamesPaused()) throw tableError("games_paused");
     const table = tables.get(tableId);
     if (!table) throw tableError("table_not_found");
     if (table.status !== "open") throw tableError("table_full");
@@ -514,6 +535,9 @@ function logError(error) {
 async function init(db) {
   pool = db;
   await recover();
+  siteState.onGamesPausedChange((paused) => {
+    if (paused) void cancelOpenTables();
+  });
   hub.registerSnapshotProvider((channel) => {
     const lobby = /^lobby:([a-z0-9-]+)$/.exec(channel);
     if (lobby && ENGINES[lobby[1]]) return lobbySnapshot(lobby[1]);
@@ -536,6 +560,7 @@ function tablesForUser(userId) {
 module.exports = {
   ENGINES,
   actOnTable,
+  cancelOpenTables,
   cancelTable,
   createTable,
   getTable,

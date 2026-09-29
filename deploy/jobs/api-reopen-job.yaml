@@ -1,0 +1,30 @@
+# After a release is live: reopen games (if the release paused them) and announce the version, so
+# open pages offer a refresh. See api/scripts/maintenance.js.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: api-reopen-IMAGE_TAG
+  namespace: nasfaq
+spec:
+  ttlSecondsAfterFinished: 86400
+  backoffLimit: 2
+  activeDeadlineSeconds: 180
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: api-reopen
+          image: ghcr.io/jamesac42/nasfaqv2-api:IMAGE_TAG
+          command: ["node", "scripts/maintenance.js", "end", "--version", "IMAGE_TAG"]
+          envFrom:
+            - configMapRef:
+                name: nasfaq-app-config
+            - secretRef:
+                name: nasfaq-app-secrets
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi

@@ -1,0 +1,104 @@
+@use "../../styles/mixins" as *;
+
+.stack {
+  display: grid;
+  gap: 1px;
+}
+
+.bar {
+  --tone: var(--warn);
+  --tone-wash: var(--warn-wash);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+  padding: 0.55rem var(--gutter, 1rem);
+  border-bottom: 1px solid color-mix(in srgb, var(--tone) 40%, var(--rule-2));
+  border-left: 3px solid var(--tone);
+  background: var(--tone-wash);
+  min-width: 0;
+
+  &[data-tone="info"] {
+    --tone: var(--blue);
+    --tone-wash: var(--blue-wash);
+  }
+}
+
+.tag {
+  @include label;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--tone);
+  font-weight: 700;
+  white-space: nowrap;
+
+  i {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--tone);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+}
+
+.message {
+  flex: 1 1 18rem;
+  margin: 0;
+  color: var(--text);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.9rem;
+}
+
+.primary {
+  @include label;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--tone);
+  border-radius: var(--radius-sm);
+  background: var(--tone);
+  color: var(--bg);
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover {
+    filter: brightness(1.1);
+  }
+}
+
+.link,
+.later {
+  @include label;
+  color: var(--tone);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.later {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dim);
+  cursor: pointer;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tag i {
+    animation: none;
+  }
+}
