@@ -82,7 +82,10 @@ async function judgeTitle(title, channelName) {
   return { event, confidence: verdict.confidence, classifier: "jev", probabilities: verdict.probabilities };
 }
 
-/** Labels any recent titles not judged yet (or whose title changed). */
+/**
+ * Labels any recent titles not judged yet (or whose title changed). Once Jev is set up, a keyword
+ * label (Jev wasn't asked, or didn't answer) is judged again, at most hourly.
+ */
 async function labelRecentStreams(pool, { hours = 72, limit = 200 } = {}) {
   const { rows } = await pool.query(
     `
@@ -92,11 +95,12 @@ async function labelRecentStreams(pool, { hours = 72, limit = 200 } = {}) {
     LEFT JOIN content.wire_stream_labels l ON l.video_id = s.video_id
     WHERE s.video_title IS NOT NULL AND s.video_title <> ''
       AND COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) > now() - ($1 || ' hours')::interval
-      AND (l.video_id IS NULL OR l.title <> s.video_title)
+      AND (l.video_id IS NULL OR l.title <> s.video_title
+        OR ($3 AND l.classifier = 'keywords' AND l.labeled_at < now() - interval '1 hour'))
     ORDER BY COALESCE(s.actual_start_at, s.scheduled_start_at, s.first_seen_at) DESC
     LIMIT $2
   `,
-    [String(hours), limit]
+    [String(hours), limit, jev.isConfigured()]
   );
   const results = await jev.mapLimit(rows, 4, async (row) => {
     const verdict = await judgeTitle(row.video_title, row.channel_name);

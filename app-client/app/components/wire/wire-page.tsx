@@ -85,6 +85,9 @@ const VALENCE: Record<string, Valence> = {
 /** Topics left out of every count, and how the page names them. */
 const SKIPPED = new Set(["rumour", "off_topic"]);
 const SKIPPED_TEXT: Record<string, string> = { rumour: "rumours", off_topic: "not about her" };
+/** The mood panel names a leading topic only once Jev has read this many posts, and it has this share of them. */
+const MOOD_MIN_READ = 20;
+const MOOD_MIN_SHARE = 20;
 /** "mostly …" phrases for a talent's leading topic. */
 const MOOD_TEXT: Record<string, string> = {
   hype: "mostly hype",
@@ -309,19 +312,23 @@ function RightNow({
 
 /**
  * The board's mood this week: what the posts were about, largest first, with how the last day
- * differs. Rumours and "not her" posts are listed apart (they're left out of every count).
+ * differs. Shares are of the posts Jev has read; the ones it hasn't are counted apart, and so are
+ * rumours and "not her" posts (they're left out of every count).
  */
 function MoodPanel({ history }: { history: History | null }) {
   if (!history || !history.topics.length) return null;
   // `counted` comes from the API; an API from before it existed sent only counted topics.
   const topics = history.topics.map((entry) => ({ ...entry, day: entry.day ?? 0, counted: entry.counted ?? !SKIPPED.has(entry.topic) }));
-  const counted = topics.filter((entry) => entry.counted);
+  const unread = topics.find((entry) => entry.topic === "unread")?.posts ?? 0;
+  const counted = topics.filter((entry) => entry.counted && entry.topic !== "unread");
   const uncounted = topics.filter((entry) => !entry.counted);
   const total = counted.reduce((sum, entry) => sum + entry.posts, 0);
   const dayTotal = counted.reduce((sum, entry) => sum + entry.day, 0);
   const max = Math.max(1, ...counted.map((entry) => entry.posts));
-  const lead = counted.filter((entry) => entry.topic !== "passing" && entry.topic !== "unread")[0] ?? null;
   const share = (posts: number, of: number) => (of ? Math.round((posts / of) * 100) : 0);
+  const top = counted.filter((entry) => entry.topic !== "passing")[0] ?? null;
+  const lead = top && total >= MOOD_MIN_READ && share(top.posts, total) >= MOOD_MIN_SHARE ? top : null;
+  const all = total + unread + uncounted.reduce((sum, entry) => sum + entry.posts, 0);
   // The biggest move between the week's share and the last day's (in points), once there's a day.
   const shift =
     dayTotal >= 30
@@ -351,9 +358,16 @@ function MoodPanel({ history }: { history: History | null }) {
           ) : null}
         </p>
       ) : null}
-      <ul className={styles.moodList} aria-label="What the posts were about, share of counted posts">
-        {counted.map(row)}
-      </ul>
+      {counted.length ? (
+        <ul className={styles.moodList} aria-label="What the posts were about, share of the posts read so far">
+          {counted.map(row)}
+        </ul>
+      ) : null}
+      {unread ? (
+        <p className={styles.moodSkip}>
+          Not read yet: <b>{unread.toLocaleString("en-US")}</b> of {all.toLocaleString("en-US")} posts
+        </p>
+      ) : null}
       {uncounted.length ? (
         <p className={styles.moodSkip}>
           Not counted:{" "}
@@ -860,7 +874,10 @@ function TalentWeek({ symbol, asset, onClose, onWire }: { symbol: string; asset:
   const { history: current, latest } = useHistory(symbol, 7);
   const history = current ?? latest;
   const loading = !current;
-  const topicMax = Math.max(1, ...(history?.topics ?? []).map((entry) => entry.posts));
+  // What Jev read, as bars; the posts it hasn't read yet as a note, not a topic.
+  const read = (history?.topics ?? []).filter((entry) => entry.topic !== "unread");
+  const unread = history?.topics.find((entry) => entry.topic === "unread")?.posts ?? 0;
+  const topicMax = Math.max(1, ...read.map((entry) => entry.posts));
   return (
     <section className={styles.week} aria-label={`${symbol} on /vt/ this week`} data-loading={loading || undefined}>
       <header key={symbol} className={styles.weekHead}>
@@ -879,9 +896,9 @@ function TalentWeek({ symbol, asset, onClose, onWire }: { symbol: string; asset:
       </header>
       <div className={styles.weekBody}>
         <HourChart history={history} height={96} />
-        {history?.topics.length ? (
+        {read.length ? (
           <ul className={styles.topics} aria-label="What the posts were about">
-            {history.topics.map((entry) => (
+            {read.map((entry) => (
               <li key={entry.topic} data-valence={VALENCE[entry.topic] ?? "passing"} data-out={(entry.counted ?? !SKIPPED.has(entry.topic)) ? undefined : ""}>
                 <span>{TOPIC_LABEL[entry.topic] ?? entry.topic}</span>
                 <i style={{ "--w": `${(entry.posts / topicMax) * 100}%` } as CSSProperties} aria-hidden="true" />
@@ -890,6 +907,7 @@ function TalentWeek({ symbol, asset, onClose, onWire }: { symbol: string; asset:
             ))}
           </ul>
         ) : null}
+        {unread ? <p className={styles.weekNote}>{unread.toLocaleString("en-US")} not read yet.</p> : null}
         {history?.topics.some((entry) => !(entry.counted ?? !SKIPPED.has(entry.topic))) ? <p className={styles.weekNote}>Dimmed ones don&apos;t count toward her numbers.</p> : null}
       </div>
       <div className={styles.weekLinks}>
