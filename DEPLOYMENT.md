@@ -709,9 +709,16 @@ kubectl -n nasfaq create secret generic nasfaq-app-secrets \
   --from-literal=AWS_SW_BUCKET='nasfaq-media'
 ```
 
+Optional keys, added to the same Secret by `kubectl patch` (the API pods read them at start, so restart them after):
+
+- `JEV_API_KEY`: Jev (TypeSafe) reads /vt/ posts, stream titles and headlines for the Wire; without it those fall back to keyword rules.
+- `DISCORD_BUG_WEBHOOK_URL`: "Report a bug" also posts each report to this Discord channel webhook (Discord: channel settings → Integrations → Webhooks → New Webhook → Copy Webhook URL). Reports are kept and listed on the admin overview either way.
+
 For long-term: install [sealed-secrets](https://github.com/bitnami-labs/sealed-secrets) and commit a `SealedSecret` so the cluster is reproducible from git.
 
 ### Connection-pool math
+
+Every pool also cancels any statement that runs longer than `PG_STATEMENT_TIMEOUT_MS` (default 60000; `0` turns it off), so one runaway query can't hold a connection forever. Migrations run without it.
 
 `api/src/db.js` opens `PG_POOL_MAX` conns per pod (default 10). With managed PG at 47-conn cap (2vCPU/4GB plan) and a headroom budget of 70%:
 

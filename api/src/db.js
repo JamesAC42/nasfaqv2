@@ -8,7 +8,17 @@ function normalizeDatabaseUrl(databaseUrl) {
   return url.toString();
 }
 
-function createPool(databaseUrl) {
+// The server cancels any statement that runs longer than this, so one runaway query can't hold a
+// pooled connection (and whatever it locked) forever. Generous: the longest normal statements (a
+// day of a market rebuild, the weekly evaluation) take seconds. 0 turns it off; migrations do.
+const DEFAULT_STATEMENT_TIMEOUT_MS = 60_000;
+
+function statementTimeoutMs(override) {
+  const value = Number(override ?? process.env.PG_STATEMENT_TIMEOUT_MS ?? DEFAULT_STATEMENT_TIMEOUT_MS);
+  return Number.isFinite(value) && value >= 0 ? value : DEFAULT_STATEMENT_TIMEOUT_MS;
+}
+
+function createPool(databaseUrl, { statementTimeoutMs: timeoutOverride } = {}) {
   if (!databaseUrl) {
     throw new Error("Missing DATABASE_URL");
   }
@@ -17,7 +27,8 @@ function createPool(databaseUrl) {
     options: process.env.PG_OPTIONS || "-c timezone=UTC",
     max: Number(process.env.PG_POOL_MAX || 10),
     idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 30000),
-    connectionTimeoutMillis: Number(process.env.PG_CONN_TIMEOUT_MS || 10000)
+    connectionTimeoutMillis: Number(process.env.PG_CONN_TIMEOUT_MS || 10000),
+    statement_timeout: statementTimeoutMs(timeoutOverride),
   });
 
   // pg removes failed idle clients; handling this event prevents a process crash.
@@ -549,6 +560,7 @@ async function listNewsFeed(pool, {
 }
 
 module.exports = {
+  DEFAULT_STATEMENT_TIMEOUT_MS,
   createPool,
   countUsers,
   countChannels,

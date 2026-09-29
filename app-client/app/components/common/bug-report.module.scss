@@ -1,0 +1,154 @@
+@use "../../styles/mixins" as *;
+
+// The footer's "Report a bug" reads like the links next to it.
+.trigger {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: var(--scrim, rgba(0, 0, 0, 0.6));
+}
+
+.dialog {
+  width: min(32rem, 100%);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  border: 1px solid var(--rule-2);
+  background: var(--ink-2);
+  box-shadow: var(--shadow-pop, 0 16px 48px rgba(0, 0, 0, 0.45));
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--rule);
+
+    h2 {
+      @include section-heading;
+      margin: 0;
+    }
+
+    button {
+      padding: 0.2rem 0.4rem;
+      border: 0;
+      background: none;
+      color: var(--dim);
+      cursor: pointer;
+
+      &:hover {
+        color: var(--text);
+      }
+    }
+  }
+
+  form,
+  .done {
+    display: grid;
+    gap: 0.7rem;
+    padding: 1rem;
+  }
+
+  label {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 8rem;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--rule-2);
+    background: var(--input-bg, var(--ink));
+    color: var(--text);
+    font: inherit;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    resize: vertical;
+
+    &:focus {
+      outline: none;
+      border-color: var(--blue);
+    }
+  }
+
+  .done p {
+    margin: 0;
+    color: var(--text);
+    line-height: 1.5;
+  }
+}
+
+.label {
+  @include label;
+}
+
+.fine {
+  color: var(--dim);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.error {
+  margin: 0;
+  color: var(--down);
+  font-size: 0.8rem;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.primary,
+.ghost {
+  @include label;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--blue);
+  font-weight: 700;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.primary {
+  background: var(--blue);
+  color: var(--bg);
+}
+
+.ghost {
+  border-color: var(--rule-2);
+  background: none;
+  color: var(--mid);
+
+  &:hover {
+    color: var(--text);
+  }
+}
+
+.done .primary {
+  justify-self: end;
+}

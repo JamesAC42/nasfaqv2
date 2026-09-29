@@ -68,6 +68,7 @@ const sections: LegalSection[] = [
               <li>article likes and saves</li>
               <li>prediction market disputes (with your reason) and markets you create, if you have that permission</li>
               <li>chat reports you file</li>
+              <li>bug reports you send, with the page you were on and your browser (the one place we keep browser details)</li>
             </ul>
           </Fact>
           <Fact term="Your game activity">
@@ -92,8 +93,8 @@ const sections: LegalSection[] = [
         <h3>What we don’t collect</h3>
         <p>
           No real name, address, phone number, birthday or payment details. We don’t read your YouTube account,
-          Gmail, contacts or Drive. Our app doesn’t save your IP address or browser details to your account or our
-          database. (The networks and servers that deliver any website do see your IP address when you connect; see{" "}
+          Gmail, contacts or Drive. Our app doesn’t save your IP address to your account or our database, or your
+          browser details either, unless you send a bug report. (The networks and servers that deliver any website do see your IP address when you connect; see{" "}
           <a href="#sharing">section 5</a> for the services involved.)
         </p>
       </>
@@ -218,6 +219,10 @@ const sections: LegalSection[] = [
             <p>
               We link to them, but they’re separate sites. Anything you give them (like a Ko-fi donation) is
               covered by their policies, not this one. We don’t get your payment details.
+            </p>
+            <p>
+              Bug reports you send from the site are also posted to a channel on our Discord server, with your
+              username if you’re signed in, the page and your browser.
             </p>
           </Fact>
         </Facts>
@@ -417,7 +422,7 @@ export default function PrivacyPage() {
     <LegalPage
       doc="privacy"
       title="Privacy Policy"
-      updated={{ iso: "2026-09-25", label: "September 25, 2026" }}
+      updated={{ iso: "2026-09-29", label: "September 29, 2026" }}
       art="legal-privacy-spot"
       intro={
         <p>
