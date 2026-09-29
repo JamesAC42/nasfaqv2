@@ -70,6 +70,15 @@ function mentionsForPost(text, matcher, threadSymbol) {
  * Heat per talent from mention rows `{ symbol, posted_at, topic }` (already filtered to counted
  * topics), relative to that talent's own usual pace over the covered window.
  */
+/** The leading topic when there's enough to say (3+ posts, 30%+ of them), else null. Passing mentions only lead when nothing else does. */
+function moodOf(topics) {
+  const entries = Object.entries(topics ?? {});
+  const total = entries.reduce((sum, [, count]) => sum + count, 0);
+  const ranked = entries.filter(([topic]) => topic !== "passing").sort((a, b) => b[1] - a[1]);
+  const [topic, count] = ranked[0] ?? entries.sort((a, b) => b[1] - a[1])[0] ?? [null, 0];
+  return topic && count >= 3 && count / Math.max(1, total) >= 0.3 ? topic : null;
+}
+
 function summarize(rows, { now = Date.now(), coveredHours, recentHours = 6 } = {}) {
   const recentCutoff = now - recentHours * 3600_000;
   const dayCutoff = now - 24 * 3600_000;
@@ -103,6 +112,10 @@ function summarize(rows, { now = Date.now(), coveredHours, recentHours = 6 } = {
       heat: heat === null ? null : Number(heat.toFixed(2)),
       hourly: entry.hourly,
       topic: topCount >= 3 && topCount / Math.max(1, topicTotal) >= 0.35 ? topTopic : null,
+      // What the last day's posts about her were about (Jev's reads, counted topics only), and the
+      // leading one when it's clear: the Wire page shows it as her mood.
+      topics: entry.topics,
+      mood: moodOf(entry.topics),
     };
   });
   // Hot: well above their own usual. Busiest: simply the most posts (what shows until there's history).
@@ -278,7 +291,15 @@ async function getHistory(pool, { days = 7, symbol = null } = {}) {
   // anyone (they count as about her), as opposed to posts that name her.
   const [hours, topics, talentsResult, now, since, own] = await Promise.all([
     pool.query(`SELECT EXTRACT(EPOCH FROM date_trunc('hour', posted_at)) * 1000 AS hour, COUNT(DISTINCT post_no)::int AS posts ${base} GROUP BY 1`, params),
-    pool.query(`SELECT COALESCE(topic, 'unread') AS topic, COUNT(*)::int AS posts ${base} GROUP BY 1 ORDER BY 2 DESC`, params),
+    // Every topic, including the ones heat leaves out (rumours, not her), and the last day's split.
+    pool.query(
+      `SELECT COALESCE(topic, 'unread') AS topic, COUNT(*)::int AS posts,
+              COUNT(*) FILTER (WHERE posted_at > now() - interval '24 hours')::int AS day
+       FROM content.vt_mentions
+       WHERE posted_at > date_trunc('hour', now()) - ($1 || ' days')::interval + interval '1 hour' ${symbol ? "AND symbol = $2" : ""}
+       GROUP BY 1 ORDER BY 2 DESC`,
+      symbol ? [String(safeDays), String(symbol).toUpperCase()] : [String(safeDays)]
+    ),
     symbol
       ? Promise.resolve({ rows: [] })
       : pool.query(`SELECT symbol, COUNT(*)::int AS posts, COUNT(*) FILTER (WHERE via = 'thread')::int AS in_thread ${base} GROUP BY 1 ORDER BY 2 DESC LIMIT 12`, params),
@@ -304,7 +325,9 @@ async function getHistory(pool, { days = 7, symbol = null } = {}) {
     hourly,
     total,
     peak: total ? { at: new Date(start + peakIndex * 3600_000).toISOString(), posts: hourly[peakIndex] } : null,
-    topics: topics.rows.map((row) => ({ topic: row.topic, posts: row.posts })),
+    // Every topic Jev read this week (and in the last 24 hours); `counted` false for the ones heat
+    // and the totals leave out (rumours, posts that aren't about her).
+    topics: topics.rows.map((row) => ({ topic: row.topic, posts: row.posts, day: row.day, counted: !UNCOUNTED.has(row.topic) })),
     talents: talentsResult.rows.map((row) => ({ symbol: row.symbol, posts: row.posts, in_thread: row.in_thread })),
     in_thread: symbol ? Number(own.rows[0]?.in_thread ?? 0) : null,
     // When collection started (the oldest mention kept). Hours before it aren't "quiet", they're

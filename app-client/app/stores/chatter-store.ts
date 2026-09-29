@@ -12,6 +12,10 @@ export type ChatterTalent = {
   heat: number | null;
   hourly: number[];
   topic: "stream" | "music" | "collab" | "hype" | "market" | null;
+  /** The last day's posts about her by topic (Jev's reads; rumours and "not her" left out). */
+  topics?: Record<string, number>;
+  /** The leading topic when it's clear, complaints included. */
+  mood?: string | null;
 };
 
 export type ChatterSummary = {

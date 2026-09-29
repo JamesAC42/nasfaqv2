@@ -116,7 +116,15 @@
 
 .pulseBody {
   display: grid;
-  grid-template-columns: 13rem minmax(0, 1fr);
+  grid-template-columns: 13rem minmax(0, 1fr) 17rem;
+
+  @include desktop-down {
+    grid-template-columns: 13rem minmax(0, 1fr);
+
+    > :last-child {
+      grid-column: 1 / -1;
+    }
+  }
   gap: 1.2rem;
   align-items: end;
 
@@ -763,4 +771,337 @@
   a {
     color: var(--blue-2, var(--blue));
   }
+}
+
+// ── Live stamp ─────────────────────────────────────────────────────────────
+.stamp {
+  color: var(--dim);
+  letter-spacing: 0.08em;
+}
+
+// ── Right now ──────────────────────────────────────────────────────────────
+.now {
+  margin-top: 1rem;
+}
+
+.nowHead {
+  @include label;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 0.5rem;
+  color: var(--text);
+
+  i {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--down);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--down) 60%, transparent);
+    animation: nowPing 1.8s ease-out infinite;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  }
+}
+
+@keyframes nowPing {
+  70%,
+  100% {
+    box-shadow: 0 0 0 7px transparent;
+  }
+}
+
+.nowList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.6rem;
+
+  @include desktop-down {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  // Phones: one row that scrolls sideways, a card and a bit at a time.
+  @include phone {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 82%;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+
+    > li {
+      scroll-snap-align: start;
+    }
+  }
+}
+
+.nowCard {
+  --tal: var(--blue);
+  position: relative;
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0.6rem 0.8rem 0.6rem 0.5rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--tal) 40%, var(--rule));
+  background:
+    radial-gradient(120% 140% at 0% 50%, color-mix(in oklab, var(--tal) 22%, transparent), transparent 60%),
+    var(--ink-2);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--tal);
+  }
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: var(--tal);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+
+    &:hover {
+      transform: none;
+    }
+  }
+}
+
+// Her face, faded into the card.
+.nowFace {
+  display: block;
+  width: 84px;
+  height: 84px;
+  -webkit-mask-image: radial-gradient(circle at 50% 45%, #000 50%, transparent 72%);
+  mask-image: radial-gradient(circle at 50% 45%, #000 50%, transparent 72%);
+}
+
+.nowText {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.nowWho {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+
+  b {
+    overflow: hidden;
+    font-size: 0.9rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  small {
+    @include label;
+    font-size: 0.58rem;
+    color: var(--dim);
+  }
+}
+
+.nowNumber {
+  font-size: 0.75rem;
+  color: var(--mid);
+
+  strong {
+    @include num;
+    margin-right: 0.2rem;
+    font-size: 1.35rem;
+    color: var(--text);
+  }
+}
+
+.nowSub {
+  overflow: hidden;
+  font-size: 0.72rem;
+  color: var(--dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  em {
+    font-style: normal;
+  }
+}
+
+// Mood colors (always beside their words): warm = hype/music, sour = complaints.
+.page [data-valence="warm"] {
+  --valence: var(--up);
+}
+
+.page [data-valence="content"] {
+  --valence: var(--blue);
+}
+
+.page [data-valence="passing"] {
+  --valence: var(--mid);
+}
+
+.page [data-valence="sour"] {
+  --valence: var(--down);
+}
+
+.page [data-valence="uncounted"] {
+  --valence: var(--dim);
+}
+
+.nowSub em,
+.talkWho small[data-valence],
+.moodLead b {
+  color: var(--valence);
+}
+
+// ── The mood ───────────────────────────────────────────────────────────────
+.mood {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  min-width: 0;
+  padding-left: 1.2rem;
+  border-left: 1px solid var(--rule);
+
+  @include desktop-down {
+    padding: 0.8rem 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--rule);
+  }
+}
+
+.moodKicker,
+.moodAside {
+  @include label;
+  font-size: 0.6rem;
+}
+
+.moodAside {
+  margin-top: 0.3rem;
+  color: var(--dim);
+}
+
+.moodLead {
+  margin: 0 0 0.2rem;
+  font-size: 0.85rem;
+
+  span {
+    color: var(--dim);
+    font-size: 0.75rem;
+  }
+}
+
+.moodList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.22rem;
+
+  li {
+    display: grid;
+    grid-template-columns: 7.2rem minmax(0, 1fr) 2.6rem;
+    gap: 0.5rem;
+    align-items: center;
+    font-size: 0.74rem;
+  }
+
+  i {
+    display: block;
+    width: var(--w);
+    min-width: 2px;
+    height: 0.5rem;
+    border-radius: 0 4px 4px 0;
+    background: var(--valence, var(--mid));
+    opacity: 0.85;
+  }
+
+  b {
+    @include num;
+    justify-self: end;
+    font-size: 0.72rem;
+    color: var(--mid);
+  }
+}
+
+.moodOut {
+  li {
+    color: var(--dim);
+  }
+
+  i {
+    opacity: 0.45;
+    background: repeating-linear-gradient(135deg, var(--dim) 0 2px, transparent 2px 4px);
+  }
+}
+
+// ── The feed: a new item flashes in ────────────────────────────────────────
+.entry[data-fresh] {
+  animation: freshIn 1.2s ease-out both;
+
+  &::after {
+    content: "NEW";
+    @include label;
+    position: absolute;
+    top: 0.75rem;
+    right: 0;
+    color: var(--blue);
+    font-size: 0.58rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes freshIn {
+  from {
+    background: color-mix(in oklab, var(--blue) 18%, transparent);
+    transform: translateY(-6px);
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+.weekNote {
+  margin: 0.4rem 0 0;
+  font-size: 0.68rem;
+  color: var(--dim);
+}
+
+.topics li[data-out] {
+  color: var(--dim);
+
+  i {
+    opacity: 0.45;
+    background: repeating-linear-gradient(135deg, var(--dim) 0 2px, transparent 2px 4px);
+  }
+}
+
+.topics li[data-valence] i {
+  background: var(--valence);
 }

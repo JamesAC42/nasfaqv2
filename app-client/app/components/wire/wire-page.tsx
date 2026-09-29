@@ -5,9 +5,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { HeroCast } from "@/app/components/common/hero-cast";
 import { Oshimark } from "@/app/components/common/oshimark";
+import { ReactionFace } from "@/app/components/common/reaction-face";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { LIFTS_FAIR_VALUE, WIRE_TAGS, wireTone, wireWhen } from "@/app/components/wire/wire-kit";
 import { apiFetch } from "@/app/lib/api";
+import type { ChibiPose } from "@/app/lib/art-manifest";
+import { talentAccent } from "@/app/lib/talent-color";
+import { useTheme } from "@/app/providers/theme-provider";
 import type { MarketAsset, WireItem } from "@/app/lib/types";
 import { CHATTER_TOPIC, heatLabel, useChatterStore, type ChatterTalent } from "@/app/stores/chatter-store";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -43,7 +47,7 @@ type History = {
   hourly: number[];
   total: number;
   peak: { at: string; posts: number } | null;
-  topics: Array<{ topic: string; posts: number }>;
+  topics: Array<{ topic: string; posts: number; day: number; counted: boolean }>;
   talents: Array<{ symbol: string; posts: number; in_thread: number }>;
   /** Posts in her own threads that don't name anyone (one talent only). */
   in_thread: number | null;
@@ -57,7 +61,38 @@ const TOPIC_LABEL: Record<string, string> = {
   negative: "Complaints",
   passing: "Passing mentions",
   unread: "Not read yet",
+  rumour: "Rumours",
+  off_topic: "Not her",
 };
+
+// What a topic says about the mood, for color (always next to its label, never on its own):
+// warm (hype, her music), content (streams, collabs, her stock), passing, sour (complaints), and
+// not counted (rumours, not her).
+type Valence = "warm" | "content" | "passing" | "sour" | "uncounted";
+const VALENCE: Record<string, Valence> = {
+  hype: "warm",
+  music: "warm",
+  stream: "content",
+  collab: "content",
+  market: "content",
+  passing: "passing",
+  negative: "sour",
+  rumour: "uncounted",
+  off_topic: "uncounted",
+  unread: "passing",
+};
+/** "mostly …" phrases for a talent's leading topic. */
+const MOOD_TEXT: Record<string, string> = {
+  hype: "mostly hype",
+  music: "mostly her music",
+  collab: "mostly collabs",
+  stream: "mostly her streams",
+  market: "mostly her stock",
+  negative: "mostly complaints",
+  passing: "mostly passing mentions",
+};
+/** Her reaction face for the mood. */
+const MOOD_POSE: Record<string, ChibiPose> = { hype: "hype", music: "moon", collab: "smug", stream: "idle", market: "smug", negative: "cope", passing: "idle" };
 
 const isExternal = (href: string) => /^https?:\/\//.test(href);
 const dayKey = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
@@ -98,8 +133,13 @@ export function WirePage() {
     if (picked) sideRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [picked]);
 
+  // Live: the chatter index refreshes about once a minute while the tab is visible.
   useEffect(() => {
     void fetchChatter();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void fetchChatter();
+    }, 65_000);
+    return () => window.clearInterval(timer);
   }, [fetchChatter]);
 
   // The header's cast: who /vt/ is talking about most right now.
@@ -126,13 +166,14 @@ export function WirePage() {
           <HeroCast talents={cast} />
           <div className={styles.title}>
             <span className={styles.kicker}>
-              <i aria-hidden="true" /> NEWSROOM
+              <i aria-hidden="true" /> NEWSROOM <LiveStamp at={summary?.generated_at ?? null} />
             </span>
             <h1>The Wire</h1>
             <p>Streams, records, market moves and game moments as they happen, and what {summary?.board ?? "/vt/"} is talking about.</p>
           </div>
         </header>
 
+        <RightNow summary={summary} assets={bySymbol} onPick={setPicked} />
         <Pulse assets={bySymbol} onPick={setPicked} />
 
         <div className={styles.grid}>
@@ -146,6 +187,156 @@ export function WirePage() {
         </div>
       </div>
     </SiteShell>
+  );
+}
+
+// ── Live bits ────────────────────────────────────────────────────────────────
+/** "live · 2m ago": when the /vt/ index was last read. */
+function LiveStamp({ at }: { at: string | null }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  if (!at) return null;
+  const minutes = Math.max(0, Math.round((now - Date.parse(at)) / 60_000));
+  return <span className={styles.stamp}>· live · updated {minutes < 1 ? "just now" : `${minutes}m ago`}</span>;
+}
+
+/**
+ * Right now on /vt/: up to four talents running hottest (or simply busiest until there's a day of
+ * history), each with her face in the mood of what's being said, in her color.
+ */
+function RightNow({
+  summary,
+  assets,
+  onPick,
+}: {
+  summary: ReturnType<typeof useChatterStore.getState>["summary"];
+  assets: Map<string, MarketAsset>;
+  onPick: (symbol: string) => void;
+}) {
+  const { theme } = useTheme();
+  if (!summary) return null;
+  const known = summary.talents.filter((talent) => assets.has(talent.symbol));
+  const hot = summary.hot.map((symbol) => known.find((talent) => talent.symbol === symbol)).filter((talent): talent is ChatterTalent => Boolean(talent));
+  const mode = hot.length >= 2 ? "hot" : "busy";
+  const shown = (mode === "hot" ? hot : [...known].filter((talent) => talent.posts_recent > 0).sort((a, b) => b.posts_recent - a.posts_recent)).slice(0, 4);
+  if (!shown.length) return null;
+  const hours = summary.recent_hours;
+  return (
+    <section className={styles.now} aria-label={`Right now on ${summary.board}`}>
+      <h2 className={styles.nowHead}>
+        <i aria-hidden="true" /> {mode === "hot" ? "Heating up" : "Busiest"} on {summary.board} · last {hours}h
+      </h2>
+      <ol className={styles.nowList}>
+        {shown.map((talent) => {
+          const asset = assets.get(talent.symbol)!;
+          const heat = heatLabel(talent);
+          const mood = talent.mood ?? null;
+          return (
+            <li key={talent.symbol}>
+              <button
+                type="button"
+                className={styles.nowCard}
+                style={{ "--tal": talentAccent(asset.color, theme) } as CSSProperties}
+                onClick={() => onPick(talent.symbol)}
+                aria-label={`${asset.display_name}: ${talent.posts_recent} posts in ${hours} hours${heat ? `, ${heat} her usual` : ""}${mood ? `, ${MOOD_TEXT[mood] ?? ""}` : ""}. Open her week.`}
+              >
+                <span className={styles.nowFace} aria-hidden="true">
+                  <ReactionFace symbol={talent.symbol} pose={MOOD_POSE[mood ?? ""] ?? (talent.heat !== null && talent.heat >= 2 ? "hype" : "idle")} size={84} />
+                </span>
+                <span className={styles.nowText}>
+                  <span className={styles.nowWho}>
+                    <b>{asset.display_name}</b>
+                    <small>{talent.symbol}</small>
+                  </span>
+                  <span className={styles.nowNumber}>
+                    {mode === "hot" && heat ? (
+                      <>
+                        <strong>{heat}</strong> her usual
+                      </>
+                    ) : (
+                      <>
+                        <strong>{talent.posts_recent}</strong> posts
+                      </>
+                    )}
+                  </span>
+                  <span className={styles.nowSub}>
+                    {mode === "hot" ? `${talent.posts_recent} posts in ${hours}h` : `in the last ${hours}h`}
+                    {mood ? (
+                      <>
+                        {" · "}
+                        <em data-valence={VALENCE[mood] ?? "passing"}>{MOOD_TEXT[mood] ?? mood}</em>
+                      </>
+                    ) : null}
+                  </span>
+                  <Spark hourly={talent.hourly} recentHours={hours} />
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
+/**
+ * The board's mood this week: what the posts were about, largest first, with how the last day
+ * differs. Rumours and "not her" posts are listed apart (they're left out of every count).
+ */
+function MoodPanel({ history }: { history: History | null }) {
+  if (!history || !history.topics.length) return null;
+  const counted = history.topics.filter((entry) => entry.counted);
+  const uncounted = history.topics.filter((entry) => !entry.counted);
+  const total = counted.reduce((sum, entry) => sum + entry.posts, 0);
+  const dayTotal = counted.reduce((sum, entry) => sum + entry.day, 0);
+  const all = history.topics.reduce((sum, entry) => sum + entry.posts, 0);
+  const max = Math.max(1, ...history.topics.map((entry) => entry.posts));
+  const lead = counted.filter((entry) => entry.topic !== "passing" && entry.topic !== "unread")[0] ?? null;
+  const share = (posts: number, of: number) => (of ? Math.round((posts / of) * 100) : 0);
+  // The biggest move between the week's share and the last day's (in points), once there's a day.
+  const shift =
+    dayTotal >= 30
+      ? counted
+          .map((entry) => ({ entry, delta: share(entry.day, dayTotal) - share(entry.posts, total) }))
+          .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0]
+      : null;
+  const row = (entry: History["topics"][number]) => (
+    <li key={entry.topic} data-valence={VALENCE[entry.topic] ?? "passing"}>
+      <span>{TOPIC_LABEL[entry.topic] ?? entry.topic}</span>
+      <i style={{ "--w": `${(entry.posts / max) * 100}%` } as CSSProperties} aria-hidden="true" />
+      <b>{entry.counted ? `${share(entry.posts, total)}%` : entry.posts.toLocaleString("en-US")}</b>
+    </li>
+  );
+  return (
+    <div className={styles.mood}>
+      <small className={styles.moodKicker}>The mood</small>
+      {lead ? (
+        <p className={styles.moodLead}>
+          Mostly <b data-valence={VALENCE[lead.topic] ?? "passing"}>{(TOPIC_LABEL[lead.topic] ?? lead.topic).toLowerCase()}</b> ({share(lead.posts, total)}%)
+          {shift && Math.abs(shift.delta) >= 3 ? (
+            <span>
+              {" "}
+              · {(TOPIC_LABEL[shift.entry.topic] ?? shift.entry.topic).toLowerCase()} {shift.delta > 0 ? "▲" : "▼"}
+              {Math.abs(shift.delta)} pts today
+            </span>
+          ) : null}
+        </p>
+      ) : null}
+      <ul className={styles.moodList} aria-label="What the posts were about, share of counted posts">
+        {counted.map(row)}
+      </ul>
+      {uncounted.length ? (
+        <>
+          <small className={styles.moodAside}>Left out of the counts ({share(uncounted.reduce((sum, entry) => sum + entry.posts, 0), all)}% of everything read)</small>
+          <ul className={`${styles.moodList} ${styles.moodOut}`} aria-label="Posts left out, by reason">
+            {uncounted.map(row)}
+          </ul>
+        </>
+      ) : null}
+    </div>
   );
 }
 
@@ -207,6 +398,30 @@ function WireFeed({
       cancelled = true;
     };
   }, [hours, query, symbol]);
+
+  // Live: new items slide in at the top (checked every minute while the tab is visible).
+  const [fresh, setFresh] = useState<Set<number>>(() => new Set());
+  const itemsRef = useRef<WireItem[]>([]);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+  useEffect(() => {
+    if (state === "loading" || state === "error") return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      apiFetch<{ items: WireItem[] }>(query(null))
+        .then((result) => {
+          const known = new Set(itemsRef.current.map((item) => item.id));
+          const added = (result.items ?? []).filter((item) => !known.has(item.id));
+          if (!added.length) return;
+          setItems((current) => [...added.filter((item) => !current.some((entry) => entry.id === item.id)), ...current]);
+          setFresh(new Set(added.map((item) => item.id)));
+          window.setTimeout(() => setFresh(new Set()), 8_000);
+        })
+        .catch(() => {});
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, [query, state]);
 
   async function more() {
     const oldest = items.reduce<WireItem | null>((min, item) => (!min || Date.parse(item.occurred_at) < Date.parse(min.occurred_at) ? item : min), null);
@@ -273,7 +488,7 @@ function WireFeed({
           <h3 suppressHydrationWarning>{dayLabel(day.key, now)}</h3>
           <ol>
             {day.items.map((item) => (
-              <WireEntry key={item.id} item={item} now={now} assets={assets} onSymbol={onSymbol} />
+              <WireEntry key={item.id} item={item} now={now} assets={assets} onSymbol={onSymbol} fresh={fresh.has(item.id)} />
             ))}
           </ol>
         </div>
@@ -288,7 +503,7 @@ function WireFeed({
   );
 }
 
-function WireEntry({ item, now, assets, onSymbol }: { item: WireItem; now: number; assets: Map<string, MarketAsset>; onSymbol: (symbol: string) => void }) {
+function WireEntry({ item, now, assets, onSymbol, fresh = false }: { item: WireItem; now: number; assets: Map<string, MarketAsset>; onSymbol: (symbol: string) => void; fresh?: boolean }) {
   const when = wireWhen(item, now);
   const href = item.link_url || null;
   const first = item.symbols[0] ? assets.get(item.symbols[0]) : null;
@@ -315,7 +530,7 @@ function WireEntry({ item, now, assets, onSymbol }: { item: WireItem; now: numbe
     </>
   );
   return (
-    <li className={styles.entry}>
+    <li className={styles.entry} data-fresh={fresh || undefined}>
       {href ? (
         isExternal(href) ? (
           <a href={href} target="_blank" rel="noopener noreferrer" className={styles.link}>
@@ -346,6 +561,14 @@ function WireEntry({ item, now, assets, onSymbol }: { item: WireItem; now: numbe
 function useHistory(symbol: string | null, days: number) {
   const [history, setHistory] = useState<History | null>(null);
   const [failed, setFailed] = useState(false);
+  const [tick, setTick] = useState(0);
+  // The history is cached for five minutes on the server; refetch on that beat while visible.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") setTick((value) => value + 1);
+    }, 5 * 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   useEffect(() => {
     let cancelled = false;
     const params = new URLSearchParams({ days: String(days) });
@@ -360,7 +583,7 @@ function useHistory(symbol: string | null, days: number) {
     return () => {
       cancelled = true;
     };
-  }, [days, symbol]);
+  }, [days, symbol, tick]);
   return { history: history && history.symbol === (symbol ?? null) ? history : null, failed };
 }
 
@@ -408,6 +631,7 @@ function Pulse({ assets, onPick }: { assets: Map<string, MarketAsset>; onPick: (
           </div>
         </div>
         <HourChart history={history} height={150} />
+        <MoodPanel history={history} />
       </div>
     </section>
   );
@@ -564,7 +788,11 @@ function TalkBoard({
                   <Oshimark icon={asset.icon} symbol={talent.symbol} size={22} />
                   <span className={styles.talkWho}>
                     <b>{talent.symbol}</b>
-                    <small>{talent.topic ? CHATTER_TOPIC[talent.topic] : asset.display_name}</small>
+                    {talent.mood ? (
+                      <small data-valence={VALENCE[talent.mood] ?? "passing"}>{MOOD_TEXT[talent.mood] ?? talent.mood}</small>
+                    ) : (
+                      <small>{asset.display_name}</small>
+                    )}
                   </span>
                   <span className={styles.talkNum}>
                     <b data-hot={talent.heat !== null && talent.heat >= 1.5 ? "" : undefined}>{effectiveSort === "heat" ? (heat ?? "—") : effectiveSort === "recent" ? talent.posts_recent : talent.posts_24h}</b>
@@ -620,7 +848,7 @@ function TalentWeek({ symbol, asset, onClose, onWire }: { symbol: string; asset:
       {history?.topics.length ? (
         <ul className={styles.topics} aria-label="What the posts were about">
           {history.topics.map((entry) => (
-            <li key={entry.topic}>
+            <li key={entry.topic} data-valence={VALENCE[entry.topic] ?? "passing"} data-out={entry.counted ? undefined : ""}>
               <span>{TOPIC_LABEL[entry.topic] ?? entry.topic}</span>
               <i style={{ "--w": `${(entry.posts / topicMax) * 100}%` } as CSSProperties} aria-hidden="true" />
               <b>{entry.posts.toLocaleString("en-US")}</b>
@@ -628,6 +856,7 @@ function TalentWeek({ symbol, asset, onClose, onWire }: { symbol: string; asset:
           ))}
         </ul>
       ) : null}
+      {history?.topics.some((entry) => !entry.counted) ? <p className={styles.weekNote}>Rumours and posts that aren&apos;t about her are listed but not counted.</p> : null}
       <div className={styles.weekLinks}>
         <button type="button" onClick={onWire}>
           Her wire →
