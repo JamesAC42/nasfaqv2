@@ -26,6 +26,7 @@ import { useOpenStream } from "@/app/stores/stream-store";
 import { previewOf } from "@/app/lib/streams";
 import { TradingPausedBanner } from "@/app/components/common/trading-paused-banner";
 import { useMarketStore } from "@/app/stores/market-store";
+import { useSiteStore } from "@/app/stores/site-store";
 import { markSeries, UNIT_ORDER, unitLabel, unitName } from "@/app/lib/market-units";
 import { useNewsStore } from "@/app/stores/news-store";
 import { CHATTER_TOPIC, heatLabel, useChatterStore, type ChatterTalent } from "@/app/stores/chatter-store";
@@ -85,6 +86,7 @@ function wireStory(item: WireItem): NewsItem {
 // ── Masthead ──────────────────────────────────────────────────────────────────
 function Masthead({ assets }: { assets: MarketAsset[] }) {
   const marketStatus = useMarketStore((state) => state.marketStatus);
+  const online = useSiteStore((state) => state.online);
 
   const pulse = useMemo(() => {
     if (!assets.length) return null;
@@ -124,6 +126,12 @@ function Masthead({ assets }: { assets: MarketAsset[] }) {
           <span>{today.toUpperCase()}</span>
           {settled ? <span>SETTLED {settled} ET</span> : null}
           <span>{assets.length || "—"} TALENTS LISTED</span>
+          {online !== null ? (
+            <span className={styles.online} title="People on NASFAQ right now">
+              <i aria-hidden="true" />
+              {online.toLocaleString("en-US")} ONLINE
+            </span>
+          ) : null}
         </div>
       </div>
       {pulse ? (

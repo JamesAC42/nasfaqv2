@@ -7,7 +7,7 @@ import { useTradeStore } from "@/app/stores/trade-store";
 
 // Which release is live and whether maintenance is on (api/src/services/siteState.js). Read on
 // load, when the tab comes back into view and every few minutes; changes also arrive on the market
-// socket as `site.status`.
+// socket as `site.status`. How many people are online arrives there too (`site.online`).
 
 export type Maintenance = {
   /** "draining": a release is going out and new games wait; "on": an admin paused games. */
@@ -49,6 +49,8 @@ type SiteStore = {
   baseline: string | null | undefined;
   /** A release the player waved off with "Later"; the notice comes back for the next one. */
   dismissed: string | null;
+  /** People on the site right now (api/src/services/presence.js), from the market socket. */
+  online: number | null;
   refresh: () => Promise<void>;
   dismiss: () => void;
 };
@@ -57,12 +59,14 @@ export const useSiteStore = create<SiteStore>((set, get) => ({
   site: null,
   baseline: undefined,
   dismissed: null,
+  online: null,
   refresh: async () => {
     try {
-      const data = await apiFetch<{ site: unknown }>("/api/site");
+      const data = await apiFetch<{ site: unknown; online?: unknown }>("/api/site");
       const site = normalizeSite(data.site);
       if (!site) return;
-      set((state) => ({ site, baseline: state.baseline === undefined ? site.version : state.baseline }));
+      const online = typeof data.online === "number" && data.online >= 0 ? data.online : get().online;
+      set((state) => ({ site, online, baseline: state.baseline === undefined ? site.version : state.baseline }));
     } catch {
       // An API from before /api/site, or a blip: keep what we had.
     }
@@ -113,6 +117,11 @@ export function connectSite() {
   const { refresh } = useSiteStore.getState();
   void refresh();
   onMarketEvent((payload) => {
+    if (payload.type === "site.online") {
+      const online = Number(payload.online);
+      if (Number.isFinite(online) && online >= 0) useSiteStore.setState({ online });
+      return;
+    }
     if (payload.type !== "site.status") return;
     const site = normalizeSite(payload.site);
     if (site) useSiteStore.setState((state) => ({ site, baseline: state.baseline === undefined ? site.version : state.baseline }));
