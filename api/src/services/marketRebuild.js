@@ -1,3 +1,4 @@
+const { performance } = require("node:perf_hooks");
 const { invalidateMarketAssetsCache } = require("../marketCache");
 const { publishMarketStatusEvent } = require("./marketEvents");
 const fundamentals = require("./fundamentals");
@@ -81,7 +82,7 @@ async function runFullRebuild({ pool, redis = null }, { activeOnly = true, fillM
     if (!latestReadyDate || latestReadyDate < range.from) throw codedError("no_ready_historical_data");
     const total = dayCount(range.from, latestReadyDate);
 
-    onProgress({ phase: "fundamentals", done: 0, total, market_date: range.from });
+    await onProgress({ phase: "fundamentals", done: 0, total, market_date: range.from });
     const bootstrap = await marketAdmin.bootstrapAssets(pool, { activeOnly, syncExisting: true });
     const fundamentalsResult = await fundamentals.recalculateFundamentals(pool, {
       from: range.from,
@@ -94,17 +95,19 @@ async function runFullRebuild({ pool, redis = null }, { activeOnly = true, fillM
     const startedAt = new Date();
     let adjustmentsApplied = 0;
     let done = 0;
-    onProgress({ phase: "settling", done, total, market_date: range.from });
+    await onProgress({ phase: "settling", done, total, market_date: range.from });
     const settlementResult = await settlement.settleMarketRange(pool, {
       from: range.from,
       to: latestReadyDate,
       force: true,
       redis: null, // one socket event per replayed day would flood connected clients
       afterDay: async (day) => {
+        const replayStarted = performance.now();
         const replay = await marketAdjustments.replayAdjustmentsForDate(pool, { marketDate: day.market_date, until: startedAt });
         adjustmentsApplied += replay.applied_count;
         done += 1;
-        onProgress({ phase: "settling", done, total, market_date: day.market_date });
+        await onProgress({ phase: "settling", done, total, market_date: day.market_date,
+          timings_ms: { ...day.timings_ms, replay: Math.round(performance.now() - replayStarted) } });
       },
     });
 

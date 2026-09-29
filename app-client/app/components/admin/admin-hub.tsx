@@ -1,5 +1,7 @@
 "use client";
 
+import { schedulerLabel } from "./admin-api";
+
 import Link from "next/link";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
@@ -107,8 +109,8 @@ function buildAttention({
   }
 
   if (adjust) {
-    if (!adjust.scheduler_enabled) {
-      items.push({ key: "tick-off", tone: "warn", title: "Tick scheduler is off", detail: "Base-rate ticks won't apply on their own.", href: "/admin/market-tuning#ticks", action: "Check" });
+    if (adjust.scheduler_status !== "running") {
+      items.push({ key: "tick-off", tone: "warn", title: `Tick scheduler: ${schedulerLabel(adjust)}`, detail: "Check the worker heartbeat and overdue ticks.", href: "/admin/market-tuning#ticks", action: "Check" });
     }
     if (adjust.stuck_scheduled_count || adjust.overdue_scheduled_count) {
       items.push({
@@ -126,8 +128,8 @@ function buildAttention({
   }
 
   if (live) {
-    if (!live.scheduler_enabled) {
-      items.push({ key: "live-off", tone: "warn", title: "Live-order batches are off", detail: "Queued orders won't fill.", href: "/admin/market-tuning#live-orders", action: "Check" });
+    if (live.scheduler_status !== "running") {
+      items.push({ key: "live-off", tone: "warn", title: `Live orders: ${schedulerLabel(live)}`, detail: "Check the worker heartbeat and pending orders.", href: "/admin/market-tuning#live-orders", action: "Check" });
     }
     if (live.health.overdue_pending_count) {
       items.push({
@@ -421,12 +423,12 @@ export function AdminHub() {
                 <div className={styles.healthCol}>
                   <h3>Schedulers</h3>
                   <dl className={styles.rows}>
-                    <Row label="Ticks" tone={a && !a.scheduler_enabled ? "warn" : undefined}>
+                    <Row label="Ticks" tone={a && a.scheduler_status !== "running" ? "warn" : undefined}>
                       {a ? (
                         <>
-                          <span className={ui.pill} data-tone={a.scheduler_enabled ? "blue" : "warn"}>
+                          <span className={ui.pill} data-tone={a.scheduler_status === "running" ? "blue" : "warn"}>
                             <i aria-hidden="true" />
-                            {a.scheduler_enabled ? "Running" : "Off"}
+                            {schedulerLabel(a)}
                           </span>
                           <small>every {Math.round(a.scheduler_interval_ms / 1000)}s{a.scheduler_lock_held ? " · lock held" : ""}</small>
                         </>
@@ -452,12 +454,12 @@ export function AdminHub() {
                         "—"
                       )}
                     </Row>
-                    <Row label="Live orders" tone={l && !l.scheduler_enabled ? "warn" : undefined}>
+                    <Row label="Live orders" tone={l && l.scheduler_status !== "running" ? "warn" : undefined}>
                       {l ? (
                         <>
-                          <span className={ui.pill} data-tone={l.scheduler_enabled ? "blue" : "warn"}>
+                          <span className={ui.pill} data-tone={l.scheduler_status === "running" ? "blue" : "warn"}>
                             <i aria-hidden="true" />
-                            {l.scheduler_enabled ? "Running" : "Off"}
+                            {schedulerLabel(l)}
                           </span>
                           <small>
                             {fmtCount(l.health.pending_count)} queued{l.health.overdue_pending_count ? ` · ${l.health.overdue_pending_count} overdue` : ""}

@@ -1,3 +1,4 @@
+const schedulerHealth = require("./schedulerHealth");
 const DEFAULT_TRADING_FEE_RATE = 0.01;
 const DEFAULT_TRANSIENT_HALF_LIFE_MINUTES = 60;
 const DEFAULT_TRANSIENT_IMPACT_WEIGHT = 0.7;
@@ -1421,11 +1422,15 @@ function startLiveOrderScheduler(pool, logger = console, redis = null) {
     500,
     Number(process.env.MARKET_LIVE_ORDER_SCHEDULER_INTERVAL_MS || DEFAULT_LIVE_ORDER_SCHEDULER_INTERVAL_MS)
   );
+  const heartbeat = schedulerHealth.startSchedulerHeartbeat(redis, "live-orders", { enabled, intervalMs }, logger);
+  if (!enabled) return () => heartbeat.stop();
   let running = false;
 
   async function tick() {
     if (!enabled || running) return;
     running = true;
+    heartbeat.update("running");
+    let tickError = null;
     let lockClient = null;
     try {
       // Inside the try: a pool timeout here used to be an unhandled rejection (a crashed pod) and
@@ -1439,6 +1444,8 @@ function startLiveOrderScheduler(pool, logger = console, redis = null) {
         logger.info?.("market live order batch processed", result);
       }
     } catch (error) {
+      tickError = error;
+      heartbeat.update("error", error);
       logger.error?.("market live order scheduler failed", error);
     } finally {
       if (lockClient) {
@@ -1446,6 +1453,7 @@ function startLiveOrderScheduler(pool, logger = console, redis = null) {
         lockClient.release();
       }
       running = false;
+      heartbeat.update(tickError ? "error" : "idle", tickError);
     }
   }
 
@@ -1454,7 +1462,7 @@ function startLiveOrderScheduler(pool, logger = console, redis = null) {
     void tick();
   }, intervalMs);
 
-  return () => clearInterval(timer);
+  return () => { clearInterval(timer); heartbeat.stop(); };
 }
 
 async function getPortfolioSummary(pool, userId) {
@@ -1577,7 +1585,7 @@ async function getPortfolioOrders(pool, userId, { limit = 100 } = {}) {
   return rows;
 }
 
-async function getLiveOrderAdminHealth(pool, { batchLimit = 10 } = {}) {
+async function getLiveOrderAdminHealth(pool, { batchLimit = 10, redis = null } = {}) {
   const safeLimit = Math.min(50, Math.max(1, Number.parseInt(String(batchLimit || 10), 10) || 10));
   const [healthResult, batchesResult] = await Promise.all([
     pool.query(
@@ -1631,11 +1639,7 @@ async function getLiveOrderAdminHealth(pool, { batchLimit = 10 } = {}) {
 
   return {
     generated_at: new Date().toISOString(),
-    scheduler_enabled: (process.env.MARKET_LIVE_ORDER_SCHEDULER_ENABLED || "true").toLowerCase() !== "false",
-    scheduler_interval_ms: Math.max(
-      500,
-      Number(process.env.MARKET_LIVE_ORDER_SCHEDULER_INTERVAL_MS || DEFAULT_LIVE_ORDER_SCHEDULER_INTERVAL_MS)
-    ),
+    ...await schedulerHealth.getSchedulerHealth(redis, "live-orders"),
     share_limit_per_tick: null,
     share_limit_per_interval: LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL,
     batch_limit: LIVE_ORDER_BATCH_LIMIT,

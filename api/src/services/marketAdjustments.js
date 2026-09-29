@@ -1,3 +1,4 @@
+const schedulerHealth = require("./schedulerHealth");
 const { invalidateMarketAssetsCache } = require("../marketCache");
 const { publishMarketEvent } = require("./marketEvents");
 
@@ -969,15 +970,21 @@ async function releaseAdjustmentSchedulerLock(client) {
 function startAdjustmentScheduler(pool, logger = console, redis = null) {
   const enabled = (process.env.MARKET_ADJUSTMENT_SCHEDULER_ENABLED || "true").toLowerCase() !== "false";
   const intervalMs = Math.max(10_000, Number(process.env.MARKET_ADJUSTMENT_SCHEDULER_INTERVAL_MS || 60_000));
+  const heartbeat = schedulerHealth.startSchedulerHeartbeat(redis, "adjustment", { enabled, intervalMs }, logger);
+  if (!enabled) return () => heartbeat.stop();
   let running = false;
 
   async function tick() {
     if (!enabled || running) return;
     running = true;
+    heartbeat.update("running");
+    let tickError = null;
     let lockClient;
     try {
       lockClient = await pool.connect();
     } catch (error) {
+      tickError = error;
+      heartbeat.update("error", error);
       // Pool exhausted or the database is down: skip this tick instead of crashing the process.
       running = false;
       logger.error?.("market adjustment scheduler could not get a connection", error);
@@ -988,11 +995,17 @@ function startAdjustmentScheduler(pool, logger = console, redis = null) {
       if (!locked) return;
       await applyDueAdjustments(pool, { redis });
     } catch (error) {
+      tickError = error;
+      heartbeat.update("error", error);
       logger.error?.("market adjustment scheduler failed", error);
     } finally {
-      await releaseAdjustmentSchedulerLock(lockClient);
-      lockClient.release();
-      running = false;
+      try { await releaseAdjustmentSchedulerLock(lockClient); }
+      catch (error) { tickError = error; logger.error?.("adjustment lock release failed", error?.code); }
+      finally {
+        lockClient.release(tickError);
+        running = false;
+        heartbeat.update(tickError ? "error" : "idle", tickError);
+      }
     }
   }
 
@@ -1001,7 +1014,7 @@ function startAdjustmentScheduler(pool, logger = console, redis = null) {
     void tick();
   }, intervalMs);
 
-  return () => clearInterval(timer);
+  return () => { clearInterval(timer); heartbeat.stop(); };
 }
 
 async function getAdjustmentSummary(pool, { recentLimit = 20 } = {}) {
@@ -1431,7 +1444,7 @@ async function getAdminAdjustmentSession(pool, sessionId) {
   };
 }
 
-async function getAdminAdjustmentHealth(pool) {
+async function getAdminAdjustmentHealth(pool, redis = null) {
   const [healthResult, lockResult] = await Promise.all([
     pool.query(
       `
@@ -1462,8 +1475,7 @@ async function getAdminAdjustmentHealth(pool) {
   return {
     ...(healthResult.rows[0] || {}),
     scheduler_lock_held: Number(lockResult.rows[0]?.lock_count || 0) > 0,
-    scheduler_interval_ms: Math.max(10_000, Number(process.env.MARKET_ADJUSTMENT_SCHEDULER_INTERVAL_MS || 60_000)),
-    scheduler_enabled: (process.env.MARKET_ADJUSTMENT_SCHEDULER_ENABLED || "true").toLowerCase() !== "false",
+    ...await schedulerHealth.getSchedulerHealth(redis, "adjustment"),
   };
 }
 

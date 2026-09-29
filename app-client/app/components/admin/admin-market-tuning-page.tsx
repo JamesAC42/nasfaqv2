@@ -1,5 +1,7 @@
 "use client";
 
+import { schedulerLabel } from "./admin-api";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   asArray,
@@ -569,9 +571,9 @@ export function AdminMarketTuningPage() {
 
       <div className={ui.stripWrap}>
         <div className={ui.strip} style={{ ["--cols" as string]: 6, ["--cols-tablet" as string]: 3 }}>
-          <div className={ui.stat} data-tone={health && !health.scheduler_enabled ? "warn" : "blue"}>
+          <div className={ui.stat} data-tone={health && health.scheduler_status !== "running" ? "warn" : "blue"}>
             <small>Tick scheduler</small>
-            <b>{health ? (health.scheduler_enabled ? "Running" : "Off") : "—"}</b>
+            <b>{health ? schedulerLabel(health) : "—"}</b>
             <em>{health ? `every ${Math.round(health.scheduler_interval_ms / 1000)}s${health.scheduler_lock_held ? " · lock held" : ""}` : " "}</em>
           </div>
           <div className={ui.stat}>
@@ -800,7 +802,7 @@ export function AdminMarketTuningPage() {
             <dl className={styles.facts}>
               <div>
                 <dt>Scheduler</dt>
-                <dd data-tone={liveHealth && !liveHealth.scheduler_enabled ? "warn" : "blue"}>{liveHealth ? (liveHealth.scheduler_enabled ? "Running" : "Off") : "—"}</dd>
+                <dd data-tone={liveHealth && liveHealth.scheduler_status !== "running" ? "warn" : "blue"}>{liveHealth ? schedulerLabel(liveHealth) : "—"}</dd>
                 <dd>
                   <small>{liveHealth ? `${Math.round(liveHealth.scheduler_interval_ms / 1000)}s poll · ${liveHealth.batch_limit} per batch` : ""}</small>
                 </dd>

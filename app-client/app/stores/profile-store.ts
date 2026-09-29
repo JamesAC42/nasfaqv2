@@ -105,6 +105,7 @@ export const useProfileStore = create<ProfileState>((set) => ({
     // The rebuild runs in the background on the API (it takes longer than a proxied request can
     // stay open): start it, then poll its progress.
     type RebuildJob = {
+      id: string;
       status: "running" | "completed" | "failed";
       progress: { phase: string; done: number; total: number | null; market_date: string | null };
       result: null | {
@@ -138,7 +139,7 @@ export const useProfileStore = create<ProfileState>((set) => ({
       while (job.status === "running") {
         set({ adminStatus: describe(job) });
         await new Promise((resolve) => setTimeout(resolve, 1500));
-        job = (await apiFetch<{ job: RebuildJob | null }>("/internal/market/rebuild-full")).job ?? { ...job, status: "failed", error: "rebuild_lost (the API restarted)" };
+        job = (await apiFetch<{ job: RebuildJob | null }>(`/internal/market/rebuild-full?id=${encodeURIComponent(job.id)}`)).job ?? { ...job, status: "failed", error: "rebuild_lost (the API restarted)" };
       }
       if (job.status === "failed" || !job.result) throw new Error(`Rebuild failed: ${job.error ?? "unknown error"}`);
       const { range, fundamentals, settlement, adjustments_applied } = job.result;

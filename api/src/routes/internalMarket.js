@@ -1,3 +1,4 @@
+const rebuildJobs = require("../services/rebuildJobs");
 const express = require("express");
 const { invalidateMarketAssetsCache } = require("../marketCache");
 const { publishMarketStatusEvent } = require("../services/marketEvents");
@@ -311,64 +312,39 @@ router.post("/live-orders/apply-due", async (req, res, next) => {
   }
 });
 
-// The rebuild takes a minute or more on a year of data, longer than a proxied web request may stay
-// open, so it runs in the background: POST starts it (202), GET /rebuild-full reports progress.
-// One rebuild at a time per API process; the scheduler lock also keeps it off other processes.
-let rebuildJob = null;
-
-router.get("/rebuild-full", (req, res) => {
-  res.json({ job: rebuildJob });
+// All API replicas read the same job; its session lock fences concurrent rebuilds.
+router.get("/rebuild-full", async (req, res, next) => {
+  try {
+    const id = req.query.id || null;
+    if (id && (typeof id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))) return res.status(400).json({ error: "invalid_job_id" });
+    res.set("Cache-Control", "no-store");
+    res.json({ job: await rebuildJobs.getJob(req.ctx.pool, id) });
+  } catch (error) { next(error); }
 });
 
 router.post("/rebuild-full", async (req, res, next) => {
   try {
     requireAdmin(req);
     if (!hasConfirmation(req, "rebuild")) return res.status(400).json({ error: "invalid_confirmation" });
-    if (rebuildJob?.status === "running") return res.status(409).json({ error: "rebuild_running", job: rebuildJob });
-
     const activeOnly = req.body?.active_only === undefined ? true : Boolean(req.body.active_only);
     const fillMissingDates = req.body?.fill_missing_dates === undefined ? true : Boolean(req.body.fill_missing_dates);
     const version = Number.parseInt(String(req.body?.version ?? "1"), 10);
     if (!Number.isFinite(version) || version < 1) return res.status(400).json({ error: "invalid_version" });
-
-    const job = {
-      id: Date.now(),
-      status: "running",
-      started_at: new Date().toISOString(),
-      finished_at: null,
-      progress: { phase: "starting", done: 0, total: null, market_date: null },
-      result: null,
-      error: null,
-    };
-    rebuildJob = job;
+    const options = { activeOnly, fillMissingDates, version, from: typeof req.body?.from === "string" ? req.body.from : null };
     const { pool, redis } = req.ctx;
-    marketRebuild
-      // History starts at body.from, else MARKET_HISTORY_FROM, else 2026-01-01.
-      .runFullRebuild({ pool, redis }, { activeOnly, fillMissingDates, version, from: typeof req.body?.from === "string" ? req.body.from : null }, (progress) => {
-        job.progress = progress;
-      })
-      .then((result) => {
-        job.status = "completed";
-        job.result = {
-          range: result.range,
-          fundamentals: { snapshots_processed: result.fundamentals?.snapshots_processed ?? null, failed_snapshots: result.fundamentals?.failed_snapshots ?? null },
-          settlement: { settled_count: result.settlement.settled_count, skipped_dates: result.settlement.skipped_dates.slice(0, 20) },
-          adjustments_applied: result.adjustments_applied,
-        };
-      })
-      .catch((error) => {
-        job.status = "failed";
-        job.error = String(error?.code || error?.message || error);
-        // eslint-disable-next-line no-console
-        console.error("market rebuild failed:", error);
-      })
-      .finally(() => {
-        job.finished_at = new Date().toISOString();
-      });
-
+    const job = await rebuildJobs.startJob(pool, async onProgress => {
+      const result = await marketRebuild.runFullRebuild({ pool, redis }, options, onProgress);
+      return {
+        range: result.range,
+        fundamentals: { snapshots_processed: result.fundamentals?.snapshots_processed ?? null, failed_snapshots: result.fundamentals?.failed_snapshots ?? null },
+        settlement: { settled_count: result.settlement.settled_count, skipped_dates: result.settlement.skipped_dates.slice(0, 20) },
+        adjustments_applied: result.adjustments_applied,
+      };
+    });
     res.status(202).json({ job });
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    if (error.code === "rebuild_running") return res.status(409).json({ error: error.code, job: error.job });
+    next(error);
   }
 });
 

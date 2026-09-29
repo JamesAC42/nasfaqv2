@@ -92,6 +92,7 @@ export type AdjustmentHealth = {
   scheduler_lock_held: boolean;
   scheduler_interval_ms: number;
   scheduler_enabled: boolean;
+  scheduler_status: string;
 };
 
 export function normalizeAdjustmentHealth(row: Record<string, unknown> | null | undefined): AdjustmentHealth {
@@ -108,6 +109,7 @@ export function normalizeAdjustmentHealth(row: Record<string, unknown> | null | 
     scheduler_lock_held: Boolean(r.scheduler_lock_held),
     scheduler_interval_ms: int(r.scheduler_interval_ms),
     scheduler_enabled: Boolean(r.scheduler_enabled),
+    scheduler_status: str(r.scheduler_status) || "unknown",
   };
 }
 
@@ -125,6 +127,7 @@ export type LiveOrderBatch = {
 export type LiveOrderHealth = {
   generated_at: string | null;
   scheduler_enabled: boolean;
+  scheduler_status: string;
   scheduler_interval_ms: number;
   batch_limit: number;
   health: {
@@ -145,6 +148,7 @@ export function normalizeLiveOrderHealth(row: Record<string, unknown> | null | u
   return {
     generated_at: str(r.generated_at),
     scheduler_enabled: Boolean(r.scheduler_enabled),
+    scheduler_status: str(r.scheduler_status) || "unknown",
     scheduler_interval_ms: int(r.scheduler_interval_ms),
     batch_limit: int(r.batch_limit),
     health: {
@@ -194,3 +198,8 @@ export type ReviewFlag = {
 export type ExchangeReview = { window_days: number; new_account_days: number; ratio: number; flags: ReviewFlag[] };
 
 export const fetchExchangeReview = (days: number) => apiFetch<ExchangeReview>(`/api/admin/exchange-review?days=${days}`, { cache: "no-store" });
+
+export function schedulerLabel(health: { scheduler_status: string } | null | undefined) {
+  const labels: Record<string, string> = { running: "Running", off: "Off", stale: "Not reporting", unknown: "Unknown", error: "Error", stalled: "Stalled" };
+  return health ? labels[health.scheduler_status] || "Unknown" : "—";
+}

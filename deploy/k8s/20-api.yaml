@@ -107,6 +107,8 @@ spec:
           env:
             - name: PORT
               value: "5067"
+            - name: SCHEDULER_STATUS_OWNER
+              value: "true"
             - name: ENABLE_MIGRATIONS
               value: "false"
             - name: LIVESTREAM_SNAPSHOT_OWNER

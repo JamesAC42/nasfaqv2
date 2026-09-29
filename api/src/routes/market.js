@@ -252,7 +252,7 @@ router.get("/live-orders/admin/health", async (req, res, next) => {
   try {
     requireAdmin(req);
     const batchLimit = parsePositiveInt(req.query.batch_limit, 10, { min: 1, max: 50 });
-    const result = await trading.getLiveOrderAdminHealth(req.ctx.pool, { batchLimit });
+    const result = await trading.getLiveOrderAdminHealth(req.ctx.pool, { batchLimit, redis: req.ctx.redis });
     res.json(result);
   } catch (e) {
     next(e);
@@ -286,7 +286,7 @@ router.get("/adjustments/admin/sessions/:sessionId", async (req, res, next) => {
 router.get("/adjustments/admin/health", async (req, res, next) => {
   try {
     requireAdmin(req);
-    const result = await marketAdjustments.getAdminAdjustmentHealth(req.ctx.pool);
+    const result = await marketAdjustments.getAdminAdjustmentHealth(req.ctx.pool, req.ctx.redis);
     res.json(result);
   } catch (e) {
     next(e);

@@ -847,12 +847,9 @@ async function main() {
   if (cfg.enableMarketSettlementScheduler) {
     startMarketScheduler(pool, console, redis);
   }
-  if (cfg.enableMarketAdjustmentScheduler) {
-    startAdjustmentScheduler(pool, console, redis);
-  }
-  if (cfg.enableMarketLiveOrderScheduler) {
-    startLiveOrderScheduler(pool, console, redis);
-  }
+  // Disabled status-owner workers publish Off; web/game replicas publish nothing.
+  startAdjustmentScheduler(pool, console, redis);
+  startLiveOrderScheduler(pool, console, redis);
   if (cfg.enableMarketSettlementScheduler) {
     // Saturday 00:00 ET: dividends and fees, max shares, buybacks (MARKET_WEEKLY_EVALUATION_ENABLED=false to stop it).
     require("./services/weeklyEvaluation").startWeeklyEvaluationScheduler(pool, console, redis);

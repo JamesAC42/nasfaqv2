@@ -1718,6 +1718,7 @@ async function applySchema(pool) {
       client.release();
     }
   }
+  await pool.query(require("./services/rebuildJobs").schema);
   await applyGamesSchema(pool);
   await applyPredictionsSchema(pool);
 }

@@ -1,3 +1,5 @@
+const settlementBatch = require("./settlementBatch");
+const { performance } = require("node:perf_hooks");
 const { normalizeFundamentalToPrice } = require("./fundamentals");
 const supply = require("./marketSupply");
 const netWorth = require("./netWorth");
@@ -123,7 +125,7 @@ async function markSettlementRunComplete(client, runId) {
   await client.query(
     `
     UPDATE market.market_settlement_runs
-    SET status = 'completed', completed_at = now(), error_text = NULL
+    SET status = 'completed', completed_at = clock_timestamp(), error_text = NULL
     WHERE id = $1
   `,
     [runId]
@@ -135,7 +137,7 @@ async function markSettlementRunFailed(pool, runId, errorText) {
   await pool.query(
     `
     UPDATE market.market_settlement_runs
-    SET status = 'failed', completed_at = now(), error_text = $2
+    SET status = 'failed', completed_at = clock_timestamp(), error_text = $2
     WHERE id = $1
   `,
     [runId, errorText]
@@ -225,21 +227,6 @@ async function listSettleableDates(client, { from, to }) {
     ORDER BY s.snapshot_date ASC
   `,
     [from, to]
-  );
-  return rows;
-}
-
-async function listPreviousDailyStates(client, assetId, marketDate, limit = 1) {
-  const { rows } = await client.query(
-    `
-    SELECT market_date, mid_close, mid_close_mark, fair_value, premium_close_pct, volume_shares, volume_cash
-    FROM market.asset_daily_market_state
-    WHERE asset_id = $1
-      AND market_date < $2
-    ORDER BY market_date DESC
-    LIMIT $3
-  `,
-    [assetId, marketDate, limit]
   );
   return rows;
 }
@@ -344,124 +331,6 @@ function buildSettledAssetState(assetRow, previousState) {
   };
 }
 
-async function persistSettledAssetState(client, marketDate, state) {
-  await client.query(
-    `
-    INSERT INTO market.asset_price_events (
-      asset_id,
-      ts,
-      event_type,
-      old_mid_price,
-      new_mid_price,
-      fair_value_at_event,
-      metadata_json
-    ) VALUES (
-      $1,
-      $2::date::timestamptz,
-      'daily_reset',
-      $3,
-      $4,
-      $5,
-      jsonb_build_object('market_date', $2::date)
-    )
-  `,
-    [state.assetId, marketDate, state.priorMidPrice, state.midOpen, state.fairValue]
-  );
-
-  await client.query(
-    `
-    INSERT INTO market.asset_daily_market_state (
-      asset_id,
-      market_date,
-      snapshot_id,
-      fair_value,
-      fair_value_raw,
-      mid_open,
-      mid_close,
-      mid_close_mark,
-      mid_high,
-      mid_low,
-      bid_close,
-      ask_close,
-      premium_close_pct,
-      daily_emission,
-      treasury_supply_start,
-      treasury_supply_end,
-      circulating_supply_start,
-      circulating_supply_end,
-      volume_shares,
-      volume_cash,
-      trade_count,
-      updated_at
-    ) VALUES (
-      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-      $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,now()
-    )
-  `,
-    [
-      state.assetId,
-      marketDate,
-      state.snapshotId,
-      state.fairValue,
-      state.fairValueRaw,
-      state.midOpen,
-      state.midClose,
-      state.midCloseMark,
-      state.midHigh,
-      state.midLow,
-      state.bidClose,
-      state.askClose,
-      state.premiumClosePct,
-      state.dailyEmission,
-      state.treasurySupplyStart,
-      state.treasurySupplyEnd,
-      state.circulatingSupplyStart,
-      state.circulatingSupplyEnd,
-      state.volumeShares,
-      state.volumeCash,
-      state.tradeCount,
-    ]
-  );
-
-  await client.query(
-    `
-    UPDATE market.market_assets
-    SET
-      latest_snapshot_date = $2,
-      latest_snapshot_id = $3,
-      current_fair_value = $4,
-      current_fair_value_raw = $5,
-      current_mid_price = $6,
-      current_bid_price = $7,
-      current_ask_price = $8,
-      current_premium_pct = $9,
-      current_daily_emission = $10,
-      current_persistent_offset = $11,
-      current_transient_offset = $12,
-      offsets_updated_at = $13,
-      -- Shares only move in fills and at the weekly evaluation, never here (a stale count from the
-      -- unlocked read above would overwrite fills that landed meanwhile).
-      liquidity_depth = GREATEST(${DEFAULT_LIQUIDITY_DEPTH_FLOOR}, circulating_supply * 1.0),
-      updated_at = now()
-    WHERE id = $1
-  `,
-    [
-      state.assetId,
-      state.snapshotDate,
-      state.snapshotId,
-      state.fairValue,
-      state.fairValueRaw,
-      state.midOpen,
-      state.bidClose,
-      state.askClose,
-      state.premiumClosePct,
-      state.dailyEmission,
-      state.persistentOffset,
-      state.transientOffset,
-      marketDate,
-    ]
-  );
-}
 
 function buildDailyReport(marketDate, settledStates, previousStatesByAssetId, priorStatesByAssetId) {
   const fairValueChanges = settledStates.map((state) => {
@@ -615,16 +484,19 @@ async function settleMarketDay(pool, { marketDate, sourceMarketDate = null, forc
     const previousStatesByAssetId = new Map();
     const priorStatesByAssetId = new Map();
 
+    const assetIoStarted = performance.now();
+    const histories = await settlementBatch.loadPreviousStates(client, assets.map(a => a.id), marketDate);
     for (const asset of assets) {
-      const previousStates = await listPreviousDailyStates(client, asset.id, marketDate, 2);
+      const previousStates = histories.get(Number(asset.id)) || [];
       const previousState = previousStates[0] || null;
       const priorState = previousStates[1] || null;
       previousStatesByAssetId.set(asset.id, previousState);
       priorStatesByAssetId.set(asset.id, priorState);
       const state = buildSettledAssetState(asset, previousState);
-      await persistSettledAssetState(client, marketDate, state);
       settledStates.push(state);
     }
+    await settlementBatch.persistStates(client, marketDate, settledStates, DEFAULT_LIQUIDITY_DEPTH_FLOOR);
+    const assetIoMs = performance.now() - assetIoStarted;
 
     // A buyback whose stock is back under its max shares ends at this Open (BBB: "cancelled at the
     // next Open"); the stock unfreezes.
@@ -679,6 +551,7 @@ async function settleMarketDay(pool, { marketDate, sourceMarketDate = null, forc
       source_market_date: resolvedSourceMarketDate,
       run_id: runId,
       asset_count: settledStates.length,
+      timings_ms: { asset_io: Math.round(assetIoMs) },
       assets: settledStates.map(buildSettlementAssetPayload),
       report,
       at: new Date().toISOString(),
@@ -690,6 +563,7 @@ async function settleMarketDay(pool, { marketDate, sourceMarketDate = null, forc
       source_market_date: resolvedSourceMarketDate,
       run_id: runId,
       asset_count: settledStates.length,
+      timings_ms: { asset_io: Math.round(assetIoMs) },
       report,
     };
   } catch (error) {
@@ -755,7 +629,9 @@ module.exports = {
       const marketDate = shiftDateKey(sourceMarketDate, marketDateOffsetDays);
       let result;
       try {
+        const dayStarted = performance.now();
         result = await settleMarketDay(pool, { marketDate, sourceMarketDate, force, redis });
+        result.timings_ms = { ...result.timings_ms, settlement: Math.round(performance.now() - dayStarted) };
         settled.push({
           market_date: result.market_date,
           source_market_date: result.source_market_date,
