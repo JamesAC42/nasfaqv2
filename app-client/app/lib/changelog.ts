@@ -14,10 +14,14 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-09-29",
-    title: "The report keeps the ticks' secret",
+    title: "Adjustment reports and settlement reports",
     changes: [
-      { kind: "fixed", text: "The market report and stock charts could give away where the day's ticks were heading before they landed." },
-      { kind: "improved", text: "Market → Report shows today as a live session in prices while its ticks land, then the full report after the overnight tick." },
+      { kind: "fixed", text: "The market report and stock charts could give away where the day's adjustments were heading before they landed." },
+      { kind: "improved", text: "Market → Report is an adjustment report through the day: prices since the last close, and each adjustment as it lands." },
+      {
+        kind: "new",
+        text: "Once the last adjustment is in, the day becomes a settlement report: each talent's new target, what every adjustment did and how hard it pulled, what trading did in between, and how close prices finished.",
+      },
     ],
   },
   {

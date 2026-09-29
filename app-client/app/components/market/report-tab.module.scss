@@ -445,7 +445,7 @@
 
 .tkb {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 
   > div {
     border-right: 1px solid var(--rule);
@@ -983,5 +983,219 @@
 
   b {
     font-size: 0.6875rem;
+  }
+}
+
+// ── The day step by step (report-day.tsx) ─────────────────────────────────
+.talentDay,
+.gapSec {
+  padding: 0.875rem 1rem 1rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.tdTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  margin-bottom: 0.6rem;
+}
+
+.tdPick {
+  width: min(20rem, 100%);
+}
+
+.tdSum {
+  margin: 0 0 0.8rem;
+  max-width: 80ch;
+  color: var(--mid);
+  font-size: 0.85rem;
+  line-height: 1.65;
+
+  b {
+    color: var(--text);
+  }
+}
+
+// One series on one axis: trading as sloped grey, each adjustment as a vertical blue jump.
+.stepChart {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  margin-top: 0.4rem;
+}
+
+.scSlot {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+
+.scAxis,
+.scPending {
+  @include num;
+  font-size: 0.56rem;
+  letter-spacing: 0.08em;
+  fill: var(--dim);
+}
+
+.scPending {
+  fill: var(--mid);
+}
+
+.scRef {
+  stroke: var(--text);
+  stroke-width: 1.5;
+  opacity: 0.7;
+}
+
+.scRefSoft {
+  stroke: var(--dim);
+  stroke-width: 1;
+  opacity: 0.6;
+}
+
+.scRefText,
+.scRefTextSoft {
+  @include num;
+  font-size: 0.6rem;
+  fill: var(--text);
+}
+
+.scRefTextSoft {
+  fill: var(--dim);
+}
+
+.scAdj {
+  stroke: var(--blue);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.scTrade {
+  stroke: var(--dim);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.scDotAdj {
+  fill: var(--blue);
+  stroke: var(--ink-2);
+  stroke-width: 2;
+}
+
+.scDot {
+  fill: var(--ink-2);
+  stroke: var(--mid);
+  stroke-width: 2;
+}
+
+.scLabel {
+  @include num;
+  font-size: 0.62rem;
+  fill: var(--text);
+}
+
+.scHit {
+  fill: transparent;
+  cursor: default;
+  outline: none;
+
+  &:focus-visible {
+    stroke: var(--blue);
+    stroke-width: 2;
+  }
+}
+
+.scCross {
+  stroke: var(--rule-2);
+  stroke-width: 1;
+}
+
+.scTip {
+  position: absolute;
+  z-index: 2;
+  width: 190px;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--rule-2);
+  background: var(--ink-2);
+  box-shadow: var(--shadow-pop, 0 8px 24px rgba(0, 0, 0, 0.35));
+  color: var(--text);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  pointer-events: none;
+}
+
+.scLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  @include num;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  color: var(--mid);
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  i {
+    display: inline-block;
+    width: 16px;
+    height: 0;
+    border-top: 2px solid var(--dim);
+  }
+
+  .lgAdj {
+    width: 0;
+    height: 12px;
+    border-top: 0;
+    border-left: 2.5px solid var(--blue);
+  }
+
+  .lgRef {
+    border-top: 1.5px solid var(--text);
+    opacity: 0.7;
+  }
+}
+
+.lgTrade {
+  transform: rotate(-20deg);
+}
+
+// The same steps as a table.
+.tdTableWrap {
+  overflow-x: auto;
+  margin-top: 0.6rem;
+}
+
+.tdTable {
+  width: 100%;
+  border-collapse: collapse;
+  @include num;
+  font-size: 0.72rem;
+
+  th,
+  td {
+    padding: 0.35rem 0.6rem;
+    border-bottom: 1px solid var(--rule);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  th {
+    @include label;
+    color: var(--dim);
+    font-weight: 500;
+  }
+
+  .l {
+    text-align: left;
+  }
+
+  tr[data-adj] td:first-child {
+    color: var(--blue);
   }
 }

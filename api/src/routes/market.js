@@ -16,6 +16,7 @@ const {
 const trading = require("../services/trading");
 const marketAdjustments = require("../services/marketAdjustments");
 const weeklyEvaluation = require("../services/weeklyEvaluation");
+const reportSession = require("../services/reportSession");
 const { scrubPublicMarketPayload, publicDailyReport, revealedTargets } = require("../services/marketSecrecy");
 const marketState = require("../services/marketState");
 const { sendPublicAssets, sendLatestReport, sendHub, ADJUSTMENT_SUMMARY_LIMITS } = require("../publicMarketCache");
@@ -181,6 +182,22 @@ router.get("/me/dividends", async (req, res, next) => {
 router.get("/report/daily/latest", async (req, res, next) => {
   try {
     await sendLatestReport(req, res);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// One day step by step: each talent's price before and after every landed adjustment, and trading in
+// between. Strengths only once the day has finished (services/reportSession.js).
+router.get("/report/daily/:date/session", async (req, res, next) => {
+  try {
+    const marketDate = String(req.params.date || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(marketDate)) return res.status(400).json({ error: "invalid_date" });
+    await sendCachedJson(req, res, `market:report:session:${marketDate}`, {
+      ttlSeconds: 20,
+      memoMs: 5000,
+      load: () => reportSession.getSessionBreakdown(req.ctx.pool, marketDate),
+    });
   } catch (e) {
     next(e);
   }
