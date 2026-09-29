@@ -44,7 +44,11 @@ type History = {
   total: number;
   peak: { at: string; posts: number } | null;
   topics: Array<{ topic: string; posts: number }>;
-  talents: Array<{ symbol: string; posts: number }>;
+  talents: Array<{ symbol: string; posts: number; in_thread: number }>;
+  /** Posts in her own threads that don't name anyone (one talent only). */
+  in_thread: number | null;
+  /** The oldest post collected; hours before it weren't collected yet (not quiet). */
+  collecting_since: string | null;
 };
 
 const TOPIC_LABEL: Record<string, string> = {
@@ -64,6 +68,15 @@ function dayLabel(key: string, now: number) {
   if (key === today) return "Today";
   if (key === yesterday) return "Yesterday";
   return new Date(`${key}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+}
+
+/** "last 7 days", or "since Sun 10 PM" while collection hasn't covered the whole window yet. */
+function coverageText(history: History) {
+  const since = history.collecting_since ? Date.parse(history.collecting_since) : Number.NaN;
+  if (Number.isFinite(since) && since > Date.parse(history.start)) {
+    return `since ${new Date(since).toLocaleString("en-US", { weekday: "short", hour: "numeric", timeZone: "America/New_York" })} ET`;
+  }
+  return `last ${history.days} days`;
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
@@ -360,11 +373,13 @@ function Pulse({ assets, onPick }: { assets: Map<string, MarketAsset>; onPick: (
     <section className={styles.pulse} aria-label="/vt/ this week">
       <header className={styles.sectionHead}>
         <h2>{history?.board ?? "/vt/"} this week</h2>
-        <span>Posts about hololive talents per hour, from hololive threads. Rumours and posts that aren&apos;t about her don&apos;t count.</span>
+        <span>
+          Posts per hour in hololive threads that name a talent, or sit in a talent&apos;s own thread. Rumours and posts that aren&apos;t about her don&apos;t count.
+        </span>
       </header>
       <div className={styles.pulseBody}>
         <div className={styles.pulseStats}>
-          <Stat label="Posts" value={history ? history.total.toLocaleString("en-US") : "—"} sub="last 7 days" />
+          <Stat label="Posts" value={history ? history.total.toLocaleString("en-US") : "—"} sub={history ? coverageText(history) : " "} />
           <Stat
             label="Busiest hour"
             value={history?.peak ? history.peak.posts.toLocaleString("en-US") : "—"}
@@ -377,7 +392,11 @@ function Pulse({ assets, onPick }: { assets: Map<string, MarketAsset>; onPick: (
                 const asset = assets.get(entry.symbol);
                 return (
                   <li key={entry.symbol}>
-                    <button type="button" onClick={() => onPick(entry.symbol)}>
+                    <button
+                      type="button"
+                      onClick={() => onPick(entry.symbol)}
+                      title={entry.in_thread ? `${entry.posts - entry.in_thread} name her, ${entry.in_thread} more in her own threads` : `${entry.posts} posts name her`}
+                    >
                       <Oshimark icon={asset?.icon} symbol={entry.symbol} size={18} />
                       <b>{entry.symbol}</b>
                       <span>{entry.posts.toLocaleString("en-US")}</span>
@@ -420,6 +439,9 @@ function HourChart({ history, height }: { history: History | null; height: numbe
   const hourLabel = (date: Date) => date.toLocaleString("en-US", { weekday: "short", hour: "numeric", timeZone: "America/New_York" });
   const etHour = (date: Date) => Number(date.toLocaleString("en-US", { hour: "numeric", hourCycle: "h23", timeZone: "America/New_York" }));
   const midnights = values.map((_, index) => index).filter((index) => index > 0 && etHour(at(index)) === 0);
+  // Hours before collection started: shaded and labelled, so they don't read as a quiet week.
+  const sinceMs = history.collecting_since ? Date.parse(history.collecting_since) : Number.NaN;
+  const uncollected = Number.isFinite(sinceMs) ? Math.max(0, Math.min(count, Math.floor((sinceMs - start) / 3_600_000))) : 0;
   const daily: Array<{ key: string; label: string; posts: number }> = [];
   values.forEach((value, index) => {
     const key = dayKey(at(index).toISOString());
@@ -450,6 +472,7 @@ function HourChart({ history, height }: { history: History | null; height: numbe
       }}
     >
       <svg viewBox={`0 0 ${count} 100`} preserveAspectRatio="none" aria-hidden="true">
+        {uncollected > 0 ? <rect x={0} y={0} width={uncollected} height={100} className={styles.uncollected} /> : null}
         {midnights.map((index) => (
           <line key={index} x1={index} x2={index} y1={0} y2={100} className={styles.gridLine} vectorEffect="non-scaling-stroke" />
         ))}
@@ -458,6 +481,11 @@ function HourChart({ history, height }: { history: History | null; height: numbe
           return <rect key={index} x={index + 0.15} y={100 - h} width={0.7} height={h} className={index === shown ? styles.barOn : styles.bar} />;
         })}
       </svg>
+      {uncollected >= count * 0.12 ? (
+        <span className={styles.uncollectedLabel} style={{ width: `${(uncollected / count) * 100}%` }} aria-hidden="true">
+          not collected yet
+        </span>
+      ) : null}
       <div className={styles.days} aria-hidden="true">
         {midnights.map((index) => (
           <span key={index} style={{ left: `${(index / count) * 100}%` }}>
@@ -467,9 +495,7 @@ function HourChart({ history, height }: { history: History | null; height: numbe
       </div>
       {shown !== null ? (
         <div className={styles.readout} style={{ left: `${Math.min(88, Math.max(12, ((shown + 0.5) / count) * 100))}%` }} role="status">
-          <b>
-            {values[shown].toLocaleString("en-US")} post{values[shown] === 1 ? "" : "s"}
-          </b>
+          <b>{shown < uncollected ? "Not collected yet" : `${values[shown].toLocaleString("en-US")} post${values[shown] === 1 ? "" : "s"}`}</b>
           <span>{hourLabel(at(shown))} ET</span>
         </div>
       ) : null}
@@ -580,7 +606,11 @@ function TalentWeek({ symbol, asset, onClose, onWire }: { symbol: string; asset:
         <Oshimark icon={asset?.icon} symbol={symbol} size={28} />
         <span>
           <b>{asset?.display_name ?? symbol}</b>
-          <small>{history ? `${history.total.toLocaleString("en-US")} posts this week` : "Reading her week…"}</small>
+          <small>
+            {history
+              ? `${history.total.toLocaleString("en-US")} posts ${coverageText(history)}${history.in_thread ? `, ${history.in_thread.toLocaleString("en-US")} of them in her own threads` : ""}`
+              : "Reading her week…"}
+          </small>
         </span>
         <button type="button" className={styles.close} onClick={onClose} aria-label="Close">
           ✕

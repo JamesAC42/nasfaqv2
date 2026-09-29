@@ -273,11 +273,18 @@ async function getHistory(pool, { days = 7, symbol = null } = {}) {
     symbolFilter = "AND symbol = $3";
   }
   const base = `FROM content.vt_mentions WHERE posted_at > date_trunc('hour', now()) - ($2 || ' days')::interval + interval '1 hour' AND (topic IS NULL OR topic <> ALL($1::text[])) ${symbolFilter}`;
-  const [hours, topics, talentsResult, now] = await Promise.all([
-    pool.query(`SELECT EXTRACT(EPOCH FROM date_trunc('hour', posted_at)) * 1000 AS hour, COUNT(*)::int AS posts ${base} GROUP BY 1`, params),
+  // Board-wide, a post naming two talents is one post (hourly counts are distinct posts); per talent
+  // it's one post about her. "In her thread" = posts in a thread dedicated to her that don't name
+  // anyone (they count as about her), as opposed to posts that name her.
+  const [hours, topics, talentsResult, now, since, own] = await Promise.all([
+    pool.query(`SELECT EXTRACT(EPOCH FROM date_trunc('hour', posted_at)) * 1000 AS hour, COUNT(DISTINCT post_no)::int AS posts ${base} GROUP BY 1`, params),
     pool.query(`SELECT COALESCE(topic, 'unread') AS topic, COUNT(*)::int AS posts ${base} GROUP BY 1 ORDER BY 2 DESC`, params),
-    symbol ? Promise.resolve({ rows: [] }) : pool.query(`SELECT symbol, COUNT(*)::int AS posts ${base} GROUP BY 1 ORDER BY 2 DESC LIMIT 12`, params),
+    symbol
+      ? Promise.resolve({ rows: [] })
+      : pool.query(`SELECT symbol, COUNT(*)::int AS posts, COUNT(*) FILTER (WHERE via = 'thread')::int AS in_thread ${base} GROUP BY 1 ORDER BY 2 DESC LIMIT 12`, params),
     pool.query(`SELECT EXTRACT(EPOCH FROM date_trunc('hour', now())) * 1000 AS hour`),
+    pool.query(`SELECT MIN(posted_at) AS since FROM content.vt_mentions`),
+    symbol ? pool.query(`SELECT COUNT(*) FILTER (WHERE via = 'thread')::int AS in_thread ${base}`, params) : Promise.resolve({ rows: [] }),
   ]);
   const lastHour = Number(now.rows[0].hour);
   const count = safeDays * 24;
@@ -298,7 +305,11 @@ async function getHistory(pool, { days = 7, symbol = null } = {}) {
     total,
     peak: total ? { at: new Date(start + peakIndex * 3600_000).toISOString(), posts: hourly[peakIndex] } : null,
     topics: topics.rows.map((row) => ({ topic: row.topic, posts: row.posts })),
-    talents: talentsResult.rows.map((row) => ({ symbol: row.symbol, posts: row.posts })),
+    talents: talentsResult.rows.map((row) => ({ symbol: row.symbol, posts: row.posts, in_thread: row.in_thread })),
+    in_thread: symbol ? Number(own.rows[0]?.in_thread ?? 0) : null,
+    // When collection started (the oldest mention kept). Hours before it aren't "quiet", they're
+    // just not collected, and the page says so.
+    collecting_since: since.rows[0]?.since ? new Date(since.rows[0].since).toISOString() : null,
   };
 }
 

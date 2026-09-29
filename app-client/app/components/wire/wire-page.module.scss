@@ -245,6 +245,21 @@
   fill: var(--blue);
 }
 
+.uncollected {
+  fill: color-mix(in oklab, var(--rule) 35%, transparent);
+}
+
+.uncollectedLabel {
+  @include label;
+  position: absolute;
+  top: 40%;
+  left: 0;
+  font-size: 0.56rem;
+  text-align: center;
+  color: var(--dim);
+  pointer-events: none;
+}
+
 .gridLine {
   stroke: var(--rule);
   stroke-width: 1;
