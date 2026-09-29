@@ -74,6 +74,7 @@ export function TradeTicket({
   autoFocus = false,
   onClose,
   onFilled,
+  onPlaced,
   artSize = "large",
 }: {
   asset: MarketAsset;
@@ -85,6 +86,8 @@ export function TradeTicket({
   onClose?: () => void;
   /** Called after an order fills immediately (the fill moment takes over). */
   onFilled?: () => void;
+  /** Called once an order is accepted (queued or filled), e.g. to toss the stock page's coin. */
+  onPlaced?: () => void;
 }) {
   const trackOrder = useTradeStore((state) => state.trackOrder);
   const { calm } = useMotion();
@@ -157,6 +160,7 @@ export function TradeTicket({
     try {
       const previous = holding ? { quantity: holding.quantity, avg_cost_basis: holding.avg_cost_basis } : null;
       const result = await apiFetch<TradeExecutionResult>(`/api/market/orders/${side}`, { method: "POST", body: JSON.stringify({ symbol: asset.symbol, quantity: qty }) });
+      onPlaced?.();
       const confirmation = buildTradeConfirmation({ result: { ...result, side: result.side || side, symbol: result.symbol || asset.symbol }, currentMidPrice: asset.current_mid_price, previousHolding: previous });
       if (confirmation.mode === "queued") {
         setQueued(confirmation);

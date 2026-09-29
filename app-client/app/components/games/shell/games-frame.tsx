@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { TICKER_TAP_ENABLED } from "@/app/lib/games/flags";
 import { usePathname } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { SiteShell } from "@/app/components/layout/site-shell";
@@ -18,7 +19,7 @@ export const GAMES_NAV = [
   { href: "/games/duel", label: "Oshi duel" },
   { href: "/games/blackjack", label: "Blackjack" },
   { href: "/games/high-low", label: "High-low" },
-  { href: "/games/ticker-tap", label: "Ticker Tap" },
+  ...(TICKER_TAP_ENABLED ? [{ href: "/games/ticker-tap", label: "Ticker Tap" }] : []),
   { href: "/games/capsule", label: "Capsule" },
   { href: "/games/item-locker", label: "Locker" },
 ];

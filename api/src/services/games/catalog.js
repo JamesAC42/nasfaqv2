@@ -102,7 +102,9 @@ const GAME_DEFINITIONS = [
     name: "Ticker Tap",
     description: "Tap the green tickers, dodge the red, chase the gold. The week's top ten split the prize pool.",
     game_type: "single_player",
-    status: "active",
+    // Held back: the client needs every target to draw it, so a script reading the page can play
+    // a perfect run and take the weekly pool. No new runs until runs are verified server-side.
+    status: "disabled",
     entry_fee_cash: 100,
     min_stake_cash: null,
     max_stake_cash: null,

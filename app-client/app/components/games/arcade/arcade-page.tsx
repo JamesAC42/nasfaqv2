@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { TICKER_TAP_ENABLED } from "@/app/lib/games/flags";
 import { useMemo } from "react";
 import { FiArrowRight } from "react-icons/fi";
 import { Oshimark } from "@/app/components/common/oshimark";
@@ -95,7 +96,7 @@ export function ArcadePage() {
     tapFee: board?.game?.entry_fee_cash ?? null,
     // The collection's capsule pity reports card-style counters; the capsule's hard pity is 60.
     capsuleIn: signedIn && collection?.pity.capsule ? Math.max(1, 60 - collection.pity.capsule.pulls_since_ssr) : null,
-  });
+  }).filter((tile) => TICKER_TAP_ENABLED || tile.key !== "ticker-tap");
 
   return (
     <GamesFrame
@@ -118,7 +119,7 @@ export function ArcadePage() {
           <aside className={styles.side} aria-label="Your stuff and the feeds">
             {!initialized ? null : signedIn ? <YourStuff collection={collection} loading={collectionLoading || !collection} /> : <SignedOutPanel />}
             <PullFeed pulls={feed?.pulls ?? null} />
-            <TapBoard board={board} me={me} />
+            {TICKER_TAP_ENABLED ? <TapBoard board={board} me={me} /> : null}
           </aside>
         </div>
       </div>

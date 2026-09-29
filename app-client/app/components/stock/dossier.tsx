@@ -25,7 +25,7 @@ import { useProfileStore } from "@/app/stores/profile-store";
 import { useOpenStream } from "@/app/stores/stream-store";
 import { previewOf } from "@/app/lib/streams";
 import { useTradeStore } from "@/app/stores/trade-store";
-import { StockMood } from "@/app/components/stock/stock-mood";
+import { TalentCoin } from "@/app/components/common/talent-coin";
 import { heatLabel, useChatterStore } from "@/app/stores/chatter-store";
 import styles from "@/app/components/stock/dossier.module.scss";
 import { Term } from "@/app/components/common/tip";
@@ -99,6 +99,7 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
   const openTrade = useTradeStore((state) => state.openTrade);
   const openStream = useOpenStream();
   const [expanded, setExpanded] = useState(false);
+  const [coinSpins, setCoinSpins] = useState(0); // tossed each time an order is placed
   const chatterSummary = useChatterStore((state) => state.summary);
   const fetchChatter = useChatterStore((state) => state.fetchChatter);
   const active = useScrollSpy(useMemo(() => SECTIONS.map(([id]) => id), []));
@@ -209,7 +210,6 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
               <span className={`${styles.chg} ${styles[toneOf(move)]}`}>
                 {(move ?? 0) > 0 ? "▲" : (move ?? 0) < 0 ? "▼" : "■"} {signedPct(move)}
               </span>
-              <StockMood asset={asset} assets={assets} chatter={chatter} live={Boolean(live)} move15d={d15} />
             </div>
             <dl className={styles.quotes}>
               <div>
@@ -295,15 +295,13 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
             <div className={styles.sideSticky}>
               <div className={styles.ticket}>
                 <div className={styles.ticketTop}>
-                  <span className={styles.ticketMark} aria-hidden="true">
-                    <Oshimark icon={asset.icon} symbol={sym} size={34} />
-                  </span>
+                  <TalentCoin icon={asset.icon} symbol={sym} accent={accent} size={58} spin={coinSpins} />
                   <div>
                     <h2>Trade {sym}</h2>
                     <p>Market order, filled at the next 10-minute batch.</p>
                   </div>
                 </div>
-                <TradeTicket asset={asset} />
+                <TradeTicket asset={asset} onPlaced={() => setCoinSpins((count) => count + 1)} />
               </div>
               <div className={`${styles.position} ${user ? "" : styles.anon}`}>
                 <h3>Your position</h3>

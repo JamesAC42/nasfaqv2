@@ -259,6 +259,49 @@ async function getSummary(pool, { now = Date.now() } = {}) {
   return value;
 }
 
+/**
+ * Posts per hour over the last `days` (board-wide, or one talent), oldest hour first and ending at
+ * the current hour, plus what they were about and (board-wide) who was talked about most. Leaves
+ * out off-topic and rumour mentions, like heat does.
+ */
+async function getHistory(pool, { days = 7, symbol = null } = {}) {
+  const safeDays = Math.min(KEEP_DAYS, Math.max(1, Number.parseInt(days, 10) || 7));
+  const params = [[...UNCOUNTED], String(safeDays)];
+  let symbolFilter = "";
+  if (symbol) {
+    params.push(String(symbol).toUpperCase());
+    symbolFilter = "AND symbol = $3";
+  }
+  const base = `FROM content.vt_mentions WHERE posted_at > date_trunc('hour', now()) - ($2 || ' days')::interval + interval '1 hour' AND (topic IS NULL OR topic <> ALL($1::text[])) ${symbolFilter}`;
+  const [hours, topics, talentsResult, now] = await Promise.all([
+    pool.query(`SELECT EXTRACT(EPOCH FROM date_trunc('hour', posted_at)) * 1000 AS hour, COUNT(*)::int AS posts ${base} GROUP BY 1`, params),
+    pool.query(`SELECT COALESCE(topic, 'unread') AS topic, COUNT(*)::int AS posts ${base} GROUP BY 1 ORDER BY 2 DESC`, params),
+    symbol ? Promise.resolve({ rows: [] }) : pool.query(`SELECT symbol, COUNT(*)::int AS posts ${base} GROUP BY 1 ORDER BY 2 DESC LIMIT 12`, params),
+    pool.query(`SELECT EXTRACT(EPOCH FROM date_trunc('hour', now())) * 1000 AS hour`),
+  ]);
+  const lastHour = Number(now.rows[0].hour);
+  const count = safeDays * 24;
+  const start = lastHour - (count - 1) * 3600_000;
+  const hourly = new Array(count).fill(0);
+  for (const row of hours.rows) {
+    const index = Math.round((Number(row.hour) - start) / 3600_000);
+    if (index >= 0 && index < count) hourly[index] = row.posts;
+  }
+  const total = hourly.reduce((sum, value) => sum + value, 0);
+  const peakIndex = hourly.reduce((best, value, index) => (value > hourly[best] ? index : best), 0);
+  return {
+    board: `/${BOARD}/`,
+    symbol: symbol ? String(symbol).toUpperCase() : null,
+    days: safeDays,
+    start: new Date(start).toISOString(),
+    hourly,
+    total,
+    peak: total ? { at: new Date(start + peakIndex * 3600_000).toISOString(), posts: hourly[peakIndex] } : null,
+    topics: topics.rows.map((row) => ({ topic: row.topic, posts: row.posts })),
+    talents: talentsResult.rows.map((row) => ({ symbol: row.symbol, posts: row.posts })),
+  };
+}
+
 function startChatterScheduler(pool, logger = console, { intervalMs = 5 * 60_000 } = {}) {
   if (String(process.env.CHATTER_ENABLED || "").toLowerCase() === "off") return () => {};
   let running = false;
@@ -292,4 +335,4 @@ function startChatterScheduler(pool, logger = console, { intervalMs = 5 * 60_000
   };
 }
 
-module.exports = { TOPICS, classifyThread, getSummary, mentionsForPost, scanOnce, startChatterScheduler, summarize };
+module.exports = { TOPICS, classifyThread, getHistory, getSummary, mentionsForPost, scanOnce, startChatterScheduler, summarize };

@@ -477,19 +477,17 @@ async function runWire(pool, logger = console) {
   return summary;
 }
 
-/** Recent items, most important and freshest first. */
-async function listWire(pool, { limit = 40, hours = 168 } = {}) {
-  const { rows } = await pool.query(
-    `
-    SELECT id, kind, headline, blurb, symbols, image_url, link_url, importance, occurred_at, meta
-    FROM content.wire_items
-    WHERE NOT hidden AND occurred_at > now() - ($1 || ' hours')::interval AND occurred_at < now() + interval '7 days'
-    ORDER BY (importance * 6 - EXTRACT(EPOCH FROM (now() - LEAST(occurred_at, now()))) / 3600) DESC, occurred_at DESC
-    LIMIT $2
-  `,
-    [String(Math.min(24 * 14, Math.max(1, Number(hours) || 168))), Math.min(60, Math.max(1, Number(limit) || 40))]
-  );
-  return rows.map((row) => ({
+// What the Wire page's filter chips mean, as SQL conditions on kind.
+const WIRE_GROUPS = {
+  streams: "kind LIKE 'stream\\_%'",
+  records: "kind IN ('subscriber_milestone', 'viewer_record', 'superchat_leader')",
+  market: "kind IN ('market_mover', 'dividend_review', 'buyback', 'sold_out')",
+  games: "kind IN ('exchange_sale', 'ur_pull', 'prediction_resolved')",
+  vt: "kind = 'chatter_spike'",
+};
+
+function wireRow(row) {
+  return {
     id: Number(row.id),
     kind: row.kind,
     headline: row.headline,
@@ -500,7 +498,61 @@ async function listWire(pool, { limit = 40, hours = 168 } = {}) {
     importance: Number(row.importance),
     occurred_at: row.occurred_at,
     meta: row.meta ?? {},
-  }));
+  };
+}
+
+/**
+ * Recent items. The front page takes the most important and freshest first (order "rank"); the Wire
+ * page reads them newest first (order "time"), optionally one group (WIRE_GROUPS) or one talent, and
+ * pages back with `before` (an occurred_at).
+ */
+async function listWire(pool, { limit = 40, hours = 168, order = "rank", group = null, symbol = null, before = null } = {}) {
+  const params = [String(Math.min(24 * 30, Math.max(1, Number(hours) || 168))), Math.min(200, Math.max(1, Number(limit) || 40))];
+  const where = ["NOT hidden", "occurred_at > now() - ($1 || ' hours')::interval", "occurred_at < now() + interval '7 days'"];
+  if (group && WIRE_GROUPS[group]) where.push(WIRE_GROUPS[group]);
+  if (symbol) {
+    params.push(String(symbol).toUpperCase());
+    where.push(`$${params.length} = ANY(symbols)`);
+  }
+  if (before) {
+    params.push(before);
+    where.push(`occurred_at < $${params.length}::timestamptz`);
+  }
+  const orderBy =
+    order === "time"
+      ? "occurred_at DESC, id DESC"
+      : "(importance * 6 - EXTRACT(EPOCH FROM (now() - LEAST(occurred_at, now()))) / 3600) DESC, occurred_at DESC";
+  const { rows } = await pool.query(
+    `
+    SELECT id, kind, headline, blurb, symbols, image_url, link_url, importance, occurred_at, meta
+    FROM content.wire_items
+    WHERE ${where.join(" AND ")}
+    ORDER BY ${orderBy}
+    LIMIT $2
+  `,
+    params
+  );
+  return rows.map(wireRow);
+}
+
+/** How many items each group has in the window (the Wire page's chips), plus the total. */
+async function countWire(pool, { hours = 168, symbol = null } = {}) {
+  const params = [String(Math.min(24 * 30, Math.max(1, Number(hours) || 168)))];
+  let symbolFilter = "";
+  if (symbol) {
+    params.push(String(symbol).toUpperCase());
+    symbolFilter = `AND $2 = ANY(symbols)`;
+  }
+  const columns = Object.entries(WIRE_GROUPS).map(([key, condition]) => `COUNT(*) FILTER (WHERE ${condition})::int AS ${key}`);
+  const { rows } = await pool.query(
+    `
+    SELECT COUNT(*)::int AS all, ${columns.join(", ")}
+    FROM content.wire_items
+    WHERE NOT hidden AND occurred_at > now() - ($1 || ' hours')::interval AND occurred_at < now() + interval '7 days' ${symbolFilter}
+  `,
+    params
+  );
+  return rows[0];
 }
 
 const WIRE_LOCK_KEY = 9_204_101;
@@ -536,4 +588,4 @@ function startWireScheduler(pool, logger = console, { intervalMs = 10 * 60_000 }
   return () => clearInterval(timer);
 }
 
-module.exports = { listWire, milestoneStep, runWire, startWireScheduler };
+module.exports = { WIRE_GROUPS, countWire, listWire, milestoneStep, runWire, startWireScheduler };

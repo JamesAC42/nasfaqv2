@@ -1,7 +1,6 @@
 "use client";
 
 import { ReactionFace } from "@/app/components/common/reaction-face";
-import { Tip } from "@/app/components/common/tip";
 import type { NewsMood } from "@/app/lib/types";
 import { talentAccent } from "@/app/lib/talent-color";
 import { useTheme } from "@/app/providers/theme-provider";
@@ -18,9 +17,9 @@ export const MOOD_LABEL: Record<NewsMood["mood"], string> = {
 };
 
 /**
- * The talents in a HoloNews headline reacting to it: each one's reaction face in the mood Jev read
- * from the headline for her. `overlay` stacks small faces on a thumbnail's corner (feed cards);
- * `strip` lays them out large with names under an article's headline.
+ * The talents in a HoloNews headline reacting to it, each in the mood read from the headline for
+ * her. `overlay` stacks small faces on a thumbnail's corner (feed cards); `strip` sets them quietly
+ * under an article's headline, faded at the edges.
  */
 export function StoryReactions({ reactions, variant, size }: { reactions: NewsMood[]; variant: "overlay" | "strip"; size: number }) {
   const assets = useMarketStore((state) => state.assets);
@@ -43,30 +42,16 @@ export function StoryReactions({ reactions, variant, size }: { reactions: NewsMo
     );
   }
 
+  // The article page: her face (or theirs) softly faded into the page under the headline. No
+  // labels or frames: it's a bit of color, not a control. The mood is in the alt text for screen
+  // readers.
   return (
-    <div className={styles.strip}>
-      <span className={styles.kicker}>
-        <Tip content="Each talent in the headline, reacting the way the headline lands for her. The read comes from Jev (or keywords when it's unsure), never from anything she said.">
-          REACTIONS
-        </Tip>
-      </span>
-      <div className={styles.faces}>
-        {shown.map((entry) => {
-          const asset = assets.find((row) => row.symbol === entry.symbol);
-          const first = (asset?.display_name ?? entry.symbol).split(" ").pop();
-          return (
-            <figure key={entry.symbol} className={styles.face} style={{ "--tal": talentAccent(asset?.color, theme) } as React.CSSProperties} data-mood={entry.mood}>
-              <span className={styles.ring} style={{ width: size, height: size }}>
-                <ReactionFace symbol={entry.symbol} pose={entry.mood} size={size} />
-              </span>
-              <figcaption>
-                <b>{first}</b>
-                <small>{MOOD_LABEL[entry.mood]}</small>
-              </figcaption>
-            </figure>
-          );
-        })}
-      </div>
+    <div className={styles.faces} role="img" aria-label={shown.map((entry) => `${entry.symbol} ${MOOD_LABEL[entry.mood].toLowerCase()}`).join(", ")}>
+      {shown.map((entry) => (
+        <span key={entry.symbol} className={styles.face} style={{ width: size, height: size }} data-mood={entry.mood}>
+          <ReactionFace symbol={entry.symbol} pose={entry.mood} size={size} />
+        </span>
+      ))}
     </div>
   );
 }

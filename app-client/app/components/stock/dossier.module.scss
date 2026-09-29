@@ -1750,60 +1750,6 @@
 }
 
 // The ticket's badge: her oshimark on a tile in her color, with a halftone and a slow sheen.
-.ticketMark {
-  position: relative;
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 56px;
-  height: 56px;
-  overflow: hidden;
-  border: 1px solid color-mix(in oklab, var(--tal) 55%, var(--rule));
-  background:
-    radial-gradient(120% 120% at 30% 20%, color-mix(in oklab, var(--tal) 45%, transparent), transparent 70%),
-    linear-gradient(160deg, color-mix(in oklab, var(--tal) 22%, var(--ink)), var(--ink));
-  box-shadow: 0 0 18px color-mix(in oklab, var(--tal) 22%, transparent);
-
-  &::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(color-mix(in oklab, #fff 18%, transparent) 1px, transparent 1.3px) 0 0 / 5px 5px;
-    mask-image: linear-gradient(200deg, transparent 20%, #000);
-  }
-
-  &::after {
-    content: "";
-    position: absolute;
-    inset: -40%;
-    background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.22) 50%, transparent 58%);
-    animation: markSheen 5.5s ease-in-out infinite;
-  }
-
-  > * {
-    position: relative;
-    z-index: 1;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    &::after {
-      animation: none;
-      opacity: 0;
-    }
-  }
-}
-
-@keyframes markSheen {
-  0%,
-  70% {
-    transform: translateX(-60%);
-  }
-  100% {
-    transform: translateX(60%);
-  }
-}
-
 .position {
   padding: 1rem;
   border-top: 1px solid var(--rule);

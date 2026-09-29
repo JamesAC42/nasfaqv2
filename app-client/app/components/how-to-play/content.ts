@@ -3,6 +3,7 @@
 // - games: api/src/services/games/** and GAMES_DESIGN.md
 // - predictions: api/src/services/predictions/** and docs/predictions/PREDICTIONS_DESIGN.md
 // If a rule changes there, change it here too.
+import { TICKER_TAP_ENABLED } from "@/app/lib/games/flags";
 
 export type SectionId = "market" | "trading" | "ticks" | "weekly" | "games" | "predictions" | "community" | "glossary" | "faq";
 
@@ -32,7 +33,7 @@ export type Game = {
   tag?: string;
 };
 
-export const GAMES: Game[] = [
+const ALL_GAMES: Game[] = [
   {
     key: "cards",
     name: "Card gacha",
@@ -128,6 +129,9 @@ export const GAMES: Game[] = [
     tag: "cosmetic",
   },
 ];
+
+// Ticker Tap is held back for now (lib/games/flags.ts).
+export const GAMES: Game[] = ALL_GAMES.filter((game) => TICKER_TAP_ENABLED || game.key !== "ticker-tap");
 
 export { GLOSSARY } from "@/app/lib/glossary";
 

@@ -15,6 +15,7 @@ export const NAV: NavGroup[] = [
       { href: "/leaderboard", label: "Leaderboard", hint: "Net worth, friends, rivals and oshiboards" },
       { href: "/chat", label: "Chat", hint: "The floor's group chat" },
       { href: "/predictions", label: "Predictions", hint: "Bet on what happens next" },
+      { href: "/wire", label: "The Wire", hint: "Everything that happened, and who /vt/ is talking about" },
       { href: "/threads", label: "/vt/ threads", hint: "The general, mirrored" },
       { href: "/articles", label: "Articles", hint: "HoloNews headlines and player-written DD" },
       { href: "/livestreams", label: "Livestreams", hint: "Who's on air right now" },

@@ -24,6 +24,15 @@ import { onMarketEvent } from "@/app/stores/market-store";
 // and a slow poll reconciles anything the socket missed.
 
 const TRADE_PAGE = 100;
+const MAX_LIVE_TRADES = 1_500;
+const TRIM_TO = 1_000;
+
+/** The API's tape cursor (base64url of { ts, id }) pointing just past this trade. */
+function tradeCursor(trade: MarketHubTrade | undefined) {
+  if (!trade) return null;
+  const json = JSON.stringify({ ts: trade.ts, id: trade.id });
+  return btoa(unescape(encodeURIComponent(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
 const RECONCILE_MS = 60_000;
 
 type OrderFlash = { symbol: string; side: "buy" | "sell"; at: number };
@@ -157,7 +166,16 @@ function start() {
     const type = String(payload.type || "");
     if (type === "market.trade_fill" && payload.trade && typeof payload.trade === "object") {
       const trade = normalizeMarketHubTrade(payload.trade as Record<string, unknown>);
-      useHubStore.setState((state) => (state.trades.some((item) => item.id === trade.id) ? state : { trades: [trade, ...state.trades] }));
+      useHubStore.setState((state) => {
+        if (state.trades.some((item) => item.id === trade.id)) return state;
+        const trades = [trade, ...state.trades];
+        if (trades.length <= MAX_LIVE_TRADES) return { trades };
+        // A tab left open through a busy day would otherwise keep every fill in memory (and every
+        // panel re-reads the whole list on each one). Keep the newest; "load earlier" picks up
+        // from the oldest kept.
+        const kept = trades.slice(0, TRIM_TO);
+        return { trades: kept, nextCursor: tradeCursor(kept[kept.length - 1]) };
+      });
       refreshLiveOrders();
       return;
     }

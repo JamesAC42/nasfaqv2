@@ -190,8 +190,8 @@ export function ArticleView({ slug }: { slug: string }) {
                 ))}
               </div>
               <h1>{heading.title}</h1>
+              {isNews && article.news_item?.moods?.length ? <StoryReactions reactions={article.news_item.moods} variant="strip" size={64} /> : null}
               {dek ? <p className={styles.dek}>{dek}</p> : null}
-              {isNews && article.news_item?.moods?.length ? <StoryReactions reactions={article.news_item.moods} variant="strip" size={72} /> : null}
               <div className={styles.meta} suppressHydrationWarning>
                 {article.author ? (
                   <Link href={`/profile/${enc(article.author.username)}`}>
