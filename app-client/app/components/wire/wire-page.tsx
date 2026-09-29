@@ -196,7 +196,7 @@ function WireFeed({
   }, [hours, query, symbol]);
 
   async function more() {
-    const oldest = items[items.length - 1];
+    const oldest = items.reduce<WireItem | null>((min, item) => (!min || Date.parse(item.occurred_at) < Date.parse(min.occurred_at) ? item : min), null);
     if (!oldest) return;
     setState("more");
     try {
@@ -210,15 +210,19 @@ function WireFeed({
     }
   }
 
+  // One group per day, newest first. Sorted here rather than trusting the response order: an API
+  // that doesn't know order=time yet (not restarted) returns the front page's ranked order, which
+  // would otherwise split a day into several groups with the same key.
   const days = useMemo(() => {
-    const out: Array<{ key: string; items: WireItem[] }> = [];
-    for (const item of items) {
+    const groups = new Map<string, WireItem[]>();
+    const sorted = [...items].sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at) || b.id - a.id);
+    for (const item of sorted) {
       const key = dayKey(item.occurred_at);
-      const last = out[out.length - 1];
-      if (last?.key === key) last.items.push(item);
-      else out.push({ key, items: [item] });
+      const list = groups.get(key);
+      if (list) list.push(item);
+      else groups.set(key, [item]);
     }
-    return out;
+    return [...groups].map(([key, list]) => ({ key, items: list }));
   }, [items]);
 
   const talent = symbol ? assets.get(symbol) : null;
