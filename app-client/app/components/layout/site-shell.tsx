@@ -2,6 +2,7 @@
 
 import { ExchangeAlerts } from "@/app/components/games/exchange/exchange-alerts";
 import { SiteStatusBar } from "@/app/components/common/site-status-bar";
+import { BugReportButton } from "@/app/components/common/bug-report";
 import { ReactionFace, parseReaction } from "@/app/components/common/reaction-face";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -487,6 +488,7 @@ export function SiteShell({
               <Link href="/games">Games</Link>
               <Link href="/about">About</Link>
               <Link href="/changelog">What&apos;s new</Link>
+              <BugReportButton />
               <Link href="/privacy">Privacy</Link>
               <Link href="/terms">Usage policy</Link>
             </nav>

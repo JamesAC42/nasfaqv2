@@ -5,7 +5,8 @@ const articleDb = require("../src/articleDb");
 
 async function main() {
   loadEnv();
-  const pool = createPool(process.env.DATABASE_URL);
+  // Migrations may rewrite or index whole tables: no statement timeout here.
+  const pool = createPool(process.env.DATABASE_URL, { statementTimeoutMs: 0 });
   try {
     await applySchema(pool);
     await articleDb.backfillAllNewsArticles(pool);

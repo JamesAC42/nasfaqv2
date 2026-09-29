@@ -448,8 +448,14 @@ async function acquireGameTablesLease(db, { waitMs = Number(process.env.GAMES_TA
 
 async function main() {
   if (cfg.enableMigrations) {
-    await applySchema(pool);
-    await articleDb.backfillAllNewsArticles(pool);
+    // Its own pool without the statement timeout: migrations may rewrite or index whole tables.
+    const migrationPool = createPool(cfg.databaseUrl, { statementTimeoutMs: 0 });
+    try {
+      await applySchema(migrationPool);
+      await articleDb.backfillAllNewsArticles(migrationPool);
+    } finally {
+      await migrationPool.end();
+    }
   }
   await achievements.syncDefinitions(pool);
   await gamesCatalog.syncCatalog(pool);

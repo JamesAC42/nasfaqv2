@@ -14,6 +14,11 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-09-29",
+    title: "Tell us what's broken",
+    changes: [{ kind: "new", text: "\"Report a bug\" at the bottom of every page sends what went wrong straight to us." }],
+  },
+  {
+    date: "2026-09-29",
     title: "Profile themes, properly",
     changes: [
       { kind: "new", text: "Pick your theme in Edit profile, next to your banner." },

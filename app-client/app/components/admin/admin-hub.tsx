@@ -11,8 +11,11 @@ import {
   fetchLiveOrderHealth,
   fetchMarketStatus,
   reopenTrading,
+  fetchBugReports,
+  setBugReportResolved,
   setSiteMaintenance,
   type AdjustmentHealth,
+  type BugReport,
   type AdminOverviewStats,
   type LiveOrderHealth,
 } from "@/app/components/admin/admin-api";
@@ -330,6 +333,83 @@ function MaintenanceControl() {
   );
 }
 
+/** Reports from the "Report a bug" button, newest first (they also go to Discord when its webhook is set). */
+function BugReports({ now }: { now: number }) {
+  const [status, setStatus] = useState<"open" | "resolved">("open");
+  const [data, setData] = useState<{ reports: BugReport[]; open_count: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setData(await fetchBugReports(status));
+      setError(null);
+    } catch (caught) {
+      setError(adminErrorText(caught));
+    }
+  }, [status]);
+
+  useEffect(() => {
+    const first = setTimeout(() => void load(), 0);
+    return () => clearTimeout(first);
+  }, [load]);
+
+  const toggle = async (report: BugReport) => {
+    setBusyId(report.id);
+    try {
+      await setBugReportResolved(report.id, report.status === "open");
+      await load();
+    } catch (caught) {
+      setError(adminErrorText(caught));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <Section
+      id="bugs"
+      title="Bug reports"
+      count={data ? data.open_count : "…"}
+      tone={data?.open_count ? "warn" : undefined}
+      actions={
+        <span className={styles.bugTabs}>
+          {(["open", "resolved"] as const).map((key) => (
+            <button key={key} type="button" className={ui.btn} aria-pressed={status === key} onClick={() => setStatus(key)}>
+              {key === "open" ? "Open" : "Resolved"}
+            </button>
+          ))}
+        </span>
+      }
+    >
+      {error ? <Notice tone="error">{error}</Notice> : null}
+      {!data ? (
+        <p className={ui.empty}>Loading…</p>
+      ) : data.reports.length ? (
+        <ul className={styles.bugList}>
+          {data.reports.map((report) => (
+            <li key={report.id}>
+              <div className={styles.bugMeta}>
+                <b>#{report.id}</b>
+                {report.username ? <Link href={`/profile/${encodeURIComponent(report.username)}`}>{report.username}</Link> : <span>signed out</span>}
+                {report.page_path ? <Link href={report.page_path}>{report.page_path}</Link> : null}
+                <span title={new Date(report.created_at).toLocaleString()}>{ago(Date.parse(report.created_at), now)} ago</span>
+              </div>
+              <p className={styles.bugMessage}>{report.message}</p>
+              {report.user_agent ? <small className={styles.muted}>{report.user_agent}</small> : null}
+              <button type="button" className={report.status === "open" ? ui.btnPrimary : ui.btn} disabled={busyId === report.id} onClick={() => void toggle(report)}>
+                {report.status === "open" ? "Resolve" : "Reopen"}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className={ui.empty}>{status === "open" ? "No open reports." : "Nothing resolved yet."}</p>
+      )}
+    </Section>
+  );
+}
+
 export function AdminHub() {
   const access = useAdminAccess();
   const { user } = useAuth();
@@ -459,6 +539,8 @@ export function AdminHub() {
               </p>
             )}
           </Section>
+
+          {isAdmin ? <BugReports now={now} /> : null}
 
           <Section id="health" title="Health">
             <div className={styles.health}>

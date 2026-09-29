@@ -80,6 +80,26 @@ export const closeTrading = (message: string) =>
   apiFetch<{ status: Partial<MarketStatus> }>("/internal/market/close", { method: "POST", body: JSON.stringify({ message }) });
 export const reopenTrading = () => apiFetch<{ status: Partial<MarketStatus> }>("/internal/market/open", { method: "POST", body: JSON.stringify({}) });
 
+/** A report from the "Report a bug" button (api/src/services/bugReports.js). */
+export type BugReport = {
+  id: number;
+  user_id: number | null;
+  username: string | null;
+  message: string;
+  page_path: string | null;
+  user_agent: string | null;
+  release_version: string | null;
+  status: "open" | "resolved";
+  created_at: string;
+  resolved_at: string | null;
+};
+
+export const fetchBugReports = (status: "open" | "resolved") =>
+  apiFetch<{ reports: BugReport[]; open_count: number }>(`/internal/site/bug-reports?status=${status}`);
+
+export const setBugReportResolved = (id: number, resolved: boolean) =>
+  apiFetch<{ report: BugReport }>(`/internal/site/bug-reports/${id}/resolve`, { method: "POST", body: JSON.stringify({ resolved }) });
+
 /** Maintenance by hand: pause (with a message for players) or reopen new games site-wide. */
 export const setSiteMaintenance = (on: boolean, message = "") =>
   apiFetch<{ site: unknown }>("/internal/site/maintenance", { method: "POST", body: JSON.stringify({ on, message }) });
