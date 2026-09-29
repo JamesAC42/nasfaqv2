@@ -1090,6 +1090,30 @@ export type DailyReport = {
   } | null;
 };
 
+/** One adjustment for one talent on a market day (GET /api/market/report/daily/:date/session). */
+export type SessionStep = {
+  key: string;
+  scheduled_at: string;
+  /** Prices only once it has landed. */
+  applied_at: string | null;
+  status: string;
+  before: number | null;
+  after: number | null;
+  /** How hard it pulled toward the target, in % of the gap: only once the whole day has finished. */
+  strength_pct: number | null;
+};
+
+/** A market day step by step: opening price, every landed adjustment, and the price now or at the close. */
+export type SessionBreakdown = {
+  market_date: string;
+  /** All its adjustments have landed: targets and strengths are out. */
+  finished: boolean;
+  /** When the last adjustment is due, while it isn't finished. */
+  reveal_at: string | null;
+  adjustments: Array<{ key: string; scheduled_at: string; landed: number; total: number }>;
+  assets: Array<{ symbol: string; open: number; close: number; steps: SessionStep[] }>;
+};
+
 export type MarketStatus = {
   trading_status: "open" | "settling" | "manual_closed";
   is_trading_open: boolean;

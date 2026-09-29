@@ -1723,6 +1723,7 @@ async function applySchema(pool) {
   await pool.query(require("./services/rebuildJobs").schema);
   await pool.query(require("./services/siteState").schema);
   await pool.query(require("./services/bugReports").schema);
+  await pool.query(require("./services/marketSecrecy").schema);
   await applyGamesSchema(pool);
   await applyPredictionsSchema(pool);
 }
