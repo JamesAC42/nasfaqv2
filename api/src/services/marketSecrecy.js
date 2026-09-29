@@ -10,6 +10,24 @@
 // - publicDailyReport(pool, report): a daily report as the public sees it. While its day's ticks are
 //   still landing its fair values are withheld too (targets_revealed: false, targets_reveal_at).
 // - revealedTargets(pool): the fair value movers from the newest report whose ticks have all landed.
+// - market.marks_revealed(date) (SQL, below): the same rule for queries. A day's settlement mark
+//   (mid_close_mark) is its fair value times a slowly fading offset, so it gives the target away
+//   exactly; every query that returns marks leaves out the ones whose day hasn't finished.
+
+const schema = `
+  CREATE OR REPLACE FUNCTION market.marks_revealed(d date) RETURNS boolean
+  LANGUAGE sql STABLE AS $$
+    SELECT NOT EXISTS (
+        SELECT 1 FROM market.adjustment_sessions s
+        JOIN market.asset_adjustment_intervals i ON i.session_id = s.id
+        WHERE s.market_date = d AND i.status = 'scheduled'
+      )
+      AND (
+        EXISTS (SELECT 1 FROM market.adjustment_sessions s WHERE s.market_date = d)
+        OR EXISTS (SELECT 1 FROM market.daily_market_reports r WHERE r.market_date > d)
+      )
+  $$;
+`;
 
 const ALWAYS_HIDDEN = new Set([
   "avg_premium_pct",
@@ -49,6 +67,9 @@ const HIDDEN_UNTIL_TICKS_LAND = new Set([
   "largest_market_discounts",
   "largest_market_premiums",
   "largest_premiums",
+  // A settlement mark is its day's fair value. Queries leave unrevealed marks out already
+  // (market.marks_revealed); a lone mark in a scrubbed payload goes too, whatever its day.
+  "mid_close_mark",
   "premium_close_pct",
   "premium_discount_pct",
   "premium_pct",
@@ -149,4 +170,4 @@ async function revealedTargets(pool) {
   );
 }
 
-module.exports = { scrubPublicMarketPayload, publicDailyReport, secretDailyReport, revealedTargets, targetsState };
+module.exports = { schema, scrubPublicMarketPayload, publicDailyReport, secretDailyReport, revealedTargets, targetsState };

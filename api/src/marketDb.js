@@ -292,6 +292,12 @@ async function listAssets(pool) {
       WHERE e.event_type = 'daily_reset'
       ORDER BY e.asset_id, e.ts DESC
     ),
+    -- A day's mark is its fair value (marketSecrecy.js): none until that day's last tick lands.
+    revealed_mark_dates AS (
+      SELECT md.market_date
+      FROM (SELECT DISTINCT market_date FROM market.asset_daily_market_state WHERE market_date >= current_date - interval '14 days') md
+      WHERE market.marks_revealed(md.market_date)
+    ),
     sparkline_daily AS (
       SELECT
         d.asset_id,
@@ -302,12 +308,13 @@ async function listAssets(pool) {
             'high', COALESCE(d.mid_high, GREATEST(d.mid_open, COALESCE(d.mid_close, d.mid_open))),
             'low', COALESCE(d.mid_low, LEAST(d.mid_open, COALESCE(d.mid_close, d.mid_open))),
             'close', COALESCE(d.mid_close, d.mid_open),
-            'close_mark', d.mid_close_mark,
+            'close_mark', CASE WHEN rd.market_date IS NOT NULL THEN d.mid_close_mark END,
             'volume_shares', d.volume_shares
           )
           ORDER BY d.market_date ASC
         ) AS sparkline_candles
       FROM market.asset_daily_market_state d
+      LEFT JOIN revealed_mark_dates rd ON rd.market_date = d.market_date
       WHERE d.market_date >= current_date - interval '14 days'
       GROUP BY d.asset_id
     ),
@@ -682,7 +689,8 @@ async function getAssetBySymbol(pool, symbol) {
       ld.market_date,
       ld.mid_open,
       ld.mid_close,
-      ld.mid_close_mark,
+      -- The mark is the day's fair value: withheld until the day's last tick lands (marketSecrecy.js).
+      CASE WHEN market.marks_revealed(ld.market_date) THEN ld.mid_close_mark END AS mid_close_mark,
       ld.mid_high,
       ld.mid_low,
       ld.bid_close,
@@ -1804,7 +1812,8 @@ async function getAssetCandles(pool, symbol, { interval = "1d", range = "30d" } 
         COALESCE(d.mid_high, GREATEST(d.mid_open, COALESCE(d.mid_close, d.mid_open))) AS high,
         COALESCE(d.mid_low, LEAST(d.mid_open, COALESCE(d.mid_close, d.mid_open))) AS low,
         COALESCE(d.mid_close, d.mid_open) AS close,
-        d.mid_close_mark AS close_mark,
+        -- The mark is the day's fair value: withheld until the day's last tick lands (marketSecrecy.js).
+        CASE WHEN market.marks_revealed(d.market_date) THEN d.mid_close_mark END AS close_mark,
         d.volume_shares,
         d.volume_cash,
         d.trade_count,

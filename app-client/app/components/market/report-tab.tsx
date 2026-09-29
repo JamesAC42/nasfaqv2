@@ -62,10 +62,16 @@ function useReport(date: string | null) {
 }
 
 // ── Date strip ───────────────────────────────────────────────────────────
+/** Finished sessions, then today's while its ticks are still landing. */
+const sessionDates = (model: DayModel) => (model.live ? [...model.dates, model.live.date] : model.dates);
+
 function DateStrip({ model, date, mode, onPick, onMode }: { model: DayModel; date: string; mode: "one" | "all"; onPick: (date: string) => void; onMode: () => void }) {
   const strip = useRef<HTMLDivElement | null>(null);
   const bySymbol = useAssetMap();
-  const idx = model.dates.indexOf(date);
+  const all = sessionDates(model);
+  const idx = all.indexOf(date);
+  const live = model.live;
+  const liveSorted = live ? [...live.rows].sort((a, b) => b.pchg - a.pchg) : [];
 
   useLayoutEffect(() => {
     const el = strip.current?.querySelector<HTMLElement>('[aria-pressed="true"]');
@@ -74,7 +80,7 @@ function DateStrip({ model, date, mode, onPick, onMode }: { model: DayModel; dat
 
   return (
     <div className={styles.dates}>
-      <button type="button" className={styles.arr} disabled={idx <= 0} aria-label="Earlier session" onClick={() => onPick(model.dates[idx - 1])}>
+      <button type="button" className={styles.arr} disabled={idx <= 0} aria-label="Earlier session" onClick={() => onPick(all[idx - 1])}>
         ‹
       </button>
       <div className={styles.strip} ref={strip}>
@@ -87,7 +93,7 @@ function DateStrip({ model, date, mode, onPick, onMode }: { model: DayModel; dat
           const bottom = sorted[sorted.length - 1]?.asset;
           return (
             <button key={day} type="button" className={styles.rpd} aria-pressed={mode === "one" && day === date} aria-label={label.long} onClick={() => onPick(day)}>
-              <span>{i === model.dates.length - 1 ? "LATEST" : label.dow}</span>
+              <span>{i === model.dates.length - 1 && !live ? "LATEST" : label.dow}</span>
               <b>{label.day}</b>
               <i className={styles.breadth}>
                 <s style={{ width: `${(up * 100).toFixed(0)}%` }} />
@@ -99,8 +105,28 @@ function DateStrip({ model, date, mode, onPick, onMode }: { model: DayModel; dat
             </button>
           );
         })}
+        {live ? (
+          <button
+            type="button"
+            className={styles.rpd}
+            data-live=""
+            aria-pressed={mode === "one" && date === live.date}
+            aria-label={`${dateLabel(live.date).long}, in progress`}
+            onClick={() => onPick(live.date)}
+          >
+            <span>LIVE</span>
+            <b>{dateLabel(live.date).day}</b>
+            <i className={styles.breadth}>
+              <s style={{ width: `${((live.rows.filter((row) => row.pchg > 0.00005).length / Math.max(1, live.rows.length)) * 100).toFixed(0)}%` }} />
+            </i>
+            <span className={styles.oms}>
+              {liveSorted[0] ? <Oshimark icon={liveSorted[0].asset.icon} symbol={liveSorted[0].asset.symbol} size={14} /> : null}
+              {liveSorted.length > 1 ? <Oshimark icon={liveSorted[liveSorted.length - 1].asset.icon} symbol={liveSorted[liveSorted.length - 1].asset.symbol} size={14} /> : null}
+            </span>
+          </button>
+        ) : null}
       </div>
-      <button type="button" className={styles.arr} disabled={idx < 0 || idx >= model.dates.length - 1} aria-label="Later session" onClick={() => onPick(model.dates[idx + 1])}>
+      <button type="button" className={styles.arr} disabled={idx < 0 || idx >= all.length - 1} aria-label="Later session" onClick={() => onPick(all[idx + 1])}>
         ›
       </button>
       <button type="button" className={styles.allBtn} aria-pressed={mode === "all"} onClick={onMode}>
@@ -490,6 +516,69 @@ function Lists({ rows, report }: { rows: DayRow[]; report: DailyReport | null | 
       {list("Most traded", "shares, the session", "", fromReport(report?.top_volume, (row) => row.volume_shares, (row) => `${(row.volume_shares ?? 0).toLocaleString("en-US")} sh`, (row) => compactMoney(row.volume_cash), () => "flat"))}
       {list("Going quiet", "volume vs the session before", "", fromReport(report?.volume_losers, (row) => row.volume_change_pct, (row) => pct(row.volume_change_pct), (row) => `${compactMoney(row.volume_cash)} · ${(row.volume_shares ?? 0).toLocaleString("en-US")} sh`, (row) => toneClass(row.volume_change_pct)))}
     </div>
+  );
+}
+
+// ── Today, while its ticks are still landing ─────────────────────────────
+/**
+ * The session in progress, told in prices: who's up and down since the last close, and the ticks
+ * that have landed. How far the settlement moved each target stays secret until the last tick, so
+ * nothing here ranks by it; after that tick this day turns into the full report.
+ */
+function LiveSession({ live, report }: { live: NonNullable<DayModel["live"]>; report: DailyReport | null | undefined }) {
+  const bySymbol = useAssetMap();
+  const icon = (symbol: string) => bySymbol.get(symbol.toUpperCase())?.icon;
+  const rows = [...live.rows].sort((a, b) => b.pchg - a.pchg);
+  const up = rows.filter((row) => row.pchg > 0.00005).length;
+  const down = rows.filter((row) => row.pchg < -0.00005).length;
+  const max = Math.max(0.0001, ...rows.map((row) => Math.abs(row.pchg)));
+  const top = rows[0];
+  const bottom = rows[rows.length - 1];
+  const label = dateLabel(live.date);
+  const revealAt = report?.targets_reveal_at ? `at ${formatEtTime(new Date(report.targets_reveal_at))} ET` : "after the overnight tick";
+  const row = (entry: (typeof rows)[number], tone: "up" | "down") => (
+    <RankRow
+      key={entry.asset.symbol}
+      symbol={entry.asset.symbol}
+      icon={icon(entry.asset.symbol)}
+      detail={`${num(entry.prevClose)} → ${num(entry.price)}`}
+      bar={Math.abs(entry.pchg) / max}
+      tone={tone}
+      value={pct(entry.pchg)}
+    />
+  );
+  return (
+    <>
+      <div className={styles.lede}>
+        <div>
+          <div className={styles.kick}>{label.long.toUpperCase()} · IN PROGRESS</div>
+          <h2>{top && bottom && top !== bottom ? `So far, ${top.asset.display_name} leads and ${bottom.asset.display_name} trails` : "The session has just opened"}</h2>
+          <p>
+            Prices since the last close: {up} up, {down} down of {rows.length}. Each talent&apos;s new target, and how far this morning&apos;s settlement moved it, stays
+            secret until the last tick lands ({revealAt}). Then this becomes the day&apos;s full report.
+          </p>
+        </div>
+      </div>
+      <Ticks date={live.date} />
+      <div className={styles.grid}>
+        <div className={ui.sec}>
+          <div className={ui.secHead}>
+            <h2 className={ui.up}>Up so far</h2>
+            <span className={ui.aside}>price since the last close</span>
+          </div>
+          {rows.filter((entry) => entry.pchg > 0.00005).slice(0, 8).map((entry) => row(entry, "up"))}
+          {up ? null : <p className={ui.empty}>Nothing up yet.</p>}
+        </div>
+        <div className={ui.sec}>
+          <div className={ui.secHead}>
+            <h2 className={ui.down}>Down so far</h2>
+            <span className={ui.aside}>price since the last close</span>
+          </div>
+          {[...rows].reverse().filter((entry) => entry.pchg < -0.00005).slice(0, 8).map((entry) => row(entry, "down"))}
+          {down ? null : <p className={ui.empty}>Nothing down yet.</p>}
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -898,7 +987,10 @@ export function ReportTab({ initialDate, initialView }: { initialDate?: string; 
   const [mode, setMode] = useState<"one" | "all">(initialView === "all" ? "all" : "one");
   const [picked, setPicked] = useState<string | null>(initialDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDate) ? initialDate : null);
   const fallback = latest?.market_date?.slice(0, 10);
-  const date = picked && model.dates.includes(picked) ? picked : fallback && model.dates.includes(fallback) ? fallback : model.dates[model.dates.length - 1] ?? null;
+  const all = sessionDates(model);
+  // Today while its ticks land, else the latest finished report.
+  const date = picked && all.includes(picked) ? picked : model.live ? model.live.date : fallback && model.dates.includes(fallback) ? fallback : model.dates[model.dates.length - 1] ?? null;
+  const live = model.live && date === model.live.date ? model.live : null;
   const report = useReport(date);
   const rows = date ? model.byDate.get(date) ?? [] : [];
   const index = useMemo(() => {
@@ -912,7 +1004,7 @@ export function ReportTab({ initialDate, initialView }: { initialDate?: string; 
 
   const sync = (nextDate: string | null, nextMode: "one" | "all") => {
     const params = new URLSearchParams();
-    if (nextDate && nextDate !== model.dates[model.dates.length - 1]) params.set("date", nextDate);
+    if (nextDate && nextDate !== all[all.length - 1]) params.set("date", nextDate);
     if (nextMode === "all") params.set("view", "all");
     const query = params.toString();
     router.replace(`/market/report${query ? `?${query}` : ""}`, { scroll: false });
@@ -937,6 +1029,8 @@ export function ReportTab({ initialDate, initialView }: { initialDate?: string; 
       <DateStrip model={model} date={date} mode={mode} onPick={pick} onMode={toggleMode} />
       {mode === "all" ? (
         <Heatmap model={model} date={date} onPick={pick} />
+      ) : live ? (
+        <LiveSession live={live} report={report} />
       ) : (
         <>
           <Lede date={date} rows={rows} report={report} />
@@ -949,8 +1043,8 @@ export function ReportTab({ initialDate, initialView }: { initialDate?: string; 
         </>
       )}
       <p className={ui.foot}>
-        Settlement runs at 09:00 ET. Each talent&apos;s hidden fair value reprices from their YouTube views, subscribers and uploads (plus a one-day lift after a big stream: a 3D live, new outfit or original song), and the day&apos;s four ticks pull the price toward it. The mark is the settled price with
-        short-term order pressure stripped out. The treasury prints new shares of stocks trading above fair.
+        Settlement runs at 09:00 ET. Each talent&apos;s hidden fair value reprices from their YouTube views, subscribers and uploads (plus a one-day lift after a big stream: a 3D live, new outfit or original song), and the day&apos;s four ticks pull the price toward it. A talent&apos;s mark is where the settlement put that fair value; it
+        stays secret while the day&apos;s ticks land and comes out with the full report after the last one. The treasury prints new shares of stocks trading above fair.
       </p>
     </>
   );

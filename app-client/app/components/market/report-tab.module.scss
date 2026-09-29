@@ -100,6 +100,12 @@
       color: var(--blue-2);
     }
   }
+
+  // Today, while its ticks land: marked LIVE in the up colour.
+  &[data-live] > span:first-child {
+    color: var(--up);
+    font-weight: 700;
+  }
 }
 
 .breadth {

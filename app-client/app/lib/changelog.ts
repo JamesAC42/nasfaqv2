@@ -14,6 +14,14 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-09-29",
+    title: "The report keeps the ticks' secret",
+    changes: [
+      { kind: "fixed", text: "The market report and stock charts could give away where the day's ticks were heading before they landed." },
+      { kind: "improved", text: "Market → Report shows today as a live session in prices while its ticks land, then the full report after the overnight tick." },
+    ],
+  },
+  {
+    date: "2026-09-29",
     title: "Tell us what's broken",
     changes: [{ kind: "new", text: "\"Report a bug\" at the bottom of every page sends what went wrong straight to us." }],
   },
