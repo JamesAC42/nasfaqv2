@@ -1562,6 +1562,8 @@ async function applySchema(pool) {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS content_vt_mentions_time_idx ON content.vt_mentions (posted_at)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS content_vt_mentions_symbol_time_idx ON content.vt_mentions (symbol, posted_at)`);
+  // How many times Jev was asked about a mention; ones it hasn't read yet get re-read up to twice.
+  await pool.query(`ALTER TABLE content.vt_mentions ADD COLUMN IF NOT EXISTS attempts SMALLINT NOT NULL DEFAULT 0`);
   // Article auto-tagging: which articles and news items have been judged, and what was added.
   await pool.query(`
     ALTER TABLE content.article_assets

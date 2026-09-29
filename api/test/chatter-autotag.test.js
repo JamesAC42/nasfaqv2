@@ -126,3 +126,91 @@ test(
     }
   )
 );
+
+// ── Re-reading what Jev hasn't read ──────────────────────────────────────────
+
+const unreadRows = [
+  { post_no: 102, symbol: "PEK", thread_no: 100, subject: "/pekora/" },
+  { post_no: 101, symbol: "PEK", thread_no: 100, subject: "/pekora/" },
+  { post_no: 101, symbol: "MIK", thread_no: 100, subject: "/pekora/" },
+  { post_no: 201, symbol: "SUI", thread_no: 200, subject: null },
+];
+// Thread 100 still has post 101 (102 was deleted); thread 200 was pruned.
+const threadJson = {
+  100: { status: 200, body: { posts: [{ no: 100, sub: "/pekora/" }, { no: 101, com: "Pekora and Miko collab was great" }, { no: 103, com: "Miko" }] } },
+  200: { status: 404 },
+};
+const getThread = async (path) => threadJson[path.match(/(\d+)\.json$/)[1]];
+
+function fakePool(rows) {
+  const updates = [];
+  return {
+    updates,
+    topicUpdates: () => updates.filter((entry) => /SET topic/.test(entry.sql)).map((entry) => entry.params),
+    goneUpdates: () => updates.filter((entry) => /SET attempts = \$2/.test(entry.sql)).map((entry) => entry.params),
+    query: async (sql, params) => {
+      if (/SELECT m\.post_no/.test(sql)) return { rows };
+      updates.push({ sql, params });
+      return { rows: [], rowCount: 1 };
+    },
+  };
+}
+
+test("unread mentions group by thread and post, newest first", () => {
+  const shape = (threads) => threads.map((thread) => [thread.thread_no, [...thread.posts].map(([no, mentions]) => [no, mentions.map((m) => m.symbol)])]);
+  assert.deepEqual(shape(chatter.groupUnread(unreadRows)), [
+    [100, [[102, ["PEK"]], [101, ["PEK", "MIK"]]]],
+    [200, [[201, ["SUI"]]]],
+  ]);
+  assert.deepEqual(shape(chatter.groupUnread(unreadRows, 1)).map(([no]) => no), [100]);
+});
+
+test(
+  "re-read: Jev reads the posts still up, and deleted or pruned ones are given up on",
+  withJev({ PEK: { choice: "hype", confidence: 0.9 }, MIK: { choice: "collab", confidence: 0.8 } }, async () => {
+    const pool = fakePool(unreadRows);
+    const out = await chatter.rereadUnread(pool, { getJson: getThread });
+    assert.deepEqual(out, { threads: 2, read: 1, gone: 2 });
+    assert.deepEqual(pool.topicUpdates(), [
+      [101, "PEK", "hype", 0.9, "jev"],
+      [101, "MIK", "collab", 0.8, "jev"],
+    ]);
+    assert.deepEqual(pool.goneUpdates(), [
+      [[102], 2],
+      [[201], 2],
+    ]);
+  })
+);
+
+test(
+  "re-read: a failed read uses up a try and leaves the topic empty; the budget caps the calls",
+  withJev({}, async () => {
+    const rows = [
+      { post_no: 101, symbol: "PEK", thread_no: 100, subject: "/pekora/" },
+      { post_no: 103, symbol: "MIK", thread_no: 100, subject: "/pekora/" },
+    ];
+    const pool = fakePool(rows);
+    let calls = 0;
+    const judge = async () => {
+      calls += 1;
+      throw new Error("jev timed out");
+    };
+    const out = await chatter.rereadUnread(pool, { getJson: getThread, budget: 1, judge });
+    assert.equal(calls, 1);
+    assert.deepEqual(out, { threads: 1, read: 0, gone: 0 });
+    assert.deepEqual(pool.topicUpdates(), [[101, "PEK", null, null, "keywords"]]);
+    assert.match(pool.updates[0].sql, /attempts = attempts \+ 1/);
+  })
+);
+
+test("re-read does nothing without Jev", async () => {
+  const saved = process.env.JEV_API_KEY;
+  delete process.env.JEV_API_KEY;
+  try {
+    const pool = fakePool(unreadRows);
+    assert.deepEqual(await chatter.rereadUnread(pool, { getJson: getThread }), { threads: 0, read: 0, gone: 0 });
+    assert.equal(pool.updates.length, 0);
+  } finally {
+    if (saved !== undefined) process.env.JEV_API_KEY = saved;
+  }
+});

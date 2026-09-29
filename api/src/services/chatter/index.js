@@ -18,6 +18,11 @@ const MAX_THREADS_PER_TICK = 40;
 const MAX_JEV_PER_TICK = Number(process.env.CHATTER_JEV_PER_TICK || 400);
 const MAX_TALENTS_PER_POST = 4;
 const KEEP_DAYS = 15;
+// Mentions stored without Jev's read (it wasn't set up, failed, or the tick ran out of budget) are
+// read again later: this many threads re-fetched per tick, up to two tries each, for a week.
+const REREAD_THREADS_PER_TICK = 20;
+const REREAD_DAYS = 7;
+const MAX_ATTEMPTS = 2;
 
 /** What a mention is about. Heat leaves out `off_topic` (not her) and `rumour` (not our business). */
 const TOPICS = {
@@ -152,6 +157,84 @@ async function judgePost({ text, subject, mentions }, names) {
   });
 }
 
+/** Unread mention rows (newest first) as threads to re-fetch, newest first: [{ thread_no, subject, posts: Map(post_no → [{ symbol }]) }]. */
+function groupUnread(rows, maxThreads = REREAD_THREADS_PER_TICK) {
+  const threads = new Map();
+  for (const row of rows) {
+    const threadNo = Number(row.thread_no);
+    const thread = threads.get(threadNo) ?? { thread_no: threadNo, subject: row.subject ?? "", posts: new Map() };
+    const postNo = Number(row.post_no);
+    thread.posts.set(postNo, [...(thread.posts.get(postNo) ?? []), { symbol: row.symbol }]);
+    threads.set(threadNo, thread);
+  }
+  return [...threads.values()].slice(0, maxThreads);
+}
+
+/**
+ * Asks Jev about mentions it hasn't read. Post text is never kept, so their threads are fetched
+ * again; a post that's gone (thread pruned, post deleted) is given up on. Each try, answered or not,
+ * uses one of a mention's two.
+ */
+async function rereadUnread(pool, { getJson = fourchan.getJson, names = new Map(), budget = MAX_JEV_PER_TICK, judge = judgePost } = {}) {
+  const out = { threads: 0, read: 0, gone: 0 };
+  if (!jev.isConfigured() || budget <= 0) return out;
+  const { rows } = await pool.query(
+    `
+    SELECT m.post_no, m.symbol, m.thread_no, t.subject
+    FROM content.vt_mentions m
+    LEFT JOIN content.vt_threads t ON t.thread_no = m.thread_no
+    WHERE m.topic IS NULL AND m.classifier = 'keywords' AND m.attempts < $1
+      AND m.posted_at > now() - ($2 || ' days')::interval
+    ORDER BY m.posted_at DESC
+    LIMIT 2000
+  `,
+    [MAX_ATTEMPTS, String(REREAD_DAYS)]
+  );
+  let calls = 0;
+  for (const thread of groupUnread(rows)) {
+    if (calls >= budget) break;
+    let result;
+    try {
+      result = await getJson(`/${BOARD}/thread/${thread.thread_no}.json`);
+    } catch {
+      continue; // 4chan hiccup: try this thread again next tick
+    }
+    out.threads += 1;
+    const posts = result.status === 200 ? new Map((result.body.posts ?? []).map((post) => [Number(post.no), post])) : new Map();
+    const subject = thread.subject || fourchan.postText(result.body?.posts?.[0]?.sub).slice(0, 200);
+    const items = [];
+    const gone = [];
+    for (const [postNo, mentions] of thread.posts) {
+      const text = fourchan.postText(posts.get(postNo)?.com);
+      if (text) items.push({ post_no: postNo, text, subject, mentions });
+      else gone.push(postNo);
+    }
+    if (gone.length) {
+      await pool.query(`UPDATE content.vt_mentions SET attempts = $2 WHERE post_no = ANY($1::bigint[]) AND topic IS NULL`, [gone, MAX_ATTEMPTS]);
+      out.gone += gone.length;
+    }
+    const take = items.slice(0, budget - calls);
+    calls += take.length;
+    await jev.mapLimit(take, 4, async (item) => {
+      let verdicts = null;
+      try {
+        verdicts = await judge(item, names);
+      } catch {
+        // not checked: the try still counts
+      }
+      for (const mention of item.mentions) {
+        const verdict = verdicts?.find((entry) => entry.symbol === mention.symbol) ?? null;
+        await pool.query(
+          `UPDATE content.vt_mentions SET topic = $3, confidence = $4, classifier = $5, attempts = attempts + 1 WHERE post_no = $1 AND symbol = $2`,
+          [item.post_no, mention.symbol, verdict?.topic ?? null, verdict?.confidence ?? null, verdict ? "jev" : "keywords"]
+        );
+      }
+      if (verdicts) out.read += 1;
+    });
+  }
+  return out;
+}
+
 // ── Scanning ────────────────────────────────────────────────────────────────
 
 async function loadThreadState(pool) {
@@ -217,37 +300,42 @@ async function scanOnce(pool, { logger = console, getJson = fourchan.getJson, no
   const useJev = jev.isConfigured();
   let jevCalls = 0;
   const judged = await jev.mapLimit(pending, 4, async (item) => {
+    let tried = false;
     if (useJev && jevCalls < MAX_JEV_PER_TICK) {
       jevCalls += 1;
+      tried = true;
       try {
-        return { item, verdicts: await judgePost(item, names) };
+        return { item, verdicts: await judgePost(item, names), tried };
       } catch {
-        // fall through: not checked
+        // fall through: not checked (the re-read gets one more try)
       }
     }
-    return { item, verdicts: item.mentions.map((mention) => ({ ...mention, topic: null, confidence: null, classifier: "keywords" })) };
+    return { item, verdicts: item.mentions.map((mention) => ({ ...mention, topic: null, confidence: null, classifier: "keywords" })), tried };
   });
 
   let stored = 0;
-  for (const { item, verdicts } of judged) {
+  for (const { item, verdicts, tried } of judged) {
     for (const verdict of verdicts) {
       const { rowCount } = await pool.query(
         `
-        INSERT INTO content.vt_mentions (post_no, symbol, thread_no, posted_at, via, topic, confidence, classifier)
-        VALUES ($1,$2,$3,to_timestamp($4),$5,$6,$7,$8)
+        INSERT INTO content.vt_mentions (post_no, symbol, thread_no, posted_at, via, topic, confidence, classifier, attempts)
+        VALUES ($1,$2,$3,to_timestamp($4),$5,$6,$7,$8,$9)
         ON CONFLICT (post_no, symbol) DO NOTHING
       `,
-        [item.post_no, verdict.symbol, item.thread_no, item.time, verdict.via, verdict.topic, verdict.confidence, verdict.classifier]
+        [item.post_no, verdict.symbol, item.thread_no, item.time, verdict.via, verdict.topic, verdict.confidence, verdict.classifier, tried ? 1 : 0]
       );
       stored += rowCount;
     }
   }
 
+  // Then whatever Jev hasn't read yet, with the rest of the tick's budget.
+  const reread = await rereadUnread(pool, { getJson, names, budget: MAX_JEV_PER_TICK - jevCalls });
+
   await pool.query(`DELETE FROM content.vt_mentions WHERE posted_at < now() - ($1 || ' days')::interval`, [String(KEEP_DAYS)]);
   await pool.query(`DELETE FROM content.vt_threads WHERE checked_at < now() - interval '4 days'`);
   summaryCache = null;
-  const out = { holo_threads: changed.length, fetched, posts: pending.length, mentions: stored, jev_calls: jevCalls };
-  if (stored) logger.info?.("chatter scanned", out);
+  const out = { holo_threads: changed.length, fetched, posts: pending.length, mentions: stored, jev_calls: jevCalls, reread };
+  if (stored || reread.read || reread.gone) logger.info?.("chatter scanned", out);
   return out;
 }
 
@@ -369,4 +457,4 @@ function startChatterScheduler(pool, logger = console, { intervalMs = 5 * 60_000
   };
 }
 
-module.exports = { TOPICS, classifyThread, getHistory, getSummary, mentionsForPost, scanOnce, startChatterScheduler, summarize };
+module.exports = { TOPICS, classifyThread, getHistory, getSummary, groupUnread, mentionsForPost, rereadUnread, scanOnce, startChatterScheduler, summarize };
