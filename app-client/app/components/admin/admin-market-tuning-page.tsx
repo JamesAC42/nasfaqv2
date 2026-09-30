@@ -425,6 +425,24 @@ export function AdminMarketTuningPage() {
     };
   }, [access.initialized, isAdmin, loadAssets, loadOps]);
 
+  // A rebuild started in another tab or before a reload is still running on the API: show its
+  // progress here too, and reload the market once it's done.
+  useEffect(() => {
+    if (!access.initialized || !isAdmin) return;
+    let cancelled = false;
+    void useProfileStore
+      .getState()
+      .resumeRebuild()
+      .then(async (followed) => {
+        if (!followed || cancelled) return;
+        await loadAssets();
+        await Promise.allSettled([loadOps(), refreshMarketOverview()]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [access.initialized, isAdmin, loadAssets, loadOps, refreshMarketOverview]);
+
   useEffect(() => {
     if (!sessionId || !isAdmin) return;
     let cancelled = false;
@@ -605,6 +623,7 @@ export function AdminMarketTuningPage() {
       </div>
 
       <Tabs tabs={tabs} value={tab} onChange={setTab} label="Market tuning sections" />
+      {adminBusy === "rebuild" && adminStatus && tab !== "reset" ? <Notice tone="info">{adminStatus}</Notice> : null}
       {opsError && tab !== "stocks" && tab !== "reset" ? <Notice>{opsError}</Notice> : null}
 
       {tab === "ticks" ? (

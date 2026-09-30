@@ -296,6 +296,8 @@ async function ensureAdjustmentSession(pool, { marketDate, force = false } = {})
     const schedule = getIntervalSchedule(marketDate, timeZone);
     const skippedAssets = [];
     let intervalCount = 0;
+    // Every talent's four intervals go in as one statement (a rebuild does this for every day).
+    const rows = { asset: [], key: [], at: [], strength: [], base: [], meta: [] };
 
     for (const asset of assets) {
       let strengths;
@@ -314,37 +316,44 @@ async function ensureAdjustmentSession(pool, { marketDate, force = false } = {})
       }
 
       for (const [index, interval] of schedule.entries()) {
-        await client.query(
-          `
-          INSERT INTO market.asset_adjustment_intervals (
-            session_id,
-            asset_id,
-            interval_key,
-            scheduled_at,
-            strength_pct,
-            base_rate,
-            status,
-            metadata_json
-          ) VALUES ($1,$2,$3,$4,$5,$6,'scheduled',$7::jsonb)
-          ON CONFLICT (session_id, asset_id, interval_key)
-          DO NOTHING
-        `,
-          [
-            session.id,
-            asset.id,
-            interval.key,
-            interval.scheduledAt.toISOString(),
-            strengths[index],
-            asset.current_fair_value,
-            JSON.stringify({
-              label: interval.label,
-              timezone: interval.timeZone,
-              generated_market_price: roundMetric(asset.current_mid_price),
-            }),
-          ]
+        rows.asset.push(asset.id);
+        rows.key.push(interval.key);
+        rows.at.push(interval.scheduledAt.toISOString());
+        rows.strength.push(strengths[index]);
+        rows.base.push(asset.current_fair_value);
+        rows.meta.push(
+          JSON.stringify({
+            label: interval.label,
+            timezone: interval.timeZone,
+            generated_market_price: roundMetric(asset.current_mid_price),
+          })
         );
         intervalCount += 1;
       }
+    }
+
+    if (rows.asset.length) {
+      await client.query(
+        `
+        INSERT INTO market.asset_adjustment_intervals (
+          session_id,
+          asset_id,
+          interval_key,
+          scheduled_at,
+          strength_pct,
+          base_rate,
+          status,
+          metadata_json
+        )
+        SELECT $1, v.asset_id, v.interval_key, v.scheduled_at, v.strength_pct, v.base_rate, 'scheduled', v.meta::jsonb
+        FROM unnest($2::bigint[], $3::text[], $4::timestamptz[], $5::numeric[], $6::numeric[], $7::text[])
+          WITH ORDINALITY AS v(asset_id, interval_key, scheduled_at, strength_pct, base_rate, meta, ord)
+        ORDER BY v.ord
+        ON CONFLICT (session_id, asset_id, interval_key)
+        DO NOTHING
+      `,
+        [session.id, rows.asset, rows.key, rows.at, rows.strength, rows.base, rows.meta]
+      );
     }
 
     await client.query("COMMIT");
@@ -616,6 +625,15 @@ async function applyDueAdjustments(pool, { now = new Date(), limit = DEFAULT_BAT
   };
 }
 
+/** [from, to) for a market day's adjustment price events: two days before it to a month after. */
+function replayEventWindow(marketDate) {
+  const day = normalizeMarketDate(marketDate);
+  if (!day) return ["-infinity", "infinity"];
+  const start = Date.parse(`${day}T00:00:00.000Z`);
+  const DAY_MS = 86_400_000;
+  return [new Date(start - 2 * DAY_MS).toISOString(), new Date(start + 32 * DAY_MS).toISOString()];
+}
+
 /**
  * Plays one past market day's adjustments at their scheduled times, as if the scheduler had run
  * live. Used by the historical rebuild: settlement only carries the previous close forward, and it
@@ -624,7 +642,9 @@ async function applyDueAdjustments(pool, { now = new Date(), limit = DEFAULT_BAT
  * hundreds of days).
  */
 async function replayAdjustmentsForDate(pool, { marketDate, until = new Date() } = {}) {
-  // Price events from an earlier replay of this day go with its old session.
+  // Price events from an earlier replay of this day go with its old session. They're stamped within
+  // the day's schedule (or a little after, if the live scheduler ran late): the time window keeps the
+  // search to those weeks of the price history instead of all of it.
   await pool.query(
     `
     DELETE FROM market.asset_price_events e
@@ -632,9 +652,10 @@ async function replayAdjustmentsForDate(pool, { marketDate, until = new Date() }
     JOIN market.adjustment_sessions s ON s.id = i.session_id
     WHERE s.market_date = $1
       AND e.event_type = 'interval_adjustment'
+      AND e.ts >= $2::timestamptz AND e.ts < $3::timestamptz
       AND e.metadata_json->>'adjustment_interval_id' = i.id::text
   `,
-    [marketDate]
+    [marketDate, ...replayEventWindow(marketDate)]
   );
   const generated = await ensureAdjustmentSession(pool, { marketDate, force: true });
   const sessionId = generated.session.id;

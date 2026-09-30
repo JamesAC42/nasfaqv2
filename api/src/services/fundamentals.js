@@ -408,42 +408,87 @@ function densifyDailyStats(rows, { from = null, to = null, fillMissingDates = tr
   return dense;
 }
 
-async function upsertCalculatedSnapshot(client, snapshot) {
-  await client.query(
-    `
-    INSERT INTO market.channel_daily_snapshots (
-      youtube_channel_id,
-      snapshot_date,
-      subscriber_count,
-      view_count,
-      video_count,
-      view_delta_1d,
-      view_delta_7d,
-      view_delta_30d,
-      video_delta_7d,
-      video_delta_30d,
-      estimated_sub_delta_7d,
-      estimated_sub_delta_30d,
-      size_anchor_raw,
-      view_signal,
-      upload_signal,
-      sub_signal,
-      momentum_raw,
-      momentum_multiplier,
-      fundamental_value_raw,
-      fundamental_value_smoothed,
-      calculation_version,
-      calculation_status,
-      calculation_error,
-      event_signal,
-      event_kinds,
-      updated_at
-    ) VALUES (
-      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-      $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
-      $21,$22,$23,$24,$25,now()
-    )
-    ON CONFLICT (youtube_channel_id, snapshot_date)
+// Snapshots per statement: a full recalculation writes ~20k (every talent, every day), and one
+// round trip each took minutes against the hosted database.
+const SNAPSHOT_BATCH = 1000;
+
+const SNAPSHOT_COLUMNS = [
+  "youtube_channel_id",
+  "snapshot_date",
+  "subscriber_count",
+  "view_count",
+  "video_count",
+  "view_delta_1d",
+  "view_delta_7d",
+  "view_delta_30d",
+  "video_delta_7d",
+  "video_delta_30d",
+  "estimated_sub_delta_7d",
+  "estimated_sub_delta_30d",
+  "size_anchor_raw",
+  "view_signal",
+  "upload_signal",
+  "sub_signal",
+  "momentum_raw",
+  "momentum_multiplier",
+  "fundamental_value_raw",
+  "fundamental_value_smoothed",
+  "calculation_version",
+  "calculation_status",
+  "calculation_error",
+  "event_signal",
+  "event_kinds",
+];
+
+function snapshotRow(snapshot) {
+  return {
+    youtube_channel_id: snapshot.youtube_channel_id,
+    snapshot_date: snapshot.snapshot_date,
+    subscriber_count: snapshot.subscriber_count,
+    view_count: snapshot.view_count,
+    video_count: snapshot.video_count,
+    view_delta_1d: numberOrNull(snapshot.view_delta_1d),
+    view_delta_7d: numberOrNull(snapshot.view_delta_7d),
+    view_delta_30d: numberOrNull(snapshot.view_delta_30d),
+    video_delta_7d: numberOrNull(snapshot.video_delta_7d),
+    video_delta_30d: numberOrNull(snapshot.video_delta_30d),
+    estimated_sub_delta_7d: numberOrNull(snapshot.estimated_sub_delta_7d),
+    estimated_sub_delta_30d: numberOrNull(snapshot.estimated_sub_delta_30d),
+    size_anchor_raw: snapshot.size_anchor_raw,
+    view_signal: snapshot.view_signal,
+    upload_signal: snapshot.upload_signal,
+    sub_signal: snapshot.sub_signal,
+    momentum_raw: snapshot.momentum_raw,
+    momentum_multiplier: snapshot.momentum_multiplier,
+    fundamental_value_raw: snapshot.fundamental_value_raw,
+    fundamental_value_smoothed: snapshot.fundamental_value_smoothed,
+    calculation_version: snapshot.calculation_version,
+    calculation_status: snapshot.calculation_status,
+    calculation_error: snapshot.calculation_error,
+    event_signal: snapshot.event_signal ?? 0,
+    event_kinds: snapshot.event_kinds ?? null,
+  };
+}
+
+// JSON has no NaN or Infinity; as strings they reach the numeric columns the way a query parameter would.
+const keepNonFinite = (_key, value) => (typeof value === "number" && !Number.isFinite(value) ? String(value) : value);
+
+/**
+ * Writes calculated snapshots (insert, or update the channel's row for that day), SNAPSHOT_BATCH per
+ * statement. A (channel, day) that appears twice keeps the later one, as writing them in order would.
+ */
+async function upsertCalculatedSnapshots(client, snapshots) {
+  const latest = new Map();
+  for (const snapshot of snapshots) latest.set(`${snapshot.youtube_channel_id}|${snapshot.snapshot_date}`, snapshot);
+  const rows = [...latest.values()].map(snapshotRow);
+  const columns = SNAPSHOT_COLUMNS.join(", ");
+  for (let start = 0; start < rows.length; start += SNAPSHOT_BATCH) {
+    await client.query(
+      `
+      INSERT INTO market.channel_daily_snapshots (${columns}, updated_at)
+      SELECT ${columns}, now()
+      FROM jsonb_populate_recordset(NULL::market.channel_daily_snapshots, $1::jsonb)
+      ON CONFLICT (youtube_channel_id, snapshot_date)
     DO UPDATE SET
       subscriber_count = EXCLUDED.subscriber_count,
       view_count = EXCLUDED.view_count,
@@ -469,35 +514,11 @@ async function upsertCalculatedSnapshot(client, snapshot) {
       event_signal = EXCLUDED.event_signal,
       event_kinds = EXCLUDED.event_kinds,
       updated_at = now()
-  `,
-    [
-      snapshot.youtube_channel_id,
-      snapshot.snapshot_date,
-      snapshot.subscriber_count,
-      snapshot.view_count,
-      snapshot.video_count,
-      numberOrNull(snapshot.view_delta_1d),
-      numberOrNull(snapshot.view_delta_7d),
-      numberOrNull(snapshot.view_delta_30d),
-      numberOrNull(snapshot.video_delta_7d),
-      numberOrNull(snapshot.video_delta_30d),
-      numberOrNull(snapshot.estimated_sub_delta_7d),
-      numberOrNull(snapshot.estimated_sub_delta_30d),
-      snapshot.size_anchor_raw,
-      snapshot.view_signal,
-      snapshot.upload_signal,
-      snapshot.sub_signal,
-      snapshot.momentum_raw,
-      snapshot.momentum_multiplier,
-      snapshot.fundamental_value_raw,
-      snapshot.fundamental_value_smoothed,
-      snapshot.calculation_version,
-      snapshot.calculation_status,
-      snapshot.calculation_error,
-      snapshot.event_signal ?? 0,
-      snapshot.event_kinds ?? null,
-    ]
-  );
+    `,
+      [JSON.stringify(rows.slice(start, start + SNAPSHOT_BATCH), keepNonFinite)]
+    );
+  }
+  return rows.length;
 }
 
 async function refreshLatestAssetFairValues(client) {
@@ -666,6 +687,7 @@ async function recalculateFundamentals(pool, { from = null, to = null, version =
     let insertedOrUpdatedSnapshots = 0;
     let failedSnapshots = 0;
     const errors = [];
+    const pending = []; // calculated snapshots not yet written
 
     for (const [currentChannelId, channelRows] of grouped.entries()) {
       const validRows = [];
@@ -703,10 +725,12 @@ async function recalculateFundamentals(pool, { from = null, to = null, version =
           continue;
         }
 
-        await upsertCalculatedSnapshot(client, derived);
+        pending.push(derived);
         insertedOrUpdatedSnapshots += 1;
+        if (pending.length >= SNAPSHOT_BATCH) await upsertCalculatedSnapshots(client, pending.splice(0));
       }
     }
+    await upsertCalculatedSnapshots(client, pending.splice(0));
 
     const updatedAssets = await refreshLatestAssetFairValues(client);
     await completeCalculationRun(client, runId, {
@@ -751,5 +775,6 @@ module.exports = {
   streamEventSignal,
   listFundamentalsJobs,
   recalculateFundamentals,
+  upsertCalculatedSnapshots,
   normalizeFundamentalToPrice,
 };
