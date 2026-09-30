@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TalentCard } from "@/app/components/games/cards/talent-card";
-import { cardPath, type Alert } from "@/app/lib/games/exchange";
+import { ItemArt } from "@/app/components/games/exchange/item-art";
+import { cardPath, itemPath, type Alert } from "@/app/lib/games/exchange";
 import { useGamesEvents, type GamesPayload } from "@/app/lib/games/use-games-socket";
 import { money } from "@/app/lib/time";
 import { useExchangeStore } from "@/app/stores/exchange-store";
@@ -15,23 +16,25 @@ type Toast = { id: number; alert: Alert };
 
 /** What an alert says and where it goes. */
 function describe(alert: Alert): { title: string; line: string; href: string; tone: "win" | "warn" | "info" } {
-  const card = alert.card ? `${alert.card.name} ${alert.card.rarity}` : "a card";
+  // A card, or a capsule item from the item market.
+  const card = alert.card ? `${alert.card.name} ${alert.card.rarity}` : alert.item ? alert.item.name : "a card";
+  const home = alert.item ? "/games/item-locker" : "/games/collection";
   const trader = alert.trade ? (alert.trade.direction === "incoming" ? alert.trade.from.username : alert.trade.to.username) : "";
   switch (alert.kind) {
     case "sold":
       return { title: "Sold!", line: `${card} went to ${alert.buyer?.username ?? "someone"} for ${money(alert.price)}. You got ${money(alert.proceeds)}.`, href: "/games/exchange/desk", tone: "win" };
     case "won":
-      return { title: "You won the auction", line: `${card} is yours for ${money(alert.price)}.`, href: "/games/collection", tone: "win" };
+      return { title: "You won the auction", line: `${card} is yours for ${money(alert.price)}.`, href: home, tone: "win" };
     case "bought":
-      return { title: "It's yours", line: `${card} for ${money(alert.price)}.`, href: "/games/collection", tone: "win" };
+      return { title: "It's yours", line: `${card} for ${money(alert.price)}.`, href: home, tone: "win" };
     case "outbid":
-      return { title: "You've been outbid", line: `${card} is at ${money(alert.amount ?? null)}. Your ${money(alert.your_bid)} is back in your cash.`, href: alert.card ? cardPath(alert.card.key) : "/games/exchange/desk", tone: "warn" };
+      return { title: "You've been outbid", line: `${card} is at ${money(alert.amount ?? null)}. Your ${money(alert.your_bid)} is back in your cash.`, href: alert.item ? itemPath(alert.item.key) : alert.card ? cardPath(alert.card.key) : "/games/exchange/desk", tone: "warn" };
     case "auction_lost":
       return { title: "Bought out", line: `Someone paid the buy-now on ${card}. Your ${money(alert.your_bid)} is back.`, href: "/games/exchange/desk", tone: "info" };
     case "bid_received":
       return { title: "New bid", line: `${alert.bidder?.username ?? "Someone"} bid ${money(alert.amount ?? null)} on your ${card}.`, href: "/games/exchange/desk", tone: "info" };
     case "expired":
-      return { title: "Listing ended", line: `${card} didn't sell. It's back in your binder.`, href: "/games/exchange/desk", tone: "info" };
+      return { title: "Listing ended", line: `${card} didn't sell. It's back in your ${alert.item ? "locker" : "binder"}.`, href: "/games/exchange/desk", tone: "info" };
     case "trade_offer":
       return { title: "Trade offer", line: `${trader} wants to trade with you.`, href: "/games/exchange/trades", tone: "win" };
     case "trade_countered":
@@ -97,6 +100,10 @@ export function ExchangeAlerts({ signedIn }: { signedIn: boolean }) {
             {alert.card ? (
               <span className={styles.art}>
                 <TalentCard card={alert.card} width={52} compact tilt={false} />
+              </span>
+            ) : alert.item ? (
+              <span className={styles.art}>
+                <ItemArt item={alert.item} width={52} compact />
               </span>
             ) : null}
             <span className={styles.body}>

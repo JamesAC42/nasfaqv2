@@ -15,6 +15,8 @@ import type { GachaCatalogReward, GameCosmetic, GameInventoryResponse } from "@/
 import { useAuth } from "@/app/providers/auth-provider";
 import { useGamesStore } from "@/app/stores/games-store";
 import { CosmeticTile } from "@/app/components/games/locker/cosmetic-tile";
+import { HoldLeft, ItemSellPicker } from "@/app/components/games/exchange/item-sell-picker";
+import { fetchMyItems, type MyItem } from "@/app/lib/games/exchange";
 import {
   cosmeticRank,
   displayName,
@@ -79,10 +81,20 @@ function MyLocker({ username, pictureUrl, color, aside }: { username: string; pi
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
   const [errors, setErrors] = useState<Record<number, string>>({});
+  // What each capsule item can do on the exchange (Sell, or free after the 24-hour hold).
+  const [market, setMarket] = useState<Map<string, MyItem>>(new Map());
+  const [selling, setSelling] = useState<string | null>(null);
+
+  const loadMarket = useCallback(() => {
+    fetchMyItems()
+      .then((result) => setMarket(new Map(result.items.map((item) => [item.key, item]))))
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     void useGamesStore.getState().loadCollection({ quiet: true });
     let alive = true;
+    loadMarket();
     fetchGamesInventory()
       .then((result) => alive && setInventory(result))
       .catch((error) => alive && setLoadError(gameErrorText(error)));
@@ -95,7 +107,7 @@ function MyLocker({ username, pictureUrl, color, aside }: { username: string; pi
     return () => {
       alive = false;
     };
-  }, []);
+  }, [loadMarket]);
 
   const showcase = useMemo(() => {
     if (!collection) return [];
@@ -159,6 +171,8 @@ function MyLocker({ username, pictureUrl, color, aside }: { username: string; pi
     const slot = equippedIds.get(cosmetic.id);
     const set = setRewardOf(cosmetic);
     const pulls = pullsByKey.get(cosmetic.cosmetic_key) ?? 0;
+    const onMarket = set ? null : market.get(cosmetic.cosmetic_key);
+    const pulled = pulls > 1 ? `×${pulls} pulled` : pulls === 1 ? "Pulled once" : null;
     return (
       <CosmeticTile
         key={cosmetic.id}
@@ -168,18 +182,35 @@ function MyLocker({ username, pictureUrl, color, aside }: { username: string; pi
         imageUrl={imageOf(cosmetic)}
         setReward={set}
         equipped={Boolean(slot)}
-        meta={set ? (set.tier === "spotlight" ? "Spotlight frame" : "Roster badge") : pulls > 1 ? `×${pulls} pulled` : pulls === 1 ? "Pulled once" : null}
+        meta={
+          set ? (
+            set.tier === "spotlight" ? "Spotlight frame" : "Roster badge"
+          ) : onMarket?.reason === "on_hold" ? (
+            <>
+              Tradable: <HoldLeft at={onMarket.available_at} />
+            </>
+          ) : (
+            pulled
+          )
+        }
         error={errors[cosmetic.id]}
         action={
-          slot ? (
-            <button type="button" data-on onClick={() => void unequip(cosmetic, slot)} disabled={busy !== null} aria-label={`Take off ${displayName(cosmetic)}`}>
-              {busy === cosmetic.id ? "…" : "Take off"}
-            </button>
-          ) : (
-            <button type="button" onClick={() => void equip(cosmetic)} disabled={busy !== null} aria-label={`Equip ${displayName(cosmetic)}`}>
-              {busy === cosmetic.id ? "…" : `Equip ${SLOT_LABEL[slotFor(cosmetic)]?.toLowerCase() ?? ""}`.trim()}
-            </button>
-          )
+          <>
+            {slot ? (
+              <button type="button" data-on onClick={() => void unequip(cosmetic, slot)} disabled={busy !== null} aria-label={`Take off ${displayName(cosmetic)}`}>
+                {busy === cosmetic.id ? "…" : "Take off"}
+              </button>
+            ) : (
+              <button type="button" onClick={() => void equip(cosmetic)} disabled={busy !== null} aria-label={`Equip ${displayName(cosmetic)}`}>
+                {busy === cosmetic.id ? "…" : `Equip ${SLOT_LABEL[slotFor(cosmetic)]?.toLowerCase() ?? ""}`.trim()}
+              </button>
+            )}
+            {onMarket?.tradable ? (
+              <button type="button" onClick={() => setSelling(cosmetic.cosmetic_key)} disabled={busy !== null} aria-label={`Sell ${displayName(cosmetic)} on the exchange`}>
+                Sell
+              </button>
+            ) : null}
+          </>
         }
       />
     );
@@ -295,6 +326,19 @@ function MyLocker({ username, pictureUrl, color, aside }: { username: string; pi
           </div>
         ))}
       </section>
+      {selling ? (
+        <ItemSellPicker
+          initialKey={selling}
+          onClose={() => setSelling(null)}
+          onListed={() => {
+            // Listed items leave the locker (and come off you) until they sell or come back.
+            fetchGamesInventory()
+              .then(setInventory)
+              .catch(() => undefined);
+            loadMarket();
+          }}
+        />
+      ) : null}
     </GamesFrame>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { patchUserRoles, searchAdminUsers, type AdminUser, type RoleFlag } from "@/app/components/admin/admin-api";
+import { patchExchangeFreeze, patchUserRoles, searchAdminUsers, type AdminUser, type RoleFlag } from "@/app/components/admin/admin-api";
 import { AdminFrame, AdminGate, AdminLoading, useAdminAccess, useNow } from "@/app/components/admin/admin-frame";
 import { Notice, Section, adminErrorText, adminUi as ui, ago, fmtCash, fmtCount } from "@/app/components/admin/admin-ui";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
@@ -78,7 +78,9 @@ function UserRow({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState<"admin" | "email" | null>(null);
+  const [confirm, setConfirm] = useState<"admin" | "email" | "freeze" | null>(null);
+  const [freezeNote, setFreezeNote] = useState("");
+  const frozen = Boolean(user.exchange_frozen_at);
   const isSelf = selfId !== null && String(user.id) === selfId;
 
   useEffect(() => {
@@ -102,6 +104,22 @@ function UserRow({
     }
   }
 
+  async function setFreeze(next: boolean) {
+    setBusy("exchange");
+    setError(null);
+    try {
+      const result = await patchExchangeFreeze(user.id, { frozen: next, note: next ? freezeNote.trim() || undefined : undefined });
+      onSaved(result.user, ["exchange"]);
+      setFlash(next ? "Exchange frozen" : "Exchange unfrozen");
+      setConfirm(null);
+      setFreezeNote("");
+    } catch (caught) {
+      setError(adminErrorText(caught));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const adminRole = ROLES[0];
 
   return (
@@ -113,6 +131,11 @@ function UserRow({
             <Link href={`/profile/${encodeURIComponent(user.username)}`}>{user.username}</Link>
             {isSelf ? <span className={ui.pill} data-tone="blue">You</span> : null}
             {user.is_admin ? <span className={ui.pill} data-tone="warn">Admin</span> : null}
+            {frozen ? (
+              <span className={ui.pill} data-tone="warn" title={user.exchange_frozen_note ?? undefined}>
+                Exchange frozen
+              </span>
+            ) : null}
           </p>
           <p className={styles.meta}>
             <span>#{user.id}</span>
@@ -139,6 +162,22 @@ function UserRow({
                 )}
               </>
             ) : null}
+          </p>
+          <p className={styles.email}>
+            {frozen ? (
+              <>
+                <span className={styles.dim}>
+                  Exchange frozen {ago(user.exchange_frozen_at ?? "", now)} ago{user.exchange_frozen_note ? `: ${user.exchange_frozen_note}` : ""}
+                </span>
+                <button type="button" className={styles.linkBtn} onClick={() => void setFreeze(false)} disabled={Boolean(busy)}>
+                  {busy === "exchange" ? "Saving…" : "Unfreeze"}
+                </button>
+              </>
+            ) : confirm === "freeze" ? null : (
+              <button type="button" className={styles.linkBtn} onClick={() => setConfirm("freeze")} disabled={Boolean(busy)}>
+                Freeze exchange
+              </button>
+            )}
           </p>
         </div>
       </div>
@@ -210,6 +249,24 @@ function UserRow({
           <div className={styles.confirmBtns}>
             <button type="button" className={ui.btnPrimary} disabled={busy === "email_verified"} onClick={() => void save("email_verified", { email_verified: true }, "Email verified")}>
               {busy === "email_verified" ? "Saving…" : "Verify email"}
+            </button>
+            <button type="button" className={ui.btnGhost} onClick={() => setConfirm(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {confirm === "freeze" ? (
+        <div className={styles.confirm} data-tone="warn" role="group" aria-label="Confirm exchange freeze">
+          <p>
+            Freeze <b>{user.username}</b> out of the exchange? They can&apos;t list, bid, buy or trade until you unfreeze them. What they already have listed or
+            offered runs out as normal.
+          </p>
+          <input className={ui.input} value={freezeNote} maxLength={200} placeholder="Why (for other admins, optional)" onChange={(event) => setFreezeNote(event.target.value)} />
+          <div className={styles.confirmBtns}>
+            <button type="button" className={ui.btnDangerSolid} disabled={busy === "exchange"} onClick={() => void setFreeze(true)}>
+              {busy === "exchange" ? "Saving…" : "Freeze exchange"}
             </button>
             <button type="button" className={ui.btnGhost} onClick={() => setConfirm(null)}>
               Cancel

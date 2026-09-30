@@ -59,6 +59,9 @@ export type AdminUser = {
   created_at: string;
   cash: number | null;
   last_seen_at: string | null;
+  /** Shut out of the card and item exchange (set by an admin). */
+  exchange_frozen_at?: string | null;
+  exchange_frozen_note?: string | null;
 } & Record<RoleFlag, boolean>;
 
 export const searchAdminUsers = (q: string, role: string) => {
@@ -70,6 +73,10 @@ export const searchAdminUsers = (q: string, role: string) => {
 
 export const patchUserRoles = (userId: number, body: Partial<Record<RoleFlag | "email_verified" | "confirm", boolean>>) =>
   apiFetch<{ user: AdminUser; changed: string[] }>(`/api/admin/users/${userId}/roles`, { method: "PATCH", body: JSON.stringify(body) });
+
+/** Freeze (or unfreeze) a player's exchange access: no listing, bidding, buying or trading. */
+export const patchExchangeFreeze = (userId: number, body: { frozen: boolean; note?: string }) =>
+  apiFetch<{ user: AdminUser }>(`/api/admin/users/${userId}/exchange`, { method: "PATCH", body: JSON.stringify(body) });
 
 // ── Market status + scheduler health ─────────────────────────────────────
 
@@ -206,6 +213,10 @@ export const fetchLiveOrderHealth = async (batchLimit = 8) =>
 // ── /api/admin/exchange-review ─────────────────────────────────────────
 
 export type ReviewParty = { id: number; username: string; age_days: number };
+/** Two accounts that keep trading with each other (sales and trades, any price). */
+export type ReviewPair = { a: ReviewParty; b: ReviewParty; transfers: number; last_at: string };
+/** One account dealing with several new ones. */
+export type ReviewFunnel = { hub: ReviewParty; accounts: ReviewParty[]; transfers: number; last_at: string };
 export type ReviewFlag = {
   type: "sale" | "trade";
   id: number;
@@ -219,7 +230,16 @@ export type ReviewFlag = {
   favours: "from" | "to";
   pair_flags: number;
 };
-export type ExchangeReview = { window_days: number; new_account_days: number; ratio: number; flags: ReviewFlag[] };
+export type ExchangeReview = {
+  window_days: number;
+  new_account_days: number;
+  ratio: number;
+  pair_min?: number;
+  funnel_min?: number;
+  flags: ReviewFlag[];
+  pairs?: ReviewPair[];
+  funnels?: ReviewFunnel[];
+};
 
 export const fetchExchangeReview = (days: number) => apiFetch<ExchangeReview>(`/api/admin/exchange-review?days=${days}`, { cache: "no-store" });
 

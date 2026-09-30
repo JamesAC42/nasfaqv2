@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import { TalentCard } from "@/app/components/games/cards/talent-card";
-import { buyListing, cancelListing, cardPath, placeBid, type Listing } from "@/app/lib/games/exchange";
+import { ItemArt } from "@/app/components/games/exchange/item-art";
+import { listingName } from "@/app/components/games/exchange/listing-tile";
+import { buyListing, cancelListing, listingPath, placeBid, type Listing } from "@/app/lib/games/exchange";
 import { gameErrorText } from "@/app/lib/games/errors";
 import { money } from "@/app/lib/time";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -24,6 +26,8 @@ export function ListingDialog({ listing: initial, onClose, onChanged }: { listin
   const auction = listing.kind === "auction";
   const active = listing.status === "active";
   const card = listing.card;
+  const item = listing.item;
+  const home = item ? "locker" : "binder";
 
   const settle = (next: Listing, message: string) => {
     setListing(next);
@@ -56,17 +60,18 @@ export function ListingDialog({ listing: initial, onClose, onChanged }: { listin
   const quick = listing.min_bid ? [listing.min_bid, Math.ceil(listing.min_bid * 1.1), Math.ceil(listing.min_bid * 1.25)] : [];
 
   return (
-    <Dialog title={`${card.name} ${card.rarity}`} onClose={onClose}>
+    <Dialog title={item ? item.name : card ? `${card.name} ${card.rarity}` : listingName(listing)} onClose={onClose}>
       <div className={styles.dealBody}>
         <div className={styles.dealCard}>
-          <TalentCard card={card} width={180} />
-          <Link href={cardPath(listing.card_key)} className={styles.textLink} onClick={onClose}>
+          {item ? <ItemArt item={item} width={180} /> : card ? <TalentCard card={card} width={180} /> : null}
+          <Link href={listingPath(listing)} className={styles.textLink} onClick={onClose}>
             Price history →
           </Link>
         </div>
         <div className={styles.dealInfo}>
           <p className={styles.dealKicker}>
-            <RarityTag rarity={card.rarity} /> {auction ? "Auction" : "Buy now"} · listed by <b>{listing.seller.username}</b>
+            {card ? <RarityTag rarity={card.rarity} /> : item ? <span className={styles.itemTag}>{item.rarity} item</span> : null} {auction ? "Auction" : "Buy now"} · listed by{" "}
+            <b>{listing.seller.username}</b>
           </p>
           {auction ? (
             <>
@@ -113,7 +118,7 @@ export function ListingDialog({ listing: initial, onClose, onChanged }: { listin
                   type="button"
                   className={styles.btnGhost}
                   disabled={busy !== null || (auction && listing.bid_count > 0)}
-                  onClick={() => void run("cancel", async () => settle((await cancelListing(listing.id)).listing, "Listing cancelled. The card is back in your binder."))}
+                  onClick={() => void run("cancel", async () => settle((await cancelListing(listing.id)).listing, `Listing cancelled. It's back in your ${home}.`))}
                 >
                   {busy === "cancel" ? "Cancelling…" : "Cancel listing"}
                 </button>
@@ -163,6 +168,7 @@ export function ListingDialog({ listing: initial, onClose, onChanged }: { listin
                   {busy === "buy" ? "Buying…" : `Buy now · ${money(listing.buy_now)}`}
                 </button>
               ) : null}
+              {item ? <small className={styles.note}>An item you win or buy can go back on the exchange after 24 hours.</small> : null}
             </div>
           ) : (
             <p className={styles.note}>

@@ -7,7 +7,7 @@ import { FaMinus, FaPlus, FaXmark } from "react-icons/fa6";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { TalentCard } from "@/app/components/games/cards/talent-card";
 import { SignInToPlay } from "@/app/components/games/shell/games-frame";
-import { fetchTradeableCards, fetchTrades, proposeTrade, type ExchangeCard, type Trade, type TradeDraftSide, type UserRef } from "@/app/lib/games/exchange";
+import { fetchMyItems, fetchTradeableCards, fetchTrades, proposeTrade, type ExchangeCard, type ExchangeItem, type Trade, type TradeDraftSide, type UserRef } from "@/app/lib/games/exchange";
 import { gameErrorText } from "@/app/lib/games/errors";
 import { fmtInteger } from "@/app/lib/format";
 import { RARITIES } from "@/app/lib/games/rarity";
@@ -17,12 +17,15 @@ import { useAuth } from "@/app/providers/auth-provider";
 import { useExchangeStore } from "@/app/stores/exchange-store";
 import { useGamesStore } from "@/app/stores/games-store";
 import { ExchangeFrame } from "@/app/components/games/exchange/exchange-frame";
+import { ItemArt } from "@/app/components/games/exchange/item-art";
 import { ValueMeter } from "@/app/components/games/exchange/trades-page";
 import styles from "@/app/components/games/exchange/exchange.module.scss";
 
 type Pool = (ExchangeCard & { tradeable: number })[];
-type Draft = { picks: Map<string, number>; cash: string; shards: string };
-const emptyDraft = (): Draft => ({ picks: new Map(), cash: "", shards: "" });
+/** Capsule items that can change hands (one of each per player). */
+type ItemPool = ExchangeItem[];
+type Draft = { picks: Map<string, number>; items: Set<string>; cash: string; shards: string };
+const emptyDraft = (): Draft => ({ picks: new Map(), items: new Set(), cash: "", shards: "" });
 
 /** Build (or counter) an offer: pick from your tradeable cards and theirs, add cash or shards, see the value meter, send. */
 export function TradeBuilder() {
@@ -36,6 +39,8 @@ export function TradeBuilder() {
   const [partnerInput, setPartnerInput] = useState(params.get("to") ?? "");
   const [partner, setPartner] = useState<UserRef | null>(null);
   const [theirPool, setTheirPool] = useState<Pool | null>(null);
+  const [theirItems, setTheirItems] = useState<ItemPool>([]);
+  const [myItems, setMyItems] = useState<ItemPool | null>(null);
   const [counter, setCounter] = useState<Trade | null>(null);
   const [give, setGive] = useState<Draft>(emptyDraft);
   const [ask, setAsk] = useState<Draft>(emptyDraft);
@@ -47,6 +52,13 @@ export function TradeBuilder() {
     if (user && !collection) void useGamesStore.getState().loadCollection({ quiet: true });
   }, [user, collection]);
 
+  useEffect(() => {
+    if (!user) return;
+    fetchMyItems()
+      .then((result) => setMyItems(result.items.filter((item) => item.tradable)))
+      .catch(() => setMyItems([]));
+  }, [user]);
+
   const loadPartner = async (username: string) => {
     setError(null);
     try {
@@ -57,6 +69,7 @@ export function TradeBuilder() {
       }
       setPartner(result.user);
       setTheirPool(result.cards);
+      setTheirItems(result.items ?? []);
     } catch (reason) {
       setError(gameErrorText(reason) === "trade partner not found" ? `No player called “${username}”.` : gameErrorText(reason));
     }
@@ -77,6 +90,7 @@ export function TradeBuilder() {
         void loadPartner(original.from.username);
         const toDraft = (side: Trade["give"]): Draft => ({
           picks: new Map(side.cards.map((card) => [card.key, card.qty ?? 1])),
+          items: new Set((side.items ?? []).map((item) => item.key)),
           cash: side.cash ? String(side.cash) : "",
           shards: side.shards ? String(side.shards) : "",
         });
@@ -100,19 +114,25 @@ export function TradeBuilder() {
 
   const toSide = (draft: Draft, pool: Pool | null) => ({
     cards: [...draft.picks.entries()].map(([key, qty]) => ({ key, card_key: key, qty, card: pool?.find((card) => card.key === key) })),
+    items: [...draft.items].map((key) => ({ key })),
     cash: Number(draft.cash) || 0,
     shards: Number(draft.shards) || 0,
   });
   const giveSide = toSide(give, myPool);
   const askSide = toSide(ask, theirPool);
-  const sideEmpty = (side: ReturnType<typeof toSide>) => !side.cards.length && !side.cash && !side.shards;
+  const sideEmpty = (side: ReturnType<typeof toSide>) => !side.cards.length && !side.items.length && !side.cash && !side.shards;
   const ready = partner && !sideEmpty(giveSide) && !sideEmpty(askSide);
 
   const send = async () => {
     if (!partner) return;
     setBusy(true);
     setError(null);
-    const payload = (side: ReturnType<typeof toSide>): TradeDraftSide => ({ cards: side.cards.map((entry) => ({ card_key: entry.key, qty: entry.qty })), cash: side.cash, shards: side.shards });
+    const payload = (side: ReturnType<typeof toSide>): TradeDraftSide => ({
+      cards: side.cards.map((entry) => ({ card_key: entry.key, qty: entry.qty })),
+      cosmetics: side.items.map((entry) => entry.key),
+      cash: side.cash,
+      shards: side.shards,
+    });
     try {
       await proposeTrade({
         ...(counter ? { counter_of: counter.id } : { to_username: partner.username }),
@@ -177,6 +197,7 @@ export function TradeBuilder() {
           draft={give}
           setDraft={setGive}
           pool={myPool}
+          items={myItems ?? []}
           shardsAvailable={collection?.shards ?? 0}
           emptyPool={collection ? "Nothing tradeable in your binder (starter cards stay with you)." : "Loading your binder…"}
           escrow
@@ -186,6 +207,7 @@ export function TradeBuilder() {
           draft={ask}
           setDraft={setAsk}
           pool={theirPool ?? []}
+          items={theirItems}
           shardsAvailable={null}
           emptyPool={partner ? `${partner.username} has nothing tradeable. You can still ask for cash or shards.` : "Load a player to see their cards."}
         />
@@ -206,7 +228,7 @@ export function TradeBuilder() {
         <button type="button" className={styles.btnPrimary} disabled={!ready || busy} onClick={() => void send()}>
           {busy ? "Sending…" : counter ? "Send counter-offer" : "Send offer"}
         </button>
-        {!ready ? <small className={styles.note}>Both sides need something: cards, cash or shards.</small> : null}
+        {!ready ? <small className={styles.note}>Both sides need something: cards, items, cash or shards.</small> : null}
       </div>
     </ExchangeFrame>
   );
@@ -217,6 +239,7 @@ function BuilderSide({
   draft,
   setDraft,
   pool,
+  items,
   shardsAvailable,
   emptyPool,
   escrow = false,
@@ -225,6 +248,7 @@ function BuilderSide({
   draft: Draft;
   setDraft: (next: Draft) => void;
   pool: Pool;
+  items: ItemPool;
   shardsAvailable: number | null;
   emptyPool: string;
   escrow?: boolean;
@@ -241,6 +265,13 @@ function BuilderSide({
     .filter((card) => (!filter || card.rarity === filter) && (!q || `${card.symbol} ${card.name}`.toLowerCase().includes(q.toLowerCase())))
     .sort((a, b) => RARITIES.indexOf(b.rarity) - RARITIES.indexOf(a.rarity) || a.symbol.localeCompare(b.symbol));
   const byKey = new Map(pool.map((card) => [card.key, card]));
+  const itemByKey = new Map(items.map((item) => [item.key, item]));
+  const toggleItem = (key: string) => {
+    const next = new Set(draft.items);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setDraft({ ...draft, items: next });
+  };
 
   return (
     <section className={styles.builderSide} aria-label={title}>
@@ -265,9 +296,22 @@ function BuilderSide({
               </span>
             );
           })
-        ) : (
-          <p className={styles.note}>No cards yet. Pick from below.</p>
-        )}
+        ) : null}
+        {[...draft.items].map((key) => {
+          const item = itemByKey.get(key);
+          if (!item) return null;
+          return (
+            <span key={`item-${key}`} className={styles.pickedCard}>
+              <ItemArt item={item} width={72} compact />
+              <span className={styles.stepper}>
+                <button type="button" aria-label={`Take ${item.name} out`} onClick={() => toggleItem(key)}>
+                  <FaXmark />
+                </button>
+              </span>
+            </span>
+          );
+        })}
+        {!draft.picks.size && !draft.items.size ? <p className={styles.note}>Nothing yet. Pick from below.</p> : null}
       </div>
       <div className={styles.fieldRow}>
         <label className={styles.field}>
@@ -312,7 +356,26 @@ function BuilderSide({
       ) : (
         <p className={styles.note}>{emptyPool}</p>
       )}
-      {escrow ? <small className={styles.note}>Your cards{Number(draft.cash) ? `, ${money(Number(draft.cash))}` : ""}{Number(draft.shards) ? ` and shards` : ""} are held in escrow when you send, and come back if they decline.</small> : null}
+      {items.length ? (
+        <>
+          <h3 className={styles.pickerHeading}>Capsule items</h3>
+          <div className={styles.pickGrid} data-compact="">
+            {items.map((item) => (
+              <button key={item.key} type="button" className={styles.pickCard} data-picked={draft.items.has(item.key) || undefined} onClick={() => toggleItem(item.key)} aria-pressed={draft.items.has(item.key)}>
+                <ItemArt item={item} width={84} compact />
+                <small>{draft.items.has(item.key) ? "in" : item.name}</small>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
+      {escrow ? (
+        <small className={styles.note}>
+          Your cards{draft.items.size ? " and items" : ""}
+          {Number(draft.cash) ? `, ${money(Number(draft.cash))}` : ""}
+          {Number(draft.shards) ? ` and shards` : ""} are held in escrow when you send, and come back if they decline.
+        </small>
+      ) : null}
     </section>
   );
 }

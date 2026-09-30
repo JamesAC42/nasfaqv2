@@ -163,6 +163,7 @@ router.patch("/gacha-prizes/:id", async (req, res, next) => {
       pull_weight: req.body?.pull_weight,
       is_active: req.body?.is_active,
       sort_order: req.body?.sort_order,
+      tradable: req.body?.tradable,
     });
     res.json({ gacha_prize: prize, gacha_prizes: prizes });
   } catch (error) {

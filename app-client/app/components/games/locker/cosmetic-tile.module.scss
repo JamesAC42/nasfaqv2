@@ -131,6 +131,9 @@
 
 .action {
   display: grid;
+  // Equip beside Sell (when the item can go on the exchange).
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 0.3rem;
 
   button {
     @include button-secondary;

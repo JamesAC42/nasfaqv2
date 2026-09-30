@@ -19,9 +19,10 @@ function Party({ party, gains }: { party: ReviewParty; gains: boolean }) {
 }
 
 /**
- * Card exchange transfers worth a second look: sales and trades where at least one side is a new
- * account and the value moved is far off the market price (the shape of alts feeding a main).
- * Read-only; act from the players' profiles or People & roles.
+ * Exchange transfers worth a second look (cards and capsule items): sales and trades where at least
+ * one side is a new account and the value moved is far off the market price (the shape of alts
+ * feeding a main); pairs of accounts that keep trading with each other; and accounts dealing with
+ * several new ones. Read-only; freeze someone's exchange from People & roles.
  */
 export function AdminExchangeReview() {
   const access = useAdminAccess();
@@ -48,7 +49,13 @@ export function AdminExchangeReview() {
   return (
     <AdminFrame
       title="Exchange review"
-      blurb={<>Card sales and trades where a new account (under {review?.new_account_days ?? 14} days) moved value at {review?.ratio ?? 3}× or more off the market price. Pairs that keep doing it come first.</>}
+      blurb={
+        <>
+          Card and capsule item sales and trades where a new account (under {review?.new_account_days ?? 14} days) moved value at {review?.ratio ?? 3}× or more off the market
+          price, pairs of accounts that keep trading with each other, and accounts dealing with several new ones. To stop someone, freeze their exchange in{" "}
+          <Link href="/admin/people">People &amp; roles</Link>.
+        </>
+      }
     >
       <div className={ui.tabs} role="tablist" aria-label="Window">
         {WINDOWS.map((value) => (
@@ -90,6 +97,71 @@ export function AdminExchangeReview() {
           </ul>
         ) : (
           <p className={ui.empty}>Nothing lopsided involving new accounts in this window.</p>
+        )}
+      </Section>
+      <Section title="Pairs that keep trading" count={review?.pairs ? review.pairs.length : "…"} tone={review?.pairs?.length ? "warn" : undefined} hint={`${review?.pair_min ?? 3}+ sales or trades between the same two accounts, at any price.`}>
+        {!review ? (
+          <p className={ui.empty}>Loading…</p>
+        ) : review.pairs?.length ? (
+          <ul className={styles.list}>
+            {review.pairs.map((pair) => (
+              <li key={`pair-${pair.a.id}-${pair.b.id}`} className={styles.row}>
+                <span className={ui.pill} data-tone="warn">
+                  pair
+                </span>
+                <div className={styles.main}>
+                  <p className={styles.parties}>
+                    <Party party={pair.a} gains={false} />
+                    <span aria-hidden="true">⇄</span>
+                    <Party party={pair.b} gains={false} />
+                  </p>
+                  <p className={styles.summary}>
+                    {pair.transfers} sales and trades between them in the last {review.window_days} days.
+                  </p>
+                </div>
+                <span className={styles.end}>
+                  <b>{pair.transfers}×</b>
+                  <small>{ago(pair.last_at, now)} ago</small>
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className={ui.empty}>No two accounts trading back and forth in this window.</p>
+        )}
+      </Section>
+      <Section title="Dealing with new accounts" count={review?.funnels ? review.funnels.length : "…"} tone={review?.funnels?.length ? "warn" : undefined} hint={`Accounts that traded with ${review?.funnel_min ?? 3}+ different accounts that were under ${review?.new_account_days ?? 14} days old.`}>
+        {!review ? (
+          <p className={ui.empty}>Loading…</p>
+        ) : review.funnels?.length ? (
+          <ul className={styles.list}>
+            {review.funnels.map((funnel) => (
+              <li key={`funnel-${funnel.hub.id}`} className={styles.row}>
+                <span className={ui.pill} data-tone="warn">
+                  funnel
+                </span>
+                <div className={styles.main}>
+                  <p className={styles.parties}>
+                    <Party party={funnel.hub} gains />
+                    <span aria-hidden="true">←</span>
+                    {funnel.accounts.slice(0, 6).map((account) => (
+                      <Party key={account.id} party={account} gains={false} />
+                    ))}
+                    {funnel.accounts.length > 6 ? <small>+{funnel.accounts.length - 6} more</small> : null}
+                  </p>
+                  <p className={styles.summary}>
+                    {funnel.transfers} sales and trades with {funnel.accounts.length} new accounts in the last {review.window_days} days.
+                  </p>
+                </div>
+                <span className={styles.end}>
+                  <b>{funnel.accounts.length}</b>
+                  <small>{ago(funnel.last_at, now)} ago</small>
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className={ui.empty}>Nobody dealing with a crowd of new accounts in this window.</p>
         )}
       </Section>
     </AdminFrame>

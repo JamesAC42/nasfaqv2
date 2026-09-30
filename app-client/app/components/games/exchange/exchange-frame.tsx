@@ -30,7 +30,7 @@ export function ExchangeFrame({ title = "Card Exchange", blurb, children }: { ti
   const aside = (
     <nav className={styles.subnav} aria-label="Exchange">
       {TABS.map((tab) => {
-        const active = tab.exact ? pathname === tab.href || pathname.startsWith("/games/exchange/card/") : pathname.startsWith(tab.href);
+        const active = tab.exact ? pathname === tab.href || pathname.startsWith("/games/exchange/card/") || pathname.startsWith("/games/exchange/items/") : pathname.startsWith(tab.href);
         return (
           <Link key={tab.href} href={tab.href} className={styles.subtab} aria-current={active ? "page" : undefined}>
             {tab.label}
@@ -43,10 +43,10 @@ export function ExchangeFrame({ title = "Card Exchange", blurb, children }: { ti
 
   return (
     <GamesFrame
-      kicker="Talent cards"
+      kicker="Card exchange"
       title={title}
       live
-      blurb={blurb ?? <>Buy, sell and auction cards for cash, or trade straight with another player. Every sale sets the price.</>}
+      blurb={blurb ?? <>Buy, sell and auction cards and capsule items for cash, or trade straight with another player. Every sale sets the price.</>}
       aside={aside}
     >
       {children}

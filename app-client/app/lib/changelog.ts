@@ -14,6 +14,15 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-09-30",
+    title: "Capsule items on the exchange",
+    changes: [
+      { kind: "new", text: "Sell, auction and trade what you pull from the capsule machine: the exchange has a Capsule items market, each item has its own price page, and your locker has Sell buttons." },
+      { kind: "new", text: "Trades can include items on either side." },
+      { kind: "improved", text: "Players hold one of each item, so you can't buy one you already have. Anything you buy or trade for can go back on the exchange after 24 hours. Set rewards stay with you." },
+    ],
+  },
+  {
+    date: "2026-09-30",
     title: "Tidier pages",
     changes: [
       { kind: "fixed", text: "Other players' profiles said \"All cash, no bags\" even when they held stocks. They show how much is in stocks now (which stocks stays private)." },

@@ -1,0 +1,93 @@
+@use "../../../styles/mixins" as *;
+
+// A capsule item in a talent card's footprint (5:7), so item and card listings share grids.
+.art {
+  --cc: #8d95a8;
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  width: var(--w, 150px);
+  max-width: 100%;
+  aspect-ratio: 5 / 7;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--cc) 45%, var(--rule));
+  border-radius: var(--radius-md);
+  background: var(--ink-2);
+  container-type: inline-size;
+
+  &[data-rarity="legendary"] {
+    border-color: transparent;
+    background:
+      linear-gradient(var(--ink-2), var(--ink-2)) padding-box,
+      linear-gradient(125deg, #7a5a0c, #f5c542 30%, #fff4c2 45%, #d9a520 60%, #7a5a0c) border-box;
+    box-shadow: 0 0 18px -6px rgba(245, 197, 66, 0.55);
+  }
+}
+
+.stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  background:
+    radial-gradient(70% 70% at 50% 45%, color-mix(in srgb, var(--cc) 32%, transparent), transparent 75%),
+    #07090e;
+
+  img {
+    width: 76%;
+    height: 76%;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5));
+  }
+
+  [data-rarity="legendary"] > & {
+    background:
+      repeating-conic-gradient(from 0deg at 50% 50%, rgba(245, 197, 66, 0.1) 0deg 8deg, transparent 8deg 20deg),
+      radial-gradient(70% 70% at 50% 45%, color-mix(in srgb, var(--cc) 34%, transparent), transparent 75%),
+      #07090e;
+  }
+}
+
+.glyph {
+  font-size: 30cqi;
+  color: var(--cc);
+  opacity: 0.85;
+}
+
+.rarity {
+  @include label;
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, #000 55%, transparent);
+  color: var(--cc);
+  font-size: max(0.5rem, 6.5cqi);
+}
+
+.caption {
+  display: grid;
+  gap: 1px;
+  padding: 6% 7% 7%;
+  border-top: 1px solid color-mix(in srgb, var(--cc) 30%, var(--rule));
+  min-width: 0;
+
+  b {
+    overflow: hidden;
+    font-size: max(0.66rem, 8.5cqi);
+    line-height: 1.2;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  small {
+    @include label;
+    font-size: max(0.5rem, 6cqi);
+    color: var(--dim);
+  }
+
+  [data-compact] & small {
+    display: none;
+  }
+}

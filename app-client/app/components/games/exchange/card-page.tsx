@@ -179,7 +179,7 @@ export function CardPage({ symbol, rarity }: { symbol: string; rarity: Rarity })
                               : `from ${listing.seller.username}`}
                           </small>
                         </span>
-                        {listing.kind === "auction" ? <Countdown endsAt={listing.ends_at} /> : <span className={styles.rowGo}>Buy →</span>}
+                        {listing.kind === "auction" ? <Countdown endsAt={listing.ends_at} /> : <span className={styles.rowGo}>{listing.is_mine ? "Yours" : "Buy →"}</span>}
                       </button>
                     </li>
                   ))}
@@ -221,7 +221,7 @@ export function CardPage({ symbol, rarity }: { symbol: string; rarity: Rarity })
 }
 
 /** Every sale as a dot on a line, with the current floor as a dashed guide. */
-function PriceChart({ history, floor }: { history: CardDetail["history"]; floor: number | null }) {
+export function PriceChart({ history, floor }: { history: CardDetail["history"]; floor: number | null }) {
   const [hover, setHover] = useState<number | null>(null);
   // Draw at the real width so labels stay 10px whatever the column is.
   const [width, setWidth] = useState(520);

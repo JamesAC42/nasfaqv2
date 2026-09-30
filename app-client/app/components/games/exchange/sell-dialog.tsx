@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { TalentCard } from "@/app/components/games/cards/talent-card";
-import { createListing, type ExchangeCard, type Listing, type PriceEntry } from "@/app/lib/games/exchange";
+import { ItemArt } from "@/app/components/games/exchange/item-art";
+import { createListing, type ExchangeCard, type ExchangeItem, type Listing, type PriceEntry } from "@/app/lib/games/exchange";
 import { gameErrorText } from "@/app/lib/games/errors";
 import { money } from "@/app/lib/time";
 import { useExchangeStore } from "@/app/stores/exchange-store";
@@ -14,8 +15,25 @@ import styles from "@/app/components/games/exchange/exchange.module.scss";
 const FEE = 0.05;
 const HOURS = [1, 12, 24, 48];
 
-/** List one copy: a buy-now price, or an auction with an opening bid, optional buy now and a clock. */
-export function SellDialog({ card, tradeable, price, onClose, onListed }: { card: ExchangeCard; tradeable: number; price?: PriceEntry | null; onClose: () => void; onListed?: (listing: Listing) => void }) {
+/**
+ * List one card copy (`card`) or one capsule item (`item`): a buy-now price, or an auction with an
+ * opening bid, optional buy now and a clock.
+ */
+export function SellDialog({
+  card = null,
+  item = null,
+  tradeable = 1,
+  price,
+  onClose,
+  onListed,
+}: {
+  card?: ExchangeCard | null;
+  item?: ExchangeItem | null;
+  tradeable?: number;
+  price?: PriceEntry | null;
+  onClose: () => void;
+  onListed?: (listing: Listing) => void;
+}) {
   const suggestion = price?.floor ?? price?.last ?? price?.avg7d ?? null;
   const [kind, setKind] = useState<"fixed" | "auction">("fixed");
   const [fixed, setFixed] = useState(suggestion ? String(Math.max(1, Math.floor(suggestion))) : "");
@@ -34,14 +52,15 @@ export function SellDialog({ card, tradeable, price, onClose, onListed }: { card
     setBusy(true);
     setError(null);
     try {
+      const what = item ? { cosmetic_key: item.key } : { card_key: card?.key ?? "" };
       const result = await createListing(
         kind === "fixed"
-          ? { card_key: card.key, kind, price: Number(fixed) }
-          : { card_key: card.key, kind, start_price: Number(start), buy_now: buyNow ? Number(buyNow) : null, duration_hours: hours },
+          ? { ...what, kind, price: Number(fixed) }
+          : { ...what, kind, start_price: Number(start), buy_now: buyNow ? Number(buyNow) : null, duration_hours: hours },
       );
       setListed(result.listing);
       onListed?.(result.listing);
-      void useGamesStore.getState().loadCollection({ quiet: true });
+      if (card) void useGamesStore.getState().loadCollection({ quiet: true });
       void useExchangeStore.getState().loadDesk();
     } catch (reason) {
       setError(gameErrorText(reason));
@@ -53,12 +72,14 @@ export function SellDialog({ card, tradeable, price, onClose, onListed }: { card
   const clean = (value: string) => value.replace(/[^0-9.]/g, "");
 
   return (
-    <Dialog title={`Sell ${card.name} ${card.rarity}`} onClose={onClose}>
+    <Dialog title={item ? `Sell ${item.name}` : card ? `Sell ${card.name} ${card.rarity}` : "Sell"} onClose={onClose}>
       <div className={styles.dealBody}>
         <div className={styles.dealCard}>
-          <TalentCard card={card} width={170} />
+          {item ? <ItemArt item={item} width={170} /> : card ? <TalentCard card={card} width={170} /> : null}
           <small className={styles.note}>
-            {tradeable} tradeable cop{tradeable === 1 ? "y" : "ies"}. Selling one drops a star while you hold fewer than five.
+            {item
+              ? "It comes off your profile while it's listed (unequipped if you're wearing it) and comes back if it doesn't sell."
+              : `${tradeable} tradeable cop${tradeable === 1 ? "y" : "ies"}. Selling one drops a star while you hold fewer than five.`}
           </small>
         </div>
         {listed ? (
@@ -66,7 +87,7 @@ export function SellDialog({ card, tradeable, price, onClose, onListed }: { card
             <p className={styles.success}>
               Listed. {listed.kind === "auction" ? `The auction runs ${hours}h.` : `It stays up for 7 days or until it sells.`}
             </p>
-            <p className={styles.note}>The copy sits in escrow until it sells or you cancel. You&apos;ll get an alert when it moves.</p>
+            <p className={styles.note}>The {item ? "item" : "copy"} sits in escrow until it sells or you cancel. You&apos;ll get an alert when it moves.</p>
             <div className={styles.dealActions}>
               <Link href="/games/exchange/desk" className={styles.btnPrimary} onClick={onClose}>
                 My desk
@@ -114,7 +135,7 @@ export function SellDialog({ card, tradeable, price, onClose, onListed }: { card
                 ) : null}
               </p>
             ) : (
-              <p className={styles.priceHint}>No sales yet for this card. You set the first price.</p>
+              <p className={styles.priceHint}>No sales yet for this {item ? "item" : "card"}. You set the first price.</p>
             )}
 
             {kind === "fixed" ? (

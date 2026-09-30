@@ -1,12 +1,19 @@
 "use client";
 
 import { TalentCard } from "@/app/components/games/cards/talent-card";
+import { ItemArt } from "@/app/components/games/exchange/item-art";
 import type { Listing } from "@/app/lib/games/exchange";
 import { money } from "@/app/lib/time";
 import { Countdown } from "@/app/components/games/exchange/bits";
 import styles from "@/app/components/games/exchange/exchange.module.scss";
 
-/** One listing in a grid: the card, what it costs, and (for auctions) the clock and the bidding. */
+/** What a listing is selling, in words: "Pekora SR" or "Crown (rare item)". */
+export function listingName(listing: Pick<Listing, "card" | "item">) {
+  if (listing.item) return `${listing.item.name} (${listing.item.rarity} item)`;
+  return listing.card ? `${listing.card.name} ${listing.card.rarity}` : "a listing";
+}
+
+/** One listing in a grid: the card or capsule item, what it costs, and (for auctions) the clock and the bidding. */
 export function ListingTile({ listing, onOpen, width = 150, flash = false }: { listing: Listing; onOpen: (listing: Listing) => void; width?: number; flash?: boolean }) {
   const auction = listing.kind === "auction";
   const flag = listing.is_mine ? <span className={styles.flag}>yours</span> : listing.is_leading ? <span className={styles.flag} data-tone="lead">winning</span> : null;
@@ -15,14 +22,14 @@ export function ListingTile({ listing, onOpen, width = 150, flash = false }: { l
       type="button"
       className={styles.tile}
       data-kind={listing.kind}
-      data-rarity={listing.card.rarity}
+      data-rarity={listing.card?.rarity ?? listing.item?.rarity}
       data-flash={flash || undefined}
       data-mine={listing.is_mine || undefined}
       data-leading={listing.is_leading || undefined}
       onClick={() => onOpen(listing)}
-      aria-label={`${listing.card.name} ${listing.card.rarity}, ${auction ? `auction at ${money(listing.ask)}` : `buy now ${money(listing.price)}`}`}
+      aria-label={`${listingName(listing)}, ${auction ? `auction at ${money(listing.ask)}` : `buy now ${money(listing.price)}`}`}
     >
-      <TalentCard card={listing.card} width={width} compact tilt={false} />
+      {listing.item ? <ItemArt item={listing.item} width={width} compact /> : listing.card ? <TalentCard card={listing.card} width={width} compact tilt={false} /> : null}
       <span className={styles.tileBody}>
         {auction ? (
           <>
