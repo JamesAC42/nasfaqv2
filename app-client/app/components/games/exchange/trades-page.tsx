@@ -17,6 +17,7 @@ import { useGamesStore } from "@/app/stores/games-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import { Countdown, ago } from "@/app/components/games/exchange/bits";
 import { ExchangeFrame } from "@/app/components/games/exchange/exchange-frame";
+import { ItemArt } from "@/app/components/games/exchange/item-art";
 import styles from "@/app/components/games/exchange/exchange.module.scss";
 
 const STATUS: Record<Trade["status"], string> = {
@@ -183,7 +184,8 @@ export function TradeCard({ trade, prices, onChange }: { trade: Trade; prices: P
 }
 
 function TradeSideView({ label, side }: { label: string; side: TradeSide }) {
-  const empty = !side.cards.length && !side.cash && !side.shards;
+  const items = side.items ?? [];
+  const empty = !side.cards.length && !items.length && !side.cash && !side.shards;
   return (
     <div className={styles.tradeSide}>
       <small className={styles.sideLabel}>{label}</small>
@@ -193,6 +195,11 @@ function TradeSideView({ label, side }: { label: string; side: TradeSide }) {
           <span key={card.key} className={styles.tradeCard}>
             <TalentCard card={card} width={76} compact tilt={false} />
             {card.qty && card.qty > 1 ? <b className={styles.qty}>×{card.qty}</b> : null}
+          </span>
+        ))}
+        {items.map((item) => (
+          <span key={`item-${item.key}`} className={styles.tradeCard}>
+            <ItemArt item={item} width={76} compact />
           </span>
         ))}
       </div>
@@ -212,7 +219,9 @@ function TradeSideView({ label, side }: { label: string; side: TradeSide }) {
 }
 
 /** Market value of each side (last sales, else floors) and how lopsided it is. */
-export function ValueMeter({ give, get, prices }: { give: { cards: { key?: string; card_key?: string; qty?: number }[]; cash: number }; get: { cards: { key?: string; card_key?: string; qty?: number }[]; cash: number }; prices: PriceBook | null }) {
+type MeterSide = { cards: { key?: string; card_key?: string; qty?: number }[]; items?: { key: string }[]; cash: number };
+
+export function ValueMeter({ give, get, prices }: { give: MeterSide; get: MeterSide; prices: PriceBook | null }) {
   const out = sideValue(prices, give);
   const inn = sideValue(prices, get);
   const total = out.value + inn.value;
@@ -237,7 +246,7 @@ export function ValueMeter({ give, get, prices }: { give: { cards: { key?: strin
           get <b>{money(inn.value, { compact: true })}</b>
         </span>
       </p>
-      {unpriced ? <small className={styles.note}>{unpriced} card{unpriced === 1 ? " has" : "s have"} no sales yet and count as $0 here.</small> : null}
+      {unpriced ? <small className={styles.note}>{unpriced} {unpriced === 1 ? "thing has" : "things have"} no sales yet and count as $0 here.</small> : null}
     </div>
   );
 }

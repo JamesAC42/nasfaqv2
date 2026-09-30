@@ -7,10 +7,21 @@ import type { Rarity, TalentCard } from "@/app/lib/games/types";
 export type ExchangeCard = TalentCard & { qty?: number };
 export type UserRef = { id?: number; username: string; profile_color?: string | null };
 
+export type ItemRarity = "common" | "rare" | "epic" | "legendary";
+export const ITEM_RARITIES: ItemRarity[] = ["common", "rare", "epic", "legendary"];
+/** A capsule item (a cosmetic from the capsule machine) as the exchange shows it. */
+export type ExchangeItem = { key: string; name: string; type: string | null; rarity: ItemRarity; slot_key: string | null; image_url: string | null };
+/** One of your items and whether it can go on the exchange now. */
+export type MyItem = ExchangeItem & { user_cosmetic_id: number; tradable: boolean; reason: "not_from_capsule" | "untradable" | "on_hold" | null; available_at: string | null };
+
 export type Listing = {
   id: number;
-  card: ExchangeCard;
-  card_key: string;
+  /** A card copy, or a capsule item (then card is null and item is set). */
+  item_type: "card" | "cosmetic";
+  card: ExchangeCard | null;
+  card_key: string | null;
+  item: ExchangeItem | null;
+  cosmetic_key: string | null;
   kind: "fixed" | "auction";
   status: "active" | "sold" | "cancelled" | "expired";
   seller: UserRef;
@@ -34,16 +45,16 @@ export type Listing = {
   my_top_bid?: number | null;
 };
 
-export type Sale = { id: number; listing_id: number | null; card: ExchangeCard; card_key: string; kind: string; price: number; seller: UserRef | null; buyer: UserRef | null; at: string };
+export type Sale = { id: number; listing_id: number | null; item_type?: "card" | "cosmetic"; card: ExchangeCard | null; card_key: string | null; item?: ExchangeItem | null; kind: string; price: number; seller: UserRef | null; buyer: UserRef | null; at: string };
 
 export type Floor = { rarity: Rarity; floor: number | null; listed: number; avg7d: number | null; sales7d: number; last: number | null };
 
 export type TapeEvent =
-  | { seq: number; at: string; type: "sale"; listing_id: number; card: ExchangeCard; card_key: string; price: number; kind: string; buyer: UserRef; seller: UserRef }
+  | { seq: number; at: string; type: "sale"; listing_id: number; card: ExchangeCard | null; card_key: string | null; item?: ExchangeItem | null; price: number; kind: string; buyer: UserRef; seller: UserRef }
   | { seq: number; at: string; type: "bid"; listing: Listing; amount: number; bidder: UserRef | null; extended: boolean }
   | { seq: number; at: string; type: "listed"; listing: Listing }
-  | { seq: number; at: string; type: "delisted"; listing_id: number; card_key: string }
-  | { seq: number; at: string; type: "trade"; from: string; to: string; cards: number };
+  | { seq: number; at: string; type: "delisted"; listing_id: number; card_key: string | null; cosmetic_key?: string | null }
+  | { seq: number; at: string; type: "trade"; from: string; to: string; cards: number; items?: number };
 
 export type ExchangeRules = {
   fee_rate: number;
@@ -93,7 +104,7 @@ export type Desk = {
   wishlist?: Wish[];
 };
 
-export type TradeSide = { cards: ExchangeCard[]; cash: number; shards: number };
+export type TradeSide = { cards: ExchangeCard[]; items?: ExchangeItem[]; cash: number; shards: number };
 export type Trade = {
   id: number;
   status: "pending" | "accepted" | "declined" | "cancelled" | "expired" | "countered";
@@ -114,7 +125,8 @@ export type Alert = {
   kind: "sold" | "bought" | "won" | "outbid" | "auction_lost" | "expired" | "bid_received" | "trade_offer" | "trade_countered" | "trade_accepted" | "trade_declined" | "trade_cancelled" | "trade_expired";
   at: string;
   listing_id?: number;
-  card?: ExchangeCard;
+  card?: ExchangeCard | null;
+  item?: ExchangeItem | null;
   price?: number;
   proceeds?: number;
   amount?: number | null;
@@ -125,7 +137,16 @@ export type Alert = {
   trade?: Trade;
 };
 
-export type TradeDraftSide = { cards: { card_key: string; qty: number }[]; cash: number; shards: number };
+export type TradeDraftSide = { cards: { card_key: string; qty: number }[]; cosmetics?: string[]; cash: number; shards: number };
+
+export type ItemMarket = { listings: Listing[]; total: number; page: number; limit: number; floors: { rarity: ItemRarity; floor: number | null; listed: number }[]; hold_hours: number };
+export type ItemDetail = {
+  item: ExchangeItem & { tradable: boolean };
+  history: { price: number; kind: string; at: string; seller: string | null; buyer: string | null }[];
+  listings: Listing[];
+  stats: { last: number | null; avg7d: number | null; floor: number | null; owners: number; in_escrow: number };
+  mine: { tradable: boolean; reason: MyItem["reason"]; available_at: string | null } | null;
+};
 
 const post = <T>(path: string, body?: unknown) => apiFetch<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 const noStore = { cache: "no-store" as const };
@@ -144,9 +165,17 @@ export const removeWish = (symbol: string, rarity: string) =>
 export const fetchDesk = () => apiFetch<Desk>("/api/games/exchange/me", noStore);
 export const fetchTrades = () => apiFetch<TradesResponse>("/api/games/exchange/trades", noStore);
 export const fetchTradeableCards = (username: string) =>
-  apiFetch<{ user: UserRef; cards: (ExchangeCard & { copies: number; tradeable: number })[] }>(`/api/games/exchange/players/${encodeURIComponent(username)}/cards`, noStore);
+  apiFetch<{ user: UserRef; cards: (ExchangeCard & { copies: number; tradeable: number })[]; items?: MyItem[] }>(`/api/games/exchange/players/${encodeURIComponent(username)}/cards`, noStore);
+export const fetchItemListings = (params: Record<string, string | number | undefined>) => {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) if (value !== undefined && value !== "") search.set(key, String(value));
+  return apiFetch<ItemMarket>(`/api/games/exchange/items?${search}`, noStore);
+};
+export const fetchItemDetail = (key: string) => apiFetch<ItemDetail>(`/api/games/exchange/items/${encodeURIComponent(key)}`, noStore);
+export const fetchMyItems = () => apiFetch<{ items: MyItem[]; eligibility: Desk["eligibility"]; hold_hours: number }>("/api/games/exchange/items/mine", noStore);
 
-export const createListing = (body: { card_key: string; kind: "fixed" | "auction"; price?: number; start_price?: number; buy_now?: number | null; duration_hours?: number }) =>
+/** One card copy (card_key) or one capsule item (cosmetic_key). */
+export const createListing = (body: { card_key?: string; cosmetic_key?: string; kind: "fixed" | "auction"; price?: number; start_price?: number; buy_now?: number | null; duration_hours?: number }) =>
   post<{ listing: Listing }>("/api/games/exchange/listings", body);
 export const cancelListing = (id: number) => apiFetch<{ listing: Listing }>(`/api/games/exchange/listings/${id}`, { method: "DELETE" });
 export const buyListing = (id: number) => post<{ listing: Listing; price: number; fee: number }>(`/api/games/exchange/listings/${id}/buy`);
@@ -155,6 +184,10 @@ export const proposeTrade = (body: { to_username?: string; counter_of?: number; 
   post<{ trade: Trade }>("/api/games/exchange/trades", body);
 export const respondTrade = (id: number, action: "accept" | "decline" | "cancel") => post<{ trade: Trade }>(`/api/games/exchange/trades/${id}/${action}`);
 
+export const itemPath = (key: string) => `/games/exchange/items/${encodeURIComponent(key)}`;
+/** Where a listing's page is: its card's, or its item's. */
+export const listingPath = (listing: Pick<Listing, "card_key" | "cosmetic_key">) => (listing.cosmetic_key ? itemPath(listing.cosmetic_key) : cardPath(listing.card_key ?? ""));
+
 export const cardPath = (cardKey: string) => {
   const [, symbol, rarity] = cardKey.split(":");
   return `/games/exchange/card/${symbol}/${rarity}`;
@@ -162,8 +195,10 @@ export const cardPath = (cardKey: string) => {
 
 /** What a card is worth for meters and binder value: last sale, else 7-day average, else floor. */
 export const cardValue = (prices: PriceBook | null, cardKey: string) => prices?.[cardKey]?.value ?? null;
+/** A capsule item's worth, from the same book (its key there is "item:<key>"). */
+export const itemValue = (prices: PriceBook | null, key: string) => prices?.[`item:${key}`]?.value ?? null;
 
-export function sideValue(prices: PriceBook | null, side: { cards: { card_key?: string; key?: string; qty?: number }[]; cash: number }) {
+export function sideValue(prices: PriceBook | null, side: { cards: { card_key?: string; key?: string; qty?: number }[]; items?: { key: string }[]; cash: number }) {
   let value = side.cash || 0;
   let unpriced = 0;
   for (const entry of side.cards) {
@@ -171,6 +206,11 @@ export function sideValue(prices: PriceBook | null, side: { cards: { card_key?: 
     const price = cardValue(prices, key);
     if (price === null) unpriced += entry.qty ?? 1;
     else value += price * (entry.qty ?? 1);
+  }
+  for (const entry of side.items ?? []) {
+    const price = itemValue(prices, entry.key);
+    if (price === null) unpriced += 1;
+    else value += price;
   }
   return { value, unpriced };
 }

@@ -10,7 +10,8 @@ import { money } from "@/app/lib/time";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useExchangeStore } from "@/app/stores/exchange-store";
 import { useGamesStore } from "@/app/stores/games-store";
-import { CardName, Countdown, ago } from "@/app/components/games/exchange/bits";
+import { CardName, Countdown, ItemName, ago } from "@/app/components/games/exchange/bits";
+import { ItemArt } from "@/app/components/games/exchange/item-art";
 import { ExchangeFrame } from "@/app/components/games/exchange/exchange-frame";
 import { ListingDialog } from "@/app/components/games/exchange/listing-dialog";
 import { SellPicker } from "@/app/components/games/exchange/market-page";
@@ -136,9 +137,9 @@ function DeskSection({ title, empty, listings, onOpen, kind }: { title: string; 
           {listings.map((listing) => (
             <li key={listing.id}>
               <button type="button" className={styles.deskRow} onClick={() => onOpen(listing)} data-state={deskState(listing, kind)}>
-                <TalentCard card={listing.card} width={56} compact tilt={false} />
+                {listing.item ? <ItemArt item={listing.item} width={56} compact /> : listing.card ? <TalentCard card={listing.card} width={56} compact tilt={false} /> : null}
                 <span className={styles.rowMain}>
-                  <CardName card={listing.card} />
+                  {listing.item ? <ItemName item={listing.item} /> : listing.card ? <CardName card={listing.card} /> : null}
                   <small>{deskLine(listing, kind)}</small>
                 </span>
                 <span className={styles.rowEnd}>
@@ -210,6 +211,6 @@ function deskLine(listing: Listing, kind: string) {
   }
   if (kind === "won") return `From ${listing.seller.username}`;
   if (listing.status === "sold") return `Sold to ${listing.buyer?.username ?? "someone"} · you got ${money((listing.sale_price ?? 0) - (listing.fee ?? 0))}`;
-  return listing.status === "expired" ? "Ended unsold · back in your binder" : "Cancelled";
+  return listing.status === "expired" ? `Ended unsold · back in your ${listing.item ? "locker" : "binder"}` : "Cancelled";
 }
 

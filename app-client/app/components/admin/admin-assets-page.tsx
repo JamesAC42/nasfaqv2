@@ -44,6 +44,8 @@ type AdminGachaPrizeAsset = {
   is_active: boolean;
   is_deleted: boolean;
   sort_order: number;
+  /** Can change hands on the exchange (capsule pulls only). */
+  tradable?: boolean;
 };
 
 type AdminAssetsResponse = {
@@ -292,6 +294,7 @@ type PrizeDraft = {
   pull_weight: string;
   sort_order: string;
   is_active: boolean;
+  tradable: boolean;
 };
 
 const draftOf = (item: AdminGachaPrizeAsset): PrizeDraft => ({
@@ -302,6 +305,7 @@ const draftOf = (item: AdminGachaPrizeAsset): PrizeDraft => ({
   pull_weight: String(item.pull_weight),
   sort_order: String(item.sort_order),
   is_active: item.is_active,
+  tradable: item.tradable !== false,
 });
 
 const sameDraft = (a: PrizeDraft, b: PrizeDraft) => (Object.keys(a) as (keyof PrizeDraft)[]).every((key) => a[key] === b[key]);
@@ -351,6 +355,7 @@ function PrizeRow({
           pull_weight: Number(draft.pull_weight),
           sort_order: Number(draft.sort_order),
           is_active: draft.is_active,
+          tradable: draft.tradable,
         }),
       });
       await onSaved(`${draft.display_name || "Prize"} saved.`);
@@ -428,6 +433,7 @@ function PrizeRow({
       </div>
       <div className={styles.prizeSave}>
         <Switch checked={draft.is_active} onChange={(next) => onDraft({ is_active: next })} label={`${item.display_name} in the pool`} on="In pool" off="Out" />
+        <Switch checked={draft.tradable} onChange={(next) => onDraft({ tradable: next })} label={`${item.display_name} can be traded on the exchange`} on="Tradable" off="Stays put" />
         {item.is_deleted ? (
           <span className={ui.pill} data-tone="warn">
             Missing from S3

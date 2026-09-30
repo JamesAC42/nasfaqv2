@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef, type CSSProperties } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
+import { COSMETIC_COLOR } from "@/app/components/games/locker/cosmetics";
+import type { ExchangeItem } from "@/app/lib/games/exchange";
 import { RARITY_COLOR } from "@/app/lib/games/rarity";
 import type { Rarity } from "@/app/lib/games/types";
 import { useRemaining } from "@/app/lib/games/use-remaining";
@@ -35,6 +37,41 @@ export function RarityTag({ rarity }: { rarity: Rarity }) {
       {rarity}
     </span>
   );
+}
+
+/** A capsule item's rarity, in the locker's colours. */
+export function ItemRarityTag({ rarity }: { rarity: string }) {
+  return (
+    <span className={styles.rarityTag} style={{ "--r": COSMETIC_COLOR[rarity] ?? COSMETIC_COLOR.common } as CSSProperties}>
+      {rarity}
+    </span>
+  );
+}
+
+/** A capsule item's name line (the item counterpart of CardName). */
+export function ItemName({ item, href }: { item: ExchangeItem; href?: string }) {
+  const inner = (
+    <>
+      <span className={styles.itemDot} style={{ "--r": COSMETIC_COLOR[item.rarity] ?? COSMETIC_COLOR.common } as CSSProperties} aria-hidden="true" />
+      <span>{item.name}</span>
+      <ItemRarityTag rarity={item.rarity} />
+    </>
+  );
+  return href ? (
+    <Link href={href} className={styles.cardName}>
+      {inner}
+    </Link>
+  ) : (
+    <span className={styles.cardName}>{inner}</span>
+  );
+}
+
+/** A listing's or sale's name line: the card's, or the capsule item's, linking to its market page. */
+export function ThingName({ card, item, cardKey, cosmeticKey }: { card?: { symbol: string; name: string; icon: string | null; rarity: Rarity } | null; item?: ExchangeItem | null; cardKey?: string | null; cosmeticKey?: string | null }) {
+  if (item) return <ItemName item={item} href={`/games/exchange/items/${encodeURIComponent(cosmeticKey ?? item.key)}`} />;
+  if (!card) return null;
+  const [, symbol, rarity] = String(cardKey ?? "").split(":");
+  return <CardName card={card} href={symbol && rarity ? `/games/exchange/card/${symbol}/${rarity}` : undefined} />;
 }
 
 export function Cash({ value, className }: { value: number | null | undefined; className?: string }) {

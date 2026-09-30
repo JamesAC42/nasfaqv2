@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { FaGavel, FaMagnifyingGlass, FaTag } from "react-icons/fa6";
 import { TalentCard } from "@/app/components/games/cards/talent-card";
 import { SignInToPlay } from "@/app/components/games/shell/games-frame";
-import { cardPath, fetchListings, fetchOverview, type Listing, type Overview, type TapeEvent } from "@/app/lib/games/exchange";
+import { fetchItemListings, fetchListings, fetchOverview, ITEM_RARITIES, type ItemMarket, type ItemRarity, type Listing, type Overview, type TapeEvent } from "@/app/lib/games/exchange";
 import { gameErrorText } from "@/app/lib/games/errors";
 import { RARITIES, RARITY_COLOR, RARITY_NAME } from "@/app/lib/games/rarity";
 import type { Rarity, TalentCard as Card } from "@/app/lib/games/types";
@@ -15,14 +15,18 @@ import { money } from "@/app/lib/time";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useExchangeStore } from "@/app/stores/exchange-store";
 import { useGamesStore } from "@/app/stores/games-store";
-import { CardName, Dialog, ago } from "@/app/components/games/exchange/bits";
+import { Dialog, ThingName, ago } from "@/app/components/games/exchange/bits";
 import { ExchangeFrame } from "@/app/components/games/exchange/exchange-frame";
 import { ListingDialog } from "@/app/components/games/exchange/listing-dialog";
 import { ListingTile } from "@/app/components/games/exchange/listing-tile";
+import { ItemSellPicker } from "@/app/components/games/exchange/item-sell-picker";
 import { SellDialog } from "@/app/components/games/exchange/sell-dialog";
+import { COSMETIC_COLOR } from "@/app/components/games/locker/cosmetics";
 import styles from "@/app/components/games/exchange/exchange.module.scss";
 
 type Kind = "" | "fixed" | "auction";
+/** Which market the browse grid shows: talent cards, or capsule items. */
+type MarketKind = "cards" | "items";
 type Sort = "ending" | "newest" | "price_asc" | "price_desc" | "bids";
 const SORTS: { value: Sort; label: string }[] = [
   { value: "ending", label: "Ending soon" },
@@ -52,6 +56,10 @@ export function MarketPage() {
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<Listing | null>(null);
   const [selling, setSelling] = useState(false);
+  const [market, setMarket] = useState<MarketKind>("cards");
+  const [itemRarities, setItemRarities] = useState<ItemRarity[]>([]);
+  const [itemFloors, setItemFloors] = useState<ItemMarket["floors"] | null>(null);
+  const [sellingItem, setSellingItem] = useState(false);
   const [fresh, setFresh] = useState(0);
   const [flashing, setFlashing] = useState<Set<number>>(new Set());
   const flashTimers = useRef(new Map<number, number>());
@@ -66,18 +74,46 @@ export function MarketPage() {
   }, []);
 
   const loadListings = useCallback(() => {
-    fetchListings({ kind: kind || undefined, rarity: rarities.join(",") || undefined, q: query.trim() || undefined, sort, page })
+    const filters = { kind: kind || undefined, q: query.trim() || undefined, sort, page };
+    const request =
+      market === "items"
+        ? fetchItemListings({ ...filters, rarity: itemRarities.join(",") || undefined }).then((result) => {
+            setItemFloors(result.floors);
+            return result;
+          })
+        : fetchListings({ ...filters, rarity: rarities.join(",") || undefined });
+    request
       .then((result) => {
         setListings(result.listings);
         setTotal(result.total);
         setFresh(0);
       })
       .catch((reason) => setError(gameErrorText(reason)));
-  }, [kind, rarities, query, sort, page]);
+  }, [market, kind, rarities, itemRarities, query, sort, page]);
 
   useEffect(() => {
     loadOverview();
   }, [loadOverview]);
+
+  // ?market=items opens on the capsule items (links from an item's page and the locker).
+  useEffect(() => {
+    // The address is only known in the browser.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (new URLSearchParams(window.location.search).get("market") === "items") setMarket("items");
+  }, []);
+
+  const switchMarket = (next: MarketKind) => {
+    if (next === market) return;
+    setMarket(next);
+    setPage(1);
+    setQuery("");
+    setListings(null);
+    setFresh(0);
+    const url = new URL(window.location.href);
+    if (next === "items") url.searchParams.set("market", "items");
+    else url.searchParams.delete("market");
+    window.history.replaceState(null, "", url);
+  };
 
   useEffect(() => {
     const timer = window.setTimeout(loadListings, query ? 250 : 0);
@@ -119,14 +155,14 @@ export function MarketPage() {
       setListings(patch);
       setOverview((current) => (current ? { ...current, ending_soon: patch(current.ending_soon) ?? [], hot: patch(current.hot) ?? [] } : current));
       if (event.type === "bid") flash(event.listing.id);
-      if (event.type === "listed" && event.listing.seller.id !== userId) setFresh((count) => count + 1);
+      if (event.type === "listed" && event.listing.seller.id !== userId && (event.listing.item_type === "cosmetic") === (market === "items")) setFresh((count) => count + 1);
       if (event.type === "sale") {
         setOverview((current) =>
           current ? { ...current, stats: { ...current.stats, sales_24h: current.stats.sales_24h + 1, volume_24h: current.stats.volume_24h + event.price } } : current,
         );
       }
     },
-    [flash, userId],
+    [flash, userId, market],
   );
   useGamesEvents("exchange", onEvent);
 
@@ -138,6 +174,11 @@ export function MarketPage() {
     setPage(1);
     setRarities((current) => (current.includes(rarity) ? current.filter((entry) => entry !== rarity) : [...current, rarity]));
   };
+  const toggleItemRarity = (rarity: ItemRarity) => {
+    setPage(1);
+    setItemRarities((current) => (current.includes(rarity) ? current.filter((entry) => entry !== rarity) : [...current, rarity]));
+  };
+  const items = market === "items";
 
   const stats = overview?.stats;
   const pages = Math.max(1, Math.ceil(total / 36));
@@ -172,12 +213,46 @@ export function MarketPage() {
           <b>{stats?.trades_24h ?? "…"}</b>
         </div>
         {user ? (
-          <button type="button" className={styles.sellButton} onClick={() => setSelling(true)}>
-            <FaTag aria-hidden="true" /> Sell a card
+          <button type="button" className={styles.sellButton} onClick={() => (items ? setSellingItem(true) : setSelling(true))}>
+            <FaTag aria-hidden="true" /> {items ? "Sell an item" : "Sell a card"}
           </button>
         ) : null}
       </section>
 
+      <div className={styles.segment} role="radiogroup" aria-label="Market">
+        {(
+          [
+            ["cards", "Talent cards"],
+            ["items", "Capsule items"],
+          ] as [MarketKind, string][]
+        ).map(([value, label]) => (
+          <button key={value} type="button" role="radio" aria-checked={market === value} onClick={() => switchMarket(value)}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {items ? (
+        <section className={styles.floors} aria-label="Item floor prices by rarity">
+          {(itemFloors ?? ITEM_RARITIES.map((rarity) => ({ rarity, floor: null, listed: 0 }))).map((floor) => (
+            <button
+              key={floor.rarity}
+              type="button"
+              className={styles.floor}
+              style={{ "--r": COSMETIC_COLOR[floor.rarity] } as CSSProperties}
+              aria-pressed={itemRarities.includes(floor.rarity)}
+              onClick={() => toggleItemRarity(floor.rarity)}
+              title={`Show only ${floor.rarity}`}
+            >
+              <span className={styles.floorHead}>
+                <b className={styles.itemFloorName}>{floor.rarity}</b>
+              </span>
+              <span className={styles.floorPrice}>{floor.floor !== null ? money(floor.floor) : "—"}</span>
+              <small>floor · {floor.listed} listed</small>
+            </button>
+          ))}
+        </section>
+      ) : (
       <section className={styles.floors} aria-label="Floor prices by rarity">
         {(overview?.floors ?? RARITIES.map((rarity) => ({ rarity, floor: null, listed: 0, avg7d: null, sales7d: 0, last: null }))).map((floor) => (
           <button
@@ -201,6 +276,7 @@ export function MarketPage() {
           </button>
         ))}
       </section>
+      )}
 
       {overview?.ending_soon.length ? (
         <section className={styles.rail} aria-label="Auctions ending soon">
@@ -244,8 +320,8 @@ export function MarketPage() {
               <FaMagnifyingGlass aria-hidden="true" />
               <input
                 value={query}
-                placeholder="Talent or ticker"
-                aria-label="Search talents"
+                placeholder={items ? "Item name" : "Talent or ticker"}
+                aria-label={items ? "Search items" : "Search talents"}
                 onChange={(event) => {
                   setPage(1);
                   setQuery(event.target.value);
@@ -290,16 +366,18 @@ export function MarketPage() {
           ) : (
             <div className={styles.empty}>
               <TalentReaction pose="idle" size={96} />
-              <b>Nothing listed{kind || rarities.length || query ? " that matches" : " yet"}.</b>
+              <b>Nothing listed{kind || (items ? itemRarities.length : rarities.length) || query ? " that matches" : " yet"}.</b>
               <p>
                 {user ? (
                   <>
                     Be the first:{" "}
-                    <button type="button" className={styles.inlineButton} onClick={() => setSelling(true)}>
-                      sell a card
+                    <button type="button" className={styles.inlineButton} onClick={() => (items ? setSellingItem(true) : setSelling(true))}>
+                      {items ? "sell an item" : "sell a card"}
                     </button>{" "}
                     and set the price everyone else trades against.
                   </>
+                ) : items ? (
+                  "Capsule items listed by players show up here."
                 ) : (
                   "Cards listed by players show up here."
                 )}
@@ -332,7 +410,7 @@ export function MarketPage() {
                 {overview.biggest_sales.map((sale, index) => (
                   <li key={sale.id}>
                     <span className={styles.rank}>{index + 1}</span>
-                    <CardName card={sale.card} href={cardPath(sale.card_key)} />
+                    <ThingName card={sale.card} item={sale.item} cardKey={sale.card_key} />
                     <b className={styles.cash}>{money(sale.price)}</b>
                   </li>
                 ))}
@@ -348,6 +426,7 @@ export function MarketPage() {
               <li>Sellers pay a 5% fee. Direct trades are free.</li>
               <li>Stars follow copies: sell a duplicate and that card loses a star.</li>
               <li>Starter-pack cards stay with you.</li>
+              <li>Capsule items trade too (not set rewards). One of each per player, and anything you buy or trade for can go again after 24 hours.</li>
             </ul>
           </section>
         </aside>
@@ -355,6 +434,7 @@ export function MarketPage() {
 
       {open ? <ListingDialog listing={open} onClose={() => setOpen(null)} onChanged={replace} /> : null}
       {selling ? <SellPicker onClose={() => setSelling(false)} onListed={() => loadListings()} /> : null}
+      {sellingItem ? <ItemSellPicker onClose={() => setSellingItem(false)} onListed={() => loadListings()} /> : null}
     </ExchangeFrame>
   );
 }
@@ -381,11 +461,11 @@ export function LiveTape({ events }: { events: TapeEvent[] }) {
 
 function TapeRow({ event }: { event: TapeEvent }) {
   if (event.type === "sale") {
-    const big = event.card.rarity === "SSR" || event.card.rarity === "UR";
+    const big = event.card ? event.card.rarity === "SSR" || event.card.rarity === "UR" : event.item?.rarity === "legendary";
     return (
       <li data-type="sale" data-big={big || undefined}>
         <span className={styles.tapeTag}>SOLD</span>
-        <CardName card={event.card} href={cardPath(event.card_key)} />
+        <ThingName card={event.card} item={event.item} cardKey={event.card_key} />
         <b className={styles.cash}>{money(event.price)}</b>
         <small>
           {event.buyer.username} {event.kind === "auction" ? "won it" : "bought"} · {ago(event.at)}
@@ -397,7 +477,7 @@ function TapeRow({ event }: { event: TapeEvent }) {
     return (
       <li data-type="bid">
         <span className={styles.tapeTag}>BID</span>
-        <CardName card={event.listing.card} href={cardPath(event.listing.card_key)} />
+        <ThingName card={event.listing.card} item={event.listing.item} cardKey={event.listing.card_key} />
         <b className={styles.cash}>{money(event.amount)}</b>
         <small>
           {event.bidder?.username ?? "someone"}
@@ -410,7 +490,7 @@ function TapeRow({ event }: { event: TapeEvent }) {
     return (
       <li data-type="listed">
         <span className={styles.tapeTag}>NEW</span>
-        <CardName card={event.listing.card} href={cardPath(event.listing.card_key)} />
+        <ThingName card={event.listing.card} item={event.listing.item} cardKey={event.listing.card_key} />
         <b className={styles.cash}>{money(event.listing.ask)}</b>
         <small>
           {event.listing.kind === "auction" ? "auction" : "buy now"} · {ago(event.at)}
@@ -426,7 +506,8 @@ function TapeRow({ event }: { event: TapeEvent }) {
           {event.from} ⇄ {event.to}
         </span>
         <small>
-          {event.cards} card{event.cards === 1 ? "" : "s"} changed hands · {ago(event.at)}
+          {[event.cards ? `${event.cards} card${event.cards === 1 ? "" : "s"}` : null, event.items ? `${event.items} item${event.items === 1 ? "" : "s"}` : null].filter(Boolean).join(" + ") || "A trade"}{" "}
+          changed hands · {ago(event.at)}
         </small>
       </li>
     );
