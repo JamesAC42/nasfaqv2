@@ -13,6 +13,11 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-09-30",
+    title: "Profile colour by hex",
+    changes: [{ kind: "fixed", text: "Typing a profile colour's hex code in capitals (007FAB) set the wrong colour. Edit profile has its own hex box now, next to the swatch: any case, with or without #." }],
+  },
+  {
     date: "2026-09-29",
     title: "Forgot your password?",
     changes: [{ kind: "new", text: "\"Forgot it?\" on the sign-in page emails you a link to choose a new password." }],

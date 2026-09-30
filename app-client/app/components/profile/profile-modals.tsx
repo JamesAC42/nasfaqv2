@@ -10,6 +10,7 @@ import { Oshimark } from "@/app/components/common/oshimark";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { parseReaction } from "@/app/components/common/reaction-face";
 import { apiFetch } from "@/app/lib/api";
+import { normalizeHexColor } from "@/app/lib/color";
 import { normalizeGameInventoryResponse, normalizeProfileBundle, normalizeTheme } from "@/app/lib/normalizers";
 import type { CosmeticTheme, GameInventoryResponse, ProfileBundle } from "@/app/lib/types";
 import { useAuthStore } from "@/app/stores/auth-store";
@@ -55,6 +56,39 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
         {children}
       </div>
     </div>
+  );
+}
+
+/** "#abc", "ABC", "#AABBCC" or "aabbcc" as "#aabbcc"; null until it's a whole colour. */
+function parseHexColor(text: string): string | null {
+  const trimmed = text.trim();
+  return normalizeHexColor(trimmed.startsWith("#") ? trimmed : `#${trimmed}`)?.toLowerCase() ?? null;
+}
+
+/**
+ * The colour as typed hex, in any case, with or without "#". The browser's own picker was the only
+ * way to type one, and it's unreliable at it (a player's "007FAB" became #000007).
+ */
+function HexColorInput({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
+  const [draft, setDraft] = useState<string | null>(null); // what's typed, while it's being edited
+  const invalid = draft !== null && parseHexColor(draft) === null;
+  return (
+    <input
+      type="text"
+      className={styles.hexInput}
+      value={draft ?? value}
+      maxLength={7}
+      spellCheck={false}
+      autoComplete="off"
+      aria-label="Profile colour as hex"
+      aria-invalid={invalid || undefined}
+      onChange={(event) => {
+        setDraft(event.target.value);
+        const hex = parseHexColor(event.target.value);
+        if (hex) onChange(hex);
+      }}
+      onBlur={() => setDraft(null)}
+    />
   );
 }
 
@@ -154,8 +188,8 @@ export function SettingsModal({ open, profile, onClose, onSaved }: { open: boole
           <label>
             <span className={styles.label}>Profile colour</span>
             <span className={styles.colorRow}>
-              <input type="color" value={color} onChange={(event) => setColor(event.target.value)} />
-              <code>{color}</code>
+              <input type="color" value={color} onChange={(event) => setColor(event.target.value)} aria-label="Pick a profile colour" />
+              <HexColorInput value={color} onChange={setColor} />
               <PlayerAvatar username={name || "?"} pictureUrl={profile.profile_picture_url} color={color} size={28} />
             </span>
           </label>
