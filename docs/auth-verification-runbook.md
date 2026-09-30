@@ -30,7 +30,7 @@ The site doesn't load its analytics script on those two pages, so the tokens sta
 The API sends account email through Resend (`api/src/services/email.js`). If Resend variables are missing, the API logs the link instead, which is useful for local development.
 
 1. Create or sign in to a Resend account.
-2. Add the sending domain (the part after `@` in `AUTH_EMAIL_FROM`, e.g. `auth.nasfaq.biz`) under Domains, add the DNS records Resend lists (DKIM `resend._domainkey…`, and the `send…` MX and SPF TXT), and wait for it to show Verified. Until then Resend rejects every send.
+2. Add the sending domain (the part after `@` in `AUTH_EMAIL_FROM`, e.g. `auth.nasfaq.biz`) under Domains, add the DNS records Resend lists (DKIM `resend._domainkey…`, and the `send…` MX and SPF TXT), and wait for it to show Verified. nasfaq.biz's DNS is served by Cloudflare (its nameservers), so the records go in Cloudflare → nasfaq.biz → DNS, not DigitalOcean. Until then Resend rejects every send.
 3. Create an API key with email-send permission.
 4. Set these API variables:
 
