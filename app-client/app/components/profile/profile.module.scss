@@ -1079,7 +1079,7 @@
   align-items: center;
   gap: 0.5rem;
 
-  input {
+  input[type="color"] {
     width: 40px;
     height: 32px;
     padding: 0;
@@ -1087,9 +1087,17 @@
     background: none;
   }
 
-  code {
+  // The hex beside the swatch (after .form's input rule, which it narrows).
+  input.hexInput {
+    width: 10ch;
+    height: 32px;
+    padding: 0 0.5rem;
+    font-family: var(--font-mono);
     font-size: 0.75rem;
-    color: var(--mid);
+
+    &[aria-invalid="true"] {
+      border-color: var(--down);
+    }
   }
 }
 
