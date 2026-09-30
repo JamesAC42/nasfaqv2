@@ -14,6 +14,11 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-09-30",
+    title: "Blackjack table print",
+    changes: [{ kind: "fixed", text: "The small print on the blackjack table (\"Dealer stands on all 17s · Double on any two\") lost its first and last letters. It's all there now." }],
+  },
+  {
+    date: "2026-09-30",
     title: "Capsule items on the exchange",
     changes: [
       { kind: "new", text: "Sell, auction and trade what you pull from the capsule machine: the exchange has a Capsule items market, each item has its own price page, and your locker has Sell buttons." },

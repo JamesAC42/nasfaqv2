@@ -256,7 +256,8 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
               <svg className={styles.print} viewBox="0 0 800 120" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
                 <defs>
                   <path id={`bj-arc-a-${table.key}`} d="M 110 20 Q 400 120 690 20" />
-                  <path id={`bj-arc-b-${table.key}`} d="M 170 52 Q 400 142 630 52" />
+                  {/* The same curve as before, run out further at both ends: the text is ~505 units long in Martian Mono and a textPath drops any letter past its end. */}
+                  <path id={`bj-arc-b-${table.key}`} d="M 130 35 Q 400 159 670 35" />
                 </defs>
                 <text className={styles.printBig}>
                   <textPath href={`#bj-arc-a-${table.key}`} startOffset="50%" textAnchor="middle">
