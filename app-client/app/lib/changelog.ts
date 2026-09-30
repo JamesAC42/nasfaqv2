@@ -15,10 +15,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-09-29",
     title: "Forgot your password?",
-    changes: [
-      { kind: "new", text: "\"Forgot it?\" on the sign-in page emails you a link to choose a new password." },
-      { kind: "improved", text: "Sign-in is your username (or email) and password. Made your account with Google? Use \"Forgot it?\" with your Google email to set a password." },
-    ],
+    changes: [{ kind: "new", text: "\"Forgot it?\" on the sign-in page emails you a link to choose a new password." }],
   },
   {
     date: "2026-09-29",
