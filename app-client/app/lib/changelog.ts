@@ -14,6 +14,11 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-09-30",
+    title: "Practice against the NPC",
+    changes: [{ kind: "new", text: "Oshi Card Duel and High-low have a free practice mode: play the NPC any time, no stake and nothing recorded." }],
+  },
+  {
+    date: "2026-09-30",
     title: "Profile colour by hex",
     changes: [{ kind: "fixed", text: "Typing a profile colour's hex code in capitals (007FAB) set the wrong colour. Edit profile has its own hex box now, next to the swatch: any case, with or without #." }],
   },

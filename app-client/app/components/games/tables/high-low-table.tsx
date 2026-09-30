@@ -48,7 +48,7 @@ export function HighLowTable({ id }: { id: number }) {
 
   return (
     <GamesFrame
-      kicker={`High-low · Table ${Number.isFinite(id) ? id : "?"}${mySeat < 0 && table ? " · Spectating" : ""}`}
+      kicker={`High-low · ${table?.practice ? "Practice vs NPC" : `Table ${Number.isFinite(id) ? id : "?"}`}${mySeat < 0 && table ? " · Spectating" : ""}`}
       title={title}
       live={connected && table?.status === "playing"}
       aside={table ? <StakeStrip table={table} spectators={spectators} /> : null}

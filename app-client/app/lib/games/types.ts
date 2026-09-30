@@ -147,11 +147,13 @@ export type TableGame = "oshi-duel" | "high-low";
 
 export type TablePlayer = {
   seat: number;
-  user_id: number | string;
+  /** null for the NPC at a practice table. */
+  user_id: number | string | null;
   username: string;
   profile_color: string | null;
   profile_picture_url?: string | null;
   deck_size?: number;
+  npc?: boolean;
 };
 
 /** A deck card as the duel snapshots it when the match starts. */
@@ -217,11 +219,14 @@ export type TableResult = {
   rake?: number;
   reason?: string | null;
   cancelled?: string;
+  practice?: boolean;
 } | null;
 
 export type GameTable<S = DuelState | HighLowState> = {
   id: number;
   game: TableGame;
+  /** You against the NPC: free, and not recorded anywhere. */
+  practice?: boolean;
   status: "open" | "playing" | "done" | "completed" | "cancelled";
   stake: number;
   pot: number;

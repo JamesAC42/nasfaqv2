@@ -46,7 +46,7 @@ export function DuelTable({ id }: { id: number }) {
 
   return (
     <GamesFrame
-      kicker={`Oshi Card Duel · Table ${Number.isFinite(id) ? id : "?"}${mySeat < 0 && table ? " · Spectating" : ""}`}
+      kicker={`Oshi Card Duel · ${table?.practice ? "Practice vs NPC" : `Table ${Number.isFinite(id) ? id : "?"}`}${mySeat < 0 && table ? " · Spectating" : ""}`}
       title={title}
       live={connected && table?.status === "playing"}
       aside={table ? <StakeStrip table={table} spectators={spectators} /> : null}

@@ -116,6 +116,18 @@ gains:
 - Each player can **double down** once, making that round worth 2 (or −1 if wrong).
 - The highest score wins 95% of the pot; a draw refunds both.
 
+### Practice against the NPC (duel and high-low)
+
+- From either lobby, **Practice vs NPC** starts a match straight away against the NPC
+  (`tables/npc.js`). It's free: no stake, no payout, and nothing is written to the database, so it
+  never counts as a win, a loss or a result anywhere. Practice tables live in memory under their own
+  ids (from 900,000,000,000) and show in the lobby's live list, where anyone can watch.
+- The NPC only uses what a player can see. In the duel it gets your deck's rarities and stars on
+  other talents, then plays the card that beats your remaining cards by the most under the round's
+  condition (a random one a quarter of the time). In high-low it counts the cards already turned
+  over, calls the likelier side, and doubles when it's at least 80% sure. It waits 1.2–3.5 s before
+  playing.
+
 ## 6. Ticker Tap v2 (single player, weekly pool)
 
 - A $100 entry fee per run. A 45 s run of tickers popping across five lanes: tap **green** (up)

@@ -17,7 +17,7 @@ import {
   sameId,
   SpectatorCount,
 } from "@/app/components/games/tables/table-kit";
-import { cancelTable, createTable, fetchCatalog, fetchMyTables, fetchTables, joinTable } from "@/app/lib/games/api";
+import { cancelTable, createPracticeTable, createTable, fetchCatalog, fetchMyTables, fetchTables, joinTable } from "@/app/lib/games/api";
 import type { DuelState, GameTable, HighLowState, LobbyMessage, RecentMatch, TableGame } from "@/app/lib/games/types";
 import { useGamesChannel, useGamesConnected } from "@/app/lib/games/use-games-socket";
 import { fmtInteger } from "@/app/lib/format";
@@ -293,7 +293,7 @@ function CreateTable({
   onCreated: (table: GameTable) => void;
 }) {
   const [raw, setRaw] = useState("500");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<false | "table" | "practice">(false);
   const [error, setError] = useState<unknown>(null);
   const stake = raw.trim() === "" ? 0 : Math.round(Number(raw) * 100) / 100;
   const valid = Number.isFinite(stake) && stake >= limits.min && stake <= limits.max;
@@ -304,11 +304,24 @@ function CreateTable({
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!valid || busy) return;
-    setBusy(true);
+    setBusy("table");
     setError(null);
     try {
       const { table } = await createTable(game, stake, deck);
       void useProfileStore.getState().fetchPortfolio();
+      onCreated(table);
+    } catch (reason) {
+      setError(reason);
+      setBusy(false);
+    }
+  }
+
+  async function practice() {
+    if (busy) return;
+    setBusy("practice");
+    setError(null);
+    try {
+      const { table } = await createPracticeTable(game, deck);
       onCreated(table);
     } catch (reason) {
       setError(reason);
@@ -358,11 +371,14 @@ function CreateTable({
           <>Friendly match. Nothing on it but pride.</>
         )}
       </p>
-      <button type="submit" className={styles.primary} disabled={!valid || short || busy || !deckReady || busyElsewhere}>
-        {busy ? "Opening…" : busyElsewhere ? "Finish your match first" : label}
+      <button type="submit" className={styles.primary} disabled={!valid || short || Boolean(busy) || !deckReady || busyElsewhere}>
+        {busy === "table" ? "Opening…" : busyElsewhere ? "Finish your match first" : label}
+      </button>
+      <button type="button" className={styles.secondary} onClick={() => void practice()} disabled={Boolean(busy) || !deckReady || busyElsewhere}>
+        {busy === "practice" ? "Starting…" : "Practice vs NPC · free"}
       </button>
       <ErrorLine error={error} />
-      <p className={styles.note}>Tables close after 10 minutes with no challenger. Your stake comes back.</p>
+      <p className={styles.note}>Tables close after 10 minutes with no challenger. Your stake comes back. Practice starts right away against the NPC, with nothing on it and nothing recorded.</p>
     </form>
   );
 }
@@ -532,7 +548,7 @@ function LiveRow({ table, mine }: { table: GameTable; mine: boolean }) {
       <div className={styles.rowMoney}>
         <span>
           <small>Pot</small>
-          <b>{table.stake > 0 ? money(table.pot) : "Free"}</b>
+          <b>{table.practice ? "Practice" : table.stake > 0 ? money(table.pot) : "Free"}</b>
         </span>
         <span>
           <small>Watching</small>
