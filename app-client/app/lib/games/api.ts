@@ -68,6 +68,8 @@ export const fetchMyTables = () => apiFetch<{ tables: GameTable[] }>("/api/games
 export const fetchTable = (id: number) =>
   apiFetch<{ table: GameTable }>(`/api/games/tables/${id}`, { cache: "no-store" }).then(expectShape<{ table: GameTable }>((value) => isObject(value.table)));
 export const createTable = (game: TableGame, stake: number, deck?: string[]) => post<{ table: GameTable }>("/api/games/tables", { game, stake, deck });
+/** A free practice match against the NPC: it starts right away. */
+export const createPracticeTable = (game: TableGame, deck?: string[]) => post<{ table: GameTable }>("/api/games/tables", { game, stake: 0, deck, vs_npc: true });
 export const joinTable = (id: number, deck?: string[]) => post<{ table: GameTable }>(`/api/games/tables/${id}/join`, { deck });
 export const cancelTable = (id: number) => post<{ table?: GameTable }>(`/api/games/tables/${id}/cancel`);
 export const pickCard = (id: number, card: number) => post<{ table: GameTable }>(`/api/games/tables/${id}/action`, { type: "pick", card });

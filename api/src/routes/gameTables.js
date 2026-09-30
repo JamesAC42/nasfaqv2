@@ -48,7 +48,8 @@ router.get("/tables/:id", async (req, res, next) => {
 router.post("/tables", async (req, res, next) => {
   try {
     const userId = Number(requireVerifiedUserId(req));
-    const table = await pvp.createTable({ userId, gameKey: String(req.body?.game || ""), stake: req.body?.stake, deck: req.body?.deck });
+    // vs_npc: a free practice match against the NPC (no stake, nothing recorded).
+    const table = await pvp.createTable({ userId, gameKey: String(req.body?.game || ""), stake: req.body?.stake, deck: req.body?.deck, vsNpc: req.body?.vs_npc === true });
     res.status(201).json({ table });
   } catch (error) {
     sendGameError(res, next, error);

@@ -8,6 +8,10 @@
 //   - Anything still open or playing when the API starts is refunded (tables live in memory).
 //   - During maintenance (siteState) no table opens or starts; open ones are refunded, and matches
 //     in play finish.
+//
+// Practice tables (`vsNpc`): you against the NPC (npc.js), free. Nothing is staked, paid or written
+// to the database, so they can't move money or count as wins anywhere. They live in memory under
+// their own ids (PRACTICE_ID_BASE up) and show in the lobby's live list like any match.
 
 const cards = require("../cards");
 const gamesCatalog = require("../catalog");
@@ -16,14 +20,19 @@ const siteState = require("../../siteState");
 const duelEngine = require("./duelEngine");
 const highLowEngine = require("./highLowEngine");
 const hub = require("./hub");
+const npc = require("./npc");
 
 const ENGINES = { "oshi-duel": duelEngine, "high-low": highLowEngine };
 const DONE_LINGER_MS = 5 * 60_000;
 const MAX_STAKE_DEFAULT = 5000;
+// Far above any match id the database will hand out, and within the hub's 12-digit table channels.
+const PRACTICE_ID_BASE = 900_000_000_000;
+const NPC_SEAT = 1;
 
 const tables = new Map(); // id → table
 const locks = new Map(); // id → promise chain
 let pool = null;
+let practiceSeq = 0;
 
 function tableError(code, extra = {}) {
   const error = new Error(code);
@@ -127,6 +136,7 @@ function publicTable(table) {
   return {
     id: table.id,
     game: table.gameKey,
+    practice: Boolean(table.practice),
     status: table.status,
     stake: table.stake,
     pot: potOf(table),
@@ -161,6 +171,7 @@ function publishTable(table) {
 
 // ── Persistence ────────────────────────────────────────────────────────────
 async function persistState(table) {
+  if (table.practice) return;
   await pool.query(`UPDATE games.pvp_matches SET state_json = $2, updated_at = now() WHERE id = $1`, [table.id, JSON.stringify(table.state || {})]);
 }
 
@@ -204,8 +215,9 @@ function createTable(args) {
   return withLock(`user:${args.userId}`, () => createTableLocked(args));
 }
 
-async function createTableLocked({ userId, gameKey, stake, deck }) {
+async function createTableLocked({ userId, gameKey, stake, deck, vsNpc = false }) {
   if (siteState.gamesPaused()) throw tableError("games_paused");
+  if (vsNpc) return createPracticeTable({ userId, gameKey, deck });
   const game = await getPvpGame(gameKey);
   const safeStake = parseStake(stake, game);
   if (userBusy(userId, gameKey)) throw tableError("already_seated");
@@ -254,6 +266,70 @@ async function createTableLocked({ userId, gameKey, stake, deck }) {
   table.timer = setTimeout(() => withLock(matchId, () => expireTable(matchId)).catch(logError), openMinutes * 60_000);
   publishTable(table);
   return publicTable(table);
+}
+
+/** You against the NPC, free and unrecorded: straight to playing, no escrow, no database rows. */
+async function createPracticeTable({ userId, gameKey, deck }) {
+  const game = await getPvpGame(gameKey);
+  if (userBusy(userId, gameKey)) throw tableError("already_seated");
+  const deckKeys = await validateDeck(pool, userId, gameKey, deck);
+  const user = await loadUser(pool, userId);
+  const now = Date.now();
+  practiceSeq += 1;
+  const table = {
+    id: PRACTICE_ID_BASE + practiceSeq,
+    practice: true,
+    gameKey,
+    game,
+    stake: 0,
+    rakeBps: 0,
+    hostUserId: userId,
+    status: "playing",
+    createdAt: new Date(now).toISOString(),
+    expiresAt: null,
+    players: [
+      { seat: 0, ...user, deck_keys: deckKeys },
+      { seat: NPC_SEAT, ...npc.NPC_PLAYER, deck_keys: [] },
+    ],
+    state: null,
+    result: null,
+    timer: null,
+    npcTimer: null,
+    npcTurn: null,
+  };
+  if (gameKey === "oshi-duel") {
+    const [playerDeck] = await snapshotDecks(pool, [table.players[0]]);
+    const npcDeck = npc.duelDeck(playerDeck, await cards.listTalents(pool));
+    table.players[NPC_SEAT].deck_keys = npcDeck.map((card) => card.key);
+    table.state = duelEngine.setup({ decks: [playerDeck, npcDeck], now, pickSeconds: Number(game.config_json?.pick_seconds ?? 20) });
+  } else {
+    table.state = highLowEngine.setup({ now, callSeconds: Number(game.config_json?.call_seconds ?? 10) });
+  }
+  tables.set(table.id, table);
+  schedule(table);
+  publishTable(table);
+  return publicTable(table);
+}
+
+/** On a practice table, has the NPC play its move for this round after a short think. */
+function scheduleNpc(table) {
+  if (!table.practice || table.status !== "playing" || !table.state) return;
+  const turn = `${table.state.phase}:${table.state.round}`;
+  if (table.npcTurn === turn || !npc.toMove(table.gameKey, table.state, NPC_SEAT)) return;
+  table.npcTurn = turn;
+  clearTimeout(table.npcTimer);
+  table.npcTimer = setTimeout(
+    () =>
+      withLock(table.id, async () => {
+        const live = tables.get(table.id);
+        if (!live || live.status !== "playing" || `${live.state.phase}:${live.state.round}` !== turn) return;
+        const action = npc.nextAction(live.gameKey, live.state, NPC_SEAT);
+        if (!action) return;
+        live.state = ENGINES[live.gameKey].act(live.state, NPC_SEAT, action, Date.now());
+        await afterChange(live);
+      }).catch(logError),
+    npc.thinkMs(table.state, Date.now())
+  );
 }
 
 async function expireTable(matchId) {
@@ -368,7 +444,10 @@ async function afterChange(table) {
   try {
     await persistState(table);
     if (table.state.phase === "done") await settle(table);
-    else schedule(table);
+    else {
+      schedule(table);
+      scheduleNpc(table);
+    }
   } catch (error) {
     schedule(table, 2000);
     throw error;
@@ -408,7 +487,18 @@ async function tickTable(tableId) {
 
 async function settle(table) {
   clearTimeout(table.timer);
+  clearTimeout(table.npcTimer);
   const winnerSeat = table.state.winner;
+  if (table.practice) {
+    // Nothing staked and nothing recorded: just the result, for the table page.
+    const winner = winnerSeat === null ? null : table.players[winnerSeat];
+    table.status = "done";
+    table.result = { winner_seat: winnerSeat, winner_username: winner?.username ?? null, payout: 0, rake: 0, reason: table.state.done_reason, practice: true };
+    setTimeout(() => {
+      if (tables.get(table.id)?.status === "done") tables.delete(table.id);
+    }, DONE_LINGER_MS).unref?.();
+    return;
+  }
   const pot = round2(table.stake * 2);
   const payout = winnerSeat === null ? 0 : round2(pot * (1 - table.rakeBps / 10_000));
   const rake = winnerSeat === null ? 0 : round2(pot - payout);

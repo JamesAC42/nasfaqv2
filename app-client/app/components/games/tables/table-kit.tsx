@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { FiCheck, FiCopy, FiEye } from "react-icons/fi";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { isVerificationRequiredError, VerificationRequiredNotice } from "@/app/components/common/verification-required-notice";
-import { cancelTable, fetchTable, forfeitTable } from "@/app/lib/games/api";
+import { cancelTable, createPracticeTable, fetchTable, forfeitTable } from "@/app/lib/games/api";
 import { gameErrorText } from "@/app/lib/games/errors";
 import type { GameTable, TableGame, TablePlayer } from "@/app/lib/games/types";
 import { primeChannel, useGamesChannel } from "@/app/lib/games/use-games-socket";
@@ -142,9 +143,13 @@ export function PlayerTag({ player, size = 26, sub }: { player: TablePlayer | nu
     <span className={styles.player}>
       <PlayerAvatar username={player.username} pictureUrl={player.profile_picture_url} color={player.profile_color} size={size} />
       <span className={styles.playerText}>
-        <Link href={`/profile/${encodeURIComponent(player.username)}`} className={styles.playerName}>
-          {player.username}
-        </Link>
+        {player.npc ? (
+          <span className={styles.playerName}>{player.username}</span>
+        ) : (
+          <Link href={`/profile/${encodeURIComponent(player.username)}`} className={styles.playerName}>
+            {player.username}
+          </Link>
+        )}
         {sub ? <small>{sub}</small> : null}
       </span>
     </span>
@@ -167,11 +172,11 @@ export function StakeStrip({ table, spectators }: { table: GameTable; spectators
     <dl className={styles.stakeStrip}>
       <div>
         <dt>Stake</dt>
-        <dd>{table.stake > 0 ? money(table.stake) : "Friendly"}</dd>
+        <dd>{table.practice ? "Practice" : table.stake > 0 ? money(table.stake) : "Friendly"}</dd>
       </div>
       <div>
         <dt>Winner takes</dt>
-        <dd>{table.stake > 0 ? money(table.payout_if_win) : "Bragging rights"}</dd>
+        <dd>{table.practice ? "Nothing, it's practice" : table.stake > 0 ? money(table.payout_if_win) : "Bragging rights"}</dd>
       </div>
       <div>
         <dt>Watching</dt>
@@ -368,7 +373,9 @@ export function ResultMoment({ table, mySeat, detail }: { table: GameTable; mySe
         : won
           ? staked
             ? <>Pot {money(table.stake * 2)}, 5% to the house.</>
-            : "Friendly win. Nothing on it but pride."
+            : table.practice
+              ? "You beat the NPC. Take it to a real table next."
+              : "Friendly win. Nothing on it but pride."
           : `${winner?.username ?? "They"} took it.`;
   } else {
     headline = `${winner?.username ?? "Seat " + (winnerSeat + 1)} WINS`;
@@ -391,9 +398,13 @@ export function ResultMoment({ table, mySeat, detail }: { table: GameTable; mySe
       {line ? <p className={styles.momentLine}>{line}</p> : null}
       {detail}
       <div className={styles.momentActions}>
-        <Link href={GAME_PATH[table.game]} className={styles.primary}>
-          {mySeat >= 0 ? "New table" : "Back to lobby"}
-        </Link>
+        {table.practice && mySeat >= 0 ? (
+          <PracticeAgain table={table} mySeat={mySeat} />
+        ) : (
+          <Link href={GAME_PATH[table.game]} className={styles.primary}>
+            {mySeat >= 0 ? "New table" : "Back to lobby"}
+          </Link>
+        )}
         {mySeat >= 0 ? (
           <Link href={GAME_PATH[table.game]} className={styles.secondary}>
             Lobby
@@ -401,6 +412,36 @@ export function ResultMoment({ table, mySeat, detail }: { table: GameTable; mySe
         ) : null}
       </div>
     </div>
+  );
+}
+
+/** Another practice match against the NPC, with the same deck. */
+function PracticeAgain({ table, mySeat }: { table: GameTable; mySeat: number }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const deck = table.game === "oshi-duel" ? (table.state as { decks?: Array<Array<{ key: string }>> } | null)?.decks?.[mySeat]?.map((card) => card.key) : undefined;
+
+  async function again() {
+    setBusy(true);
+    setError(null);
+    try {
+      const { table: next } = await createPracticeTable(table.game, deck);
+      primeTable(next);
+      router.push(`${GAME_PATH[table.game]}/${next.id}`);
+    } catch (reason) {
+      setError(reason);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <button type="button" className={styles.primary} onClick={() => void again()} disabled={busy}>
+        {busy ? "Starting…" : "Practice again"}
+      </button>
+      <ErrorLine error={error} action="play" />
+    </>
   );
 }
 
