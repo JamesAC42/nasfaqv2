@@ -14,6 +14,15 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-09-30",
+    title: "Tidier pages",
+    changes: [
+      { kind: "fixed", text: "Other players' profiles said \"All cash, no bags\" even when they held stocks. They show how much is in stocks now (which stocks stays private)." },
+      { kind: "fixed", text: "Cards on the exchange no longer poke out of their listing." },
+      { kind: "fixed", text: "On phones, the price tags at the top of How to play fit in their boxes." },
+    ],
+  },
+  {
+    date: "2026-09-30",
     title: "Practice against the NPC",
     changes: [{ kind: "new", text: "Oshi Card Duel and High-low have a free practice mode: play the NPC any time, no stake and nothing recorded." }],
   },
