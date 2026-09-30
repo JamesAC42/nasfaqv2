@@ -95,14 +95,22 @@
 
 .chibiTag {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem;
+  justify-content: center;
+  gap: 0.1rem 0.35rem;
+  max-width: 100%;
   padding: 0.22rem 0.5rem;
   border: 1px solid color-mix(in srgb, var(--tal) 55%, var(--rule-2));
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--ink) 85%, transparent);
   backdrop-filter: blur(4px);
-  white-space: nowrap;
+
+  // Where the chibi is narrow (the phone hero), the move drops to a second line inside the tag
+  // rather than running past its border; the symbol and the move never break themselves.
+  > * {
+    white-space: nowrap;
+  }
 
   b {
     @include num;
