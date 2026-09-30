@@ -121,6 +121,8 @@ function toPrizeRow(row, totalWeight = null) {
     metadata: row.metadata_json || {},
     is_active: Boolean(row.is_active),
     is_deleted: Boolean(row.is_deleted),
+    // Can it change hands on the exchange (capsule pulls only; see services/games/exchange.js).
+    tradable: row.tradable !== false,
     sort_order: Number(row.sort_order || 0),
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -245,6 +247,7 @@ async function updatePrizeItem(pool, prizeId, payload) {
   const slotKey = slotKeyForType(cosmeticType);
   const pullWeight = Number(payload.pull_weight ?? payload.weight);
   const isActive = typeof payload.is_active === "boolean" ? payload.is_active : null;
+  const tradable = typeof payload.tradable === "boolean" ? payload.tradable : null;
   const sortOrder = Number.parseInt(String(payload.sort_order ?? 0), 10);
 
   if (!displayName || !Number.isFinite(pullWeight) || pullWeight < 0 || !Number.isFinite(sortOrder)) {
@@ -262,11 +265,12 @@ async function updatePrizeItem(pool, prizeId, payload) {
         pull_weight = $7,
         is_active = COALESCE($8, is_active),
         sort_order = $9,
+        tradable = COALESCE($10, tradable),
         updated_at = now()
     WHERE id = $1
     RETURNING *
   `,
-    [prizeId, displayName, description, cosmeticType, rarity, slotKey, pullWeight, isActive, sortOrder]
+    [prizeId, displayName, description, cosmeticType, rarity, slotKey, pullWeight, isActive, sortOrder, tradable]
   );
 
   if (!rows[0]) {

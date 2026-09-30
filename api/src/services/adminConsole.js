@@ -85,6 +85,8 @@ const USER_COLUMNS = `
   ${profilePictureUrlSql("small")} AS profile_picture_url,
   ${ROLE_FLAGS.map((flag) => `u.${flag}`).join(",\n  ")},
   u.created_at,
+  u.exchange_frozen_at,
+  u.exchange_frozen_note,
   cb.cash_balance,
   seen.last_seen_at
 `;
@@ -114,6 +116,8 @@ function toAdminUser(row) {
     created_at: row.created_at,
     cash: row.cash_balance === null || row.cash_balance === undefined ? null : Number(row.cash_balance),
     last_seen_at: row.last_seen_at || null,
+    exchange_frozen_at: row.exchange_frozen_at || null,
+    exchange_frozen_note: row.exchange_frozen_note || null,
   };
   for (const flag of ROLE_FLAGS) user[flag] = Boolean(row[flag]);
   return user;
@@ -182,6 +186,24 @@ async function updateUserRoles(pool, actor, userId, body) {
   );
 
   return { user: await getAdminUser(pool, userId), changed };
+}
+
+/**
+ * Freezes (or unfreezes) a player's exchange access: no listing, bidding, buying or trading. What
+ * they already have listed or offered stays until it ends, and they keep their account.
+ */
+async function setExchangeFreeze(pool, actor, userId, body) {
+  const target = await getAdminUser(pool, userId);
+  if (!target) throw roleError("user_not_found");
+  const frozen = body?.frozen === true;
+  const note = frozen ? String(body?.note ?? "").trim().slice(0, 200) || null : null;
+  await pool.query(
+    `UPDATE market.users SET exchange_frozen_at = CASE WHEN $2 THEN COALESCE(exchange_frozen_at, now()) ELSE NULL END, exchange_frozen_note = $3, updated_at = now() WHERE id = $1`,
+    [userId, frozen, note]
+  );
+  // eslint-disable-next-line no-console
+  console.info(`[admin] exchange ${frozen ? "frozen" : "unfrozen"} user=${target.id}(${target.username}) by=${actor.id}(${actor.username})${note ? ` note="${note}"` : ""}`);
+  return { user: await getAdminUser(pool, userId) };
 }
 
 async function count(pool, sql, params = []) {
@@ -320,5 +342,6 @@ module.exports = {
   searchUsers,
   getAdminUser,
   updateUserRoles,
+  setExchangeFreeze,
   getOverview,
 };

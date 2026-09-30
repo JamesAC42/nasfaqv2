@@ -85,4 +85,19 @@ router.patch(
   })
 );
 
+// Exchange freeze: { frozen: true, note? } shuts a player out of the card and item exchange.
+router.patch(
+  "/users/:userId/exchange",
+  handle(async (req, res) => {
+    const actor = requireSiteAdmin(req);
+    const userId = Number(req.params.userId);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      const error = new Error("invalid_user_id");
+      error.code = "invalid_user_id";
+      throw error;
+    }
+    res.json(await adminConsole.setExchangeFreeze(req.ctx.pool, actor, userId, req.body));
+  })
+);
+
 module.exports = router;

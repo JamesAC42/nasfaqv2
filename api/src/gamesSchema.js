@@ -325,6 +325,55 @@ async function applyGamesSchema(pool) {
     )
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS games_card_wishlist_card_idx ON games.card_wishlist (card_key)`);
+
+  // Capsule items (cosmetics from capsule pulls) trade through the same listings, sales and trades
+  // as cards: item_type says which. A listed item sits in escrow as cosmetic_json (the player's row,
+  // as it was) until it sells or goes back.
+  await pool.query(`
+    ALTER TABLE games.card_listings
+      ADD COLUMN IF NOT EXISTS item_type TEXT NOT NULL DEFAULT 'card',
+      ADD COLUMN IF NOT EXISTS cosmetic_key TEXT NULL,
+      ADD COLUMN IF NOT EXISTS cosmetic_json JSONB NULL
+  `);
+  await pool.query(`
+    ALTER TABLE games.card_sales
+      ADD COLUMN IF NOT EXISTS item_type TEXT NOT NULL DEFAULT 'card',
+      ADD COLUMN IF NOT EXISTS cosmetic_key TEXT NULL
+  `);
+  // Checked first so later runs don't take the tables' locks for nothing.
+  await pool.query(`
+    DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'games' AND table_name = 'card_listings' AND column_name = 'card_key' AND is_nullable = 'NO') THEN
+        ALTER TABLE games.card_listings ALTER COLUMN card_key DROP NOT NULL, ALTER COLUMN asset_id DROP NOT NULL;
+      END IF;
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'games' AND table_name = 'card_sales' AND column_name = 'card_key' AND is_nullable = 'NO') THEN
+        ALTER TABLE games.card_sales ALTER COLUMN card_key DROP NOT NULL, ALTER COLUMN asset_id DROP NOT NULL;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'games_card_listings_item_check') THEN
+        ALTER TABLE games.card_listings DROP CONSTRAINT IF EXISTS games_card_listings_rarity_check;
+        ALTER TABLE games.card_listings ADD CONSTRAINT games_card_listings_item_check CHECK (
+          (item_type = 'card' AND card_key IS NOT NULL AND asset_id IS NOT NULL AND rarity IN ('C', 'R', 'SR', 'SSR', 'UR'))
+          OR (item_type = 'cosmetic' AND cosmetic_key IS NOT NULL AND cosmetic_json IS NOT NULL AND rarity IN ('common', 'rare', 'epic', 'legendary'))
+        );
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'games_card_sales_item_check') THEN
+        ALTER TABLE games.card_sales ADD CONSTRAINT games_card_sales_item_check CHECK (
+          (item_type = 'card' AND card_key IS NOT NULL AND asset_id IS NOT NULL)
+          OR (item_type = 'cosmetic' AND cosmetic_key IS NOT NULL)
+        );
+      END IF;
+    END $$
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS games_card_listings_cosmetic_idx ON games.card_listings (cosmetic_key, status) WHERE item_type = 'cosmetic'`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS games_card_sales_cosmetic_idx ON games.card_sales (cosmetic_key, created_at DESC) WHERE item_type = 'cosmetic'`);
+  // A capsule prize an admin marks untradable (an event item, say) stays with whoever pulled it.
+  await pool.query(`ALTER TABLE games.gacha_prize_items ADD COLUMN IF NOT EXISTS tradable BOOLEAN NOT NULL DEFAULT true`);
+  // An admin can shut a player out of the exchange (listing, bidding, buying, trading) without a ban.
+  await pool.query(`
+    ALTER TABLE market.users
+      ADD COLUMN IF NOT EXISTS exchange_frozen_at TIMESTAMPTZ NULL,
+      ADD COLUMN IF NOT EXISTS exchange_frozen_note TEXT NULL
+  `);
 }
 
 module.exports = { applyGamesSchema };

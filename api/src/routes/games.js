@@ -43,6 +43,12 @@ const ERROR_STATUS = {
   // Card exchange
   card_bound: 409,
   card_not_tradeable: 409,
+  exchange_frozen: 403,
+  invalid_item: 400,
+  item_not_owned: 409,
+  item_not_tradable: 409,
+  item_on_hold: 409,
+  item_already_owned: 409,
   exchange_account_too_new: 403,
   exchange_daily_limit: 429,
   exchange_listing_limit: 409,
@@ -70,7 +76,7 @@ function sendGameError(res, next, error) {
   const status = ERROR_STATUS[error?.code];
   if (!status) return next(error);
   const body = { error: error.code };
-  for (const key of ["cash_balance", "required_cash", "shards", "required_shards", "min_bid", "available_at", "limit", "field", "card_key", "tradeable", "status"]) {
+  for (const key of ["cash_balance", "required_cash", "shards", "required_shards", "min_bid", "available_at", "limit", "field", "card_key", "cosmetic_key", "tradeable", "status"]) {
     if (error[key] !== undefined) body[key] = error[key];
   }
   return res.status(status).json(body);
@@ -193,6 +199,33 @@ router.get("/exchange/cards/:symbol/:rarity", async (req, res, next) => {
   }
 });
 
+// Capsule items: the market, one item's page, and your items with what each can do right now.
+router.get("/exchange/items", async (req, res, next) => {
+  try {
+    const { rarity, type, q, sort, page } = req.query;
+    res.json(await exchange.browseItems(req.ctx.pool, { viewerId: viewerIdOf(req), rarity, type, q, sort, page }));
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.get("/exchange/items/mine", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    res.json(await exchange.myItems(req.ctx.pool, { userId }));
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
+router.get("/exchange/items/:key", async (req, res, next) => {
+  try {
+    res.json(await exchange.itemDetail(req.ctx.pool, { cosmeticKey: String(req.params.key), viewerId: viewerIdOf(req) }));
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
+});
+
 // Wishlist: POST { card_key } adds, DELETE /exchange/wishlist/:symbol/:rarity removes.
 router.post("/exchange/wishlist", async (req, res, next) => {
   try {
@@ -226,9 +259,11 @@ router.post("/exchange/listings", async (req, res, next) => {
   try {
     const userId = requireVerifiedUserId(req);
     const body = req.body || {};
+    // One card copy (card_key) or one capsule item (cosmetic_key).
     const result = await exchange.createListing(req.ctx.pool, {
       userId,
       cardKey: String(body.card_key || ""),
+      cosmeticKey: body.cosmetic_key ? String(body.cosmetic_key) : null,
       kind: body.kind,
       price: body.price,
       startPrice: body.start_price,

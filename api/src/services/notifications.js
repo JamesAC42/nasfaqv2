@@ -134,17 +134,20 @@ async function markRead(pool, userId, { ids = null, all = false } = {}) {
 
 // ── Exchange alerts → notification text (mirrors the client's toasts) ────────
 function exchangeText(alert) {
-  const card = alert.card ? `${alert.card.name} ${alert.card.rarity}` : "a card";
+  // A card, or a capsule item (alert.item) from the item market.
+  const item = alert.item || null;
+  const card = alert.card ? `${alert.card.name} ${alert.card.rarity}` : item ? item.name : "a card";
+  const home = item ? "/games/item-locker" : "/games/collection";
   const trader = alert.trade ? (alert.trade.direction === "incoming" ? alert.trade.from?.username : alert.trade.to?.username) || "Someone" : "Someone";
   const [, symbol, rarity] = String(alert.card?.key || "").split(":");
-  const cardHref = symbol && rarity ? `/games/exchange/card/${symbol}/${rarity}` : "/games/exchange/desk";
+  const cardHref = item ? `/games/exchange/items/${encodeURIComponent(item.key)}` : symbol && rarity ? `/games/exchange/card/${symbol}/${rarity}` : "/games/exchange/desk";
   switch (alert.kind) {
     case "sold":
       return { title: "Sold!", body: `${card} went to ${alert.buyer?.username ?? "someone"} for ${money(alert.price)}. You got ${money(alert.proceeds)}.`, href: "/games/exchange/desk" };
     case "won":
-      return { title: "You won the auction", body: `${card} is yours for ${money(alert.price)}.`, href: "/games/collection" };
+      return { title: "You won the auction", body: `${card} is yours for ${money(alert.price)}.`, href: home };
     case "bought":
-      return { title: "It's yours", body: `${card} for ${money(alert.price)}.`, href: "/games/collection" };
+      return { title: "It's yours", body: `${card} for ${money(alert.price)}.`, href: home };
     case "outbid":
       return { title: "You've been outbid", body: `${card} is at ${money(alert.amount)}. Your ${money(alert.your_bid)} is back in your cash.`, href: cardHref };
     case "auction_lost":
@@ -152,7 +155,7 @@ function exchangeText(alert) {
     case "bid_received":
       return { title: "New bid", body: `${alert.bidder?.username ?? "Someone"} bid ${money(alert.amount)} on your ${card}.`, href: "/games/exchange/desk" };
     case "expired":
-      return { title: "Listing ended", body: `${card} didn't sell. It's back in your binder.`, href: "/games/exchange/desk" };
+      return { title: "Listing ended", body: `${card} didn't sell. It's back in your ${item ? "locker" : "binder"}.`, href: "/games/exchange/desk" };
     case "trade_offer":
       return { title: "Trade offer", body: `${trader} wants to trade with you.`, href: "/games/exchange/trades" };
     case "trade_countered":
@@ -180,7 +183,7 @@ async function recordExchangeAlerts(client, items) {
       await notify(
         client,
         userId,
-        { kind: "exchange", ...text, data: { alert_kind: alert.kind, card_key: alert.card?.key ?? null, symbol: alert.card?.symbol ?? null } },
+        { kind: "exchange", ...text, data: { alert_kind: alert.kind, card_key: alert.card?.key ?? null, symbol: alert.card?.symbol ?? null, cosmetic_key: alert.item?.key ?? null } },
         { publish: false }
       )
     );
