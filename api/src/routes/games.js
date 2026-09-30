@@ -184,7 +184,11 @@ router.get("/exchange/listings", async (req, res, next) => {
 
 router.get("/exchange/prices", async (req, res, next) => {
   try {
-    res.json({ prices: await exchange.priceBook(req.ctx.pool) });
+    // Cards by card key; capsule items as "item:<cosmetic key>" (trade meters value both).
+    const [cardPrices, itemPrices] = await Promise.all([exchange.priceBook(req.ctx.pool), exchange.itemPriceBook(req.ctx.pool)]);
+    const prices = { ...cardPrices };
+    for (const [key, entry] of Object.entries(itemPrices)) prices[`item:${key}`] = entry;
+    res.json({ prices });
   } catch (error) {
     sendGameError(res, next, error);
   }
@@ -202,8 +206,8 @@ router.get("/exchange/cards/:symbol/:rarity", async (req, res, next) => {
 // Capsule items: the market, one item's page, and your items with what each can do right now.
 router.get("/exchange/items", async (req, res, next) => {
   try {
-    const { rarity, type, q, sort, page } = req.query;
-    res.json(await exchange.browseItems(req.ctx.pool, { viewerId: viewerIdOf(req), rarity, type, q, sort, page }));
+    const { rarity, kind, type, q, sort, page } = req.query;
+    res.json(await exchange.browseItems(req.ctx.pool, { viewerId: viewerIdOf(req), rarity, kind, type, q, sort, page }));
   } catch (error) {
     sendGameError(res, next, error);
   }

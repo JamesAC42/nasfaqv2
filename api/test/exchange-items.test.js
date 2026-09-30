@@ -190,6 +190,11 @@ test("capsule items on the exchange", { skip: !databaseUrl, timeout: 180_000 }, 
   }
   // A new account letting an epic go for $5 (it's worth about $200).
   await pool.query(`INSERT INTO games.card_sales (item_type, cosmetic_key, rarity, kind, price, fee, seller_id, buyer_id) VALUES ('cosmetic', 'pin', 'epic', 'fixed', 5, 0.25, ${fresh[0]}, ${carol})`);
+  // The first legendary ever sold, between new accounts: no established price, so it's judged by the
+  // rarity's sales so far (its own) rather than flagged as worth nothing.
+  await prize("relic", "legendary");
+  await exchange.refreshItemCatalog(pool, { force: true });
+  await pool.query(`INSERT INTO games.card_sales (item_type, cosmetic_key, rarity, kind, price, fee, seller_id, buyer_id) VALUES ('cosmetic', 'relic', 'legendary', 'fixed', 500, 25, ${fresh[1]}, ${fresh[2]})`);
   const review = await exchange.reviewFlags(pool, { days: 14 });
   const pair = review.pairs.find((entry) => [entry.a.username, entry.b.username].sort().join() === "alice,carol");
   assert.ok(pair && pair.transfers >= 3);
@@ -197,4 +202,6 @@ test("capsule items on the exchange", { skip: !databaseUrl, timeout: 180_000 }, 
   assert.ok(funnel);
   assert.deepEqual(funnel.accounts.map((account) => account.username).sort(), ["new1", "new2", "new3"]);
   assert.ok(review.flags.some((flag) => flag.type === "sale" && /Prize pin \(epic item\)/.test(flag.summary)));
+  assert.ok(!review.flags.some((flag) => /legendary item/.test(flag.summary)));
+  assert.ok(review.flags.every((flag) => flag.type !== "sale" || flag.worth > 0));
 });

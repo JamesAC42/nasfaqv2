@@ -1212,7 +1212,7 @@ async function cardDetail(pool, { cardKey, viewerId = null }) {
 
 // ── The capsule item market ───────────────────────────────────────────────
 /** Active item listings (filters: rarity list, cosmetic type, name search), with each rarity's floor. */
-async function browseItems(pool, { viewerId = null, rarity = null, type = null, q = null, sort = "ending", page = 1, limit = 36 } = {}) {
+async function browseItems(pool, { viewerId = null, rarity = null, kind = null, type = null, q = null, sort = "ending", page = 1, limit = 36 } = {}) {
   const talents = await talentLookup(pool);
   const where = ["l.item_type = 'cosmetic'", "l.status = 'active'", "l.ends_at > now()"];
   const params = [];
@@ -1225,6 +1225,7 @@ async function browseItems(pool, { viewerId = null, rarity = null, type = null, 
     .map((value) => value.trim().toLowerCase())
     .filter((value) => ITEM_RARITIES.includes(value));
   if (rarities.length) where.push(`l.rarity = ANY(${add(rarities)}::text[])`);
+  if (kind === "fixed" || kind === "auction") where.push(`l.kind = ${add(kind)}`);
   if (type) where.push(`COALESCE(p.cosmetic_type, l.cosmetic_json->>'cosmetic_type') = ${add(String(type))}`);
   if (q) where.push(`COALESCE(p.display_name, l.cosmetic_json->'metadata'->>'display_name', l.cosmetic_key) ILIKE ${add(`%${String(q).trim()}%`)}`);
   const order = SORTS[sort] || SORTS.ending;
@@ -1361,15 +1362,18 @@ async function reviewFlags(pool, { days = 14, newAccountDays = 14, ratio = 3, mi
     priceBook(pool),
     pool.query(`SELECT rarity, percentile_cont(0.5) WITHIN GROUP (ORDER BY price) AS median FROM games.card_sales WHERE item_type = 'card' AND created_at > now() - interval '60 days' GROUP BY rarity`),
     // An item's worth, for judging a sale: the median of counted sales between accounts that weren't
-    // new at the time (so an alt's own sales can't set the price it's judged by), per item and per rarity.
+    // new at the time (so an alt's own sales can't set the price it's judged by), per item and per rarity;
+    // failing that (early on, when every account is new), the rarity's median over all counted sales.
     pool.query(
       `
-      SELECT GROUPING(c.cosmetic_key) AS by_rarity, c.cosmetic_key, c.rarity, percentile_cont(0.5) WITHIN GROUP (ORDER BY c.price) AS median
+      SELECT GROUPING(c.cosmetic_key) AS by_rarity, c.cosmetic_key, c.rarity,
+        percentile_cont(0.5) WITHIN GROUP (ORDER BY c.price)
+          FILTER (WHERE s.created_at <= c.created_at - make_interval(days => $1) AND b.created_at <= c.created_at - make_interval(days => $1)) AS median,
+        percentile_cont(0.5) WITHIN GROUP (ORDER BY c.price) AS median_all
       FROM (${COUNTED_ITEM_SALES}) c
-      JOIN market.users s ON s.id = c.seller_id
-      JOIN market.users b ON b.id = c.buyer_id
+      LEFT JOIN market.users s ON s.id = c.seller_id
+      LEFT JOIN market.users b ON b.id = c.buyer_id
       WHERE c.created_at > now() - interval '60 days'
-        AND s.created_at <= c.created_at - make_interval(days => $1) AND b.created_at <= c.created_at - make_interval(days => $1)
       GROUP BY GROUPING SETS ((c.cosmetic_key, c.rarity), (c.rarity))
     `,
       [newAccountDays]
@@ -1439,24 +1443,30 @@ async function reviewFlags(pool, { days = 14, newAccountDays = 14, ratio = 3, mi
     ),
   ]);
   const rarityMedian = new Map(rarityRows.map((row) => [row.rarity, num(row.median)]));
-  const itemRarityMedian = new Map(itemRarityRows.filter((row) => Number(row.by_rarity) === 1).map((row) => [row.rarity, num(row.median)]));
-  const itemKeyMedian = new Map(itemRarityRows.filter((row) => Number(row.by_rarity) === 0).map((row) => [row.cosmetic_key, num(row.median)]));
+  const byRarity = itemRarityRows.filter((row) => Number(row.by_rarity) === 1);
+  const itemRarityMedian = new Map(byRarity.filter((row) => row.median !== null).map((row) => [row.rarity, num(row.median)]));
+  const itemRarityMedianAll = new Map(byRarity.map((row) => [row.rarity, num(row.median_all)]));
+  const itemKeyMedian = new Map(itemRarityRows.filter((row) => Number(row.by_rarity) === 0 && row.median !== null).map((row) => [row.cosmetic_key, num(row.median)]));
   const valueOf = (cardKey) => {
     const known = prices[cardKey]?.value;
     if (known !== null && known !== undefined) return known;
     return rarityMedian.get(cards.parseCardKey(cardKey)?.rarity) ?? 0;
   };
+  /** null when nothing of the item's rarity has sold yet: there's no price to judge by. */
   const itemValueOf = (cosmeticKey, rarity = null) => {
     const known = itemKeyMedian.get(cosmeticKey);
     if (known !== null && known !== undefined) return known;
-    return itemRarityMedian.get(rarity || itemCatalog.get(cosmeticKey)?.rarity) ?? 0;
+    const tier = rarity || itemCatalog.get(cosmeticKey)?.rarity;
+    return itemRarityMedian.get(tier) ?? itemRarityMedianAll.get(tier) ?? null;
   };
   const ageDays = (joined, at) => Math.max(0, Math.floor((Date.parse(at) - Date.parse(joined)) / 86_400_000));
   const flags = [];
   for (const sale of sales) {
     const price = num(sale.price);
     const isItem = sale.item_type === "cosmetic";
-    const worth = round2(isItem ? itemValueOf(sale.cosmetic_key, sale.rarity) : valueOf(sale.card_key));
+    const value = isItem ? itemValueOf(sale.cosmetic_key, sale.rarity) : valueOf(sale.card_key);
+    if (value === null) continue;
+    const worth = round2(value);
     const what = isItem ? `${itemView(sale.cosmetic_key).name} (${sale.rarity} item)` : `${cardView(talents, sale.card_key)?.name ?? sale.card_key} ${sale.rarity}`;
     if (worth < minValue && price < minValue) continue;
     const off = worth > 0 && price > 0 ? Math.max(worth / price, price / worth) : Infinity;
@@ -1479,9 +1489,11 @@ async function reviewFlags(pool, { days = 14, newAccountDays = 14, ratio = 3, mi
     const s = side && typeof side === "object" ? side : {};
     const cardsValue = (Array.isArray(s.cards) ? s.cards : []).reduce((sum, entry) => sum + valueOf(entry.card_key) * Number(entry.qty || 1), 0);
     const items = sideItems(s);
-    const itemsValue = items.reduce((sum, entry) => sum + itemValueOf(entry.cosmetic_key, entry.snapshot?.rarity), 0);
+    const itemValues = items.map((entry) => itemValueOf(entry.cosmetic_key, entry.snapshot?.rarity));
+    const itemsValue = itemValues.reduce((sum, value) => sum + (value ?? 0), 0);
     return {
       value: round2(cardsValue + itemsValue + Number(s.cash || 0)),
+      unpriced: itemValues.some((value) => value === null),
       shards: Number(s.shards || 0),
       cards: (s.cards || []).reduce((sum, entry) => sum + Number(entry.qty || 1), 0),
       items: items.length,
@@ -1492,6 +1504,7 @@ async function reviewFlags(pool, { days = 14, newAccountDays = 14, ratio = 3, mi
   for (const trade of trades) {
     const give = sideValue(trade.give_json);
     const ask = sideValue(trade.ask_json);
+    if (give.unpriced || ask.unpriced) continue;
     const high = Math.max(give.value, ask.value);
     const low = Math.min(give.value, ask.value);
     if (high < minValue) continue;
