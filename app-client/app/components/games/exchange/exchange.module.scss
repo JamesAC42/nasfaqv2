@@ -599,6 +599,10 @@ a.cardName:hover > span:not(.rarityTag) {
 .tile {
   position: relative;
   display: grid;
+  // One column no wider than the tile: the card (max-width: 100%) shrinks to fit a narrow grid
+  // column instead of spilling past the tile's outline.
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 0.45rem;
   justify-items: center;
   padding: 0.5rem 0.5rem 0.6rem;

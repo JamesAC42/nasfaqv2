@@ -177,15 +177,22 @@ export function Bags({ profile, isSelf }: { profile: Profile; isSelf: boolean })
   const { theme } = useTheme();
   const openTrade = useTradeStore((state) => state.openTrade);
   const holdings = [...profile.holdings].filter((holding) => holding.quantity > 0).sort((a, b) => b.market_value - a.market_value);
-  const invested = holdings.reduce((sum, holding) => sum + holding.market_value, 0);
+  // Someone else's holdings are private (the API sends none): their stock total still shows, as one block.
+  const invested = isSelf ? holdings.reduce((sum, holding) => sum + holding.market_value, 0) : profile.stats.total_market_value;
   const equity = profile.stats.total_equity || 1;
 
   return (
     <Sec title="Bags" aside={`${money(invested)} in stocks · ${Math.round((invested / equity) * 100)}% of net worth`}>
       <div className={styles.alloc} role="img" aria-label="Allocation">
-        {holdings.map((holding) => (
-          <i key={holding.symbol} style={{ flex: holding.market_value, background: talentAccent(icons.get(holding.symbol.toUpperCase())?.color, theme) }} title={`${holding.symbol} ${money(holding.market_value)}`} />
-        ))}
+        {isSelf ? (
+          holdings.map((holding) => (
+            <i key={holding.symbol} style={{ flex: holding.market_value, background: talentAccent(icons.get(holding.symbol.toUpperCase())?.color, theme) }} title={`${holding.symbol} ${money(holding.market_value)}`} />
+          ))
+        ) : invested > 0 ? (
+          <i className={styles.stocks} style={{ flex: invested }} title={`Stocks ${money(invested)}`}>
+            STOCKS
+          </i>
+        ) : null}
         <i className={styles.cash} style={{ flex: Math.max(0, profile.stats.cash_balance) }} title={`Cash ${money(profile.stats.cash_balance)}`}>
           CASH
         </i>
@@ -239,6 +246,8 @@ export function Bags({ profile, isSelf }: { profile: Profile; isSelf: boolean })
             </tbody>
           </table>
         </div>
+      ) : !isSelf && invested > 0 ? (
+        <p className={styles.bagsPrivate}>Which stocks {profile.username} holds is private. You see how much, not what.</p>
       ) : (
         <EmptyState symbol={profile.oshi_coin?.symbol}>{isSelf ? "No bags yet. Pick a talent on Stocks and make your first trade." : "All cash, no bags."}</EmptyState>
       )}

@@ -674,6 +674,27 @@
     color: var(--dim);
     opacity: 1;
   }
+
+  // Someone else's profile: their stocks as one block (which ones is private).
+  .stocks {
+    display: flex;
+    align-items: center;
+    padding-left: 6px;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--blue) 45%, var(--ink-4));
+    font-family: var(--font-mono);
+    font-size: 0.563rem;
+    font-style: normal;
+    letter-spacing: 0.1em;
+    color: var(--text);
+    opacity: 1;
+  }
+}
+
+.bagsPrivate {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--dim);
 }
 
 .tableWrap {
