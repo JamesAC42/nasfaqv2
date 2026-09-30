@@ -125,11 +125,9 @@ The order-flow charts got indexes, so they no longer scan every order ever place
 - The email check can no longer be used to freeze a pod (ReDoS).
 - The fields that gave today's target away exactly are hidden (`size_anchor_raw`,
   `momentum_multiplier`, and the other target ingredients).
-- Google sign-in requires a Google-verified email. It takes over an unverified local account with
-  the same address, and that account's password stops working.
 - Rate limits, in Redis and shared by pods:
   - sign-in: per IP and per account name
-  - sign-up, Google sign-in and verification emails
+  - sign-up, password reset requests and verification emails
   - chat (one post in flight per player), comments, articles and friend requests
 - Request bodies are capped at 1 MB, except the admin image uploads.
 - The session cookie is Secure by default in production. Dev CORS origins are off in production.

@@ -242,14 +242,6 @@ const sections: LegalSection[] = [
           viewer counts, and publish times. We don’t access your YouTube account, watch history, subscriptions or
           any other private YouTube data.
         </p>
-        <h3>Google sign-in (removed)</h3>
-        <p>
-          Until September 29, 2026 you could sign in with Google. NASFAQ doesn’t offer it anymore and gets nothing from
-          Google about your account. If you used it, your account keeps the email address Google gave us, and we still
-          hold the Google account ID that linked the two. We don’t use it, and we’ll delete it if you ask (see{" "}
-          <a href="#retention">section 8</a>). To sign in now, use “Forgot your password?” with that email to set a
-          password.
-        </p>
         <h3>Revoking access</h3>
         <p>
           NASFAQ doesn’t ask for access to your Google or YouTube account. You can see and remove the apps that have
@@ -427,7 +419,7 @@ export default function PrivacyPage() {
         </>,
         <>No ads, no selling your data, no tracking cookies. One cookie keeps you signed in.</>,
         <>
-          We only use <strong>public</strong> YouTube data, and there’s no Google sign-in.
+          We only use <strong>public</strong> YouTube data.
         </>,
         <>
           Want your data or your account gone? Email <Mail /> from your account’s address.

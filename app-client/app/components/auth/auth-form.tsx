@@ -67,7 +67,7 @@ const HEADINGS: Record<AuthMode, string> = {
 const LEDES: Record<AuthMode, string> = {
   login: "Sign in with your username or email.",
   register: "Play money, real talents. All you need is a username, an email and a password. Verify the email and you can trade, chat, comment and write.",
-  forgot: "Enter your username or your account's email, and we'll email you a link to choose a new one. Signed up with Google? Use your Google email.",
+  forgot: "Enter your username or your account's email, and we'll email you a link to choose a new one.",
   reset: "Setting it signs you out everywhere else.",
 };
 

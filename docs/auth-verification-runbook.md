@@ -6,9 +6,6 @@ Accounts are a username, an email and a password. Three pieces protect them:
 - Password reset by email ("Forgot it?" on the sign-in page).
 - Cloudflare Turnstile on sign-in, sign-up and forgot-password.
 
-Google sign-in was removed on 2026-09-29. Accounts made with it keep their email and `market.users.google_sub`
-(unused now); they get in by resetting their password with their Google email.
-
 ## Required URLs
 
 Use the deployed frontend origin as the public app URL:
@@ -30,7 +27,7 @@ The site doesn't load its analytics script on those two pages, so the tokens sta
 The API sends account email through Resend (`api/src/services/email.js`). If Resend variables are missing, the API logs the link instead, which is useful for local development.
 
 1. Create or sign in to a Resend account.
-2. Add the sending domain (the part after `@` in `AUTH_EMAIL_FROM`, e.g. `auth.nasfaq.biz`) under Domains, add the DNS records Resend lists (DKIM `resend._domainkey…`, and the `send…` MX and SPF TXT), and wait for it to show Verified. Until then Resend rejects every send.
+2. Add the sending domain (the part after `@` in `AUTH_EMAIL_FROM`, e.g. `auth.nasfaq.biz`) under Domains, add the DNS records Resend lists (DKIM `resend._domainkey…`, and the `send…` MX and SPF TXT), and wait for it to show Verified. Until then Resend rejects every send. nasfaq.biz's DNS is served by Cloudflare (its nameservers), so the records go in Cloudflare → nasfaq.biz → DNS, not DigitalOcean.
 3. Create an API key with email-send permission.
 4. Set these API variables:
 
@@ -75,6 +72,6 @@ If `TURNSTILE_SECRET_KEY` is empty, the API skips Turnstile verification.
 
 The API's migrations create what these need (the release's migrate job runs them):
 
-- `market.users.email`, `email_verified`, `email_verified_at`, `google_sub`
+- `market.users.email`, `email_verified`, `email_verified_at`
 - `market.user_email_verification_tokens`
 - `market.user_password_reset_tokens`

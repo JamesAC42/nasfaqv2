@@ -98,18 +98,21 @@ async function applySchema(pool) {
     ALTER TABLE market.users
       ADD COLUMN IF NOT EXISTS email TEXT NULL,
       ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false,
-      ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ NULL,
-      ADD COLUMN IF NOT EXISTS google_sub TEXT NULL
+      ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ NULL
   `);
   await pool.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS market_users_email_uidx
       ON market.users (lower(email))
       WHERE email IS NOT NULL
   `);
+  // Google sign-in is gone (2026-09-29), and so are the Google account IDs it stored (the column's
+  // unique index goes with it). Checked first so later runs don't lock the users table for nothing.
   await pool.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS market_users_google_sub_uidx
-      ON market.users (google_sub)
-      WHERE google_sub IS NOT NULL
+    DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'market' AND table_name = 'users' AND column_name = 'google_sub') THEN
+        ALTER TABLE market.users DROP COLUMN google_sub;
+      END IF;
+    END $$
   `);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS market.user_email_verification_tokens (
