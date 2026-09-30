@@ -262,7 +262,7 @@ const sections: LegalSection[] = [
     title: "Other services",
     body: (
       <p>
-        NASFAQ relies on and links to other services: Google sign-in and YouTube, Cloudflare, Ko-fi and Discord. Using them
+        NASFAQ relies on and links to other services: YouTube, Cloudflare, Ko-fi and Discord. Using them
         means following their terms too. We’re not responsible for their sites. YouTube data on NASFAQ is covered by
         the <Ext href={YOUTUBE_TERMS}>YouTube Terms of Service</Ext> and the{" "}
         <Ext href={GOOGLE_PRIVACY}>Google Privacy Policy</Ext>.

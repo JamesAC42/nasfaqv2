@@ -2,8 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.scss";
 import { AppProviders } from "@/app/providers/app-providers";
 import { fontVariables } from "@/app/fonts";
-
-import Script from "next/script";
+import { Analytics } from "@/app/components/layout/analytics";
 
 export const metadata: Metadata = {
   // Absolute URLs for the share images (app/**/opengraph-image.tsx). Set NEXT_PUBLIC_SITE_URL per deploy.
@@ -34,11 +33,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: bootScript }} />
       </head>
       <body>
-        <Script
-          src="https://umami.fukuin.dev/script.js"
-          data-website-id="1aaf939c-cd8e-4e9d-bef7-cb4739440bae"
-          strategy="afterInteractive"
-        />
+        <Analytics />
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

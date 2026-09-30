@@ -14,6 +14,14 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-09-29",
+    title: "Forgot your password?",
+    changes: [
+      { kind: "new", text: "\"Forgot it?\" on the sign-in page emails you a link to choose a new password." },
+      { kind: "improved", text: "Sign-in is your username (or email) and password. Made your account with Google? Use \"Forgot it?\" with your Google email to set a password." },
+    ],
+  },
+  {
+    date: "2026-09-29",
     title: "Adjustment reports and settlement reports",
     changes: [
       { kind: "fixed", text: "The market report and stock charts could give away where the day's adjustments were heading before they landed." },

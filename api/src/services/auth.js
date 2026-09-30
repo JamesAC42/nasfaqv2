@@ -7,6 +7,7 @@ const SESSION_TTL_DAYS = Number(process.env.AUTH_SESSION_TTL_DAYS || 30);
 const EMAIL_VERIFICATION_TTL_HOURS = Number(process.env.EMAIL_VERIFICATION_TTL_HOURS || 24);
 const PASSWORD_KEYLEN = 64;
 const { profilePictureUrlSql } = require("../profilePictures");
+const { appUrl, escapeHtml, sendEmail } = require("./email");
 
 
 function normalizeUsername(username) {
@@ -231,50 +232,21 @@ async function createEmailVerificationToken(pool, userId, email) {
   return token;
 }
 
-function buildVerificationUrl(token) {
-  const baseUrl = String(process.env.PUBLIC_APP_BASE_URL || "").trim().replace(/\/+$/, "");
-  const path = process.env.EMAIL_VERIFICATION_PATH || "/verify-email";
-  if (!baseUrl) return null;
-  return `${baseUrl}${path.startsWith("/") ? path : `/${path}`}?token=${encodeURIComponent(token)}`;
-}
-
 async function sendVerificationEmail(pool, user) {
   if (!user?.id || !user?.email || user.email_verified) return;
   const token = await createEmailVerificationToken(pool, user.id, user.email);
-  const verificationUrl = buildVerificationUrl(token);
-  if (!verificationUrl) {
-    // eslint-disable-next-line no-console
-    console.warn(`Email verification link for ${user.email}: ${token}`);
-    return;
-  }
-
-  const resendApiKey = String(process.env.RESEND_API_KEY || "").trim();
-  const from = String(process.env.AUTH_EMAIL_FROM || "").trim();
-  if (!resendApiKey || !from) {
-    // eslint-disable-next-line no-console
-    console.warn(`Email verification link for ${user.email}: ${verificationUrl}`);
-    return;
-  }
-
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
+  const verificationUrl = appUrl(`${process.env.EMAIL_VERIFICATION_PATH || "/verify-email"}?token=${encodeURIComponent(token)}`);
+  const status = verificationUrl
+    ? await sendEmail({
       to: user.email,
       subject: "Verify your NASFAQ account",
       html: `<p>Verify your NASFAQ account by opening this link:</p><p><a href="${verificationUrl}">${verificationUrl}</a></p><p>This link expires soon.</p>`,
       text: `Verify your NASFAQ account: ${verificationUrl}`,
-    }),
-  });
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
+    })
+    : "not_configured";
+  if (status === "not_configured") {
     // eslint-disable-next-line no-console
-    console.error("verification email send failed:", response.status, body);
+    console.warn(`Email verification link for ${user.email}: ${verificationUrl || token}`);
   }
 }
 
@@ -363,34 +335,6 @@ async function findUserByLogin(pool, login) {
     LIMIT 1
   `,
     [normalizedUsername, normalizedEmail]
-  );
-  return rows[0] || null;
-}
-
-async function findUserByGoogleSub(pool, googleSub) {
-  const { rows } = await pool.query(
-    `
-    SELECT
-      u.id,
-      u.username,
-      u.email,
-      u.email_verified,
-      ${profilePictureUrlSql("small")} AS profile_picture_url,
-      u.profile_color,
-      u.is_admin,
-      u.can_manage_assets,
-      u.can_create_prediction_markets,
-      u.can_approve_prediction_markets,
-      u.can_resolve_prediction_markets,
-      u.can_void_prediction_markets,
-      u.created_at
-    FROM market.users u
-    LEFT JOIN market.profile_pictures pp
-      ON pp.id = u.profile_picture_id
-    WHERE u.google_sub = $1
-    LIMIT 1
-  `,
-    [googleSub]
   );
   return rows[0] || null;
 }
@@ -528,177 +472,132 @@ async function loginWithPassword(pool, { username, password }) {
   };
 }
 
-function normalizeGoogleUsernameBase(email, name) {
-  const firstName = String(name || "").trim().split(/\s+/)[0] || String(email?.split("@")[0] || "user").split(/[._-]+/)[0];
-  let base = firstName
-    .trim()
-    .replace(/[^A-Za-z0-9_]/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 20) || "user";
-  if (!/^[A-Za-z]/.test(base)) base = `user_${base}`;
-  if (base.length < 3) base = `${base}_user`.slice(0, 20);
-  return base;
+// ── Forgotten passwords ──────────────────────────────────────────────────────
+// A reset link is good for an hour and once. Using it sets the new password, signs every other
+// session out, and verifies the email (the link went to it).
+const PASSWORD_RESET_TTL_MINUTES = 60;
+
+const passwordResetSchema = `
+  CREATE TABLE IF NOT EXISTS market.user_password_reset_tokens (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at TIMESTAMPTZ NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE INDEX IF NOT EXISTS market_user_password_reset_tokens_user_idx
+    ON market.user_password_reset_tokens (user_id, created_at DESC);
+`;
+
+/**
+ * Emails a reset link to the account `login` (a username or an email) names. Returns what
+ * happened ("sent", "not_configured", "failed", or "no_account" / "too_soon" when nothing was
+ * sent); the route tells the caller the same thing whatever it is, so this can't find accounts.
+ */
+async function requestPasswordReset(pool, login, { send = sendEmail } = {}) {
+  const user = await findUserByLogin(pool, login);
+  if (!user?.email) return "no_account";
+  // One link a minute per account, whoever asks.
+  const { rows: recent } = await pool.query(
+    `SELECT 1 FROM market.user_password_reset_tokens WHERE user_id = $1 AND created_at > now() - interval '1 minute' LIMIT 1`,
+    [user.id]
+  );
+  if (recent.length) return "too_soon";
+
+  const token = generateVerificationToken();
+  await pool.query(
+    `INSERT INTO market.user_password_reset_tokens (user_id, email, token_hash, expires_at)
+     VALUES ($1, $2, $3, now() + ($4 || ' minutes')::interval)`,
+    [user.id, user.email, hashVerificationToken(token), String(PASSWORD_RESET_TTL_MINUTES)]
+  );
+  const resetUrl = appUrl(`/reset-password?token=${encodeURIComponent(token)}`);
+  const name = escapeHtml(user.username);
+  const status = resetUrl
+    ? await send({
+      to: user.email,
+      subject: "Reset your NASFAQ password",
+      html:
+        `<p>Someone asked to reset the password for your NASFAQ account, <b>${name}</b>.</p>` +
+        `<p>Choose a new password here (the link works once, for an hour):</p><p><a href="${resetUrl}">${resetUrl}</a></p>` +
+        `<p>If that wasn't you, ignore this email. Your password hasn't changed.</p>`,
+      text:
+        `Someone asked to reset the password for your NASFAQ account, ${user.username}.\n\n` +
+        `Choose a new password here (the link works once, for an hour):\n${resetUrl}\n\n` +
+        `If that wasn't you, ignore this email. Your password hasn't changed.`,
+    })
+    : "not_configured";
+  if (status === "not_configured") {
+    // eslint-disable-next-line no-console
+    console.warn(`Password reset link for ${user.username}: ${resetUrl || token}`);
+  }
+  return status;
 }
 
-async function verifyGoogleIdToken(idToken) {
-  const clientId = String(process.env.GOOGLE_CLIENT_ID || "").trim();
-  if (!clientId) {
-    const error = new Error("google_auth_not_configured");
-    error.code = "google_auth_not_configured";
-    throw error;
-  }
-  const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(String(idToken || ""))}`);
-  if (!response.ok) {
-    const error = new Error("invalid_google_token");
-    error.code = "invalid_google_token";
-    throw error;
-  }
-  const payload = await response.json();
-  if (payload.aud !== clientId || !payload.sub || !payload.email) {
-    const error = new Error("invalid_google_token");
-    error.code = "invalid_google_token";
-    throw error;
-  }
-  return {
-    sub: String(payload.sub),
-    email: validateEmail(payload.email),
-    emailVerified: payload.email_verified === true || payload.email_verified === "true",
-    name: String(payload.name || ""),
-  };
-}
-
-async function createOrLoginWithGoogle(pool, { idToken }) {
-  const profile = await verifyGoogleIdToken(idToken);
-  // Google must vouch for the address: we match accounts by email, so an unverified Google email
-  // could otherwise sign in as whoever registered that address here.
-  if (!profile.emailVerified) {
-    const error = new Error("google_email_unverified");
-    error.code = "google_email_unverified";
-    throw error;
-  }
-  let user = await findUserByGoogleSub(pool, profile.sub);
-  if (!user) {
-    const existing = await findUserByLogin(pool, profile.email);
-    if (existing && existing.email && normalizeEmail(existing.email) !== profile.email) {
-      // The address matched someone's username, not their email: never link that.
-      const error = new Error("google_login_failed");
-      error.code = "google_login_failed";
+async function resetPassword(pool, { token, password }) {
+  const safePassword = validatePassword(password);
+  const hashed = await hashPassword(safePassword);
+  const client = await pool.connect();
+  let userId;
+  try {
+    await client.query("BEGIN");
+    // The link is only good while the account still has the address it was sent to.
+    const { rows } = await client.query(
+      `SELECT t.id, t.user_id
+       FROM market.user_password_reset_tokens t
+       JOIN market.users u ON u.id = t.user_id AND lower(u.email) = lower(t.email)
+       WHERE t.token_hash = $1 AND t.used_at IS NULL AND t.expires_at > now()
+       FOR UPDATE OF t`,
+      [hashVerificationToken(String(token || ""))]
+    );
+    if (!rows[0]) {
+      const error = new Error("invalid_reset_token");
+      error.code = "invalid_reset_token";
       throw error;
     }
-    if (existing && !existing.email_verified) {
-      // Someone registered this address with a password but never proved they own it; the Google
-      // user just did. They get the account, and whatever password was set on it stops working.
-      const scrambled = await hashPassword(crypto.randomBytes(32).toString("hex"));
-      await pool.query(
-        `UPDATE market.users SET password_hash = $2, password_salt = $3, password_params_json = $4::jsonb, updated_at = now() WHERE id = $1`,
-        [existing.id, scrambled.hash, scrambled.salt, JSON.stringify(scrambled.params)]
-      );
-      await pool.query(`UPDATE market.user_sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`, [existing.id]);
-    }
-    if (existing) {
-      const { rows } = await pool.query(
-        `
-        UPDATE market.users
-        SET google_sub = $1,
-            email_verified = CASE WHEN $2::boolean THEN true ELSE email_verified END,
-            email_verified_at = CASE WHEN $2::boolean THEN COALESCE(email_verified_at, now()) ELSE email_verified_at END,
-            updated_at = now()
-        WHERE id = $3
-        RETURNING
-          id,
-          username,
-          email,
-          email_verified,
-          NULL::TEXT AS profile_picture_url,
-          profile_color,
-          is_admin,
-          can_manage_assets,
-          can_create_prediction_markets,
-          can_approve_prediction_markets,
-          can_resolve_prediction_markets,
-          can_void_prediction_markets,
-          created_at
-      `,
-        [profile.sub, profile.emailVerified, existing.id]
-      );
-      user = rows[0];
-    } else {
-      const baseUsername = normalizeGoogleUsernameBase(profile.email, profile.name);
-      for (let attempt = 0; attempt < 10; attempt += 1) {
-        const username = validateUsername(`${baseUsername.slice(0, 24)}${crypto.randomInt(1000, 9999)}`);
-        const unusablePassword = await hashPassword(crypto.randomBytes(32).toString("base64url"));
-        try {
-          const { rows } = await pool.query(
-            `
-            INSERT INTO market.users (
-              username,
-              username_normalized,
-              email,
-              password_hash,
-              password_salt,
-              password_params_json,
-              email_verified,
-              email_verified_at,
-              google_sub,
-              is_admin,
-              can_manage_assets,
-              updated_at
-            ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,CASE WHEN $7::boolean THEN now() ELSE NULL END,$8,false,false,now())
-            RETURNING
-              id,
-              username,
-              email,
-              email_verified,
-              NULL::TEXT AS profile_picture_url,
-              profile_color,
-              is_admin,
-              can_manage_assets,
-              can_create_prediction_markets,
-              can_approve_prediction_markets,
-              can_resolve_prediction_markets,
-              can_void_prediction_markets,
-              created_at
-          `,
-            [
-              username,
-              normalizeUsername(username),
-              profile.email,
-              unusablePassword.hash,
-              unusablePassword.salt,
-              JSON.stringify(unusablePassword.params),
-              profile.emailVerified,
-              profile.sub,
-            ]
-          );
-          user = rows[0];
-          break;
-        } catch (error) {
-          if (error?.code !== "23505") throw error;
-        }
-      }
-    }
-  }
-
-  if (!user) {
-    const error = new Error("google_login_failed");
-    error.code = "google_login_failed";
+    userId = rows[0].user_id;
+    await client.query(
+      `UPDATE market.users
+       SET password_hash = $2, password_salt = $3, password_params_json = $4::jsonb,
+           email_verified = true, email_verified_at = COALESCE(email_verified_at, now()), updated_at = now()
+       WHERE id = $1`,
+      [userId, hashed.hash, hashed.salt, JSON.stringify(hashed.params)]
+    );
+    // This link and any others still out are spent; every signed-in session ends.
+    await client.query(`UPDATE market.user_password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL`, [userId]);
+    await client.query(`UPDATE market.user_sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`, [userId]);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
     throw error;
+  } finally {
+    client.release();
   }
 
-  const session = await createSession(pool, user.id);
-  return { user: publicUser(user), session };
+  const session = await createSession(pool, userId);
+  const { rows } = await pool.query(
+    `SELECT u.id, u.username, u.email, u.email_verified, ${profilePictureUrlSql("small")} AS profile_picture_url, u.profile_color,
+            u.is_admin, u.can_manage_assets, u.can_create_prediction_markets, u.can_approve_prediction_markets,
+            u.can_resolve_prediction_markets, u.can_void_prediction_markets, u.created_at
+     FROM market.users u LEFT JOIN market.profile_pictures pp ON pp.id = u.profile_picture_id
+     WHERE u.id = $1`,
+    [userId]
+  );
+  return { user: publicUser(rows[0]), session };
 }
 
 module.exports = {
   buildExpiredSessionCookie,
-  createOrLoginWithGoogle,
   createSession,
   createUser,
   getAuthenticatedUser,
   getSessionTokenFromRequest,
   loginWithPassword,
+  passwordResetSchema,
   publicUser,
+  requestPasswordReset,
+  resetPassword,
   revokeSession,
   sendVerificationEmail,
   verifyEmailToken,

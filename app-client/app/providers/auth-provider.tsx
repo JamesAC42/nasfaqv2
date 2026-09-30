@@ -14,7 +14,6 @@ type AuthContextValue = {
   refreshSession: () => Promise<AuthUser | null>;
   login: (username: string, password: string, turnstileToken?: string) => Promise<AuthUser>;
   register: (username: string, email: string, password: string, ogey: string, turnstileToken?: string) => Promise<AuthUser>;
-  loginWithGoogle: (credential: string, turnstileToken?: string) => Promise<AuthUser>;
   resendVerification: () => Promise<void>;
   logout: () => Promise<void>;
 };
@@ -96,29 +95,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [setError, setInitialized, setLoading, setUser]
   );
 
-  const loginWithGoogle = useCallback(
-    async (credential: string, turnstileToken?: string) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await apiFetch<{ user: AuthUser }>("/api/auth/google", {
-          method: "POST",
-          body: JSON.stringify({ credential, turnstile_token: turnstileToken }),
-        });
-        setUser(result.user);
-        setInitialized(true);
-        return result.user;
-      } catch (error) {
-        const message = String((error as Error).message || error);
-        setError(message);
-        throw new Error(message);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [setError, setInitialized, setLoading, setUser]
-  );
-
   const resendVerification = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -170,11 +146,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshSession,
       login,
       register,
-      loginWithGoogle,
       resendVerification,
       logout,
     }),
-    [error, initialized, isLoading, login, loginWithGoogle, logout, refreshSession, register, resendVerification, user]
+    [error, initialized, isLoading, login, logout, refreshSession, register, resendVerification, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

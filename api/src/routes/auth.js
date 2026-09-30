@@ -103,24 +103,34 @@ router.post("/login", loginLimit, async (req, res, next) => {
   }
 });
 
-router.post("/google", rateLimit(byIp("google", 30, 300)), async (req, res, next) => {
+// Forgot password: emails a reset link to the account named by `login` (username or email). The
+// answer is the same whether or not there is one, and the email goes out after it.
+const forgotLimit = rateLimit(byIp("forgot", 10, 3600), { name: "forgot:login", limit: 3, windowSeconds: 3600, key: (req) => String(req.body?.login || "").trim() || null });
+
+router.post("/forgot-password", forgotLimit, async (req, res, next) => {
   try {
     await verifyTurnstile(req);
-    const result = await auth.createOrLoginWithGoogle(req.ctx.pool, {
-      idToken: req.body?.credential,
+    const login = String(req.body?.login || "").trim();
+    if (!login || login.length > 254) return res.status(400).json({ error: "invalid_login" });
+    auth.requestPasswordReset(req.ctx.pool, login).catch((error) => {
+      // eslint-disable-next-line no-console
+      console.error("password reset request failed:", error?.message || error);
     });
+    res.json({ ok: true });
+  } catch (e) {
+    if (e?.code === "turnstile_required" || e?.code === "turnstile_failed") return res.status(400).json({ error: e.code });
+    next(e);
+  }
+});
+
+router.post("/reset-password", rateLimit(byIp("reset", 20, 3600)), async (req, res, next) => {
+  try {
+    const result = await auth.resetPassword(req.ctx.pool, { token: req.body?.token, password: req.body?.password });
     res.setHeader("Set-Cookie", result.session.cookie);
     res.json({ user: result.user });
   } catch (e) {
-    if (
-      e?.code === "google_auth_not_configured"
-      || e?.code === "invalid_google_token"
-      || e?.code === "google_login_failed"
-      || e?.code === "google_email_unverified"
-      || e?.code === "turnstile_required"
-      || e?.code === "turnstile_failed"
-    ) return res.status(400).json({ error: e.code });
-    if (e?.code === "invalid_email") return res.status(400).json({ error: "invalid_email" });
+    if (e?.code === "invalid_password") return res.status(400).json({ error: "invalid_password" });
+    if (e?.code === "invalid_reset_token") return res.status(400).json({ error: "invalid_reset_token" });
     next(e);
   }
 });

@@ -5,13 +5,12 @@ import { Callout, Ext, Fact, Facts, LegalPage, Mail, type LegalSection } from "@
 export const metadata: Metadata = {
   title: "Privacy Policy | NASFAQ",
   description:
-    "What NASFAQ collects, why, what's public on the site, the services we use (including YouTube API Services and Google sign-in), and how to get your data deleted.",
+    "What NASFAQ collects, why, what's public on the site, the services we use (including YouTube API Services), and how to get your data deleted.",
 };
 
 const GOOGLE_PRIVACY = "https://policies.google.com/privacy";
 const YOUTUBE_TERMS = "https://www.youtube.com/t/terms";
 const GOOGLE_PERMISSIONS = "https://security.google.com/settings/security/permissions";
-const GOOGLE_USER_DATA_POLICY = "https://developers.google.com/terms/api-services-user-data-policy";
 
 const sections: LegalSection[] = [
   {
@@ -43,14 +42,6 @@ const sections: LegalSection[] = [
               Your <strong>username</strong>, <strong>email address</strong> and <strong>password</strong>. We never
               store the password itself, only a salted scrypt hash of it, so nobody (us included) can read it back.
               We also record when your account was created and whether you’ve verified your email.
-            </p>
-          </Fact>
-          <Fact term="Google sign-in">
-            <p>
-              If you sign in with Google, Google sends us your <strong>email address</strong>, whether Google has
-              verified it, your <strong>Google account ID</strong> (a number that links your Google account to your
-              NASFAQ one) and your <strong>name</strong>. We use your first name once, to suggest a starting
-              username, and we don’t save the name. Details in <a href="#google">section 6</a>.
             </p>
           </Fact>
           <Fact term="Your profile">
@@ -107,8 +98,8 @@ const sections: LegalSection[] = [
       <>
         <ul>
           <li>
-            <strong>To run your account:</strong> sign you in, keep you signed in, and send the email that verifies your
-            address.
+            <strong>To run your account:</strong> sign you in, keep you signed in, and send account emails: the link
+            that verifies your address, and a password reset link when you ask for one.
           </li>
           <li>
             <strong>To run the game:</strong> fill trades, settle prediction markets, pay out prizes and achievements, and
@@ -188,7 +179,7 @@ const sections: LegalSection[] = [
         <Facts>
           <Fact term="Google">
             <p>
-              Sign in with Google (if you use it) and YouTube API Services for public channel data. When you play a
+              YouTube API Services for public channel data. When you play a
               stream on NASFAQ, the video is embedded from YouTube (privacy-enhanced mode), and video thumbnails load
               from YouTube’s servers. See <a href="#google">section 6</a>.
             </p>
@@ -200,7 +191,7 @@ const sections: LegalSection[] = [
             </p>
           </Fact>
           <Fact term="Resend">
-            <p>Sends our verification emails, so it receives your email address.</p>
+            <p>Sends our account emails (email verification and password resets), so it receives your email address.</p>
           </Fact>
           <Fact term="Umami analytics">
             <p>
@@ -235,7 +226,7 @@ const sections: LegalSection[] = [
   },
   {
     id: "google",
-    title: "YouTube API Services and Google sign-in",
+    title: "YouTube API Services",
     body: (
       <>
         <Callout title="NASFAQ uses YouTube API Services">
@@ -251,23 +242,19 @@ const sections: LegalSection[] = [
           viewer counts, and publish times. We don’t access your YouTube account, watch history, subscriptions or
           any other private YouTube data.
         </p>
-        <h3>Sign in with Google</h3>
+        <h3>Google sign-in (removed)</h3>
         <p>
-          Signing in with Google is optional. We only ask Google to confirm who you are. It sends us your email address,
-          whether it’s verified, your Google account ID and your name. We store the email, the verified flag and the
-          account ID to link your accounts; we use your first name once to suggest a username and don’t keep it. We
-          don’t request any other Google or YouTube permissions.
-        </p>
-        <p>
-          NASFAQ’s use of information received from Google APIs follows the{" "}
-          <Ext href={GOOGLE_USER_DATA_POLICY}>Google API Services User Data Policy</Ext>, including the Limited Use
-          requirements.
+          Until September 29, 2026 you could sign in with Google. NASFAQ doesn’t offer it anymore and gets nothing from
+          Google about your account. If you used it, your account keeps the email address Google gave us, and we still
+          hold the Google account ID that linked the two. We don’t use it, and we’ll delete it if you ask (see{" "}
+          <a href="#retention">section 8</a>). To sign in now, use “Forgot your password?” with that email to set a
+          password.
         </p>
         <h3>Revoking access</h3>
         <p>
-          You can remove NASFAQ’s access to your Google account at any time from your{" "}
-          <Ext href={GOOGLE_PERMISSIONS}>Google security settings</Ext>. That stops Google sign-in for NASFAQ; to delete
-          what we’ve already stored, see <a href="#retention">section 8</a>.
+          NASFAQ doesn’t ask for access to your Google or YouTube account. You can see and remove the apps that have
+          access from your <Ext href={GOOGLE_PERMISSIONS}>Google security settings</Ext>; to delete what we’ve stored,
+          see <a href="#retention">section 8</a>.
         </p>
       </>
     ),
@@ -289,7 +276,7 @@ const sections: LegalSection[] = [
           </Fact>
         </Facts>
         <p>
-          When the sign-in page loads Google’s sign-in button or Cloudflare’s security check, and when you play
+          When the sign-in page loads Cloudflare’s security check, and when you play
           an embedded YouTube video, those services may set their own cookies under their own policies.
         </p>
         <h3>Settings saved on your device</h3>
@@ -384,8 +371,8 @@ const sections: LegalSection[] = [
     body: (
       <>
         <p>
-          Passwords are stored as salted scrypt hashes. Session tokens and email verification tokens are stored only as
-          hashes, and the session cookie is HttpOnly, so page scripts can’t read it. Sign-up and sign-in go through a
+          Passwords are stored as salted scrypt hashes. Session tokens, email verification tokens and password reset
+          tokens are stored only as hashes, and the session cookie is HttpOnly, so page scripts can’t read it. Sign-up and sign-in go through a
           bot check, and posting and trading need a verified email.
         </p>
         <p>
@@ -440,7 +427,7 @@ export default function PrivacyPage() {
         </>,
         <>No ads, no selling your data, no tracking cookies. One cookie keeps you signed in.</>,
         <>
-          Google sign-in gives us your email and Google account ID. We only use <strong>public</strong> YouTube data.
+          We only use <strong>public</strong> YouTube data, and there’s no Google sign-in.
         </>,
         <>
           Want your data or your account gone? Email <Mail /> from your account’s address.

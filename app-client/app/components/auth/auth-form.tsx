@@ -8,6 +8,7 @@ import { ArtSlot } from "@/app/components/common/art-slot";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { SiteShell } from "@/app/components/layout/site-shell";
+import { apiFetch } from "@/app/lib/api";
 import { signedPct, toneOf } from "@/app/lib/time";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -19,19 +20,10 @@ declare global {
       render: (container: HTMLElement, options: Record<string, unknown>) => string;
       reset: (widgetId?: string) => void;
     };
-    google?: {
-      accounts: {
-        id: {
-          initialize: (options: Record<string, unknown>) => void;
-          renderButton: (container: HTMLElement, options: Record<string, unknown>) => void;
-        };
-      };
-    };
   }
 }
 
 const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
-const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_username: "Usernames are 3–32 characters: letters, numbers, underscores and spaces.",
@@ -40,14 +32,17 @@ const ERROR_MESSAGES: Record<string, string> = {
   username_taken: "That username is taken. Try another.",
   email_taken: "There's already an account with that email. Sign in instead?",
   invalid_credentials: "Wrong username or password.",
+  invalid_login: "Enter your username or your account's email.",
+  invalid_reset_token: "That link has expired (they last an hour) or was already used.",
+  missing_token: "Open this page from the link in your email.",
   turnstile_required: "Finish the security check first.",
   turnstile_failed: "The security check failed. Try it again.",
-  google_email_unverified: "Google hasn't verified that email address. Verify it with Google, or sign up with a password.",
-  google_login_failed: "Google sign-in didn't work for that account. Sign in with your username and password.",
   rate_limited: "Too many tries. Wait a minute and try again.",
 };
 
-const isLocalPath = (path: string) => path.startsWith("/") && !path.startsWith("//") && !/^\/(login|register)/.test(path);
+export type AuthMode = "login" | "register" | "forgot" | "reset";
+
+const isLocalPath = (path: string) => path.startsWith("/") && !path.startsWith("//") && !/^\/(login|register|forgot-password|reset-password)/.test(path);
 
 /** Where to go after signing in: ?next=, else the last page you were on, else the profile. */
 function nextPath() {
@@ -62,9 +57,31 @@ function nextPath() {
   return isLocalPath(last) && last !== "/" ? last : "/profile";
 }
 
-export function AuthForm({ mode }: { mode: "login" | "register" }) {
+const HEADINGS: Record<AuthMode, string> = {
+  login: "Welcome back",
+  register: "Get your $10,000",
+  forgot: "Forgot your password?",
+  reset: "Choose a new password",
+};
+
+const LEDES: Record<AuthMode, string> = {
+  login: "Sign in with your username or email.",
+  register: "Play money, real talents. All you need is a username, an email and a password. Verify the email and you can trade, chat, comment and write.",
+  forgot: "Enter your username or your account's email, and we'll email you a link to choose a new one. Signed up with Google? Use your Google email.",
+  reset: "Setting it signs you out everywhere else.",
+};
+
+const SUBMIT_LABELS: Record<AuthMode, string> = {
+  login: "SIGN IN",
+  register: "CREATE ACCOUNT",
+  forgot: "EMAIL ME A LINK",
+  reset: "SET PASSWORD",
+};
+
+/** Sign in, sign up, forgot password, and the new-password page the reset email links to (`token`). */
+export function AuthForm({ mode, token = "" }: { mode: AuthMode; token?: string }) {
   const router = useRouter();
-  const { login, register, loginWithGoogle, resendVerification, error, isLoading, user } = useAuth();
+  const { login, register, refreshSession, resendVerification, error, isLoading, user } = useAuth();
   const assets = useMarketStore((state) => state.assets);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -75,17 +92,21 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [resent, setResent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [googleReady, setGoogleReady] = useState(false);
+  // Forgot / reset go straight to the API rather than through the auth store.
+  const [ownError, setOwnError] = useState<string | null>(mode === "reset" && !token ? "missing_token" : null);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
   const turnstileRef = useRef<HTMLDivElement | null>(null);
   const turnstileWidget = useRef("");
-  const turnstileTokenRef = useRef("");
-  const googleRef = useRef<HTMLDivElement | null>(null);
-  const googleRendered = useRef(false);
 
-  const needsCaptcha = Boolean(turnstileSiteKey);
+  const usesStore = mode === "login" || mode === "register";
+  const newPassword = mode === "register" || mode === "reset";
+  const needsCaptcha = Boolean(turnstileSiteKey) && mode !== "reset";
   const captchaDone = !needsCaptcha || Boolean(turnstileToken);
-  const ogeyWrong = error === "invalid_ogey";
-  const shownError = submitted && error && !ogeyWrong ? ERROR_MESSAGES[error] || `Something went wrong (${error}). Try again.` : null;
+  const errorCode = usesStore ? (submitted ? error : null) : ownError;
+  const ogeyWrong = errorCode === "invalid_ogey";
+  const shownError = errorCode && !ogeyWrong ? ERROR_MESSAGES[errorCode] || `Something went wrong (${errorCode}). Try again.` : null;
+  const working = usesStore ? isLoading : busy;
 
   const movers = useMemo(
     () =>
@@ -107,69 +128,41 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   function resetTurnstile() {
     if (!turnstileWidget.current || !window.turnstile) return;
     window.turnstile.reset(turnstileWidget.current);
-    turnstileTokenRef.current = "";
     setTurnstileToken("");
   }
 
   function renderTurnstile() {
-    if (!turnstileSiteKey || !window.turnstile || !turnstileRef.current || turnstileWidget.current) return;
+    if (!needsCaptcha || !window.turnstile || !turnstileRef.current || turnstileWidget.current) return;
     turnstileWidget.current = window.turnstile.render(turnstileRef.current, {
       sitekey: turnstileSiteKey,
       appearance: "always",
       theme: document.documentElement.dataset.theme === "light" ? "light" : "dark",
-      callback: (token: string) => {
-        turnstileTokenRef.current = token;
-        setTurnstileToken(token);
+      callback: (value: string) => {
+        setTurnstileToken(value);
         setNotice(null);
       },
-      "expired-callback": () => {
-        turnstileTokenRef.current = "";
-        setTurnstileToken("");
-      },
-      "error-callback": () => {
-        turnstileTokenRef.current = "";
-        setTurnstileToken("");
-      },
+      "expired-callback": () => setTurnstileToken(""),
+      "error-callback": () => setTurnstileToken(""),
     });
-  }
-
-  function renderGoogle() {
-    if (!googleReady || !googleClientId || !window.google || !googleRef.current || googleRendered.current) return;
-    window.google.accounts.id.initialize({
-      client_id: googleClientId,
-      ux_mode: "popup",
-      use_fedcm_for_prompt: false,
-      use_fedcm_for_button: false,
-      callback: async (response: { credential?: string }) => {
-        if (!response.credential) return;
-        const token = turnstileTokenRef.current;
-        if (needsCaptcha && !token) {
-          setNotice("Finish the security check before using Google.");
-          return;
-        }
-        setSubmitted(true);
-        try {
-          await loginWithGoogle(response.credential, token);
-          router.push(nextPath());
-        } finally {
-          resetTurnstile();
-        }
-      },
-    });
-    window.google.accounts.id.renderButton(googleRef.current, {
-      theme: "filled_black",
-      size: "large",
-      shape: "rectangular",
-      text: mode === "login" ? "signin_with" : "signup_with",
-      width: 300,
-    });
-    googleRendered.current = true;
   }
 
   useEffect(() => {
     renderTurnstile();
-    renderGoogle();
   });
+
+  async function callApi(path: string, body: Record<string, unknown>) {
+    setBusy(true);
+    setOwnError(null);
+    try {
+      await apiFetch(path, { method: "POST", body: JSON.stringify(body) });
+      return true;
+    } catch (reason) {
+      setOwnError(String((reason as Error).message || reason));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -178,6 +171,23 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       return;
     }
     setSubmitted(true);
+    if (mode === "forgot") {
+      if (await callApi("/api/auth/forgot-password", { login: username.trim(), turnstile_token: turnstileToken })) {
+        // The form (and its check) goes away; "Try again" brings a fresh one.
+        turnstileWidget.current = "";
+        setTurnstileToken("");
+        setDone(true);
+      } else resetTurnstile();
+      return;
+    }
+    if (mode === "reset") {
+      if (!token) return;
+      if (await callApi("/api/auth/reset-password", { token, password })) {
+        await refreshSession();
+        setDone(true);
+      }
+      return;
+    }
     try {
       if (mode === "login") await login(username.trim(), password, turnstileToken);
       else await register(username.trim(), email.trim(), password, ogey, turnstileToken);
@@ -187,10 +197,77 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     }
   }
 
+  const form = (
+    <form className={styles.form} onSubmit={(event) => void submit(event)}>
+      {mode !== "reset" ? (
+        <label>
+          <span className={styles.label}>{mode === "register" ? "Username" : "Username or email"}</span>
+          <input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete={mode === "forgot" ? "email" : "username"} maxLength={mode === "register" ? 32 : 254} required autoFocus />
+          {mode === "register" ? <small>3–32 characters. Letters, numbers, underscores, spaces.</small> : null}
+        </label>
+      ) : null}
+      {mode === "register" ? (
+        <label>
+          <span className={styles.label}>Email</span>
+          <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
+          <small>We send a link to verify it before you can trade or post. It&apos;s also how you get back in if you forget your password.</small>
+        </label>
+      ) : null}
+      {mode !== "forgot" ? (
+        <label>
+          <span className={styles.labelRow}>
+            <span className={styles.label}>{mode === "reset" ? "New password" : "Password"}</span>
+            {mode === "login" ? <Link href="/forgot-password">Forgot it?</Link> : null}
+          </span>
+          <span className={styles.pw}>
+            <input
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete={newPassword ? "new-password" : "current-password"}
+              minLength={newPassword ? 8 : undefined}
+              maxLength={200}
+              required
+              autoFocus={mode === "reset"}
+            />
+            <button type="button" onClick={() => setShowPassword(!showPassword)} aria-pressed={showPassword} aria-label={showPassword ? "Hide password" : "Show password"}>
+              {showPassword ? "HIDE" : "SHOW"}
+            </button>
+          </span>
+          {newPassword ? <small className={password && password.length < 8 ? styles.warnText : undefined}>{password && password.length < 8 ? `${8 - password.length} more character${8 - password.length === 1 ? "" : "s"} to go (8 minimum).` : `At least 8 characters${password ? ` · ${password.length} ✓` : ""}.`}</small> : null}
+        </label>
+      ) : null}
+      {mode === "register" ? (
+        <label>
+          <span className={styles.label}>ogey?</span>
+          <input value={ogey} onChange={(event) => setOgey(event.target.value)} autoComplete="off" spellCheck={false} required className={ogeyWrong ? styles.bad : undefined} />
+          {ogeyWrong ? <small className={styles.warnText}>that&apos;s not ogey</small> : null}
+        </label>
+      ) : null}
+
+      {needsCaptcha ? <div ref={turnstileRef} className={styles.captcha} /> : null}
+      {notice ? <p className={styles.notice}>{notice}</p> : null}
+      {shownError ? (
+        <p className={styles.error} role="alert">
+          {shownError}
+          {errorCode === "invalid_reset_token" || errorCode === "missing_token" ? (
+            <>
+              {" "}
+              <Link href="/forgot-password">Get a new link →</Link>
+            </>
+          ) : null}
+        </p>
+      ) : null}
+
+      <button type="submit" className={styles.submit} disabled={working || !captchaDone || (mode === "reset" && !token)}>
+        {working ? "…" : SUBMIT_LABELS[mode]}
+      </button>
+    </form>
+  );
+
   return (
     <SiteShell>
-      {turnstileSiteKey ? <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" strategy="afterInteractive" onLoad={renderTurnstile} /> : null}
-      {googleClientId ? <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onLoad={() => setGoogleReady(true)} /> : null}
+      {needsCaptcha ? <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" strategy="afterInteractive" onLoad={renderTurnstile} /> : null}
       <div className={styles.page}>
         <section className={styles.card}>
           <nav className={styles.tabs} aria-label="Account">
@@ -203,97 +280,80 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           </nav>
 
           <div className={styles.body}>
-            <h1>{mode === "login" ? "Welcome back" : "Get your $10,000"}</h1>
-            <p className={styles.lede}>
-              {mode === "login" ? "Sign in with your username or email." : "Play money, real talents. All you need is a username, an email and a password (no Google account required). Verify the email and you can trade, chat, comment and write."}
-            </p>
-
-            {user ? (
-              <div className={styles.info}>
-                <span>
-                  Already signed in as <b>{user.username}</b>. <Link href="/profile">Go to your profile →</Link>
-                </span>
-                {!user.email_verified ? (
-                  <span className={styles.infoRow}>
-                    Your email isn&apos;t verified yet.{" "}
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await resendVerification();
-                        setResent(true);
-                      }}
-                      disabled={resent}
-                    >
-                      {resent ? "Sent. Check your inbox." : "Resend the link"}
-                    </button>
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
-
-            <form className={styles.form} onSubmit={(event) => void submit(event)}>
-              <label>
-                <span className={styles.label}>{mode === "login" ? "Username or email" : "Username"}</span>
-                <input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" maxLength={mode === "register" ? 32 : 254} required autoFocus />
-                {mode === "register" ? <small>3–32 characters. Letters, numbers, underscores, spaces.</small> : null}
-              </label>
-              {mode === "register" ? (
-                <label>
-                  <span className={styles.label}>Email</span>
-                  <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
-                  <small>We send a link to verify it before you can trade or post.</small>
-                </label>
-              ) : null}
-              <label>
-                <span className={styles.label}>Password</span>
-                <span className={styles.pw}>
-                  <input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "register" ? 8 : undefined} maxLength={200} required />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} aria-pressed={showPassword} aria-label={showPassword ? "Hide password" : "Show password"}>
-                    {showPassword ? "HIDE" : "SHOW"}
-                  </button>
-                </span>
-                {mode === "register" ? <small className={password && password.length < 8 ? styles.warnText : undefined}>{password && password.length < 8 ? `${8 - password.length} more character${8 - password.length === 1 ? "" : "s"} to go (8 minimum).` : `At least 8 characters${password ? ` · ${password.length} ✓` : ""}.`}</small> : null}
-              </label>
-              {mode === "register" ? (
-                <label>
-                  <span className={styles.label}>ogey?</span>
-                  <input value={ogey} onChange={(event) => setOgey(event.target.value)} autoComplete="off" spellCheck={false} required className={ogeyWrong ? styles.bad : undefined} />
-                  {ogeyWrong ? <small className={styles.warnText}>that&apos;s not ogey</small> : null}
-                </label>
-              ) : null}
-
-              {turnstileSiteKey ? <div ref={turnstileRef} className={styles.captcha} /> : null}
-              {notice ? <p className={styles.notice}>{notice}</p> : null}
-              {shownError ? (
-                <p className={styles.error} role="alert">
-                  {shownError}
+            {done && mode === "forgot" ? (
+              <>
+                <h1>Check your email</h1>
+                <p className={styles.lede}>
+                  If <b>{username.trim()}</b>{" "}matches an account, a link to choose a new password is on its way to that account&apos;s email. It works once, for an hour.
                 </p>
-              ) : null}
-
-              <button type="submit" className={styles.submit} disabled={isLoading || !captchaDone}>
-                {isLoading ? "…" : mode === "login" ? "SIGN IN" : "CREATE ACCOUNT"}
-              </button>
-            </form>
-
-            {googleClientId ? (
-              <div className={styles.google}>
-                <span className={styles.or}>{mode === "register" ? "or, if you'd rather, use Google" : "or"}</span>
-                <div className={styles.googleFrame}>
-                  <div ref={googleRef} />
-                  {!captchaDone ? <div className={styles.googleShield} aria-hidden="true" /> : null}
+                <p className={styles.lede}>Nothing after a few minutes? Check your spam folder, or ask again in a minute.</p>
+                <div className={styles.doneActions}>
+                  <button type="button" onClick={() => setDone(false)}>
+                    TRY AGAIN
+                  </button>
+                  <Link href="/login">SIGN IN</Link>
                 </div>
-                {!captchaDone ? <small>Finish the security check to use Google.</small> : null}
-              </div>
-            ) : null}
+              </>
+            ) : done && mode === "reset" ? (
+              <>
+                <h1>Password changed</h1>
+                <p className={styles.lede}>
+                  You&apos;re signed in{user ? (
+                    <>
+                      {" "}as <b>{user.username}</b>
+                    </>
+                  ) : null}
+                  . Anywhere else you were signed in, you&apos;ll need the new password.
+                </p>
+                <div className={styles.doneActions}>
+                  <Link href="/profile">YOUR PROFILE</Link>
+                  <Link href="/stocks">THE MARKET</Link>
+                </div>
+              </>
+            ) : (
+              <>
+                <h1>{HEADINGS[mode]}</h1>
+                <p className={styles.lede}>{LEDES[mode]}</p>
 
-            <p className={styles.switch}>
+                {user && usesStore ? (
+                  <div className={styles.info}>
+                    <span>
+                      Already signed in as <b>{user.username}</b>. <Link href="/profile">Go to your profile →</Link>
+                    </span>
+                    {!user.email_verified ? (
+                      <span className={styles.infoRow}>
+                        Your email isn&apos;t verified yet.{" "}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await resendVerification();
+                            setResent(true);
+                          }}
+                          disabled={resent}
+                        >
+                          {resent ? "Sent. Check your inbox." : "Resend the link"}
+                        </button>
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {form}
+              </>
+            )}
+
+            <p className={styles.switch} hidden={done}>
               {mode === "login" ? (
                 <>
-                  New here? <Link href="/register">Make an account</Link>. No Google needed.
+                  New here? <Link href="/register">Make an account</Link>.
+                </>
+              ) : mode === "register" ? (
+                <>
+                  Already have one? <Link href="/login">Sign in</Link>.
                 </>
               ) : (
                 <>
-                  Already have one? <Link href="/login">Sign in</Link>.
+                  Remembered it? <Link href="/login">Sign in</Link>.
                 </>
               )}
             </p>

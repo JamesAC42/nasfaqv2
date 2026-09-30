@@ -111,7 +111,7 @@ function StartHere() {
         ? verified
           ? "You're in, with cash to spend."
           : "Click the link we emailed you. Trading, games and chat need it."
-        : "Username, email, password (or Google). You start with $10,000.",
+        : "Username, email, password. You start with $10,000.",
       href: user ? (verified ? "/profile" : "/verify-email") : "/register",
       cta: user ? (verified ? "Your profile" : "Verify email") : "Make an account",
       done: verified,
