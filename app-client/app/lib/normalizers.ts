@@ -1200,6 +1200,7 @@ export function normalizeChatMessage(value: Record<string, unknown>): ChatMessag
 export function normalizePortfolio(value: Record<string, unknown>): PortfolioSummary {
   return {
     cash_balance: Number(toNumber(value.cash_balance) || 0),
+    held_cash: Number(toNumber(value.held_cash) || 0),
     total_market_value: Number(toNumber(value.total_market_value) || 0),
     total_unrealized_pnl: Number(toNumber(value.total_unrealized_pnl) || 0),
     total_equity: Number(toNumber(value.total_equity) || 0),
@@ -1230,6 +1231,7 @@ export function normalizePortfolioOrder(value: Record<string, unknown>): Portfol
     quote_bid_at_submit: toNumber(value.quote_bid_at_submit),
     quote_ask_at_submit: toNumber(value.quote_ask_at_submit),
     rejection_reason: value.rejection_reason ? String(value.rejection_reason) : null,
+    held_cash: Number(toNumber(value.held_cash) || 0),
     execute_after: value.execute_after ? String(value.execute_after) : null,
     live_order_batch_id: value.live_order_batch_id === null || value.live_order_batch_id === undefined ? null : Number(value.live_order_batch_id),
     submitted_market_date: value.submitted_market_date ? String(value.submitted_market_date) : null,

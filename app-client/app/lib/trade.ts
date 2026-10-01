@@ -34,6 +34,9 @@ export type TradeExecutionResult = {
   } | null;
   updated_cash_balance?: number | null;
   filled_at?: string | null;
+  /** A queued buy: what it set aside, and the cash left to spend. */
+  held_cash?: number | null;
+  cash_balance?: number | null;
 };
 
 export type TradeConfirmation = {
@@ -74,7 +77,7 @@ export function getTradeFailureNotice(errorCode: string, side: TradeSide, symbol
     case "insufficient_cash":
       return {
         title: "Not enough cash",
-        message: `You do not have enough cash available to buy ${symbol}. Reduce the share count or add funds to your account balance.`,
+        message: `You don't have enough cash for this ${symbol} order. Cash held for your queued buys can't be spent until they fill or you cancel them.`,
       };
     case "sold_out":
       return {
@@ -86,11 +89,15 @@ export function getTradeFailureNotice(errorCode: string, side: TradeSide, symbol
         title: "Frozen for a buyback",
         message: `${symbol} is over its max shares, so the broker is buying shares back and nobody can buy. You can sell to the broker at the buyback price.`,
       };
-    case "insufficient_holdings":
+    case "insufficient_holdings": {
+      const queued = Number(details?.queued_shares) || 0;
       return {
         title: "Not enough shares",
-        message: `You tried to sell more ${symbol} shares than you currently own. Lower the order size and try again.`,
+        message: queued
+          ? `${queued.toLocaleString("en-US")} of your ${symbol} shares are already in queued sells, so they can't go in another one. Sell fewer, or cancel a queued sell.`
+          : `You tried to sell more ${symbol} shares than you currently own. Lower the order size and try again.`,
       };
+    }
     case "market_closed":
       return {
         title: "Market is closed",
@@ -121,6 +128,27 @@ export function getTradeFailureNotice(errorCode: string, side: TradeSide, symbol
         title: "Trade failed",
         message: `This ${side} order for ${symbol} could not be completed. Please try again.`,
       };
+  }
+}
+
+/** Why the batch turned a queued order down, as a phrase ("… wasn't placed: <this>"). */
+export function rejectionText(reason: string | null | undefined): string {
+  switch (reason) {
+    case "insufficient_cash":
+      return "the price rose past your cash";
+    case "insufficient_holdings":
+      return "you didn't have the shares by then";
+    case "sold_out":
+      return "it sold out";
+    case "buyback_frozen":
+      return "it froze for a buyback";
+    case "asset_not_active":
+    case "asset_not_found":
+      return "it isn't trading";
+    case "invalid_quote":
+      return "there was no price to trade at";
+    default:
+      return "something went wrong on our side";
   }
 }
 

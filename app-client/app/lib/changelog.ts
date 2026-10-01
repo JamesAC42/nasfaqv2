@@ -14,6 +14,18 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-09-30",
+    title: "Queued buys hold their cash",
+    changes: [
+      {
+        kind: "improved",
+        text: "A buy order takes its cost out of your cash as soon as you place it, with a little extra in case the price moves, and gives back whatever it didn't use when it fills. Cash promised to orders can't be spent on games or the exchange in the meantime, so your orders don't fail behind your back.",
+      },
+      { kind: "improved", text: "You can't queue sells for shares that are already in another queued sell." },
+      { kind: "improved", text: "If an order is turned down, you're told which one and why, and Queued orders lists anything that wasn't placed in the last day." },
+    ],
+  },
+  {
+    date: "2026-09-30",
     title: "Small fixes",
     changes: [
       { kind: "fixed", text: "The buy panel stayed open after you went back a page (to the market, say). Leaving the page closes it now." },

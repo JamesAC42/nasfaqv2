@@ -725,7 +725,10 @@ export type PortfolioHolding = {
 };
 
 export type PortfolioSummary = {
+  /** Spendable cash. */
   cash_balance: number;
+  /** Set aside for queued buys until they fill or are cancelled or rejected (still counts toward net worth). */
+  held_cash: number;
   total_market_value: number;
   total_unrealized_pnl: number;
   total_equity: number;
@@ -745,6 +748,8 @@ export type PortfolioOrder = {
   quote_bid_at_submit: number | null;
   quote_ask_at_submit: number | null;
   rejection_reason: string | null;
+  /** What a queued buy set aside when it was placed. */
+  held_cash: number;
   execute_after: string | null;
   live_order_batch_id: number | null;
   submitted_market_date: string | null;

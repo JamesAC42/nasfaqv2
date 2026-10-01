@@ -1428,6 +1428,17 @@ async function applySchema(pool) {
       ADD COLUMN IF NOT EXISTS submitted_market_date DATE NULL,
       ADD COLUMN IF NOT EXISTS submitted_interval_key TEXT NULL
   `);
+  // A queued buy holds its estimated cost out of spendable cash until the batch fills, rejects or
+  // the player cancels it (trade_orders.held_cash records what each order holds; the cash row keeps
+  // the total so net worth can count it).
+  await pool.query(`
+    ALTER TABLE market.trade_orders
+      ADD COLUMN IF NOT EXISTS held_cash NUMERIC NOT NULL DEFAULT 0
+  `);
+  await pool.query(`
+    ALTER TABLE market.portfolio_cash_balances
+      ADD COLUMN IF NOT EXISTS held_cash NUMERIC NOT NULL DEFAULT 0
+  `);
   await pool.query(`
     ALTER TABLE market.trade_orders
       DROP CONSTRAINT IF EXISTS trade_orders_type_check
