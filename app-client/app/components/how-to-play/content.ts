@@ -154,7 +154,7 @@ export const FAQ: ReadonlyArray<{ q: string; a: string }> = [
   },
   {
     q: "My order got rejected. What happened?",
-    a: "Cash and shares are checked when the batch runs, not when you queue. If you spent the cash elsewhere in the meantime, sold the shares, or the batch landed during settlement, the order is rejected and nothing is charged.",
+    a: "A buy sets its cost aside when you queue it (plus a little in case the price moves), so that cash can't be spent twice. It can still be turned down if the price rose past what it set aside and your spare cash, or the stock sold out or froze for a buyback; a sell, if you no longer hold the shares. You get everything back and nothing is charged. Queued orders (top bar) lists anything turned down in the last day, with the reason.",
   },
   {
     q: "Can I short a stock or set a limit price?",
