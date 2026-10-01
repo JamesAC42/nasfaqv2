@@ -170,7 +170,7 @@ export const FAQ: ReadonlyArray<{ q: string; a: string }> = [
   },
   {
     q: "What's Credit?",
-    a: "Your second balance. Games, the capsule machine, the card exchange and predictions run on it, so gambling can't eat the cash you buy shares with. Dividends, winnings, achievements and a little of every sale land in it, the trading fee comes out of it first, it counts toward your net worth, and every Saturday 5% of it (or $10k, if that's more) turns into cash.",
+    a: "Your second balance. Games, the capsule machine, the card exchange and predictions spend it first, and your cash only once it runs out; so does the trading fee. Dividends, winnings, achievements and a little of every sale land in it, it counts toward your net worth, and every Saturday 5% of it (or $10k, if that's more) turns into cash.",
   },
   {
     q: "How do I get more cash?",

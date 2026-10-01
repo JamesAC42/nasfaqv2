@@ -7,7 +7,7 @@ import { HeroCast, type HeroTalent } from "@/app/components/common/hero-cast";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { money } from "@/app/lib/predictions/format";
-import { sideModeFunds } from "@/app/lib/economy";
+import { sideModeFunds, sideModesUseCash } from "@/app/lib/economy";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/predictions/shell/predictions-frame.module.scss";
@@ -31,7 +31,14 @@ export function usePredictionCash() {
     // Load once per sign-in; trades refresh explicitly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
-  return { signedIn: Boolean(user), cash: sideModeFunds(portfolio), refreshCash: fetchPortfolio };
+  return {
+    signedIn: Boolean(user),
+    cash: sideModeFunds(portfolio),
+    credit: portfolio?.credit_balance ?? null,
+    /** Cash itself, when bets dip into it once Credit runs out. */
+    liquid: sideModesUseCash(portfolio) ? (portfolio?.cash_balance ?? null) : null,
+    refreshCash: fetchPortfolio,
+  };
 }
 
 type FrameProps = {
@@ -50,7 +57,7 @@ type FrameProps = {
 export function PredictionsFrame({ kicker, title, blurb, aside, live = false, bare = false, cast, children }: FrameProps) {
   const pathname = usePathname() || "/predictions";
   const { isStaff, canCreate } = useStaff();
-  const { signedIn, cash } = usePredictionCash();
+  const { signedIn, credit, liquid } = usePredictionCash();
   const items = [
     { href: "/predictions", label: "Floor", exact: true },
     { href: "/predictions/portfolio", label: "My bets", show: signedIn },
@@ -73,9 +80,15 @@ export function PredictionsFrame({ kicker, title, blurb, aside, live = false, ba
             })}
           </div>
           {signedIn ? (
-            <span className={styles.cash} title="Credit: what predictions spend">
+            <span className={styles.cash} title="Credit: what predictions spend first">
               <small>CREDIT</small>
-              <b>{cash === null ? "…" : money(cash)}</b>
+              <b>{credit === null ? "…" : money(credit)}</b>
+            </span>
+          ) : null}
+          {signedIn && liquid !== null ? (
+            <span className={styles.cash} title="Cash: bets use it once your Credit runs out">
+              <small>CASH</small>
+              <b>{money(liquid)}</b>
             </span>
           ) : null}
         </nav>

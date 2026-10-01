@@ -65,6 +65,10 @@ function requireReferenceId(referenceId) {
 
 const spendable = economy.sideModeSpendable;
 
+// Money coming back from something it was spent on goes back where it came from (economy.refund);
+// everything else paid out here (winnings, sale proceeds, a trade's cash) is Credit.
+const REFUND_ENTRY_TYPES = new Set(["game_refund", "exchange_bid_refund", "exchange_trade_refund"]);
+
 async function getLockedCashAccountWithClient(client, userId) {
   const wallet = await economy.lockWallet(client, userId);
   return {
@@ -129,13 +133,10 @@ async function creditCashForGameWithClient(client, {
   const safeEntryType = requireEntryType(entryType);
   const safeReferenceType = requireReferenceType(referenceType);
   const safeReferenceId = requireReferenceId(referenceId);
-  const result = await economy.pay(client, userId, creditAmount, {
-    to: "credit",
-    entryType: safeEntryType,
-    referenceType: safeReferenceType,
-    referenceId: safeReferenceId,
-    assetId,
-  });
+  const ledger = { entryType: safeEntryType, referenceType: safeReferenceType, referenceId: safeReferenceId, assetId };
+  const result = REFUND_ENTRY_TYPES.has(safeEntryType)
+    ? await economy.refund(client, userId, creditAmount, ledger)
+    : await economy.pay(client, userId, creditAmount, { to: "credit", ...ledger });
 
   return {
     previous_cash_balance: spendable(result.before),

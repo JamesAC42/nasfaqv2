@@ -14,8 +14,9 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-10-01",
-    title: "Credit counts",
+    title: "Credit, tuned",
     changes: [
+      { kind: "improved", text: "Games, gacha, predictions and player trades spend Credit first and dip into your cash only once it runs out. Refunds go back where the money came from." },
       { kind: "improved", text: "Credit now counts toward your net worth and the leaderboard. All-time change starts from what everyone begins with, cash and Credit together." },
       { kind: "improved", text: "Saturday's conversion turns 5% of your Credit into cash, or $10,000 if that's more." },
       { kind: "new", text: "Profiles show cash and Credit side by side." },

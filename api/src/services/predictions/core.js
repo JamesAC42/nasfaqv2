@@ -22,11 +22,13 @@ function predictionError(code, extra = {}) {
   return error;
 }
 
+const REFUND_ENTRY_TYPES = new Set(["prediction_limit_release", "prediction_cash_release", "prediction_void_refund"]);
+
 /**
  * Moves a user's prediction money and writes the ledger row in the same transaction. Returns what
  * they have left to spend on predictions.
  */
-async function moveCash(client, userId, delta, { entryType, marketId, quantityDelta = 0, referenceType = "prediction_market", referenceId = null }) {
+async function moveCash(client, userId, delta, { entryType, marketId, quantityDelta = 0, referenceType = "prediction_market", referenceId = null, sources = null }) {
   const amount = round2(delta);
   const ledger = { entryType, referenceType, referenceId: referenceId ?? marketId, quantityDelta: round6(quantityDelta) };
   // Only spending is refused; a payout or refund always lands.
@@ -39,7 +41,10 @@ async function moveCash(client, userId, delta, { entryType, marketId, quantityDe
       throw predictionError("insufficient_credit", { cash_balance: round2(economy.sideModeSpendable({ credit: error.credit_balance, cash: error.cash_balance })), required_cash: -amount });
     }
   }
-  const result = await economy.pay(client, userId, amount, { to: "credit", ...ledger });
+  // Releases and void refunds go back where the money came from; payouts and sales are Credit.
+  const result = REFUND_ENTRY_TYPES.has(entryType)
+    ? await economy.refund(client, userId, amount, { ...ledger, sources })
+    : await economy.pay(client, userId, amount, { to: "credit", ...ledger });
   return round2(economy.sideModeSpendable(result.after));
 }
 

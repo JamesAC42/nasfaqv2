@@ -240,7 +240,7 @@ async function settleWithClient(client, market, winningOutcomeId, { actorUserId 
     await notifications.notify(client, userId, {
       kind: won ? "prediction_won" : "prediction_lost",
       title: won ? `You called it: ${market.title}` : `Resolved: ${market.title}`,
-      body: won ? `It resolved ${winner.label}. ${notifications.money(payout)} paid to your cash.` : `It resolved ${winner.label}. Your position didn't pay out this time.`,
+      body: won ? `It resolved ${winner.label}. ${notifications.money(payout)} paid to your Credit.` : `It resolved ${winner.label}. Your position didn't pay out this time.`,
       href: `/predictions/${encodeURIComponent(market.slug)}`,
       data: { market_id: Number(market.id), payout },
     });
@@ -259,12 +259,15 @@ async function voidWithClient(client, market, { actorUserId = null, reason = nul
   for (const row of rows) {
     const refund = Math.max(0, round2(num(row.net)));
     if (refund > 0 || num(row.shares) > 0) {
-      await core.moveCash(client, row.user_id, refund, { entryType: "prediction_void_refund", marketId: market.id, quantityDelta: -num(row.shares), referenceType: "prediction_void" });
+      // What it paid in came from buys (this market) and limit orders (their reserves, net of releases).
+      const { rows: limitOrders } = await client.query(`SELECT id FROM market.prediction_limit_orders WHERE market_id = $1 AND user_id = $2`, [market.id, row.user_id]);
+      const sources = [{ referenceType: "prediction_market", referenceId: market.id }, ...limitOrders.map((order) => ({ referenceType: "prediction_limit_order", referenceId: order.id }))];
+      await core.moveCash(client, row.user_id, refund, { entryType: "prediction_void_refund", marketId: market.id, quantityDelta: -num(row.shares), referenceType: "prediction_void", sources });
       refunded += refund;
       await notifications.notify(client, row.user_id, {
         kind: "prediction_void",
         title: `Voided: ${market.title}`,
-        body: `${reason ? `${reason}. ` : ""}${notifications.money(refund)} back in your cash.`,
+        body: `${reason ? `${reason}. ` : ""}${notifications.money(refund)} back where it came from.`,
         href: `/predictions/${encodeURIComponent(market.slug)}`,
         data: { market_id: Number(market.id), refund },
       });

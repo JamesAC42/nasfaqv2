@@ -39,11 +39,11 @@ const SETTINGS = Object.freeze({
   /** BBB: Credit counts toward net worth and the leaderboard ("cash" would leave it out). */
   netWorth: envChoice("ECONOMY_NET_WORTH", ["cash", "cash_and_credit"], "cash_and_credit"),
   /**
-   * What games, the capsule machine, the card exchange and predictions spend: "credit" only, or
-   * "credit_then_cash" (Cash covers what Credit can't). BBB: they deal "primarily in credit"; Credit
-   * only until he says Cash should top them up. Winnings and refunds land in Credit either way.
+   * BBB: minigames, gacha, gambling (predictions) and player trading (the card exchange) spend Credit
+   * first, then Cash once it runs out ("credit_then_cash"; "credit" would stop at Credit). Winnings
+   * land in Credit; refunds go back where the money came from (see refund).
    */
-  sideModeFunds: envChoice("ECONOMY_SIDE_MODE_FUNDS", ["credit", "credit_then_cash"], "credit"),
+  sideModeFunds: envChoice("ECONOMY_SIDE_MODE_FUNDS", ["credit", "credit_then_cash"], "credit_then_cash"),
   /** PLACEHOLDER. Credit a share sale earns, as a share of the sale's value (BBB: "a small % of that coin's tax value"). */
   sellCreditRate: envNumber("ECONOMY_SELL_CREDIT_RATE", 0.01),
   /** PLACEHOLDER. Where achievement rewards land (BBB: early ones give both; this pays them all in one). */
@@ -137,6 +137,32 @@ async function pay(client, userId, amount, { to, entryType, referenceType, refer
 }
 
 /**
+ * Gives back money a side mode held or took (an outbid bid, a refunded stake, a released or voided
+ * prediction): Cash up to what the player's Cash put into `sources` (net of what already came back),
+ * the rest as Credit, so a side mode that fell back on Cash doesn't quietly turn it into Credit.
+ * `sources` are ledger references ({ referenceType, referenceId }); by default the one being written.
+ */
+async function refund(client, userId, amount, { entryType, referenceType, referenceId, assetId = null, quantityDelta = 0, sources = null }) {
+  const wallet = await lockWallet(client, userId);
+  const value = Math.max(0, num(amount));
+  const refs = sources && sources.length ? sources : [{ referenceType, referenceId }];
+  const { rows } = await client.query(
+    `
+    SELECT COALESCE(-SUM(l.cash_delta), 0) AS cash_in
+    FROM market.ledger_entries l
+    JOIN unnest($2::text[], $3::bigint[]) AS r(reference_type, reference_id)
+      ON l.reference_type = r.reference_type AND l.reference_id = r.reference_id
+    WHERE l.user_id = $1
+  `,
+    [userId, refs.map((ref) => String(ref.referenceType)), refs.map((ref) => Number(ref.referenceId))]
+  );
+  const cash = Math.min(value, Math.max(0, num(rows[0]?.cash_in)));
+  const credit = value - cash;
+  await writeMove(client, userId, { cash, credit, entryType, referenceType, referenceId, assetId, quantityDelta });
+  return { before: wallet, after: { ...wallet, cash: wallet.cash + cash, credit: wallet.credit + credit }, cash_delta: cash, credit_delta: credit };
+}
+
+/**
  * The Saturday review's conversion: `rate` of every positive Credit balance becomes Cash, or
  * `minimum` if that's more (all of a balance smaller than that), one ledger row per player
  * (reference: the evaluation). Returns how many players and how much moved.
@@ -194,6 +220,7 @@ module.exports = {
   lockWallet,
   pay,
   publicSettings,
+  refund,
   sideModeSpendable,
   splitCharge,
 };

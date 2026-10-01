@@ -38,7 +38,7 @@ const upper = (text: string) => text.toUpperCase();
 
 export function Ticket({ market, intent, onTraded }: { market: PredictionMarketDetail; intent: TicketIntent; onTraded: () => void }) {
   const { user } = useAuth();
-  const { cash: frameCash, refreshCash } = usePredictionCash();
+  const { cash: frameCash, liquid, refreshCash } = usePredictionCash();
   const signedIn = Boolean(user);
   const tradeable = isTradeable(market);
   const cash = frameCash ?? market.mine?.cash_balance ?? null;
@@ -249,7 +249,7 @@ export function Ticket({ market, intent, onTraded }: { market: PredictionMarketD
         ))}
         {signedIn && cash !== null ? (
           <span className={styles.cash}>
-            <small>Credit</small> {money(cash)}
+            <small>{liquid !== null ? "Credit + cash" : "Credit"}</small> {money(cash)}
           </span>
         ) : null}
       </div>

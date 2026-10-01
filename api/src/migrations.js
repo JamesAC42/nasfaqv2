@@ -1448,6 +1448,11 @@ async function applySchema(pool) {
     ALTER TABLE market.ledger_entries
       ADD COLUMN IF NOT EXISTS credit_delta NUMERIC NOT NULL DEFAULT 0
   `);
+  // Refunds look up what a player's Cash put into the thing being refunded (economy.refund).
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_ledger_entries_user_reference_idx
+      ON market.ledger_entries (user_id, reference_type, reference_id)
+  `);
   await pool.query(`
     ALTER TABLE market.trade_orders
       DROP CONSTRAINT IF EXISTS trade_orders_type_check

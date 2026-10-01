@@ -7,7 +7,7 @@ import { useEffect, type ReactNode } from "react";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { fmtInteger, fmtNumber } from "@/app/lib/format";
 import { useAuth } from "@/app/providers/auth-provider";
-import { sideModeFunds } from "@/app/lib/economy";
+import { sideModeFunds, sideModesUseCash } from "@/app/lib/economy";
 import { useGamesStore } from "@/app/stores/games-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/games/shell/games-frame.module.scss";
@@ -48,6 +48,8 @@ export function useGamesWallet() {
     signedIn: Boolean(user),
     cash: sideModeFunds(portfolio),
     credit: portfolio?.credit_balance ?? null,
+    /** Cash itself, shown when games dip into it once Credit runs out. */
+    liquid: sideModesUseCash(portfolio) ? (portfolio?.cash_balance ?? null) : null,
     shards: collection?.shards ?? null,
     refreshCash: fetchPortfolio,
   };
@@ -85,10 +87,16 @@ export function GamesFrame({ kicker, title, blurb, aside, children, live = false
           </div>
           {wallet.signedIn ? (
             <div className={styles.wallet} aria-label="Your wallet">
-              <span title="Credit: what games, the capsule machine and the exchange spend">
+              <span title="Credit: what games, the capsule machine and the exchange spend first">
                 <small>CREDIT</small>
                 <b>{wallet.credit === null ? "…" : fmtNumber(wallet.credit, "$")}</b>
               </span>
+              {wallet.liquid !== null ? (
+                <span title="Cash: games use it once your Credit runs out">
+                  <small>CASH</small>
+                  <b>{fmtNumber(wallet.liquid, "$")}</b>
+                </span>
+              ) : null}
               <span title="Shards: from duplicate cards and set rewards; spend them crafting cards">
                 <small>SHARDS</small>
                 <b className={styles.shards}>
