@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { MarketHub } from "@/app/components/market/market-hub";
 import { ReportTab } from "@/app/components/market/report-tab";
 
-export const metadata: Metadata = { title: "Market report" };
+export const metadata: Metadata = { title: "Market report", description: "Today's adjustments as they land, and each day's settlement." };
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ date?: string; view?: string }> }) {
   const { date, view } = await searchParams;

@@ -5,10 +5,12 @@ import { fontVariables } from "@/app/fonts";
 import { Analytics } from "@/app/components/layout/analytics";
 
 export const metadata: Metadata = {
-  // Absolute URLs for the share images (app/**/opengraph-image.tsx). Set NEXT_PUBLIC_SITE_URL per deploy.
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://nasfaq.biz"),
+  // Absolute URLs for the share images (app/**/opengraph-image.tsx). Set NEXT_PUBLIC_SITE_URL per deploy
+  // (the Dockerfile does). nasfaq.biz itself is still the old site: an image URL there comes back as
+  // its HTML, and link previews show an empty box.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://holo.nasfaq.biz"),
   title: "NASFAQ",
-  description: "VTuber Numbers",
+  description: "The hololive stock market. Every talent is a stock, priced on their real YouTube numbers.",
   openGraph: { siteName: "NASFAQ", type: "website" },
   twitter: { card: "summary_large_image" },
 };

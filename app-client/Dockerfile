@@ -8,6 +8,8 @@ WORKDIR /app
 ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY=""
 # Art loads from the CDN (app-client/public/art is not in the repo); see DEPLOYMENT.md 2.6.1.
 ARG NEXT_PUBLIC_ART_BASE_URL="https://images.nasfaq.biz/art"
+# Where the site lives, for absolute share-image URLs in link previews (app/layout.tsx).
+ARG NEXT_PUBLIC_SITE_URL="https://holo.nasfaq.biz"
 # The release (sha-<commit>), set by the deploy workflow. Next.js uses it to reload a page whose
 # code is from an older release on its next navigation; pages compare it with /api/site to offer a
 # refresh. Empty in local builds, which turns both off.
@@ -19,6 +21,7 @@ ENV SERVER_API_BASE=http://api-web.nasfaq.svc.cluster.local
 ENV NEXT_PUBLIC_API_BASE=
 ENV NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY
 ENV NEXT_PUBLIC_ART_BASE_URL=$NEXT_PUBLIC_ART_BASE_URL
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY app-client/ ./
 RUN npm run build
