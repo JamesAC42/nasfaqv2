@@ -18,6 +18,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     changes: [
       { kind: "fixed", text: "The buy panel stayed open after you went back a page (to the market, say). Leaving the page closes it now." },
       { kind: "fixed", text: "The card exchange showed the art of cards you haven't pulled. Cards you don't own show locked, like in your binder, until you get one." },
+      { kind: "fixed", text: "Paging to older fills on a profile broke the page." },
     ],
   },
   {
