@@ -58,6 +58,7 @@ export type AdminUser = {
   profile_picture_url: string | null;
   created_at: string;
   cash: number | null;
+  credit?: number | null;
   last_seen_at: string | null;
   /** Shut out of the card and item exchange (set by an admin). */
   exchange_frozen_at?: string | null;

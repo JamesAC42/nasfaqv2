@@ -58,7 +58,7 @@ export function TradesPage() {
   }
 
   return (
-    <ExchangeFrame title="Trades" blurb={<>Swap cards, cash and shards straight with another player. Offers hold your side in escrow for 48 hours.</>}>
+    <ExchangeFrame title="Trades" blurb={<>Swap cards, Credit and shards straight with another player. Offers hold your side in escrow for 48 hours.</>}>
       <div className={styles.tradeTop}>
         <Link href="/games/exchange/trades/new" className={styles.btnPrimary}>
           <FaArrowRightArrowLeft aria-hidden="true" /> New trade

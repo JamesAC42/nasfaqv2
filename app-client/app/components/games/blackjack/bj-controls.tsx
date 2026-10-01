@@ -248,7 +248,7 @@ function BetPicker({
         </button>
         {leave}
       </form>
-      {short ? <p className={styles.hint}>Not enough cash for that. You have {fmtNumber(cash, "$")}.</p> : !valid && text ? <p className={styles.hint}>Table limits are {fmtNumber(min, "$")} to {fmtNumber(max, "$")}.</p> : null}
+      {short ? <p className={styles.hint}>Not enough Credit for that. You have {fmtNumber(cash, "$")}.</p> : !valid && text ? <p className={styles.hint}>Table limits are {fmtNumber(min, "$")} to {fmtNumber(max, "$")}.</p> : null}
     </div>
   );
 }

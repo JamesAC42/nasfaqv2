@@ -46,7 +46,7 @@ export function ExchangeFrame({ title = "Card Exchange", blurb, children }: { ti
       kicker="Card exchange"
       title={title}
       live
-      blurb={blurb ?? <>Buy, sell and auction cards and capsule items for cash, or trade straight with another player. Every sale sets the price.</>}
+      blurb={blurb ?? <>Buy, sell and auction cards and capsule items for Credit, or trade straight with another player. Every sale sets the price.</>}
       aside={aside}
     >
       {children}

@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { formatCountdown, getMarketClock } from "@/app/lib/market-clock";
 import { useNow } from "@/app/lib/use-now";
 import { useAuth } from "@/app/providers/auth-provider";
+import { netWorthCash } from "@/app/lib/economy";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/layout/site-shell.module.scss";
@@ -57,8 +58,7 @@ export function RailWorth() {
       const mid = mids.get(holding.symbol) ?? holding.current_mid_price;
       return sum + (mid !== null && mid !== undefined ? mid * holding.quantity : holding.market_value);
     }, 0);
-    // Cash held for queued buys is still yours.
-    return portfolio.cash_balance + portfolio.held_cash + holdings;
+    return netWorthCash(portfolio) + holdings;
   }, [assets, portfolio]);
 
   if (!user || equity === null) return null;

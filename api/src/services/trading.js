@@ -1089,7 +1089,9 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
 
     const indicativeGrossCash = indicativePrice * parsedQuantity;
     const indicativeFeeCash = indicativeGrossCash * getTradingFeeRate();
-    if (normalizedSide === "buy" && toNumber(cashAccount.cash_balance, 0) < indicativeGrossCash + indicativeFeeCash) {
+    // The fee comes out of Credit first, so Cash only has to cover the rest of it.
+    const indicativeFeeFromCash = Math.max(0, indicativeFeeCash - Math.max(0, toNumber(cashAccount.credit_balance, 0)));
+    if (normalizedSide === "buy" && toNumber(cashAccount.cash_balance, 0) < indicativeGrossCash + indicativeFeeFromCash) {
       const error = new Error("insufficient_cash");
       error.code = "insufficient_cash";
       throw error;
@@ -1108,7 +1110,7 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
     // A buy holds its estimated cost and a margin, or all the cash there is if that's less (it
     // covers the estimate either way: checked above).
     const heldCash =
-      normalizedSide === "buy" ? Math.min(toNumber(cashAccount.cash_balance, 0), (indicativeGrossCash + indicativeFeeCash) * (1 + LIVE_ORDER_HOLD_MARGIN)) : 0;
+      normalizedSide === "buy" ? Math.min(toNumber(cashAccount.cash_balance, 0), (indicativeGrossCash + indicativeFeeFromCash) * (1 + LIVE_ORDER_HOLD_MARGIN)) : 0;
 
     const statusMarketDate = status?.last_settlement_market_date || status?.current_market_date || null;
     const interval = await resolveLiveOrderInterval(client, { statusMarketDate, now });

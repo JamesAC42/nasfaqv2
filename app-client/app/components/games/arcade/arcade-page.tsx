@@ -103,7 +103,7 @@ export function ArcadePage() {
       kicker="NASFAQ arcade"
       title="Arcade"
       live
-      blurb={<>Every game here spends real cash. Pull cards, stake a duel, take the house for a ride.</>}
+      blurb={<>Every game here runs on Credit. Pull cards, stake a duel, take the house for a ride.</>}
     >
       <div className={styles.page}>
         {seats.length ? <SeatBanner seats={seats} me={me} /> : null}

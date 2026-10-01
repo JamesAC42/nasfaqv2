@@ -157,7 +157,7 @@ export function ListingDialog({ listing: initial, onClose, onChanged }: { listin
                   <button type="submit" className={styles.btnPrimary} disabled={busy !== null || !(bidValue >= (listing.min_bid ?? 0))}>
                     {busy === "bid" ? "Bidding…" : `Bid ${money(bidValue || null)}`}
                   </button>
-                  <small className={styles.note}>The cash is held until you&apos;re outbid, then refunded in full. Bids in the last 2 minutes add 2 minutes.</small>
+                  <small className={styles.note}>The Credit is held until you&apos;re outbid, then refunded in full. Bids in the last 2 minutes add 2 minutes.</small>
                 </form>
               ) : null}
               {listing.buy_now !== null ? (

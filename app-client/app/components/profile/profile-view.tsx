@@ -45,6 +45,7 @@ export function ProfileView({ username }: { username?: string | null }) {
   const { theme } = useTheme();
   const assets = useMarketStore((state) => state.assets);
   const tradingRevision = useProfileStore((state) => state.tradingRevision);
+  const myPortfolio = useProfileStore((state) => state.portfolio);
   const [bundle, setBundle] = useState<ProfileBundle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -277,7 +278,9 @@ export function ProfileView({ username }: { username?: string | null }) {
           <div>
             <span className={styles.label}>Net worth</span>
             <b>{money(profile.stats.total_equity)}</b>
-            <small>{money(profile.stats.cash_balance)} cash</small>
+            <small>
+              {money(profile.stats.cash_balance)} cash{isSelf && myPortfolio ? ` · ${money(myPortfolio.credit_balance)} Credit` : ""}
+            </small>
           </div>
           <div>
             <span className={styles.label}>All-time</span>
