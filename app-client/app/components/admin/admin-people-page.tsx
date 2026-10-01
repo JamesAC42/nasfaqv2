@@ -142,6 +142,7 @@ function UserRow({
             <span>joined {joined(user.created_at)}</span>
             <span>{user.last_seen_at ? `seen ${ago(user.last_seen_at, now)} ago` : "never seen"}</span>
             <span className={styles.cash}>{fmtCash(user.cash, 2)}</span>
+            {user.credit !== null && user.credit !== undefined ? <span className={styles.dim}>{fmtCash(user.credit, 2)} Credit</span> : null}
           </p>
           <p className={styles.email}>
             {user.has_email ? <span className={styles.emailAddr}>{user.email_masked}</span> : <span className={styles.dim}>no email on file</span>}

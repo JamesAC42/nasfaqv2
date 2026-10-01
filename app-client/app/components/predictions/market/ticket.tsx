@@ -249,7 +249,7 @@ export function Ticket({ market, intent, onTraded }: { market: PredictionMarketD
         ))}
         {signedIn && cash !== null ? (
           <span className={styles.cash}>
-            <small>Cash</small> {money(cash)}
+            <small>Credit</small> {money(cash)}
           </span>
         ) : null}
       </div>
@@ -602,7 +602,7 @@ function LimitFields({
           ) : (
             <>
               Fills when {outcome.label} <b>drops to {limit}¢ or less</b>, buying until the price climbs back to {limit}¢.
-              {amountValue >= 1 ? <> About {fmtShares(Math.floor((amountValue * 0.99) / (limit / 100)))} shares if it all fills.</> : null} The cash is set aside now.
+              {amountValue >= 1 ? <> About {fmtShares(Math.floor((amountValue * 0.99) / (limit / 100)))} shares if it all fills.</> : null} The Credit is set aside now.
             </>
           )
         ) : crosses ? (

@@ -1,6 +1,7 @@
 // Predictions v2 markets (docs/predictions/PREDICTIONS_DESIGN.md §1, §4, §7–8): creation,
 // approval, and every read view the floor, market page, portfolio and admin console use.
 
+const economy = require("../economy");
 const lmsr = require("./lmsr");
 const core = require("./core");
 const trading = require("./trading");
@@ -491,10 +492,11 @@ async function myMarketState(pool, marketId, userId) {
        WHERE l.market_id = $1 AND l.user_id = $2 AND (l.status = 'open' OR l.closed_at > now() - interval '3 days') ORDER BY l.created_at DESC LIMIT 30`,
       [marketId, userId]
     ),
-    pool.query(`SELECT cash_balance FROM market.portfolio_cash_balances WHERE user_id = $1`, [userId]),
+    pool.query(`SELECT cash_balance, credit_balance FROM market.portfolio_cash_balances WHERE user_id = $1`, [userId]),
   ]);
   return {
-    cash_balance: num(cash.rows[0]?.cash_balance),
+    // What predictions can spend (Credit, or Credit then Cash).
+    cash_balance: economy.sideModeSpendable({ cash: num(cash.rows[0]?.cash_balance), credit: num(cash.rows[0]?.credit_balance) }),
     positions: positions.rows.map((row) => ({
       outcome_id: Number(row.outcome_id),
       outcome_code: row.outcome_code,

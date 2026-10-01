@@ -422,7 +422,7 @@ export function MarketPage() {
             <ul className={styles.rules}>
               <li>Buy-now listings sell instantly. Auctions go to the top bid when the clock runs out.</li>
               <li>A bid in the last two minutes adds two minutes. No sniping.</li>
-              <li>Outbid? Your cash comes straight back.</li>
+              <li>Outbid? Your Credit comes straight back.</li>
               <li>Sellers pay a 5% fee. Direct trades are free.</li>
               <li>Stars follow copies: sell a duplicate and that card loses a star.</li>
               <li>Starter-pack cards stay with you.</li>

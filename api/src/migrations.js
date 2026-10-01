@@ -1439,6 +1439,15 @@ async function applySchema(pool) {
     ALTER TABLE market.portfolio_cash_balances
       ADD COLUMN IF NOT EXISTS held_cash NUMERIC NOT NULL DEFAULT 0
   `);
+  // Credit, the second currency (services/economy.js): its balance, and its side of each ledger row.
+  await pool.query(`
+    ALTER TABLE market.portfolio_cash_balances
+      ADD COLUMN IF NOT EXISTS credit_balance NUMERIC NOT NULL DEFAULT 0
+  `);
+  await pool.query(`
+    ALTER TABLE market.ledger_entries
+      ADD COLUMN IF NOT EXISTS credit_delta NUMERIC NOT NULL DEFAULT 0
+  `);
   await pool.query(`
     ALTER TABLE market.trade_orders
       DROP CONSTRAINT IF EXISTS trade_orders_type_check

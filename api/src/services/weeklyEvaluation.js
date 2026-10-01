@@ -17,6 +17,7 @@
 // rolls back (scripts/weekly-evaluation.js preview, GET /api/market/evaluations/preview).
 
 const supply = require("./marketSupply");
+const economy = require("./economy");
 const notifications = require("./notifications");
 const { publishMarketEvent } = require("./marketEvents");
 const { invalidateMarketAssetsCache } = require("../marketCache");
@@ -333,7 +334,10 @@ async function runWeeklyEvaluation(pool, { evalDate = evaluationDateFor(), dryRu
       for (const holder of holders) {
         const amount = Math.round(holder.quantity * perShare * 100) / 100;
         if (!amount) continue;
-        await addCash(client, holder.userId, amount, { assetId: asset.id, entryType: amount > 0 ? "dividend" : "share_fee", evaluationId });
+        // Dividends pay Credit; share fees come out of Credit first, then Cash (which can go below zero).
+        const ledger = { referenceType: "weekly_evaluation", referenceId: evaluationId, assetId: asset.id };
+        if (amount > 0) await economy.pay(client, holder.userId, amount, { to: "credit", entryType: "dividend", ...ledger });
+        else await economy.charge(client, holder.userId, -amount, { from: "credit_then_cash", shortfall: "cash", entryType: "share_fee", ...ledger });
         await client.query(
           `INSERT INTO market.dividend_payouts (evaluation_id, user_id, asset_id, quantity, per_share, amount) VALUES ($1,$2,$3,$4,$5,$6)`,
           [evaluationId, holder.userId, asset.id, holder.quantity, perShare, amount]
@@ -347,6 +351,10 @@ async function runWeeklyEvaluation(pool, { evalDate = evaluationDateFor(), dryRu
         else feesTotal += amount;
       }
     }
+
+    // 2b. Part of every player's Credit turns into Cash (economy.SETTINGS.weeklyConversionRate).
+    const conversion = await economy.convertCredit(client, { evaluationId });
+    for (const move of conversion.moves) if (byUser.has(move.userId)) byUser.get(move.userId).converted = move.amount;
 
     // 3. Max shares from subscribers; buybacks for stocks now over their max.
     const subsZ = zScores(assets.map((asset) => (toNumber(asset.subscriber_count, 0) > 0 ? Math.log(toNumber(asset.subscriber_count, 0)) : NaN)));
@@ -412,6 +420,9 @@ async function runWeeklyEvaluation(pool, { evalDate = evaluationDateFor(), dryRu
       asset_count: rows.length,
       dividends_total: round(dividendsTotal, 2),
       fees_total: round(feesTotal, 2),
+      credit_conversion_rate: conversion.rate ?? 0,
+      credit_converted: conversion.converted,
+      players_converted: conversion.players,
       holders_paid: users.filter((entry) => entry.dividends > 0).length,
       holders_charged: users.filter((entry) => entry.fees < 0).length,
       paying_count: payers.length,
@@ -432,8 +443,9 @@ async function runWeeklyEvaluation(pool, { evalDate = evaluationDateFor(), dryRu
       for (const [userId, entry] of byUser) {
         const net = entry.dividends + entry.fees + entry.forced.reduce((sum, item) => sum + item.cash, 0);
         const parts = [];
-        if (entry.dividends) parts.push(`${money(entry.dividends)} in dividends`);
+        if (entry.dividends) parts.push(`${money(entry.dividends)} in dividends, as Credit`);
         if (entry.fees) parts.push(`${money(entry.fees)} in share fees`);
+        if (entry.converted) parts.push(`${money(entry.converted)} of your Credit turned into Cash`);
         for (const item of entry.forced) parts.push(`the broker bought back ${round(item.shares, 2)} ${item.symbol} for ${money(item.cash)}`);
         for (const item of entry.buybacks) parts.push(`${item.symbol} is frozen for a buyback at ${money(item.offer)} a share`);
         if (!parts.length) continue;

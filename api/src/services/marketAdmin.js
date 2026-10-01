@@ -1,4 +1,5 @@
 const { getStarterCash } = require("./trading");
+const { getStarterCredit } = require("./portfolioCash");
 
 const DEFAULT_MAX_SUPPLY = 10_000;
 // Circulating = shares players hold (nobody at listing); the weekly evaluation sets max shares.
@@ -488,14 +489,15 @@ async function resetMarketState(pool) {
     );
 
     const starterCash = getStarterCash();
+    const starterCredit = getStarterCredit();
     await client.query(`DELETE FROM market.portfolio_cash_balances`);
     await client.query(
       `
-      INSERT INTO market.portfolio_cash_balances (user_id, cash_balance, updated_at)
-      SELECT id, $1, now()
+      INSERT INTO market.portfolio_cash_balances (user_id, cash_balance, credit_balance, updated_at)
+      SELECT id, $1, $2, now()
       FROM market.users
     `,
-      [starterCash]
+      [starterCash, starterCredit]
     );
 
     await client.query("COMMIT");
@@ -503,6 +505,7 @@ async function resetMarketState(pool) {
     return {
       ok: true,
       starter_cash: starterCash,
+      starter_credit: starterCredit,
       cleared,
     };
   } catch (error) {

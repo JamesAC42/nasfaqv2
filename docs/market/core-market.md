@@ -2,7 +2,8 @@
 
 How a talent's stock is priced, how many shares exist, and what happens every week. This follows
 `docs/bbb-proposal.md` ("Adjustments & Valuation", "Volume", "Weekly Evaluation & Dividends").
-Where it differs, it says so. Credit/Liquid, licenses, contracts, bonds and gambits are later phases.
+Where it differs, it says so. Credit and Cash are in `credit.md`; licenses, contracts, bonds and
+gambits are later phases.
 
 ## Every day
 
@@ -60,9 +61,10 @@ In BBB's order:
    lopsided the raw numbers are). Within ±0.35 of the middle: nothing. Past that, 4% of the stock's
    value for every standard deviation, never more than 10% either way. Above the middle pays a
    dividend per share held; below charges a fee per share held. "Value" is the stock's average base
-   rate over the week's days whose ticks have landed (never a secret one). Paid in cash (Credit comes
-   in a later phase). A frozen stock's holders are paid or charged too. **Fees can push cash below
-   zero**: a player in the red can't buy until they sell or earn it back.
+   rate over the week's days whose ticks have landed (never a secret one). Dividends pay Credit;
+   fees take Credit first, then Cash (`credit.md`). A frozen stock's holders are paid or charged
+   too. **Fees can push cash below zero**: a player in the red can't buy until they sell or earn it
+   back. Then part of every Credit balance turns into Cash.
 3. **Max shares** reset from subscriber counts; stocks now over their max start a buyback.
 4. **The Dividend Review** (Market → Dividends): a public report (total pool, biggest payers and
    fee-takers, max share changes, buybacks, every stock), each player's own week, a notification to

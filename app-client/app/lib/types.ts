@@ -462,6 +462,10 @@ export type WeeklyEvaluation = {
   asset_count: number;
   dividends_total: number;
   fees_total: number;
+  /** Credit turned into Cash this week (reviews before Credit don't have these). */
+  credit_conversion_rate?: number;
+  credit_converted?: number;
+  players_converted?: number;
   holders_paid: number;
   holders_charged: number;
   paying_count: number;
@@ -729,10 +733,22 @@ export type PortfolioSummary = {
   cash_balance: number;
   /** Set aside for queued buys until they fill or are cancelled or rejected (still counts toward net worth). */
   held_cash: number;
+  /** Credit: what games, the exchange and predictions spend, and where dividends and winnings land. */
+  credit_balance: number;
+  /** The Credit rules in force (lib/economy.ts). */
+  economy: EconomySettings | null;
   total_market_value: number;
   total_unrealized_pnl: number;
   total_equity: number;
   holdings: PortfolioHolding[];
+};
+
+/** The Credit rules in force (api services/economy.js); some are still open questions. */
+export type EconomySettings = {
+  side_mode_funds: "credit" | "credit_then_cash";
+  net_worth: "cash" | "cash_and_credit";
+  weekly_conversion_rate: number;
+  sell_credit_rate: number;
 };
 
 export type PortfolioOrder = {

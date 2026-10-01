@@ -101,7 +101,7 @@ export function DividendsTab({ initialDate }: { initialDate?: string }) {
           </div>
           <h2>{top ? `${top.display_name} pays ${rate(top.rate)} a share; ${review.charging_count} stocks charge fees` : "A flat week: no dividends"}</h2>
           <p>
-            <b>{money(review.dividends_total)}</b> paid out to {review.holders_paid.toLocaleString("en-US")} players,{" "}
+            <b>{money(review.dividends_total)}</b> paid out{review.credit_converted !== undefined ? <> as <Term k="credit">Credit</Term></> : null} to {review.holders_paid.toLocaleString("en-US")} players,{" "}
             <b>{money(Math.abs(review.fees_total))}</b> in <Term k="dividend">share fees</Term> from {review.holders_charged.toLocaleString("en-US")}.{" "}
             {top ? (
               <>
@@ -115,6 +115,12 @@ export function DividendsTab({ initialDate }: { initialDate?: string }) {
               </>
             ) : null}
             . {review.flat_count} stocks sat close enough to the middle to pay nothing.
+            {review.credit_converted ? (
+              <>
+                {" "}
+                <b>{money(review.credit_converted)}</b> of Credit turned into Cash ({Math.round((review.credit_conversion_rate ?? 0) * 100)}% of every balance).
+              </>
+            ) : null}
             {review.buybacks_started.length ? (
               <>
                 {" "}

@@ -1,4 +1,9 @@
-const { ensureUserCashAccount } = require("../portfolioCash");
+const economy = require("../economy");
+
+// Games, the capsule machine and the card exchange run on Credit (services/economy.js): stakes,
+// fees, bids and purchases spend it (or Credit then Cash, by SETTINGS.sideModeFunds), and winnings,
+// refunds and sale proceeds land in it. The helpers keep their old names; "cash" here is the money
+// the player has for these modes.
 
 const VALID_ENTRY_TYPES = new Set([
   "gacha_pull_fee",
@@ -19,11 +24,6 @@ const VALID_ENTRY_TYPES = new Set([
   "exchange_trade_refund",
   "exchange_trade_settle",
 ]);
-
-function toNumber(value, fallback = 0) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
 
 function invalidGameWallet(code = "invalid_game_wallet") {
   const error = new Error(code);
@@ -63,47 +63,14 @@ function requireReferenceId(referenceId) {
   return parsed;
 }
 
-async function insertLedgerEntryWithClient(client, {
-  userId,
-  assetId = null,
-  entryType,
-  quantityDelta = 0,
-  cashDelta,
-  referenceType,
-  referenceId,
-}) {
-  await client.query(
-    `
-    INSERT INTO market.ledger_entries (
-      user_id,
-      asset_id,
-      entry_type,
-      quantity_delta,
-      cash_delta,
-      reference_type,
-      reference_id
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7)
-  `,
-    [userId, assetId, entryType, quantityDelta, cashDelta, referenceType, referenceId]
-  );
-}
-
-async function updateCashBalanceWithClient(client, userId, nextCashBalance) {
-  await client.query(
-    `
-    UPDATE market.portfolio_cash_balances
-    SET cash_balance = $2, updated_at = now()
-    WHERE user_id = $1
-  `,
-    [userId, nextCashBalance]
-  );
-}
+const spendable = economy.sideModeSpendable;
 
 async function getLockedCashAccountWithClient(client, userId) {
-  const account = await ensureUserCashAccount(client, userId);
+  const wallet = await economy.lockWallet(client, userId);
   return {
-    user_id: Number(account.user_id),
-    cash_balance: toNumber(account.cash_balance, 0),
+    user_id: Number(userId),
+    cash_balance: spendable(wallet),
+    credit_balance: wallet.credit,
   };
 }
 
@@ -112,8 +79,8 @@ async function ensureSufficientCashWithClient(client, userId, amount) {
   const account = await getLockedCashAccountWithClient(client, userId);
 
   if (account.cash_balance < requiredAmount) {
-    const error = new Error("insufficient_cash");
-    error.code = "insufficient_cash";
+    const error = new Error("insufficient_credit");
+    error.code = "insufficient_credit";
     error.cash_balance = account.cash_balance;
     error.required_cash = requiredAmount;
     throw error;
@@ -134,24 +101,19 @@ async function debitCashForGameWithClient(client, {
   const safeEntryType = requireEntryType(entryType);
   const safeReferenceType = requireReferenceType(referenceType);
   const safeReferenceId = requireReferenceId(referenceId);
-  const account = await ensureSufficientCashWithClient(client, userId, debitAmount);
-  const nextCashBalance = account.cash_balance - debitAmount;
-
-  await updateCashBalanceWithClient(client, userId, nextCashBalance);
-  await insertLedgerEntryWithClient(client, {
-    userId,
-    assetId,
+  const result = await economy.charge(client, userId, debitAmount, {
+    from: economy.SETTINGS.sideModeFunds,
     entryType: safeEntryType,
-    quantityDelta: 0,
-    cashDelta: -debitAmount,
     referenceType: safeReferenceType,
     referenceId: safeReferenceId,
+    assetId,
   });
 
   return {
-    previous_cash_balance: account.cash_balance,
-    cash_balance: nextCashBalance,
+    previous_cash_balance: spendable(result.before),
+    cash_balance: spendable(result.after),
     cash_delta: -debitAmount,
+    credit_balance: result.after.credit,
   };
 }
 
@@ -167,24 +129,19 @@ async function creditCashForGameWithClient(client, {
   const safeEntryType = requireEntryType(entryType);
   const safeReferenceType = requireReferenceType(referenceType);
   const safeReferenceId = requireReferenceId(referenceId);
-  const account = await getLockedCashAccountWithClient(client, userId);
-  const nextCashBalance = account.cash_balance + creditAmount;
-
-  await updateCashBalanceWithClient(client, userId, nextCashBalance);
-  await insertLedgerEntryWithClient(client, {
-    userId,
-    assetId,
+  const result = await economy.pay(client, userId, creditAmount, {
+    to: "credit",
     entryType: safeEntryType,
-    quantityDelta: 0,
-    cashDelta: creditAmount,
     referenceType: safeReferenceType,
     referenceId: safeReferenceId,
+    assetId,
   });
 
   return {
-    previous_cash_balance: account.cash_balance,
-    cash_balance: nextCashBalance,
+    previous_cash_balance: spendable(result.before),
+    cash_balance: spendable(result.after),
     cash_delta: creditAmount,
+    credit_balance: result.after.credit,
   };
 }
 

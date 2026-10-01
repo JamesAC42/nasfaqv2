@@ -30,6 +30,7 @@ const ERROR_STATUS = {
   source_required: 400,
   invalid_dispute_reason: 400,
   insufficient_cash: 409,
+  insufficient_credit: 409,
   insufficient_shares: 409,
   price_moved: 409,
   price_at_limit: 409,

@@ -487,7 +487,7 @@ function OpenRow({
       </Link>
     );
   } else {
-    const reason = busyElsewhere ? "You're already at a table" : !deckReady ? "Build a deck first" : short ? "Not enough cash" : null;
+    const reason = busyElsewhere ? "You're already at a table" : !deckReady ? "Build a deck first" : short ? "Not enough Credit" : null;
     action = (
       <button type="button" className={styles.rowJoin} onClick={() => void join()} disabled={busy || Boolean(reason)} title={reason ?? undefined}>
         {busy ? "Joining…" : table.stake > 0 ? `Join · ${money(table.stake)}` : "Join free"}

@@ -210,7 +210,7 @@ export function TradeBuilder() {
           pool={theirPool ?? []}
           items={theirItems}
           shardsAvailable={null}
-          emptyPool={partner ? `${partner.username} has nothing tradeable. You can still ask for cash or shards.` : "Load a player to see their cards."}
+          emptyPool={partner ? `${partner.username} has nothing tradeable. You can still ask for Credit or shards.` : "Load a player to see their cards."}
           theirs
         />
       </div>
@@ -230,7 +230,7 @@ export function TradeBuilder() {
         <button type="button" className={styles.btnPrimary} disabled={!ready || busy} onClick={() => void send()}>
           {busy ? "Sending…" : counter ? "Send counter-offer" : "Send offer"}
         </button>
-        {!ready ? <small className={styles.note}>Both sides need something: cards, items, cash or shards.</small> : null}
+        {!ready ? <small className={styles.note}>Both sides need something: cards, items, Credit or shards.</small> : null}
       </div>
     </ExchangeFrame>
   );
@@ -322,7 +322,7 @@ function BuilderSide({
       </div>
       <div className={styles.fieldRow}>
         <label className={styles.field}>
-          <span>Cash</span>
+          <span>Credit</span>
           <span className={styles.moneyInput}>
             <i>$</i>
             <input inputMode="decimal" value={draft.cash} placeholder="0" onChange={(event) => setDraft({ ...draft, cash: event.target.value.replace(/[^0-9.]/g, "") })} />

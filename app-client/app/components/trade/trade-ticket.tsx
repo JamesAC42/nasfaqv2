@@ -127,7 +127,11 @@ export function TradeTicket({
   const price = frozen && side === "sell" && asset.buyback ? asset.buyback.price : side === "buy" ? asset.current_ask_price ?? asset.current_mid_price : asset.current_bid_price ?? asset.current_mid_price;
   const gross = (price ?? 0) * qty;
   const fee = gross * FEE_RATE;
-  const total = side === "buy" ? gross + fee : gross - fee;
+  // The fee comes out of Credit first; Cash pays the shares and whatever Credit doesn't cover. A
+  // sale also earns a little Credit.
+  const feeFromCredit = portfolio ? Math.min(Math.max(0, portfolio.credit_balance), fee) : 0;
+  const total = side === "buy" ? gross + fee - feeFromCredit : gross - (fee - feeFromCredit);
+  const creditEarned = side === "sell" ? gross * (portfolio?.economy?.sell_credit_rate ?? 0) : 0;
   const tradingOpen = marketStatus?.is_trading_open ?? true;
   const clock = getMarketClock(Date.now());
   const batchAt = asset.next_live_order_execute_after ? new Date(asset.next_live_order_execute_after) : clock.nextBatchAt;
@@ -256,7 +260,18 @@ export function TradeTicket({
               <dt>
                 <Term k="fee">Fee (~1%)</Term>
               </dt>
-              <dd>{money(fee)}</dd>
+              <dd>
+                {money(fee)}
+                {feeFromCredit > 0 ? <small>{feeFromCredit >= fee - 0.005 ? " from Credit" : ` (${money(feeFromCredit)} from Credit)`}</small> : null}
+              </dd>
+              {creditEarned > 0.005 ? (
+                <>
+                  <dt>
+                    <Term k="credit">Credit earned</Term>
+                  </dt>
+                  <dd>+{money(creditEarned)}</dd>
+                </>
+              ) : null}
               <dt className={styles.total}>{side === "buy" ? "You pay" : "You get"}</dt>
               <dd className={styles.total}>{money(total)}</dd>
             </dl>

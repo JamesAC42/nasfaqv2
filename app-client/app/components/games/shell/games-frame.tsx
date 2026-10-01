@@ -7,6 +7,7 @@ import { useEffect, type ReactNode } from "react";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { fmtInteger, fmtNumber } from "@/app/lib/format";
 import { useAuth } from "@/app/providers/auth-provider";
+import { sideModeFunds } from "@/app/lib/economy";
 import { useGamesStore } from "@/app/stores/games-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/games/shell/games-frame.module.scss";
@@ -24,7 +25,10 @@ export const GAMES_NAV = [
   { href: "/games/item-locker", label: "Locker" },
 ];
 
-/** Cash and shards for the signed-in player, loaded once and kept fresh by game actions. */
+/**
+ * Money and shards for the signed-in player, loaded once and kept fresh by game actions. Games run on
+ * Credit (lib/economy.ts): `cash` is what games can spend, `credit` the Credit balance itself.
+ */
 export function useGamesWallet() {
   const { user } = useAuth();
   const portfolio = useProfileStore((state) => state.portfolio);
@@ -42,7 +46,8 @@ export function useGamesWallet() {
 
   return {
     signedIn: Boolean(user),
-    cash: portfolio?.cash_balance ?? null,
+    cash: sideModeFunds(portfolio),
+    credit: portfolio?.credit_balance ?? null,
     shards: collection?.shards ?? null,
     refreshCash: fetchPortfolio,
   };
@@ -80,9 +85,9 @@ export function GamesFrame({ kicker, title, blurb, aside, children, live = false
           </div>
           {wallet.signedIn ? (
             <div className={styles.wallet} aria-label="Your wallet">
-              <span title="Cash">
-                <small>CASH</small>
-                <b>{wallet.cash === null ? "…" : fmtNumber(wallet.cash, "$")}</b>
+              <span title="Credit: what games, the capsule machine and the exchange spend">
+                <small>CREDIT</small>
+                <b>{wallet.credit === null ? "…" : fmtNumber(wallet.credit, "$")}</b>
               </span>
               <span title="Shards: from duplicate cards and set rewards; spend them crafting cards">
                 <small>SHARDS</small>
@@ -117,7 +122,7 @@ export function GamesFrame({ kicker, title, blurb, aside, children, live = false
 export function SignInToPlay({ what = "play" }: { what?: string }) {
   return (
     <p className={styles.signIn}>
-      <Link href="/login">Sign in</Link> or <Link href="/register">make an account</Link> to {what}. Every account starts with cash to spend.
+      <Link href="/login">Sign in</Link> or <Link href="/register">make an account</Link> to {what}. Every account starts with Credit to spend.
     </p>
   );
 }

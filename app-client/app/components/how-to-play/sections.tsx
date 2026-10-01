@@ -143,7 +143,7 @@ export function MarketSection() {
           {
             k: "score",
             title: "Net worth",
-            body: "Your cash plus your shares at the current price. It's what the leaderboard ranks, over a day, a week and all time.",
+            body: "Your cash plus your shares at the current price (Credit doesn't count). It's what the leaderboard ranks, over a day, a week and all time.",
           },
         ]}
       />
@@ -277,7 +277,8 @@ export function WeeklySection() {
             <Term k="dividend">dividend</Term> on every share you hold; the worst charge a <b>share fee</b>. The middle pays nothing. Never more than 10% of the stock&apos;s value either way.
           </p>
           <p>
-            Fees come out of your cash even if that takes you below zero. In the red, you can&apos;t buy until you sell something or earn it back. Pick your bags like it matters.
+            Dividends are paid in <Term k="credit">Credit</Term>. Fees come out of your Credit first, then your cash, even if that takes your cash below zero. In the red, you
+            can&apos;t buy until you sell something or earn it back. Pick your bags like it matters. The same night, part of everyone&apos;s Credit turns into cash.
           </p>
         </>
       }
@@ -314,8 +315,8 @@ export function GamesSection() {
       lede={
         <>
           <p>
-            Every game plays with the same cash you trade with. The server rolls every result, rates are posted on each game, and multiplayer stakes sit in escrow until
-            the hand is done.
+            Every game runs on <Term k="credit">Credit</Term>, not the cash you buy shares with, so a bad night at the tables doesn&apos;t touch your bags. The server rolls
+            every result, rates are posted on each game, and multiplayer stakes sit in escrow until the hand is done.
           </p>
           <p>Open tables can be watched by anyone, even signed out. Hidden picks stay hidden until the reveal.</p>
         </>
@@ -397,8 +398,8 @@ export function PredictionsSection() {
         <Steps
           items={[
             { title: "Buy YES or NO", body: "Spend $1 up to $25,000. Your buy moves the price; prices stay between 1¢ and 99¢. 1% fee." },
-            { title: "Or set a limit", body: "\"Buy YES while it's 40¢ or less, up to $200.\" It rests, reserving your cash, and fills when the price gets there." },
-            { title: "Trading closes", body: "Resting orders are cancelled and their cash released. Now it waits for the answer." },
+            { title: "Or set a limit", body: "\"Buy YES while it's 40¢ or less, up to $200.\" It rests, reserving your Credit, and fills when the price gets there." },
+            { title: "Trading closes", body: "Resting orders are cancelled and their Credit released. Now it waits for the answer." },
             {
               title: "The result gets called",
               body: "A resolver proposes the outcome with a source. Holders get a dispute window (12 h by default). No disputes and it's final.",
@@ -467,7 +468,7 @@ export function CommunitySection() {
           {
             k: "badges",
             title: "Achievements",
-            body: "Pay cash: $100 for your first fill, $250 at 10 trades, $1,000 at 100, $300 for trading 3 talents, and $150 / $500 / $2,500 for 3, 7 and 30-day streaks.",
+            body: "Pay Credit: $100 for your first fill, $250 at 10 trades, $1,000 at 100, $300 for trading 3 talents, and $150 / $500 / $2,500 for 3, 7 and 30-day streaks.",
           },
           { k: "/threads", title: "/vt/ threads", body: "The general, mirrored, with tickers linked. Lurk the source." },
           { k: "/livestreams", title: "Livestreams", body: "Who's on air right now, with viewer counts. Streams feed the stream-peak predictions." },

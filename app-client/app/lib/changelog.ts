@@ -13,6 +13,18 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-01",
+    title: "Credit",
+    changes: [
+      {
+        kind: "new",
+        text: "A second balance, Credit. Games, the capsule machine, the card exchange and predictions run on it, so a bad night at the tables can't touch the cash you buy shares with.",
+      },
+      { kind: "new", text: "Dividends, winnings, achievements and a little of every sale pay Credit, and the 1% trading fee comes out of it first." },
+      { kind: "new", text: "Every Saturday, part of your Credit turns into cash. The Dividend Review shows how much." },
+    ],
+  },
+  {
     date: "2026-09-30",
     title: "Queued buys hold their cash",
     changes: [

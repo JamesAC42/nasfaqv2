@@ -88,6 +88,7 @@ const USER_COLUMNS = `
   u.exchange_frozen_at,
   u.exchange_frozen_note,
   cb.cash_balance,
+  cb.credit_balance,
   seen.last_seen_at
 `;
 
@@ -115,6 +116,7 @@ function toAdminUser(row) {
     profile_picture_url: row.profile_picture_url || null,
     created_at: row.created_at,
     cash: row.cash_balance === null || row.cash_balance === undefined ? null : Number(row.cash_balance),
+    credit: row.credit_balance === null || row.credit_balance === undefined ? null : Number(row.credit_balance),
     last_seen_at: row.last_seen_at || null,
     exchange_frozen_at: row.exchange_frozen_at || null,
     exchange_frozen_note: row.exchange_frozen_note || null,

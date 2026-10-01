@@ -32,7 +32,7 @@ function describe(alert: Alert): { title: string; line: string; href: string; to
     case "bought":
       return { title: "It's yours", line: `${card} for ${money(alert.price)}.`, href: home, tone: "win" };
     case "outbid":
-      return { title: "You've been outbid", line: `${card} is at ${money(alert.amount ?? null)}. Your ${money(alert.your_bid)} is back in your cash.`, href: alert.item ? itemPath(alert.item.key) : alert.card ? cardPath(alert.card.key) : "/games/exchange/desk", tone: "warn" };
+      return { title: "You've been outbid", line: `${card} is at ${money(alert.amount ?? null)}. Your ${money(alert.your_bid)} is back in your Credit.`, href: alert.item ? itemPath(alert.item.key) : alert.card ? cardPath(alert.card.key) : "/games/exchange/desk", tone: "warn" };
     case "auction_lost":
       return { title: "Bought out", line: `Someone paid the buy-now on ${card}. Your ${money(alert.your_bid)} is back.`, href: "/games/exchange/desk", tone: "info" };
     case "bid_received":

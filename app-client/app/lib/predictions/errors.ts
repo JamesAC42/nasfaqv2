@@ -8,6 +8,7 @@ const COPY: Record<string, string> = {
   prediction_market_not_found: "That market doesn't exist.",
   prediction_market_closed: "Trading on this market is closed.",
   insufficient_cash: "Not enough cash.",
+  insufficient_credit: "Not enough Credit.",
   insufficient_shares: "You don't hold that many shares.",
   price_moved: "The price moved. Check the new quote and try again.",
   price_at_limit: "The price is already at the limit; nothing to fill.",

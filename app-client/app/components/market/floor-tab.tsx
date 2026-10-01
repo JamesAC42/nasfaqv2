@@ -22,6 +22,7 @@ import { useHubStore } from "@/app/stores/hub-store";
 import { useLeaderboardStore } from "@/app/stores/leaderboard-store";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useNewsStore } from "@/app/stores/news-store";
+import { netWorthCash } from "@/app/lib/economy";
 import { useProfileStore } from "@/app/stores/profile-store";
 import ui from "@/app/components/market/market.module.scss";
 import styles from "@/app/components/market/floor-tab.module.scss";
@@ -72,8 +73,7 @@ function YourBook() {
     );
   }
 
-  // Cash held for queued buys is still yours.
-  const cash = (portfolio?.cash_balance ?? 0) + (portfolio?.held_cash ?? 0);
+  const cash = portfolio ? netWorthCash(portfolio) : 0;
   const equity = cash + holdings.reduce((sum, row) => sum + row.value, 0);
   const day = holdings.reduce((sum, row) => sum + row.day, 0);
   const dayPct = equity - day > 0 ? day / (equity - day) : null;

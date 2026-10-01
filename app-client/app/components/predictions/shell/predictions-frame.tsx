@@ -7,6 +7,7 @@ import { HeroCast, type HeroTalent } from "@/app/components/common/hero-cast";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { money } from "@/app/lib/predictions/format";
+import { sideModeFunds } from "@/app/lib/economy";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/predictions/shell/predictions-frame.module.scss";
@@ -20,7 +21,7 @@ export function useStaff() {
   return { user, isStaff, canCreate, isAdmin: Boolean(u?.is_admin) };
 }
 
-/** Cash for the signed-in player, fetched once; refresh after trades with refreshCash(). */
+/** What the signed-in player can bet (Credit: lib/economy.ts), fetched once; refresh after trades with refreshCash(). */
 export function usePredictionCash() {
   const { user } = useAuth();
   const portfolio = useProfileStore((state) => state.portfolio);
@@ -30,7 +31,7 @@ export function usePredictionCash() {
     // Load once per sign-in; trades refresh explicitly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
-  return { signedIn: Boolean(user), cash: portfolio?.cash_balance ?? null, refreshCash: fetchPortfolio };
+  return { signedIn: Boolean(user), cash: sideModeFunds(portfolio), refreshCash: fetchPortfolio };
 }
 
 type FrameProps = {
@@ -72,8 +73,8 @@ export function PredictionsFrame({ kicker, title, blurb, aside, live = false, ba
             })}
           </div>
           {signedIn ? (
-            <span className={styles.cash} title="Cash">
-              <small>CASH</small>
+            <span className={styles.cash} title="Credit: what predictions spend">
+              <small>CREDIT</small>
               <b>{cash === null ? "…" : money(cash)}</b>
             </span>
           ) : null}

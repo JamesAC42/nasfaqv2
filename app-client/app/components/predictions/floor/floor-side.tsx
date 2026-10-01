@@ -52,7 +52,7 @@ export function MyBetsSummary({ signedIn, portfolio }: { signedIn: boolean; port
       </header>
       {!signedIn ? (
         <p className={styles.sidePrompt}>
-          <Link href="/login">Sign in</Link> or <Link href="/register">make an account</Link> to bet. Every account starts with cash.
+          <Link href="/login">Sign in</Link> or <Link href="/register">make an account</Link> to bet. Every account starts with Credit.
         </p>
       ) : portfolio === undefined ? (
         <p className={styles.sideEmpty}>Loading…</p>

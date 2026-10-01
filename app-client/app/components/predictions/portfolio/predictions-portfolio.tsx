@@ -98,7 +98,7 @@ function SignInPrompt() {
   return (
     <div className={styles.signIn}>
       <p>
-        <Link href="/login">Sign in</Link> or <Link href="/register">make an account</Link> to see your bets. Every account starts with cash to play with.
+        <Link href="/login">Sign in</Link> or <Link href="/register">make an account</Link> to see your bets. Every account starts with Credit to play with.
       </p>
       <Link href="/predictions" className={styles.floorLink}>
         Browse the floor →
@@ -128,7 +128,7 @@ function Totals({ portfolio }: { portfolio: Portfolio }) {
         <small>all time</small>
       </div>
       <div>
-        <dt>Cash in orders</dt>
+        <dt>Credit in orders</dt>
         <dd>{money(totals.in_orders_cash)}</dd>
         <small>
           {portfolio.orders.length} resting {portfolio.orders.length === 1 ? "order" : "orders"}

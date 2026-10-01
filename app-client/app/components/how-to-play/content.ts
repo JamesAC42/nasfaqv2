@@ -169,12 +169,16 @@ export const FAQ: ReadonlyArray<{ q: string; a: string }> = [
     a: "Players buying, and the four daily ticks pulling it toward fair value. Fair value rises when a channel's views pick up, subscribers grow and uploads keep coming. Quiet channels get marked down.",
   },
   {
+    q: "What's Credit?",
+    a: "Your second balance. Games, the capsule machine, the card exchange and predictions run on it, so gambling can't eat the cash you buy shares with. Dividends, winnings, achievements and a little of every sale land in it, the trading fee comes out of it first, and every Saturday part of it turns into cash.",
+  },
+  {
     q: "How do I get more cash?",
-    a: "Trade well, and hold stocks that have good weeks: Saturday's dividends pay per share. Achievements also pay: $100 for your first fill up to $2,500 for a 30-day trading streak. Games and predictions can pay out too, and they can also take it.",
+    a: "Sell shares for more than you paid, and let Saturdays work: part of your Credit turns into cash every week. Credit comes from dividends, winnings, achievements ($100 for your first fill up to $2,500 for a 30-day trading streak) and a little of every sale. Games and predictions can pay out, and they can also take it.",
   },
   {
     q: "Why is my cash negative?",
-    a: "Share fees. Every Saturday, stocks whose channels had a bad week charge a fee per share held, and it comes out even if you're short on cash. In the red you can't buy; sell something or earn it back.",
+    a: "Share fees. Every Saturday, stocks whose channels had a bad week charge a fee per share held. It comes out of your Credit first, then your cash, even if that takes you below zero. In the red you can't buy; sell something or earn it back.",
   },
   {
     q: "Why can't I buy this stock?",
