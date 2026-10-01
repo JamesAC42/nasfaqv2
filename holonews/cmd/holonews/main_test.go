@@ -108,3 +108,28 @@ func TestCanonicalHeadlineKey(t *testing.T) {
 		})
 	}
 }
+
+func TestReferenceImagesForChannelNames(t *testing.T) {
+	cases := map[string][]string{
+		"Usada Pekora":       {"usada-pekora"},
+		"La+ Darknesss":      {"la-darknesss"},
+		"Ninomae Ina’nis":    {"ninomae-inanis"},
+		"Robocosan":          {"roboco-san"},
+		"FuwaMoco Abyssgard": {"fuwawa-abyssgard", "mococo-abyssgard"},
+		"  Hakos   Baelz ":   {"hakos-baelz"},
+	}
+	for name, want := range cases {
+		got := referenceImagesFor(name).Slugs
+		if len(got) != len(want) {
+			t.Fatalf("%q: got %v, want %v", name, got, want)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Fatalf("%q: got %v, want %v", name, got, want)
+			}
+		}
+	}
+	if referenceImagesFor("FuwaMoco Abyssgard").Note == "" {
+		t.Fatal("the duo needs a note for the image prompt")
+	}
+}

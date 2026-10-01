@@ -1144,6 +1144,43 @@ type referenceImage struct {
 	Data     []byte
 }
 
+// Reference images are named by the hololive site's talent slugs (reference_image_scraper), which
+// drop punctuation (La+ -> la-darknesss, Ina'nis -> ninomae-inanis) and don't always match our channel
+// names. A duo channel gets one image per member. Keep in step with api/src/services/holonewsThumbnails.js.
+type referenceImageSet struct {
+	Slugs []string
+	Note  string
+}
+
+var referenceImageOverrides = map[string]referenceImageSet{
+	"fuwamoco-abyssgard": {Slugs: []string{"fuwawa-abyssgard", "mococo-abyssgard"}, Note: "the twins Fuwawa and Mococo Abyssgard, one image each"},
+	"robocosan":          {Slugs: []string{"roboco-san"}},
+}
+
+// referenceImageSlug keeps lowercase letters, digits and dashes, and joins the words with dashes.
+func referenceImageSlug(name string) string {
+	kept := strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-':
+			return r
+		case r == ' ' || r == '\t' || r == '\n' || r == '\r':
+			return ' '
+		default:
+			return -1
+		}
+	}, strings.ToLower(name))
+	return strings.Join(strings.Fields(kept), "-")
+}
+
+// referenceImagesFor gives a member's reference image slugs, and a note for the image prompt when it needs one.
+func referenceImagesFor(name string) referenceImageSet {
+	slug := referenceImageSlug(name)
+	if set, ok := referenceImageOverrides[slug]; ok {
+		return set
+	}
+	return referenceImageSet{Slugs: []string{slug}}
+}
+
 func loadReferenceImagesFromCDN(ctx context.Context, client *http.Client, cfg Config, names []string) ([]referenceImage, error) {
 	if len(names) == 0 {
 		return nil, nil
@@ -1151,33 +1188,34 @@ func loadReferenceImagesFromCDN(ctx context.Context, client *http.Client, cfg Co
 	var out []referenceImage
 	var errs []string
 	for _, name := range names {
-		slug := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
-		imageURL := fmt.Sprintf("%s/%s.jpg", cfg.ReferenceImagesBaseURL, slug)
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil)
-		if err != nil {
-			errs = append(errs, fmt.Sprintf("%s (%v)", imageURL, err))
-			continue
+		for _, slug := range referenceImagesFor(name).Slugs {
+			imageURL := fmt.Sprintf("%s/%s.jpg", cfg.ReferenceImagesBaseURL, slug)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil)
+			if err != nil {
+				errs = append(errs, fmt.Sprintf("%s (%v)", imageURL, err))
+				continue
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				errs = append(errs, fmt.Sprintf("%s (%v)", imageURL, err))
+				continue
+			}
+			data, readErr := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				errs = append(errs, fmt.Sprintf("%s (http %d)", imageURL, resp.StatusCode))
+				continue
+			}
+			if readErr != nil {
+				errs = append(errs, fmt.Sprintf("%s (%v)", imageURL, readErr))
+				continue
+			}
+			out = append(out, referenceImage{
+				Name:     name,
+				MIMEType: "image/jpeg",
+				Data:     data,
+			})
 		}
-		resp, err := client.Do(req)
-		if err != nil {
-			errs = append(errs, fmt.Sprintf("%s (%v)", imageURL, err))
-			continue
-		}
-		data, readErr := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			errs = append(errs, fmt.Sprintf("%s (http %d)", imageURL, resp.StatusCode))
-			continue
-		}
-		if readErr != nil {
-			errs = append(errs, fmt.Sprintf("%s (%v)", imageURL, readErr))
-			continue
-		}
-		out = append(out, referenceImage{
-			Name:     name,
-			MIMEType: "image/jpeg",
-			Data:     data,
-		})
 	}
 	if len(errs) > 0 {
 		return out, fmt.Errorf("missing reference images: %s", strings.Join(errs, "; "))
@@ -1188,7 +1226,15 @@ func loadReferenceImagesFromCDN(ctx context.Context, client *http.Client, cfg Co
 func generateThumbnail(ctx context.Context, client *http.Client, cfg Config, imagePrompt string, characters []string, refs []referenceImage) ([]byte, string, error) {
 	prompt := imagePrompt
 	if len(characters) > 0 {
-		prompt = prompt + "\nUse these attached reference images only for character design consistency for: " + strings.Join(characters, ", ") + "."
+		subjects := make([]string, 0, len(characters))
+		for _, name := range characters {
+			if note := referenceImagesFor(name).Note; note != "" {
+				subjects = append(subjects, name+" ("+note+")")
+			} else {
+				subjects = append(subjects, name)
+			}
+		}
+		prompt = prompt + "\nUse these attached reference images only for character design consistency for: " + strings.Join(subjects, ", ") + "."
 	}
 
 	parts := make([]map[string]any, 0, len(refs)+1)
