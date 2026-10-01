@@ -80,16 +80,18 @@ export function PredictionsFrame({ kicker, title, blurb, aside, live = false, ba
             })}
           </div>
           {signedIn ? (
-            <span className={styles.cash} title="Credit: what predictions spend first">
-              <small>CREDIT</small>
-              <b>{credit === null ? "…" : money(credit)}</b>
-            </span>
-          ) : null}
-          {signedIn && liquid !== null ? (
-            <span className={styles.cash} title="Cash: bets use it once your Credit runs out">
-              <small>CASH</small>
-              <b>{money(liquid)}</b>
-            </span>
+            <div className={styles.balances}>
+              <span className={styles.cash} title="Credit: what predictions spend first">
+                <small>CREDIT</small>
+                <b>{credit === null ? "…" : money(credit)}</b>
+              </span>
+              {liquid !== null ? (
+                <span className={styles.cash} title="Cash: bets use it once your Credit runs out">
+                  <small>CASH</small>
+                  <b>{money(liquid)}</b>
+                </span>
+              ) : null}
+            </div>
           ) : null}
         </nav>
         {bare ? null : (
