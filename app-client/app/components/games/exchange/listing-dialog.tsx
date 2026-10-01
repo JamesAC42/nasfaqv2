@@ -5,6 +5,7 @@ import { useState } from "react";
 import { TalentCard } from "@/app/components/games/cards/talent-card";
 import { ItemArt } from "@/app/components/games/exchange/item-art";
 import { listingName } from "@/app/components/games/exchange/listing-tile";
+import { useOwnedCards } from "@/app/components/games/exchange/use-owned-cards";
 import { buyListing, cancelListing, listingPath, placeBid, type Listing } from "@/app/lib/games/exchange";
 import { gameErrorText } from "@/app/lib/games/errors";
 import { money } from "@/app/lib/time";
@@ -19,6 +20,7 @@ import styles from "@/app/components/games/exchange/exchange.module.scss";
 export function ListingDialog({ listing: initial, onClose, onChanged }: { listing: Listing; onClose: () => void; onChanged?: (listing: Listing) => void }) {
   const { user } = useAuth();
   const [listing, setListing] = useState(initial);
+  const owns = useOwnedCards();
   const [amount, setAmount] = useState(String(initial.min_bid ?? ""));
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +65,7 @@ export function ListingDialog({ listing: initial, onClose, onChanged }: { listin
     <Dialog title={item ? item.name : card ? `${card.name} ${card.rarity}` : listingName(listing)} onClose={onClose}>
       <div className={styles.dealBody}>
         <div className={styles.dealCard}>
-          {item ? <ItemArt item={item} width={180} /> : card ? <TalentCard card={card} width={180} /> : null}
+          {item ? <ItemArt item={item} width={180} /> : card ? <TalentCard card={card} owned={listing.is_mine || owns(card.key)} width={180} /> : null}
           <Link href={listingPath(listing)} className={styles.textLink} onClick={onClose}>
             Price history →
           </Link>

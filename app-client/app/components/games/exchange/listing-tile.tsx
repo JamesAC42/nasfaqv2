@@ -2,6 +2,7 @@
 
 import { TalentCard } from "@/app/components/games/cards/talent-card";
 import { ItemArt } from "@/app/components/games/exchange/item-art";
+import { useOwnedCards } from "@/app/components/games/exchange/use-owned-cards";
 import type { Listing } from "@/app/lib/games/exchange";
 import { money } from "@/app/lib/time";
 import { Countdown } from "@/app/components/games/exchange/bits";
@@ -16,6 +17,7 @@ export function listingName(listing: Pick<Listing, "card" | "item">) {
 /** One listing in a grid: the card or capsule item, what it costs, and (for auctions) the clock and the bidding. */
 export function ListingTile({ listing, onOpen, width = 150, flash = false }: { listing: Listing; onOpen: (listing: Listing) => void; width?: number; flash?: boolean }) {
   const auction = listing.kind === "auction";
+  const owns = useOwnedCards();
   const flag = listing.is_mine ? <span className={styles.flag}>yours</span> : listing.is_leading ? <span className={styles.flag} data-tone="lead">winning</span> : null;
   return (
     <button
@@ -29,7 +31,7 @@ export function ListingTile({ listing, onOpen, width = 150, flash = false }: { l
       onClick={() => onOpen(listing)}
       aria-label={`${listingName(listing)}, ${auction ? `auction at ${money(listing.ask)}` : `buy now ${money(listing.price)}`}`}
     >
-      {listing.item ? <ItemArt item={listing.item} width={width} compact /> : listing.card ? <TalentCard card={listing.card} width={width} compact tilt={false} /> : null}
+      {listing.item ? <ItemArt item={listing.item} width={width} compact /> : listing.card ? <TalentCard card={listing.card} owned={listing.is_mine || owns(listing.card.key)} width={width} compact tilt={false} /> : null}
       <span className={styles.tileBody}>
         {auction ? (
           <>

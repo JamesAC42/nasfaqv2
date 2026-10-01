@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TalentCard } from "@/app/components/games/cards/talent-card";
+import { useOwnedCards } from "@/app/components/games/exchange/use-owned-cards";
 import { SignInToPlay } from "@/app/components/games/shell/games-frame";
 import { cardPath, cardValue, type Listing, type Wish } from "@/app/lib/games/exchange";
 import { useGamesEvents } from "@/app/lib/games/use-games-socket";
@@ -124,6 +125,7 @@ export function DeskPage() {
 }
 
 function DeskSection({ title, empty, listings, onOpen, kind }: { title: string; empty: string; listings: Listing[] | null; onOpen: (listing: Listing) => void; kind: "bids" | "selling" | "won" | "closed" }) {
+  const owns = useOwnedCards();
   return (
     <section className={styles.panel} aria-label={title}>
       <h2 className={styles.sectionTitle}>
@@ -137,7 +139,7 @@ function DeskSection({ title, empty, listings, onOpen, kind }: { title: string; 
           {listings.map((listing) => (
             <li key={listing.id}>
               <button type="button" className={styles.deskRow} onClick={() => onOpen(listing)} data-state={deskState(listing, kind)}>
-                {listing.item ? <ItemArt item={listing.item} width={56} compact /> : listing.card ? <TalentCard card={listing.card} width={56} compact tilt={false} /> : null}
+                {listing.item ? <ItemArt item={listing.item} width={56} compact /> : listing.card ? <TalentCard card={listing.card} owned={listing.is_mine || owns(listing.card.key)} width={56} compact tilt={false} /> : null}
                 <span className={styles.rowMain}>
                   {listing.item ? <ItemName item={listing.item} /> : listing.card ? <CardName card={listing.card} /> : null}
                   <small>{deskLine(listing, kind)}</small>
@@ -164,6 +166,7 @@ function DeskSection({ title, empty, listings, onOpen, kind }: { title: string; 
 
 /** Cards you want: the bell rings when one is listed. Add them from a card's page. */
 function WishlistSection({ wishes }: { wishes: Wish[] | null }) {
+  const owns = useOwnedCards();
   return (
     <section className={styles.panel} aria-label="Wishlist">
       <h2 className={styles.sectionTitle}>
@@ -178,7 +181,7 @@ function WishlistSection({ wishes }: { wishes: Wish[] | null }) {
             wish.card ? (
               <li key={wish.card_key}>
                 <Link href={cardPath(wish.card_key)} className={styles.deskRow} data-state={wish.listed ? "leading" : undefined}>
-                  <TalentCard card={wish.card} width={56} compact tilt={false} />
+                  <TalentCard card={wish.card} owned={Boolean(wish.owned) || owns(wish.card_key)} width={56} compact tilt={false} />
                   <span className={styles.rowMain}>
                     <CardName card={wish.card} />
                     <small>{wish.listed ? `${wish.listed} for sale now` : "None for sale · you'll get a notification"}{wish.owned ? " · you have one" : ""}</small>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TalentCard } from "@/app/components/games/cards/talent-card";
+import { useOwnedCards } from "@/app/components/games/exchange/use-owned-cards";
 import { addWish, fetchCardDetail, removeWish, type CardDetail, type Listing } from "@/app/lib/games/exchange";
 import { gameErrorText } from "@/app/lib/games/errors";
 import { RARITIES, RARITY_NAME } from "@/app/lib/games/rarity";
@@ -51,6 +52,7 @@ function WantButton({ symbol, rarity, cardKey, wanted, count, onChange }: { symb
 export function CardPage({ symbol, rarity }: { symbol: string; rarity: Rarity }) {
   const { user } = useAuth();
   const [detail, setDetail] = useState<CardDetail | null>(null);
+  const owns = useOwnedCards();
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<Listing | null>(null);
   const [selling, setSelling] = useState(false);
@@ -99,7 +101,7 @@ export function CardPage({ symbol, rarity }: { symbol: string; rarity: Rarity })
         <>
           <section className={styles.cardHero}>
             <div className={styles.cardHeroArt}>
-              <TalentCard card={card} width={230} />
+              <TalentCard card={card} owned={Boolean(detail.mine) || owns(card.key)} width={230} />
               <nav className={styles.rarityHop} aria-label="Other rarities">
                 {RARITIES.map((entry) => (
                   <Link key={entry} href={`/games/exchange/card/${symbol}/${entry}`} aria-current={entry === rarity ? "page" : undefined}>

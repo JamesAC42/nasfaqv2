@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TalentCard } from "@/app/components/games/cards/talent-card";
 import { ItemArt } from "@/app/components/games/exchange/item-art";
+import { useOwnedCards } from "@/app/components/games/exchange/use-owned-cards";
 import { cardPath, itemPath, type Alert } from "@/app/lib/games/exchange";
 import { useGamesEvents, type GamesPayload } from "@/app/lib/games/use-games-socket";
 import { money } from "@/app/lib/time";
@@ -13,6 +14,9 @@ import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/games/exchange/exchange-alerts.module.scss";
 
 type Toast = { id: number; alert: Alert };
+
+/** Alerts about a card that was yours, or just became yours: its art shows even if the binder hasn't caught up. */
+const YOURS: ReadonlySet<Alert["kind"]> = new Set(["sold", "expired", "bid_received", "won", "bought"]);
 
 /** What an alert says and where it goes. */
 function describe(alert: Alert): { title: string; line: string; href: string; tone: "win" | "warn" | "info" } {
@@ -58,6 +62,7 @@ function describe(alert: Alert): { title: string; line: string; href: string; to
  */
 export function ExchangeAlerts({ signedIn }: { signedIn: boolean }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const owns = useOwnedCards();
   const seq = useRef(0);
   const timers = useRef(new Map<number, number>());
 
@@ -99,7 +104,7 @@ export function ExchangeAlerts({ signedIn }: { signedIn: boolean }) {
           <div key={id} className={styles.toast} data-tone={text.tone} role="status">
             {alert.card ? (
               <span className={styles.art}>
-                <TalentCard card={alert.card} width={52} compact tilt={false} />
+                <TalentCard card={alert.card} owned={YOURS.has(alert.kind) || owns(alert.card.key)} width={52} compact tilt={false} />
               </span>
             ) : alert.item ? (
               <span className={styles.art}>
