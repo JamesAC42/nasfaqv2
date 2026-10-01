@@ -14,6 +14,18 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-10-01",
+    title: "Link previews",
+    changes: [
+      { kind: "fixed", text: "Links to NASFAQ in Discord and elsewhere showed an empty box instead of a picture." },
+      {
+        kind: "new",
+        text: "Shared links get their own pictures: today's movers for the market, the week's top payer for the Dividend Review, the top five for the leaderboard, a player card for profiles, and the story's art for news.",
+      },
+      { kind: "fixed", text: "A stock's link picture showed no price." },
+    ],
+  },
+  {
+    date: "2026-10-01",
     title: "Credit, tuned",
     changes: [
       { kind: "improved", text: "Games, gacha, predictions and player trades spend Credit first and dip into your cash only once it runs out. Refunds go back where the money came from." },

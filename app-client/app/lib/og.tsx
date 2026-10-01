@@ -44,7 +44,11 @@ export async function loadAssets(): Promise<OgAsset[]> {
     if (!response.ok) return [];
     const body = await response.json();
     const rows = Array.isArray(body) ? body : Array.isArray(body?.assets) ? body.assets : Array.isArray(body?.items) ? body.items : [];
-    return rows.filter((row: OgAsset) => row && row.symbol);
+    // Prices and moves come as strings (Postgres NUMERIC); the cards need numbers.
+    const number = (value: unknown) => (value === null || value === undefined || value === "" ? null : Number.isFinite(Number(value)) ? Number(value) : null);
+    return rows
+      .filter((row: OgAsset) => row && row.symbol)
+      .map((row: OgAsset) => ({ ...row, current_mid_price: number(row.current_mid_price), move_24h_pct: number(row.move_24h_pct), volume_24h: number(row.volume_24h) }));
   } catch {
     return [];
   }
@@ -300,4 +304,50 @@ export async function collageCard({
     ),
     { ...OG_SIZE, fonts }
   );
+}
+
+/** A JSON read from the API for a card (cached for `revalidate` seconds); null when it fails. */
+export async function fetchApi<T>(pathname: string, revalidate = 300): Promise<T | null> {
+  try {
+    const response = await fetch(`${API_BASE}${pathname}`, { next: { revalidate } });
+    return response.ok ? ((await response.json()) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A remote picture (a news thumbnail, an avatar) as a PNG data URI at `width` px, or null. */
+export async function remoteImageDataUri(url: string | null | undefined, width: number): Promise<string | null> {
+  if (!url || !isAbsolute(url)) return null;
+  try {
+    const response = await fetch(url, { next: { revalidate: 86400 } });
+    if (!response.ok) return null;
+    const sharp = (await import("sharp")).default;
+    const png = await sharp(Buffer.from(await response.arrayBuffer())).resize({ width, withoutEnlargement: true }).png({ compressionLevel: 8 }).toBuffer();
+    return `data:image/png;base64,${png.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
+/** "$110k", "$2.6k", "$1.2M", "$343.22": short enough for a card. */
+export function moneyShort(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  const sign = value < 0 ? "-" : "";
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;
+  if (abs >= 1000) return `${sign}$${(abs / 1000).toFixed(abs >= 100_000 ? 0 : 1)}k`;
+  return `${sign}$${abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** Text the display font can draw: other scripts drop out, and long text gets an ellipsis. */
+export function cardText(value: string | null | undefined, max = 80) {
+  const text = String(value ?? "")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201c\u201d]/g, '"')
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/[^\x20-\x7e\u00a0-\u00ff]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}...` : text;
 }

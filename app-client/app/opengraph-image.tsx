@@ -12,7 +12,7 @@ export default function Image() {
     plateSlot: "site-og-default",
     kicker: "HOLOLIVE STOCK MARKET",
     title: "Every talent is a stock",
-    line: "$10,000 of play money. Buy your oshi, ride the ticks, climb the board.",
+    line: "Real YouTube numbers, play money. Buy your oshi, ride the ticks, climb the board.",
     art: "keyart",
     count: 3,
   });
