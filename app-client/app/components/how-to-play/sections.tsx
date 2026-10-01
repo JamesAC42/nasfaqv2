@@ -143,7 +143,7 @@ export function MarketSection() {
           {
             k: "score",
             title: "Net worth",
-            body: "Your cash plus your shares at the current price (Credit doesn't count). It's what the leaderboard ranks, over a day, a week and all time.",
+            body: "Your cash, your Credit and your shares at the current price. It's what the leaderboard ranks, over a day, a week and all time.",
           },
         ]}
       />
@@ -278,7 +278,7 @@ export function WeeklySection() {
           </p>
           <p>
             Dividends are paid in <Term k="credit">Credit</Term>. Fees come out of your Credit first, then your cash, even if that takes your cash below zero. In the red, you
-            can&apos;t buy until you sell something or earn it back. Pick your bags like it matters. The same night, part of everyone&apos;s Credit turns into cash.
+            can&apos;t buy until you sell something or earn it back. Pick your bags like it matters. The same night, part of everyone&apos;s Credit turns into cash: 5%, or $10k if that&apos;s more.
           </p>
         </>
       }

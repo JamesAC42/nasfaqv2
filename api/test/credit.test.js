@@ -127,13 +127,22 @@ test("credit end to end", { skip: !databaseUrl, timeout: 180_000 }, async (t) =>
   close(sell.credit_earned, Math.round(sell.executed_price * 10 * economy.SETTINGS.sellCreditRate * 100) / 100, "a sale earns Credit");
   close(afterSell.credit, b.credit - sell.fee + sell.credit_earned, "the sale's fee came out of Credit, its earnings went in");
 
-  // ── The weekly conversion ──
-  const converted = await inTx((client) => economy.convertCredit(client, { rate: 0.05, evaluationId: 1 }));
-  const share = Math.round(afterSell.credit * 0.05 * 100) / 100;
-  close(converted.converted, share, "5% of Credit converted");
-  b = await balances(alice);
-  close(b.credit, afterSell.credit - share, "Credit down");
-  close(b.cash, afterSell.cash + share, "Cash up");
+  // ── The weekly conversion: 5% or $10,000, whichever is more (all of a smaller balance) ──
+  const convert = (credit) => pool.query(`UPDATE market.portfolio_cash_balances SET credit_balance = $2, cash_balance = 0 WHERE user_id = $1`, [alice, credit]).then(() =>
+    inTx((client) => economy.convertCredit(client, { rate: 0.05, minimum: 10000, evaluationId: 1 }))
+  );
+  for (const [credit, moved] of [
+    [1_000_000, 50_000], // 5% is more than the minimum
+    [99_000, 10_000], // the minimum is more than 5%
+    [4_000, 4_000], // smaller than the minimum: all of it
+  ]) {
+    const result = await convert(credit);
+    close(result.converted, moved, `${credit} Credit converts ${moved}`);
+    b = await balances(alice);
+    assert.deepEqual([b.credit, b.cash], [credit - moved, moved]);
+  }
+  const ledgerMove = await pool.query(`SELECT cash_delta, credit_delta FROM market.ledger_entries WHERE user_id = $1 AND entry_type = 'credit_conversion' ORDER BY id DESC LIMIT 1`, [alice]);
+  assert.deepEqual([Number(ledgerMove.rows[0].cash_delta), Number(ledgerMove.rows[0].credit_delta)], [4000, -4000]);
 
   // ── Share fees: Credit first, then Cash, which can go below zero ──
   await pool.query(`UPDATE market.portfolio_cash_balances SET credit_balance = 30, cash_balance = 100 WHERE user_id = $1`, [alice]);
@@ -141,11 +150,14 @@ test("credit end to end", { skip: !databaseUrl, timeout: 180_000 }, async (t) =>
   b = await balances(alice);
   assert.deepEqual([b.credit, b.cash], [0, -70]);
 
-  // ── Net worth leaves Credit out unless the setting says otherwise ──
+  // ── Net worth counts Credit (BBB), with Cash and Credit reported apart ──
   await pool.query(`UPDATE market.portfolio_cash_balances SET credit_balance = 5000, cash_balance = 1000 WHERE user_id = $1`, [alice]);
   const worth = await netWorth.getCurrentNetWorth(pool, alice);
-  const expected = economy.SETTINGS.netWorth === "cash_and_credit" ? 6000 : 1000;
-  close(Number(worth.cash_balance), expected, "net worth's cash");
+  const counts = economy.SETTINGS.netWorth === "cash_and_credit";
+  close(Number(worth.cash_balance), 1000, "the cash figure is Cash only");
+  close(Number(worth.credit_balance), 5000, "Credit reported apart");
+  close(Number(worth.total_equity), counts ? 6000 : 1000, "net worth");
+  close(netWorth.getStarterNetWorth(), getStarterCash() + (counts ? getStarterCredit() : 0), "all-time change starts from cash and Credit");
   const summary = await trading.getPortfolioSummary(pool, alice);
   close(summary.credit_balance, 5000, "the portfolio reports Credit");
   assert.equal(summary.economy.side_mode_funds, economy.SETTINGS.sideModeFunds);

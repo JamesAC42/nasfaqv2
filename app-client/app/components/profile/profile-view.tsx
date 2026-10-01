@@ -45,7 +45,6 @@ export function ProfileView({ username }: { username?: string | null }) {
   const { theme } = useTheme();
   const assets = useMarketStore((state) => state.assets);
   const tradingRevision = useProfileStore((state) => state.tradingRevision);
-  const myPortfolio = useProfileStore((state) => state.portfolio);
   const [bundle, setBundle] = useState<ProfileBundle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -146,7 +145,7 @@ export function ProfileView({ username }: { username?: string | null }) {
   // An equipped portfolio theme restyles the page (profile.module.scss, .page[data-theme-pattern]).
   const pageTheme = profile.equipped.portfolio_theme?.theme ?? null;
   const oshiAsset = oshi ? assets.find((asset) => asset.symbol.toUpperCase() === oshi.symbol.toUpperCase()) : undefined;
-  const allTime = profile.stats.total_equity - START_CASH;
+  const allTime = profile.stats.total_equity - (profile.stats.starting_net_worth ?? START_CASH);
   const history = profile.networth_history;
   const dayAgo = [...history].reverse().find((point) => Date.parse(point.recorded_at) <= Date.now() - 86_400_000);
   const today = dayAgo && dayAgo.total_equity ? profile.stats.total_equity / dayAgo.total_equity - 1 : null;
@@ -279,7 +278,7 @@ export function ProfileView({ username }: { username?: string | null }) {
             <span className={styles.label}>Net worth</span>
             <b>{money(profile.stats.total_equity)}</b>
             <small>
-              {money(profile.stats.cash_balance)} cash{isSelf && myPortfolio ? ` · ${money(myPortfolio.credit_balance)} Credit` : ""}
+              {money(profile.stats.cash_balance)} cash · {money(profile.stats.credit_balance)} Credit
             </small>
           </div>
           <div>

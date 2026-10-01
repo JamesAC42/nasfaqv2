@@ -14,6 +14,15 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-10-01",
+    title: "Credit counts",
+    changes: [
+      { kind: "improved", text: "Credit now counts toward your net worth and the leaderboard. All-time change starts from what everyone begins with, cash and Credit together." },
+      { kind: "improved", text: "Saturday's conversion turns 5% of your Credit into cash, or $10,000 if that's more." },
+      { kind: "new", text: "Profiles show cash and Credit side by side." },
+    ],
+  },
+  {
+    date: "2026-10-01",
     title: "Credit",
     changes: [
       {

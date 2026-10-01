@@ -26,30 +26,38 @@ writes one ledger row with `cash_delta` and `credit_delta`.
 | Dividends (Saturday) | | Credit |
 | Share fees (Saturday) | Credit first, then Cash (can go below zero) | |
 | Forced buybacks (Saturday) | | Cash (it's a share sale) |
-| Weekly conversion (Saturday, after dividends) | Credit | Cash |
+| Weekly conversion (Saturday, after dividends): 5% or $10,000, whichever is more | Credit | Cash |
 | Achievements | | Credit (`achievementRewards`) |
 | New accounts, admin market reset | | Cash 10,000 and Credit (`ECONOMY_STARTER_CREDIT`) |
 
 Shards stay their own currency.
 
-## Waiting on BBB
+## The rules, and what's still open
 
-Every open number or choice is in one place, `SETTINGS` in `api/src/services/economy.js` (plus the
-starter Credit in `portfolioCash.js`), each overridable with an env var. Change the default there
-when BBB answers; the client reads the rules in force from the portfolio (`economy`).
+Every number and choice is in one place, `SETTINGS` in `api/src/services/economy.js` (plus the
+starter Credit in `portfolioCash.js`), each overridable with an env var. The client reads the rules
+in force from the portfolio (`economy`).
 
-| Question | Setting (env) | Placeholder now |
+BBB answered (October 1):
+
+| Question | Setting (env) | Now |
 |---|---|---|
-| Does Credit count toward net worth and the leaderboard? | `netWorth` (`ECONOMY_NET_WORTH`: `cash` / `cash_and_credit`) | `cash`: left out |
+| Does Credit count toward net worth and the leaderboard? | `netWorth` (`ECONOMY_NET_WORTH`: `cash` / `cash_and_credit`) | **Yes** (`cash_and_credit`). Leaderboard cash columns stay Cash only; Credit goes into the totals, and all-time change starts from starter Cash plus starter Credit. |
+| Weekly conversion rate before licenses | `weeklyConversionRate` (`ECONOMY_WEEKLY_CONVERSION_RATE`, capped at 0.5) | **5%** (5-10%, to tune after a few rounds) |
+| A minimum conversion | `weeklyConversionMinimum` (`ECONOMY_WEEKLY_CONVERSION_MINIMUM`) | **$10,000**: "5% or $10k, whichever is more". A balance under $10,000 converts entirely, so the floor can go past the 50% cap. |
+| Fees when Credit runs out | (code: `weeklyEvaluation.js`) | **Pull from Cash** for the difference (Cash can go below zero) |
+| Games and the exchange (auctions) | `sideModeFunds` (`ECONOMY_SIDE_MODE_FUNDS`: `credit` / `credit_then_cash`) | "Primarily in credit": still **Credit only**. If he means Cash should top them up when Credit runs out, switch to `credit_then_cash`. |
+
+Still placeholders:
+
+| Question | Setting (env) | Placeholder |
+|---|---|---|
 | How much Credit does a new player start with? | `ECONOMY_STARTER_CREDIT` | 100,000 (BBB's 10:1 ratio to today's 10,000 Cash) |
-| Weekly conversion rate before licenses | `weeklyConversionRate` (`ECONOMY_WEEKLY_CONVERSION_RATE`, capped at 0.5) | 0.05 |
-| Can games, the exchange and predictions fall back to Cash? | `sideModeFunds` (`ECONOMY_SIDE_MODE_FUNDS`: `credit` / `credit_then_cash`) | `credit`: Credit only |
-| Fees when Credit runs out | (code: `weeklyEvaluation.js`) | fall through to Cash, which can go below zero |
 | Credit a sale earns ("a small % of that coin's tax value") | `sellCreditRate` (`ECONOMY_SELL_CREDIT_RATE`) | 0.01 of the sale's value |
 | Achievement rewards: Credit, Cash or both? | `achievementRewards` (`ECONOMY_ACHIEVEMENT_REWARDS`) | Credit |
 
-Player-facing copy that depends on the choices (How to play, the glossary, the FAQ) assumes the
-placeholders: "Credit doesn't count" toward net worth, and games "don't touch your bags".
+Player-facing copy that states the rules (How to play, the glossary, the FAQ, the changelog) quotes
+5% and $10k and says Credit counts toward net worth; change it with the settings.
 
 ## Not yet
 

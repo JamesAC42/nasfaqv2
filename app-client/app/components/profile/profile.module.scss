@@ -675,6 +675,20 @@
     opacity: 1;
   }
 
+  .credit {
+    display: flex;
+    align-items: center;
+    padding-left: 6px;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--warn) 28%, var(--ink-4));
+    font-family: var(--font-mono);
+    font-size: 0.563rem;
+    font-style: normal;
+    letter-spacing: 0.1em;
+    color: var(--text);
+    opacity: 1;
+  }
+
   // Someone else's profile: their stocks as one block (which ones is private).
   .stocks {
     display: flex;

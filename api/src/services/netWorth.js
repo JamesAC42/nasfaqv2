@@ -2,10 +2,18 @@ const DEFAULT_STARTER_CASH = 10000;
 const { loadEquipped } = require("./games/equipped");
 const { profilePictureUrlSql } = require("../profilePictures");
 const economy = require("./economy");
+const { getStarterCredit } = require("./portfolioCash");
 
-// Net worth is Cash (spendable and held for queued buys) plus shares, and Credit too when
-// economy.SETTINGS.netWorth says so (an open question: see services/economy.js).
-const NET_WORTH_CREDIT = economy.SETTINGS.netWorth === "cash_and_credit" ? " + pcb.credit_balance" : "";
+// Net worth is Cash (spendable and held for queued buys), Credit when economy.SETTINGS.netWorth
+// counts it (BBB: it does), and shares. The cash_balance columns stay Cash only (the Cash Gang badge
+// reads them); Credit goes into the totals. A player with no wallet row yet has the starter amounts.
+const CREDIT_COUNTS = economy.SETTINGS.netWorth === "cash_and_credit";
+const COUNTED_CREDIT_SQL = CREDIT_COUNTS ? `COALESCE(pcb.credit_balance, ${Number(getStarterCredit())})` : "0";
+
+/** What a new player's net worth starts at: the baseline for all-time change. */
+function getStarterNetWorth() {
+  return getStarterCash() + (CREDIT_COUNTS ? getStarterCredit() : 0);
+}
 
 function getStarterCash() {
   const parsed = Number(process.env.MARKET_STARTER_CASH || DEFAULT_STARTER_CASH);
@@ -96,12 +104,12 @@ function selectWindowChange(row, window) {
   }
 
   if (window === "all") {
-    const starterCash = getStarterCash();
-    const totalEquity = toNumber(row.total_equity, starterCash);
-    const changeAbs = totalEquity - starterCash;
+    const starter = getStarterNetWorth();
+    const totalEquity = toNumber(row.total_equity, starter);
+    const changeAbs = totalEquity - starter;
     return {
       change_abs: changeAbs,
-      change_pct: starterCash > 0 ? changeAbs / starterCash : null,
+      change_pct: starter > 0 ? changeAbs / starter : null,
     };
   }
 
@@ -332,7 +340,9 @@ async function getCurrentNetWorth(pool, userId) {
   const { rows } = await pool.query(
     `
     SELECT
-      COALESCE(pcb.cash_balance + pcb.held_cash${NET_WORTH_CREDIT}, $2) AS cash_balance,
+      COALESCE(pcb.cash_balance + pcb.held_cash, $2) AS cash_balance,
+      COALESCE(pcb.credit_balance, $3) AS credit_balance,
+      ${COUNTED_CREDIT_SQL} AS counted_credit,
       COALESCE(SUM(h.quantity * COALESCE(a.current_mid_price, 0)), 0) AS total_market_value,
       COALESCE(SUM(h.quantity * (COALESCE(a.current_mid_price, 0) - h.avg_cost_basis)), 0) AS total_unrealized_pnl
     FROM market.users u
@@ -346,23 +356,28 @@ async function getCurrentNetWorth(pool, userId) {
     WHERE u.id = $1
     GROUP BY u.id, pcb.cash_balance, pcb.held_cash, pcb.credit_balance
   `,
-    [userId, starterCash]
+    [userId, starterCash, getStarterCredit()]
   );
 
   const row = rows[0] || {
     cash_balance: starterCash,
+    credit_balance: getStarterCredit(),
+    counted_credit: CREDIT_COUNTS ? getStarterCredit() : 0,
     total_market_value: 0,
     total_unrealized_pnl: 0,
   };
   const cashBalance = toNumber(row.cash_balance, starterCash);
+  const creditBalance = toNumber(row.credit_balance, 0);
+  const countedCredit = toNumber(row.counted_credit, 0);
   const totalMarketValue = toNumber(row.total_market_value, 0);
   const totalUnrealizedPnl = toNumber(row.total_unrealized_pnl, 0);
 
   return {
     cash_balance: cashBalance,
+    credit_balance: creditBalance,
     total_market_value: totalMarketValue,
     total_unrealized_pnl: totalUnrealizedPnl,
-    total_equity: cashBalance + totalMarketValue,
+    total_equity: cashBalance + countedCredit + totalMarketValue,
   };
 }
 
@@ -390,7 +405,8 @@ async function refreshCurrentLeaderboardWithClient(client, { userIds = null } = 
         u.username AS username_snapshot,
         ${profilePictureUrlSql("small")} AS profile_picture_url,
         u.profile_color,
-        COALESCE(pcb.cash_balance + pcb.held_cash${NET_WORTH_CREDIT}, $2) AS cash_balance,
+        COALESCE(pcb.cash_balance + pcb.held_cash, $2) AS cash_balance,
+        ${COUNTED_CREDIT_SQL} AS counted_credit,
         COALESCE(SUM(h.quantity * COALESCE(a.current_mid_price, 0)), 0) AS holdings_market_value,
         COALESCE(SUM(h.quantity * (COALESCE(a.current_mid_price, 0) - h.avg_cost_basis)), 0) AS total_unrealized_pnl
       FROM target_users tu
@@ -507,17 +523,17 @@ async function refreshCurrentLeaderboardWithClient(client, { userIds = null } = 
       totals.cash_balance,
       totals.holdings_market_value,
       totals.total_unrealized_pnl,
-      totals.cash_balance + totals.holdings_market_value AS total_equity,
-      (totals.cash_balance + totals.holdings_market_value) - COALESCE(ld.total_equity, $2) AS daily_change_abs,
+      totals.cash_balance + totals.counted_credit + totals.holdings_market_value AS total_equity,
+      (totals.cash_balance + totals.counted_credit + totals.holdings_market_value) - COALESCE(ld.total_equity, $3) AS daily_change_abs,
       CASE
-        WHEN COALESCE(ld.total_equity, $2) > 0
-          THEN ((totals.cash_balance + totals.holdings_market_value) - COALESCE(ld.total_equity, $2)) / COALESCE(ld.total_equity, $2)
+        WHEN COALESCE(ld.total_equity, $3) > 0
+          THEN ((totals.cash_balance + totals.counted_credit + totals.holdings_market_value) - COALESCE(ld.total_equity, $3)) / COALESCE(ld.total_equity, $3)
         ELSE NULL
       END AS daily_change_pct,
-      (totals.cash_balance + totals.holdings_market_value) - COALESCE(lw.total_equity, $2) AS weekly_change_abs,
+      (totals.cash_balance + totals.counted_credit + totals.holdings_market_value) - COALESCE(lw.total_equity, $3) AS weekly_change_abs,
       CASE
-        WHEN COALESCE(lw.total_equity, $2) > 0
-          THEN ((totals.cash_balance + totals.holdings_market_value) - COALESCE(lw.total_equity, $2)) / COALESCE(lw.total_equity, $2)
+        WHEN COALESCE(lw.total_equity, $3) > 0
+          THEN ((totals.cash_balance + totals.counted_credit + totals.holdings_market_value) - COALESCE(lw.total_equity, $3)) / COALESCE(lw.total_equity, $3)
         ELSE NULL
       END AS weekly_change_pct,
       lp.asset_id,
@@ -557,7 +573,7 @@ async function refreshCurrentLeaderboardWithClient(client, { userIds = null } = 
       best_asset_unrealized_pnl = EXCLUDED.best_asset_unrealized_pnl,
       updated_at = now()
   `,
-    [safeUserIds, starterCash]
+    [safeUserIds, starterCash, getStarterNetWorth()]
   );
 }
 
@@ -706,7 +722,7 @@ async function refreshCurrentOshiboardsForUsersWithClient(client, userIds) {
       COALESCE(l.profile_color, u.profile_color),
       h.quantity,
       h.quantity * COALESCE(a.current_mid_price, 0),
-      COALESCE(l.total_equity, COALESCE(pcb.cash_balance + pcb.held_cash${NET_WORTH_CREDIT}, $2) + COALESCE(holdings.total_market_value, 0)),
+      COALESCE(l.total_equity, COALESCE(pcb.cash_balance + pcb.held_cash, $2) + ${COUNTED_CREDIT_SQL} + COALESCE(holdings.total_market_value, 0)),
       now()
     FROM market.users u
     JOIN user_max_holding mh
@@ -1342,14 +1358,14 @@ async function recordDailyNetWorthSnapshot(client, marketDate) {
     SELECT
       u.id,
       $1::date,
-      COALESCE(pcb.cash_balance + pcb.held_cash${NET_WORTH_CREDIT}, $2) AS cash_balance,
+      COALESCE(pcb.cash_balance + pcb.held_cash, $2) AS cash_balance,
       COALESCE(SUM(
         CASE
           WHEN d.asset_id IS NULL THEN 0
           ELSE h.quantity * COALESCE(d.mid_close, d.mid_open, 0)
         END
       ), 0) AS holdings_market_value,
-      COALESCE(pcb.cash_balance + pcb.held_cash${NET_WORTH_CREDIT}, $2) + COALESCE(SUM(
+      COALESCE(pcb.cash_balance + pcb.held_cash, $2) + ${COUNTED_CREDIT_SQL} + COALESCE(SUM(
         CASE
           WHEN d.asset_id IS NULL THEN 0
           ELSE h.quantity * COALESCE(d.mid_close, d.mid_open, 0)
@@ -1391,6 +1407,7 @@ module.exports = {
   ensureCurrentLeaderboardReady,
   getCurrentNetWorth,
   getStarterCash,
+  getStarterNetWorth,
   getAssetOshiboard,
   listOshiboardAssetStats,
   listUserOshiboardMemberships,
