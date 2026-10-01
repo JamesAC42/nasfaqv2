@@ -77,8 +77,27 @@ function normalizeList(value, maxItems = 16) {
   return out;
 }
 
+// Reference images are named by the hololive site's talent slugs (holonews/reference_image_scraper),
+// which drop punctuation (La+ → la-darknesss, Ina’nis → ninomae-inanis) and don't always match our
+// channel names. A duo channel gets one image per member. Keep in step with holonews/cmd/holonews.
+const REFERENCE_IMAGE_OVERRIDES = {
+  "fuwamoco-abyssgard": { slugs: ["fuwawa-abyssgard", "mococo-abyssgard"], note: "the twins Fuwawa and Mococo Abyssgard, one image each" },
+  robocosan: { slugs: ["roboco-san"] },
+};
+
 function memberSlug(name) {
-  return String(name || "").trim().toLowerCase().replaceAll(" ", "-");
+  return String(name || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
+}
+
+/** The reference image slugs for a member name, and a note for the image prompt when it needs one. */
+function referenceImagesFor(name) {
+  const slug = memberSlug(name);
+  return REFERENCE_IMAGE_OVERRIDES[slug] || { slugs: [slug] };
 }
 
 function dedupeStrings(values) {
@@ -309,21 +328,23 @@ async function loadReferenceImages(config, names) {
   const out = [];
   const missing = [];
   for (const name of names) {
-    const imageURL = `${config.referenceImagesBaseURL}/${encodeURIComponent(memberSlug(name))}.jpg`;
-    try {
-      const response = await fetch(imageURL);
-      if (!response.ok) {
-        missing.push(`${imageURL} (http ${response.status})`);
-        continue;
+    for (const slug of referenceImagesFor(name).slugs) {
+      const imageURL = `${config.referenceImagesBaseURL}/${encodeURIComponent(slug)}.jpg`;
+      try {
+        const response = await fetch(imageURL);
+        if (!response.ok) {
+          missing.push(`${imageURL} (http ${response.status})`);
+          continue;
+        }
+        const bytes = Buffer.from(await response.arrayBuffer());
+        if (!bytes.length) {
+          missing.push(`${imageURL} (empty)`);
+          continue;
+        }
+        out.push({ name, mimeType: "image/jpeg", bytes, url: imageURL });
+      } catch (error) {
+        missing.push(`${imageURL} (${error?.message || error})`);
       }
-      const bytes = Buffer.from(await response.arrayBuffer());
-      if (!bytes.length) {
-        missing.push(`${imageURL} (empty)`);
-        continue;
-      }
-      out.push({ name, mimeType: "image/jpeg", bytes, url: imageURL });
-    } catch (error) {
-      missing.push(`${imageURL} (${error?.message || error})`);
     }
   }
   if (missing.length) {
@@ -338,7 +359,11 @@ async function loadReferenceImages(config, names) {
 async function generateImage(config, imagePrompt, characters, referenceImages) {
   let prompt = imagePrompt;
   if (characters.length) {
-    prompt += `\nUse these attached reference images only for character design consistency for: ${characters.join(", ")}.`;
+    const subjects = characters.map((name) => {
+      const { note } = referenceImagesFor(name);
+      return note ? `${name} (${note})` : name;
+    });
+    prompt += `\nUse these attached reference images only for character design consistency for: ${subjects.join(", ")}.`;
   }
 
   const parts = [{ text: prompt }];
@@ -585,5 +610,6 @@ async function regenerateThumbnail(pool, redis, input = {}) {
 }
 
 module.exports = {
+  _test: { referenceImagesFor },
   regenerateThumbnail,
 };
