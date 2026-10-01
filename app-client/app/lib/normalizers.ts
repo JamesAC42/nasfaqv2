@@ -2272,7 +2272,6 @@ export function normalizeProfileBundle(value: Record<string, unknown>): ProfileB
   const articles = (value.articles || null) as Record<string, unknown> | null;
   const savedArticles = (value.saved_articles || null) as Record<string, unknown> | null;
   const trades = (value.trades || null) as Record<string, unknown> | null;
-  const tradesPagination = (trades?.pagination || null) as Record<string, unknown> | null;
   const oshiCoin = profile?.oshi_coin && typeof profile.oshi_coin === "object"
     ? profile.oshi_coin as Record<string, unknown>
     : null;
@@ -2358,16 +2357,23 @@ export function normalizeProfileBundle(value: Record<string, unknown>): ProfileB
     },
     articles: normalizeArticleListResponse(articles || {}),
     saved_articles: savedArticles ? normalizeArticleListResponse(savedArticles) : null,
-    trades: {
-      items: normalizeProfileTrades(trades?.items),
-      pagination: {
-        total: Number(tradesPagination?.total || 0),
-        page: Number(tradesPagination?.page || 1),
-        limit: Number(tradesPagination?.limit || 10),
-        page_count: Number(tradesPagination?.page_count || 1),
-        has_previous_page: Boolean(tradesPagination?.has_previous_page),
-        has_next_page: Boolean(tradesPagination?.has_next_page),
-      },
+    trades: normalizeProfileTradesPage(trades),
+  };
+}
+
+/** A page of a profile's fills: the bundle's first page, and the pager's later ones. */
+export function normalizeProfileTradesPage(value: unknown): ProfileBundle["trades"] {
+  const trades = (value && typeof value === "object" ? value : null) as Record<string, unknown> | null;
+  const pagination = (trades?.pagination || null) as Record<string, unknown> | null;
+  return {
+    items: normalizeProfileTrades(trades?.items),
+    pagination: {
+      total: Number(pagination?.total || 0),
+      page: Number(pagination?.page || 1),
+      limit: Number(pagination?.limit || 10),
+      page_count: Number(pagination?.page_count || 1),
+      has_previous_page: Boolean(pagination?.has_previous_page),
+      has_next_page: Boolean(pagination?.has_next_page),
     },
   };
 }
