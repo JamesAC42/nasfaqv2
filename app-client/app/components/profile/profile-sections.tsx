@@ -10,7 +10,7 @@ import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { ShowcaseStrip } from "@/app/components/games/locker/showcase-strip";
 import { apiFetch } from "@/app/lib/api";
 import { formatEtTime } from "@/app/lib/market-clock";
-import { normalizeArticleListResponse } from "@/app/lib/normalizers";
+import { normalizeArticleListResponse, normalizeProfileTradesPage } from "@/app/lib/normalizers";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct, timeAgo, toneOf } from "@/app/lib/time";
 import type { ArticleListResponse, PredictionPortfolioResponse, ProfileBundle, ProfileRelationUser } from "@/app/lib/types";
@@ -344,7 +344,8 @@ export function RecentFills({ bundle, base, onPage }: { bundle: ProfileBundle; b
   const go = async (page: number) => {
     setBusy(true);
     try {
-      onPage(await apiFetch<ProfileBundle["trades"]>(`${base}/trades?page=${page}&limit=10`));
+      // Prices and quantities come back as strings (NUMERIC); normalize like the first page.
+      onPage(normalizeProfileTradesPage(await apiFetch<unknown>(`${base}/trades?page=${page}&limit=10`)));
     } finally {
       setBusy(false);
     }
