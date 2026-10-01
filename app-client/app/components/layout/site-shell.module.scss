@@ -515,6 +515,16 @@
   }
 }
 
+.ordersItem[data-rejected] span {
+  color: var(--dim);
+  text-decoration: line-through;
+}
+
+.ordersSub {
+  @include label;
+  padding-top: 0.2rem;
+}
+
 .buy {
   color: var(--up);
 }

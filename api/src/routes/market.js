@@ -869,7 +869,7 @@ router.post("/orders/sell", async (req, res, next) => {
     if (e?.code === "asset_not_found") return res.status(404).json({ error: "asset_not_found" });
     if (e?.code === "asset_not_active") return res.status(409).json({ error: "asset_not_active" });
     if (e?.code === "market_closed") return res.status(409).json({ error: "market_closed", market_status: e.marketStatus || null });
-    if (e?.code === "insufficient_holdings") return res.status(409).json({ error: "insufficient_holdings" });
+    if (e?.code === "insufficient_holdings") return res.status(409).json({ error: "insufficient_holdings", queued_shares: e.queuedShares ?? 0 });
     if (e?.code === "live_order_limit_exceeded") {
       return res.status(429).json({
         error: "live_order_limit_exceeded",

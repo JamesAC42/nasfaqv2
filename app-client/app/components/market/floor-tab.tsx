@@ -72,7 +72,8 @@ function YourBook() {
     );
   }
 
-  const cash = portfolio?.cash_balance ?? 0;
+  // Cash held for queued buys is still yours.
+  const cash = (portfolio?.cash_balance ?? 0) + (portfolio?.held_cash ?? 0);
   const equity = cash + holdings.reduce((sum, row) => sum + row.value, 0);
   const day = holdings.reduce((sum, row) => sum + row.day, 0);
   const dayPct = equity - day > 0 ? day / (equity - day) : null;

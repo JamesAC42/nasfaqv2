@@ -180,7 +180,10 @@ export function TradingSection() {
               title: "It fills at the price then",
               body: "Buys pay the ask, sells get the bid. Big orders slip a little further, and there's a 1% fee both ways.",
             },
-            { title: "Cash is checked at the fill", body: "Short on cash or shares when the batch runs? The order is rejected and nothing is charged." },
+            {
+              title: "Buys hold their cash",
+              body: "Queuing a buy sets its cost aside, with a little extra in case the price moves, and the fill gives back what it didn't use. If the price jumps past that and your spare cash, the order is turned down and you get it all back.",
+            },
           ]}
         />
         <TicketDemo />

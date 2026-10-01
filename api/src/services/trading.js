@@ -8,6 +8,7 @@ const DEFAULT_LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL = 180;
 const DEFAULT_LIVE_ORDER_BATCH_LIMIT = 100;
 const DEFAULT_LIVE_ORDER_WORKER_CONCURRENCY = 4;
 const DEFAULT_LIVE_ORDER_SCHEDULER_INTERVAL_MS = 1_000;
+const DEFAULT_LIVE_ORDER_HOLD_MARGIN = 0.05;
 const LIVE_ORDER_SCHEDULER_LOCK_KEY = 9_204_003;
 const marketState = require("./marketState");
 const supply = require("./marketSupply");
@@ -36,6 +37,10 @@ const LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL = Math.max(
   )
 );
 const LIVE_ORDER_BATCH_LIMIT = Math.max(1, Number(process.env.MARKET_LIVE_ORDER_BATCH_LIMIT || DEFAULT_LIVE_ORDER_BATCH_LIMIT));
+// A queued buy takes its estimated cost (plus this margin, for the price moving before the batch)
+// out of spendable cash when it's placed, so cash promised to orders can't go to anything else. The
+// batch charges the real price and gives back the rest; a cancel or a rejection gives it all back.
+const LIVE_ORDER_HOLD_MARGIN = Math.max(0, Number(process.env.MARKET_LIVE_ORDER_HOLD_MARGIN || DEFAULT_LIVE_ORDER_HOLD_MARGIN) || 0);
 const LIVE_ORDER_WORKER_CONCURRENCY = Math.max(
   1,
   Number(process.env.MARKET_LIVE_ORDER_WORKER_CONCURRENCY || DEFAULT_LIVE_ORDER_WORKER_CONCURRENCY)
@@ -282,6 +287,56 @@ async function insertLedgerEntry(client, entry) {
   );
 }
 
+/**
+ * Moves cash between a player's spendable balance and what's held for their queued buys: a positive
+ * amount holds, a negative one gives it back. The caller holds the cash row's lock.
+ */
+async function moveHeldCash(client, { userId, assetId, orderId, amount }) {
+  if (!(Math.abs(amount) > 0)) return;
+  await client.query(
+    `
+    UPDATE market.portfolio_cash_balances
+    SET cash_balance = cash_balance - $2, held_cash = held_cash + $2, updated_at = now()
+    WHERE user_id = $1
+  `,
+    [userId, amount]
+  );
+  await insertLedgerEntry(client, {
+    userId,
+    assetId,
+    entryType: amount > 0 ? "order_cash_hold" : "order_cash_release",
+    quantityDelta: 0,
+    cashDelta: -amount,
+    referenceType: "trade_order",
+    referenceId: orderId,
+  });
+}
+
+/** Gives back what a queued order held (it was cancelled or rejected). */
+async function releaseOrderHold(client, order) {
+  const held = toNumber(order?.held_cash, 0);
+  if (!(held > 0)) return;
+  await ensureUserCashAccount(client, order.user_id);
+  await moveHeldCash(client, { userId: order.user_id, assetId: order.asset_id, orderId: order.id, amount: -held });
+}
+
+/** Shares already promised to queued sells of this stock. */
+async function sumPendingSellShares(client, { userId, assetId }) {
+  const { rows } = await client.query(
+    `
+    SELECT COALESCE(SUM(requested_quantity), 0) AS shares
+    FROM market.trade_orders
+    WHERE user_id = $1
+      AND asset_id = $2
+      AND side = 'sell'
+      AND order_type = 'live_market'
+      AND status = 'pending'
+  `,
+    [userId, assetId]
+  );
+  return toNumber(rows[0]?.shares, 0);
+}
+
 async function updateCashBalance(client, userId, nextCashBalance) {
   await client.query(
     `
@@ -433,6 +488,7 @@ async function getLockedPendingLiveOrder(client, orderId) {
       o.asset_id,
       o.side,
       o.requested_quantity,
+      o.held_cash,
       a.symbol
     FROM market.trade_orders o
     JOIN market.market_assets a ON a.id = o.asset_id
@@ -465,6 +521,8 @@ async function executeOrder(pool, {
     let effectiveSymbol = symbol;
     let effectiveSide = side;
     let effectiveQuantity = quantity;
+    // What a queued buy set aside when it was placed: spendable again for this fill.
+    let heldCash = 0;
 
     if (existingOrderId) {
       const pendingOrder = await getLockedPendingLiveOrder(client, existingOrderId);
@@ -477,6 +535,7 @@ async function executeOrder(pool, {
       effectiveSymbol = pendingOrder.symbol;
       effectiveSide = pendingOrder.side;
       effectiveQuantity = pendingOrder.requested_quantity;
+      heldCash = toNumber(pendingOrder.held_cash, 0);
     }
 
     const status = await marketState.getMarketStatusWithClient(client);
@@ -548,7 +607,7 @@ async function executeOrder(pool, {
     const feeCash = grossCash * feeRate;
     const totalCash = effectiveSide === "buy" ? grossCash + feeCash : grossCash - feeCash;
 
-    if (effectiveSide === "buy" && toNumber(cashAccount.cash_balance, 0) < totalCash) {
+    if (effectiveSide === "buy" && toNumber(cashAccount.cash_balance, 0) + heldCash < totalCash) {
       const error = new Error("insufficient_cash");
       error.code = "insufficient_cash";
       throw error;
@@ -592,7 +651,11 @@ async function executeOrder(pool, {
       netCash: effectiveSide === "buy" ? -(grossCash + feeCash) : grossCash - feeCash,
     });
 
-    const currentCash = toNumber(cashAccount.cash_balance, 0);
+    // The order's hold comes back first; the fill below then charges the real cost.
+    if (heldCash > 0) {
+      await moveHeldCash(client, { userId: effectiveUserId, assetId: asset.id, orderId, amount: -heldCash });
+    }
+    const currentCash = toNumber(cashAccount.cash_balance, 0) + heldCash;
     const currentQuantity = toNumber(holding?.quantity, 0);
     const currentAvgCost = toNumber(holding?.avg_cost_basis, 0);
     const costBasisSold = effectiveSide === "sell" ? currentAvgCost * parsedQuantity : null;
@@ -1002,11 +1065,21 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
       error.code = "insufficient_cash";
       throw error;
     }
-    if (normalizedSide === "sell" && toNumber(holding?.quantity, 0) < parsedQuantity) {
-      const error = new Error("insufficient_holdings");
-      error.code = "insufficient_holdings";
-      throw error;
+    if (normalizedSide === "sell") {
+      // Shares already in queued sells aren't available to another one.
+      const queuedShares = await sumPendingSellShares(client, { userId, assetId: asset.id });
+      if (toNumber(holding?.quantity, 0) - queuedShares < parsedQuantity) {
+        const error = new Error("insufficient_holdings");
+        error.code = "insufficient_holdings";
+        error.queuedShares = queuedShares;
+        throw error;
+      }
     }
+
+    // A buy holds its estimated cost and a margin, or all the cash there is if that's less (it
+    // covers the estimate either way: checked above).
+    const heldCash =
+      normalizedSide === "buy" ? Math.min(toNumber(cashAccount.cash_balance, 0), (indicativeGrossCash + indicativeFeeCash) * (1 + LIVE_ORDER_HOLD_MARGIN)) : 0;
 
     const statusMarketDate = status?.last_settlement_market_date || status?.current_market_date || null;
     const interval = await resolveLiveOrderInterval(client, { statusMarketDate, now });
@@ -1050,8 +1123,9 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
         submitted_market_date,
         submitted_interval_key,
         metadata_json,
+        held_cash,
         updated_at
-      ) VALUES ($1,$2,$3,'live_market',$4,0,'pending',$5,$6,$7,$8,$9,$10::jsonb,now())
+      ) VALUES ($1,$2,$3,'live_market',$4,0,'pending',$5,$6,$7,$8,$9,$10::jsonb,$11,now())
       RETURNING id, requested_at
     `,
       [
@@ -1071,8 +1145,10 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
           live_order_share_limit: LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL,
           submitted_interval_scheduled_at: interval.scheduledAt || null,
         }),
+        heldCash,
       ]
     );
+    await moveHeldCash(client, { userId, assetId: asset.id, orderId: rows[0].id, amount: heldCash });
 
     await client.query("COMMIT");
 
@@ -1104,7 +1180,8 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
       order,
     });
 
-    return order;
+    // The player's own copy also says what it held and the cash left to spend.
+    return { ...order, held_cash: heldCash, cash_balance: toNumber(cashAccount.cash_balance, 0) - heldCash };
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
@@ -1135,74 +1212,100 @@ function isLiveOrderRejectionCode(code) {
 }
 
 async function rejectLiveOrder(pool, { orderId, reason, liveOrderBatchId = null }) {
-  const { rows } = await pool.query(
-    `
-    UPDATE market.trade_orders
-    SET
-      status = 'rejected',
-      rejection_reason = $2,
-      live_order_batch_id = COALESCE($3, live_order_batch_id),
-      updated_at = now()
-    WHERE id = $1
-      AND status = 'pending'
-      AND order_type = 'live_market'
-    RETURNING
-      id,
-      user_id,
-      asset_id,
-      side,
-      order_type,
-      requested_quantity,
-      filled_quantity,
-      status,
-      quote_bid_at_submit,
-      quote_ask_at_submit,
-      rejection_reason,
-      execute_after,
-      live_order_batch_id,
-      submitted_market_date,
-      submitted_interval_key,
-      requested_at,
-      updated_at
-  `,
-    [orderId, reason, liveOrderBatchId]
-  );
-  return rows[0] || null;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(
+      `
+      UPDATE market.trade_orders
+      SET
+        status = 'rejected',
+        rejection_reason = $2,
+        live_order_batch_id = COALESCE($3, live_order_batch_id),
+        updated_at = now()
+      WHERE id = $1
+        AND status = 'pending'
+        AND order_type = 'live_market'
+      RETURNING
+        id,
+        user_id,
+        asset_id,
+        side,
+        order_type,
+        requested_quantity,
+        filled_quantity,
+        status,
+        quote_bid_at_submit,
+        quote_ask_at_submit,
+        rejection_reason,
+        execute_after,
+        live_order_batch_id,
+        submitted_market_date,
+        submitted_interval_key,
+        held_cash,
+        requested_at,
+        updated_at
+    `,
+      [orderId, reason, liveOrderBatchId]
+    );
+    const order = rows[0] || null;
+    if (order) await releaseOrderHold(client, order);
+    await client.query("COMMIT");
+    return order;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function cancelLiveOrder(pool, { orderId, userId, redis = null }) {
-  const { rows } = await pool.query(
-    `UPDATE market.trade_orders
-     SET status = 'cancelled', updated_at = now()
-     WHERE id = $1
-       AND user_id = $2
-       AND status = 'pending'
-       AND order_type = 'live_market'
-     RETURNING
-       id,
-       user_id,
-       asset_id,
-       side,
-       order_type,
-       requested_quantity,
-       filled_quantity,
-       status,
-       quote_bid_at_submit,
-       quote_ask_at_submit,
-       rejection_reason,
-       execute_after,
-       live_order_batch_id,
-       submitted_market_date,
-       submitted_interval_key,
-       requested_at,
-       updated_at`,
-    [orderId, userId]
-  );
-  const order = rows[0] || null;
-  if (!order) {
-    const error = new Error("live_order_not_found_or_not_pending");
-    error.code = "live_order_not_found_or_not_pending";
+  const client = await pool.connect();
+  let order = null;
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(
+      `UPDATE market.trade_orders
+       SET status = 'cancelled', updated_at = now()
+       WHERE id = $1
+         AND user_id = $2
+         AND status = 'pending'
+         AND order_type = 'live_market'
+       RETURNING
+         id,
+         user_id,
+         asset_id,
+         side,
+         order_type,
+         requested_quantity,
+         filled_quantity,
+         status,
+         quote_bid_at_submit,
+         quote_ask_at_submit,
+         rejection_reason,
+         execute_after,
+         live_order_batch_id,
+         submitted_market_date,
+         submitted_interval_key,
+         held_cash,
+         requested_at,
+         updated_at`,
+      [orderId, userId]
+    );
+    order = rows[0] || null;
+    if (!order) {
+      const error = new Error("live_order_not_found_or_not_pending");
+      error.code = "live_order_not_found_or_not_pending";
+      throw error;
+    }
+    await releaseOrderHold(client, order);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
     throw error;
+  } finally {
+    client.release();
   }
 
   const assetSnapshot = await getOrderAssetSnapshot(pool, order.id);
@@ -1499,9 +1602,11 @@ async function getPortfolioSummary(pool, userId) {
 
     return {
       cash_balance: toNumber(cashAccount.cash_balance, 0),
+      // Set aside for queued buys: not spendable, still yours (it counts toward net worth).
+      held_cash: toNumber(cashAccount.held_cash, 0),
       total_market_value: totalMarketValue,
       total_unrealized_pnl: totalUnrealizedPnl,
-      total_equity: toNumber(cashAccount.cash_balance, 0) + totalMarketValue,
+      total_equity: toNumber(cashAccount.cash_balance, 0) + toNumber(cashAccount.held_cash, 0) + totalMarketValue,
       holdings,
     };
   } catch (error) {
@@ -1558,6 +1663,7 @@ async function getPortfolioOrders(pool, userId, { limit = 100 } = {}) {
       o.live_order_batch_id,
       o.submitted_market_date,
       o.submitted_interval_key,
+      o.held_cash,
       o.requested_at,
       o.updated_at,
       f.fill_id,

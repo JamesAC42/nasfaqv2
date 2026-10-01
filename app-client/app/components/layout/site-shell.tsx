@@ -25,6 +25,8 @@ import { useMarketStore } from "@/app/stores/market-store";
 import { useMomentStore } from "@/app/stores/moment-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import { NotificationBell } from "@/app/components/notifications/notification-bell";
+import { rejectionText } from "@/app/lib/trade";
+import { money } from "@/app/lib/time";
 import styles from "@/app/components/layout/site-shell.module.scss";
 
 function formatQuantity(value: number | null | undefined) {
@@ -69,12 +71,15 @@ export function SiteShell({
   const assets = useMarketStore((state) => state.assets);
   const refreshOverview = useMarketStore((state) => state.refreshOverview);
   const pendingOrders = useProfileStore((state) => state.pendingLiveOrders);
+  const recentOrders = useProfileStore((state) => state.recentOrders);
   const portfolio = useProfileStore((state) => state.portfolio);
   const fetchPortfolio = useProfileStore((state) => state.fetchPortfolio);
   const fetchPortfolioOrders = useProfileStore((state) => state.fetchPortfolioOrders);
   const clearPendingLiveOrders = useProfileStore((state) => state.clearPendingLiveOrders);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [isOrdersOpen, setIsOrdersOpen] = useState(false);
+  // "The last day" for the orders popover's turned-down list, from when this page opened.
+  const [dayAgo] = useState(() => Date.now() - 86_400_000);
   const liveOrderNotice = useMomentStore((state) => state.notice);
   const setLiveOrderNotice = useMomentStore((state) => state.setNotice);
   const fillPopups = useMomentStore((state) => state.fillPopups);
@@ -156,18 +161,24 @@ export function SiteShell({
     if (!previousIds) return;
     const completed = Array.from(previousIds).filter((id) => !nextIds.has(id));
     if (!completed.length) return;
-    // Fills get the popup (or their own toast when popups are off); anything else that left the
-    // queue (rejected, cancelled) gets this toast. The popup covers fills the live socket missed.
+    // Fills get the popup (or their own toast when popups are off); rejections get this toast,
+    // saying which and why. (Cancels were the player's own doing.) The popup covers fills the live
+    // socket missed.
     const recent = useProfileStore.getState().recentOrders;
-    let others = 0;
+    const rejected: typeof recent = [];
     for (const id of completed) {
       const order = recent.find((entry) => String(entry.id) === String(id));
       if (order?.status === "filled") announceOrderFill(order);
-      else others++;
+      else if (order?.status === "rejected") rejected.push(order);
     }
-    if (!others) return;
+    if (!rejected.length) return;
+    const [first] = rejected;
     const timer = window.setTimeout(() => {
-      setLiveOrderNotice(`${others} order${others === 1 ? "" : "s"} didn't fill in the last batch (rejected or cancelled).`);
+      setLiveOrderNotice(
+        rejected.length === 1
+          ? `Your ${first.symbol} ${first.side} of ${formatQuantity(first.requested_quantity)} wasn't placed: ${rejectionText(first.rejection_reason)}.`
+          : `${rejected.length} orders weren't placed in the last batch. Queued orders (top bar) says why.`
+      );
       setIsOrdersOpen(false);
     }, 0);
     return () => window.clearTimeout(timer);
@@ -259,6 +270,11 @@ export function SiteShell({
   }, []);
 
   const visiblePendingOrders = user ? pendingOrders : [];
+  const heldForOrders = visiblePendingOrders.reduce((sum, order) => sum + (order.side === "buy" ? order.held_cash : 0), 0);
+  // Orders the batch turned down in the last day, so a rejection you weren't around for still shows.
+  const recentlyRejected = user
+    ? recentOrders.filter((order) => order.status === "rejected" && order.updated_at && Date.parse(order.updated_at) > dayAgo).slice(0, 3)
+    : [];
   // Staff get a way into the back office (/admin); everyone else never sees it.
   const isStaffUser = Boolean(
     user &&
@@ -384,10 +400,13 @@ export function SiteShell({
                 <div className={styles.orders}>
                   <div className={styles.ordersHead}>
                     <strong>Queued orders</strong>
-                    <span>{visiblePendingOrders.length} waiting</span>
+                    <span>
+                      {visiblePendingOrders.length} waiting{heldForOrders > 0 ? ` · ${money(heldForOrders)} held` : ""}
+                    </span>
                   </div>
                   <p className={styles.ordersCopy}>
-                    Orders fill at the next 10-minute batch. Price, cash and holdings are rechecked then, so an order can still be rejected.
+                    Orders fill at the next 10-minute batch. A buy holds its cost from your cash (a little extra in case the price moves) and gives back
+                    what it didn&apos;t use. If the price rises past that and your cash, or the stock sells out, the order is turned down.
                   </p>
                   {visiblePendingOrders.length ? (
                     <div className={styles.ordersList}>
@@ -401,13 +420,34 @@ export function SiteShell({
                           <span className={order.side === "buy" ? styles.buy : styles.sell}>
                             {order.side.toUpperCase()} {formatQuantity(order.requested_quantity)} {order.symbol}
                           </span>
-                          <small>fills after {formatDateTime(order.execute_after)}</small>
+                          <small>
+                            {order.side === "buy" && order.held_cash > 0 ? `holds ${money(order.held_cash)} · ` : ""}fills after {formatDateTime(order.execute_after)}
+                          </small>
                         </Link>
                       ))}
                     </div>
                   ) : (
                     <div className={styles.ordersEmpty}>Nothing queued.</div>
                   )}
+                  {recentlyRejected.length ? (
+                    <div className={styles.ordersList} aria-label="Orders that weren't placed">
+                      <span className={styles.ordersSub}>Not placed</span>
+                      {recentlyRejected.map((order) => (
+                        <Link
+                          key={order.id}
+                          href={`/stocks/${encodeURIComponent(order.symbol)}`}
+                          className={styles.ordersItem}
+                          data-rejected=""
+                          onClick={() => setIsOrdersOpen(false)}
+                        >
+                          <span>
+                            {order.side.toUpperCase()} {formatQuantity(order.requested_quantity)} {order.symbol}
+                          </span>
+                          <small>{rejectionText(order.rejection_reason)}</small>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : null}
                   <div className={styles.ordersFoot}>
                     <label className={styles.ordersPref} title="The big card when your orders fill; off shows a short note instead">
                       <input type="checkbox" checked={fillPopups} onChange={(event) => setFillPopups(event.target.checked)} />

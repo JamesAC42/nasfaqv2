@@ -263,6 +263,7 @@ export function TradeTicket({
             {portfolio ? (
               <p className={`${styles.note} ${tooMuch || (side === "buy" && portfolio.cash_balance < 0) ? styles.warn : ""}`}>
                 {side === "buy" ? `Cash ${money(portfolio.cash_balance)}` : `You hold ${(holding?.quantity ?? 0).toLocaleString("en-US")} sh`}
+                {side === "buy" && portfolio.held_cash > 0 ? ` (${money(portfolio.held_cash)} held for queued buys)` : ""}
                 {side === "buy" && portfolio.cash_balance < 0 ? " · in the red: sell something first" : tooMuch ? (side === "buy" ? " · not enough cash" : " · you don't hold that many") : ""}
               </p>
             ) : null}

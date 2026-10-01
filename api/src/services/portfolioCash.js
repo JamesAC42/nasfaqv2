@@ -8,7 +8,7 @@ function getStarterCash() {
 async function ensureUserCashAccount(client, userId) {
   const existing = await client.query(
     `
-    SELECT user_id, cash_balance
+    SELECT user_id, cash_balance, held_cash
     FROM market.portfolio_cash_balances
     WHERE user_id = $1
     FOR UPDATE
@@ -44,7 +44,7 @@ async function ensureUserCashAccount(client, userId) {
     [userId, starterCash]
   );
 
-  return { user_id: userId, cash_balance: starterCash };
+  return { user_id: userId, cash_balance: starterCash, held_cash: 0 };
 }
 
 module.exports = {
