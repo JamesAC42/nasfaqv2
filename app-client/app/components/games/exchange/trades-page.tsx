@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { FaArrowRightArrowLeft } from "react-icons/fa6";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { TalentCard } from "@/app/components/games/cards/talent-card";
+import { useOwnedCards } from "@/app/components/games/exchange/use-owned-cards";
 import { SignInToPlay } from "@/app/components/games/shell/games-frame";
 import { fetchTrades, respondTrade, sideValue, type PriceBook, type Trade, type TradeSide, type TradesResponse } from "@/app/lib/games/exchange";
 import { gameErrorText } from "@/app/lib/games/errors";
@@ -150,7 +151,7 @@ export function TradeCard({ trade, prices, onChange }: { trade: Trade; prices: P
         <span className={styles.tradeSwap} aria-hidden="true">
           <FaArrowRightArrowLeft />
         </span>
-        <TradeSideView label="You get" side={theirs} />
+        <TradeSideView label="You get" side={theirs} theirs />
       </div>
       <ValueMeter give={mine} get={theirs} prices={prices} />
       {trade.status === "pending" ? (
@@ -183,7 +184,9 @@ export function TradeCard({ trade, prices, onChange }: { trade: Trade; prices: P
   );
 }
 
-function TradeSideView({ label, side }: { label: string; side: TradeSide }) {
+/** `theirs`: the other player's side, whose cards show as locked unless you own them too. */
+function TradeSideView({ label, side, theirs = false }: { label: string; side: TradeSide; theirs?: boolean }) {
+  const owns = useOwnedCards();
   const items = side.items ?? [];
   const empty = !side.cards.length && !items.length && !side.cash && !side.shards;
   return (
@@ -193,7 +196,7 @@ function TradeSideView({ label, side }: { label: string; side: TradeSide }) {
       <div className={styles.tradeCards}>
         {side.cards.map((card) => (
           <span key={card.key} className={styles.tradeCard}>
-            <TalentCard card={card} width={76} compact tilt={false} />
+            <TalentCard card={card} owned={!theirs || owns(card.key)} width={76} compact tilt={false} />
             {card.qty && card.qty > 1 ? <b className={styles.qty}>×{card.qty}</b> : null}
           </span>
         ))}

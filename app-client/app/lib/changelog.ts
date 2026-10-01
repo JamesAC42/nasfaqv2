@@ -15,7 +15,10 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-09-30",
     title: "Small fixes",
-    changes: [{ kind: "fixed", text: "The buy panel stayed open after you went back a page (to the market, say). Leaving the page closes it now." }],
+    changes: [
+      { kind: "fixed", text: "The buy panel stayed open after you went back a page (to the market, say). Leaving the page closes it now." },
+      { kind: "fixed", text: "The card exchange showed the art of cards you haven't pulled. Cards you don't own show locked, like in your binder, until you get one." },
+    ],
   },
   {
     date: "2026-09-30",

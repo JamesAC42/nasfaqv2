@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FaMinus, FaPlus, FaXmark } from "react-icons/fa6";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { TalentCard } from "@/app/components/games/cards/talent-card";
+import { useOwnedCards } from "@/app/components/games/exchange/use-owned-cards";
 import { SignInToPlay } from "@/app/components/games/shell/games-frame";
 import { fetchMyItems, fetchTradeableCards, fetchTrades, proposeTrade, type ExchangeCard, type ExchangeItem, type Trade, type TradeDraftSide, type UserRef } from "@/app/lib/games/exchange";
 import { gameErrorText } from "@/app/lib/games/errors";
@@ -210,6 +211,7 @@ export function TradeBuilder() {
           items={theirItems}
           shardsAvailable={null}
           emptyPool={partner ? `${partner.username} has nothing tradeable. You can still ask for cash or shards.` : "Load a player to see their cards."}
+          theirs
         />
       </div>
 
@@ -243,6 +245,7 @@ function BuilderSide({
   shardsAvailable,
   emptyPool,
   escrow = false,
+  theirs = false,
 }: {
   title: string;
   draft: Draft;
@@ -252,7 +255,11 @@ function BuilderSide({
   shardsAvailable: number | null;
   emptyPool: string;
   escrow?: boolean;
+  /** The other player's binder: cards you don't own show locked. */
+  theirs?: boolean;
 }) {
+  const owns = useOwnedCards();
+  const shows = (key: string) => !theirs || owns(key);
   const [filter, setFilter] = useState<Rarity | "">("");
   const [q, setQ] = useState("");
   const set = (key: string, qty: number) => {
@@ -283,7 +290,7 @@ function BuilderSide({
             if (!card) return null;
             return (
               <span key={key} className={styles.pickedCard}>
-                <TalentCard card={card} width={72} compact tilt={false} />
+                <TalentCard card={card} owned={shows(card.key)} width={72} compact tilt={false} />
                 <span className={styles.stepper}>
                   <button type="button" aria-label="One fewer" onClick={() => set(key, qty - 1)}>
                     {qty > 1 ? <FaMinus /> : <FaXmark />}
@@ -345,7 +352,7 @@ function BuilderSide({
             const qty = draft.picks.get(card.key) ?? 0;
             return (
               <button key={card.key} type="button" className={styles.pickCard} data-picked={qty > 0 || undefined} disabled={qty >= card.tradeable} onClick={() => set(card.key, qty + 1)}>
-                <TalentCard card={card} width={84} compact tilt={false} />
+                <TalentCard card={card} owned={shows(card.key)} width={84} compact tilt={false} />
                 <small>
                   {card.tradeable - qty} left{qty ? ` · ${qty} in` : ""}
                 </small>
