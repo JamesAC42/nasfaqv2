@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { Sparkline } from "@/app/components/common/sparkline";
@@ -16,11 +17,14 @@ import { useTradeStore } from "@/app/stores/trade-store";
 import styles from "@/app/components/trade/trade-drawer.module.scss";
 import { Term } from "@/app/components/common/tip";
 
-/** The trade ticket as a side drawer (bottom sheet on phones). Mounted once in the shell. */
+/** The trade ticket as a side drawer (bottom sheet on phones). Mounted in the shell, so once per page. */
 export function TradeDrawer() {
   const symbol = useTradeStore((state) => state.symbol);
   const initialSide = useTradeStore((state) => state.side);
   const closeTrade = useTradeStore((state) => state.closeTrade);
+  const openedOn = useTradeStore((state) => state.openedOn);
+  const setOpenedOn = useTradeStore((state) => state.setOpenedOn);
+  const pathname = usePathname();
   const asset = useMarketStore((state) => (symbol ? state.assets.find((entry) => entry.symbol.toUpperCase() === symbol) ?? null : null));
   const portfolio = useProfileStore((state) => state.portfolio);
   const fetchPortfolio = useProfileStore((state) => state.fetchPortfolio);
@@ -29,7 +33,16 @@ export function TradeDrawer() {
   const returnFocus = useRef<HTMLElement | null>(null);
   const [session, setSession] = useState(0);
 
-  const open = Boolean(symbol && asset);
+  // Opened on another page: the shell (and this drawer) was remounted by the navigation. Don't
+  // show it here, and close it.
+  const elsewhere = Boolean(symbol) && openedOn !== null && openedOn !== pathname;
+  const open = Boolean(symbol && asset) && !elsewhere;
+
+  useEffect(() => {
+    if (!symbol) return;
+    if (openedOn === null) setOpenedOn(pathname);
+    else if (openedOn !== pathname) closeTrade();
+  }, [closeTrade, openedOn, pathname, setOpenedOn, symbol]);
 
   useEffect(() => {
     if (!symbol) return;

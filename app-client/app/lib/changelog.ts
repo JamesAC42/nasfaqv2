@@ -14,6 +14,11 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-09-30",
+    title: "Small fixes",
+    changes: [{ kind: "fixed", text: "The buy panel stayed open after you went back a page (to the market, say). Leaving the page closes it now." }],
+  },
+  {
+    date: "2026-09-30",
     title: "Blackjack table print",
     changes: [{ kind: "fixed", text: "The small print on the blackjack table (\"Dealer stands on all 17s · Double on any two\") lost its first and last letters. It's all there now." }],
   },
