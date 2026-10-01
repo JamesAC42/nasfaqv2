@@ -1,7 +1,9 @@
 // Shared plumbing for predictions v2: errors, rounding, cash + ledger moves, market locking,
 // outcome state and price history. Everything here runs inside a caller's transaction.
+// Predictions run on Credit (services/economy.js): "cash" in this code is the money a player has
+// for them (Credit, or Credit then Cash by SETTINGS.sideModeFunds), and payouts land in Credit.
 
-const { ensureUserCashAccount } = require("../portfolioCash");
+const economy = require("../economy");
 const lmsr = require("./lmsr");
 
 const round2 = (value) => Math.round(Number(value) * 100) / 100;
@@ -20,28 +22,29 @@ function predictionError(code, extra = {}) {
   return error;
 }
 
-/** Moves a user's cash and writes the ledger row in the same transaction. */
+/**
+ * Moves a user's prediction money and writes the ledger row in the same transaction. Returns what
+ * they have left to spend on predictions.
+ */
 async function moveCash(client, userId, delta, { entryType, marketId, quantityDelta = 0, referenceType = "prediction_market", referenceId = null }) {
   const amount = round2(delta);
-  const account = await ensureUserCashAccount(client, userId);
-  const next = round2(num(account.cash_balance) + amount);
-  // Only spending is refused; a payout or refund always lands, even for a player in the red from
-  // weekly share fees.
-  if (amount < 0 && next < 0) throw predictionError("insufficient_cash", { cash_balance: num(account.cash_balance), required_cash: -amount });
-  if (amount !== 0) {
-    await client.query(`UPDATE market.portfolio_cash_balances SET cash_balance = $2, updated_at = now() WHERE user_id = $1`, [userId, next]);
+  const ledger = { entryType, referenceType, referenceId: referenceId ?? marketId, quantityDelta: round6(quantityDelta) };
+  // Only spending is refused; a payout or refund always lands.
+  if (amount < 0) {
+    try {
+      const result = await economy.charge(client, userId, -amount, { from: economy.SETTINGS.sideModeFunds, ...ledger });
+      return round2(economy.sideModeSpendable(result.after));
+    } catch (error) {
+      if (error?.code !== "insufficient_credit" && error?.code !== "insufficient_cash") throw error;
+      throw predictionError("insufficient_credit", { cash_balance: round2(economy.sideModeSpendable({ credit: error.credit_balance, cash: error.cash_balance })), required_cash: -amount });
+    }
   }
-  await client.query(
-    `INSERT INTO market.ledger_entries (user_id, asset_id, entry_type, quantity_delta, cash_delta, reference_type, reference_id)
-     VALUES ($1, NULL, $2, $3, $4, $5, $6)`,
-    [userId, entryType, round6(quantityDelta), amount, referenceType, referenceId ?? marketId]
-  );
-  return next;
+  const result = await economy.pay(client, userId, amount, { to: "credit", ...ledger });
+  return round2(economy.sideModeSpendable(result.after));
 }
 
 async function cashBalance(client, userId) {
-  const account = await ensureUserCashAccount(client, userId);
-  return num(account.cash_balance);
+  return economy.sideModeSpendable(await economy.lockWallet(client, userId));
 }
 
 /** Locks the market row: every price-changing operation on a market is serialized through this. */

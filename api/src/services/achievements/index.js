@@ -5,6 +5,7 @@ const {
   rebuildUserTradeStreakWithClient,
 } = require("./streaks");
 const { ensureUserCashAccount } = require("../portfolioCash");
+const economy = require("../economy");
 const notifications = require("../notifications");
 
 async function syncDefinitions(pool) {
@@ -241,30 +242,15 @@ async function awardAchievement(client, {
     return null;
   }
 
+  // The reward lands in Credit or Cash by economy.SETTINGS.achievementRewards.
   const rewardCash = Number(award.reward_cash || 0);
   if (rewardCash > 0) {
-    await client.query(
-      `
-      UPDATE market.portfolio_cash_balances
-      SET cash_balance = cash_balance + $2, updated_at = now()
-      WHERE user_id = $1
-    `,
-      [userId, rewardCash]
-    );
-    await client.query(
-      `
-      INSERT INTO market.ledger_entries (
-        user_id,
-        asset_id,
-        entry_type,
-        quantity_delta,
-        cash_delta,
-        reference_type,
-        reference_id
-      ) VALUES ($1, NULL, 'achievement_reward', 0, $2, 'user_achievement', $3)
-    `,
-      [userId, rewardCash, award.id]
-    );
+    await economy.pay(client, userId, rewardCash, {
+      to: economy.SETTINGS.achievementRewards,
+      entryType: "achievement_reward",
+      referenceType: "user_achievement",
+      referenceId: award.id,
+    });
   }
 
   return {

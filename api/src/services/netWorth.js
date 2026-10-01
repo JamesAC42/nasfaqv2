@@ -1,6 +1,11 @@
 const DEFAULT_STARTER_CASH = 10000;
 const { loadEquipped } = require("./games/equipped");
 const { profilePictureUrlSql } = require("../profilePictures");
+const economy = require("./economy");
+
+// Net worth is Cash (spendable and held for queued buys) plus shares, and Credit too when
+// economy.SETTINGS.netWorth says so (an open question: see services/economy.js).
+const NET_WORTH_CREDIT = economy.SETTINGS.netWorth === "cash_and_credit" ? " + pcb.credit_balance" : "";
 
 function getStarterCash() {
   const parsed = Number(process.env.MARKET_STARTER_CASH || DEFAULT_STARTER_CASH);
@@ -327,7 +332,7 @@ async function getCurrentNetWorth(pool, userId) {
   const { rows } = await pool.query(
     `
     SELECT
-      COALESCE(pcb.cash_balance + pcb.held_cash, $2) AS cash_balance,
+      COALESCE(pcb.cash_balance + pcb.held_cash${NET_WORTH_CREDIT}, $2) AS cash_balance,
       COALESCE(SUM(h.quantity * COALESCE(a.current_mid_price, 0)), 0) AS total_market_value,
       COALESCE(SUM(h.quantity * (COALESCE(a.current_mid_price, 0) - h.avg_cost_basis)), 0) AS total_unrealized_pnl
     FROM market.users u
@@ -339,7 +344,7 @@ async function getCurrentNetWorth(pool, userId) {
     LEFT JOIN market.market_assets a
       ON a.id = h.asset_id
     WHERE u.id = $1
-    GROUP BY u.id, pcb.cash_balance, pcb.held_cash
+    GROUP BY u.id, pcb.cash_balance, pcb.held_cash, pcb.credit_balance
   `,
     [userId, starterCash]
   );
@@ -385,7 +390,7 @@ async function refreshCurrentLeaderboardWithClient(client, { userIds = null } = 
         u.username AS username_snapshot,
         ${profilePictureUrlSql("small")} AS profile_picture_url,
         u.profile_color,
-        COALESCE(pcb.cash_balance + pcb.held_cash, $2) AS cash_balance,
+        COALESCE(pcb.cash_balance + pcb.held_cash${NET_WORTH_CREDIT}, $2) AS cash_balance,
         COALESCE(SUM(h.quantity * COALESCE(a.current_mid_price, 0)), 0) AS holdings_market_value,
         COALESCE(SUM(h.quantity * (COALESCE(a.current_mid_price, 0) - h.avg_cost_basis)), 0) AS total_unrealized_pnl
       FROM target_users tu
@@ -400,7 +405,7 @@ async function refreshCurrentLeaderboardWithClient(client, { userIds = null } = 
        AND h.quantity > 0
       LEFT JOIN market.market_assets a
         ON a.id = h.asset_id
-      GROUP BY u.id, u.username, pp.id, pp.is_deleted, pp.filename_small, u.profile_color, pcb.cash_balance, pcb.held_cash
+      GROUP BY u.id, u.username, pp.id, pp.is_deleted, pp.filename_small, u.profile_color, pcb.cash_balance, pcb.held_cash, pcb.credit_balance
     ),
     latest_daily AS (
       SELECT DISTINCT ON (d.user_id)
@@ -701,7 +706,7 @@ async function refreshCurrentOshiboardsForUsersWithClient(client, userIds) {
       COALESCE(l.profile_color, u.profile_color),
       h.quantity,
       h.quantity * COALESCE(a.current_mid_price, 0),
-      COALESCE(l.total_equity, COALESCE(pcb.cash_balance + pcb.held_cash, $2) + COALESCE(holdings.total_market_value, 0)),
+      COALESCE(l.total_equity, COALESCE(pcb.cash_balance + pcb.held_cash${NET_WORTH_CREDIT}, $2) + COALESCE(holdings.total_market_value, 0)),
       now()
     FROM market.users u
     JOIN user_max_holding mh
@@ -1337,14 +1342,14 @@ async function recordDailyNetWorthSnapshot(client, marketDate) {
     SELECT
       u.id,
       $1::date,
-      COALESCE(pcb.cash_balance + pcb.held_cash, $2) AS cash_balance,
+      COALESCE(pcb.cash_balance + pcb.held_cash${NET_WORTH_CREDIT}, $2) AS cash_balance,
       COALESCE(SUM(
         CASE
           WHEN d.asset_id IS NULL THEN 0
           ELSE h.quantity * COALESCE(d.mid_close, d.mid_open, 0)
         END
       ), 0) AS holdings_market_value,
-      COALESCE(pcb.cash_balance + pcb.held_cash, $2) + COALESCE(SUM(
+      COALESCE(pcb.cash_balance + pcb.held_cash${NET_WORTH_CREDIT}, $2) + COALESCE(SUM(
         CASE
           WHEN d.asset_id IS NULL THEN 0
           ELSE h.quantity * COALESCE(d.mid_close, d.mid_open, 0)
@@ -1363,7 +1368,7 @@ async function recordDailyNetWorthSnapshot(client, marketDate) {
     LEFT JOIN market.asset_daily_market_state d
       ON d.asset_id = h.asset_id
      AND d.market_date = $1::date
-    GROUP BY u.id, pcb.cash_balance, pcb.held_cash
+    GROUP BY u.id, pcb.cash_balance, pcb.held_cash, pcb.credit_balance
     ON CONFLICT (user_id, market_date)
     DO UPDATE SET
       cash_balance = EXCLUDED.cash_balance,

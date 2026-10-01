@@ -16,6 +16,7 @@ const ERROR_STATUS = {
   email_verification_required: 403,
   forbidden: 403,
   insufficient_cash: 409,
+  insufficient_credit: 409,
   insufficient_shards: 409,
   reward_already_claimed: 409,
   set_incomplete: 409,

@@ -42,10 +42,14 @@ test("capsule items on the exchange", { skip: !databaseUrl, timeout: 180_000 }, 
       [name, daysOld]
     );
     const id = Number(rows[0].id);
-    await pool.query(`INSERT INTO market.portfolio_cash_balances (user_id, cash_balance) VALUES ($1, 10000) ON CONFLICT (user_id) DO UPDATE SET cash_balance = 10000`, [id]);
+    await pool.query(
+      `INSERT INTO market.portfolio_cash_balances (user_id, cash_balance, credit_balance) VALUES ($1, 10000, 10000) ON CONFLICT (user_id) DO UPDATE SET cash_balance = 10000, credit_balance = 10000`,
+      [id]
+    );
     return id;
   };
-  const cash = async (id) => Number((await pool.query(`SELECT cash_balance FROM market.portfolio_cash_balances WHERE user_id = $1`, [id])).rows[0].cash_balance);
+  // The exchange runs on Credit (services/economy.js).
+  const cash = async (id) => Number((await pool.query(`SELECT credit_balance FROM market.portfolio_cash_balances WHERE user_id = $1`, [id])).rows[0].credit_balance);
   const prize = (key, rarity, { tradable = true, type = "hat" } = {}) =>
     pool.query(
       `INSERT INTO games.gacha_prize_items (game_key, cosmetic_key, display_name, cosmetic_type, rarity, slot_key, image_key, filename, tradable)

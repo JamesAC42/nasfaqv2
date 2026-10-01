@@ -15,6 +15,7 @@ const supply = require("./marketSupply");
 const netWorth = require("./netWorth");
 const achievements = require("./achievements");
 const { ensureUserCashAccount, getStarterCash } = require("./portfolioCash");
+const economy = require("./economy");
 const { publishMarketEvent } = require("./marketEvents");
 const { invalidateMarketAssetsCache } = require("../marketCache");
 
@@ -271,9 +272,10 @@ async function insertLedgerEntry(client, entry) {
       entry_type,
       quantity_delta,
       cash_delta,
+      credit_delta,
       reference_type,
       reference_id
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7)
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
   `,
     [
       entry.userId,
@@ -281,6 +283,7 @@ async function insertLedgerEntry(client, entry) {
       entry.entryType,
       entry.quantityDelta,
       entry.cashDelta,
+      entry.creditDelta || 0,
       entry.referenceType,
       entry.referenceId,
     ]
@@ -605,9 +608,14 @@ async function executeOrder(pool, {
 
     const grossCash = executablePrice * parsedQuantity;
     const feeCash = grossCash * feeRate;
-    const totalCash = effectiveSide === "buy" ? grossCash + feeCash : grossCash - feeCash;
+    // The trading fee comes out of Credit first, Cash covering the rest; a sale also earns a little
+    // Credit (services/economy.js).
+    const creditBalance = toNumber(cashAccount.credit_balance, 0);
+    const feeFromCredit = Math.min(Math.max(creditBalance, 0), feeCash);
+    const feeFromCash = feeCash - feeFromCredit;
+    const creditEarned = effectiveSide === "sell" ? Math.round(grossCash * economy.SETTINGS.sellCreditRate * 100) / 100 : 0;
 
-    if (effectiveSide === "buy" && toNumber(cashAccount.cash_balance, 0) + heldCash < totalCash) {
+    if (effectiveSide === "buy" && toNumber(cashAccount.cash_balance, 0) + heldCash < grossCash + feeFromCash) {
       const error = new Error("insufficient_cash");
       error.code = "insufficient_cash";
       throw error;
@@ -665,7 +673,7 @@ async function executeOrder(pool, {
     let nextAvgCost = currentAvgCost;
 
     if (effectiveSide === "buy") {
-      nextCash = currentCash - grossCash - feeCash;
+      nextCash = currentCash - grossCash - feeFromCash;
       nextQuantity = currentQuantity + parsedQuantity;
       nextAvgCost =
         nextQuantity > 0
@@ -695,12 +703,13 @@ async function executeOrder(pool, {
         assetId: asset.id,
         entryType: "trade_fee",
         quantityDelta: 0,
-        cashDelta: -feeCash,
+        cashDelta: -feeFromCash,
+        creditDelta: -feeFromCredit,
         referenceType: "trade_fill",
         referenceId: fillRow.id,
       });
     } else {
-      nextCash = currentCash + grossCash - feeCash;
+      nextCash = currentCash + grossCash - feeFromCash;
       nextQuantity = currentQuantity - parsedQuantity;
       nextAvgCost = nextQuantity > 0 ? currentAvgCost : 0;
 
@@ -727,13 +736,30 @@ async function executeOrder(pool, {
         assetId: asset.id,
         entryType: "trade_fee",
         quantityDelta: 0,
-        cashDelta: -feeCash,
+        cashDelta: -feeFromCash,
+        creditDelta: -feeFromCredit,
         referenceType: "trade_fill",
         referenceId: fillRow.id,
       });
+      if (creditEarned > 0) {
+        await insertLedgerEntry(client, {
+          userId: effectiveUserId,
+          assetId: asset.id,
+          entryType: "sell_credit",
+          quantityDelta: 0,
+          cashDelta: 0,
+          creditDelta: creditEarned,
+          referenceType: "trade_fill",
+          referenceId: fillRow.id,
+        });
+      }
     }
 
     await updateCashBalance(client, effectiveUserId, nextCash);
+    const nextCredit = creditBalance - feeFromCredit + creditEarned;
+    if (feeFromCredit > 0 || creditEarned > 0) {
+      await client.query(`UPDATE market.portfolio_cash_balances SET credit_balance = $2, updated_at = now() WHERE user_id = $1`, [effectiveUserId, nextCredit]);
+    }
     await upsertHolding(client, {
       userId: effectiveUserId,
       assetId: asset.id,
@@ -844,6 +870,9 @@ async function executeOrder(pool, {
         avg_cost_basis: nextAvgCost,
       },
       updated_cash_balance: nextCash,
+      updated_credit_balance: nextCredit,
+      fee_from_credit: feeFromCredit,
+      credit_earned: creditEarned,
       updated_quote: updatedQuote,
       filled_at: fillRow.ts,
     };
@@ -1600,13 +1629,21 @@ async function getPortfolioSummary(pool, userId) {
     const totalMarketValue = holdings.reduce((sum, row) => sum + toNumber(row.market_value, 0), 0);
     const totalUnrealizedPnl = holdings.reduce((sum, row) => sum + toNumber(row.unrealized_pnl, 0), 0);
 
+    const creditBalance = toNumber(cashAccount.credit_balance, 0);
     return {
       cash_balance: toNumber(cashAccount.cash_balance, 0),
       // Set aside for queued buys: not spendable, still yours (it counts toward net worth).
       held_cash: toNumber(cashAccount.held_cash, 0),
+      credit_balance: creditBalance,
       total_market_value: totalMarketValue,
       total_unrealized_pnl: totalUnrealizedPnl,
-      total_equity: toNumber(cashAccount.cash_balance, 0) + toNumber(cashAccount.held_cash, 0) + totalMarketValue,
+      total_equity:
+        toNumber(cashAccount.cash_balance, 0) +
+        toNumber(cashAccount.held_cash, 0) +
+        (economy.SETTINGS.netWorth === "cash_and_credit" ? creditBalance : 0) +
+        totalMarketValue,
+      // The Credit rules in force (some are still open: see services/economy.js).
+      economy: economy.publicSettings(),
       holdings,
     };
   } catch (error) {
