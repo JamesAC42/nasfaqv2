@@ -57,7 +57,8 @@ export function RailWorth() {
       const mid = mids.get(holding.symbol) ?? holding.current_mid_price;
       return sum + (mid !== null && mid !== undefined ? mid * holding.quantity : holding.market_value);
     }, 0);
-    return portfolio.cash_balance + holdings;
+    // Cash held for queued buys is still yours.
+    return portfolio.cash_balance + portfolio.held_cash + holdings;
   }, [assets, portfolio]);
 
   if (!user || equity === null) return null;
