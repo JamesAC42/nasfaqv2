@@ -5,6 +5,11 @@ import type { PortfolioSummary } from "@/app/lib/types";
 // it turns into Cash every Saturday. Some rules are still open, so the server says which are in force
 // (portfolio.economy).
 
+/** Whether games, the exchange and predictions dip into Cash once Credit runs out (BBB: they do). */
+export function sideModesUseCash(portfolio: PortfolioSummary | null | undefined): boolean {
+  return portfolio?.economy?.side_mode_funds === "credit_then_cash";
+}
+
 /** What games, the exchange and predictions can spend: Credit, plus Cash if they fall back to it. */
 export function sideModeFunds(portfolio: PortfolioSummary | null | undefined): number | null {
   if (!portfolio) return null;

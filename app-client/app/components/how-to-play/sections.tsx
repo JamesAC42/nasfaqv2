@@ -143,7 +143,7 @@ export function MarketSection() {
           {
             k: "score",
             title: "Net worth",
-            body: "Your cash plus your shares at the current price (Credit doesn't count). It's what the leaderboard ranks, over a day, a week and all time.",
+            body: "Your cash, your Credit and your shares at the current price. It's what the leaderboard ranks, over a day, a week and all time.",
           },
         ]}
       />
@@ -278,7 +278,7 @@ export function WeeklySection() {
           </p>
           <p>
             Dividends are paid in <Term k="credit">Credit</Term>. Fees come out of your Credit first, then your cash, even if that takes your cash below zero. In the red, you
-            can&apos;t buy until you sell something or earn it back. Pick your bags like it matters. The same night, part of everyone&apos;s Credit turns into cash.
+            can&apos;t buy until you sell something or earn it back. Pick your bags like it matters. The same night, part of everyone&apos;s Credit turns into cash: 5%, or $10k if that&apos;s more.
           </p>
         </>
       }
@@ -315,8 +315,8 @@ export function GamesSection() {
       lede={
         <>
           <p>
-            Every game runs on <Term k="credit">Credit</Term>, not the cash you buy shares with, so a bad night at the tables doesn&apos;t touch your bags. The server rolls
-            every result, rates are posted on each game, and multiplayer stakes sit in escrow until the hand is done.
+            Every game spends <Term k="credit">Credit</Term> first, and your cash only once that runs out. Winnings come back as Credit; refunds go back where they came
+            from. The server rolls every result, rates are posted on each game, and multiplayer stakes sit in escrow until the hand is done.
           </p>
           <p>Open tables can be watched by anyone, even signed out. Hidden picks stay hidden until the reveal.</p>
         </>

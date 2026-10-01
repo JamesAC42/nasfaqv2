@@ -464,6 +464,7 @@ export type WeeklyEvaluation = {
   fees_total: number;
   /** Credit turned into Cash this week (reviews before Credit don't have these). */
   credit_conversion_rate?: number;
+  credit_conversion_minimum?: number;
   credit_converted?: number;
   players_converted?: number;
   holders_paid: number;
@@ -748,6 +749,8 @@ export type EconomySettings = {
   side_mode_funds: "credit" | "credit_then_cash";
   net_worth: "cash" | "cash_and_credit";
   weekly_conversion_rate: number;
+  /** The conversion is at least this much (or all of a smaller balance). */
+  weekly_conversion_minimum?: number;
   sell_credit_rate: number;
 };
 
@@ -1717,10 +1720,15 @@ export type ProfileBundle = {
     /** Your own profile only: talents whose banner you've unlocked (own her SSR or UR). */
     banner_options: ProfileOshiCoin[];
     stats: {
+      /** Cash, with what queued buys hold. */
       cash_balance: number;
+      /** Credit (it counts toward net worth). */
+      credit_balance: number;
       total_market_value: number;
       total_unrealized_pnl: number;
       total_equity: number;
+      /** What every account's net worth starts at: the baseline for all-time change. */
+      starting_net_worth: number | null;
       article_count: number;
       trade_count: number;
       friend_count: number;

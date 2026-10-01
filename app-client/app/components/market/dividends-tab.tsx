@@ -118,7 +118,8 @@ export function DividendsTab({ initialDate }: { initialDate?: string }) {
             {review.credit_converted ? (
               <>
                 {" "}
-                <b>{money(review.credit_converted)}</b> of Credit turned into Cash ({Math.round((review.credit_conversion_rate ?? 0) * 100)}% of every balance).
+                <b>{money(review.credit_converted)}</b> of Credit turned into Cash ({Math.round((review.credit_conversion_rate ?? 0) * 100)}% of every balance
+                {review.credit_conversion_minimum ? `, or ${money(review.credit_conversion_minimum, { compact: true })} if that's more` : ""}).
               </>
             ) : null}
             {review.buybacks_started.length ? (

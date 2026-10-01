@@ -421,6 +421,7 @@ async function runWeeklyEvaluation(pool, { evalDate = evaluationDateFor(), dryRu
       dividends_total: round(dividendsTotal, 2),
       fees_total: round(feesTotal, 2),
       credit_conversion_rate: conversion.rate ?? 0,
+      credit_conversion_minimum: conversion.minimum ?? 0,
       credit_converted: conversion.converted,
       players_converted: conversion.players,
       holders_paid: users.filter((entry) => entry.dividends > 0).length,

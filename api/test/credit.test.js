@@ -89,26 +89,62 @@ test("credit end to end", { skip: !databaseUrl, timeout: 180_000 }, async (t) =>
   const startCash = getStarterCash();
   const startCredit = getStarterCredit();
 
-  // ── Games spend Credit and pay into it; Cash doesn't move ──
+  // ── Games spend Credit and pay into it; Cash doesn't move while Credit lasts ──
   await inTx((client) => wallet.debitCashForGameWithClient(client, { userId: alice, amount: 500, entryType: "gacha_pull_fee", referenceType: "test", referenceId: 1 }));
   await inTx((client) => wallet.creditCashForGameWithClient(client, { userId: alice, amount: 200, entryType: "table_payout", referenceType: "test", referenceId: 1 }));
   b = await balances(alice);
   assert.deepEqual([b.cash, b.credit], [startCash, startCredit - 300]);
-  await assert.rejects(
-    inTx((client) => wallet.debitCashForGameWithClient(client, { userId: alice, amount: startCredit, entryType: "table_bet_debit", referenceType: "test", referenceId: 2 })),
-    { code: "insufficient_credit" },
-    "Cash doesn't cover a game while side modes are Credit only"
-  );
 
   // ── Predictions too ──
   const left = await inTx((client) => predictionsCore.moveCash(client, alice, -1000, { entryType: "prediction_buy", marketId: 1 }));
-  close(left, startCredit - 1300, "moveCash returns the Credit left");
+  close(left, economy.sideModeSpendable({ credit: startCredit - 1300, cash: startCash }), "moveCash returns what's left to spend");
   await inTx((client) => predictionsCore.moveCash(client, alice, 250, { entryType: "prediction_sell", marketId: 1 }));
   b = await balances(alice);
   assert.deepEqual([b.cash, b.credit], [startCash, startCredit - 1050]);
-  await assert.rejects(inTx((client) => predictionsCore.moveCash(client, alice, -startCredit, { entryType: "prediction_buy", marketId: 1 })), { code: "insufficient_credit" });
+
+  // ── Once Credit runs out: Cash tops it up (BBB), or nothing does ──
+  await pool.query(`UPDATE market.portfolio_cash_balances SET credit_balance = 100, cash_balance = 1000 WHERE user_id = $1`, [alice]);
+  const bet = () => inTx((client) => wallet.debitCashForGameWithClient(client, { userId: alice, amount: 300, entryType: "table_bet_debit", referenceType: "blackjack_round", referenceId: 77 }));
+  if (economy.SETTINGS.sideModeFunds === "credit_then_cash") {
+    await bet();
+    b = await balances(alice);
+    assert.deepEqual([b.credit, b.cash], [0, 800], "$100 from Credit, $200 from Cash");
+    // The refund goes back where it came from: $200 to Cash, the rest to Credit.
+    await inTx((client) => wallet.refundCashForGameWithClient(client, { userId: alice, amount: 300, referenceType: "blackjack_round", referenceId: 77 }));
+    b = await balances(alice);
+    assert.deepEqual([b.credit, b.cash], [100, 1000], "a refund undoes the split");
+    // Winnings are Credit however the stake was paid.
+    await bet();
+    await inTx((client) => wallet.creditCashForGameWithClient(client, { userId: alice, amount: 600, entryType: "table_payout", referenceType: "blackjack_round", referenceId: 77 }));
+    b = await balances(alice);
+    assert.deepEqual([b.credit, b.cash], [600, 800]);
+    await assert.rejects(
+      inTx((client) => wallet.debitCashForGameWithClient(client, { userId: alice, amount: 5000, entryType: "table_bet_debit", referenceType: "blackjack_round", referenceId: 78 })),
+      { code: "insufficient_credit" },
+      "more than Credit and Cash together"
+    );
+  } else {
+    await assert.rejects(bet(), { code: "insufficient_credit" }, "Cash doesn't cover a game while side modes are Credit only");
+  }
+
+  // ── A prediction void gives back Cash it took, through buys and limit orders ──
+  await pool.query(`UPDATE market.portfolio_cash_balances SET credit_balance = 0, cash_balance = 1000 WHERE user_id = $1`, [alice]);
+  if (economy.SETTINGS.sideModeFunds === "credit_then_cash") {
+    await inTx((client) => predictionsCore.moveCash(client, alice, -400, { entryType: "prediction_buy", marketId: 9 }));
+    await inTx((client) =>
+      predictionsCore.moveCash(client, alice, 400, {
+        entryType: "prediction_void_refund",
+        marketId: 9,
+        referenceType: "prediction_void",
+        sources: [{ referenceType: "prediction_market", referenceId: 9 }],
+      })
+    );
+    b = await balances(alice);
+    assert.deepEqual([b.credit, b.cash], [0, 1000], "a void returns the Cash a buy took");
+  }
 
   // ── Trading: shares cost Cash, the fee comes out of Credit, a sale earns Credit ──
+  await pool.query(`UPDATE market.portfolio_cash_balances SET credit_balance = 50000, cash_balance = 10000 WHERE user_id = $1`, [alice]);
   await pool.query(`INSERT INTO market.market_runtime_state (state_key, trading_status) VALUES ('primary', 'open') ON CONFLICT (state_key) DO UPDATE SET trading_status = 'open'`);
   await pool.query(`INSERT INTO yt.youtube_channels (youtube_channel_id, name_short) VALUES ('UCtest', 'Test')`);
   await pool.query(
@@ -127,13 +163,22 @@ test("credit end to end", { skip: !databaseUrl, timeout: 180_000 }, async (t) =>
   close(sell.credit_earned, Math.round(sell.executed_price * 10 * economy.SETTINGS.sellCreditRate * 100) / 100, "a sale earns Credit");
   close(afterSell.credit, b.credit - sell.fee + sell.credit_earned, "the sale's fee came out of Credit, its earnings went in");
 
-  // ── The weekly conversion ──
-  const converted = await inTx((client) => economy.convertCredit(client, { rate: 0.05, evaluationId: 1 }));
-  const share = Math.round(afterSell.credit * 0.05 * 100) / 100;
-  close(converted.converted, share, "5% of Credit converted");
-  b = await balances(alice);
-  close(b.credit, afterSell.credit - share, "Credit down");
-  close(b.cash, afterSell.cash + share, "Cash up");
+  // ── The weekly conversion: 5% or $10,000, whichever is more (all of a smaller balance) ──
+  const convert = (credit) => pool.query(`UPDATE market.portfolio_cash_balances SET credit_balance = $2, cash_balance = 0 WHERE user_id = $1`, [alice, credit]).then(() =>
+    inTx((client) => economy.convertCredit(client, { rate: 0.05, minimum: 10000, evaluationId: 1 }))
+  );
+  for (const [credit, moved] of [
+    [1_000_000, 50_000], // 5% is more than the minimum
+    [99_000, 10_000], // the minimum is more than 5%
+    [4_000, 4_000], // smaller than the minimum: all of it
+  ]) {
+    const result = await convert(credit);
+    close(result.converted, moved, `${credit} Credit converts ${moved}`);
+    b = await balances(alice);
+    assert.deepEqual([b.credit, b.cash], [credit - moved, moved]);
+  }
+  const ledgerMove = await pool.query(`SELECT cash_delta, credit_delta FROM market.ledger_entries WHERE user_id = $1 AND entry_type = 'credit_conversion' ORDER BY id DESC LIMIT 1`, [alice]);
+  assert.deepEqual([Number(ledgerMove.rows[0].cash_delta), Number(ledgerMove.rows[0].credit_delta)], [4000, -4000]);
 
   // ── Share fees: Credit first, then Cash, which can go below zero ──
   await pool.query(`UPDATE market.portfolio_cash_balances SET credit_balance = 30, cash_balance = 100 WHERE user_id = $1`, [alice]);
@@ -141,11 +186,14 @@ test("credit end to end", { skip: !databaseUrl, timeout: 180_000 }, async (t) =>
   b = await balances(alice);
   assert.deepEqual([b.credit, b.cash], [0, -70]);
 
-  // ── Net worth leaves Credit out unless the setting says otherwise ──
+  // ── Net worth counts Credit (BBB), with Cash and Credit reported apart ──
   await pool.query(`UPDATE market.portfolio_cash_balances SET credit_balance = 5000, cash_balance = 1000 WHERE user_id = $1`, [alice]);
   const worth = await netWorth.getCurrentNetWorth(pool, alice);
-  const expected = economy.SETTINGS.netWorth === "cash_and_credit" ? 6000 : 1000;
-  close(Number(worth.cash_balance), expected, "net worth's cash");
+  const counts = economy.SETTINGS.netWorth === "cash_and_credit";
+  close(Number(worth.cash_balance), 1000, "the cash figure is Cash only");
+  close(Number(worth.credit_balance), 5000, "Credit reported apart");
+  close(Number(worth.total_equity), counts ? 6000 : 1000, "net worth");
+  close(netWorth.getStarterNetWorth(), getStarterCash() + (counts ? getStarterCredit() : 0), "all-time change starts from cash and Credit");
   const summary = await trading.getPortfolioSummary(pool, alice);
   close(summary.credit_balance, 5000, "the portfolio reports Credit");
   assert.equal(summary.economy.side_mode_funds, economy.SETTINGS.sideModeFunds);

@@ -149,7 +149,7 @@ function exchangeText(alert) {
     case "bought":
       return { title: "It's yours", body: `${card} for ${money(alert.price)}.`, href: home };
     case "outbid":
-      return { title: "You've been outbid", body: `${card} is at ${money(alert.amount)}. Your ${money(alert.your_bid)} is back in your cash.`, href: cardHref };
+      return { title: "You've been outbid", body: `${card} is at ${money(alert.amount)}. Your ${money(alert.your_bid)} is back where it came from.`, href: cardHref };
     case "auction_lost":
       return { title: "Bought out", body: `Someone paid the buy-now on ${card}. Your ${money(alert.your_bid)} is back.`, href: "/games/exchange/desk" };
     case "bid_received":

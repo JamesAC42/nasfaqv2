@@ -225,6 +225,7 @@ async function getPublicPortfolioSummary(pool, userId) {
 
   return {
     cash_balance: currentNetWorth.cash_balance,
+    credit_balance: currentNetWorth.credit_balance,
     total_market_value: currentNetWorth.total_market_value,
     total_unrealized_pnl: currentNetWorth.total_unrealized_pnl,
     total_equity: currentNetWorth.total_equity,
@@ -552,10 +553,14 @@ async function getProfileBundle(pool, {
       profile_banner: profileUser.profile_banner || null,
       banner_options: bannerOptions,
       stats: {
-        cash_balance: portfolio.cash_balance,
+        // Cash includes what queued buys hold; Credit is shown apart (it counts toward net worth).
+        cash_balance: Number(portfolio.cash_balance || 0) + Number(portfolio.held_cash || 0),
+        credit_balance: Number(portfolio.credit_balance || 0),
         total_market_value: portfolio.total_market_value,
         total_unrealized_pnl: portfolio.total_unrealized_pnl,
         total_equity: portfolio.total_equity,
+        // What every account starts at, for the all-time change.
+        starting_net_worth: netWorth.getStarterNetWorth(),
         article_count: Number(stats.article_count || 0),
         trade_count: Number(stats.trade_count || 0),
         friend_count: Number(stats.friend_count || 0),

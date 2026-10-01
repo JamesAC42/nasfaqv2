@@ -2314,9 +2314,11 @@ export function normalizeProfileBundle(value: Record<string, unknown>): ProfileB
         : [],
       stats: {
         cash_balance: Number(toNumber(stats?.cash_balance) || 0),
+        credit_balance: Number(toNumber(stats?.credit_balance) || 0),
         total_market_value: Number(toNumber(stats?.total_market_value) || 0),
         total_unrealized_pnl: Number(toNumber(stats?.total_unrealized_pnl) || 0),
         total_equity: Number(toNumber(stats?.total_equity) || 0),
+        starting_net_worth: toNumber(stats?.starting_net_worth),
         article_count: Number(toNumber(stats?.article_count) || 0),
         trade_count: Number(toNumber(stats?.trade_count) || 0),
         friend_count: Number(toNumber(stats?.friend_count) || 0),

@@ -57,6 +57,18 @@
   }
 }
 
+// Credit, and Cash when bets can dip into it, side by side.
+.balances {
+  flex: 0 0 auto;
+  align-self: center;
+  display: flex;
+  gap: 1.25rem;
+
+  @include phone {
+    display: none;
+  }
+}
+
 .cash {
   flex: 0 0 auto;
   align-self: center;

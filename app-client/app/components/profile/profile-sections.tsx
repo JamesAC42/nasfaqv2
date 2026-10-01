@@ -196,6 +196,11 @@ export function Bags({ profile, isSelf }: { profile: Profile; isSelf: boolean })
         <i className={styles.cash} style={{ flex: Math.max(0, profile.stats.cash_balance) }} title={`Cash ${money(profile.stats.cash_balance)}`}>
           CASH
         </i>
+        {profile.stats.credit_balance > 0 ? (
+          <i className={styles.credit} style={{ flex: profile.stats.credit_balance }} title={`Credit ${money(profile.stats.credit_balance)}`}>
+            CREDIT
+          </i>
+        ) : null}
       </div>
       {holdings.length ? (
         <div className={styles.tableWrap}>
