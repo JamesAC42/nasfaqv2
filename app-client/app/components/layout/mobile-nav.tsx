@@ -68,7 +68,7 @@ export function MobileNav() {
         </div>
       ) : null}
 
-      <nav className={styles.bottomNav} aria-label="Main">
+      <nav className={styles.bottomNav} aria-label="Main" data-bottom-nav="">
         {MOBILE_TABS.map((tab) => (
           <Link
             key={tab.href}

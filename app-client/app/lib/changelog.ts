@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-10-02",
+    title: "Keep watching while you browse",
+    changes: [
+      {
+        kind: "new",
+        text: "A stream you're watching keeps playing when you close its panel (with Miniplayer, Esc, Back, or a click outside it). It shrinks into a miniplayer that follows you around the site, and you can drag it anywhere. ⤢ opens the panel again; ✕ stops it.",
+      },
+      { kind: "fixed", text: "A stream panel opened from a shared link wouldn't close." },
+    ],
+  },
+  {
+    date: "2026-10-02",
     title: "A day chart on every stock",
     changes: [
       { kind: "new", text: "Stock pages have a Today section: the market report's chart of the day so far, for that talent, with each adjustment and the trading around it." },

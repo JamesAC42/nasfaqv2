@@ -1,0 +1,139 @@
+@use "../../styles/mixins" as *;
+
+// The site's one YouTube player (stream-dock.tsx). Placed by script: over its sheet's video slot,
+// or floating as the miniplayer.
+.dock {
+  --tal: var(--blue);
+  position: fixed;
+  left: 0;
+  top: 0;
+  // Over its sheet (71), under the trade drawer (74/75) that can open on top of it.
+  z-index: 72;
+  visibility: hidden;
+  background: #000;
+
+  &[data-mode="mini"] {
+    // Over the page and its bars, under toasts (60) and any sheet (70+).
+    z-index: 59;
+    display: flex;
+    flex-direction: column;
+    width: 20rem;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--tal) 45%, var(--rule-2));
+    border-radius: var(--radius-sm);
+    background: var(--ink-2);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+    animation: pop var(--dur-med) var(--ease-out);
+
+    @include phone {
+      width: min(15rem, 64vw);
+    }
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+}
+
+.screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+
+  iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+
+  [data-mode="mini"] & {
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+}
+
+// The iframe would swallow the pointer mid-drag.
+.dragging {
+  user-select: none;
+
+  iframe {
+    pointer-events: none;
+  }
+
+  .bar {
+    cursor: grabbing;
+  }
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 2rem;
+  padding: 0 0.15rem 0 0.6rem;
+  border-bottom: 1px solid var(--rule);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+
+  button {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--mid);
+    font-size: 0.9rem;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--text);
+      background: var(--ink-3);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.72rem;
+  color: var(--text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.live {
+  flex: none;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--blue) 60%, transparent);
+  animation: onAir 1.6s ease-out infinite;
+}
+
+@keyframes onAir {
+  70% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}

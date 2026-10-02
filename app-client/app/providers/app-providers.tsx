@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { StreamDock } from "@/app/components/livestreams/stream-dock";
 import { AuthProvider } from "@/app/providers/auth-provider";
 import { MotionProvider } from "@/app/providers/motion-provider";
 import { ThemeProvider } from "@/app/providers/theme-provider";
@@ -23,6 +24,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
         <AuthProvider>
           <MarketRealtimeConnector />
           {children}
+          {/* Outside each page's shell so a playing stream survives moving between pages. */}
+          <StreamDock />
+
         </AuthProvider>
       </MotionProvider>
     </ThemeProvider>

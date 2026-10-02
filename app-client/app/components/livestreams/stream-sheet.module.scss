@@ -135,6 +135,21 @@
   border-radius: var(--radius-sm);
 }
 
+// A shorter label on phones, so the status pill keeps its room.
+.wideLabel {
+  @include phone {
+    display: none;
+  }
+}
+
+.phoneLabel {
+  display: none;
+
+  @include phone {
+    display: inline;
+  }
+}
+
 .close {
   flex: none;
   width: 2rem;
