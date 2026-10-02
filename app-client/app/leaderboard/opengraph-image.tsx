@@ -2,7 +2,10 @@ import { ImageResponse } from "next/og";
 import { OG, OG_SIZE, Backdrop, Wordmark, accentOf, artDataUri, cardText, fetchApi, loadAssets, loadFonts, loadManifest, moneyShort, signed } from "@/app/lib/og";
 
 export const runtime = "nodejs";
-export const revalidate = 300;
+// Drawn when asked for, from data cached for a few minutes (fetchApi / loadAssets). Prerendered at
+// build, where the API can't be reached, the card shipped empty, and the first preview after a deploy
+// (Discord's, which it keeps) got that copy while the fresh one regenerated.
+export const dynamic = "force-dynamic";
 export const size = OG_SIZE;
 export const contentType = "image/png";
 export const alt = "NASFAQ: the net worth leaderboard";
