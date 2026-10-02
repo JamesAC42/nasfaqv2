@@ -105,7 +105,9 @@ function StreamSheet({ id }: { id: string }) {
   const [buckets, setBuckets] = useState<Bucket[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [playing, setPlaying] = useState(false);
+  // The player lives in StreamDock; the sheet only holds the slot it sits over.
+  const playingHere = useStreamStore((state) => state.playing?.id === id);
+  const play = useStreamStore((state) => state.play);
   const [copied, setCopied] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const returnFocus = useRef<HTMLElement | null>(null);
@@ -116,13 +118,27 @@ function StreamSheet({ id }: { id: string }) {
       setPushed(false);
       router.back();
     } else {
+      // Native history rather than router.replace, which left `?stream=` in place (and the sheet
+      // open) when only the search changed. Next keeps useSearchParams in sync with it.
       const params = new URLSearchParams(window.location.search);
       params.delete("stream");
       const query = params.toString();
-      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+      window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
     }
     returnFocus.current?.focus?.();
   }, [pathname, pushed, router, setPushed]);
+
+  // Opening the sheet of the stream in the miniplayer puts it back in the sheet; closing the sheet
+  // (any way but ✕) leaves it playing in the miniplayer.
+  useEffect(() => {
+    useStreamStore.getState().dock(id);
+    return () => useStreamStore.getState().minimize(id);
+  }, [id]);
+
+  const closeAndStop = () => {
+    if (useStreamStore.getState().playing?.id === id) useStreamStore.getState().stop();
+    close();
+  };
 
   useEffect(() => {
     returnFocus.current = document.activeElement as HTMLElement | null;
@@ -244,27 +260,26 @@ function StreamSheet({ id }: { id: string }) {
   return (
     <>
       <div className={styles.scrim} onClick={close} aria-hidden="true" />
-      <aside className={styles.sheet} role="dialog" aria-modal="true" aria-labelledby="stream-title" style={{ "--tal": accent } as React.CSSProperties}>
-        <header className={styles.top}>
+      <aside className={styles.sheet} role="dialog" aria-modal="true" aria-labelledby="stream-title" style={{ "--tal": accent } as React.CSSProperties} data-stream-sheet="">
+        <header className={styles.top} data-stream-sheet-top="">
           <StatusPill status={status} roomKind={roomKind} watching={watching} scheduled={scheduled} ended={ended} now={now} />
           <button type="button" className={styles.linkBtn} onClick={() => void copyLink()}>
             {copied ? "LINK COPIED" : "COPY LINK"}
           </button>
-          <button type="button" className={styles.close} onClick={close} aria-label="Close" ref={closeBtn}>
+          {playingHere ? (
+            <button type="button" className={styles.linkBtn} onClick={close} title="Keep watching in a small player while you use the site">
+              <span className={styles.wideLabel}>MINIPLAYER</span>
+              <span className={styles.phoneLabel}>MINI</span>
+            </button>
+          ) : null}
+          <button type="button" className={styles.close} onClick={closeAndStop} aria-label={playingHere ? "Close and stop the stream" : "Close"} ref={closeBtn}>
             ✕
           </button>
         </header>
 
-        <div className={styles.player}>
-          {playing ? (
-            <iframe
-              src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0`}
-              title={title}
-              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-              allowFullScreen
-            />
-          ) : (
-            <button type="button" className={styles.poster} onClick={() => setPlaying(true)} aria-label={`Play ${title} here`}>
+        <div className={styles.player} data-stream-slot={id}>
+          {playingHere ? null : (
+            <button type="button" className={styles.poster} onClick={() => play({ id, title, accent, live: isLive })} aria-label={`Play ${title} here`}>
               <img src={thumb} alt="" />
               <span className={styles.play}>
                 <i aria-hidden="true">▶</i>
@@ -338,7 +353,7 @@ function StreamSheet({ id }: { id: string }) {
         {channelId && channel ? <MoreFrom data={channel} channelId={channelId} currentId={id} creator={creator} onOpen={openStream} /> : null}
 
         <footer className={styles.foot}>
-          <span>Esc to close</span>
+          <span>{playingHere ? "Esc keeps it playing in the miniplayer" : "Esc to close"}</span>
           {asset ? (
             <Link href={`/chat?channel=${encodeURIComponent(`asset:${asset.id}`)}`} onClick={close}>
               Talk about it in #{asset.symbol.toLowerCase()} →
