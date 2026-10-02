@@ -35,6 +35,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       { kind: "improved", text: "A talent's day chart has their key art faintly behind it." },
       { kind: "improved", text: "The two talents at the top of How to play stand in framed portraits, like the ones in the fill popup." },
       { kind: "fixed", text: "On phones, the day chart's adjustment names ran into each other." },
+      { kind: "fixed", text: "A stock page's \"Hours streamed\" chart showed thousands of hours on days with more than one stream." },
     ],
   },
   {
