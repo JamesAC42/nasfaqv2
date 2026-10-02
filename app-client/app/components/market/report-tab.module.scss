@@ -268,6 +268,48 @@
   height: 192px;
 }
 
+// The spread beside another section: it stretches to the row's height.
+.swarmFill {
+  display: flex;
+  flex-direction: column;
+
+  .swarm {
+    flex: 1;
+    height: auto;
+    min-height: 12rem;
+  }
+}
+
+// Two sections side by side on wide screens (the spread beside the day so far, or beside the gap
+// chart), stacked on narrower ones. A lone section takes the whole row.
+.pairRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  border-bottom: 1px solid var(--rule);
+
+  > section {
+    min-width: 0;
+    border-bottom: 0;
+  }
+
+  > section + section {
+    border-left: 1px solid var(--rule);
+  }
+
+  > :only-child {
+    grid-column: 1 / -1;
+  }
+
+  @include desktop-down {
+    grid-template-columns: minmax(0, 1fr);
+
+    > section + section {
+      border-left: 0;
+      border-top: 1px solid var(--rule);
+    }
+  }
+}
+
 .mark {
   position: absolute;
   transform: translateX(-50%);
@@ -1024,6 +1066,46 @@
   width: 100%;
   min-width: 0;
   margin-top: 0.4rem;
+
+  svg {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+// A talent's key art, faint, behind their chart.
+.scArt {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 6%;
+  aspect-ratio: 4 / 5;
+  opacity: 0.12;
+  pointer-events: none;
+
+  > div {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+// The table beside the chart where both fit (the chart at 28rem or more, the table at its natural
+// width), wrapping below it where they don't. Goes by the section's width, not the screen's, so the
+// stock page's narrower column stacks sooner.
+.tdBody[data-layout="side"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  column-gap: 1.25rem;
+
+  .stepChart {
+    flex: 10 1 28rem;
+  }
+
+  .tdTableWrap {
+    flex: 1 0 auto;
+    max-width: 100%;
+  }
 }
 
 .scSlot {

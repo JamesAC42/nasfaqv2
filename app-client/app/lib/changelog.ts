@@ -13,6 +13,20 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-02",
+    title: "A day chart on every stock",
+    changes: [
+      { kind: "new", text: "Stock pages have a Today section: the market report's chart of the day so far, for that talent, with each adjustment and the trading around it." },
+      {
+        kind: "improved",
+        text: "On wide screens the market report puts the spread of oshimarks beside the day's chart (on past reports, beside the chart of how far prices sat from their targets), and each talent's step table sits next to their chart.",
+      },
+      { kind: "improved", text: "A talent's day chart has their key art faintly behind it." },
+      { kind: "improved", text: "The two talents at the top of How to play stand in framed portraits, like the ones in the fill popup." },
+      { kind: "fixed", text: "On phones, the day chart's adjustment names ran into each other." },
+    ],
+  },
+  {
     date: "2026-10-01",
     title: "Link previews",
     changes: [

@@ -51,12 +51,31 @@ function useAccent(color: string | null | undefined) {
 
 // ── Talent chibi with a price tag ──────────────────────────────────────────
 
-export function ChibiTag({ asset, pose, width = 160, caption }: { asset: MarketAsset; pose: "hype" | "cope" | "moon" | "shock" | "smug" | "idle"; width?: number; caption?: string }) {
+/** `framed`: the chibi in a frame washed with their colour, like the fill popup's (the hero pair). */
+export function ChibiTag({
+  asset,
+  pose,
+  width = 160,
+  caption,
+  framed = false,
+}: {
+  asset: MarketAsset;
+  pose: "hype" | "cope" | "moon" | "shock" | "smug" | "idle";
+  width?: number;
+  caption?: string;
+  framed?: boolean;
+}) {
   const accent = useAccent(asset.color);
   const move = asset.move_24h_pct;
   return (
-    <Link href={`/stocks/${encodeURIComponent(asset.symbol)}`} className={styles.chibi} style={{ "--tal": accent } as CSSProperties} prefetch={false}>
-      <ArtSlot kind="chibi" pose={pose} symbol={asset.symbol} icon={asset.icon} accent={accent} width={width} className={styles.chibiArt} />
+    <Link href={`/stocks/${encodeURIComponent(asset.symbol)}`} className={`${styles.chibi} ${framed ? styles.framed : ""}`} style={{ "--tal": accent } as CSSProperties} prefetch={false}>
+      {framed ? (
+        <span className={styles.chibiFrame}>
+          <ArtSlot kind="chibi" pose={pose} symbol={asset.symbol} icon={asset.icon} accent={accent} width={width} vignette fadeLength={0.3} className={styles.chibiArt} />
+        </span>
+      ) : (
+        <ArtSlot kind="chibi" pose={pose} symbol={asset.symbol} icon={asset.icon} accent={accent} width={width} className={styles.chibiArt} />
+      )}
       <span className={styles.chibiTag}>
         <Oshimark icon={asset.icon} symbol={asset.symbol} size={14} />
         <b>{asset.symbol}</b>
