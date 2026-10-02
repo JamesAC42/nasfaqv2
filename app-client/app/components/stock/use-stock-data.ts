@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/app/lib/api";
+import { num } from "@/app/lib/streams";
 import {
   normalizeArticleListResponse,
   normalizeAssetCommentListResponse,
@@ -174,13 +175,25 @@ export type PastStream = {
 
 export type PastStreamWeek = { page: number; week_start: string; week_end: string; has_older: boolean; streams: PastStream[] };
 
+// The API sends counts and durations as strings (Postgres bigint/numeric). Left as strings, the
+// hours chart's per-day sums concatenated them ("0" + "10528" + "5255") into thousands of hours.
+function toPastStream(raw: PastStream): PastStream {
+  return {
+    ...raw,
+    total_views: num(raw.total_views),
+    avg_concurrent_viewers: num(raw.avg_concurrent_viewers),
+    max_concurrent_viewers: num(raw.max_concurrent_viewers),
+    duration_seconds: num(raw.duration_seconds),
+  };
+}
+
 export function usePastStreams(channelId: string | null, page: number) {
   return useApi<PastStreamWeek>(channelId ? `/api/livestreams/history?page=${page}&channel=${enc(channelId)}` : null, (raw) => ({
     page: Number(raw.page ?? page),
     week_start: String(raw.week_start ?? ""),
     week_end: String(raw.week_end ?? ""),
     has_older: Boolean(raw.has_older),
-    streams: Array.isArray(raw.streams) ? (raw.streams as PastStream[]) : [],
+    streams: Array.isArray(raw.streams) ? (raw.streams as PastStream[]).map(toPastStream) : [],
   }));
 }
 
