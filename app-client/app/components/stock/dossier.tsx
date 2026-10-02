@@ -8,7 +8,7 @@ import { artId } from "@/app/lib/art-manifest";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { DividendsSection } from "@/app/components/stock/dividends-section";
-import { ChartSection, TicksSection } from "@/app/components/stock/market-sections";
+import { ChartSection, DaySection, TicksSection } from "@/app/components/stock/market-sections";
 import { ChannelSection, StreamsSection, SuperchatSection } from "@/app/components/stock/channel-sections";
 import { BoardSection, HoldersSection, NewsSection } from "@/app/components/stock/community-sections";
 import { fmtBig, yen, type Rank } from "@/app/components/stock/format";
@@ -33,6 +33,7 @@ import { Term } from "@/app/components/common/tip";
 
 const SECTIONS = [
   ["s-chart", "Chart"],
+  ["s-day", "Today"],
   ["s-ticks", "Ticks"],
   ["s-divs", "Dividends"],
   ["s-channel", "Channel"],
@@ -284,6 +285,7 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
         <div className={styles.grid}>
           <div className={styles.main}>
             <ChartSection asset={asset} accent={accent} avgCost={holding && holding.quantity > 0 ? holding.avg_cost_basis : null} />
+            <DaySection asset={asset} />
             <TicksSection asset={asset} />
             <DividendsSection asset={asset} />
             <ChannelSection asset={asset} ranks={ranks} streams={streams} />

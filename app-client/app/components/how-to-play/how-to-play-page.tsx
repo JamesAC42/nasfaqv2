@@ -89,8 +89,8 @@ function Hero() {
       </div>
       {up || down ? (
         <div className={styles.heroCast} aria-label="Today's biggest movers">
-          {up ? <ChibiTag asset={up} pose="moon" width={220} caption="Top gainer today" /> : null}
-          {down ? <ChibiTag asset={down} pose="shock" width={220} caption="Rough day" /> : null}
+          {up ? <ChibiTag asset={up} pose="moon" width={220} caption="Top gainer today" framed /> : null}
+          {down ? <ChibiTag asset={down} pose="shock" width={220} caption="Rough day" framed /> : null}
         </div>
       ) : null}
     </header>

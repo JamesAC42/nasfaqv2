@@ -269,16 +269,23 @@ function Kpis({ rows, report, indexValue }: { rows: DayRow[]; report: DailyRepor
 }
 
 // ── Swarm: every talent's oshimark placed by how far they moved ───────────────
-/** Every talent on one line, placed by `value` (a target move once the day is done, a price move while it runs). */
-function Swarm({ points, title, upLabel, downLabel }: { points: Array<{ asset: DayRow["asset"]; value: number }>; title: string; upLabel: string; downLabel: string }) {
+/**
+ * Every talent on one line, placed by `value` (a target move once the day is done, a price move while it runs).
+ * `fill`: stretch to the height of the row it shares instead of a fixed one.
+ */
+function Swarm({ points, title, upLabel, downLabel, fill = false }: { points: Array<{ asset: DayRow["asset"]; value: number }>; title: string; upLabel: string; downLabel: string; fill?: boolean }) {
   const rows = points.map((point) => ({ asset: point.asset, fd: point.value }));
   const box = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
+  const [boxHeight, setBoxHeight] = useState(0);
   const bySymbol = useAssetMap();
   useLayoutEffect(() => {
     const el = box.current;
     if (!el) return;
-    const measure = () => setWidth(el.clientWidth);
+    const measure = () => {
+      setWidth(el.clientWidth);
+      setBoxHeight(el.clientHeight);
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
@@ -294,33 +301,47 @@ function Swarm({ points, title, upLabel, downLabel }: { points: Array<{ asset: D
     const maxAbs = [0.005, 0.01, 0.02, 0.03, 0.05, 0.1, 0.2, 0.5, 1].find((step) => step >= p90) ?? Math.ceil(p90 * 10) / 10;
     const clipped = abs[abs.length - 1] > maxAbs;
     const small = width < 600;
-    const S = small ? 16 : 20;
-    const H = small ? 200 : 170;
-    const X = (value: number) => S / 2 + ((Math.max(-maxAbs, Math.min(maxAbs, value)) + maxAbs) / (2 * maxAbs)) * (width - S);
-    const bins = new Map<number, number>();
-    const marks = [...rows]
-      .sort((a, b) => Math.abs(a.fd) - Math.abs(b.fd))
-      .map((row) => {
-        const bin = Math.round(X(row.fd) / (S * 0.9));
-        const n = (bins.get(bin) ?? 0) + 1;
-        bins.set(bin, n);
-        return { row, x: bin * S * 0.9, n };
-      });
-    const tallest = Math.max(...bins.values());
+    const H = fill && boxHeight ? Math.max(150, boxHeight - 22) : small ? 200 : 170;
+    const place = (S: number) => {
+      const X = (value: number) => S / 2 + ((Math.max(-maxAbs, Math.min(maxAbs, value)) + maxAbs) / (2 * maxAbs)) * (width - S);
+      const bins = new Map<number, number>();
+      const marks = [...rows]
+        .sort((a, b) => Math.abs(a.fd) - Math.abs(b.fd))
+        .map((row) => {
+          const bin = Math.round(X(row.fd) / (S * 0.9));
+          const n = (bins.get(bin) ?? 0) + 1;
+          bins.set(bin, n);
+          return { row, x: bin * S * 0.9, n };
+        });
+      return { S, X, marks, tallest: Math.max(...bins.values()) };
+    };
+    // Given the room (beside the day's chart), the oshimarks grow while the tallest pile still
+    // fits comfortably under the labels.
+    let placed = place(small ? 16 : 20);
+    if (fill) {
+      for (let size = 32; size > placed.S; size -= 2) {
+        const bigger = place(size);
+        if ((bigger.tallest - 1) * (size + 1) + size <= H * 0.8) {
+          placed = bigger;
+          break;
+        }
+      }
+    }
+    const { S, X, marks, tallest } = placed;
     const step = Math.min(S + 1, (H - S) / Math.max(1, tallest - 1));
     const ticks = [-maxAbs, -maxAbs / 2, 0, maxAbs / 2, maxAbs];
     return { S, H, X, marks, step, ticks, clipped, zero: X(0) };
-  }, [rows, width]);
+  }, [rows, width, fill, boxHeight]);
 
   const up = rows.filter((row) => row.fd > 0.00005).length;
   const down = rows.filter((row) => row.fd < -0.00005).length;
   return (
-    <section className={styles.swarmSec}>
+    <section className={`${styles.swarmSec} ${fill ? styles.swarmFill : ""}`}>
       <div className={ui.secHead}>
         <h2>{title}</h2>
         <span className={ui.aside}>each oshimark is a talent · hover to peek, click to open</span>
       </div>
-      <div className={styles.swarm} ref={box} style={layout ? { height: layout.H + 22 } : undefined}>
+      <div className={styles.swarm} ref={box} style={layout && !fill ? { height: layout.H + 22 } : undefined}>
         {layout ? (
           <>
             <div className={styles.zoneD} style={{ width: layout.zero }} />
@@ -744,8 +765,10 @@ function LiveSession({
         </div>
       </div>
 
-      <Swarm points={rows.map((row) => ({ asset: row.asset, value: row.pchg }))} title="Where every price stands" upLabel="UP" downLabel="DOWN" />
-      {session && window ? <TalentDay session={session} window={window} paths={paths} assets={assets} targets={null} defaultSymbol={[...rows].sort((a, b) => Math.abs(b.pchg) - Math.abs(a.pchg))[0]?.asset.symbol ?? null} /> : null}
+      <div className={styles.pairRow}>
+        <Swarm points={rows.map((row) => ({ asset: row.asset, value: row.pchg }))} title="Where every price stands" upLabel="UP" downLabel="DOWN" fill />
+        {session && window ? <TalentDay session={session} window={window} paths={paths} assets={assets} targets={null} defaultSymbol={[...rows].sort((a, b) => Math.abs(b.pchg) - Math.abs(a.pchg))[0]?.asset.symbol ?? null} /> : null}
+      </div>
       <Ticks date={live.date} session={session} />
 
       <div className={styles.grid}>
@@ -1272,19 +1295,20 @@ export function ReportTab({ initialDate, initialView }: { initialDate?: string; 
         <>
           <Lede date={date} rows={rows} report={report} />
           <Kpis rows={rows} report={report} indexValue={index} />
-          <Swarm points={rows.map((row) => ({ asset: row.asset, value: row.fd }))} title="Where the settlement moved every target" upLabel="TARGETS UP" downLabel="TARGETS DOWN" />
+          <div className={styles.pairRow}>
+            <Swarm points={rows.map((row) => ({ asset: row.asset, value: row.fd }))} title="Where the settlement moved every target" upLabel="TARGETS UP" downLabel="TARGETS DOWN" fill />
+            {finished && window ? <GapChart session={finished} window={window} paths={paths} targets={targets} /> : null}
+          </div>
           {finished && window ? (
-            <>
-              <GapChart session={finished} window={window} paths={paths} targets={targets} />
-              <TalentDay
-                session={finished}
-                window={window}
-                paths={paths}
-                assets={assets}
-                targets={targets}
-                defaultSymbol={[...rows].sort((a, b) => Math.abs(b.fd) - Math.abs(a.fd))[0]?.asset.symbol ?? null}
-              />
-            </>
+            <TalentDay
+              session={finished}
+              window={window}
+              paths={paths}
+              assets={assets}
+              targets={targets}
+              defaultSymbol={[...rows].sort((a, b) => Math.abs(b.fd) - Math.abs(a.fd))[0]?.asset.symbol ?? null}
+              layout="side"
+            />
           ) : null}
           <Ticks date={date} session={session} />
           <Lists rows={rows} report={report} paths={paths} />

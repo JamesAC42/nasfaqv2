@@ -129,6 +129,30 @@
   font-size: 0.56rem;
 }
 
+// The hero pair: each chibi in a frame washed with their colour, like the fill popup's, with the
+// tag riding its bottom edge.
+.chibiFrame {
+  display: grid;
+  place-items: end center;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--tal) 40%, var(--rule-2));
+  border-radius: var(--radius-sm);
+  background:
+    radial-gradient(70% 60% at 50% 55%, color-mix(in oklab, var(--tal) 26%, transparent), transparent 75%),
+    var(--ink);
+  transition: border-color 0.15s;
+
+  .chibi:hover & {
+    border-color: color-mix(in srgb, var(--tal) 70%, var(--rule-2));
+  }
+}
+
+.framed .chibiTag {
+  position: relative;
+  margin-top: -1.15rem;
+}
+
 // ── Talent strip ────────────────────────────────────────────────────────
 .strip {
   display: grid;

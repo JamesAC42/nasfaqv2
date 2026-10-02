@@ -6,6 +6,7 @@
 // has actually happened; once they've all landed it adds the targets and how hard each one pulled.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ArtSlot } from "@/app/components/common/art-slot";
 import { AssetPicker } from "@/app/components/common/asset-picker";
 import { num } from "@/app/components/market/bits";
 import { apiFetch } from "@/app/lib/api";
@@ -147,7 +148,7 @@ function StepChart({
   window,
   refs = [],
   pending = [],
-
+  art = null,
   ariaLabel,
   height = 230,
 }: {
@@ -155,7 +156,8 @@ function StepChart({
   window: { start: number; end: number };
   refs?: Array<{ value: number; label: string; strong?: boolean }>;
   pending?: Array<{ at: number; label: string }>;
-
+  /** A talent's chart: their key art, faint, behind the lines. */
+  art?: { symbol: string; icon?: string | null } | null;
   ariaLabel: string;
   height?: number;
 }) {
@@ -188,9 +190,16 @@ function StepChart({
 
   const slots = TICKS.map((tick, i) => ({ at: window.start + [0, 6, 12, 18][i] * 3600_000, label: tick.label }));
   const hovered = hover !== null ? points[hover] : null;
+  // A phone-width chart has no room for the times beside the slot names.
+  const narrow = layout ? layout.X(window.start + 6 * 3600_000) - layout.X(window.start) < 110 : false;
 
   return (
     <div className={styles.stepChart} ref={box} style={{ height }} onPointerLeave={() => setHover(null)}>
+      {art ? (
+        <div className={styles.scArt}>
+          <ArtSlot kind="keyart" symbol={art.symbol} icon={art.icon} width={360} fallback={<span />} />
+        </div>
+      ) : null}
       {layout ? (
         <svg width={width} height={height} role="img" aria-label={ariaLabel}>
           {/* The day's adjustment slots, and the ones still to come. */}
@@ -198,7 +207,8 @@ function StepChart({
             <g key={slot.label}>
               <line x1={layout.X(slot.at)} x2={layout.X(slot.at)} y1={layout.pad.t - 6} y2={height - layout.pad.b} className={styles.scSlot} />
               <text x={layout.X(slot.at) + 4} y={height - 10} className={styles.scAxis}>
-                {slot.label.toUpperCase()} {et(slot.at)}
+                {slot.label.toUpperCase()}
+                {narrow ? "" : ` ${et(slot.at)}`}
               </text>
             </g>
           ))}
@@ -290,6 +300,10 @@ export function TalentDay({
   assets,
   targets,
   defaultSymbol,
+  fixed = false,
+  layout = "stacked",
+  heading,
+  bare = false,
 }: {
   session: SessionBreakdown;
   window: { start: number; end: number };
@@ -298,11 +312,18 @@ export function TalentDay({
   /** Once the day is done: each talent's target (the day's mark) and the one before it. */
   targets: Map<string, { before: number; after: number }> | null;
   defaultSymbol: string | null;
+  /** Just this talent, no picker (a stock's own page). */
+  fixed?: boolean;
+  /** "side" puts the step table beside the chart where there's room for both. */
+  layout?: "stacked" | "side";
+  heading?: { title: string; aside: string };
+  /** Without its own section: the caller wraps it (the stock page, whose section the nav points at). */
+  bare?: boolean;
 }) {
   const [picked, setPicked] = useState("");
   const live = !session.finished;
   const choices = assets.filter((asset) => paths.has(asset.symbol.toUpperCase()));
-  const symbol = (picked || defaultSymbol || choices[0]?.symbol || "").toUpperCase();
+  const symbol = ((fixed ? "" : picked) || defaultSymbol || choices[0]?.symbol || "").toUpperCase();
   const path = paths.get(symbol);
   const asset = choices.find((entry) => entry.symbol.toUpperCase() === symbol);
   const target = targets?.get(symbol) ?? null;
@@ -350,16 +371,18 @@ export function TalentDay({
     if (point.kind === "now" && Math.abs(point.price / prev.price - 1) > 1e-9) rows.push({ what: "Trading", when: `${et(prev.at)}–${live ? "now" : et(point.at)}`, from: prev.price, to: point.price, pull: null, adj: false });
   });
 
-  return (
-    <section className={styles.talentDay}>
+  const body = (
+    <>
       <div className={ui.secHead}>
-        <h2>{live ? "The day so far, talent by talent" : "How the day got there"}</h2>
-        <span className={ui.aside}>{live ? "adjustments landed so far, and the trading around them" : "each adjustment, the trading in between, and the target"}</span>
+        <h2>{heading?.title ?? (live ? "The day so far, talent by talent" : "How the day got there")}</h2>
+        <span className={ui.aside}>{heading?.aside ?? (live ? "adjustments landed so far, and the trading around them" : "each adjustment, the trading in between, and the target")}</span>
       </div>
       <div className={styles.tdTop}>
-        <div className={styles.tdPick}>
-          <AssetPicker assets={choices} value={symbol} onChange={setPicked} placeholder="Pick a talent" emptyLabel="Biggest mover" />
-        </div>
+        {fixed ? null : (
+          <div className={styles.tdPick}>
+            <AssetPicker assets={choices} value={symbol} onChange={setPicked} placeholder="Pick a talent" emptyLabel="Biggest mover" />
+          </div>
+        )}
         <Legend target={Boolean(target)} />
       </div>
       <p className={styles.tdSum}>
@@ -404,49 +427,52 @@ export function TalentDay({
           </>
         )}
       </p>
-      <StepChart
-        points={chartPoints}
-        window={window}
-        refs={refs}
-        pending={pending}
-       
-        ariaLabel={`${name}'s price through the day: ${pct(path.total)} overall, ${pct(path.adj)} from adjustments and ${pct(path.trade)} from trading.`}
-      />
-      <div className={styles.tdTableWrap}>
-        <table className={styles.tdTable}>
-          <thead>
-            <tr>
-              <th className={styles.l}>Step</th>
-              <th className={styles.l}>ET</th>
-              <th>Price</th>
-              <th>Move</th>
-              {session.finished ? <th>Pull</th> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => (
-              <tr key={i} data-adj={row.adj || undefined}>
-                <td className={styles.l}>{row.what}</td>
-                <td className={styles.l}>{row.when}</td>
-                <td>
-                  {num(row.from)} → {num(row.to)}
-                </td>
-                <td className={ui[row.to >= row.from ? "up" : "down"]}>{pct(row.to / row.from - 1)}</td>
-                {session.finished ? <td>{row.pull !== null ? `${Math.round(row.pull)}%` : "—"}</td> : null}
-              </tr>
-            ))}
-            {!rows.length ? (
+      <div className={styles.tdBody} data-layout={layout}>
+        <StepChart
+          points={chartPoints}
+          window={window}
+          refs={refs}
+          pending={pending}
+          art={{ symbol: asset.symbol, icon: asset.icon }}
+          ariaLabel={`${name}'s price through the day: ${pct(path.total)} overall, ${pct(path.adj)} from adjustments and ${pct(path.trade)} from trading.`}
+        />
+        <div className={styles.tdTableWrap}>
+          <table className={styles.tdTable}>
+            <thead>
               <tr>
-                <td className={styles.l} colSpan={session.finished ? 5 : 4}>
-                  Nothing has moved yet.
-                </td>
+                <th className={styles.l}>Step</th>
+                <th className={styles.l}>ET</th>
+                <th>Price</th>
+                <th>Move</th>
+                {session.finished ? <th>Pull</th> : null}
               </tr>
-            ) : null}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={i} data-adj={row.adj || undefined}>
+                  <td className={styles.l}>{row.what}</td>
+                  <td className={styles.l}>{row.when}</td>
+                  <td>
+                    {num(row.from)} → {num(row.to)}
+                  </td>
+                  <td className={ui[row.to >= row.from ? "up" : "down"]}>{pct(row.to / row.from - 1)}</td>
+                  {session.finished ? <td>{row.pull !== null ? `${Math.round(row.pull)}%` : "—"}</td> : null}
+                </tr>
+              ))}
+              {!rows.length ? (
+                <tr>
+                  <td className={styles.l} colSpan={session.finished ? 5 : 4}>
+                    Nothing has moved yet.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </section>
+    </>
   );
+  return bare ? body : <section className={styles.talentDay}>{body}</section>;
 }
 
 // ── The whole market against its targets ──────────────────────────────────

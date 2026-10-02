@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { buildPaths, TalentDay, useSession } from "@/app/components/market/report-day";
+import { buildDays } from "@/app/components/market/report-model";
 import { PriceChart, type Overlays } from "@/app/components/stock/price-chart";
 import { CHART_RANGES, useCandles, useStats, useTickHistory, type ChartRange } from "@/app/components/stock/use-stock-data";
 import { formatCountdown, formatEtTime, getMarketClock, marketDateKey, TICKS } from "@/app/lib/market-clock";
@@ -9,6 +11,7 @@ import { signedPct, timeAgo, toneOf } from "@/app/lib/time";
 import type { MarketAdjustmentOutcome, MarketAsset } from "@/app/lib/types";
 import { useChannelData } from "@/app/lib/use-channel-data";
 import { useNow } from "@/app/lib/use-now";
+import { useMarketStore } from "@/app/stores/market-store";
 import styles from "@/app/components/stock/dossier.module.scss";
 import { Term, Tip } from "@/app/components/common/tip";
 
@@ -72,6 +75,58 @@ export function ChartSection({ asset, accent, avgCost }: { asset: MarketAsset; a
             dashed line = settlement <Term k="mark">mark</Term>, the price with short-term order pressure stripped out
           </span> : null}
       </div>
+    </section>
+  );
+}
+
+// ── Today ────────────────────────────────────────────────────────────────
+/**
+ * The market report's day so far, for this talent alone: each adjustment as it lands and the trading
+ * around it. Between the day's last adjustment and the next open, the finished day with its target.
+ */
+export function DaySection({ asset }: { asset: MarketAsset }) {
+  const assets = useMarketStore((state) => state.assets);
+  const model = useMemo(() => buildDays(assets), [assets]);
+  const date = model.live?.date ?? model.dates.at(-1) ?? null;
+  const session = useSession(date, Boolean(model.live));
+  const symbol = asset.symbol.toUpperCase();
+  const { window, paths } = useMemo(() => {
+    if (!session || session.market_date !== date) return { window: null, paths: null };
+    const price = new Map(assets.map((entry) => [entry.symbol.toUpperCase(), entry.market_price ?? entry.current_mid_price ?? null]));
+    return buildPaths(session, (key) => price.get(key.toUpperCase()) ?? null, !session.finished);
+  }, [session, date, assets]);
+  const targets = useMemo(() => {
+    const row = date && session?.finished ? model.bySymbol.get(symbol)?.get(date) : null;
+    return row ? new Map([[symbol, { before: row.markBefore, after: row.markAfter }]]) : null;
+  }, [model, symbol, date, session]);
+  // The section is always there, so the nav's "Today" has somewhere to go while the day loads.
+  return (
+    <section className={styles.sec} id="s-day">
+      {session && window && paths?.has(symbol) ? (
+        <TalentDay
+          session={session}
+          window={window}
+          paths={paths}
+          assets={assets}
+          targets={targets}
+          defaultSymbol={symbol}
+          fixed
+          layout="side"
+          heading={
+            session.finished
+              ? { title: "How the day went", aside: "each adjustment, the trading in between, and the target" }
+              : { title: "The day so far", aside: "each adjustment as it lands, and the trading around it" }
+          }
+          bare
+        />
+      ) : (
+        <>
+          <div className={styles.secHead}>
+            <h2>The day so far</h2>
+          </div>
+          <p className={styles.copy}>{session === undefined ? "Loading the day…" : `Nothing for ${asset.symbol} today yet.`}</p>
+        </>
+      )}
     </section>
   );
 }
