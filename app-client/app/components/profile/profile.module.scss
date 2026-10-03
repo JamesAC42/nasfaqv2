@@ -1552,3 +1552,8 @@
     radial-gradient(circle at 30% 40%, color-mix(in srgb, var(--th-a) 85%, transparent) 1.2px, transparent 1.8px) 0 0 / 38px 34px,
     radial-gradient(circle at 70% 80%, color-mix(in srgb, var(--th-a) 60%, transparent) 0.8px, transparent 1.4px) 9px 13px / 26px 29px;
 }
+
+// Shares left this tick, above your pending orders.
+.allowance {
+  margin-bottom: 0.5rem;
+}

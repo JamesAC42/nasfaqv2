@@ -14,6 +14,11 @@ export const GLOSSARY: ReadonlyArray<GlossaryEntry> = [
   { key: "fee", term: "Fee", def: "1% of every stock trade, on buys and sells. It comes out of your Credit first, then your cash, when the batch fills." },
   { key: "batch", term: "Batch", def: "Stock orders queue up and fill together every 10 minutes (:00, :10, :20…), first come, first filled." },
   { key: "tick", term: "Tick", def: "Four times a day (09:00, 15:00, 21:00, 03:00 ET) every price gets pulled toward its fair value." },
+  {
+    key: "share-limit",
+    term: "Share limit",
+    def: "Between one tick and the next, your orders can ask for only so many shares: buys and sells, every stock together. The order ticket shows how many you have left. Cancelled or turned-down orders give theirs back, and it all resets at the next tick.",
+  },
   { key: "mark", term: "Mark", def: "The settled price with short-term order pressure stripped out: where the stock stands once the pushing stops. The dashed line on charts." },
   { key: "settlement", term: "Settlement", def: "The 09:00 ET daily run that reprices every fair value from YouTube and sets the day's four tick strengths. Trading pauses while it runs." },
   { key: "float", term: "Float", def: "How much of a talent's max shares players hold. The rest is the broker's." },

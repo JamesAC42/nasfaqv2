@@ -7,8 +7,8 @@ const netWorth = require("../src/services/netWorth");
 
 // Queued buys hold their cost out of spendable cash when they're placed, on a freshly migrated
 // database (its own): the hold, refusing orders the cash can't cover, cancel and reject giving it
-// back, the batch charging the real price and returning the rest, queued sells reserving shares, and
-// net worth counting held cash.
+// back, the batch charging the real price and returning the rest, queued sells reserving shares,
+// net worth counting held cash, and the share allowance agreeing with what orders report.
 const databaseUrl = process.env.CHAT_TEST_DATABASE_URL;
 
 test("live orders hold their cash", { skip: !databaseUrl, timeout: 180_000 }, async (t) => {
@@ -75,6 +75,13 @@ test("live orders hold their cash", { skip: !databaseUrl, timeout: 180_000 }, as
   const holds = await pool.query(`SELECT entry_type, cash_delta FROM market.ledger_entries WHERE user_id = $1 AND reference_type = 'trade_order'`, [alice]);
   assert.deepEqual(holds.rows.map((row) => row.entry_type), ["order_cash_hold"]);
 
+  // ── The share allowance agrees with what the order reported ──
+  let allowance = await trading.getLiveOrderAllowance(pool, { userId: alice });
+  assert.equal(allowance.used, 10);
+  assert.equal(allowance.remaining, first.remaining_interval_shares, "the same number the order's response gave");
+  assert.equal(allowance.limit, allowance.used + allowance.remaining);
+  assert.ok(Date.parse(allowance.resets_at) > Date.now(), "it says when it resets");
+
   // ── Orders can't promise more cash than there is ──
   const second = await buy(80);
   w = await wallet();
@@ -88,8 +95,11 @@ test("live orders hold their cash", { skip: !databaseUrl, timeout: 180_000 }, as
   const worth = await netWorth.getCurrentNetWorth(pool, alice);
   close(Number(worth.cash_balance), 10000, "net worth counts held cash");
 
-  // ── Cancelling gives the hold back ──
+  // ── Cancelling gives the hold back (and the shares, to the allowance) ──
+  assert.equal((await trading.getLiveOrderAllowance(pool, { userId: alice })).used, 90);
   await trading.cancelLiveOrder(pool, { orderId: second.order_id, userId: alice });
+  allowance = await trading.getLiveOrderAllowance(pool, { userId: alice });
+  assert.equal(allowance.used, 10, "a cancelled order stops counting");
   w = await wallet();
   close(w.cash, 10000 - first.held_cash, "cancel returns the hold");
   close(w.held, first.held_cash, "only the first order is held now");

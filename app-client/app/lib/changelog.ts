@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-10-02",
+    title: "Shares left this tick",
+    changes: [
+      {
+        kind: "improved",
+        text: "The order ticket shows how many more shares you can queue before the next tick (buys and sells on every stock count toward it), how many the order you're typing would use, and when it resets. It warns you before you go over, not after.",
+      },
+      { kind: "improved", text: "The same count sits above your queued orders: in the orders menu at the top of the page, under Market → Activity, and on your profile." },
+    ],
+  },
+  {
+    date: "2026-10-02",
     title: "Keep watching while you browse",
     changes: [
       {

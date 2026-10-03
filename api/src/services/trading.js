@@ -1008,6 +1008,29 @@ async function sumLiveOrderSharesForInterval(client, { userId, marketDate, inter
   return Number(rows[0]?.share_count || 0);
 }
 
+/**
+ * A player's share allowance for the current tick window, across all stocks: what their next order
+ * can still use. Counts the orders submitLiveOrder counts (pending and filled; cancelled and rejected
+ * ones give their shares back), so the two never disagree.
+ */
+async function getLiveOrderAllowance(pool, { userId, now = new Date() }) {
+  const status = await marketState.getMarketStatus(pool);
+  const statusMarketDate = status?.last_settlement_market_date || status?.current_market_date || null;
+  const interval = await resolveLiveOrderInterval(pool, { statusMarketDate, now });
+  const used = await sumLiveOrderSharesForInterval(pool, {
+    userId,
+    marketDate: interval.marketDate,
+    intervalKey: interval.intervalKey,
+  });
+  return {
+    limit: LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL,
+    used,
+    remaining: Math.max(0, LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL - used),
+    window: interval.intervalKey,
+    resets_at: nextLiveOrderWindowAt(now)?.toISOString() ?? null,
+  };
+}
+
 async function lockLiveOrderInterval(client, { userId, marketDate, intervalKey }) {
   await client.query(
     `
@@ -1797,6 +1820,7 @@ async function getLiveOrderAdminHealth(pool, { batchLimit = 10, redis = null } =
 module.exports = {
   executeOrder,
   submitLiveOrder,
+  getLiveOrderAllowance,
   cancelLiveOrder,
   processDueLiveOrders,
   startLiveOrderScheduler,

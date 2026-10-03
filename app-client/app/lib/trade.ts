@@ -72,6 +72,31 @@ export type TradeConfirmation = {
 
 const WINDOW_LABEL: Record<string, string> = { open: "Open", lunch: "Lunch", late: "Late", overnight: "Overnight" };
 
+/** "Lunch" for the window between the Lunch and Late ticks. */
+export const tickWindowLabel = (key: string | null | undefined) => (key ? WINDOW_LABEL[key] ?? key : "this");
+
+/**
+ * Your share allowance for the current tick window: how many more shares your orders can ask for
+ * (buys and sells, every stock together) before the next tick resets it. From /api/portfolio/me/orders.
+ */
+export type OrderAllowance = { limit: number; used: number; remaining: number; window: string | null; resetsAt: string | null };
+
+export function normalizeOrderAllowance(raw: unknown): OrderAllowance | null {
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as Record<string, unknown>;
+  const limit = Number(value.limit);
+  const used = Number(value.used);
+  if (!Number.isFinite(limit) || limit <= 0 || !Number.isFinite(used)) return null;
+  const remaining = Number.isFinite(Number(value.remaining)) ? Number(value.remaining) : Math.max(0, limit - used);
+  return {
+    limit,
+    used,
+    remaining: Math.max(0, remaining),
+    window: typeof value.window === "string" ? value.window : null,
+    resetsAt: typeof value.resets_at === "string" ? value.resets_at : null,
+  };
+}
+
 export function getTradeFailureNotice(errorCode: string, side: TradeSide, symbol: string, details?: Record<string, unknown> | null): TradeFailureNotice {
   switch (errorCode) {
     case "insufficient_cash":

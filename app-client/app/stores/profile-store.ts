@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { apiFetch } from "@/app/lib/api";
 import { fmtNumber } from "@/app/lib/format";
 import { normalizePortfolio, normalizePortfolioOrdersResponse } from "@/app/lib/normalizers";
+import { normalizeOrderAllowance, type OrderAllowance } from "@/app/lib/trade";
 import type { PortfolioOrder, PortfolioSummary } from "@/app/lib/types";
 
 type AdminBusy = false | "reset" | "rebuild";
@@ -11,6 +12,8 @@ type AdminBusy = false | "reset" | "rebuild";
 type ProfileState = {
   portfolio: PortfolioSummary | null;
   pendingLiveOrders: PortfolioOrder[];
+  /** Shares your orders can still ask for before the next tick (null signed out, or not loaded). */
+  orderAllowance: OrderAllowance | null;
   /** The latest orders of any status (filled ones carry their fill), for the fill-moment fallback. */
   recentOrders: PortfolioOrder[];
   isLoadingPortfolio: boolean;
@@ -74,9 +77,21 @@ async function followRebuild(set: (partial: Partial<ProfileState>) => void, star
   });
 }
 
+// The allowance resets at the next tick: fetch it again just after, so it doesn't sit at zero.
+let allowanceTimer: ReturnType<typeof setTimeout> | null = null;
+function refreshAllowanceAt(resetsAt: string | null) {
+  if (allowanceTimer) clearTimeout(allowanceTimer);
+  allowanceTimer = null;
+  const wait = resetsAt ? Date.parse(resetsAt) - Date.now() + 2000 : NaN;
+  if (Number.isFinite(wait) && wait > 0 && wait < 8 * 3600_000) {
+    allowanceTimer = setTimeout(() => void useProfileStore.getState().fetchPortfolioOrders(), wait);
+  }
+}
+
 export const useProfileStore = create<ProfileState>((set) => ({
   portfolio: null,
   pendingLiveOrders: [],
+  orderAllowance: null,
   recentOrders: [],
   isLoadingPortfolio: false,
   isLoadingOrders: false,
@@ -104,10 +119,13 @@ export const useProfileStore = create<ProfileState>((set) => ({
     try {
       const result = await apiFetch<Record<string, unknown>>("/api/portfolio/me/orders?limit=50", { cache: "no-store" });
       const orders = normalizePortfolioOrdersResponse(result).orders;
+      const orderAllowance = normalizeOrderAllowance(result.allowance);
       set({
         recentOrders: orders,
         pendingLiveOrders: orders.filter((order) => order.status === "pending" && order.order_type === "live_market"),
+        orderAllowance,
       });
+      refreshAllowanceAt(orderAllowance?.resetsAt ?? null);
     } catch (error) {
       set({
         pendingLiveOrders: [],
@@ -122,11 +140,15 @@ export const useProfileStore = create<ProfileState>((set) => ({
     await Promise.allSettled([state.fetchPortfolio(), state.fetchPortfolioOrders()]);
     set((current) => ({ tradingRevision: current.tradingRevision + 1 }));
   },
-  clearPendingLiveOrders: () => set({ pendingLiveOrders: [] }),
+  clearPendingLiveOrders: () => {
+    refreshAllowanceAt(null);
+    set({ pendingLiveOrders: [], orderAllowance: null });
+  },
   clearPortfolio: () =>
     set({
       portfolio: null,
       pendingLiveOrders: [],
+      orderAllowance: null,
       portfolioError: null,
     }),
   resetMarket: async (confirmation) => {
