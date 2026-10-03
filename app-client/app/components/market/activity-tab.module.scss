@@ -778,6 +778,11 @@
 }
 
 // ── Side panels ──────────────────────────────────────────────────────────
+// Shares left this tick, above your pending orders.
+.allowance {
+  margin-bottom: 0.5rem;
+}
+
 .pord {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr) auto;

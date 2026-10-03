@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { OrderAllowanceMeter } from "@/app/components/trade/order-allowance";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
@@ -188,7 +189,10 @@ export function TradeTicket({
       }
       await refreshTradingState();
     } catch (error) {
-      setFailure(getTradeFailureNotice(String((error as Error).message || error), side, asset.symbol, (error as { body?: Record<string, unknown> | null }).body));
+      const code = String((error as Error).message || error);
+      setFailure(getTradeFailureNotice(code, side, asset.symbol, (error as { body?: Record<string, unknown> | null }).body));
+      // Over the share limit: the meter may be behind (an order placed in another tab), so catch it up.
+      if (code.includes("live_order_limit_exceeded")) void useProfileStore.getState().fetchPortfolioOrders();
     } finally {
       setBusy(false);
     }
@@ -209,7 +213,7 @@ export function TradeTicket({
                 {queued.side.toUpperCase()} {queued.requestedQuantity.toLocaleString("en-US")} {queued.symbol}
               </b>{" "}
               is in the {queued.executeAfter ? `${formatEtTime(new Date(queued.executeAfter))} ET` : "next"} batch.
-              {queued.remainingIntervalShares !== null ? ` ${queued.remainingIntervalShares.toLocaleString("en-US")} more shares fit in this batch.` : ""}
+              {queued.remainingIntervalShares !== null ? ` You can queue ${queued.remainingIntervalShares.toLocaleString("en-US")} more shares before the next tick.` : ""}
             </p>
             <p className={styles.dim}>We&apos;ll show you the fill when it lands. You can cancel from the Activity tab until then.</p>
             <div className={styles.qActions}>
@@ -250,6 +254,7 @@ export function TradeTicket({
                 </button>
               ) : null}
             </div>
+            <OrderAllowanceMeter order={qty} />
             <dl className={styles.est}>
               <dt>
                 <Term k="spread">{side === "buy" ? "Ask" : "Bid"}</Term>

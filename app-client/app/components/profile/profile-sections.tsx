@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { EmptyState } from "@/app/components/common/empty-state";
+import { OrderAllowanceMeter } from "@/app/components/trade/order-allowance";
 import { Medal } from "@/app/components/common/medal";
 import Link from "next/link";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -285,6 +286,9 @@ export function PendingOrders() {
 
   return (
     <Sec title="Your pending orders" aside={`${orders.length} queued`}>
+      <div className={styles.allowance}>
+        <OrderAllowanceMeter compact />
+      </div>
       {orders.length ? (
         orders.map((order) => (
           <div key={order.id} className={styles.row}>

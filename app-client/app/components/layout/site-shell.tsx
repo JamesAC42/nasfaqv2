@@ -1,6 +1,7 @@
 "use client";
 
 import { ExchangeAlerts } from "@/app/components/games/exchange/exchange-alerts";
+import { OrderAllowanceMeter } from "@/app/components/trade/order-allowance";
 import { SiteStatusBar } from "@/app/components/common/site-status-bar";
 import { BugReportButton } from "@/app/components/common/bug-report";
 import { ReactionFace, parseReaction } from "@/app/components/common/reaction-face";
@@ -404,6 +405,7 @@ export function SiteShell({
                       {visiblePendingOrders.length} waiting{heldForOrders > 0 ? ` · ${money(heldForOrders)} held` : ""}
                     </span>
                   </div>
+                  <OrderAllowanceMeter compact />
                   <p className={styles.ordersCopy}>
                     Orders fill at the next 10-minute batch. A buy holds its cost from your cash (a little extra in case the price moves) and gives back
                     what it didn&apos;t use. If the price rises past that and your cash, or the stock sells out, the order is turned down.

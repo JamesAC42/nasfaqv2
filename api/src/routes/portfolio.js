@@ -42,8 +42,13 @@ router.get("/me/orders", async (req, res, next) => {
   try {
     const userId = requireUserId(req);
     const limit = parseLimit(req.query.limit, 100);
-    const orders = await trading.getPortfolioOrders(req.ctx.pool, userId, { limit });
-    res.json({ user_id: userId, orders });
+    // The share allowance rides along so every view of your queue can show what's left this tick
+    // window; it's optional, so a failure there doesn't cost you the order list.
+    const [orders, allowance] = await Promise.all([
+      trading.getPortfolioOrders(req.ctx.pool, userId, { limit }),
+      trading.getLiveOrderAllowance(req.ctx.pool, { userId }).catch(() => null),
+    ]);
+    res.json({ user_id: userId, orders, allowance });
   } catch (e) {
     if (e?.code === "unauthenticated") {
       return res.status(401).json({ error: "unauthenticated" });

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { OrderAllowanceMeter } from "@/app/components/trade/order-allowance";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { compactMoney, DivBar, num, RankRow, Seg, toneClass, useAssetMap } from "@/app/components/market/bits";
@@ -533,6 +534,9 @@ function PendingOrders() {
       <div className={ui.secHead}>
         <h2>Your pending orders</h2>
         <span className={ui.aside}>cancel before the batch</span>
+      </div>
+      <div className={styles.allowance}>
+        <OrderAllowanceMeter compact />
       </div>
       {orders.length ? (
         orders.map((order) => {

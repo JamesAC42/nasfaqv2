@@ -1,0 +1,96 @@
+@use "../../styles/mixins" as *;
+
+// Shares left this tick (order-allowance.tsx): in the order ticket, and compact above lists of
+// queued orders.
+.meter {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--blue);
+
+  &[data-tone="low"] {
+    border-left-color: var(--warn);
+  }
+
+  &[data-tone="warn"] {
+    border-left-color: var(--down);
+
+    .head b,
+    .note {
+      color: var(--down);
+    }
+
+    .order {
+      background: var(--down);
+    }
+  }
+}
+
+.compact {
+  padding: 0.4rem 0.55rem;
+  gap: 0.25rem;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 0.5rem;
+
+  b {
+    @include num;
+    font-size: 0.8125rem;
+    color: var(--text);
+    white-space: nowrap;
+
+    small {
+      font-size: 0.656rem;
+      font-weight: 400;
+      color: var(--dim);
+    }
+  }
+}
+
+.label {
+  @include label;
+  // Tighter than other labels so it fits on one line in the stock page's narrow ticket.
+  letter-spacing: 0.06em;
+  color: var(--mid);
+  white-space: nowrap;
+}
+
+.bar {
+  position: relative;
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--rule);
+
+  s {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    text-decoration: none;
+  }
+}
+
+// Already asked for this window.
+.used {
+  left: 0;
+  background: var(--dim);
+}
+
+// What the order being typed would take.
+.order {
+  background: var(--blue);
+}
+
+.note {
+  @include num;
+  font-size: 0.656rem;
+  line-height: 1.45;
+  color: var(--dim);
+}
