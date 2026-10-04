@@ -35,6 +35,44 @@
   height: 175%;
 }
 
+// ── Fill mode: a crowd across the whole header ─────────────────────────────
+// hero-cast.tsx places each figure; the cast spans the header and fades out to the left, so the
+// ones furthest back sink behind the title.
+.cast.fill {
+  left: 0;
+  width: auto;
+  background: radial-gradient(40% 90% at 84% 70%, color-mix(in srgb, var(--tal) 20%, transparent), transparent 72%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 4%, #000 52%), linear-gradient(180deg, transparent 4%, #000 30%);
+  mask-image: linear-gradient(90deg, transparent 4%, #000 52%), linear-gradient(180deg, transparent 4%, #000 30%);
+
+  @include phone {
+    left: 28%;
+    width: auto;
+  }
+}
+
+.spot {
+  position: absolute;
+  aspect-ratio: 4 / 5;
+
+  // The ones behind step back: dimmer.
+  &[data-back] {
+    filter: brightness(0.62) saturate(0.85);
+  }
+
+  .figure {
+    width: 100%;
+    height: 100%;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      object-position: 50% 0%;
+    }
+  }
+}
+
 // Doubled class beats ArtSlot's own `.slot` rules whichever sheet loads last.
 .row .figure {
   flex: none;
