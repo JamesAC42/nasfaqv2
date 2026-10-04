@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "art:doc": "node scripts/art-spec.mjs"
+    "art:doc": "node scripts/art-spec.mjs",
+    "hats": "node scripts/hat-fitter/server.mjs"
   },
   "dependencies": {
     "lightweight-charts": "^5.1.0",
