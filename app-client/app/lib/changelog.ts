@@ -13,6 +13,11 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-04",
+    title: "/hlgg/",
+    changes: [{ kind: "fixed", text: "The Threads page calls the Hololive Global general by its name, /hlgg/, not /hlg/." }],
+  },
+  {
     date: "2026-10-03",
     title: "A bigger crowd on Livestreams",
     changes: [
