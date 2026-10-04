@@ -29,7 +29,7 @@ type Load = { data: Thread | null; error: string | null; loading: boolean };
 type BoardKey = "nasfaq" | "hlg" | "numbers" | "news";
 const BOARDS: Array<{ key: BoardKey; label: string; name: string; endpoint: string; notFound: string }> = [
   { key: "nasfaq", label: "/nasfaq/", name: "The NASFAQ general", endpoint: "/api/getNasfaqThread", notFound: "nasfaq_thread_not_found" },
-  { key: "hlg", label: "/hlg/", name: "Hololive general", endpoint: "/api/getHlgThread", notFound: "hlg_thread_not_found" },
+  { key: "hlg", label: "/hlgg/", name: "Hololive Global general", endpoint: "/api/getHlgThread", notFound: "hlg_thread_not_found" },
   { key: "numbers", label: "/#/", name: "Numbers general", endpoint: "/api/getNumbersThread", notFound: "numbers_thread_not_found" },
   { key: "news", label: "/news/", name: "Holo news general", endpoint: "/api/getNewsThread", notFound: "news_thread_not_found" },
 ];
