@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-10-03",
+    title: "A bigger crowd on Livestreams",
+    changes: [
+      {
+        kind: "improved",
+        text: "The Livestreams header shows everyone who's live, up to twelve, not just the top three: the biggest stream up front and the rest stepping back behind the title. Smaller screens show fewer.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-03",
     title: "Snappier deck editing",
     changes: [
       {

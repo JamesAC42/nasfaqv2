@@ -110,7 +110,7 @@ export function LivestreamsPage() {
     <SiteShell>
       <div className={styles.page}>
         <header className={styles.top} data-cast={onAir.length ? "" : undefined}>
-          <HeroCast talents={onAir} />
+          <HeroCast talents={onAir} max={12} fill />
           <div className={styles.title}>
             <span className={styles.kicker}>
               <i aria-hidden="true" /> ON AIR
