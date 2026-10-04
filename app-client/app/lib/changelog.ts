@@ -13,6 +13,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-03",
+    title: "Snappier deck editing",
+    changes: [
+      {
+        kind: "fixed",
+        text: "Changing cards in the Oshi Card Duel deck editor froze for most of a second with a UR card on screen. It's instant now. (UR sparkles fade in and out now instead of growing and spinning.)",
+      },
+    ],
+  },
+  {
     date: "2026-10-02",
     title: "Shares left this tick",
     changes: [

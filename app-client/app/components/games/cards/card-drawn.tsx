@@ -29,7 +29,7 @@ function Sparkle({ x, y, r, delay = 0 }: { x: number; y: number; r: number; dela
   return (
     <path
       className={styles.sparkle}
-      style={{ animationDelay: `${delay}ms`, transformOrigin: `${x}px ${y}px` }}
+      style={{ animationDelay: `${delay}ms` }}
       d={`M ${x} ${y - r} L ${x + k} ${y - k} L ${x + r} ${y} L ${x + k} ${y + k} L ${x} ${y + r} L ${x - k} ${y + k} L ${x - r} ${y} L ${x - k} ${y - k} Z`}
     />
   );
