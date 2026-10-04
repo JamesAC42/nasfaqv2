@@ -84,19 +84,19 @@
   animation: twinkle 2.6s ease-in-out infinite;
 }
 
+// Opacity only. Animating a transform on an SVG shape re-lays out the drawing every frame, and inside
+// the card's size container that made any change on the page around a UR card (picking cards in the
+// duel deck editor) take most of a second to show.
 @keyframes twinkle {
   0%,
   100% {
     opacity: 0;
-    transform: scale(0.4);
   }
   45% {
     opacity: 0.95;
-    transform: scale(1);
   }
   60% {
     opacity: 0.6;
-    transform: scale(0.85) rotate(20deg);
   }
 }
 
