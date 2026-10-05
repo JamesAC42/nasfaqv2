@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Hat fitter</title>
+    <title>Hat and item fitter</title>
     <style>
       :root {
         --bg: #0a0c11;
@@ -136,6 +136,10 @@
         cursor: pointer;
         outline: none;
       }
+      /* The grid display above would otherwise beat the hidden attribute, and filters would hide nothing. */
+      .cell[hidden] {
+        display: none;
+      }
       .cell:hover {
         border-color: var(--rule-2);
       }
@@ -202,7 +206,37 @@
         transform-origin: 50% 100%;
         pointer-events: none;
       }
+      .item {
+        position: absolute;
+        left: calc(78% + var(--hx, 0) * var(--s));
+        top: calc(var(--s) * (0.4 + var(--hy, 0)));
+        width: calc(var(--s) * 0.58);
+        height: auto;
+        transform: translateX(-50%) rotate(var(--hr, 0deg)) scale(var(--hk, 1));
+        transform-origin: 50% 100%;
+        pointer-events: none;
+      }
       /* ── end of the shared rules ── */
+      /* In the fitter (not on the site) a hat or item can be grabbed by its own image, even where it
+         hangs outside its cell, and the selected one draws over its neighbours. */
+      .cell img.hat,
+      .cell img.item,
+      .sizes img.hat,
+      .sizes img.item {
+        pointer-events: auto;
+      }
+      .cell.selected .avatar {
+        z-index: 3;
+      }
+      .kind {
+        flex: none;
+        padding: 0 0.3rem;
+        border: 1px solid var(--rule-2);
+        border-radius: 3px;
+        color: var(--dim);
+        font: 10px var(--mono);
+        letter-spacing: 0.08em;
+      }
 
       aside {
         position: sticky;
@@ -277,11 +311,16 @@
   </head>
   <body>
     <header>
-      <h1>Hat fitter</h1>
+      <h1>Hat &amp; item fitter</h1>
       <span id="count" class="empty">loading…</span>
-      <input id="search" type="search" placeholder="Search hats" />
+      <input id="search" type="search" placeholder="Search" />
+      <select id="kind" aria-label="Which">
+        <option value="all">Hats and items</option>
+        <option value="hat">Hats</option>
+        <option value="item">Items</option>
+      </select>
       <select id="filter" aria-label="Show">
-        <option value="all">All hats</option>
+        <option value="all">Fitted or not</option>
         <option value="todo">Not fitted yet</option>
         <option value="done">Fitted</option>
       </select>
@@ -394,7 +433,8 @@
         span.style.setProperty("--pc", $("color").value);
         span.append(pictureNode());
         const img = document.createElement("img");
-        img.className = "hat";
+        // Items (held at the lower right) and hats (on top) start from different spots, as on the site.
+        img.className = hat.kind === "item" ? "item" : "hat";
         img.alt = "";
         img.src = hat.image;
         img.dataset.key = hat.key;
@@ -422,6 +462,12 @@
           name.textContent = hat.name;
           name.style.color = RARITY[hat.rarity] || "inherit";
           label.append(dot, name);
+          if (hat.kind === "item") {
+            const tag = document.createElement("span");
+            tag.className = "kind";
+            tag.textContent = "ITEM";
+            label.append(tag);
+          }
           cell.append(avatar(hat, size), label);
           // Press to select; drag to move the hat.
           cell.addEventListener("pointerdown", (event) => startDrag(event, hat.key, size));
@@ -434,13 +480,15 @@
       function refreshAll() {
         const query = $("search").value.trim().toLowerCase();
         const filter = $("filter").value;
+        const kind = $("kind").value;
         let shown = 0;
         for (const hat of hats) {
           const cell = cells.get(hat.key);
           const fitted = isFitted(hat.key);
           cell.classList.toggle("fitted", fitted);
           cell.classList.toggle("selected", hat.key === selected);
-          const visible = (!query || hat.name.toLowerCase().includes(query) || hat.key.includes(query)) && (filter === "all" || (filter === "done") === fitted);
+          const visible =
+            (!query || hat.name.toLowerCase().includes(query) || hat.key.includes(query)) && (filter === "all" || (filter === "done") === fitted) && (kind === "all" || hat.kind === kind);
           cell.hidden = !visible;
           if (visible) shown += 1;
         }
@@ -455,7 +503,7 @@
       }
 
       function refreshHat(key) {
-        for (const img of document.querySelectorAll(`img.hat[data-key="${CSS.escape(key)}"]`)) hatStyle(img, key);
+        for (const img of document.querySelectorAll(`img[data-key="${CSS.escape(key)}"]`)) hatStyle(img, key);
         // Update the panel in place: rebuilding it would drop a slider out from under the mouse.
         if (key === selected) updatePanelValues();
         refreshAll();
@@ -527,8 +575,9 @@
         const fields = document.createElement("div");
         fields.className = "fields";
         const steps = { x: 0.005, y: 0.005, scale: 0.01, rotate: 0.5 };
-        // Sliders for size and tilt; the boxes still take any value (and the keys still work).
-        const sliders = { scale: [0.2, 3, 0.01], rotate: [-45, 45, 0.5] };
+        // Sliders for everything (a tall item can need moving well over a picture's height, more than
+        // a drag has room for); the boxes still take any value and the keys still work.
+        const sliders = { x: [-3, 3, 0.005], y: [-3, 3, 0.005], scale: [0.1, 3, 0.01], rotate: [-45, 45, 0.5] };
         for (const field of Object.keys(DEFAULT)) {
           const label = document.createElement("label");
           label.textContent = field;
@@ -594,8 +643,8 @@
       function setFit(key, next, { record = true } = {}) {
         const round = (value, places) => Math.round(value * 10 ** places) / 10 ** places;
         const clean = {
-          x: round(Math.max(-2, Math.min(2, next.x)), 4),
-          y: round(Math.max(-2, Math.min(2, next.y)), 4),
+          x: round(Math.max(-3, Math.min(3, next.x)), 4),
+          y: round(Math.max(-3, Math.min(3, next.y)), 4),
           scale: round(Math.max(0.1, Math.min(5, next.scale)), 4),
           rotate: round(Math.max(-180, Math.min(180, next.rotate)), 1),
         };
@@ -725,6 +774,7 @@
       });
       $("search").addEventListener("input", refreshAll);
       $("filter").addEventListener("change", refreshAll);
+      $("kind").addEventListener("change", refreshAll);
       $("undo").addEventListener("click", undo);
       $("save").addEventListener("click", () => void save());
       $("copy").addEventListener("click", async () => {

@@ -1,8 +1,8 @@
-// The hat fitter: a local page for setting where each hat sits on a player's picture.
+// The hat fitter: a local page for setting where each hat and item sits on a player's picture.
 //
 //   cd app-client && npm run hats      then open http://localhost:4319
 //
-// It lists every hat in the live capsule catalog (a public GET) on a sample picture, lets you nudge
+// It lists every hat and item in the live capsule catalog (a public GET) on a sample picture, lets you nudge
 // each one with the keyboard, and Save writes app/lib/hat-fit.json, which the site reads
 // (app/lib/hat-fit.ts). Commit that file and deploy to ship the fits. Runs on 127.0.0.1 only.
 // HAT_API=http://localhost:5067 reads the catalog from a local API instead; PORT changes the port.
@@ -20,7 +20,7 @@ const PORT = Number(process.env.PORT || 4319);
 const API = (process.env.HAT_API || "https://holo.nasfaq.biz").replace(/\/+$/, "");
 
 const KEY = /^[a-z0-9][a-z0-9_.-]*$/i;
-const LIMITS = { x: [-2, 2], y: [-2, 2], scale: [0.1, 5], rotate: [-180, 180] };
+const LIMITS = { x: [-3, 3], y: [-3, 3], scale: [0.1, 5], rotate: [-180, 180] };
 const DEFAULTS = { x: 0, y: 0, scale: 1, rotate: 0 };
 
 const round = (value, places) => Math.round(value * 10 ** places) / 10 ** places;
@@ -54,15 +54,21 @@ async function readFits() {
   }
 }
 
-/** Every hat in the capsule catalog, as the page wants it. */
+/** Every hat and item in the capsule catalog, as the page wants them: hats first, then items. */
 async function loadHats() {
   const response = await fetch(`${API}/api/games/capsule-gacha/catalog`, { headers: { accept: "application/json" } });
   if (!response.ok) throw new Error(`catalog request failed: HTTP ${response.status}`);
   const { rewards = [] } = await response.json();
   return rewards
-    .filter((item) => (item.cosmetic_type || item.type) === "hat" && item.image_url)
-    .map((item) => ({ key: item.cosmetic_key || item.key, name: item.display_name || item.cosmetic_key, rarity: item.rarity || "common", image: item.image_url }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .filter((item) => ["hat", "item"].includes(item.cosmetic_type || item.type) && item.image_url)
+    .map((item) => ({
+      key: item.cosmetic_key || item.key,
+      kind: item.cosmetic_type || item.type,
+      name: item.display_name || item.cosmetic_key,
+      rarity: item.rarity || "common",
+      image: item.image_url,
+    }))
+    .sort((a, b) => (a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === "hat" ? -1 : 1));
 }
 
 function send(res, status, body, type = "application/json; charset=utf-8") {

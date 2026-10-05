@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-10-05",
+    title: "Hold your item",
+    changes: [
+      {
+        kind: "new",
+        text: "The item you equip from the capsule machine now shows on your picture, held at the lower right in front of your hat, everywhere your picture appears. One hat and one item at a time.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-05",
     title: "Hats that fit",
     changes: [{ kind: "improved", text: "Every hat from the capsule machine now sits where it belongs on your picture: glasses over the eyes, ribbons and pins off to the side, each sized to suit." }],
   },
