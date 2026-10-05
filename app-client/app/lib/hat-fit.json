@@ -25,6 +25,10 @@
   "gacha-ao-necklace": {
     "y": 0.83
   },
+  "gacha-aqua-energy-drink": {
+    "y": 0.1265,
+    "scale": 1.15
+  },
   "gacha-aqua-hat": {
     "x": 0.01,
     "y": 0.25
@@ -60,6 +64,21 @@
   "gacha-biboo-crown": {
     "y": 0.31
   },
+  "gacha-biboo-moai": {
+    "x": -0.2676,
+    "y": -0.1703,
+    "scale": 1.12
+  },
+  "gacha-bloop-pumpkin": {
+    "x": -0.0143,
+    "y": -0.5596,
+    "scale": 0.79
+  },
+  "gacha-botan-bomb": {
+    "x": 0.1314,
+    "y": 0.1265,
+    "scale": 1.37
+  },
   "gacha-botan-dahlia": {
     "x": 0.49,
     "y": -0.24,
@@ -74,6 +93,16 @@
     "x": -0.01,
     "y": 0.22,
     "rotate": 3
+  },
+  "gacha-candy": {
+    "x": -0.5207,
+    "y": 0.3553,
+    "scale": 1.09
+  },
+  "gacha-candy-apple": {
+    "x": -0.3892,
+    "y": 0.0535,
+    "scale": 0.98
   },
   "gacha-cecilia-clockwork-bow": {
     "x": -0.21,
@@ -92,9 +121,34 @@
     "y": 0.19,
     "rotate": -8.5
   },
+  "gacha-chocolate": {
+    "x": 0.0049,
+    "y": 0.0779,
+    "scale": 1.12
+  },
+  "gacha-chocolate-eyeball": {
+    "x": -0.0682,
+    "y": -0.4428,
+    "scale": 0.72
+  },
   "gacha-coco-hat": {
     "y": 0.71,
     "scale": 1.74
+  },
+  "gacha-cookie": {
+    "x": -0.4623,
+    "y": 0.399,
+    "scale": 1.25
+  },
+  "gacha-devil-rosetai": {
+    "x": 0.1411,
+    "y": -0.0292,
+    "scale": 1.23
+  },
+  "gacha-devil-ssrb": {
+    "x": 0.0779,
+    "y": 0.0876,
+    "scale": 1.12
   },
   "gacha-elizabeth-tiara": {
     "y": 0.42
@@ -106,6 +160,11 @@
   "gacha-flare-hat": {
     "x": 0.24,
     "y": 0.27
+  },
+  "gacha-fubuki-burger": {
+    "x": 0.0195,
+    "y": 0.0779,
+    "scale": 1.1
   },
   "gacha-fubuki-daisy": {
     "x": -0.42,
@@ -122,6 +181,31 @@
     "y": -0.62,
     "scale": 0.65
   },
+  "gacha-ghost-haaton": {
+    "x": -0.0632,
+    "y": 0.1558,
+    "scale": 1.22
+  },
+  "gacha-ghost-joshu": {
+    "x": 0.0487,
+    "y": 0.1168,
+    "scale": 1.23
+  },
+  "gacha-ghost-tako": {
+    "x": 0.0633,
+    "y": 0.1168,
+    "scale": 1.27
+  },
+  "gacha-ghost-zain": {
+    "x": 0.1654,
+    "y": 0.1363,
+    "scale": 1.15
+  },
+  "gacha-ghost35-p": {
+    "x": 0.0779,
+    "y": 0.146,
+    "scale": 1.25
+  },
   "gacha-gigi-hoodie": {
     "x": 0.01,
     "y": 0.42,
@@ -131,6 +215,11 @@
     "x": 0.42,
     "y": -0.33,
     "scale": 0.59
+  },
+  "gacha-gura-lost-loaf": {
+    "x": 0.0973,
+    "y": 0.1703,
+    "scale": 1.18
   },
   "gacha-gura-ribbon": {
     "x": -0.29,
@@ -148,9 +237,18 @@
     "y": -0.44,
     "scale": 0.69
   },
+  "gacha-haachama-tarantula": {
+    "x": 0.258,
+    "y": 0.2968,
+    "scale": 1.48
+  },
   "gacha-haato-hat": {
     "x": 0.35,
     "y": 0.26
+  },
+  "gacha-haaton-pumpkin": {
+    "x": 0.0876,
+    "y": -0.0487
   },
   "gacha-hajime-pig-tail": {
     "x": 0.44,
@@ -166,6 +264,11 @@
     "x": 0.4087,
     "y": -0.0487,
     "scale": 0.84
+  },
+  "gacha-i-ry-soda": {
+    "x": 0.0973,
+    "y": -0.0827,
+    "scale": 0.83
   },
   "gacha-ina-buns": {
     "x": 0.0543,
@@ -191,6 +294,11 @@
     "x": -0.3552,
     "y": 0.0098,
     "scale": 0.81
+  },
+  "gacha-jeb": {
+    "x": 0.0049,
+    "y": 0.1751,
+    "scale": 1.1
   },
   "gacha-kaela-hat": {
     "x": 0.039,
@@ -262,6 +370,11 @@
     "y": 0.5061,
     "scale": 1.79
   },
+  "gacha-lamy-booze": {
+    "x": 0.1849,
+    "y": -0.1412,
+    "scale": 0.93
+  },
   "gacha-lamy-cat-ears": {
     "x": 0.039,
     "y": 0.4428,
@@ -276,6 +389,11 @@
     "x": -0.0097,
     "y": 0.6083,
     "scale": 2.29
+  },
+  "gacha-lollipop": {
+    "x": -0.2871,
+    "y": -0.6667,
+    "scale": 0.45
   },
   "gacha-lui-hat": {
     "x": -0.4428,
@@ -312,6 +430,11 @@
     "y": 0.5791,
     "scale": 1.86
   },
+  "gacha-matsuri-bandaids": {
+    "x": -0.1119,
+    "y": 0.1217,
+    "scale": 0.91
+  },
   "gacha-matsuri-hat": {
     "x": 0.4477,
     "y": -0.438,
@@ -342,6 +465,11 @@
     "y": 0.365,
     "scale": 0.55,
     "rotate": -32
+  },
+  "gacha-mio-omamori": {
+    "x": 0.1119,
+    "y": -0.1314,
+    "scale": 1.12
   },
   "gacha-mococo-kimono-flower": {
     "x": 0.3504,
@@ -382,6 +510,11 @@
     "y": -0.2968,
     "scale": 0.65
   },
+  "gacha-nabi-pen": {
+    "x": -0.4088,
+    "y": 0.0682,
+    "scale": 1.15
+  },
   "gacha-neko-hat": {
     "y": -0.219,
     "scale": 0.75
@@ -391,6 +524,11 @@
     "y": -0.0048,
     "scale": 0.86
   },
+  "gacha-nene-coin": {
+    "x": -0.2773,
+    "y": -0.0389,
+    "scale": 1.45
+  },
   "gacha-nene-hat": {
     "y": 0.472,
     "scale": 1.49
@@ -399,6 +537,16 @@
     "x": -0.404,
     "y": -0.4282,
     "scale": 0.77
+  },
+  "gacha-nerissa-umbrella": {
+    "x": -0.5644,
+    "y": 0.0146,
+    "scale": 1.77
+  },
+  "gacha-noel-asmr-mic": {
+    "x": 0.1703,
+    "y": -0.219,
+    "scale": 1.55
   },
   "gacha-noel-hat": {
     "x": 0.1119,
@@ -410,6 +558,16 @@
     "x": 0.0486,
     "y": 0.3212,
     "scale": 1.56
+  },
+  "gacha-okayu-onigiri": {
+    "x": -0.0633,
+    "y": 0.3503,
+    "scale": 1.37
+  },
+  "gacha-ollie-buns": {
+    "x": 0.0194,
+    "y": 0.1655,
+    "scale": 1.31
   },
   "gacha-ollie-hat": {
     "x": 0.3845,
@@ -451,6 +609,23 @@
     "y": 0.5401,
     "scale": 1.61
   },
+  "gacha-ppt-shirt": {
+    "x": -0.2822,
+    "y": 0.3553,
+    "scale": 1.44
+  },
+  "gacha-pumpkin-basket": {
+    "x": -0.0924,
+    "y": -0.0048,
+    "scale": 1.25,
+    "rotate": 23.5
+  },
+  "gacha-pumpkin-nekko": {
+    "x": 0.0633,
+    "y": -0.0146,
+    "scale": 1.17,
+    "rotate": -4.5
+  },
   "gacha-raden-ribbon": {
     "x": 0.2724,
     "y": 0.0243,
@@ -460,6 +635,11 @@
     "x": 0.0048,
     "y": 0.4428,
     "scale": 0.86
+  },
+  "gacha-reine-air-fryer": {
+    "x": 0.0097,
+    "y": 0.2238,
+    "scale": 1.53
   },
   "gacha-reine-hat": {
     "x": 0.4088,
@@ -475,6 +655,11 @@
     "x": 0.0876,
     "y": 0.4672,
     "scale": 1.42
+  },
+  "gacha-risu-nuts": {
+    "x": 0.0827,
+    "y": 0.2287,
+    "scale": 1.34
   },
   "gacha-risu2nd-hat": {
     "x": 0.0146,
@@ -506,6 +691,16 @@
     "x": -0.0389,
     "y": 0.691,
     "scale": 1.47
+  },
+  "gacha-rushia-butterfly": {
+    "x": 0.1168,
+    "y": 0.0973,
+    "scale": 1.28
+  },
+  "gacha-sana-bread-dog": {
+    "x": 0.0827,
+    "y": 0.1558,
+    "scale": 1.41
   },
   "gacha-sana-hat": {
     "x": 0.3698,
@@ -543,10 +738,20 @@
     "y": -0.618,
     "scale": 0.64
   },
+  "gacha-sora-microphone": {
+    "x": -0.4039,
+    "y": 0.107,
+    "scale": 1.15
+  },
   "gacha-subaru-hat": {
     "x": 0.0438,
     "y": 0.3942,
     "scale": 1.39
+  },
+  "gacha-subaru-whistle": {
+    "x": 0.1946,
+    "y": 0.0924,
+    "scale": 0.9
   },
   "gacha-suisei-hat": {
     "x": 0.0681,
@@ -558,6 +763,17 @@
     "y": 0.7056,
     "scale": 1.71
   },
+  "gacha-suisei-ringo-juice": {
+    "x": -0.2044,
+    "y": 0.073,
+    "scale": 0.85
+  },
+  "gacha-takodachi-pumpkin": {
+    "x": -0.0876,
+    "y": 0.073,
+    "scale": 1.19,
+    "rotate": 24
+  },
   "gacha-towa-hat": {
     "x": 0.0292,
     "y": 0.3017,
@@ -568,14 +784,30 @@
     "y": 0.1801,
     "scale": 0.81
   },
+  "gacha-towa-webcam": {
+    "x": -0.5888,
+    "y": 0.141,
+    "scale": 1.09
+  },
   "gacha-ui-hat": {
     "x": -0.0195,
     "y": 0.6423,
     "scale": 1.61
   },
+  "gacha-vampire-yukimin": {
+    "x": 0.2044,
+    "y": 0.1411,
+    "scale": 1.3,
+    "rotate": -9
+  },
   "gacha-void-glasses": {
     "y": 0.764,
     "scale": 1.47
+  },
+  "gacha-watame-chips": {
+    "x": -0.4429,
+    "y": 0.0925,
+    "scale": 1.01
   },
   "gacha-watame-hat": {
     "x": 0.0194,
@@ -587,6 +819,17 @@
     "y": 0.0729,
     "scale": 0.74,
     "rotate": 19
+  },
+  "gacha-watson-concoction": {
+    "x": 0.25,
+    "y": -2.665,
+    "scale": 0.36,
+    "rotate": -140
+  },
+  "gacha-zenloss-miko": {
+    "x": 0.0876,
+    "y": 0.1022,
+    "scale": 1.18
   },
   "gacha-zeta-hat": {
     "x": -0.5401,
@@ -602,5 +845,11 @@
     "x": -0.2676,
     "y": 0.4184,
     "scale": 1.08
+  },
+  "gacha-zombie-matsurisu": {
+    "x": 0.1606,
+    "y": -0.0146,
+    "scale": 1.3,
+    "rotate": -7.5
   }
 }
