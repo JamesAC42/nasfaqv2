@@ -233,6 +233,23 @@
       .fields input {
         width: 100%;
       }
+      .fields .slider {
+        grid-column: 1 / -1;
+        margin: -0.1rem 0 0.25rem;
+        accent-color: var(--blue);
+      }
+
+      /* Hats drag: grab a cell or a size preview. */
+      .cell,
+      .sizes figure {
+        cursor: grab;
+        touch-action: none;
+        user-select: none;
+      }
+      body.dragging,
+      body.dragging * {
+        cursor: grabbing !important;
+      }
       .sizes {
         display: flex;
         flex-wrap: wrap;
@@ -289,7 +306,7 @@
         <span id="status"></span>
       </div>
       <p class="keys">
-        Click a hat, then <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> move (<kbd>Shift</kbd> ×5, <kbd>Alt</kbd> fine) · <kbd>+</kbd><kbd>−</kbd> size · <kbd>[</kbd><kbd>]</kbd> tilt ·
+        Drag a hat to move it (<kbd>Shift</kbd> fine), or click it, then <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> move (<kbd>Shift</kbd> ×5, <kbd>Alt</kbd> fine) · <kbd>+</kbd><kbd>−</kbd> size · <kbd>[</kbd><kbd>]</kbd> tilt ·
         <kbd>0</kbd> reset · <kbd>,</kbd><kbd>.</kbd> previous / next · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>S</kbd> save
       </p>
     </header>
@@ -406,7 +423,8 @@
           name.style.color = RARITY[hat.rarity] || "inherit";
           label.append(dot, name);
           cell.append(avatar(hat, size), label);
-          cell.addEventListener("click", () => select(hat.key));
+          // Press to select; drag to move the hat.
+          cell.addEventListener("pointerdown", (event) => startDrag(event, hat.key, size));
           grid.append(cell);
           cells.set(hat.key, cell);
         }
@@ -438,8 +456,59 @@
 
       function refreshHat(key) {
         for (const img of document.querySelectorAll(`img.hat[data-key="${CSS.escape(key)}"]`)) hatStyle(img, key);
-        if (key === selected) renderPanel();
+        // Update the panel in place: rebuilding it would drop a slider out from under the mouse.
+        if (key === selected) updatePanelValues();
         refreshAll();
+      }
+
+      /** The selected hat's numbers into the panel's boxes and sliders (not the box being typed in). */
+      function updatePanelValues() {
+        if (!selected) return;
+        const fit = fitOf(selected);
+        for (const input of document.querySelectorAll("#panel [data-field]")) {
+          if (input.type === "number" && input === document.activeElement) continue;
+          input.value = fit[input.dataset.field];
+        }
+      }
+
+      /** One undo step for a whole drag or slide: remember the fit as it was when it started. */
+      function remember(key) {
+        history.push({ key, before: fits[key] ? { ...fits[key] } : null });
+      }
+
+      /**
+       * Press on a hat (its cell, or a preview in the panel) and drag to move it. `size` is the picture
+       * it was grabbed on, so a drag converts to the same fractions the fit is kept in. Shift: fine.
+       */
+      function startDrag(event, key, size) {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        if (selected !== key) select(key);
+        const handle = event.currentTarget;
+        handle.setPointerCapture(event.pointerId);
+        const start = { x: event.clientX, y: event.clientY, fit: fitOf(key) };
+        let dragging = false;
+        const move = (moved) => {
+          const dx = moved.clientX - start.x;
+          const dy = moved.clientY - start.y;
+          if (!dragging) {
+            if (Math.hypot(dx, dy) < 3) return;
+            dragging = true;
+            remember(key);
+            document.body.classList.add("dragging");
+          }
+          const k = moved.shiftKey ? 0.25 : 1;
+          setFit(key, { ...start.fit, x: start.fit.x + (dx * k) / size, y: start.fit.y + (dy * k) / size }, { record: false });
+        };
+        const end = () => {
+          handle.removeEventListener("pointermove", move);
+          handle.removeEventListener("pointerup", end);
+          handle.removeEventListener("pointercancel", end);
+          document.body.classList.remove("dragging");
+        };
+        handle.addEventListener("pointermove", move);
+        handle.addEventListener("pointerup", end);
+        handle.addEventListener("pointercancel", end);
       }
 
       function renderPanel() {
@@ -458,6 +527,8 @@
         const fields = document.createElement("div");
         fields.className = "fields";
         const steps = { x: 0.005, y: 0.005, scale: 0.01, rotate: 0.5 };
+        // Sliders for size and tilt; the boxes still take any value (and the keys still work).
+        const sliders = { scale: [0.2, 3, 0.01], rotate: [-45, 45, 0.5] };
         for (const field of Object.keys(DEFAULT)) {
           const label = document.createElement("label");
           label.textContent = field;
@@ -465,6 +536,7 @@
           const input = document.createElement("input");
           input.type = "number";
           input.id = `f-${field}`;
+          input.dataset.field = field;
           input.step = steps[field];
           input.value = fit[field];
           input.addEventListener("change", () => {
@@ -472,6 +544,30 @@
             if (Number.isFinite(value)) setFit(hat.key, { ...fitOf(hat.key), [field]: value });
           });
           fields.append(label, input);
+          if (sliders[field]) {
+            const [min, max, step] = sliders[field];
+            const range = document.createElement("input");
+            range.type = "range";
+            range.className = "slider";
+            range.dataset.field = field;
+            range.min = min;
+            range.max = max;
+            range.step = step;
+            range.value = fit[field];
+            range.setAttribute("aria-label", `${field} slider`);
+            let sliding = false;
+            range.addEventListener("input", () => {
+              if (!sliding) {
+                sliding = true;
+                remember(hat.key);
+              }
+              setFit(hat.key, { ...fitOf(hat.key), [field]: Number(range.value) }, { record: false });
+            });
+            range.addEventListener("change", () => {
+              sliding = false;
+            });
+            fields.append(range);
+          }
         }
         const reset = document.createElement("button");
         reset.type = "button";
@@ -486,6 +582,7 @@
           const caption = document.createElement("figcaption");
           caption.textContent = `${size}px`;
           figure.append(avatar(hat, size), caption);
+          figure.addEventListener("pointerdown", (event) => startDrag(event, hat.key, size));
           sizes.append(figure);
         }
         const note = document.createElement("p");
