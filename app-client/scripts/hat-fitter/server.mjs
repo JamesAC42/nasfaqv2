@@ -20,7 +20,7 @@ const PORT = Number(process.env.PORT || 4319);
 const API = (process.env.HAT_API || "https://holo.nasfaq.biz").replace(/\/+$/, "");
 
 const KEY = /^[a-z0-9][a-z0-9_.-]*$/i;
-const LIMITS = { x: [-2, 2], y: [-2, 2], scale: [0.1, 5], rotate: [-180, 180] };
+const LIMITS = { x: [-3, 3], y: [-3, 3], scale: [0.1, 5], rotate: [-180, 180] };
 const DEFAULTS = { x: 0, y: 0, scale: 1, rotate: 0 };
 
 const round = (value, places) => Math.round(value * 10 ** places) / 10 ** places;

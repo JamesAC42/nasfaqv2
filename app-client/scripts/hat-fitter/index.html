@@ -217,6 +217,17 @@
         pointer-events: none;
       }
       /* ── end of the shared rules ── */
+      /* In the fitter (not on the site) a hat or item can be grabbed by its own image, even where it
+         hangs outside its cell, and the selected one draws over its neighbours. */
+      .cell img.hat,
+      .cell img.item,
+      .sizes img.hat,
+      .sizes img.item {
+        pointer-events: auto;
+      }
+      .cell.selected .avatar {
+        z-index: 3;
+      }
       .kind {
         flex: none;
         padding: 0 0.3rem;
@@ -564,8 +575,9 @@
         const fields = document.createElement("div");
         fields.className = "fields";
         const steps = { x: 0.005, y: 0.005, scale: 0.01, rotate: 0.5 };
-        // Sliders for size and tilt; the boxes still take any value (and the keys still work).
-        const sliders = { scale: [0.2, 3, 0.01], rotate: [-45, 45, 0.5] };
+        // Sliders for everything (a tall item can need moving well over a picture's height, more than
+        // a drag has room for); the boxes still take any value and the keys still work.
+        const sliders = { x: [-3, 3, 0.005], y: [-3, 3, 0.005], scale: [0.1, 3, 0.01], rotate: [-45, 45, 0.5] };
         for (const field of Object.keys(DEFAULT)) {
           const label = document.createElement("label");
           label.textContent = field;
@@ -631,8 +643,8 @@
       function setFit(key, next, { record = true } = {}) {
         const round = (value, places) => Math.round(value * 10 ** places) / 10 ** places;
         const clean = {
-          x: round(Math.max(-2, Math.min(2, next.x)), 4),
-          y: round(Math.max(-2, Math.min(2, next.y)), 4),
+          x: round(Math.max(-3, Math.min(3, next.x)), 4),
+          y: round(Math.max(-3, Math.min(3, next.y)), 4),
           scale: round(Math.max(0.1, Math.min(5, next.scale)), 4),
           rotate: round(Math.max(-180, Math.min(180, next.rotate)), 1),
         };
