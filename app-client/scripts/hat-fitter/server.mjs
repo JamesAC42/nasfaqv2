@@ -13,7 +13,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const FIT_FILE = path.resolve(here, "../../app/lib/hat-fit.json");
+// HAT_FIT_FILE points it at another file (a scratch copy, to try the page without touching the real fits).
+const FIT_FILE = process.env.HAT_FIT_FILE ? path.resolve(process.env.HAT_FIT_FILE) : path.resolve(here, "../../app/lib/hat-fit.json");
 const PAGE = path.join(here, "index.html");
 const PORT = Number(process.env.PORT || 4319);
 const API = (process.env.HAT_API || "https://holo.nasfaq.biz").replace(/\/+$/, "");
