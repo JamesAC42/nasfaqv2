@@ -13,6 +13,7 @@ import {
   normalizeTrades,
   normalizeTreasury,
 } from "@/app/lib/normalizers";
+import { getMarketClock } from "@/app/lib/market-clock";
 import { getMarketWsUrl } from "@/app/lib/ws";
 import { useAuthStore } from "@/app/stores/auth-store";
 import { useProfileStore } from "@/app/stores/profile-store";
@@ -27,10 +28,17 @@ let overviewRefreshTimer: number | null = null;
 let tradingStateRefreshTimer: number | null = null;
 let reconnectAttempt = 0;
 let realtimeDisposed = false;
+/** When this tab last heard a tick land (market.adjustments_applied). */
+let lastTickEventAt = 0;
+let tickWatchdog: number | null = null;
 let lastIndexFetchStartedAt = 0;
 let activeIndexRequest: Promise<void> | null = null;
 
 const INDEX_REFRESH_STALE_MS = 5 * 60_000;
+/** Back after this long in the background: refetch the board, in case pushes were missed meanwhile. */
+const AWAY_REFETCH_MS = 30_000;
+/** A tick this late (plus jitter) that never reached this tab means its socket is dead. */
+const TICK_GRACE_MS = 3 * 60_000;
 
 // Raw websocket payloads, for views that keep their own derived state (the market hub).
 type MarketEventListener = (payload: Record<string, unknown>) => void;
@@ -458,6 +466,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
         }
 
         if (payload.type === "market.adjustments_applied") {
+          lastTickEventAt = Date.now();
           useMomentStore.getState().pushTick(payload);
           const quotes = Array.isArray(payload.quotes)
             ? payload.quotes as Array<Record<string, unknown>>
@@ -559,8 +568,67 @@ export const useMarketStore = create<MarketState>((set, get) => ({
 
     connect();
 
+    // Pushes only reach a tab whose socket is alive. A tab in the background gets throttled or frozen,
+    // and after a sleep or a network change its socket can die without closing, so nothing reconnects
+    // or refetches: the tab sits on whatever it last heard (the new day's opening prices, all at 0%,
+    // if that was the settlement). So catch up when it's looked at again, and when a tick it should
+    // have heard never came.
+    const catchUp = () => {
+      if (realtimeDisposed) return;
+      scheduleOverviewRefresh(get().refreshOverview, { soon: true });
+      if (!wsRef) {
+        if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+        reconnectAttempt = 0;
+        connect();
+      }
+    };
+    let hiddenAt = document.hidden ? Date.now() : null;
+    const onVisibility = () => {
+      if (document.hidden) {
+        hiddenAt = Date.now();
+        return;
+      }
+      const away = hiddenAt === null ? 0 : Date.now() - hiddenAt;
+      hiddenAt = null;
+      if (away >= AWAY_REFETCH_MS) catchUp();
+    };
+    const onPageShow = (event: PageTransitionEvent) => {
+      // Restored from the back/forward cache: everything since it was left is missing.
+      if (event.persisted) catchUp();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("online", catchUp);
+    window.addEventListener("pageshow", onPageShow);
+
+    const armTickWatchdog = () => {
+      const tickAt = Date.now() + getMarketClock(Date.now()).secondsToNextTick * 1000;
+      // Jittered, so if a tick is late for everyone the whole site doesn't refetch in the same second.
+      const checkAt = tickAt + TICK_GRACE_MS + Math.random() * 60_000;
+      tickWatchdog = window.setTimeout(() => {
+        tickWatchdog = null;
+        if (realtimeDisposed) return;
+        if (lastTickEventAt < tickAt) {
+          catchUp();
+          // Recycle the socket too: it opened (or looks open) but isn't delivering.
+          try {
+            wsRef?.close();
+          } catch {}
+        }
+        armTickWatchdog();
+      }, Math.max(1_000, checkAt - Date.now()));
+    };
+    armTickWatchdog();
+
     return () => {
       realtimeDisposed = true;
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("online", catchUp);
+      window.removeEventListener("pageshow", onPageShow);
+      if (tickWatchdog !== null) {
+        window.clearTimeout(tickWatchdog);
+        tickWatchdog = null;
+      }
       if (reconnectTimer !== null) {
         window.clearTimeout(reconnectTimer);
         reconnectTimer = null;

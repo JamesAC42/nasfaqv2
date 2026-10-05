@@ -13,6 +13,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-05",
+    title: "No more stale tabs",
+    changes: [
+      {
+        kind: "fixed",
+        text: "A tab left open in the background could miss a tick and keep showing old prices (every stock at 0% after the morning settlement, say) until you refreshed. Tabs now catch up when you come back to them, when your connection returns, and when a tick they should have heard never arrives.",
+      },
+    ],
+  },
+  {
     date: "2026-10-04",
     title: "/hlgg/",
     changes: [{ kind: "fixed", text: "The Threads page calls the Hololive Global general by its name, /hlgg/, not /hlg/." }],
