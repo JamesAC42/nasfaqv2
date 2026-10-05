@@ -14,6 +14,11 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-10-05",
+    title: "Hats that fit",
+    changes: [{ kind: "improved", text: "Every hat from the capsule machine now sits where it belongs on your picture: glasses over the eyes, ribbons and pins off to the side, each sized to suit." }],
+  },
+  {
+    date: "2026-10-05",
     title: "No more stale tabs",
     changes: [
       {
