@@ -302,3 +302,111 @@
   align-items: center;
   gap: 0.4rem;
 }
+
+// ── Avatars and oshimarks ───────────────────────────────────────────────
+.dim {
+  color: var(--dim);
+  font-size: 0.72rem;
+}
+
+.faceCell {
+  width: 3.4rem;
+
+  > span + span {
+    margin-top: 0.35rem;
+  }
+}
+
+// Her YouTube avatar with her oshimark pinned to the corner.
+.face {
+  position: relative;
+  display: block;
+  width: 2.8rem;
+  height: 2.8rem;
+
+  > img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--ink-3);
+  }
+}
+
+.noAvatar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--ink-3);
+}
+
+.faceMark {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  padding: 2px;
+  border-radius: 50%;
+  background: var(--ink);
+  box-sizing: content-box;
+}
+
+.picker {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+
+  button {
+    display: inline-grid;
+    place-items: center;
+    min-width: 2.1rem;
+    height: 2.1rem;
+    padding: 0 0.3rem;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--dim);
+    cursor: pointer;
+
+    &[aria-checked="true"] {
+      border-color: var(--blue);
+      background: color-mix(in srgb, var(--blue) 12%, transparent);
+    }
+
+    &:hover:not(:disabled) {
+      border-color: var(--mid);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.none {
+  @include label;
+  font-size: 0.55rem;
+}
+
+.linkButton {
+  @include label;
+  display: inline-block;
+  margin-top: 0.3rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--blue);
+  font-size: 0.58rem;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: var(--text);
+  }
+
+  &:disabled {
+    color: var(--dim);
+  }
+}

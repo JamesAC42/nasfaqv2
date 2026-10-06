@@ -21,6 +21,8 @@ const weeklyEvaluation = require("./weeklyEvaluation");
 const { publishMarketEvent } = require("./marketEvents");
 const { invalidateMarketAssetsCache } = require("../marketCache");
 const referenceImages = require("./referenceImages");
+const talentDetect = require("./talentDetect");
+const { PutObjectCommand } = require("@aws-sdk/client-s3");
 
 const DEFAULTS = {
   windowHours: 48,
@@ -90,6 +92,8 @@ const schema = `
     CONSTRAINT ipo_subscriptions_amounts_check CHECK (requested_shares >= 0 AND held_cash >= 0 AND allocated_shares >= 0)
   );
   CREATE INDEX IF NOT EXISTS ipo_subscriptions_user_idx ON market.ipo_subscriptions (user_id);
+  -- The emoji her oshimark is drawn from (from her X name); its Twemoji SVG becomes icons/<icon>.svg.
+  ALTER TABLE yt.youtube_channels ADD COLUMN IF NOT EXISTS oshimark_emoji TEXT NULL;
 `;
 
 function codedError(code, extra = {}) {
@@ -270,7 +274,7 @@ async function loadListings(db, eventIds, { lock = false } = {}) {
     `
     SELECT l.*, a.symbol, a.display_name, a.status AS asset_status, a.youtube_channel_id, a.current_fair_value, a.max_supply,
            a.circulating_supply, c.name_short, c.name_english, c.name_japanese, c.unit, c.icon, c.color, c.twitter_id,
-           c.profile_id, c.birthday, c.youtube_channel_icon_url, c.channel_asset_icon_url, c.is_active
+           c.profile_id, c.birthday, c.youtube_channel_icon_url, c.channel_asset_icon_url, c.is_active, c.oshimark_emoji
     FROM market.ipo_listings l
     JOIN market.market_assets a ON a.id = l.asset_id
     JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
@@ -406,6 +410,8 @@ function talentView(listing, event, { series, totals, mine = null, admin = false
     birthday: listing.birthday ? dateKey(listing.birthday).slice(5) : null,
     youtube_channel_id: listing.youtube_channel_id,
     youtube_channel_icon_url: listing.youtube_channel_icon_url || listing.channel_asset_icon_url || null,
+    oshimark_emoji: listing.oshimark_emoji || null,
+    oshimark_url: listing.oshimark_emoji ? talentDetect.twemojiUrl(listing.oshimark_emoji) : null,
     status: listing.status,
     channel: channelSummary(series),
     series: (series || []).slice(-45),
@@ -487,7 +493,7 @@ async function getAdminOverview(pool, { now = new Date() } = {}) {
   const events = await loadEvents(pool);
   const { rows: unassigned } = await pool.query(
     `
-    SELECT a.id AS asset_id, a.symbol, a.display_name, a.youtube_channel_id, c.unit, c.color, c.is_active
+    SELECT a.id AS asset_id, a.symbol, a.display_name, a.youtube_channel_id, c.unit, c.color, c.is_active, c.oshimark_emoji, c.youtube_channel_icon_url
     FROM market.market_assets a
     JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
     WHERE a.status = 'prelaunch'
@@ -499,7 +505,12 @@ async function getAdminOverview(pool, { now = new Date() } = {}) {
   const { rows: used } = await pool.query(`SELECT symbol FROM market.market_assets UNION SELECT symbol FROM yt.youtube_channels WHERE symbol IS NOT NULL`);
   return {
     events: await buildEvents(pool, events, { admin: true, now }),
-    unassigned: unassigned.map((row) => ({ ...row, asset_id: Number(row.asset_id), channel: channelSummary(series.get(row.youtube_channel_id)) })),
+    unassigned: unassigned.map((row) => ({
+      ...row,
+      asset_id: Number(row.asset_id),
+      oshimark_url: row.oshimark_emoji ? talentDetect.twemojiUrl(row.oshimark_emoji) : null,
+      channel: channelSummary(series.get(row.youtube_channel_id)),
+    })),
     used_symbols: used.map((row) => row.symbol),
     defaults: { ...DEFAULTS, listing_date: suggestedListingDate(now) },
     settlement: { hour: SETTLEMENT_HOUR, minute: SETTLEMENT_MINUTE, time_zone: TIME_ZONE },
@@ -553,7 +564,13 @@ async function upsertTrackedChannel(client, talent) {
   const symbol = String(talent.symbol || "").trim().toUpperCase();
   if (!SYMBOL_PATTERN.test(symbol)) throw codedError("invalid_symbol", { field: symbol || youtubeChannelId });
   const birthday = /^\d{4}-\d{2}-\d{2}$/.test(String(talent.birthday || "")) ? talent.birthday : null;
-  const icon = String(talent.icon || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "") || null;
+  const oshimark = oshimarkEmoji(talent.oshimark_emoji);
+  const avatar = /^https:\/\/yt3\.(googleusercontent|ggpht)\.com\//.test(String(talent.youtube_avatar_url || "")) ? talent.youtube_avatar_url : null;
+  // Her icon name is also her oshimark's file (icons/<icon>.svg), so it can't be another talent's.
+  let icon = String(talent.icon || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "") || symbol.toLowerCase();
+  const { rows: icons } = await client.query(`SELECT icon FROM yt.youtube_channels WHERE icon LIKE $1 || '%' AND youtube_channel_id <> $2`, [icon, youtubeChannelId]);
+  const takenIcons = new Set(icons.map((row) => row.icon));
+  for (let n = 2; takenIcons.has(icon); n += 1) icon = `${icon.replace(/\d+$/, "")}${n}`;
   const { rows: clash } = await client.query(
     `
     SELECT 'asset' AS kind FROM market.market_assets WHERE symbol = $1 AND youtube_channel_id <> $2
@@ -565,13 +582,16 @@ async function upsertTrackedChannel(client, talent) {
   if (clash.length) throw codedError("symbol_taken", { field: symbol });
   const { rows } = await client.query(
     `
-    INSERT INTO yt.youtube_channels (youtube_channel_id, name_short, name_english, name_japanese, symbol, icon, color, twitter_id, profile_id, birthday, height, unit, is_active, updated_at)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,true,now())
+    INSERT INTO yt.youtube_channels (youtube_channel_id, name_short, name_english, name_japanese, symbol, icon, color, twitter_id, profile_id, birthday, height, unit,
+                                     youtube_channel_icon_url, oshimark_emoji, is_active, updated_at)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,true,now())
     ON CONFLICT (youtube_channel_id) DO UPDATE SET
       symbol = EXCLUDED.symbol,
       color = COALESCE(EXCLUDED.color, yt.youtube_channels.color),
       unit = COALESCE(EXCLUDED.unit, yt.youtube_channels.unit),
       icon = COALESCE(yt.youtube_channels.icon, EXCLUDED.icon),
+      youtube_channel_icon_url = COALESCE(EXCLUDED.youtube_channel_icon_url, yt.youtube_channels.youtube_channel_icon_url),
+      oshimark_emoji = COALESCE(EXCLUDED.oshimark_emoji, yt.youtube_channels.oshimark_emoji),
       is_active = true,
       updated_at = now()
     RETURNING *
@@ -589,9 +609,76 @@ async function upsertTrackedChannel(client, talent) {
       birthday,
       String(talent.height || "").trim() || null,
       String(talent.unit || "").trim() || null,
+      avatar,
+      oshimark,
     ]
   );
   return rows[0];
+}
+
+/** A single emoji (what an oshimark is), or null. */
+function oshimarkEmoji(value) {
+  const text = String(value || "").trim();
+  if (!text) return null;
+  const emojis = talentDetect.extractEmojis(text);
+  if (emojis.length !== 1 || emojis[0] !== text) throw codedError("invalid_oshimark", { field: text });
+  return text;
+}
+
+/**
+ * Her oshimark icon: the emoji's Twemoji SVG saved as icons/<icon>.svg, which every page already
+ * shows next to her ticker. Needs S3 credentials (skipped locally); never overwrites another talent's
+ * icon (upsertTrackedChannel keeps icon names unique).
+ */
+async function uploadOshimark(channel) {
+  if (!channel?.oshimark_emoji || !channel.icon) return { uploaded: false, reason: "no_oshimark" };
+  const s3 = referenceImages.getS3Client();
+  if (!s3) return { uploaded: false, reason: "s3_not_configured" };
+  const response = await fetch(talentDetect.twemojiUrl(channel.oshimark_emoji), { signal: AbortSignal.timeout(15_000) });
+  if (!response.ok) return { uploaded: false, reason: `twemoji_${response.status}` };
+  const svg = await response.text();
+  if (!/<svg[\s>]/i.test(svg) || svg.length > 64 * 1024) return { uploaded: false, reason: "not_svg" };
+  await s3.client.send(
+    new PutObjectCommand({
+      Bucket: s3.bucket,
+      Key: `icons/${channel.icon}.svg`,
+      Body: Buffer.from(svg, "utf8"),
+      ContentType: "image/svg+xml",
+      CacheControl: "public, max-age=300",
+    })
+  );
+  return { uploaded: true };
+}
+
+/**
+ * Re-reads a talent's YouTube avatar and X name, and sets her oshimark (`oshimark_emoji`, or keeps
+ * hers, or takes the first emoji in her X name). Uploads the oshimark icon when S3 is configured.
+ */
+async function refreshTalentProfile(pool, listingId, { oshimark_emoji: chosen = null } = {}) {
+  const { rows } = await pool.query(
+    `
+    SELECT c.* FROM market.ipo_listings l
+    JOIN market.market_assets a ON a.id = l.asset_id
+    JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
+    WHERE l.id = $1
+  `,
+    [listingId]
+  );
+  const channel = rows[0];
+  if (!channel) throw codedError("ipo_not_found");
+  const profile = await talentDetect.fetchTalentProfile(channel);
+  const oshimark = oshimarkEmoji(chosen) ?? channel.oshimark_emoji ?? profile.oshimark_candidates[0] ?? null;
+  const { rows: saved } = await pool.query(
+    `
+    UPDATE yt.youtube_channels
+    SET youtube_channel_icon_url = COALESCE($2, youtube_channel_icon_url), oshimark_emoji = $3, updated_at = now()
+    WHERE youtube_channel_id = $1
+    RETURNING *
+  `,
+    [channel.youtube_channel_id, profile.youtube_avatar_url, oshimark]
+  );
+  const icon = await uploadOshimark(saved[0]).catch((error) => ({ uploaded: false, reason: String(error?.message || error) }));
+  return { ...profile, oshimark_emoji: oshimark, oshimark_icon: icon };
 }
 
 /**
@@ -663,7 +750,12 @@ async function createEvent(pool, body, { adminUserId = null, now = new Date() } 
       images.push({ symbol: entry.channel.symbol, uploaded: false, error: String(error?.message || error) });
     }
   }
-  return { event_id: eventId, reference_images: images };
+  const oshimarks = [];
+  for (const entry of saved) {
+    const result = await uploadOshimark(entry.channel).catch((error) => ({ uploaded: false, reason: String(error?.message || error) }));
+    oshimarks.push({ symbol: entry.channel.symbol, ...result });
+  }
+  return { event_id: eventId, reference_images: images, oshimarks };
 }
 
 async function updateEvent(pool, eventId, body) {
@@ -1073,6 +1165,7 @@ module.exports = {
   getAdminOverview,
   createEvent,
   updateEvent,
+  refreshTalentProfile,
   removeListing,
   openWindow,
   cancelEvent,

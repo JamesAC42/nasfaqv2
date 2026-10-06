@@ -71,7 +71,19 @@ test("an IPO from detection to the first trading day", { skip: !databaseUrl, tim
     {
       title: "Test debut",
       listing_date: "2099-01-05",
-      talents: [{ youtube_channel_id: NEW_CHANNEL, name_short: "Mela", name_english: "Achichi Mela", symbol: "MEL", color: "#ff5a36", unit: "ASOBI★MAWARI-TAI!", profile_id: "achichi-mela" }],
+      talents: [
+        {
+          youtube_channel_id: NEW_CHANNEL,
+          name_short: "Mela",
+          name_english: "Achichi Mela",
+          symbol: "MEL",
+          color: "#ff5a36",
+          unit: "ASOBI★MAWARI-TAI!",
+          profile_id: "achichi-mela",
+          oshimark_emoji: "🧯",
+          youtube_avatar_url: "https://yt3.googleusercontent.com/avatar=s240-c-k",
+        },
+      ],
     },
     { now: new Date("2026-10-01T12:00:00Z") }
   );
@@ -80,6 +92,13 @@ test("an IPO from detection to the first trading day", { skip: !databaseUrl, tim
   assert.equal((await asset()).status, "prelaunch");
   const channel = (await pool.query(`SELECT is_active, unit, color FROM yt.youtube_channels WHERE youtube_channel_id = $1`, [NEW_CHANNEL])).rows[0];
   assert.deepEqual(channel, { is_active: true, unit: "ASOBI★MAWARI-TAI!", color: "#ff5a36" });
+  const profile = (await pool.query(`SELECT oshimark_emoji, youtube_channel_icon_url FROM yt.youtube_channels WHERE youtube_channel_id = $1`, [NEW_CHANNEL])).rows[0];
+  assert.deepEqual(profile, { oshimark_emoji: "🧯", youtube_channel_icon_url: "https://yt3.googleusercontent.com/avatar=s240-c-k" });
+  assert.equal(created.oshimarks[0].reason, "s3_not_configured", "the icon upload waits for S3 credentials");
+  await assert.rejects(
+    ipo.createEvent(pool, { title: "Bad", listing_date: "2099-01-07", talents: [{ youtube_channel_id: "UCbadoshimark0000000000a", name_short: "Bad", symbol: "BAD", oshimark_emoji: "🐐💌" }] }, { now: new Date("2026-10-01T12:00:00Z") }),
+    { code: "invalid_oshimark" }
+  );
   await assert.rejects(
     ipo.createEvent(pool, { title: "Again", listing_date: "2099-01-06", asset_ids: [Number((await asset()).id)] }, { now: new Date("2026-10-01T12:00:00Z") }),
     { code: "already_in_ipo" }

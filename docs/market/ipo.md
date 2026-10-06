@@ -181,11 +181,15 @@ the IPO itself.
 
 1. **Detect.** "Check hololive's site" runs the detector (`api/src/services/talentDetect.js`, a Node
    port of the Go scraper, so it runs in the API). It lists talents with no channel here: names,
-   birthday, X, YouTube, reference picture, a suggested ticker (first three letters of her name).
-   Set each one's ticker, colour and unit.
+   birthday, X, YouTube, reference picture, YouTube avatar, a suggested ticker (first three letters of
+   her name) and her **oshimark**: the emoji in her X display name, read through the public fxtwitter
+   API because X needs a login (`TALENT_X_PROFILE_API` to point elsewhere, `off` to skip). Set each
+   one's ticker, colour, unit and oshimark.
 2. **Create the IPO.** Title, listing date, window length and the three percentages. This saves the
    channels as active (the scraper picks them up from the next 00:05 ET run), uploads the reference
-   pictures to `reference-images/` (when S3 is configured), and creates the stocks as `prelaunch`.
+   pictures to `reference-images/` and the oshimark's Twemoji SVG to `icons/<icon>.svg` (when S3 is
+   configured), and creates the stocks as `prelaunch`. "↻ Avatar & oshimark" on a talent re-reads
+   them and lets you pick another emoji.
 3. **Watch the funnel.** Each talent's days tracked, subscribers, views, trends and (admin only) her
    debut-mode fair value, refreshed every 30 seconds.
 4. **Window.** Opens by itself at the set time (`startIpoScheduler`, every minute), fixing each IPO
@@ -219,8 +223,7 @@ with `ipo_cash_hold`, `ipo_cash_release` and `ipo_allocation` ledger entries.
 stats for the talents in an announced or open IPO and prices them.
 
 **Not built yet:** the debut card banner and the featured-rotation fix (with the art), aliases, the
-unit's headline keywords, and oshimark upload from the IPO page (use the
-channel icon upload until then).
+unit's headline keywords.
 
 ## Questions for BBB
 

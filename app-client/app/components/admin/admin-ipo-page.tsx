@@ -18,7 +18,9 @@ import {
   listIpoNow,
   listingDay,
   openIpoWindow,
+  refreshIpoTalent,
   removeIpoTalent,
+  twemojiUrl,
   updateIpo,
   type AdminIpoOverview,
   type DetectedTalent,
@@ -28,13 +30,63 @@ import {
 } from "@/app/lib/ipo";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money } from "@/app/lib/time";
+import { IpoMark } from "@/app/components/market/ipo-mark";
 import { useTheme } from "@/app/providers/theme-provider";
 import styles from "@/app/components/admin/admin-ipo-page.module.scss";
 
 const SYMBOL = /^[A-Z]{2,5}$/;
 const HEX = /^#[0-9a-f]{6}$/i;
 
-type Draft = { selected: boolean; symbol: string; color: string; unit: string };
+type Run = <T>(label: string, action: () => Promise<T>, done: string) => Promise<T | null>;
+
+type Draft = { selected: boolean; symbol: string; color: string; unit: string; oshimark: string | null };
+
+/** Her oshimark: one of the emoji in her X name (or none for now). */
+function OshimarkPicker({
+  candidates,
+  value,
+  onChange,
+  disabled,
+  allowNone = true,
+}: {
+  candidates: string[];
+  value: string | null;
+  onChange: (next: string | null) => void;
+  disabled?: boolean;
+  allowNone?: boolean;
+}) {
+  if (!candidates.length) return <small className={styles.dim}>No emoji in her X name</small>;
+  return (
+    <span className={styles.picker} role="radiogroup" aria-label="Oshimark">
+      {candidates.map((emoji) => (
+        <button key={emoji} type="button" role="radio" aria-checked={value === emoji} onClick={() => onChange(emoji)} disabled={disabled} title={emoji}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={twemojiUrl(emoji)} alt={emoji} width={22} height={22} />
+        </button>
+      ))}
+      {allowNone ? (
+        <button type="button" role="radio" aria-checked={value === null} onClick={() => onChange(null)} disabled={disabled} className={styles.none}>
+          none
+        </button>
+      ) : null}
+    </span>
+  );
+}
+
+/** Her YouTube avatar with her oshimark pinned to it. */
+function TalentFace({ avatar, oshimarkUrl, icon, symbol }: { avatar: string | null; oshimarkUrl: string | null; icon: string | null; symbol: string }) {
+  return (
+    <span className={styles.face}>
+      {avatar ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={avatar} alt="" referrerPolicy="no-referrer" loading="lazy" />
+      ) : (
+        <span className={styles.noAvatar} />
+      )}
+      <IpoMark oshimarkUrl={oshimarkUrl} icon={icon} symbol={symbol} size={18} className={styles.faceMark} />
+    </span>
+  );
+}
 
 function settingsFrom(event: IpoEvent): IpoSettings {
   return {
@@ -101,13 +153,31 @@ function Badge({ symbol, color }: { symbol: string; color: string | null }) {
   );
 }
 
-function FunnelRow({ event, talent, onRemove, busy }: { event: IpoEvent; talent: IpoTalent; onRemove: () => void; busy: boolean }) {
+function FunnelRow({
+  event,
+  talent,
+  onRemove,
+  onProfile,
+  busy,
+}: {
+  event: IpoEvent;
+  talent: IpoTalent;
+  onRemove: () => void;
+  onProfile: (oshimark?: string | null) => Promise<{ oshimark_candidates: string[] } | null>;
+  busy: boolean;
+}) {
   const subs = talent.series.map((day) => day.subscribers ?? NaN);
   const fair = (talent.fair_value_series || []).map((day) => day.fair_value);
   const offered = talent.shares_offered ?? 0;
+  const [candidates, setCandidates] = useState<string[] | null>(null);
+  const refresh = async (oshimark?: string | null) => {
+    const result = await onProfile(oshimark);
+    if (result) setCandidates(result.oshimark_candidates);
+  };
   return (
     <tr data-cancelled={talent.status === "cancelled" || undefined}>
-      <td>
+      <td className={styles.faceCell}>
+        <TalentFace avatar={talent.youtube_channel_icon_url} oshimarkUrl={talent.oshimark_url} icon={talent.icon} symbol={talent.symbol} />
         <Badge symbol={talent.symbol} color={talent.color} />
       </td>
       <td className={styles.nameCell}>
@@ -119,8 +189,15 @@ function FunnelRow({ event, talent, onRemove, busy }: { event: IpoEvent; talent:
           </a>
         </small>
         <small>
-          {talent.is_active ? "Scraping" : "Not scraping"} · stock {talent.asset_status}
+          {talent.is_active ? "Scraping" : "Not scraping"} · stock {talent.asset_status} · oshimark {talent.oshimark_emoji || "not set"}
         </small>
+        {candidates ? (
+          <OshimarkPicker candidates={candidates} value={talent.oshimark_emoji} onChange={(next) => void refresh(next)} disabled={busy} allowNone={false} />
+        ) : (
+          <button type="button" className={styles.linkButton} onClick={() => void refresh()} disabled={busy} title="Re-read her YouTube avatar and X name">
+            ↻ Avatar &amp; oshimark
+          </button>
+        )}
       </td>
       <td className={styles.num}>
         <b>{talent.channel.days_tracked}d</b>
@@ -173,7 +250,7 @@ function FunnelRow({ event, talent, onRemove, busy }: { event: IpoEvent; talent:
   );
 }
 
-function EventCard({ event, now, hour, run, busy }: { event: IpoEvent; now: number; hour: number; run: (label: string, action: () => Promise<unknown>, done: string) => void; busy: boolean }) {
+function EventCard({ event, now, hour, run, busy }: { event: IpoEvent; now: number; hour: number; run: Run; busy: boolean }) {
   const [editing, setEditing] = useState<IpoSettings | null>(null);
   const [confirm, setConfirm] = useState<"list" | "cancel" | null>(null);
   const stage = ipoStage(event, now);
@@ -269,7 +346,20 @@ function EventCard({ event, now, hour, run, busy }: { event: IpoEvent; now: numb
           </thead>
           <tbody>
             {event.talents.map((talent) => (
-              <FunnelRow key={talent.listing_id} event={event} talent={talent} busy={busy} onRemove={() => run("remove", () => removeIpoTalent(event.id, talent.listing_id), `${talent.symbol} taken out of the IPO.`)} />
+              <FunnelRow
+                key={talent.listing_id}
+                event={event}
+                talent={talent}
+                busy={busy}
+                onRemove={() => void run("remove", () => removeIpoTalent(event.id, talent.listing_id), `${talent.symbol} taken out of the IPO.`)}
+                onProfile={(oshimark) =>
+                  run(
+                    "profile",
+                    () => refreshIpoTalent(talent.listing_id, oshimark),
+                    oshimark ? `${talent.symbol}'s oshimark is ${oshimark}.` : `Refreshed ${talent.symbol}'s avatar and oshimark.`,
+                  )
+                }
+              />
             ))}
           </tbody>
         </table>
@@ -291,8 +381,12 @@ function CandidateRow({ talent, draft, onDraft, used }: { talent: DetectedTalent
           <img src={talent.reference_image_url} alt="" loading="lazy" referrerPolicy="no-referrer" />
         ) : null}
       </td>
+      <td className={styles.faceCell}>
+        <TalentFace avatar={talent.youtube_avatar_url} oshimarkUrl={draft.oshimark ? twemojiUrl(draft.oshimark) : null} icon={null} symbol={draft.symbol || "?"} />
+      </td>
       <td className={styles.nameCell}>
         <b>{talent.name_english || talent.name_short}</b>
+        {talent.x_name ? <small>X: {talent.x_name}</small> : null}
         <small>
           {talent.name_japanese ? <span lang="ja">{talent.name_japanese} · </span> : null}
           {talent.birthday ? `born ${talent.birthday.slice(5)} · ` : ""}
@@ -306,6 +400,9 @@ function CandidateRow({ talent, draft, onDraft, used }: { talent: DetectedTalent
             Profile ↗
           </a>
         </small>
+      </td>
+      <td>
+        <OshimarkPicker candidates={talent.oshimark_candidates ?? []} value={draft.oshimark} onChange={(next) => onDraft({ ...draft, oshimark: next })} />
       </td>
       <td>
         <input
@@ -378,17 +475,21 @@ export function AdminIpoPage() {
   const draftSymbols = useMemo(() => Object.values(drafts).filter((draft) => draft.selected).map((draft) => draft.symbol), [drafts]);
   const duplicateSymbol = draftSymbols.find((symbol, index) => draftSymbols.indexOf(symbol) !== index) ?? null;
 
-  const run = useCallback(
-    (label: string, action: () => Promise<unknown>, done: string) => {
+  const run: Run = useCallback(
+    (label, action, done) => {
       setBusy(true);
       setError(null);
       setOk(null);
-      action()
-        .then(() => {
+      return action()
+        .then((result) => {
           setOk(done);
           load();
+          return result;
         })
-        .catch((caught) => setError(ipoErrorText(caught)))
+        .catch((caught) => {
+          setError(ipoErrorText(caught));
+          return null;
+        })
         .finally(() => setBusy(false));
     },
     [load],
@@ -403,7 +504,7 @@ export function AdminIpoPage() {
         setDrafts((current) => {
           const next = { ...current };
           for (const talent of result.talents) {
-            next[talent.youtube_channel_id] ??= { selected: true, symbol: talent.symbol || "", color: "", unit: talent.unit || "" };
+            next[talent.youtube_channel_id] ??= { selected: true, symbol: talent.symbol || "", color: "", unit: talent.unit || "", oshimark: talent.oshimark_candidates?.[0] ?? null };
           }
           return next;
         });
@@ -436,6 +537,8 @@ export function AdminIpoPage() {
         height: talent.height,
         icon: talent.icon,
         reference_image_url: talent.reference_image_url,
+        youtube_avatar_url: talent.youtube_avatar_url,
+        oshimark_emoji: draft.oshimark,
         symbol: draft.symbol,
         color: draft.color,
         unit: draft.unit,
@@ -498,7 +601,9 @@ export function AdminIpoPage() {
                 <tr>
                   <th aria-label="Include" />
                   <th aria-label="Reference picture" />
+                  <th aria-label="Avatar" />
                   <th>Talent</th>
+                  <th>Oshimark</th>
                   <th>Ticker</th>
                   <th>Colour</th>
                   <th>Unit</th>

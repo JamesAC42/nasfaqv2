@@ -4,7 +4,13 @@
 // X handle, birthday, unit and the full-body reference picture.
 //
 //   scrapeTalents({ skipProfileIds })  every talent on the site (minus skipped profiles)
-//   detectNewTalents(pool)             the ones not already saved as a channel, with suggested tickers
+//   detectNewTalents(pool)             the ones not already saved as a channel, with suggested tickers,
+//                                      YouTube avatars and oshimark candidates
+//   fetchTalentProfile(talent)         her YouTube avatar (the channel page's og:image) and the emoji in
+//                                      her X display name: a talent's oshimark is the emoji fans put in
+//                                      their names, and our oshimark icons are those emoji's Twemoji SVGs.
+//                                      X needs a login to read profiles, so the name comes from the public
+//                                      fxtwitter API (TALENT_X_PROFILE_API to change it, "off" to skip).
 
 const cheerio = require("cheerio");
 
@@ -22,6 +28,15 @@ const YOUTUBE_CHANNEL_ID_PATTERNS = [
   /"channelId":"(UC[a-zA-Z0-9_-]+)"/,
   /https:\/\/www\.youtube\.com\/channel\/(UC[a-zA-Z0-9_-]+)/,
 ];
+
+// One emoji (with skin tone, variation selector or ZWJ sequence), or a flag. Plain symbols like ★
+// that only look like emoji are filtered out after matching.
+const EMOJI_PATTERN = /\p{Regional_Indicator}{2}|(?:\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*/gu;
+const EMOJI_LOOK = /\p{Emoji_Presentation}|\uFE0F|\u200D|\p{Regional_Indicator}/u;
+const ZWJ = "\u200D";
+const VARIATION_SELECTOR = /\uFE0F/g;
+const TWEMOJI_BASE = "https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg";
+const X_PROFILE_API = (process.env.TALENT_X_PROFILE_API || "https://api.fxtwitter.com").replace(/\/+$/, "");
 
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
 
@@ -202,6 +217,46 @@ async function scrapeProfile(profileUrl) {
   };
 }
 
+/** The emoji in a piece of text, in order, without repeats. */
+function extractEmojis(text) {
+  const found = String(text || "").match(EMOJI_PATTERN) || [];
+  return [...new Set(found.filter((emoji) => EMOJI_LOOK.test(emoji)))];
+}
+
+/** Twemoji's file for an emoji (the variation selector is dropped unless it's a ZWJ sequence). */
+function twemojiUrl(emoji) {
+  const value = String(emoji || "");
+  if (!value) return null;
+  const chars = value.includes(ZWJ) ? value : value.replace(VARIATION_SELECTOR, "");
+  return `${TWEMOJI_BASE}/${[...chars].map((char) => char.codePointAt(0).toString(16)).join("-")}.svg`;
+}
+
+async function fetchYouTubeAvatar(youtubeChannelId) {
+  const { text } = await fetchText(`https://www.youtube.com/channel/${encodeURIComponent(youtubeChannelId)}`);
+  const match = text.match(/<meta property="og:image" content="([^"]+)"/);
+  return match ? match[1].replace(/=s\d+-/, "=s240-") : null;
+}
+
+async function fetchXName(handle) {
+  if (!handle || X_PROFILE_API.toLowerCase() === "off") return null;
+  const response = await fetch(`${X_PROFILE_API}/${encodeURIComponent(handle)}`, { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+  if (!response.ok) throw new Error(`X profile lookup returned ${response.status}`);
+  const body = await response.json();
+  return typeof body?.user?.name === "string" ? body.user.name : null;
+}
+
+/** Her YouTube avatar and the oshimark candidates from her X name. Each part is best effort. */
+async function fetchTalentProfile({ youtube_channel_id: youtubeChannelId, twitter_id: twitterId }) {
+  const [avatar, xName] = await Promise.allSettled([fetchYouTubeAvatar(youtubeChannelId), fetchXName(twitterId)]);
+  const name = xName.status === "fulfilled" ? xName.value : null;
+  return {
+    youtube_avatar_url: avatar.status === "fulfilled" ? avatar.value : null,
+    x_name: name,
+    oshimark_candidates: extractEmojis(name),
+    errors: [avatar, xName].filter((part) => part.status === "rejected").map((part) => String(part.reason?.message || part.reason)),
+  };
+}
+
 async function mapWithConcurrency(items, concurrency, worker) {
   const results = new Array(items.length);
   let next = 0;
@@ -260,7 +315,18 @@ async function detectNewTalents(pool) {
     talent.symbol = symbol;
     talent.youtube_channel_url = `https://www.youtube.com/channel/${talent.youtube_channel_id}`;
   }
+  await mapWithConcurrency(fresh, CONCURRENCY, async (talent) => Object.assign(talent, await fetchTalentProfile(talent)));
   return { talents: fresh, errors: scraped.errors, profiles_checked: scraped.profiles_checked, checked_at: new Date().toISOString() };
 }
 
-module.exports = { scrapeTalents, detectNewTalents, suggestSymbol, parseBirthday, profileIdFromUrl, _test: { shortName, discoverProfileUrls } };
+module.exports = {
+  scrapeTalents,
+  detectNewTalents,
+  fetchTalentProfile,
+  extractEmojis,
+  twemojiUrl,
+  suggestSymbol,
+  parseBirthday,
+  profileIdFromUrl,
+  _test: { shortName, discoverProfileUrls },
+};

@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 
 const ipo = require("../src/services/ipo");
 const { computeDerivedSnapshot, debutShare } = require("../src/services/fundamentals");
-const { suggestSymbol, parseBirthday, profileIdFromUrl } = require("../src/services/talentDetect");
+const { suggestSymbol, parseBirthday, profileIdFromUrl, extractEmojis, twemojiUrl } = require("../src/services/talentDetect");
 
 const sum = (map) => [...map.values()].reduce((total, value) => total + value, 0);
 
@@ -114,4 +114,14 @@ test("detector helpers: tickers, birthdays, profile links", () => {
   assert.equal(profileIdFromUrl("https://hololive.hololivepro.com/en/talents/achichi-mela/"), "achichi-mela");
   assert.equal(profileIdFromUrl("https://hololive.hololivepro.com/talents/achichi-mela/"), "achichi-mela");
   assert.equal(profileIdFromUrl("https://hololive.hololivepro.com/en/news/"), "");
+});
+
+test("oshimarks: the emoji in an X name, and their Twemoji files", () => {
+  assert.deepEqual(extractEmojis("熱千めら🧯アソビ★まわり隊！"), ["🧯"]);
+  assert.deepEqual(extractEmojis("鈴鳴つづり🐐💌アソビ★まわり隊！"), ["🐐", "💌"]);
+  assert.deepEqual(extractEmojis("百灯キョーコ👮📢👮"), ["👮", "📢"], "no repeats");
+  assert.deepEqual(extractEmojis("plain ★ ☆ ™ text"), [], "symbols that aren't emoji are skipped");
+  assert.equal(twemojiUrl("🧯").split("/").pop(), "1f9ef.svg");
+  assert.equal(twemojiUrl("❤️").split("/").pop(), "2764.svg", "variation selector dropped");
+  assert.equal(twemojiUrl("👯‍♀️").split("/").pop(), "1f46f-200d-2640-fe0f.svg", "kept inside a ZWJ sequence");
 });

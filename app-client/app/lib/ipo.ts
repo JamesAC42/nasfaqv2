@@ -39,6 +39,9 @@ export type IpoTalent = {
   birthday: string | null;
   youtube_channel_id: string;
   youtube_channel_icon_url: string | null;
+  /** Her oshimark emoji (from her X name) and its Twemoji SVG. */
+  oshimark_emoji: string | null;
+  oshimark_url: string | null;
   status: "pending" | "listed" | "cancelled";
   channel: ChannelSummary;
   series: ChannelDay[];
@@ -107,6 +110,10 @@ export type DetectedTalent = {
   profile_url: string;
   symbol: string | null;
   youtube_channel_url: string;
+  youtube_avatar_url: string | null;
+  /** Her X display name and the emoji in it: the oshimark is one of these. */
+  x_name: string | null;
+  oshimark_candidates: string[];
 };
 
 export type UnassignedTalent = {
@@ -117,6 +124,8 @@ export type UnassignedTalent = {
   unit: string | null;
   color: string | null;
   is_active: boolean;
+  oshimark_url: string | null;
+  youtube_channel_icon_url: string | null;
   channel: ChannelSummary;
 };
 
@@ -129,10 +138,14 @@ export type AdminIpoOverview = {
   server_time: string;
 };
 
-export type NewIpoTalent = Pick<DetectedTalent, "youtube_channel_id" | "name_short" | "name_english" | "name_japanese" | "twitter_id" | "profile_id" | "birthday" | "height" | "icon" | "reference_image_url"> & {
+export type NewIpoTalent = Pick<
+  DetectedTalent,
+  "youtube_channel_id" | "name_short" | "name_english" | "name_japanese" | "twitter_id" | "profile_id" | "birthday" | "height" | "icon" | "reference_image_url" | "youtube_avatar_url"
+> & {
   symbol: string;
   color: string;
   unit: string;
+  oshimark_emoji: string | null;
 };
 
 export type IpoSettings = {
@@ -164,9 +177,22 @@ export const listIpoNow = (id: number) =>
 
 export const cancelIpo = (id: number) => apiFetch<{ refunded: number }>(`/api/admin/ipo/events/${id}/cancel`, { method: "POST" });
 
+/** Re-reads her YouTube avatar and X name and sets her oshimark (the given emoji, or keeps hers). */
+export const refreshIpoTalent = (listingId: number, oshimark_emoji?: string | null) =>
+  apiFetch<{ youtube_avatar_url: string | null; x_name: string | null; oshimark_candidates: string[]; oshimark_emoji: string | null; oshimark_icon: { uploaded: boolean; reason?: string }; errors: string[] }>(
+    `/api/admin/ipo/listings/${listingId}/profile`,
+    { method: "POST", body: JSON.stringify({ oshimark_emoji: oshimark_emoji ?? null }) },
+  );
+
 export const removeIpoTalent = (id: number, listingId: number) => apiFetch<{ ok: true }>(`/api/admin/ipo/events/${id}/listings/${listingId}`, { method: "DELETE" });
 
 // ── Shared helpers ───────────────────────────────────────────────────────
+
+/** Twemoji's SVG for an emoji (same as the API's twemojiUrl). */
+export function twemojiUrl(emoji: string) {
+  const chars = emoji.includes("\u200D") ? emoji : emoji.replace(/\uFE0F/g, "");
+  return `https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/${[...chars].map((char) => char.codePointAt(0)!.toString(16)).join("-")}.svg`;
+}
 
 /** The window for a listing date, matching the API: closes at that day's 09:00 New York settlement. */
 export function ipoWindow(listingDate: string, hours: number, settlementHour = 9) {
@@ -231,6 +257,7 @@ const IPO_ERRORS: Record<string, string> = {
   symbol_taken: "That ticker is taken.",
   invalid_symbol: "Tickers are 2–5 letters.",
   invalid_color: "Colours are #rrggbb.",
+  invalid_oshimark: "An oshimark is a single emoji.",
   listing_date_past: "The listing date has to be after today.",
   invalid_listing_date: "That listing date isn't valid.",
   invalid_title: "Give the IPO a title.",

@@ -8,6 +8,7 @@
 //   POST   /events/:id/open        open the window now (it also opens on its own when due)
 //   POST   /events/:id/list        list now: fill subscriptions and make the stocks tradable
 //   POST   /events/:id/cancel      call it off; subscriptions are refunded
+//   POST   /listings/:listingId/profile   re-read her YouTube avatar and X name; set her oshimark
 
 const express = require("express");
 const ipo = require("../services/ipo");
@@ -24,6 +25,7 @@ const ERROR_STATUS = {
   invalid_listing_date: 400,
   invalid_setting: 400,
   invalid_color: 400,
+  invalid_oshimark: 400,
   invalid_symbol: 400,
   invalid_name: 400,
   invalid_youtube_channel_id: 400,
@@ -128,6 +130,15 @@ router.post(
   "/events/:id/cancel",
   handle(async (req, res) => {
     res.json(await ipo.cancelEvent(req.ctx.pool, eventId(req), { redis: req.ctx.redis }));
+  })
+);
+
+router.post(
+  "/listings/:listingId/profile",
+  handle(async (req, res) => {
+    const listingId = Number(req.params.listingId);
+    if (!Number.isInteger(listingId) || listingId <= 0) return res.status(404).json({ error: "ipo_not_found" });
+    res.json(await ipo.refreshTalentProfile(req.ctx.pool, listingId, { oshimark_emoji: req.body?.oshimark_emoji ?? null }));
   })
 );
 
