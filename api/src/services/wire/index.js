@@ -4,7 +4,7 @@
 // here can invent a claim about a real person.
 //
 // Sources: stream events judged from titles (streams.js; Jev when configured), subscriber
-// milestones, viewer records, the day's top superchat stream, market movers, big card-exchange
+// milestones, viewer records, the day's top superchat stream, market movers, IPOs, big card-exchange
 // sales, UR pulls and resolved prediction markets. A scheduler runs every 10 minutes; items are
 // keyed (dedupe_key) so each fact is posted once. Stream items refresh their live/upcoming state.
 
@@ -462,7 +462,74 @@ async function marketSupplyNews(pool) {
   return { items: added };
 }
 
-const GENERATORS = { streamEvents, subscriberMilestones, viewerRecords, superchatLeader, marketMovers, marketSupplyNews, gameMoments, chatterSpikes, autotagArticles, newsReactions };
+// ── IPOs (services/ipo.js): announced, window open, listed ────────────────────
+function listNames(names) {
+  return names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+async function ipoNews(pool) {
+  const { rows } = await pool.query(`
+    SELECT e.id, e.title, e.status, e.listing_date::text AS listing_date, e.window_opens_at, e.created_at, e.opened_at, e.listed_at,
+           COALESCE(json_agg(json_build_object('symbol', a.symbol, 'name', COALESCE(c.name_english, c.name_short), 'price', l.ipo_price,
+             'allocated', l.shares_allocated) ORDER BY a.symbol) FILTER (WHERE a.id IS NOT NULL), '[]') AS talents
+    FROM market.ipo_events e
+    LEFT JOIN market.ipo_listings l ON l.event_id = e.id AND l.status <> 'cancelled'
+    LEFT JOIN market.market_assets a ON a.id = l.asset_id
+    LEFT JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
+    WHERE e.status <> 'cancelled' AND GREATEST(e.created_at, COALESCE(e.opened_at, e.created_at), COALESCE(e.listed_at, e.created_at)) > now() - interval '8 days'
+    GROUP BY e.id
+  `);
+  const date = (key) => new Date(`${key}T12:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
+  let added = 0;
+  for (const row of rows) {
+    const talents = row.talents || [];
+    if (!talents.length) continue;
+    const symbols = talents.map((talent) => talent.symbol);
+    const names = listNames(talents.map((talent) => talent.name));
+    const coming = talents.length === 1 ? `${names} is coming to market` : `${talents.length} new talents are coming to market`;
+    added += await upsert(pool, {
+      kind: "ipo",
+      dedupe_key: `ipo:${row.id}:announced`,
+      headline: `IPO: ${coming}`,
+      blurb: `${row.title}: ${talents.length === 1 ? "" : `${names}. `}Subscriptions open ${new Date(row.window_opens_at).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "America/New_York" })}; trading starts ${date(row.listing_date)}.`,
+      symbols,
+      link_url: "/market/ipo",
+      importance: 4,
+      occurred_at: row.created_at,
+      meta: { ipo_id: Number(row.id), stage: "announced" },
+    });
+    if (row.opened_at) {
+      added += await upsert(pool, {
+        kind: "ipo",
+        dedupe_key: `ipo:${row.id}:open`,
+        headline: `IPO window open: ${symbols.join(", ")}`,
+        blurb: `Subscribe at ${talents.map((talent) => `${talent.symbol} ${money(talent.price)}`).join(", ")} until ${date(row.listing_date)}'s settlement. Oversubscribed IPOs are shared out pro rata.`,
+        symbols,
+        link_url: "/market/ipo",
+        importance: 4,
+        occurred_at: row.opened_at,
+        meta: { ipo_id: Number(row.id), stage: "open" },
+      });
+    }
+    if (row.listed_at) {
+      const allocated = talents.reduce((sum, talent) => sum + Number(talent.allocated || 0), 0);
+      added += await upsert(pool, {
+        kind: "ipo",
+        dedupe_key: `ipo:${row.id}:listed`,
+        headline: talents.length === 1 ? `${names} starts trading today` : `${symbols.join(", ")} start trading today`,
+        blurb: `${allocated.toLocaleString("en-US")} shares went out at the IPO. ${talents.map((talent) => `${talent.symbol} opened at ${money(talent.price)}`).join(", ")}.`,
+        symbols,
+        link_url: talents.length === 1 ? `/stocks/${symbols[0]}` : "/market/ipo",
+        importance: 5,
+        occurred_at: row.listed_at,
+        meta: { ipo_id: Number(row.id), stage: "listed" },
+      });
+    }
+  }
+  return { items: added };
+}
+
+const GENERATORS = { streamEvents, subscriberMilestones, viewerRecords, superchatLeader, marketMovers, marketSupplyNews, ipoNews, gameMoments, chatterSpikes, autotagArticles, newsReactions };
 
 async function runWire(pool, logger = console) {
   const summary = {};
@@ -481,7 +548,7 @@ async function runWire(pool, logger = console) {
 const WIRE_GROUPS = {
   streams: "kind LIKE 'stream\\_%'",
   records: "kind IN ('subscriber_milestone', 'viewer_record', 'superchat_leader')",
-  market: "kind IN ('market_mover', 'dividend_review', 'buyback', 'sold_out')",
+  market: "kind IN ('market_mover', 'dividend_review', 'buyback', 'sold_out', 'ipo')",
   games: "kind IN ('exchange_sale', 'ur_pull', 'prediction_resolved')",
   vt: "kind = 'chatter_spike'",
 };

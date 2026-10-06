@@ -19,6 +19,7 @@ export const WIRE_TAGS: Record<string, string> = {
   dividend_review: "Divs",
   buyback: "Buyback",
   sold_out: "Sold out",
+  ipo: "IPO",
   exchange_sale: "Exchange",
   ur_pull: "Pull",
   prediction_resolved: "Called",
@@ -31,7 +32,7 @@ export const LIFTS_FAIR_VALUE = new Set(["stream_three_d", "stream_new_outfit", 
 /** The color family of a Wire kind: streams, market, games, or records (everything else). */
 export function wireTone(kind: string) {
   if (kind.startsWith("stream_")) return "stream";
-  if (kind === "market_mover" || kind === "dividend_review" || kind === "buyback" || kind === "sold_out") return "market";
+  if (kind === "market_mover" || kind === "dividend_review" || kind === "buyback" || kind === "sold_out" || kind === "ipo") return "market";
   if (kind === "exchange_sale" || kind === "ur_pull" || kind === "prediction_resolved") return "games";
   return "record";
 }

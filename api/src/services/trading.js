@@ -556,7 +556,8 @@ async function executeOrder(pool, {
       error.code = "asset_not_found";
       throw error;
     }
-    if (asset.status !== "active") {
+    // A stock with no fair value yet would otherwise trade at the $0.000001 price floor.
+    if (asset.status !== "active" || !(toNumber(asset.current_fair_value, 0) > 0)) {
       const error = new Error("asset_not_active");
       error.code = "asset_not_active";
       throw error;
@@ -1070,7 +1071,8 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
       error.code = "asset_not_found";
       throw error;
     }
-    if (asset.status !== "active") {
+    // A stock with no fair value yet would otherwise trade at the $0.000001 price floor.
+    if (asset.status !== "active" || !(toNumber(asset.current_fair_value, 0) > 0)) {
       const error = new Error("asset_not_active");
       error.code = "asset_not_active";
       throw error;

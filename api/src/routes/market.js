@@ -16,6 +16,7 @@ const {
 const trading = require("../services/trading");
 const marketAdjustments = require("../services/marketAdjustments");
 const weeklyEvaluation = require("../services/weeklyEvaluation");
+const ipo = require("../services/ipo");
 const reportSession = require("../services/reportSession");
 const { scrubPublicMarketPayload, publicDailyReport, revealedTargets } = require("../services/marketSecrecy");
 const marketState = require("../services/marketState");
@@ -123,6 +124,53 @@ router.get("/assets", async (req, res, next) => {
 });
 
 // ── The weekly evaluation (dividends, fees, max shares, buybacks) ─────────
+// IPOs (services/ipo.js): what's coming to market, and subscribing with Cash while a window is open.
+const IPO_ERRORS = {
+  unauthenticated: 401,
+  email_verification_required: 403,
+  invalid_quantity: 400,
+  ipo_not_found: 404,
+  subscription_not_found: 404,
+  ipo_window_closed: 409,
+  insufficient_cash: 409,
+  over_player_cap: 409,
+};
+function sendIpoError(res, e) {
+  const status = IPO_ERRORS[e?.code];
+  if (!status) return false;
+  res.status(status).json({ error: e.code, ...(e.limit ? { limit: e.limit } : {}) });
+  return true;
+}
+
+router.get("/ipo", async (req, res, next) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    res.json(await ipo.getPublicIpos(req.ctx.pool, { userId: req.ctx.user?.id || null }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/ipo/subscribe", rateLimit(byUser("ipo-subscribe", 30, 60)), async (req, res, next) => {
+  try {
+    const userId = requireVerifiedUserId(req);
+    res.json(await ipo.subscribe(req.ctx.pool, { userId, symbol: normalizeSymbol(req.body?.symbol), shares: req.body?.shares }));
+  } catch (e) {
+    if (sendIpoError(res, e)) return;
+    next(e);
+  }
+});
+
+router.post("/ipo/cancel", rateLimit(byUser("ipo-subscribe", 30, 60)), async (req, res, next) => {
+  try {
+    const userId = requireVerifiedUserId(req);
+    res.json(await ipo.cancelSubscription(req.ctx.pool, { userId, symbol: normalizeSymbol(req.body?.symbol) }));
+  } catch (e) {
+    if (sendIpoError(res, e)) return;
+    next(e);
+  }
+});
+
 router.get("/evaluations", async (req, res, next) => {
   try {
     res.json({ items: await weeklyEvaluation.listEvaluations(req.ctx.pool, { limit: req.query.limit }) });

@@ -56,7 +56,7 @@ async function listTalents(db) {
     FROM market.market_assets a
     JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
     LEFT JOIN latest_daily ld ON ld.asset_id = a.id
-    WHERE a.status <> 'delisted'
+    WHERE a.status IN ('active', 'halted') -- a talent's cards join the pool when she lists
     ORDER BY a.symbol ASC
   `);
   return rows.map((row) => {

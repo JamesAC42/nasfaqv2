@@ -192,12 +192,14 @@ async function listAssetsForSettlement(client, sourceMarketDate) {
       s.video_count,
       s.fundamental_value_raw,
       s.fundamental_value_smoothed,
-      s.event_kinds
+      s.event_kinds,
+      l.ipo_price AS listing_price
     FROM market.market_assets a
     LEFT JOIN market.channel_daily_snapshots s
       ON s.youtube_channel_id = a.youtube_channel_id
      AND s.snapshot_date = $1
      AND s.calculation_status = 'complete'
+    LEFT JOIN market.ipo_listings l ON l.asset_id = a.id AND l.status = 'listed'
     WHERE a.status = 'active'
     ORDER BY a.symbol ASC
   `,
@@ -281,9 +283,11 @@ function buildSettledAssetState(assetRow, previousState) {
     throw error;
   }
 
-  // A first day (a new listing, or the start of a historical rebuild) opens at that day's fair value.
-  // The asset's current price/fair value can't be used: a rebuild has already set them to today's.
-  const priorMidPrice = previousState?.mid_close ?? fairValue;
+  // A first day opens at the IPO price for a talent listed by an IPO (the ticks then pull it toward
+  // fair value), otherwise at that day's fair value (the start of a historical rebuild). The asset's
+  // current price/fair value can't be used: a rebuild has already set them to today's.
+  const listingPrice = toNumber(assetRow.listing_price, 0);
+  const priorMidPrice = previousState?.mid_close ?? (listingPrice > 0 ? listingPrice : fairValue);
   const previousOffsets = derivePreviousOffsets(previousState);
   const opening = computeOpeningState({
     previousPersistentOffset: previousOffsets.persistentOffset,

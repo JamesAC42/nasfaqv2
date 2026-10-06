@@ -106,7 +106,9 @@ function pickUniqueSymbol(preferred, usedSymbols) {
   throw new Error(`unable_to_allocate_symbol_for_${base}`);
 }
 
-async function bootstrapAssetsWithClient(client, { activeOnly = true, syncExisting = true } = {}) {
+// A newly tracked talent starts as 'prelaunch' (visible, not tradable, outside settlement) until an
+// IPO lists her (docs/market/ipo.md). A full rebuild recreates the existing market, so it lists them.
+async function bootstrapAssetsWithClient(client, { activeOnly = true, syncExisting = true, newAssetStatus = "prelaunch" } = {}) {
   const channels = await loadBootstrapChannels(client, { activeOnly });
   const usedSymbols = await loadUsedSymbols(client);
   const created = [];
@@ -136,7 +138,7 @@ async function bootstrapAssetsWithClient(client, { activeOnly = true, syncExisti
           liquidity_depth,
           spread_bps,
           updated_at
-        ) VALUES ($1,$2,$3,'active',$4,$5,$6,$7,$8,$9,now())
+        ) VALUES ($1,$2,$3,$10,$4,$5,$6,$7,$8,$9,now())
         RETURNING id, youtube_channel_id, symbol, display_name
       `,
         [
@@ -149,6 +151,7 @@ async function bootstrapAssetsWithClient(client, { activeOnly = true, syncExisti
           DEFAULT_BASE_EMISSION,
           liquidityDepth,
           DEFAULT_SPREAD_BPS,
+          newAssetStatus === "active" ? "active" : "prelaunch",
         ]
       );
 
@@ -196,12 +199,12 @@ async function bootstrapAssetsWithClient(client, { activeOnly = true, syncExisti
   };
 }
 
-async function bootstrapAssets(pool, { activeOnly = true, syncExisting = true } = {}) {
+async function bootstrapAssets(pool, { activeOnly = true, syncExisting = true, newAssetStatus = "prelaunch" } = {}) {
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
-    const result = await bootstrapAssetsWithClient(client, { activeOnly, syncExisting });
+    const result = await bootstrapAssetsWithClient(client, { activeOnly, syncExisting, newAssetStatus });
     await client.query("COMMIT");
     return result;
   } catch (error) {

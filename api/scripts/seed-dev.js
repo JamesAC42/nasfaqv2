@@ -13,6 +13,9 @@
 //                                               every talent card at every rarity (so every gallery banner,
 //                                               card and reaction is unlocked), 5,000 shards, email verified.
 //                                               Run `prizes` (or seed-gacha-prizes.js db) first for the prize list.
+//   node scripts/seed-dev.js ipo-stats [days]  made-up daily channel stats (default 14 days, ending today) for
+//                                              talents in an IPO, then their (debut-mode) fair values, so the
+//                                              IPO pages have a data funnel to show. Local stand-in for the scraper.
 //
 // Refuses to run unless DATABASE_URL points at localhost, so it can never touch production.
 // Channel ids are made up, so YouTube stats and livestreams stay empty; real data needs a prod dump.
@@ -341,6 +344,53 @@ async function unlockAll(pool, username) {
   );
 }
 
+// The scraper only runs in production, so locally an IPO's talents have no stats. This writes a
+// plausible debut curve (subscribers climbing fast then settling, a few uploads) for each talent in an
+// announced or open IPO, from `days` ago to today, and recomputes their fundamentals.
+async function seedIpoStats(pool, daysArg) {
+  const days = Math.max(2, Math.min(60, Number(daysArg) || 14));
+  const { rows: talents } = await pool.query(`
+    SELECT a.symbol, a.youtube_channel_id
+    FROM market.ipo_listings l
+    JOIN market.ipo_events e ON e.id = l.event_id
+    JOIN market.market_assets a ON a.id = l.asset_id
+    WHERE l.status = 'pending' AND e.status IN ('announced', 'open')
+    ORDER BY a.symbol
+  `);
+  if (!talents.length) throw new Error("no talents in an announced or open IPO: create one at /admin/ipo first");
+  const tz = process.env.MARKET_DATA_TIMEZONE || "America/New_York";
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: tz });
+  const dayKey = (offset) => {
+    const date = new Date(`${today}T12:00:00Z`);
+    date.setUTCDate(date.getUTCDate() - offset);
+    return date.toISOString().slice(0, 10);
+  };
+  const fundamentals = require("../src/services/fundamentals");
+  for (const [index, talent] of talents.entries()) {
+    // Deterministic per talent, so re-running gives the same curve.
+    const seed = [...talent.symbol].reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+    const startSubs = 180_000 + (seed % 9) * 15_000 + index * 7_000;
+    const startViews = 2_500_000 + (seed % 7) * 400_000;
+    let subs = startSubs;
+    let views = startViews;
+    let videos = 8 + (seed % 5);
+    await pool.query(`DELETE FROM yt.youtube_channel_daily_stats WHERE youtube_channel_id = $1 AND time >= $2::date`, [talent.youtube_channel_id, dayKey(days - 1)]);
+    for (let i = days - 1; i >= 0; i -= 1) {
+      const age = days - 1 - i;
+      subs += Math.round((5_500 + (seed % 4) * 900) * Math.exp(-age / 6) + 600);
+      views += Math.round((420_000 + (seed % 6) * 30_000) * Math.exp(-age / 8) + 90_000);
+      if ((age + seed) % 3 === 0) videos += 1;
+      await pool.query(
+        `INSERT INTO yt.youtube_channel_daily_stats (time, youtube_channel_id, subscriber_count, view_count, video_count, hidden_subscriber_count) VALUES ($1, $2, $3, $4, $5, false)`,
+        [`${dayKey(i)}T04:05:00Z`, talent.youtube_channel_id, subs, views, videos]
+      );
+    }
+    await fundamentals.recalculateFundamentals(pool, { from: dayKey(days - 1), to: today, channelId: talent.youtube_channel_id, activeOnly: true, fillMissingDates: true });
+    const { rows } = await pool.query(`SELECT current_fair_value FROM market.market_assets WHERE symbol = $1`, [talent.symbol]);
+    console.log(`${talent.symbol}: ${days} days of stats, ${subs.toLocaleString("en-US")} subscribers, fair value ${rows[0]?.current_fair_value ? `$${Number(rows[0].current_fair_value).toFixed(2)}` : "none"}`);
+  }
+}
+
 async function makeAdmin(pool, username) {
   const user = await findUser(pool, username);
   await pool.query(`UPDATE market.users SET is_admin = true, email_verified = true, email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1`, [user.id]);
@@ -362,6 +412,7 @@ async function main() {
     else if (command === "verify") await verify(pool, args[0]);
     else if (command === "cash") await setCash(pool, args[0], args[1]);
     else if (command === "admin") await makeAdmin(pool, args[0]);
+    else if (command === "ipo-stats") await seedIpoStats(pool, args[0]);
     else if (command === "unlock-all") await unlockAll(pool, args[0]);
     else if (command === "predictions") await require("./seed-predictions").seedPredictions(pool, args[0] || null);
     else if (command === "predictions-live") {

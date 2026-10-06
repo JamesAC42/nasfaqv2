@@ -1752,6 +1752,7 @@ async function applySchema(pool) {
   await pool.query(require("./services/siteState").schema);
   await pool.query(require("./services/bugReports").schema);
   await pool.query(require("./services/marketSecrecy").schema);
+  await pool.query(require("./services/ipo").schema);
   await pool.query(require("./services/auth").passwordResetSchema);
   await applyGamesSchema(pool);
   await applyPredictionsSchema(pool);
