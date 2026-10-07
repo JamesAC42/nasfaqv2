@@ -1300,6 +1300,8 @@ async function listAssetRankingCore(pool) {
       ON ld.asset_id = a.id
     LEFT JOIN latest_stats ls
       ON ls.youtube_channel_id = a.youtube_channel_id
+    -- Talents coming to market (an IPO) aren't ranked until they list.
+    WHERE a.status <> 'prelaunch'
     ORDER BY a.symbol ASC
   `
   );
