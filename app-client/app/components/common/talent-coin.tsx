@@ -5,9 +5,13 @@ import { Oshimark } from "@/app/components/common/oshimark";
 import styles from "@/app/components/common/talent-coin.module.scss";
 
 /**
- * A talent's stock as a coin: a 3D disc in her color with her oshimark struck on the face and the
+ * A talent's stock as a coin: a disc in her color with her oshimark struck on the face and the
  * ticker on the back. It idles with a slow wobble and a light sweep; bump `spin` (any new number)
  * and it flips end over end for about a second, like a coin tossed on the counter (a placed order).
+ *
+ * Drawn in 2D (the turn is a horizontal squeeze with the rim showing at the side), not with CSS 3D:
+ * Firefox drew the 3D version as a long smear while it sat in the sticky order ticket and the page
+ * scrolled.
  */
 export function TalentCoin({
   icon,
@@ -36,14 +40,11 @@ export function TalentCoin({
     return () => window.clearTimeout(stop);
   }, [spin]);
 
-  const edge = Array.from({ length: 6 }, (_, index) => index);
   return (
     <span className={styles.coin} style={{ "--tal": accent, "--size": `${size}px` } as React.CSSProperties} aria-hidden="true">
       <span ref={tossRef} className={styles.toss}>
         <span className={styles.body}>
-          {edge.map((index) => (
-            <span key={index} className={styles.edge} style={{ "--z": `${index - 2.5}px` } as React.CSSProperties} />
-          ))}
+          <span className={styles.edge} />
           <span className={`${styles.face} ${styles.front}`}>
             <span className={styles.stamp}>
               <Oshimark icon={icon} symbol={symbol} size={Math.round(size * 0.52)} />
