@@ -13,6 +13,11 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-07",
+    title: "Coin fix",
+    changes: [{ kind: "fixed", text: "On Firefox, the spinning coin on a stock's order ticket could smear into a long streak while you scrolled. It stays a coin now." }],
+  },
+  {
     date: "2026-10-05",
     title: "Hold your item",
     changes: [
