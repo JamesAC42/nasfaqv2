@@ -13,6 +13,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-08",
+    title: "The stocks page remembers",
+    changes: [
+      {
+        kind: "improved",
+        text: "The stocks page keeps your filters and settings (quick view, units, filters, sort, grouping, columns, channel window, table or cards, and what you're comparing) when you refresh or go to another page and come back. Your search stays for as long as the tab is open.",
+      },
+    ],
+  },
+  {
     date: "2026-10-07",
     title: "Know what you can spend",
     changes: [
