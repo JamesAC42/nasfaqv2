@@ -1201,6 +1201,7 @@ export function normalizePortfolio(value: Record<string, unknown>): PortfolioSum
   return {
     cash_balance: Number(toNumber(value.cash_balance) || 0),
     held_cash: Number(toNumber(value.held_cash) || 0),
+    order_hold_margin: toNumber(value.order_hold_margin) ?? 0.05,
     credit_balance: Number(toNumber(value.credit_balance) || 0),
     economy: value.economy && typeof value.economy === "object" ? (value.economy as PortfolioSummary["economy"]) : null,
     total_market_value: Number(toNumber(value.total_market_value) || 0),

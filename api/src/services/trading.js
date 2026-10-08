@@ -1659,8 +1659,11 @@ async function getPortfolioSummary(pool, userId) {
     const creditBalance = toNumber(cashAccount.credit_balance, 0);
     return {
       cash_balance: toNumber(cashAccount.cash_balance, 0),
-      // Set aside for queued buys: not spendable, still yours (it counts toward net worth).
+      // Set aside for queued buys (and IPO subscriptions): not spendable, still yours (it counts
+      // toward net worth).
       held_cash: toNumber(cashAccount.held_cash, 0),
+      // What a queued buy holds over its estimated cost, so tickets can say what's left after one.
+      order_hold_margin: LIVE_ORDER_HOLD_MARGIN,
       credit_balance: creditBalance,
       total_market_value: totalMarketValue,
       total_unrealized_pnl: totalUnrealizedPnl,
