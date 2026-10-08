@@ -732,8 +732,10 @@ export type PortfolioHolding = {
 export type PortfolioSummary = {
   /** Spendable cash. */
   cash_balance: number;
-  /** Set aside for queued buys until they fill or are cancelled or rejected (still counts toward net worth). */
+  /** Set aside for queued buys until they fill or are cancelled or rejected, and for IPO subscriptions until listing (still counts toward net worth). */
   held_cash: number;
+  /** A queued buy holds its estimated cost plus this fraction (for the price moving before the batch). */
+  order_hold_margin: number;
   /** Credit: what games, the exchange and predictions spend, and where dividends and winnings land. */
   credit_balance: number;
   /** The Credit rules in force (lib/economy.ts). */

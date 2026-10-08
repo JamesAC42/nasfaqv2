@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-10-07",
+    title: "Know what you can spend",
+    changes: [
+      {
+        kind: "improved",
+        text: "Buying from a trade ticket now shows the Cash you can spend, with what's set aside for your queued buys and IPO subscriptions listed underneath, and roughly what you'll have left once this order goes in (a queued buy holds a little extra in case the price moves; what the fill doesn't use comes back).",
+      },
+    ],
+  },
+  {
+    date: "2026-10-07",
     title: "IPOs",
     changes: [
       {

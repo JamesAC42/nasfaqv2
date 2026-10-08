@@ -22,6 +22,52 @@ import { Term } from "@/app/components/common/tip";
 const PRESETS = [1, 10, 25, 50, 100];
 export const FEE_RATE = 0.01;
 
+/**
+ * What you can spend on a buy: Cash with every hold already taken out, what's held and for what
+ * (queued buys, IPO subscriptions), and what's left once this order holds its share. A queued buy
+ * holds its estimate plus a margin for the price moving before the batch (the API's
+ * order_hold_margin); whatever the fill doesn't use comes back.
+ */
+function CashToSpend({ cash, held, margin, total, qty, tooMuch }: { cash: number; held: number; margin: number; total: number; qty: number; tooMuch: boolean }) {
+  const pending = useProfileStore((state) => state.pendingLiveOrders);
+  const buys = pending.filter((order) => order.side === "buy" && order.held_cash > 0);
+  // The orders list can lag the balance by a moment; never claim more for orders than is held.
+  const forOrders = Math.min(held, buys.reduce((sum, order) => sum + order.held_cash, 0));
+  const forIpo = held - forOrders;
+  const hold = Math.min(Math.max(cash, 0), total * (1 + margin));
+  const after = cash - hold;
+  return (
+    <dl className={styles.cash}>
+      <dt>Cash to spend</dt>
+      <dd className={cash < 0 ? styles.warn : undefined}>{money(cash)}</dd>
+      {forOrders >= 0.005 ? (
+        <>
+          <dt className={styles.held}>
+            held for {buys.length} queued buy{buys.length === 1 ? "" : "s"}
+          </dt>
+          <dd className={styles.held}>{money(forOrders)}</dd>
+        </>
+      ) : null}
+      {forIpo >= 0.005 ? (
+        <>
+          <dt className={styles.held}>held for IPO subscriptions</dt>
+          <dd className={styles.held}>{money(forIpo)}</dd>
+        </>
+      ) : null}
+      {cash < 0 ? (
+        <dd className={`${styles.after} ${styles.red}`}>In the red: sell something first</dd>
+      ) : qty > 0 ? (
+        <>
+          <dt className={styles.after} title={`A queued buy holds ${Math.round(margin * 100)}% over its estimate in case the price moves before the batch; what the fill doesn't use comes back.`}>
+            Left after this order
+          </dt>
+          <dd className={`${styles.after} ${tooMuch ? styles.warn : ""}`}>{tooMuch ? "not enough cash" : `≈ ${money(after)}`}</dd>
+        </>
+      ) : null}
+    </dl>
+  );
+}
+
 /** What the order runs into on the supply side: sold out, the last shares, or a buyback. */
 function SupplyNote({ asset, side, qty }: { asset: MarketAsset; side: TradeSide; qty: number }) {
   const forSale = asset.shares_for_sale ?? null;
@@ -280,11 +326,11 @@ export function TradeTicket({
               <dt className={styles.total}>{side === "buy" ? "You pay" : "You get"}</dt>
               <dd className={styles.total}>{money(total)}</dd>
             </dl>
-            {portfolio ? (
-              <p className={`${styles.note} ${tooMuch || (side === "buy" && portfolio.cash_balance < 0) ? styles.warn : ""}`}>
-                {side === "buy" ? `Cash ${money(portfolio.cash_balance)}` : `You hold ${(holding?.quantity ?? 0).toLocaleString("en-US")} sh`}
-                {side === "buy" && portfolio.held_cash > 0 ? ` (${money(portfolio.held_cash)} held for queued buys)` : ""}
-                {side === "buy" && portfolio.cash_balance < 0 ? " · in the red: sell something first" : tooMuch ? (side === "buy" ? " · not enough cash" : " · you don't hold that many") : ""}
+            {portfolio && side === "buy" ? (
+              <CashToSpend cash={portfolio.cash_balance} held={portfolio.held_cash} margin={portfolio.order_hold_margin} total={total} qty={qty} tooMuch={tooMuch} />
+            ) : portfolio ? (
+              <p className={`${styles.note} ${tooMuch ? styles.warn : ""}`}>
+                You hold {(holding?.quantity ?? 0).toLocaleString("en-US")} sh{tooMuch ? " · you don't hold that many" : ""}
               </p>
             ) : null}
             <SupplyNote asset={asset} side={side} qty={qty} />
