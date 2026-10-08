@@ -6,6 +6,7 @@ import { ArtSlot } from "@/app/components/common/art-slot";
 import { useHasArt } from "@/app/components/common/use-art-image";
 import { artId } from "@/app/lib/art-manifest";
 import { Oshimark } from "@/app/components/common/oshimark";
+import { ComingToMarketNote } from "@/app/components/market/ipo-banner";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { DividendsSection } from "@/app/components/stock/dividends-section";
 import { ChartSection, DaySection, TicksSection } from "@/app/components/stock/market-sections";
@@ -83,7 +84,11 @@ export function Dossier({ symbol }: { symbol: string }) {
           <Link href="/stocks" className={styles.back}>
             ← ALL STOCKS
           </Link>
-          <p className={styles.missing}>{loadingAssets ? "Loading the dossier…" : `No stock called ${sym}. It may have been delisted, or the ticker is wrong.`}</p>
+          {loadingAssets ? (
+            <p className={styles.missing}>Loading the dossier…</p>
+          ) : (
+            <ComingToMarketNote symbol={sym} className={styles.missing} fallback={`No stock called ${sym}. It may have been delisted, or the ticker is wrong.`} />
+          )}
         </div>
       </SiteShell>
     );

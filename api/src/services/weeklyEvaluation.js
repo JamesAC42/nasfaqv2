@@ -11,6 +11,9 @@
 //   3. Max shares from subscribers on a bell curve (normal CDF of the z-score of ln subscribers)
 //      between MIN and MAX. A stock now over its max starts a buyback (frozen, see marketSupply.js).
 //      The first evaluation never sets a max below what players already hold.
+//   Rookies (listed by an IPO in the last ROOKIE_DAYS, docs/market/ipo.md): no dividend or fee (their
+//   week-over-week shift reads the launch, so they're left out of the ranking too), and their max
+//   shares never drop below what players hold.
 //   4. The Dividend Review (report_json), notifications to holders, a market socket event.
 //
 // runWeeklyEvaluation(pool, { evalDate, dryRun }) with dryRun computes everything the same way and
@@ -23,6 +26,7 @@ const { publishMarketEvent } = require("./marketEvents");
 const { invalidateMarketAssetsCache } = require("../marketCache");
 
 const LOCK_KEY = 9_204_010;
+const ROOKIE_DAYS = 28; // a new listing's first four evaluations
 const TIME_ZONE = "America/New_York";
 
 function envNumber(name, fallback) {
@@ -198,8 +202,10 @@ async function loadAssets(client, evalDate, { lock = true } = {}) {
     )
     SELECT a.id, a.symbol, a.display_name, a.max_supply, a.circulating_supply, a.treasury_supply, a.broker_buffer_pct,
            a.trading_state, a.current_mid_price, o.mid_open AS day_open,
-           sb.subscriber_count, n.value_now, b.value_before, r.avg_base, r.last_base AS last_revealed_base
+           sb.subscriber_count, n.value_now, b.value_before, r.avg_base, r.last_base AS last_revealed_base,
+           (l.listed_on IS NOT NULL AND l.listed_on > $1::date - ${ROOKIE_DAYS}) AS rookie
     FROM market.market_assets a
+    LEFT JOIN market.ipo_listings l ON l.asset_id = a.id AND l.status = 'listed'
     LEFT JOIN subs sb ON sb.youtube_channel_id = a.youtube_channel_id
     LEFT JOIN now_state n ON n.asset_id = a.id
     LEFT JOIN before_state b ON b.asset_id = a.id
@@ -317,7 +323,7 @@ async function runWeeklyEvaluation(pool, { evalDate = evaluationDateFor(), dryRu
     const shifts = assets.map((asset) => {
       const now = toNumber(asset.value_now, 0);
       const before = toNumber(asset.value_before, 0);
-      return now > 0 && before > 0 ? Math.log(now / before) : NaN;
+      return now > 0 && before > 0 && !asset.rookie ? Math.log(now / before) : NaN;
     });
     const shiftZ = rankScores(shifts);
     let dividendsTotal = 0;
@@ -364,7 +370,7 @@ async function runWeeklyEvaluation(pool, { evalDate = evaluationDateFor(), dryRu
       const before = toNumber(asset.max_supply, 0);
       const bufferPct = Math.max(0, toNumber(asset.broker_buffer_pct, 0.02));
       let after = subsZ[index] === null ? before : maxSharesFor(subsZ[index]);
-      if (firstEvaluation) after = Math.max(after, Math.ceil(result.held / Math.max(1 - bufferPct, 0.5) / CONFIG.maxSharesStep) * CONFIG.maxSharesStep);
+      if (firstEvaluation || asset.rookie) after = Math.max(after, Math.ceil(result.held / Math.max(1 - bufferPct, 0.5) / CONFIG.maxSharesStep) * CONFIG.maxSharesStep);
       result.maxBefore = before;
       result.maxAfter = after;
       await client.query(

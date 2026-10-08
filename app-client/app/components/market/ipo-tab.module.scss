@@ -1,0 +1,737 @@
+@use "../../styles/mixins" as *;
+
+// The IPO tab: a lede, then one block per IPO with a timeline and a card per talent.
+
+.tab {
+  min-width: 0;
+}
+
+.lede {
+  padding: 1.4rem 1.25rem 1.25rem;
+  border-bottom: 1px solid var(--rule);
+
+  h2 {
+    @include display(clamp(1.5rem, 3.2vw, 2.4rem));
+    margin: 0;
+    line-height: 1.08;
+    max-width: 26ch;
+  }
+
+  p {
+    margin: 0.75rem 0 0;
+    max-width: 78ch;
+    color: var(--mid);
+    font-size: 0.875rem;
+    line-height: 1.8;
+
+    b {
+      color: var(--text);
+    }
+  }
+
+  @include phone {
+    padding: 1.1rem 1rem;
+  }
+}
+
+.kick {
+  @include label;
+  color: var(--blue);
+  margin-bottom: 0.6rem;
+}
+
+.empty {
+  @include empty-state;
+  margin: 0;
+  padding: 2rem 1.25rem;
+}
+
+.loadError {
+  margin: 0;
+  padding: 0.6rem 1.25rem;
+  border-bottom: 1px solid var(--rule);
+  border-left: 2px solid var(--down);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.up {
+  color: var(--up);
+}
+
+.down {
+  color: var(--down);
+}
+
+.warnText {
+  color: var(--warn);
+}
+
+// ── An IPO ──────────────────────────────────────────────────────────────
+.event {
+  border-bottom: 1px solid var(--rule);
+}
+
+.eventHead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 1rem 2rem;
+  padding: 1.25rem 1.25rem 1rem;
+
+  h2 {
+    @include display(clamp(1.25rem, 2.4vw, 1.75rem));
+    margin: 0.4rem 0 0;
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+  }
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  @include phone {
+    padding: 1.1rem 1rem 0.9rem;
+  }
+}
+
+.stage {
+  @include label;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 700;
+  color: var(--warn);
+
+  i {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  &[data-tone="blue"] {
+    color: var(--blue);
+
+    i {
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+  }
+
+  &[data-tone="dim"] {
+    color: var(--dim);
+  }
+}
+
+.timeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.5rem;
+  margin: 0;
+
+  div {
+    display: grid;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  dt {
+    @include label;
+    font-size: 0.58rem;
+  }
+
+  dd {
+    @include num;
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  [data-done] dd {
+    color: var(--dim);
+  }
+}
+
+.countdown {
+  padding-left: 1.5rem;
+  border-left: 1px solid var(--rule-2);
+
+  dt {
+    color: var(--blue);
+  }
+
+  dd {
+    font-size: 1.05rem;
+    font-weight: 600;
+  }
+
+  @include phone {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr));
+  border-top: 1px solid var(--rule);
+}
+
+// ── A talent ────────────────────────────────────────────────────────────
+.card {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  min-width: 0;
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: -1px;
+  border-top: 3px solid var(--tal, var(--blue));
+  scroll-margin-top: 6rem;
+
+  &:target .cardHead {
+    background: linear-gradient(160deg, color-mix(in srgb, var(--tal, var(--blue)) 24%, transparent), transparent 70%);
+  }
+}
+
+// Her colour washes the head, the way a talent's own page does.
+.cardHead {
+  display: grid;
+  grid-template-columns: 4.6rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.85rem 1rem 0.8rem;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--tal, var(--blue)) 13%, transparent), transparent 62%);
+}
+
+.art {
+  width: 4.6rem;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+}
+
+.avatar {
+  display: block;
+  width: 4.1rem;
+  height: 4.1rem;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--ink-3);
+  box-shadow:
+    0 0 0 2px var(--ink),
+    0 0 0 4px var(--tal, var(--blue));
+}
+
+.ticker {
+  @include num(wide);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text);
+}
+
+.names {
+  min-width: 0;
+
+  h3 {
+    @include display(1.35rem);
+    margin: 0.25rem 0 0;
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+  }
+
+  p {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem 0.6rem;
+    margin: 0.3rem 0 0;
+    font-size: 0.75rem;
+    color: var(--dim);
+  }
+}
+
+.links {
+  display: grid;
+  align-self: start;
+  gap: 0.25rem;
+  justify-items: end;
+
+  a {
+    @include label;
+    font-size: 0.58rem;
+    color: var(--mid);
+    text-decoration: none;
+    white-space: nowrap;
+
+    &:hover {
+      color: var(--text);
+    }
+  }
+}
+
+.channel {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem 0.85rem;
+}
+
+.numbers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+
+  div {
+    display: grid;
+    gap: 0.1rem;
+    min-width: 0;
+  }
+
+  dt {
+    @include label;
+    font-size: 0.55rem;
+  }
+
+  dd {
+    @include num;
+    margin: 0;
+    font-size: 1.05rem;
+    color: var(--text);
+  }
+
+  small {
+    @include num;
+    font-size: 0.68rem;
+    color: var(--dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  small.up {
+    color: var(--up);
+  }
+
+  small.down {
+    color: var(--down);
+  }
+}
+
+.spark {
+  display: grid;
+  gap: 0.25rem;
+
+  small {
+    font-size: 0.68rem;
+    color: var(--dim);
+  }
+}
+
+.sparkSvg {
+  display: block;
+  width: 100%;
+  height: 34px;
+}
+
+// ── The offer ───────────────────────────────────────────────────────────
+.offer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem 1rem;
+  border-top: 1px solid var(--rule);
+}
+
+.pending {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--mid);
+
+  b {
+    color: var(--text);
+    font-weight: 600;
+  }
+}
+
+.terms {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+
+  div {
+    display: grid;
+    gap: 0.1rem;
+    min-width: 0;
+  }
+
+  dt {
+    @include label;
+    font-size: 0.55rem;
+  }
+
+  dd {
+    @include num;
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text);
+    white-space: nowrap;
+  }
+}
+
+.hot {
+  color: var(--warn) !important;
+}
+
+// Demand: everyone else in blue, you in her colour, a tick at the offering once it's oversubscribed.
+.demand {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.bar {
+  position: relative;
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--ink-3);
+  overflow: hidden;
+
+  i {
+    display: block;
+    height: 100%;
+    transition: width 400ms var(--ease-out, ease);
+  }
+}
+
+.others {
+  background: var(--blue);
+}
+
+.yours {
+  background: var(--tal, var(--blue));
+  box-shadow: inset 2px 0 0 var(--ink);
+}
+
+.line {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: var(--text);
+}
+
+.demandNote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.2rem 0.6rem;
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--dim);
+
+  b {
+    @include num;
+    color: var(--text);
+    font-weight: 500;
+  }
+}
+
+.hotTag {
+  @include label;
+  font-size: 0.55rem;
+  color: var(--warn);
+}
+
+// ── Your order ──────────────────────────────────────────────────────────
+// Every line is always there (an empty error line keeps its height), so nothing shifts as you edit,
+// submit or get a reply.
+.order {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: auto;
+  padding: 0.75rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+}
+
+.status {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--dim);
+
+  b {
+    @include label;
+    font-size: 0.6rem;
+    color: var(--mid);
+  }
+
+  span {
+    @include num;
+    white-space: nowrap;
+  }
+
+  &[data-in] b {
+    color: var(--tal, var(--blue));
+  }
+
+  &[data-in] span {
+    color: var(--text);
+  }
+
+  &[data-pulse] {
+    animation: landed 900ms var(--ease-out, ease);
+  }
+}
+
+.amount {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stepper {
+  display: inline-grid;
+  grid-template-columns: 2rem 4rem 2rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+
+  button {
+    @include num;
+    appearance: none;
+    border: 0;
+    background: var(--ink-3);
+    color: var(--text);
+    font-size: 1rem;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--blue) 18%, var(--ink-3));
+    }
+
+    &:disabled {
+      color: var(--dim);
+      cursor: default;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+
+  input {
+    @include num;
+    width: 100%;
+    min-width: 0;
+    padding: 0.42rem 0.3rem;
+    border: 0;
+    border-inline: 1px solid var(--rule-2);
+    background: var(--ink-2);
+    color: var(--text);
+    font-size: 1rem;
+    text-align: center;
+    -moz-appearance: textfield;
+
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    &:focus-visible {
+      outline: none;
+      background: color-mix(in srgb, var(--blue) 10%, var(--ink-2));
+    }
+  }
+}
+
+.quick {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  min-width: 0;
+
+  button {
+    @include label;
+    appearance: none;
+    padding: 0.32rem 0.5rem;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--mid);
+    font-size: 0.6rem;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      color: var(--text);
+      border-color: var(--mid);
+    }
+
+    &[aria-pressed="true"] {
+      color: var(--blue);
+      border-color: var(--blue-line);
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.slider {
+  width: 100%;
+  margin: 0.1rem 0;
+  accent-color: var(--tal, var(--blue));
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+  }
+}
+
+.sum {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+
+  span {
+    @include num;
+    font-size: 0.75rem;
+    color: var(--dim);
+  }
+
+  b {
+    @include num(wide);
+    font-size: 1.35rem;
+    font-weight: 500;
+    color: var(--text);
+  }
+}
+
+// Two lines reserved, so a longer note (the per-player max) never pushes the button down.
+.hint {
+  display: -webkit-box;
+  margin: 0;
+  height: 2.5em;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  color: var(--mid);
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.cash {
+  @include num;
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.primary {
+  @include button-primary;
+  flex: 1 1 auto;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.625rem;
+  white-space: nowrap;
+}
+
+// "You're in": settled, not an error, so the chassis blue rather than her colour (which may be red).
+.done {
+  @include button-secondary;
+  flex: 1 1 auto;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.625rem;
+  white-space: nowrap;
+  color: var(--blue) !important;
+  border-color: var(--blue-line) !important;
+  opacity: 1 !important;
+}
+
+.ghost {
+  @include button-secondary;
+  padding: 0.6rem 0.7rem;
+  font-size: 0.625rem;
+  white-space: nowrap;
+}
+
+.error {
+  margin: 0;
+  min-height: 1.2em;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  color: var(--down);
+}
+
+.trade {
+  @include button-secondary;
+  align-self: flex-start;
+  margin-top: auto;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.625rem;
+  text-decoration: none;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes landed {
+  0% {
+    background: color-mix(in srgb, var(--tal, var(--blue)) 30%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage i,
+  .status[data-pulse] {
+    animation: none !important;
+  }
+
+  .bar i {
+    transition: none;
+  }
+}
+
+:global(html[data-calm="true"]) {
+  .stage i,
+  .status[data-pulse] {
+    animation: none;
+  }
+
+  .bar i {
+    transition: none;
+  }
+}

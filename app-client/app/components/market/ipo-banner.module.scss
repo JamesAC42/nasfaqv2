@@ -1,0 +1,117 @@
+@use "../../styles/mixins" as *;
+
+.banner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--rule);
+  border-top: 0;
+  border-left: 3px solid var(--warn);
+  color: var(--text);
+  text-decoration: none;
+  min-width: 0;
+
+  &[data-open] {
+    border-left-color: var(--blue);
+    background: color-mix(in srgb, var(--blue) 6%, transparent);
+
+    .tag {
+      color: var(--blue);
+    }
+
+    .tag i {
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+  }
+
+  &:hover .go {
+    transform: translateX(2px);
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  @include tablet-down {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+
+    .when {
+      grid-column: 2 / -1;
+      grid-row: 2;
+    }
+  }
+
+  @include phone {
+    border-inline: 0;
+    border-left: 3px solid var(--warn);
+  }
+}
+
+.tag {
+  @include label;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--warn);
+  font-weight: 700;
+
+  i {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: currentColor;
+  }
+}
+
+.text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+
+  b {
+    font-weight: 600;
+  }
+}
+
+.symbols {
+  @include num;
+  margin-left: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--mid);
+}
+
+.when {
+  @include num;
+  font-size: 0.72rem;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.go {
+  color: var(--dim);
+  transition: transform var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .banner[data-open] .tag i {
+    animation: none;
+  }
+
+  .go {
+    transition: none;
+  }
+}

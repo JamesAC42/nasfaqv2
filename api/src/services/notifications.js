@@ -24,6 +24,7 @@ const KINDS = new Set([
   "wishlist",
   "dividend",
   "buyback",
+  "ipo",
 ]);
 
 function money(value) {

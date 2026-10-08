@@ -83,7 +83,7 @@ async function runFullRebuild({ pool, redis = null }, { activeOnly = true, fillM
     const total = dayCount(range.from, latestReadyDate);
 
     await onProgress({ phase: "fundamentals", done: 0, total, market_date: range.from });
-    const bootstrap = await marketAdmin.bootstrapAssets(pool, { activeOnly, syncExisting: true });
+    const bootstrap = await marketAdmin.bootstrapAssets(pool, { activeOnly, syncExisting: true, newAssetStatus: "active" });
     const fundamentalsResult = await fundamentals.recalculateFundamentals(pool, {
       from: range.from,
       to: latestReadyDate,

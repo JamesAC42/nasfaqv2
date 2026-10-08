@@ -46,6 +46,7 @@ const statsRoutes = require("./routes/stats");
 const nasfaqThreadRoutes = require("./routes/nasfaqThread");
 const adminAssetsRoutes = require("./routes/adminAssets");
 const adminHolonewsRoutes = require("./routes/adminHolonews");
+const adminIpoRoutes = require("./routes/adminIpo");
 const adminRoutes = require("./routes/admin");
 const assetsRoutes = require("./routes/assets");
 const mediaCatalog = require("./services/mediaCatalog");
@@ -305,6 +306,7 @@ api.use("/stats", statsRoutes);
 api.use("/site", siteRoutes);
 api.use("/admin/assets", adminAssetsRoutes);
 api.use("/admin/holonews", adminHolonewsRoutes);
+api.use("/admin/ipo", adminIpoRoutes);
 api.use("/admin", adminRoutes);
 api.use("/assets", assetsRoutes);
 api.use("/", nasfaqThreadRoutes);
@@ -879,6 +881,8 @@ async function main() {
   if (cfg.enableMarketSettlementScheduler) {
     // Saturday 00:00 ET: dividends and fees, max shares, buybacks (MARKET_WEEKLY_EVALUATION_ENABLED=false to stop it).
     require("./services/weeklyEvaluation").startWeeklyEvaluationScheduler(pool, console, redis);
+    // Opens IPO windows when they're due (listing itself happens in the 09:00 cycle).
+    require("./services/ipo").startIpoScheduler(pool, console, redis);
   }
   if (cfg.enablePredictionMarketScheduler) {
     startPredictionsScheduler(pool, console, redis);

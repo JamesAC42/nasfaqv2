@@ -1,10 +1,10 @@
 const express = require("express");
 const path = require("node:path");
-const { execFile } = require("node:child_process");
-const { promisify } = require("node:util");
-const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
+const { PutObjectCommand } = require("@aws-sdk/client-s3");
 
 const db = require("../db");
+const { getS3Client, maybeUploadReferenceImage, normalizeReferenceImageUrl } = require("../services/referenceImages");
+const talentDetect = require("../services/talentDetect");
 const { requireAdmin } = require("../userContext");
 
 const router = express.Router();
@@ -20,15 +20,8 @@ router.use((req, res, next) => {
     return next(error);
   }
 });
-const execFileAsync = promisify(execFile);
-const CHANNELSCRAPER_DIR = path.resolve(__dirname, "..", "..", "..", "channelscraper");
-const DETECT_TIMEOUT_MS = 300000;
 const ICON_CDN_BASE_URL = "https://images.nasfaq.biz/icons";
-const REFERENCE_IMAGE_CDN_BASE_URL = "https://images.nasfaq.biz/reference-images";
 const MAX_ICON_UPLOAD_BYTES = 1024 * 1024;
-const MAX_REFERENCE_IMAGE_UPLOAD_BYTES = 12 * 1024 * 1024;
-const REFERENCE_IMAGE_SCALE = 0.6;
-const REFERENCE_IMAGE_JPEG_QUALITY = 76;
 
 function toVideoLink(videoId) {
   return videoId ? `https://www.youtube.com/watch?v=${videoId}` : null;
@@ -54,11 +47,6 @@ function getIconUrl(iconName) {
   return `${ICON_CDN_BASE_URL}/${encodeURIComponent(iconName)}.svg`;
 }
 
-function getReferenceImageUrl(filename) {
-  if (!filename) return null;
-  return `${REFERENCE_IMAGE_CDN_BASE_URL}/${encodeURIComponent(filename)}`;
-}
-
 const INVALID_DATE = Symbol("invalid_date");
 const INVALID_COLOR = Symbol("invalid_color");
 
@@ -75,26 +63,6 @@ function optionalIsoDate(value) {
 
 function normalizeChannelKey(value) {
   return (value || "").toString().trim().toLowerCase();
-}
-
-function getS3Client() {
-  const accessKeyId = optionalTrimmedString(process.env.AWS_ACCESS_KEY_ID);
-  const secretAccessKey = optionalTrimmedString(process.env.AWS_SECRET_ACCESS_KEY);
-  const region = optionalTrimmedString(process.env.AWS_REGION);
-  const bucket = optionalTrimmedString(process.env.AWS_SW_BUCKET);
-
-  if (!accessKeyId || !secretAccessKey || !region || !bucket) {
-    return null;
-  }
-
-  return {
-    bucket,
-    client: new S3Client({
-      region,
-      credentials: { accessKeyId, secretAccessKey },
-      followRegionRedirects: true
-    })
-  };
 }
 
 function parseUploadedIconName(filename) {
@@ -180,21 +148,6 @@ function normalizeChannelInput(body, { currentIsActive = true, useDefaultIcon = 
   };
 }
 
-function normalizeReferenceImageUrl(value) {
-  const trimmed = optionalTrimmedString(value);
-  if (!trimmed) return null;
-
-  try {
-    const parsed = new URL(trimmed);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return null;
-    }
-    return parsed.toString();
-  } catch {
-    return null;
-  }
-}
-
 function toChannelResponse(channel) {
   return {
     ...channel,
@@ -222,163 +175,6 @@ function toDetectedChannelResponse(channel) {
     is_active: false,
     youtube_channel_url: toChannelLink(channel.youtube_channel_id)
   };
-}
-
-function referenceImageBaseName(channel) {
-  const source = optionalTrimmedString(channel?.profile_id) || optionalTrimmedString(channel?.youtube_channel_id);
-  if (!source) return null;
-  const normalized = source.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
-  return normalized || null;
-}
-
-function extensionFromContentType(contentType) {
-  switch ((contentType || "").toLowerCase().split(";")[0].trim()) {
-    case "image/png":
-      return ".png";
-    case "image/jpeg":
-      return ".jpg";
-    case "image/webp":
-      return ".webp";
-    case "image/gif":
-      return ".gif";
-    default:
-      return null;
-  }
-}
-
-function getSharp() {
-  try {
-    // Loaded lazily so the API can still boot far enough to give a clear error if deps are missing.
-    return require("sharp");
-  } catch {
-    return null;
-  }
-}
-
-async function optimizeReferenceImage(bytes) {
-  const sharp = getSharp();
-  if (!sharp) {
-    const error = new Error("reference_image_processing_not_configured");
-    error.code = "reference_image_processing_not_configured";
-    throw error;
-  }
-
-  let image = sharp(bytes, { failOn: "none" }).rotate();
-  let metadata;
-  try {
-    metadata = await image.metadata();
-  } catch (cause) {
-    const error = new Error(`reference image metadata failed: ${optionalTrimmedString(cause?.message) || "decode error"}`);
-    error.code = "reference_image_processing_failed";
-    throw error;
-  }
-
-  const nextWidth = metadata?.width ? Math.max(1, Math.round(metadata.width * REFERENCE_IMAGE_SCALE)) : null;
-  if (nextWidth) {
-    image = image.resize({ width: nextWidth, withoutEnlargement: true });
-  }
-
-  try {
-    return await image
-      .flatten({ background: "#ffffff" })
-      .jpeg({
-        quality: REFERENCE_IMAGE_JPEG_QUALITY,
-        mozjpeg: true,
-        progressive: true,
-        chromaSubsampling: "4:2:0"
-      })
-      .toBuffer();
-  } catch (cause) {
-    const error = new Error(`reference image processing failed: ${optionalTrimmedString(cause?.message) || "encode error"}`);
-    error.code = "reference_image_processing_failed";
-    throw error;
-  }
-}
-
-async function uploadReferenceImageFromUrl(channel, rawUrl) {
-  const s3 = getS3Client();
-  if (!s3) {
-    const error = new Error("reference_image_upload_not_configured");
-    error.code = "reference_image_upload_not_configured";
-    throw error;
-  }
-
-  const objectBaseName = referenceImageBaseName(channel);
-  if (!objectBaseName) {
-    return null;
-  }
-
-  let response;
-  try {
-    response = await fetch(rawUrl, {
-      headers: {
-        "User-Agent": "NASFAQV2 API/1.0 (+https://images.nasfaq.biz/reference-images)"
-      }
-    });
-  } catch (cause) {
-    const error = new Error(`reference image download failed: ${optionalTrimmedString(cause?.message) || "network error"}`);
-    error.code = "reference_image_download_failed";
-    throw error;
-  }
-  if (!response.ok) {
-    const error = new Error(`reference image download failed with ${response.status}`);
-    error.code = "reference_image_download_failed";
-    throw error;
-  }
-
-  const contentType = optionalTrimmedString(response.headers.get("content-type")) || "application/octet-stream";
-  const contentLength = Number(response.headers.get("content-length") || 0);
-  if (contentLength > MAX_REFERENCE_IMAGE_UPLOAD_BYTES) {
-    const error = new Error("reference image exceeds size limit");
-    error.code = "reference_image_download_failed";
-    throw error;
-  }
-
-  const bytes = Buffer.from(await response.arrayBuffer());
-  if (!bytes.length || bytes.length > MAX_REFERENCE_IMAGE_UPLOAD_BYTES) {
-    const error = new Error("reference image exceeds size limit");
-    error.code = "reference_image_download_failed";
-    throw error;
-  }
-
-  const optimizedBytes = await optimizeReferenceImage(bytes);
-  if (!optimizedBytes.length || optimizedBytes.length > MAX_REFERENCE_IMAGE_UPLOAD_BYTES) {
-    const error = new Error("optimized reference image exceeds size limit");
-    error.code = "reference_image_processing_failed";
-    throw error;
-  }
-
-  const filename = `${objectBaseName}.jpg`;
-  const key = `reference-images/${filename}`;
-
-  try {
-    await s3.client.send(
-      new PutObjectCommand({
-        Bucket: s3.bucket,
-        Key: key,
-        Body: optimizedBytes,
-        ContentType: "image/jpeg",
-        CacheControl: "public, max-age=31536000, immutable"
-      })
-    );
-  } catch (cause) {
-    const error = new Error(`reference image upload failed: ${optionalTrimmedString(cause?.message) || optionalTrimmedString(cause?.name) || "s3 error"}`);
-    error.code = "reference_image_upload_failed";
-    throw error;
-  }
-
-  return {
-    key,
-    url: getReferenceImageUrl(filename)
-  };
-}
-
-async function maybeUploadReferenceImage(channel, rawUrl) {
-  const normalizedUrl = normalizeReferenceImageUrl(rawUrl);
-  if (!normalizedUrl) {
-    return null;
-  }
-  return uploadReferenceImageFromUrl(channel, normalizedUrl);
 }
 
 async function findChannelConflict(pool, { youtube_channel_id = null, name_short, excludeChannelId = null }) {
@@ -412,42 +208,17 @@ async function rejectConflicts(res, pool, args) {
   return true;
 }
 
+// The official site's talents not saved as channels yet (services/talentDetect.js).
 async function detectNewChannels(pool) {
-  const identifiers = await db.listChannelIdentifiers(pool);
-  const existingYouTubeIds = new Set(identifiers.map((row) => row.youtube_channel_id).filter(Boolean));
-  const existingNames = new Set(identifiers.map((row) => normalizeChannelKey(row.name_short)).filter(Boolean));
-  const existingProfileIds = new Set(identifiers.map((row) => normalizeChannelKey(row.profile_id)).filter(Boolean));
-
-  const args = ["run", "./cmd/detect", "-birthday-year", "2000", "-concurrency", "8"];
-  for (const profileId of Array.from(existingProfileIds).sort()) {
-    args.push("-skip-profile-id", profileId);
-  }
-
-  let stdout;
+  let detected;
   try {
-    ({ stdout } = await execFileAsync("go", args, {
-      cwd: CHANNELSCRAPER_DIR,
-      timeout: DETECT_TIMEOUT_MS,
-      maxBuffer: 10 * 1024 * 1024,
-      windowsHide: true
-    }));
+    detected = await talentDetect.detectNewTalents(pool);
   } catch (error) {
-    const detail = [error?.stderr, error?.stdout, error?.message].filter(Boolean).join("\n");
-    const wrapped = new Error(`detect_command_failed: ${detail}`);
+    const wrapped = new Error(`detect_command_failed: ${error?.message || error}`);
     wrapped.code = "detect_command_failed";
     throw wrapped;
   }
-
-  const detected = JSON.parse(stdout || "[]");
-  return detected
-    .filter((channel) => {
-      if (!channel || !channel.youtube_channel_id || !channel.name_short) return false;
-      if (existingYouTubeIds.has(channel.youtube_channel_id)) return false;
-      if (existingNames.has(normalizeChannelKey(channel.name_short))) return false;
-      if (normalizeChannelKey(channel.profile_id) && existingProfileIds.has(normalizeChannelKey(channel.profile_id))) return false;
-      return true;
-    })
-    .map(toDetectedChannelResponse);
+  return detected.talents.map(toDetectedChannelResponse);
 }
 
 async function insertDetectedChannels(pool, rawChannels) {

@@ -4,7 +4,7 @@ import type { MarketAsset } from "@/app/lib/types";
 
 export const UNIT_ORDER = [
   "Generation 0", "1st Generation", "2nd Generation", "GAMERS", "3rd Generation", "4th Generation", "5th Generation",
-  "holoX", "ReGLOSS", "FLOW GLOW", "Indonesia", "English -Myth-", "English -Council-", "English -Promise-",
+  "holoX", "ReGLOSS", "FLOW GLOW", "ASOBI★MAWARI-TAI!", "Indonesia", "English -Myth-", "English -Council-", "English -Promise-",
   "English -Advent-", "English -Justice-",
 ];
 

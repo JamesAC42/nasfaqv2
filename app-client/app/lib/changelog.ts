@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-10-07",
+    title: "IPOs",
+    changes: [
+      {
+        kind: "new",
+        text: "New talents come to market through an IPO. The new Market › IPO tab shows who's coming, their channel numbers as we track them, and when they list. While the window is open you can subscribe for shares at the IPO price with Cash; if more is asked for than offered, everyone gets a fair share (at least one) and the rest of your cash comes back. They start trading at the 09:00 settlement on listing day, opening at the IPO price.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-07",
     title: "Coin fix",
     changes: [{ kind: "fixed", text: "On Firefox, the spinning coin on a stock's order ticket could smear into a long streak while you scrolled. It stays a coin now." }],
   },

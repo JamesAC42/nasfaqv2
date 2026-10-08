@@ -19,6 +19,39 @@ const STREAM_EVENT_WEIGHTS = {
   cover_song: 0.06,
 };
 const STREAM_EVENT_CAP = 0.3;
+
+// Debut mode (docs/market/ipo.md), for a talent listed by an IPO until she has 45 days of our stats.
+// The normal size term needs 30-day views and the growth signals need a 35-day baseline, so a young
+// channel would be priced ~3x low and then jump. In debut mode her size uses the trailing week's views
+// scaled to a month, the growth signals are 0 (uploads and big streams still count), and from day 35
+// she blends into the normal formula over ten days.
+const DEBUT_BLEND_START_DAYS = 35;
+const DEBUT_BLEND_DAYS = 10;
+const DEBUT_UNCAPPED_DAYS = 7; // her first week's estimate firms up daily, so the daily move cap waits
+
+/** How much of the debut formula applies at this age in days (1 until day 35, 0 from day 45). */
+function debutShare(age) {
+  if (!Number.isFinite(age) || age < 0) return 0;
+  if (age < DEBUT_BLEND_START_DAYS) return 1;
+  return clamp(1 - (age - DEBUT_BLEND_START_DAYS) / DEBUT_BLEND_DAYS, 0, 1);
+}
+
+function daysBetween(fromKey, toKey) {
+  return Math.round((Date.parse(`${toKey}T00:00:00Z`) - Date.parse(`${fromKey}T00:00:00Z`)) / 86400000);
+}
+
+/**
+ * A young channel's monthly views: the trailing week's views (fewer days early on) scaled to 30 days.
+ * Once she has three days past her first tracked week, that first week (the debut spike) is left out.
+ */
+function estimateDebutMonthlyViews(current, historyByDate, age) {
+  const startAge = age >= 10 ? Math.max(age - 7, 7) : Math.max(age - 7, 0);
+  const days = age - startAge;
+  if (days < 1) return null;
+  const start = historyByDate.get(shiftDateKey(current.snapshot_date, -days)) || null;
+  if (!start) return null;
+  return Math.max(current.view_count - start.view_count, 0) * (30 / days);
+}
 const streamEventsEnabled = () => String(process.env.MARKET_STREAM_EVENTS || "").toLowerCase() !== "off";
 
 function getQueryTimeZone() {
@@ -259,8 +292,10 @@ async function loadStreamEvents(client, { from = null, to = null, channelId = nu
   return out;
 }
 
-function computeDerivedSnapshot(current, historyByDate, previousDerived, version, eventKinds = null) {
+function computeDerivedSnapshot(current, historyByDate, previousDerived, version, eventKinds = null, debut = null) {
   const currentDate = current.snapshot_date;
+  const debutAge = debut?.trackedSince ? daysBetween(debut.trackedSince, currentDate) : null;
+  const debutWeight = debutAge === null ? 0 : debutShare(debutAge);
   const prev1 = historyByDate.get(shiftDateKey(currentDate, -1)) || null;
   const prev7 = historyByDate.get(shiftDateKey(currentDate, -7)) || null;
   const prev30 = historyByDate.get(shiftDateKey(currentDate, -30)) || null;
@@ -277,14 +312,19 @@ function computeDerivedSnapshot(current, historyByDate, previousDerived, version
   const viewRecent = viewDelta7d !== null ? viewDelta7d / 7 : 0;
   const viewBase = prev7 && prev35 ? Math.max((prev7.view_count - prev35.view_count) / 28, 100) : 100;
 
-  const sizeAnchorRaw =
+  const normalSizeAnchor =
     Math.pow(Math.max(current.subscriber_count, 1), 0.42) *
     Math.pow(Math.max(viewDelta30d ?? 1, 1), 0.08);
+  const debutMonthlyViews = debutWeight > 0 ? estimateDebutMonthlyViews(current, historyByDate, debutAge) : null;
+  const debutSizeAnchor =
+    Math.pow(Math.max(current.subscriber_count, 1), 0.42) *
+    Math.pow(Math.max(debutMonthlyViews ?? 1, 1), 0.08);
+  const sizeAnchorRaw = debutWeight * debutSizeAnchor + (1 - debutWeight) * normalSizeAnchor;
 
   const viewSignalRaw = Math.log(Math.max(viewRecent, 100) / Math.max(viewBase, 100));
-  const viewSignal = clamp(viewSignalRaw, -0.4, 0.4);
-  const subSignal = computeSubscriberSignal(current, prev7, prev30);
-  const stagnationSignal = computeStagnationSignal(current, prev7, prev30);
+  const viewSignal = clamp(viewSignalRaw, -0.4, 0.4) * (1 - debutWeight);
+  const subSignal = computeSubscriberSignal(current, prev7, prev30) * (1 - debutWeight);
+  const stagnationSignal = computeStagnationSignal(current, prev7, prev30) * (1 - debutWeight);
 
   const event = streamEventSignal(eventKinds);
   const rawMomentum = 0.58 * viewSignal + 0.3 * subSignal + 0.12 * uploadSignal + stagnationSignal + event.signal;
@@ -296,7 +336,10 @@ function computeDerivedSnapshot(current, historyByDate, previousDerived, version
     previousSmoothed === null
       ? fundamentalValueRaw
       : (SMOOTHING_PREVIOUS_WEIGHT * previousSmoothed) + (SMOOTHING_RAW_WEIGHT * fundamentalValueRaw);
-  const fundamentalValueSmoothed = clampFairValueMove(uncappedFundamentalValueSmoothed, previousSmoothed);
+  const fundamentalValueSmoothed =
+    debutWeight > 0 && debutAge < DEBUT_UNCAPPED_DAYS
+      ? uncappedFundamentalValueSmoothed
+      : clampFairValueMove(uncappedFundamentalValueSmoothed, previousSmoothed);
 
   return {
     ...current,
@@ -321,6 +364,22 @@ function computeDerivedSnapshot(current, historyByDate, previousDerived, version
     calculation_status: "complete",
     calculation_error: null,
   };
+}
+
+/** Talents listed by an IPO, with the first day we have stats for (debut mode counts from there). */
+async function loadDebutChannels(client) {
+  const { rows } = await client.query(
+    `
+    SELECT a.youtube_channel_id, MIN(timezone($1, s.time)::date)::text AS tracked_since
+    FROM market.ipo_listings l
+    JOIN market.market_assets a ON a.id = l.asset_id
+    JOIN yt.youtube_channel_daily_stats s ON s.youtube_channel_id = a.youtube_channel_id
+    WHERE l.status <> 'cancelled'
+    GROUP BY a.youtube_channel_id
+  `,
+    [getQueryTimeZone()]
+  );
+  return new Map(rows.map((row) => [row.youtube_channel_id, { trackedSince: row.tracked_since }]));
 }
 
 async function loadHistoricalDailyStats(client, { from = null, to = null, channelId = null, activeOnly = false } = {}) {
@@ -675,6 +734,7 @@ async function recalculateFundamentals(pool, { from = null, to = null, version =
     const bufferedFrom = shiftInputDate(from, -35);
     const statsRows = await loadHistoricalDailyStats(client, { from: bufferedFrom, to, channelId, activeOnly });
     const streamEvents = await loadStreamEvents(client, { from: bufferedFrom, to, channelId });
+    const debutChannels = await loadDebutChannels(client);
     const grouped = new Map();
 
     for (const row of statsRows) {
@@ -713,8 +773,9 @@ async function recalculateFundamentals(pool, { from = null, to = null, version =
       let previousDerived = null;
 
       const channelEvents = streamEvents.get(currentChannelId) ?? null;
+      const debut = debutChannels.get(currentChannelId) ?? null;
       for (const row of denseRows) {
-        const derived = computeDerivedSnapshot(row, historyByDate, previousDerived, version, channelEvents?.get(toDateKey(row.snapshot_date)) ?? null);
+        const derived = computeDerivedSnapshot(row, historyByDate, previousDerived, version, channelEvents?.get(toDateKey(row.snapshot_date)) ?? null, debut);
         previousDerived = derived;
 
         const withinRequestedWindow =
@@ -772,6 +833,7 @@ async function recalculateFundamentals(pool, { from = null, to = null, version =
 module.exports = {
   STREAM_EVENT_WEIGHTS,
   computeDerivedSnapshot,
+  debutShare,
   streamEventSignal,
   listFundamentalsJobs,
   recalculateFundamentals,

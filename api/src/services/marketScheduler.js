@@ -173,7 +173,7 @@ function getCurrentDateKey(now, timeZone) {
 
 async function listReadyRawSnapshotDates(client, { after = null, through = null } = {}) {
   const params = [getQueryTimeZone()];
-  const where = ["c.is_active = true"];
+  const where = [];
   const dayExpr = `timezone($1, s.time)::date`;
 
   if (after) {
@@ -187,17 +187,24 @@ async function listReadyRawSnapshotDates(client, { after = null, through = null 
 
   const { rows } = await client.query(
     `
-    WITH active_channels AS (
-      SELECT COUNT(*)::INTEGER AS active_count
-      FROM yt.youtube_channels
-      WHERE is_active = true
+    -- Only listed stocks hold a day up: a talent still coming to market (prelaunch, or not bootstrapped
+    -- yet) is tracked, but a missing stats row for her never blocks settlement.
+    WITH listed_channels AS (
+      SELECT c.youtube_channel_id
+      FROM yt.youtube_channels c
+      JOIN market.market_assets a ON a.youtube_channel_id = c.youtube_channel_id
+      WHERE c.is_active = true
+        AND a.status IN ('active', 'halted')
+    ),
+    active_channels AS (
+      SELECT COUNT(*)::INTEGER AS active_count FROM listed_channels
     )
     SELECT ${dayExpr} AS snapshot_date
     FROM yt.youtube_channel_daily_stats s
-    JOIN yt.youtube_channels c
+    JOIN listed_channels c
       ON c.youtube_channel_id = s.youtube_channel_id
     CROSS JOIN active_channels ac
-    WHERE ${where.join(" AND ")}
+    ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
     GROUP BY ${dayExpr}, ac.active_count
     HAVING COUNT(DISTINCT s.youtube_channel_id) = ac.active_count
     ORDER BY ${dayExpr} ASC
@@ -301,6 +308,12 @@ async function runScheduledCycle(pool, schedulerConfig, logger = console, redis 
       activeOnly: true,
       fillMissingDates: true,
     });
+
+    // IPOs whose listing day is the first day being settled turn active now, so that settlement
+    // opens them at their IPO price (services/ipo.js).
+    await require("./ipo")
+      .listDueEvents(pool, { marketDate: from, redis, logger })
+      .catch((error) => logger.error?.("ipo listing before settlement failed", error));
 
     const settlementStatus = await marketState.updateSettlementPhase(lockClient, {
       marketDate: to,

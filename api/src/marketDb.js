@@ -469,6 +469,8 @@ async function listAssets(pool) {
     LEFT JOIN pending_live_orders plo ON plo.asset_id = a.id
     LEFT JOIN oshicoin_users ou ON ou.asset_id = a.id
     LEFT JOIN market.asset_buybacks bb ON bb.asset_id = a.id AND bb.status = 'active'
+    -- A talent coming to market (an IPO) has no price yet: she's on /market/ipo, not the board.
+    WHERE a.status <> 'prelaunch'
     ORDER BY a.symbol ASC
   `
   );
@@ -1298,6 +1300,8 @@ async function listAssetRankingCore(pool) {
       ON ld.asset_id = a.id
     LEFT JOIN latest_stats ls
       ON ls.youtube_channel_id = a.youtube_channel_id
+    -- Talents coming to market (an IPO) aren't ranked until they list.
+    WHERE a.status <> 'prelaunch'
     ORDER BY a.symbol ASC
   `
   );
