@@ -18,6 +18,7 @@ import { useMarketStore } from "@/app/stores/market-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import { useTradeStore } from "@/app/stores/trade-store";
 import { CHANNEL_RANGES, useChannelData, type Channel, type ChannelRange } from "@/app/lib/use-channel-data";
+import { peekStored, useStoredState } from "@/app/lib/use-stored-state";
 import styles from "@/app/components/stocks/screener.module.scss";
 
 // ── Data ─────────────────────────────────────────────────────────────────
@@ -96,6 +97,54 @@ const CHANNEL_COLS: typeof MARKET_COLS = [
 const DEFAULT_FILTERS: Filters = { move: "any", d15: "any", vol: "any" };
 const VIEWS_KEY = "nasfaq.screener.views";
 const COMPARE_MAX = 5;
+
+// Filters and settings are remembered (useStoredState), so a refresh or a trip to a stock page and
+// back finds the screener as you left it. The search only lasts for the tab.
+const STORED = {
+  view: "nasfaq.screener.view",
+  units: "nasfaq.screener.units",
+  filters: "nasfaq.screener.filters",
+  sort: "nasfaq.screener.sort",
+  group: "nasfaq.screener.group",
+  lens: "nasfaq.screener.lens",
+  mode: "nasfaq.screener.mode",
+  range: "nasfaq.screener.range",
+  compare: "nasfaq.screener.compare",
+  active: "nasfaq.screener.activeView",
+  search: "nasfaq.screener.search",
+} as const;
+const SORT_KEYS: SortKey[] = ["sym", "unit", "price", "move", "tick", "d15", "vol", "float", "held", "subs", "subsCh", "views", "viewsCh", "videos", "sc7", "stream7", "oshis"];
+const DEFAULT_SORT: { key: SortKey; dir: 1 | -1 } = { key: "move", dir: -1 };
+const NONE: string[] = [];
+const NO_VIEWS: SavedView[] = [];
+
+// What's read back is checked: it may be from an older version of the page.
+const oneOf =
+  <T extends string>(options: readonly T[]) =>
+  (value: unknown): T | null =>
+    options.includes(value as T) ? (value as T) : null;
+const parseView = (value: unknown) => (QUICK.some((entry) => entry.key === value) ? (value as string) : null);
+const parseStrings = (value: unknown) => (Array.isArray(value) && value.every((item) => typeof item === "string") ? (value as string[]) : null);
+const parseCompare = (value: unknown) => parseStrings(value)?.slice(0, COMPARE_MAX) ?? null;
+const parseFilters = (value: unknown): Filters | null => {
+  if (!value || typeof value !== "object") return null;
+  const stored = value as Record<string, unknown>;
+  return {
+    move: oneOf(["any", "up", "down"] as const)(stored.move) ?? "any",
+    d15: oneOf(["any", "up", "down"] as const)(stored.d15) ?? "any",
+    vol: oneOf(["any", "active", "quiet"] as const)(stored.vol) ?? "any",
+  };
+};
+const parseSort = (value: unknown) => {
+  const stored = value as { key?: unknown; dir?: unknown } | null;
+  return stored && SORT_KEYS.includes(stored.key as SortKey) && (stored.dir === 1 || stored.dir === -1) ? { key: stored.key as SortKey, dir: stored.dir as 1 | -1 } : null;
+};
+const parseBoolean = (value: unknown) => (typeof value === "boolean" ? value : null);
+const parseString = (value: unknown) => (typeof value === "string" ? value : null);
+const parseLens = oneOf(["market", "channel"] as const);
+const parseMode = oneOf(["table", "cards"] as const);
+const parseRange = (value: unknown) => ((CHANNEL_RANGES as readonly unknown[]).includes(value) ? (value as ChannelRange) : null);
+const parseSaved = (value: unknown) => (Array.isArray(value) ? (value.filter((entry) => entry && typeof entry === "object" && typeof entry.name === "string") as SavedView[]) : null);
 
 const fmtK = (value: number | null) => {
   if (value === null || !Number.isFinite(value)) return "—";
@@ -215,21 +264,23 @@ export function Screener({ initialView }: { initialView?: string }) {
   const openTrade = useTradeStore((state) => state.openTrade);
   const { user } = useAuth();
   const { theme } = useTheme();
-  const [range, setRange] = useState<ChannelRange>("7d");
+  const [range, setRange] = useStoredState<ChannelRange>(STORED.range, "7d", { parse: parseRange });
   const channels = useChannelData(range);
   const search = useRef<HTMLInputElement | null>(null);
-  const startView = QUICK.find((entry) => entry.key === initialView) ?? QUICK[0];
-  const [q, setQ] = useState("");
-  const [view, setView] = useState(startView.key);
-  const [units, setUnits] = useState<Set<string>>(new Set());
-  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
-  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>(startView.sort ? { key: startView.sort[0], dir: startView.sort[1] } : { key: "move", dir: -1 });
-  const [group, setGroup] = useState(false);
-  const [lens, setLens] = useState<Lens>(startView.lens ?? "market");
-  const [mode, setMode] = useState<"table" | "cards">("table");
-  const [compare, setCompare] = useState<string[]>([]);
-  const [saved, setSaved] = useState<SavedView[]>([]);
-  const [activeSaved, setActiveSaved] = useState<string | null>(null);
+  const [q, setQ] = useStoredState(STORED.search, "", { storage: "session", parse: parseString });
+  const [view, setView] = useStoredState(STORED.view, QUICK[0].key, { parse: parseView });
+  const [storedUnits, setStoredUnits] = useStoredState(STORED.units, NONE, { parse: parseStrings });
+  const units = useMemo(() => new Set(storedUnits), [storedUnits]);
+  const setUnits = (next: Set<string> | ((current: Set<string>) => Set<string>)) =>
+    setStoredUnits((current) => [...(typeof next === "function" ? next(new Set(current)) : next)]);
+  const [filters, setFilters] = useStoredState<Filters>(STORED.filters, DEFAULT_FILTERS, { parse: parseFilters });
+  const [sort, setSort] = useStoredState(STORED.sort, DEFAULT_SORT, { parse: parseSort });
+  const [group, setGroup] = useStoredState(STORED.group, false, { parse: parseBoolean });
+  const [lens, setLens] = useStoredState<Lens>(STORED.lens, "market", { parse: parseLens });
+  const [mode, setMode] = useStoredState<"table" | "cards">(STORED.mode, "table", { parse: parseMode });
+  const [compare, setCompare] = useStoredState(STORED.compare, NONE, { parse: parseCompare });
+  const [saved, setSaved] = useStoredState(VIEWS_KEY, NO_VIEWS, { parse: parseSaved });
+  const [activeSaved, setActiveSaved] = useStoredState<string | null>(STORED.active, null, { parse: parseString });
   const [pop, setPop] = useState<"units" | "filters" | "save" | null>(null);
   const [saveName, setSaveName] = useState("");
 
@@ -237,12 +288,21 @@ export function Screener({ initialView }: { initialView?: string }) {
     if (user) void fetchPortfolio();
   }, [fetchPortfolio, user]);
 
+  // A link to a quick view (/stocks?view=movers) opens it with its own sort and columns; with no view
+  // in the link, the one you left on stays. Acts only when the link's view changes, and not when it's
+  // already the stored view (a refresh of ?view=movers keeps your sort). Compared with storage, since
+  // `view` can still be the server's default here.
+  const linkedView = useRef<string | undefined>(undefined);
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(VIEWS_KEY);
-      if (raw) setSaved(JSON.parse(raw) as SavedView[]);
-    } catch {}
-  }, []);
+    if (initialView === linkedView.current) return;
+    linkedView.current = initialView;
+    const entry = QUICK.find((item) => item.key === initialView);
+    if (!entry || entry.key === peekStored(STORED.view, QUICK[0].key, { parse: parseView })) return;
+    setView(entry.key);
+    setActiveSaved(null);
+    if (entry.sort) setSort({ key: entry.sort[0], dir: entry.sort[1] });
+    if (entry.lens) setLens(entry.lens);
+  });
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -359,12 +419,7 @@ export function Screener({ initialView }: { initialView?: string }) {
     if (entry.lens) setLens(entry.lens);
     router.replace(entry.key === "all" ? "/stocks" : `/stocks?view=${entry.key}`, { scroll: false });
   };
-  const persist = (next: SavedView[]) => {
-    setSaved(next);
-    try {
-      window.localStorage.setItem(VIEWS_KEY, JSON.stringify(next));
-    } catch {}
-  };
+  const persist = (next: SavedView[]) => setSaved(next);
   const applySaved = (entry: SavedView) => {
     setQ(entry.q);
     setView(entry.view);
