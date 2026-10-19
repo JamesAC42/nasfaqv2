@@ -7,7 +7,6 @@ import { ArtSlot } from "@/app/components/common/art-slot";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { SiteShell } from "@/app/components/layout/site-shell";
-import { apiFetch } from "@/app/lib/api";
 import { markSeries, groupByUnit, UNIT_ORDER, unitLabel, unitName } from "@/app/lib/market-units";
 import { talentAccent } from "@/app/lib/talent-color";
 import { signedPct, toneOf } from "@/app/lib/time";
@@ -58,30 +57,33 @@ const QUICK: Array<{ key: string; label: string; test?: (row: Row) => boolean; s
   { key: "oshi", label: "MOST OSHI'D", sort: ["oshis", -1], lens: "channel" },
 ];
 
-const MARKET_COLS: Array<{ key: SortKey | "cb" | "spark" | "act"; label: string; left?: boolean; hide?: string }> = [
+type Col = { key: SortKey | "cb" | "spark" | "act"; label: string; left?: boolean };
+
+// One layout for both views: the same frame (who it is, the 15D chart, price and today on the left;
+// your holding and the trade button on the right), with the Market/Channel switch swapping only the
+// stats in between (set off by hairlines, see .table in the stylesheet).
+const FRAME_START: Col[] = [
   { key: "cb", label: "", left: true },
   { key: "sym", label: "Stock", left: true },
   { key: "unit", label: "Unit", left: true },
   { key: "spark", label: "15D", left: true },
   { key: "price", label: "Price" },
   { key: "move", label: "Today" },
-  { key: "tick", label: "Last tick" },
-  { key: "d15", label: "15D chg" },
-  { key: "vol", label: "24h vol" },
-  { key: "subs", label: "Subs", hide: "wide" },
-  { key: "subsCh", label: "Subs 24h", hide: "wide" },
-  { key: "viewsCh", label: "Views 24h", hide: "wide" },
-  { key: "float", label: "Float" },
+];
+
+const FRAME_END: Col[] = [
   { key: "held", label: "You hold" },
   { key: "act", label: "" },
 ];
 
-const CHANNEL_COLS: typeof MARKET_COLS = [
-  { key: "cb", label: "", left: true },
-  { key: "sym", label: "Stock", left: true },
-  { key: "unit", label: "Unit", left: true },
-  { key: "price", label: "Price" },
-  { key: "move", label: "Today" },
+const MARKET_STATS: Col[] = [
+  { key: "tick", label: "Last tick" },
+  { key: "d15", label: "15D chg" },
+  { key: "vol", label: "24h vol" },
+  { key: "float", label: "Float" },
+];
+
+const CHANNEL_STATS: Col[] = [
   { key: "subs", label: "Subs" },
   { key: "subsCh", label: "Subs 24h" },
   { key: "views", label: "Views" },
@@ -90,8 +92,6 @@ const CHANNEL_COLS: typeof MARKET_COLS = [
   { key: "sc7", label: "7D superchat" },
   { key: "stream7", label: "7D streamed" },
   { key: "oshis", label: "Oshi'd by" },
-  { key: "held", label: "You hold" },
-  { key: "act", label: "" },
 ];
 
 const DEFAULT_FILTERS: Filters = { move: "any", d15: "any", vol: "any" };
@@ -394,9 +394,9 @@ export function Screener({ initialView }: { initialView?: string }) {
   const bags = rows.filter((row) => row.heldQty > 0).length;
   // The channel columns follow the chosen window: "30D superchat", "Subs 30d" and so on.
   const rangeLabel = range.toUpperCase();
-  const cols =
+  const stats =
     lens === "channel"
-      ? CHANNEL_COLS.map((col) =>
+      ? CHANNEL_STATS.map((col) =>
           col.key === "sc7"
             ? { ...col, label: `${rangeLabel} superchat` }
             : col.key === "stream7"
@@ -407,7 +407,8 @@ export function Screener({ initialView }: { initialView?: string }) {
                   ? { ...col, label: `Views ${range}` }
                   : col,
         )
-      : MARKET_COLS;
+      : MARKET_STATS;
+  const cols = [...FRAME_START, ...stats, ...FRAME_END];
   const filterCount = Object.values(filters).filter((value) => value !== "any").length;
   const unitList = UNIT_ORDER.filter((unit) => rows.some((row) => row.unit === unit));
 
@@ -522,7 +523,7 @@ export function Screener({ initialView }: { initialView?: string }) {
       case "subs":
       case "views":
         return (
-          <td key={key} className={cols.find((col) => col.key === key)?.hide === "wide" ? styles.wide : undefined}>
+          <td key={key}>
             {fmtK(row[key])}
           </td>
         );
@@ -531,7 +532,7 @@ export function Screener({ initialView }: { initialView?: string }) {
         return (
           <td
             key={key}
-            className={`${styles[toneOf(row[key])]} ${cols.find((col) => col.key === key)?.hide === "wide" ? styles.wide : ""}`}
+            className={styles[toneOf(row[key])]}
             title={row.growthDays !== null && row[key] !== null ? `Over the last ${row.growthDays === 1 ? "day" : `${row.growthDays} days`} of data` : undefined}
           >
             {signedPct(row[key])}
@@ -842,7 +843,7 @@ export function Screener({ initialView }: { initialView?: string }) {
                       ) : (
                         <th
                           key={col.key}
-                          className={`${col.left ? styles.l : ""} ${styles.sort} ${col.hide === "wide" ? styles.wide : ""}`}
+                          className={`${col.left ? styles.l : ""} ${styles.sort}`}
                           aria-sort={sort.key === col.key ? (sort.dir > 0 ? "ascending" : "descending") : "none"}
                           onClick={() => sortBy(col.key as SortKey)}
                         >

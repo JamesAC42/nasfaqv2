@@ -13,6 +13,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-19",
+    title: "One layout for the stocks table",
+    changes: [
+      {
+        kind: "improved",
+        text: "The stocks table keeps the same columns in the same places whether you're looking at Market or Channel stats: the stock, its 15-day chart, price and today's move on the left, what you hold and the trade button on the right. The switch only changes the stats in between.",
+      },
+    ],
+  },
+  {
     date: "2026-10-08",
     title: "The stocks page remembers",
     changes: [
