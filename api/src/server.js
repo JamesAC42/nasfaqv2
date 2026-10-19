@@ -10,6 +10,7 @@ const { createRedis } = require("./redis");
 const chatDb = require("./chatDb");
 const marketDb = require("./marketDb");
 const authService = require("./services/auth");
+const { requireUploader } = require("./userContext");
 const marketState = require("./services/marketState");
 const { startMarketScheduler, loadSchedulerConfig, computeNextScheduledAt } = require("./services/marketScheduler");
 const { startAdjustmentScheduler } = require("./services/marketAdjustments");
@@ -73,6 +74,10 @@ const GAMES_EVENTS_REDIS_CHANNEL = "nasfaq_games:events";
 // Clients only ever send small control messages (subscribe, hello, ping); the ws default is 100 MiB.
 const WS_MAX_PAYLOAD = 16 * 1024;
 const allowLoopbackOrigins = process.env.NODE_ENV !== "production";
+// How long a SIGTERM waits for requests already in flight (see shutdown() in main()); keep it inside
+// terminationGracePeriodSeconds minus the preStop sleep in deploy/k8s/20-api.yaml.
+const SHUTDOWN_DRAIN_MS = Number(process.env.SHUTDOWN_DRAIN_MS || 20_000);
+let shuttingDown = false;
 const MARKET_BUNDLE_MS = 100;
 let marketQueue = [];
 let marketFlushTimer = null;
@@ -240,12 +245,10 @@ app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  // Draining for a restart: answer, then hang up, so the client's next request goes elsewhere.
+  if (shuttingDown) res.setHeader("Connection", "close");
   next();
 });
-// Big bodies only where images are uploaded as data URLs (admin tools); 1 MB everywhere else, so an
-// anonymous request can't make every pod parse 25 MB of JSON.
-app.use(["/api/admin/assets", "/api/channels"], express.json({ limit: "25mb" }));
-app.use(express.json({ limit: "1mb" }));
 app.use(
   cors({
     origin(origin, callback) {
@@ -262,12 +265,15 @@ app.use(
 );
 
 const pool = createPool(cfg.databaseUrl);
+// The readiness probe's own connection, so a busy pool doesn't read as a broken pod. Its limits stay
+// inside the probe's 5 s timeout.
+const healthPool = createPool(cfg.databaseUrl, { max: 1, connectionTimeoutMs: 3_000, statementTimeoutMs: 2_000 });
 let redis = null;
 
 const api = express.Router();
 
 // Health endpoints bypass authentication and other database-dependent middleware.
-require("./health").registerHealthRoutes(app, pool);
+require("./health").registerHealthRoutes(app, healthPool);
 
 app.use(async (req, _res, next) => {
   try {
@@ -278,6 +284,13 @@ app.use(async (req, _res, next) => {
     next(error);
   }
 });
+
+// Bodies are parsed after the session lookup, so the 25 MB allowance (images uploaded as data URLs
+// in the admin tools) only goes to the people who may upload; anyone else is turned away before the
+// body is parsed. 1 MB everywhere else.
+app.use("/api/admin/assets", requireUploader((user) => user?.is_admin || user?.can_manage_assets), express.json({ limit: "25mb" }));
+app.use("/api/channels", requireUploader((user) => user?.is_admin), express.json({ limit: "25mb" }));
+app.use(express.json({ limit: "1mb" }));
 
 api.use("/auth", authRoutes);
 
@@ -425,6 +438,8 @@ app.use((err, _req, res, _next) => {
 });
 
 const GAME_TABLES_LEASE_KEY = 7_310_443;
+// The connection holding the lease (and its error handler), once this process owns the tables.
+let gameTablesLease = null;
 
 async function acquireGameTablesLease(db, { waitMs = Number(process.env.GAMES_TABLES_LEASE_WAIT_MS || 60_000) } = {}) {
   const client = await db.connect();
@@ -441,14 +456,32 @@ async function acquireGameTablesLease(db, { waitMs = Number(process.env.GAMES_TA
   }
   // Losing this connection means losing the lease while tables are live: stop, and let the
   // orchestrator restart us (the restart refunds anything unfinished, once).
-  client.on("error", (error) => {
+  const onError = (error) => {
     console.error("games: lost the game tables lease:", String(error?.message || error));
     process.exit(1);
-  });
+  };
+  client.on("error", onError);
+  gameTablesLease = { client, onError };
   return true;
 }
 
+/** Gives the lease back on shutdown, so the next owner doesn't wait for this connection to time out. */
+async function releaseGameTablesLease() {
+  const lease = gameTablesLease;
+  if (!lease) return;
+  gameTablesLease = null;
+  lease.client.removeListener("error", lease.onError);
+  try {
+    await lease.client.query("SELECT pg_advisory_unlock($1)", [GAME_TABLES_LEASE_KEY]);
+    lease.client.release();
+  } catch {
+    lease.client.release(true);
+  }
+}
+
 async function main() {
+  // Stop functions of the timers started below, called on shutdown so no new work starts.
+  const stoppers = [];
   if (cfg.enableMigrations) {
     // Its own pool without the statement timeout: migrations may rewrite or index whole tables.
     const migrationPool = createPool(cfg.databaseUrl, { statementTimeoutMs: 0 });
@@ -473,7 +506,7 @@ async function main() {
     // Maintenance pauses new games: know it before serving a table, and keep up with it (a release
     // drains games before restarting this process; see scripts/maintenance.js).
     await siteState.getSiteState(pool).catch((error) => console.warn("site state unavailable:", String(error?.message || error)));
-    siteState.startWatch(pool);
+    stoppers.push(siteState.startWatch(pool));
     await pvpTables.init(pool);
     await blackjackTables.init(pool);
     ownsGameTables = true;
@@ -509,6 +542,14 @@ async function main() {
   redis = await createRedis(cfg.redisUrl, cfg.redisPassword);
 
   const server = http.createServer(app);
+  // Requests being answered right now, so a shutdown can wait for them.
+  let inflightRequests = 0;
+  server.on("request", (_req, res) => {
+    inflightRequests += 1;
+    res.once("close", () => {
+      inflightRequests -= 1;
+    });
+  });
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: WS_MAX_PAYLOAD });
   const bucketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: WS_MAX_PAYLOAD });
   const statsWss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: WS_MAX_PAYLOAD });
@@ -746,6 +787,10 @@ async function main() {
   });
 
   server.on("upgrade", async (req, socket, head) => {
+    if (shuttingDown) {
+      socket.destroy();
+      return;
+    }
     let pathname = "";
     try {
       pathname = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`).pathname;
@@ -862,7 +907,8 @@ async function main() {
   if (cfg.enableLivestreamSnapshotOwner) {
     // One server-side refresh timer replaces client polling; keep it single-owner in Kubernetes.
     await refreshSnapshot();
-    setInterval(refreshSnapshot, LIVESTREAM_SNAPSHOT_REFRESH_MS);
+    const snapshotTimer = setInterval(refreshSnapshot, LIVESTREAM_SNAPSHOT_REFRESH_MS);
+    stoppers.push(() => clearInterval(snapshotTimer));
   }
 
   server.listen(cfg.port, () => {
@@ -873,26 +919,78 @@ async function main() {
   });
 
   if (cfg.enableMarketSettlementScheduler) {
-    startMarketScheduler(pool, console, redis);
+    stoppers.push(startMarketScheduler(pool, console, redis));
   }
   // Disabled status-owner workers publish Off; web/game replicas publish nothing.
-  startAdjustmentScheduler(pool, console, redis);
-  startLiveOrderScheduler(pool, console, redis);
+  stoppers.push(startAdjustmentScheduler(pool, console, redis));
+  stoppers.push(startLiveOrderScheduler(pool, console, redis));
   if (cfg.enableMarketSettlementScheduler) {
     // Saturday 00:00 ET: dividends and fees, max shares, buybacks (MARKET_WEEKLY_EVALUATION_ENABLED=false to stop it).
-    require("./services/weeklyEvaluation").startWeeklyEvaluationScheduler(pool, console, redis);
+    stoppers.push(require("./services/weeklyEvaluation").startWeeklyEvaluationScheduler(pool, console, redis));
     // Opens IPO windows when they're due (listing itself happens in the 09:00 cycle).
-    require("./services/ipo").startIpoScheduler(pool, console, redis);
+    stoppers.push(require("./services/ipo").startIpoScheduler(pool, console, redis));
   }
   if (cfg.enablePredictionMarketScheduler) {
-    startPredictionsScheduler(pool, console, redis);
+    const predictionsTimer = startPredictionsScheduler(pool, console, redis);
+    stoppers.push(() => clearInterval(predictionsTimer));
   }
   // The card exchange closes auctions and expires listings and trade offers on its own clock.
-  require("./services/games/exchange").startExchangeScheduler(pool, console);
+  stoppers.push(require("./services/games/exchange").startExchangeScheduler(pool, console));
   // The Wire posts automatic headlines every 10 minutes (stream events judged by Jev when JEV_API_KEY is set).
-  require("./services/wire").startWireScheduler(pool, console);
+  stoppers.push(require("./services/wire").startWireScheduler(pool, console));
   // The /vt/ chatter index scans hololive threads every 5 minutes (CHATTER_ENABLED=off to stop it).
-  require("./services/chatter").startChatterScheduler(pool, console);
+  stoppers.push(require("./services/chatter").startChatterScheduler(pool, console));
+
+  // Kubernetes sends SIGTERM on a rollout or scale-down, after the preStop sleep in
+  // deploy/k8s/20-api.yaml has given the Service time to stop routing here. Stop starting work and
+  // taking connections, tell every socket to reconnect (1012, "service restart": the site's sockets
+  // reconnect when closed, and land on another pod), let requests already in flight finish for up to
+  // SHUTDOWN_DRAIN_MS, give back the game tables lease and the database pools, and exit. Advisory
+  // locks a scheduler holds mid-tick go with their connections.
+  const socketServers = [wss, bucketWss, statsWss, chatWss, marketWss, predictionMarketWss, gamesWss];
+  const shutdown = async (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    // eslint-disable-next-line no-console
+    console.log(`${signal}: draining (${inflightRequests} requests in flight, up to ${SHUTDOWN_DRAIN_MS / 1000}s)`);
+    const deadline = Date.now() + SHUTDOWN_DRAIN_MS;
+    // However the steps below go, the process is gone shortly after the drain window.
+    setTimeout(() => process.exit(0), SHUTDOWN_DRAIN_MS + 5_000).unref();
+
+    clearInterval(heartbeat);
+    for (const stop of stoppers) {
+      try {
+        if (typeof stop === "function") stop();
+      } catch {}
+    }
+    server.close();
+    for (const socketServer of socketServers) {
+      socketServer.clients.forEach((socket) => {
+        try {
+          socket.close(1012, "server restarting");
+        } catch {
+          socket.terminate();
+        }
+      });
+    }
+    while (inflightRequests > 0 && Date.now() < deadline) {
+      server.closeIdleConnections();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    server.closeAllConnections();
+    for (const socketServer of socketServers) socketServer.clients.forEach((socket) => socket.terminate());
+
+    await releaseGameTablesLease().catch(() => {});
+    await Promise.race([
+      Promise.allSettled([pool.end(), healthPool.end(), redis?.quit(), redisSub?.quit()]),
+      // A scheduler mid-tick still holds a pooled connection: don't wait past the window for it.
+      new Promise((resolve) => setTimeout(resolve, Math.max(1_000, deadline - Date.now()))),
+    ]);
+    // eslint-disable-next-line no-console
+    console.log(`${signal}: done`);
+    process.exit(0);
+  };
+  process.once("SIGTERM", () => void shutdown("SIGTERM"));
 }
 
 // A stray rejected promise is a bug to log, not a reason to drop every socket on this pod.

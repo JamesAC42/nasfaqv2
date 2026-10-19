@@ -66,7 +66,9 @@ NEXT_PUBLIC_TURNSTILE_SITE_KEY=0x...
 TURNSTILE_SECRET_KEY=0x...
 ```
 
-If `TURNSTILE_SECRET_KEY` is empty, the API skips Turnstile verification.
+If `TURNSTILE_SECRET_KEY` is empty, the API skips Turnstile verification, except in production (`NODE_ENV=production`, which the API image sets), where sign-up is refused until it is set.
+
+The check fails closed: if Cloudflare doesn't answer within 5 seconds the request is refused (`turnstile_unavailable`, 503), and in production a token solved on any host other than `PUBLIC_APP_BASE_URL`'s is rejected. Set `TURNSTILE_HOSTNAMES` (comma-separated) when the site is served from more than one hostname.
 
 ## Database Migration
 

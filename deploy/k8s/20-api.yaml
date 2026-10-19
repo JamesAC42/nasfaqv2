@@ -13,6 +13,9 @@ spec:
       labels:
         app: api-web
     spec:
+      # The API drains for up to 20 s on SIGTERM (SHUTDOWN_DRAIN_MS in api/src/server.js), after
+      # the 5 s preStop sleep; this leaves room for both.
+      terminationGracePeriodSeconds: 40
       containers:
         - name: api-web
           image: ghcr.io/jamesac42/nasfaqv2-api:IMAGE_TAG
@@ -41,6 +44,12 @@ spec:
               value: "false"
             - name: GAMES_TABLES_OWNER
               value: "false"
+          lifecycle:
+            # Keep serving while the Service and the ingress stop sending traffic here; SIGTERM
+            # (and the drain) comes after.
+            preStop:
+              exec:
+                command: ["sleep", "5"]
           readinessProbe:
             timeoutSeconds: 5
             httpGet:
@@ -93,6 +102,9 @@ spec:
       labels:
         app: api-scheduler
     spec:
+      # The API drains for up to 20 s on SIGTERM (SHUTDOWN_DRAIN_MS in api/src/server.js), which
+      # gives a scheduler tick that's running time to finish. No preStop: nothing routes here.
+      terminationGracePeriodSeconds: 40
       containers:
         - name: api-scheduler
           image: ghcr.io/jamesac42/nasfaqv2-api:IMAGE_TAG
@@ -158,6 +170,9 @@ spec:
       labels:
         app: api-games
     spec:
+      # The API drains for up to 20 s on SIGTERM (SHUTDOWN_DRAIN_MS in api/src/server.js), after
+      # the 5 s preStop sleep; this leaves room for both.
+      terminationGracePeriodSeconds: 40
       containers:
         - name: api-games
           image: ghcr.io/jamesac42/nasfaqv2-api:IMAGE_TAG
@@ -188,6 +203,12 @@ spec:
               value: "false"
             - name: GAMES_TABLES_OWNER
               value: "true"
+          lifecycle:
+            # Keep serving while the Service and the ingress stop sending traffic here; SIGTERM
+            # (and the drain) comes after.
+            preStop:
+              exec:
+                command: ["sleep", "5"]
           readinessProbe:
             timeoutSeconds: 5
             httpGet:
