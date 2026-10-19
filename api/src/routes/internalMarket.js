@@ -145,9 +145,15 @@ router.get("/invariants", async (req, res, next) => {
   }
 });
 
+// Whether this deployment allows a reset (ALLOW_MARKET_RESET); the admin page hides it when not.
+router.get("/reset", (_req, res) => {
+  res.json({ enabled: marketAdmin.isMarketResetAllowed() });
+});
+
 router.post("/reset", async (req, res, next) => {
   try {
     requireAdmin(req);
+    if (!marketAdmin.isMarketResetAllowed()) return res.status(403).json({ error: "market_reset_disabled" });
     if (!hasConfirmation(req, "reset")) return res.status(400).json({ error: "invalid_confirmation" });
     const result = await marketAdmin.resetMarketState(req.ctx.pool);
     await invalidateMarketAssetsCache(req.ctx.redis);

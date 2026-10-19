@@ -37,6 +37,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   missing_token: "Open this page from the link in your email.",
   turnstile_required: "Finish the security check first.",
   turnstile_failed: "The security check failed. Try it again.",
+  turnstile_unavailable: "The security check isn't answering right now. Try again in a minute.",
   rate_limited: "Too many tries. Wait a minute and try again.",
 };
 

@@ -14,7 +14,7 @@ const marketState = require("./marketState");
 const supply = require("./marketSupply");
 const netWorth = require("./netWorth");
 const achievements = require("./achievements");
-const { ensureUserCashAccount, getStarterCash } = require("./portfolioCash");
+const { ensureUserCashAccount, getStarterCash, openUserCashAccount, readUserCashAccount } = require("./portfolioCash");
 const economy = require("./economy");
 const { publishMarketEvent } = require("./marketEvents");
 const { invalidateMarketAssetsCache } = require("../marketCache");
@@ -1625,12 +1625,16 @@ function startLiveOrderScheduler(pool, logger = console, redis = null) {
 }
 
 async function getPortfolioSummary(pool, userId) {
+  // Read-only, so it takes no row locks: this runs on every page that shows your cash, and used to
+  // lock your cash row and queue behind your own fills. One snapshot keeps cash and holdings from
+  // the same moment.
   const client = await pool.connect();
+  let cashAccount;
+  let holdingsResult;
   try {
-    await client.query("BEGIN");
-    const cashAccount = await ensureUserCashAccount(client, userId);
-
-    const holdingsResult = await client.query(
+    await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    cashAccount = await readUserCashAccount(client, userId);
+    holdingsResult = await client.query(
       `
       SELECT
         h.asset_id,
@@ -1649,39 +1653,40 @@ async function getPortfolioSummary(pool, userId) {
     `,
       [userId]
     );
-
     await client.query("COMMIT");
-
-    const holdings = holdingsResult.rows;
-    const totalMarketValue = holdings.reduce((sum, row) => sum + toNumber(row.market_value, 0), 0);
-    const totalUnrealizedPnl = holdings.reduce((sum, row) => sum + toNumber(row.unrealized_pnl, 0), 0);
-
-    const creditBalance = toNumber(cashAccount.credit_balance, 0);
-    return {
-      cash_balance: toNumber(cashAccount.cash_balance, 0),
-      // Set aside for queued buys (and IPO subscriptions): not spendable, still yours (it counts
-      // toward net worth).
-      held_cash: toNumber(cashAccount.held_cash, 0),
-      // What a queued buy holds over its estimated cost, so tickets can say what's left after one.
-      order_hold_margin: LIVE_ORDER_HOLD_MARGIN,
-      credit_balance: creditBalance,
-      total_market_value: totalMarketValue,
-      total_unrealized_pnl: totalUnrealizedPnl,
-      total_equity:
-        toNumber(cashAccount.cash_balance, 0) +
-        toNumber(cashAccount.held_cash, 0) +
-        (economy.SETTINGS.netWorth === "cash_and_credit" ? creditBalance : 0) +
-        totalMarketValue,
-      // The Credit rules in force (some are still open: see services/economy.js).
-      economy: economy.publicSettings(),
-      holdings,
-    };
   } catch (error) {
-    await client.query("ROLLBACK");
+    await client.query("ROLLBACK").catch(() => {});
     throw error;
   } finally {
     client.release();
   }
+  // No account yet (a player who has never looked or traded): open it now, once.
+  if (!cashAccount) cashAccount = await openUserCashAccount(pool, userId);
+
+  const holdings = holdingsResult.rows;
+  const totalMarketValue = holdings.reduce((sum, row) => sum + toNumber(row.market_value, 0), 0);
+  const totalUnrealizedPnl = holdings.reduce((sum, row) => sum + toNumber(row.unrealized_pnl, 0), 0);
+
+  const creditBalance = toNumber(cashAccount.credit_balance, 0);
+  return {
+    cash_balance: toNumber(cashAccount.cash_balance, 0),
+    // Set aside for queued buys (and IPO subscriptions): not spendable, still yours (it counts
+    // toward net worth).
+    held_cash: toNumber(cashAccount.held_cash, 0),
+    // What a queued buy holds over its estimated cost, so tickets can say what's left after one.
+    order_hold_margin: LIVE_ORDER_HOLD_MARGIN,
+    credit_balance: creditBalance,
+    total_market_value: totalMarketValue,
+    total_unrealized_pnl: totalUnrealizedPnl,
+    total_equity:
+      toNumber(cashAccount.cash_balance, 0) +
+      toNumber(cashAccount.held_cash, 0) +
+      (economy.SETTINGS.netWorth === "cash_and_credit" ? creditBalance : 0) +
+      totalMarketValue,
+    // The Credit rules in force (some are still open: see services/economy.js).
+    economy: economy.publicSettings(),
+    holdings,
+  };
 }
 
 async function getPortfolioLedger(pool, userId, { limit = 100 } = {}) {

@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-10-19",
+    title: "Smoother updates",
+    changes: [
+      {
+        kind: "improved",
+        text: "Putting out an update no longer cuts off a trade or chat message you'd just sent: it finishes first, and you shouldn't see errors while the update rolls out.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-19",
     title: "One layout for the stocks table",
     changes: [
       {

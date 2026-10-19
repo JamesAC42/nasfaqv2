@@ -368,6 +368,9 @@ export function AdminMarketTuningPage() {
   const [regenError, setRegenError] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<"reset" | "rebuild" | null>(null);
   const [confirmText, setConfirmText] = useState("");
+  // The API refuses a reset unless the deployment allows it (ALLOW_MARKET_RESET); hide the tab then.
+  const [resetEnabled, setResetEnabled] = useState(false);
+  const view: TabKey = tab === "reset" && !resetEnabled ? "ticks" : tab;
 
   const isAdmin = access.isAdmin;
 
@@ -419,6 +422,9 @@ export function AdminMarketTuningPage() {
       }
       if (!cancelled) await loadOps();
     }, 0);
+    apiFetch<{ enabled?: boolean }>("/internal/market/reset", { cache: "no-store" })
+      .then((result) => !cancelled && setResetEnabled(result?.enabled === true))
+      .catch(() => !cancelled && setResetEnabled(false));
     return () => {
       cancelled = true;
       clearTimeout(timer);
@@ -563,7 +569,7 @@ export function AdminMarketTuningPage() {
     { key: "live-orders" as const, label: "Live orders", count: liveHealth ? liveHealth.health.pending_count : undefined },
     { key: "stocks" as const, label: "Per-stock", count: assets.length || undefined },
     { key: "evaluation" as const, label: "Weekly evaluation" },
-    { key: "reset" as const, label: "Reset & rebuild" },
+    ...(resetEnabled ? [{ key: "reset" as const, label: "Reset & rebuild" }] : []),
   ];
 
   return (
@@ -622,11 +628,11 @@ export function AdminMarketTuningPage() {
         </div>
       </div>
 
-      <Tabs tabs={tabs} value={tab} onChange={setTab} label="Market tuning sections" />
-      {adminBusy === "rebuild" && adminStatus && tab !== "reset" ? <Notice tone="info">{adminStatus}</Notice> : null}
-      {opsError && tab !== "stocks" && tab !== "reset" ? <Notice>{opsError}</Notice> : null}
+      <Tabs tabs={tabs} value={view} onChange={setTab} label="Market tuning sections" />
+      {adminBusy === "rebuild" && adminStatus && view !== "reset" ? <Notice tone="info">{adminStatus}</Notice> : null}
+      {opsError && view !== "stocks" && view !== "reset" ? <Notice>{opsError}</Notice> : null}
 
-      {tab === "ticks" ? (
+      {view === "ticks" ? (
         <div role="tabpanel" id="panel-ticks" aria-labelledby="tab-ticks">
           <Section title="Schedule" hint={`Tick strengths add up to ${config?.interval_strength_total_pct ?? 200}% a day, pulling price toward base.`}>
             <ol className={styles.intervals}>
@@ -815,7 +821,7 @@ export function AdminMarketTuningPage() {
         </div>
       ) : null}
 
-      {tab === "live-orders" ? (
+      {view === "live-orders" ? (
         <div role="tabpanel" id="panel-live-orders" aria-labelledby="tab-live-orders">
           <Section title="Batches" hint="Queued market orders fill in best-effort batches. Rejections mean price, cash, holdings or the interval limit failed at fill time.">
             <dl className={styles.facts}>
@@ -886,7 +892,7 @@ export function AdminMarketTuningPage() {
         </div>
       ) : null}
 
-      {tab === "stocks" ? (
+      {view === "stocks" ? (
         <div role="tabpanel" id="panel-stocks" aria-labelledby="tab-stocks">
           <Section
             title="Guardrails"
@@ -931,13 +937,13 @@ export function AdminMarketTuningPage() {
         </div>
       ) : null}
 
-      {tab === "evaluation" ? (
+      {view === "evaluation" ? (
         <div role="tabpanel" id="panel-evaluation" aria-labelledby="tab-evaluation">
           <EvaluationNow />
         </div>
       ) : null}
 
-      {tab === "reset" ? (
+      {view === "reset" ? (
         <div role="tabpanel" id="panel-reset" aria-labelledby="tab-reset">
           <Section title="Reset & rebuild">
             <div className={styles.actions}>
