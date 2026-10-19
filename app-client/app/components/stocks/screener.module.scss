@@ -497,6 +497,14 @@
   .l {
     text-align: left;
   }
+
+  // The Market/Channel stats sit between hairlines: the first column after the 6-column frame
+  // (FRAME_START in screener.tsx) and the first of the 2 closing ones (FRAME_END). Rows with a
+  // single spanning cell (unit group heads) don't match.
+  tr > :nth-child(7),
+  tr > :nth-last-child(2):not(:first-child) {
+    border-left: 1px solid var(--rule);
+  }
 }
 
 .sort {
@@ -519,12 +527,6 @@
   &[aria-sort="descending"]::after {
     content: " ▼";
     font-size: 8px;
-  }
-}
-
-.wide {
-  @include desktop-down {
-    display: none;
   }
 }
 
