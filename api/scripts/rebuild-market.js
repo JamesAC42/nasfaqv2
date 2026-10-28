@@ -6,6 +6,8 @@
 //                                                   leaderboards and assets, everyone gets starter cash
 //   --from 2026-03-01                               where the market's history starts (default
 //                                                   2026-01-01, or MARKET_HISTORY_FROM)
+//   --allow-remote-reset                            let --reset run against a database that isn't on
+//                                                   this machine, or with NODE_ENV=production
 //
 // Stop the API's market scheduler (or the API) first on a live server; the rebuild takes the
 // scheduler lock and refuses to run while a scheduled cycle holds it.
@@ -16,6 +18,24 @@ const { createRedis } = require("../src/redis");
 const marketAdmin = require("../src/services/marketAdmin");
 const { runFullRebuild } = require("../src/services/marketRebuild");
 
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+/** Why --reset must not run here, or null when it may: only local databases, never production. */
+function resetRefusal({ databaseUrl, nodeEnv, argv }) {
+  if (argv.includes("--allow-remote-reset")) return null;
+  if (nodeEnv === "production") return "NODE_ENV is production";
+  let host = "";
+  try {
+    const url = new URL(databaseUrl);
+    // A ?host= parameter wins over the URL's host in pg connection strings.
+    host = (url.searchParams.get("host") || url.hostname).toLowerCase();
+  } catch {
+    return "DATABASE_URL isn't a URL";
+  }
+  if (!LOCAL_HOSTS.has(host)) return `the database host (${host || "none"}) isn't localhost`;
+  return null;
+}
+
 async function main() {
   loadEnv();
   const argv = process.argv.slice(2);
@@ -25,13 +45,21 @@ async function main() {
   }
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set");
   console.log(`database: ${new URL(process.env.DATABASE_URL).host}${new URL(process.env.DATABASE_URL).pathname}`);
+  if (argv.includes("--reset")) {
+    const refusal = resetRefusal({ databaseUrl: process.env.DATABASE_URL, nodeEnv: process.env.NODE_ENV, argv });
+    if (refusal) {
+      console.log(`Not resetting: ${refusal}. A reset deletes every player's holdings and history; add --allow-remote-reset if you really mean this database.`);
+      process.exit(1);
+    }
+  }
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const redis = process.env.REDIS_URL ? await createRedis(process.env.REDIS_URL, process.env.REDIS_PASSWORD).catch(() => null) : null;
   const started = Date.now();
   try {
     if (argv.includes("--reset")) {
-      const reset = await marketAdmin.resetMarketState(pool);
+      // resetRefusal() above already checked the target; ALLOW_MARKET_RESET is the API's switch.
+      const reset = await marketAdmin.resetMarketState(pool, { allowed: true });
       console.log(`reset: everyone has ${reset.starter_cash} starter cash`);
     }
     let last = 0;
@@ -54,7 +82,11 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error("\nrebuild failed:", error.message || error.code);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error("\nrebuild failed:", error.message || error.code);
+    process.exit(1);
+  });
+}
+
+module.exports = { resetRefusal };

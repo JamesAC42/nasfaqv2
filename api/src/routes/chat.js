@@ -147,13 +147,7 @@ router.post("/channels/:channelKey/read", async (req, res, next) => {
       userId,
       lastReadMessageId: req.body?.last_read_message_id,
     });
-
-    await publishChatEvent(req.ctx.redis, {
-      type: "chat.read_state.updated",
-      channel_key: channel.channel_key,
-      user_id: userId,
-      last_read_message_id: lastReadMessageId,
-    });
+    // Read state is the reader's own business: nothing is broadcast to the room.
 
     res.json({
       channel_key: channel.channel_key,

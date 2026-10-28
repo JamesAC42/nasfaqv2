@@ -1,36 +1,16 @@
 const express = require("express");
 const auth = require("../services/auth");
+const { verifyTurnstile } = require("../services/turnstile");
 
 const { rateLimit, byIp, byUser } = require("../rateLimit");
 
 const router = express.Router();
 
-async function verifyTurnstile(req) {
-  const secret = String(process.env.TURNSTILE_SECRET_KEY || "").trim();
-  if (!secret) return;
-
-  const token = req.body?.turnstile_token || req.body?.cf_turnstile_response;
-  if (!token) {
-    const error = new Error("turnstile_required");
-    error.code = "turnstile_required";
-    throw error;
-  }
-
-  const params = new URLSearchParams();
-  params.set("secret", secret);
-  params.set("response", String(token));
-  if (req.ip) params.set("remoteip", req.ip);
-
-  const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-    method: "POST",
-    body: params,
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || !body.success) {
-    const error = new Error("turnstile_failed");
-    error.code = "turnstile_failed";
-    throw error;
-  }
+// Answers for a failed Turnstile check: the player's to fix (400), or Cloudflare's / ours (503).
+function turnstileStatus(code) {
+  if (code === "turnstile_required" || code === "turnstile_failed") return 400;
+  if (code === "turnstile_unavailable") return 503;
+  return null;
 }
 
 router.get("/me", async (req, res) => {
@@ -59,7 +39,7 @@ router.get("/me", async (req, res) => {
 
 router.post("/register", rateLimit(byIp("register", 10, 3600)), async (req, res, next) => {
   try {
-    await verifyTurnstile(req);
+    await verifyTurnstile(req, { required: true });
     if (String(req.body?.ogey || "").trim() !== "rrat") {
       return res.status(400).json({ error: "invalid_ogey" });
     }
@@ -77,7 +57,7 @@ router.post("/register", rateLimit(byIp("register", 10, 3600)), async (req, res,
     if (e?.code === "invalid_password") return res.status(400).json({ error: "invalid_password" });
     if (e?.code === "username_taken") return res.status(409).json({ error: "username_taken" });
     if (e?.code === "email_taken") return res.status(409).json({ error: "email_taken" });
-    if (e?.code === "turnstile_required" || e?.code === "turnstile_failed") return res.status(400).json({ error: e.code });
+    if (turnstileStatus(e?.code)) return res.status(turnstileStatus(e.code)).json({ error: e.code });
     next(e);
   }
 });
@@ -98,7 +78,7 @@ router.post("/login", loginLimit, async (req, res, next) => {
     if (e?.code === "invalid_username") return res.status(400).json({ error: "invalid_username" });
     if (e?.code === "invalid_password") return res.status(400).json({ error: "invalid_password" });
     if (e?.code === "invalid_credentials") return res.status(401).json({ error: "invalid_credentials" });
-    if (e?.code === "turnstile_required" || e?.code === "turnstile_failed") return res.status(400).json({ error: e.code });
+    if (turnstileStatus(e?.code)) return res.status(turnstileStatus(e.code)).json({ error: e.code });
     next(e);
   }
 });
@@ -118,7 +98,7 @@ router.post("/forgot-password", forgotLimit, async (req, res, next) => {
     });
     res.json({ ok: true });
   } catch (e) {
-    if (e?.code === "turnstile_required" || e?.code === "turnstile_failed") return res.status(400).json({ error: e.code });
+    if (turnstileStatus(e?.code)) return res.status(turnstileStatus(e.code)).json({ error: e.code });
     next(e);
   }
 });

@@ -18,16 +18,18 @@ function statementTimeoutMs(override) {
   return Number.isFinite(value) && value >= 0 ? value : DEFAULT_STATEMENT_TIMEOUT_MS;
 }
 
-function createPool(databaseUrl, { statementTimeoutMs: timeoutOverride } = {}) {
+// `max` and `connectionTimeoutMs` override PG_POOL_MAX / PG_CONN_TIMEOUT_MS for pools with one job
+// (the readiness probe's single connection).
+function createPool(databaseUrl, { statementTimeoutMs: timeoutOverride, max, connectionTimeoutMs } = {}) {
   if (!databaseUrl) {
     throw new Error("Missing DATABASE_URL");
   }
   const pool = new Pool({
     connectionString: normalizeDatabaseUrl(databaseUrl),
     options: process.env.PG_OPTIONS || "-c timezone=UTC",
-    max: Number(process.env.PG_POOL_MAX || 10),
+    max: max ?? Number(process.env.PG_POOL_MAX || 10),
     idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 30000),
-    connectionTimeoutMillis: Number(process.env.PG_CONN_TIMEOUT_MS || 10000),
+    connectionTimeoutMillis: connectionTimeoutMs ?? Number(process.env.PG_CONN_TIMEOUT_MS || 10000),
     statement_timeout: statementTimeoutMs(timeoutOverride),
   });
 

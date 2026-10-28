@@ -431,7 +431,19 @@ const RESET_TABLES = [
   "games.weekly_prize_settlements",
 ];
 
-async function resetMarketState(pool) {
+// A reset is for local and playtest databases. The API refuses it unless the deployment opts in with
+// ALLOW_MARKET_RESET=true, so one click in the admin tools can't wipe a live market. Callers that
+// check the target themselves (scripts/rebuild-market.js) pass { allowed: true }.
+function isMarketResetAllowed(env = process.env) {
+  return String(env.ALLOW_MARKET_RESET || "").trim().toLowerCase() === "true";
+}
+
+async function resetMarketState(pool, { allowed = isMarketResetAllowed() } = {}) {
+  if (!allowed) {
+    const error = new Error("market_reset_disabled");
+    error.code = "market_reset_disabled";
+    throw error;
+  }
   const client = await pool.connect();
 
   try {
@@ -524,5 +536,6 @@ module.exports = {
   bootstrapAssetsWithClient,
   checkInvariants,
   getHistoricalMarketDateRange,
+  isMarketResetAllowed,
   resetMarketState,
 };
