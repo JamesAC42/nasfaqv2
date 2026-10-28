@@ -129,15 +129,7 @@ export function PredictionsFloor() {
     } else setPortfolio(undefined);
   }, [username]);
 
-  useEffect(() => {
-    void loadMarkets();
-  }, [loadMarkets]);
-
-  useEffect(() => {
-    void loadLive();
-    fetchCategories()
-      .then((result) => setCategories(result.categories))
-      .catch(() => {});
+  const loadTape = useCallback(() => {
     fetchTape(TAPE_SIZE)
       .then((result) => {
         for (const trade of result.trades) if (!known.current.has(trade.slug)) known.current.set(trade.slug, { title: trade.market_title });
@@ -156,8 +148,20 @@ export function PredictionsFloor() {
           })),
         );
       })
-      .catch(() => setTape([]));
-  }, [loadLive]);
+      .catch(() => setTape((items) => items ?? []));
+  }, []);
+
+  useEffect(() => {
+    void loadMarkets();
+  }, [loadMarkets]);
+
+  useEffect(() => {
+    void loadLive();
+    fetchCategories()
+      .then((result) => setCategories(result.categories))
+      .catch(() => {});
+    loadTape();
+  }, [loadLive, loadTape]);
 
   useEffect(() => {
     void loadSide();
@@ -259,10 +263,16 @@ export function PredictionsFloor() {
     [portfolio, username],
   );
 
+  // Back after a drop (a deploy closes every socket): fills and changes sent meanwhile never arrived.
+  const catchUp = () => {
+    scheduleRefetch();
+    loadTape();
+  };
+
   usePredictionFeed((message: SocketMessage) => {
     if (message.type === "prediction.trade") onTrade(message.trade);
     else if (message.type === "prediction.market.updated") scheduleRefetch();
-  });
+  }, catchUp);
 
   // ── Derived ─────────────────────────────────────────────────────────────
   // Colours resolve late: the tape can arrive before the markets it mentions.

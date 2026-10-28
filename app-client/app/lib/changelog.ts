@@ -13,6 +13,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-28",
+    title: "Predictions stay current through updates",
+    changes: [
+      {
+        kind: "fixed",
+        text: "When we put out an update, prediction pages reconnect and then catch up on any trades or market changes from those few seconds, so prices, recent trades and your bets stay right without a refresh.",
+      },
+    ],
+  },
+  {
     date: "2026-10-19",
     title: "Smoother updates",
     changes: [

@@ -107,6 +107,14 @@ export function MarketPage({ slug }: { slug: string }) {
     // Only on a new slug; ?outcome= is read once.
   }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Back after a drop (a deploy closes every socket): fills sent meanwhile never arrived.
+  const catchUp = () => {
+    scheduleRefetch();
+    fetchTrades(slug, 40)
+      .then((result) => setTrades(result.trades))
+      .catch(() => {});
+  };
+
   const flashN = useRef(0);
   usePredictionFeed((message) => {
     if (message.type === "prediction.trade" && message.slug === slug) {
@@ -130,7 +138,7 @@ export function MarketPage({ slug }: { slug: string }) {
     } else if (message.type === "prediction.market.updated" && message.slug === slug) {
       scheduleRefetch(200);
     }
-  });
+  }, catchUp);
 
   // The tab shows the live price.
   useEffect(() => {
