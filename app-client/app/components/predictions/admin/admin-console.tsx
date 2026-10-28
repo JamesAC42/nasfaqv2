@@ -285,6 +285,7 @@ export function AdminConsole() {
     if (reloadTimer.current) clearTimeout(reloadTimer.current);
   }, []);
 
+  // Getting the socket back after a drop reloads too: whatever was sent meanwhile never arrived.
   usePredictionFeed((message) => {
     if (message.type === "prediction.market.updated") {
       reloadSoon();
@@ -309,7 +310,7 @@ export function AdminConsole() {
       const dir: Flash["dir"] = after > before ? "up" : "down";
       setFlashes((currentFlashes) => ({ ...currentFlashes, [marketId]: { dir, n: (currentFlashes[marketId]?.n ?? 0) + 1 } }));
     }
-  });
+  }, reloadSoon);
 
   const proposals = useMemo(
     () =>

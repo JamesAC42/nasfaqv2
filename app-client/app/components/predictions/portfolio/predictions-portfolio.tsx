@@ -423,7 +423,8 @@ export function PredictionsPortfolio() {
     });
   }, [portfolio]);
 
-  // Live: prices move with every trade; your own fills and status changes refetch.
+  // Live: prices move with every trade; your own fills and status changes refetch, and so does
+  // getting the socket back after a drop (whatever was sent meanwhile never arrived).
   const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduleRefetch = useCallback(() => {
     if (refetchTimer.current) clearTimeout(refetchTimer.current);
@@ -461,7 +462,7 @@ export function PredictionsPortfolio() {
     current.current = next;
     setPortfolio(next);
     if (Object.keys(moved).length) setFlashes((prev) => ({ ...prev, ...moved }));
-  });
+  }, scheduleRefetch);
 
   const onCancelled = useCallback(() => {
     void load();
