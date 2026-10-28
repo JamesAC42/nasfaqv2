@@ -10,6 +10,7 @@ import { formatEtTime, MARKET_TIME_ZONE } from "@/app/lib/market-clock";
 import { signedPct, timeAgo, toneOf } from "@/app/lib/time";
 import type { LivestreamItem, MarketAsset } from "@/app/lib/types";
 import { useChannelData } from "@/app/lib/use-channel-data";
+import { useNow } from "@/app/lib/use-now";
 import styles from "@/app/components/stock/dossier.module.scss";
 
 type Streams = Loaded<{ live: LivestreamItem[]; upcoming: LivestreamItem[] }>;
@@ -301,17 +302,12 @@ const DOW = ["S", "M", "T", "W", "T", "F", "S"];
 /** Day of week (0 = Sunday) in New York time. */
 const etDay = (ms: number) => new Date(new Date(ms).toLocaleString("en-US", { timeZone: MARKET_TIME_ZONE })).getDay();
 
-export function StreamsSection({ asset, channelId, streams, onOpen }: { asset: MarketAsset; channelId: string | null; streams: Streams; onOpen: (item: StreamPreview) => void }) {
-  const [page, setPage] = useState(0);
-  const past = usePastStreams(channelId, page);
-  const thisWeek = usePastStreams(channelId, 0);
-  const live = streams.data?.live ?? [];
-  const upcoming = streams.data?.upcoming ?? [];
-
-  const byDay = useMemo(() => {
-    const totals = Array.from({ length: 7 }, () => 0);
-    const now = Date.now();
-    for (const stream of thisWeek.data?.streams ?? []) {
+/** Hours streamed per day over the last 7 days, today last. Its own component so only it re-renders with the clock. */
+function StreamHours({ week, live }: { week: PastStream[]; live: LivestreamItem[] }) {
+  const now = useNow();
+  const totals = Array.from({ length: 7 }, () => 0);
+  if (now !== null) {
+    for (const stream of week) {
       const start = Date.parse(stream.actual_start_at ?? stream.scheduled_start_at ?? "");
       if (!Number.isFinite(start) || now - start > 7 * 86_400_000) continue;
       totals[etDay(start)] += streamSeconds(stream);
@@ -320,11 +316,30 @@ export function StreamsSection({ asset, channelId, streams, onOpen }: { asset: M
       const start = Date.parse(stream.started_at ?? "");
       if (Number.isFinite(start)) totals[etDay(now)] += (now - start) / 1000;
     }
-    return totals;
-  }, [live, thisWeek.data]);
-  const maxDay = Math.max(...byDay, 1);
-  const today = etDay(Date.now());
-  const order = Array.from({ length: 7 }, (_, i) => (today + 1 + i) % 7);
+  }
+  const maxDay = Math.max(...totals, 1);
+  const today = now === null ? null : etDay(now);
+  const order = Array.from({ length: 7 }, (_, i) => (today === null ? i : (today + 1 + i) % 7));
+
+  return (
+    <div className={styles.hours}>
+      {order.map((day) => (
+        <div key={day}>
+          <small>{totals[day] ? hours(totals[day]) : "–"}</small>
+          <i style={{ height: `${(totals[day] / maxDay) * 100}%` }} className={day === today ? styles.todayBar : undefined} />
+          <span>{DOW[day]}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function StreamsSection({ asset, channelId, streams, onOpen }: { asset: MarketAsset; channelId: string | null; streams: Streams; onOpen: (item: StreamPreview) => void }) {
+  const [page, setPage] = useState(0);
+  const past = usePastStreams(channelId, page);
+  const thisWeek = usePastStreams(channelId, 0);
+  const live = streams.data?.live ?? [];
+  const upcoming = streams.data?.upcoming ?? [];
 
   if (!channelId) {
     return (
@@ -378,15 +393,7 @@ export function StreamsSection({ asset, channelId, streams, onOpen }: { asset: M
         </div>
         <div>
           <div className={styles.label}>Hours streamed · last 7 days</div>
-          <div className={styles.hours}>
-            {order.map((day) => (
-              <div key={day}>
-                <small>{byDay[day] ? hours(byDay[day]) : "–"}</small>
-                <i style={{ height: `${(byDay[day] / maxDay) * 100}%` }} className={day === today ? styles.todayBar : undefined} />
-                <span>{DOW[day]}</span>
-              </div>
-            ))}
-          </div>
+          <StreamHours week={thisWeek.data?.streams ?? []} live={live} />
         </div>
       </div>
 

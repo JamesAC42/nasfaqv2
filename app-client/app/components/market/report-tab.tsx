@@ -31,35 +31,31 @@ const pct = (value: number | null | undefined, digits = 2) => signedPct(value, d
 const premOf = (row: ReportRow) =>
   row.premium_pct ?? row.premium_discount_pct ?? null; // withheld while that day's ticks are still landing
 
+// undefined while the date's report is loading, null if it couldn't be.
 function useReport(date: string | null) {
   const latest = useMarketStore((state) => state.report);
-  const [report, setReport] = useState<DailyReport | null | undefined>(undefined);
+  const [fetched, setFetched] = useState<{ date: string; report: DailyReport | null } | null>(null);
+  const isLatest = Boolean(date && latest && latest.market_date.slice(0, 10) === date);
   useEffect(() => {
-    if (!date) return;
-    if (latest && latest.market_date.slice(0, 10) === date) {
-      setReport(latest);
-      return;
-    }
-    if (reportCache.has(date)) {
-      setReport(reportCache.get(date));
-      return;
-    }
+    if (!date || isLatest || reportCache.has(date)) return;
     let cancelled = false;
-    setReport(undefined);
     apiFetch<DailyReport>(`/api/market/report/daily/${date}`)
       .then((result) => {
         reportCache.set(date, result);
-        if (!cancelled) setReport(result);
+        if (!cancelled) setFetched({ date, report: result });
       })
       .catch(() => {
         reportCache.set(date, null);
-        if (!cancelled) setReport(null);
+        if (!cancelled) setFetched({ date, report: null });
       });
     return () => {
       cancelled = true;
     };
-  }, [date, latest]);
-  return report;
+  }, [date, isLatest]);
+  if (!date) return undefined;
+  if (isLatest) return latest;
+  if (fetched?.date === date) return fetched.report;
+  return reportCache.get(date);
 }
 
 // ── Date strip ───────────────────────────────────────────────────────────

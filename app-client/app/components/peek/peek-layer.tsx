@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { formatCountdown, getMarketClock } from "@/app/lib/market-clock";
@@ -112,8 +112,7 @@ function StockPeek({ symbol }: { symbol: string }) {
 export function PeekLayer() {
   const [symbol, setSymbol] = useState<string | null>(null);
   const openTrade = useTradeStore((state) => state.openTrade);
-  const shown = useRef<string | null>(null);
-  shown.current = symbol;
+  const shown = useEffectEvent(() => symbol);
   const layerRef = useRef<HTMLDivElement | null>(null);
   const pointer = useRef({ x: 0, y: 0 });
   const frame = useRef(0);
@@ -167,7 +166,7 @@ export function PeekLayer() {
 
     // B / S while a peek is up opens the trade drawer for that stock.
     const onKey = (event: KeyboardEvent) => {
-      const current = shown.current;
+      const current = shown();
       if (!current || event.metaKey || event.ctrlKey || event.altKey) return;
       const el = document.activeElement as HTMLElement | null;
       if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;

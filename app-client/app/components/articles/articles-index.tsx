@@ -47,57 +47,53 @@ function toQueryString(query: FeedQuery) {
   return text ? `?${text}` : "";
 }
 
-/** Load one page of the feed. HoloNews uses the news endpoint (units, sort, summaries); the rest use articles. */
+/** The API path for one page of the feed. HoloNews uses the news endpoint (units, sort, summaries); the rest use articles. */
+function feedPath(query: FeedQuery) {
+  const params = new URLSearchParams({ page: String(query.page), limit: String(PAGE_SIZE) });
+  if (query.q) params.set("q", query.q);
+  if (query.type === "news") {
+    if (query.stock) params.set("stock", query.stock);
+    if (query.unit) params.set("unit", query.unit);
+    params.set("sort", query.sort);
+    return `/api/news?${params}`;
+  }
+  if (query.stock) params.set("asset", query.stock);
+  if (query.type === "community") params.set("type", "community");
+  return `/api/articles?${params}`;
+}
+
+type Feed = { path: string | null; stories: Story[]; pagination: NewsFeedPagination; error: string | null };
+
+/** Load one page of the feed. The last page stays up while the next loads. */
 function useFeed(query: FeedQuery) {
-  const [stories, setStories] = useState<Story[]>([]);
-  const [pagination, setPagination] = useState<NewsFeedPagination>(EMPTY_PAGE);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const path = feedPath(query);
+  const news = query.type === "news";
+  const [feed, setFeed] = useState<Feed>({ path: null, stories: [], pagination: EMPTY_PAGE, error: null });
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    const params = new URLSearchParams({ page: String(query.page), limit: String(PAGE_SIZE) });
-    if (query.q) params.set("q", query.q);
-    const request =
-      query.type === "news"
-        ? (() => {
-            if (query.stock) params.set("stock", query.stock);
-            if (query.unit) params.set("unit", query.unit);
-            params.set("sort", query.sort);
-            return apiFetch<Record<string, unknown>>(`/api/news?${params}`).then((raw) => {
-              const feed = normalizeNewsFeedResponse(raw);
-              return { stories: feed.items.map(fromNews), pagination: feed.pagination };
-            });
-          })()
-        : (() => {
-            if (query.stock) params.set("asset", query.stock);
-            if (query.type === "community") params.set("type", "community");
-            return apiFetch<Record<string, unknown>>(`/api/articles?${params}`).then((raw) => {
-              const list = normalizeArticleListResponse(raw);
-              return { stories: list.items.map(fromArticle), pagination: list.pagination };
-            });
-          })();
-    request
-      .then((result) => {
+    apiFetch<Record<string, unknown>>(path)
+      .then((raw) => {
         if (cancelled) return;
-        setStories(result.stories);
-        setPagination(result.pagination);
+        if (news) {
+          const page = normalizeNewsFeedResponse(raw);
+          setFeed({ path, stories: page.items.map(fromNews), pagination: page.pagination, error: null });
+        } else {
+          const page = normalizeArticleListResponse(raw);
+          setFeed({ path, stories: page.items.map(fromArticle), pagination: page.pagination, error: null });
+        }
       })
       .catch((reason) => {
-        if (cancelled) return;
-        setStories([]);
-        setPagination(EMPTY_PAGE);
-        setError(String((reason as Error).message || reason));
-      })
-      .finally(() => !cancelled && setLoading(false));
+        if (!cancelled) setFeed({ path, stories: [], pagination: EMPTY_PAGE, error: String((reason as Error).message || reason) });
+      });
     return () => {
       cancelled = true;
     };
-  }, [query.page, query.q, query.sort, query.stock, query.type, query.unit]);
+  }, [news, path]);
 
-  return { stories, pagination, loading, error };
+  // Loading until the response for this exact request lands.
+  const loading = feed.path !== path;
+  return { stories: feed.stories, pagination: feed.pagination, loading, error: loading ? null : feed.error };
 }
 
 /** The thumbnail, with the tagged talents' reaction faces peeking over its corner. */

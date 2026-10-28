@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { useMarketStore } from "@/app/stores/market-store";
 import styles from "@/app/components/layout/market-tape.module.scss";
@@ -87,30 +87,33 @@ const TapeItem = memo(function TapeItem({
   );
 });
 
+// Store changes reach the tape throttled: it re-renders only when this notifies (it's memoized
+// and takes no props), so in between it keeps the assets it last read.
+function subscribeTape(notify: () => void) {
+  let timer: number | null = null;
+  let last = 0;
+  const flush = () => {
+    timer = null;
+    last = Date.now();
+    notify();
+  };
+  const unsubscribe = useMarketStore.subscribe((state, prev) => {
+    if (state.assets === prev.assets || timer !== null) return;
+    const wait = TAPE_REFRESH_MS - (Date.now() - last);
+    if (wait <= 0) flush();
+    else timer = window.setTimeout(flush, wait);
+  });
+  return () => {
+    unsubscribe();
+    if (timer !== null) window.clearTimeout(timer);
+  };
+}
+
+const readTapeAssets = () => useMarketStore.getState().assets;
+
 /** The scrolling price tape under the top bar: every stock, with its oshimark. */
 function useTapeAssets() {
-  const [assets, setAssets] = useState(() => useMarketStore.getState().assets);
-  useEffect(() => {
-    let timer: number | null = null;
-    let last = 0;
-    const flush = () => {
-      timer = null;
-      last = Date.now();
-      setAssets(useMarketStore.getState().assets);
-    };
-    const unsubscribe = useMarketStore.subscribe((state, prev) => {
-      if (state.assets === prev.assets || timer !== null) return;
-      const wait = TAPE_REFRESH_MS - (Date.now() - last);
-      if (wait <= 0) flush();
-      else timer = window.setTimeout(flush, wait);
-    });
-    setAssets(useMarketStore.getState().assets);
-    return () => {
-      unsubscribe();
-      if (timer !== null) window.clearTimeout(timer);
-    };
-  }, []);
-  return assets;
+  return useSyncExternalStore(subscribeTape, readTapeAssets, readTapeAssets);
 }
 
 export const MarketTape = memo(function MarketTape() {
