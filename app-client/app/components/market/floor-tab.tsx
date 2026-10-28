@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { Oshimark } from "@/app/components/common/oshimark";
@@ -244,23 +244,26 @@ function tileBg(move: number | null) {
 
 const Tile = memo(function Tile({ asset, calm }: { asset: MarketAsset; calm: boolean }) {
   const mid = asset.current_mid_price;
-  const previous = useRef(mid);
-  const [flash, setFlash] = useState<"up" | "down" | null>(null);
+  const [previous, setPrevious] = useState(mid);
+  // A fresh object per price change, so a second move the same way restarts the fade timer.
+  const [flash, setFlash] = useState<{ dir: "up" | "down" } | null>(null);
+
+  if (mid !== previous) {
+    setPrevious(mid);
+    if (!calm && previous !== null && mid !== null) setFlash({ dir: mid > previous ? "up" : "down" });
+  }
 
   useEffect(() => {
-    const before = previous.current;
-    previous.current = mid;
-    if (calm || before === null || mid === null || before === mid) return;
-    setFlash(mid > before ? "up" : "down");
+    if (!flash) return;
     const timer = window.setTimeout(() => setFlash(null), 900);
     return () => window.clearTimeout(timer);
-  }, [calm, mid]);
+  }, [flash]);
 
   const move = asset.move_24h_pct;
   return (
     <Link
       href={`/stocks/${encodeURIComponent(asset.symbol)}`}
-      className={`${styles.tile} ${flash === "up" ? styles.flashUp : flash === "down" ? styles.flashDown : ""}`}
+      className={`${styles.tile} ${flash?.dir === "up" ? styles.flashUp : flash?.dir === "down" ? styles.flashDown : ""}`}
       style={{ "--bg": tileBg(move) } as React.CSSProperties}
       data-peek-stock={asset.symbol}
       prefetch={false}
@@ -373,10 +376,10 @@ function Bell() {
 
 function WhaleRow({ trade, icon }: { trade: MarketHubTrade; icon: string | null | undefined }) {
   const buy = trade.side.toLowerCase() === "buy";
-  const now = Date.now();
+  const now = useNow();
   return (
     <div className={styles.feedItem}>
-      <time suppressHydrationWarning>{timeAgo(trade.ts, now)}</time>
+      <time suppressHydrationWarning>{now === null ? "" : timeAgo(trade.ts, now)}</time>
       <span>
         {trade.username ? (
           <Link href={`/profile/${encodeURIComponent(trade.username)}`} className={styles.who}>

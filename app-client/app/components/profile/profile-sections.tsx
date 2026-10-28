@@ -15,6 +15,7 @@ import { normalizeArticleListResponse, normalizeProfileTradesPage } from "@/app/
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct, timeAgo, toneOf } from "@/app/lib/time";
 import type { ArticleListResponse, PredictionPortfolioResponse, ProfileBundle, ProfileRelationUser } from "@/app/lib/types";
+import { useNow } from "@/app/lib/use-now";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useTheme } from "@/app/providers/theme-provider";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -66,16 +67,19 @@ export function NetworthChart({ profile }: { profile: Profile }) {
     return () => observer.disconnect();
   }, []);
 
+  // The line ends at NOW with today's net worth; it waits for the clock, which is null until hydrated.
+  const now = useNow();
   const points = useMemo(() => {
+    if (now === null) return [];
     const days = RANGES.find((entry) => entry.key === range)?.days ?? 30;
-    const cutoff = Date.now() - days * 86_400_000;
+    const cutoff = now - days * 86_400_000;
     const all = profile.networth_history
       .map((point) => ({ t: Date.parse(point.recorded_at), v: point.total_equity }))
       .filter((point) => Number.isFinite(point.t) && Number.isFinite(point.v))
       .sort((a, b) => a.t - b.t);
-    all.push({ t: Date.now(), v: profile.stats.total_equity });
+    all.push({ t: now, v: profile.stats.total_equity });
     return all.filter((point) => point.t >= cutoff);
-  }, [profile, range]);
+  }, [now, profile, range]);
 
   const H = 220;
   const padR = 64;

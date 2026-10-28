@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useState } from "react";
 import { apiFetch } from "@/app/lib/api";
 import { num } from "@/app/lib/streams";
 import {
@@ -38,21 +38,27 @@ export function useApi<T>(url: string | null, normalize: (raw: Record<string, un
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(Boolean(url));
   const [nonce, setNonce] = useState(0);
-  const norm = useRef(normalize);
-  norm.current = normalize;
+  const norm = useEffectEvent(normalize);
 
-  useEffect(() => {
-    if (!url) {
+  // A new request (URL change or reload) resets the flags during render, before the effect fetches.
+  const [request, setRequest] = useState({ url, nonce });
+  if (request.url !== url || request.nonce !== nonce) {
+    setRequest({ url, nonce });
+    if (url) {
+      setLoading(true);
+      setError(null);
+    } else {
       setData(null);
       setLoading(false);
-      return;
     }
+  }
+
+  useEffect(() => {
+    if (!url) return;
     let cancelled = false;
-    setLoading(true);
-    setError(null);
     apiFetch<Record<string, unknown>>(url)
       .then((raw) => {
-        if (!cancelled) setData(norm.current(raw));
+        if (!cancelled) setData(norm(raw));
       })
       .catch((reason) => {
         if (!cancelled) setError(String((reason as Error).message || reason));

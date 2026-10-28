@@ -3,6 +3,7 @@
 import { useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { MARKET_TIME_ZONE } from "@/app/lib/market-clock";
 import type { CandlePoint, MarketAdjustmentOutcome } from "@/app/lib/types";
+import { useNow } from "@/app/lib/use-now";
 import type { ChartRange } from "@/app/components/stock/use-stock-data";
 import styles from "@/app/components/stock/price-chart.module.scss";
 
@@ -61,6 +62,10 @@ export function PriceChart({
     return () => observer.disconnect();
   }, []);
 
+  // On the 1D range the live price extends the line to now.
+  const now = useNow();
+  const liveAt = range === "1d" && livePrice !== null ? now : null;
+
   const points = useMemo<Point[]>(() => {
     const out = candles
       .map((candle) => {
@@ -71,9 +76,9 @@ export function PriceChart({
       })
       .filter((point): point is Point => point !== null)
       .sort((a, b) => a.t - b.t);
-    if (livePrice !== null && out.length && range === "1d") out.push({ t: Date.now(), close: livePrice, mark: null, volume: 0, up: livePrice >= out[out.length - 1].close });
+    if (livePrice !== null && liveAt !== null && out.length) out.push({ t: liveAt, close: livePrice, mark: null, volume: 0, up: livePrice >= out[out.length - 1].close });
     return out;
-  }, [candles, livePrice, range]);
+  }, [candles, liveAt, livePrice]);
 
   const intraday = range === "1d" || range === "1w";
   const W = size.w;

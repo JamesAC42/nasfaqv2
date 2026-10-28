@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { OrderAllowanceMeter } from "@/app/components/trade/order-allowance";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { compactMoney, DivBar, num, RankRow, Seg, toneClass, useAssetMap } from "@/app/components/market/bits";
 import { FlowBars, MiniCandles } from "@/app/components/market/mini-charts";
@@ -111,12 +111,13 @@ function Queue() {
   const [mode, setMode] = useState<FlowMode>("current_tick");
   const [flow, setFlow] = useState<MarketLiveOrderFlow | null>(null);
   const [candles, setCandles] = useState<CandlePoint[]>([]);
-  const [flash, setFlash] = useState<{ symbol: string; side: string; key: number } | null>(null);
+  // The latest order flash shows until its 800ms are up.
+  const [faded, setFaded] = useState<typeof lastFlash>(null);
+  const flash = lastFlash && !calm && lastFlash !== faded ? { symbol: lastFlash.symbol, side: lastFlash.side, key: lastFlash.at } : null;
 
   useEffect(() => {
     if (!lastFlash || calm) return;
-    setFlash({ symbol: lastFlash.symbol, side: lastFlash.side, key: lastFlash.at });
-    const timer = window.setTimeout(() => setFlash(null), 800);
+    const timer = window.setTimeout(() => setFaded(lastFlash), 800);
     return () => window.clearTimeout(timer);
   }, [calm, lastFlash]);
 
@@ -361,22 +362,20 @@ function Tape({ initialTicker = "" }: { initialTicker?: string }) {
   const [live, setLive] = useState(true);
   const [frozen, setFrozen] = useState<MarketHubTrade[] | null>(null);
   const [limit, setLimit] = useState(PAGE_ROWS);
-  const seen = useRef<Set<number> | null>(null);
   const sets = useFriendSets(who === "friends" || who === "rivals");
 
   const trades = live ? liveTrades : frozen ?? liveTrades;
   const waiting = live || !frozen ? 0 : liveTrades.length - frozen.length;
   const me = user?.username?.toLowerCase() ?? null;
 
-  // Rows that arrived after the first render slide in.
-  const fresh = useMemo(() => {
-    const ids = new Set<number>();
-    if (seen.current) trades.forEach((trade) => !seen.current!.has(trade.id) && ids.add(trade.id));
-    return ids;
-  }, [trades]);
-  useEffect(() => {
-    seen.current = new Set(trades.map((trade) => trade.id));
-  }, [trades]);
+  // Rows that arrived after the first render slide in: whatever wasn't in the trades rendered before.
+  const [shownTrades, setShownTrades] = useState(trades);
+  const [fresh, setFresh] = useState<Set<number>>(() => new Set());
+  if (trades !== shownTrades) {
+    const seen = new Set(shownTrades.map((trade) => trade.id));
+    setShownTrades(trades);
+    setFresh(new Set(trades.filter((trade) => !seen.has(trade.id)).map((trade) => trade.id)));
+  }
 
   const tagOf = (trade: MarketHubTrade): "friend" | "rival" | "me" | null => {
     const name = trade.username?.toLowerCase();
@@ -697,8 +696,8 @@ function BiggestFills({ trades }: { trades: MarketHubTrade[] }) {
 function ActiveTraders() {
   const hub = useHubStore((state) => state.hub);
   const traders = hub?.activity.most_active_traders_24h ?? [];
+  const now = useNow();
   if (!traders.length) return null;
-  const now = Date.now();
   return (
     <section className={ui.sec}>
       <div className={ui.secHead}>
@@ -710,7 +709,7 @@ function ActiveTraders() {
           <span className={styles.n}>{index + 1}</span>
           <Avatar name={trader.username} color={trader.profile_color} />
           <span className={styles.d} suppressHydrationWarning>
-            <Link href={`/profile/${encodeURIComponent(trader.username)}`}>{trader.username}</Link> · {trader.distinct_assets} stocks · {compactMoney(trader.volume_cash)} · {timeAgo(trader.latest_trade_at, now)}
+            <Link href={`/profile/${encodeURIComponent(trader.username)}`}>{trader.username}</Link> · {trader.distinct_assets} stocks · {compactMoney(trader.volume_cash)}{now === null ? "" : ` · ${timeAgo(trader.latest_trade_at, now)}`}
           </span>
           <span className={styles.v}>{trader.trade_count}</span>
         </div>
