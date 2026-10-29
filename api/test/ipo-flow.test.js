@@ -182,4 +182,49 @@ test("an IPO from detection to the first trading day", { skip: !databaseUrl, tim
   close(Number(firstDay[0].mid_open), price, "her first day opens at the IPO price");
   const { rows: events } = await pool.query(`SELECT status FROM market.ipo_events WHERE id = $1`, [eventId]);
   assert.equal(events[0].status, "listed");
+
+  // ── A listing that went out by mistake can be undone while nobody has traded her ──
+  const historyCount = async () =>
+    Number((await pool.query(`SELECT (SELECT count(*) FROM market.asset_daily_market_state WHERE asset_id = $1) + (SELECT count(*) FROM market.asset_price_events WHERE asset_id = $1) AS n`, [after.id])).rows[0].n);
+  assert.ok((await historyCount()) > 0, "her first day left market history");
+  const preview = await ipo.revertListing(pool, eventId);
+  assert.equal(preview.applied, false);
+  assert.equal(preview.refunds.length, 3);
+  assert.equal((await asset()).status, "active", "a preview writes nothing");
+  assert.equal((await pool.query(`SELECT status FROM market.ipo_events WHERE id = $1`, [eventId])).rows[0].status, "listed");
+
+  // Shares that moved since listing mean it's no longer a clean undo.
+  await pool.query(`UPDATE market.portfolio_holdings SET quantity = quantity + 1 WHERE user_id = $1 AND asset_id = $2`, [alice, after.id]);
+  await assert.rejects(ipo.revertListing(pool, eventId, { apply: true }), { code: "holdings_changed" });
+  await pool.query(`UPDATE market.portfolio_holdings SET quantity = quantity - 1 WHERE user_id = $1 AND asset_id = $2`, [alice, after.id]);
+
+  const reverted = await ipo.revertListing(pool, eventId, { apply: true });
+  assert.equal(reverted.applied, true);
+  const back = await asset();
+  assert.equal(back.status, "prelaunch");
+  assert.equal(Number(back.circulating_supply), 0);
+  assert.equal(Number(back.treasury_supply), Number(back.max_supply));
+  assert.equal(back.current_mid_price, null);
+  assert.equal(await historyCount(), 0, "her market history is gone");
+  for (const id of [alice, bob, cara]) {
+    w = await wallet(id);
+    close(w.cash, 10000, `user ${id} has all their Cash back`);
+    assert.equal(w.held, 0);
+  }
+  const { rows: left } = await pool.query(`SELECT count(*)::int AS n FROM market.portfolio_holdings WHERE asset_id = $1`, [back.id]);
+  assert.equal(left[0].n, 0);
+  const { rows: reversals } = await pool.query(`SELECT SUM(quantity_delta) AS qty FROM market.ledger_entries WHERE asset_id = $1 AND entry_type = 'ipo_reversal'`, [back.id]);
+  assert.equal(Number(reversals[0].qty), -(cap * 2 + 3));
+  assert.equal((await pool.query(`SELECT status FROM market.ipo_events WHERE id = $1`, [eventId])).rows[0].status, "cancelled");
+  assert.deepEqual(
+    (await pool.query(`SELECT DISTINCT s.status FROM market.ipo_subscriptions s JOIN market.ipo_listings l ON l.id = s.listing_id WHERE l.event_id = $1`, [eventId])).rows,
+    [{ status: "refunded" }]
+  );
+  await assert.rejects(ipo.revertListing(pool, eventId, { apply: true }), { code: "ipo_not_listed" });
+  await assert.rejects(trading.submitLiveOrder(pool, { userId: alice, symbol: "MEL", shares: 1, quantity: 1, side: "buy" }), { code: "asset_not_active" });
+
+  // She can join a new IPO.
+  const again = await ipo.createEvent(pool, { title: "Test debut, again", listing_date: "2099-02-05", asset_ids: [Number(back.id)] }, { now: new Date("2026-10-01T12:00:00Z") });
+  assert.ok(again.event_id > eventId);
+  assert.equal((await ipo.getAdminOverview(pool)).events.find((event) => event.id === again.event_id)?.status, "announced");
 });

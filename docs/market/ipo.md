@@ -219,6 +219,19 @@ notification with each player's allocation.
 (`services/ipo.js` holds the schema). Subscription cash moves through `held_cash` like queued buys,
 with `ipo_cash_hold`, `ipo_cash_release` and `ipo_allocation` ledger entries.
 
+**Undoing a listing.** If an IPO lists by mistake (the listing date passed before you meant it to),
+`node scripts/revert-ipo-listing.js --event <id>` shows what undoing it would do, and `--apply` does
+it, as long as nobody has traded the talents yet: allocated shares go back and what players paid
+returns to their Cash (`ipo_reversal` ledger entries, plus a notification), the stocks return to
+`prelaunch` with no price, their market history since listing is deleted, and the event is
+cancelled. `--relist YYYY-MM-DD [--window-hours N]` then announces a new IPO for the same talents
+with the old settings. It refuses, and writes nothing, once there are orders, fills, cards, dividends
+or holdings the IPO didn't make. In production, run it inside an API pod:
+
+```bash
+kubectl --context nasfaq-prod -n nasfaq exec deploy/api-scheduler -- node scripts/revert-ipo-listing.js --event <id>
+```
+
 **Locally:** there's no scraper, so `node scripts/seed-dev.js ipo-stats [days]` writes made-up daily
 stats for the talents in an announced or open IPO and prices them.
 
