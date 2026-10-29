@@ -136,7 +136,18 @@ export function findOutcome(outcomes: Outcome[], wanted: string | null | undefin
 // ── Comments (API from the first build; shapes in api/src/predictionMarketDb.js) ─────────────
 export type CommentAuthor = { id: number; username: string; profile_picture_url: string | null; profile_color: string | null; total_equity: number | null; rank: number | null };
 export type CommentStake = { outcome_id: number; outcome_code: string; outcome_label: string | null; shares: number; avg_entry_price: number };
-export type MarketComment = { id: number; market_id: number; body: string; created_at: string; updated_at: string; author: CommentAuthor | null; author_stakes: CommentStake[] };
+export type MarketComment = {
+  id: number;
+  market_id: number;
+  body: string;
+  created_at: string;
+  updated_at: string;
+  author: CommentAuthor | null;
+  author_stakes: CommentStake[];
+  /** Set when an admin hid it; only admins get hidden comments back. */
+  hidden_at?: string | null;
+  hidden_reason?: string | null;
+};
 export type CommentsPage = {
   slug: string;
   comments: MarketComment[];

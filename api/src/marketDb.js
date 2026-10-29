@@ -2245,7 +2245,8 @@ async function getAssetCommentViewerContext(client, symbol, viewerUserId = null)
   };
 }
 
-async function listAssetComments(pool, symbol, { page = 1, limit = 6, viewerUserId = null } = {}) {
+/** The board, newest first. Hidden posts (services/moderation.js) only come back with `includeHidden` (admins). */
+async function listAssetComments(pool, symbol, { page = 1, limit = 6, viewerUserId = null, includeHidden = false } = {}) {
   const safePage = Math.max(1, Number(page) || 1);
   const safeLimit = Math.min(24, Math.max(1, Number(limit) || 6));
   const offset = (safePage - 1) * safeLimit;
@@ -2258,8 +2259,9 @@ async function listAssetComments(pool, symbol, { page = 1, limit = 6, viewerUser
       SELECT COUNT(*)::int AS total
       FROM content.asset_comments
       WHERE asset_id = $1
+        AND ($2::boolean OR hidden_at IS NULL)
     `,
-      [viewerContext.assetId]
+      [viewerContext.assetId, Boolean(includeHidden)]
     );
 
     const commentsResult = await client.query(
@@ -2272,6 +2274,8 @@ async function listAssetComments(pool, symbol, { page = 1, limit = 6, viewerUser
         c.downvotes,
         c.created_at,
         c.updated_at,
+        c.hidden_at,
+        c.hidden_reason,
         COALESCE(viewer_vote.value, 0)::int AS viewer_vote,
         COALESCE(author_holding.quantity, 0) AS author_share_quantity,
         jsonb_build_object(
@@ -2296,11 +2300,12 @@ async function listAssetComments(pool, symbol, { page = 1, limit = 6, viewerUser
         LIMIT 1
       ) viewer_vote ON TRUE
       WHERE c.asset_id = $1
+        AND ($5::boolean OR c.hidden_at IS NULL)
       ORDER BY c.created_at DESC, c.id DESC
       LIMIT $3
       OFFSET $4
     `,
-      [viewerContext.assetId, viewerUserId, safeLimit, offset]
+      [viewerContext.assetId, viewerUserId, safeLimit, offset, Boolean(includeHidden)]
     );
 
     return {
@@ -2391,6 +2396,7 @@ async function setAssetCommentVote(pool, symbol, commentId, userId, value) {
       FROM content.asset_comments
       WHERE id = $1
         AND asset_id = $2
+        AND hidden_at IS NULL
       LIMIT 1
       FOR UPDATE
     `,

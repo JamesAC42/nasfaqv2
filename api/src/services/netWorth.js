@@ -3,6 +3,8 @@ const { loadEquipped } = require("./games/equipped");
 const { profilePictureUrlSql } = require("../profilePictures");
 const economy = require("./economy");
 const { getStarterCredit } = require("./portfolioCash");
+// Suspended players are left off every ranking here (services/moderation.js).
+const { notSuspendedSql } = require("./moderation");
 
 // Net worth is Cash (spendable and held for queued buys), Credit when economy.SETTINGS.netWorth
 // counts it (BBB: it does), and shares. The cash_balance columns stay Cash only (the Cash Gang badge
@@ -903,7 +905,8 @@ async function listLeaderboardBundle(pool, { viewerUserId = null, scope = "globa
           ORDER BY l.total_equity DESC, l.username_snapshot ASC, l.user_id ASC
         )::INTEGER AS rank
       FROM market.user_leaderboard_current l
-      WHERE $1::bigint[] IS NULL OR l.user_id = ANY($1::bigint[])
+      WHERE ($1::bigint[] IS NULL OR l.user_id = ANY($1::bigint[]))
+        AND ${notSuspendedSql("l.user_id")}
     )
   `;
 
@@ -1079,6 +1082,7 @@ async function listCurrentNetWorthByUserIds(pool, userIds) {
           ORDER BY l.total_equity DESC, l.username_snapshot ASC, l.user_id ASC
         )::INTEGER AS rank
       FROM market.user_leaderboard_current l
+      WHERE ${notSuspendedSql("l.user_id")}
     )
     SELECT
       user_id,
@@ -1154,6 +1158,7 @@ async function getAssetOshiboard(pool, symbol, { limit = 50 } = {}) {
       FROM market.user_oshiboard_current o
       JOIN asset a
         ON a.id = o.asset_id
+      WHERE ${notSuspendedSql("o.user_id")}
     ),
     stats AS (
       SELECT
@@ -1242,6 +1247,7 @@ async function listUserOshiboardMemberships(pool, userId) {
       FROM market.user_oshiboard_current o
       JOIN user_boards ub
         ON ub.asset_id = o.asset_id
+      WHERE ${notSuspendedSql("o.user_id")}
     )
     SELECT
       a.id AS asset_id,
@@ -1267,6 +1273,7 @@ async function listUserOshiboardMemberships(pool, userId) {
         COALESCE(SUM(coin_quantity), 0) AS total_shares
       FROM market.user_oshiboard_current o
       WHERE o.asset_id = r.asset_id
+        AND ${notSuspendedSql("o.user_id")}
     ) board_stats ON true
     WHERE r.user_id = $1
     ORDER BY r.rank ASC, a.symbol ASC
@@ -1305,6 +1312,7 @@ async function listOshiboardAssetStats(pool) {
     FROM market.market_assets a
     LEFT JOIN market.user_oshiboard_current o
       ON o.asset_id = a.id
+     AND ${notSuspendedSql("o.user_id")}
     GROUP BY a.id, a.symbol
     ORDER BY a.symbol ASC
   `

@@ -542,6 +542,7 @@ async function listNewsFeed(pool, {
         SELECT COUNT(*)::int AS comment_count
         FROM content.article_comments ac
         WHERE ac.article_id = a.id
+          AND ac.hidden_at IS NULL
       ) comment_rel ON TRUE
       ${whereClause}
       ${orderClause}

@@ -1756,6 +1756,51 @@ async function applySchema(pool) {
   await pool.query(require("./services/auth").passwordResetSchema);
   await applyGamesSchema(pool);
   await applyPredictionsSchema(pool);
+
+  // Moderation (services/moderation.js). Site-wide suspension: a player with suspended_at set and
+  // suspended_until NULL (permanent) or still ahead can sign in and look around but not write.
+  await pool.query(`
+    ALTER TABLE market.users
+      ADD COLUMN IF NOT EXISTS suspended_at TIMESTAMPTZ NULL,
+      ADD COLUMN IF NOT EXISTS suspended_until TIMESTAMPTZ NULL,
+      ADD COLUMN IF NOT EXISTS suspension_reason TEXT NULL,
+      ADD COLUMN IF NOT EXISTS suspended_by BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_users_suspended_idx ON market.users (id) WHERE suspended_at IS NOT NULL`);
+  // Hidden comments: gone for everyone but admins, who see them marked and can bring them back.
+  for (const table of ["content.asset_comments", "content.article_comments", "content.prediction_market_comments"]) {
+    await pool.query(`
+      ALTER TABLE ${table}
+        ADD COLUMN IF NOT EXISTS hidden_at TIMESTAMPTZ NULL,
+        ADD COLUMN IF NOT EXISTS hidden_by BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS hidden_reason TEXT NULL
+    `);
+  }
+  // The announcement banner every page shows under the header (services/siteState.js).
+  await pool.query(`
+    ALTER TABLE market.site_state
+      ADD COLUMN IF NOT EXISTS announcement_text TEXT NULL,
+      ADD COLUMN IF NOT EXISTS announcement_tone TEXT NULL,
+      ADD COLUMN IF NOT EXISTS announcement_link TEXT NULL,
+      ADD COLUMN IF NOT EXISTS announcement_expires_at TIMESTAMPTZ NULL,
+      ADD COLUMN IF NOT EXISTS announcement_posted_at TIMESTAMPTZ NULL
+  `);
+  // Every admin action from the moderation tools, newest first on /admin/moderation.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.admin_actions (
+      id BIGSERIAL PRIMARY KEY,
+      actor_id BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL,
+      action TEXT NOT NULL,
+      target_type TEXT NULL,
+      target_id TEXT NULL,
+      target_label TEXT NULL,
+      reason TEXT NULL,
+      details JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_admin_actions_created_idx ON market.admin_actions (created_at DESC, id DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_admin_actions_target_idx ON market.admin_actions (target_type, target_id, created_at DESC)`);
 }
 
 module.exports = { applySchema };
