@@ -12,12 +12,13 @@ import { RichText, type Emoji } from "@/app/components/common/rich-text";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { ChatComposer } from "@/app/components/chat/chat-composer";
+import { MessageMenu } from "@/app/components/chat/message-menu";
 import { RoomRail } from "@/app/components/chat/room-rail";
 import { apiFetch } from "@/app/lib/api";
 import { markSeries, unitName } from "@/app/lib/market-units";
 import { normalizeChatChannel, normalizeChatMessage } from "@/app/lib/normalizers";
 import { money, signedPct, timeAgo, toneOf } from "@/app/lib/time";
-import type { ChatChannel, ChatMessage, MarketAsset } from "@/app/lib/types";
+import type { AuthUser, ChatChannel, ChatMessage, MarketAsset } from "@/app/lib/types";
 import { getChatWsUrl } from "@/app/lib/ws";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -40,6 +41,7 @@ type Room = {
 type WsEvent =
   | { type: "chat.message.created" | "chat.message.updated"; channel_key: string; message: Record<string, unknown> }
   | { type: "chat.channel.updated"; channel_key: string; channel: Record<string, unknown> }
+  | { type: "chat.user.moderated"; user_id: number; channel_key: string | null }
   | { type: string };
 
 type Page = { messages: Array<Record<string, unknown>>; has_more: boolean; next_cursor: string | null; history_limited: boolean; visible_days: number | null; minimum_messages?: number | null };
@@ -192,6 +194,19 @@ export function ChatApp() {
       cancelled = true;
     };
   }, [user]);
+
+  // An admin muted, banned or lifted the viewer: reload the rooms so the composer says so.
+  const [restrictionRevision, setRestrictionRevision] = useState(0);
+  useEffect(() => {
+    if (!restrictionRevision) return;
+    let cancelled = false;
+    apiFetch<{ channels: Array<Record<string, unknown>> }>("/api/chat/channels")
+      .then((raw) => !cancelled && setChannels((raw.channels || []).map(normalizeChatChannel)))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [restrictionRevision]);
 
   const emojiMap = useMemo(() => new Map(emojis.map((emoji) => [emoji.name.toLowerCase(), emoji])), [emojis]);
 
@@ -455,6 +470,8 @@ export function ChatApp() {
         } else if (payload.type === "chat.channel.updated" && "channel" in payload) {
           const next = normalizeChatChannel(payload.channel);
           setChannels((current) => current.map((channel) => (channel.channel_key === next.channel_key ? next : channel)));
+        } else if (payload.type === "chat.user.moderated" && "user_id" in payload && user && Number(payload.user_id) === user.id) {
+          setRestrictionRevision((value) => value + 1);
         }
       };
       socketNow.onclose = () => {
@@ -482,11 +499,20 @@ export function ChatApp() {
     subscribed.current = roomKey;
   }, [roomKey, socket]);
 
+  const restriction = room?.channel.chat_restriction ?? null;
   const blockedReason = !room
     ? null
-    : room.channel.muted_until
-      ? `You're muted here until ${new Date(room.channel.muted_until).toLocaleString()}.`
-      : room.channel.posting_policy === "read_only"
+    : user?.suspension
+      ? "Your account is suspended, so you can't post."
+      : restriction?.type === "ban"
+        ? restriction.until
+          ? `You're banned from chat until ${new Date(restriction.until).toLocaleString()}.`
+          : "You're banned from chat."
+        : restriction?.type === "mute" || room.channel.muted_until
+          ? restriction?.until || room.channel.muted_until
+            ? `You're muted here until ${new Date(String(restriction?.until || room.channel.muted_until)).toLocaleString()}.`
+            : "You're muted in chat until an admin lifts it."
+          : room.channel.posting_policy === "read_only"
         ? "This room is read-only."
         : room.channel.posting_policy === "admins_only" && !user?.is_admin
           ? "Only admins can post in this room right now."
@@ -555,7 +581,14 @@ export function ChatApp() {
                 {messagesError ? <p className={styles.sysErr}>Couldn&apos;t load messages ({messagesError}).</p> : null}
                 {loadingMessages && roomKey !== loadedKey ? <Skeleton /> : null}
                 {!loadingMessages && roomKey === loadedKey && !shown.length && !messagesError ? <p className={styles.sys}>No messages yet. Say something.</p> : null}
-                <Messages messages={shown} worth={worth} me={user?.username ?? null} options={{ assets: assetMap, emoji: emojiMap, me: user?.username ?? null }} />
+                <Messages
+                  messages={shown}
+                  worth={worth}
+                  me={user?.username ?? null}
+                  viewer={user}
+                  onUpdated={(message) => setMessages((current) => upsert(current, message))}
+                  options={{ assets: assetMap, emoji: emojiMap, me: user?.username ?? null }}
+                />
               </div>
               {unseen > 0 && !atBottom ? (
                 <button
@@ -729,7 +762,21 @@ function RoomHeader({ room, socket, count, unreadElsewhere, onOpenRooms, onOpenR
 }
 
 // ── Messages ─────────────────────────────────────────────────────────────
-function Messages({ messages, worth, me, options }: { messages: ChatMessage[]; worth: Record<number, Worth>; me: string | null; options: Parameters<typeof RichText>[0]["options"] }) {
+function Messages({
+  messages,
+  worth,
+  me,
+  viewer,
+  onUpdated,
+  options,
+}: {
+  messages: ChatMessage[];
+  worth: Record<number, Worth>;
+  me: string | null;
+  viewer: AuthUser | null;
+  onUpdated: (message: ChatMessage) => void;
+  options: Parameters<typeof RichText>[0]["options"];
+}) {
   const mentionRe = useMemo(() => (me ? new RegExp(`(^|[^\\w])@${me.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=$|[^\\w])`, "i") : null), [me]);
   return (
     <>
@@ -791,6 +838,7 @@ function Messages({ messages, worth, me, options }: { messages: ChatMessage[]; w
                 )}
                 {message.edited_at && !removed ? <small className={styles.edited}>edited</small> : null}
               </div>
+              <MessageMenu message={message} viewer={viewer} onUpdated={onUpdated} />
             </article>
           </div>
         );

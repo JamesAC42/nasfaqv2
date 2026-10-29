@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { HideComment, hiddenCommentStyle } from "@/app/components/common/hide-comment";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { fetchComments, postComment, type CommentsPage, type MarketComment } from "@/app/components/predictions/market/shared";
 import { predictionErrorText } from "@/app/lib/predictions/errors";
@@ -108,23 +109,31 @@ export function Comments({ market }: { market: PredictionMarketDetail }) {
 
       {items.length ? (
         <ol className={styles.comments}>
-          {items.map((comment) => (
-            <li key={comment.id}>
-              <PlayerAvatar username={comment.author?.username ?? "?"} pictureUrl={comment.author?.profile_picture_url} color={comment.author?.profile_color} size={28} />
-              <div>
-                <div className={styles.commentHead}>
-                  {comment.author ? <Link href={`/profile/${encodeURIComponent(comment.author.username)}`}>{comment.author.username}</Link> : <span>someone</span>}
-                  {comment.author_stakes.slice(0, 2).map((stake) => (
-                    <span key={stake.outcome_id} className={styles.stake} style={{ "--oc": colorOf(stake.outcome_code) } as CSSProperties}>
-                      {fmtShares(stake.shares)} {stake.outcome_label ?? stake.outcome_code}
-                    </span>
-                  ))}
-                  <time dateTime={comment.created_at}>{timeAgo(comment.created_at)}</time>
+          {items.map((comment) => {
+            const hidden = { hidden_at: comment.hidden_at ?? null, hidden_reason: comment.hidden_reason ?? null };
+            return (
+              <li key={comment.id} style={hiddenCommentStyle(hidden)}>
+                <PlayerAvatar username={comment.author?.username ?? "?"} pictureUrl={comment.author?.profile_picture_url} color={comment.author?.profile_color} size={28} />
+                <div>
+                  <div className={styles.commentHead}>
+                    {comment.author ? <Link href={`/profile/${encodeURIComponent(comment.author.username)}`}>{comment.author.username}</Link> : <span>someone</span>}
+                    {comment.author_stakes.slice(0, 2).map((stake) => (
+                      <span key={stake.outcome_id} className={styles.stake} style={{ "--oc": colorOf(stake.outcome_code) } as CSSProperties}>
+                        {fmtShares(stake.shares)} {stake.outcome_label ?? stake.outcome_code}
+                      </span>
+                    ))}
+                    <time dateTime={comment.created_at}>{timeAgo(comment.created_at)}</time>
+                    <HideComment
+                      kind="prediction"
+                      comment={{ id: comment.id, ...hidden }}
+                      onChange={(next) => setItems((current) => current.map((entry) => (entry.id === comment.id ? { ...entry, ...next } : entry)))}
+                    />
+                  </div>
+                  <p>{comment.body}</p>
                 </div>
-                <p>{comment.body}</p>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ol>
       ) : page ? (
         <p className={styles.fine}>No comments yet.</p>

@@ -72,6 +72,7 @@ test("password reset against PostgreSQL", { skip: !databaseUrl }, async (t) => {
       is_admin BOOLEAN NOT NULL DEFAULT false, can_manage_assets BOOLEAN NOT NULL DEFAULT false,
       can_create_prediction_markets BOOLEAN NOT NULL DEFAULT false, can_approve_prediction_markets BOOLEAN NOT NULL DEFAULT false,
       can_resolve_prediction_markets BOOLEAN NOT NULL DEFAULT false, can_void_prediction_markets BOOLEAN NOT NULL DEFAULT false,
+      suspended_at TIMESTAMPTZ, suspended_until TIMESTAMPTZ, suspension_reason TEXT, suspended_by BIGINT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     CREATE UNIQUE INDEX ON market.users (lower(email)) WHERE email IS NOT NULL;

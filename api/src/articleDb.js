@@ -391,6 +391,7 @@ async function getArticleRowBySlug(client, slug, { includeDrafts = false } = {})
       SELECT COUNT(*)::int AS comment_count
       FROM content.article_comments ac
       WHERE ac.article_id = a.id
+        AND ac.hidden_at IS NULL
     ) comment_counts ON TRUE
     LEFT JOIN LATERAL (
       SELECT json_agg(
@@ -434,6 +435,8 @@ async function hydrateArticleDetail(client, articleRow, viewerUserId = null) {
         c.updated_at,
         c.upvotes,
         c.downvotes,
+        c.hidden_at,
+        c.hidden_reason,
         jsonb_build_object(
           'id', u.id,
           'username', u.username
@@ -450,6 +453,8 @@ async function hydrateArticleDetail(client, articleRow, viewerUserId = null) {
         LIMIT 1
       ) viewer_vote ON TRUE
       WHERE c.article_id = $1
+        -- Hidden comments (services/moderation.js) are for admins' eyes only.
+        AND (c.hidden_at IS NULL OR EXISTS (SELECT 1 FROM market.users viewer WHERE viewer.id = $2 AND viewer.is_admin))
       ORDER BY c.created_at DESC, c.id DESC
     `,
       [articleRow.id, viewerUserId]
@@ -672,6 +677,7 @@ async function listArticles(pool, {
       SELECT COUNT(*)::int AS comment_count
       FROM content.article_comments ac
       WHERE ac.article_id = a.id
+        AND ac.hidden_at IS NULL
     ) comment_counts ON TRUE
     LEFT JOIN LATERAL (
       SELECT json_agg(
@@ -1439,6 +1445,7 @@ async function setArticleCommentVote(pool, slug, commentId, userId, value) {
       FROM content.article_comments
       WHERE id = $1
         AND article_id = $2
+        AND hidden_at IS NULL
       LIMIT 1
       FOR UPDATE
     `,

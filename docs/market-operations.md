@@ -29,6 +29,14 @@ Financial calculations are unchanged. For 73 assets, the previous-state lookups 
 
 Rebuild progress includes `timings_ms.asset_io`, `timings_ms.settlement`, and `timings_ms.replay` for the latest completed day. Settlement completion timestamps use wall-clock time rather than transaction-start time. These measurements distinguish SQL round trips from other work; production speedup still needs measurement during a separately authorized rebuild.
 
+## Weekly evaluation I/O
+
+The weekly evaluation (`api/src/services/weeklyEvaluation.js`) used to lock every active stock, then loop over every holder of every stock with one to five statements each, convert Credit player by player and insert notifications one at a time, all in one transaction: at ~2,000 players, tens of thousands of statements, minutes against the cross-region database, with fills timing out on the locked stocks meanwhile. It now reads its inputs in a few set-based queries (stocks locked in id order, open buybacks, holdings and wallets), works the whole evaluation out in memory (`planEvaluation`, the same JS arithmetic as before, with wallets tracked as exact NUMERIC values) and writes it back in a few bulk statements (`applyEvaluation`, `economy.writeMoves`, `notifications.notifyMany`). Rows stay locked for about ten statements. Advisory lock `9204010`, the run-once rule and the 36-hour catch-up are unchanged.
+
+While `MARKET_WEEKLY_EVALUATION_CLOSE_TRADING` is on (the default until it has run in production once), a real run also closes trading: it takes the settlement scheduler lock (`9204001`; skipped and retried while the daily settlement runs), waits up to a minute for a live-order batch holding `9204003` to finish, sets the market to `settling` with a message, and restores the previous state afterwards. A market an admin closed is left as it is. Dry runs (preview) take no row locks and write nothing.
+
+`api/test/weekly-evaluation-batch.test.js` seeds a market through the real stats, fundamentals and settlement pipeline, clones it, and runs the frozen row-at-a-time evaluation (`api/test/fixtures/weekly-evaluation-reference.js`) and the batched one side by side over two Saturdays and a first evaluation, comparing balances, holdings, ledger rows, dividend lines, buybacks, stocks, the review and notifications exactly. `WEEKLY_EVAL_TEST_PLAYERS` sizes the market (300 by default).
+
 ## Validation
 
 `api/test/market-ops.test.js` verifies cross-replica progress, singleton job ownership, completion/error persistence, disconnected-worker detection, and bulk-write equivalence with a frozen pre-change implementation. It checks all persisted financial fields for 73 assets, history ordering, atomic rollback, and unchanged supplies against PostgreSQL 16.

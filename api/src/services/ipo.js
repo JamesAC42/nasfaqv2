@@ -22,6 +22,7 @@ const { publishMarketEvent } = require("./marketEvents");
 const { invalidateMarketAssetsCache } = require("../marketCache");
 const referenceImages = require("./referenceImages");
 const talentDetect = require("./talentDetect");
+const schedulerHealth = require("./schedulerHealth");
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
 
 const DEFAULTS = {
@@ -1128,21 +1129,28 @@ async function listDueEvents(pool, { marketDate, redis = null, logger = console 
 }
 
 function startIpoScheduler(pool, logger = console, redis = null, { intervalMs = 60_000 } = {}) {
+  const heartbeat = schedulerHealth.startSchedulerHeartbeat(redis, "ipo", { enabled: true, intervalMs }, logger);
   let running = false;
   async function tick() {
     if (running) return;
     running = true;
+    heartbeat.update("running");
     let client;
     try {
       client = await pool.connect();
       const { rows } = await client.query("SELECT pg_try_advisory_lock($1) AS locked", [LOCK_KEY]);
-      if (!rows[0]?.locked) return;
+      if (!rows[0]?.locked) {
+        heartbeat.skip();
+        return;
+      }
       try {
         await openDueWindows(pool, { redis, logger });
       } finally {
         await client.query("SELECT pg_advisory_unlock($1)", [LOCK_KEY]).catch(() => {});
       }
+      heartbeat.update("idle");
     } catch (error) {
+      heartbeat.update("error", error);
       logger.error?.("ipo scheduler failed", error);
     } finally {
       client?.release();
@@ -1153,7 +1161,10 @@ function startIpoScheduler(pool, logger = console, redis = null, { intervalMs = 
   timer.unref?.();
   const first = setTimeout(() => void tick(), 15_000);
   first.unref?.();
-  return () => clearInterval(timer);
+  return () => {
+    clearInterval(timer);
+    heartbeat.stop();
+  };
 }
 
 module.exports = {

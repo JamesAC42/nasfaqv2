@@ -1,0 +1,72 @@
+@use "../../styles/mixins" as *;
+
+.wrap {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: auto;
+  min-width: 0;
+}
+
+.tag {
+  @include label;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--down) 45%, var(--rule-2));
+  border-radius: 999px;
+  color: var(--down);
+  font-size: 0.58rem;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn {
+  @include label;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--dim);
+  font-size: 0.58rem;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--text);
+  }
+
+  &[data-danger] {
+    color: var(--down);
+    border-color: color-mix(in srgb, var(--down) 50%, var(--rule-2));
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.ask {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+
+  input {
+    width: 10rem;
+    max-width: 100%;
+    padding: 0.15rem 0.4rem;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    background: var(--ink-2);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.75rem;
+  }
+}
+
+.error {
+  font-size: 0.72rem;
+  color: var(--down);
+}

@@ -27,6 +27,7 @@ const gachaPrizeCatalog = require("./gachaPrizeCatalog");
 const gamesWallet = require("./wallet");
 const hub = require("./tables/hub");
 const notifications = require("../notifications");
+const schedulerHealth = require("../schedulerHealth");
 
 const FEE_RATE = 0.05;
 const MAX_PRICE = 1_000_000;
@@ -1622,16 +1623,22 @@ async function myDesk(pool, { userId }) {
 }
 
 // ── Scheduler ─────────────────────────────────────────────────────────────
-function startExchangeScheduler(pool, logger = console, { intervalMs = 5_000 } = {}) {
+function startExchangeScheduler(pool, logger = console, { intervalMs = 5_000, redis = null } = {}) {
+  // Every API pod runs this (the lock picks one per tick); the scheduler pod reports it.
+  const heartbeat = schedulerHealth.startSchedulerHeartbeat(redis, "exchange", { enabled: true, intervalMs, shared: true }, logger);
   let running = false;
   async function tick() {
     if (running) return;
     running = true;
+    heartbeat.update("running");
     let lockClient;
     try {
       lockClient = await pool.connect();
       const { rows } = await lockClient.query("SELECT pg_try_advisory_lock($1) AS locked", [SCHEDULER_LOCK_KEY]);
-      if (!rows[0]?.locked) return;
+      if (!rows[0]?.locked) {
+        heartbeat.skip();
+        return;
+      }
       try {
         const sold = await settleDueListings(pool);
         const expired = await expireDueTrades(pool);
@@ -1639,7 +1646,9 @@ function startExchangeScheduler(pool, logger = console, { intervalMs = 5_000 } =
       } finally {
         await lockClient.query("SELECT pg_advisory_unlock($1)", [SCHEDULER_LOCK_KEY]).catch(() => {});
       }
+      heartbeat.update("idle");
     } catch (error) {
+      heartbeat.update("error", error);
       logger.error?.("card exchange scheduler failed", error);
     } finally {
       lockClient?.release();
@@ -1649,7 +1658,10 @@ function startExchangeScheduler(pool, logger = console, { intervalMs = 5_000 } =
   const timer = setInterval(() => void tick(), intervalMs);
   timer.unref?.();
   void tick();
-  return () => clearInterval(timer);
+  return () => {
+    clearInterval(timer);
+    heartbeat.stop();
+  };
 }
 
 module.exports = {

@@ -1,4 +1,5 @@
 const { ensureUserCashAccount } = require("./portfolioCash");
+const pgNumeric = require("./pgNumeric");
 
 // Cash and Credit, BBB's two currencies (docs/market/credit.md).
 //
@@ -163,38 +164,81 @@ async function refund(client, userId, amount, { entryType, referenceType, refere
 }
 
 /**
- * The Saturday review's conversion: `rate` of every positive Credit balance becomes Cash, or
- * `minimum` if that's more (all of a balance smaller than that), one ledger row per player
- * (reference: the evaluation). Returns how many players and how much moved.
+ * writeMove for many players at once: each move is { userId, cash, credit, entryType, referenceType,
+ * referenceId, assetId, quantityDelta }. One statement: every move gets its ledger row, and each
+ * balance moves by the sum of its player's moves, which is exactly where one writeMove after another
+ * leaves it (NUMERIC sums are exact). Accounts must exist already.
  */
-async function convertCredit(client, { rate = SETTINGS.weeklyConversionRate, minimum = SETTINGS.weeklyConversionMinimum, evaluationId }) {
+async function writeMoves(client, moves) {
+  if (!moves.length) return;
+  await client.query(
+    `
+    WITH moves AS (
+      SELECT m."userId", m."assetId", m."entryType", COALESCE(m."quantityDelta", 0) AS quantity_delta,
+             COALESCE(m.cash, 0) AS cash, COALESCE(m.credit, 0) AS credit, m."referenceType", m."referenceId"
+      FROM jsonb_to_recordset($1::jsonb) AS m("userId" bigint, "assetId" bigint, "entryType" text, "quantityDelta" numeric,
+        cash numeric, credit numeric, "referenceType" text, "referenceId" bigint)
+    ),
+    balances AS (
+      UPDATE market.portfolio_cash_balances b
+      SET cash_balance = b.cash_balance + t.cash, credit_balance = b.credit_balance + t.credit, updated_at = now()
+      FROM (SELECT "userId", SUM(cash) AS cash, SUM(credit) AS credit FROM moves WHERE cash <> 0 OR credit <> 0 GROUP BY "userId") t
+      WHERE b.user_id = t."userId"
+    )
+    INSERT INTO market.ledger_entries (user_id, asset_id, entry_type, quantity_delta, cash_delta, credit_delta, reference_type, reference_id)
+    SELECT "userId", "assetId", "entryType", quantity_delta, cash, credit, "referenceType", "referenceId" FROM moves
+  `,
+    [JSON.stringify(moves)]
+  );
+}
+
+/**
+ * The Saturday review's conversion, worked out for each wallet ({ userId, credit }, credit as NUMERIC
+ * text or a pgNumeric value): `rate` of every positive Credit balance becomes Cash, or `minimum` if
+ * that's more (all of a balance smaller than that). Postgres's arithmetic (LEAST(credit,
+ * GREATEST(round(credit * rate, 2), minimum))), each amount handed back as the JS number a row of it
+ * reads as. Returns how many players and how much it moves.
+ */
+function planCreditConversion(wallets, { rate = SETTINGS.weeklyConversionRate, minimum = SETTINGS.weeklyConversionMinimum } = {}) {
   const share = Math.min(Math.max(num(rate), 0), 0.5);
   const floor = Math.max(num(minimum), 0);
   if (!(share > 0) && !(floor > 0)) return { players: 0, converted: 0, rate: share, minimum: floor, moves: [] };
-  const { rows } = await client.query(
-    `
-    SELECT user_id, LEAST(credit_balance, GREATEST(round(credit_balance * $1, 2), $2)) AS amount
-    FROM market.portfolio_cash_balances
-    WHERE credit_balance > 0
-    FOR UPDATE
-  `,
-    [share, floor]
-  );
+  const shareValue = pgNumeric.parse(share);
+  const floorValue = pgNumeric.parse(floor);
   let converted = 0;
   const moves = [];
-  for (const row of rows) {
-    const amount = num(row.amount);
-    await writeMove(client, Number(row.user_id), {
-      cash: amount,
-      credit: -amount,
-      entryType: "credit_conversion",
-      referenceType: "weekly_evaluation",
-      referenceId: evaluationId,
-    });
+  for (const wallet of wallets) {
+    const credit = typeof wallet.credit === "object" ? wallet.credit : pgNumeric.parse(wallet.credit);
+    if (pgNumeric.compare(credit, pgNumeric.ZERO) <= 0) continue;
+    const portion = pgNumeric.round(pgNumeric.mul(credit, shareValue), 2);
+    const atLeast = pgNumeric.compare(portion, floorValue) >= 0 ? portion : floorValue;
+    const amount = pgNumeric.toNumber(pgNumeric.compare(credit, atLeast) <= 0 ? credit : atLeast);
     converted += amount;
-    moves.push({ userId: Number(row.user_id), amount });
+    moves.push({ userId: Number(wallet.userId), amount });
   }
-  return { players: rows.length, converted: Math.round(converted * 100) / 100, rate: share, minimum: floor, moves };
+  return { players: moves.length, converted: Math.round(converted * 100) / 100, rate: share, minimum: floor, moves };
+}
+
+/** The ledger moves for a planned conversion (reference: the evaluation). */
+function conversionMoves(plan, evaluationId) {
+  return plan.moves.map((move) => ({
+    userId: move.userId,
+    cash: move.amount,
+    credit: -move.amount,
+    entryType: "credit_conversion",
+    referenceType: "weekly_evaluation",
+    referenceId: evaluationId,
+  }));
+}
+
+/** The conversion on every wallet as it stands, one ledger row per player (reference: the evaluation). */
+async function convertCredit(client, { rate = SETTINGS.weeklyConversionRate, minimum = SETTINGS.weeklyConversionMinimum, evaluationId }) {
+  const { rows } = await client.query(
+    `SELECT user_id, credit_balance FROM market.portfolio_cash_balances WHERE credit_balance > 0 ORDER BY user_id FOR UPDATE`
+  );
+  const plan = planCreditConversion(rows.map((row) => ({ userId: row.user_id, credit: row.credit_balance })), { rate, minimum });
+  await writeMoves(client, conversionMoves(plan, evaluationId));
+  return plan;
 }
 
 /** What games, the capsule machine, the exchange and predictions can spend: Credit, plus Cash when they fall back to it. */
@@ -216,11 +260,14 @@ function publicSettings() {
 module.exports = {
   SETTINGS,
   charge,
+  conversionMoves,
   convertCredit,
   lockWallet,
   pay,
+  planCreditConversion,
   publicSettings,
   refund,
   sideModeSpendable,
   splitCharge,
+  writeMoves,
 };

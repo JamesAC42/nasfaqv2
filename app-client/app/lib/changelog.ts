@@ -23,6 +23,38 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    date: "2026-10-29",
+    title: "Reports, announcements and account notices",
+    changes: [
+      {
+        kind: "new",
+        text: "Report a chat message: hover over it (or tap ⋯ on your phone), choose Report message and tell us what's wrong. An admin reviews every report.",
+      },
+      {
+        kind: "new",
+        text: "Announcements: when there's something everyone should know, it shows in a bar under the header on every page, without a refresh. Dismiss it and it stays gone until the next one.",
+      },
+      {
+        kind: "new",
+        text: "If an admin suspends your account, a notice at the top of every page says why and until when. You can still sign in and look around, but trading, posting, chat and games are off until it ends.",
+      },
+      {
+        kind: "improved",
+        text: "If you're muted or banned in chat, the message box now says so and until when.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-29",
+    title: "A quicker Saturday evaluation",
+    changes: [
+      {
+        kind: "improved",
+        text: "The Saturday evaluation (dividends, share fees, Credit turning into Cash, max shares and buybacks) now takes seconds instead of minutes, so trades no longer stall around midnight on Friday. Trading pauses for those seconds with a note on the market, and orders you had queued fill in the first batch after.",
+      },
+    ],
+  },
+  {
     date: "2026-10-28",
     title: "Predictions stay current through updates",
     changes: [

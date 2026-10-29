@@ -713,6 +713,7 @@ Optional keys, added to the same Secret by `kubectl patch` (the API pods read th
 
 - `JEV_API_KEY`: Jev (TypeSafe) reads /vt/ posts, stream titles and headlines for the Wire; without it those fall back to keyword rules.
 - `DISCORD_BUG_WEBHOOK_URL`: "Report a bug" also posts each report to this Discord channel webhook (Discord: channel settings → Integrations → Webhooks → New Webhook → Copy Webhook URL). Reports are kept and listed on the admin overview either way.
+- `DISCORD_ALERT_WEBHOOK_URL`: production alerts (settlement missing or failing, an incomplete YouTube scrape, a stopped scheduler, a burst of errors) post to this Discord webhook; `DISCORD_ALERT_ROLE_ID` optionally pings a role on each new alert. Without it nothing is sent. What each alert means: [docs/ops/alerts.md](docs/ops/alerts.md).
 
 For long-term: install [sealed-secrets](https://github.com/bitnami-labs/sealed-secrets) and commit a `SealedSecret` so the cluster is reproducible from git.
 

@@ -5,7 +5,8 @@ import { apiFetch } from "@/app/lib/api";
 import { onMarketEvent } from "@/app/stores/market-store";
 import { useTradeStore } from "@/app/stores/trade-store";
 
-// Which release is live and whether maintenance is on (api/src/services/siteState.js). Read on
+// Which release is live, whether maintenance is on and the admins' announcement, if any
+// (api/src/services/siteState.js). Read on
 // load, when the tab comes back into view and every few minutes; changes also arrive on the market
 // socket as `site.status`. How many people are online arrives there too (`site.online`).
 
@@ -17,10 +18,21 @@ export type Maintenance = {
   started_at: string | null;
 };
 
+/** A notice from the admins under every page's header, until it's cleared or `expires_at`. */
+export type Announcement = {
+  /** Different for every post, so waving one off doesn't hide the next. */
+  id: string;
+  text: string;
+  tone: "info" | "warning";
+  link: string | null;
+  expires_at: string | null;
+};
+
 export type SiteState = {
   version: string | null;
   released_at: string | null;
   maintenance: Maintenance;
+  announcement: Announcement | null;
 };
 
 /** This page's release, baked in at build ("sha-<commit>"). Empty in local builds: no refresh notice. */
@@ -36,10 +48,16 @@ function normalizeSite(value: unknown): SiteState | null {
   const m = (raw.maintenance && typeof raw.maintenance === "object" ? raw.maintenance : {}) as Record<string, unknown>;
   const state = m.state === "draining" || m.state === "on" ? m.state : "off";
   const text = (v: unknown) => (typeof v === "string" && v ? v : null);
+  const a = (raw.announcement && typeof raw.announcement === "object" ? raw.announcement : null) as Record<string, unknown> | null;
+  const announcement =
+    a && text(a.id) && text(a.text)
+      ? { id: String(a.id), text: String(a.text), tone: a.tone === "warning" ? ("warning" as const) : ("info" as const), link: text(a.link), expires_at: text(a.expires_at) }
+      : null;
   return {
     version: text(raw.version),
     released_at: text(raw.released_at),
     maintenance: { state, source: text(m.source), message: text(m.message), started_at: text(m.started_at) },
+    announcement,
   };
 }
 
