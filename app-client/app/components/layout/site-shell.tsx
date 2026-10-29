@@ -531,6 +531,7 @@ export function SiteShell({
               <Link href="/about">About</Link>
               <Link href="/changelog">What&apos;s new</Link>
               <BugReportButton />
+              <Link href="/rules">Rules</Link>
               <Link href="/privacy">Privacy</Link>
               <Link href="/terms">Usage policy</Link>
             </nav>

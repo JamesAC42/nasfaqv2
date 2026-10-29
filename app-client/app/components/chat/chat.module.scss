@@ -833,18 +833,38 @@
   font-size: 0.62rem;
   color: var(--dim);
 
-  span:first-child {
+  > span:first-child {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
   }
 
   @include phone {
-    span:first-child {
+    > span:first-child {
       display: none;
     }
 
     justify-content: flex-end;
+  }
+}
+
+// The rules link next to the character count; it stays when the phone hides the hints.
+.composeSide {
+  display: flex;
+  flex-shrink: 0;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.rulesLink {
+  color: var(--mid);
+  text-decoration: underline;
+  text-decoration-color: var(--rule-2);
+  text-underline-offset: 2px;
+
+  &:hover {
+    color: var(--blue);
+    text-decoration-color: currentColor;
   }
 }
 

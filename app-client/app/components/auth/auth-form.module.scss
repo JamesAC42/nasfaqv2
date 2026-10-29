@@ -191,6 +191,18 @@
   letter-spacing: 0.12em;
 }
 
+// Under "Create account": what signing up agrees to. A line, not a checkbox.
+.agree {
+  margin: -0.3rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--dim);
+
+  a {
+    color: var(--blue-2);
+  }
+}
+
 // "Password" with "Forgot it?" at the other end of the line.
 .labelRow {
   display: flex;

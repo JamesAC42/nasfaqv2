@@ -1,0 +1,112 @@
+@use "../styles/mixins" as *;
+
+// Community rules: the changelog's single readable column, one numbered rule per row.
+
+$measure: 44rem;
+
+.page {
+  width: 100%;
+  min-width: 0;
+  max-width: $measure;
+  margin: 0 auto;
+}
+
+.head {
+  padding: 0.5rem 0 1.25rem;
+  border-bottom: 1px solid var(--rule);
+
+  h1 {
+    @include display(clamp(2.1rem, 5vw, 3.25rem));
+    margin: 0.5rem 0 0.75rem;
+    line-height: 1;
+    color: var(--text);
+  }
+
+  p {
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--mid);
+  }
+
+  a {
+    color: var(--blue);
+  }
+}
+
+.rules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rule {
+  padding: 1.35rem 0;
+  border-bottom: 1px solid var(--rule);
+  scroll-margin-top: 5rem;
+
+  h2 {
+    margin: 0.35rem 0 0.7rem;
+    font-size: 1.2rem;
+    line-height: 1.3;
+    color: var(--text);
+  }
+}
+
+.num {
+  @include label;
+  color: var(--dim);
+}
+
+// Dash bullets, like the Usage policy's prose.
+.points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+
+  li {
+    position: relative;
+    padding-left: 1.35rem;
+    font-size: 0.95rem;
+    line-height: 1.55;
+    color: var(--mid);
+
+    &::before {
+      content: "";
+      position: absolute;
+      left: 0.3rem;
+      top: 0.78em;
+      width: 0.45rem;
+      height: 1px;
+      background: var(--dim);
+    }
+  }
+
+  strong {
+    color: var(--text);
+  }
+
+  a {
+    color: var(--blue);
+  }
+}
+
+.more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 1.1rem;
+  padding: 1.25rem 0 0.5rem;
+  font-size: 0.9rem;
+
+  span {
+    @include label;
+    color: var(--dim);
+  }
+
+  a {
+    color: var(--blue);
+  }
+}

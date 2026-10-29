@@ -263,6 +263,11 @@ export function AuthForm({ mode, token = "" }: { mode: AuthMode; token?: string 
       <button type="submit" className={styles.submit} disabled={working || !captchaDone || (mode === "reset" && !token)}>
         {working ? "…" : SUBMIT_LABELS[mode]}
       </button>
+      {mode === "register" ? (
+        <p className={styles.agree}>
+          By signing up you agree to the <Link href="/rules">community rules</Link> and the <Link href="/terms">Usage policy</Link>.
+        </p>
+      ) : null}
     </form>
   );
 

@@ -105,6 +105,7 @@ export function FinePrint() {
         statement about any real person.
       </p>
       <p className={styles.fineLinks}>
+        <Link href="/rules">Rules</Link>
         <Link href="/terms">Terms</Link>
         <Link href="/privacy">Privacy</Link>
         <Link href="/register">Make an account</Link>

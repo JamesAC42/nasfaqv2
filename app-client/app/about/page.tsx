@@ -75,7 +75,8 @@ const sections: LegalSection[] = [
         </p>
         <p>
           Channel numbers come from public YouTube data through the YouTube API. The <Link href="/privacy">Privacy Policy</Link> covers what we keep about
-          you, and the <Link href="/terms">Usage policy</Link> has the house rules.
+          you, and the <Link href="/terms">Usage policy</Link> has the house rules. The{" "}
+          <Link href="/rules">Community rules</Link> are the short version.
         </p>
       </>
     ),
