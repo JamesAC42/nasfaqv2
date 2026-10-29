@@ -87,6 +87,7 @@ export function SiteStatusBar() {
               <>
                 {" "}
                 Reason: <b>{suspension.reason}</b>
+                {/[.!?]$/.test(suspension.reason) ? "" : "."}
               </>
             ) : null}{" "}
             You can still look around, but trading, posting, chat and games are off until then.

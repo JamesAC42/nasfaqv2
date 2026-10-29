@@ -347,7 +347,7 @@ function UserRow({
       {confirm === "freeze" ? (
         <div className={styles.confirm} data-tone="warn" role="group" aria-label="Confirm exchange freeze">
           <p>
-            Freeze <b>{user.username}</b> out of the exchange? They can&apos;t list, bid, buy or trade until you unfreeze them. What they already have listed or
+            Freeze <b>{user.username}</b>{" "}out of the exchange? They can&apos;t list, bid, buy or trade until you unfreeze them. What they already have listed or
             offered runs out as normal.
           </p>
           <input className={ui.input} value={freezeNote} maxLength={200} placeholder="Why (for other admins, optional)" onChange={(event) => setFreezeNote(event.target.value)} />
@@ -373,7 +373,7 @@ function UserRow({
           }}
         >
           <p>
-            Suspend <b>{user.username}</b> from the whole site? They&apos;re signed out everywhere, can sign back in to read but can&apos;t trade, post, chat
+            Suspend <b>{user.username}</b>{" "}from the whole site? They&apos;re signed out everywhere, can sign back in to read but can&apos;t trade, post, chat
             or play, and drop off the leaderboards until it ends. They see the reason.
           </p>
           <div className={styles.filters} role="radiogroup" aria-label="How long">
@@ -398,7 +398,7 @@ function UserRow({
       {confirm === "reset" ? (
         <div className={styles.confirm} data-tone="warn" role="group" aria-label="Confirm profile reset">
           <p>
-            Reset <b>{user.username}</b>&apos;s profile? They&apos;re renamed to <b>player_{user.id}</b> and their bio and banner are cleared. They can pick a new
+            Reset <b>{user.username}</b>&apos;s profile? They&apos;re renamed to <b>player_{user.id}</b>{" "}and their bio and banner are cleared. They can pick a new
             name afterwards.
           </p>
           <input className={ui.input} value={resetReason} maxLength={280} placeholder="Why (for other admins, optional)" onChange={(event) => setResetReason(event.target.value)} />
