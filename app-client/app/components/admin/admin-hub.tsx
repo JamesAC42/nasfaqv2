@@ -10,6 +10,7 @@ import {
   fetchAdminStats,
   fetchLiveOrderHealth,
   fetchMarketStatus,
+  fetchSchedulerHealth,
   reopenTrading,
   fetchBugReports,
   setBugReportResolved,
@@ -18,6 +19,8 @@ import {
   type BugReport,
   type AdminOverviewStats,
   type LiveOrderHealth,
+  type SchedulerBeat,
+  type SchedulerHealth,
 } from "@/app/components/admin/admin-api";
 import { AdminFrame, AdminGate, AdminLoading, predictionsHref, useAdminAccess, useNow } from "@/app/components/admin/admin-frame";
 import { Notice, Section, adminErrorText, adminUi as ui, ago, etTime, fmtCash, fmtCount, until } from "@/app/components/admin/admin-ui";
@@ -54,10 +57,18 @@ function Row({ label, children, tone }: { label: string; children: ReactNode; to
   );
 }
 
+const PROBLEM_LABELS: Record<NonNullable<SchedulerBeat["problem"]>, string> = { missing: "Not reporting", gone: "Not reporting", stalled: "Stalled", failing: "Failing" };
+
+/** A heartbeat's pill: the watchdog's verdict when it has one, else the scheduler's own status. */
+function beatLabel(beat: SchedulerBeat) {
+  return beat.problem ? PROBLEM_LABELS[beat.problem] : schedulerLabel(beat);
+}
+
 function buildAttention({
   predictions,
   adjust,
   live,
+  beats,
   stats,
   status,
   now,
@@ -65,6 +76,7 @@ function buildAttention({
   predictions: AdminOverview | null;
   adjust: AdjustmentHealth | null;
   live: LiveOrderHealth | null;
+  beats: SchedulerHealth | null;
   stats: AdminOverviewStats | null;
   status: Partial<MarketStatus> | null;
   now: number;
@@ -149,6 +161,24 @@ function buildAttention({
     const failed = live.recent_batches.find((batch) => batch.error_text || batch.status === "failed");
     if (failed) {
       items.push({ key: "batch-failed", tone: "warn", title: `Batch #${failed.id} ${failed.status || "failed"}`, detail: failed.error_text ?? undefined, href: "/admin/market-tuning#live-orders", action: "Look" });
+    }
+  }
+
+  if (beats) {
+    // Ticks and live orders have rows of their own above.
+    const unwell = beats.schedulers.filter((beat) => beat.problem && beat.name !== "adjustment" && beat.name !== "live-orders");
+    if (unwell.length) {
+      items.push({
+        key: "heartbeats",
+        tone: "warn",
+        title: unwell.length === 1 ? `${unwell[0].label}: ${beatLabel(unwell[0]).toLowerCase()}` : `${plural(unwell.length, "scheduler")} unwell: ${unwell.map((beat) => beat.label).join(", ")}`,
+        detail: unwell[0].problem_detail ?? undefined,
+        href: "#health",
+        action: "See heartbeats",
+      });
+    }
+    if (!beats.alerts_configured) {
+      items.push({ key: "alerts-off", tone: "info", title: "Alerts go nowhere", detail: "Set DISCORD_ALERT_WEBHOOK_URL so failures reach Discord." });
     }
   }
 
@@ -418,6 +448,7 @@ export function AdminHub() {
   const [status, setStatus] = useState<Loaded<Partial<MarketStatus>>>(empty);
   const [adjust, setAdjust] = useState<Loaded<AdjustmentHealth>>(empty);
   const [live, setLive] = useState<Loaded<LiveOrderHealth>>(empty);
+  const [beats, setBeats] = useState<Loaded<SchedulerHealth>>(empty);
   const [predictions, setPredictions] = useState<Loaded<AdminOverview>>(empty);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -426,17 +457,19 @@ export function AdminHub() {
 
   const load = useCallback(async () => {
     setBusy(true);
-    const [s, st, a, l, p] = await Promise.allSettled([
+    const [s, st, a, l, p, b] = await Promise.allSettled([
       isAdmin ? fetchAdminStats() : Promise.reject(new Error("skip")),
       fetchMarketStatus(),
       isAdmin ? fetchAdjustmentHealth() : Promise.reject(new Error("skip")),
       isAdmin ? fetchLiveOrderHealth(5) : Promise.reject(new Error("skip")),
       canPredictions ? fetchAdminOverview() : Promise.reject(new Error("skip")),
+      isAdmin ? fetchSchedulerHealth() : Promise.reject(new Error("skip")),
     ]);
     if (isAdmin) {
       setStats((prev) => settle(s, prev));
       setAdjust((prev) => settle(a, prev));
       setLive((prev) => settle(l, prev));
+      setBeats((prev) => settle(b, prev));
     }
     setStatus((prev) => settle(st, prev));
     if (canPredictions) setPredictions((prev) => settle(p, prev));
@@ -462,13 +495,14 @@ export function AdminHub() {
   const a = adjust.data;
   const l = live.data;
   const m = status.data;
-  const attention = buildAttention({ predictions: p, adjust: a, live: l, stats: s, status: m, now });
+  const hb = beats.data;
+  const attention = buildAttention({ predictions: p, adjust: a, live: l, beats: hb, stats: s, status: m, now });
   const warnCount = attention.filter((item) => item.tone === "warn").length;
   const firstLoad = loadedAt === null;
   const disputed = p ? p.proposals.filter((market) => market.status === "disputed").length : 0;
   const open = m ? Boolean(m.is_trading_open) : null;
 
-  const errors = [stats.error, adjust.error, live.error, predictions.error].filter(Boolean) as string[];
+  const errors = [stats.error, adjust.error, live.error, beats.error, predictions.error].filter(Boolean) as string[];
   const predsLink = predictionsHref(access, user as Record<string, unknown> | null);
 
   const tools = [
@@ -647,6 +681,31 @@ export function AdminHub() {
                       )}
                     </Row>
                   </dl>
+                </div>
+              ) : null}
+
+              {isAdmin ? (
+                <div className={styles.healthCol}>
+                  <h3>Heartbeats</h3>
+                  {/* Last clean tick per loop. The watchdog posts to Discord when one goes quiet, stalls or keeps failing. */}
+                  <dl className={styles.rows}>
+                    {hb
+                      ? hb.schedulers.map((beat) => (
+                          <Row key={beat.name} label={beat.label} tone={beat.problem ? "warn" : undefined}>
+                            <span className={ui.pill} data-tone={beat.problem ? "warn" : beat.scheduler_status === "running" ? "blue" : "dim"} title={beat.problem_detail ?? beat.scheduler_error_code ?? undefined}>
+                              <i aria-hidden="true" />
+                              {beatLabel(beat)}
+                            </span>
+                            <small>
+                              {beat.scheduler_last_success_at ? `${ago(beat.scheduler_last_success_at, now)} ago` : beat.scheduler_enabled ? "no clean tick yet" : ""}
+                              {beat.consecutive_failures ? ` · ${beat.consecutive_failures} failed` : ""}
+                              {beat.retry_at ? ` · retry ${etTime(beat.retry_at, false)}` : ""}
+                            </small>
+                          </Row>
+                        ))
+                      : <Row label="—">—</Row>}
+                  </dl>
+                  {hb ? <p className={styles.muted}>{hb.alerts_configured ? "Alerts go to Discord." : "Alerts are off: DISCORD_ALERT_WEBHOOK_URL isn't set."}</p> : null}
                 </div>
               ) : null}
 

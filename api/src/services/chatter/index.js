@@ -9,6 +9,7 @@
 const jev = require("../jev");
 const talents = require("../talents");
 const fourchan = require("./fourchan");
+const schedulerHealth = require("../schedulerHealth");
 
 const BOARD = process.env.CHATTER_BOARD || "vt";
 const LOCK_KEY = 9_204_102;
@@ -424,23 +425,32 @@ async function getHistory(pool, { days = 7, symbol = null } = {}) {
   };
 }
 
-function startChatterScheduler(pool, logger = console, { intervalMs = 5 * 60_000 } = {}) {
-  if (String(process.env.CHATTER_ENABLED || "").toLowerCase() === "off") return () => {};
+function startChatterScheduler(pool, logger = console, { intervalMs = 5 * 60_000, redis = null } = {}) {
+  const enabled = String(process.env.CHATTER_ENABLED || "").toLowerCase() !== "off";
+  // Every API pod runs this (the lock picks one per tick); the scheduler pod reports it.
+  const heartbeat = schedulerHealth.startSchedulerHeartbeat(redis, "chatter", { enabled, intervalMs, shared: true }, logger);
+  if (!enabled) return () => heartbeat.stop();
   let running = false;
   async function tick() {
     if (running) return;
     running = true;
+    heartbeat.update("running");
     let client;
     try {
       client = await pool.connect();
       const { rows } = await client.query("SELECT pg_try_advisory_lock($1) AS locked", [LOCK_KEY]);
-      if (!rows[0]?.locked) return;
+      if (!rows[0]?.locked) {
+        heartbeat.skip();
+        return;
+      }
       try {
         await scanOnce(pool, { logger });
       } finally {
         await client.query("SELECT pg_advisory_unlock($1)", [LOCK_KEY]).catch(() => {});
       }
+      heartbeat.update("idle");
     } catch (error) {
+      heartbeat.update("error", error);
       logger.warn?.("chatter scan failed", String(error?.message || error));
     } finally {
       client?.release();
@@ -454,6 +464,7 @@ function startChatterScheduler(pool, logger = console, { intervalMs = 5 * 60_000
   return () => {
     clearTimeout(first);
     clearInterval(timer);
+    heartbeat.stop();
   };
 }
 

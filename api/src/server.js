@@ -16,6 +16,7 @@ const { startMarketScheduler, loadSchedulerConfig, computeNextScheduledAt } = re
 const { startAdjustmentScheduler } = require("./services/marketAdjustments");
 const { startLiveOrderScheduler } = require("./services/trading");
 const { startPredictionsScheduler } = require("./services/predictions/scheduler");
+const watchdog = require("./services/watchdog");
 
 const channelsRoutes = require("./routes/channels");
 const { router: chatRoutes, CHAT_EVENTS_REDIS_CHANNEL } = require("./routes/chat");
@@ -258,7 +259,7 @@ app.use(
         callback(null, true);
         return;
       }
-      callback(new Error(`CORS origin not allowed: ${origin}`));
+      callback(Object.assign(new Error(`CORS origin not allowed: ${origin}`), { code: "cors_origin_not_allowed" }));
     },
     credentials: true
   })
@@ -326,7 +327,7 @@ api.use("/", nasfaqThreadRoutes);
 
 app.use("/api", api);
 
-app.use((err, _req, res, _next) => {
+app.use((err, req, res, _next) => {
   // eslint-disable-next-line no-console
   console.error(err);
   if (err?.code === "unauthenticated") return res.status(401).json({ error: "unauthenticated" });
@@ -434,6 +435,8 @@ app.use((err, _req, res, _next) => {
   ) {
     return res.status(409).json({ error: err.code });
   }
+  // Nothing above knew this error: a bug. The watchdog tells the team about a burst of them.
+  if (watchdog.isServerFault(err)) void watchdog.recordError(redis, { source: "http", error: err, method: req.method, path: req.path });
   return res.status(500).json({ error: "internal_error" });
 });
 
@@ -930,16 +933,17 @@ async function main() {
     // Opens IPO windows when they're due (listing itself happens in the 09:00 cycle).
     stoppers.push(require("./services/ipo").startIpoScheduler(pool, console, redis));
   }
-  if (cfg.enablePredictionMarketScheduler) {
-    const predictionsTimer = startPredictionsScheduler(pool, console, redis);
-    stoppers.push(() => clearInterval(predictionsTimer));
-  }
+  // Turned off (PREDICTION_MARKET_SCHEDULER_ENABLED=false) it only reports Off, from the scheduler pod.
+  stoppers.push(startPredictionsScheduler(pool, console, redis));
   // The card exchange closes auctions and expires listings and trade offers on its own clock.
-  stoppers.push(require("./services/games/exchange").startExchangeScheduler(pool, console));
+  stoppers.push(require("./services/games/exchange").startExchangeScheduler(pool, console, { redis }));
   // The Wire posts automatic headlines every 10 minutes (stream events judged by Jev when JEV_API_KEY is set).
-  stoppers.push(require("./services/wire").startWireScheduler(pool, console));
+  stoppers.push(require("./services/wire").startWireScheduler(pool, console, { redis }));
   // The /vt/ chatter index scans hololive threads every 5 minutes (CHATTER_ENABLED=off to stop it).
-  stoppers.push(require("./services/chatter").startChatterScheduler(pool, console));
+  stoppers.push(require("./services/chatter").startChatterScheduler(pool, console, { redis }));
+  // Alerts the team on Discord when settlement, the scrape or a scheduler goes wrong (services/watchdog.js);
+  // the scheduler pod runs it, every other pod stands by in case that pod is down. WATCHDOG_ENABLED=false stops it.
+  stoppers.push(watchdog.startWatchdog(pool, console, redis));
 
   // Kubernetes sends SIGTERM on a rollout or scale-down, after the preStop sleep in
   // deploy/k8s/20-api.yaml has given the Service time to stop routing here. Stop starting work and
@@ -997,6 +1001,7 @@ async function main() {
 process.on("unhandledRejection", (reason) => {
   // eslint-disable-next-line no-console
   console.error("unhandled rejection:", reason);
+  void watchdog.recordError(redis, { source: "unhandledRejection", error: reason });
 });
 
 main().catch((e) => {

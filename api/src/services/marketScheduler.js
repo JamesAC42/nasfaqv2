@@ -2,6 +2,8 @@ const fundamentals = require("./fundamentals");
 const settlement = require("./settlement");
 const marketState = require("./marketState");
 const marketAdjustments = require("./marketAdjustments");
+const alerts = require("./alerts");
+const schedulerHealth = require("./schedulerHealth");
 const { publishMarketStatusEvent } = require("./marketEvents");
 const { invalidateMarketAssetsCache } = require("../marketCache");
 
@@ -10,6 +12,13 @@ const DEFAULT_TIME_ZONE = "America/New_York";
 const DEFAULT_HOUR = 9;
 const DEFAULT_MINUTE = 0;
 const LOOP_INTERVAL_MS = 60_000;
+// After a failed cycle the next one waits. The first retries come on the next minutes (most
+// failures are a blip); from the third failure on, the wait doubles up to 30 minutes and the team
+// gets an alert. Retrying every minute used to close and reopen trading every minute.
+const BACKOFF_AFTER_FAILURES = 2;
+const MAX_RETRY_DELAY_MS = 30 * 60_000;
+const BACKOFF_ALERT_KEY = "settlement-backoff";
+const BACKOFF_ALERT_TITLE = "Daily settlement keeps failing";
 
 function isValidIanaTimeZone(value) {
   try {
@@ -379,39 +388,91 @@ function loadSchedulerConfig() {
   };
 }
 
-function startMarketScheduler(pool, logger = console, redis = null) {
-  const schedulerConfig = loadSchedulerConfig();
-  let running = false;
+/** How long to wait after the `failures`-th failed cycle in a row before trying again (0: next tick). */
+function settlementRetryDelayMs(failures) {
+  if (failures <= BACKOFF_AFTER_FAILURES) return 0;
+  return Math.min(MAX_RETRY_DELAY_MS, LOOP_INTERVAL_MS * 2 ** (failures - BACKOFF_AFTER_FAILURES));
+}
 
-  async function tick() {
-    if (!schedulerConfig.enabled || running) {
+function backoffAlert({ failures, retryAt, error, timeZone }) {
+  const next = new Intl.DateTimeFormat("en-US", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short" }).format(new Date(retryAt));
+  return {
+    title: BACKOFF_ALERT_TITLE,
+    message:
+      `${failures} settlement cycles in a row have failed. Trading stays open on the last settled day, and the scheduler now waits ` +
+      `longer between tries (up to 30 minutes) instead of closing and reopening the market every minute. Next try: ${next}.`,
+    fields: [{ name: "Last error", value: String(error?.message || error) }],
+  };
+}
+
+/** One tick of the settlement loop, with its failure count and backoff (startMarketScheduler runs it every minute). */
+function createSettlementTick(pool, { config, runCycle = runScheduledCycle, heartbeat, redis = null, logger = console, alertOptions = {}, now = Date.now }) {
+  let running = false;
+  let failures = 0;
+  let retryAt = 0;
+
+  return async function tick() {
+    if (!config.enabled || running) {
       return;
     }
-    if (!shouldRunScheduledCycle(new Date(), schedulerConfig)) {
+    if (!shouldRunScheduledCycle(new Date(now()), config)) {
+      heartbeat.update("idle");
+      return;
+    }
+    // Waiting out failures: the heartbeat keeps the error until a retry goes through.
+    if (now() < retryAt) {
       return;
     }
 
     running = true;
+    heartbeat.update("running");
     try {
-      await runScheduledCycle(pool, schedulerConfig, logger, redis);
-    } catch {}
-    running = false;
-  }
+      await runCycle(pool, config, logger, redis);
+      failures = 0;
+      retryAt = 0;
+      heartbeat.update("idle", null, { consecutive_failures: 0, retry_at: null });
+      await alerts.resolve(redis, BACKOFF_ALERT_KEY, { title: BACKOFF_ALERT_TITLE, message: "A settlement cycle went through." }, { logger, ...alertOptions }).catch(() => {});
+    } catch (error) {
+      // runScheduledCycle has recorded and logged it.
+      failures += 1;
+      const delayMs = settlementRetryDelayMs(failures);
+      retryAt = now() + delayMs;
+      heartbeat.update("error", error, { consecutive_failures: failures, retry_at: delayMs ? new Date(retryAt).toISOString() : null });
+      if (delayMs) {
+        await alerts.raise(redis, BACKOFF_ALERT_KEY, backoffAlert({ failures, retryAt, error, timeZone: config.timeZone }), { logger, ...alertOptions }).catch(() => {});
+      }
+    } finally {
+      running = false;
+    }
+  };
+}
+
+function startMarketScheduler(pool, logger = console, redis = null) {
+  const schedulerConfig = loadSchedulerConfig();
+  const heartbeat = schedulerHealth.startSchedulerHeartbeat(redis, "settlement", { enabled: schedulerConfig.enabled, intervalMs: LOOP_INTERVAL_MS }, logger);
+  const tick = createSettlementTick(pool, { config: schedulerConfig, heartbeat, redis, logger });
 
   void tick();
   const timer = setInterval(() => {
     void tick();
   }, LOOP_INTERVAL_MS);
 
-  return () => clearInterval(timer);
+  return () => {
+    clearInterval(timer);
+    heartbeat.stop();
+  };
 }
 
 module.exports = {
   acquireSchedulerLock,
   computeNextScheduledAt,
+  createSettlementTick,
   getCurrentDateKey,
+  getQueryTimeZone,
   loadSchedulerConfig,
   releaseSchedulerLock,
   runScheduledCycle,
+  settlementRetryDelayMs,
+  shiftDateKey,
   startMarketScheduler,
 };

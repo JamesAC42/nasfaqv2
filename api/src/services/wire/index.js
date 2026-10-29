@@ -14,6 +14,7 @@ const chatter = require("../chatter");
 const autotag = require("../autotag");
 const newsMoods = require("../newsMoods");
 const { BUYBACK_START, BUYBACK_DAILY_STEP } = require("../marketSupply");
+const schedulerHealth = require("../schedulerHealth");
 
 const THUMB = (videoId) => `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 const WATCH = (videoId) => `https://www.youtube.com/watch?v=${videoId}`;
@@ -624,16 +625,22 @@ async function countWire(pool, { hours = 168, symbol = null } = {}) {
 
 const WIRE_LOCK_KEY = 9_204_101;
 
-function startWireScheduler(pool, logger = console, { intervalMs = 10 * 60_000 } = {}) {
+function startWireScheduler(pool, logger = console, { intervalMs = 10 * 60_000, redis = null } = {}) {
+  // Every API pod runs this (the lock picks one per tick); the scheduler pod reports it.
+  const heartbeat = schedulerHealth.startSchedulerHeartbeat(redis, "wire", { enabled: true, intervalMs, shared: true }, logger);
   let running = false;
   async function tick() {
     if (running) return;
     running = true;
+    heartbeat.update("running");
     let client;
     try {
       client = await pool.connect();
       const { rows } = await client.query("SELECT pg_try_advisory_lock($1) AS locked", [WIRE_LOCK_KEY]);
-      if (!rows[0]?.locked) return;
+      if (!rows[0]?.locked) {
+        heartbeat.skip();
+        return;
+      }
       try {
         const summary = await runWire(pool, logger);
         const added = Object.values(summary).reduce((sum, entry) => sum + (entry.items ?? 0), 0);
@@ -641,7 +648,9 @@ function startWireScheduler(pool, logger = console, { intervalMs = 10 * 60_000 }
       } finally {
         await client.query("SELECT pg_advisory_unlock($1)", [WIRE_LOCK_KEY]).catch(() => {});
       }
+      heartbeat.update("idle");
     } catch (error) {
+      heartbeat.update("error", error);
       logger.error?.("wire scheduler failed", error);
     } finally {
       client?.release();
@@ -652,7 +661,10 @@ function startWireScheduler(pool, logger = console, { intervalMs = 10 * 60_000 }
   first.unref?.();
   const timer = setInterval(() => void tick(), intervalMs);
   timer.unref?.();
-  return () => clearInterval(timer);
+  return () => {
+    clearInterval(timer);
+    heartbeat.stop();
+  };
 }
 
 module.exports = { WIRE_GROUPS, countWire, listWire, milestoneStep, runWire, startWireScheduler };

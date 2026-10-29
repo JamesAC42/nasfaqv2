@@ -1,10 +1,12 @@
 // Admin console API, mounted at /api/admin (next to /api/admin/assets and /api/admin/holonews).
-// Site admins only: GET /overview (activity numbers for the /admin hub), GET /users (search and
-// staff list) and PATCH /users/:id/roles (toggle role flags; rules in services/adminConsole.js).
+// Site admins only: GET /overview (activity numbers for the /admin hub), GET /schedulers (heartbeats),
+// GET /users (search and staff list) and PATCH /users/:id/roles (toggle role flags; rules in
+// services/adminConsole.js).
 
 const express = require("express");
 const adminConsole = require("../services/adminConsole");
 const exchange = require("../services/games/exchange");
+const schedulerHealth = require("../services/schedulerHealth");
 const { requireAdmin } = require("../userContext");
 
 const router = express.Router();
@@ -47,6 +49,20 @@ router.get(
     requireSiteAdmin(req);
     res.set("Cache-Control", "no-store");
     res.json(await adminConsole.getOverview(req.ctx.pool));
+  })
+);
+
+// Every scheduler's heartbeat with the watchdog's verdict, and whether alerts reach Discord.
+router.get(
+  "/schedulers",
+  handle(async (req, res) => {
+    requireSiteAdmin(req);
+    res.set("Cache-Control", "no-store");
+    res.json({
+      generated_at: new Date().toISOString(),
+      alerts_configured: Boolean(process.env.DISCORD_ALERT_WEBHOOK_URL),
+      schedulers: await schedulerHealth.listSchedulerHealth(req.ctx.redis),
+    });
   })
 );
 
