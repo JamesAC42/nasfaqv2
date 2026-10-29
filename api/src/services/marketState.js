@@ -92,7 +92,7 @@ async function updateMarketRuntimeState(client, changes) {
   return getMarketStatusWithClient(client);
 }
 
-async function setMarketOpen(client, { message = null, nextScheduledSettlementAt = null, lastSettlementMarketDate, clearError = false } = {}) {
+async function setMarketOpen(client, { message = null, nextScheduledSettlementAt = null, lastSettlementMarketDate, clearError = false, lastCycleError } = {}) {
   const changes = {
     trading_status: "open",
     active_phase: "idle",
@@ -109,6 +109,8 @@ async function setMarketOpen(client, { message = null, nextScheduledSettlementAt
   }
   if (clearError) {
     changes.last_cycle_error = null;
+  } else if (lastCycleError !== undefined) {
+    changes.last_cycle_error = lastCycleError;
   }
 
   return updateMarketRuntimeState(client, changes);

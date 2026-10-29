@@ -105,7 +105,11 @@ and charge fees, and it sets max shares from subscribers.
 ## 5. The first Saturday
 
 - The `api-scheduler` pod runs it at 00:00 ET (catches up for 36 hours if the pod was down). Its log
-  says `weekly evaluation YYYY-MM-DD: N paying, N charging, N buybacks`.
+  says `weekly evaluation YYYY-MM-DD: N paying, N charging, N buybacks; T ms, rows locked L ms,
+  trading closed`. Trading shows "paused for the weekly evaluation" for those few seconds.
+- [ ] Once the batched evaluation has run once in production and the review, balances and log look
+      right, turn its trading pause off: `MARKET_WEEKLY_EVALUATION_CLOSE_TRADING: "false"` in
+      `deploy/k8s/05-configmap.yaml`, then release.
 - [ ] Market → Dividends shows the review; holders got a notification; the Wire has a
       "Dividend Review" item.
 - [ ] Re-run `resync-supply.js` (should report nothing) and the invariants check.

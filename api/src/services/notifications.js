@@ -84,6 +84,52 @@ async function notify(db, userId, { kind, title, body = "", href = null, actorUs
   return row;
 }
 
+/**
+ * notify() for many players in one insert, for the system's own news (no actor). Like
+ * `{ publish: false }`: returns the rows for publish() after COMMIT. Each item is
+ * { userId, kind, title, body, href, data }. Inboxes aren't trimmed here; see pruneInboxes.
+ */
+async function notifyMany(db, items) {
+  const rows = [];
+  for (const item of items || []) {
+    const userId = Number(item.userId);
+    if (!Number.isInteger(userId) || userId <= 0) continue;
+    if (!KINDS.has(item.kind)) throw new Error(`unknown notification kind ${item.kind}`);
+    rows.push({ userId, kind: item.kind, title: clip(clip(item.title, 300), 140), body: clip(item.body ?? "", 300), href: item.href ?? null, data: item.data || {} });
+  }
+  if (!rows.length) return [];
+  const { rows: inserted } = await db.query(
+    `
+    INSERT INTO market.notifications (user_id, kind, title, body, href, data)
+    SELECT n."userId", n.kind, n.title, n.body, n.href, n.data
+    FROM jsonb_to_recordset($1::jsonb) AS n("userId" bigint, kind text, title text, body text, href text, data jsonb)
+    RETURNING *, NULL::text AS actor_username
+  `,
+    [JSON.stringify(rows)]
+  );
+  return inserted.map((row) => ({ ...row, user_id: Number(row.user_id) }));
+}
+
+/** Keeps these players' inboxes to their newest KEEP_PER_USER (notify() trims one inbox now and then). */
+async function pruneInboxes(db, userIds) {
+  const ids = [...new Set((userIds || []).map(Number))].filter((id) => Number.isInteger(id) && id > 0);
+  if (!ids.length) return;
+  await db.query(
+    `
+    DELETE FROM market.notifications n
+    USING (
+      SELECT id FROM (
+        SELECT id, row_number() OVER (PARTITION BY user_id ORDER BY id DESC) AS newest
+        FROM market.notifications WHERE user_id = ANY($1::bigint[])
+      ) ranked
+      WHERE newest > $2
+    ) old
+    WHERE n.id = old.id
+  `,
+    [ids, KEEP_PER_USER]
+  );
+}
+
 /** Push rows (from notify with publish: false) to their owners' open sockets. */
 function publish(rows) {
   for (const row of rows || []) {
@@ -246,4 +292,4 @@ async function notifyChatMessage(pool, { message, channel, author }) {
   }
 }
 
-module.exports = { notify, publish, list, unreadCount, markRead, recordExchangeAlerts, notifyChatMessage, mentionCandidates, exchangeText, money };
+module.exports = { notify, notifyMany, pruneInboxes, publish, list, unreadCount, markRead, recordExchangeAlerts, notifyChatMessage, mentionCandidates, exchangeText, money };
