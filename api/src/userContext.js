@@ -51,7 +51,28 @@ function requireUploader(allowed) {
   };
 }
 
+const READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+/** Writes a suspended player can still make: signing in and out, password resets, marking things read. */
+const ALLOWED_WHILE_SUSPENDED = [/^\/api\/auth\//, /^\/api\/notifications\/read$/, /^\/api\/chat\/channels\/[^/]+\/read$/];
+
+/**
+ * Middleware, right after the session lookup: a suspended player (services/moderation.js) keeps
+ * reading, but every write gets 403 account_suspended with the reason and the end date (`until`
+ * is null when it's permanent).
+ */
+function blockSuspendedWrites(req, res, next) {
+  const suspension = req.ctx?.user?.suspension;
+  if (!suspension || READ_METHODS.has(req.method) || ALLOWED_WHILE_SUSPENDED.some((pattern) => pattern.test(req.path))) return next();
+  return res.status(403).json({
+    error: "account_suspended",
+    reason: suspension.reason,
+    until: suspension.until,
+    permanent: suspension.permanent,
+  });
+}
+
 module.exports = {
+  blockSuspendedWrites,
   requireUserId,
   requireVerifiedUserId,
   requireAdmin,

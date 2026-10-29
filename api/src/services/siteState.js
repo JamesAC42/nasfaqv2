@@ -1,15 +1,22 @@
-// Site-wide state every page shows: which release is live, and maintenance.
+// Site-wide state every page shows: which release is live, maintenance, and an admin's announcement.
 //
 // Maintenance pauses new games. Game tables live in the api-games process's memory and a restart
 // refunds whatever is unfinished, so before a release restarts it the deploy "drains": new games are
 // turned away and the ones in play finish (scripts/maintenance.js, run by deploy/release.sh). An
 // admin can also turn maintenance on by hand, with a message for players. A deploy never overrides
 // or ends an admin's maintenance. Trading has its own pause (marketState) and isn't touched here.
+//
+// The announcement is a line of text (info or warning, with an optional link and end time) that
+// every page shows under the header until it's cleared or runs out; players can wave each one off.
+// Its columns are added in migrations.js.
 
 const { publishMarketEvent } = require("./marketEvents");
 
 const STATES = new Set(["off", "draining", "on"]);
 const SITE_EVENT = "site.status";
+const ANNOUNCEMENT_TONES = new Set(["info", "warning"]);
+const ANNOUNCEMENT_MAX = 280;
+const ANNOUNCEMENT_MAX_HOURS = 24 * 30;
 
 const schema = `
   CREATE TABLE IF NOT EXISTS market.site_state (
@@ -27,6 +34,20 @@ const schema = `
 
 const iso = (value) => (value ? new Date(value).toISOString() : null);
 
+/** The announcement in force, or null (none, or it ran out). `id` tells one post from the next. */
+function toAnnouncement(row, now = Date.now()) {
+  if (!row?.announcement_text || !row.announcement_posted_at) return null;
+  if (row.announcement_expires_at && new Date(row.announcement_expires_at).getTime() <= now) return null;
+  return {
+    id: iso(row.announcement_posted_at),
+    text: row.announcement_text,
+    tone: ANNOUNCEMENT_TONES.has(row.announcement_tone) ? row.announcement_tone : "info",
+    link: row.announcement_link || null,
+    expires_at: iso(row.announcement_expires_at),
+    posted_at: iso(row.announcement_posted_at),
+  };
+}
+
 function toSite(row) {
   return {
     version: row?.release_version ?? null,
@@ -37,7 +58,44 @@ function toSite(row) {
       message: row?.maintenance_message ?? null,
       started_at: iso(row?.maintenance_started_at),
     },
+    announcement: toAnnouncement(row),
   };
+}
+
+function announcementError(field) {
+  const error = new Error("invalid_announcement");
+  error.code = "invalid_announcement";
+  error.field = field;
+  return error;
+}
+
+/**
+ * Checks an admin's announcement: { text (1-280), tone ("info" | "warning"), link (a path on the
+ * site or an https URL, optional), expires_in_hours (1-720, optional: none means until cleared) }.
+ * Returns the cleaned values or throws invalid_announcement with the field.
+ */
+function planAnnouncement(body) {
+  const text = String(body?.text ?? "").replace(/\s+/g, " ").trim();
+  if (!text || text.length > ANNOUNCEMENT_MAX) throw announcementError("text");
+  const tone = body?.tone === undefined || body?.tone === null || body?.tone === "" ? "info" : String(body.tone);
+  if (!ANNOUNCEMENT_TONES.has(tone)) throw announcementError("tone");
+  const rawLink = String(body?.link ?? "").trim();
+  let link = null;
+  if (rawLink) {
+    const local = rawLink.startsWith("/") && !rawLink.startsWith("//") && !rawLink.includes("\\");
+    let external = false;
+    try {
+      external = new URL(rawLink).protocol === "https:";
+    } catch {}
+    if ((!local && !external) || rawLink.length > 300) throw announcementError("link");
+    link = rawLink;
+  }
+  let expiresInHours = null;
+  if (body?.expires_in_hours !== undefined && body?.expires_in_hours !== null && body?.expires_in_hours !== "") {
+    expiresInHours = Number(body.expires_in_hours);
+    if (!Number.isFinite(expiresInHours) || expiresInHours <= 0 || expiresInHours > ANNOUNCEMENT_MAX_HOURS) throw announcementError("expires_in_hours");
+  }
+  return { text, tone, link, expiresInHours };
 }
 
 // ── This process's view (the games guard reads it on every new game) ─────────
@@ -107,6 +165,26 @@ async function setMaintenance(db, { state, source, message = null }) {
   return rows.length ? remember(toSite(rows[0])) : getSiteState(db);
 }
 
+/** Posts the announcement (replacing any other), or clears it with `null`. Returns the site state. */
+async function setAnnouncement(db, announcement) {
+  const plan = announcement ? planAnnouncement(announcement) : null;
+  const { rows } = await db.query(
+    `
+    UPDATE market.site_state
+    SET announcement_text = $1::text,
+        announcement_tone = $2::text,
+        announcement_link = $3::text,
+        announcement_expires_at = CASE WHEN $4::float8 IS NULL THEN NULL ELSE now() + make_interval(secs => $4::float8 * 3600) END,
+        announcement_posted_at = CASE WHEN $1::text IS NULL THEN NULL ELSE now() END,
+        updated_at = now()
+    WHERE id = 1
+    RETURNING *
+  `,
+    [plan?.text ?? null, plan?.tone ?? null, plan?.link ?? null, plan?.expiresInHours ?? null]
+  );
+  return remember(toSite(rows[0]));
+}
+
 /** Records the release that just went live (the deploy's last step). */
 async function markReleased(db, version) {
   const { rows } = await db.query(
@@ -148,8 +226,11 @@ module.exports = {
   getSiteState,
   markReleased,
   onGamesPausedChange,
+  planAnnouncement,
   publishSiteState,
   schema,
+  setAnnouncement,
   setMaintenance,
   startWatch,
+  toAnnouncement,
 };

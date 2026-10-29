@@ -1,3 +1,5 @@
+const { notSuspendedSql } = require("./services/moderation");
+
 function parsePositiveInt(value, fallback, { min = 1, max = 100 } = {}) {
   const parsed = Number.parseInt(String(value ?? fallback), 10);
   if (!Number.isFinite(parsed)) return fallback;
@@ -479,7 +481,8 @@ async function getPredictionMarketCommentViewerContext(client, slug, viewerUserI
   };
 }
 
-async function listPredictionMarketComments(pool, slug, { page = 1, limit = 12, viewerUserId = null } = {}) {
+/** The thread, newest first. Hidden comments (services/moderation.js) only come back with `includeHidden` (admins). */
+async function listPredictionMarketComments(pool, slug, { page = 1, limit = 12, viewerUserId = null, includeHidden = false } = {}) {
   const safePage = parsePositiveInt(page, 1, { min: 1, max: 1000 });
   const safeLimit = parsePositiveInt(limit, 12, { min: 1, max: 50 });
   const offset = (safePage - 1) * safeLimit;
@@ -491,8 +494,9 @@ async function listPredictionMarketComments(pool, slug, { page = 1, limit = 12, 
       SELECT COUNT(*)::int AS total
       FROM content.prediction_market_comments
       WHERE market_id = $1
+        AND ($2::boolean OR hidden_at IS NULL)
     `,
-      [viewerContext.marketId]
+      [viewerContext.marketId, Boolean(includeHidden)]
     );
 
     const commentsResult = await client.query(
@@ -505,6 +509,7 @@ async function listPredictionMarketComments(pool, slug, { page = 1, limit = 12, 
             ORDER BY l.total_equity DESC, l.username_snapshot ASC, l.user_id ASC
           )::INTEGER AS rank
         FROM market.user_leaderboard_current l
+        WHERE ${notSuspendedSql("l.user_id")}
       )
       SELECT
         c.id,
@@ -512,6 +517,8 @@ async function listPredictionMarketComments(pool, slug, { page = 1, limit = 12, 
         c.body,
         c.created_at,
         c.updated_at,
+        c.hidden_at,
+        c.hidden_reason,
         jsonb_build_object(
           'id', u.id,
           'username', u.username,
@@ -542,11 +549,12 @@ async function listPredictionMarketComments(pool, slug, { page = 1, limit = 12, 
           AND pos.shares > 0
       ) author_stakes ON TRUE
       WHERE c.market_id = $1
+        AND ($4::boolean OR c.hidden_at IS NULL)
       ORDER BY c.created_at DESC, c.id DESC
       LIMIT $2
       OFFSET $3
     `,
-      [viewerContext.marketId, safeLimit, offset]
+      [viewerContext.marketId, safeLimit, offset, Boolean(includeHidden)]
     );
 
     return {
@@ -557,6 +565,8 @@ async function listPredictionMarketComments(pool, slug, { page = 1, limit = 12, 
         body: row.body,
         created_at: row.created_at,
         updated_at: row.updated_at,
+        hidden_at: row.hidden_at || null,
+        hidden_reason: row.hidden_reason || null,
         author: row.author || null,
         author_stakes: Array.isArray(row.author_stakes)
           ? row.author_stakes.map((stake) => ({

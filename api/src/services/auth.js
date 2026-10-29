@@ -8,6 +8,7 @@ const EMAIL_VERIFICATION_TTL_HOURS = Number(process.env.EMAIL_VERIFICATION_TTL_H
 const PASSWORD_KEYLEN = 64;
 const { profilePictureUrlSql } = require("../profilePictures");
 const { appUrl, escapeHtml, sendEmail } = require("./email");
+const { suspensionOf } = require("./moderation");
 
 
 function normalizeUsername(username) {
@@ -65,6 +66,8 @@ function publicUser(user) {
     can_resolve_prediction_markets: Boolean(user.can_resolve_prediction_markets),
     can_void_prediction_markets: Boolean(user.can_void_prediction_markets),
     created_at: user.created_at,
+    // Set while an admin has suspended the account: signed in, but read-only (see moderation.js).
+    suspension: suspensionOf(user),
   };
 }
 
@@ -326,7 +329,10 @@ async function findUserByLogin(pool, login) {
       u.can_approve_prediction_markets,
       u.can_resolve_prediction_markets,
       u.can_void_prediction_markets,
-      u.created_at
+      u.created_at,
+      u.suspended_at,
+      u.suspended_until,
+      u.suspension_reason
     FROM market.users u
     LEFT JOIN market.profile_pictures pp
       ON pp.id = u.profile_picture_id
@@ -399,6 +405,9 @@ async function getAuthenticatedUser(pool, req) {
       u.can_resolve_prediction_markets,
       u.can_void_prediction_markets,
       u.created_at,
+      u.suspended_at,
+      u.suspended_until,
+      u.suspension_reason,
       s.id AS session_id,
       s.expires_at
     FROM market.user_sessions s
@@ -415,6 +424,8 @@ async function getAuthenticatedUser(pool, req) {
 
   const user = rows[0] || null;
   if (!user) return null;
+  // Read-only while suspended: userContext.blockSuspendedWrites turns their writes away.
+  user.suspension = suspensionOf(user);
 
   // "Last seen" (the admin console shows it) moves at most every few minutes per session and pod,
   // not on every request: that write was a Postgres UPDATE per authenticated API call.
@@ -579,7 +590,8 @@ async function resetPassword(pool, { token, password }) {
   const { rows } = await pool.query(
     `SELECT u.id, u.username, u.email, u.email_verified, ${profilePictureUrlSql("small")} AS profile_picture_url, u.profile_color,
             u.is_admin, u.can_manage_assets, u.can_create_prediction_markets, u.can_approve_prediction_markets,
-            u.can_resolve_prediction_markets, u.can_void_prediction_markets, u.created_at
+            u.can_resolve_prediction_markets, u.can_void_prediction_markets, u.created_at,
+            u.suspended_at, u.suspended_until, u.suspension_reason
      FROM market.users u LEFT JOIN market.profile_pictures pp ON pp.id = u.profile_picture_id
      WHERE u.id = $1`,
     [userId]

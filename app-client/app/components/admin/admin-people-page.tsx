@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { patchExchangeFreeze, patchUserRoles, searchAdminUsers, type AdminUser, type RoleFlag } from "@/app/components/admin/admin-api";
+import {
+  patchExchangeFreeze,
+  patchSuspension,
+  patchUserRoles,
+  resetUserProfile,
+  searchAdminUsers,
+  type AdminUser,
+  type RoleFlag,
+  type SuspensionDuration,
+} from "@/app/components/admin/admin-api";
 import { AdminFrame, AdminGate, AdminLoading, useAdminAccess, useNow } from "@/app/components/admin/admin-frame";
 import { Notice, Section, adminErrorText, adminUi as ui, ago, fmtCash, fmtCount } from "@/app/components/admin/admin-ui";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
@@ -11,6 +20,8 @@ import styles from "@/app/components/admin/admin-people-page.module.scss";
 
 // /admin/people: find a player and flip their role flags. Admin is a two-step confirm and you
 // can't take your own away (the API enforces both). Changes apply on the player's next request.
+// Moderation lives here too: freeze someone's exchange, suspend them site-wide (read-only, signed
+// out, off the leaderboards) or reset an offensive profile. Each one is logged on /admin/moderation.
 
 type RoleDef = { key: RoleFlag; label: string; short: string; line: string; filter: string };
 
@@ -24,6 +35,17 @@ const ROLES: RoleDef[] = [
 ];
 
 const SEARCH_DEBOUNCE_MS = 250;
+
+const SUSPENSION_LENGTHS: { key: SuspensionDuration; label: string }[] = [
+  { key: "24h", label: "24 hours" },
+  { key: "7d", label: "7 days" },
+  { key: "30d", label: "30 days" },
+  { key: "permanent", label: "Until lifted" },
+];
+
+function when(value: string) {
+  return new Date(value).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
 
 function joined(value: string) {
   const date = new Date(value);
@@ -78,9 +100,13 @@ function UserRow({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState<"admin" | "email" | "freeze" | null>(null);
+  const [confirm, setConfirm] = useState<"admin" | "email" | "freeze" | "suspend" | "reset" | null>(null);
   const [freezeNote, setFreezeNote] = useState("");
+  const [suspendLength, setSuspendLength] = useState<SuspensionDuration>("24h");
+  const [suspendReason, setSuspendReason] = useState("");
+  const [resetReason, setResetReason] = useState("");
   const frozen = Boolean(user.exchange_frozen_at);
+  const suspension = user.suspension ?? null;
   const isSelf = selfId !== null && String(user.id) === selfId;
 
   useEffect(() => {
@@ -120,6 +146,38 @@ function UserRow({
     }
   }
 
+  async function setSuspended(next: boolean) {
+    setBusy("suspension");
+    setError(null);
+    try {
+      const result = await patchSuspension(user.id, next ? { suspended: true, duration: suspendLength, reason: suspendReason.trim() } : { suspended: false });
+      onSaved(result.user, ["suspension"]);
+      setFlash(next ? `Suspended${result.sessions_revoked ? `, signed out of ${result.sessions_revoked} session${result.sessions_revoked === 1 ? "" : "s"}` : ""}` : "Suspension lifted");
+      setConfirm(null);
+      setSuspendReason("");
+    } catch (caught) {
+      setError(adminErrorText(caught));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function resetProfile() {
+    setBusy("reset");
+    setError(null);
+    try {
+      const result = await resetUserProfile(user.id, resetReason);
+      onSaved(result.user, ["profile"]);
+      setFlash(`Reset: ${result.before.username} is now ${result.after.username}`);
+      setConfirm(null);
+      setResetReason("");
+    } catch (caught) {
+      setError(adminErrorText(caught));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const adminRole = ROLES[0];
 
   return (
@@ -134,6 +192,11 @@ function UserRow({
             {frozen ? (
               <span className={ui.pill} data-tone="warn" title={user.exchange_frozen_note ?? undefined}>
                 Exchange frozen
+              </span>
+            ) : null}
+            {suspension ? (
+              <span className={ui.pill} data-tone="warn" title={suspension.reason ?? undefined}>
+                Suspended
               </span>
             ) : null}
           </p>
@@ -177,6 +240,29 @@ function UserRow({
             ) : confirm === "freeze" ? null : (
               <button type="button" className={styles.linkBtn} onClick={() => setConfirm("freeze")} disabled={Boolean(busy)}>
                 Freeze exchange
+              </button>
+            )}
+          </p>
+          <p className={styles.email}>
+            {suspension ? (
+              <>
+                <span className={styles.dim}>
+                  Suspended {suspension.until ? `until ${when(suspension.until)}` : "until lifted"}
+                  {suspension.by ? ` by ${suspension.by}` : ""}
+                  {suspension.reason ? `: ${suspension.reason}` : ""}
+                </span>
+                <button type="button" className={styles.linkBtn} onClick={() => void setSuspended(false)} disabled={Boolean(busy)}>
+                  {busy === "suspension" ? "Saving…" : "Lift suspension"}
+                </button>
+              </>
+            ) : confirm === "suspend" || user.is_admin || isSelf ? null : (
+              <button type="button" className={styles.linkBtn} onClick={() => setConfirm("suspend")} disabled={Boolean(busy)}>
+                Suspend…
+              </button>
+            )}
+            {confirm === "reset" ? null : (
+              <button type="button" className={styles.linkBtn} onClick={() => setConfirm("reset")} disabled={Boolean(busy)}>
+                Reset profile…
               </button>
             )}
           </p>
@@ -268,6 +354,57 @@ function UserRow({
           <div className={styles.confirmBtns}>
             <button type="button" className={ui.btnDangerSolid} disabled={busy === "exchange"} onClick={() => void setFreeze(true)}>
               {busy === "exchange" ? "Saving…" : "Freeze exchange"}
+            </button>
+            <button type="button" className={ui.btnGhost} onClick={() => setConfirm(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {confirm === "suspend" ? (
+        <form
+          className={styles.confirm}
+          data-tone="danger"
+          aria-label="Confirm suspension"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void setSuspended(true);
+          }}
+        >
+          <p>
+            Suspend <b>{user.username}</b> from the whole site? They&apos;re signed out everywhere, can sign back in to read but can&apos;t trade, post, chat
+            or play, and drop off the leaderboards until it ends. They see the reason.
+          </p>
+          <div className={styles.filters} role="radiogroup" aria-label="How long">
+            {SUSPENSION_LENGTHS.map((entry) => (
+              <button key={entry.key} type="button" role="radio" aria-checked={suspendLength === entry.key} onClick={() => setSuspendLength(entry.key)}>
+                {entry.label}
+              </button>
+            ))}
+          </div>
+          <input className={ui.input} value={suspendReason} maxLength={280} required placeholder="Reason (the player sees this)" onChange={(event) => setSuspendReason(event.target.value)} />
+          <div className={styles.confirmBtns}>
+            <button type="submit" className={ui.btnDangerSolid} disabled={busy === "suspension" || !suspendReason.trim()}>
+              {busy === "suspension" ? "Saving…" : "Suspend"}
+            </button>
+            <button type="button" className={ui.btnGhost} onClick={() => setConfirm(null)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      {confirm === "reset" ? (
+        <div className={styles.confirm} data-tone="warn" role="group" aria-label="Confirm profile reset">
+          <p>
+            Reset <b>{user.username}</b>&apos;s profile? They&apos;re renamed to <b>player_{user.id}</b> and their bio and banner are cleared. They can pick a new
+            name afterwards.
+          </p>
+          <input className={ui.input} value={resetReason} maxLength={280} placeholder="Why (for other admins, optional)" onChange={(event) => setResetReason(event.target.value)} />
+          <div className={styles.confirmBtns}>
+            <button type="button" className={ui.btnDangerSolid} disabled={busy === "reset"} onClick={() => void resetProfile()}>
+              {busy === "reset" ? "Saving…" : "Reset profile"}
             </button>
             <button type="button" className={ui.btnGhost} onClick={() => setConfirm(null)}>
               Cancel
@@ -422,7 +559,8 @@ export function AdminPeoplePage() {
               Admin needs a second click, and nobody can take their own admin away. Admins skip the own-market and own-call limits.
             </p>
             <p className={styles.note}>
-              Role changes go to the server log; there&apos;s no in-app history yet. {users ? `${fmtCount(users.length)} shown.` : null}
+              Role changes, freezes, suspensions and profile resets are logged on <Link href="/admin/moderation">Moderation</Link>.{" "}
+              {users ? `${fmtCount(users.length)} shown.` : null}
             </p>
           </Section>
         </aside>

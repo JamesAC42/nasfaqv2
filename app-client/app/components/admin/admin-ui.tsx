@@ -213,6 +213,14 @@ export function adminErrorText(error: unknown) {
     invalid_market_date: "That market date isn't valid.",
     market_settling: "The daily settlement is running. Try again in a minute.",
     market_not_closed: "Trading isn't paused (it may have been reopened already).",
+    cannot_suspend_self: "You can't suspend yourself.",
+    cannot_suspend_admin: "Admins can't be suspended. Take admin away first.",
+    invalid_suspension: "Pick a length and say why: the player sees the reason.",
+    comment_not_found: "That comment is gone.",
+    chat_report_not_found: "That report is gone.",
+    chat_message_not_found: "That message is gone.",
+    invalid_announcement: "Check the announcement: up to 280 characters, and a link that starts with / or https://.",
+    username_taken: "Couldn't find a free player_ name. Try again.",
     "Failed to fetch": "Can't reach the API.",
   };
   return map[code] ?? (code || "Something went wrong.");
