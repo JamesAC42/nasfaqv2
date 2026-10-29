@@ -9,10 +9,9 @@ export const metadata: Metadata = {
   description: "How to behave on NASFAQ, the hololive fan stock market game: be decent, respect the talents, one account each, play fair, and how moderation and appeals work.",
 };
 
-// TODO(owner): where appeals and moderation questions go (a Discord channel or ticket link, or an
-// email), with its link in href. The Usage policy (/terms#moderation) sends appeals to
-// nasfaqsite@gmail.com today, so keep the two saying the same thing.
-const APPEALS_CONTACT: { label: string; href?: string } = { label: "[contact channel]" };
+// Where appeals and moderation questions go: the NASFAQ Discord (the same invite as the footer,
+// /about and /changelog). The Usage policy (/terms#contact) lists it next to nasfaqsite@gmail.com.
+const APPEALS_CONTACT: { label: string; href?: string } = { label: "the NASFAQ Discord", href: "https://discord.gg/Bw4S6EbBNW" };
 
 const Contact = () =>
   APPEALS_CONTACT.href ? (

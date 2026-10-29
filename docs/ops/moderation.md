@@ -5,13 +5,9 @@ For NASFAQ's volunteer moderators. Players see the rules at `/rules`
 isn't covered here, use your judgement, write down what you did and why, and ask in the mod channel.
 
 > **Owner, fill in before launch:** the mod channel (`[mod channel]` below), how to reach you in an
-> emergency (`[owner contact]`), the appeals contact (also `APPEALS_CONTACT` in
-> `app-client/app/rules/page.tsx`), and the names in the [rota](#rota).
+> emergency (`[owner contact]`), and the names in the [rota](#rota).
 
-Most of the tools come from PR #54 (moderation tools). Until that's merged and deployed, only these
-exist: Freeze exchange, Exchange review, Pause trading and Games maintenance. Chat moderation is
-API-only, and there's no report queue, suspension, comment hiding, profile reset, announcement
-banner or admin log.
+Most of the tools come from PR #54 (moderation tools), live since 2026-10-29.
 
 ## Who can moderate
 
@@ -166,7 +162,9 @@ misbehaving, do this:
 
 ## Appeals
 
-- Appeals come in through `[contact channel]`, the contact on `/rules`.
+- Appeals come in through the NASFAQ Discord (https://discord.gg/Bw4S6EbBNW), the contact on
+  `/rules` (`APPEALS_CONTACT` in `app-client/app/rules/page.tsx`); the Usage policy also lists
+  nasfaqsite@gmail.com.
 - A moderator who wasn't involved reviews the appeal and answers within a few days.
 - If we got it wrong, undo it with the same tool and say sorry.
 - If we got it right, give a one-line answer and leave it there.
