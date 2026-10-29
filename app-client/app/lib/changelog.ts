@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-10-29",
+    title: "Community rules",
+    changes: [
+      {
+        kind: "new",
+        text: "The community rules are up on their own page: be decent, respect the talents, one account each, play fair, and how moderation and appeals work. It takes two minutes to read, and it's linked at the bottom of every page, under the chat box and on the sign-up form.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-29",
     title: "Reports, announcements and account notices",
     changes: [
       {

@@ -187,7 +187,7 @@ export const ChatComposer = memo(function ChatComposer({
   if (!user) {
     return (
       <div className={styles.composerOff}>
-        <Link href="/login">Sign in</Link> to chat. Reading is open to everyone.
+        <Link href="/login">Sign in</Link> to chat. Reading is open to everyone; posting follows the <Link href="/rules">rules</Link>.
       </div>
     );
   }
@@ -292,8 +292,13 @@ export const ChatComposer = memo(function ChatComposer({
       </div>
       <div className={styles.composeHint}>
         <span>enter to send · shift+enter for a new line · @ to mention · : or ☺ for emoji · the note for stickers · $TICKER links a stock</span>
-        <span className={draft.length > MAX - 100 ? styles.warnText : undefined}>
-          {draft.length}/{MAX}
+        <span className={styles.composeSide}>
+          <Link href="/rules" className={styles.rulesLink}>
+            rules
+          </Link>
+          <span className={draft.length > MAX - 100 ? styles.warnText : undefined}>
+            {draft.length}/{MAX}
+          </span>
         </span>
       </div>
     </form>

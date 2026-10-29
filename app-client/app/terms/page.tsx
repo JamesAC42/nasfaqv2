@@ -142,6 +142,9 @@ const sections: LegalSection[] = [
           proposals and disputes. Banter and shitposting about the market are part of the fun. Keep it about the game, not
           about hurting people.
         </p>
+        <p>
+          The <Link href="/rules">Community rules</Link> page has the short version, with how moderation and appeals work.
+        </p>
         <h3>Don’t post</h3>
         <ul>
           <li>harassment, threats, bullying or pile-ons against anyone, players included</li>
