@@ -13,6 +13,14 @@ spec:
       labels:
         app: app-client
     spec:
+      # One per node where possible, so losing a node never takes every copy with it.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: app-client
       containers:
         - name: app-client
           image: ghcr.io/jamesac42/nasfaqv2-app-client:IMAGE_TAG
@@ -60,3 +68,15 @@ spec:
     - port: 80
       targetPort: http
       name: http
+---
+# Node drains and cluster upgrades evict at most one at a time.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: app-client
+  namespace: nasfaq
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: app-client
