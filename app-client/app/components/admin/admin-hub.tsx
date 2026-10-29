@@ -5,12 +5,15 @@ import { schedulerLabel } from "./admin-api";
 import Link from "next/link";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
+  clearAnnouncement,
   closeTrading,
   fetchAdjustmentHealth,
   fetchAdminStats,
+  fetchChatReports,
   fetchLiveOrderHealth,
   fetchMarketStatus,
   fetchSchedulerHealth,
+  postAnnouncement,
   reopenTrading,
   fetchBugReports,
   setBugReportResolved,
@@ -71,6 +74,7 @@ function buildAttention({
   beats,
   stats,
   status,
+  chatReports,
   now,
 }: {
   predictions: AdminOverview | null;
@@ -79,10 +83,22 @@ function buildAttention({
   beats: SchedulerHealth | null;
   stats: AdminOverviewStats | null;
   status: Partial<MarketStatus> | null;
+  chatReports: number | null;
   now: number;
 }): Attention[] {
   const items: Attention[] = [];
   const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+  if (chatReports) {
+    items.push({
+      key: "chat-reports",
+      tone: "warn",
+      title: `${plural(chatReports, "chat report")} waiting`,
+      detail: "Players flagged messages in chat.",
+      href: "/admin/moderation",
+      action: "Review",
+    });
+  }
 
   if (predictions) {
     const disputed = predictions.proposals.filter((market) => market.status === "disputed");
@@ -363,6 +379,128 @@ function MaintenanceControl() {
   );
 }
 
+const ANNOUNCEMENT_ENDS = [
+  { hours: null, label: "Until cleared" },
+  { hours: 1, label: "1 hour" },
+  { hours: 6, label: "6 hours" },
+  { hours: 24, label: "24 hours" },
+  { hours: 72, label: "3 days" },
+  { hours: 168, label: "7 days" },
+] as const;
+
+/**
+ * The announcement banner every page shows under the header (info or warning, an optional link,
+ * an optional end). Players can dismiss each one; a new post shows again for everyone.
+ */
+function AnnouncementControl() {
+  const site = useSiteStore((state) => state.site);
+  const refreshSite = useSiteStore((state) => state.refresh);
+  const [composing, setComposing] = useState(false);
+  const [text, setText] = useState("");
+  const [tone, setTone] = useState<"info" | "warning">("info");
+  const [link, setLink] = useState("");
+  const [hours, setHours] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    connectSite();
+  }, []);
+  const current = site?.announcement ?? null;
+
+  const run = async (work: () => Promise<unknown>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await work();
+      // Every page hears it on the socket; this covers a dropped one here.
+      await refreshSite();
+      setComposing(false);
+    } catch (caught) {
+      setError(adminErrorText(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startComposing = () => {
+    setText(current?.text ?? "");
+    setTone(current?.tone ?? "info");
+    setLink(current?.link ?? "");
+    setHours(null);
+    setComposing(true);
+  };
+
+  return (
+    <div className={styles.tradingControl}>
+      {composing ? (
+        <form
+          className={styles.tradingForm}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void run(() => postAnnouncement({ text: text.trim(), tone, link: link.trim() || undefined, expires_in_hours: hours }));
+          }}
+        >
+          <label className={ui.field}>
+            <span>Announcement</span>
+            <input className={ui.input} value={text} maxLength={280} required placeholder="Trading opens to everyone on Friday." onChange={(event) => setText(event.target.value)} autoFocus />
+          </label>
+          <div className={styles.announceRow}>
+            <label className={ui.field}>
+              <span>Tone</span>
+              <select className={ui.select} value={tone} onChange={(event) => setTone(event.target.value === "warning" ? "warning" : "info")}>
+                <option value="info">Info (blue)</option>
+                <option value="warning">Warning (amber)</option>
+              </select>
+            </label>
+            <label className={ui.field}>
+              <span>Ends</span>
+              <select className={ui.select} value={hours ?? ""} onChange={(event) => setHours(event.target.value ? Number(event.target.value) : null)}>
+                {ANNOUNCEMENT_ENDS.map((entry) => (
+                  <option key={entry.label} value={entry.hours ?? ""}>
+                    {entry.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <label className={ui.field}>
+            <span>Link (optional)</span>
+            <input className={ui.input} value={link} maxLength={300} placeholder="/changelog or https://…" onChange={(event) => setLink(event.target.value)} />
+          </label>
+          <div className={styles.tradingButtons}>
+            <button type="submit" className={ui.btnPrimary} disabled={busy || !text.trim()}>
+              {busy ? "Posting…" : current ? "Replace announcement" : "Post announcement"}
+            </button>
+            <button type="button" className={ui.btnGhost} disabled={busy} onClick={() => setComposing(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : current ? (
+        <>
+          <p className={styles.tradingNote}>
+            {current.tone === "warning" ? "Warning" : "Announcement"} up on every page: &ldquo;{current.text}&rdquo;
+            {current.expires_at ? ` Ends ${etTime(current.expires_at)}.` : " Until cleared."}
+          </p>
+          <div className={styles.tradingButtons}>
+            <button type="button" className={ui.btn} disabled={busy} onClick={startComposing}>
+              Edit…
+            </button>
+            <button type="button" className={ui.btnDanger} disabled={busy} onClick={() => void run(clearAnnouncement)}>
+              {busy ? "Clearing…" : "Clear announcement"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <button type="button" className={ui.btn} onClick={startComposing}>
+          Post an announcement…
+        </button>
+      )}
+      {error ? <Notice tone="error">{error}</Notice> : null}
+    </div>
+  );
+}
+
 /** Reports from the "Report a bug" button, newest first (they also go to Discord when its webhook is set). */
 function BugReports({ now }: { now: number }) {
   const [status, setStatus] = useState<"open" | "resolved">("open");
@@ -450,6 +588,7 @@ export function AdminHub() {
   const [live, setLive] = useState<Loaded<LiveOrderHealth>>(empty);
   const [beats, setBeats] = useState<Loaded<SchedulerHealth>>(empty);
   const [predictions, setPredictions] = useState<Loaded<AdminOverview>>(empty);
+  const [chatReports, setChatReports] = useState<number | null>(null);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -457,19 +596,21 @@ export function AdminHub() {
 
   const load = useCallback(async () => {
     setBusy(true);
-    const [s, st, a, l, p, b] = await Promise.allSettled([
+    const [s, st, a, l, p, b, r] = await Promise.allSettled([
       isAdmin ? fetchAdminStats() : Promise.reject(new Error("skip")),
       fetchMarketStatus(),
       isAdmin ? fetchAdjustmentHealth() : Promise.reject(new Error("skip")),
       isAdmin ? fetchLiveOrderHealth(5) : Promise.reject(new Error("skip")),
       canPredictions ? fetchAdminOverview() : Promise.reject(new Error("skip")),
       isAdmin ? fetchSchedulerHealth() : Promise.reject(new Error("skip")),
+      isAdmin ? fetchChatReports("open") : Promise.reject(new Error("skip")),
     ]);
     if (isAdmin) {
       setStats((prev) => settle(s, prev));
       setAdjust((prev) => settle(a, prev));
       setLive((prev) => settle(l, prev));
       setBeats((prev) => settle(b, prev));
+      if (r.status === "fulfilled") setChatReports(r.value.open_count);
     }
     setStatus((prev) => settle(st, prev));
     if (canPredictions) setPredictions((prev) => settle(p, prev));
@@ -496,7 +637,7 @@ export function AdminHub() {
   const l = live.data;
   const m = status.data;
   const hb = beats.data;
-  const attention = buildAttention({ predictions: p, adjust: a, live: l, beats: hb, stats: s, status: m, now });
+  const attention = buildAttention({ predictions: p, adjust: a, live: l, beats: hb, stats: s, status: m, chatReports, now });
   const warnCount = attention.filter((item) => item.tone === "warn").length;
   const firstLoad = loadedAt === null;
   const disputed = p ? p.proposals.filter((market) => market.status === "disputed").length : 0;
@@ -510,7 +651,8 @@ export function AdminHub() {
     { href: "/admin/assets", label: "Assets & prizes", line: "Emojis, profile pictures and the capsule prize pool.", show: access.canAssets },
     { href: predsLink, label: "Predictions control room", line: "Approvals, calls, disputes and auto templates.", show: canPredictions },
     { href: "/predictions/create", label: "New prediction market", line: "Write one up and send it for approval.", show: isAdmin || Boolean((user as Record<string, unknown> | null)?.can_create_prediction_markets) },
-    { href: "/admin/people", label: "People & roles", line: "Find a player, hand out or take back roles.", show: isAdmin },
+    { href: "/admin/people", label: "People & roles", line: "Find a player, hand out or take back roles, suspend or reset a profile.", show: isAdmin },
+    { href: "/admin/moderation", label: "Moderation", line: "Chat reports, mutes and bans, and the log of admin actions.", show: isAdmin },
     { href: "/admin/exchange", label: "Exchange review", line: "Lopsided card sales and trades involving new accounts.", show: isAdmin },
   ].filter((tool) => tool.show);
 
@@ -619,6 +761,7 @@ export function AdminHub() {
                 </dl>
                 {isAdmin ? <TradingControl status={(m as MarketStatus | null) ?? null} onChanged={() => void load()} /> : null}
                 {isAdmin ? <MaintenanceControl /> : null}
+                {isAdmin ? <AnnouncementControl /> : null}
               </div>
 
               {isAdmin ? (

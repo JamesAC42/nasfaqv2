@@ -1033,6 +1033,8 @@ function normalizeAssetComments(value: unknown): AssetComment[] {
         ) as AssetComment["viewer_vote"],
         author_share_quantity: Number(toNumber(row.author_share_quantity) || 0),
         author,
+        hidden_at: row.hidden_at ? String(row.hidden_at) : null,
+        hidden_reason: row.hidden_reason ? String(row.hidden_reason) : null,
       };
     })
     .filter((item): item is AssetComment => item !== null);
@@ -1127,6 +1129,13 @@ export function normalizeChannels(rows: Array<Record<string, unknown>>): Channel
   });
 }
 
+function normalizeChatRestriction(value: unknown): ChatChannel["chat_restriction"] {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  if (raw.type !== "mute" && raw.type !== "ban") return null;
+  return { type: raw.type, until: raw.until ? String(raw.until) : null };
+}
+
 export function normalizeChatChannel(value: Record<string, unknown>): ChatChannel {
   const metadata = (value.metadata || {}) as Record<string, unknown>;
   return {
@@ -1157,6 +1166,7 @@ export function normalizeChatChannel(value: Record<string, unknown>): ChatChanne
     last_read_message_id: toNumber(value.last_read_message_id),
     unread_count: Number(value.unread_count || 0),
     muted_until: value.muted_until ? String(value.muted_until) : null,
+    chat_restriction: normalizeChatRestriction(value.chat_restriction),
     created_at: String(value.created_at || ""),
     updated_at: String(value.updated_at || ""),
   };
@@ -2089,6 +2099,8 @@ function normalizeArticleComments(value: unknown): ArticleComment[] {
               : 0
         ) as ArticleComment["viewer_vote"],
         author,
+        hidden_at: row.hidden_at ? String(row.hidden_at) : null,
+        hidden_reason: row.hidden_reason ? String(row.hidden_reason) : null,
       };
     })
     .filter((item): item is ArticleComment => item !== null);

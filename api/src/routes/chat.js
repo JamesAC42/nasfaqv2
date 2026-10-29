@@ -1,6 +1,7 @@
 const express = require("express");
 
 const chatDb = require("../chatDb");
+const { logAction } = require("../services/moderation");
 const notifications = require("../services/notifications");
 const { requireAdmin, requireUserId, requireVerifiedUserId } = require("../userContext");
 
@@ -21,6 +22,11 @@ async function publishChatEvent(redis, payload) {
 
 async function ensureTopology(pool) {
   await chatDb.ensureChatTopologyRecent(pool);
+}
+
+async function usernameOf(pool, userId) {
+  const { rows } = await pool.query(`SELECT username FROM market.users WHERE id = $1`, [Number(userId) || 0]);
+  return rows[0]?.username ?? null;
 }
 
 router.get("/channels", async (req, res, next) => {
@@ -159,7 +165,7 @@ router.post("/channels/:channelKey/read", async (req, res, next) => {
   }
 });
 
-router.post("/messages/:messageId/report", async (req, res, next) => {
+router.post("/messages/:messageId/report", rateLimit(byUser("chat-report", 20, 3600)), async (req, res, next) => {
   try {
     const reporterId = requireUserId(req);
     const report = await chatDb.createMessageReport(req.ctx.pool, {
@@ -197,6 +203,14 @@ router.post("/channels/:channelKey/policy", async (req, res, next) => {
       channel_key: updated.channel_key,
       channel: updated,
     });
+    await logAction(req.ctx.pool, {
+      actor: req.ctx.user,
+      action: "chat.channel.update",
+      targetType: "chat_channel",
+      targetId: updated.channel_key,
+      targetLabel: updated.display_name,
+      details: { posting_policy: updated.posting_policy, is_active: updated.is_active },
+    });
 
     res.json({ channel: updated });
   } catch (error) {
@@ -217,13 +231,25 @@ router.post("/messages/:messageId/moderate", async (req, res, next) => {
       return res.status(404).json({ error: "chat_message_not_found" });
     }
 
+    // The room hears that it's gone, not what it said.
     await publishChatEvent(req.ctx.redis, {
       type: "chat.message.updated",
       channel_key: message.channel_key,
-      message,
+      message: { ...message, body: "" },
+    });
+    // Removing it settles every open report on it.
+    const reportsResolved = await chatDb.resolveReportsForMessage(req.ctx.pool, { messageId: message.id, reviewerId: admin.id });
+    await logAction(req.ctx.pool, {
+      actor: admin,
+      action: "chat.message.remove",
+      targetType: "chat_message",
+      targetId: message.id,
+      targetLabel: message.author?.username ?? null,
+      reason: req.body?.reason,
+      details: { channel_key: message.channel_key, status: message.status, excerpt: String(message.body || "").slice(0, 200), reports_resolved: reportsResolved },
     });
 
-    res.json({ message });
+    res.json({ message, reports_resolved: reportsResolved });
   } catch (error) {
     next(error);
   }
@@ -263,6 +289,15 @@ router.post("/users/:userId/moderation", async (req, res, next) => {
       channel_key: channelKey,
       action,
     });
+    await logAction(req.ctx.pool, {
+      actor: admin,
+      action: `chat.${action.action_type}`,
+      targetType: "user",
+      targetId: action.user_id,
+      targetLabel: await usernameOf(req.ctx.pool, action.user_id),
+      reason: action.reason,
+      details: { channel_key: channelKey, expires_at: action.expires_at || null },
+    });
 
     res.status(201).json({ action });
   } catch (error) {
@@ -278,11 +313,83 @@ router.post("/reports/:reportId/status", async (req, res, next) => {
       status: req.body?.status,
       reviewerId: admin.id,
     });
+    const { rows } = await req.ctx.pool.query(
+      `SELECT r.message_id, u.username AS author_username
+       FROM chat.message_reports r JOIN chat.messages m ON m.id = r.message_id JOIN market.users u ON u.id = m.author_id
+       WHERE r.id = $1`,
+      [report.id]
+    );
+    await logAction(req.ctx.pool, {
+      actor: admin,
+      action: report.status === "open" ? "chat.report.reopen" : `chat.report.${report.status === "dismissed" ? "dismiss" : "resolve"}`,
+      targetType: "chat_report",
+      targetId: report.id,
+      targetLabel: rows[0]?.author_username ?? null,
+      details: { message_id: rows[0]?.message_id ? Number(rows[0].message_id) : null },
+    });
     res.json({ report });
   } catch (error) {
     next(error);
   }
 });
+
+// The report queue (/admin/moderation): ?status=open (default), resolved or dismissed.
+router.get("/reports", async (req, res, next) => {
+  try {
+    requireAdmin(req);
+    res.set("Cache-Control", "no-store");
+    res.json(await chatDb.listReports(req.ctx.pool, { status: req.query.status || "open", limit: req.query.limit }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Mutes and bans in force, newest first.
+router.get("/moderation/active", async (req, res, next) => {
+  try {
+    requireAdmin(req);
+    res.set("Cache-Control", "no-store");
+    res.json({ actions: await chatDb.listActiveModerationActions(req.ctx.pool, { limit: req.query.limit }) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Lift a player's mutes (unmute) or bans (unban): everywhere, or in one room with { channel_key }.
+for (const [path, actionType] of [["unmute", "mute"], ["unban", "ban"]]) {
+  router.post(`/users/:userId/${path}`, async (req, res, next) => {
+    try {
+      const admin = requireAdmin(req);
+      let channelId = null;
+      let channelKey = null;
+      if (req.body?.channel_key) {
+        await ensureTopology(req.ctx.pool);
+        const channel = await chatDb.getChannelByKey(req.ctx.pool, req.body.channel_key, { viewerUserId: admin.id, includeInactive: true });
+        if (!channel) {
+          return res.status(404).json({ error: "chat_channel_not_found" });
+        }
+        channelId = channel.id;
+        channelKey = channel.channel_key;
+      }
+      const lifted = await chatDb.revokeModerationActions(req.ctx.pool, { targetUserId: req.params.userId, actionType, channelId });
+      if (lifted.length) {
+        await publishChatEvent(req.ctx.redis, { type: "chat.user.moderated", user_id: Number(req.params.userId), channel_key: channelKey, action: null });
+        await logAction(req.ctx.pool, {
+          actor: admin,
+          action: `chat.${path}`,
+          targetType: "user",
+          targetId: Number(req.params.userId),
+          targetLabel: await usernameOf(req.ctx.pool, req.params.userId),
+          reason: req.body?.reason,
+          details: { channel_key: channelKey, lifted: lifted.length },
+        });
+      }
+      res.json({ lifted: lifted.length });
+    } catch (error) {
+      next(error);
+    }
+  });
+}
 
 router.post("/admin/archive", async (req, res, next) => {
   try {

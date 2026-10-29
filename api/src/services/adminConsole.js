@@ -3,6 +3,7 @@
 // checked that the requester is a site admin.
 
 const { profilePictureUrlSql } = require("../profilePictures");
+const { logAction, suspensionOf } = require("./moderation");
 
 /** Role flags an admin can toggle from /admin/people, in display order. */
 const ROLE_FLAGS = [
@@ -87,6 +88,11 @@ const USER_COLUMNS = `
   u.created_at,
   u.exchange_frozen_at,
   u.exchange_frozen_note,
+  u.bio,
+  u.suspended_at,
+  u.suspended_until,
+  u.suspension_reason,
+  suspender.username AS suspended_by_username,
   cb.cash_balance,
   cb.credit_balance,
   seen.last_seen_at
@@ -95,6 +101,7 @@ const USER_COLUMNS = `
 const USER_FROM = `
   FROM market.users u
   LEFT JOIN market.profile_pictures pp ON pp.id = u.profile_picture_id
+  LEFT JOIN market.users suspender ON suspender.id = u.suspended_by
   LEFT JOIN market.portfolio_cash_balances cb ON cb.user_id = u.id
   LEFT JOIN LATERAL (
     SELECT max(s.last_seen_at) AS last_seen_at
@@ -120,6 +127,12 @@ function toAdminUser(row) {
     last_seen_at: row.last_seen_at || null,
     exchange_frozen_at: row.exchange_frozen_at || null,
     exchange_frozen_note: row.exchange_frozen_note || null,
+    has_bio: Boolean(row.bio),
+    // Site-wide suspension in force, if any (services/moderation.js).
+    suspension: (() => {
+      const suspension = suspensionOf(row);
+      return suspension ? { ...suspension, by: row.suspended_by_username ?? null } : null;
+    })(),
   };
   for (const flag of ROLE_FLAGS) user[flag] = Boolean(row[flag]);
   return user;
@@ -179,13 +192,13 @@ async function updateUserRoles(pool, actor, userId, body) {
   sets.push("updated_at = now()");
   await pool.query(`UPDATE market.users SET ${sets.join(", ")} WHERE id = $1`, params);
 
-  // There's no audit table for account changes yet; the server log is the record.
   // eslint-disable-next-line no-console
   console.info(
     `[admin] roles user=${target.id}(${target.username}) by=${actor.id}(${actor.username}) ${changed
       .map((key) => `${key}:${Boolean(target[key])}->${updates[key]}`)
       .join(" ")}`
   );
+  await logAction(pool, { actor, action: "user.roles", targetType: "user", targetId: target.id, targetLabel: target.username, details: updates });
 
   return { user: await getAdminUser(pool, userId), changed };
 }
@@ -205,6 +218,7 @@ async function setExchangeFreeze(pool, actor, userId, body) {
   );
   // eslint-disable-next-line no-console
   console.info(`[admin] exchange ${frozen ? "frozen" : "unfrozen"} user=${target.id}(${target.username}) by=${actor.id}(${actor.username})${note ? ` note="${note}"` : ""}`);
+  await logAction(pool, { actor, action: frozen ? "user.exchange_freeze" : "user.exchange_unfreeze", targetType: "user", targetId: target.id, targetLabel: target.username, reason: note });
   return { user: await getAdminUser(pool, userId) };
 }
 

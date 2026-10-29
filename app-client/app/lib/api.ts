@@ -22,6 +22,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     if (message === "email_verification_required") {
       message = "Verify your email before using this feature.";
     }
+    if (message === "account_suspended") {
+      message = "Your account is suspended: you can look around, but not trade, post or play until it ends.";
+    }
     // The parsed body rides along for callers that want the details (limits, reset times…).
     throw Object.assign(new Error(message), { status: response.status, body });
   }

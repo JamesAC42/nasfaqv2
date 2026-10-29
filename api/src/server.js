@@ -10,7 +10,7 @@ const { createRedis } = require("./redis");
 const chatDb = require("./chatDb");
 const marketDb = require("./marketDb");
 const authService = require("./services/auth");
-const { requireUploader } = require("./userContext");
+const { blockSuspendedWrites, requireUploader } = require("./userContext");
 const marketState = require("./services/marketState");
 const { startMarketScheduler, loadSchedulerConfig, computeNextScheduledAt } = require("./services/marketScheduler");
 const { startAdjustmentScheduler } = require("./services/marketAdjustments");
@@ -285,6 +285,8 @@ app.use(async (req, _res, next) => {
     next(error);
   }
 });
+// Suspended players read but don't write (services/moderation.js); turned away before any body is parsed.
+app.use(blockSuspendedWrites);
 
 // Bodies are parsed after the session lookup, so the 25 MB allowance (images uploaded as data URLs
 // in the admin tools) only goes to the people who may upload; anyone else is turned away before the
@@ -665,6 +667,7 @@ async function main() {
   });
   chatWss.on("connection", (ws, req) => {
     ws.chatSubscriptions = new Set();
+    ws.chatUserId = req.chatUser ? Number(req.chatUser.id) : null;
 
     sendWsText(
       ws,
@@ -882,6 +885,14 @@ async function main() {
   await redisSub.subscribe(CHAT_EVENTS_REDIS_CHANNEL, (message) => {
     const payload = String(message);
     const parsed = safeParseJSON(payload);
+    // A mute or ban (or lifting one) goes only to the player it's about, so their rooms can say so.
+    if (parsed?.type === "chat.user.moderated") {
+      const userId = Number(parsed.user_id);
+      chatWss.clients.forEach((client) => {
+        if (client.chatUserId && client.chatUserId === userId) sendWsText(client, payload);
+      });
+      return;
+    }
     if (!parsed?.channel_key) return;
 
     chatWss.clients.forEach((client) => {

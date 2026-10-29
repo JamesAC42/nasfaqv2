@@ -171,6 +171,8 @@ function mapChannelRow(row) {
     last_read_message_id: row.last_read_message_id ? Number(row.last_read_message_id) : null,
     unread_count: Number(row.unread_count || 0),
     muted_until: row.muted_until || null,
+    // The viewer's mute or ban here, if any (until is null when it doesn't run out).
+    chat_restriction: row.restriction_type ? { type: row.restriction_type, until: row.restriction_until || null } : null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -455,14 +457,17 @@ function buildChannelSelect(viewerUserId) {
         ON ucs.channel_id = c.id
        AND ucs.user_id = $1
       LEFT JOIN LATERAL (
-        SELECT uma.expires_at AS muted_until
+        -- The mute or ban that keeps the viewer from posting here (a ban wins over a mute).
+        SELECT
+          CASE WHEN uma.action_type = 'mute' THEN uma.expires_at END AS muted_until,
+          uma.action_type AS restriction_type,
+          uma.expires_at AS restriction_until
         FROM chat.user_moderation_actions uma
         WHERE uma.user_id = $1
-          AND uma.action_type = 'mute'
           AND uma.revoked_at IS NULL
           AND (uma.channel_id IS NULL OR uma.channel_id = c.id)
           AND (uma.expires_at IS NULL OR uma.expires_at > now())
-        ORDER BY (uma.channel_id IS NULL) ASC, uma.created_at DESC
+        ORDER BY (uma.action_type = 'ban') DESC, (uma.channel_id IS NULL) ASC, uma.created_at DESC
         LIMIT 1
       ) active_mute ON TRUE
       LEFT JOIN LATERAL (
@@ -478,7 +483,7 @@ function buildChannelSelect(viewerUserId) {
         SELECT NULL::bigint AS last_read_message_id
       ) ucs ON TRUE
       LEFT JOIN LATERAL (
-        SELECT NULL::timestamptz AS muted_until
+        SELECT NULL::timestamptz AS muted_until, NULL::text AS restriction_type, NULL::timestamptz AS restriction_until
       ) active_mute ON TRUE
       LEFT JOIN LATERAL (
         SELECT 0::int AS unread_count
@@ -503,7 +508,9 @@ function buildChannelSelect(viewerUserId) {
       message_stats.message_count,
       ucs.last_read_message_id,
       unread_stats.unread_count,
-      active_mute.muted_until
+      active_mute.muted_until,
+      active_mute.restriction_type,
+      active_mute.restriction_until
     FROM chat.channels c
     LEFT JOIN LATERAL (
       SELECT
@@ -1007,6 +1014,9 @@ async function createMessageReport(pool, { messageId, reporterId, reason, detail
   if (!existingMessage) {
     throw createError("chat_message_not_found");
   }
+  if (existingMessage.author && existingMessage.author.id === Number(reporterId)) {
+    throw createError("invalid_chat_report");
+  }
 
   const { rows } = await pool.query(
     `
@@ -1179,6 +1189,154 @@ async function updateReportStatus(pool, { reportId, status, reviewerId } = {}) {
   return rows[0];
 }
 
+/**
+ * Reports for the admin queue, newest first, with the message they're about (its text, room and
+ * author), who reported it and how many open reports that message has. Plus the open count.
+ */
+async function listReports(pool, { status = "open", limit = 50 } = {}) {
+  const normalizedStatus = normalizeReportStatus(status);
+  const safeLimit = parseLimit(limit, 50, { min: 1, max: 200 });
+  const { rows } = await pool.query(
+    `
+    SELECT
+      r.id,
+      r.message_id,
+      r.reason,
+      r.details,
+      r.status,
+      r.created_at,
+      r.reviewed_at,
+      reviewer.username AS reviewer_username,
+      reporter.id AS reporter_id,
+      reporter.username AS reporter_username,
+      m.body AS message_body,
+      m.status AS message_status,
+      m.created_at AS message_created_at,
+      c.scope_type,
+      c.scope_key,
+      c.display_name AS channel_name,
+      author.id AS author_id,
+      author.username AS author_username,
+      (SELECT COUNT(*)::int FROM chat.message_reports other WHERE other.message_id = r.message_id AND other.status = 'open') AS open_reports
+    FROM chat.message_reports r
+    JOIN chat.messages m ON m.id = r.message_id
+    JOIN chat.channels c ON c.id = m.channel_id
+    JOIN market.users reporter ON reporter.id = r.reporter_id
+    JOIN market.users author ON author.id = m.author_id
+    LEFT JOIN market.users reviewer ON reviewer.id = r.reviewed_by
+    WHERE r.status = $1
+    ORDER BY r.created_at DESC, r.id DESC
+    LIMIT $2
+  `,
+    [normalizedStatus, safeLimit]
+  );
+  const { rows: counts } = await pool.query(`SELECT COUNT(*)::int AS open_count FROM chat.message_reports WHERE status = 'open'`);
+  return {
+    reports: rows.map((row) => ({
+      id: Number(row.id),
+      reason: row.reason,
+      details: row.details || null,
+      status: row.status,
+      created_at: row.created_at,
+      reviewed_at: row.reviewed_at || null,
+      reviewed_by: row.reviewer_username || null,
+      reporter: { id: Number(row.reporter_id), username: row.reporter_username },
+      open_reports: Number(row.open_reports || 0),
+      message: {
+        id: Number(row.message_id),
+        body: row.message_body,
+        status: row.message_status,
+        created_at: row.message_created_at,
+        channel_key: buildChannelKey(row.scope_type, row.scope_key),
+        channel_name: row.channel_name,
+        author: { id: Number(row.author_id), username: row.author_username },
+      },
+    })),
+    open_count: Number(counts[0]?.open_count || 0),
+  };
+}
+
+/** Marks every open report on a message resolved (it was just removed). Returns how many. */
+async function resolveReportsForMessage(pool, { messageId, reviewerId }) {
+  const result = await pool.query(
+    `
+    UPDATE chat.message_reports
+    SET status = 'resolved', reviewed_by = $2, reviewed_at = now(), updated_at = now()
+    WHERE message_id = $1
+      AND status = 'open'
+  `,
+    [parseMessageId(messageId), Number(reviewerId)]
+  );
+  return result.rowCount;
+}
+
+/** Mutes and bans in force (not lifted, not run out), newest first, for the moderation page. */
+async function listActiveModerationActions(pool, { limit = 100 } = {}) {
+  const safeLimit = parseLimit(limit, 100, { min: 1, max: 500 });
+  const { rows } = await pool.query(
+    `
+    SELECT
+      uma.id,
+      uma.action_type,
+      uma.reason,
+      uma.expires_at,
+      uma.created_at,
+      target.id AS user_id,
+      target.username,
+      moderator.username AS created_by_username,
+      c.scope_type,
+      c.scope_key,
+      c.display_name AS channel_name
+    FROM chat.user_moderation_actions uma
+    JOIN market.users target ON target.id = uma.user_id
+    LEFT JOIN market.users moderator ON moderator.id = uma.created_by
+    LEFT JOIN chat.channels c ON c.id = uma.channel_id
+    WHERE uma.revoked_at IS NULL
+      AND (uma.expires_at IS NULL OR uma.expires_at > now())
+    ORDER BY uma.created_at DESC, uma.id DESC
+    LIMIT $1
+  `,
+    [safeLimit]
+  );
+  return rows.map((row) => ({
+    id: Number(row.id),
+    action_type: row.action_type,
+    reason: row.reason || null,
+    expires_at: row.expires_at || null,
+    created_at: row.created_at,
+    created_by: row.created_by_username || null,
+    user: { id: Number(row.user_id), username: row.username },
+    channel_key: row.scope_type ? buildChannelKey(row.scope_type, row.scope_key) : null,
+    channel_name: row.channel_name || null,
+  }));
+}
+
+/**
+ * Lifts a player's mutes or bans in force: everywhere, or in one room when `channelId` is given
+ * (site-wide ones stay then). Returns the lifted actions.
+ */
+async function revokeModerationActions(pool, { targetUserId, actionType, channelId = null } = {}) {
+  const safeTargetUserId = Number.parseInt(String(targetUserId), 10);
+  if (!Number.isInteger(safeTargetUserId) || safeTargetUserId <= 0) {
+    throw createError("invalid_chat_moderation");
+  }
+  const normalizedActionType = normalizeModerationAction(actionType);
+  const { rows } = await pool.query(
+    `
+    UPDATE chat.user_moderation_actions
+    SET revoked_at = now()
+    WHERE user_id = $1
+      AND action_type = $2
+      AND revoked_at IS NULL
+      AND (expires_at IS NULL OR expires_at > now())
+      AND ($3::bigint IS NULL OR channel_id = $3::bigint)
+    RETURNING id, user_id, channel_id, action_type, reason, expires_at, created_at
+  `,
+    [safeTargetUserId, normalizedActionType, channelId === null || channelId === undefined ? null : Number(channelId)]
+  );
+  return rows;
+}
+
 module.exports = {
   archiveMessagesOlderThan,
   buildChannelKey,
@@ -1190,11 +1348,15 @@ module.exports = {
   getChannelById,
   getChannelByKey,
   getMessageById,
+  listActiveModerationActions,
   listChannels,
   listMessages,
+  listReports,
   markChannelRead,
   moderateMessage,
   parseChannelKey,
+  resolveReportsForMessage,
+  revokeModerationActions,
   updateChannel,
   updateReportStatus,
 };

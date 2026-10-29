@@ -10,6 +10,7 @@ import { useApi, useArticles, useBoardMood, useComments, useOshiboard, useTape, 
 import { HoverSpark } from "@/app/components/common/hover-spark";
 import { apiFetch } from "@/app/lib/api";
 import { formatEtTime } from "@/app/lib/market-clock";
+import { HideComment, hiddenCommentStyle } from "@/app/components/common/hide-comment";
 import { normalizeAssetCommentListResponse } from "@/app/lib/normalizers";
 import { money, signedPct, timeAgo, toneOf } from "@/app/lib/time";
 import { ARTICLE_COMMENT_MOODS, type ArticleCommentMood, type AssetComment, type AssetCommentListResponse, type MarketAsset } from "@/app/lib/types";
@@ -250,6 +251,12 @@ export function BoardSection({ asset }: { asset: MarketAsset }) {
     }
   }
 
+  // An admin hid or brought back a post: change it in place (admins still see hidden ones).
+  function setHidden(comment: AssetComment, next: Pick<AssetComment, "hidden_at" | "hidden_reason">) {
+    if (!board) return;
+    setOverride({ page, board: { ...board, comments: board.comments.map((entry) => (entry.id === comment.id ? { ...entry, ...next } : entry)) } });
+  }
+
   async function vote(comment: AssetComment, value: 1 | -1) {
     if (!user) {
       setError("Sign in to vote.");
@@ -314,7 +321,7 @@ export function BoardSection({ asset }: { asset: MarketAsset }) {
       </form>
       {board?.comments.length ? (
         board.comments.map((comment) => (
-          <article key={comment.id} className={styles.cmt}>
+          <article key={comment.id} className={styles.cmt} style={hiddenCommentStyle(comment)}>
             <div className={styles.votes}>
               <button type="button" aria-pressed={comment.viewer_vote === 1} aria-label="Upvote" onClick={() => void vote(comment, 1)} disabled={voting === comment.id}>
                 ▲
@@ -340,6 +347,7 @@ export function BoardSection({ asset }: { asset: MarketAsset }) {
                   </span>
                 ) : null}
                 <time suppressHydrationWarning>{timeAgo(comment.created_at)}</time>
+                <HideComment kind="stock" comment={comment} onChange={(next) => setHidden(comment, next)} />
               </div>
               <Body text={comment.body} />
             </div>
