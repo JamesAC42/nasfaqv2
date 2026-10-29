@@ -35,6 +35,16 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    date: "2026-10-29",
+    title: "A quicker Saturday evaluation",
+    changes: [
+      {
+        kind: "improved",
+        text: "The Saturday evaluation (dividends, share fees, Credit turning into Cash, max shares and buybacks) now takes seconds instead of minutes, so trades no longer stall around midnight on Friday. Trading pauses for those seconds with a note on the market, and orders you had queued fill in the first batch after.",
+      },
+    ],
+  },
+  {
     date: "2026-10-28",
     title: "Predictions stay current through updates",
     changes: [

@@ -1834,6 +1834,8 @@ module.exports = {
   cancelLiveOrder,
   processDueLiveOrders,
   startLiveOrderScheduler,
+  acquireLiveOrderSchedulerLock,
+  releaseLiveOrderSchedulerLock,
   getLiveOrderAdminHealth,
   getStarterCash,
   getPortfolioSummary,

@@ -73,6 +73,15 @@ In BBB's order:
 The very first evaluation never shrinks a stock below what players already hold (no surprise
 buybacks on launch day).
 
+**Trading pauses while it runs.** The evaluation reads everything in a few queries, works it out in
+memory and writes it back in a few more, so it takes seconds and holds the stocks, holdings and
+wallets locked for about ten statements. As a safety switch, trading also closes for those seconds
+(the daily settlement's pause: buys, sells and new orders are refused with a message, queued orders
+fill in the first batch after). It waits for a live-order batch that is filling, never runs while
+the daily settlement does, and leaves a market an admin closed as it was.
+`MARKET_WEEKLY_EVALUATION_CLOSE_TRADING=false` turns the pause off; it stays on until the batched
+evaluation has run in production once.
+
 ## Tuning (env, API)
 
 | Setting | Default |
@@ -82,11 +91,12 @@ buybacks on launch day).
 | `MARKET_DIVIDEND_RATE_PER_SIGMA` / `MARKET_DIVIDEND_DEADZONE_SIGMA` / `MARKET_DIVIDEND_CAP` | 0.04 / 0.35 / 0.10 |
 | `MARKET_BUYBACK_START` / `MARKET_BUYBACK_DAILY_STEP` / `MARKET_BUYBACK_FLOOR` | 1.20 / 0.10 / 0.50 |
 | `MARKET_WEEKLY_EVALUATION_ENABLED` | true |
+| `MARKET_WEEKLY_EVALUATION_CLOSE_TRADING` (pause trading while it runs) | true |
 | per stock: `broker_buffer_pct` | 0.02 |
 
 `node scripts/weekly-evaluation.js preview` prints what the next evaluation would do (max shares per
-stock against shares held, dividend and fee rates) without writing anything: it runs in a
-transaction that is rolled back, so it is safe against production. Admins can also open
+stock against shares held, dividend and fee rates) without writing anything: it reads without row
+locks, writes nothing and rolls back, so it is safe against production. Admins can also open
 `/api/market/evaluations/preview`, and `POST /internal/market/weekly-evaluation/run` runs one by hand.
 
 **On demand, for playtests.** Admin → Market tuning → Weekly evaluation previews and runs one right
@@ -97,4 +107,6 @@ pays about the same again, so it is a playtest tool, not something to press in t
 
 Code: `api/src/services/marketSupply.js` (shares, buybacks), `api/src/services/weeklyEvaluation.js`
 (the evaluation), `api/src/services/trading.js` (fills), `api/src/services/settlement.js` (no daily
-print; buybacks end at the Open), tests in `api/test/core-market.test.js`.
+print; buybacks end at the Open), tests in `api/test/core-market.test.js` and
+`api/test/weekly-evaluation-batch.test.js` (the batched evaluation against the row-at-a-time one it
+replaced, kept in `api/test/fixtures/weekly-evaluation-reference.js`).
