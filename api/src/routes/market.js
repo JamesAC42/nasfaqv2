@@ -514,6 +514,7 @@ router.get("/assets/:symbol/comments", async (req, res, next) => {
       page: req.query.page,
       limit: req.query.limit || 6,
       viewerUserId: req.ctx.user?.id || null,
+      includeHidden: Boolean(req.ctx.user?.is_admin),
     });
     res.json({
       symbol: result.symbol,
@@ -548,6 +549,7 @@ router.post("/assets/:symbol/comments", rateLimit(byUser("stock-comment", 10, 60
       page: 1,
       limit: 6,
       viewerUserId: userId,
+      includeHidden: Boolean(req.ctx.user?.is_admin),
     });
     res.status(201).json({
       symbol: result.symbol,
@@ -580,6 +582,7 @@ router.post("/assets/:symbol/comments/:commentId/vote", async (req, res, next) =
       page: req.query.page || 1,
       limit: 6,
       viewerUserId: userId,
+      includeHidden: Boolean(req.ctx.user?.is_admin),
     });
     res.json({
       symbol: result.symbol,

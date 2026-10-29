@@ -680,6 +680,44 @@ async function refreshAvatarCopies(pool, userId) {
   await netWorth.refreshCurrentOshiboards(pool, { userIds: [userId] });
 }
 
+/**
+ * An admin's reset for an offensive profile: renames the player to player_<id> (player_<id>_2… if
+ * someone already has that name) and clears the bio and the banner. Returns { before, after } with
+ * the old and new username, bio and banner.
+ */
+async function resetProfile(pool, userId) {
+  const safeUserId = Number(userId);
+  if (!Number.isInteger(safeUserId) || safeUserId <= 0) throw profileError("profile_not_found");
+  const { rows } = await pool.query(`SELECT id, username, bio, profile_banner_asset_id FROM market.users WHERE id = $1`, [safeUserId]);
+  const before = rows[0];
+  if (!before) throw profileError("profile_not_found");
+
+  let username = null;
+  for (let attempt = 1; attempt <= 5 && !username; attempt += 1) {
+    const candidate = attempt === 1 ? `player_${safeUserId}` : `player_${safeUserId}_${attempt}`;
+    try {
+      await pool.query(
+        `UPDATE market.users
+         SET username = $2, username_normalized = $3, bio = NULL, profile_banner_asset_id = NULL, updated_at = now()
+         WHERE id = $1`,
+        [safeUserId, candidate, normalizeUsername(candidate)]
+      );
+      username = candidate;
+    } catch (error) {
+      if (error?.code !== "23505") throw error;
+    }
+  }
+  if (!username) throw profileError("username_taken");
+
+  // The leaderboard and oshiboards keep a copy of the name.
+  await netWorth.refreshCurrentLeaderboard(pool, { userIds: [safeUserId] });
+  await netWorth.refreshCurrentOshiboards(pool, { userIds: [safeUserId] });
+  return {
+    before: { username: before.username, bio: before.bio ?? null, banner_asset_id: before.profile_banner_asset_id ? Number(before.profile_banner_asset_id) : null },
+    after: { username, bio: null, banner_asset_id: null },
+  };
+}
+
 async function updateProfileSettings(pool, userId, { username, bio, profileColor, oshiCoinAssetId, profileBannerAssetId }) {
   const safeUserId = Number(userId);
   if (!Number.isInteger(safeUserId) || safeUserId <= 0) {
@@ -909,6 +947,7 @@ module.exports = {
   listProfileArticles,
   listProfileTrades,
   removeFriendship,
+  resetProfile,
   resolveProfileUser,
   bannerAssetForSymbol,
   setProfileBanner,

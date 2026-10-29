@@ -3,9 +3,12 @@
 //   finish). Trading has its own switch (/internal/market/close). Releases pause games on their own
 //   (scripts/maintenance.js); ending maintenance here ends that too.
 // - Bug reports from the "Report a bug" button: list them, mark them resolved (or open again).
+// - The announcement banner under every page's header: post one (POST /announcement) or clear it
+//   (DELETE /announcement). Open pages hear it on the market socket.
 
 const express = require("express");
 const bugReports = require("../services/bugReports");
+const { logAction } = require("../services/moderation");
 const siteState = require("../services/siteState");
 
 const router = express.Router();
@@ -22,6 +25,44 @@ router.post("/maintenance", async (req, res, next) => {
     if (typeof on !== "boolean") return res.status(400).json({ error: "invalid_request" });
     const site = await siteState.setMaintenance(req.ctx.pool, { state: on ? "on" : "off", source: "admin", message: on ? req.body?.message : null });
     void siteState.publishSiteState(req.ctx.redis, site);
+    res.json({ ok: true, site });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/announcement", async (req, res, next) => {
+  try {
+    const site = await siteState.setAnnouncement(req.ctx.pool, req.body ?? {});
+    void siteState.publishSiteState(req.ctx.redis, site);
+    await logAction(req.ctx.pool, {
+      actor: req.ctx.user,
+      action: "site.announcement.post",
+      targetType: "site",
+      targetId: "announcement",
+      details: { text: site.announcement?.text ?? null, tone: site.announcement?.tone ?? null, link: site.announcement?.link ?? null, expires_at: site.announcement?.expires_at ?? null },
+    });
+    res.json({ ok: true, site });
+  } catch (error) {
+    if (error?.code === "invalid_announcement") return res.status(400).json({ error: error.code, field: error.field });
+    next(error);
+  }
+});
+
+router.delete("/announcement", async (req, res, next) => {
+  try {
+    const before = await siteState.getSiteState(req.ctx.pool);
+    const site = await siteState.setAnnouncement(req.ctx.pool, null);
+    void siteState.publishSiteState(req.ctx.redis, site);
+    if (before.announcement) {
+      await logAction(req.ctx.pool, {
+        actor: req.ctx.user,
+        action: "site.announcement.clear",
+        targetType: "site",
+        targetId: "announcement",
+        details: { text: before.announcement.text },
+      });
+    }
     res.json({ ok: true, site });
   } catch (error) {
     next(error);

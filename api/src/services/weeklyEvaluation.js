@@ -34,6 +34,7 @@ const { acquireSchedulerLock, releaseSchedulerLock } = require("./marketSchedule
 const { getStarterCash, getStarterCredit } = require("./portfolioCash");
 const { publishMarketEvent, publishMarketStatusEvent } = require("./marketEvents");
 const { invalidateMarketAssetsCache } = require("../marketCache");
+const schedulerHealth = require("./schedulerHealth");
 
 const LOCK_KEY = 9_204_010;
 const ROOKIE_DAYS = 28; // a new listing's first four evaluations
@@ -763,33 +764,43 @@ const CATCH_UP_HOURS = 36;
 const RETRY_MS = 15 * 60_000;
 
 function startWeeklyEvaluationScheduler(pool, logger = console, redis = null) {
-  if ((process.env.MARKET_WEEKLY_EVALUATION_ENABLED || "true").toLowerCase() === "false") return () => {};
+  const enabled = (process.env.MARKET_WEEKLY_EVALUATION_ENABLED || "true").toLowerCase() !== "false";
+  const heartbeat = schedulerHealth.startSchedulerHeartbeat(redis, "weekly-evaluation", { enabled, intervalMs: 60_000 }, logger);
+  if (!enabled) return () => heartbeat.stop();
   let running = false;
   let retryAt = 0;
   async function tick() {
+    // Waiting out a failure keeps the heartbeat on the error: no clean tick until a retry goes through.
     if (running || Date.now() < retryAt) return;
     running = true;
+    heartbeat.update("running");
     try {
       const evalDate = evaluationDateFor();
       const since = Date.now() - evaluationStartsAt(evalDate).getTime();
-      if (since < 0 || since > CATCH_UP_HOURS * 3_600_000) return;
-      const { rows } = await pool.query(`SELECT status FROM market.weekly_evaluations WHERE eval_date = $1`, [evalDate]);
-      if (!rows.length) {
-        const result = await runWeeklyEvaluation(pool, { evalDate, redis, logger });
-        if (result.report) {
-          const { total, rows_locked: locked } = result.timings_ms;
-          logger.log?.(`weekly evaluation ${evalDate}: ${result.report.paying_count} paying, ${result.report.charging_count} charging, ${result.report.buybacks_started.length} buybacks; ${total} ms, rows locked ${locked} ms${result.trading_closed ? ", trading closed" : ""}`);
+      if (since >= 0 && since <= CATCH_UP_HOURS * 3_600_000) {
+        const { rows } = await pool.query(`SELECT status FROM market.weekly_evaluations WHERE eval_date = $1`, [evalDate]);
+        if (!rows.length) {
+          const result = await runWeeklyEvaluation(pool, { evalDate, redis, logger });
+          if (result.report) {
+            const { total, rows_locked: locked } = result.timings_ms;
+            logger.log?.(`weekly evaluation ${evalDate}: ${result.report.paying_count} paying, ${result.report.charging_count} charging, ${result.report.buybacks_started.length} buybacks; ${total} ms, rows locked ${locked} ms${result.trading_closed ? ", trading closed" : ""}`);
+          }
         }
       }
-    } catch {
+      heartbeat.update("idle");
+    } catch (error) {
       retryAt = Date.now() + RETRY_MS; // logged in runWeeklyEvaluation
+      heartbeat.update("error", error);
     } finally {
       running = false;
     }
   }
   const timer = setInterval(() => void tick(), 60_000);
   void tick();
-  return () => clearInterval(timer);
+  return () => {
+    clearInterval(timer);
+    heartbeat.stop();
+  };
 }
 
 async function listEvaluations(pool, { limit = 12 } = {}) {

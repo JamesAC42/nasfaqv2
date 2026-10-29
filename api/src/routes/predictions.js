@@ -277,6 +277,7 @@ router.get(
       page: req.query.page,
       limit: req.query.limit,
       viewerUserId: req.ctx.user?.id || null,
+      includeHidden: Boolean(req.ctx.user?.is_admin),
     });
     const pageCount = result.total > 0 ? Math.ceil(result.total / result.limit) : 1;
     res.json({

@@ -1,3 +1,11 @@
+/** An admin's site-wide suspension: signed in but read-only until `until` (null: until lifted). */
+export type Suspension = {
+  reason: string | null;
+  since: string;
+  until: string | null;
+  permanent: boolean;
+};
+
 export type AuthUser = {
   id: number;
   username: string;
@@ -12,6 +20,7 @@ export type AuthUser = {
   can_resolve_prediction_markets: boolean;
   can_void_prediction_markets: boolean;
   created_at: string;
+  suspension?: Suspension | null;
 };
 
 export type ChatChannel = {
@@ -42,6 +51,8 @@ export type ChatChannel = {
   last_read_message_id: number | null;
   unread_count: number;
   muted_until: string | null;
+  /** The viewer's mute or ban in this room, if any (until null: no end). */
+  chat_restriction: { type: "mute" | "ban"; until: string | null } | null;
   created_at: string;
   updated_at: string;
 };
@@ -654,6 +665,9 @@ export type AssetComment = {
   viewer_vote: -1 | 0 | 1;
   author_share_quantity: number;
   author: AssetCommentAuthor;
+  /** Set when an admin hid it; only admins get hidden comments back. */
+  hidden_at: string | null;
+  hidden_reason: string | null;
 };
 
 export type AssetCommentListResponse = {
@@ -1596,6 +1610,9 @@ export type ArticleComment = {
   downvotes: number;
   viewer_vote: -1 | 0 | 1;
   author: ArticleAuthor;
+  /** Set when an admin hid it; only admins get hidden comments back. */
+  hidden_at: string | null;
+  hidden_reason: string | null;
 };
 
 export type ArticleProposal = {

@@ -33,6 +33,7 @@ router.get("/me", async (req, res) => {
       can_resolve_prediction_markets: Boolean(req.ctx.user.can_resolve_prediction_markets),
       can_void_prediction_markets: Boolean(req.ctx.user.can_void_prediction_markets),
       created_at: req.ctx.user.created_at,
+      suspension: req.ctx.user.suspension || null,
     },
   });
 });

@@ -557,6 +557,7 @@
 }
 
 .msg {
+  position: relative;
   display: grid;
   grid-template-columns: 2.75rem 1.75rem minmax(0, 1fr);
   column-gap: 0.6rem;
@@ -568,6 +569,11 @@
   }
 
   &:hover .msgTime {
+    opacity: 1;
+  }
+
+  &:hover .msgTools,
+  &:focus-within .msgTools {
     opacity: 1;
   }
 
@@ -1386,4 +1392,182 @@
   &:hover b {
     color: var(--blue);
   }
+}
+
+// ── Message actions (⋯): report, and for admins remove, mute, ban ───────────
+.msgTools {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.6rem;
+  z-index: 5;
+  opacity: 0;
+
+  &[data-open] {
+    opacity: 1;
+    z-index: 20;
+  }
+
+  // No hover on touch screens: keep the button in sight, quietly.
+  @media (hover: none) {
+    opacity: 0.6;
+  }
+}
+
+.msgToolsBtn {
+  width: 1.75rem;
+  height: 1.4rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: var(--mid);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+
+  &:hover,
+  &[aria-expanded="true"] {
+    color: var(--text);
+    border-color: var(--text);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.msgMenu {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  display: grid;
+  gap: 0.15rem;
+  width: min(17rem, calc(100vw - 2rem));
+  padding: 0.35rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+// Kept at one class of specificity (:where) so the variants below can restyle them.
+.msgMenu > :where(button),
+.msgMenuRow > :where(button) {
+  padding: 0.4rem 0.5rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--ink-2);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.msgMenuRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+
+  > :where(button) {
+    border: 1px solid var(--rule-2);
+  }
+}
+
+.msgMenuHead {
+  @include label;
+  margin: 0.35rem 0.5rem 0.1rem;
+  font-size: 0.58rem;
+  color: var(--dim);
+}
+
+.msgMenuInput,
+.msgMenuForm select,
+.msgMenuForm textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: var(--ink-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.msgMenuForm {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.25rem;
+
+  label {
+    display: grid;
+    gap: 0.2rem;
+    font-size: 0.75rem;
+    color: var(--mid);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--text);
+  }
+
+  textarea {
+    resize: vertical;
+  }
+}
+
+.msgMenuPrimary {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: var(--bg);
+  font-weight: 600;
+
+  &:hover:not(:disabled) {
+    background: var(--blue);
+    filter: brightness(1.1);
+  }
+}
+
+.msgMenuDanger {
+  border-color: var(--down);
+  background: var(--down);
+  color: var(--down-ink);
+  font-weight: 600;
+
+  &:hover:not(:disabled) {
+    background: var(--down);
+    filter: brightness(1.1);
+  }
+}
+
+.msgMenuDangerText {
+  color: var(--down);
+}
+
+.msgMenuOk,
+.msgMenuErr {
+  margin: 0.2rem 0.5rem;
+  font-size: 0.78rem;
+}
+
+.msgMenuOk {
+  color: var(--up);
+}
+
+.msgMenuErr {
+  color: var(--down);
 }

@@ -63,7 +63,12 @@ export type AdminUser = {
   /** Shut out of the card and item exchange (set by an admin). */
   exchange_frozen_at?: string | null;
   exchange_frozen_note?: string | null;
+  has_bio?: boolean;
+  /** Site-wide suspension in force: read-only until `until` (null: until lifted). */
+  suspension?: AdminSuspension | null;
 } & Record<RoleFlag, boolean>;
+
+export type AdminSuspension = { reason: string | null; since: string; until: string | null; permanent: boolean; by: string | null };
 
 export const searchAdminUsers = (q: string, role: string) => {
   const params = new URLSearchParams();
@@ -78,6 +83,84 @@ export const patchUserRoles = (userId: number, body: Partial<Record<RoleFlag | "
 /** Freeze (or unfreeze) a player's exchange access: no listing, bidding, buying or trading. */
 export const patchExchangeFreeze = (userId: number, body: { frozen: boolean; note?: string }) =>
   apiFetch<{ user: AdminUser }>(`/api/admin/users/${userId}/exchange`, { method: "PATCH", body: JSON.stringify(body) });
+
+// ── Moderation (api/src/services/moderation.js) ─────────────────────────
+
+export type SuspensionDuration = "24h" | "7d" | "30d" | "permanent";
+
+/** Suspend (read-only, signed out everywhere, off the leaderboards) or reinstate a player. */
+export const patchSuspension = (userId: number, body: { suspended: true; duration: SuspensionDuration; reason: string } | { suspended: false; reason?: string }) =>
+  apiFetch<{ user: AdminUser; sessions_revoked: number }>(`/api/admin/users/${userId}/suspension`, { method: "PATCH", body: JSON.stringify(body) });
+
+/** Rename to player_<id> and clear the bio and banner. */
+export const resetUserProfile = (userId: number, reason?: string) =>
+  apiFetch<{ user: AdminUser; before: { username: string }; after: { username: string } }>(`/api/admin/users/${userId}/reset-profile`, {
+    method: "POST",
+    body: JSON.stringify({ reason: reason?.trim() || undefined }),
+  });
+
+export type AdminAction = {
+  id: number;
+  actor: { id: number; username: string | null } | null;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  target_label: string | null;
+  reason: string | null;
+  details: Record<string, unknown>;
+  created_at: string;
+};
+
+export const fetchAdminActions = (limit = 50) => apiFetch<{ actions: AdminAction[] }>(`/api/admin/moderation/actions?limit=${limit}`, { cache: "no-store" });
+
+export type ChatReportStatus = "open" | "resolved" | "dismissed";
+
+export type ChatReport = {
+  id: number;
+  reason: string;
+  details: string | null;
+  status: ChatReportStatus;
+  created_at: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  reporter: { id: number; username: string };
+  /** Open reports on the same message (this one included while it's open). */
+  open_reports: number;
+  message: {
+    id: number;
+    body: string;
+    status: "active" | "deleted" | "moderated";
+    created_at: string;
+    channel_key: string;
+    channel_name: string;
+    author: { id: number; username: string };
+  };
+};
+
+export const fetchChatReports = (status: ChatReportStatus) =>
+  apiFetch<{ reports: ChatReport[]; open_count: number }>(`/api/chat/reports?status=${status}`, { cache: "no-store" });
+
+export const setChatReportStatus = (id: number, status: ChatReportStatus) =>
+  apiFetch<{ report: { id: number; status: ChatReportStatus } }>(`/api/chat/reports/${id}/status`, { method: "POST", body: JSON.stringify({ status }) });
+
+export type ChatRestrictionEntry = {
+  id: number;
+  action_type: "mute" | "ban";
+  reason: string | null;
+  expires_at: string | null;
+  created_at: string;
+  created_by: string | null;
+  user: { id: number; username: string };
+  channel_key: string | null;
+  channel_name: string | null;
+};
+
+export const fetchActiveChatRestrictions = () => apiFetch<{ actions: ChatRestrictionEntry[] }>("/api/chat/moderation/active", { cache: "no-store" });
+
+/** The banner under every page's header: post one (replacing any other) or clear it. */
+export const postAnnouncement = (body: { text: string; tone: "info" | "warning"; link?: string; expires_in_hours?: number | null }) =>
+  apiFetch<{ site: unknown }>("/internal/site/announcement", { method: "POST", body: JSON.stringify(body) });
+export const clearAnnouncement = () => apiFetch<{ site: unknown }>("/internal/site/announcement", { method: "DELETE" });
 
 // ── Market status + scheduler health ─────────────────────────────────────
 
@@ -210,6 +293,51 @@ export const fetchAdjustmentHealth = async () =>
 
 export const fetchLiveOrderHealth = async (batchLimit = 8) =>
   normalizeLiveOrderHealth(await apiFetch<Record<string, unknown>>(`/api/market/live-orders/admin/health?batch_limit=${batchLimit}`, { cache: "no-store" }));
+
+// ── /api/admin/schedulers ───────────────────────────────────────────────
+
+/** One scheduler's heartbeat; `problem` is what the watchdog (and its Discord alert) makes of it. */
+export type SchedulerBeat = {
+  name: string;
+  label: string;
+  scheduler_status: string;
+  scheduler_enabled: boolean;
+  scheduler_interval_ms: number | null;
+  scheduler_last_seen_at: string | null;
+  scheduler_last_success_at: string | null;
+  scheduler_error_code: string | null;
+  problem: "missing" | "gone" | "stalled" | "failing" | null;
+  problem_detail: string | null;
+  consecutive_failures: number;
+  retry_at: string | null;
+};
+
+export type SchedulerHealth = { generated_at: string | null; alerts_configured: boolean; schedulers: SchedulerBeat[] };
+
+export function normalizeSchedulerHealth(row: Record<string, unknown> | null | undefined): SchedulerHealth {
+  const r = row ?? {};
+  const problems = new Set(["missing", "gone", "stalled", "failing"]);
+  return {
+    generated_at: str(r.generated_at),
+    alerts_configured: Boolean(r.alerts_configured),
+    schedulers: asArray(r.schedulers).map((beat) => ({
+      name: String(beat.name || ""),
+      label: String(beat.label || beat.name || ""),
+      scheduler_status: str(beat.scheduler_status) || "unknown",
+      scheduler_enabled: Boolean(beat.scheduler_enabled),
+      scheduler_interval_ms: toNumber(beat.scheduler_interval_ms),
+      scheduler_last_seen_at: str(beat.scheduler_last_seen_at),
+      scheduler_last_success_at: str(beat.scheduler_last_success_at),
+      scheduler_error_code: str(beat.scheduler_error_code),
+      problem: problems.has(String(beat.problem)) ? (beat.problem as SchedulerBeat["problem"]) : null,
+      problem_detail: str(beat.problem_detail),
+      consecutive_failures: int(beat.consecutive_failures),
+      retry_at: str(beat.retry_at),
+    })),
+  };
+}
+
+export const fetchSchedulerHealth = async () => normalizeSchedulerHealth(await apiFetch<Record<string, unknown>>("/api/admin/schedulers", { cache: "no-store" }));
 
 // ── /api/admin/exchange-review ─────────────────────────────────────────
 

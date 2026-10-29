@@ -22,6 +22,11 @@
     --tone: var(--blue);
     --tone-wash: var(--blue-wash);
   }
+
+  &[data-tone="danger"] {
+    --tone: var(--down);
+    --tone-wash: var(--down-wash);
+  }
 }
 
 .tag {

@@ -6,6 +6,7 @@ const auto = require("./auto");
 const events = require("./events");
 const resolution = require("./resolution");
 const trading = require("./trading");
+const schedulerHealth = require("../schedulerHealth");
 
 const LOCK_KEY = 9_204_103;
 const DEFAULT_INTERVAL_MS = 30_000;
@@ -15,12 +16,14 @@ async function runCycle(pool, redis = null, logger = console) {
   try {
     const { rows } = await lock.query("SELECT pg_try_advisory_lock($1) AS ok", [LOCK_KEY]);
     if (!rows[0]?.ok) return { skipped: true };
-    const steps = {};
+    // Each step's failure is logged and the cycle goes on; `failed` lists them for the heartbeat.
+    const steps = { failed: [] };
     const step = async (name, fn) => {
       try {
         steps[name] = await fn();
       } catch (error) {
         steps[name] = [];
+        steps.failed.push(name);
         logger.error?.(`prediction scheduler: ${name} failed`, error?.message || error);
       }
       return steps[name];
@@ -39,16 +42,24 @@ async function runCycle(pool, redis = null, logger = console) {
   }
 }
 
+/** Starts the cycle (unless PREDICTION_MARKET_SCHEDULER_ENABLED=false) and returns its stop function. */
 function startPredictionsScheduler(pool, logger = console, redis = null) {
-  if ((process.env.PREDICTION_MARKET_SCHEDULER_ENABLED || "true").toLowerCase() === "false") return null;
+  const enabled = (process.env.PREDICTION_MARKET_SCHEDULER_ENABLED || "true").toLowerCase() !== "false";
   const interval = Math.max(10_000, Number(process.env.PREDICTION_MARKET_SCHEDULER_INTERVAL_MS) || DEFAULT_INTERVAL_MS);
+  const heartbeat = schedulerHealth.startSchedulerHeartbeat(redis, "predictions", { enabled, intervalMs: interval }, logger);
+  if (!enabled) return () => heartbeat.stop();
   let running = false;
   const tick = async () => {
     if (running) return;
     running = true;
+    heartbeat.update("running");
     try {
-      await runCycle(pool, redis, logger);
+      const steps = await runCycle(pool, redis, logger);
+      if (steps.skipped) heartbeat.skip();
+      else if (steps.failed.length) heartbeat.update("error", { code: `steps_failed:${steps.failed.join(",")}` });
+      else heartbeat.update("idle");
     } catch (error) {
+      heartbeat.update("error", error);
       logger.error?.("prediction scheduler cycle failed", error?.message || error);
     } finally {
       running = false;
@@ -62,7 +73,10 @@ function startPredictionsScheduler(pool, logger = console, redis = null) {
     .finally(() => void tick());
   const timer = setInterval(tick, interval);
   timer.unref?.();
-  return timer;
+  return () => {
+    clearInterval(timer);
+    heartbeat.stop();
+  };
 }
 
 module.exports = { runCycle, startPredictionsScheduler };

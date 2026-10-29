@@ -22,6 +22,7 @@ import { useMarketStore } from "@/app/stores/market-store";
 import { useTradeStore } from "@/app/stores/trade-store";
 import styles from "@/app/components/articles/articles.module.scss";
 import { StoryReactions } from "@/app/components/articles/story-reactions";
+import { HideComment, hiddenCommentStyle } from "@/app/components/common/hide-comment";
 
 const enc = encodeURIComponent;
 
@@ -467,7 +468,7 @@ function Comments({ article, onChange }: { article: ArticleDetail; onChange: (ne
         sorted.map((comment) => {
           const own = user?.id === comment.author.id;
           return (
-            <article key={comment.id} className={styles.cmt}>
+            <article key={comment.id} className={styles.cmt} style={hiddenCommentStyle(comment)}>
               <div className={styles.votes}>
                 <button type="button" aria-label="Upvote" aria-pressed={comment.viewer_vote === 1} disabled={!user || verify || own || voting === comment.id} onClick={() => void vote(comment, 1)}>
                   ▲
@@ -490,6 +491,11 @@ function Comments({ article, onChange }: { article: ArticleDetail; onChange: (ne
                   <time suppressHydrationWarning title={new Date(comment.created_at).toLocaleString()}>
                     {timeAgo(comment.created_at)}
                   </time>
+                  <HideComment
+                    kind="article"
+                    comment={comment}
+                    onChange={(next) => onChange({ ...article, comments: article.comments.map((entry) => (entry.id === comment.id ? { ...entry, ...next } : entry)) })}
+                  />
                 </div>
                 <p>
                   {comment.body.split("\n").map((line, i) => (
