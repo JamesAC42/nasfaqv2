@@ -7,6 +7,11 @@ const gamesInventory = require("./services/games/inventory");
 const { profilePictureUrlSql } = require("./profilePictures");
 const reactions = require("./services/games/reactions");
 const notifications = require("./services/notifications");
+const { assertCleanText, assertUsernameAllowed } = require("./services/nameRules");
+
+// Renaming needs a verified email and waits this long after the last rename. An admin's profile
+// reset clears the wait, so the player can pick a new name straight away.
+const RENAME_COOLDOWN_DAYS = 7;
 
 // Banner art counts only while the player still owns one of her SSR/UR cards (cards can be sold).
 const BANNER_RARITIES_SQL = "('SSR', 'UR')";
@@ -101,11 +106,18 @@ function normalizeUsername(value) {
 function validateUsername(value) {
   const trimmed = String(value || "").trim();
   if (trimmed.length < 3 || trimmed.length > 32 || !/^[A-Za-z0-9_]+(?: [A-Za-z0-9_]+)*$/.test(trimmed)) {
-    const error = new Error("invalid_profile_update");
-    error.code = "invalid_profile_update";
+    const error = new Error("invalid_username");
+    error.code = "invalid_username";
     throw error;
   }
   return trimmed;
+}
+
+/** When the player can next change their username (ISO), or null when they can now. */
+function nextRenameAt(usernameChangedAt, now = Date.now()) {
+  if (!usernameChangedAt) return null;
+  const at = new Date(usernameChangedAt).getTime() + RENAME_COOLDOWN_DAYS * 86_400_000;
+  return at > now ? new Date(at).toISOString() : null;
 }
 
 function normalizeUserId(value) {
@@ -136,6 +148,7 @@ async function getUserByUsername(pool, username) {
       u.username,
       u.email_verified,
       u.created_at,
+      u.username_changed_at,
       u.bio,
       ${profilePictureUrlSql("large")} AS profile_picture_url,
       u.profile_color,
@@ -183,6 +196,7 @@ async function getUserById(pool, userId) {
       u.username,
       u.email_verified,
       u.created_at,
+      u.username_changed_at,
       u.bio,
       ${profilePictureUrlSql("large")} AS profile_picture_url,
       u.profile_color,
@@ -537,6 +551,12 @@ async function getProfileBundle(pool, {
       bio: profileUser.bio,
       profile_picture_url: profileUser.profile_picture_url,
       profile_color: profileUser.profile_color,
+      // Only yours: whether you can change your username now (needs a verified email, then once a week).
+      rename: isSelf ? {
+        available_at: nextRenameAt(profileUser.username_changed_at),
+        cooldown_days: RENAME_COOLDOWN_DAYS,
+        needs_verified_email: !profileUser.email_verified,
+      } : null,
       equipped,
       is_admin: Boolean(profileUser.is_admin), // shown as the ADMIN tag on purpose
       // The finer staff permissions are only yours to see.
@@ -682,8 +702,9 @@ async function refreshAvatarCopies(pool, userId) {
 
 /**
  * An admin's reset for an offensive profile: renames the player to player_<id> (player_<id>_2… if
- * someone already has that name) and clears the bio and the banner. Returns { before, after } with
- * the old and new username, bio and banner.
+ * someone already has that name) and clears the bio and the banner. It skips the rename rules and
+ * clears the rename cooldown, so the player can choose a new name at once. Returns { before, after }
+ * with the old and new username, bio and banner.
  */
 async function resetProfile(pool, userId) {
   const safeUserId = Number(userId);
@@ -698,7 +719,7 @@ async function resetProfile(pool, userId) {
     try {
       await pool.query(
         `UPDATE market.users
-         SET username = $2, username_normalized = $3, bio = NULL, profile_banner_asset_id = NULL, updated_at = now()
+         SET username = $2, username_normalized = $3, bio = NULL, profile_banner_asset_id = NULL, username_changed_at = NULL, updated_at = now()
          WHERE id = $1`,
         [safeUserId, candidate, normalizeUsername(candidate)]
       );
@@ -732,8 +753,25 @@ async function updateProfileSettings(pool, userId, { username, bio, profileColor
     error.code = "invalid_profile_update";
     throw error;
   }
+  assertCleanText(safeBio, "bio");
   const safeUsername = validateUsername(username);
   const safeUsernameNormalized = normalizeUsername(safeUsername);
+
+  // A new username: verified email, once a week, and the name rules (nameRules.js). Changing only
+  // the capitals is still a rename, but the name itself was already allowed.
+  const { rows: currentRows } = await pool.query(
+    `SELECT username, username_normalized, email_verified, username_changed_at FROM market.users WHERE id = $1`,
+    [safeUserId]
+  );
+  const current = currentRows[0];
+  if (!current) throw profileError("profile_not_found");
+  const renaming = safeUsername !== current.username;
+  if (renaming) {
+    if (!current.email_verified) throw profileError("rename_needs_verified_email");
+    const availableAt = nextRenameAt(current.username_changed_at);
+    if (availableAt) throw Object.assign(profileError("rename_cooldown"), { available_at: availableAt });
+    if (safeUsernameNormalized !== current.username_normalized) await assertUsernameAllowed(pool, safeUsername);
+  }
 
   const safeProfileColor = profileColor === null || profileColor === undefined || profileColor === ""
     ? null
@@ -773,7 +811,8 @@ async function updateProfileSettings(pool, userId, { username, bio, profileColor
   if (profileBannerAssetId !== undefined) await setProfileBanner(pool, safeUserId, profileBannerAssetId);
 
   try {
-    await pool.query(
+    // The cooldown is checked again here, so two saves at once can't both rename.
+    const result = await pool.query(
       `
       UPDATE market.users
       SET username = $2,
@@ -781,11 +820,14 @@ async function updateProfileSettings(pool, userId, { username, bio, profileColor
           bio = $4,
           profile_color = $5,
           oshi_coin_asset_id = $6,
+          username_changed_at = CASE WHEN username = $2 THEN username_changed_at ELSE now() END,
           updated_at = now()
       WHERE id = $1
+        AND (username = $2 OR username_changed_at IS NULL OR username_changed_at <= now() - make_interval(days => $7))
     `,
-      [safeUserId, safeUsername, safeUsernameNormalized, safeBio, safeProfileColor, safeOshiCoinAssetId]
+      [safeUserId, safeUsername, safeUsernameNormalized, safeBio, safeProfileColor, safeOshiCoinAssetId, RENAME_COOLDOWN_DAYS]
     );
+    if (!result.rowCount) throw profileError("rename_cooldown");
   } catch (error) {
     if (error?.code === "23505") {
       const e = new Error("username_taken");

@@ -1801,6 +1801,22 @@ async function applySchema(pool) {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS market_admin_actions_created_idx ON market.admin_actions (created_at DESC, id DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS market_admin_actions_target_idx ON market.admin_actions (target_type, target_id, created_at DESC)`);
+
+  // Sign-up abuse. One inbox, one account: the address as its inbox sees it (services/emailRules.js),
+  // unique. Accounts that already share one are reported, not failed: the oldest keeps it. Salted
+  // hashes of the sign-up address and each session's last one, to link alts (services/ipHash.js).
+  // When a username last changed, for the 7-day rename cooldown (profileDb.js).
+  await pool.query(`
+    ALTER TABLE market.users
+      ADD COLUMN IF NOT EXISTS email_normalized TEXT NULL,
+      ADD COLUMN IF NOT EXISTS signup_ip_hash TEXT NULL,
+      ADD COLUMN IF NOT EXISTS username_changed_at TIMESTAMPTZ NULL
+  `);
+  await pool.query(`ALTER TABLE market.user_sessions ADD COLUMN IF NOT EXISTS last_ip_hash TEXT NULL`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_users_signup_ip_hash_idx ON market.users (signup_ip_hash) WHERE signup_ip_hash IS NOT NULL`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_user_sessions_last_ip_hash_idx ON market.user_sessions (last_ip_hash) WHERE last_ip_hash IS NOT NULL`);
+  await require("./services/emailRules").backfillEmailNormalized(pool);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS market_users_email_normalized_uidx ON market.users (email_normalized) WHERE email_normalized IS NOT NULL`);
 }
 
 module.exports = { applySchema };

@@ -1093,6 +1093,12 @@
     @include input-base;
   }
 
+  // A username that can't change yet (verify first, or the weekly wait).
+  input[readonly] {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
   small {
     font-size: 0.6875rem;
     color: var(--dim);

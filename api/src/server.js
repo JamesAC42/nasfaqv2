@@ -345,6 +345,13 @@ app.use((err, req, res, _next) => {
     || err?.code === "game_session_not_found"
   ) return res.status(404).json({ error: err.code });
   if (err?.code === "profile_picture_not_found") return res.status(404).json({ error: err.code });
+  // Name and word rules (services/nameRules.js), renames (profileDb.js).
+  if (err?.code === "blocked_words") return res.status(400).json({ error: err.code, field: err.field ?? null });
+  if (err?.code === "username_not_allowed" || err?.code === "username_reserved" || err?.code === "username_talent" || err?.code === "invalid_username") {
+    return res.status(400).json({ error: err.code });
+  }
+  if (err?.code === "rename_needs_verified_email") return res.status(403).json({ error: err.code });
+  if (err?.code === "rename_cooldown") return res.status(429).json({ error: err.code, available_at: err.available_at ?? null });
   if (
     err?.code === "already_friends"
     || err?.code === "friend_request_pending"

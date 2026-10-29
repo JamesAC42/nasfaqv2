@@ -1,4 +1,5 @@
 const notifications = require("./services/notifications");
+const { assertCleanText } = require("./services/nameRules");
 
 function slugify(value) {
   const normalized = String(value || "")
@@ -843,6 +844,9 @@ async function createArticle(pool, {
     error.code = "invalid_article";
     throw error;
   }
+  // Titles and subtitles show on every news list (nameRules.js); the body is the author's.
+  assertCleanText(safeTitle, "title");
+  assertCleanText(subtitle, "subtitle");
 
   const client = await pool.connect();
   try {
@@ -925,6 +929,8 @@ async function updateArticle(pool, slug, {
     error.code = "invalid_article";
     throw error;
   }
+  assertCleanText(safeTitle, "title");
+  assertCleanText(subtitle, "subtitle");
 
   const client = await pool.connect();
   try {
@@ -1091,6 +1097,7 @@ async function createComment(pool, slug, authorId, body, mood) {
     error.code = "invalid_comment";
     throw error;
   }
+  assertCleanText(safeBody, "body");
   const article = await getArticleOwnership(pool, slug);
   if (!article || article.status !== "published") {
     const error = new Error("article_not_found");

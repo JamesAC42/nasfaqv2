@@ -14,6 +14,36 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-10-29",
+    title: "Names, renames and fair rankings",
+    changes: [
+      {
+        kind: "new",
+        text: "Usernames have rules: no slurs or hate terms (however they're spelled), nothing that looks like staff or the site (admin, mod, official, NASFAQ…), and no talent's name or ticker on its own. PekoraFan is fine; Pekora is hers. Names you already have stay as they are.",
+      },
+      {
+        kind: "new",
+        text: "Changing your username needs a verified email, and you can change it once every 7 days. Edit profile shows when you can next change it.",
+      },
+      {
+        kind: "improved",
+        text: "The leaderboard and the oshiboards rank players with a verified email. Not on them? Verify your email from your profile and you'll show up.",
+      },
+      {
+        kind: "improved",
+        text: "One inbox, one account: addresses that differ only by a +tag (or by dots, on Gmail) count as the same, and throwaway email services can't sign up.",
+      },
+      {
+        kind: "improved",
+        text: "Playing High-Low or Oshi Card Duel for a stake needs a verified email and a week-old account, the same as trading Cash on the exchange. Tables with no stake are open to everyone.",
+      },
+      {
+        kind: "improved",
+        text: "Chat, comments, bios and article titles turn away slurs and hate speech before they're posted, and tell you why.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-29",
     title: "Community rules",
     changes: [
       {

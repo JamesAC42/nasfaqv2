@@ -21,6 +21,7 @@
 //   passing things along, and a stolen account's items can't be moved out at once.
 // - The escrowed row is kept whole (cosmetic_json) and put back exactly as it was if it doesn't sell.
 
+const { MIN_ACCOUNT_AGE_HOURS, accountStatus } = require("./accountRules");
 const cards = require("./cards");
 const cardGacha = require("./cardGacha");
 const gachaPrizeCatalog = require("./gachaPrizeCatalog");
@@ -41,7 +42,6 @@ const MAX_TRADE_CARD_KINDS = 10;
 const MAX_TRADE_COPIES = 20;
 const MAX_TRADE_SHARDS = 10_000_000;
 const DAILY_ACTIONS = Number(process.env.EXCHANGE_DAILY_ACTIONS || 40);
-const MIN_ACCOUNT_AGE_HOURS = Number(process.env.EXCHANGE_MIN_ACCOUNT_AGE_HOURS ?? 72);
 const TAPE_SIZE = 40;
 const SCHEDULER_LOCK_KEY = 9_204_077;
 const ITEM_RARITIES = ["common", "rare", "epic", "legendary"];
@@ -312,12 +312,9 @@ async function giveCopiesWithClient(client, { userId, cardKey, qty = 1 }) {
 // ── Eligibility and caps ──────────────────────────────────────────────────
 async function eligibility(db, userId) {
   const { rows } = await db.query(`SELECT created_at, email_verified, exchange_frozen_at FROM market.users WHERE id = $1`, [userId]);
-  if (!rows[0]) return { eligible: false, reason: "unauthenticated", available_at: null };
-  if (rows[0].exchange_frozen_at) return { eligible: false, reason: "exchange_frozen", available_at: null };
-  if (!rows[0].email_verified) return { eligible: false, reason: "email_verification_required", available_at: null };
-  const availableAt = new Date(new Date(rows[0].created_at).getTime() + MIN_ACCOUNT_AGE_HOURS * 3_600_000);
-  if (availableAt > new Date()) return { eligible: false, reason: "exchange_account_too_new", available_at: availableAt.toISOString() };
-  return { eligible: true, reason: null, available_at: null };
+  if (rows[0]?.exchange_frozen_at) return { eligible: false, reason: "exchange_frozen", available_at: null };
+  // Verified email and account age: the same rules as staked PvP tables (accountRules.js).
+  return accountStatus(rows[0], { tooNew: "exchange_account_too_new" });
 }
 
 async function assertEligible(db, userId) {

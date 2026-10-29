@@ -8,6 +8,7 @@
 const express = require("express");
 const adminConsole = require("../services/adminConsole");
 const exchange = require("../services/games/exchange");
+const { ipClusters, ipHashingEnabled, sharedIpAccounts } = require("../services/ipHash");
 const schedulerHealth = require("../services/schedulerHealth");
 const moderation = require("../services/moderation");
 const profileDb = require("../profileDb");
@@ -95,7 +96,24 @@ router.get(
     requireSiteAdmin(req);
     res.set("Cache-Control", "no-store");
     const days = Math.min(90, Math.max(1, Number(req.query.days) || 14));
-    res.json(await exchange.reviewFlags(req.ctx.pool, { days }));
+    const [review, clusters] = await Promise.all([exchange.reviewFlags(req.ctx.pool, { days }), ipClusters(req.ctx.pool, { days })]);
+    // Which flagged accounts have shared an IP hash with each other (services/ipHash.js), and the
+    // groups of accounts tied together by shared hashes lately.
+    const ids = [
+      ...review.flags.flatMap((flag) => [flag.from.id, flag.to.id]),
+      ...review.pairs.flatMap((pair) => [pair.a.id, pair.b.id]),
+      ...review.funnels.map((funnel) => funnel.hub.id),
+    ];
+    const shared = await sharedIpAccounts(req.ctx.pool, ids);
+    const shares = (x, y) => (shared.get(x) ?? []).some((account) => account.id === y);
+    res.json({
+      ...review,
+      flags: review.flags.map((flag) => ({ ...flag, same_ip: shares(flag.from.id, flag.to.id) })),
+      pairs: review.pairs.map((pair) => ({ ...pair, same_ip: shares(pair.a.id, pair.b.id) })),
+      funnels: review.funnels.map((funnel) => ({ ...funnel, accounts: funnel.accounts.map((account) => ({ ...account, same_ip: shares(funnel.hub.id, account.id) })) })),
+      ip_linking: ipHashingEnabled(),
+      ip_clusters: clusters,
+    });
   })
 );
 
@@ -105,7 +123,8 @@ router.get(
     requireSiteAdmin(req);
     res.set("Cache-Control", "no-store");
     const users = await adminConsole.searchUsers(req.ctx.pool, { q: req.query.q, role: req.query.role });
-    res.json({ users, roles: adminConsole.ROLE_FLAGS });
+    // ip_linking: false while IP_HASH_SALT is unset (nothing is recorded, so nothing is shared).
+    res.json({ users, roles: adminConsole.ROLE_FLAGS, ip_linking: ipHashingEnabled() });
   })
 );
 

@@ -46,9 +46,10 @@ banner or admin log.
 | Lift a mute or ban | `/admin/moderation` → **Chat mutes & bans** → **Unmute** / **Unban** | |
 | Hide a comment | The **Hide** button on stock board, article and prediction comments | Optional reason. It's gone for everyone but admins, who see it dimmed with **Unhide**. |
 | Suspend an account | `/admin/people` → find them → **Suspend…** → 24 hours, 7 days, 30 days or Until lifted | The reason is **required** and **the player sees it**, so keep it short and neutral. It signs them out everywhere. They can sign back in and read, but can't trade, post, chat or play, and they drop off the leaderboards. **Lift suspension** ends it early. |
-| Reset a profile | `/admin/people` → **Reset profile…** | Renames them to `player_<id>` and clears their bio and banner. Use it for offensive or impersonating names and profiles. |
+| Reset a profile | `/admin/people` → **Reset profile…** | Renames them to `player_<id>` and clears their bio and banner. Use it for offensive or impersonating names and profiles. It also clears their 7-day rename wait, so they can pick a new name straight away. |
+| Shared IP | `/admin/people` → **Shares an IP** under a player | Other accounts that signed up or played from the same IP address. Only a salted hash is kept, so nobody can see the address. A lead for alts, not proof: homes, schools and phone networks share one. Off until the owner sets `IP_HASH_SALT`. |
 | Freeze the exchange | `/admin/people` → **Freeze exchange** (add a note) → **Unfreeze** later | Stops them using the card and item exchange. It doesn't stop stock trading, games or chat. |
-| Exchange review | `/admin/exchange` | Read-only. Lopsided sales and trades involving new accounts, pairs that keep trading with each other, and accounts dealing with several new ones. |
+| Exchange review | `/admin/exchange` | Read-only. Lopsided sales and trades involving new accounts, pairs that keep trading with each other, accounts dealing with several new ones, and groups of accounts sharing an IP address. **same IP** marks flagged accounts that share one. |
 | Delete an article | On the article, as an admin: **DELETE** (a player's article) or **DELETE BODY** (the player-written part of a news article) | **Can't be undone and isn't in the Admin log.** Screenshot it and post in the mod channel before you press it. |
 | Announcement banner | `/admin` → **Health** → **Post an announcement…** | 280 characters, Info or Warning, optional link, and an end time. **Edit…** and **Clear announcement** are in the same spot. |
 | Admin log | `/admin/moderation` → **Admin log** | Every action above except article deletes, newest first, with who did it and why. |
@@ -60,7 +61,15 @@ banner or admin log.
 - a button to lock a room (the API can make a room read-only; ask the owner);
 - restoring a removed chat message;
 - per-room mutes in the UI;
-- IP addresses (NASFAQ doesn't store them).
+- IP addresses (NASFAQ only keeps salted hashes of them, for **Shares an IP**).
+
+**What the site refuses on its own** (no action needed): usernames with slurs or hate terms
+(however they're spelled), names that look like staff or the site (admin, mod, official, NASFAQ…)
+or that are a talent's name or ticker; slurs and hate speech in bios, chat, comments and article
+titles; a second account on the same inbox (Gmail dots and +tags count as the same address);
+throwaway email domains. Renames need a verified email and wait 7 days. Staked PvP tables need a
+verified email and a week-old account, like the exchange. Unverified accounts aren't on the
+leaderboards. Names that were taken before these rules stay until someone resets them.
 
 A suspension also doesn't cancel the player's queued stock or prediction orders.
 

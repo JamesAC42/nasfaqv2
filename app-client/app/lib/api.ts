@@ -25,6 +25,11 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     if (message === "account_suspended") {
       message = "Your account is suspended: you can look around, but not trade, post or play until it ends.";
     }
+    // services/nameRules.js: slurs and hate speech in a bio, chat, a comment or an article title.
+    if (message === "blocked_words") {
+      const where = { bio: "Your bio", title: "The title", subtitle: "The subtitle" }[String(body?.field ?? "")] ?? "That";
+      message = `${where} has a word that isn't allowed here: slurs and hate speech are off-limits. Edit it and try again.`;
+    }
     // The parsed body rides along for callers that want the details (limits, reset times…).
     throw Object.assign(new Error(message), { status: response.status, body });
   }

@@ -39,9 +39,17 @@ function activeSuspensionSql(alias = "u") {
   return `(${alias}.suspended_at IS NOT NULL AND (${alias}.suspended_until IS NULL OR ${alias}.suspended_until > now()))`;
 }
 
-/** SQL that's true when the player `userIdSql` points at isn't suspended (for the leaderboards). */
+/** SQL that's true when the player `userIdSql` points at isn't suspended. */
 function notSuspendedSql(userIdSql) {
   return `NOT EXISTS (SELECT 1 FROM market.users su WHERE su.id = ${userIdSql} AND ${activeSuspensionSql("su")})`;
+}
+
+/**
+ * SQL that's true when the player `userIdSql` points at belongs on the leaderboards and oshiboards:
+ * a verified email (so an unverified alt can't take a place) and no suspension.
+ */
+function leaderboardPlayerSql(userIdSql) {
+  return `EXISTS (SELECT 1 FROM market.users lu WHERE lu.id = ${userIdSql} AND lu.email_verified AND NOT ${activeSuspensionSql("lu")})`;
 }
 
 /** A users row's suspension as the player sees it, or null when there's none (or it has run out). */
@@ -235,6 +243,7 @@ module.exports = {
   listActions,
   logAction,
   moderationError,
+  leaderboardPlayerSql,
   notSuspendedSql,
   setCommentHidden,
   setSuspension,
