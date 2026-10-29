@@ -19,10 +19,16 @@ data:
   UPCOMING_MAX_RESULTS: "5"
   MARKET_DATA_TIMEZONE: "America/New_York"
   MARKET_SETTLEMENT_TIMEZONE: "America/New_York"
-  # Weekly evaluation max-shares range. Playtest sizing for a small group; raise for public launch
-  # (code defaults are 6000 / 30000).
-  MARKET_MAX_SHARES_MIN: "300"
-  MARKET_MAX_SHARES_MAX: "3000"
+  # Weekly evaluation max-shares range (by subscriber rank; an IPO talent starts on the same curve).
+  # Public-launch sizing: about $28M of shares at current prices, so a few thousand new players can
+  # buy in without stocks selling out and no single account can corner the smallest one. Applies at
+  # the next Saturday evaluation after the pods restart. Raising later is free; lowering below what
+  # players hold starts buybacks.
+  MARKET_MAX_SHARES_MIN: "10000"
+  MARKET_MAX_SHARES_MAX: "50000"
+  # Direct trades with Cash need accounts this old (code default 72 h), so a fresh alt can't hand
+  # its starting money to a main account.
+  EXCHANGE_MIN_ACCOUNT_AGE_HOURS: "168"
   # Per API pod. The db-s-2vcpu-4gb plan allows 97 connections: api-web x2 (up to 6 if scaled),
   # api-scheduler, api-games and the migration job at 8 each stay well under it.
   PG_POOL_MAX: "8"
