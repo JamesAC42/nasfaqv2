@@ -1095,6 +1095,161 @@ async function listEvent(pool, eventId, { marketDate = todayKey(), force = false
   return { event_id: Number(eventId), market_date: marketDate, listed };
 }
 
+const IPO_ENTRY_TYPES = ["ipo_cash_hold", "ipo_cash_release", "ipo_allocation", "ipo_reversal"];
+
+/**
+ * Undoes a listing that went out by mistake, while nobody has done anything with the talents
+ * but the IPO itself. Players' allocated shares go back and what they paid returns to their Cash
+ * (an 'ipo_reversal' ledger line each); the stocks return to 'prelaunch' with no price, their
+ * market history since listing is removed, and the event is cancelled, so the talents can join a
+ * new IPO. Refuses once there are orders, fills, cards, dividends or holdings the IPO didn't make.
+ * Without `apply` it does everything inside a transaction it rolls back, and reports what it would do.
+ */
+async function revertListing(pool, eventId, { apply = false, redis = null } = {}) {
+  const client = await pool.connect();
+  const notices = [];
+  const report = { event_id: Number(eventId), applied: false, talents: [], refunds: [], removed: {} };
+  try {
+    await client.query("BEGIN");
+    await client.query("SET LOCAL lock_timeout = '5s'");
+    const [event] = await loadEvents(client, { eventId, lock: true });
+    if (!event) throw codedError("ipo_not_found");
+    if (event.status !== "listed") throw codedError("ipo_not_listed");
+    const listings = (await loadListings(client, [event.id], { lock: true })).filter((listing) => listing.status === "listed");
+    if (!listings.length) throw codedError("nothing_listed");
+    const assetIds = listings.map((listing) => listing.asset_id);
+    report.title = event.title;
+
+    // Anything beyond the IPO makes this a different job (unwinding trades), so it stops here.
+    const { rows: blockers } = await client.query(
+      `
+      SELECT what, n FROM (
+        SELECT 'orders' AS what, (SELECT count(*) FROM market.trade_orders WHERE asset_id = ANY($1::bigint[]))::int AS n
+        UNION ALL SELECT 'fills', (SELECT count(*) FROM market.trade_fills WHERE asset_id = ANY($1::bigint[]))::int
+        UNION ALL SELECT 'other ledger entries', (SELECT count(*) FROM market.ledger_entries WHERE asset_id = ANY($1::bigint[]) AND entry_type <> ALL($2::text[]))::int
+        UNION ALL SELECT 'dividends', (SELECT count(*) FROM market.dividend_payouts WHERE asset_id = ANY($1::bigint[]))::int
+        UNION ALL SELECT 'buybacks', (SELECT count(*) FROM market.asset_buybacks WHERE asset_id = ANY($1::bigint[]))::int
+        UNION ALL SELECT 'weekly evaluations', (SELECT count(*) FROM market.weekly_asset_evaluations WHERE asset_id = ANY($1::bigint[]))::int
+        UNION ALL SELECT 'cards', (SELECT count(*) FROM games.user_cards WHERE asset_id = ANY($1::bigint[]))::int
+      ) b WHERE n > 0
+    `,
+      [assetIds, IPO_ENTRY_TYPES]
+    );
+    if (blockers.length) throw codedError("listing_in_use", { field: blockers.map((row) => `${row.n} ${row.what}`).join(", ") });
+
+    const { rows: subs } = await client.query(
+      `
+      SELECT s.*, l.asset_id,
+             COALESCE((SELECT -SUM(e.cash_delta) FROM market.ledger_entries e
+                       WHERE e.reference_type = 'ipo_subscription' AND e.reference_id = s.id AND e.entry_type = 'ipo_allocation'), 0) AS paid
+      FROM market.ipo_subscriptions s
+      JOIN market.ipo_listings l ON l.id = s.listing_id
+      WHERE l.id = ANY($1::bigint[]) AND s.status = 'allocated'
+      ORDER BY s.id
+      FOR UPDATE OF s
+    `,
+      [listings.map((listing) => listing.id)]
+    );
+    // Holdings must be exactly what the IPO handed out, or someone moved shares since.
+    const { rows: held } = await client.query(
+      `SELECT user_id, asset_id, quantity FROM market.portfolio_holdings WHERE asset_id = ANY($1::bigint[]) AND quantity <> 0 FOR UPDATE`,
+      [assetIds]
+    );
+    const allocatedBy = new Map();
+    for (const sub of subs) {
+      const key = `${sub.user_id}:${sub.asset_id}`;
+      allocatedBy.set(key, (allocatedBy.get(key) || 0) + toNumber(sub.allocated_shares));
+    }
+    const heldBy = new Map(held.map((row) => [`${row.user_id}:${row.asset_id}`, toNumber(row.quantity)]));
+    for (const key of new Set([...allocatedBy.keys(), ...heldBy.keys()])) {
+      if ((allocatedBy.get(key) || 0) !== (heldBy.get(key) || 0)) throw codedError("holdings_changed", { field: key });
+    }
+
+    const bySymbol = new Map(listings.map((listing) => [String(listing.asset_id), listing.symbol]));
+    for (const sub of subs) {
+      const shares = toNumber(sub.allocated_shares);
+      const paid = round2(toNumber(sub.paid));
+      await client.query(
+        `UPDATE market.portfolio_holdings SET quantity = quantity - $3, updated_at = now() WHERE user_id = $1 AND asset_id = $2`,
+        [sub.user_id, sub.asset_id, shares]
+      );
+      await client.query(`UPDATE market.portfolio_cash_balances SET cash_balance = cash_balance + $2, updated_at = now() WHERE user_id = $1`, [sub.user_id, paid]);
+      await ledger(client, { userId: sub.user_id, assetId: sub.asset_id, entryType: "ipo_reversal", quantityDelta: -shares, cashDelta: paid, subscriptionId: sub.id });
+      await client.query(
+        `UPDATE market.ipo_subscriptions SET status = 'refunded', allocated_shares = 0, refunded_cash = refunded_cash + $2, updated_at = now() WHERE id = $1`,
+        [sub.id, paid]
+      );
+      const symbol = bySymbol.get(String(sub.asset_id));
+      report.refunds.push({ user_id: Number(sub.user_id), symbol, shares, cash: paid });
+      notices.push({ userId: sub.user_id, symbol, shares, paid });
+    }
+    await client.query(`DELETE FROM market.portfolio_holdings WHERE asset_id = ANY($1::bigint[]) AND quantity = 0`, [assetIds]);
+
+    // Back to how a prelaunch stock looks: nothing circulating, no price, no offsets.
+    const { rows: prices } = await client.query(`SELECT id, current_mid_price FROM market.market_assets WHERE id = ANY($1::bigint[])`, [assetIds]);
+    const priceNow = new Map(prices.map((row) => [String(row.id), maybeNumber(row.current_mid_price)]));
+    for (const listing of listings) {
+      report.talents.push({ symbol: listing.symbol, ipo_price: toNumber(listing.ipo_price), price_now: priceNow.get(String(listing.asset_id)) ?? null });
+    }
+    await client.query(
+      `
+      UPDATE market.market_assets
+      SET status = 'prelaunch',
+          circulating_supply = 0,
+          treasury_supply = max_supply,
+          current_mid_price = NULL,
+          current_bid_price = NULL,
+          current_ask_price = NULL,
+          current_premium_pct = NULL,
+          current_daily_emission = NULL,
+          current_persistent_offset = 0,
+          current_transient_offset = 0,
+          offsets_updated_at = now(),
+          updated_at = now()
+      WHERE id = ANY($1::bigint[])
+    `,
+      [assetIds]
+    );
+    // Prelaunch stocks sit outside settlement and adjustments, so all of their market history is
+    // from the listing on.
+    for (const [table, label] of [
+      ["market.asset_price_events", "price_events"],
+      ["market.asset_daily_market_state", "daily_states"],
+      ["market.asset_adjustment_intervals", "adjustment_intervals"],
+    ]) {
+      const { rowCount } = await client.query(`DELETE FROM ${table} WHERE asset_id = ANY($1::bigint[])`, [assetIds]);
+      report.removed[label] = rowCount;
+    }
+    await client.query(`UPDATE market.ipo_listings SET status = 'cancelled' WHERE id = ANY($1::bigint[])`, [listings.map((listing) => listing.id)]);
+    await client.query(`UPDATE market.ipo_events SET status = 'cancelled', cancelled_at = now(), last_error = 'listing reverted', updated_at = now() WHERE id = $1`, [event.id]);
+
+    if (!apply) {
+      await client.query("ROLLBACK");
+      return report;
+    }
+    await client.query("COMMIT");
+    report.applied = true;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+  for (const notice of notices) {
+    await notifications
+      .notify(pool, notice.userId, {
+        kind: "ipo",
+        title: `The ${notice.symbol} IPO is postponed`,
+        body: `Your ${notice.shares} ${notice.symbol} went back and ${notifications.money(notice.paid)} is back in your Cash. She'll list in a later IPO.`,
+        href: "/market/ipo",
+      })
+      .catch(() => {});
+  }
+  await invalidateMarketAssetsCache(redis).catch(() => {});
+  void publishMarketEvent(redis, { type: "market.ipo_update", event_id: Number(eventId), status: "cancelled", at: new Date().toISOString() });
+  return report;
+}
+
 // ── Schedules ────────────────────────────────────────────────────────────
 /** Opens windows that are due. Failures (no fair value yet) are recorded on the event and retried. */
 async function openDueWindows(pool, { now = new Date(), redis = null, logger = console } = {}) {
@@ -1183,6 +1338,7 @@ module.exports = {
   subscribe,
   cancelSubscription,
   listEvent,
+  revertListing,
   openDueWindows,
   listDueEvents,
   startIpoScheduler,
