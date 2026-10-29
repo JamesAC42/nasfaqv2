@@ -294,6 +294,51 @@ export const fetchAdjustmentHealth = async () =>
 export const fetchLiveOrderHealth = async (batchLimit = 8) =>
   normalizeLiveOrderHealth(await apiFetch<Record<string, unknown>>(`/api/market/live-orders/admin/health?batch_limit=${batchLimit}`, { cache: "no-store" }));
 
+// ── /api/admin/schedulers ───────────────────────────────────────────────
+
+/** One scheduler's heartbeat; `problem` is what the watchdog (and its Discord alert) makes of it. */
+export type SchedulerBeat = {
+  name: string;
+  label: string;
+  scheduler_status: string;
+  scheduler_enabled: boolean;
+  scheduler_interval_ms: number | null;
+  scheduler_last_seen_at: string | null;
+  scheduler_last_success_at: string | null;
+  scheduler_error_code: string | null;
+  problem: "missing" | "gone" | "stalled" | "failing" | null;
+  problem_detail: string | null;
+  consecutive_failures: number;
+  retry_at: string | null;
+};
+
+export type SchedulerHealth = { generated_at: string | null; alerts_configured: boolean; schedulers: SchedulerBeat[] };
+
+export function normalizeSchedulerHealth(row: Record<string, unknown> | null | undefined): SchedulerHealth {
+  const r = row ?? {};
+  const problems = new Set(["missing", "gone", "stalled", "failing"]);
+  return {
+    generated_at: str(r.generated_at),
+    alerts_configured: Boolean(r.alerts_configured),
+    schedulers: asArray(r.schedulers).map((beat) => ({
+      name: String(beat.name || ""),
+      label: String(beat.label || beat.name || ""),
+      scheduler_status: str(beat.scheduler_status) || "unknown",
+      scheduler_enabled: Boolean(beat.scheduler_enabled),
+      scheduler_interval_ms: toNumber(beat.scheduler_interval_ms),
+      scheduler_last_seen_at: str(beat.scheduler_last_seen_at),
+      scheduler_last_success_at: str(beat.scheduler_last_success_at),
+      scheduler_error_code: str(beat.scheduler_error_code),
+      problem: problems.has(String(beat.problem)) ? (beat.problem as SchedulerBeat["problem"]) : null,
+      problem_detail: str(beat.problem_detail),
+      consecutive_failures: int(beat.consecutive_failures),
+      retry_at: str(beat.retry_at),
+    })),
+  };
+}
+
+export const fetchSchedulerHealth = async () => normalizeSchedulerHealth(await apiFetch<Record<string, unknown>>("/api/admin/schedulers", { cache: "no-store" }));
+
 // ── /api/admin/exchange-review ─────────────────────────────────────────
 
 export type ReviewParty = { id: number; username: string; age_days: number };
