@@ -10,8 +10,11 @@ const resolution = require("../services/predictions/resolution");
 const auto = require("../services/predictions/auto");
 const events = require("../services/predictions/events");
 const { requireAuthenticatedUser, requireVerifiedUser } = require("../services/predictionPermissions");
+const { rateLimit, byUser } = require("../rateLimit");
 
 const router = express.Router();
+// Trades, limit orders and cancels share one budget per player, under the site-wide 60 writes a minute.
+const tradeLimit = rateLimit(byUser("prediction-trade", 20, 60));
 
 const ERROR_STATUS = {
   unauthenticated: 401,
@@ -226,6 +229,7 @@ router.get(
 // ── Trading ────────────────────────────────────────────────────────────────
 router.post(
   "/:slug/trade",
+  tradeLimit,
   handle(async (req, res) => {
     const user = requireVerifiedUser(req);
     const result = await trading.trade(req.ctx.pool, {
@@ -245,6 +249,7 @@ router.post(
 
 router.post(
   "/:slug/limit-orders",
+  tradeLimit,
   handle(async (req, res) => {
     const user = requireVerifiedUser(req);
     const result = await trading.placeLimitOrder(req.ctx.pool, {
@@ -263,6 +268,7 @@ router.post(
 
 router.delete(
   "/:slug/limit-orders/:orderId",
+  tradeLimit,
   handle(async (req, res) => {
     const user = requireAuthenticatedUser(req);
     res.json({ order: await trading.cancelLimitOrder(req.ctx.pool, { userId: Number(user.id), orderId: Number(req.params.orderId) }) });
@@ -291,6 +297,7 @@ router.get(
 
 router.post(
   "/:slug/comments",
+  rateLimit(byUser("prediction-comment", 10, 60)),
   handle(async (req, res) => {
     const user = requireVerifiedUser(req);
     const comment = await predictionMarketDb.createPredictionMarketComment(req.ctx.pool, req.params.slug, user.id, { body: req.body?.body });

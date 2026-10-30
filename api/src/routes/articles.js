@@ -2,8 +2,18 @@ const express = require("express");
 const articleDb = require("../articleDb");
 const { requireAdmin, requireUserId, requireVerifiedUserId } = require("../userContext");
 
-const { rateLimit, byUser } = require("../rateLimit");
+const { rateLimit, byUser, clientIp, hit, voteLimit } = require("../rateLimit");
 const router = express.Router();
+
+// A view counts once per reader per article an hour, and at most 20 a minute per reader (the
+// account, or the address when signed out). Past either, the article still loads; the count
+// just doesn't move.
+async function countsAsView(req, slug) {
+  const reader = req.ctx.user ? `u${req.ctx.user.id}` : `ip${clientIp(req)}`;
+  const redis = req.ctx.redis;
+  if (!(await hit(redis, "article-view:reader", reader, { limit: 20, windowSeconds: 60 })).ok) return false;
+  return (await hit(redis, "article-view:once", `${reader}:${slug}`, { limit: 1, windowSeconds: 3600 })).ok;
+}
 
 function paginationShape(result) {
   const pageCount = result.total > 0 ? Math.ceil(result.total / result.limit) : 1;
@@ -88,7 +98,7 @@ router.post("/:slug/view", async (req, res, next) => {
       req.params.slug,
       req.ctx.user?.id || null,
       Boolean(req.ctx.user),
-      true
+      await countsAsView(req, String(req.params.slug || ""))
     );
     if (!article) {
       return res.status(404).json({ error: "article_not_found" });
@@ -158,7 +168,7 @@ router.post("/:slug/comments", rateLimit(byUser("article-comment", 10, 60)), asy
   }
 });
 
-router.post("/:slug/like", async (req, res, next) => {
+router.post("/:slug/like", voteLimit, async (req, res, next) => {
   try {
     const userId = requireVerifiedUserId(req);
     const active = await articleDb.toggleArticlePreference(req.ctx.pool, req.params.slug, userId, "like");
@@ -169,7 +179,7 @@ router.post("/:slug/like", async (req, res, next) => {
   }
 });
 
-router.post("/:slug/save", async (req, res, next) => {
+router.post("/:slug/save", voteLimit, async (req, res, next) => {
   try {
     const userId = requireVerifiedUserId(req);
     const active = await articleDb.toggleArticlePreference(req.ctx.pool, req.params.slug, userId, "save");
@@ -180,7 +190,7 @@ router.post("/:slug/save", async (req, res, next) => {
   }
 });
 
-router.post("/:slug/comments/:commentId/vote", async (req, res, next) => {
+router.post("/:slug/comments/:commentId/vote", voteLimit, async (req, res, next) => {
   try {
     const userId = requireVerifiedUserId(req);
     await articleDb.setArticleCommentVote(req.ctx.pool, req.params.slug, req.params.commentId, userId, req.body?.value);
@@ -219,7 +229,7 @@ router.post("/:slug/proposals/:proposalId/approve", async (req, res, next) => {
   }
 });
 
-router.post("/:slug/proposals/:proposalId/vote", async (req, res, next) => {
+router.post("/:slug/proposals/:proposalId/vote", voteLimit, async (req, res, next) => {
   try {
     const userId = requireUserId(req);
     await articleDb.setProposalVote(req.ctx.pool, req.params.slug, req.params.proposalId, userId, req.body?.value);

@@ -6,8 +6,14 @@ const pvp = require("../services/games/tables/pvp");
 const blackjack = require("../services/games/tables/blackjack");
 const { requireUserId, requireVerifiedUserId } = require("../userContext");
 const { sendGameError } = require("./games");
+const { rateLimit, byUser } = require("../rateLimit");
 
 const router = express.Router();
+// Opening and joining tables (what fills a lobby) gets a small budget, moves and bets a bigger one,
+// still well above the pace a round allows (reveals and turns take seconds). Leaving a table only
+// counts toward the site-wide 60 writes a minute.
+const seatLimit = rateLimit(byUser("table-seat", 12, 60));
+const moveLimit = rateLimit(byUser("table-move", 40, 60));
 
 const tableId = (req) => {
   const id = Number.parseInt(String(req.params.id), 10);
@@ -45,7 +51,7 @@ router.get("/tables/:id", async (req, res, next) => {
   }
 });
 
-router.post("/tables", async (req, res, next) => {
+router.post("/tables", seatLimit, async (req, res, next) => {
   try {
     const userId = Number(requireVerifiedUserId(req));
     // vs_npc: a free practice match against the NPC (no stake, nothing recorded).
@@ -56,7 +62,7 @@ router.post("/tables", async (req, res, next) => {
   }
 });
 
-router.post("/tables/:id/join", async (req, res, next) => {
+router.post("/tables/:id/join", seatLimit, async (req, res, next) => {
   try {
     const userId = Number(requireVerifiedUserId(req));
     res.json({ table: await pvp.joinTable({ userId, tableId: tableId(req), deck: req.body?.deck }) });
@@ -74,7 +80,7 @@ router.post("/tables/:id/cancel", async (req, res, next) => {
   }
 });
 
-router.post("/tables/:id/action", async (req, res, next) => {
+router.post("/tables/:id/action", moveLimit, async (req, res, next) => {
   try {
     const userId = Number(requireUserId(req));
     res.json({ table: await pvp.actOnTable({ userId, tableId: tableId(req), action: req.body || {} }) });
@@ -96,7 +102,7 @@ router.get("/blackjack/:key", (req, res, next) => {
   }
 });
 
-router.post("/blackjack/:key/sit", async (req, res, next) => {
+router.post("/blackjack/:key/sit", seatLimit, async (req, res, next) => {
   try {
     const userId = Number(requireVerifiedUserId(req));
     res.json({ table: await blackjack.sit({ userId, tableKey: req.params.key, seat: req.body?.seat }) });
@@ -114,7 +120,7 @@ router.post("/blackjack/:key/leave", async (req, res, next) => {
   }
 });
 
-router.post("/blackjack/:key/bet", async (req, res, next) => {
+router.post("/blackjack/:key/bet", moveLimit, async (req, res, next) => {
   try {
     const userId = Number(requireVerifiedUserId(req));
     res.json({ table: await blackjack.bet({ userId, tableKey: req.params.key, amount: req.body?.amount }) });
@@ -123,7 +129,7 @@ router.post("/blackjack/:key/bet", async (req, res, next) => {
   }
 });
 
-router.post("/blackjack/:key/action", async (req, res, next) => {
+router.post("/blackjack/:key/action", moveLimit, async (req, res, next) => {
   try {
     const userId = Number(requireUserId(req));
     res.json({ table: await blackjack.act({ userId, tableKey: req.params.key, action: String(req.body?.action || "") }) });

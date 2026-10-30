@@ -37,7 +37,8 @@ let warnedMissingSecret = false;
 /**
  * Throws { code: "turnstile_required" | "turnstile_failed" | "turnstile_unavailable" } unless the
  * request carries a token Cloudflare accepts. `required` (sign-up) refuses in production when no
- * secret is configured instead of skipping the check.
+ * secret is configured instead of skipping the check. Resolves true when Cloudflare accepted a
+ * token, false when the check was skipped (no secret).
  */
 async function verifyTurnstile(req, { required = false, env = process.env, fetchImpl = fetch, timeoutMs = SITEVERIFY_TIMEOUT_MS } = {}) {
   const secret = String(env.TURNSTILE_SECRET_KEY || "").trim();
@@ -50,7 +51,7 @@ async function verifyTurnstile(req, { required = false, env = process.env, fetch
       }
       throw turnstileError("turnstile_unavailable");
     }
-    return;
+    return false;
   }
 
   const token = req.body?.turnstile_token || req.body?.cf_turnstile_response;
@@ -80,6 +81,7 @@ async function verifyTurnstile(req, { required = false, env = process.env, fetch
   if (hostnames.length && !hostnames.includes(String(body.hostname || "").toLowerCase())) {
     throw turnstileError("turnstile_failed");
   }
+  return true;
 }
 
 module.exports = { SITEVERIFY_TIMEOUT_MS, expectedHostnames, verifyTurnstile };

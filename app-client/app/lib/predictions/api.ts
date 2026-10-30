@@ -1,4 +1,4 @@
-import { apiFetch } from "@/app/lib/api";
+import { apiFetch, rateLimitedMessage } from "@/app/lib/api";
 import { API_BASE } from "@/app/lib/config";
 import type {
   AdminOverview,
@@ -23,7 +23,7 @@ import type {
 const BASE = "/api/prediction-markets";
 
 /** An API error that keeps the response body (the fresh quote on price_moved, the field on form errors). */
-export type PredictionApiError = Error & { status?: number; body?: { error?: string; quote?: unknown; field?: string } };
+export type PredictionApiError = Error & { status?: number; body?: { error?: string; quote?: unknown; field?: string; retry_after?: number } };
 
 async function send<T>(path: string, method: "POST" | "DELETE", body?: unknown): Promise<T> {
   const response = await fetch(`${API_BASE}${BASE}${path}`, {
@@ -37,7 +37,9 @@ async function send<T>(path: string, method: "POST" | "DELETE", body?: unknown):
     try {
       payload = await response.json();
     } catch {}
-    const error = new Error(payload?.error || String(response.status)) as PredictionApiError;
+    // Too many trades in a minute (api/src/rateLimit.js) reads as a sentence, as apiFetch has it.
+    const limited = payload?.error === "rate_limited" || response.status === 429;
+    const error = new Error(limited ? rateLimitedMessage(payload?.retry_after ?? response.headers.get("retry-after")) : payload?.error || String(response.status)) as PredictionApiError;
     error.status = response.status;
     error.body = payload;
     throw error;

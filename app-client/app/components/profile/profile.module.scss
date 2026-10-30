@@ -1148,6 +1148,74 @@
   gap: 0.5rem;
 }
 
+// Edit profile → Account security (SecurityModal).
+.securityLink {
+  display: grid;
+  justify-items: start;
+  gap: 0.3rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rule);
+
+  button {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 0.8125rem;
+    color: var(--blue);
+    cursor: pointer;
+    text-align: left;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.securityForm {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0 0 0.9rem;
+
+  label {
+    display: grid;
+    gap: 0.3rem;
+  }
+
+  input:not([type="checkbox"]) {
+    @include input-base;
+  }
+
+  small {
+    font-size: 0.6875rem;
+    line-height: 1.5;
+    color: var(--dim);
+
+    a {
+      color: var(--blue);
+    }
+  }
+
+  .err {
+    margin: 0;
+  }
+
+  .securityShow {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.75rem;
+    color: var(--dim);
+    cursor: pointer;
+  }
+}
+
+.securityDone {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--up);
+}
+
 .picSection {
   padding: 0.9rem 1rem 0.2rem;
 

@@ -14,6 +14,28 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-10-30",
+    title: "Account security",
+    changes: [
+      {
+        kind: "new",
+        text: "Change password: Edit profile → Account security. You need your current password, and changing it signs you out on every other device. This one stays signed in.",
+      },
+      {
+        kind: "new",
+        text: "Sign out everywhere, in the same place: signs you out on every phone, computer and browser you've used, including ones you've forgotten about, and keeps you signed in here.",
+      },
+      {
+        kind: "improved",
+        text: "Someone typing wrong passwords at your username can't lock you out of your account any more: only wrong guesses count against it, and passing the security check always gets you in.",
+      },
+      {
+        kind: "improved",
+        text: "There's a cap on how much anyone can do in a minute (trades, pulls, votes, table moves and so on), set well above normal play to keep bots and spam out. If you ever reach it, the site says so and tells you when to try again.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-30",
     title: "A fresh start for launch",
     changes: [
       {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { apiFetch } from "@/app/lib/api";
+import { apiErrorCode, apiFetch } from "@/app/lib/api";
 import { BUILD_VERSION } from "@/app/stores/site-store";
 import styles from "@/app/components/common/bug-report.module.scss";
 
@@ -47,8 +47,7 @@ function BugReportDialog({ onClose }: { onClose: () => void }) {
       });
       setSent({ id: Number(result.id) });
     } catch (reason) {
-      const code = String((reason as Error).message || reason);
-      setError(code === "rate_limited" || code === "429" ? "That's a lot of reports for one hour. Try again a bit later." : "Couldn't send it. Try again in a moment.");
+      setError(apiErrorCode(reason) === "rate_limited" ? "That's a lot of reports for one hour. Try again a bit later." : "Couldn't send it. Try again in a moment.");
     } finally {
       setBusy(false);
     }

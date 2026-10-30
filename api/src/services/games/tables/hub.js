@@ -111,6 +111,7 @@ function createGamesWss() {
       ws.isAlive = true;
     });
     ws.on("message", (raw) => {
+      if (ws.readyState !== 1) return; // closed for flooding (server.js, socketLimits.limitMessages)
       let message;
       try {
         message = JSON.parse(String(raw));

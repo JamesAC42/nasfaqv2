@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { displayName, equipCosmetic, slotFor, unequipCosmetic } from "@/app/components/games/locker/cosmetics";
 import { AssetPicker } from "@/app/components/common/asset-picker";
@@ -9,7 +9,7 @@ import Link from "next/link";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { parseReaction } from "@/app/components/common/reaction-face";
-import { apiFetch } from "@/app/lib/api";
+import { apiErrorCode, apiFetch } from "@/app/lib/api";
 import { normalizeHexColor } from "@/app/lib/color";
 import { normalizeGameInventoryResponse, normalizeProfileBundle, normalizeTheme } from "@/app/lib/normalizers";
 import type { CosmeticTheme, GameInventoryResponse, ProfileBundle } from "@/app/lib/types";
@@ -119,7 +119,19 @@ function HexColorInput({ value, onChange }: { value: string; onChange: (hex: str
   );
 }
 
-export function SettingsModal({ open, profile, onClose, onSaved }: { open: boolean; profile: Profile; onClose: () => void; onSaved: (bundle: ProfileBundle) => void }) {
+export function SettingsModal({
+  open,
+  profile,
+  onClose,
+  onSaved,
+  onSecurity,
+}: {
+  open: boolean;
+  profile: Profile;
+  onClose: () => void;
+  onSaved: (bundle: ProfileBundle) => void;
+  onSecurity?: () => void;
+}) {
   const assets = useMarketStore((state) => state.assets);
   const [name, setName] = useState(profile.username);
   const [bio, setBio] = useState(profile.bio ?? "");
@@ -242,6 +254,14 @@ export function SettingsModal({ open, profile, onClose, onSaved }: { open: boole
             Your banner art fills the header, in place of the theme&apos;s pattern there. The theme still shades the banner and colours the rest of your page.
           </small>
         ) : null}
+        {onSecurity ? (
+          <div className={styles.securityLink}>
+            <span className={styles.label}>Account security</span>
+            <button type="button" onClick={onSecurity}>
+              Change your password or sign out everywhere →
+            </button>
+          </div>
+        ) : null}
         {error ? (
           <p className={styles.err} role="alert">
             {error}
@@ -256,6 +276,146 @@ export function SettingsModal({ open, profile, onClose, onSaved }: { open: boole
           </button>
         </div>
       </div>
+    </Modal>
+  );
+}
+
+// What a refused password change says (api/src/routes/auth.js). A rate limit already reads as a
+// sentence (lib/api.ts).
+const SECURITY_ERRORS: Record<string, string> = {
+  wrong_password: "That isn't your current password.",
+  invalid_password: "Your new password needs 8 to 200 characters. Anything goes: letters, numbers, spaces, symbols.",
+  unauthenticated: "You've been signed out. Sign in again first.",
+};
+
+type SecurityAction = "password" | "everywhere";
+
+/**
+ * Account security: a new password (the current one required), or signing out of every other
+ * device. Either one ends every session the account has, and this browser gets a fresh one, so it
+ * stays signed in (api/src/services/auth.js).
+ */
+export function SecurityModal({ open, username, onClose }: { open: boolean; username: string; onClose: () => void }) {
+  const [current, setCurrent] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState<SecurityAction | null>(null);
+  const [error, setError] = useState<{ action: SecurityAction; text: string } | null>(null);
+  const [done, setDone] = useState<SecurityAction | null>(null);
+
+  if (!open) return null;
+
+  const close = () => {
+    setCurrent("");
+    setPassword("");
+    setConfirm("");
+    setShow(false);
+    setError(null);
+    setDone(null);
+    onClose();
+  };
+
+  const run = async (action: SecurityAction, request: () => Promise<unknown>) => {
+    setBusy(action);
+    setError(null);
+    setDone(null);
+    try {
+      await request();
+      setDone(action);
+      return true;
+    } catch (reason) {
+      setError({ action, text: SECURITY_ERRORS[apiErrorCode(reason)] ?? String((reason as Error)?.message || reason) });
+      return false;
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const changePassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (password !== confirm) {
+      setDone(null);
+      setError({ action: "password", text: "The two new passwords don't match." });
+      return;
+    }
+    const changed = await run("password", () =>
+      apiFetch("/api/auth/change-password", { method: "POST", body: JSON.stringify({ current_password: current, new_password: password }) }),
+    );
+    if (changed) {
+      setCurrent("");
+      setPassword("");
+      setConfirm("");
+    }
+  };
+
+  const inputType = show ? "text" : "password";
+  return (
+    <Modal title="Account security" onClose={close}>
+      <section className={styles.picSection} aria-labelledby="security-password">
+        <h3 id="security-password">Change password</h3>
+        <form className={styles.securityForm} onSubmit={(event) => void changePassword(event)}>
+          {/* For password managers: which account this password belongs to. */}
+          <input type="text" name="username" autoComplete="username" value={username} readOnly hidden />
+          <label>
+            <span className={styles.label}>Current password</span>
+            <input type={inputType} value={current} onChange={(event) => setCurrent(event.target.value)} autoComplete="current-password" maxLength={200} required />
+          </label>
+          <div className={styles.formRow}>
+            <label>
+              <span className={styles.label}>New password</span>
+              <input type={inputType} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" minLength={8} maxLength={200} required />
+            </label>
+            <label>
+              <span className={styles.label}>New password again</span>
+              <input type={inputType} value={confirm} onChange={(event) => setConfirm(event.target.value)} autoComplete="new-password" minLength={8} maxLength={200} required />
+            </label>
+          </div>
+          <label className={styles.securityShow}>
+            <input type="checkbox" checked={show} onChange={(event) => setShow(event.target.checked)} />
+            <span>Show passwords</span>
+          </label>
+          <small>
+            8 to 200 characters. Changing it signs you out on every other device; this one stays signed in. Forgot the current one? <Link href="/forgot-password">Reset it by email →</Link>
+          </small>
+          {error?.action === "password" ? (
+            <p className={styles.err} role="alert">
+              {error.text}
+            </p>
+          ) : null}
+          {done === "password" ? (
+            <p className={styles.securityDone} role="status">
+              Password changed. Every other device is signed out.
+            </p>
+          ) : null}
+          <div className={styles.formAct}>
+            <button type="submit" className={styles.primary} disabled={busy !== null}>
+              {busy === "password" ? "CHANGING…" : "CHANGE PASSWORD"}
+            </button>
+          </div>
+        </form>
+      </section>
+      <section className={styles.picSection} aria-labelledby="security-everywhere">
+        <h3 id="security-everywhere">Sign out everywhere</h3>
+        <div className={styles.securityForm}>
+          <small>Signs you out on every phone, computer and browser you&apos;ve used, including ones you&apos;ve forgotten about. This one stays signed in.</small>
+          {error?.action === "everywhere" ? (
+            <p className={styles.err} role="alert">
+              {error.text}
+            </p>
+          ) : null}
+          {done === "everywhere" ? (
+            <p className={styles.securityDone} role="status">
+              Done. Every other device is signed out.
+            </p>
+          ) : null}
+          <div className={styles.formAct}>
+            <button type="button" className={styles.ghost} disabled={busy !== null} onClick={() => void run("everywhere", () => apiFetch("/api/auth/sign-out-everywhere", { method: "POST", body: "{}" }))}>
+              {busy === "everywhere" ? "SIGNING OUT…" : "SIGN OUT EVERYWHERE"}
+            </button>
+          </div>
+        </div>
+      </section>
     </Modal>
   );
 }

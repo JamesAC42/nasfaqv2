@@ -3,7 +3,7 @@ const auth = require("../services/auth");
 const { requestIpHash } = require("../services/ipHash");
 const { verifyTurnstile } = require("../services/turnstile");
 
-const { rateLimit, byIp, byUser } = require("../rateLimit");
+const { rateLimit, byIp, byUser, hit, peek, clear, tooMany } = require("../rateLimit");
 
 const router = express.Router();
 
@@ -68,23 +68,35 @@ router.post("/register", rateLimit(byIp("register", 10, 3600)), async (req, res,
   }
 });
 
-// Per address and per account name: slows password guessing without locking a shared network out.
-const loginLimit = rateLimit(byIp("login", 30, 300), { name: "login:name", limit: 10, windowSeconds: 900, key: (req) => String(req.body?.username || "").trim() || null });
+// Sign-in limits. Per address, every attempt counts (30 per 5 minutes). Per account name, only wrong
+// passwords count, and past 10 in 15 minutes a sign-in gets through only if it passed Turnstile: a
+// stranger spamming someone's name can't lock them out, but a script without the check can't keep
+// guessing. (With Turnstile on, as in production, every sign-in has passed it.)
+const LOGIN_FAILURES = { name: "login-fail:name", limit: 10, windowSeconds: 900 };
 
-router.post("/login", loginLimit, async (req, res, next) => {
+router.post("/login", rateLimit(byIp("login", 30, 300)), async (req, res, next) => {
+  const loginName = String(req.body?.username || "").trim();
   try {
-    await verifyTurnstile(req);
+    const passedTurnstile = await verifyTurnstile(req);
+    if (!passedTurnstile && loginName) {
+      const failures = await peek(req.ctx.redis, LOGIN_FAILURES.name, loginName, LOGIN_FAILURES);
+      if (failures.count >= LOGIN_FAILURES.limit) return tooMany(res, failures.retryAfter);
+    }
     const result = await auth.loginWithPassword(req.ctx.pool, {
       username: req.body?.username,
       password: req.body?.password,
       ipHash: requestIpHash(req),
     });
+    if (loginName) await clear(req.ctx.redis, LOGIN_FAILURES.name, loginName, LOGIN_FAILURES);
     res.setHeader("Set-Cookie", result.session.cookie);
     res.json({ user: result.user });
   } catch (e) {
     if (e?.code === "invalid_username") return res.status(400).json({ error: "invalid_username" });
     if (e?.code === "invalid_password") return res.status(400).json({ error: "invalid_password" });
-    if (e?.code === "invalid_credentials") return res.status(401).json({ error: "invalid_credentials" });
+    if (e?.code === "invalid_credentials") {
+      if (loginName) await hit(req.ctx.redis, LOGIN_FAILURES.name, loginName, LOGIN_FAILURES);
+      return res.status(401).json({ error: "invalid_credentials" });
+    }
     if (turnstileStatus(e?.code)) return res.status(turnstileStatus(e.code)).json({ error: e.code });
     next(e);
   }
@@ -122,7 +134,7 @@ router.post("/reset-password", rateLimit(byIp("reset", 20, 3600)), async (req, r
   }
 });
 
-router.post("/verify-email", async (req, res, next) => {
+router.post("/verify-email", rateLimit(byIp("verify-email", 30, 3600)), async (req, res, next) => {
   try {
     await auth.verifyEmailToken(req.ctx.pool, req.body?.token);
     res.json({ ok: true });
@@ -150,6 +162,39 @@ router.post("/logout", async (req, res, next) => {
     res.setHeader("Set-Cookie", auth.buildExpiredSessionCookie());
     res.json({ ok: true });
   } catch (e) {
+    next(e);
+  }
+});
+
+// Profile settings → Account security. Both end every session the player has and hand this browser
+// a fresh one, so it stays signed in while every other device is signed out.
+router.post("/sign-out-everywhere", rateLimit(byUser("sign-out-everywhere", 5, 900)), async (req, res, next) => {
+  try {
+    if (!req.ctx.user) return res.status(401).json({ error: "unauthenticated" });
+    const session = await auth.signOutEverywhere(req.ctx.pool, req.ctx.user.id, { ipHash: requestIpHash(req) });
+    await auth.announceSessionsRevoked(req.ctx.redis, req.ctx.user.id);
+    res.setHeader("Set-Cookie", session.cookie);
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Each try runs a full password check, so few of them; a wrong current password counts like any other.
+router.post("/change-password", rateLimit(byUser("change-password", 5, 900)), async (req, res, next) => {
+  try {
+    if (!req.ctx.user) return res.status(401).json({ error: "unauthenticated" });
+    const session = await auth.changePassword(req.ctx.pool, req.ctx.user.id, {
+      currentPassword: req.body?.current_password,
+      newPassword: req.body?.new_password,
+      ipHash: requestIpHash(req),
+    });
+    await auth.announceSessionsRevoked(req.ctx.redis, req.ctx.user.id);
+    res.setHeader("Set-Cookie", session.cookie);
+    res.json({ ok: true });
+  } catch (e) {
+    if (e?.code === "invalid_password") return res.status(400).json({ error: "invalid_password" });
+    if (e?.code === "wrong_password") return res.status(400).json({ error: "wrong_password" });
     next(e);
   }
 });

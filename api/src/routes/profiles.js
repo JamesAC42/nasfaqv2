@@ -5,6 +5,9 @@ const { requireUserId } = require("../userContext");
 
 const { rateLimit, byUser } = require("../rateLimit");
 const router = express.Router();
+// Profile edits (settings, picture, banner, rival) share a budget: each one rebuilds the profile.
+// Room enough to try a few usernames that turn out to be taken.
+const profileUpdateLimit = rateLimit(byUser("profile-update", 20, 60));
 
 function parsePositiveInt(value, fallback, { min = 1, max = 100 } = {}) {
   const parsed = Number.parseInt(String(value ?? fallback), 10);
@@ -96,7 +99,7 @@ router.get("/me/reactions", async (req, res, next) => {
   }
 });
 
-router.put("/me/profile-picture", async (req, res, next) => {
+router.put("/me/profile-picture", profileUpdateLimit, async (req, res, next) => {
   try {
     const userId = requireUserId(req);
     await profileDb.setProfilePicture(req.ctx.pool, userId, req.body?.profile_picture_id ?? null, { reaction: req.body?.reaction ?? null });
@@ -120,7 +123,7 @@ router.put("/me/profile-picture", async (req, res, next) => {
 });
 
 // Set or clear just the profile banner (the gallery's "Use on my profile").
-router.put("/me/banner", async (req, res, next) => {
+router.put("/me/banner", profileUpdateLimit, async (req, res, next) => {
   try {
     const userId = requireUserId(req);
     let assetId = req.body?.asset_id ?? null;
@@ -143,7 +146,7 @@ router.put("/me/banner", async (req, res, next) => {
   }
 });
 
-router.put("/me", async (req, res, next) => {
+router.put("/me", profileUpdateLimit, async (req, res, next) => {
   try {
     const userId = requireUserId(req);
     await profileDb.updateProfileSettings(req.ctx.pool, userId, {
@@ -263,7 +266,7 @@ router.delete("/:username/friendship", async (req, res, next) => {
   }
 });
 
-router.put("/:username/rival", async (req, res, next) => {
+router.put("/:username/rival", profileUpdateLimit, async (req, res, next) => {
   try {
     const userId = requireUserId(req);
     await profileDb.setRival(req.ctx.pool, userId, req.params.username, Boolean(req.body?.active));
