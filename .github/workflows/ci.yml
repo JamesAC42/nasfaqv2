@@ -58,6 +58,8 @@ jobs:
         working-directory: ${{ matrix.svc }}
       - run: go vet ./...
         working-directory: ${{ matrix.svc }}
+      - run: go test ./...
+        working-directory: ${{ matrix.svc }}
 
   deployment:
     runs-on: ubuntu-latest
