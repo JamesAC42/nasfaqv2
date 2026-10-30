@@ -4,7 +4,8 @@ metadata:
   name: api-web
   namespace: nasfaq
 spec:
-  replicas: 2
+  # Three for the public launch: one can restart or move while two serve.
+  replicas: 3
   selector:
     matchLabels:
       app: api-web
@@ -16,6 +17,14 @@ spec:
       # The API drains for up to 20 s on SIGTERM (SHUTDOWN_DRAIN_MS in api/src/server.js), after
       # the 5 s preStop sleep; this leaves room for both.
       terminationGracePeriodSeconds: 40
+      # One per node where possible, so losing a node never takes every copy with it.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: api-web
       containers:
         - name: api-web
           image: ghcr.io/jamesac42/nasfaqv2-api:IMAGE_TAG
@@ -30,6 +39,10 @@ spec:
           env:
             - name: PORT
               value: "5067"
+            # Connection budget (TigerData: 105 max, 12 reserved): web 3 x 10, scheduler 14,
+            # games 8 (configmap PG_POOL_MAX), the release Jobs, the scrapers and holonews.
+            - name: PG_POOL_MAX
+              value: "10"
             - name: ENABLE_MIGRATIONS
               value: "false"
             - name: MARKET_SETTLEMENT_SCHEDULER_ENABLED
@@ -70,6 +83,18 @@ spec:
             limits:
               cpu: "1"
               memory: 1Gi
+---
+# Node drains and cluster upgrades evict at most one at a time.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-web
+  namespace: nasfaq
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: api-web
 ---
 apiVersion: v1
 kind: Service
@@ -121,6 +146,9 @@ spec:
               value: "5067"
             - name: SCHEDULER_STATUS_OWNER
               value: "true"
+            # About nine scheduler loops each hold a lock connection, plus the order workers.
+            - name: PG_POOL_MAX
+              value: "14"
             - name: ENABLE_MIGRATIONS
               value: "false"
             - name: LIVESTREAM_SNAPSHOT_OWNER
