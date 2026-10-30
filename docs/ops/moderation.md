@@ -4,8 +4,10 @@ For NASFAQ's volunteer moderators. Players see the rules at `/rules`
 (`app-client/app/rules/page.tsx`); the legal version is the Usage policy at `/terms`. When a case
 isn't covered here, use your judgement, write down what you did and why, and ask in the mod channel.
 
-> **Owner, fill in before launch:** the mod channel (`[mod channel]` below), how to reach you in an
-> emergency (`[owner contact]`), and the names in the [rota](#rota).
+> **For now the owner, James, is the only moderator.** There's no mod channel and no rota yet:
+> where this doc says to post in the mod channel, keep a note instead (the Admin log already records
+> the actions). If others join, set up a private channel on the NASFAQ Discord and split the
+> [windows](#rota) between you.
 
 Most of the tools come from PR #54 (moderation tools), live since 2026-10-29.
 
@@ -131,7 +133,7 @@ be taken back. If anyone asks, say "we're looking into it".
    - what makes you think it's one person or a bot, for example matching names, accounts that only
      ever trade with each other, a new account handing everything to an old one, or Ticker Tap
      scores no human could get.
-4. **Escalate to the owner** (`[owner contact]`). The owner decides:
+4. **Escalate to the owner** (James, on the NASFAQ Discord). The owner decides:
    - on clawbacks (there's no UI for them);
    - on any suspension longer than 24 hours;
    - on what to do about the bug itself.
@@ -149,8 +151,8 @@ that. If someone is quietly using one:
 Moderators aren't responsible for the servers. If the site itself is broken, rather than a player
 misbehaving, do this:
 
-1. **Tell the owner straight away** (`[owner contact]`). Production alerts post to the Discord
-   alerts channel (see `docs/ops/alerts.md`, from PR #53), so the owner may already know.
+1. **Tell the owner straight away** (James, on the NASFAQ Discord). Production alerts post to the
+   Discord alerts channel (see `docs/ops/alerts.md`, from PR #53), so the owner may already know.
 2. **If an exploit is draining the market or prices have gone wrong,** pause trading:
    1. go to `/admin` → **Health** → **Pause trading…**;
    2. write a short message for players;
@@ -180,22 +182,21 @@ misbehaving, do this:
 
 ## Rota
 
-The rota is deliberately light. Nobody is on call around the clock. Being on shift means you:
+There are no shifts: James moderates alone, when there's time, and nobody is on call. These are the
+windows when a look is worth the most. All times are ET, the market's clock.
 
-1. look at `/admin` (**Needs attention**, **Bug reports**);
+| Window (ET) | Why |
+| --- | --- |
+| Daily, 08:45–09:30 | The 09:00 settlement: big movers, a busy chat, and any settlement alerts |
+| Friday 23:30 – Saturday 01:00 | The weekly evaluation at Saturday 00:00: dividends and fees land, and so do complaints |
+| Evenings, 19:00–23:00 | The busiest chat |
+| Launch day and the day after | Public links bring trolls in the first hours |
+
+A look means:
+
+1. check `/admin` (**Needs attention**, **Bug reports**);
 2. clear the queue on `/admin/moderation`;
-3. keep half an eye on Global chat.
+3. skim Global chat.
 
-All times are ET, the market's clock. Swap shifts freely in the mod channel, and say so there if
-you can't make one.
-
-| Window (ET) | Why | Moderator | Backup |
-| --- | --- | --- | --- |
-| Daily, 08:45–09:30 | The 09:00 settlement: big movers, a busy chat, and any settlement alerts | | |
-| Friday 23:30 – Saturday 01:00 | The weekly evaluation at Saturday 00:00: dividends and fees land, and so do complaints | | |
-| Monday–Thursday, 19:00–23:00 | Evenings, the busiest chat | | |
-| Friday–Sunday, 19:00–23:00 | Weekend evenings | | |
-| Launch day and the day after, all day | Public links bring trolls in the first hours | | |
-
-At the end of a shift, post anything left open in the mod channel so the next person can pick it
-up.
+If more moderators join, add a Moderator column to the table and post anything left open in the
+mod channel at the end of a window.
