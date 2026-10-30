@@ -287,7 +287,7 @@ export function ProfileView({ username }: { username?: string | null }) {
               {allTime >= 0 ? "+" : "−"}
               {money(Math.abs(allTime))}
             </b>
-            <small>vs the $10,000 start</small>
+            <small>vs your {money(profile.stats.starting_net_worth ?? START_CASH)} start</small>
           </div>
           <div>
             <span className={styles.label}>Today</span>

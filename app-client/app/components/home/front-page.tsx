@@ -178,7 +178,7 @@ function NewbieStrip() {
     <aside className={styles.newbie}>
       <SceneArt slot="home-welcome" width={132} className={styles.newbieArt} />
       <p>
-        <b>New here?</b> Everyone starts with $10,000 of play money. Every hololive talent is a stock, and prices follow their real YouTube
+        <b>New here?</b> Everyone starts with $10,000 cash to trade and $100,000 Credit for games and predictions. Every hololive talent is a stock, and prices follow their real YouTube
         growth plus what players buy and sell.
       </p>
       <div className={styles.newbieActions}>

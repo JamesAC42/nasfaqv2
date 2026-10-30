@@ -50,6 +50,10 @@ export const CHANGELOG: ChangelogEntry[] = [
         kind: "improved",
         text: "Stock prices were rebuilt from each talent's YouTube history, without the playtest's trades. The upcoming IPO is still on.",
       },
+      {
+        kind: "fixed",
+        text: "Sign-up, About and How to play now say what you start with: $10,000 cash for stocks and $100,000 Credit for games, predictions and fees. Your profile measures your all-time change, and draws its start line, from that $110,000.",
+      },
     ],
   },
   {

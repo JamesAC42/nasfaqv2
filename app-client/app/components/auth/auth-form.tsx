@@ -71,7 +71,7 @@ const HEADINGS: Record<AuthMode, string> = {
 
 const LEDES: Record<AuthMode, string> = {
   login: "Sign in with your username or email.",
-  register: "Play money, real talents. All you need is a username, an email and a password. Verify the email and you can trade, chat, comment and write.",
+  register: "Play money, real talents: $10,000 cash to trade stocks, plus $100,000 Credit for games, predictions and fees. All you need is a username, an email and a password. Verify the email and you can trade, chat, comment and write.",
   forgot: "Enter your username or your account's email, and we'll email you a link to choose a new one.",
   reset: "Setting it signs you out everywhere else.",
 };
@@ -380,7 +380,7 @@ export function AuthForm({ mode, token = "" }: { mode: AuthMode; token?: string 
           </div>
           <h2>Every hololive talent is a stock.</h2>
           <ul>
-            <li>Start with $10,000 of play money.</li>
+            <li>Start with $10,000 cash for stocks, plus $100,000 Credit for games and predictions.</li>
             <li>Prices follow each channel&apos;s real growth, plus whatever the other players buy and sell.</li>
             <li>Orders fill in 10-minute batches. Four ticks a day pull every stock toward its hidden target.</li>
             <li>Climb the leaderboard, run up your oshi&apos;s board, argue in chat.</li>
