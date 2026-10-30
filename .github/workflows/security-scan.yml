@@ -1,8 +1,8 @@
 name: security-scan
 
 # Known vulnerabilities in what ships to production: npm audit for the two Node images and
-# govulncheck for the three Go services. ci.yml runs this on every pull request; the daily run
-# checks main, and a failed run emails whoever last changed the schedule below.
+# govulncheck for the three Go services. ci.yml runs this on every pull request (npm audit only, for
+# now); the daily run checks main, and a failed run emails whoever last changed the schedule below.
 # See docs/ops/security-updates.md.
 
 on:
@@ -47,6 +47,6 @@ jobs:
           go-version: "1.27"
           check-latest: true
           cache-dependency-path: ${{ matrix.svc }}/go.sum
-      # Reports only vulnerabilities the code can actually reach.
-      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+      # The command the image builds; reports only vulnerabilities its code can actually reach.
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./cmd/${{ matrix.svc }}
         working-directory: ${{ matrix.svc }}
