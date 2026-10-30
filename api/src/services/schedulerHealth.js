@@ -27,6 +27,9 @@ const SCHEDULERS = [
   { name: "watchdog", label: "Watchdog", staleAfterMs: 10 * MINUTE },
 ];
 const specFor = (name) => SCHEDULERS.find((spec) => spec.name === name) || null;
+// A shared loop's last clean tick on any pod. The pods race for the loop's lock, and the web pods can
+// win it every time for hours; the work still gets done, so their clean ticks count too.
+const cleanKey = (name) => `${KEY_PREFIX}${name}:clean`;
 
 /**
  * Whether this process speaks for the loops that run on every API pod under an advisory lock
@@ -75,15 +78,22 @@ function checkHeartbeat(spec, row, now = Date.now()) {
   return null;
 }
 
-/** Every registered heartbeat row (null where none), in SCHEDULERS order. Throws when Redis does. */
+/**
+ * Every registered heartbeat row (null where none), in SCHEDULERS order, with a shared loop's clean
+ * tick on another pod as its last success when that's later. Throws when Redis does.
+ */
 async function readHeartbeats(redis) {
-  const values = await redis.mGet(SCHEDULERS.map((spec) => KEY_PREFIX + spec.name));
+  const values = await redis.mGet([...SCHEDULERS.map((spec) => KEY_PREFIX + spec.name), ...SCHEDULERS.map((spec) => cleanKey(spec.name))]);
   return SCHEDULERS.map((spec, index) => {
+    let row;
     try {
-      return JSON.parse(values[index] || "null");
+      row = JSON.parse(values[index] || "null");
     } catch {
       return null;
     }
+    const elsewhere = values[SCHEDULERS.length + index];
+    if (row && elsewhere && !(Date.parse(row.last_success_at) >= Date.parse(elsewhere))) row.last_success_at = elsewhere;
+    return row;
   });
 }
 
@@ -117,11 +127,23 @@ async function getSchedulerHealth(redis, name) {
  * tick starts, update("idle") when it finishes clean (the last clean tick is what the watchdog
  * watches), update("error", error) when it fails, and skip() when another process held the lock.
  * `extra` fields ride along on the row (the settlement backoff). `shared` loops run on every pod;
- * only the scheduler pod reports them.
+ * only the scheduler pod reports them, and the other pods record just their clean ticks.
  */
 function startSchedulerHeartbeat(redis, name, { enabled, intervalMs, shared = false }, logger = console) {
   // Disabled web/game replicas must never overwrite the actual scheduler's heartbeat.
   const reportsHere = shared ? ownsSharedSchedulers() : enabled || process.env.SCHEDULER_STATUS_OWNER === "true";
+  if (redis && shared && !reportsHere) {
+    return {
+      update(state) {
+        if (state !== "idle") return;
+        Promise.resolve()
+          .then(() => redis.set(cleanKey(name), new Date().toISOString(), { EX: 86400 }))
+          .catch((error) => logger.error?.("scheduler heartbeat failed", name, error?.code || "redis_error"));
+      },
+      skip() {},
+      stop() {},
+    };
+  }
   if (!redis || !reportsHere) return { update() {}, skip() {}, stop() {} };
   const row = { enabled, interval_ms: intervalMs, stall_after_ms: specFor(name)?.stallAfterMs || null, state: "idle",
     started_at: new Date().toISOString(), last_success_at: null, error_code: null };

@@ -147,6 +147,48 @@ test("shared loops report from the scheduler pod only, and a skipped tick isn't 
   assert.equal((await health.listSchedulerHealth(null)).every((item) => item.scheduler_status === "unknown"), true);
 });
 
+test("a shared loop's clean tick on a web pod counts when the scheduler pod keeps losing the lock", async (t) => {
+  const saved = { owner: process.env.SCHEDULER_STATUS_OWNER, settlement: process.env.MARKET_SETTLEMENT_SCHEDULER_ENABLED };
+  t.after(() => {
+    for (const [name, value] of [["SCHEDULER_STATUS_OWNER", saved.owner], ["MARKET_SETTLEMENT_SCHEDULER_ENABLED", saved.settlement]]) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+  // A web pod: no status owner, settlement off.
+  delete process.env.SCHEDULER_STATUS_OWNER;
+  process.env.MARKET_SETTLEMENT_SCHEDULER_ENABLED = "false";
+  const redis = fakeRedis();
+  const now = Date.now();
+  const verdict = async (name) => {
+    const index = health.SCHEDULERS.findIndex((spec) => spec.name === name);
+    return health.checkHeartbeat(health.SCHEDULERS[index], (await health.readHeartbeats(redis))[index], Date.now());
+  };
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
+  // The scheduler pod is alive, but every tick of its own found the lock taken: no clean tick in 5 hours.
+  const losing = row(now, { started_at: new Date(now - 300 * MIN).toISOString(), last_success_at: null });
+  await setHeartbeats(redis, now, { chatter: losing, ipo: losing });
+  assert.equal((await verdict("chatter")).problem, "failing");
+
+  const web = health.startSchedulerHeartbeat(redis, "chatter", { enabled: true, intervalMs: 300_000, shared: true }, quiet);
+  t.after(() => web.stop());
+  web.update("running");
+  web.update("error", { code: "fourchan_down" });
+  await settle();
+  assert.equal((await verdict("chatter")).problem, "failing");
+  web.update("running");
+  web.update("idle");
+  await settle();
+  assert.equal(await verdict("chatter"), null);
+  // The web pod leaves the scheduler pod's own row alone.
+  assert.equal(await redis.get(`${health.KEY_PREFIX}chatter`), JSON.stringify(losing));
+  // A loop only the scheduler pod runs still needs its own clean tick.
+  const ipo = health.startSchedulerHeartbeat(redis, "ipo", { enabled: false, intervalMs: 60_000 }, quiet);
+  ipo.update("idle");
+  await settle();
+  assert.equal((await verdict("ipo")).problem, "failing");
+});
+
 test("settlement backs off after repeated failures, alerts once, and resolves when a cycle goes through", async () => {
   alerts._test.reset();
   assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 8].map(scheduler.settlementRetryDelayMs), [0, 0, 2 * MIN, 4 * MIN, 8 * MIN, 16 * MIN, 30 * MIN, 30 * MIN]);
