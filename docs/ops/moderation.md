@@ -21,10 +21,16 @@ Most of the tools come from PR #54 (moderation tools), live since 2026-10-29.
 - **To grant it,** an existing admin:
   1. opens `/admin/people` (People & roles);
   2. searches for the username;
-  3. clicks the **Admin** switch, then **Yes, make admin**.
+  3. clicks the **Admin** switch, then **Yes, make admin**;
+  4. asks the owner to add their email to Cloudflare Access (only the owner has the Cloudflare
+     account): **Zero Trust → Access controls → Policies → Admin Allowed**, add it under **Emails**
+     and save. `/admin` sits behind Cloudflare Access, so without this they have the role but can't
+     open the admin pages. Use the email on their NASFAQ account unless they ask for another; they
+     sign in with a code sent to it. Asset managers need it too, since they work on `/admin/assets`.
 
   It takes effect on the player's next request.
-- **To take it away,** do the same thing. Nobody can remove their own admin; another admin has to.
+- **To take it away,** do the same thing, and have the owner remove their email from the Admin
+  Allowed policy. Nobody can remove their own admin; another admin has to.
 - **Every role change is logged** in the Admin log on `/admin/moderation`.
 - **When someone joins or leaves the team,** add or remove them in the [rota](#rota) and the mod
   channel.

@@ -634,10 +634,6 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-body-size: "25m"
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      # Block /internal/* from the public internet entirely
-      # (see hardening checklist #1)
-      if ($request_uri ~* "^/internal/") { return 404; }
 spec:
   ingressClassName: nginx
   tls:
@@ -660,7 +656,7 @@ Notes:
 - `ws`/`wss` upgrades are auto-handled by `ingress-nginx` - no annotation needed beyond the long read/send timeouts.
 - **No sticky sessions required**: [`api/src/server.js`](api/src/server.js) fans out every chat/market/livestream event through Redis pub/sub, so any pod can broadcast to its local WS clients regardless of which pod received the publisher's request.
 - The one WS caveat is `statsWss.online_count` (per-pod count). See P1 fix in §7.
-- `/internal/*` must never be public; see §12.
+- The live ingress has no `/internal` block (an earlier draft of this file showed one; it was never applied, and the site's own Next rewrites send `/internal/*` to the API). `/admin`, `/internal` and `/api/admin` are behind Cloudflare Access (Zero Trust application `holo`, policy `Admin Allowed`): only the listed staff emails get past the sign-in, with an emailed one-time code, and the API's admin check still applies behind it. See §12.
 
 ---
 
@@ -1109,7 +1105,7 @@ Under **Rules → Page Rules** (Free = 5 rules) or **Caching → Cache Rules** (
 | Order | Match | Action |
 |---|---|---|
 | 1 | `holo.nasfaq.biz/api/*` | **Cache Level: Bypass**, Disable Apps |
-| 2 | `holo.nasfaq.biz/internal/*` | **Block** (defense in depth; origin already 404s) |
+| 2 | `holo.nasfaq.biz/internal/*` | Leave to Cloudflare Access (§12); don't Block it, the admin pages use it |
 | 3 | `holo.nasfaq.biz/_next/static/*` | **Cache Level: Cache Everything**, Edge Cache TTL 1 month, Browser Cache TTL 1 year |
 | 4 | `holo.nasfaq.biz/*.ico` / `*.png` / `*.svg` / `*.woff2` | **Cache Everything**, Edge TTL 1 week |
 | 5 | `holo.nasfaq.biz/*` | Default - Standard cache, honor origin headers |
@@ -1239,7 +1235,7 @@ If you upgrade to Pro, **Logpush** to S3/R2/BigQuery gives you full HTTP request
 
 ## 12. Pre-launch hardening checklist
 
-- [ ] `/internal/*` blocked at ingress (annotation in §5) **and** guarded in-app. Currently has **no auth** per [`api/src/server.js`](api/src/server.js).
+- [x] `/admin`, `/internal` and `/api/admin` behind Cloudflare Access (Zero Trust application `holo`, policy `Admin Allowed`) since 2026-10-30, on top of the in-app admin check. Login method: One-time PIN. Session 24 hours. Case and encoding variants (`/api/ADMIN`, `//api/admin`, `/api/%61dmin`, `/Internal`) were checked to redirect to the sign-in too.
 - [ ] Admin guard on `POST/PUT/DELETE /api/channels/*` in [`api/src/routes/channels.js`](api/src/routes/channels.js). None today.
 - [ ] `AUTH_COOKIE_SECURE=true` and `CORS_ORIGIN=https://holo.nasfaq.biz` set in the Secret.
 - [ ] `AUTH_SESSION_TTL_DAYS` explicitly set (default 30). Decide if you want shorter.
