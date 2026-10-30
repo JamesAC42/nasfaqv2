@@ -1,6 +1,8 @@
 # Dependabot version updates for everything that ships to production (deploy.yml builds api,
 # app-client, holonews, superchatscraper and ytscraper). Weekly, Monday 10:00 ET: one grouped pull
-# request per directory for minor and patch releases, majors one at a time.
+# request per directory for minor and patch releases. Major versions aren't offered (except GitHub
+# Actions): each is a migration to plan, and the first run's majors (Express 5, TypeScript 7,
+# ESLint 10, redis 6, dotenv 18) all needed work or failed CI.
 #
 # Security updates don't wait for the schedule: once "Dependabot security updates" is on in the
 # repository settings, Dependabot opens a pull request as soon as an advisory affects a dependency.
@@ -27,6 +29,11 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+    ignore:
+      # Majors are migrations to plan by hand (Express 5, TypeScript 7, ESLint 10…), not weekly
+      # chores. Security updates aren't affected: a fix that needs a new major still comes.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       api-minor-and-patch:
         applies-to: version-updates
@@ -46,8 +53,9 @@ updates:
       default-days: 7
     open-pull-requests-limit: 5
     ignore:
-      # Tracks the Node.js runtime in the Dockerfiles; move both together.
-      - dependency-name: "@types/node"
+      # Majors are migrations to plan by hand (Express 5, TypeScript 7, ESLint 10…), not weekly
+      # chores. Security updates aren't affected: a fix that needs a new major still comes.
+      - dependency-name: "*"
         update-types: ["version-update:semver-major"]
     groups:
       app-client-minor-and-patch:
@@ -67,6 +75,11 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+    ignore:
+      # Majors are migrations to plan by hand (Express 5, TypeScript 7, ESLint 10…), not weekly
+      # chores. Security updates aren't affected: a fix that needs a new major still comes.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       go-minor-and-patch:
         applies-to: version-updates
@@ -86,9 +99,11 @@ updates:
       default-days: 7
     open-pull-requests-limit: 5
     ignore:
-      # Node.js majors are moved by hand to the next even-numbered (LTS) release, with CI's
-      # node-version and @types/node; Dependabot would offer the newest, odd-numbered ones too.
-      - dependency-name: node
+      # Node.js majors in particular are moved by hand to the next even-numbered (LTS) release, with
+      # CI's node-version and @types/node; Dependabot would offer the odd-numbered ones too.
+      # Majors are migrations to plan by hand (Express 5, TypeScript 7, ESLint 10…), not weekly
+      # chores. Security updates aren't affected: a fix that needs a new major still comes.
+      - dependency-name: "*"
         update-types: ["version-update:semver-major"]
     groups:
       base-images:
