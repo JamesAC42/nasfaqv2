@@ -1,3 +1,6 @@
+// `facts` is what evaluate() reads: "trades" (totals over all the player's fills, an aggregate of their
+// whole history) or "streak" (their streak row). A check skips the aggregate once every definition
+// still unearned reads only the streak.
 const DEFINITIONS = [
   {
     key: "first_trade",
@@ -10,6 +13,7 @@ const DEFINITIONS = [
     reward_cash: 100,
     trigger_events: ["trade_fill", "backfill"],
     rule_json: { type: "trade_count", threshold: 1 },
+    facts: "trades",
     evaluate: ({ facts }) => ({
       earned: facts.trade_count >= 1,
       progress: { current: facts.trade_count, target: 1 },
@@ -26,6 +30,7 @@ const DEFINITIONS = [
     reward_cash: 250,
     trigger_events: ["trade_fill", "backfill"],
     rule_json: { type: "trade_count", threshold: 10 },
+    facts: "trades",
     evaluate: ({ facts }) => ({
       earned: facts.trade_count >= 10,
       progress: { current: facts.trade_count, target: 10 },
@@ -42,6 +47,7 @@ const DEFINITIONS = [
     reward_cash: 1000,
     trigger_events: ["trade_fill", "backfill"],
     rule_json: { type: "trade_count", threshold: 100 },
+    facts: "trades",
     evaluate: ({ facts }) => ({
       earned: facts.trade_count >= 100,
       progress: { current: facts.trade_count, target: 100 },
@@ -58,6 +64,7 @@ const DEFINITIONS = [
     reward_cash: 300,
     trigger_events: ["trade_fill", "backfill"],
     rule_json: { type: "distinct_assets_traded", threshold: 3 },
+    facts: "trades",
     evaluate: ({ facts }) => ({
       earned: facts.distinct_assets_traded >= 3,
       progress: { current: facts.distinct_assets_traded, target: 3 },
@@ -74,6 +81,7 @@ const DEFINITIONS = [
     reward_cash: 150,
     trigger_events: ["trade_fill", "backfill"],
     rule_json: { type: "current_streak_days", threshold: 3 },
+    facts: "streak",
     evaluate: ({ facts }) => ({
       earned: facts.current_streak_days >= 3 || facts.longest_streak_days >= 3,
       progress: { current: Math.max(facts.current_streak_days, facts.longest_streak_days), target: 3 },
@@ -90,6 +98,7 @@ const DEFINITIONS = [
     reward_cash: 500,
     trigger_events: ["trade_fill", "backfill"],
     rule_json: { type: "current_streak_days", threshold: 7 },
+    facts: "streak",
     evaluate: ({ facts }) => ({
       earned: facts.current_streak_days >= 7 || facts.longest_streak_days >= 7,
       progress: { current: Math.max(facts.current_streak_days, facts.longest_streak_days), target: 7 },
@@ -106,6 +115,7 @@ const DEFINITIONS = [
     reward_cash: 2500,
     trigger_events: ["trade_fill", "backfill"],
     rule_json: { type: "current_streak_days", threshold: 30 },
+    facts: "streak",
     evaluate: ({ facts }) => ({
       earned: facts.current_streak_days >= 30 || facts.longest_streak_days >= 30,
       progress: { current: Math.max(facts.current_streak_days, facts.longest_streak_days), target: 30 },

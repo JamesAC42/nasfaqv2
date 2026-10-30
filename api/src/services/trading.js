@@ -14,7 +14,7 @@ const marketState = require("./marketState");
 const supply = require("./marketSupply");
 const netWorth = require("./netWorth");
 const achievements = require("./achievements");
-const { ensureUserCashAccount, getStarterCash, openUserCashAccount, readUserCashAccount } = require("./portfolioCash");
+const { ensureUserCashAccount, getStarterCash, openUserCashAccount } = require("./portfolioCash");
 const economy = require("./economy");
 const { publishMarketEvent } = require("./marketEvents");
 const { invalidateMarketAssetsCache } = require("../marketCache");
@@ -846,12 +846,11 @@ async function executeOrder(pool, {
       },
     });
 
-    achievements.handleTradeFill(pool, {
+    // Streaks and achievements are checked off the order path, a player at a time (achievements/index.js).
+    achievements.queueTradeFill(pool, {
       userId: effectiveUserId,
       fillId: fillRow.id,
-    }).catch((error) => {
-      // eslint-disable-next-line no-console
-      console.error("achievement evaluation failed:", String(error?.message || error));
+      filledAt: fillRow.ts,
     });
 
     return {
@@ -1504,43 +1503,50 @@ async function processDueLiveOrders(pool, { now = new Date(), limit = LIVE_ORDER
     groupedByAsset.set(order.asset_id, group);
   }
 
-  await runWithConcurrency(Array.from(groupedByAsset.entries()), LIVE_ORDER_WORKER_CONCURRENCY, async ([, orders]) => {
-    for (const order of orders) {
-      try {
-        await executeOrder(pool, {
-          existingOrderId: order.id,
-          liveOrderBatchId: batch.id,
-          redis,
-          refreshDerivedState: false,
-        });
-        filled += 1;
-        const refreshUserIds = refreshUserIdsByAsset.get(order.asset_id) || new Set();
-        refreshUserIds.add(order.user_id);
-        refreshUserIdsByAsset.set(order.asset_id, refreshUserIds);
-      } catch (error) {
-        const reason = isLiveOrderRejectionCode(error?.code) ? error.code : "execution_failed";
+  // The fills' achievement checks wait for the batch: the orders get the pool, and each player is
+  // checked once afterwards with all of their fills.
+  const releaseAchievementChecks = achievements.holdTradeFills();
+  try {
+    await runWithConcurrency(Array.from(groupedByAsset.entries()), LIVE_ORDER_WORKER_CONCURRENCY, async ([, orders]) => {
+      for (const order of orders) {
         try {
-          const rejectedOrder = await rejectLiveOrder(pool, { orderId: order.id, reason, liveOrderBatchId: batch.id });
-          const orderSnapshot = rejectedOrder ? await getOrderAssetSnapshot(pool, order.id) : null;
-          if (orderSnapshot) {
-            void publishMarketEvent(redis, {
-              type: "market.live_order_rejected",
-              order: orderSnapshot,
-              reason,
-              batch_id: batch.id,
-              at: new Date().toISOString(),
-            });
+          await executeOrder(pool, {
+            existingOrderId: order.id,
+            liveOrderBatchId: batch.id,
+            redis,
+            refreshDerivedState: false,
+          });
+          filled += 1;
+          const refreshUserIds = refreshUserIdsByAsset.get(order.asset_id) || new Set();
+          refreshUserIds.add(order.user_id);
+          refreshUserIdsByAsset.set(order.asset_id, refreshUserIds);
+        } catch (error) {
+          const reason = isLiveOrderRejectionCode(error?.code) ? error.code : "execution_failed";
+          try {
+            const rejectedOrder = await rejectLiveOrder(pool, { orderId: order.id, reason, liveOrderBatchId: batch.id });
+            const orderSnapshot = rejectedOrder ? await getOrderAssetSnapshot(pool, order.id) : null;
+            if (orderSnapshot) {
+              void publishMarketEvent(redis, {
+                type: "market.live_order_rejected",
+                order: orderSnapshot,
+                reason,
+                batch_id: batch.id,
+                at: new Date().toISOString(),
+              });
+            }
+            rejected += 1;
+          } catch (rejectError) {
+            fatalError = fatalError || String(rejectError?.message || rejectError);
           }
-          rejected += 1;
-        } catch (rejectError) {
-          fatalError = fatalError || String(rejectError?.message || rejectError);
-        }
-        if (!isLiveOrderRejectionCode(error?.code)) {
-          fatalError = fatalError || String(error?.message || error);
+          if (!isLiveOrderRejectionCode(error?.code)) {
+            fatalError = fatalError || String(error?.message || error);
+          }
         }
       }
-    }
-  });
+    });
+  } finally {
+    releaseAchievementChecks();
+  }
 
   await completeLiveOrderBatch(pool, {
     batchId: batch.id,
@@ -1626,44 +1632,54 @@ function startLiveOrderScheduler(pool, logger = console, redis = null) {
 
 async function getPortfolioSummary(pool, userId) {
   // Read-only, so it takes no row locks: this runs on every page that shows your cash, and used to
-  // lock your cash row and queue behind your own fills. One snapshot keeps cash and holdings from
-  // the same moment.
-  const client = await pool.connect();
-  let cashAccount;
-  let holdingsResult;
-  try {
-    await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-    cashAccount = await readUserCashAccount(client, userId);
-    holdingsResult = await client.query(
-      `
-      SELECT
-        h.asset_id,
-        a.symbol,
-        a.display_name,
-        h.quantity,
-        h.avg_cost_basis,
-        a.current_mid_price,
-        a.current_fair_value,
-        (h.quantity * COALESCE(a.current_mid_price, 0)) AS market_value,
-        (h.quantity * (COALESCE(a.current_mid_price, 0) - h.avg_cost_basis)) AS unrealized_pnl
-      FROM market.portfolio_holdings h
+  // lock your cash row and queue behind your own fills. One statement is one snapshot, so cash and
+  // holdings are from the same moment, in one round trip (it was a read-only transaction: four).
+  // Not cached: the site reads it again right after anything that moves your cash.
+  const { rows } = await pool.query(
+    `
+    SELECT
+      c.user_id AS cash_user_id,
+      c.cash_balance,
+      c.held_cash,
+      c.credit_balance,
+      h.asset_id,
+      a.symbol,
+      a.display_name,
+      h.quantity,
+      h.avg_cost_basis,
+      a.current_mid_price,
+      a.current_fair_value,
+      (h.quantity * COALESCE(a.current_mid_price, 0)) AS market_value,
+      (h.quantity * (COALESCE(a.current_mid_price, 0) - h.avg_cost_basis)) AS unrealized_pnl
+    FROM (SELECT $1::bigint AS user_id) me
+    LEFT JOIN market.portfolio_cash_balances c ON c.user_id = me.user_id
+    LEFT JOIN (
+      market.portfolio_holdings h
       JOIN market.market_assets a ON a.id = h.asset_id
-      WHERE h.user_id = $1
-      ORDER BY a.symbol ASC
-    `,
-      [userId]
-    );
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw error;
-  } finally {
-    client.release();
-  }
+    ) ON h.user_id = me.user_id
+    ORDER BY a.symbol ASC
+  `,
+    [userId]
+  );
+  let cashAccount = rows[0]?.cash_user_id
+    ? { user_id: rows[0].cash_user_id, cash_balance: rows[0].cash_balance, held_cash: rows[0].held_cash, credit_balance: rows[0].credit_balance }
+    : null;
   // No account yet (a player who has never looked or traded): open it now, once.
   if (!cashAccount) cashAccount = await openUserCashAccount(pool, userId);
 
-  const holdings = holdingsResult.rows;
+  const holdings = rows
+    .filter((row) => row.asset_id !== null)
+    .map((row) => ({
+      asset_id: row.asset_id,
+      symbol: row.symbol,
+      display_name: row.display_name,
+      quantity: row.quantity,
+      avg_cost_basis: row.avg_cost_basis,
+      current_mid_price: row.current_mid_price,
+      current_fair_value: row.current_fair_value,
+      market_value: row.market_value,
+      unrealized_pnl: row.unrealized_pnl,
+    }));
   const totalMarketValue = holdings.reduce((sum, row) => sum + toNumber(row.market_value, 0), 0);
   const totalUnrealizedPnl = holdings.reduce((sum, row) => sum + toNumber(row.unrealized_pnl, 0), 0);
 

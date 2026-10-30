@@ -128,4 +128,39 @@ test("chat retention against PostgreSQL", { skip: !databaseUrl }, async (t) => {
     assert.equal(regular.items.length, 0); assert.equal(admin.items.length, 50);
     assert.equal(admin.history_limited, false);
   });
+  await t.test("reading history writes nothing; the scheduled job archives, one process at a time", async () => {
+    const { LOCK_KEY, startChatArchiveScheduler } = require("../src/services/chatArchive");
+    const { KEY_PREFIX } = require("../src/services/schedulerHealth");
+    await reset(); await seed(150);
+    const counts = async () => (await pool.query(`SELECT (SELECT count(*) FROM chat.messages)::int AS live,
+      (SELECT count(*) FROM chat.archived_messages)::int AS archived`)).rows[0];
+    const before = await chatDb.listMessages(pool, 1, { limit: 100 });
+    assert.deepEqual(await counts(), { live: 150, archived: 0 }, "a GET no longer archives");
+    const published = new Map();
+    const redis = { set: async (key, value) => { published.set(key, JSON.parse(value)); } };
+    const logger = { log() {}, error() {} };
+    const waitFor = async (check) => {
+      for (let i = 0; i < 100 && !(await check()); i += 1) await new Promise((resolve) => setTimeout(resolve, 20));
+    };
+
+    // Another process holds the lock: this one skips its tick.
+    const holder = await pool.connect();
+    await holder.query("SELECT pg_advisory_lock($1)", [LOCK_KEY]);
+    let stop = startChatArchiveScheduler(pool, logger, redis, { firstTickMs: 0 });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    stop();
+    assert.deepEqual(await counts(), { live: 150, archived: 0 });
+    await holder.query("SELECT pg_advisory_unlock($1)", [LOCK_KEY]);
+    holder.release();
+
+    stop = startChatArchiveScheduler(pool, logger, redis, { firstTickMs: 0 });
+    await waitFor(async () => (await counts()).archived > 0);
+    stop();
+    assert.deepEqual(await counts(), { live: 100, archived: 50 }, "the room keeps its newest 100");
+    const heartbeat = published.get(`${KEY_PREFIX}chat-archive`);
+    assert.equal(heartbeat.enabled, true);
+    assert.equal(heartbeat.interval_ms, 600_000);
+    // Readers saw the same page before and after.
+    assert.deepEqual(ids(await chatDb.listMessages(pool, 1, { limit: 100 })), ids(before));
+  });
 });

@@ -35,6 +35,24 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    date: "2026-10-30",
+    title: "A fresh start for launch",
+    changes: [
+      {
+        kind: "improved",
+        text: "Everyone starts again on an even footing: stocks, Cash, cards, cosmetics, prizes, predictions, achievements and notifications from the playtest were reset, and chat and comments were cleared. You get the same starting Cash and credit as a brand-new account.",
+      },
+      {
+        kind: "improved",
+        text: "Your account, username, profile, oshi and friends are just as they were.",
+      },
+      {
+        kind: "improved",
+        text: "Stock prices were rebuilt from each talent's YouTube history, without the playtest's trades. The upcoming IPO is still on.",
+      },
+    ],
+  },
+  {
     date: "2026-10-29",
     title: "Names, renames and fair rankings",
     changes: [

@@ -155,13 +155,19 @@ test("an IPO from detection to the first trading day", { skip: !databaseUrl, tim
   await ipo.cancelSubscription(pool, { userId: cara, symbol: "MEL" });
   close((await wallet(cara)).cash, 10000, "cancelling gives it all back");
   await ipo.subscribe(pool, { userId: cara, symbol: "MEL", shares: 3 });
-  const view = await ipo.getPublicIpos(pool, { userId: bob });
+  const view = await ipo.getPublicIpos(pool);
   const talent = view.events[0].talents[0];
   assert.equal(talent.subscribed_shares, cap * 2 + 3);
   assert.equal(talent.subscribers, 3);
-  assert.equal(talent.mine.requested_shares, cap);
   assert.equal(talent.ipo_price, price);
   assert.ok(!("current_fair_value" in talent), "the public view never shows her fair value");
+  assert.ok(!("mine" in talent), "the public view is the same for everyone (it's cached)");
+  const { subscriptions: bobs } = await ipo.getMySubscriptions(pool, bob);
+  assert.deepEqual(
+    bobs.map((sub) => [sub.listing_id, sub.symbol, sub.requested_shares, sub.status]),
+    [[Number(listing.id), "MEL", cap, "pending"]]
+  );
+  assert.deepEqual((await ipo.getMySubscriptions(pool, cara)).subscriptions.map((sub) => sub.requested_shares), [3]);
 
   // ── Listing fills everyone (undersubscribed here) and makes her tradable from the IPO price ──
   const result = await ipo.listEvent(pool, eventId, { marketDate: day(19) });
