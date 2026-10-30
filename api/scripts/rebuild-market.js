@@ -4,13 +4,17 @@
 //   node scripts/rebuild-market.js --yes            rebuild prices over the existing market
 //   node scripts/rebuild-market.js --reset --yes    reset first: deletes ALL trades, holdings,
 //                                                   leaderboards and assets, everyone gets starter cash
+//   --community                                     with --reset: chat and comments go too
+//   --dry-run                                       with --reset: count what the reset would delete,
+//                                                   change nothing, skip the rebuild (no --yes needed)
 //   --from 2026-03-01                               where the market's history starts (default
 //                                                   2026-01-01, or MARKET_HISTORY_FROM)
 //   --allow-remote-reset                            let --reset run against a database that isn't on
 //                                                   this machine, or with NODE_ENV=production
 //
 // Stop the API's market scheduler (or the API) first on a live server; the rebuild takes the
-// scheduler lock and refuses to run while a scheduled cycle holds it.
+// scheduler lock and refuses to run while a scheduled cycle holds it. Pause trading first too: the
+// reset and rebuild keep a paused market paused, so you can check it before reopening.
 
 const { Pool } = require("pg");
 const { loadEnv } = require("../src/config");
@@ -39,7 +43,12 @@ function resetRefusal({ databaseUrl, nodeEnv, argv }) {
 async function main() {
   loadEnv();
   const argv = process.argv.slice(2);
-  if (!argv.includes("--yes")) {
+  const dryRun = argv.includes("--dry-run");
+  if (dryRun && !argv.includes("--reset")) {
+    console.log("--dry-run only previews a --reset.");
+    process.exit(1);
+  }
+  if (!argv.includes("--yes") && !dryRun) {
     console.log("This rewrites the market's price history" + (argv.includes("--reset") ? " and deletes all trading data" : "") + ". Add --yes to run it.");
     process.exit(1);
   }
@@ -59,8 +68,13 @@ async function main() {
   try {
     if (argv.includes("--reset")) {
       // resetRefusal() above already checked the target; ALLOW_MARKET_RESET is the API's switch.
-      const reset = await marketAdmin.resetMarketState(pool, { allowed: true });
-      console.log(`reset: everyone has ${reset.starter_cash} starter cash`);
+      const reset = await marketAdmin.resetMarketState(pool, { allowed: true, community: argv.includes("--community"), dryRun });
+      for (const [table, count] of Object.entries(reset.cleared)) if (count) console.log(`  ${table}: ${count}`);
+      if (dryRun) {
+        console.log(`dry run: would delete the rows above and give everyone ${reset.starter_cash} cash and ${reset.starter_credit} credit; nothing changed`);
+        return;
+      }
+      console.log(`reset: deleted the rows above; everyone has ${reset.starter_cash} cash and ${reset.starter_credit} credit`);
     }
     let last = 0;
     const fromIndex = argv.indexOf("--from");

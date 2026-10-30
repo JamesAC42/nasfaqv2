@@ -365,13 +365,15 @@ async function getHistoricalMarketDateRange(pool, { activeOnly = true } = {}) {
 // A full reset: every player keeps their account (login, sessions, roles, profile, oshi, friends,
 // chat, comments, articles), and loses everything they own or earned. The stocks themselves are
 // kept, so everything linked to them survives (HoloNews tags, stock comments, oshi choices, card
-// art); their prices, supply and history are cleared for a rebuild. Listed children first; tables a
-// deployment doesn't have are skipped.
+// art); their prices, supply and history are cleared for a rebuild. IPO events and their listings
+// stay (a scheduled IPO still happens); the subscriptions, paid in the old cash, go. Listed children
+// first; tables a deployment doesn't have are skipped.
 const RESET_TABLES = [
   // Stock trading and its history
   "market.trade_fills",
   "market.trade_orders",
   "market.live_order_batches",
+  "market.ipo_subscriptions",
   "market.ledger_entries",
   "market.portfolio_holdings",
   "market.user_daily_net_worth",
@@ -429,6 +431,25 @@ const RESET_TABLES = [
   "games.user_reward_claims",
   "games.weekly_prize_payouts",
   "games.weekly_prize_settlements",
+  // Notifications about all of the above (dividends, fills, wins, friend requests)
+  "market.notifications",
+];
+
+// With { community: true } (a fresh start before launch), what players wrote goes too: chat (and
+// reports about it), comments, votes, likes, saves and article proposals. Moderation history (mutes,
+// bans, the admin log), bug reports, friends and rivals stay.
+const COMMUNITY_RESET_TABLES = [
+  "chat.message_reports",
+  "chat.messages",
+  "chat.archived_messages",
+  "content.article_comment_votes",
+  "content.article_comments",
+  "content.asset_comment_votes",
+  "content.asset_comments",
+  "content.article_likes",
+  "content.article_saves",
+  "content.news_article_proposal_votes",
+  "content.news_article_proposals",
 ];
 
 // A reset is for local and playtest databases. The API refuses it unless the deployment opts in with
@@ -438,7 +459,8 @@ function isMarketResetAllowed(env = process.env) {
   return String(env.ALLOW_MARKET_RESET || "").trim().toLowerCase() === "true";
 }
 
-async function resetMarketState(pool, { allowed = isMarketResetAllowed() } = {}) {
+// `dryRun` does all of it and rolls back, so the counts in `cleared` are what a real reset removes.
+async function resetMarketState(pool, { allowed = isMarketResetAllowed(), community = false, dryRun = false } = {}) {
   if (!allowed) {
     const error = new Error("market_reset_disabled");
     error.code = "market_reset_disabled";
@@ -449,17 +471,22 @@ async function resetMarketState(pool, { allowed = isMarketResetAllowed() } = {})
   try {
     await client.query("BEGIN");
 
-    const { rows: present } = await client.query(`SELECT name FROM unnest($1::text[]) AS name WHERE to_regclass(name) IS NOT NULL`, [RESET_TABLES]);
+    const tables = community ? [...COMMUNITY_RESET_TABLES, ...RESET_TABLES] : RESET_TABLES;
+    const { rows: present } = await client.query(`SELECT name FROM unnest($1::text[]) AS name WHERE to_regclass(name) IS NOT NULL`, [tables]);
     const existing = new Set(present.map((row) => row.name));
     // Reaction avatars came from cards, which go.
     await client.query(`UPDATE market.users SET profile_reaction = NULL WHERE profile_reaction IS NOT NULL`);
     // Stocks stay; their snapshot pointers go before the snapshots do.
     await client.query(`UPDATE market.market_assets SET latest_snapshot_id = NULL, latest_snapshot_date = NULL`);
     const cleared = {};
-    for (const table of RESET_TABLES) {
+    for (const table of tables) {
       if (!existing.has(table)) continue;
       const result = await client.query(`DELETE FROM ${table}`);
       cleared[table] = result.rowCount;
+    }
+    // Articles count their likes and saves; those rows just went.
+    if (community && existing.has("content.article_likes")) {
+      await client.query(`UPDATE content.articles SET likes = 0, saves = 0 WHERE likes <> 0 OR saves <> 0`);
     }
 
     // Prices and supply back to a new listing's; admin tuning (emission, spread, adjustment bounds) stays.
@@ -486,13 +513,15 @@ async function resetMarketState(pool, { allowed = isMarketResetAllowed() } = {})
     `,
       [DEFAULT_MAX_SUPPLY, DEFAULT_INITIAL_CIRCULATING_SUPPLY, computeLiquidityDepth(DEFAULT_INITIAL_CIRCULATING_SUPPLY)]
     );
+    // A market an admin paused stays paused (pause, reset, rebuild, check, reopen), as the rebuild
+    // keeps it.
     await client.query(
       `
       UPDATE market.market_runtime_state
       SET
-        trading_status = 'open',
+        trading_status = CASE WHEN trading_status = 'manual_closed' THEN trading_status ELSE 'open' END,
         active_phase = 'idle',
-        trading_message = NULL,
+        trading_message = CASE WHEN trading_status = 'manual_closed' THEN trading_message ELSE NULL END,
         current_market_date = NULL,
         current_cycle_started_at = NULL,
         current_cycle_updated_at = NULL,
@@ -515,10 +544,11 @@ async function resetMarketState(pool, { allowed = isMarketResetAllowed() } = {})
       [starterCash, starterCredit]
     );
 
-    await client.query("COMMIT");
+    await client.query(dryRun ? "ROLLBACK" : "COMMIT");
 
     return {
       ok: true,
+      dry_run: dryRun,
       starter_cash: starterCash,
       starter_credit: starterCredit,
       cleared,
