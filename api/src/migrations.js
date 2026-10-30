@@ -895,9 +895,11 @@ async function applySchema(pool) {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
+  // The ranking's own order (netWorth.js, predictionMarketDb.js). It replaced
+  // market_user_leaderboard_current_equity_idx (total_equity DESC, user_id), dropped further down.
   await pool.query(`
-    CREATE INDEX IF NOT EXISTS market_user_leaderboard_current_equity_idx
-      ON market.user_leaderboard_current (total_equity DESC, user_id ASC)
+    CREATE INDEX IF NOT EXISTS market_user_leaderboard_current_rank_idx
+      ON market.user_leaderboard_current (total_equity DESC, username_snapshot ASC, user_id ASC)
   `);
   await pool.query(`
     CREATE INDEX IF NOT EXISTS market_user_leaderboard_current_daily_change_idx
@@ -1817,6 +1819,18 @@ async function applySchema(pool) {
   await pool.query(`CREATE INDEX IF NOT EXISTS market_user_sessions_last_ip_hash_idx ON market.user_sessions (last_ip_hash) WHERE last_ip_hash IS NOT NULL`);
   await require("./services/emailRules").backfillEmailNormalized(pool);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS market_users_email_normalized_uidx ON market.users (email_normalized) WHERE email_normalized IS NOT NULL`);
+
+  // Who holds a stock: the post-trade leaderboard refresh (every 2 s while trading), the weekly
+  // evaluation's dividends and buybacks, holder counts. The table's key starts with user_id, so those
+  // read every holding. Positions sold to zero keep their row, hence the predicate. Built without
+  // CONCURRENTLY: at launch it is one row per player per stock held (about a thousand), milliseconds.
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS market_portfolio_holdings_asset_holders_idx
+      ON market.portfolio_holdings (asset_id, user_id) WHERE quantity > 0
+  `);
+  // Superseded by market_user_leaderboard_current_rank_idx: no query sorts by (total_equity, user_id)
+  // alone, and every leaderboard refresh writes to each index on the table.
+  await pool.query(`DROP INDEX IF EXISTS market.market_user_leaderboard_current_equity_idx`);
 }
 
 module.exports = { applySchema };

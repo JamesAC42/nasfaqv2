@@ -1,6 +1,6 @@
 const { listDefinitions } = require("./definitions");
 const {
-  applyTradeFillToStreakWithClient,
+  applyTradeFillsToStreakWithClient,
   getUserTradeStreak,
   rebuildUserTradeStreakWithClient,
 } = require("./streaks");
@@ -61,6 +61,7 @@ async function syncDefinitions(pool) {
       );
     }
     await client.query("COMMIT");
+    triggeredDefinitions.clear();
     return definitions;
   } catch (error) {
     await client.query("ROLLBACK");
@@ -103,35 +104,43 @@ async function finishEvaluationRun(client, runId, { status, errorText = null }) 
   );
 }
 
-async function loadAchievementFacts(client, userId) {
+/**
+ * What the definitions judge a player on. `trades: false` skips the aggregate over their whole fill
+ * history (its fields read as zero); `streak` is their streak row when the caller already has it.
+ */
+async function loadAchievementFacts(client, userId, { trades = true, streak = null } = {}) {
   const [tradeResult, streakResult] = await Promise.all([
-    client.query(
-      `
-      SELECT
-        COUNT(*)::int AS trade_count,
-        COUNT(*) FILTER (WHERE side = 'buy')::int AS buy_count,
-        COUNT(*) FILTER (WHERE side = 'sell')::int AS sell_count,
-        COUNT(DISTINCT asset_id)::int AS distinct_assets_traded,
-        COUNT(DISTINCT ts::date)::int AS trade_days_count,
-        MIN(ts) AS first_trade_at,
-        COALESCE(MAX(gross_cash), 0) AS largest_trade_cash
-      FROM market.trade_fills
-      WHERE user_id = $1
-    `,
-      [userId]
-    ),
-    client.query(
-      `
-      SELECT
-        current_streak_days,
-        longest_streak_days,
-        last_trade_day
-      FROM market.user_trade_streaks
-      WHERE user_id = $1
-      LIMIT 1
-    `,
-      [userId]
-    ),
+    trades
+      ? client.query(
+        `
+        SELECT
+          COUNT(*)::int AS trade_count,
+          COUNT(*) FILTER (WHERE side = 'buy')::int AS buy_count,
+          COUNT(*) FILTER (WHERE side = 'sell')::int AS sell_count,
+          COUNT(DISTINCT asset_id)::int AS distinct_assets_traded,
+          COUNT(DISTINCT ts::date)::int AS trade_days_count,
+          MIN(ts) AS first_trade_at,
+          COALESCE(MAX(gross_cash), 0) AS largest_trade_cash
+        FROM market.trade_fills
+        WHERE user_id = $1
+      `,
+        [userId]
+      )
+      : { rows: [] },
+    streak
+      ? { rows: [streak] }
+      : client.query(
+        `
+        SELECT
+          current_streak_days,
+          longest_streak_days,
+          last_trade_day
+        FROM market.user_trade_streaks
+        WHERE user_id = $1
+        LIMIT 1
+      `,
+        [userId]
+      ),
   ]);
 
   const tradeRow = tradeResult.rows[0] || {};
@@ -151,7 +160,20 @@ async function loadAchievementFacts(client, userId) {
   };
 }
 
+// The active definitions per trigger, read once a minute rather than on every check: they change only
+// when the code does (syncDefinitions at startup).
+const DEFINITIONS_TTL_MS = 60_000;
+const triggeredDefinitions = new Map(); // triggerEventType -> { at, definitions }
+
 async function listTriggeredDefinitions(client, triggerEventType) {
+  const cached = triggeredDefinitions.get(triggerEventType);
+  if (cached && Date.now() - cached.at < DEFINITIONS_TTL_MS) return cached.definitions;
+  const definitions = await readTriggeredDefinitions(client, triggerEventType);
+  triggeredDefinitions.set(triggerEventType, { at: Date.now(), definitions });
+  return definitions;
+}
+
+async function readTriggeredDefinitions(client, triggerEventType) {
   const definitionByKey = new Map(listDefinitions().map((definition) => [definition.key, definition]));
   const { rows } = await client.query(
     `
@@ -181,6 +203,7 @@ async function listTriggeredDefinitions(client, triggerEventType) {
       if (!codeDefinition) return null;
       return {
         ...row,
+        facts: codeDefinition.facts || null,
         evaluate: codeDefinition.evaluate,
       };
     })
@@ -265,6 +288,7 @@ async function evaluateUserAchievementsWithClient(client, {
   triggerEventType,
   triggerEventId = null,
   evaluationRunId = null,
+  streak = null,
 }) {
   const definitions = await listTriggeredDefinitions(client, triggerEventType);
   if (definitions.length === 0) {
@@ -272,12 +296,16 @@ async function evaluateUserAchievementsWithClient(client, {
   }
 
   const earnedKeys = await listEarnedAchievementKeys(client, userId);
-  // The facts aggregate the player's whole trade history, so skip them when there's nothing left
-  // to earn (most fills, for anyone who's been around a while).
-  if (definitions.every((definition) => earnedKeys.has(`${definition.key}:${definition.version}`))) {
+  // The trade facts aggregate the player's whole trade history, so load them only while something
+  // that reads them is still to earn (after a hundred trades or so, only the streaks are left).
+  const unearned = definitions.filter((definition) => !earnedKeys.has(`${definition.key}:${definition.version}`));
+  if (unearned.length === 0) {
     return { awarded: [] };
   }
-  const facts = await loadAchievementFacts(client, userId);
+  const facts = await loadAchievementFacts(client, userId, {
+    trades: unearned.some((definition) => definition.facts !== "streak"),
+    streak,
+  });
   const awarded = [];
 
   for (const definition of definitions) {
@@ -325,7 +353,13 @@ async function evaluateUserAchievementsWithClient(client, {
   return { awarded, facts };
 }
 
-async function handleTradeFill(pool, { userId, fillId }) {
+/**
+ * One player's streak and achievement check after some fills (`fillIds`, oldest first; `since`, when
+ * the oldest of them filled), in one transaction. Awards are thresholds on running totals, so one
+ * check after several fills awards whatever a check after each of them would have.
+ */
+async function handleTradeFills(pool, { userId, fillIds, since = null }) {
+  const lastFillId = fillIds.length ? fillIds[fillIds.length - 1] : null;
   const client = await pool.connect();
   let evaluationRunId = null;
   try {
@@ -333,15 +367,17 @@ async function handleTradeFill(pool, { userId, fillId }) {
     evaluationRunId = await createEvaluationRun(client, {
       runType: "event",
       triggerEventType: "trade_fill",
-      triggerEventId: fillId,
+      triggerEventId: lastFillId,
       targetUserId: userId,
+      metadata: fillIds.length > 1 ? { fill_ids: fillIds } : {},
     });
-    await applyTradeFillToStreakWithClient(client, userId, fillId);
+    const streak = await applyTradeFillsToStreakWithClient(client, userId, { since });
     const result = await evaluateUserAchievementsWithClient(client, {
       userId,
       triggerEventType: "trade_fill",
-      triggerEventId: fillId,
+      triggerEventId: lastFillId,
       evaluationRunId,
+      streak,
     });
     await finishEvaluationRun(client, evaluationRunId, { status: "completed" });
     const noted = [];
@@ -372,6 +408,111 @@ async function handleTradeFill(pool, { userId, fillId }) {
     throw error;
   } finally {
     client.release();
+  }
+}
+
+// Checks after fills wait here, by player, instead of each fill starting its own transaction the
+// moment it committed with nothing waiting on it: a busy live-order batch used to stack a hundred of
+// those on the scheduler pod's pool alongside the orders. ACHIEVEMENT_WORKER_CONCURRENCY workers
+// (1 or 2, default 2) each check one player at a time, with every fill they have waiting. The batch
+// holds the queue while it runs (holdTradeFills), so each player is checked once, after it. A
+// failed check (a pool timeout, a deadlock) is tried again; checks read from the streak's last trade
+// day, so one that still never runs is caught up by the player's next fill.
+const fillQueue = {
+  waiting: new Map(), // userId -> { pool, fillIds: Set, since, attempt }
+  checking: new Set(),
+  holds: 0,
+  retrying: 0,
+  idleWaiters: [],
+  concurrency: Math.min(2, Math.max(1, Math.floor(Number(process.env.ACHIEVEMENT_WORKER_CONCURRENCY) || 2))),
+  attempts: 3,
+  retryDelayMs: 5_000,
+};
+
+function earlierOf(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  return new Date(a) <= new Date(b) ? a : b;
+}
+
+function addToFillQueue(pool, userId, fillIds, since, attempt) {
+  const entry = fillQueue.waiting.get(userId) || { pool, fillIds: new Set(), since: null, attempt: 0 };
+  for (const fillId of fillIds) entry.fillIds.add(fillId);
+  entry.since = earlierOf(entry.since, since);
+  entry.attempt = Math.max(entry.attempt, attempt);
+  fillQueue.waiting.set(userId, entry);
+  pumpFillQueue();
+}
+
+/** After a fill commits: queue its owner's streak and achievement check. Never throws. */
+function queueTradeFill(pool, { userId, fillId, filledAt = null }) {
+  const id = Number(userId);
+  if (!(id > 0)) return;
+  addToFillQueue(pool, id, fillId ? [Number(fillId)] : [], filledAt ? new Date(filledAt) : null, 0);
+}
+
+/** Pauses the checks (a live-order batch, so it has the pool to itself); call the result to resume. */
+function holdTradeFills() {
+  fillQueue.holds += 1;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    fillQueue.holds -= 1;
+    pumpFillQueue();
+  };
+}
+
+function fillQueueIdle() {
+  return fillQueue.waiting.size === 0 && fillQueue.checking.size === 0 && fillQueue.retrying === 0;
+}
+
+/** Resolves once every queued check has run (or given up): for shutdown and tests. */
+function tradeFillsIdle() {
+  if (fillQueueIdle()) return Promise.resolve();
+  return new Promise((resolve) => fillQueue.idleWaiters.push(resolve));
+}
+
+function pumpFillQueue() {
+  while (fillQueue.holds === 0 && fillQueue.checking.size < fillQueue.concurrency) {
+    let next = null;
+    for (const userId of fillQueue.waiting.keys()) {
+      if (!fillQueue.checking.has(userId)) {
+        next = userId;
+        break;
+      }
+    }
+    if (next === null) break;
+    const entry = fillQueue.waiting.get(next);
+    fillQueue.waiting.delete(next);
+    fillQueue.checking.add(next);
+    void runQueuedCheck(next, entry);
+  }
+  if (fillQueueIdle()) {
+    for (const resolve of fillQueue.idleWaiters.splice(0)) resolve();
+  }
+}
+
+async function runQueuedCheck(userId, entry) {
+  const fillIds = [...entry.fillIds].sort((a, b) => a - b);
+  try {
+    await handleTradeFills(entry.pool, { userId, fillIds, since: entry.since });
+  } catch (error) {
+    const attempt = entry.attempt + 1;
+    if (attempt < fillQueue.attempts) {
+      fillQueue.retrying += 1;
+      const timer = setTimeout(() => {
+        fillQueue.retrying -= 1;
+        addToFillQueue(entry.pool, userId, fillIds, entry.since, attempt);
+      }, fillQueue.retryDelayMs);
+      timer.unref?.();
+    } else {
+      // eslint-disable-next-line no-console
+      console.error("achievement evaluation failed:", String(error?.message || error));
+    }
+  } finally {
+    fillQueue.checking.delete(userId);
+    pumpFillQueue();
   }
 }
 
@@ -423,11 +564,12 @@ async function backfillAchievements(pool, { userIds = null, batchSize = 100 } = 
           triggerEventType: "backfill",
           targetUserId: row.id,
         });
-        await rebuildUserTradeStreakWithClient(client, row.id);
+        const streak = await rebuildUserTradeStreakWithClient(client, row.id);
         const result = await evaluateUserAchievementsWithClient(client, {
           userId: row.id,
           triggerEventType: "backfill",
           evaluationRunId,
+          streak,
         });
         awardedCount += result.awarded.length;
         processedUsers += 1;
@@ -489,7 +631,11 @@ async function listUserAchievements(pool, userId, { limit = 100 } = {}) {
 module.exports = {
   backfillAchievements,
   getUserTradeStreak,
-  handleTradeFill,
+  handleTradeFills,
+  holdTradeFills,
   listUserAchievements,
+  queueTradeFill,
   syncDefinitions,
+  tradeFillsIdle,
+  _test: { fillQueue },
 };

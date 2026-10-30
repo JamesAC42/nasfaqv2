@@ -12,6 +12,11 @@ const { sendCachedJson } = require("../responseCache");
 
 const router = express.Router();
 
+// A signed-in player's board (the page plus their own row and neighbours) ranks every player about
+// four times over; kept this long per player and page, so going back and forth between tabs and
+// windows doesn't do that again each time. Shorter than the signed-out board's 15 s.
+const VIEWER_BOARD_TTL_SECONDS = 5;
+
 function parseLimit(value, fallback = 25) {
   const parsed = Number.parseInt(String(value ?? fallback), 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
@@ -106,6 +111,12 @@ router.get("/", async (req, res, next) => {
       });
       return;
     }
+    // Global only: friends and rivals boards change the moment you add someone.
+    const cacheKey = req.ctx.user && scope === "global" ? `leaderboard:viewer:${req.ctx.user.id}:${window}:${page}:${limit}` : null;
+    if (cacheKey) {
+      const cached = await getCachedJson(req.ctx.redis, cacheKey).catch(() => null);
+      if (cached) return res.json(cached);
+    }
     const bundle = await netWorth.listLeaderboardBundle(req.ctx.pool, {
       viewerUserId: req.ctx.user?.id || null,
       scope,
@@ -113,6 +124,7 @@ router.get("/", async (req, res, next) => {
       page,
       limit,
     });
+    if (cacheKey) await setCachedJson(req.ctx.redis, cacheKey, bundle, VIEWER_BOARD_TTL_SECONDS).catch(() => {});
     res.json(bundle);
   } catch (error) {
     next(error);

@@ -668,11 +668,9 @@ async function listMessages(pool, channelId, { viewerUserId = null, beforeMessag
         )
       ).rows[0]?.is_admin
   );
+  // Read-only: archiving old messages is a scheduled job now (services/chatArchive.js), and this query
+  // reads the live and archived tables alike, so what a reader sees doesn't depend on when it ran.
   const visibleCutoffIso = buildVisibleHistoryCutoff();
-  await archiveMessagesOlderThan(pool, {
-    channelId: safeChannelId,
-    cutoffIso: visibleCutoffIso,
-  });
 
   const safeLimit = parseLimit(limit, 50, { min: 1, max: 100 });
   const beforeId = beforeMessageId ? parseMessageId(beforeMessageId) : null;
@@ -1339,6 +1337,7 @@ async function revokeModerationActions(pool, { targetUserId, actionType, channel
 }
 
 module.exports = {
+  CHAT_ARCHIVE_BATCH_SIZE,
   archiveMessagesOlderThan,
   buildChannelKey,
   createMessage,

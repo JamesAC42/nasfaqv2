@@ -37,6 +37,16 @@ While `MARKET_WEEKLY_EVALUATION_CLOSE_TRADING` is on (the default until it has r
 
 `api/test/weekly-evaluation-batch.test.js` seeds a market through the real stats, fundamentals and settlement pipeline, clones it, and runs the frozen row-at-a-time evaluation (`api/test/fixtures/weekly-evaluation-reference.js`) and the batched one side by side over two Saturdays and a first evaluation, comparing balances, holdings, ledger rows, dividend lines, buybacks, stocks, the review and notifications exactly. `WEEKLY_EVAL_TEST_PLAYERS` sizes the market (300 by default).
 
+## Achievement checks after fills
+
+Each fill used to start its own streak and achievement transaction the moment it committed, with nothing waiting on it: about ten statements each, all at once, on the scheduler pod's pool alongside the live-order batch. Fills now queue a check by player (`api/src/services/achievements/index.js`). Two workers (`ACHIEVEMENT_WORKER_CONCURRENCY`, 1 or 2) each check one player at a time, with every fill they have waiting, and a live-order batch holds the queue until it finishes, so each player is checked once per batch. Awards are thresholds on running totals, so one check after several fills awards what a check after each would have. A failed check is retried twice, five seconds apart. The streak is read from its last trade day on, so a check that never ran (a restart) is caught up by the player's next fill. A shutdown waits for the queue within its drain window.
+
+`api/test/achievement-queue.test.js` checks a batch of fills against the awards, rewards, notifications and streaks it should give, once per player, along with the hold, the retry and an out-of-order fill.
+
+## Chat archive
+
+Chat past the visible window (`CHAT_HISTORY_VISIBLE_DAYS`, keeping each room's newest `CHAT_HISTORY_MIN_MESSAGES`) moves to `chat.archived_messages` every 10 minutes on `api-scheduler`, under advisory lock `9204120` (`api/src/services/chatArchive.js`). Every history GET used to run this itself. Reads cover both tables with the same rules, so readers see the same history either way. The job reports as `chat-archive` on the admin heartbeats; the watchdog calls it failing after two hours without a clean tick. `CHAT_ARCHIVE_ENABLED=false` stops it, and `POST /api/chat/admin/archive` still runs one by hand.
+
 ## Validation
 
 `api/test/market-ops.test.js` verifies cross-replica progress, singleton job ownership, completion/error persistence, disconnected-worker detection, and bulk-write equivalence with a frozen pre-change implementation. It checks all persisted financial fields for 73 assets, history ordering, atomic rollback, and unchanged supplies against PostgreSQL 16.
