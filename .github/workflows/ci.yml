@@ -66,6 +66,8 @@ jobs:
   # security-scan run covers main.
   security:
     if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
     uses: ./.github/workflows/security-scan.yml
 
   deployment:

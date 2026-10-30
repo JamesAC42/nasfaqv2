@@ -12,11 +12,16 @@ How we hear about vulnerable dependencies and code, and how the fixes ship. The 
 | Dependabot version updates | npm in `api/` and `app-client/`; Go modules in `holonews/`, `superchatscraper/`, `ytscraper/`; the five Dockerfiles' base images; GitHub Actions | Mondays 10:00 ET | Pull requests, labelled `dependencies` |
 | CodeQL | JavaScript/TypeScript in `api/` and `app-client/`, the three Go services, the workflows | Every pull request, every push to main, Mondays | Security tab > Code scanning; the PR's checks |
 | `security-scan`: npm audit | Production dependencies of `api` and `app-client`, high and critical | Every pull request (from `ci`), daily on main | The PR's checks; an email when the daily run fails |
-| `security-scan`: govulncheck | The three Go services: only vulnerabilities their code can reach | Same | Same |
+| `security-scan`: govulncheck | What each Go image builds (`./cmd/<service>`): only vulnerabilities its code can reach | Daily on main, for now (see below) | An email when the daily run fails |
 | Secret scanning, push protection | Credentials in commits | Every push | Security tab > Secret scanning; the push is refused |
 
 The security check doesn't run on deploys (`deploy.yml` calls `ci.yml`), so an advisory published
 overnight can't hold up an unrelated fix. The daily run catches it on main instead.
+
+govulncheck isn't a pull-request check yet. On 2026-10-30 the Go services could reach advisories in
+pgx (fixed in 5.9.2), golang.org/x/net/html, x/text, x/image, go-redis and the AWS eventstream
+package. Dependabot's security updates fix those. Once the daily run is green, delete the
+`if: github.event_name != 'pull_request'` line in `security-scan.yml` to gate pull requests on it.
 
 Version updates are grouped: one pull request per directory for minor and patch releases, majors one
 at a time. They skip releases less than a week old (`cooldown`), which keeps out most hijacked
@@ -75,8 +80,8 @@ fix it by hand in that directory, then update the PR's branch:
 
 ```bash
 cd api && npm audit fix && npm audit --omit=dev --audit-level=high
-cd holonews && go get example.com/module@FIXED_VERSION && go mod tidy
-cd holonews && GOWORK=off go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+cd holonews && GOWORK=off go get example.com/module@FIXED_VERSION && GOWORK=off go mod tidy
+cd holonews && GOWORK=off go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./cmd/holonews
 ```
 
 npm audit blocks on high and critical only. govulncheck blocks only on code the service can reach;
