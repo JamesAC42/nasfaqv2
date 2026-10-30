@@ -3,15 +3,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { SiteShell } from "@/app/components/layout/site-shell";
+import { ArticleMarkdown } from "@/app/components/articles/article-markdown";
 import { DraftRoom } from "@/app/components/articles/draft-room";
 import { fromArticle, readMinutes, splitHeadline } from "@/app/components/articles/stories";
 import { apiFetch } from "@/app/lib/api";
+import { safeImageUrl } from "@/app/lib/image-hosts";
 import { markSeries } from "@/app/lib/market-units";
 import { MOOD_COLORS } from "@/app/lib/moods";
 import { normalizeArticleDetail, normalizeArticleListResponse } from "@/app/lib/normalizers";
@@ -266,14 +266,15 @@ export function ArticleView({ slug }: { slug: string }) {
               </p>
             ) : null}
 
-            {article.thumbnail_url ? (
+            {/* Only from known hosts (lib/image-hosts.ts), like the pictures in the body. */}
+            {safeImageUrl(article.thumbnail_url) ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={article.thumbnail_url} alt="" className={styles.hero} />
+              <img src={safeImageUrl(article.thumbnail_url)!} alt="" className={styles.hero} />
             ) : null}
 
             {hasBody ? (
               <div className={styles.prose}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{article.content}</ReactMarkdown>
+                <ArticleMarkdown>{article.content}</ArticleMarkdown>
               </div>
             ) : isNews ? (
               <section className={styles.open}>

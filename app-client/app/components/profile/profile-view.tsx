@@ -10,7 +10,7 @@ import { Oshimark } from "@/app/components/common/oshimark";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { SiteShell } from "@/app/components/layout/site-shell";
-import { PictureModal, SettingsModal } from "@/app/components/profile/profile-modals";
+import { PictureModal, SecurityModal, SettingsModal } from "@/app/components/profile/profile-modals";
 import {
   Achievements,
   Articles,
@@ -50,7 +50,7 @@ export function ProfileView({ username }: { username?: string | null }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [predictions, setPredictions] = useState<PredictionPortfolioResponse | null>(null);
-  const [modal, setModal] = useState<"settings" | "picture" | null>(null);
+  const [modal, setModal] = useState<"settings" | "picture" | "security" | null>(null);
 
   const base = username ? `/api/profiles/${enc(username)}` : "/api/profiles/me";
   const revision = username ? 0 : tradingRevision;
@@ -356,7 +356,9 @@ export function ProfileView({ username }: { username?: string | null }) {
             profile={profile}
             onClose={() => setModal(null)}
             onSaved={(next) => setBundle(next)}
+            onSecurity={() => setModal("security")}
           />
+          <SecurityModal open={modal === "security"} username={profile.username} onClose={() => setModal(null)} />
           <PictureModal open={modal === "picture"} profile={profile} onClose={() => setModal(null)} onSaved={(next) => setBundle(next)} />
         </>
       ) : null}

@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { ArticleMarkdown } from "@/app/components/articles/article-markdown";
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { apiFetch } from "@/app/lib/api";
+import { safeImageUrl } from "@/app/lib/image-hosts";
 import { normalizeArticleDetail } from "@/app/lib/normalizers";
 import { timeAgo } from "@/app/lib/time";
 import type { ArticleDetail, ArticleProposal } from "@/app/lib/types";
@@ -173,12 +173,12 @@ export function DraftRoom({ article, initialTab, onClose, onChange }: { article:
                 </span>
                 <h3>{proposal.title?.trim() || article.title}</h3>
                 {proposal.subtitle ? <p className={styles.dek}>{proposal.subtitle}</p> : null}
-                {proposal.thumbnail_url ? (
+                {safeImageUrl(proposal.thumbnail_url) ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={proposal.thumbnail_url} alt="" className={styles.hero} />
+                  <img src={safeImageUrl(proposal.thumbnail_url)!} alt="" className={styles.hero} />
                 ) : null}
                 <div className={styles.prose}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{proposal.content}</ReactMarkdown>
+                  <ArticleMarkdown>{proposal.content}</ArticleMarkdown>
                 </div>
               </div>
             ) : null}
@@ -221,7 +221,7 @@ export function DraftRoom({ article, initialTab, onClose, onChange }: { article:
               </span>
             </div>
             {preview ? (
-              <div className={`${styles.prose} ${styles.previewBox}`}>{content.trim() ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown> : <p className={styles.dim}>Nothing to preview yet.</p>}</div>
+              <div className={`${styles.prose} ${styles.previewBox}`}>{content.trim() ? <ArticleMarkdown>{content}</ArticleMarkdown> : <p className={styles.dim}>Nothing to preview yet.</p>}</div>
             ) : (
               <textarea value={content} onChange={(event) => setContent(event.target.value)} rows={14} placeholder="What happened, why it matters, and what it does to the stock." />
             )}

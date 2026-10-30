@@ -7,8 +7,12 @@ const gamesSessions = require("../services/games/sessions");
 const cardGacha = require("../services/games/cardGacha");
 const exchange = require("../services/games/exchange");
 const { requireUserId, requireVerifiedUserId } = require("../userContext");
+const { rateLimit, byUser } = require("../rateLimit");
 
 const router = express.Router();
+// Pulls (card packs and capsules) share one budget; crafting and claiming another.
+const pullLimit = rateLimit(byUser("card-pull", 20, 60));
+const craftLimit = rateLimit(byUser("card-craft", 30, 60));
 
 // Known game errors → HTTP status. Anything else falls through to the 500 handler.
 const ERROR_STATUS = {
@@ -105,7 +109,7 @@ router.get("/cards/collection", async (req, res, next) => {
   }
 });
 
-router.post("/cards/pull", async (req, res, next) => {
+router.post("/cards/pull", pullLimit, async (req, res, next) => {
   try {
     const userId = requireVerifiedUserId(req);
     const result = await cardGacha.pullCards(req.ctx.pool, { userId, bannerKey: req.body?.banner, count: req.body?.count });
@@ -115,7 +119,7 @@ router.post("/cards/pull", async (req, res, next) => {
   }
 });
 
-router.post("/cards/craft", async (req, res, next) => {
+router.post("/cards/craft", craftLimit, async (req, res, next) => {
   try {
     const userId = requireVerifiedUserId(req);
     res.status(201).json(await cardGacha.craftCard(req.ctx.pool, { userId, cardKey: req.body?.card_key }));
@@ -124,7 +128,7 @@ router.post("/cards/craft", async (req, res, next) => {
   }
 });
 
-router.post("/cards/claim", async (req, res, next) => {
+router.post("/cards/claim", craftLimit, async (req, res, next) => {
   try {
     const userId = requireVerifiedUserId(req);
     res.status(201).json(await cardGacha.claimReward(req.ctx.pool, { userId, rewardKey: String(req.body?.reward_key || "") }));
@@ -454,7 +458,7 @@ router.post("/me/cosmetics/equip", async (req, res, next) => {
   }
 });
 
-router.post("/capsule-gacha/pull", async (req, res, next) => {
+router.post("/capsule-gacha/pull", pullLimit, async (req, res, next) => {
   try {
     const userId = requireVerifiedUserId(req);
     const result = await gamesGacha.pullCapsuleGacha(req.ctx.pool, {

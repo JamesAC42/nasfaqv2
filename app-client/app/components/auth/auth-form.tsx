@@ -8,7 +8,7 @@ import { ArtSlot } from "@/app/components/common/art-slot";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { SiteShell } from "@/app/components/layout/site-shell";
-import { apiFetch } from "@/app/lib/api";
+import { apiErrorCode, apiFetch } from "@/app/lib/api";
 import { signedPct, toneOf } from "@/app/lib/time";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -42,7 +42,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   turnstile_required: "Finish the security check first.",
   turnstile_failed: "The security check failed. Try it again.",
   turnstile_unavailable: "The security check isn't answering right now. Try again in a minute.",
-  rate_limited: "Too many tries. Wait a minute and try again.",
+  rate_limited: "Too many tries for now. Wait a few minutes and try again.",
 };
 
 export type AuthMode = "login" | "register" | "forgot" | "reset";
@@ -162,7 +162,7 @@ export function AuthForm({ mode, token = "" }: { mode: AuthMode; token?: string 
       await apiFetch(path, { method: "POST", body: JSON.stringify(body) });
       return true;
     } catch (reason) {
-      setOwnError(String((reason as Error).message || reason));
+      setOwnError(apiErrorCode(reason));
       return false;
     } finally {
       setBusy(false);

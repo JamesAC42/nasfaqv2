@@ -1,4 +1,4 @@
-import { apiFetch } from "@/app/lib/api";
+import { apiErrorCode, apiFetch } from "@/app/lib/api";
 
 // Moderation actions taken outside /admin: players reporting chat messages, and admins removing
 // messages, muting or banning from chat and hiding comments where they read them. The API is in
@@ -58,6 +58,6 @@ const ERRORS: Record<string, string> = {
 };
 
 export function moderationErrorText(error: unknown) {
-  const code = error instanceof Error ? error.message : String(error ?? "");
-  return ERRORS[code] ?? (code || "Something went wrong.");
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return ERRORS[apiErrorCode(error)] ?? (message || "Something went wrong.");
 }

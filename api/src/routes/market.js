@@ -24,7 +24,7 @@ const { sendPublicAssets, sendLatestReport, sendHub, ADJUSTMENT_SUMMARY_LIMITS }
 const { sendCachedJson } = require("../responseCache");
 const { requireAdmin, requireUserId, requireVerifiedUserId } = require("../userContext");
 
-const { rateLimit, byUser } = require("../rateLimit");
+const { rateLimit, byUser, voteLimit } = require("../rateLimit");
 const router = express.Router();
 const pendingIndexOverviewRequests = new Map();
 
@@ -571,7 +571,7 @@ router.post("/assets/:symbol/comments", rateLimit(byUser("stock-comment", 10, 60
   }
 });
 
-router.post("/assets/:symbol/comments/:commentId/vote", async (req, res, next) => {
+router.post("/assets/:symbol/comments/:commentId/vote", voteLimit, async (req, res, next) => {
   try {
     const userId = requireVerifiedUserId(req);
     const symbol = normalizeSymbol(req.params.symbol);

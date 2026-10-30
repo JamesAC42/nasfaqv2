@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from "react";
-import { apiFetch } from "@/app/lib/api";
+import { apiErrorCode, apiFetch } from "@/app/lib/api";
 import type { AuthUser } from "@/app/lib/types";
 import { useAuthStore } from "@/app/stores/auth-store";
 import { useProfileStore } from "@/app/stores/profile-store";
@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setInitialized(true);
         return result.user;
       } catch (error) {
-        const message = String((error as Error).message || error);
+        const message = apiErrorCode(error);
         setError(message);
         throw new Error(message);
       } finally {
@@ -85,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setInitialized(true);
         return result.user;
       } catch (error) {
-        const message = String((error as Error).message || error);
+        const message = apiErrorCode(error);
         setError(message);
         throw new Error(message);
       } finally {

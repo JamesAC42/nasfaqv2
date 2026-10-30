@@ -165,7 +165,7 @@ router.post("/channels/:channelKey/read", async (req, res, next) => {
   }
 });
 
-router.post("/messages/:messageId/report", rateLimit(byUser("chat-report", 20, 3600)), async (req, res, next) => {
+router.post("/messages/:messageId/report", rateLimit(byUser("chat-report-burst", 5, 60), byUser("chat-report", 20, 3600)), async (req, res, next) => {
   try {
     const reporterId = requireUserId(req);
     const report = await chatDb.createMessageReport(req.ctx.pool, {

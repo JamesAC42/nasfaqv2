@@ -1,11 +1,13 @@
 // GET /api/site: which release is live, whether maintenance is on, and how many people are online.
 // POST /api/site/bug-reports: a bug report (services/bugReports.js).
+// POST /api/site/csp-report: a browser's Content-Security-Policy violation report.
 // Every page reads it on load and when it comes back into view (changes also arrive on the market
 // socket), so it's cached for a few seconds per process.
 
 const express = require("express");
 const { rateLimit, byIp, byUser } = require("../rateLimit");
 const bugReports = require("../services/bugReports");
+const cspReports = require("../services/cspReports");
 const presence = require("../services/presence");
 const siteState = require("../services/siteState");
 
@@ -49,6 +51,18 @@ router.post(
       if (error?.code === "invalid_report") return res.status(400).json({ error: "invalid_report" });
       next(error);
     }
+  }
+);
+
+// POST /api/site/csp-report: Content-Security-Policy violation reports, sent by browsers on their
+// own (services/cspReports.js). server.js keeps them out of the players' write budget.
+router.post(
+  "/csp-report",
+  rateLimit(byIp("csp-report", 60, 60)),
+  express.json({ type: ["application/csp-report", "application/reports+json"], limit: "64kb" }),
+  async (req, res) => {
+    await cspReports.recordReports(req.ctx.redis, req.body).catch(() => {});
+    res.status(204).end();
   }
 );
 

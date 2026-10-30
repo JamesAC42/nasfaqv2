@@ -1,3 +1,4 @@
+import { safeImageUrl } from "@/app/lib/image-hosts";
 import type { ArticleSummary, NewsItem, NewsMood } from "@/app/lib/types";
 
 /** One row in the articles feed, whether it came from the HoloNews importer or a player. */
@@ -30,7 +31,7 @@ export function fromNews(item: NewsItem): Story {
     kind: "news",
     title: item.headline,
     dek: clean(item.summary),
-    thumb: item.thumbnail_url ?? null,
+    thumb: safeImageUrl(item.thumbnail_url),
     at: item.published_at,
     author: null,
     source: item.source || null,
@@ -53,7 +54,7 @@ export function fromArticle(article: ArticleSummary): Story {
     kind: article.is_news ? "news" : "community",
     title: article.news_item?.headline || article.title,
     dek: subtitle || preview,
-    thumb: article.thumbnail_url,
+    thumb: safeImageUrl(article.thumbnail_url),
     at: article.published_at ?? article.news_item?.published_at ?? article.created_at,
     author: article.is_news ? null : article.author?.username ?? null,
     source: null,

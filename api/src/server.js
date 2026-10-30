@@ -11,6 +11,8 @@ const chatDb = require("./chatDb");
 const marketDb = require("./marketDb");
 const authService = require("./services/auth");
 const { blockSuspendedWrites, requireUploader } = require("./userContext");
+const { clientIp, writeLimit } = require("./rateLimit");
+const socketLimits = require("./socketLimits");
 const marketState = require("./services/marketState");
 const { startMarketScheduler, loadSchedulerConfig, computeNextScheduledAt } = require("./services/marketScheduler");
 const { startAdjustmentScheduler } = require("./services/marketAdjustments");
@@ -246,6 +248,8 @@ app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  // HTTPS only, here and on the site (app-client/next.config.ts sends the same for pages).
+  if (process.env.NODE_ENV === "production") res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   // Draining for a restart: answer, then hang up, so the client's next request goes elsewhere.
   if (shuttingDown) res.setHeader("Connection", "close");
   next();
@@ -287,6 +291,9 @@ app.use(async (req, _res, next) => {
 });
 // Suspended players read but don't write (services/moderation.js); turned away before any body is parsed.
 app.use(blockSuspendedWrites);
+// Every signed-in write counts against 60 a minute (rateLimit.writeLimit), also before any body is
+// parsed. Signing out, and what the browser sends by itself (article view counts, CSP reports), stay out.
+app.use("/api", writeLimit({ skip: [/^\/auth\/logout$/, /^\/articles\/[^/]+\/view$/, /^\/site\/csp-report$/] }));
 
 // Bodies are parsed after the session lookup, so the 25 MB allowance (images uploaded as data URLs
 // in the admin tools) only goes to the people who may upload; anyone else is turned away before the
@@ -562,6 +569,7 @@ async function main() {
       inflightRequests -= 1;
     });
   });
+  const connectionCap = socketLimits.createConnectionCap({ redis });
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: WS_MAX_PAYLOAD });
   const bucketWss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: WS_MAX_PAYLOAD });
   const statsWss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: WS_MAX_PAYLOAD });
@@ -574,6 +582,11 @@ async function main() {
   // didn't answer the last one. Without it a phone that lost signal stays "connected" and keeps
   // collecting market broadcasts in its send buffer until TCP gives up, which can take many minutes.
   const HEARTBEAT_MS = 30_000;
+  // A socket that floods messages is closed (socketLimits.limitMessages). Installed ahead of every
+  // other handler, the games hub's included, so theirs see the socket already closing.
+  for (const server of [wss, bucketWss, statsWss, chatWss, marketWss, predictionMarketWss, gamesWss]) {
+    server.prependListener("connection", (socket) => socketLimits.limitMessages(socket));
+  }
   for (const server of [wss, bucketWss, statsWss, chatWss, marketWss, predictionMarketWss]) {
     server.on("connection", (socket) => {
       // A bad frame (too big, malformed) surfaces as an 'error' on the socket; without a listener
@@ -601,15 +614,18 @@ async function main() {
   }, HEARTBEAT_MS);
   heartbeat.unref?.();
 
-  const broadcastOnlineUserCount = () => {
-    const payload = JSON.stringify({
-      type: "online_count",
-      online_users: statsWss.clients.size,
-    });
+  // The stats socket's online count: a new socket hears it at once, everyone else at most every 2 s
+  // and only when it changed (a reconnect storm used to send every socket a message per connect).
+  const onlineCountText = () => JSON.stringify({ type: "online_count", online_users: statsWss.clients.size });
+  let lastOnlineCount = null;
+  const onlineCountBroadcast = socketLimits.coalesce(() => {
+    if (statsWss.clients.size === lastOnlineCount) return;
+    lastOnlineCount = statsWss.clients.size;
+    const payload = onlineCountText();
     statsWss.clients.forEach((client) => {
       sendWsText(client, payload);
     });
-  };
+  }, 2_000);
 
   let lastSnapshot = { type: "snapshot", at: new Date().toISOString(), live: [], upcoming: [] };
   let snapshotRefreshing = false;
@@ -667,9 +683,10 @@ async function main() {
     ws.on("close", () => {});
   });
   statsWss.on("connection", (ws) => {
-    broadcastOnlineUserCount();
+    sendWsText(ws, onlineCountText());
+    onlineCountBroadcast.schedule();
     ws.on("close", () => {
-      broadcastOnlineUserCount();
+      onlineCountBroadcast.schedule();
     });
   });
   chatWss.on("connection", (ws, req) => {
@@ -693,6 +710,7 @@ async function main() {
     );
 
     ws.on("message", async (raw) => {
+      if (ws.readyState !== 1) return; // closed for flooding
       const payload = safeParseJSON(String(raw || ""));
       if (!payload || typeof payload !== "object") {
         sendWsText(ws, JSON.stringify({ type: "chat.error", error: "invalid_payload" }));
@@ -800,6 +818,9 @@ async function main() {
   });
 
   server.on("upgrade", async (req, socket, head) => {
+    // Until ws takes the socket over, nothing listens for its errors, and a client hanging up while
+    // the checks below wait would be an uncaught exception.
+    socket.on("error", () => socket.destroy());
     if (shuttingDown) {
       socket.destroy();
       return;
@@ -843,6 +864,17 @@ async function main() {
       return;
     }
 
+    // So many open sockets per address, across every pod (socketLimits.createConnectionCap). The slot
+    // goes back when the connection closes, however it ends.
+    const slot = await connectionCap.admit(clientIp(req));
+    if (!slot.ok) {
+      socket.write("HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+    socket.once("close", slot.release);
+    if (socket.destroyed) return slot.release();
+
     try {
       if (target === chatWss) {
         req.chatUser = await authService.getAuthenticatedUser(pool, req);
@@ -856,6 +888,9 @@ async function main() {
         req.marketUser = await authService.getAuthenticatedUser(pool, req).catch(() => null);
       }
       target.handleUpgrade(req, socket, head, (ws) => {
+        // Whose socket it is, so signing out everywhere can close it (socketLimits.closeUserSockets).
+        const user = req.chatUser || req.gamesUser || req.marketUser;
+        ws.socketUserId = user?.id ? Number(user.id) : null;
         target.emit("connection", ws, req);
       });
     } catch {
@@ -915,6 +950,11 @@ async function main() {
     // Maintenance and releases ride this channel too: this process hears them, then every page does.
     if (parsed.type === siteState.SITE_EVENT) siteState.applyEvent(parsed.site);
     queueMarketEvent(JSON.stringify(scrubPublicMarketPayload(parsed)));
+  });
+  // Signed out everywhere, or a new password: that player's sockets reconnect as whoever they now are.
+  await redisSub.subscribe(authService.SESSIONS_REVOKED_CHANNEL, (message) => {
+    const userId = Number(safeParseJSON(String(message))?.user_id);
+    if (userId) socketLimits.closeUserSockets([chatWss, marketWss, gamesWss], userId);
   });
   await redisSub.subscribe(PREDICTION_MARKET_EVENTS_REDIS_CHANNEL, (message) => {
     const payload = String(message);
@@ -980,6 +1020,8 @@ async function main() {
     setTimeout(() => process.exit(0), SHUTDOWN_DRAIN_MS + 5_000).unref();
 
     clearInterval(heartbeat);
+    connectionCap.stop();
+    onlineCountBroadcast.stop();
     for (const stop of stoppers) {
       try {
         if (typeof stop === "function") stop();

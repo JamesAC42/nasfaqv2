@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { ArticleMarkdown } from "@/app/components/articles/article-markdown";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { readMinutes } from "@/app/components/articles/stories";
 import { apiFetch } from "@/app/lib/api";
+import { ARTICLE_IMAGE_HOSTS, safeImageUrl } from "@/app/lib/image-hosts";
 import { normalizeArticleDetail } from "@/app/lib/normalizers";
 import type { ArticleDetail } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -241,7 +241,7 @@ export function ArticleEditor({ mode, slug }: { mode: "create" | "edit"; slug?: 
               {view !== "write" ? (
                 <div className={`${styles.prose} ${styles.previewBox}`}>
                   {title.trim() ? <h1 className={styles.previewTitle}>{title}</h1> : null}
-                  {content.trim() ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown> : <p className={styles.dim}>The preview shows up here.</p>}
+                  {content.trim() ? <ArticleMarkdown>{content}</ArticleMarkdown> : <p className={styles.dim}>The preview shows up here.</p>}
                 </div>
               ) : null}
             </div>
@@ -287,9 +287,11 @@ export function ArticleEditor({ mode, slug }: { mode: "create" | "edit"; slug?: 
             <section className={styles.railSec}>
               <h2>Thumbnail</h2>
               <input className={styles.field} value={thumbnailUrl} onChange={(event) => setThumbnailUrl(event.target.value)} placeholder="https://…" aria-label="Thumbnail URL" />
-              {thumbnailUrl.trim() ? (
+              {safeImageUrl(thumbnailUrl) ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={thumbnailUrl} alt="" className={styles.thumbPreview} />
+                <img src={safeImageUrl(thumbnailUrl)!} alt="" className={styles.thumbPreview} />
+              ) : thumbnailUrl.trim() ? (
+                <p className={styles.dim}>Readers won&apos;t see this one: pictures load from {ARTICLE_IMAGE_HOSTS.join(", ")}.</p>
               ) : null}
             </section>
             {mode === "create" && savedAt ? (

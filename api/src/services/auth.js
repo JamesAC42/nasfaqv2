@@ -74,9 +74,45 @@ function publicUser(user) {
   };
 }
 
+// scrypt at OWASP's current minimum (N=2^17, r=8, p=1): 128 MiB and a few hundred ms per hash.
+// Each account keeps the parameters its hash was made with (password_params_json); one made with
+// older ones is rehashed with these the next time its owner signs in.
+const PASSWORD_PARAMS = { N: 131072, r: 8, p: 1 };
+const LEGACY_PASSWORD_PARAMS = { N: 16384, r: 8, p: 1 };
+// A hash holds 128 * N * r bytes for its whole run, so only a couple run at once per process: a
+// burst of sign-ins queues here instead of taking the pod's memory (and every libuv thread).
+const PASSWORD_HASH_CONCURRENCY = Math.max(1, Number(process.env.PASSWORD_HASH_CONCURRENCY) || 2);
+let hashesRunning = 0;
+const hashQueue = [];
+
+async function scrypt(password, salt, params) {
+  if (hashesRunning < PASSWORD_HASH_CONCURRENCY) hashesRunning += 1;
+  else await new Promise((resolve) => hashQueue.push(resolve)); // the finishing hash hands its slot over
+  try {
+    const { N, r, p } = params;
+    // Node refuses more than 32 MiB unless told; allow twice what these parameters need.
+    return await scryptAsync(password, salt, PASSWORD_KEYLEN, { N, r, p, maxmem: 2 * 128 * N * r });
+  } finally {
+    const next = hashQueue.shift();
+    if (next) next();
+    else hashesRunning -= 1;
+  }
+}
+
+function passwordParamsOf(user) {
+  const stored = user?.password_params_json;
+  return stored && Number(stored.N) > 0 ? { N: Number(stored.N), r: Number(stored.r) || 8, p: Number(stored.p) || 1 } : LEGACY_PASSWORD_PARAMS;
+}
+
+/** True when the account's hash was made with weaker parameters than new hashes get. */
+function needsRehash(user) {
+  const params = passwordParamsOf(user);
+  return params.N !== PASSWORD_PARAMS.N || params.r !== PASSWORD_PARAMS.r || params.p !== PASSWORD_PARAMS.p;
+}
+
 async function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
-  const params = { N: 16384, r: 8, p: 1 };
-  const derived = await scryptAsync(password, salt, PASSWORD_KEYLEN, params);
+  const params = { ...PASSWORD_PARAMS };
+  const derived = await scrypt(password, salt, params);
   return {
     hash: Buffer.from(derived).toString("hex"),
     salt,
@@ -85,8 +121,7 @@ async function hashPassword(password, salt = crypto.randomBytes(16).toString("he
 }
 
 async function verifyPassword(password, user) {
-  const params = user.password_params_json || { N: 16384, r: 8, p: 1 };
-  const derived = await scryptAsync(password, user.password_salt, PASSWORD_KEYLEN, params);
+  const derived = await scrypt(password, user.password_salt, passwordParamsOf(user));
   const incoming = Buffer.from(derived).toString("hex");
   const expected = String(user.password_hash || "");
 
@@ -94,6 +129,19 @@ async function verifyPassword(password, user) {
   const expectedBuffer = Buffer.from(expected, "hex");
   if (incomingBuffer.length !== expectedBuffer.length) return false;
   return crypto.timingSafeEqual(incomingBuffer, expectedBuffer);
+}
+
+/**
+ * Stores a fresh hash of the (just verified) password with today's parameters. Only replaces the
+ * hash it was verified against, so a password changed meanwhile is never overwritten.
+ */
+async function rehashPassword(pool, user, password) {
+  const hashed = await hashPassword(password);
+  await pool.query(
+    `UPDATE market.users SET password_hash = $2, password_salt = $3, password_params_json = $4::jsonb
+     WHERE id = $1 AND password_hash = $5`,
+    [user.id, hashed.hash, hashed.salt, JSON.stringify(hashed.params), user.password_hash]
+  );
 }
 
 function hashSessionToken(token) {
@@ -496,6 +544,12 @@ async function loginWithPassword(pool, { username, password, ipHash = null }) {
     error.code = "invalid_credentials";
     throw error;
   }
+  if (needsRehash(user)) {
+    await rehashPassword(pool, user, safePassword).catch((error) => {
+      // eslint-disable-next-line no-console
+      console.error("password rehash failed:", error?.message || error);
+    });
+  }
 
   const session = await createSession(pool, user.id, { ipHash });
   return {
@@ -620,18 +674,88 @@ async function resetPassword(pool, { token, password, ipHash = null }) {
   return { user: publicUser(rows[0]), session };
 }
 
+// ── Account security (profile settings) ──────────────────────────────────────
+
+const REVOKE_ALL_SESSIONS_SQL = `UPDATE market.user_sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`;
+
+/**
+ * Ends every session the player has, on every device, and starts a fresh one for the device that
+ * asked: whoever else held a session (a stolen cookie, a shared computer) is out, this browser
+ * stays in.
+ */
+async function signOutEverywhere(pool, userId, { ipHash = null } = {}) {
+  await pool.query(REVOKE_ALL_SESSIONS_SQL, [userId]);
+  return createSession(pool, userId, { ipHash });
+}
+
+/**
+ * A signed-in player's new password, given the current one. As with a reset, every session ends
+ * (the device that asked gets a fresh one) and any reset link still out stops working. Throws
+ * wrong_password, or invalid_password when the new one isn't 8 to 200 characters.
+ */
+async function changePassword(pool, userId, { currentPassword, newPassword, ipHash = null }) {
+  const safeNew = validatePassword(newPassword);
+  const current = String(currentPassword || "");
+  const wrong = () => Object.assign(new Error("wrong_password"), { code: "wrong_password" });
+  const { rows } = await pool.query(`SELECT id, password_hash, password_salt, password_params_json FROM market.users WHERE id = $1`, [userId]);
+  const user = rows[0];
+  if (!user?.password_hash || !user.password_salt || !current || current.length > 200) throw wrong();
+  if (!(await verifyPassword(current, user))) throw wrong();
+
+  const hashed = await hashPassword(safeNew);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    // Against the hash just checked: a password changed meanwhile (another tab, a reset) wins.
+    const { rowCount } = await client.query(
+      `UPDATE market.users SET password_hash = $2, password_salt = $3, password_params_json = $4::jsonb, updated_at = now()
+       WHERE id = $1 AND password_hash = $5`,
+      [userId, hashed.hash, hashed.salt, JSON.stringify(hashed.params), user.password_hash]
+    );
+    if (!rowCount) throw wrong();
+    await client.query(`UPDATE market.user_password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL`, [userId]);
+    await client.query(REVOKE_ALL_SESSIONS_SQL, [userId]);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+  return createSession(pool, userId, { ipHash });
+}
+
+// Sockets are signed in once, when they connect. After signOutEverywhere or changePassword every
+// API process closes that player's sockets (server.js), and they reconnect as whoever the browser
+// now is: still signed in on the device that asked, signed out everywhere else.
+const SESSIONS_REVOKED_CHANNEL = "nasfaq_auth:sessions_revoked";
+
+async function announceSessionsRevoked(redis, userId) {
+  if (!redis) return;
+  await redis.publish(SESSIONS_REVOKED_CHANNEL, JSON.stringify({ user_id: Number(userId) })).catch((error) => {
+    // eslint-disable-next-line no-console
+    console.error("sessions revoked announcement failed:", error?.message || error);
+  });
+}
+
 module.exports = {
+  PASSWORD_PARAMS,
+  SESSIONS_REVOKED_CHANNEL,
+  announceSessionsRevoked,
   buildExpiredSessionCookie,
+  changePassword,
   createSession,
   createUser,
   getAuthenticatedUser,
   getSessionTokenFromRequest,
   loginWithPassword,
+  needsRehash,
   passwordResetSchema,
   publicUser,
   requestPasswordReset,
   resetPassword,
   revokeSession,
   sendVerificationEmail,
+  signOutEverywhere,
   verifyEmailToken,
 };
