@@ -152,7 +152,20 @@ function PlayersTab() {
         <div>
           <span className={styles.label}>You</span>
           <b>{me ? `#${me.rank.toLocaleString("en-US")}` : "—"}</b>
-          <small>{me ? `top ${Math.max(0.1, (1 - me.percentile) * 100).toFixed(1)}%` : user ? "make a trade to rank" : "sign in to rank"}</small>
+          <small>
+            {me ? (
+              `top ${Math.max(0.1, (1 - me.percentile) * 100).toFixed(1)}%`
+            ) : !user ? (
+              "sign in to rank"
+            ) : !user.email_verified ? (
+              // Unverified accounts aren't ranked (api/src/services/moderation.js leaderboardPlayerSql).
+              <Link href="/profile">verify your email to rank</Link>
+            ) : user.suspension ? (
+              "not ranked while suspended"
+            ) : (
+              "make a trade to rank"
+            )}
+          </small>
         </div>
       </div>
 

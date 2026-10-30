@@ -3,6 +3,7 @@ const VALID_POSTING_POLICIES = new Set(["authenticated", "admins_only", "read_on
 const { equippedJsonSql, normalizeEquipped } = require("./services/games/equipped");
 const { profilePictureUrlSql } = require("./profilePictures");
 const reactions = require("./services/games/reactions");
+const { assertCleanText } = require("./services/nameRules");
 const VALID_MESSAGE_STATUSES = new Set(["active", "deleted", "moderated"]);
 const VALID_REPORT_STATUSES = new Set(["open", "resolved", "dismissed"]);
 const VALID_MODERATION_ACTIONS = new Set(["mute", "ban"]);
@@ -888,7 +889,7 @@ async function assertCanPost(pool, { channelId, viewer }) {
 
 async function createMessage(pool, { channelId, viewer, body, replyToMessageId = null }) {
   const channel = await assertCanPost(pool, { channelId, viewer });
-  const normalizedBody = normalizeMessageBody(body);
+  const normalizedBody = assertCleanText(normalizeMessageBody(body), "body");
   // A sticker message ([[sticker:PEK/hype]]) needs a card of that talent.
   const sticker = reactions.parseSticker(normalizedBody);
   if (sticker) await reactions.assertOwnsReaction(pool, viewer.id, sticker.symbol, "sticker_locked");

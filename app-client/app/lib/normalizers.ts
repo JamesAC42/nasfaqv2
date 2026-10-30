@@ -2278,6 +2278,16 @@ function normalizeProfileTalent(value: unknown) {
   };
 }
 
+function normalizeProfileRename(value: unknown): ProfileBundle["profile"]["rename"] {
+  if (!value || typeof value !== "object") return null;
+  const rename = value as Record<string, unknown>;
+  return {
+    available_at: rename.available_at ? String(rename.available_at) : null,
+    cooldown_days: Number(toNumber(rename.cooldown_days) || 7),
+    needs_verified_email: Boolean(rename.needs_verified_email),
+  };
+}
+
 export function normalizeProfileBundle(value: Record<string, unknown>): ProfileBundle {
   const profile = (value.profile || null) as Record<string, unknown> | null;
   const stats = (profile?.stats || null) as Record<string, unknown> | null;
@@ -2301,6 +2311,7 @@ export function normalizeProfileBundle(value: Record<string, unknown>): ProfileB
       bio: profile?.bio ? String(profile.bio) : null,
       profile_picture_url: profile?.profile_picture_url ? String(profile.profile_picture_url) : null,
       profile_color: profile?.profile_color ? String(profile.profile_color) : null,
+      rename: normalizeProfileRename(profile?.rename),
       equipped: normalizeEquipped(profile?.equipped),
       is_admin: Boolean(profile?.is_admin),
       permissions: {

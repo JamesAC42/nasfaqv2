@@ -33,6 +33,7 @@ const ERROR_STATUS = {
   invalid_card: 400,
   invalid_reward: 400,
   invalid_stake: 400,
+  pvp_account_too_new: 403,
   invalid_deck: 400,
   invalid_bet: 400,
   card_pool_empty: 503,

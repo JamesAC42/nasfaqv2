@@ -1,4 +1,5 @@
-const { notSuspendedSql } = require("./services/moderation");
+const { leaderboardPlayerSql } = require("./services/moderation");
+const { assertCleanText } = require("./services/nameRules");
 
 function parsePositiveInt(value, fallback, { min = 1, max = 100 } = {}) {
   const parsed = Number.parseInt(String(value ?? fallback), 10);
@@ -509,7 +510,7 @@ async function listPredictionMarketComments(pool, slug, { page = 1, limit = 12, 
             ORDER BY l.total_equity DESC, l.username_snapshot ASC, l.user_id ASC
           )::INTEGER AS rank
         FROM market.user_leaderboard_current l
-        WHERE ${notSuspendedSql("l.user_id")}
+        WHERE ${leaderboardPlayerSql("l.user_id")}
       )
       SELECT
         c.id,
@@ -599,6 +600,7 @@ async function createPredictionMarketComment(pool, slug, authorId, { body } = {}
     error.code = "invalid_prediction_market_comment";
     throw error;
   }
+  assertCleanText(safeBody, "body");
 
   const client = await pool.connect();
   try {

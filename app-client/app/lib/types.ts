@@ -1713,6 +1713,13 @@ export type TradeStreak = {
   longest_streak_ended_day?: string | null;
 };
 
+/** Renaming needs a verified email, then once every `cooldown_days`. available_at: null when you can now. */
+export type ProfileRename = {
+  available_at: string | null;
+  cooldown_days: number;
+  needs_verified_email: boolean;
+};
+
 export type ProfileBundle = {
   profile: {
     id: number;
@@ -1722,6 +1729,8 @@ export type ProfileBundle = {
     bio: string | null;
     profile_picture_url: string | null;
     profile_color: string | null;
+    /** Your own profile only: when you can next change your username (null on other people's). */
+    rename: ProfileRename | null;
     equipped: Equipped;
     is_admin: boolean;
     permissions: {

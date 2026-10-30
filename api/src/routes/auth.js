@@ -1,5 +1,6 @@
 const express = require("express");
 const auth = require("../services/auth");
+const { requestIpHash } = require("../services/ipHash");
 const { verifyTurnstile } = require("../services/turnstile");
 
 const { rateLimit, byIp, byUser } = require("../rateLimit");
@@ -44,18 +45,22 @@ router.post("/register", rateLimit(byIp("register", 10, 3600)), async (req, res,
     if (String(req.body?.ogey || "").trim() !== "rrat") {
       return res.status(400).json({ error: "invalid_ogey" });
     }
+    const ipHash = requestIpHash(req);
     const user = await auth.createUser(req.ctx.pool, {
       username: req.body?.username,
       email: req.body?.email,
       password: req.body?.password,
+      ipHash,
     });
-    const session = await auth.createSession(req.ctx.pool, user.id);
+    const session = await auth.createSession(req.ctx.pool, user.id, { ipHash });
     res.setHeader("Set-Cookie", session.cookie);
     res.status(201).json({ user });
   } catch (e) {
     if (e?.code === "invalid_username") return res.status(400).json({ error: "invalid_username" });
     if (e?.code === "invalid_email") return res.status(400).json({ error: "invalid_email" });
     if (e?.code === "invalid_password") return res.status(400).json({ error: "invalid_password" });
+    // nameRules.js and emailRules.js
+    if (["username_not_allowed", "username_reserved", "username_talent", "disposable_email"].includes(e?.code)) return res.status(400).json({ error: e.code });
     if (e?.code === "username_taken") return res.status(409).json({ error: "username_taken" });
     if (e?.code === "email_taken") return res.status(409).json({ error: "email_taken" });
     if (turnstileStatus(e?.code)) return res.status(turnstileStatus(e.code)).json({ error: e.code });
@@ -72,6 +77,7 @@ router.post("/login", loginLimit, async (req, res, next) => {
     const result = await auth.loginWithPassword(req.ctx.pool, {
       username: req.body?.username,
       password: req.body?.password,
+      ipHash: requestIpHash(req),
     });
     res.setHeader("Set-Cookie", result.session.cookie);
     res.json({ user: result.user });
@@ -106,7 +112,7 @@ router.post("/forgot-password", forgotLimit, async (req, res, next) => {
 
 router.post("/reset-password", rateLimit(byIp("reset", 20, 3600)), async (req, res, next) => {
   try {
-    const result = await auth.resetPassword(req.ctx.pool, { token: req.body?.token, password: req.body?.password });
+    const result = await auth.resetPassword(req.ctx.pool, { token: req.body?.token, password: req.body?.password, ipHash: requestIpHash(req) });
     res.setHeader("Set-Cookie", result.session.cookie);
     res.json({ user: result.user });
   } catch (e) {

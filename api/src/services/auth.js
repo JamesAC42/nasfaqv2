@@ -8,7 +8,10 @@ const EMAIL_VERIFICATION_TTL_HOURS = Number(process.env.EMAIL_VERIFICATION_TTL_H
 const PASSWORD_KEYLEN = 64;
 const { profilePictureUrlSql } = require("../profilePictures");
 const { appUrl, escapeHtml, sendEmail } = require("./email");
+const { canonicalEmail, isDisposableEmail } = require("./emailRules");
+const { requestIpHash } = require("./ipHash");
 const { suspensionOf } = require("./moderation");
+const { assertUsernameAllowed } = require("./nameRules");
 
 
 function normalizeUsername(username) {
@@ -163,10 +166,22 @@ function getSessionTokenFromRequest(req) {
   return cookies[SESSION_COOKIE_NAME] || null;
 }
 
-async function createUser(pool, { username, email, password }) {
+/**
+ * Signs up a player. One inbox, one account: the address is also stored as its inbox sees it
+ * (email_normalized, unique; emailRules.js), so Gmail dot and +tag variants are email_taken, and
+ * throwaway domains are refused. The name must pass nameRules.js. `ipHash` is the sign-up
+ * address's salted hash (ipHash.js), kept to link alts.
+ */
+async function createUser(pool, { username, email, password, ipHash = null }) {
   const safeUsername = validateUsername(username);
   const safeEmail = validateEmail(email);
   const safePassword = validatePassword(password);
+  if (isDisposableEmail(safeEmail)) {
+    const error = new Error("disposable_email");
+    error.code = "disposable_email";
+    throw error;
+  }
+  await assertUsernameAllowed(pool, safeUsername);
   const normalized = normalizeUsername(safeUsername);
   const hashed = await hashPassword(safePassword);
 
@@ -177,6 +192,8 @@ async function createUser(pool, { username, email, password }) {
         username,
         username_normalized,
         email,
+        email_normalized,
+        signup_ip_hash,
         password_hash,
         password_salt,
         password_params_json,
@@ -184,7 +201,7 @@ async function createUser(pool, { username, email, password }) {
         is_admin,
         can_manage_assets,
         updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,false,false,false,now())
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,false,false,false,now())
       RETURNING
         id,
         username,
@@ -200,7 +217,7 @@ async function createUser(pool, { username, email, password }) {
         can_void_prediction_markets,
         created_at
     `,
-      [safeUsername, normalized, safeEmail, hashed.hash, hashed.salt, JSON.stringify(hashed.params)]
+      [safeUsername, normalized, safeEmail, canonicalEmail(safeEmail), ipHash, hashed.hash, hashed.salt, JSON.stringify(hashed.params)]
     );
     await sendVerificationEmail(pool, rows[0]);
     return publicUser(rows[0]);
@@ -345,7 +362,8 @@ async function findUserByLogin(pool, login) {
   return rows[0] || null;
 }
 
-async function createSession(pool, userId) {
+/** A new signed-in session. `ipHash`: the salted hash of the address it starts from (ipHash.js). */
+async function createSession(pool, userId, { ipHash = null } = {}) {
   const token = generateSessionToken();
   const tokenHash = hashSessionToken(token);
   const ttlSeconds = getSessionTtlSeconds();
@@ -356,10 +374,11 @@ async function createSession(pool, userId) {
       user_id,
       session_token_hash,
       expires_at,
-      last_seen_at
-    ) VALUES ($1,$2,now() + ($3 || ' seconds')::interval, now())
+      last_seen_at,
+      last_ip_hash
+    ) VALUES ($1,$2,now() + ($3 || ' seconds')::interval, now(), $4)
   `,
-    [userId, tokenHash, String(ttlSeconds)]
+    [userId, tokenHash, String(ttlSeconds), ipHash]
   );
 
   return {
@@ -428,7 +447,8 @@ async function getAuthenticatedUser(pool, req) {
   user.suspension = suspensionOf(user);
 
   // "Last seen" (the admin console shows it) moves at most every few minutes per session and pod,
-  // not on every request: that write was a Postgres UPDATE per authenticated API call.
+  // not on every request: that write was a Postgres UPDATE per authenticated API call. The session's
+  // last address (as its salted hash, for linking alts) goes with it.
   const sessionKey = String(user.session_id);
   const now = Date.now();
   if ((lastSeenWrites.get(sessionKey) ?? 0) + LAST_SEEN_EVERY_MS <= now) {
@@ -437,17 +457,18 @@ async function getAuthenticatedUser(pool, req) {
     await pool.query(
       `
       UPDATE market.user_sessions
-      SET last_seen_at = now()
+      SET last_seen_at = now(),
+          last_ip_hash = COALESCE($2, last_ip_hash)
       WHERE id = $1
     `,
-      [user.session_id]
+      [user.session_id, requestIpHash(req)]
     );
   }
 
   return user;
 }
 
-async function loginWithPassword(pool, { username, password }) {
+async function loginWithPassword(pool, { username, password, ipHash = null }) {
   const safeUsername = String(username || "").trim();
   if (!safeUsername) {
     const error = new Error("invalid_username");
@@ -476,7 +497,7 @@ async function loginWithPassword(pool, { username, password }) {
     throw error;
   }
 
-  const session = await createSession(pool, user.id);
+  const session = await createSession(pool, user.id, { ipHash });
   return {
     user: publicUser(user),
     session,
@@ -546,7 +567,7 @@ async function requestPasswordReset(pool, login, { send = sendEmail } = {}) {
   return status;
 }
 
-async function resetPassword(pool, { token, password }) {
+async function resetPassword(pool, { token, password, ipHash = null }) {
   const safePassword = validatePassword(password);
   const hashed = await hashPassword(safePassword);
   const client = await pool.connect();
@@ -586,7 +607,7 @@ async function resetPassword(pool, { token, password }) {
     client.release();
   }
 
-  const session = await createSession(pool, userId);
+  const session = await createSession(pool, userId, { ipHash });
   const { rows } = await pool.query(
     `SELECT u.id, u.username, u.email, u.email_verified, ${profilePictureUrlSql("small")} AS profile_picture_url, u.profile_color,
             u.is_admin, u.can_manage_assets, u.can_create_prediction_markets, u.can_approve_prediction_markets,

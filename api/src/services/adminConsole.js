@@ -3,6 +3,7 @@
 // checked that the requester is a site admin.
 
 const { profilePictureUrlSql } = require("../profilePictures");
+const { sharedIpAccounts } = require("./ipHash");
 const { logAction, suspensionOf } = require("./moderation");
 
 /** Role flags an admin can toggle from /admin/people, in display order. */
@@ -139,6 +140,15 @@ function toAdminUser(row) {
 }
 
 /**
+ * Adds shared_ip_accounts to each admin user: the other accounts that have used the same IP
+ * address (only its salted hash is stored, and neither is shown; services/ipHash.js).
+ */
+async function withSharedIps(pool, users) {
+  const shared = await sharedIpAccounts(pool, users.filter(Boolean).map((user) => user.id));
+  return users.map((user) => (user ? { ...user, shared_ip_accounts: shared.get(user.id) ?? [] } : user));
+}
+
+/**
  * Search users by username (or exact email). With no query, lists staff: anyone holding a role.
  * `role` narrows to holders of one flag (or "staff" for any).
  */
@@ -168,12 +178,12 @@ async function searchUsers(pool, { q = "", role = "" } = {}) {
      LIMIT $${params.length}`,
     params
   );
-  return rows.map(toAdminUser);
+  return withSharedIps(pool, rows.map(toAdminUser));
 }
 
 async function getAdminUser(pool, userId) {
   const { rows } = await pool.query(`SELECT ${USER_COLUMNS} ${USER_FROM} WHERE u.id = $1`, [userId]);
-  return toAdminUser(rows[0]);
+  return (await withSharedIps(pool, [toAdminUser(rows[0])]))[0];
 }
 
 /** Apply a role patch. Returns { user, changed }. Logs every real change to the server log. */

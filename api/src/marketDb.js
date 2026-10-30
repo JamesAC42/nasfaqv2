@@ -2,6 +2,7 @@ const marketState = require("./services/marketState");
 const supply = require("./services/marketSupply");
 
 const { profilePictureUrlSql } = require("./profilePictures");
+const { assertCleanText } = require("./services/nameRules");
 
 
 function parseRangeToInterval(range) {
@@ -2333,6 +2334,7 @@ async function createAssetComment(pool, symbol, authorId, { body, mood }) {
     error.code = "invalid_asset_comment";
     throw error;
   }
+  assertCleanText(safeBody, "body");
 
   const client = await pool.connect();
   try {

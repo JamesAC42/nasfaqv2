@@ -62,11 +62,16 @@ test("password reset against PostgreSQL", { skip: !databaseUrl }, async (t) => {
 
   await pool.query(`
     CREATE SCHEMA IF NOT EXISTS market;
-    DROP TABLE IF EXISTS market.user_password_reset_tokens, market.user_email_verification_tokens, market.user_sessions, market.users, market.profile_pictures;
+    CREATE SCHEMA IF NOT EXISTS yt;
+    DROP TABLE IF EXISTS market.user_password_reset_tokens, market.user_email_verification_tokens, market.user_sessions, market.users, market.profile_pictures, market.market_assets, yt.youtube_channels;
+    -- Sign-up reads talent names from these (services/nameRules.js).
+    CREATE TABLE yt.youtube_channels (youtube_channel_id text PRIMARY KEY, name_short text NOT NULL, name_english text, symbol text);
+    CREATE TABLE market.market_assets (id bigserial PRIMARY KEY, youtube_channel_id text, symbol text NOT NULL, display_name text NOT NULL);
     CREATE TABLE market.profile_pictures (id bigint PRIMARY KEY, is_deleted boolean NOT NULL DEFAULT false, filename_small text, filename_large text);
     CREATE TABLE market.users (
       id BIGSERIAL PRIMARY KEY, username TEXT NOT NULL UNIQUE, username_normalized TEXT NOT NULL UNIQUE,
-      email TEXT, email_verified BOOLEAN NOT NULL DEFAULT false, email_verified_at TIMESTAMPTZ,
+      email TEXT, email_normalized TEXT, signup_ip_hash TEXT, username_changed_at TIMESTAMPTZ,
+      email_verified BOOLEAN NOT NULL DEFAULT false, email_verified_at TIMESTAMPTZ,
       password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, password_params_json JSONB NOT NULL,
       profile_picture_id BIGINT, profile_reaction TEXT, profile_color TEXT,
       is_admin BOOLEAN NOT NULL DEFAULT false, can_manage_assets BOOLEAN NOT NULL DEFAULT false,
@@ -76,10 +81,11 @@ test("password reset against PostgreSQL", { skip: !databaseUrl }, async (t) => {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     CREATE UNIQUE INDEX ON market.users (lower(email)) WHERE email IS NOT NULL;
+    CREATE UNIQUE INDEX market_users_email_normalized_uidx ON market.users (email_normalized) WHERE email_normalized IS NOT NULL;
     CREATE TABLE market.user_sessions (
       id BIGSERIAL PRIMARY KEY, user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
       session_token_hash TEXT NOT NULL UNIQUE, expires_at TIMESTAMPTZ NOT NULL, revoked_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now(), last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(), last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(), last_ip_hash TEXT
     );
     CREATE TABLE market.user_email_verification_tokens (
       id BIGSERIAL PRIMARY KEY, user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE, email TEXT NOT NULL,

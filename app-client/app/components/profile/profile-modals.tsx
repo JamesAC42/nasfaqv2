@@ -20,6 +20,33 @@ import styles from "@/app/components/profile/profile.module.scss";
 
 type Profile = ProfileBundle["profile"];
 
+function day(value: string) {
+  return new Date(value).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+// What a refused profile save says (api/src/profileDb.js and services/nameRules.js).
+const PROFILE_ERRORS: Record<string, string> = {
+  invalid_username: "Usernames are 3–32 characters: letters, numbers, underscores and single spaces.",
+  username_taken: "That username is taken. Try another.",
+  username_not_allowed: "That username isn't allowed: slurs and hate terms are off-limits, however they're spelled.",
+  username_reserved: "That name is reserved. Usernames can't look like staff or the site (admin, mod, official, support, NASFAQ…).",
+  username_talent: "That's a talent's name or ticker, so it's hers. Make it yours, like “PekoraFan”.",
+  rename_needs_verified_email: "Verify your email before changing your username.",
+  invalid_profile_update: "Something in there isn't valid. Bios are up to 250 characters, and colours are hex like #3FB8F5.",
+};
+
+function profileErrorText(reason: unknown) {
+  const body = (reason as { body?: Record<string, unknown> | null })?.body ?? null;
+  const code = typeof body?.error === "string" ? body.error : String((reason as Error)?.message || reason);
+  if (code === "rename_cooldown") {
+    return typeof body?.available_at === "string"
+      ? `You changed your username recently. You can change it again ${day(body.available_at)}.`
+      : "You changed your username recently. Usernames can change once a week.";
+  }
+  // blocked_words already reads as a sentence (lib/api.ts).
+  return PROFILE_ERRORS[code] ?? String((reason as Error)?.message || reason);
+}
+
 /** A portfolio theme the player owns (a capsule prize), ready to show as a swatch and equip. */
 type OwnedTheme = { id: number; slot: string; name: string; theme: CosmeticTheme };
 const THEME_SLOT = "portfolio_theme";
@@ -165,19 +192,29 @@ export function SettingsModal({ open, profile, onClose, onSaved }: { open: boole
       if (current) useAuthStore.getState().setUser({ ...current, username: name });
       onClose();
     } catch (reason) {
-      setError(String((reason as Error).message || reason));
+      setError(profileErrorText(reason));
     } finally {
       setBusy(false);
     }
   };
+
+  // Renaming needs a verified email, then once a week (the API checks both).
+  const rename = profile.rename;
+  const nameLocked = Boolean(rename && (rename.needs_verified_email || rename.available_at));
 
   return (
     <Modal title="Edit profile" onClose={onClose}>
       <div className={styles.form}>
         <label>
           <span className={styles.label}>Username</span>
-          <input value={name} maxLength={32} onChange={(event) => setName(event.target.value)} />
-          <small>Letters, numbers, underscores and single spaces. 3–32 characters.</small>
+          <input value={name} maxLength={32} readOnly={nameLocked} aria-describedby="profile-username-help" onChange={(event) => setName(event.target.value)} />
+          <small id="profile-username-help">
+            {rename?.needs_verified_email
+              ? "Verify your email to change your username."
+              : rename?.available_at
+                ? `You can change your username again ${day(rename.available_at)}. Names can change once every ${rename.cooldown_days} days.`
+                : `Letters, numbers, underscores and single spaces, 3–32 characters. You can change it once every ${rename?.cooldown_days ?? 7} days. Staff words (admin, mod…), talent names and slurs aren't allowed.`}
+          </small>
         </label>
         <label>
           <span className={styles.label}>Bio</span>

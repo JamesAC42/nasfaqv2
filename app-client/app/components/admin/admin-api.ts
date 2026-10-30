@@ -66,7 +66,12 @@ export type AdminUser = {
   has_bio?: boolean;
   /** Site-wide suspension in force: read-only until `until` (null: until lifted). */
   suspension?: AdminSuspension | null;
+  /** Other accounts that have used the same IP address (only a salted hash is kept; never shown). */
+  shared_ip_accounts?: LinkedAccount[];
 } & Record<RoleFlag, boolean>;
+
+/** An account tied to another by a shared IP hash (api/src/services/ipHash.js). */
+export type LinkedAccount = { id: number; username: string; created_at: string; email_verified: boolean; suspended: boolean };
 
 export type AdminSuspension = { reason: string | null; since: string; until: string | null; permanent: boolean; by: string | null };
 
@@ -74,7 +79,8 @@ export const searchAdminUsers = (q: string, role: string) => {
   const params = new URLSearchParams();
   if (q.trim()) params.set("q", q.trim());
   if (role) params.set("role", role);
-  return apiFetch<{ users: AdminUser[] }>(`/api/admin/users?${params.toString()}`, { cache: "no-store" });
+  // ip_linking: false while the API has no IP_HASH_SALT (nothing recorded, nothing linked).
+  return apiFetch<{ users: AdminUser[]; ip_linking?: boolean }>(`/api/admin/users?${params.toString()}`, { cache: "no-store" });
 };
 
 export const patchUserRoles = (userId: number, body: Partial<Record<RoleFlag | "email_verified" | "confirm", boolean>>) =>
@@ -341,9 +347,12 @@ export const fetchSchedulerHealth = async () => normalizeSchedulerHealth(await a
 
 // ── /api/admin/exchange-review ─────────────────────────────────────────
 
-export type ReviewParty = { id: number; username: string; age_days: number };
+/** same_ip (funnel accounts): has used the same IP address as the hub. */
+export type ReviewParty = { id: number; username: string; age_days: number; same_ip?: boolean };
 /** Two accounts that keep trading with each other (sales and trades, any price). */
-export type ReviewPair = { a: ReviewParty; b: ReviewParty; transfers: number; last_at: string };
+export type ReviewPair = { a: ReviewParty; b: ReviewParty; transfers: number; last_at: string; same_ip?: boolean };
+/** Accounts tied together by shared IP hashes, one of them used within the window. */
+export type IpCluster = { accounts: LinkedAccount[]; last_at: string };
 /** One account dealing with several new ones. */
 export type ReviewFunnel = { hub: ReviewParty; accounts: ReviewParty[]; transfers: number; last_at: string };
 export type ReviewFlag = {
@@ -358,6 +367,8 @@ export type ReviewFlag = {
   ratio: number | null;
   favours: "from" | "to";
   pair_flags: number;
+  /** The two accounts have used the same IP address. */
+  same_ip?: boolean;
 };
 export type ExchangeReview = {
   window_days: number;
@@ -368,6 +379,8 @@ export type ExchangeReview = {
   flags: ReviewFlag[];
   pairs?: ReviewPair[];
   funnels?: ReviewFunnel[];
+  ip_linking?: boolean;
+  ip_clusters?: IpCluster[];
 };
 
 export const fetchExchangeReview = (days: number) => apiFetch<ExchangeReview>(`/api/admin/exchange-review?days=${days}`, { cache: "no-store" });

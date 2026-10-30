@@ -14,15 +14,29 @@ function Party({ party, gains }: { party: ReviewParty; gains: boolean }) {
     <span className={styles.party} data-gains={gains || undefined}>
       <Link href={`/profile/${encodeURIComponent(party.username)}`}>{party.username}</Link>
       <small data-new={party.age_days < 14 || undefined}>{party.age_days}d old</small>
+      {party.same_ip ? <small data-new>same IP</small> : null}
     </span>
   );
 }
+
+/** The two accounts have used the same IP address (only a salted hash is kept). */
+function SameIp({ shown }: { shown?: boolean }) {
+  if (!shown) return null;
+  return (
+    <span className={ui.pill} data-tone="warn" title="These accounts have used the same IP address">
+      same IP
+    </span>
+  );
+}
+
+const ageDays = (createdAt: string, now: number) => Math.max(0, Math.floor((now - Date.parse(createdAt)) / 86_400_000));
 
 /**
  * Exchange transfers worth a second look (cards and capsule items): sales and trades where at least
  * one side is a new account and the value moved is far off the market price (the shape of alts
  * feeding a main); pairs of accounts that keep trading with each other; and accounts dealing with
- * several new ones. Read-only; freeze someone's exchange from People & roles.
+ * several new ones; and accounts that have used the same IP address. Read-only; freeze someone's
+ * exchange from People & roles.
  */
 export function AdminExchangeReview() {
   const access = useAdminAccess();
@@ -52,7 +66,8 @@ export function AdminExchangeReview() {
       blurb={
         <>
           Card and capsule item sales and trades where a new account (under {review?.new_account_days ?? 14} days) moved value at {review?.ratio ?? 3}× or more off the market
-          price, pairs of accounts that keep trading with each other, and accounts dealing with several new ones. To stop someone, freeze their exchange in{" "}
+          price, pairs of accounts that keep trading with each other, accounts dealing with several new ones, and accounts that share an IP address. To stop
+          someone, freeze their exchange in{" "}
           <Link href="/admin/people">People &amp; roles</Link>.
         </>
       }
@@ -85,6 +100,7 @@ export function AdminExchangeReview() {
                         {flag.pair_flags}× this pair
                       </span>
                     ) : null}
+                    <SameIp shown={flag.same_ip} />
                   </p>
                   <p className={styles.summary}>{flag.summary}</p>
                 </div>
@@ -114,6 +130,7 @@ export function AdminExchangeReview() {
                     <Party party={pair.a} gains={false} />
                     <span aria-hidden="true">⇄</span>
                     <Party party={pair.b} gains={false} />
+                    <SameIp shown={pair.same_ip} />
                   </p>
                   <p className={styles.summary}>
                     {pair.transfers} sales and trades between them in the last {review.window_days} days.
@@ -162,6 +179,47 @@ export function AdminExchangeReview() {
           </ul>
         ) : (
           <p className={ui.empty}>Nobody dealing with a crowd of new accounts in this window.</p>
+        )}
+      </Section>
+      <Section
+        title="Accounts sharing an IP"
+        count={review?.ip_clusters ? review.ip_clusters.length : "…"}
+        tone={review?.ip_clusters?.length ? "warn" : undefined}
+        hint="Accounts that signed up or played from the same IP address (or are chained together by them), seen in this window. A lead, not proof: homes, schools and phone networks share one."
+      >
+        {!review ? (
+          <p className={ui.empty}>Loading…</p>
+        ) : review.ip_linking === false ? (
+          <p className={ui.empty}>Off: the API has no IP_HASH_SALT, so no IP hashes are being kept.</p>
+        ) : review.ip_clusters?.length ? (
+          <ul className={styles.list}>
+            {review.ip_clusters.map((cluster) => (
+              <li key={`ip-${cluster.accounts.map((account) => account.id).join("-")}`} className={styles.row}>
+                <span className={ui.pill} data-tone="warn">
+                  IP
+                </span>
+                <div className={styles.main}>
+                  <p className={styles.parties}>
+                    {cluster.accounts.slice(0, 8).map((account) => (
+                      <Party key={account.id} party={{ id: account.id, username: account.username, age_days: ageDays(account.created_at, now) }} gains={false} />
+                    ))}
+                    {cluster.accounts.length > 8 ? <small>+{cluster.accounts.length - 8} more</small> : null}
+                  </p>
+                  <p className={styles.summary}>
+                    {cluster.accounts.length} accounts
+                    {cluster.accounts.some((account) => !account.email_verified) ? `, ${cluster.accounts.filter((account) => !account.email_verified).length} unverified` : ""}
+                    {cluster.accounts.some((account) => account.suspended) ? `, ${cluster.accounts.filter((account) => account.suspended).length} suspended` : ""}.
+                  </p>
+                </div>
+                <span className={styles.end}>
+                  <b>{cluster.accounts.length}</b>
+                  <small>{ago(cluster.last_at, now)} ago</small>
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className={ui.empty}>No accounts sharing an IP address in this window.</p>
         )}
       </Section>
     </AdminFrame>

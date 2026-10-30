@@ -9,6 +9,7 @@ import {
   resetUserProfile,
   searchAdminUsers,
   type AdminUser,
+  type LinkedAccount,
   type RoleFlag,
   type SuspensionDuration,
 } from "@/app/components/admin/admin-api";
@@ -51,6 +52,26 @@ function joined(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+/** Other accounts that have used the same IP address: a lead for alts, not proof (homes and schools share one). */
+function SharedIp({ accounts }: { accounts: LinkedAccount[] }) {
+  const shown = accounts.slice(0, 8);
+  return (
+    <p className={styles.email}>
+      <span className={ui.pill} data-tone="warn" title="Has used the same IP address as these accounts (only a salted hash of it is kept)">
+        Shares an IP
+      </span>
+      <span className={styles.dim}>with</span>
+      {shown.map((account) => (
+        <Link key={account.id} href={`/profile/${encodeURIComponent(account.username)}`} title={`joined ${joined(account.created_at)}${account.email_verified ? "" : ", unverified"}${account.suspended ? ", suspended" : ""}`}>
+          {account.username}
+          {account.suspended ? " (suspended)" : ""}
+        </Link>
+      ))}
+      {accounts.length > shown.length ? <span className={styles.dim}>+{accounts.length - shown.length} more</span> : null}
+    </p>
+  );
 }
 
 function RoleSwitch({
@@ -227,6 +248,7 @@ function UserRow({
               </>
             ) : null}
           </p>
+          {user.shared_ip_accounts?.length ? <SharedIp accounts={user.shared_ip_accounts} /> : null}
           <p className={styles.email}>
             {frozen ? (
               <>
@@ -428,6 +450,7 @@ export function AdminPeoplePage() {
   const [query, setQuery] = useState("");
   const [role, setRole] = useState<string>("");
   const [users, setUsers] = useState<AdminUser[] | null>(null);
+  const [ipLinking, setIpLinking] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef(0);
@@ -440,6 +463,7 @@ export function AdminPeoplePage() {
       const result = await searchAdminUsers(q, r);
       if (id !== requestRef.current) return;
       setUsers(result.users);
+      setIpLinking(result.ip_linking !== false);
       setError(null);
     } catch (caught) {
       if (id !== requestRef.current) return;
@@ -553,6 +577,14 @@ export function AdminPeoplePage() {
               <div>
                 <dt>Verified email</dt>
                 <dd>Needed to trade or play for cash. Verify by hand if the email never showed up.</dd>
+              </div>
+              <div>
+                <dt>Shares an IP</dt>
+                <dd>
+                  {ipLinking
+                    ? "Accounts that signed up or played from the same IP address. A lead for alts, not proof: homes, schools and phone networks share one. Only a salted hash is kept, never the address."
+                    : "Off: the API has no IP_HASH_SALT, so no IP hashes are being kept."}
+                </dd>
               </div>
             </dl>
             <p className={styles.note}>

@@ -3,6 +3,8 @@
 //
 // Money rules:
 //   - Stakes are debited when a player takes a seat (create or join) and held on the match row.
+//   - Staking Cash needs what the exchange needs: a verified email and an account a week old in
+//     production (accountRules.js), so an alt can't lose its starting money to a main on purpose.
 //   - The winner is credited 95% of the pot (rake_bps from the catalog); a draw refunds both.
 //   - An open table that expires or is cancelled refunds its host.
 //   - Anything still open or playing when the API starts is refunded (tables live in memory).
@@ -13,6 +15,7 @@
 // to the database, so they can't move money or count as wins anywhere. They live in memory under
 // their own ids (PRACTICE_ID_BASE up) and show in the lobby's live list like any match.
 
+const { assertCanStake } = require("../accountRules");
 const cards = require("../cards");
 const gamesCatalog = require("../catalog");
 const gamesWallet = require("../wallet");
@@ -221,6 +224,8 @@ async function createTableLocked({ userId, gameKey, stake, deck, vsNpc = false }
   const game = await getPvpGame(gameKey);
   const safeStake = parseStake(stake, game);
   if (userBusy(userId, gameKey)) throw tableError("already_seated");
+  // Staked Cash goes to the other player: the exchange's account rules apply (accountRules.js).
+  if (safeStake > 0) await assertCanStake(pool, userId);
   const deckKeys = await validateDeck(pool, userId, gameKey, deck);
   const user = await loadUser(pool, userId);
   const rakeBps = Number(game.config_json?.rake_bps ?? 500);
@@ -386,6 +391,7 @@ async function joinTableLocked({ userId, tableId, deck }) {
     if (table.status !== "open") throw tableError("table_full");
     if (table.players.some((player) => player.user_id === userId)) throw tableError("already_seated");
     if (userBusy(userId, table.gameKey)) throw tableError("already_seated");
+    if (table.stake > 0) await assertCanStake(pool, userId);
     const deckKeys = await validateDeck(pool, userId, table.gameKey, deck);
     const user = await loadUser(pool, userId);
 

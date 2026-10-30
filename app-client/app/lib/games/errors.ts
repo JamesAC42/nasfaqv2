@@ -18,6 +18,7 @@ const COPY: Record<string, string> = {
   not_your_turn: "Not your turn.",
   invalid_action: "You can't do that right now.",
   invalid_stake: "That stake is outside the table limits.",
+  pvp_account_too_new: "New accounts can play for a stake a few days after signing up, like trading on the exchange. Tables with no stake are open now.",
   invalid_deck: "Pick five different talents for your deck.",
   invalid_bet: "That bet is outside the table limits.",
   banner_not_found: "That banner has ended.",
@@ -61,5 +62,11 @@ const COPY: Record<string, string> = {
 
 export function gameErrorText(error: unknown) {
   const message = String((error as Error)?.message ?? error ?? "");
+  // Account-age refusals say when it opens up (the API sends available_at).
+  const availableAt = (error as { body?: { available_at?: unknown } | null })?.body?.available_at;
+  if (message === "pvp_account_too_new" && typeof availableAt === "string") {
+    const when = new Date(availableAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    return `New accounts can play for a stake from ${when}, like trading on the exchange. Tables with no stake are open now.`;
+  }
   return COPY[message] ?? (message && !/^\d+$/.test(message) ? message.replace(/_/g, " ") : "Something went wrong. Try again.");
 }
