@@ -22,6 +22,8 @@ const SCHEDULERS = [
   { name: "wire", label: "Wire", staleAfterMs: 45 * MINUTE },
   // Reads 4chan, which goes down by itself now and then: only a long outage is worth a message.
   { name: "chatter", label: "Chatter", staleAfterMs: 180 * MINUTE, stallAfterMs: 30 * MINUTE },
+  // Readers see the same history either way; a backlog only makes chat.messages bigger.
+  { name: "chat-archive", label: "Chat archive", staleAfterMs: 120 * MINUTE },
   { name: "watchdog", label: "Watchdog", staleAfterMs: 10 * MINUTE },
 ];
 const specFor = (name) => SCHEDULERS.find((spec) => spec.name === name) || null;

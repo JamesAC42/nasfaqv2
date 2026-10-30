@@ -25,8 +25,8 @@ test("live orders hold their cash", { skip: !databaseUrl, timeout: 180_000 }, as
   target.pathname = "/nasfaq_holds_test";
   const pool = new Pool({ connectionString: target.href });
   t.after(async () => {
-    // Fills kick off achievement checks in the background; let them finish first.
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // Fills queue achievement checks in the background; let them finish first.
+    await require("../src/services/achievements").tradeFillsIdle();
     await pool.end();
   });
   const quiet = console.warn;

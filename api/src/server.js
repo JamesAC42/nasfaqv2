@@ -950,6 +950,8 @@ async function main() {
     stoppers.push(require("./services/weeklyEvaluation").startWeeklyEvaluationScheduler(pool, console, redis));
     // Opens IPO windows when they're due (listing itself happens in the 09:00 cycle).
     stoppers.push(require("./services/ipo").startIpoScheduler(pool, console, redis));
+    // Moves chat past the visible window to the archive table (CHAT_ARCHIVE_ENABLED=false to stop it).
+    stoppers.push(require("./services/chatArchive").startChatArchiveScheduler(pool, console, redis));
   }
   // Turned off (PREDICTION_MARKET_SCHEDULER_ENABLED=false) it only reports Off, from the scheduler pod.
   stoppers.push(startPredictionsScheduler(pool, console, redis));
@@ -1003,6 +1005,11 @@ async function main() {
     for (const socketServer of socketServers) socketServer.clients.forEach((socket) => socket.terminate());
 
     await releaseGameTablesLease().catch(() => {});
+    // Streak and achievement checks the last fills queued (services/achievements) still need the pool.
+    await Promise.race([
+      achievements.tradeFillsIdle(),
+      new Promise((resolve) => setTimeout(resolve, Math.max(0, deadline - Date.now()))),
+    ]);
     await Promise.race([
       Promise.allSettled([pool.end(), healthPool.end(), redis?.quit(), redisSub?.quit()]),
       // A scheduler mid-tick still holds a pooled connection: don't wait past the window for it.
