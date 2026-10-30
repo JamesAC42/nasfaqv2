@@ -73,6 +73,22 @@ async function statuses(count, send) {
   return out;
 }
 
+// The limits count in fixed windows on the clock (rateLimit.js), each a whole number of minutes. A
+// burst that starts at :59 spills into the next window, its count starts again and the 429 never
+// comes (CI hit exactly that). Hold the clock still for a burst and the checks that follow it.
+let clockHeld = false;
+async function holdClock(t, fn) {
+  if (clockHeld) return fn();
+  t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  clockHeld = true;
+  try {
+    return await fn();
+  } finally {
+    clockHeld = false;
+    t.mock.timers.reset();
+  }
+}
+
 // ── No database ──────────────────────────────────────────────────────────────
 
 test("counters: peek reads without counting, clear forgets, ids ignore case", async () => {
@@ -105,15 +121,17 @@ test("write budget: 60 signed-in writes a minute, then the usual 429; reads, sig
     }
   );
   const methods = ["POST", "PUT", "DELETE"];
-  assert.deepEqual(new Set(await statuses(60, (i) => call(methods[i % 3], "/api/thing"))), new Set([200]));
-  for (let i = 0; i < 5; i += 1) assert.equal((await call("GET", "/api/thing")).status, 200);
-  assert.equal((await call("POST", "/api/auth/logout")).status, 200);
-  assert.equal((await call("POST", "/api/articles/some-story/view")).status, 200);
-  const limited = await call("PATCH", "/api/thing");
-  assert.equal(limited.status, 429);
-  assert.equal(limited.body.error, "rate_limited");
-  assert.ok(limited.body.retry_after >= 1 && limited.body.retry_after <= 60);
-  assert.equal(limited.headers.get("retry-after"), String(limited.body.retry_after));
+  await holdClock(t, async () => {
+    assert.deepEqual(new Set(await statuses(60, (i) => call(methods[i % 3], "/api/thing"))), new Set([200]));
+    for (let i = 0; i < 5; i += 1) assert.equal((await call("GET", "/api/thing")).status, 200);
+    assert.equal((await call("POST", "/api/auth/logout")).status, 200);
+    assert.equal((await call("POST", "/api/articles/some-story/view")).status, 200);
+    const limited = await call("PATCH", "/api/thing");
+    assert.equal(limited.status, 429);
+    assert.equal(limited.body.error, "rate_limited");
+    assert.ok(limited.body.retry_after >= 1 && limited.body.retry_after <= 60);
+    assert.equal(limited.headers.get("retry-after"), String(limited.body.retry_after));
+  });
   // Someone else's budget is their own; signed out, writes have per-address rules instead.
   user = { id: 9_000_002 };
   assert.equal((await call("POST", "/api/thing")).status, 200);
@@ -458,12 +476,14 @@ test("abuse limits end to end", { skip: !databaseUrl, timeout: 240_000 }, async 
     assert.deepEqual(new Set(await statuses(12, () => login("Lockme", "the right one"))), new Set([200]));
 
     // A stranger spams wrong passwords: ten count, then the name needs Turnstile.
-    assert.deepEqual(new Set(await statuses(10, () => login("LOCKME", "wrong guess!"))), new Set([401]));
-    const locked = await login("Lockme", "wrong guess!");
-    assert.equal(locked.status, 429);
-    assert.equal(locked.body.error, "rate_limited");
-    assert.ok(locked.body.retry_after > 0 && locked.body.retry_after <= 900);
-    assert.equal((await login("Lockme", "the right one")).status, 429, "without Turnstile the right password waits too");
+    await holdClock(t, async () => {
+      assert.deepEqual(new Set(await statuses(10, () => login("LOCKME", "wrong guess!"))), new Set([401]));
+      const locked = await login("Lockme", "wrong guess!");
+      assert.equal(locked.status, 429);
+      assert.equal(locked.body.error, "rate_limited");
+      assert.ok(locked.body.retry_after > 0 && locked.body.retry_after <= 900);
+      assert.equal((await login("Lockme", "the right one")).status, 429, "without Turnstile the right password waits too");
+    });
 
     // With Turnstile on, a sign-in that passed it goes through: the owner isn't locked out.
     const realFetch = globalThis.fetch;
@@ -493,7 +513,7 @@ test("abuse limits end to end", { skip: !databaseUrl, timeout: 240_000 }, async 
   await t.test("sign-in: every attempt from one address counts, 30 in 5 minutes", async () => {
     await addLegacyUser("Sharedwifi", "the right one");
     const ip = "203.0.113.99";
-    const results = await statuses(31, (i) => (i % 2 ? login("Sharedwifi", "the right one", { ip }) : login(`nobody_${i}`, "wrong guess!", { ip })));
+    const results = await holdClock(t, () => statuses(31, (i) => (i % 2 ? login("Sharedwifi", "the right one", { ip }) : login(`nobody_${i}`, "wrong guess!", { ip }))));
     assert.equal(results.filter((status) => status === 429).length, 1);
     assert.equal(results.at(-1), 429);
   });
@@ -550,17 +570,19 @@ test("abuse limits end to end", { skip: !databaseUrl, timeout: 240_000 }, async 
   const player = async () => cookieFor(await addLegacyUser(`Player${(playerNo += 1)}`, "a password"));
   /** Sends `count` requests; asserts none is limited until the last one. */
   const limitIs = async (limit, send, label) => {
-    const results = await statuses(limit + 1, send);
+    const results = await holdClock(t, () => statuses(limit + 1, send));
     assert.ok(!results.slice(0, limit).includes(429), `${label}: limited early (${results.join(",")})`);
     assert.equal(results.at(-1), 429, `${label}: not limited after ${limit}`);
   };
 
   await t.test("the write budget: 60 a minute across every route", async () => {
     const cookie = await player();
-    await limitIs(60, () => call("POST", "/api/notifications/read", { cookie, body: { all: true } }), "notifications/read");
-    // It's shared: any other write is over it too.
-    assert.equal((await call("PUT", "/api/profiles/me", { cookie, body: {} })).status, 429);
-    assert.equal((await call("POST", "/api/auth/logout", { cookie })).status, 200, "signing out never waits");
+    await holdClock(t, async () => {
+      await limitIs(60, () => call("POST", "/api/notifications/read", { cookie, body: { all: true } }), "notifications/read");
+      // It's shared: any other write is over it too.
+      assert.equal((await call("PUT", "/api/profiles/me", { cookie, body: {} })).status, 429);
+      assert.equal((await call("POST", "/api/auth/logout", { cookie })).status, 200, "signing out never waits");
+    });
   });
 
   await t.test("tighter limits where it matters", async () => {
