@@ -18,7 +18,7 @@ const sections: LegalSection[] = [
       <>
         <p>
           NASFAQ is a stock market game about hololive VTubers. Every talent is a stock. You start with $10,000 of play
-          money and trade them against everyone else, with prices that move on their channels&apos; real numbers and on
+          cash (plus $100,000 Credit for the games and predictions) and trade them against everyone else, with prices that move on their channels&apos; real numbers and on
           what the other players buy and sell.
         </p>
         <p>It&apos;s play money all the way down: nothing here can be bought with, or cashed out for, real money.</p>
@@ -115,7 +115,7 @@ export default function AboutPage() {
       summaryTitle="In one breath"
       summaryNote={null}
       summary={[
-        <>Every hololive talent is a stock. You start with <strong>$10,000 of play money</strong>.</>,
+        <>Every hololive talent is a stock. You start with <strong>$10,000 cash</strong> to trade and <strong>$100,000 Credit</strong> for games and predictions.</>,
         <>Prices follow each channel&apos;s <strong>real growth</strong>, plus whatever the other players buy and sell.</>,
         <>Predictions, cards, capsules and games on the side. No real money, ever.</>,
         <>Fan-made. Not affiliated with COVER Corp.</>,

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { SceneArt } from "@/app/components/common/scene-art";
+import { Term } from "@/app/components/common/tip";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { ChibiTag, useMovers } from "@/app/components/how-to-play/demos";
 import { FaqSection, FinePrint, GlossarySection } from "@/app/components/how-to-play/reference";
@@ -52,7 +53,7 @@ function Hero() {
         </span>
         <h1>How to play</h1>
         <p className={styles.lede}>
-          Every hololive talent is a stock. You get <b>$10,000</b>{" "}of play money. Buy the ones you believe in, dump the ones you don&apos;t, and climb the board.
+          Every hololive talent is a stock. You get <b>$10,000</b>{" "}cash to trade, plus <b>$100,000</b>{" "}<Term k="credit">Credit</Term> for games, predictions and fees. Buy the ones you believe in, dump the ones you don&apos;t, and climb the board.
         </p>
         <dl className={styles.heroStats}>
           <div>
@@ -60,12 +61,12 @@ function Hero() {
             <dd>$10,000</dd>
           </div>
           <div>
-            <dt>Ticks a day</dt>
-            <dd>4</dd>
+            <dt>Starter Credit</dt>
+            <dd>$100,000</dd>
           </div>
           <div>
-            <dt>Order batches</dt>
-            <dd>10 min</dd>
+            <dt>Ticks a day</dt>
+            <dd>4</dd>
           </div>
           <div>
             <dt>Trading fee</dt>
@@ -111,7 +112,7 @@ function StartHere() {
         ? verified
           ? "You're in, with cash to spend."
           : "Click the link we emailed you. Trading, games and chat need it."
-        : "Username, email, password. You start with $10,000.",
+        : "Username, email, password. You start with $10,000 cash and $100,000 Credit.",
       href: user ? (verified ? "/profile" : "/verify-email") : "/register",
       cta: user ? (verified ? "Your profile" : "Verify email") : "Make an account",
       done: verified,

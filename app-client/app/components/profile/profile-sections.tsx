@@ -83,10 +83,12 @@ export function NetworthChart({ profile }: { profile: Profile }) {
 
   const H = 220;
   const padR = 64;
+  // Where everyone started: cash, plus the starter Credit when Credit counts toward net worth.
+  const start = profile.stats.starting_net_worth ?? START;
   const model = useMemo(() => {
     if (points.length < 2 || !w) return null;
     const plotW = w - padR;
-    const values = [...points.map((point) => point.v), START];
+    const values = [...points.map((point) => point.v), start];
     const lo = Math.min(...values) * 0.98;
     const hi = Math.max(...values) * 1.02;
     const t0 = points[0].t;
@@ -95,7 +97,7 @@ export function NetworthChart({ profile }: { profile: Profile }) {
     const y = (v: number) => 8 + (1 - (v - lo) / (hi - lo || 1)) * (H - 30);
     const line = points.map((point, i) => `${i ? "L" : "M"}${x(point.t).toFixed(1)},${y(point.v).toFixed(1)}`).join("");
     return { plotW, lo, hi, x, y, line, area: `${line}L${plotW},${H - 22}L0,${H - 22}Z`, ticks: [0.1, 0.5, 0.9].map((f) => lo + (hi - lo) * f) };
-  }, [points, w]);
+  }, [points, w, start]);
 
   const first = points[0]?.v ?? 0;
   const last = points[points.length - 1]?.v ?? 0;
@@ -147,9 +149,9 @@ export function NetworthChart({ profile }: { profile: Profile }) {
                 </text>
               </g>
             ))}
-            <line x1={0} x2={model.plotW} y1={model.y(START)} y2={model.y(START)} className={styles.startLine} />
-            <text x={4} y={model.y(START) - 4} className={styles.startLbl}>
-              START $10K
+            <line x1={0} x2={model.plotW} y1={model.y(start)} y2={model.y(start)} className={styles.startLine} />
+            <text x={4} y={model.y(start) - 4} className={styles.startLbl}>
+              START ${Math.round(start / 1000).toLocaleString("en-US")}K
             </text>
             <path d={model.area} fill="url(#nw-fill)" />
             <path d={model.line} className={styles.line} />
