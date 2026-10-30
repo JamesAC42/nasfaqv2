@@ -23,9 +23,12 @@ pgx (fixed in 5.9.2), golang.org/x/net/html, x/text, x/image, go-redis and the A
 package. Dependabot's security updates fix those. Once the daily run is green, delete the
 `if: github.event_name != 'pull_request'` line in `security-scan.yml` to gate pull requests on it.
 
-Version updates are grouped: one pull request per directory for minor and patch releases, majors one
-at a time. They skip releases less than a week old (`cooldown`), which keeps out most hijacked
-packages. Security updates skip both the schedule and the cooldown.
+Version updates are grouped: one pull request per directory for minor and patch releases. Major
+versions aren't offered as version updates (GitHub Actions aside): the first run proposed Express 5,
+TypeScript 7, ESLint 10, redis 6 and dotenv 18 at once, and each is a migration to plan, not a weekly
+chore. Version updates also skip releases less than a week old (`cooldown`), which keeps out most
+hijacked packages. Security updates skip the schedule, the cooldown and the major-version rule: a fix
+that only exists in a new major still opens a pull request.
 
 ### Not covered
 
@@ -65,10 +68,12 @@ Saturday 01:00 ET (weekly evaluation).
 2. **Wait for CI**: tests, build, `security`, CodeQL. All green, then merge. The release follows on its
    own ([releasing.md](releasing.md)); watch the deploy run and `/api/health`.
 3. **Minor/patch group**: skim the release notes, then merge.
-4. **Major**: read the breaking changes, check out the branch and run the app. Leave it until after
-   launch week unless it fixes a vulnerability.
+4. **Major** (from a security update, or one you ask for): read the breaking changes, check out the
+   branch and run the app. Leave it until after launch week unless it fixes a vulnerability.
 5. **`golang` image bump**: in the same PR, set `go-version` in `ci.yml`, `codeql.yml` and
-   `security-scan.yml` to match.
+   `security-scan.yml` to match, and the `go` line in `go.work` if it's lower. The workspace's `go`
+   line has to be at least every module's: when an update raises a module's `go` directive past it,
+   every Go build fails with "listed in go.work file requires go >= …".
 
 Comment `@dependabot rebase` to refresh a stale PR, or `@dependabot ignore this major version` to
 drop one.
