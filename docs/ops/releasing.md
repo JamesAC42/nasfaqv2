@@ -14,7 +14,7 @@ Shipping the redesign branch for the first time: follow [redesign-launch.md](red
 
 
 1. Make changes on a branch based on current `origin/main`. Do not reset or merge over an older dirty checkout. Open a PR and inspect CI.
-2. PR CI runs API regressions, the existing frontend build and Go checks, and deployment-script tests. Deployment also calls that same CI workflow on the exact release commit before building images, so direct main pushes cannot bypass these checks.
+2. PR CI runs API regressions, the existing frontend build and Go checks, and deployment-script tests. Deployment also calls that same CI workflow on the exact release commit before building images, so direct main pushes cannot bypass these checks. The vulnerability check (npm audit, govulncheck) runs on pull requests and daily on main, not on deploys; see [security-updates.md](security-updates.md).
 3. Merging/pushing main starts production deployment automatically. Manual dispatch is limited to main by the validation job condition. The entire release workflow is serialized with `cancel-in-progress: false`; a newer push will not cancel an active migration/rollout. GitHub can replace an older pending run with a newer pending run.
 4. Build all five GHCR images tagged `sha-<full commit SHA>`. The workflow no longer publishes or deploys `latest`.
 5. Configure explicit Kubernetes context `nasfaq-prod`, then run `bash deploy/release.sh "$RELEASE_SHA" nasfaq-prod "$EXPECTED_API_SERVER"`. The script checks the context API endpoint against the expected endpoint obtained independently from DigitalOcean using the configured cluster secret. Infrastructure IDs are not embedded in this public repository.

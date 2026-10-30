@@ -1,0 +1,52 @@
+name: security-scan
+
+# Known vulnerabilities in what ships to production: npm audit for the two Node images and
+# govulncheck for the three Go services. ci.yml runs this on every pull request; the daily run
+# checks main, and a failed run emails whoever last changed the schedule below.
+# See docs/ops/security-updates.md.
+
+on:
+  workflow_call:
+  schedule:
+    - cron: "17 13 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npm-audit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [api, app-client]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      # Production dependencies only (the image's), high or critical only. Reads the lockfile, so
+      # there's nothing to install.
+      - run: npm audit --omit=dev --audit-level=high
+        working-directory: ${{ matrix.app }}
+
+  govulncheck:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        svc: [holonews, superchatscraper, ytscraper]
+    env:
+      # Each module on its own, as its Dockerfile builds it, not through the repo's go.work.
+      GOWORK: "off"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+          check-latest: true
+          cache-dependency-path: ${{ matrix.svc }}/go.sum
+      # Reports only vulnerabilities the code can actually reach.
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+        working-directory: ${{ matrix.svc }}

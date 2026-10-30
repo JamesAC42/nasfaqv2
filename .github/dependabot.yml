@@ -1,0 +1,114 @@
+# Dependabot version updates for everything that ships to production (deploy.yml builds api,
+# app-client, holonews, superchatscraper and ytscraper). Weekly, Monday 10:00 ET: one grouped pull
+# request per directory for minor and patch releases, majors one at a time.
+#
+# Security updates don't wait for the schedule: once "Dependabot security updates" is on in the
+# repository settings, Dependabot opens a pull request as soon as an advisory affects a dependency.
+# The "security" groups below bundle each directory's minor/patch security fixes into one PR.
+#
+# Not listed (not deployed): client/, brokerbot/, channelscraper/, 4chanscraper/ and
+# holonews/reference_image_scraper/. Dependabot alerts still report advisories in them.
+#
+# Labels are Dependabot's defaults, "dependencies" plus the ecosystem ("javascript", "go",
+# "docker", "github_actions"), which it creates itself. See docs/ops/security-updates.md.
+
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /api
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:00"
+      timezone: America/New_York
+    # Version updates only: skip releases younger than a week, the window in which hijacked npm
+    # packages have usually been caught and pulled. Security updates ignore this.
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      api-minor-and-patch:
+        applies-to: version-updates
+        update-types: [minor, patch]
+      api-security:
+        applies-to: security-updates
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /app-client
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:00"
+      timezone: America/New_York
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    ignore:
+      # Tracks the Node.js runtime in the Dockerfiles; move both together.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+    groups:
+      app-client-minor-and-patch:
+        applies-to: version-updates
+        update-types: [minor, patch]
+      app-client-security:
+        applies-to: security-updates
+        update-types: [minor, patch]
+
+  - package-ecosystem: gomod
+    directories: [/holonews, /superchatscraper, /ytscraper]
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:00"
+      timezone: America/New_York
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      go-minor-and-patch:
+        applies-to: version-updates
+        update-types: [minor, patch]
+      go-security:
+        applies-to: security-updates
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directories: [/api, /app-client, /holonews, /superchatscraper, /ytscraper]
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:00"
+      timezone: America/New_York
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    ignore:
+      # Node.js majors are moved by hand to the next even-numbered (LTS) release, with CI's
+      # node-version and @types/node; Dependabot would offer the newest, odd-numbered ones too.
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
+    groups:
+      base-images:
+        applies-to: version-updates
+        update-types: [minor, patch]
+        # A Go toolchain bump comes on its own: CI's go-version (ci.yml, codeql.yml,
+        # security-scan.yml) has to move with it.
+        exclude-patterns: [golang]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:00"
+      timezone: America/New_York
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        applies-to: version-updates
+        patterns: ["*"]

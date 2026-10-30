@@ -61,6 +61,13 @@ jobs:
       - run: go test ./...
         working-directory: ${{ matrix.svc }}
 
+  # Known vulnerabilities, high or critical. Pull requests only: deploy.yml runs this workflow too,
+  # and an advisory published overnight shouldn't block an unrelated fix from shipping. The daily
+  # security-scan run covers main.
+  security:
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/security-scan.yml
+
   deployment:
     runs-on: ubuntu-latest
     steps:
