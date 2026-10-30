@@ -375,13 +375,31 @@ test("settlement, cycle errors and the scrape on PostgreSQL, and the whole watch
   });
 
   await t.test("listed talents missing today's YouTube stats after the scrape", async () => {
-    // 00:30 ET: the scrape (00:05) may still be running.
+    // 00:30 ET: the scrape (00:05) may still be running. 01:10 ET: its first retry (an hour after it) may be.
     assert.equal((await watchdog.checkScrape(pool, at("2026-10-29T04:30:00Z")))[0].firing, null);
+    assert.equal((await watchdog.checkScrape(pool, at("2026-10-29T05:10:00Z")))[0].firing, null);
     // 02:00 ET: Beta has nothing for the 29th (her 23:30 row on the 28th doesn't count). Gamma isn't listed yet.
     let [scrape] = await watchdog.checkScrape(pool, at("2026-10-29T06:00:00Z"));
     assert.equal(scrape.firing, true);
     assert.deepEqual(scrape.fields, [{ name: "Missing", value: "BET" }]);
-    assert.match(scrape.message, /^1 listed talent has no YouTube stats for 2026-10-29 yet \(it's past 01:00 EDT\)/);
+    assert.match(scrape.message, /^1 listed talent has no YouTube stats for 2026-10-29 yet \(it's past 01:20 EDT\)/);
+    assert.match(scrape.message, /ytscraper hasn't reported on today's scrape/);
+
+    // The scraper says what it's doing about it: the alert passes that on.
+    const redis = fakeRedis();
+    const status = (fields) => redis.set("nasfaq:ytscraper:daily_stats", JSON.stringify({ day: "2026-10-29", missing: [talents[1][0]], attempts: 2, ...fields }));
+    await status({ next_retry_at: "2026-10-29T07:06:00Z", quota_exceeded: true, last_error: "youtube quota used up; 1/3 channels not scraped" });
+    [scrape] = await watchdog.checkScrape(pool, { ...at("2026-10-29T06:00:00Z"), redis });
+    assert.match(scrape.message, /ytscraper is retrying them on its own: attempt 2 didn't get them all, next try at 03:06 EDT\. The YouTube quota is used up/);
+    assert.deepEqual(scrape.fields[1], { name: "Scraper's last error", value: "youtube quota used up; 1/3 channels not scraped" });
+    await status({ next_retry_at: null, quota_exceeded: false });
+    [scrape] = await watchdog.checkScrape(pool, { ...at("2026-10-29T06:00:00Z"), redis });
+    assert.match(scrape.message, /ytscraper has no retry left today \(attempt 2\)\. Fill them in with ytscraper's backfill-missing-daily-stats/);
+    // Yesterday's word doesn't count for today.
+    await redis.set("nasfaq:ytscraper:daily_stats", JSON.stringify({ day: "2026-10-28", attempts: 1, next_retry_at: null }));
+    [scrape] = await watchdog.checkScrape(pool, { ...at("2026-10-29T06:00:00Z"), redis });
+    assert.match(scrape.message, /ytscraper hasn't reported on today's scrape/);
+
     await stats(talents[1][0], "2026-10-29T05:40:00Z");
     [scrape] = await watchdog.checkScrape(pool, at("2026-10-29T06:00:00Z"));
     assert.equal(scrape.firing, false);

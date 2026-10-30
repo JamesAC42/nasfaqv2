@@ -34,6 +34,9 @@ type Config struct {
 	RequestDelayMS    int
 	PerChannelTimout  time.Duration
 
+	// RetryInterval is how long to wait before trying channels still missing today's stats again.
+	RetryInterval time.Duration
+
 	LivePollInterval      time.Duration
 	LiveViewerPollSec     int
 	LiveBucketMinutes     int
@@ -126,11 +129,19 @@ func main() {
 	defer func() { _ = rdb.Close() }()
 	liveStore := &livestreams.RedisStore{Client: rdb}
 
+	quotaLoc, err := time.LoadLocation("America/Los_Angeles")
+	if err != nil {
+		log.Fatalf("load quota reset time zone: %v", err)
+	}
+	retry := &dailyRetry{cfg: cfg, quotaLoc: quotaLoc, rdb: rdb}
+
 	// Run immediately at startup.
 	log.Printf("scrape: running immediately on startup")
-	if err := scrapeOnce(ctx, pool, yt, cfg); err != nil {
+	res, err := scrapeOnce(ctx, pool, yt, cfg)
+	if err != nil {
 		log.Printf("scrape: startup run failed: %v", err)
 	}
+	retry.afterRun(ctx, time.Now(), res, err)
 
 	// Livestream: detection loop (every N min) + viewer poll loop (every 10s).
 	tracker := &liveTracker{
@@ -155,12 +166,19 @@ func main() {
 		log.Printf("livestreams: polling disabled via LIVE_POLL_ENABLED")
 	}
 
-	// Then run once per day at the configured local scrape time.
+	// Then run once per day at the configured local scrape time, and retry in between while today's
+	// stats are incomplete (retry.go).
 	for {
 		next := nextDailyRunInLocation(time.Now(), cfg.ScrapeLocation, cfg.ScrapeAtLocalHour, cfg.ScrapeAtLocalMin)
+		kind := "scheduled run"
+		if !retry.NextAt.IsZero() && retry.NextAt.Before(next) {
+			next = retry.NextAt
+			kind = "retry"
+		}
 		wait := time.Until(next)
 		log.Printf(
-			"scrape: next run scheduled at %s local / %s utc (in %s)",
+			"scrape: next %s at %s local / %s utc (in %s)",
+			kind,
 			next.In(cfg.ScrapeLocation).Format(time.RFC3339),
 			next.UTC().Format(time.RFC3339),
 			wait.Round(time.Second),
@@ -175,10 +193,15 @@ func main() {
 		case <-timer.C:
 		}
 
-		log.Printf("scrape: starting scheduled run")
-		if err := scrapeOnce(ctx, pool, yt, cfg); err != nil {
-			log.Printf("scrape: scheduled run failed: %v", err)
+		log.Printf("scrape: starting %s", kind)
+		res, err := scrapeOnce(ctx, pool, yt, cfg)
+		if err != nil {
+			log.Printf("scrape: %s failed: %v", kind, err)
 		}
+		if ctx.Err() != nil {
+			continue
+		}
+		retry.afterRun(ctx, time.Now(), res, err)
 	}
 }
 
@@ -912,34 +935,36 @@ func viewerPollOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client,
 	}
 }
 
-func scrapeOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, cfg Config) error {
+// scrapeOnce scrapes today's stats for every active channel that doesn't have them yet, and says
+// which are still missing afterwards (retry.go decides when to try those again).
+func scrapeOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, cfg Config) (scrapeResult, error) {
 	now := time.Now()
 	day := localMidnight(now, cfg.ScrapeLocation)
 	scrapedAt := time.Now().UTC()
+	res := scrapeResult{Day: day}
 
 	channels, err := db.ListActiveChannels(ctx, pool)
 	if err != nil {
-		return err
+		return scrapeResult{}, err
 	}
 	if len(channels) == 0 {
 		log.Printf("scrape: no active channels in yt.youtube_channels")
-		return nil
+		return res, nil
 	}
 
 	existing, err := db.ExistingDailyStatsChannelIDs(ctx, pool, day, cfg.ScrapeTimeZone)
 	if err != nil {
-		return err
+		return scrapeResult{}, err
 	}
 
 	var failCount int
 	toProcess := make([]db.Channel, 0, len(channels))
 	for _, ch := range channels {
 		if ctx.Err() != nil {
-			return ctx.Err()
+			return res, ctx.Err()
 		}
 
 		if _, ok := existing[ch.YouTubeChannelID]; ok {
-			log.Printf("scrape: skip channel=%s (already have stats for %s %s)", ch.YouTubeChannelID, day.In(cfg.ScrapeLocation).Format("2006-01-02"), cfg.ScrapeTimeZone)
 			continue
 		}
 		toProcess = append(toProcess, ch)
@@ -947,8 +972,13 @@ func scrapeOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, cfg
 
 	if len(toProcess) == 0 {
 		log.Printf("scrape: all active channels already have stats for %s %s", day.In(cfg.ScrapeLocation).Format("2006-01-02"), cfg.ScrapeTimeZone)
-		return nil
+		return res, nil
 	}
+	if skipped := len(channels) - len(toProcess); skipped > 0 {
+		log.Printf("scrape: %d of %d active channels already have stats for %s %s", skipped, len(channels), day.In(cfg.ScrapeLocation).Format("2006-01-02"), cfg.ScrapeTimeZone)
+	}
+	// Whatever isn't saved by the end of the run is still missing.
+	saved := make(map[string]struct{}, len(toProcess))
 
 	if cfg.QuotaDailyLimit > 0 {
 		log.Printf("scrape: quota limit configured at %d units/day", cfg.QuotaDailyLimit)
@@ -958,6 +988,14 @@ func scrapeOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, cfg
 	var channelsListCalls int
 	var playlistItemsCalls int
 	var videosListCalls int
+	// Once the quota is used up every call fails until it resets, so stop asking.
+	quotaHit := func(err error) bool {
+		if youtube.IsQuotaExceeded(err) {
+			res.QuotaExceeded = true
+		}
+		return res.QuotaExceeded
+	}
+batches:
 	for batchStart := 0; batchStart < total; batchStart += 50 {
 		batchEnd := batchStart + 50
 		if batchEnd > total {
@@ -977,12 +1015,15 @@ func scrapeOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, cfg
 		if err != nil {
 			failCount += len(batch)
 			log.Printf("scrape: channel batch stats error: %v", err)
+			if quotaHit(err) {
+				break batches
+			}
 			continue
 		}
 
 		for i, ch := range batch {
 			if ctx.Err() != nil {
-				return ctx.Err()
+				return res, ctx.Err()
 			}
 
 			info, ok := infoMap[ch.YouTubeChannelID]
@@ -1000,6 +1041,9 @@ func scrapeOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, cfg
 			if err != nil {
 				failCount++
 				log.Printf("scrape: channel=%s recent error: %v", ch.YouTubeChannelID, err)
+				if quotaHit(err) {
+					break batches
+				}
 				continue
 			}
 
@@ -1043,6 +1087,7 @@ func scrapeOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, cfg
 				log.Printf("scrape: channel=%s upsert error: %v", ch.YouTubeChannelID, err)
 				continue
 			}
+			saved[ch.YouTubeChannelID] = struct{}{}
 
 			if cfg.LogYTStats {
 				log.Printf(
@@ -1064,12 +1109,20 @@ func scrapeOnce(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, cfg
 		}
 	}
 
-	if failCount > 0 {
-		return fmt.Errorf("scrape completed with %d/%d channel failures", failCount, len(channels))
+	for _, ch := range toProcess {
+		if _, ok := saved[ch.YouTubeChannelID]; !ok {
+			res.Missing = append(res.Missing, ch)
+		}
 	}
 	estimatedUnits := channelsListCalls + playlistItemsCalls + videosListCalls
 	log.Printf("scrape: estimated quota used this run=%d units (channels.list=%d, playlistItems.list=%d, videos.list=%d)", estimatedUnits, channelsListCalls, playlistItemsCalls, videosListCalls)
-	return nil
+	if res.QuotaExceeded {
+		return res, fmt.Errorf("youtube quota used up; %d/%d channels not scraped", len(res.Missing), len(channels))
+	}
+	if failCount > 0 {
+		return res, fmt.Errorf("scrape completed with %d/%d channel failures", failCount, len(channels))
+	}
+	return res, nil
 }
 
 func localMidnight(t time.Time, loc *time.Location) time.Time {
@@ -1134,6 +1187,11 @@ func mustLoadConfig() Config {
 	if err != nil {
 		log.Fatalf("invalid SCRAPE_TIMEZONE=%q: %v", scrapeTimeZone, err)
 	}
+	// The API's scrape-incomplete alert reads the same setting (api/src/services/watchdog.js).
+	retryMinutes := getInt("SCRAPE_RETRY_MINUTES", 60)
+	if retryMinutes < 5 {
+		log.Fatalf("invalid SCRAPE_RETRY_MINUTES=%d: at least 5", retryMinutes)
+	}
 
 	return Config{
 		DatabaseURL:           dbURL,
@@ -1146,6 +1204,7 @@ func mustLoadConfig() Config {
 		ScrapeAtLocalMin:      getInt("SCRAPE_AT_LOCAL_MIN", 5),
 		RequestDelayMS:        getInt("REQUEST_DELAY_MS", 150),
 		PerChannelTimout:      20 * time.Second,
+		RetryInterval:         time.Duration(retryMinutes) * time.Minute,
 		LivePollInterval:      time.Duration(getInt("LIVE_POLL_SECONDS", 300)) * time.Second,
 		LiveViewerPollSec:     getInt("LIVE_VIEWER_POLL_SECONDS", 10),
 		LiveBucketMinutes:     getInt("LIVE_BUCKET_MINUTES", 5),

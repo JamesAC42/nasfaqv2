@@ -52,6 +52,90 @@ test("allocation: more subscribers than shares gives the earliest one share each
   assert.deepEqual([...result.values()], [1, 1, 1, 0, 0]);
 });
 
+// allocate() as first written: one pass per share taken back, and an indexOf in the sort.
+function allocateBefore(subscriptions, offered) {
+  const subs = subscriptions.map((sub) => ({ ...sub, requested: Math.max(0, Math.floor(Number(sub.requested))) })).filter((sub) => sub.requested > 0);
+  const result = new Map(subscriptions.map((sub) => [sub.id, 0]));
+  const supply = Math.max(0, Math.floor(Number(offered)));
+  const demand = subs.reduce((total, sub) => total + sub.requested, 0);
+  if (!supply || !demand) return result;
+  if (demand <= supply) {
+    for (const sub of subs) result.set(sub.id, sub.requested);
+    return result;
+  }
+  const byTime = [...subs].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)) || String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
+  if (subs.length >= supply) {
+    for (const sub of byTime.slice(0, supply)) result.set(sub.id, 1);
+    return result;
+  }
+  const shares = subs.map((sub) => {
+    const exact = (sub.requested * supply) / demand;
+    return { sub, shares: Math.max(1, Math.floor(exact)), remainder: exact - Math.floor(exact) };
+  });
+  let total = shares.reduce((acc, entry) => acc + entry.shares, 0);
+  while (total > supply) {
+    const biggest = shares.filter((entry) => entry.shares > 1).sort((a, b) => b.shares - a.shares)[0];
+    if (!biggest) break;
+    biggest.shares -= 1;
+    total -= 1;
+  }
+  const order = [...shares].sort((a, b) => b.remainder - a.remainder || byTime.indexOf(a.sub) - byTime.indexOf(b.sub));
+  for (let i = 0; total < supply && order.length; i = (i + 1) % order.length) {
+    const entry = order[i];
+    if (entry.shares < entry.sub.requested) {
+      entry.shares += 1;
+      total += 1;
+    } else if (order.every((candidate) => candidate.shares >= candidate.sub.requested)) {
+      break;
+    }
+  }
+  for (const entry of shares) result.set(entry.sub.id, entry.shares);
+  return result;
+}
+
+function seeded(seed) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+test("allocation: the faster allocate() hands out exactly what the original did", () => {
+  const random = seeded(42);
+  for (let round = 0; round < 400; round += 1) {
+    const count = 1 + Math.floor(random() * 300);
+    // Mostly small requests with a few whales, so floors of 1 often overshoot and shares get taken back.
+    const subs = Array.from({ length: count }, (_, i) => ({
+      id: String(i + 1),
+      requested: random() < 0.15 ? 200 + Math.floor(random() * 4_000) : 1 + Math.floor(random() * (random() < 0.5 ? 5 : 60)),
+      created_at: `2026-11-12T14:${String(Math.floor(random() * 60)).padStart(2, "0")}:00.000Z`,
+    }));
+    const demand = subs.reduce((total, sub) => total + sub.requested, 0);
+    const offered = Math.max(1, Math.floor(demand * random() * 1.1));
+    assert.deepEqual([...ipo.allocate(subs, offered)], [...allocateBefore(subs, offered)], `round ${round}: ${count} subscribers, ${offered} of ${demand}`);
+  }
+});
+
+test("allocation: tens of thousands of subscribers in well under a second", () => {
+  const random = seeded(7);
+  const subs = Array.from({ length: 40_000 }, (_, i) => ({
+    id: String(i + 1),
+    requested: i % 40 === 0 ? 5_000 : 1 + Math.floor(random() * 3),
+    created_at: new Date(Date.UTC(2026, 10, 12, 14) + i * 1000).toISOString(),
+  }));
+  const offered = 45_000;
+  const started = performance.now();
+  const result = ipo.allocate(subs, offered);
+  const elapsed = performance.now() - started;
+  assert.equal(sum(result), offered);
+  assert.ok([...result.values()].every((shares) => shares >= 1), "everyone gets a share");
+  assert.ok(elapsed < 1_000, `took ${Math.round(elapsed)} ms`);
+});
+
 test("allocation: nothing offered or nothing asked", () => {
   assert.equal(sum(ipo.allocate([{ id: "a", requested: 5, created_at: "1" }], 0)), 0);
   assert.equal(sum(ipo.allocate([{ id: "a", requested: 0, created_at: "1" }], 10)), 0);

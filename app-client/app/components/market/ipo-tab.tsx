@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { IpoMark } from "@/app/components/market/ipo-mark";
@@ -15,20 +15,30 @@ import {
   compactCount,
   etMoment,
   fetchIpos,
+  fetchMyIpoSubscriptions,
   ipoErrorText,
   ipoStage,
   listingDay,
   subscribeIpo,
+  withMine,
   type IpoEvent,
   type IpoTalent,
+  type MyIpoSubscription,
 } from "@/app/lib/ipo";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useTheme } from "@/app/providers/theme-provider";
+import { onMarketEvent } from "@/app/stores/market-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/market/ipo-tab.module.scss";
 
 const POLL_OPEN_MS = 15_000;
 const POLL_MS = 60_000;
+/**
+ * Every open tab hears an IPO update at once, so their refetches spread over a few seconds. They
+ * start after the API's second invalidation (1 s) and its pods' 2 s in-memory copies of the old body.
+ */
+const UPDATE_DELAY_MS = 3_500;
+const UPDATE_SPREAD_MS = 4_000;
 const QUICK_AMOUNTS = [50, 100];
 
 /** Ticks while a window counts down; 1s precision only matters in the last day. */
@@ -454,25 +464,59 @@ function EventBlock({ event, now, onChanged }: { event: IpoEvent; now: number | 
 export function IpoTab() {
   const now = useNow();
   const { user } = useAuth();
-  const [events, setEvents] = useState<IpoEvent[] | null>(null);
+  const userId = user?.id ?? null;
+  const [shared, setShared] = useState<IpoEvent[] | null>(null);
+  const [mine, setMine] = useState<{ userId: number; subscriptions: MyIpoSubscription[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // The IPOs are one cached body for everyone; your own subscriptions are a small request of their own.
   const load = useCallback(() => {
     fetchIpos()
       .then((data) => {
-        setEvents(data.events);
+        setShared(data.events);
         setError(null);
       })
       .catch((caught) => setError(ipoErrorText(caught)));
-  }, []);
+    if (userId !== null) {
+      fetchMyIpoSubscriptions()
+        .then((data) => setMine({ userId, subscriptions: data.subscriptions }))
+        .catch(() => {});
+    }
+  }, [userId]);
 
-  // Livelier while a window is open, so demand moves as people subscribe.
-  const anyOpen = Boolean(events?.some((event) => event.window_open));
+  const events = useMemo(() => (shared ? withMine(shared, mine && mine.userId === userId ? mine.subscriptions : []) : null), [shared, mine, userId]);
+
+  // Livelier while a window is open, so demand moves as people subscribe. Hidden tabs don't poll;
+  // coming back to the tab refreshes at once.
+  const anyOpen = Boolean(shared?.some((event) => event.window_open));
   useEffect(() => {
     load();
-    const timer = setInterval(load, anyOpen ? POLL_OPEN_MS : POLL_MS);
-    return () => clearInterval(timer);
-  }, [load, user?.id, anyOpen]);
+    const poll = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    const timer = window.setInterval(poll, anyOpen ? POLL_OPEN_MS : POLL_MS);
+    document.addEventListener("visibilitychange", poll);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", poll);
+    };
+  }, [load, anyOpen]);
+
+  // A window opening, a listing or a call-off arrives on the market socket.
+  useEffect(() => {
+    let timer: number | null = null;
+    const off = onMarketEvent((payload) => {
+      if (payload.type !== "market.ipo_update" || timer !== null) return;
+      timer = window.setTimeout(() => {
+        timer = null;
+        if (document.visibilityState === "visible") load();
+      }, UPDATE_DELAY_MS + Math.random() * UPDATE_SPREAD_MS);
+    });
+    return () => {
+      off();
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [load]);
 
   useEffect(() => {
     if (user) void useProfileStore.getState().refreshTradingState();

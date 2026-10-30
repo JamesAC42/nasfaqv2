@@ -74,6 +74,7 @@ Create a local `.env` file (you can start from `env.example`) or set environment
 - `SCRAPE_TIMEZONE` (optional, default `America/New_York`)
 - `SCRAPE_AT_LOCAL_HOUR` (optional, default `0`)
 - `SCRAPE_AT_LOCAL_MIN` (optional, default `5`)
+- `SCRAPE_RETRY_MINUTES` (optional, default `60`, at least `5`): channels still missing today's stats after a run are tried again this often until they're in or the day ends. A used-up YouTube quota waits for its reset (midnight Pacific) instead. Each run logs what's still missing and writes it to Redis (`nasfaq:ytscraper:daily_stats`) for the API's `scrape-incomplete` alert, which reads the same setting.
 - `REQUEST_DELAY_MS` (optional, default `150`)
   - Optional: `ENV_FILE` to point at a non-default env file path
   - Livestream polling: `LIVE_POLL_SECONDS` (default `300`), `LIVE_MAX_RESULTS`, `UPCOMING_MAX_RESULTS`
