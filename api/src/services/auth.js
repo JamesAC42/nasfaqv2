@@ -7,7 +7,8 @@ const SESSION_TTL_DAYS = Number(process.env.AUTH_SESSION_TTL_DAYS || 30);
 const EMAIL_VERIFICATION_TTL_HOURS = Number(process.env.EMAIL_VERIFICATION_TTL_HOURS || 24);
 const PASSWORD_KEYLEN = 64;
 const { profilePictureUrlSql } = require("../profilePictures");
-const { appUrl, escapeHtml, sendEmail } = require("./email");
+const { appUrl, sendEmail } = require("./email");
+const { passwordResetEmail, verificationEmail } = require("./emailTemplates");
 const { canonicalEmail, isDisposableEmail } = require("./emailRules");
 const { requestIpHash } = require("./ipHash");
 const { suspensionOf } = require("./moderation");
@@ -305,12 +306,7 @@ async function sendVerificationEmail(pool, user) {
   const token = await createEmailVerificationToken(pool, user.id, user.email);
   const verificationUrl = appUrl(`${process.env.EMAIL_VERIFICATION_PATH || "/verify-email"}?token=${encodeURIComponent(token)}`);
   const status = verificationUrl
-    ? await sendEmail({
-      to: user.email,
-      subject: "Verify your NASFAQ account",
-      html: `<p>Verify your NASFAQ account by opening this link:</p><p><a href="${verificationUrl}">${verificationUrl}</a></p><p>This link expires soon.</p>`,
-      text: `Verify your NASFAQ account: ${verificationUrl}`,
-    })
+    ? await sendEmail({ to: user.email, ...verificationEmail({ username: user.username, url: verificationUrl }) })
     : "not_configured";
   if (status === "not_configured") {
     // eslint-disable-next-line no-console
@@ -599,20 +595,8 @@ async function requestPasswordReset(pool, login, { send = sendEmail } = {}) {
     [user.id, user.email, hashVerificationToken(token), String(PASSWORD_RESET_TTL_MINUTES)]
   );
   const resetUrl = appUrl(`/reset-password?token=${encodeURIComponent(token)}`);
-  const name = escapeHtml(user.username);
   const status = resetUrl
-    ? await send({
-      to: user.email,
-      subject: "Reset your NASFAQ password",
-      html:
-        `<p>Someone asked to reset the password for your NASFAQ account, <b>${name}</b>.</p>` +
-        `<p>Choose a new password here (the link works once, for an hour):</p><p><a href="${resetUrl}">${resetUrl}</a></p>` +
-        `<p>If that wasn't you, ignore this email. Your password hasn't changed.</p>`,
-      text:
-        `Someone asked to reset the password for your NASFAQ account, ${user.username}.\n\n` +
-        `Choose a new password here (the link works once, for an hour):\n${resetUrl}\n\n` +
-        `If that wasn't you, ignore this email. Your password hasn't changed.`,
-    })
+    ? await send({ to: user.email, ...passwordResetEmail({ username: user.username, url: resetUrl }) })
     : "not_configured";
   if (status === "not_configured") {
     // eslint-disable-next-line no-console

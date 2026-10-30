@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-10-30",
+    title: "Nicer account emails",
+    changes: [
+      {
+        kind: "improved",
+        text: "Account emails got a makeover: the email that verifies your address and the password reset now come in NASFAQ colours with one big button to press, and the link spelled out underneath in case the button doesn't work.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-30",
     title: "Account security",
     changes: [
       {
