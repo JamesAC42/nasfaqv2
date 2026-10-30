@@ -20,6 +20,7 @@ const { bootstrapAssetsWithClient } = require("./marketAdmin");
 const weeklyEvaluation = require("./weeklyEvaluation");
 const { publishMarketEvent } = require("./marketEvents");
 const { invalidateMarketAssetsCache } = require("../marketCache");
+const { invalidateCachedJson } = require("../responseCache");
 const referenceImages = require("./referenceImages");
 const talentDetect = require("./talentDetect");
 const schedulerHealth = require("./schedulerHealth");
@@ -36,6 +37,8 @@ const SETTLEMENT_MINUTE = Number.parseInt(String(process.env.MARKET_SETTLEMENT_M
 const TIME_ZONE = process.env.MARKET_SETTLEMENT_TIMEZONE || "America/New_York";
 const DATA_TIME_ZONE = process.env.MARKET_DATA_TIMEZONE || process.env.SCRAPE_TIMEZONE || "America/New_York";
 const LOCK_KEY = 9_204_020;
+// GET /api/market/ipo's shared body (routes/market.js). Every write here that changes it drops it.
+const PUBLIC_CACHE_KEY = "market:ipo";
 const SYMBOL_PATTERN = /^[A-Z]{2,5}$/;
 const YOUTUBE_ID_PATTERN = /^UC[a-zA-Z0-9_-]{22}$/;
 
@@ -177,31 +180,70 @@ function allocate(subscriptions, offered) {
     for (const sub of byTime.slice(0, supply)) result.set(sub.id, 1);
     return result;
   }
-  const shares = subs.map((sub) => {
+  const timeRank = new Map(byTime.map((sub, rank) => [sub, rank]));
+  const shares = subs.map((sub, position) => {
     const exact = (sub.requested * supply) / demand;
-    return { sub, shares: Math.max(1, Math.floor(exact)), remainder: exact - Math.floor(exact) };
+    return { sub, position, shares: Math.max(1, Math.floor(exact)), remainder: exact - Math.floor(exact) };
   });
   let total = shares.reduce((sum, entry) => sum + entry.shares, 0);
-  // Floors of 1 can overshoot: take back from the biggest allocations first.
-  while (total > supply) {
-    const biggest = shares.filter((entry) => entry.shares > 1).sort((a, b) => b.shares - a.shares)[0];
-    if (!biggest) break;
-    biggest.shares -= 1;
-    total -= 1;
+  // Floors of 1 can overshoot: take back from the biggest allocations first (the earliest listed
+  // among equals), one share at a time.
+  if (total > supply) {
+    const biggest = biggestFirst(shares.filter((entry) => entry.shares > 1));
+    while (total > supply && biggest.size) {
+      const entry = biggest.pop();
+      entry.shares -= 1;
+      total -= 1;
+      if (entry.shares > 1) biggest.push(entry);
+    }
   }
   // Rounding down leaves a few: largest remainders first, never past what was asked for.
-  const order = [...shares].sort((a, b) => b.remainder - a.remainder || byTime.indexOf(a.sub) - byTime.indexOf(b.sub));
-  for (let i = 0; total < supply && order.length; i = (i + 1) % order.length) {
+  const order = [...shares].sort((a, b) => b.remainder - a.remainder || timeRank.get(a.sub) - timeRank.get(b.sub));
+  let open = order.filter((entry) => entry.shares < entry.sub.requested).length;
+  for (let i = 0; total < supply && open > 0; i = (i + 1) % order.length) {
     const entry = order[i];
     if (entry.shares < entry.sub.requested) {
       entry.shares += 1;
       total += 1;
-    } else if (order.every((candidate) => candidate.shares >= candidate.sub.requested)) {
-      break;
+      if (entry.shares >= entry.sub.requested) open -= 1;
     }
   }
   for (const entry of shares) result.set(entry.sub.id, entry.shares);
   return result;
+}
+
+/** A max-heap of allocate()'s entries: most shares first, then the earliest in its input. */
+function biggestFirst(entries) {
+  const heap = [];
+  const before = (a, b) => a.shares > b.shares || (a.shares === b.shares && a.position < b.position);
+  const swap = (i, j) => ([heap[i], heap[j]] = [heap[j], heap[i]]);
+  const push = (entry) => {
+    heap.push(entry);
+    for (let i = heap.length - 1; i > 0 && before(heap[i], heap[(i - 1) >> 1]); i = (i - 1) >> 1) swap(i, (i - 1) >> 1);
+  };
+  const pop = () => {
+    const top = heap[0];
+    const last = heap.pop();
+    if (heap.length) {
+      heap[0] = last;
+      for (let i = 0; ; ) {
+        let best = i;
+        for (const child of [2 * i + 1, 2 * i + 2]) if (child < heap.length && before(heap[child], heap[best])) best = child;
+        if (best === i) break;
+        swap(i, best);
+        i = best;
+      }
+    }
+    return top;
+  };
+  for (const entry of entries) push(entry);
+  return {
+    push,
+    pop,
+    get size() {
+      return heap.length;
+    },
+  };
 }
 
 /** Starting max shares from the weekly bell curve: her subscribers against the listed market's. */
@@ -240,14 +282,69 @@ async function ledger(client, { userId, assetId, entryType, quantityDelta = 0, c
   );
 }
 
-/** Moves cash between spendable and held (+ holds, − releases), with a ledger line. */
+/** Moves cash between spendable and held (+ holds, − releases), with a ledger line. One statement. */
 async function moveHeld(client, { userId, assetId, subscriptionId, amount }) {
   if (!(Math.abs(amount) > 0)) return;
   await client.query(
-    `UPDATE market.portfolio_cash_balances SET cash_balance = cash_balance - $2, held_cash = held_cash + $2, updated_at = now() WHERE user_id = $1`,
-    [userId, amount]
+    `
+    WITH wallet AS (
+      UPDATE market.portfolio_cash_balances SET cash_balance = cash_balance - $2, held_cash = held_cash + $2, updated_at = now() WHERE user_id = $1
+    )
+    INSERT INTO market.ledger_entries (user_id, asset_id, entry_type, quantity_delta, cash_delta, credit_delta, reference_type, reference_id)
+    VALUES ($1, $3, $4, 0, $5, 0, 'ipo_subscription', $6)
+  `,
+    [userId, amount, assetId, amount > 0 ? "ipo_cash_hold" : "ipo_cash_release", -amount, subscriptionId]
   );
-  await ledger(client, { userId, assetId, entryType: amount > 0 ? "ipo_cash_hold" : "ipo_cash_release", cashDelta: -amount, subscriptionId });
+}
+
+/** Locks these players' wallets in user order (what bulk writes elsewhere do), opening any missing. */
+async function lockWallets(client, userIds) {
+  const ids = [...new Set(userIds.map(Number))];
+  if (!ids.length) return;
+  const { rows } = await client.query(`SELECT user_id FROM market.portfolio_cash_balances WHERE user_id = ANY($1::bigint[]) ORDER BY user_id FOR UPDATE`, [ids]);
+  const open = new Set(rows.map((row) => Number(row.user_id)));
+  for (const id of ids) if (!open.has(id)) await ensureUserCashAccount(client, id);
+}
+
+/**
+ * Lets go of many subscriptions' holds in one statement (wallets locked first). `releases` are
+ * { userId, held, cash }: `held` comes off held cash and `cash` goes to spendable Cash, summed per
+ * player in NUMERIC, so a balance lands exactly where one update per subscription would leave it.
+ * `lines` are the ledger rows ({ userId, assetId, entryType, quantityDelta, cashDelta,
+ * subscriptionId }), written in the order given.
+ */
+async function releaseHolds(client, { releases, lines }) {
+  if (!releases.length && !lines.length) return;
+  await client.query(
+    `
+    WITH releases AS (
+      SELECT r."userId", SUM(r.held) AS held, SUM(r.cash) AS cash
+      FROM jsonb_to_recordset($1::jsonb) AS r("userId" bigint, held numeric, cash numeric)
+      GROUP BY r."userId"
+    ),
+    wallets AS (
+      UPDATE market.portfolio_cash_balances b
+      SET held_cash = GREATEST(b.held_cash - r.held, 0), cash_balance = b.cash_balance + r.cash, updated_at = now()
+      FROM releases r
+      WHERE b.user_id = r."userId"
+    )
+    INSERT INTO market.ledger_entries (user_id, asset_id, entry_type, quantity_delta, cash_delta, credit_delta, reference_type, reference_id)
+    SELECT l."userId", l."assetId", l."entryType", l."quantityDelta", l."cashDelta", 0, 'ipo_subscription', l."subscriptionId"
+    FROM jsonb_to_recordset($2::jsonb) AS l(seq int, "userId" bigint, "assetId" bigint, "entryType" text, "quantityDelta" numeric, "cashDelta" numeric, "subscriptionId" bigint)
+    ORDER BY l.seq
+  `,
+    [JSON.stringify(releases), JSON.stringify(lines.map((line, seq) => ({ seq, quantityDelta: 0, ...line })))]
+  );
+}
+
+/**
+ * Drops the cached public IPO view (every pod's copy within its 2 s of memory). For a status change
+ * (`settle`), once more a second later: a rebuild that read the database just before the change can
+ * still store the old body, and this is the moment the whole crowd refetches.
+ */
+async function invalidatePublicCache(redis, { settle = false } = {}) {
+  await invalidateCachedJson(redis, [PUBLIC_CACHE_KEY]).catch(() => {});
+  if (settle) setTimeout(() => void invalidateCachedJson(redis, [PUBLIC_CACHE_KEY]).catch(() => {}), 1_000).unref?.();
 }
 
 // ── Reads ────────────────────────────────────────────────────────────────
@@ -395,7 +492,7 @@ function playerCap(listing, event) {
   return offered > 0 ? Math.max(1, Math.floor((offered * toNumber(event.player_cap_pct)) / 100)) : null;
 }
 
-function talentView(listing, event, { series, totals, mine = null, admin = false, fairValues = null }) {
+function talentView(listing, event, { series, totals, admin = false, fairValues = null }) {
   const opened = event.status !== "announced";
   const view = {
     listing_id: Number(listing.id),
@@ -423,7 +520,6 @@ function talentView(listing, event, { series, totals, mine = null, admin = false
     subscribed_shares: totals?.requested ?? 0,
     subscribers: totals?.subscribers ?? 0,
     shares_allocated: listing.status === "listed" ? toNumber(listing.shares_allocated) : null,
-    mine,
   };
   if (admin) {
     view.asset_status = listing.asset_status;
@@ -435,7 +531,7 @@ function talentView(listing, event, { series, totals, mine = null, admin = false
   return view;
 }
 
-async function buildEvents(db, events, { userId = null, admin = false, now = new Date() } = {}) {
+async function buildEvents(db, events, { admin = false, now = new Date() } = {}) {
   const listings = await loadListings(db, events.map((event) => event.id));
   const channelIds = [...new Set(listings.map((listing) => listing.youtube_channel_id))];
   const [series, totals, fairValues] = await Promise.all([
@@ -443,22 +539,6 @@ async function buildEvents(db, events, { userId = null, admin = false, now = new
     loadSubscriptionTotals(db, listings.map((listing) => listing.id)),
     admin ? loadFairValueSeries(db, channelIds) : Promise.resolve(new Map()),
   ]);
-  let mine = new Map();
-  if (userId && listings.length) {
-    const { rows } = await db.query(
-      `SELECT listing_id, requested_shares, price, held_cash, status, allocated_shares, refunded_cash, updated_at FROM market.ipo_subscriptions WHERE user_id = $1 AND listing_id = ANY($2::bigint[])`,
-      [userId, listings.map((listing) => listing.id)]
-    );
-    mine = new Map(rows.map((row) => [String(row.listing_id), {
-      requested_shares: toNumber(row.requested_shares),
-      price: toNumber(row.price),
-      held_cash: toNumber(row.held_cash),
-      status: row.status,
-      allocated_shares: toNumber(row.allocated_shares),
-      refunded_cash: toNumber(row.refunded_cash),
-      updated_at: row.updated_at,
-    }]));
-  }
   return events.map((event) => {
     const own = listings.filter((listing) => String(listing.event_id) === String(event.id) && (admin || listing.status !== "cancelled"));
     return {
@@ -468,7 +548,6 @@ async function buildEvents(db, events, { userId = null, admin = false, now = new
         talentView(listing, event, {
           series: series.get(listing.youtube_channel_id),
           totals: totals.get(String(listing.id)),
-          mine: mine.get(String(listing.id)) || null,
           admin,
           fairValues: fairValues.get(listing.youtube_channel_id),
         })
@@ -477,16 +556,45 @@ async function buildEvents(db, events, { userId = null, admin = false, now = new
   });
 }
 
-/** Public: upcoming and open IPOs, plus ones listed in the last week. */
-async function getPublicIpos(pool, { userId = null, now = new Date() } = {}) {
-  const { rows: events } = await pool.query(
+const PUBLIC_EVENTS = `e.status IN ('announced', 'open') OR (e.status = 'listed' AND e.listed_at > now() - interval '7 days')`;
+
+/**
+ * Public: upcoming and open IPOs, plus ones listed in the last week. The same for every viewer, so
+ * it's served from a shared cache (PUBLIC_CACHE_KEY); a player's own subscriptions come from
+ * getMySubscriptions.
+ */
+async function getPublicIpos(pool, { now = new Date() } = {}) {
+  const { rows: events } = await pool.query(`SELECT * FROM market.ipo_events e WHERE ${PUBLIC_EVENTS} ORDER BY listing_date ASC, id ASC`);
+  return { events: await buildEvents(pool, events, { now }), server_time: now.toISOString() };
+}
+
+/** A player's subscriptions in the IPOs getPublicIpos shows, by listing (one indexed query). */
+async function getMySubscriptions(pool, userId) {
+  const { rows } = await pool.query(
     `
-    SELECT * FROM market.ipo_events
-    WHERE status IN ('announced', 'open') OR (status = 'listed' AND listed_at > now() - interval '7 days')
-    ORDER BY listing_date ASC, id ASC
-  `
+    SELECT s.listing_id, a.symbol, s.requested_shares, s.price, s.held_cash, s.status, s.allocated_shares, s.refunded_cash, s.updated_at
+    FROM market.ipo_subscriptions s
+    JOIN market.ipo_listings l ON l.id = s.listing_id
+    JOIN market.ipo_events e ON e.id = l.event_id
+    JOIN market.market_assets a ON a.id = l.asset_id
+    WHERE s.user_id = $1 AND (${PUBLIC_EVENTS})
+    ORDER BY s.listing_id
+  `,
+    [userId]
   );
-  return { events: await buildEvents(pool, events, { userId, now }), server_time: now.toISOString() };
+  return {
+    subscriptions: rows.map((row) => ({
+      listing_id: Number(row.listing_id),
+      symbol: row.symbol,
+      requested_shares: toNumber(row.requested_shares),
+      price: toNumber(row.price),
+      held_cash: toNumber(row.held_cash),
+      status: row.status,
+      allocated_shares: toNumber(row.allocated_shares),
+      refunded_cash: toNumber(row.refunded_cash),
+      updated_at: row.updated_at,
+    })),
+  };
 }
 
 /** Admin: every IPO with the data funnel, and prelaunch talents not in a live IPO. */
@@ -655,7 +763,7 @@ async function uploadOshimark(channel) {
  * Re-reads a talent's YouTube avatar and X name, and sets her oshimark (`oshimark_emoji`, or keeps
  * hers, or takes the first emoji in her X name). Uploads the oshimark icon when S3 is configured.
  */
-async function refreshTalentProfile(pool, listingId, { oshimark_emoji: chosen = null } = {}) {
+async function refreshTalentProfile(pool, listingId, { oshimark_emoji: chosen = null, redis = null } = {}) {
   const { rows } = await pool.query(
     `
     SELECT c.* FROM market.ipo_listings l
@@ -679,6 +787,7 @@ async function refreshTalentProfile(pool, listingId, { oshimark_emoji: chosen = 
     [channel.youtube_channel_id, profile.youtube_avatar_url, oshimark]
   );
   const icon = await uploadOshimark(saved[0]).catch((error) => ({ uploaded: false, reason: String(error?.message || error) }));
+  await invalidatePublicCache(redis);
   return { ...profile, oshimark_emoji: oshimark, oshimark_icon: icon };
 }
 
@@ -687,7 +796,7 @@ async function refreshTalentProfile(pool, listingId, { oshimark_emoji: chosen = 
  * tracked channels and prelaunch stocks; `asset_ids` adds talents already tracked as prelaunch.
  * Reference pictures upload afterwards (best effort; skipped without S3 credentials).
  */
-async function createEvent(pool, body, { adminUserId = null, now = new Date() } = {}) {
+async function createEvent(pool, body, { adminUserId = null, now = new Date(), redis = null } = {}) {
   const settings = parseEventSettings(body || {});
   if (settings.listingDate <= todayKey(now)) throw codedError("listing_date_past");
   const window = windowFor(settings.listingDate, settings.windowHours);
@@ -742,6 +851,8 @@ async function createEvent(pool, body, { adminUserId = null, now = new Date() } 
     client.release();
   }
 
+  await invalidatePublicCache(redis);
+
   const images = [];
   for (const entry of saved) {
     try {
@@ -759,7 +870,7 @@ async function createEvent(pool, body, { adminUserId = null, now = new Date() } 
   return { event_id: eventId, reference_images: images, oshimarks };
 }
 
-async function updateEvent(pool, eventId, body) {
+async function updateEvent(pool, eventId, body, { redis = null } = {}) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -786,10 +897,11 @@ async function updateEvent(pool, eventId, body) {
   } finally {
     client.release();
   }
+  await invalidatePublicCache(redis);
 }
 
 /** Removes a talent from an IPO that hasn't opened (she stays tracked as prelaunch). */
-async function removeListing(pool, eventId, listingId) {
+async function removeListing(pool, eventId, listingId, { redis = null } = {}) {
   const { rowCount } = await pool.query(
     `
     UPDATE market.ipo_listings l SET status = 'cancelled'
@@ -799,6 +911,7 @@ async function removeListing(pool, eventId, listingId) {
     [eventId, listingId]
   );
   if (!rowCount) throw codedError("ipo_not_editable");
+  await invalidatePublicCache(redis);
 }
 
 /**
@@ -847,19 +960,22 @@ async function openWindow(pool, eventId, { now = new Date(), redis = null, force
   } finally {
     client.release();
   }
+  await invalidatePublicCache(redis, { settle: true });
   void publishMarketEvent(redis, { type: "market.ipo_update", event_id: Number(eventId), status: "open", at: now.toISOString() });
   return { event_id: Number(eventId), status: "open" };
 }
 
-/** Cancels an IPO that hasn't listed: every subscription's cash comes back. */
+/** Cancels an IPO that hasn't listed: every subscription's cash comes back (in bulk, like listing). */
 async function cancelEvent(pool, eventId, { redis = null } = {}) {
   const client = await pool.connect();
-  const toNotify = [];
+  let toNotify = [];
   try {
     await client.query("BEGIN");
     const [event] = await loadEvents(client, { eventId, lock: true });
     if (!event) throw codedError("ipo_not_found");
     if (!["announced", "open"].includes(event.status)) throw codedError("ipo_not_cancellable");
+    // Subscribing holds a share lock on the listing: this waits for any in flight, and new ones wait for us.
+    await client.query(`SELECT id FROM market.ipo_listings WHERE event_id = $1 ORDER BY id FOR UPDATE`, [event.id]);
     const { rows: subs } = await client.query(
       `
       SELECT s.*, l.asset_id, a.symbol FROM market.ipo_subscriptions s
@@ -871,31 +987,55 @@ async function cancelEvent(pool, eventId, { redis = null } = {}) {
     `,
       [event.id]
     );
-    for (const sub of subs) {
-      await ensureUserCashAccount(client, sub.user_id);
-      await moveHeld(client, { userId: sub.user_id, assetId: sub.asset_id, subscriptionId: sub.id, amount: -toNumber(sub.held_cash) });
-      await client.query(`UPDATE market.ipo_subscriptions SET status = 'cancelled', refunded_cash = held_cash, held_cash = 0, updated_at = now() WHERE id = $1`, [sub.id]);
-      toNotify.push(sub);
+    await lockWallets(client, subs.map((sub) => sub.user_id));
+    await releaseHolds(client, {
+      releases: subs.map((sub) => ({ userId: Number(sub.user_id), held: toNumber(sub.held_cash), cash: toNumber(sub.held_cash) })),
+      lines: subs
+        .filter((sub) => toNumber(sub.held_cash) > 0)
+        .map((sub) => ({ userId: Number(sub.user_id), assetId: Number(sub.asset_id), entryType: "ipo_cash_release", cashDelta: toNumber(sub.held_cash), subscriptionId: Number(sub.id) })),
+    });
+    if (subs.length) {
+      await client.query(`UPDATE market.ipo_subscriptions SET status = 'cancelled', refunded_cash = held_cash, held_cash = 0, updated_at = now() WHERE id = ANY($1::bigint[])`, [
+        subs.map((sub) => sub.id),
+      ]);
     }
     await client.query(`UPDATE market.ipo_listings SET status = 'cancelled' WHERE event_id = $1 AND status = 'pending'`, [event.id]);
     await client.query(`UPDATE market.ipo_events SET status = 'cancelled', cancelled_at = now(), updated_at = now() WHERE id = $1`, [event.id]);
     await client.query("COMMIT");
+    toNotify = subs;
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;
   } finally {
     client.release();
   }
-  for (const sub of toNotify) {
-    await notifications
-      .notify(pool, sub.user_id, { kind: "ipo", title: `The ${sub.symbol} IPO was called off`, body: `Your ${notifications.money(sub.held_cash)} is back in your Cash.`, href: "/market/ipo" })
-      .catch(() => {});
-  }
+  await notifyAfterCommit(
+    pool,
+    toNotify.map((sub) => ({ userId: sub.user_id, kind: "ipo", title: `The ${sub.symbol} IPO was called off`, body: `Your ${notifications.money(sub.held_cash)} is back in your Cash.`, href: "/market/ipo" }))
+  );
+  await invalidatePublicCache(redis, { settle: true });
   void publishMarketEvent(redis, { type: "market.ipo_update", event_id: Number(eventId), status: "cancelled", at: new Date().toISOString() });
   return { event_id: Number(eventId), status: "cancelled", refunded: toNotify.length };
 }
 
+/** Notifications for many players in one insert, pushed to their sockets; never fails the caller. */
+async function notifyAfterCommit(pool, items) {
+  if (!items.length) return;
+  try {
+    const rows = await notifications.notifyMany(pool, items);
+    notifications.publish(rows);
+    await notifications.pruneInboxes(pool, rows.map((row) => row.user_id));
+  } catch (error) {
+    console.error("ipo notifications failed:", String(error?.message || error));
+  }
+}
+
 // ── Players ──────────────────────────────────────────────────────────────
+/**
+ * The listing a player is subscribing to, share-locked: players subscribe side by side, while
+ * opening, listing and calling off (which lock it for update) wait for them, and they for those.
+ * What one player does is serialized by their wallet, which subscribe and cancel lock next.
+ */
 async function lockListingForPlayer(client, symbol) {
   const { rows } = await client.query(
     `
@@ -904,7 +1044,7 @@ async function lockListingForPlayer(client, symbol) {
     JOIN market.market_assets a ON a.id = l.asset_id
     JOIN market.ipo_events e ON e.id = l.event_id
     WHERE a.symbol = $1 AND l.status = 'pending'
-    FOR UPDATE OF l
+    FOR SHARE OF l
   `,
     [symbol]
   );
@@ -918,10 +1058,11 @@ async function lockListingForPlayer(client, symbol) {
  * Subscribes for `shares` of a talent in an open IPO (or changes the request): the cost is held from
  * Cash now and settles at listing. Changing it moves only the difference.
  */
-async function subscribe(pool, { userId, symbol, shares }) {
+async function subscribe(pool, { userId, symbol, shares, redis = null }) {
   const requested = Number(shares);
   if (!Number.isInteger(requested) || requested < 1) throw codedError("invalid_quantity");
   const client = await pool.connect();
+  let result;
   try {
     await client.query("BEGIN");
     const listing = await lockListingForPlayer(client, String(symbol || "").toUpperCase());
@@ -950,34 +1091,40 @@ async function subscribe(pool, { userId, symbol, shares }) {
     }
     await moveHeld(client, { userId, assetId: listing.asset_id, subscriptionId, amount: delta });
     await client.query("COMMIT");
-    return { symbol: listing.symbol, requested_shares: requested, price, held_cash: cost, cash_balance: round2(toNumber(account.cash_balance) - delta) };
+    result = { symbol: listing.symbol, requested_shares: requested, price, held_cash: cost, cash_balance: round2(toNumber(account.cash_balance) - delta) };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;
   } finally {
     client.release();
   }
+  await invalidatePublicCache(redis);
+  return result;
 }
 
-async function cancelSubscription(pool, { userId, symbol }) {
+async function cancelSubscription(pool, { userId, symbol, redis = null }) {
   const client = await pool.connect();
+  let result;
   try {
     await client.query("BEGIN");
     const listing = await lockListingForPlayer(client, String(symbol || "").toUpperCase());
+    // Wallet before subscription, as in subscribe, so a player's subscribe and cancel can't deadlock.
+    await ensureUserCashAccount(client, userId);
     const { rows } = await client.query(`SELECT * FROM market.ipo_subscriptions WHERE listing_id = $1 AND user_id = $2 AND status = 'pending' FOR UPDATE`, [listing.id, userId]);
     const sub = rows[0];
     if (!sub) throw codedError("subscription_not_found");
-    await ensureUserCashAccount(client, userId);
     await moveHeld(client, { userId, assetId: listing.asset_id, subscriptionId: sub.id, amount: -toNumber(sub.held_cash) });
     await client.query(`UPDATE market.ipo_subscriptions SET status = 'cancelled', refunded_cash = held_cash, held_cash = 0, updated_at = now() WHERE id = $1`, [sub.id]);
     await client.query("COMMIT");
-    return { symbol: listing.symbol, released_cash: toNumber(sub.held_cash) };
+    result = { symbol: listing.symbol, released_cash: toNumber(sub.held_cash) };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;
   } finally {
     client.release();
   }
+  await invalidatePublicCache(redis);
+  return result;
 }
 
 // ── Listing ──────────────────────────────────────────────────────────────
@@ -985,11 +1132,15 @@ async function cancelSubscription(pool, { userId, symbol }) {
  * Lists an open IPO: fills subscriptions at the IPO price, refunds the rest, and turns the stocks
  * active, opening at the IPO price. `marketDate` is her first market day. Unless `force`, waits while a
  * talent has no completed snapshot for that day (settlement would refuse the day without one).
+ *
+ * The 09:00 settlement waits for this, so it runs in a fixed number of statements however many
+ * players subscribed: read and lock everything, allocate in JS, then one bulk write per table.
+ * Notifications go out in one insert after COMMIT.
  */
 async function listEvent(pool, eventId, { marketDate = todayKey(), force = false, redis = null } = {}) {
   const client = await pool.connect();
   const notices = [];
-  let listed = [];
+  const listed = [];
   try {
     await client.query("BEGIN");
     const [event] = await loadEvents(client, { eventId, lock: true });
@@ -1005,71 +1156,114 @@ async function listEvent(pool, eventId, { marketDate = todayKey(), force = false
       const waiting = listings.filter((listing) => !have.has(listing.youtube_channel_id));
       if (waiting.length) throw codedError("waiting_for_stats", { field: `${waiting.map((listing) => listing.symbol).join(", ")} on ${marketDate}` });
     }
+    // Every subscription at once, in the order allocation breaks ties by; then the wallets (user
+    // order) and any holdings they already have in these stocks.
+    const { rows: subs } = await client.query(
+      `SELECT id, listing_id, user_id, requested_shares, held_cash, created_at FROM market.ipo_subscriptions WHERE listing_id = ANY($1::bigint[]) AND status = 'pending' ORDER BY created_at, id FOR UPDATE`,
+      [listings.map((listing) => listing.id)]
+    );
+    const userIds = [...new Set(subs.map((sub) => Number(sub.user_id)))];
+    await lockWallets(client, userIds);
+    const { rows: heldRows } = userIds.length
+      ? await client.query(
+          `SELECT user_id, asset_id, quantity, avg_cost_basis FROM market.portfolio_holdings WHERE user_id = ANY($1::bigint[]) AND asset_id = ANY($2::bigint[]) ORDER BY user_id, asset_id FOR UPDATE`,
+          [userIds, listings.map((listing) => listing.asset_id)]
+        )
+      : { rows: [] };
+    const holdings = new Map(heldRows.map((row) => [`${row.user_id}:${row.asset_id}`, row]));
+    const byListing = new Map(listings.map((listing) => [String(listing.id), []]));
+    for (const sub of subs) byListing.get(String(sub.listing_id))?.push(sub);
+
+    const releases = [];
+    const lines = [];
+    const holdingRows = [];
+    const outcomes = [];
+    const assets = [];
     for (const listing of listings) {
       const price = toNumber(listing.ipo_price);
-      const { rows: subs } = await client.query(
-        `SELECT * FROM market.ipo_subscriptions WHERE listing_id = $1 AND status = 'pending' ORDER BY created_at, id FOR UPDATE`,
-        [listing.id]
-      );
-      const shares = allocate(subs.map((sub) => ({ id: String(sub.id), requested: sub.requested_shares, created_at: sub.created_at?.toISOString?.() ?? sub.created_at })), listing.shares_offered);
+      const assetId = Number(listing.asset_id);
+      const own = byListing.get(String(listing.id));
+      const shares = allocate(own.map((sub) => ({ id: String(sub.id), requested: sub.requested_shares, created_at: sub.created_at?.toISOString?.() ?? sub.created_at })), listing.shares_offered);
       let allocatedTotal = 0;
-      for (const sub of subs) {
-        const userId = sub.user_id;
+      for (const sub of own) {
+        const userId = Number(sub.user_id);
+        const subscriptionId = Number(sub.id);
         const allocated = shares.get(String(sub.id)) || 0;
         const held = toNumber(sub.held_cash);
         const cost = Math.min(held, round2(allocated * price));
         const refund = round2(held - cost);
-        await ensureUserCashAccount(client, userId);
         // The whole hold comes off held cash: the cost leaves, the rest goes back to spendable Cash.
-        await client.query(
-          `UPDATE market.portfolio_cash_balances SET held_cash = GREATEST(held_cash - $2, 0), cash_balance = cash_balance + $3, updated_at = now() WHERE user_id = $1`,
-          [userId, held, refund]
-        );
-        await ledger(client, { userId, assetId: listing.asset_id, entryType: "ipo_cash_release", cashDelta: held, subscriptionId: sub.id });
+        releases.push({ userId, held, cash: refund });
+        lines.push({ userId, assetId, entryType: "ipo_cash_release", cashDelta: held, subscriptionId });
         if (allocated > 0) {
-          const { rows: holding } = await client.query(`SELECT quantity, avg_cost_basis FROM market.portfolio_holdings WHERE user_id = $1 AND asset_id = $2 FOR UPDATE`, [userId, listing.asset_id]);
-          const oldQty = toNumber(holding[0]?.quantity, 0);
+          const holding = holdings.get(`${userId}:${assetId}`);
+          const oldQty = toNumber(holding?.quantity, 0);
           const newQty = oldQty + allocated;
-          const avg = (oldQty * toNumber(holding[0]?.avg_cost_basis, 0) + cost) / newQty;
-          await client.query(
-            `
-            INSERT INTO market.portfolio_holdings (user_id, asset_id, quantity, avg_cost_basis, updated_at) VALUES ($1,$2,$3,$4,now())
-            ON CONFLICT (user_id, asset_id) DO UPDATE SET quantity = EXCLUDED.quantity, avg_cost_basis = EXCLUDED.avg_cost_basis, updated_at = now()
-          `,
-            [userId, listing.asset_id, newQty, avg]
-          );
-          await ledger(client, { userId, assetId: listing.asset_id, entryType: "ipo_allocation", quantityDelta: allocated, cashDelta: -cost, subscriptionId: sub.id });
+          const avg = (oldQty * toNumber(holding?.avg_cost_basis, 0) + cost) / newQty;
+          holdingRows.push({ userId, assetId, quantity: newQty, avgCost: avg });
+          lines.push({ userId, assetId, entryType: "ipo_allocation", quantityDelta: allocated, cashDelta: -cost, subscriptionId });
           allocatedTotal += allocated;
         }
-        await client.query(
-          `UPDATE market.ipo_subscriptions SET status = $2, allocated_shares = $3, refunded_cash = $4, held_cash = 0, updated_at = now() WHERE id = $1`,
-          [sub.id, allocated > 0 ? "allocated" : "refunded", allocated, refund]
-        );
+        outcomes.push({ id: subscriptionId, status: allocated > 0 ? "allocated" : "refunded", allocated, refund });
         notices.push({ userId, symbol: listing.symbol, requested: toNumber(sub.requested_shares), allocated, price, refund });
       }
       // Shares players now hold leave the broker; she opens at the IPO price with fair value pulling
       // from there (transient offset ln(price/fair), decaying like any order impact).
-      const fairValue = Math.max(toNumber(listing.current_fair_value, 0), 0.000001);
+      assets.push({ id: assetId, allocated: allocatedTotal, price, fair: Math.max(toNumber(listing.current_fair_value, 0), 0.000001), listingId: Number(listing.id) });
+      listed.push({ symbol: listing.symbol, price, allocated: allocatedTotal, offered: toNumber(listing.shares_offered), subscribers: own.length });
+    }
+
+    await releaseHolds(client, { releases, lines });
+    if (holdingRows.length) {
       await client.query(
         `
-        UPDATE market.market_assets
+        INSERT INTO market.portfolio_holdings (user_id, asset_id, quantity, avg_cost_basis, updated_at)
+        SELECT h."userId", h."assetId", h.quantity, h."avgCost", now()
+        FROM jsonb_to_recordset($1::jsonb) AS h("userId" bigint, "assetId" bigint, quantity numeric, "avgCost" numeric)
+        ON CONFLICT (user_id, asset_id) DO UPDATE SET quantity = EXCLUDED.quantity, avg_cost_basis = EXCLUDED.avg_cost_basis, updated_at = now()
+      `,
+        [JSON.stringify(holdingRows)]
+      );
+    }
+    if (outcomes.length) {
+      await client.query(
+        `
+        UPDATE market.ipo_subscriptions s
+        SET status = o.status, allocated_shares = o.allocated, refunded_cash = o.refund, held_cash = 0, updated_at = now()
+        FROM jsonb_to_recordset($1::jsonb) AS o(id bigint, status text, allocated numeric, refund numeric)
+        WHERE s.id = o.id
+      `,
+        [JSON.stringify(outcomes)]
+      );
+    }
+    if (assets.length) {
+      await client.query(
+        `
+        UPDATE market.market_assets a
         SET status = 'active',
-            circulating_supply = circulating_supply + $2::numeric,
-            treasury_supply = GREATEST(max_supply - (circulating_supply + $2::numeric), 0),
-            current_mid_price = $3::numeric,
-            current_bid_price = $3::numeric * (1 - spread_bps / 20000.0),
-            current_ask_price = $3::numeric * (1 + spread_bps / 20000.0),
-            current_premium_pct = ($3::numeric - $4::numeric) / $4::numeric,
+            circulating_supply = a.circulating_supply + x.allocated,
+            treasury_supply = GREATEST(a.max_supply - (a.circulating_supply + x.allocated), 0),
+            current_mid_price = x.price,
+            current_bid_price = x.price * (1 - a.spread_bps / 20000.0),
+            current_ask_price = x.price * (1 + a.spread_bps / 20000.0),
+            current_premium_pct = (x.price - x.fair) / x.fair,
             current_persistent_offset = 0,
-            current_transient_offset = LN($3::numeric / $4::numeric),
+            current_transient_offset = LN(x.price / x.fair),
             offsets_updated_at = now(),
             updated_at = now()
-        WHERE id = $1
+        FROM jsonb_to_recordset($1::jsonb) AS x(id bigint, allocated numeric, price numeric, fair numeric)
+        WHERE a.id = x.id
       `,
-        [listing.asset_id, allocatedTotal, price, fairValue]
+        [JSON.stringify(assets)]
       );
-      await client.query(`UPDATE market.ipo_listings SET status = 'listed', shares_allocated = $2, listed_on = $3 WHERE id = $1`, [listing.id, allocatedTotal, marketDate]);
-      listed.push({ symbol: listing.symbol, price, allocated: allocatedTotal, offered: toNumber(listing.shares_offered), subscribers: subs.length });
+      await client.query(
+        `
+        UPDATE market.ipo_listings l SET status = 'listed', shares_allocated = x.allocated, listed_on = $2
+        FROM jsonb_to_recordset($1::jsonb) AS x("listingId" bigint, allocated numeric)
+        WHERE l.id = x."listingId"
+      `,
+        [JSON.stringify(assets), marketDate]
+      );
     }
     await client.query(`UPDATE market.ipo_events SET status = 'listed', listed_at = now(), last_error = NULL, updated_at = now() WHERE id = $1`, [event.id]);
     await client.query("COMMIT");
@@ -1082,15 +1276,21 @@ async function listEvent(pool, eventId, { marketDate = todayKey(), force = false
   } finally {
     client.release();
   }
-  for (const notice of notices) {
-    const title = notice.allocated > 0 ? `You got ${notice.allocated.toLocaleString("en-US")} ${notice.symbol} at the IPO` : `No ${notice.symbol} shares this time`;
-    const body =
-      notice.allocated > 0
-        ? `${notice.allocated} of the ${notice.requested} you asked for, at ${notifications.money(notice.price)} each.${notice.refund > 0 ? ` ${notifications.money(notice.refund)} is back in your Cash.` : ""} ${notice.symbol} trades from today.`
-        : `The IPO was oversubscribed; ${notifications.money(notice.refund)} is back in your Cash.`;
-    await notifications.notify(pool, notice.userId, { kind: "ipo", title, body, href: `/stocks/${notice.symbol}` }).catch(() => {});
-  }
+  await notifyAfterCommit(
+    pool,
+    notices.map((notice) => ({
+      userId: notice.userId,
+      kind: "ipo",
+      title: notice.allocated > 0 ? `You got ${notice.allocated.toLocaleString("en-US")} ${notice.symbol} at the IPO` : `No ${notice.symbol} shares this time`,
+      body:
+        notice.allocated > 0
+          ? `${notice.allocated} of the ${notice.requested} you asked for, at ${notifications.money(notice.price)} each.${notice.refund > 0 ? ` ${notifications.money(notice.refund)} is back in your Cash.` : ""} ${notice.symbol} trades from today.`
+          : `The IPO was oversubscribed; ${notifications.money(notice.refund)} is back in your Cash.`,
+      href: `/stocks/${notice.symbol}`,
+    }))
+  );
   await invalidateMarketAssetsCache(redis).catch(() => {});
+  await invalidatePublicCache(redis, { settle: true });
   void publishMarketEvent(redis, { type: "market.ipo_update", event_id: Number(eventId), status: "listed", at: new Date().toISOString() });
   return { event_id: Number(eventId), market_date: marketDate, listed };
 }
@@ -1246,6 +1446,7 @@ async function revertListing(pool, eventId, { apply = false, redis = null } = {}
       .catch(() => {});
   }
   await invalidateMarketAssetsCache(redis).catch(() => {});
+  await invalidatePublicCache(redis, { settle: true });
   void publishMarketEvent(redis, { type: "market.ipo_update", event_id: Number(eventId), status: "cancelled", at: new Date().toISOString() });
   return report;
 }
@@ -1325,9 +1526,11 @@ function startIpoScheduler(pool, logger = console, redis = null, { intervalMs = 
 module.exports = {
   schema,
   DEFAULTS,
+  PUBLIC_CACHE_KEY,
   allocate,
   windowFor,
   getPublicIpos,
+  getMySubscriptions,
   getAdminOverview,
   createEvent,
   updateEvent,

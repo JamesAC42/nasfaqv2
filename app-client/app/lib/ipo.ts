@@ -53,7 +53,8 @@ export type IpoTalent = {
   subscribed_shares: number;
   subscribers: number;
   shares_allocated: number | null;
-  mine: IpoSubscription | null;
+  /** The viewer's own subscription: not in the shared /api/market/ipo body; withMine() adds it from /ipo/mine. */
+  mine?: IpoSubscription | null;
   // Admin only
   asset_status?: string;
   is_active?: boolean;
@@ -82,7 +83,19 @@ export type IpoEvent = {
   created_at?: string;
 };
 
-export const fetchIpos = () => apiFetch<{ events: IpoEvent[]; server_time: string }>("/api/market/ipo", { cache: "no-store" });
+/** The same for everyone and cached by the API for a few seconds (the browser revalidates with its ETag). */
+export const fetchIpos = () => apiFetch<{ events: IpoEvent[]; server_time: string }>("/api/market/ipo", { cache: "no-cache" });
+
+export type MyIpoSubscription = IpoSubscription & { listing_id: number; symbol: string };
+
+/** The signed-in player's subscriptions in the IPOs fetchIpos shows. */
+export const fetchMyIpoSubscriptions = () => apiFetch<{ subscriptions: MyIpoSubscription[] }>("/api/market/ipo/mine", { cache: "no-store" });
+
+/** Puts the player's own subscriptions onto the shared view's talents. */
+export function withMine(events: IpoEvent[], subscriptions: MyIpoSubscription[]): IpoEvent[] {
+  const byListing = new Map(subscriptions.map((sub) => [sub.listing_id, sub]));
+  return events.map((event) => ({ ...event, talents: event.talents.map((talent) => ({ ...talent, mine: byListing.get(talent.listing_id) ?? null })) }));
+}
 
 export const subscribeIpo = (symbol: string, shares: number) =>
   apiFetch<{ symbol: string; requested_shares: number; price: number; held_cash: number; cash_balance: number }>("/api/market/ipo/subscribe", {

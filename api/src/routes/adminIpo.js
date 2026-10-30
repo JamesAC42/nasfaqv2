@@ -91,7 +91,7 @@ router.post(
 router.post(
   "/events",
   handle(async (req, res) => {
-    const result = await ipo.createEvent(req.ctx.pool, req.body || {}, { adminUserId: req.ctx.user.id });
+    const result = await ipo.createEvent(req.ctx.pool, req.body || {}, { adminUserId: req.ctx.user.id, redis: req.ctx.redis });
     res.status(201).json(result);
   })
 );
@@ -99,7 +99,7 @@ router.post(
 router.patch(
   "/events/:id",
   handle(async (req, res) => {
-    await ipo.updateEvent(req.ctx.pool, eventId(req), req.body || {});
+    await ipo.updateEvent(req.ctx.pool, eventId(req), req.body || {}, { redis: req.ctx.redis });
     res.json({ ok: true });
   })
 );
@@ -107,7 +107,7 @@ router.patch(
 router.delete(
   "/events/:id/listings/:listingId",
   handle(async (req, res) => {
-    await ipo.removeListing(req.ctx.pool, eventId(req), Number(req.params.listingId));
+    await ipo.removeListing(req.ctx.pool, eventId(req), Number(req.params.listingId), { redis: req.ctx.redis });
     res.json({ ok: true });
   })
 );
@@ -138,7 +138,7 @@ router.post(
   handle(async (req, res) => {
     const listingId = Number(req.params.listingId);
     if (!Number.isInteger(listingId) || listingId <= 0) return res.status(404).json({ error: "ipo_not_found" });
-    res.json(await ipo.refreshTalentProfile(req.ctx.pool, listingId, { oshimark_emoji: req.body?.oshimark_emoji ?? null }));
+    res.json(await ipo.refreshTalentProfile(req.ctx.pool, listingId, { oshimark_emoji: req.body?.oshimark_emoji ?? null, redis: req.ctx.redis }));
   })
 );
 

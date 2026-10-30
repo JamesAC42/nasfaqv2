@@ -215,6 +215,23 @@ notification with each player's allocation.
 - Weekly evaluation: rookies (listed in the last 28 days) get no dividend or fee, are left out of the
   ranking, and their max shares never drop below what's held.
 
+**Under a crowd:**
+
+- **The page.** `GET /api/market/ipo` is the same for everyone. It's one cached body: 10 s in Redis
+  and 2 s in each pod's memory, with an ETag. Every subscribe, cancel, window opening, listing and
+  call-off drops it.
+- **Your subscriptions.** They come from `GET /api/market/ipo/mine`, one indexed query. The IPO tab
+  polls both every 15 s while a window is open, and only while the tab is visible. It also refetches,
+  a few seconds apart from other tabs, when `market.ipo_update` arrives on the market socket.
+- **Subscribing.** It share-locks the listing, so players subscribe side by side. Each player's own
+  requests queue on their wallet. Opening, listing and calling off lock the listing for update, so
+  they wait for subscriptions in flight.
+- **Listing and calling off.** They read and lock every subscription, wallet and holding at once,
+  allocate in JS, and write one bulk statement per table. That's 13 statements in the transaction
+  (14 with the stats check) however many players subscribed. Before, it was about 7 per subscriber.
+  Notifications go out in one insert after COMMIT. `ipo-listing-bulk.test.js` checks this with 400
+  players.
+
 **Tables:** `market.ipo_events`, `market.ipo_listings`, `market.ipo_subscriptions`
 (`services/ipo.js` holds the schema). Subscription cash moves through `held_cash` like queued buys,
 with `ipo_cash_hold`, `ipo_cash_release` and `ipo_allocation` ledger entries.

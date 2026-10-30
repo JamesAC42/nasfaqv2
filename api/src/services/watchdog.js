@@ -3,7 +3,8 @@
 //
 //   - no completed settlement for the market day by 30 minutes after settlement time (09:30 ET);
 //   - the last settlement cycle errored (market_runtime_state.last_cycle_error);
-//   - the day's YouTube scrape (ytscraper, 00:05 ET) left listed talents without stats 55 minutes on;
+//   - the day's YouTube scrape (ytscraper, 00:05 ET) left listed talents without stats, even after
+//     the scraper's first retry an hour later;
 //   - a scheduler's heartbeat went quiet, stalled, or stopped finishing clean ticks (schedulerHealth.js);
 //   - more than WATCHDOG_ERROR_THRESHOLD unhandled API errors in 5 minutes, across every pod (recordError).
 //
@@ -18,8 +19,12 @@ const { getCurrentDateKey, getQueryTimeZone, loadSchedulerConfig, shiftDateKey }
 const LOCK_KEY = 9_204_110;
 const INTERVAL_MS = 60_000;
 const SETTLEMENT_GRACE_MINUTES = 30;
-// The scraper's own schedule (SCRAPE_AT_LOCAL_HOUR/MIN in ytscraper, 00:05 by default), plus time to finish.
-const SCRAPE_GRACE_MINUTES = 55;
+// The scraper runs at SCRAPE_AT_LOCAL_HOUR/MIN (00:05 by default) and retries what's missing every
+// SCRAPE_RETRY_MINUTES (60). The alert waits for the first retry plus this long to finish, so a
+// blip the scraper fixes by itself doesn't page anyone.
+const SCRAPE_GRACE_MINUTES = 15;
+// Where ytscraper says how today's scrape went (ytscraper/cmd/ytscraper/retry.go).
+const SCRAPER_STATUS_KEY = "nasfaq:ytscraper:daily_stats";
 const ERROR_WINDOW_MINUTES = 5;
 const ERROR_KEY_PREFIX = "nasfaq:ops:errors:";
 const LAST_ERROR_KEY = "nasfaq:ops:errors:last";
@@ -143,11 +148,34 @@ async function checkMarket(pool, { now }) {
   return checks;
 }
 
+/** What ytscraper last said about `day`'s scrape, or null. */
+async function readScraperStatus(redis, day) {
+  if (!redis) return null;
+  try {
+    const status = JSON.parse((await redis.get(SCRAPER_STATUS_KEY)) || "null");
+    return status && status.day === day ? status : null;
+  } catch {
+    return null;
+  }
+}
+
+/** One line on what the scraper is doing about it, so nobody races it (or waits on it in vain). */
+function scraperLine(status, timeZone) {
+  if (!status) return "ytscraper hasn't reported on today's scrape: check that it's running and its logs.";
+  const quota = status.quota_exceeded ? " The YouTube quota is used up; it resets at midnight Pacific." : "";
+  if (status.next_retry_at) {
+    const next = new Date(status.next_retry_at);
+    return `ytscraper is retrying them on its own: attempt ${status.attempts} didn't get them all, next try at ${clock(minutesInZone(next, timeZone))} ${zoneName(next, timeZone)}.${quota}`;
+  }
+  return `ytscraper has no retry left today (attempt ${status.attempts}).${quota} Fill them in with ytscraper's backfill-missing-daily-stats.`;
+}
+
 /** Today's YouTube stats: every listed talent needs a row before settlement can run. */
-async function checkScrape(pool, { now }) {
+async function checkScrape(pool, { now, redis = null }) {
   const timeZone = getQueryTimeZone();
   const check = { key: "scrape-incomplete", title: "YouTube scrape incomplete", severity: "error" };
-  const deadline = Math.min(24 * 60 - 1, envInt("SCRAPE_AT_LOCAL_HOUR", 0) * 60 + envInt("SCRAPE_AT_LOCAL_MIN", 5) + SCRAPE_GRACE_MINUTES);
+  const retryMinutes = Math.max(5, envInt("SCRAPE_RETRY_MINUTES", 60));
+  const deadline = Math.min(24 * 60 - 1, envInt("SCRAPE_AT_LOCAL_HOUR", 0) * 60 + envInt("SCRAPE_AT_LOCAL_MIN", 5) + retryMinutes + SCRAPE_GRACE_MINUTES);
   if (minutesInZone(now, timeZone) < deadline) return [{ ...check, firing: null }];
   const today = getCurrentDateKey(now, timeZone);
   const { rows } = await pool.query(
@@ -170,15 +198,18 @@ async function checkScrape(pool, { now }) {
   );
   if (!rows.length) return [{ ...check, firing: false, message: `Every listed talent has stats for ${today}.` }];
   const symbols = rows.map((row) => row.symbol);
+  const status = await readScraperStatus(redis, today);
   return [
     {
       ...check,
       firing: true,
       message:
         `${symbols.length} listed talent${symbols.length === 1 ? " has" : "s have"} no YouTube stats for ${today} yet (it's past ` +
-        `${clock(deadline)} ${zoneName(now, timeZone)}). Settlement waits for all of them. Check the ytscraper logs; ` +
-        "ytscraper's backfill-missing-daily-stats can fill a talent the API can't reach.",
-      fields: [{ name: "Missing", value: symbols.join(", ") }],
+        `${clock(deadline)} ${zoneName(now, timeZone)}). Settlement waits for all of them. ${scraperLine(status, timeZone)}`,
+      fields: [
+        { name: "Missing", value: symbols.join(", ") },
+        ...(status?.last_error ? [{ name: "Scraper's last error", value: String(status.last_error).slice(0, 300) }] : []),
+      ],
       state: { symbols },
     },
   ];
@@ -256,7 +287,7 @@ async function runWatchdog(pool, redis, { now = new Date(), memory = {}, standby
   const failed = [];
   const runs = [
     ["market", () => checkMarket(pool, { now })],
-    ["scrape", () => checkScrape(pool, { now })],
+    ["scrape", () => checkScrape(pool, { now, redis })],
     ["heartbeats", () => checkHeartbeats(redis, { now, memory, standby, logger })],
     ["errors", () => checkErrors(redis, { now })],
   ];

@@ -3,6 +3,7 @@ package youtube
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -342,6 +343,52 @@ func (c *Client) FetchRecentFromUploads(ctx context.Context, uploadsPlaylistID s
 	return lastUpload, best, nil
 }
 
+// APIError is a non-2xx answer from the YouTube Data API, with the reasons from its error body
+// (for example "quotaExceeded").
+type APIError struct {
+	StatusCode int
+	Reasons    []string
+	Body       string
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("youtube api http %d: %s", e.StatusCode, e.Body)
+}
+
+func newAPIError(statusCode int, body []byte) *APIError {
+	var parsed struct {
+		Error struct {
+			Errors []struct {
+				Reason string `json:"reason"`
+			} `json:"errors"`
+		} `json:"error"`
+	}
+	apiErr := &APIError{StatusCode: statusCode, Body: string(body)}
+	if json.Unmarshal(body, &parsed) == nil {
+		for _, e := range parsed.Error.Errors {
+			if e.Reason != "" {
+				apiErr.Reasons = append(apiErr.Reasons, e.Reason)
+			}
+		}
+	}
+	return apiErr
+}
+
+// IsQuotaExceeded reports whether err is the API key's daily quota running out. Nothing more gets
+// through until it resets at midnight Pacific time.
+func IsQuotaExceeded(err error) bool {
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	for _, reason := range apiErr.Reasons {
+		if reason == "quotaExceeded" || reason == "dailyLimitExceeded" {
+			return true
+		}
+	}
+	return false
+}
+
 func isPlaylistNotFoundError(err error) bool {
 	if err == nil {
 		return false
@@ -524,7 +571,7 @@ func (c *Client) getJSON(ctx context.Context, rawURL string, out any) error {
 
 	body, _ := io.ReadAll(io.LimitReader(res.Body, 2<<20))
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return fmt.Errorf("youtube api http %d: %s", res.StatusCode, string(body))
+		return newAPIError(res.StatusCode, body)
 	}
 	if err := json.Unmarshal(body, out); err != nil {
 		return fmt.Errorf("decode json: %w", err)

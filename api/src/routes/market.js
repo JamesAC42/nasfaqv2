@@ -142,11 +142,23 @@ function sendIpoError(res, e) {
   return true;
 }
 
+// Every open IPO tab polls this, so it's one cached body for everyone (each subscribe, cancel and
+// status change drops it); a player's own subscriptions come from /ipo/mine.
 router.get("/ipo", async (req, res, next) => {
   try {
-    res.set("Cache-Control", "no-store");
-    res.json(await ipo.getPublicIpos(req.ctx.pool, { userId: req.ctx.user?.id || null }));
+    await sendCachedJson(req, res, ipo.PUBLIC_CACHE_KEY, { ttlSeconds: 10, memoMs: 2000, load: () => ipo.getPublicIpos(req.ctx.pool) });
   } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/ipo/mine", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    res.set("Cache-Control", "no-store");
+    res.json(await ipo.getMySubscriptions(req.ctx.pool, userId));
+  } catch (e) {
+    if (sendIpoError(res, e)) return;
     next(e);
   }
 });
@@ -154,7 +166,7 @@ router.get("/ipo", async (req, res, next) => {
 router.post("/ipo/subscribe", rateLimit(byUser("ipo-subscribe", 30, 60)), async (req, res, next) => {
   try {
     const userId = requireVerifiedUserId(req);
-    res.json(await ipo.subscribe(req.ctx.pool, { userId, symbol: normalizeSymbol(req.body?.symbol), shares: req.body?.shares }));
+    res.json(await ipo.subscribe(req.ctx.pool, { userId, symbol: normalizeSymbol(req.body?.symbol), shares: req.body?.shares, redis: req.ctx.redis }));
   } catch (e) {
     if (sendIpoError(res, e)) return;
     next(e);
@@ -164,7 +176,7 @@ router.post("/ipo/subscribe", rateLimit(byUser("ipo-subscribe", 30, 60)), async 
 router.post("/ipo/cancel", rateLimit(byUser("ipo-subscribe", 30, 60)), async (req, res, next) => {
   try {
     const userId = requireVerifiedUserId(req);
-    res.json(await ipo.cancelSubscription(req.ctx.pool, { userId, symbol: normalizeSymbol(req.body?.symbol) }));
+    res.json(await ipo.cancelSubscription(req.ctx.pool, { userId, symbol: normalizeSymbol(req.body?.symbol), redis: req.ctx.redis }));
   } catch (e) {
     if (sendIpoError(res, e)) return;
     next(e);
