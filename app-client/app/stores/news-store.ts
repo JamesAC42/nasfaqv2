@@ -25,11 +25,17 @@ function storyKey(item: NewsItem) {
   return item.article_slug || item.id;
 }
 
-/** The /news/ rollup plus the newest published articles, newest first, so the page is never empty or stale. */
-function mergeStories(rollup: NewsItem[], latest: NewsItem[]) {
-  const seen = new Set(rollup.map(storyKey));
+/**
+ * The stories an admin pinned, in their order, then the /news/ rollup plus the newest published
+ * articles, newest first, so the page is never empty or stale.
+ */
+function mergeStories(pinned: NewsItem[], rollup: NewsItem[], latest: NewsItem[]) {
+  const pinnedKeys = new Set(pinned.map(storyKey));
+  const fresh = rollup.filter((item) => !pinnedKeys.has(storyKey(item)));
+  const seen = new Set([...pinnedKeys, ...fresh.map(storyKey)]);
   const time = (item: NewsItem) => (item.published_at ? Date.parse(item.published_at) || 0 : 0);
-  return [...rollup, ...latest.filter((item) => !seen.has(storyKey(item)))].sort((a, b) => time(b) - time(a)).slice(0, Math.max(FRONT_STORIES, rollup.length));
+  const automatic = [...fresh, ...latest.filter((item) => !seen.has(storyKey(item)))].sort((a, b) => time(b) - time(a)).slice(0, Math.max(FRONT_STORIES, fresh.length));
+  return [...pinned.map((item) => ({ ...item, pinned: true })), ...automatic];
 }
 
 function normalizeWire(value: unknown): WireItem[] {
@@ -62,7 +68,10 @@ export const useNewsStore = create<NewsState>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      const [rollup, latest] = await Promise.all([
+      const [pinned, rollup, latest] = await Promise.all([
+        apiFetch<Record<string, unknown>>("/api/news/front-page")
+          .then((result) => normalizeNewsFeedResponse(result).items)
+          .catch(() => [] as NewsItem[]),
         apiFetch<Record<string, unknown>>("/api/overview/holonews")
           .then(normalizeHoloNewsFeed)
           .catch(() => [] as NewsItem[]),
@@ -70,7 +79,7 @@ export const useNewsStore = create<NewsState>((set, get) => ({
           .then((result) => normalizeNewsFeedResponse(result).items)
           .catch(() => [] as NewsItem[]),
       ]);
-      set({ items: mergeStories(rollup, latest), lastFetchedAt: Date.now() });
+      set({ items: mergeStories(pinned, rollup, latest), lastFetchedAt: Date.now() });
     } catch (error) {
       set({ items: [], error: String((error as Error).message || error) });
     } finally {

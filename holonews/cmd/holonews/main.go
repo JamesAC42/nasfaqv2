@@ -25,6 +25,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/JamesAC42/nasfaqv2/holonews/internal/talents"
 	"github.com/JamesAC42/nasfaqv2/holonews/internal/thumbs"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -73,6 +74,9 @@ CREATE TABLE IF NOT EXISTS info.member_news_channels (
 
 CREATE INDEX IF NOT EXISTS member_news_channels_channel_idx
   ON info.member_news_channels (youtube_channel_id, news_id DESC);
+
+-- Set when an admin takes the thumbnail off (api/src/services/holonewsThumbnails.js): no new one is drawn.
+ALTER TABLE info.member_news ADD COLUMN IF NOT EXISTS thumbnail_removed_at TIMESTAMPTZ NULL;
 `
 
 type Config struct {
@@ -142,8 +146,9 @@ type rankedHeadline struct {
 }
 
 type promptResult struct {
-	ImagePrompt string   `json:"image_prompt"`
-	Characters  []string `json:"characters"`
+	ImagePrompt string `json:"image_prompt"`
+	// Skip: the headline names no talent and has nothing clear to picture.
+	Skip bool `json:"skip"`
 }
 
 type geminiResponse struct {
@@ -421,9 +426,15 @@ func scrapeOnce(ctx context.Context, fetchClient, geminiClient *http.Client, s3C
 		log.Printf("holonews: headline %d: %s", i+1, headline)
 	}
 
-	memberNames, err := loadValidMemberNames(ctx, pool)
+	roster, err := loadTalentRoster(ctx, pool)
 	if err != nil {
-		return fmt.Errorf("load valid members: %w", err)
+		return fmt.Errorf("load talent roster: %w", err)
+	}
+	matcher := talents.NewMatcher(roster)
+
+	removed, err := loadRemovedThumbnailHeadlines(ctx, pool)
+	if err != nil {
+		return fmt.Errorf("load removed thumbnails: %w", err)
 	}
 
 	existingItems, err := loadExistingHeadlineMap(ctx, rdb)
@@ -441,7 +452,6 @@ func scrapeOnce(ctx context.Context, fetchClient, geminiClient *http.Client, s3C
 	for _, headline := range extraction.Headlines {
 		item := storedHeadline{Headline: headline}
 		if existing, ok := existingItems[headline]; ok {
-			item.Characters = append([]string(nil), existing.Characters...)
 			item.ThumbnailS3Key = existing.ThumbnailS3Key
 		}
 		items = append(items, item)
@@ -453,13 +463,7 @@ func scrapeOnce(ctx context.Context, fetchClient, geminiClient *http.Client, s3C
 		if entry == nil {
 			continue
 		}
-
-		characters, err := extractHeadlineCharacters(ctx, geminiClient, cfg, headline, memberNames)
-		if err != nil {
-			log.Printf("holonews: character extraction failed for headline=%q: %v", headline, err)
-			continue
-		}
-		entry.Characters = characters
+		entry.Characters = identifyHeadlineTalents(ctx, geminiClient, cfg, headline, matcher)
 	}
 
 	for _, rankedItem := range ranked {
@@ -470,13 +474,9 @@ func scrapeOnce(ctx context.Context, fetchClient, geminiClient *http.Client, s3C
 		rank := rankedItem.Rank
 		entry.Rank = &rank
 
-		promptData, err := generateThumbnailPrompt(ctx, geminiClient, cfg, rankedItem.Headline, memberNames)
-		if err != nil {
-			log.Printf("holonews: prompt generation failed for rank=%d headline=%q: %v", rankedItem.Rank, rankedItem.Headline, err)
+		if _, ok := removed[canonicalHeadlineKey(rankedItem.Headline)]; ok {
+			log.Printf("holonews: no thumbnail rank=%d headline=%q: an admin removed it", rankedItem.Rank, rankedItem.Headline)
 			continue
-		}
-		if len(promptData.Characters) > 0 {
-			entry.Characters = append([]string(nil), promptData.Characters...)
 		}
 
 		if skipThumbnailGeneration {
@@ -488,14 +488,25 @@ func scrapeOnce(ctx context.Context, fetchClient, geminiClient *http.Client, s3C
 			continue
 		}
 
-		log.Printf("holonews: thumbnail prompt rank=%d headline=%q prompt=%s", rankedItem.Rank, rankedItem.Headline, promptData.ImagePrompt)
+		promptData, err := generateThumbnailPrompt(ctx, geminiClient, cfg, rankedItem.Headline, entry.Characters)
+		if err != nil {
+			log.Printf("holonews: prompt generation failed for rank=%d headline=%q: %v", rankedItem.Rank, rankedItem.Headline, err)
+			continue
+		}
+		plan := planThumbnail(entry.Characters, promptData)
+		if !plan.Draw {
+			log.Printf("holonews: no thumbnail rank=%d headline=%q: %s", rankedItem.Rank, rankedItem.Headline, plan.Reason)
+			continue
+		}
 
-		refImages, err := loadReferenceImagesFromCDN(ctx, fetchClient, cfg, promptData.Characters)
+		log.Printf("holonews: thumbnail prompt rank=%d headline=%q characters=%v prompt=%s", rankedItem.Rank, rankedItem.Headline, entry.Characters, promptData.ImagePrompt)
+
+		refImages, err := loadReferenceImagesFromCDN(ctx, fetchClient, cfg, entry.Characters)
 		if err != nil {
 			log.Printf("holonews: reference image loading failed for rank=%d headline=%q: %v", rankedItem.Rank, rankedItem.Headline, err)
 		}
 
-		img, mimeType, err := generateThumbnail(ctx, geminiClient, cfg, promptData.ImagePrompt, promptData.Characters, refImages)
+		img, mimeType, err := generateThumbnail(ctx, geminiClient, cfg, plan.Prompt, refImages)
 		if err != nil {
 			log.Printf("holonews: thumbnail generation failed for rank=%d headline=%q: %v", rankedItem.Rank, rankedItem.Headline, err)
 			continue
@@ -507,6 +518,17 @@ func scrapeOnce(ctx context.Context, fetchClient, geminiClient *http.Client, s3C
 			continue
 		}
 		entry.ThumbnailS3Key = &s3Key
+	}
+
+	// Drawing takes minutes: an admin may have removed a thumbnail meanwhile.
+	removed, err = loadRemovedThumbnailHeadlines(ctx, pool)
+	if err != nil {
+		return fmt.Errorf("load removed thumbnails: %w", err)
+	}
+	for i := range items {
+		if _, ok := removed[canonicalHeadlineKey(items[i].Headline)]; ok {
+			items[i].ThumbnailS3Key = nil
+		}
 	}
 
 	payload := storedPayload{
@@ -882,27 +904,60 @@ func headlineDigest(headline string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func loadValidMemberNames(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
+// loadTalentRoster lists the active channels by English name, with the stock symbol the alias table
+// is keyed by.
+func loadTalentRoster(ctx context.Context, pool *pgxpool.Pool) ([]talents.Talent, error) {
 	rows, err := pool.Query(ctx, `
-		SELECT DISTINCT btrim(name_english)
-		FROM yt.youtube_channels
-		WHERE is_active = true
-		  AND name_english IS NOT NULL
-		  AND btrim(name_english) <> ''
-		ORDER BY btrim(name_english) ASC
+		SELECT DISTINCT ON (btrim(yc.name_english))
+			btrim(yc.name_english),
+			COALESCE(ma.symbol, yc.symbol, '')
+		FROM yt.youtube_channels yc
+		LEFT JOIN market.market_assets ma
+			ON ma.youtube_channel_id = yc.youtube_channel_id
+		WHERE yc.is_active = true
+		  AND yc.name_english IS NOT NULL
+		  AND btrim(yc.name_english) <> ''
+		ORDER BY btrim(yc.name_english) ASC, ma.id ASC NULLS LAST
 	`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var out []string
+	var out []talents.Talent
 	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
+		var talent talents.Talent
+		if err := rows.Scan(&talent.Name, &talent.Symbol); err != nil {
 			return nil, err
 		}
-		out = append(out, name)
+		out = append(out, talent)
+	}
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+	return out, nil
+}
+
+// loadRemovedThumbnailHeadlines gives the headlines (canonicalHeadlineKey) whose thumbnail an admin
+// removed. holonews doesn't draw those again; an admin's "new thumbnail" clears the mark.
+func loadRemovedThumbnailHeadlines(ctx context.Context, pool *pgxpool.Pool) (map[string]struct{}, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT headline
+		FROM info.member_news
+		WHERE thumbnail_removed_at IS NOT NULL
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[string]struct{}{}
+	for rows.Next() {
+		var headline string
+		if err := rows.Scan(&headline); err != nil {
+			return nil, err
+		}
+		out[canonicalHeadlineKey(headline)] = struct{}{}
 	}
 	if rows.Err() != nil {
 		return nil, rows.Err()
@@ -1042,30 +1097,39 @@ func rankHeadlines(ctx context.Context, client *http.Client, cfg Config, headlin
 	return out, nil
 }
 
-func generateThumbnailPrompt(ctx context.Context, client *http.Client, cfg Config, headline string, validMembers []string) (promptResult, error) {
+// thumbnailStyleRules is the illustrator brief every thumbnail prompt starts from. Keep in step with
+// api/src/services/holonewsThumbnails.js.
+const thumbnailStyleRules = "Act as an expert VTuber Thumbnail Illustrator. I will give you a video headline. You must translate the core concept into a fun, visually clear prompt for an image generator.\n" +
+	"DEFAULT TONE: cute, playful, lively, charming, humorous, and expressive. The image should usually feel fun or endearing, not threatening, sinister, manic, or evil.\n" +
+	"Only use extreme chaos, panic, or manic comedy when the headline clearly calls for it and it would be funny.\n" +
+	"CRITICAL RULES YOU MUST FOLLOW:\n" +
+	"1. NO TEXT OR LABELS: You are strictly forbidden from asking for words, letters, logos, or signs. Represent concepts with physical props only.\n" +
+	"2. STRICT ART STYLE FORMULA: Your 'image_prompt' MUST ALWAYS begin with this exact phrase: '2D flat anime illustration, cel-shaded, official studio key visual, clean crisp lineart, vibrant colors, aesthetic anime screencap, '\n" +
+	"3. BANNED WORDS: Never use the words: 3D, realistic, hyper-detailed, cinematic, text, negative space, empty space. We are NOT adding text to these images.\n" +
+	"4. CAMERA & POSING: Prefer lively, appealing compositions such as close-up, medium close-up, slight Dutch angle, energetic pose, cheerful lean toward camera, or playful foreshortening. Avoid describing the character as aggressive, menacing, threatening, or attacking unless the headline specifically implies that tone.\n" +
+	"5. EXPRESSIONS: Favor bright, cute, funny, confident, surprised, determined, embarrassed, pouty, excited, or mischievous expressions. Use extreme or deranged expressions only if the joke or headline clearly supports it.\n" +
+	"6. ACTION WITH PROPS: Don't just place props in the background. Make the characters actively interact with them in a playful or visually clear way, such as hugging, presenting, pointing at, reacting to, or struggling comedically with the object.\n" +
+	"7. SAFE ANATOMY ANCHORING: To prevent AI anatomy errors, strictly favor 'upper body shot' or 'cowboy shot' (hips up) to avoid rendering complex leg poses. When interacting with props, prefer phrases like 'holding [prop] with both hands' or 'one hand on [prop], one hand pointing' to anchor the limbs and prevent extra arms.\n"
+
+// thumbnailCastRules says who may appear: exactly the talents the headline names, or nobody.
+func thumbnailCastRules(characters []string) string {
+	if len(characters) == 0 {
+		return "CAST: The headline names no hololive talent, so draw NO people and NO characters at all: no faces, figures, silhouettes, mascots or crowds, and never guess who it might be about, even when it says how many talents are involved. " +
+			"If the story has a clear subject you can show with objects or a place (a stage, a game board with dice, a trophy, a calendar, a concert hall), describe that scene with nobody in it. " +
+			"If it has nothing clear to picture, return {\"image_prompt\":\"\",\"skip\":true}.\n"
+	}
+	return "CAST: Draw exactly these hololive talents and nobody else: " + strings.Join(characters, ", ") + ". " +
+		"Even if the headline mentions more people or a number of talents, add no other characters, background people or crowds.\n"
+}
+
+func generateThumbnailPrompt(ctx context.Context, client *http.Client, cfg Config, headline string, characters []string) (promptResult, error) {
 	var b strings.Builder
-	b.WriteString("Return JSON only in this shape: {\"image_prompt\":\"...\",\"characters\":[\"Exact Member Name\"]}\n")
-	b.WriteString("The character names array must contain only exact values from the valid member list below.\n")
-	b.WriteString("Use an empty array if the headline does not clearly refer to a member.\n\n")
-	b.WriteString("Act as an expert VTuber Thumbnail Illustrator. I will give you a video headline. You must translate the core concept into a fun, visually clear prompt for an image generator.\n")
-	b.WriteString("DEFAULT TONE: cute, playful, lively, charming, humorous, and expressive. The image should usually feel fun or endearing, not threatening, sinister, manic, or evil.\n")
-	b.WriteString("Only use extreme chaos, panic, or manic comedy when the headline clearly calls for it and it would be funny.\n")
-	b.WriteString("CRITICAL RULES YOU MUST FOLLOW:\n")
-	b.WriteString("1. NO TEXT OR LABELS: You are strictly forbidden from asking for words, letters, logos, or signs. Represent concepts with physical props only.\n")
-	b.WriteString("2. STRICT ART STYLE FORMULA: Your 'image_prompt' MUST ALWAYS begin with this exact phrase: '2D flat anime illustration, cel-shaded, official studio key visual, clean crisp lineart, vibrant colors, aesthetic anime screencap, '\n")
-	b.WriteString("3. BANNED WORDS: Never use the words: 3D, realistic, hyper-detailed, cinematic, text, negative space, empty space. We are NOT adding text to these images.\n")
-	b.WriteString("4. CAMERA & POSING: Prefer lively, appealing compositions such as close-up, medium close-up, slight Dutch angle, energetic pose, cheerful lean toward camera, or playful foreshortening. Avoid describing the character as aggressive, menacing, threatening, or attacking unless the headline specifically implies that tone.\n")
-	b.WriteString("5. EXPRESSIONS: Favor bright, cute, funny, confident, surprised, determined, embarrassed, pouty, excited, or mischievous expressions. Use extreme or deranged expressions only if the joke or headline clearly supports it.\n")
-	b.WriteString("6. ACTION WITH PROPS: Don't just place props in the background. Make the characters actively interact with them in a playful or visually clear way, such as hugging, presenting, pointing at, reacting to, or struggling comedically with the object.\n\n")
-	b.WriteString("7. SAFE ANATOMY ANCHORING: To prevent AI anatomy errors, strictly favor 'upper body shot' or 'cowboy shot' (hips up) to avoid rendering complex leg poses. When interacting with props, prefer phrases like 'holding [prop] with both hands' or 'one hand on [prop], one hand pointing' to anchor the limbs and prevent extra arms.\n")
+	b.WriteString("Return JSON only in this shape: {\"image_prompt\":\"...\",\"skip\":false}\n\n")
+	b.WriteString(thumbnailStyleRules)
+	b.WriteString(thumbnailCastRules(characters))
 	b.WriteString("Here is the headline: ")
 	b.WriteString(headline)
-	b.WriteString("\n\nValid members:\n")
-	for _, name := range validMembers {
-		b.WriteString("- ")
-		b.WriteString(name)
-		b.WriteString("\n")
-	}
+	b.WriteString("\n")
 
 	text, err := callGeminiText(ctx, client, cfg.GeminiAPIKey, cfg.GeminiTextModel, b.String())
 	if err != nil {
@@ -1077,41 +1141,101 @@ func generateThumbnailPrompt(ctx context.Context, client *http.Client, cfg Confi
 		return promptResult{}, fmt.Errorf("parse prompt JSON: %w", err)
 	}
 	parsed.ImagePrompt = strings.TrimSpace(parsed.ImagePrompt)
-	if parsed.ImagePrompt == "" {
-		return promptResult{}, fmt.Errorf("empty image prompt")
-	}
-
-	validSet := make(map[string]struct{}, len(validMembers))
-	for _, name := range validMembers {
-		validSet[name] = struct{}{}
-	}
-	filtered := make([]string, 0, len(parsed.Characters))
-	for _, name := range parsed.Characters {
-		if _, ok := validSet[name]; ok {
-			filtered = append(filtered, name)
-		}
-	}
-	parsed.Characters = dedupeStrings(filtered)
 	return parsed, nil
 }
 
-func extractHeadlineCharacters(ctx context.Context, client *http.Client, cfg Config, headline string, validMembers []string) ([]string, error) {
+type thumbnailPlan struct {
+	Draw bool
+	// Prompt is the whole prompt for the image model.
+	Prompt string
+	// Reason says why not, when Draw is false.
+	Reason string
+}
+
+// planThumbnail decides whether a headline gets a thumbnail. One that names no talent and has
+// nothing clear to picture gets none: the site shows its usual picture for a story without one.
+func planThumbnail(characters []string, prompt promptResult) thumbnailPlan {
+	if len(characters) == 0 && prompt.Skip {
+		return thumbnailPlan{Reason: "it names no talent and has nothing clear to picture"}
+	}
+	if strings.TrimSpace(prompt.ImagePrompt) == "" {
+		return thumbnailPlan{Reason: "the prompt came back empty"}
+	}
+	return thumbnailPlan{Draw: true, Prompt: thumbnailImagePrompt(prompt.ImagePrompt, characters)}
+}
+
+// thumbnailImagePrompt is the illustrator's prompt plus who the image model may draw: exactly the
+// named talents from their reference images, or nobody.
+func thumbnailImagePrompt(imagePrompt string, characters []string) string {
+	prompt := strings.TrimSpace(imagePrompt)
+	if len(characters) == 0 {
+		return prompt + "\nDraw no people and no characters: no faces, figures, silhouettes, mascots or crowds. Show only objects and places."
+	}
+	subjects := make([]string, 0, len(characters))
+	for _, name := range characters {
+		if note := referenceImagesFor(name).Note; note != "" {
+			subjects = append(subjects, name+" ("+note+")")
+		} else {
+			subjects = append(subjects, name)
+		}
+	}
+	count := "1 character"
+	if len(characters) > 1 {
+		count = strconv.Itoa(len(characters)) + " characters"
+	}
+	return prompt + "\nDraw exactly " + count + ": " + strings.Join(subjects, ", ") + ". Use the attached reference images only for their character designs. Add no other characters, background people or crowds."
+}
+
+// identifyHeadlineTalents is who a headline is about: the talents it names (full name, first name or
+// a known nickname, found by the name matcher) that the model agrees it's about. The model only ever
+// chooses among those, so a headline that names nobody ("... for 4 Hololive talents") gets nobody.
+// When the model can't be asked, the names the matcher found stand.
+func identifyHeadlineTalents(ctx context.Context, client *http.Client, cfg Config, headline string, matcher *talents.Matcher) []string {
+	candidates := matcher.Match(headline)
+	if len(candidates) == 0 {
+		return nil
+	}
+	confirmed, err := confirmHeadlineTalents(ctx, client, cfg, headline, candidates)
+	if err != nil {
+		log.Printf("holonews: talent check failed for headline=%q, keeping the names it matched %v: %v", headline, candidates, err)
+		return candidates
+	}
+	return selectTalents(candidates, confirmed)
+}
+
+// selectTalents keeps the candidates the model confirmed, in the headline's order. A name the model
+// adds that isn't a candidate is dropped.
+func selectTalents(candidates, confirmed []string) []string {
+	keep := make(map[string]struct{}, len(confirmed))
+	for _, name := range confirmed {
+		keep[strings.ToLower(strings.TrimSpace(name))] = struct{}{}
+	}
+	var out []string
+	for _, name := range candidates {
+		if _, ok := keep[strings.ToLower(name)]; ok {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+func confirmHeadlineTalents(ctx context.Context, client *http.Client, cfg Config, headline string, candidates []string) ([]string, error) {
 	var b strings.Builder
-	b.WriteString("Return JSON only in this shape: {\"characters\":[\"Exact Member Name\"]}\n")
-	b.WriteString("Identify which Hololive member names are clearly relevant to the headline.\n")
-	b.WriteString("Rules:\n")
-	b.WriteString("- Use only exact names from the valid member list below.\n")
-	b.WriteString("- Return an empty array if no member is clearly referenced.\n")
-	b.WriteString("- Do not guess beyond what is clearly implied by the headline.\n")
-	b.WriteString("- Output JSON only, no markdown or commentary.\n")
-	b.WriteString("Headline: ")
-	b.WriteString(headline)
-	b.WriteString("\nValid members:\n")
-	for _, name := range validMembers {
+	b.WriteString("Return JSON only in this shape: {\"characters\":[\"Exact Name\"]}\n")
+	b.WriteString("A hololive news headline contains these talents' names or nicknames:\n")
+	for _, name := range candidates {
 		b.WriteString("- ")
 		b.WriteString(name)
 		b.WriteString("\n")
 	}
+	b.WriteString("Rules:\n")
+	b.WriteString("- Keep a name only if the headline is about that talent or the talent takes part in what it describes.\n")
+	b.WriteString("- Drop it if the word means something else there (an everyday word, another person, a game or a brand).\n")
+	b.WriteString("- Use only exact names from the list above. Never add anyone else.\n")
+	b.WriteString("- Output JSON only, no markdown or commentary.\n")
+	b.WriteString("Headline: ")
+	b.WriteString(headline)
+	b.WriteString("\n")
 
 	text, err := callGeminiText(ctx, client, cfg.GeminiAPIKey, cfg.GeminiTextModel, b.String())
 	if err != nil {
@@ -1124,18 +1248,7 @@ func extractHeadlineCharacters(ctx context.Context, client *http.Client, cfg Con
 	if err := json.Unmarshal([]byte(extractJSON(text)), &parsed); err != nil {
 		return nil, fmt.Errorf("parse character JSON: %w", err)
 	}
-
-	validSet := make(map[string]struct{}, len(validMembers))
-	for _, name := range validMembers {
-		validSet[name] = struct{}{}
-	}
-	filtered := make([]string, 0, len(parsed.Characters))
-	for _, name := range parsed.Characters {
-		if _, ok := validSet[name]; ok {
-			filtered = append(filtered, name)
-		}
-	}
-	return dedupeStrings(filtered), nil
+	return parsed.Characters, nil
 }
 
 type referenceImage struct {
@@ -1223,20 +1336,8 @@ func loadReferenceImagesFromCDN(ctx context.Context, client *http.Client, cfg Co
 	return out, nil
 }
 
-func generateThumbnail(ctx context.Context, client *http.Client, cfg Config, imagePrompt string, characters []string, refs []referenceImage) ([]byte, string, error) {
-	prompt := imagePrompt
-	if len(characters) > 0 {
-		subjects := make([]string, 0, len(characters))
-		for _, name := range characters {
-			if note := referenceImagesFor(name).Note; note != "" {
-				subjects = append(subjects, name+" ("+note+")")
-			} else {
-				subjects = append(subjects, name)
-			}
-		}
-		prompt = prompt + "\nUse these attached reference images only for character design consistency for: " + strings.Join(subjects, ", ") + "."
-	}
-
+// generateThumbnail draws one image from a prompt built by planThumbnail and the talents' reference images.
+func generateThumbnail(ctx context.Context, client *http.Client, cfg Config, prompt string, refs []referenceImage) ([]byte, string, error) {
 	parts := make([]map[string]any, 0, len(refs)+1)
 	parts = append(parts, map[string]any{"text": prompt})
 	for _, ref := range refs {
@@ -1476,9 +1577,10 @@ func upsertStoredPayloadToDB(ctx context.Context, pool *pgxpool.Pool, cfg Config
 			return fmt.Errorf("lookup member_news headline=%q: %w", headline, err)
 		}
 		if existingID != 0 {
+			// A thumbnail an admin removed stays removed.
 			if err := tx.QueryRow(ctx, `
 				UPDATE info.member_news
-				SET thumbnail_url = COALESCE($2, thumbnail_url)
+				SET thumbnail_url = CASE WHEN thumbnail_removed_at IS NULL THEN COALESCE($2, thumbnail_url) END
 				WHERE id = $1
 				RETURNING id
 			`, existingID, thumbnailURL(cfg, item.ThumbnailS3Key)).Scan(&newsID); err != nil {
@@ -1489,7 +1591,10 @@ func upsertStoredPayloadToDB(ctx context.Context, pool *pgxpool.Pool, cfg Config
 				VALUES ($1, $2, $3)
 				ON CONFLICT (headline, date)
 				DO UPDATE SET
-					thumbnail_url = COALESCE(EXCLUDED.thumbnail_url, info.member_news.thumbnail_url)
+					thumbnail_url = CASE
+						WHEN info.member_news.thumbnail_removed_at IS NULL
+						THEN COALESCE(EXCLUDED.thumbnail_url, info.member_news.thumbnail_url)
+					END
 				RETURNING id
 			`, headline, thumbnailURL(cfg, item.ThumbnailS3Key), newsDate).Scan(&newsID); err != nil {
 			return fmt.Errorf("upsert member_news headline=%q: %w", headline, err)

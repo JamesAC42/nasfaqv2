@@ -1,0 +1,83 @@
+@use "../../styles/mixins" as *;
+
+.list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 3.2rem minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.65rem 0;
+  border-top: 1px solid var(--rule);
+
+  &:first-child {
+    border-top: 0;
+  }
+
+  @include phone {
+    grid-template-columns: 2.6rem minmax(0, 1fr);
+
+    .actions {
+      grid-column: 2;
+      justify-self: start;
+    }
+  }
+}
+
+.position {
+  @include label;
+  font-size: 0.6rem;
+  color: var(--dim);
+}
+
+.main {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.headline {
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+  color: var(--text);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.6rem;
+}
+
+.search {
+  display: flex;
+  gap: 0.4rem;
+
+  input {
+    width: min(16rem, 50vw);
+  }
+}

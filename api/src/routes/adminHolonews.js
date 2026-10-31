@@ -1,7 +1,9 @@
 const crypto = require("node:crypto");
 const express = require("express");
 const articleDb = require("../articleDb");
+const { invalidateCachedJson } = require("../responseCache");
 const holonewsThumbnails = require("../services/holonewsThumbnails");
+const moderation = require("../services/moderation");
 const { requireAdmin } = require("../userContext");
 
 const router = express.Router();
@@ -85,6 +87,60 @@ router.post("/thumbnails/regenerate", async (req, res, next) => {
 
     const result = await holonewsThumbnails.regenerateThumbnail(pool, null, body);
     res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Take a story's thumbnail off (body { news_id?, article_slug? }): the site shows its usual picture for
+// a story without one, and holonews doesn't draw a new one until an admin asks for one.
+router.post("/thumbnails/remove", async (req, res, next) => {
+  try {
+    const actor = requireAdmin(req);
+    const result = await holonewsThumbnails.removeThumbnail(req.ctx.pool, req.ctx.redis, req.body || {});
+    await moderation.logAction(req.ctx.pool, {
+      actor,
+      action: "news.thumbnail.remove",
+      targetType: "news_article",
+      targetId: result.news_item.article_slug ?? result.news_item.id,
+      targetLabel: result.news_item.headline,
+      details: { news_id: result.news_item.id, thumbnail_url: result.previous_thumbnail_url },
+    });
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// The stories pinned to the top of the home page, in order.
+router.get("/front-page", async (req, res, next) => {
+  try {
+    requireAdmin(req);
+    res.json({ pins: await articleDb.listFrontPagePins(req.ctx.pool), limit: articleDb.FRONT_PAGE_PIN_LIMIT });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Set the pins (body { slugs: [...] }, in order; [] unpins everything).
+router.put("/front-page", async (req, res, next) => {
+  try {
+    const actor = requireAdmin(req);
+    const pool = req.ctx.pool;
+    const before = await articleDb.listFrontPagePins(pool);
+    await articleDb.setFrontPagePins(pool, req.body?.slugs, actor.id);
+    const pins = await articleDb.listFrontPagePins(pool);
+    await invalidateCachedJson(req.ctx.redis, [articleDb.FRONT_PAGE_CACHE_KEY]);
+    const slugsOf = (list) => list.map((pin) => pin.article_slug);
+    if (JSON.stringify(slugsOf(before)) !== JSON.stringify(slugsOf(pins))) {
+      await moderation.logAction(pool, {
+        actor,
+        action: "news.front_page.pins",
+        targetType: "front_page",
+        details: { before: slugsOf(before), after: slugsOf(pins), headlines: pins.map((pin) => pin.headline) },
+      });
+    }
+    res.json({ pins, limit: articleDb.FRONT_PAGE_PIN_LIMIT });
   } catch (error) {
     next(error);
   }

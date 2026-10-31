@@ -228,8 +228,13 @@ function FrontNews({ items, isLoading }: { items: NewsItem[]; isLoading: boolean
   if (!items.length) {
     return <section className={styles.front}>{isLoading ? <p className={styles.empty}>Loading HoloNews…</p> : <p className={styles.empty}>No headlines yet today.</p>}</section>;
   }
-  const lead = items.find((item) => item.thumbnail_url) ?? items[0];
-  const rest = items.filter((item) => item !== lead).slice(0, 5);
+  // Stories an admin pinned lead, in their order; otherwise the first story with a picture leads.
+  const pinned = items.filter((item) => item.pinned);
+  const automatic = items.filter((item) => !item.pinned);
+  const automaticLead = automatic.find((item) => item.thumbnail_url) ?? automatic[0];
+  const order = [...pinned, ...(automaticLead ? [automaticLead] : []), ...automatic.filter((item) => item !== automaticLead)];
+  const lead = order[0];
+  const rest = order.slice(1, 6);
   return (
     <section className={styles.front} aria-label="Headlines">
       <article className={styles.lead}>

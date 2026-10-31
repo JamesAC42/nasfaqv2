@@ -395,6 +395,8 @@ app.use((err, req, res, _next) => {
     || err?.code === "gacha_prize_pool_empty"
     || err?.code === "invalid_game_session"
     || err?.code === "invalid_holonews_thumbnail_request"
+    || err?.code === "thumbnail_not_drawn"
+    || err?.code === "invalid_front_page_pins"
     || err?.code === "s3_not_configured"
     || err?.code === "gemini_not_configured"
     || err?.code === "gemini_request_failed"

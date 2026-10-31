@@ -385,6 +385,48 @@ export type ExchangeReview = {
 
 export const fetchExchangeReview = (days: number) => apiFetch<ExchangeReview>(`/api/admin/exchange-review?days=${days}`, { cache: "no-store" });
 
+// ── /api/admin/holonews/front-page ───────────────────────────────────────
+
+/** A story pinned to the top of the home page. `status` "draft" ones stay pinned but aren't shown. */
+export type FrontPagePin = {
+  article_id: number;
+  article_slug: string;
+  headline: string;
+  is_news: boolean;
+  status: string;
+  thumbnail_url: string | null;
+  published_at: string | null;
+  position: number;
+  pinned_at: string | null;
+  pinned_by: string | null;
+};
+
+export type FrontPagePins = { pins: FrontPagePin[]; limit: number };
+
+function normalizeFrontPagePins(raw: unknown): FrontPagePins {
+  const value = (raw ?? {}) as Record<string, unknown>;
+  return {
+    limit: int(value.limit) || 6,
+    pins: asArray(value.pins).map((pin) => ({
+      article_id: int(pin.article_id),
+      article_slug: String(pin.article_slug ?? ""),
+      headline: String(pin.headline ?? ""),
+      is_news: Boolean(pin.is_news),
+      status: String(pin.status ?? "published"),
+      thumbnail_url: str(pin.thumbnail_url),
+      published_at: str(pin.published_at),
+      position: int(pin.position),
+      pinned_at: str(pin.pinned_at),
+      pinned_by: str(pin.pinned_by),
+    })),
+  };
+}
+
+export const fetchFrontPagePins = async () => normalizeFrontPagePins(await apiFetch("/api/admin/holonews/front-page", { cache: "no-store" }));
+
+/** Replaces the pins with these stories, in this order; [] unpins everything. */
+export const saveFrontPagePins = async (slugs: string[]) => normalizeFrontPagePins(await apiFetch("/api/admin/holonews/front-page", { method: "PUT", body: JSON.stringify({ slugs }) }));
+
 export function schedulerLabel(health: { scheduler_status: string } | null | undefined) {
   const labels: Record<string, string> = { running: "Running", off: "Off", stale: "Not reporting", unknown: "Unknown", error: "Error", stalled: "Stalled" };
   return health ? labels[health.scheduler_status] || "Unknown" : "—";

@@ -10,6 +10,7 @@ import { SiteShell } from "@/app/components/layout/site-shell";
 import { ArticleMarkdown } from "@/app/components/articles/article-markdown";
 import { DraftRoom } from "@/app/components/articles/draft-room";
 import { fromArticle, readMinutes, splitHeadline } from "@/app/components/articles/stories";
+import { fetchFrontPagePins, saveFrontPagePins } from "@/app/components/admin/admin-api";
 import { apiFetch } from "@/app/lib/api";
 import { safeImageUrl } from "@/app/lib/image-hosts";
 import { markSeries } from "@/app/lib/market-units";
@@ -46,7 +47,7 @@ function loadRecord(slug: string) {
   return request;
 }
 
-type AdminAction = "delete-article" | "delete-body" | "delete-news" | "thumbnail";
+type AdminAction = "delete-article" | "delete-body" | "delete-news" | "thumbnail" | "remove-thumbnail" | "pin";
 
 export function ArticleView({ slug }: { slug: string }) {
   const router = useRouter();
@@ -59,7 +60,10 @@ export function ArticleView({ slug }: { slug: string }) {
   const [confirm, setConfirm] = useState<AdminAction | null>(null);
   const [adminBusy, setAdminBusy] = useState<AdminAction | null>(null);
   const [copied, setCopied] = useState(false);
+  // Admins: the slugs pinned to the top of the home page, in order, and how many fit.
+  const [pins, setPins] = useState<{ slugs: string[]; limit: number } | null>(null);
   const verify = userNeedsEmailVerification(user);
+  const isAdmin = Boolean(user?.is_admin);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -77,6 +81,17 @@ export function ArticleView({ slug }: { slug: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    fetchFrontPagePins()
+      .then((result) => !cancelled && setPins({ slugs: result.pins.map((pin) => pin.article_slug), limit: result.limit }))
+      .catch(() => !cancelled && setPins(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin]);
 
   const replace = (raw: { article: Record<string, unknown> }) => setArticle(normalizeArticleDetail(raw.article));
 
@@ -109,6 +124,22 @@ export function ArticleView({ slug }: { slug: string }) {
       } else if (action === "delete-news") {
         await apiFetch(`/api/admin/holonews/articles/${enc(article.slug)}`, { method: "DELETE" });
         router.push("/articles?type=news");
+      } else if (action === "remove-thumbnail") {
+        await apiFetch("/api/admin/holonews/thumbnails/remove", {
+          method: "POST",
+          body: JSON.stringify({ news_id: article.news_item?.id || null, article_slug: article.slug }),
+        });
+        viewed.add(slug);
+        await load();
+      } else if (action === "pin") {
+        const current = pins?.slugs ?? [];
+        const limit = pins?.limit ?? 6;
+        const pinned = current.includes(article.slug);
+        if (!pinned && current.length >= limit) {
+          throw new Error(`The home page already has ${limit} pinned stories. Unpin one in Admin → Front page first.`);
+        }
+        const result = await saveFrontPagePins(pinned ? current.filter((pinnedSlug) => pinnedSlug !== article.slug) : [...current, article.slug]);
+        setPins({ slugs: result.pins.map((pin) => pin.article_slug), limit: result.limit });
       } else {
         const start = await apiFetch<{ job_id?: string; status?: string }>("/api/admin/holonews/thumbnails/regenerate", {
           method: "POST",
@@ -168,6 +199,7 @@ export function ArticleView({ slug }: { slug: string }) {
   const dek = article.subtitle?.trim() || heading.dek;
   const minutes = readMinutes(article.content);
   const canEdit = Boolean(user && !isNews && (user.is_admin || user.id === article.author?.id));
+  const pinIndex = pins ? pins.slugs.indexOf(article.slug) : -1;
   const published = article.published_at || article.news_item?.published_at || article.created_at;
 
   return (
@@ -228,8 +260,13 @@ export function ArticleView({ slug }: { slug: string }) {
                   DRAFTS {article.proposals.length}
                 </button>
               ) : null}
-              {user?.is_admin ? (
+              {isAdmin ? (
                 <span className={styles.adminActs}>
+                  {article.status === "published" && pins ? (
+                    <button type="button" className={confirm === "pin" ? styles.danger : undefined} disabled={adminBusy !== null} onClick={() => void admin("pin")} title="Pinned stories lead the home page, in the order set in Admin → Front page">
+                      {adminBusy === "pin" ? "SAVING…" : confirm === "pin" ? "CONFIRM" : pinIndex >= 0 ? `UNPIN FROM FRONT (#${pinIndex + 1})` : "PIN TO FRONT"}
+                    </button>
+                  ) : null}
                   {!isNews ? (
                     <button type="button" className={confirm === "delete-article" ? styles.danger : undefined} disabled={adminBusy !== null} onClick={() => void admin("delete-article")}>
                       {confirm === "delete-article" ? "CONFIRM DELETE" : "DELETE"}
@@ -248,6 +285,17 @@ export function ArticleView({ slug }: { slug: string }) {
                       <button type="button" className={confirm === "thumbnail" ? styles.danger : undefined} disabled={adminBusy !== null} onClick={() => void admin("thumbnail")}>
                         {adminBusy === "thumbnail" ? "GENERATING…" : confirm === "thumbnail" ? "CONFIRM" : "NEW THUMBNAIL"}
                       </button>
+                      {article.thumbnail_url ? (
+                        <button
+                          type="button"
+                          className={confirm === "remove-thumbnail" ? styles.danger : undefined}
+                          disabled={adminBusy !== null}
+                          onClick={() => void admin("remove-thumbnail")}
+                          title="Show no picture for this story. HoloNews won't draw a new one unless you ask for a new thumbnail."
+                        >
+                          {adminBusy === "remove-thumbnail" ? "REMOVING…" : confirm === "remove-thumbnail" ? "CONFIRM REMOVE" : "REMOVE THUMBNAIL"}
+                        </button>
+                      ) : null}
                     </>
                   ) : null}
                 </span>
