@@ -19,7 +19,7 @@
   top: env(safe-area-inset-top, 0px);
   z-index: 40;
   background: var(--ink);
-  border-bottom: 1px solid var(--rule);
+  border-bottom: 1px solid var(--season-rule, var(--rule));
   transition: transform 0.22s ease;
 
   @media (prefers-reduced-motion: reduce) {
@@ -71,9 +71,9 @@
   i {
     width: 0.68rem;
     height: 0.68rem;
-    background: var(--blue);
+    background: var(--season-accent, var(--blue));
     transform: rotate(45deg);
-    box-shadow: 0 0 12px var(--blue-line);
+    box-shadow: 0 0 12px var(--season-glow, var(--blue-line));
   }
 }
 
