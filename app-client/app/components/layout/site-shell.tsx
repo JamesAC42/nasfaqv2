@@ -12,6 +12,7 @@ import { FiMoon, FiSun } from "react-icons/fi";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MarketTape } from "@/app/components/layout/market-tape";
 import { MobileNav } from "@/app/components/layout/mobile-nav";
+import { SeasonButton } from "@/app/components/layout/season-toggle";
 import { announceOrderFill, FillMomentLayer } from "@/app/components/moments/fill-moment";
 import { TickMomentLayer } from "@/app/components/moments/tick-moment";
 import { StreamSheetHost } from "@/app/components/livestreams/stream-sheet";
@@ -475,6 +476,7 @@ export function SiteShell({
             >
               CALM
             </button>
+            <SeasonButton />
             <button
               type="button"
               className={styles.iconButton}

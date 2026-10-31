@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { isActivePath, MOBILE_TABS, NAV } from "@/app/components/layout/nav-config";
+import { SeasonSheetButton } from "@/app/components/layout/season-toggle";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMotion } from "@/app/providers/motion-provider";
 import { useTheme } from "@/app/providers/theme-provider";
@@ -63,6 +64,7 @@ export function MobileNav() {
               <button type="button" className={styles.textButton} onClick={toggleTheme}>
                 {theme === "dark" ? "LIGHT THEME" : "DARK THEME"}
               </button>
+              <SeasonSheetButton />
             </div>
           </div>
         </div>

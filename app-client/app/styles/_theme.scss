@@ -83,6 +83,59 @@
   --scrim: rgba(12, 17, 26, 0.45);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Seasons: <html data-season>, stamped by the boot script (app/lib/seasons.ts).
+// Override grounds, hairlines and the accent only. --up/--down/--warn keep their
+// meaning all year, and the accent must stay a different hue from them: meters
+// and timers turn from --blue to --warn, so that change has to stay obvious.
+// Optional decoration tokens, unset outside a season (read with a fallback):
+//   --season-accent  the logo mark and the season switch
+//   --season-glow    the logo mark's glow
+//   --season-rule    the hairline under the site header
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Fall (Halloween through November): violet on plum-black, with pumpkin touches.
+// Not an orange accent: orange would sit between --down red and --warn amber.
+[data-season="fall"][data-theme="dark"] {
+  --ink: #0c0a10;
+  --ink-2: #120f17;
+  --ink-3: #18141f;
+  --ink-4: #1f1a29;
+
+  --rule: #2a2333;
+  --rule-2: #382f45;
+
+  --blue: #b18cff;
+  --blue-2: #d6c2ff;
+  --blue-ink: #13071f;
+  --blue-wash: rgba(177, 140, 255, 0.12);
+  --blue-line: rgba(177, 140, 255, 0.4);
+
+  --season-accent: #ff7a1a;
+  --season-glow: rgba(255, 122, 26, 0.45);
+  --season-rule: rgba(255, 122, 26, 0.4);
+}
+
+[data-season="fall"][data-theme="light"] {
+  --ink: #f7f3ec;
+  --ink-2: #fffdf9;
+  --ink-3: #f1ebe1;
+  --ink-4: #e8e0d3;
+
+  --rule: #e0d7c8;
+  --rule-2: #c9bca8;
+
+  --blue: #6b3fd4;
+  --blue-2: #53279f;
+  --blue-ink: #ffffff;
+  --blue-wash: rgba(107, 63, 212, 0.1);
+  --blue-line: rgba(107, 63, 212, 0.45);
+
+  --season-accent: #d9530f;
+  --season-glow: rgba(217, 83, 15, 0.35);
+  --season-rule: rgba(217, 83, 15, 0.45);
+}
+
 // Theme-independent tokens
 :root {
   // Type. Font files are loaded by next/font in app/fonts.ts, which defines

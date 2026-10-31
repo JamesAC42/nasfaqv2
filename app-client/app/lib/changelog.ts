@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-10-31",
+    title: "Fall colours",
+    changes: [
+      {
+        kind: "new",
+        text: "Happy Halloween! The site is in fall colours until the end of November: purple where it's usually blue, with a few pumpkin-orange touches, in both dark and light mode. Green and red still mean up and down, and amber still means a warning. Not your thing? Tap the leaf next to the light/dark switch (or Fall colours in the phone menu) to go back to the usual look.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-31",
     title: "HoloNews pictures show the right talents",
     changes: [
       {

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useMemo } from "react";
+import { findSeason, SEASON_OFF_KEY } from "@/app/lib/seasons";
 import { useRootAttribute } from "@/app/lib/use-root-attribute";
 
 type Theme = "dark" | "light";
@@ -45,4 +46,27 @@ export function useTheme() {
   const context = useContext(ThemeContext);
   if (!context) throw new Error("useTheme must be used within ThemeProvider");
   return context;
+}
+
+// The seasonal palette (app/lib/seasons.ts). <html> is the source of truth here too:
+// data-season-now is the season running (null outside one), data-season is set while it shows.
+export function useSeason() {
+  const season = findSeason(useRootAttribute("seasonNow", ""));
+  const on = useRootAttribute("season", "") !== "";
+
+  const setOn = useCallback((next: boolean) => {
+    const root = document.documentElement;
+    const id = root.dataset.seasonNow;
+    if (!id) return;
+    if (next) root.dataset.season = id;
+    else delete root.dataset.season;
+    try {
+      if (next) window.localStorage.removeItem(SEASON_OFF_KEY);
+      else window.localStorage.setItem(SEASON_OFF_KEY, id);
+    } catch {
+      // storage unavailable; applies for this visit only
+    }
+  }, []);
+
+  return { season, on, setOn, toggle: () => setOn(!on) };
 }
