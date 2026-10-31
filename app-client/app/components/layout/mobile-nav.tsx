@@ -4,17 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { isActivePath, MOBILE_TABS, NAV } from "@/app/components/layout/nav-config";
-import { SeasonSheetButton } from "@/app/components/layout/season-toggle";
+import { ThemeChoices } from "@/app/components/layout/theme-switch";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMotion } from "@/app/providers/motion-provider";
-import { useTheme } from "@/app/providers/theme-provider";
 import styles from "@/app/components/layout/site-shell.module.scss";
 
 /** Phone/tablet bottom bar: four main tabs plus a "More" sheet with everything else. */
 export function MobileNav() {
   const pathname = usePathname();
   const { user } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const { calm, toggleCalm } = useMotion();
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -61,10 +59,7 @@ export function MobileNav() {
               <button type="button" className={styles.textButton} aria-pressed={calm} onClick={toggleCalm}>
                 CALM MODE {calm ? "ON" : "OFF"}
               </button>
-              <button type="button" className={styles.textButton} onClick={toggleTheme}>
-                {theme === "dark" ? "LIGHT THEME" : "DARK THEME"}
-              </button>
-              <SeasonSheetButton />
+              <ThemeChoices />
             </div>
           </div>
         </div>

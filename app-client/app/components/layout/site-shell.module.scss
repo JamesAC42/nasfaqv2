@@ -362,25 +362,6 @@
   border-color: var(--blue);
 }
 
-// Season switch (season-toggle.tsx): only during a season, in the season's touch colour while on.
-.seasonButton {
-  display: none;
-
-  :global(html[data-season-now]) & {
-    display: inline-grid;
-  }
-
-  :global(html[data-season]) & {
-    color: var(--season-accent, var(--blue));
-    border-color: var(--season-accent, var(--blue));
-
-    &:hover {
-      color: var(--text);
-      border-color: var(--text);
-    }
-  }
-}
-
 .icon {
   width: 1rem;
   height: 1rem;

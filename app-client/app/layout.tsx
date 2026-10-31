@@ -21,9 +21,9 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-// Applies the saved theme and calm-mode preference, and the current season (lib/seasons.ts),
+// Applies the saved theme (dark, light or a seasonal one: lib/seasons.ts) and calm-mode preference
 // before first paint so the page never flashes the wrong palette or plays animations it shouldn't.
-const bootScript = `(function(){var d=document.documentElement;try{var t=localStorage.getItem("nasfaq.theme");d.dataset.theme=(t==="light"||t==="dark")?t:"dark";var c=localStorage.getItem("nasfaq.calm");d.dataset.calm=(c==="1"||(c===null&&matchMedia("(prefers-reduced-motion: reduce)").matches))?"true":"false";}catch(e){}${seasonBootScript}})();`;
+const bootScript = `(function(){var d=document.documentElement,t=null;try{t=localStorage.getItem("nasfaq.theme");var c=localStorage.getItem("nasfaq.calm");d.dataset.calm=(c==="1"||(c===null&&matchMedia("(prefers-reduced-motion: reduce)").matches))?"true":"false";}catch(e){}d.dataset.theme=t==="light"?"light":"dark";${seasonBootScript}})();`;
 
 export default function RootLayout({
   children,

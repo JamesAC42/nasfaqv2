@@ -8,11 +8,10 @@ import { ReactionFace, parseReaction } from "@/app/components/common/reaction-fa
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FaDiscord } from "react-icons/fa6";
-import { FiMoon, FiSun } from "react-icons/fi";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MarketTape } from "@/app/components/layout/market-tape";
 import { MobileNav } from "@/app/components/layout/mobile-nav";
-import { SeasonButton } from "@/app/components/layout/season-toggle";
+import { ThemeButton } from "@/app/components/layout/theme-switch";
 import { announceOrderFill, FillMomentLayer } from "@/app/components/moments/fill-moment";
 import { TickMomentLayer } from "@/app/components/moments/tick-moment";
 import { StreamSheetHost } from "@/app/components/livestreams/stream-sheet";
@@ -22,7 +21,6 @@ import { isActivePath, isGroupActive, NAV } from "@/app/components/layout/nav-co
 import { RailStatus, RailWorth } from "@/app/components/layout/rail-status";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMotion } from "@/app/providers/motion-provider";
-import { useTheme } from "@/app/providers/theme-provider";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useMomentStore } from "@/app/stores/moment-store";
 import { useProfileStore } from "@/app/stores/profile-store";
@@ -68,7 +66,6 @@ export function SiteShell({
 }) {
   const pathname = usePathname();
   const { user, isLoading } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const { calm, toggleCalm } = useMotion();
   const assets = useMarketStore((state) => state.assets);
   const refreshOverview = useMarketStore((state) => state.refreshOverview);
@@ -476,15 +473,7 @@ export function SiteShell({
             >
               CALM
             </button>
-            <SeasonButton />
-            <button
-              type="button"
-              className={styles.iconButton}
-              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              onClick={toggleTheme}
-            >
-              {theme === "dark" ? <FiSun className={styles.icon} /> : <FiMoon className={styles.icon} />}
-            </button>
+            <ThemeButton />
           </div>
 
           <Link href={profileHref} className={user ? styles.profile : styles.signIn}>
