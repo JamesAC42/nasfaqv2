@@ -1,0 +1,662 @@
+{
+  "SRA": {
+    "strong": [
+      "Tokino Sora",
+      "Sora-chan",
+      "Sorachan",
+      "ときのそら"
+    ],
+    "weak": [
+      "Sora"
+    ]
+  },
+  "RBC": {
+    "strong": [
+      "Roboco",
+      "Robocosan",
+      "Roboco-san",
+      "ロボ子"
+    ]
+  },
+  "MIK": {
+    "strong": [
+      "Sakura Miko",
+      "Miko",
+      "Mikochi",
+      "Mikko",
+      "さくらみこ",
+      "みこち"
+    ]
+  },
+  "SUI": {
+    "strong": [
+      "Hoshimachi Suisei",
+      "Suisei",
+      "Suichan",
+      "Sui-chan",
+      "Suityan",
+      "星街すいせい",
+      "すいせい"
+    ]
+  },
+  "AZK": {
+    "strong": [
+      "AZKi",
+      "Azki"
+    ]
+  },
+  "FBK": {
+    "strong": [
+      "Shirakami Fubuki",
+      "Fubuki",
+      "Fubuchan",
+      "Fubu-chan",
+      "FBK",
+      "白上フブキ",
+      "フブキ"
+    ]
+  },
+  "MTS": {
+    "strong": [
+      "Natsuiro Matsuri",
+      "Matsuri",
+      "Maturi",
+      "夏色まつり"
+    ]
+  },
+  "HAT": {
+    "strong": [
+      "Akai Haato",
+      "Haato",
+      "Haachama",
+      "Haachamachama",
+      "赤井はあと",
+      "はあちゃま"
+    ],
+    "weak": [
+      "Chama"
+    ]
+  },
+  "AKI": {
+    "strong": [
+      "Aki Rosenthal",
+      "Akirose",
+      "Aki Rose",
+      "アキロゼ",
+      "アキ・ローゼンタール"
+    ],
+    "weak": [
+      "Aki"
+    ]
+  },
+  "AQU": {
+    "strong": [
+      "Minato Aqua",
+      "Aqua",
+      "Akukin",
+      "湊あくあ",
+      "あくあ"
+    ]
+  },
+  "SHI": {
+    "strong": [
+      "Murasaki Shion",
+      "Shion",
+      "紫咲シオン",
+      "シオン"
+    ]
+  },
+  "AYA": {
+    "strong": [
+      "Nakiri Ayame",
+      "Ayame",
+      "百鬼あやめ"
+    ],
+    "weak": [
+      "Ojou"
+    ]
+  },
+  "CHC": {
+    "strong": [
+      "Yuzuki Choco",
+      "Choco-sen",
+      "Chocosen",
+      "癒月ちょこ"
+    ],
+    "weak": [
+      "Choco"
+    ]
+  },
+  "SBR": {
+    "strong": [
+      "Oozora Subaru",
+      "Subaru",
+      "Shuba",
+      "大空スバル",
+      "スバル"
+    ]
+  },
+  "MIO": {
+    "strong": [
+      "Ookami Mio",
+      "Mio-sha",
+      "Miosha",
+      "大神ミオ"
+    ],
+    "weak": [
+      "Mio"
+    ]
+  },
+  "OKY": {
+    "strong": [
+      "Nekomata Okayu",
+      "Okayu",
+      "猫又おかゆ",
+      "おかゆ"
+    ]
+  },
+  "KRE": {
+    "strong": [
+      "Inugami Korone",
+      "Korone",
+      "Koro-san",
+      "戌神ころね",
+      "ころね"
+    ],
+    "weak": [
+      "Doog"
+    ]
+  },
+  "PEK": {
+    "strong": [
+      "Usada Pekora",
+      "Pekora",
+      "Peko",
+      "Pekor",
+      "Pekochan",
+      "兎田ぺこら",
+      "ぺこら"
+    ]
+  },
+  "FLR": {
+    "strong": [
+      "Shiranui Flare",
+      "Flare",
+      "Fuutan",
+      "不知火フレア",
+      "フレア"
+    ]
+  },
+  "NOE": {
+    "strong": [
+      "Shirogane Noel",
+      "Danchou",
+      "Dancho",
+      "白銀ノエル",
+      "ノエル"
+    ],
+    "weak": [
+      "Noel"
+    ]
+  },
+  "MAR": {
+    "strong": [
+      "Houshou Marine",
+      "Senchou",
+      "Sencho",
+      "Houshou",
+      "宝鐘マリン",
+      "マリン"
+    ],
+    "weak": [
+      "Marine"
+    ]
+  },
+  "KAN": {
+    "strong": [
+      "Amane Kanata",
+      "Kanata",
+      "Kanatan",
+      "天音かなた"
+    ]
+  },
+  "COC": {
+    "strong": [
+      "Kiryu Coco",
+      "Kiryuu Coco",
+      "Kaichou",
+      "桐生ココ"
+    ],
+    "weak": [
+      "Coco"
+    ]
+  },
+  "WAT": {
+    "strong": [
+      "Tsunomaki Watame",
+      "Watame",
+      "Wamy",
+      "角巻わため",
+      "わため"
+    ]
+  },
+  "TOW": {
+    "strong": [
+      "Tokoyami Towa",
+      "Towa",
+      "Towasama",
+      "Towa-sama",
+      "常闇トワ"
+    ]
+  },
+  "LUN": {
+    "strong": [
+      "Himemori Luna",
+      "Lunatan",
+      "姫森ルーナ",
+      "ルーナ"
+    ],
+    "weak": [
+      "Luna"
+    ]
+  },
+  "LAM": {
+    "strong": [
+      "Yukihana Lamy",
+      "Lamy",
+      "雪花ラミィ",
+      "ラミィ"
+    ]
+  },
+  "NEN": {
+    "strong": [
+      "Momosuzu Nene",
+      "Nenechi",
+      "Super Nenechi",
+      "桃鈴ねね"
+    ],
+    "weak": [
+      "Nene"
+    ]
+  },
+  "BOT": {
+    "strong": [
+      "Shishiro Botan",
+      "Botan",
+      "Shishiron",
+      "獅白ぼたん",
+      "ぼたん"
+    ]
+  },
+  "PLK": {
+    "strong": [
+      "Omaru Polka",
+      "Polka",
+      "尾丸ポルカ",
+      "ポルカ"
+    ]
+  },
+  "DRK": {
+    "strong": [
+      "La+ Darknesss",
+      "Laplus",
+      "La+",
+      "Lap-chan",
+      "ラプラス"
+    ],
+    "weak": [
+      "Lap"
+    ]
+  },
+  "LUI": {
+    "strong": [
+      "Takane Lui",
+      "Luisama",
+      "Lui-sama",
+      "鷹嶺ルイ"
+    ],
+    "weak": [
+      "Lui"
+    ]
+  },
+  "KYR": {
+    "strong": [
+      "Hakui Koyori",
+      "Koyori",
+      "Koyo",
+      "博衣こより",
+      "こより"
+    ]
+  },
+  "CHL": {
+    "strong": [
+      "Sakamata Chloe",
+      "Chloe",
+      "Sakamata",
+      "沙花叉クロヱ",
+      "クロヱ"
+    ]
+  },
+  "IRO": {
+    "strong": [
+      "Kazama Iroha",
+      "Iroha",
+      "Gozaru",
+      "風真いろは",
+      "いろは"
+    ]
+  },
+  "HIO": {
+    "strong": [
+      "Hiodoshi Ao",
+      "Ao-kun",
+      "Aokun",
+      "Hiodoshi",
+      "火威青"
+    ],
+    "weak": [
+      "Ao"
+    ]
+  },
+  "KND": {
+    "strong": [
+      "Otonose Kanade",
+      "Kanade",
+      "音乃瀬奏"
+    ]
+  },
+  "RRK": {
+    "strong": [
+      "Ichijou Ririka",
+      "Ririka",
+      "一条莉々華"
+    ]
+  },
+  "RDN": {
+    "strong": [
+      "Juufuutei Raden",
+      "Raden",
+      "儒烏風亭らでん",
+      "らでん"
+    ]
+  },
+  "HJM": {
+    "strong": [
+      "Todoroki Hajime",
+      "Hajime",
+      "Banchou",
+      "Bancho",
+      "轟はじめ"
+    ]
+  },
+  "RIO": {
+    "strong": [
+      "Isaki Riona",
+      "Riona",
+      "響咲リオナ"
+    ]
+  },
+  "NIK": {
+    "strong": [
+      "Koganei Niko",
+      "Koganei",
+      "虎金妃笑虎"
+    ],
+    "weak": [
+      "Niko"
+    ]
+  },
+  "MIZ": {
+    "strong": [
+      "Mizumiya Su",
+      "Mizumiya",
+      "水宮枢"
+    ]
+  },
+  "CHH": {
+    "strong": [
+      "Rindo Chihaya",
+      "Chihaya",
+      "輪堂千速"
+    ]
+  },
+  "VIV": {
+    "strong": [
+      "Kikirara Vivi",
+      "Kikirara",
+      "綺々羅々ヴィヴィ"
+    ],
+    "weak": [
+      "Vivi"
+    ]
+  },
+  "CLI": {
+    "strong": [
+      "Mori Calliope",
+      "Calliope",
+      "Calli",
+      "Moririn"
+    ],
+    "weak": [
+      "Mori"
+    ]
+  },
+  "KRA": {
+    "strong": [
+      "Takanashi Kiara",
+      "Kiara",
+      "Tenchou",
+      "Tencho"
+    ]
+  },
+  "INA": {
+    "strong": [
+      "Ninomae Ina'nis",
+      "Ninomae Ina’nis",
+      "Ina'nis",
+      "Ninomae",
+      "Inanis"
+    ],
+    "weak": [
+      "Ina"
+    ]
+  },
+  "GUR": {
+    "strong": [
+      "Gawr Gura",
+      "Gura",
+      "Goob",
+      "Same-chan"
+    ]
+  },
+  "AME": {
+    "strong": [
+      "Watson Amelia",
+      "Amelia",
+      "Ame-chan",
+      "Amechan"
+    ],
+    "weak": [
+      "Ame",
+      "Watson"
+    ]
+  },
+  "RYS": {
+    "strong": [
+      "IRyS",
+      "Irys"
+    ]
+  },
+  "SAN": {
+    "strong": [
+      "Tsukumo Sana",
+      "Sana-chan",
+      "Tsukumo"
+    ],
+    "weak": [
+      "Sana"
+    ]
+  },
+  "FAU": {
+    "strong": [
+      "Ceres Fauna",
+      "Fauna"
+    ]
+  },
+  "KRN": {
+    "strong": [
+      "Ouro Kronii",
+      "Kronii",
+      "Kroni"
+    ]
+  },
+  "MUM": {
+    "strong": [
+      "Nanashi Mumei",
+      "Mumei",
+      "Moom"
+    ]
+  },
+  "BLZ": {
+    "strong": [
+      "Hakos Baelz",
+      "Baelz",
+      "Hakos"
+    ],
+    "weak": [
+      "Bae"
+    ]
+  },
+  "NVL": {
+    "strong": [
+      "Shiori Novella",
+      "Shiori",
+      "Novella"
+    ]
+  },
+  "BIJ": {
+    "strong": [
+      "Koseki Bijou",
+      "Bijou",
+      "Biboo"
+    ]
+  },
+  "RVN": {
+    "strong": [
+      "Nerissa Ravencroft",
+      "Nerissa",
+      "Ravencroft"
+    ]
+  },
+  "BYS": {
+    "strong": [
+      "FuwaMoco",
+      "Fuwamoco",
+      "FWMC",
+      "Fuwawa",
+      "Mococo",
+      "Abyssgard"
+    ]
+  },
+  "BLD": {
+    "strong": [
+      "Elizabeth Rose Bloodflame",
+      "Bloodflame",
+      "Elizabeth Rose"
+    ],
+    "weak": [
+      "Liz",
+      "ERB"
+    ]
+  },
+  "MRN": {
+    "strong": [
+      "Gigi Murin",
+      "Gigi",
+      "Murin"
+    ]
+  },
+  "MMR": {
+    "strong": [
+      "Cecilia Immergreen",
+      "Cecilia",
+      "Immergreen",
+      "Ceci"
+    ]
+  },
+  "PNT": {
+    "strong": [
+      "Raora Panthera",
+      "Raora",
+      "Panthera"
+    ]
+  },
+  "RIS": {
+    "strong": [
+      "Ayunda Risu",
+      "Risu"
+    ]
+  },
+  "HSH": {
+    "strong": [
+      "Moona Hoshinova",
+      "Moona",
+      "Hoshinova"
+    ]
+  },
+  "FFT": {
+    "strong": [
+      "Airani Iofifteen",
+      "Iofifteen",
+      "Iofi"
+    ]
+  },
+  "OLL": {
+    "strong": [
+      "Kureiji Ollie",
+      "Ollie",
+      "Kureiji"
+    ]
+  },
+  "MLF": {
+    "strong": [
+      "Anya Melfissa",
+      "Melfissa"
+    ],
+    "weak": [
+      "Anya"
+    ]
+  },
+  "REI": {
+    "strong": [
+      "Pavolia Reine",
+      "Reine",
+      "Pavolia"
+    ]
+  },
+  "ZET": {
+    "strong": [
+      "Vestia Zeta",
+      "Vestia"
+    ],
+    "weak": [
+      "Zeta"
+    ]
+  },
+  "KVL": {
+    "strong": [
+      "Kaela Kovalskia",
+      "Kaela",
+      "Kovalskia"
+    ]
+  },
+  "KNR": {
+    "strong": [
+      "Kobo Kanaeru",
+      "Kanaeru"
+    ],
+    "weak": [
+      "Kobo"
+    ]
+  }
+}

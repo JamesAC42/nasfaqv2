@@ -3,6 +3,7 @@ const path = require("node:path");
 const sharp = require("sharp");
 const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
 const articleDb = require("../articleDb");
+const talents = require("./talents");
 
 const DEFAULT_THUMBNAIL_CDN_BASE_URL = "https://images.nasfaq.biz";
 const DEFAULT_REFERENCE_IMAGES_BASE_URL = "https://images.nasfaq.biz/reference-images";
@@ -189,18 +190,6 @@ async function callGeminiText(config, prompt) {
   throw makeError("gemini_request_failed", "gemini text response missing content");
 }
 
-async function loadValidMemberNames(pool) {
-  const { rows } = await pool.query(`
-    SELECT DISTINCT btrim(name_english) AS name
-    FROM yt.youtube_channels
-    WHERE is_active = true
-      AND name_english IS NOT NULL
-      AND btrim(name_english) <> ''
-    ORDER BY btrim(name_english) ASC
-  `);
-  return rows.map((row) => row.name).filter(Boolean);
-}
-
 async function resolveNewsTarget(pool, { newsId, articleSlug, headline }) {
   const normalizedHeadline = normalizeString(headline, 500);
   const safeNewsId = Number(newsId);
@@ -249,65 +238,106 @@ async function resolveNewsTarget(pool, { newsId, articleSlug, headline }) {
   };
 }
 
-async function resolveImpactedMembers(pool, impactedCoins, referenceImages) {
-  const tokens = dedupeStrings([...normalizeList(impactedCoins), ...normalizeList(referenceImages)]);
-  if (!tokens.length) return [];
-  const lookupTokens = dedupeStrings(tokens.flatMap((item) => [
-    item,
-    item.replace(/^[#$]+/, ""),
-  ])).map((item) => item.toLowerCase());
+// Who a thumbnail may show: the talents the headline names (full name, first name or a known
+// nickname, from services/talents.js) and nobody else, however many talents it says took part.
+// Mirrors holonews/cmd/holonews (identifyHeadlineTalents, planThumbnail); keep the two in step.
 
-  const { rows } = await pool.query(
-    `
-    SELECT DISTINCT
-      yc.youtube_channel_id,
-      btrim(yc.name_english) AS name_english,
-      yc.name_short,
-      ma.id AS asset_id,
-      ma.symbol
-    FROM yt.youtube_channels yc
-    LEFT JOIN market.market_assets ma
-      ON ma.youtube_channel_id = yc.youtube_channel_id
-    WHERE yc.is_active = true
-      AND (
-        lower(yc.youtube_channel_id) = ANY($1::text[])
-        OR lower(yc.name_short) = ANY($1::text[])
-        OR lower(btrim(COALESCE(yc.name_english, ''))) = ANY($1::text[])
-        OR lower(COALESCE(yc.symbol, '')) = ANY($1::text[])
-        OR lower(COALESCE(ma.symbol, '')) = ANY($1::text[])
-      )
-    ORDER BY btrim(yc.name_english) ASC
-  `,
-    [lookupTokens]
-  );
-
-  return rows
-    .filter((row) => row.name_english)
-    .map((row) => ({
-      youtube_channel_id: row.youtube_channel_id,
-      name: row.name_english,
-      asset_id: row.asset_id ? Number(row.asset_id) : null,
-      symbol: row.symbol || null,
-    }));
+/** The talents a headline names, in the order it names them: `[{ symbol, name, youtube_channel_id }]`. */
+function namedTalents(headline, roster) {
+  const bySymbol = new Map(roster.map((talent) => [talent.symbol, talent]));
+  const text = talents.normalize(headline).toLowerCase();
+  const found = [];
+  for (const [symbol, match] of talents.createMatcher(roster).match(headline)) {
+    const talent = bySymbol.get(symbol);
+    if (!talent?.name) continue;
+    const at = Math.min(...match.aliases.map((alias) => text.indexOf(talents.normalize(alias).toLowerCase())).filter((index) => index >= 0), Number.MAX_SAFE_INTEGER);
+    found.push({ talent, at });
+  }
+  return found.sort((a, b) => a.at - b.at || a.talent.name.localeCompare(b.talent.name)).map((entry) => entry.talent);
 }
 
-async function generateThumbnailPrompt(config, headline, validMembers) {
-  let prompt = "Return JSON only in this shape: {\"image_prompt\":\"...\",\"characters\":[\"Exact Member Name\"]}\n";
-  prompt += "The character names array must contain only exact values from the valid member list below.\n";
-  prompt += "Use an empty array if the headline does not clearly refer to a member.\n\n";
-  prompt += "Act as an expert VTuber Thumbnail Illustrator. I will give you a video headline. You must translate the core concept into a fun, visually clear prompt for an image generator.\n";
-  prompt += "DEFAULT TONE: cute, playful, lively, charming, humorous, and expressive. The image should usually feel fun or endearing, not threatening, sinister, manic, or evil.\n";
-  prompt += "Only use extreme chaos, panic, or manic comedy when the headline clearly calls for it and it would be funny.\n";
-  prompt += "CRITICAL RULES YOU MUST FOLLOW:\n";
-  prompt += "1. NO TEXT OR LABELS: You are strictly forbidden from asking for words, letters, logos, or signs. Represent concepts with physical props only.\n";
-  prompt += "2. STRICT ART STYLE FORMULA: Your 'image_prompt' MUST ALWAYS begin with this exact phrase: '2D flat anime illustration, cel-shaded, official studio key visual, clean crisp lineart, vibrant colors, aesthetic anime screencap, '\n";
-  prompt += "3. BANNED WORDS: Never use the words: 3D, realistic, hyper-detailed, cinematic, text, negative space, empty space. We are NOT adding text to these images.\n";
-  prompt += "4. CAMERA & POSING: Prefer lively, appealing compositions such as close-up, medium close-up, slight Dutch angle, energetic pose, cheerful lean toward camera, or playful foreshortening. Avoid describing the character as aggressive, menacing, threatening, or attacking unless the headline specifically implies that tone.\n";
-  prompt += "5. EXPRESSIONS: Favor bright, cute, funny, confident, surprised, determined, embarrassed, pouty, excited, or mischievous expressions. Use extreme or deranged expressions only if the joke or headline clearly supports it.\n";
-  prompt += "6. ACTION WITH PROPS: Don't just place props in the background. Make the characters actively interact with them in a playful or visually clear way, such as hugging, presenting, pointing at, reacting to, or struggling comedically with the object.\n\n";
-  prompt += "7. SAFE ANATOMY ANCHORING: To prevent AI anatomy errors, strictly favor 'upper body shot' or 'cowboy shot' (hips up) to avoid rendering complex leg poses. When interacting with props, prefer phrases like 'holding [prop] with both hands' or 'one hand on [prop], one hand pointing' to anchor the limbs and prevent extra arms.\n";
-  prompt += `Here is the headline: ${headline}\n\nValid members:\n`;
-  for (const name of validMembers) prompt += `- ${name}\n`;
+/**
+ * The candidates someone vouched for (the model, or the admin's tags on the article), in the
+ * headline's order. A name that isn't a candidate is dropped: nobody the headline doesn't name.
+ */
+function selectTalents(candidates, confirmed) {
+  const keep = new Set();
+  for (const value of confirmed || []) {
+    const key = String(value ?? "").trim().replace(/^[#$]+/, "").toLowerCase();
+    if (key) keep.add(key);
+  }
+  return candidates.filter((talent) => keep.has(String(talent.name).toLowerCase()) || keep.has(String(talent.symbol).toLowerCase()));
+}
+
+async function confirmHeadlineTalents(config, headline, candidates) {
+  let prompt = "Return JSON only in this shape: {\"characters\":[\"Exact Name\"]}\n";
+  prompt += "A hololive news headline contains these talents' names or nicknames:\n";
+  for (const talent of candidates) prompt += `- ${talent.name}\n`;
+  prompt += "Rules:\n";
+  prompt += "- Keep a name only if the headline is about that talent or the talent takes part in what it describes.\n";
+  prompt += "- Drop it if the word means something else there (an everyday word, another person, a game or a brand).\n";
+  prompt += "- Use only exact names from the list above. Never add anyone else.\n";
+  prompt += "- Output JSON only, no markdown or commentary.\n";
+  prompt += `Headline: ${headline}\n`;
+
+  const text = await callGeminiText(config, prompt);
+  let parsed = null;
+  try {
+    parsed = JSON.parse(extractJSON(text));
+  } catch (error) {
+    throw makeError("gemini_request_failed", `parse character JSON: ${error?.message || error}`);
+  }
+  return Array.isArray(parsed?.characters) ? parsed.characters : [];
+}
+
+/**
+ * Who the thumbnail shows: the named talents the model agrees the headline is about, plus any the
+ * article is already tagged with. When the model can't be asked, every named talent stands.
+ */
+async function identifyTalents(config, headline, roster, tagged = []) {
+  const candidates = namedTalents(headline, roster);
+  if (!candidates.length) return [];
+  let confirmed;
+  try {
+    confirmed = await confirmHeadlineTalents(config, headline, candidates);
+  } catch (error) {
+    if (error?.code === "gemini_not_configured") throw error;
+    return candidates;
+  }
+  return selectTalents(candidates, [...confirmed, ...tagged]);
+}
+
+// The illustrator brief every thumbnail prompt starts from. Keep in step with holonews/cmd/holonews.
+const THUMBNAIL_STYLE_RULES = [
+  "Act as an expert VTuber Thumbnail Illustrator. I will give you a video headline. You must translate the core concept into a fun, visually clear prompt for an image generator.",
+  "DEFAULT TONE: cute, playful, lively, charming, humorous, and expressive. The image should usually feel fun or endearing, not threatening, sinister, manic, or evil.",
+  "Only use extreme chaos, panic, or manic comedy when the headline clearly calls for it and it would be funny.",
+  "CRITICAL RULES YOU MUST FOLLOW:",
+  "1. NO TEXT OR LABELS: You are strictly forbidden from asking for words, letters, logos, or signs. Represent concepts with physical props only.",
+  "2. STRICT ART STYLE FORMULA: Your 'image_prompt' MUST ALWAYS begin with this exact phrase: '2D flat anime illustration, cel-shaded, official studio key visual, clean crisp lineart, vibrant colors, aesthetic anime screencap, '",
+  "3. BANNED WORDS: Never use the words: 3D, realistic, hyper-detailed, cinematic, text, negative space, empty space. We are NOT adding text to these images.",
+  "4. CAMERA & POSING: Prefer lively, appealing compositions such as close-up, medium close-up, slight Dutch angle, energetic pose, cheerful lean toward camera, or playful foreshortening. Avoid describing the character as aggressive, menacing, threatening, or attacking unless the headline specifically implies that tone.",
+  "5. EXPRESSIONS: Favor bright, cute, funny, confident, surprised, determined, embarrassed, pouty, excited, or mischievous expressions. Use extreme or deranged expressions only if the joke or headline clearly supports it.",
+  "6. ACTION WITH PROPS: Don't just place props in the background. Make the characters actively interact with them in a playful or visually clear way, such as hugging, presenting, pointing at, reacting to, or struggling comedically with the object.",
+  "7. SAFE ANATOMY ANCHORING: To prevent AI anatomy errors, strictly favor 'upper body shot' or 'cowboy shot' (hips up) to avoid rendering complex leg poses. When interacting with props, prefer phrases like 'holding [prop] with both hands' or 'one hand on [prop], one hand pointing' to anchor the limbs and prevent extra arms.",
+].join("\n") + "\n";
+
+/** Who may appear: exactly the talents the headline names, or nobody. */
+function thumbnailCastRules(characters) {
+  if (!characters.length) {
+    return "CAST: The headline names no hololive talent, so draw NO people and NO characters at all: no faces, figures, silhouettes, mascots or crowds, and never guess who it might be about, even when it says how many talents are involved. "
+      + "If the story has a clear subject you can show with objects or a place (a stage, a game board with dice, a trophy, a calendar, a concert hall), describe that scene with nobody in it. "
+      + "If it has nothing clear to picture, return {\"image_prompt\":\"\",\"skip\":true}.\n";
+  }
+  return `CAST: Draw exactly these hololive talents and nobody else: ${characters.join(", ")}. `
+    + "Even if the headline mentions more people or a number of talents, add no other characters, background people or crowds.\n";
+}
+
+async function generateThumbnailPrompt(config, headline, characters) {
+  let prompt = "Return JSON only in this shape: {\"image_prompt\":\"...\",\"skip\":false}\n\n";
+  prompt += THUMBNAIL_STYLE_RULES;
+  prompt += thumbnailCastRules(characters);
+  prompt += `Here is the headline: ${headline}\n`;
 
   const text = await callGeminiText(config, prompt);
   let parsed = null;
@@ -316,12 +346,34 @@ async function generateThumbnailPrompt(config, headline, validMembers) {
   } catch (error) {
     throw makeError("gemini_request_failed", `parse prompt JSON: ${error?.message || error}`);
   }
-  const imagePrompt = normalizeString(parsed.image_prompt, 4000);
-  if (!imagePrompt) throw makeError("gemini_request_failed", "empty image prompt");
+  return { image_prompt: normalizeString(parsed?.image_prompt, 4000) || "", skip: parsed?.skip === true };
+}
 
-  const validSet = new Set(validMembers);
-  const characters = dedupeStrings(Array.isArray(parsed.characters) ? parsed.characters : []).filter((name) => validSet.has(name));
-  return { image_prompt: imagePrompt, characters };
+/** The illustrator's prompt plus who the image model may draw: exactly the named talents, or nobody. */
+function thumbnailImagePrompt(imagePrompt, characters) {
+  const prompt = String(imagePrompt || "").trim();
+  if (!characters.length) {
+    return `${prompt}\nDraw no people and no characters: no faces, figures, silhouettes, mascots or crowds. Show only objects and places.`;
+  }
+  const subjects = characters.map((name) => {
+    const { note } = referenceImagesFor(name);
+    return note ? `${name} (${note})` : name;
+  });
+  const count = characters.length === 1 ? "1 character" : `${characters.length} characters`;
+  return `${prompt}\nDraw exactly ${count}: ${subjects.join(", ")}. Use the attached reference images only for their character designs. Add no other characters, background people or crowds.`;
+}
+
+/**
+ * Whether a headline gets a thumbnail: one that names no talent and has nothing clear to picture
+ * gets none, and the site shows its usual picture for a story without one.
+ * → { draw, prompt } or { draw: false, reason }.
+ */
+function planThumbnail(characters, prompt) {
+  if (!characters.length && prompt?.skip) {
+    return { draw: false, reason: "This headline names no talent and has nothing clear to picture, so no thumbnail was made." };
+  }
+  if (!String(prompt?.image_prompt || "").trim()) return { draw: false, reason: "The image prompt came back empty, so no thumbnail was made." };
+  return { draw: true, prompt: thumbnailImagePrompt(prompt.image_prompt, characters) };
 }
 
 async function loadReferenceImages(config, names) {
@@ -356,16 +408,8 @@ async function loadReferenceImages(config, names) {
   return out;
 }
 
-async function generateImage(config, imagePrompt, characters, referenceImages) {
-  let prompt = imagePrompt;
-  if (characters.length) {
-    const subjects = characters.map((name) => {
-      const { note } = referenceImagesFor(name);
-      return note ? `${name} (${note})` : name;
-    });
-    prompt += `\nUse these attached reference images only for character design consistency for: ${subjects.join(", ")}.`;
-  }
-
+/** One image from a prompt built by planThumbnail and the talents' reference images. */
+async function generateImage(config, prompt, referenceImages) {
   const parts = [{ text: prompt }];
   for (const ref of referenceImages) {
     parts.push({
@@ -473,11 +517,13 @@ async function persistThumbnail(pool, target, upload, members) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    // A new thumbnail from an admin also lifts an earlier "remove thumbnail".
     await client.query(
       `
       UPDATE info.member_news
       SET headline = $2,
-          thumbnail_url = $3
+          thumbnail_url = $3,
+          thumbnail_removed_at = NULL
       WHERE id = $1
     `,
       [target.id, target.headline, upload.url]
@@ -513,23 +559,23 @@ async function persistThumbnail(pool, target, upload, members) {
   };
 }
 
-async function updateRedisState(redis, target, upload, characterNames) {
+/**
+ * Rewrites the holonews scraper's Redis copy of one headline (the front page's lead stories read
+ * it): `patch(item)` gives the new item. Returns whether anything changed.
+ */
+async function patchRedisItem(redis, target, patch) {
   if (!redis) return false;
   const rawItems = await redis.lRange(REDIS_ITEMS_KEY, 0, -1);
   if (!Array.isArray(rawItems) || !rawItems.length) return false;
 
+  const matches = (item) => item?.headline === target.headline || item?.headline === target.original_headline;
   let changed = false;
   const nextItems = rawItems.map((raw) => {
     try {
       const parsed = JSON.parse(raw);
-      if (parsed?.headline !== target.headline && parsed?.headline !== target.original_headline) return raw;
+      if (!matches(parsed)) return raw;
       changed = true;
-      return JSON.stringify({
-        ...parsed,
-        headline: target.headline,
-        characters: characterNames,
-        thumbnail_s3_key: upload.s3_key,
-      });
+      return JSON.stringify(patch(parsed));
     } catch {
       return raw;
     }
@@ -544,11 +590,7 @@ async function updateRedisState(redis, target, upload, characterNames) {
     try {
       const meta = JSON.parse(rawMeta);
       if (Array.isArray(meta.items)) {
-        meta.items = meta.items.map((item) => (
-          item?.headline === target.headline || item?.headline === target.original_headline
-            ? { ...item, headline: target.headline, characters: characterNames, thumbnail_s3_key: upload.s3_key }
-            : item
-        ));
+        meta.items = meta.items.map((item) => (matches(item) ? patch(item) : item));
         meta.updated_at = new Date().toISOString();
         multi.set(REDIS_META_KEY, JSON.stringify(meta));
       }
@@ -567,31 +609,31 @@ async function regenerateThumbnail(pool, redis, input = {}) {
     articleSlug: input.article_slug ?? input.articleSlug ?? input.slug,
     headline: input.headline,
   });
-  const validMembers = await loadValidMemberNames(pool);
-  const impactedMembers = await resolveImpactedMembers(
-    pool,
-    input.impacted_coins ?? input.impactedCoins ?? input.coins ?? input.symbols,
-    input.reference_images ?? input.referenceImages ?? input.characters
-  );
+  // The article's tags (sent by the admin tools) vouch for a talent the headline names, but can't
+  // add one it doesn't.
+  const tagged = [
+    ...normalizeList(input.impacted_coins ?? input.impactedCoins ?? input.coins ?? input.symbols),
+    ...normalizeList(input.reference_images ?? input.referenceImages ?? input.characters),
+  ];
+  const roster = await talents.loadTalents(pool);
+  const members = await identifyTalents(config, target.headline, roster, tagged);
+  const characterNames = members.map((member) => member.name);
 
-  const prompt = await generateThumbnailPrompt(config, target.headline, validMembers);
-  const characterNames = dedupeStrings([
-    ...impactedMembers.map((member) => member.name),
-    ...prompt.characters,
-  ]).filter((name) => validMembers.includes(name));
+  const prompt = await generateThumbnailPrompt(config, target.headline, characterNames);
+  const plan = planThumbnail(characterNames, prompt);
+  if (!plan.draw) throw makeError("thumbnail_not_drawn", plan.reason);
 
   const referenceImages = await loadReferenceImages(config, characterNames);
-  const image = await generateImage(config, prompt.image_prompt, characterNames, referenceImages);
+  const image = await generateImage(config, plan.prompt, referenceImages);
   const upload = await uploadThumbnail(config, target.headline, image);
 
-  const membersByName = new Map(impactedMembers.map((member) => [member.name, member]));
-  if (characterNames.some((name) => !membersByName.has(name))) {
-    const resolvedPromptMembers = await resolveImpactedMembers(pool, [], characterNames);
-    for (const member of resolvedPromptMembers) membersByName.set(member.name, member);
-  }
-  const members = characterNames.map((name) => membersByName.get(name)).filter(Boolean);
   const association = await persistThumbnail(pool, target, upload, members);
-  const redis_updated = await updateRedisState(redis, target, upload, characterNames);
+  const redis_updated = await patchRedisItem(redis, target, (item) => ({
+    ...item,
+    headline: target.headline,
+    characters: characterNames,
+    thumbnail_s3_key: upload.s3_key,
+  }));
 
   return {
     news_item: {
@@ -609,7 +651,57 @@ async function regenerateThumbnail(pool, redis, input = {}) {
   };
 }
 
+/**
+ * Takes a news story's thumbnail off: the article shows the site's usual picture for a story without
+ * one, and holonews doesn't draw a new one on its own (thumbnail_removed_at). "New thumbnail" puts
+ * one back. The image stays in S3; the admin log keeps its address.
+ */
+async function removeThumbnail(pool, redis, input = {}) {
+  const target = await resolveNewsTarget(pool, {
+    newsId: input.news_id ?? input.newsId,
+    articleSlug: input.article_slug ?? input.articleSlug ?? input.slug,
+  });
+  const client = await pool.connect();
+  let previous = null;
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(
+      `
+      SELECT mn.thumbnail_url AS news_thumbnail_url, a.thumbnail_url AS article_thumbnail_url
+      FROM info.member_news mn
+      LEFT JOIN content.articles a ON a.news_id = mn.id
+      WHERE mn.id = $1
+      FOR UPDATE OF mn
+    `,
+      [target.id]
+    );
+    previous = rows[0]?.news_thumbnail_url || rows[0]?.article_thumbnail_url || null;
+    await client.query(`UPDATE info.member_news SET thumbnail_url = NULL, thumbnail_removed_at = now() WHERE id = $1`, [target.id]);
+    await client.query(`UPDATE content.articles SET thumbnail_url = NULL, updated_at = now() WHERE news_id = $1`, [target.id]);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  const redis_updated = await patchRedisItem(redis, target, (item) => ({ ...item, thumbnail_s3_key: null }));
+  return {
+    news_item: {
+      id: Number(target.id),
+      headline: target.headline,
+      article_id: target.article_id ? Number(target.article_id) : null,
+      article_slug: target.article_slug || null,
+      thumbnail_url: null,
+    },
+    previous_thumbnail_url: previous,
+    redis_updated,
+  };
+}
+
 module.exports = {
-  _test: { referenceImagesFor },
+  _test: { referenceImagesFor, namedTalents, selectTalents, identifyTalents, thumbnailCastRules, thumbnailImagePrompt, planThumbnail },
   regenerateThumbnail,
+  removeThumbnail,
 };

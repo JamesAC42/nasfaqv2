@@ -1831,6 +1831,19 @@ async function applySchema(pool) {
   // Superseded by market_user_leaderboard_current_rank_idx: no query sorts by (total_equity, user_id)
   // alone, and every leaderboard refresh writes to each index on the table.
   await pool.query(`DROP INDEX IF EXISTS market.market_user_leaderboard_current_equity_idx`);
+
+  // A HoloNews thumbnail an admin took off (services/holonewsThumbnails.js removeThumbnail): the story
+  // shows no picture, and holonews doesn't draw a new one until an admin asks for one.
+  await pool.query(`ALTER TABLE info.member_news ADD COLUMN IF NOT EXISTS thumbnail_removed_at TIMESTAMPTZ NULL`);
+  // The stories an admin pinned to the top of the home page, in their order (articleDb.setFrontPagePins).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content.front_page_pins (
+      article_id BIGINT PRIMARY KEY REFERENCES content.articles(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL,
+      pinned_by BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL,
+      pinned_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
 }
 
 module.exports = { applySchema };

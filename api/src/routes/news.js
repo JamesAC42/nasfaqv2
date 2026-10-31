@@ -1,8 +1,30 @@
 const express = require("express");
 const db = require("../db");
+const articleDb = require("../articleDb");
 const { sendCachedJson } = require("../responseCache");
 
 const router = express.Router();
+
+// The stories an admin pinned to the top of the home page, in order, published ones only. The same
+// for everyone: cached 30s, and dropped when an admin changes the pins (routes/adminHolonews.js).
+router.get("/front-page", async (req, res, next) => {
+  try {
+    await sendCachedJson(req, res, articleDb.FRONT_PAGE_CACHE_KEY, {
+      ttlSeconds: 30,
+      memoMs: 5000,
+      load: async () => {
+        const pins = await articleDb.listFrontPagePins(req.ctx.pool);
+        return {
+          items: pins
+            .filter((pin) => pin.status === "published")
+            .map(({ status: _status, pinned_at: _pinnedAt, pinned_by: _pinnedBy, ...item }) => item),
+        };
+      },
+    });
+  } catch (e) {
+    next(e);
+  }
+});
 
 router.get("/", async (req, res, next) => {
   try {

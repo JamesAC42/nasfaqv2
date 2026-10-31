@@ -738,7 +738,7 @@
 
   .danger {
     border-color: var(--down) !important;
-    background: var(--down);
+    background: var(--down) !important;
     color: #1a0307 !important;
   }
 }

@@ -1,6 +1,12 @@
 package main
 
-import "testing"
+import (
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/JamesAC42/nasfaqv2/holonews/internal/talents"
+)
 
 func TestExtractHeadlinesPrefersLaterGreentextRoundup(t *testing.T) {
 	posts := []post{
@@ -131,5 +137,117 @@ func TestReferenceImagesForChannelNames(t *testing.T) {
 	}
 	if referenceImagesFor("FuwaMoco Abyssgard").Note == "" {
 		t.Fatal("the duo needs a note for the image prompt")
+	}
+}
+
+var thumbnailRoster = []talents.Talent{
+	{Name: "Usada Pekora", Symbol: "PEK"},
+	{Name: "Houshou Marine", Symbol: "MAR"},
+	{Name: "Shirogane Noel", Symbol: "NOE"},
+	{Name: "Mori Calliope", Symbol: "CLI"},
+	{Name: "Gawr Gura", Symbol: "GUR"},
+	{Name: "Yukihana Lamy", Symbol: "LAM"},
+	{Name: "Omaru Polka", Symbol: "PLK"},
+	{Name: "FuwaMoco Abyssgard", Symbol: "BYS"},
+}
+
+// The thumbnail only shows talents the headline names, whatever the model says.
+func TestSelectTalents(t *testing.T) {
+	matcher := talents.NewMatcher(thumbnailRoster)
+	cases := []struct {
+		name      string
+		headline  string
+		confirmed []string
+		want      []string
+	}{
+		{
+			name:      "a headline that names nobody gets nobody, however many it counts",
+			headline:  "Shattered Legends is confirmed as a Tabletop RPG project with Matt Mercer serving as GM for 4 Hololive talents.",
+			confirmed: []string{"Usada Pekora", "Houshou Marine", "Mori Calliope", "Gawr Gura"},
+			want:      nil,
+		},
+		{
+			name:      "named talents, and only those",
+			headline:  "Pekora and Marine announce a joint 3D live",
+			confirmed: []string{"Usada Pekora", "Houshou Marine", "Shirogane Noel"},
+			want:      []string{"Usada Pekora", "Houshou Marine"},
+		},
+		{
+			name:      "nicknames count as naming",
+			headline:  "Senchou visits Peko-land",
+			confirmed: []string{"houshou marine", "Usada Pekora"},
+			want:      []string{"Houshou Marine", "Usada Pekora"},
+		},
+		{
+			name:      "the model can drop a name that means something else",
+			headline:  "Lamy shows off a polka dot dress",
+			confirmed: []string{"Yukihana Lamy"},
+			want:      []string{"Yukihana Lamy"},
+		},
+		{
+			name:      "the model can't add anyone",
+			headline:  "Mococo's birthday stream",
+			confirmed: []string{"FuwaMoco Abyssgard", "Gawr Gura"},
+			want:      []string{"FuwaMoco Abyssgard"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := selectTalents(matcher.Match(tc.headline), tc.confirmed)
+			if len(got) == 0 && len(tc.want) == 0 {
+				return
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("selectTalents(%q) = %v, want %v", tc.headline, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPlanThumbnail(t *testing.T) {
+	t.Run("no talent and nothing to picture: no thumbnail", func(t *testing.T) {
+		plan := planThumbnail(nil, promptResult{Skip: true})
+		if plan.Draw || plan.Reason == "" {
+			t.Fatalf("plan = %+v, want no thumbnail with a reason", plan)
+		}
+	})
+	t.Run("a skip with talents named still draws them", func(t *testing.T) {
+		plan := planThumbnail([]string{"Usada Pekora"}, promptResult{ImagePrompt: "Pekora with a carrot", Skip: true})
+		if !plan.Draw {
+			t.Fatalf("plan = %+v, want a thumbnail", plan)
+		}
+	})
+	t.Run("an empty prompt: no thumbnail", func(t *testing.T) {
+		if plan := planThumbnail([]string{"Usada Pekora"}, promptResult{ImagePrompt: "  "}); plan.Draw {
+			t.Fatalf("plan = %+v, want no thumbnail", plan)
+		}
+	})
+	t.Run("no talent but a clear scene: nobody in it", func(t *testing.T) {
+		plan := planThumbnail(nil, promptResult{ImagePrompt: "a tabletop RPG table with dice"})
+		if !plan.Draw {
+			t.Fatalf("plan = %+v, want a thumbnail", plan)
+		}
+		if !strings.Contains(plan.Prompt, "Draw no people and no characters") {
+			t.Fatalf("prompt %q should forbid people", plan.Prompt)
+		}
+		if strings.Contains(plan.Prompt, "reference images") {
+			t.Fatalf("prompt %q shouldn't mention reference images", plan.Prompt)
+		}
+	})
+	t.Run("named talents: exactly those", func(t *testing.T) {
+		plan := planThumbnail([]string{"Usada Pekora", "FuwaMoco Abyssgard"}, promptResult{ImagePrompt: "a collab"})
+		want := "Draw exactly 2 characters: Usada Pekora, FuwaMoco Abyssgard (the twins Fuwawa and Mococo Abyssgard, one image each)."
+		if !plan.Draw || !strings.Contains(plan.Prompt, want) || !strings.Contains(plan.Prompt, "Add no other characters") {
+			t.Fatalf("prompt %q, want it to contain %q and forbid anyone else", plan.Prompt, want)
+		}
+	})
+}
+
+func TestThumbnailCastRules(t *testing.T) {
+	if rules := thumbnailCastRules(nil); !strings.Contains(rules, "NO people") || !strings.Contains(rules, `"skip":true`) {
+		t.Fatalf("cast rules without talents = %q", rules)
+	}
+	if rules := thumbnailCastRules([]string{"Usada Pekora"}); !strings.Contains(rules, "Draw exactly these hololive talents and nobody else: Usada Pekora.") {
+		t.Fatalf("cast rules with a talent = %q", rules)
 	}
 }

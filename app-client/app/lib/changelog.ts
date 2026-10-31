@@ -13,6 +13,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-31",
+    title: "HoloNews pictures show the right talents",
+    changes: [
+      {
+        kind: "fixed",
+        text: "A HoloNews story's picture now only shows talents the headline names. A headline like \"… with 4 hololive talents\" used to get four talents guessed for it, some of them nothing to do with the story. Now a story that names nobody gets a picture with no talents in it, or the usual HoloNews art when there's nothing clear to draw.",
+      },
+    ],
+  },
+  {
     date: "2026-10-30",
     title: "Nicer account emails",
     changes: [

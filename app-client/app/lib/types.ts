@@ -1523,6 +1523,8 @@ export type NewsItem = {
   save_count?: number | null;
   comment_count?: number | null;
   view_count?: number | null;
+  /** Pinned to the top of the home page by an admin (it leads, in the admin's order). */
+  pinned?: boolean;
 };
 
 export type NewsFeedPagination = {

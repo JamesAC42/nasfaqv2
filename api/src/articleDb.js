@@ -328,6 +328,161 @@ async function backfillAllNewsArticles(pool, { batchSize = 500 } = {}) {
   return ids.length;
 }
 
+// ── Home page pins ───────────────────────────────────────────────────────────
+// An admin can pin stories to the top of the home page; they lead, in the admin's order, and the
+// slots after them fill automatically as before. The front page has a lead and five headlines.
+const FRONT_PAGE_PIN_LIMIT = 6;
+// GET /api/news/front-page's cache, dropped when the pins change.
+const FRONT_PAGE_CACHE_KEY = "news:front-page";
+
+/**
+ * The pinned stories in order, shaped like /api/news items, with `status` (a pinned article that is
+ * later unpublished stays pinned, but the home page leaves it out) and who pinned it when.
+ */
+async function listFrontPagePins(pool) {
+  const { rows } = await pool.query(`
+    SELECT
+      p.position,
+      p.pinned_at,
+      pinner.username AS pinned_by,
+      a.id AS article_id,
+      a.slug AS article_slug,
+      a.news_id,
+      a.is_news,
+      a.status,
+      COALESCE(n.headline, a.title) AS headline,
+      a.subtitle AS summary,
+      COALESCE(n.thumbnail_url, a.thumbnail_url) AS thumbnail_url,
+      a.published_at,
+      a.views,
+      a.likes,
+      a.saves,
+      COALESCE(comment_rel.comment_count, 0)::int AS comment_count,
+      COALESCE(rel.stock_symbols, ARRAY[]::text[]) AS stock_symbols,
+      COALESCE(rel.units, ARRAY[]::text[]) AS units,
+      COALESCE(
+        (SELECT json_agg(json_build_object('symbol', m.symbol, 'mood', m.mood) ORDER BY m.symbol)
+         FROM content.news_moods m WHERE m.news_id = a.news_id),
+        '[]'::json
+      ) AS moods
+    FROM content.front_page_pins p
+    JOIN content.articles a
+      ON a.id = p.article_id
+    LEFT JOIN info.member_news n
+      ON n.id = a.news_id
+    LEFT JOIN market.users pinner
+      ON pinner.id = p.pinned_by
+    LEFT JOIN LATERAL (
+      SELECT
+        array_agg(DISTINCT ma.symbol) AS stock_symbols,
+        array_agg(DISTINCT yc.unit) FILTER (WHERE yc.unit IS NOT NULL) AS units
+      FROM content.article_assets aa
+      JOIN market.market_assets ma
+        ON ma.id = aa.asset_id
+      LEFT JOIN yt.youtube_channels yc
+        ON yc.youtube_channel_id = ma.youtube_channel_id
+      WHERE aa.article_id = a.id
+    ) rel ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*)::int AS comment_count
+      FROM content.article_comments ac
+      WHERE ac.article_id = a.id
+        AND ac.hidden_at IS NULL
+    ) comment_rel ON TRUE
+    ORDER BY p.position ASC, p.pinned_at ASC
+  `);
+  return rows.map((row) => ({
+    id: `article-${row.article_id}`,
+    headline: row.headline,
+    source: row.is_news ? "HoloNews" : "Player article",
+    published_at: row.published_at,
+    thumbnail_url: row.thumbnail_url,
+    summary: row.summary,
+    stock_symbols: row.stock_symbols,
+    units: row.units,
+    moods: Array.isArray(row.moods) ? row.moods : [],
+    article_id: Number(row.article_id),
+    article_slug: row.article_slug,
+    news_id: row.news_id ? Number(row.news_id) : null,
+    is_news: Boolean(row.is_news),
+    status: row.status,
+    view_count: Number(row.views || 0),
+    like_count: Number(row.likes || 0),
+    save_count: Number(row.saves || 0),
+    comment_count: Number(row.comment_count || 0),
+    position: Number(row.position),
+    pinned_at: row.pinned_at,
+    pinned_by: row.pinned_by || null,
+  }));
+}
+
+/** An article's id from its slug, making the article for a news story that doesn't have one yet. */
+async function resolveArticleIdBySlug(client, slug) {
+  const { rows } = await client.query(`SELECT id FROM content.articles WHERE slug = $1 LIMIT 1`, [slug]);
+  if (rows[0]) return Number(rows[0].id);
+  const newsId = /^news-\d+$/.test(slug) ? Number(slug.slice(5)) : await findNewsIdBySlugCandidate(client, slug);
+  if (!newsId) return null;
+  try {
+    return Number((await ensureNewsArticle(client, newsId)).id);
+  } catch (error) {
+    if (error?.code === "article_not_found") return null;
+    throw error;
+  }
+}
+
+/**
+ * Replaces the pins with these articles, in this order (slugs, at most FRONT_PAGE_PIN_LIMIT). An empty
+ * list unpins everything. Articles that stay pinned keep who pinned them and when.
+ */
+async function setFrontPagePins(pool, slugs, actorId = null) {
+  if (!Array.isArray(slugs)) {
+    const error = new Error("invalid_front_page_pins");
+    error.code = "invalid_front_page_pins";
+    throw error;
+  }
+  const wanted = Array.from(new Set(slugs.map((slug) => normalizeString(slug, { maxLength: 220, allowEmpty: false })).filter(Boolean)));
+  if (wanted.length > FRONT_PAGE_PIN_LIMIT) {
+    const error = new Error(`At most ${FRONT_PAGE_PIN_LIMIT} stories can be pinned.`);
+    error.code = "invalid_front_page_pins";
+    throw error;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    // One change at a time, so two admins saving at once can't interleave their orders.
+    await client.query("LOCK TABLE content.front_page_pins IN SHARE ROW EXCLUSIVE MODE");
+    const ids = [];
+    for (const slug of wanted) {
+      const id = await resolveArticleIdBySlug(client, slug);
+      if (!id) {
+        const error = new Error("article_not_found");
+        error.code = "article_not_found";
+        throw error;
+      }
+      if (!ids.includes(id)) ids.push(id);
+    }
+    await client.query(`DELETE FROM content.front_page_pins WHERE NOT (article_id = ANY($1::bigint[]))`, [ids]);
+    if (ids.length) {
+      await client.query(
+        `
+        INSERT INTO content.front_page_pins (article_id, position, pinned_by)
+        SELECT pinned.article_id, pinned.position::int, $2::bigint
+        FROM unnest($1::bigint[]) WITH ORDINALITY AS pinned(article_id, position)
+        ON CONFLICT (article_id) DO UPDATE SET position = EXCLUDED.position
+      `,
+        [ids, actorId]
+      );
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function findNewsIdBySlugCandidate(client, slug) {
   const safeSlug = normalizeString(slug, { maxLength: 220, allowEmpty: false });
   if (!safeSlug) return null;
@@ -1544,6 +1699,10 @@ module.exports = {
   ensureNewsArticlesByHeadlines,
   getNewsArticleRefsByHeadlines,
   backfillAllNewsArticles,
+  FRONT_PAGE_PIN_LIMIT,
+  FRONT_PAGE_CACHE_KEY,
+  listFrontPagePins,
+  setFrontPagePins,
   listArticles,
   getArticleBySlug,
   createArticle,
