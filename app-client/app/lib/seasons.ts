@@ -22,7 +22,7 @@ export type Season = {
 };
 
 export const SEASONS = [
-  { id: "fall", label: "Fall colours", base: "dark", start: "2026-10-31", end: "2026-11-30" },
+  { id: "fall", label: "Fall colors", base: "dark", start: "2026-10-31", end: "2026-11-30" },
 ] as const satisfies readonly Season[];
 
 export type SeasonId = (typeof SEASONS)[number]["id"];

@@ -14,11 +14,11 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-10-31",
-    title: "Fall colours theme",
+    title: "Fall colors theme",
     changes: [
       {
         kind: "new",
-        text: "Happy Halloween! There's a third theme next to dark and light until the end of November: Fall colours, with purple where it's usually blue, a plum-black background and a few pumpkin-orange touches. Green and red still mean up and down, and amber still means a warning. To try it, press the theme button in the top bar until you see it (it shows a leaf from dark mode), or pick Fall colours in the phone menu. After November it goes back to dark.",
+        text: "Happy Halloween! There's a third theme next to dark and light until the end of November: Fall colors, with purple where it's usually blue, a plum-black background and a few pumpkin-orange touches. Green and red still mean up and down, and amber still means a warning. To try it, press the theme button in the top bar until you see it (it shows a leaf from dark mode), or pick Fall colors in the phone menu. After November it goes back to dark.",
       },
     ],
   },
