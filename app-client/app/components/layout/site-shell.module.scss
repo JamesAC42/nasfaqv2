@@ -13,6 +13,47 @@
   }
 }
 
+// A profile wearing the v1 Classic theme dresses the top bar as the old site's: white, with a soft
+// shadow and the old logo, in plain words.
+.shell:has([data-v1-classic]) {
+  @include v1-classic-tokens;
+  background: #fff;
+  color: #000;
+  font-family: var(--font-body);
+
+  .header {
+    border-bottom: 0;
+    background: #fff;
+    box-shadow: 0 7px 32px -14px rgba(0, 0, 0, 0.75);
+  }
+
+  .rail {
+    border-bottom: 0;
+  }
+
+  .logo {
+    font-family: var(--font-chicago), sans-serif;
+    font-size: 30px;
+    color: #38b6f6;
+
+    i {
+      display: none;
+    }
+  }
+
+  .navItem {
+    border-bottom: 0;
+    font-size: 14px;
+    color: #000;
+  }
+
+  .textButton {
+    border-color: var(--rule);
+    border-radius: 5px;
+    letter-spacing: 0;
+  }
+}
+
 // ── Header: rail + tape, sticky together ────────────────────────────────────
 .header {
   position: sticky;

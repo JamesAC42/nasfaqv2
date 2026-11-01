@@ -4,6 +4,7 @@ import { CosmeticChip } from "@/app/components/common/cosmetic-chip";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { FaCoins } from "react-icons/fa6";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { Oshimark } from "@/app/components/common/oshimark";
@@ -23,6 +24,7 @@ import {
   PendingOrders,
   PredictionExposure,
   RecentFills,
+  V1Trophy,
 } from "@/app/components/profile/profile-sections";
 import { apiFetch } from "@/app/lib/api";
 import { normalizePredictionPortfolioResponse, normalizeProfileBundle } from "@/app/lib/normalizers";
@@ -150,12 +152,15 @@ export function ProfileView({ username }: { username?: string | null }) {
   const dayAgo = [...history].reverse().find((point) => Date.parse(point.recorded_at) <= Date.now() - 86_400_000);
   const today = dayAgo && dayAgo.total_equity ? profile.stats.total_equity / dayAgo.total_equity - 1 : null;
   const verify = isSelf && userNeedsEmailVerification(user);
+  // v1 Classic dresses the whole page as the old site, which had no price tape or footer.
+  const v1Classic = pageTheme?.pattern === "v1";
 
   return (
-    <SiteShell>
+    <SiteShell hideRibbon={v1Classic} hideFooter={v1Classic}>
       <div
         className={styles.page}
         data-theme-pattern={pageTheme ? pageTheme.pattern : undefined}
+        data-v1-classic={v1Classic ? "" : undefined}
         style={
           {
             "--pc": color,
@@ -276,7 +281,10 @@ export function ProfileView({ username }: { username?: string | null }) {
         <div className={styles.kstrip}>
           <div>
             <span className={styles.label}>Net worth</span>
-            <b>{money(profile.stats.total_equity)}</b>
+            <b>
+              {v1Classic ? <FaCoins className={styles.v1Coin} aria-hidden /> : null}
+              {money(profile.stats.total_equity)}
+            </b>
             <small>
               {money(profile.stats.cash_balance)} cash · {money(profile.stats.credit_balance)} Credit
             </small>
@@ -315,6 +323,18 @@ export function ProfileView({ username }: { username?: string | null }) {
             </small>
           </div>
         </div>
+
+        {profile.v1_account ? (
+          <V1Trophy
+            account={profile.v1_account}
+            isSelf={isSelf}
+            onChange={(v1_account) => setBundle((current) => (current ? { ...current, profile: { ...current.profile, v1_account } } : current))}
+          />
+        ) : isSelf ? (
+          <p className={styles.v1Invite}>
+            Played the original NASFAQ? <Link href="/link-v1">Link your v1 account</Link> for a veteran badge, a trophy here and the v1 Classic theme.
+          </p>
+        ) : null}
 
         <div className={styles.grid2}>
           <NetworthChart profile={profile} />

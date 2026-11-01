@@ -47,7 +47,9 @@ const sections: LegalSection[] = [
           <Fact term="Your profile">
             <p>
               Your bio, the profile picture you pick from our set (you can’t upload your own), your profile colour,
-              your oshi coin, and your friends and rivals.
+              your oshi coin, and your friends and rivals. If you link an account from the original NASFAQ (nasfaq.biz),
+              we keep a snapshot of it from that day: its ID and username, when it joined, its net worth and rank, and how
+              many hats and items it held. We don’t get its email or password.
             </p>
           </Fact>
           <Fact term="What you post">
@@ -143,6 +145,7 @@ const sections: LegalSection[] = [
                 streak, friends and rivals
               </li>
               <li>your rank, cash, total stock value, net worth and net worth history</li>
+              <li>if you linked one, your v1 username and stats, unless you hide them</li>
               <li>your stock trade history: each buy and sell, with the ticker, price and quantity</li>
               <li>your prediction market trades, disputes (with your reason) and forecaster leaderboard results</li>
               <li>

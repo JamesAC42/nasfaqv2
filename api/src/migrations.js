@@ -1844,6 +1844,44 @@ async function applySchema(pool) {
       pinned_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
+
+  // Players who linked their account on the original NASFAQ (services/v1Link.js): one v1 account to one
+  // v2 account. The figures are a snapshot taken when they linked, kept for when v1 is gone.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.v1_account_links (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL UNIQUE REFERENCES market.users(id) ON DELETE CASCADE,
+      v1_user_id UUID NOT NULL UNIQUE,
+      v1_username TEXT NOT NULL,
+      v1_joined_at TIMESTAMPTZ NOT NULL,
+      peak_net_worth NUMERIC(50,2) NULL,
+      peak_at TIMESTAMPTZ NULL,
+      net_worth NUMERIC(50,2) NULL,
+      rank INTEGER NULL,
+      rank_of INTEGER NULL,
+      hats INTEGER NOT NULL DEFAULT 0,
+      items INTEGER NOT NULL DEFAULT 0,
+      show_on_profile BOOLEAN NOT NULL DEFAULT true,
+      linked_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_v1_account_links_linked_idx ON market.v1_account_links (linked_at DESC, id DESC)`);
+  // Each time a player starts linking and how it ended, for the admin numbers. reason says why it
+  // didn't work; a row still 'started' after expires_at was abandoned.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.v1_link_attempts (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      session_id BIGINT NOT NULL,
+      nonce_hash TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'started' CHECK (status IN ('started', 'linked', 'failed')),
+      reason TEXT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      expires_at TIMESTAMPTZ NOT NULL,
+      finished_at TIMESTAMPTZ NULL
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_v1_link_attempts_user_idx ON market.v1_link_attempts (user_id, created_at DESC, id DESC)`);
 }
 
 module.exports = { applySchema };

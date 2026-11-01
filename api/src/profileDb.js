@@ -4,6 +4,7 @@ const netWorth = require("./services/netWorth");
 const achievements = require("./services/achievements");
 const trading = require("./services/trading");
 const gamesInventory = require("./services/games/inventory");
+const v1Link = require("./services/v1Link");
 const { profilePictureUrlSql } = require("./profilePictures");
 const reactions = require("./services/games/reactions");
 const notifications = require("./services/notifications");
@@ -514,7 +515,7 @@ async function getProfileBundle(pool, {
   const profileUser = await resolveProfileUser(pool, { username, viewerUserId, selfOnly });
 
   const isSelf = Boolean(viewerUserId) && Number(profileUser.id) === Number(viewerUserId);
-  const [viewerContext, stats, friends, rivals, networth, articleResult, savedArticleResult, tradeResult, portfolio, userAchievements, streaks, leaderboardEntries, oshiboards, gachaBadges, gachaTotalSpent] = await Promise.all([
+  const [viewerContext, stats, friends, rivals, networth, articleResult, savedArticleResult, tradeResult, portfolio, userAchievements, streaks, leaderboardEntries, oshiboards, gachaBadges, gachaTotalSpent, v1Account] = await Promise.all([
     getViewerContext(pool, profileUser.id, viewerUserId),
     getProfileStats(pool, profileUser.id),
     listAcceptedFriends(pool, profileUser.id),
@@ -530,8 +531,9 @@ async function getProfileBundle(pool, {
     netWorth.listUserOshiboardMemberships(pool, profileUser.id),
     gamesInventory.listUserGachaBadges(pool, profileUser.id),
     gamesInventory.getTotalGachaSpentCash(pool, profileUser.id),
+    v1Link.getProfileLink(pool, profileUser.id, { isSelf }),
   ]);
-  const equipped = (await loadEquipped(pool, [profileUser.id])).get(Number(profileUser.id)) ?? {};
+  const equipped =(await loadEquipped(pool, [profileUser.id])).get(Number(profileUser.id)) ?? {};
   const bannerOptions = isSelf ? await listBannerOptions(pool, profileUser.id) : [];
   const leaderboardEntry = leaderboardEntries[0] || null;
 
@@ -601,6 +603,7 @@ async function getProfileBundle(pool, {
       pending_friend_requests: pending,
       holdings: isSelf ? portfolio.holdings : [],
       gacha_badges: gachaBadges,
+      v1_account: v1Account,
       gacha_total_spent_cash: gachaTotalSpent,
     },
     viewer_context: viewerContext,

@@ -249,7 +249,7 @@ export function SettingsModal({
         </div>
         <ThemeChoice themes={themes} value={themeId} onChange={setThemeId} />
         <BannerChoice options={profile.banner_options} value={banner} onChange={setBanner} />
-        {themeId !== null && banner ? (
+        {themeId !== null && banner && themes?.find((entry) => entry.id === themeId)?.theme.pattern !== "v1" ? (
           <small className={styles.themeNote}>
             Your banner art fills the header, in place of the theme&apos;s pattern there. The theme still shades the banner and colours the rest of your page.
           </small>

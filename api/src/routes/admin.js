@@ -13,6 +13,7 @@ const { ipClusters, ipHashingEnabled, sharedIpAccounts } = require("../services/
 const schedulerHealth = require("../services/schedulerHealth");
 const moderation = require("../services/moderation");
 const umami = require("../services/umami");
+const v1Link = require("../services/v1Link");
 const profileDb = require("../profileDb");
 const { requireAdmin } = require("../userContext");
 
@@ -41,6 +42,7 @@ const ERROR_STATUS = {
   analytics_not_configured: 503,
   analytics_forbidden: 503,
   analytics_unavailable: 503,
+  v1_link_not_found: 404,
 };
 
 const handle = (fn) => async (req, res, next) => {
@@ -104,6 +106,25 @@ router.get(
     requireSiteAdmin(req);
     res.set("Cache-Control", "no-store");
     res.json(await umami.siteAnalytics({ site: req.query.site, from: req.query.from, to: req.query.to }));
+  })
+);
+
+// How many v1 players have linked, and why others didn't finish.
+router.get(
+  "/v1-links",
+  handle(async (req, res) => {
+    requireSiteAdmin(req);
+    res.set("Cache-Control", "no-store");
+    res.json(await v1Link.adminSummary(req.ctx.pool, { search: req.query.q, limit: req.query.limit }));
+  })
+);
+
+// Undoes a link: takes back the badge and theme and frees the v1 account to link again.
+router.delete(
+  "/v1-links/:userId",
+  handle(async (req, res) => {
+    const actor = requireSiteAdmin(req);
+    res.json(await v1Link.unlink(req.ctx.pool, { userId: req.params.userId, actor, reason: req.body?.reason ?? null }));
   })
 );
 
