@@ -4,6 +4,7 @@
 // services/adminConsole.js).
 // Moderation (services/moderation.js): suspensions, profile resets, hidden comments and the log of
 // admin actions (GET /moderation/actions).
+// Site traffic (services/umami.js): GET /analytics.
 
 const express = require("express");
 const adminConsole = require("../services/adminConsole");
@@ -11,6 +12,7 @@ const exchange = require("../services/games/exchange");
 const { ipClusters, ipHashingEnabled, sharedIpAccounts } = require("../services/ipHash");
 const schedulerHealth = require("../services/schedulerHealth");
 const moderation = require("../services/moderation");
+const umami = require("../services/umami");
 const profileDb = require("../profileDb");
 const { requireAdmin } = require("../userContext");
 
@@ -33,6 +35,12 @@ const ERROR_STATUS = {
   cannot_unverify_email: 400,
   admin_change_needs_confirm: 409,
   username_taken: 409,
+  invalid_site: 400,
+  invalid_range: 400,
+  // 503 rather than 502: Cloudflare can swap a 502 for its own error page, and the page needs the code.
+  analytics_not_configured: 503,
+  analytics_forbidden: 503,
+  analytics_unavailable: 503,
 };
 
 const handle = (fn) => async (req, res, next) => {
@@ -86,6 +94,16 @@ router.get(
       alerts_configured: Boolean(process.env.DISCORD_ALERT_WEBHOOK_URL),
       schedulers: await schedulerHealth.listSchedulerHealth(req.ctx.redis),
     });
+  })
+);
+
+// Visitors, page views, top pages and referrers for one site between two dates (New York days).
+router.get(
+  "/analytics",
+  handle(async (req, res) => {
+    requireSiteAdmin(req);
+    res.set("Cache-Control", "no-store");
+    res.json(await umami.siteAnalytics({ site: req.query.site, from: req.query.from, to: req.query.to }));
   })
 );
 
