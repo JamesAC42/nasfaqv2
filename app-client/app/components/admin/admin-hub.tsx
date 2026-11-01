@@ -654,6 +654,7 @@ export function AdminHub() {
     { href: "/admin/people", label: "People & roles", line: "Find a player, hand out or take back roles, suspend or reset a profile.", show: isAdmin },
     { href: "/admin/moderation", label: "Moderation", line: "Chat reports, mutes and bans, and the log of admin actions.", show: isAdmin },
     { href: "/admin/exchange", label: "Exchange review", line: "Lopsided card sales and trades involving new accounts.", show: isAdmin },
+    { href: "/admin/analytics", label: "Analytics", line: "Visitors, page views, top pages and referrers from Umami, for both sites.", show: isAdmin },
   ].filter((tool) => tool.show);
 
   return (

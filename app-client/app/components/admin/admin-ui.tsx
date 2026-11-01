@@ -221,6 +221,10 @@ export function adminErrorText(error: unknown) {
     chat_message_not_found: "That message is gone.",
     invalid_announcement: "Check the announcement: up to 280 characters, and a link that starts with / or https://.",
     username_taken: "Couldn't find a free player_ name. Try again.",
+    analytics_not_configured: "Umami isn't connected yet: UMAMI_API_KEY isn't set on the API. Make a key in Umami (Settings > API keys) and add it to nasfaq-app-secrets.",
+    analytics_forbidden: "Umami turned down the API key. Check UMAMI_API_KEY, and that the account that made it can see this site.",
+    analytics_unavailable: "Can't get the numbers from Umami right now. Try again in a minute.",
+    invalid_range: "Pick a start date on or before the end date, up to a year apart and not in the future.",
     "Failed to fetch": "Can't reach the API.",
   };
   return map[code] ?? (code || "Something went wrong.");

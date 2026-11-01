@@ -86,6 +86,7 @@ export function AdminFrame({ kicker = "Back office", title, blurb, aside, live =
     { href: "/admin/moderation", label: "Moderation", show: access.isAdmin },
     { href: "/admin/front-page", label: "Front page", show: access.isAdmin },
     { href: "/admin/exchange", label: "Exchange review", show: access.isAdmin },
+    { href: "/admin/analytics", label: "Analytics", show: access.isAdmin },
   ];
   const visible = items.filter((item) => item.show);
 

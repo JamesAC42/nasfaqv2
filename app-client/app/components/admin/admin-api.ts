@@ -385,6 +385,36 @@ export type ExchangeReview = {
 
 export const fetchExchangeReview = (days: number) => apiFetch<ExchangeReview>(`/api/admin/exchange-review?days=${days}`, { cache: "no-store" });
 
+// ── /api/admin/analytics ─────────────────────────────────────────────────
+
+export type AnalyticsSite = "v2" | "v1";
+export type AnalyticsTotals = { visitors: number; visits: number; pageviews: number; bounces: number; total_time_sec: number };
+/** `at` is a New York day ("2026-10-31") or hour ("2026-10-31 13"). */
+export type AnalyticsPoint = { at: string; visitors: number; pageviews: number };
+export type AnalyticsRow = { label: string; count: number };
+
+export type SiteAnalytics = {
+  site: AnalyticsSite;
+  host: string;
+  from: string;
+  to: string;
+  unit: "hour" | "day";
+  time_zone: string;
+  generated_at: string;
+  totals: AnalyticsTotals;
+  previous: AnalyticsTotals;
+  series: AnalyticsPoint[];
+  pages: AnalyticsRow[];
+  referrers: AnalyticsRow[];
+  countries: AnalyticsRow[];
+  campaigns: AnalyticsRow[];
+  /** Visitors who followed a link on v1. Only for v2. */
+  from_v1: AnalyticsTotals | null;
+};
+
+export const fetchSiteAnalytics = (site: AnalyticsSite, from: string, to: string) =>
+  apiFetch<SiteAnalytics>(`/api/admin/analytics?site=${site}&from=${from}&to=${to}`, { cache: "no-store" });
+
 // ── /api/admin/holonews/front-page ───────────────────────────────────────
 
 /** A story pinned to the top of the home page. `status` "draft" ones stay pinned but aren't shown. */

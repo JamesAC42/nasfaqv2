@@ -1545,5 +1545,6 @@ module.exports = {
   openDueWindows,
   listDueEvents,
   startIpoScheduler,
+  zonedTime,
   _test: { zonedTime, todayKey, suggestedListingDate, channelSummary },
 };

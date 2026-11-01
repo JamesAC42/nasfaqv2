@@ -1,0 +1,297 @@
+@use "../../styles/mixins" as *;
+
+// /admin/analytics. Hairlines and small marks like the rest of the back office; the bars are the only color.
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.6rem 0.75rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--rule);
+
+  label {
+    width: 9.5rem;
+  }
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-right: auto;
+
+  button {
+    @include label;
+    padding: 0.42rem 0.6rem;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--mid);
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover {
+      color: var(--text);
+    }
+
+    &[aria-pressed="true"] {
+      border-color: var(--blue-line);
+      color: var(--blue);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+// While the next range loads (or if it failed to), the last numbers stay put, dimmed.
+.body {
+  min-width: 0;
+  transition: opacity var(--dur-fast) ease;
+
+  &[data-stale] {
+    opacity: 0.55;
+  }
+}
+
+.charts,
+.lists {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 2rem;
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+// ── Column chart ───────────────────────────────────────────────────────────
+.chart {
+  --plot-height: 11rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0.5rem;
+  margin: 0;
+}
+
+.axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: var(--plot-height);
+  text-align: right;
+
+  span {
+    @include num;
+    font-size: 0.66rem;
+    line-height: 0;
+    color: var(--dim);
+  }
+}
+
+.plot {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  height: var(--plot-height);
+  min-width: 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  // The middle hairline, at half the axis.
+  background: linear-gradient(var(--rule), var(--rule)) center / 100% 1px no-repeat;
+  cursor: crosshair;
+  touch-action: pan-y;
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.band {
+  flex: 1 1 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 0;
+
+  i {
+    width: calc(100% - 2px);
+    max-width: 24px;
+    border-radius: 4px 4px 0 0;
+    background: var(--blue);
+    opacity: 0.8;
+
+    // A day with any traffic is never invisible, however tall the busiest day is.
+    &[data-some] {
+      min-height: 2px;
+    }
+  }
+
+  &[data-active] i {
+    opacity: 1;
+  }
+
+  &[data-active] {
+    background: var(--blue-wash);
+  }
+}
+
+.tip {
+  position: absolute;
+  top: 0.35rem;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 0.75rem;
+  color: var(--mid);
+  white-space: nowrap;
+  pointer-events: none;
+
+  &[data-edge="start"] {
+    transform: translateX(0);
+  }
+
+  &[data-edge="end"] {
+    transform: translateX(-100%);
+  }
+
+  small {
+    @include label;
+    font-size: 0.58rem;
+  }
+
+  b {
+    @include num;
+    font-weight: 500;
+    color: var(--text);
+  }
+}
+
+.ticks {
+  grid-column: 2;
+  position: relative;
+  height: 1.3rem;
+
+  span {
+    @include num;
+    position: absolute;
+    top: 0.35rem;
+    transform: translateX(-50%);
+    font-size: 0.66rem;
+    color: var(--dim);
+    white-space: nowrap;
+
+    &[data-edge="start"] {
+      left: 0 !important;
+      transform: none;
+    }
+
+    &[data-edge="end"] {
+      left: 100% !important;
+      transform: translateX(-100%);
+    }
+  }
+}
+
+// ── The same numbers as a table ────────────────────────────────────────────
+.table {
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--rule);
+
+  summary {
+    @include label;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--text);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+
+  table {
+    width: 100%;
+    margin-top: 0.5rem;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+  }
+
+  th,
+  td {
+    padding: 0.28rem 0.75rem 0.28rem 0;
+    border-bottom: 1px solid var(--rule);
+    font-weight: 400;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  th:first-child {
+    text-align: left;
+    color: var(--mid);
+  }
+
+  thead th {
+    @include label;
+    font-size: 0.58rem;
+  }
+
+  td {
+    @include num;
+  }
+}
+
+.tableScroll {
+  max-height: 20rem;
+  overflow: auto;
+}
+
+// ── Ranked lists ───────────────────────────────────────────────────────────
+.rank {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 0.75rem;
+    align-items: baseline;
+    padding: 0.28rem 0 0.32rem;
+    font-size: 0.85rem;
+    min-width: 0;
+  }
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text);
+  }
+
+  b {
+    @include num;
+    font-weight: 500;
+    color: var(--mid);
+  }
+
+  i {
+    grid-column: 1 / -1;
+    display: block;
+    height: 2px;
+    margin-top: 0.22rem;
+    border-radius: 1px;
+    background: var(--blue);
+    opacity: 0.8;
+  }
+}
