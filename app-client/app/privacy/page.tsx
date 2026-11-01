@@ -118,8 +118,10 @@ const sections: LegalSection[] = [
           </li>
         </ul>
         <p>
-          We don’t sell your data, rent it out, or use it for advertising. There are no ads on NASFAQ. The only
-          emails we send are account emails, like the verification link.
+          We don’t sell your data, rent it out, or use it for advertising. There are no ads on NASFAQ. The emails we
+          send are account emails, like the verification link. The one exception is a single announcement of this site,
+          sent to verified accounts on the original NASFAQ (nasfaq.biz) at the address on that account, with a link to
+          unsubscribe.
         </p>
       </>
     ),
@@ -191,7 +193,10 @@ const sections: LegalSection[] = [
             </p>
           </Fact>
           <Fact term="Resend">
-            <p>Sends our account emails (email verification and password resets), so it receives your email address.</p>
+            <p>
+              Sends our account emails (email verification and password resets), so it receives your email address. It
+              also sends the single announcement to accounts on the original NASFAQ.
+            </p>
           </Fact>
           <Fact term="Umami analytics">
             <p>
@@ -401,7 +406,7 @@ export default function PrivacyPage() {
     <LegalPage
       doc="privacy"
       title="Privacy Policy"
-      updated={{ iso: "2026-09-29", label: "September 29, 2026" }}
+      updated={{ iso: "2026-11-01", label: "November 1, 2026" }}
       art="legal-privacy-spot"
       intro={
         <p>
