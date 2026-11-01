@@ -5,19 +5,28 @@ const DEFAULT_TRANSIENT_IMPACT_WEIGHT = 0.7;
 const DEFAULT_PERSISTENT_IMPACT_WEIGHT = 0.15;
 const DEFAULT_EXECUTION_SLIPPAGE_WEIGHT = 0.5;
 const DEFAULT_LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL = 180;
-const DEFAULT_LIVE_ORDER_BATCH_LIMIT = 100;
+const DEFAULT_LIVE_ORDER_BATCH_LIMIT = 500;
 const DEFAULT_LIVE_ORDER_WORKER_CONCURRENCY = 4;
 const DEFAULT_LIVE_ORDER_SCHEDULER_INTERVAL_MS = 1_000;
 const DEFAULT_LIVE_ORDER_HOLD_MARGIN = 0.05;
 const LIVE_ORDER_SCHEDULER_LOCK_KEY = 9_204_003;
+// A wallet or holding row someone else holds for this long sends the chunk to the row-by-row path,
+// where only the orders that need that row wait for it.
+const LIVE_ORDER_CHUNK_LOCK_TIMEOUT_MS = 3_000;
+// The newest fills each landing tells every open tab about. A tape shows 80 rows and pages the rest in;
+// past this size the event would only cost bandwidth (every socket gets a copy).
+const LIVE_ORDER_LANDING_TRADES = 200;
 const marketState = require("./marketState");
 const supply = require("./marketSupply");
 const netWorth = require("./netWorth");
 const achievements = require("./achievements");
-const { ensureUserCashAccount, getStarterCash, openUserCashAccount } = require("./portfolioCash");
+const liveOrderBatch = require("./liveOrderBatch");
+const pgNumeric = require("./pgNumeric");
+const { ensureUserCashAccount, getStarterCash, getStarterCredit, openUserCashAccount } = require("./portfolioCash");
 const economy = require("./economy");
 const { publishMarketEvent } = require("./marketEvents");
 const { invalidateMarketAssetsCache } = require("../marketCache");
+const { invalidateCachedJson } = require("../responseCache");
 
 function getTradingFeeRate() {
   const parsed = Number(process.env.MARKET_TRADING_FEE_RATE || DEFAULT_TRADING_FEE_RATE);
@@ -1425,7 +1434,7 @@ async function completeLiveOrderBatch(pool, { batchId, attempted, filled, reject
     UPDATE market.live_order_batches
     SET
       status = $2,
-      completed_at = now(),
+      completed_at = clock_timestamp(),
       orders_attempted = $3,
       orders_filled = $4,
       orders_rejected = $5,
@@ -1478,18 +1487,397 @@ async function runWithConcurrency(items, concurrency, worker) {
   );
 }
 
-async function processDueLiveOrders(pool, { now = new Date(), limit = LIVE_ORDER_BATCH_LIMIT, redis = null } = {}) {
-  // While trading is closed (settlement, or halted by an admin) queued orders wait for the next
-  // batch after it reopens instead of being rejected.
-  const marketStatus = await marketState.getMarketStatus(pool);
-  if (marketStatus && !marketStatus.is_trading_open) {
-    return { batch_id: null, attempted: 0, filled: 0, rejected: 0, skipped: "market_closed" };
-  }
-  const dueOrders = await listDueLiveOrders(pool, { now, limit });
-  if (dueOrders.length === 0) {
-    return { batch_id: null, attempted: 0, filled: 0, rejected: 0 };
+/** `text + number` as a NUMERIC column adds them: exact, and read back the way it's stored. */
+function addToNumeric(text, number) {
+  return pgNumeric.toString(pgNumeric.add(pgNumeric.parse(text), pgNumeric.parse(number)));
+}
+
+/** GREATEST(value, 0) on a pgNumeric value. */
+function floorNumericAtZero(value) {
+  return pgNumeric.compare(value, pgNumeric.ZERO) < 0 ? pgNumeric.ZERO : value;
+}
+
+/**
+ * Works out a chunk of due orders in memory, in queue order: each order decides exactly as executeOrder
+ * does, against the locked rows as the orders before it left them. Same checks in the same order, same
+ * arithmetic, and same text for what's written (test/live-order-batch.test.js holds the two together);
+ * only the reads and writes are grouped. `now` is one clock for the whole chunk, so a fill's price
+ * depends on the orders ahead of it and not on how long they took to write.
+ *
+ * Mutates the rows it's given. Returns what to write (liveOrderBatch.writeChunk) and to announce.
+ */
+function planLiveOrderChunk({ orders, assets, buybacks, accounts, holdings, identities, status, now }) {
+  const feeRate = getTradingFeeRate();
+  const marketDate = status?.last_settlement_market_date || null;
+  const fills = [];
+  const rejections = [];
+  const ledger = [];
+  const touchedAccounts = new Set();
+  const touchedHoldings = new Set();
+  const touchedAssets = new Set();
+  const dailyByAsset = new Map();
+  const buybackTallies = new Map();
+  const opened = [];
+
+  const accountOf = (userId) => {
+    let account = accounts.get(userId);
+    if (!account) {
+      account = { user_id: userId, cash_balance: String(getStarterCash()), held_cash: "0", credit_balance: String(getStarterCredit()), opened: true };
+      accounts.set(userId, account);
+    }
+    return account;
+  };
+  const touchAccount = (account) => {
+    touchedAccounts.add(account);
+    if (account.opened && !opened.includes(account)) opened.push(account);
+  };
+  const dailyOf = (assetId) => {
+    let daily = dailyByAsset.get(assetId);
+    if (!daily) {
+      daily = { asset_id: assetId, mid_close: null, mid_high: null, mid_low: null, bid_close: null, ask_close: null, premium_close_pct: null, volume_shares: pgNumeric.ZERO, volume_cash: pgNumeric.ZERO, trade_count: 0 };
+      dailyByAsset.set(assetId, daily);
+    }
+    return daily;
+  };
+  const reject = (order, reason) => {
+    // rejectLiveOrder: the order's hold goes back, in the row's own (exact) arithmetic.
+    const orderId = Number(order.id);
+    const held = toNumber(order.held_cash, 0);
+    if (held > 0) {
+      const account = accountOf(Number(order.user_id));
+      account.cash_balance = addToNumeric(account.cash_balance, held);
+      account.held_cash = addToNumeric(account.held_cash, -held);
+      touchAccount(account);
+      ledger.push({ userId: Number(order.user_id), assetId: Number(order.asset_id), entryType: "order_cash_release", quantityDelta: 0, cashDelta: held, referenceType: "trade_order", referenceId: orderId });
+    }
+    rejections.push({ orderId, reason });
+  };
+
+  for (const order of orders) {
+    try {
+      const orderId = Number(order.id);
+      const userId = Number(order.user_id);
+      const assetId = Number(order.asset_id);
+      const side = order.side;
+      const heldCash = toNumber(order.held_cash, 0);
+
+      const requested = requirePositiveQuantity(order.requested_quantity);
+      let parsedQuantity = requested;
+      const asset = assets.get(assetId);
+      if (!asset) throw coded("asset_not_found");
+      if (asset.status !== "active" || !(toNumber(asset.current_fair_value, 0) > 0)) throw coded("asset_not_active");
+
+      let buyback = null;
+      if (asset.trading_state === "buyback") {
+        if (side === "buy") throw coded("buyback_frozen");
+        buyback = buybacks.get(assetId) || null;
+      }
+      if (side === "buy") {
+        const forSale = Math.floor(supply.sharesForSale(asset) * 1e6) / 1e6;
+        if (!(forSale > 0)) throw coded("sold_out");
+        parsedQuantity = Math.min(parsedQuantity, forSale);
+      }
+
+      const account = accountOf(userId);
+      const holdingKey = `${userId}:${assetId}`;
+      const holding = holdings.get(holdingKey) || null;
+      const fairPrice = Math.max(toNumber(asset.current_fair_value, 0), 0.000001);
+      const { persistentOffset, transientOffset } = getDecayedOffsets(asset, now);
+      const liveMidBefore = buyback ? toNumber(asset.current_mid_price, 0) : computeLiveMidPrice(fairPrice, persistentOffset, transientOffset);
+      const quotesBefore = computeQuotes(liveMidBefore, asset.spread_bps);
+      const executablePrice = buyback
+        ? supply.buybackFillPrice(asset, buyback, parsedQuantity, now)
+        : computeExecutionPrice({ side, bidPrice: quotesBefore.bidPrice, askPrice: quotesBefore.askPrice, quantity: parsedQuantity, liquidityDepth: asset.liquidity_depth });
+      if (!(executablePrice > 0)) throw coded("invalid_quote");
+
+      const grossCash = executablePrice * parsedQuantity;
+      const feeCash = grossCash * feeRate;
+      const creditBalance = toNumber(account.credit_balance, 0);
+      const feeFromCredit = Math.min(Math.max(creditBalance, 0), feeCash);
+      const feeFromCash = feeCash - feeFromCredit;
+      const creditEarned = side === "sell" ? Math.round(grossCash * economy.SETTINGS.sellCreditRate * 100) / 100 : 0;
+
+      if (side === "buy" && toNumber(account.cash_balance, 0) + heldCash < grossCash + feeFromCash) throw coded("insufficient_cash");
+      if (side === "sell" && toNumber(holding?.quantity, 0) < parsedQuantity) throw coded("insufficient_holdings");
+
+      // Everything past here is the fill: the checks above left the rows alone.
+      const fill = {
+        orderId,
+        assetId,
+        userId,
+        side,
+        price: executablePrice,
+        quantity: parsedQuantity,
+        grossCash,
+        feeCash,
+        netCash: side === "buy" ? -(grossCash + feeCash) : grossCash - feeCash,
+        quoteBid: quotesBefore.bidPrice,
+        quoteAsk: quotesBefore.askPrice,
+      };
+
+      if (heldCash > 0) {
+        account.held_cash = addToNumeric(account.held_cash, -heldCash);
+        ledger.push({ userId, assetId, entryType: "order_cash_release", quantityDelta: 0, cashDelta: heldCash, referenceType: "trade_order", referenceId: orderId });
+      }
+      const currentCash = toNumber(account.cash_balance, 0) + heldCash;
+      const currentQuantity = toNumber(holding?.quantity, 0);
+      const currentAvgCost = toNumber(holding?.avg_cost_basis, 0);
+
+      let nextCash;
+      let nextQuantity;
+      let nextAvgCost;
+      const onFill = (entry) => ledger.push({ userId, assetId, fillOrderId: orderId, referenceType: "trade_fill", ...entry });
+      if (side === "buy") {
+        nextCash = currentCash - grossCash - feeFromCash;
+        nextQuantity = currentQuantity + parsedQuantity;
+        nextAvgCost = nextQuantity > 0 ? (currentQuantity * currentAvgCost + grossCash + feeCash) / nextQuantity : 0;
+        onFill({ entryType: "buy_asset_credit", quantityDelta: parsedQuantity, cashDelta: 0 });
+        onFill({ entryType: "buy_cash_debit", quantityDelta: 0, cashDelta: -grossCash });
+        onFill({ entryType: "trade_fee", quantityDelta: 0, cashDelta: -feeFromCash, creditDelta: -feeFromCredit });
+      } else {
+        nextCash = currentCash + grossCash - feeFromCash;
+        nextQuantity = currentQuantity - parsedQuantity;
+        nextAvgCost = nextQuantity > 0 ? currentAvgCost : 0;
+        onFill({ entryType: "sell_asset_debit", quantityDelta: -parsedQuantity, cashDelta: 0 });
+        onFill({ entryType: "sell_cash_credit", quantityDelta: 0, cashDelta: grossCash });
+        onFill({ entryType: "trade_fee", quantityDelta: 0, cashDelta: -feeFromCash, creditDelta: -feeFromCredit });
+        if (creditEarned > 0) onFill({ entryType: "sell_credit", quantityDelta: 0, cashDelta: 0, creditDelta: creditEarned });
+      }
+
+      account.cash_balance = String(nextCash);
+      if (feeFromCredit > 0 || creditEarned > 0) account.credit_balance = String(creditBalance - feeFromCredit + creditEarned);
+      touchAccount(account);
+      holdings.set(holdingKey, { user_id: userId, asset_id: assetId, quantity: nextQuantity, avg_cost_basis: nextAvgCost });
+      touchedHoldings.add(holdingKey);
+
+      const tracksDay = Boolean(asset.latest_snapshot_id && marketDate);
+      if (buyback) {
+        const tally = buybackTallies.get(buyback.id) || { id: buyback.id, shares: pgNumeric.ZERO, cash: pgNumeric.ZERO };
+        tally.shares = pgNumeric.add(tally.shares, pgNumeric.parse(parsedQuantity));
+        tally.cash = pgNumeric.add(tally.cash, pgNumeric.parse(grossCash));
+        buybackTallies.set(buyback.id, tally);
+      } else {
+        const nextOffsets = applyTradeShock({ side, quantity: parsedQuantity, liquidityDepth: asset.liquidity_depth, persistentOffset, transientOffset });
+        const nextMid = computeLiveMidPrice(fairPrice, nextOffsets.persistentOffset, nextOffsets.transientOffset);
+        const nextPremium = fairPrice > 0 ? (nextMid - fairPrice) / fairPrice : 0;
+        const quotes = computeQuotes(nextMid, asset.spread_bps);
+        asset.current_mid_price = nextMid;
+        asset.current_bid_price = quotes.bidPrice;
+        asset.current_ask_price = quotes.askPrice;
+        asset.current_premium_pct = nextPremium;
+        asset.current_persistent_offset = nextOffsets.persistentOffset;
+        asset.current_transient_offset = nextOffsets.transientOffset;
+        asset.offsets_updated_at = now;
+        asset.quoteMoved = true;
+        if (tracksDay) {
+          const daily = dailyOf(assetId);
+          daily.mid_close = nextMid;
+          daily.mid_high = daily.mid_high === null ? nextMid : Math.max(daily.mid_high, nextMid);
+          daily.mid_low = daily.mid_low === null ? nextMid : Math.min(daily.mid_low, nextMid);
+          daily.bid_close = quotes.bidPrice;
+          daily.ask_close = quotes.askPrice;
+          daily.premium_close_pct = nextPremium;
+        }
+      }
+      if (tracksDay) {
+        const daily = dailyOf(assetId);
+        daily.volume_shares = pgNumeric.add(daily.volume_shares, pgNumeric.parse(parsedQuantity));
+        daily.volume_cash = pgNumeric.add(daily.volume_cash, pgNumeric.parse(executablePrice * parsedQuantity));
+        daily.trade_count += 1;
+      }
+
+      const delta = side === "buy" ? parsedQuantity : -parsedQuantity;
+      // What the event reports (doubles), worked out from the supply before this fill moves it.
+      const heldAfter = Math.max(0, toNumber(asset.circulating_supply, 0) + delta);
+      fill.quote = {
+        asset_id: asset.id,
+        symbol: asset.symbol,
+        display_name: asset.display_name,
+        mid_price: buyback ? toNumber(asset.current_mid_price, 0) : asset.current_mid_price,
+        bid_price: buyback ? toNumber(asset.current_bid_price, 0) : asset.current_bid_price,
+        ask_price: buyback ? toNumber(asset.current_ask_price, 0) : asset.current_ask_price,
+        premium_pct: buyback ? toNumber(asset.current_premium_pct, 0) : asset.current_premium_pct,
+        circulating_supply: heldAfter,
+        shares_for_sale: supply.sharesForSale({ ...asset, circulating_supply: heldAfter, treasury_supply: Math.max(0, toNumber(asset.max_supply, 0) - heldAfter) }),
+        trading_state: asset.trading_state || "open",
+      };
+      // supply.moveShares, in the column's exact arithmetic.
+      const nextHeld = floorNumericAtZero(pgNumeric.add(pgNumeric.parse(asset.circulating_supply), pgNumeric.parse(delta)));
+      asset.circulating_supply = pgNumeric.toString(nextHeld);
+      asset.treasury_supply = pgNumeric.toString(floorNumericAtZero(pgNumeric.add(pgNumeric.parse(asset.max_supply), pgNumeric.mul(nextHeld, pgNumeric.parse(-1)))));
+      touchedAssets.add(asset);
+
+      const identity = identities.get(userId);
+      fill.trade = {
+        order_id: order.id,
+        user_id: order.user_id,
+        username: identity?.username || null,
+        profile_color: identity?.profile_color || null,
+        asset_id: asset.id,
+        symbol: asset.symbol,
+        display_name: asset.display_name,
+        icon: asset.icon || null,
+        color: asset.color || null,
+        side,
+        price: executablePrice,
+        quantity: parsedQuantity,
+        requested_quantity: requested,
+        buyback: Boolean(buyback),
+        gross_cash: grossCash,
+        fee_cash: feeCash,
+        net_cash: fill.netCash,
+        counterparty_type: "treasury",
+      };
+      fills.push(fill);
+    } catch (error) {
+      // Anything but a known rejection is a bug here or bad data: the whole chunk goes row by row.
+      if (!isLiveOrderRejectionCode(error?.code)) throw error;
+      reject(order, error.code);
+    }
   }
 
+  return {
+    fills,
+    rejections,
+    ledger,
+    openedAccounts: opened,
+    accounts: [...touchedAccounts].map((account) => ({ user_id: account.user_id, cash_balance: account.cash_balance, held_cash: account.held_cash, credit_balance: account.credit_balance })),
+    holdings: [...touchedHoldings].map((key) => holdings.get(key)).sort((a, b) => a.user_id - b.user_id || a.asset_id - b.asset_id),
+    assets: [...touchedAssets].map((asset) => ({
+      id: asset.id,
+      ...(asset.quoteMoved
+        ? {
+            mid: asset.current_mid_price,
+            bid: asset.current_bid_price,
+            ask: asset.current_ask_price,
+            premium: asset.current_premium_pct,
+            persistent_offset: asset.current_persistent_offset,
+            transient_offset: asset.current_transient_offset,
+            offsets_updated_at: asset.offsets_updated_at.toISOString(),
+          }
+        : {}),
+      circulating_supply: asset.circulating_supply,
+      treasury_supply: asset.treasury_supply,
+    })),
+    dailyStates: [...dailyByAsset.values()].map((daily) => ({ ...daily, volume_shares: pgNumeric.toString(daily.volume_shares), volume_cash: pgNumeric.toString(daily.volume_cash) })),
+    buybacks: [...buybackTallies.values()].map((tally) => ({ id: tally.id, shares: pgNumeric.toString(tally.shares), cash: pgNumeric.toString(tally.cash) })),
+  };
+}
+
+function coded(code) {
+  const error = new Error(code);
+  error.code = code;
+  return error;
+}
+
+/** Fills as every open tab hears about them: one event for a whole run, however many chunks it took. */
+function newFillLanding() {
+  return { fills: 0, grossCash: 0, buyCash: 0, trades: [], quotes: new Map(), marketStatus: null };
+}
+
+function addFillToLanding(landing, fill, row, status) {
+  landing.fills += 1;
+  landing.grossCash += fill.grossCash;
+  if (fill.side === "buy") landing.buyCash += fill.grossCash;
+  landing.trades.push({ id: row.id, ts: row.ts, ...fill.trade });
+  if (landing.trades.length > LIVE_ORDER_LANDING_TRADES) landing.trades.shift();
+  // Only each stock's latest quote matters to a board; the shares add up.
+  const previous = landing.quotes.get(fill.quote.symbol);
+  landing.quotes.set(fill.quote.symbol, { ...fill.quote, updated_at: row.ts, volume_shares: (previous?.volume_shares ?? 0) + fill.quantity });
+  landing.marketStatus = {
+    current_market_date: status?.current_market_date || null,
+    last_settlement_market_date: status?.last_settlement_market_date || null,
+    is_trading_open: Boolean(status?.is_trading_open),
+  };
+}
+
+/**
+ * Tells the site a run of fills landed: `trades` are the newest fills, in fill order (all of them when
+ * `fills` says so), `quotes` each touched stock after its last fill and the shares it traded.
+ */
+function publishFillLanding(redis, landing) {
+  if (!landing.fills) return;
+  void publishMarketEvent(redis, {
+    type: "market.trade_fills",
+    fills: landing.fills,
+    gross_cash: landing.grossCash,
+    buy_cash: landing.buyCash,
+    trades: landing.trades,
+    quotes: [...landing.quotes.values()],
+    market_status: landing.marketStatus,
+    at: new Date().toISOString(),
+  });
+}
+
+/** A chunk of due orders in one transaction. Throws if it can't: nothing has been written then. */
+async function settleLiveOrderChunk(pool, dueOrders, { redis, landing }) {
+  const client = await pool.connect();
+  let plan;
+  let written;
+  let batch;
+  let status;
+  let locked;
+  try {
+    await client.query("BEGIN");
+    await client.query(`SET LOCAL lock_timeout = '${LIVE_ORDER_CHUNK_LOCK_TIMEOUT_MS}ms'`);
+    // Trading can close after the check in processDueLiveOrders; the orders wait for it to reopen.
+    status = await marketState.getMarketStatusWithClient(client);
+    if (status && !status.is_trading_open) {
+      await client.query("ROLLBACK");
+      return { batch_id: null, filled: 0, rejected: 0, skipped: "market_closed" };
+    }
+    locked = await liveOrderBatch.lockChunk(client, dueOrders.map((order) => order.id));
+    if (!locked) {
+      await client.query("ROLLBACK");
+      return { batch_id: null, filled: 0, rejected: 0, skipped: "stocks_busy" };
+    }
+    plan = planLiveOrderChunk({ ...locked, status, now: new Date() });
+    batch = await createLiveOrderBatch(client);
+    written = await liveOrderBatch.writeChunk(client, plan, { batchId: batch.id, marketDate: status?.last_settlement_market_date || null });
+    await completeLiveOrderBatch(client, {
+      batchId: batch.id,
+      attempted: dueOrders.length,
+      filled: plan.fills.length,
+      rejected: dueOrders.length - plan.fills.length,
+    });
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  const refreshUserIdsByAsset = new Map();
+  for (const fill of plan.fills) {
+    const row = written.filledByOrder.get(fill.orderId);
+    addFillToLanding(landing, fill, row, status);
+    achievements.queueTradeFill(pool, { userId: fill.userId, fillId: row.id, filledAt: row.ts });
+    const refreshUserIds = refreshUserIdsByAsset.get(fill.assetId) || new Set();
+    refreshUserIds.add(fill.userId);
+    refreshUserIdsByAsset.set(fill.assetId, refreshUserIds);
+  }
+  for (const order of written.rejected) {
+    void publishMarketEvent(redis, {
+      type: "market.live_order_rejected",
+      order,
+      reason: order.rejection_reason,
+      batch_id: batch.id,
+      at: new Date().toISOString(),
+    });
+  }
+  for (const [assetId, userIds] of refreshUserIdsByAsset.entries()) {
+    netWorth.queueLeaderboardRefresh(pool, assetId, { extraUserIds: Array.from(userIds) });
+  }
+  return { batch_id: batch.id, filled: plan.fills.length, rejected: dueOrders.length - plan.fills.length };
+}
+
+/**
+ * The slow path: each order in its own transaction, four stocks at a time. For a chunk that couldn't
+ * settle in one go (a deadlock, a row someone else is holding), so one bad row costs its own orders
+ * and not everyone's.
+ */
+async function fillLiveOrdersRowByRow(pool, dueOrders, { redis }) {
   const batch = await createLiveOrderBatch(pool);
   let filled = 0;
   let rejected = 0;
@@ -1503,50 +1891,43 @@ async function processDueLiveOrders(pool, { now = new Date(), limit = LIVE_ORDER
     groupedByAsset.set(order.asset_id, group);
   }
 
-  // The fills' achievement checks wait for the batch: the orders get the pool, and each player is
-  // checked once afterwards with all of their fills.
-  const releaseAchievementChecks = achievements.holdTradeFills();
-  try {
-    await runWithConcurrency(Array.from(groupedByAsset.entries()), LIVE_ORDER_WORKER_CONCURRENCY, async ([, orders]) => {
-      for (const order of orders) {
+  await runWithConcurrency(Array.from(groupedByAsset.entries()), LIVE_ORDER_WORKER_CONCURRENCY, async ([, orders]) => {
+    for (const order of orders) {
+      try {
+        await executeOrder(pool, {
+          existingOrderId: order.id,
+          liveOrderBatchId: batch.id,
+          redis,
+          refreshDerivedState: false,
+        });
+        filled += 1;
+        const refreshUserIds = refreshUserIdsByAsset.get(order.asset_id) || new Set();
+        refreshUserIds.add(order.user_id);
+        refreshUserIdsByAsset.set(order.asset_id, refreshUserIds);
+      } catch (error) {
+        const reason = isLiveOrderRejectionCode(error?.code) ? error.code : "execution_failed";
         try {
-          await executeOrder(pool, {
-            existingOrderId: order.id,
-            liveOrderBatchId: batch.id,
-            redis,
-            refreshDerivedState: false,
-          });
-          filled += 1;
-          const refreshUserIds = refreshUserIdsByAsset.get(order.asset_id) || new Set();
-          refreshUserIds.add(order.user_id);
-          refreshUserIdsByAsset.set(order.asset_id, refreshUserIds);
-        } catch (error) {
-          const reason = isLiveOrderRejectionCode(error?.code) ? error.code : "execution_failed";
-          try {
-            const rejectedOrder = await rejectLiveOrder(pool, { orderId: order.id, reason, liveOrderBatchId: batch.id });
-            const orderSnapshot = rejectedOrder ? await getOrderAssetSnapshot(pool, order.id) : null;
-            if (orderSnapshot) {
-              void publishMarketEvent(redis, {
-                type: "market.live_order_rejected",
-                order: orderSnapshot,
-                reason,
-                batch_id: batch.id,
-                at: new Date().toISOString(),
-              });
-            }
-            rejected += 1;
-          } catch (rejectError) {
-            fatalError = fatalError || String(rejectError?.message || rejectError);
+          const rejectedOrder = await rejectLiveOrder(pool, { orderId: order.id, reason, liveOrderBatchId: batch.id });
+          const orderSnapshot = rejectedOrder ? await getOrderAssetSnapshot(pool, order.id) : null;
+          if (orderSnapshot) {
+            void publishMarketEvent(redis, {
+              type: "market.live_order_rejected",
+              order: orderSnapshot,
+              reason,
+              batch_id: batch.id,
+              at: new Date().toISOString(),
+            });
           }
-          if (!isLiveOrderRejectionCode(error?.code)) {
-            fatalError = fatalError || String(error?.message || error);
-          }
+          rejected += 1;
+        } catch (rejectError) {
+          fatalError = fatalError || String(rejectError?.message || rejectError);
+        }
+        if (!isLiveOrderRejectionCode(error?.code)) {
+          fatalError = fatalError || String(error?.message || error);
         }
       }
-    });
-  } finally {
-    releaseAchievementChecks();
-  }
+    }
+  });
 
   await completeLiveOrderBatch(pool, {
     batchId: batch.id,
@@ -1560,14 +1941,70 @@ async function processDueLiveOrders(pool, { now = new Date(), limit = LIVE_ORDER
     netWorth.queueLeaderboardRefresh(pool, assetId, { extraUserIds: Array.from(userIds) });
   }
 
-  return {
-    batch_id: batch.id,
-    attempted: dueOrders.length,
-    filled,
-    rejected,
-    worker_concurrency: LIVE_ORDER_WORKER_CONCURRENCY,
-    error: fatalError,
-  };
+  return { batch_id: batch.id, filled, rejected, row_by_row: true, error: fatalError };
+}
+
+/**
+ * Fills up to `limit` due orders. `more` says there may be further orders due right now. Pass a
+ * `landing` to announce the fills together with other chunks' (publishFillLanding); without one this
+ * chunk announces its own.
+ */
+async function processDueLiveOrders(pool, { now = new Date(), limit = LIVE_ORDER_BATCH_LIMIT, redis = null, landing = null } = {}) {
+  // While trading is closed (settlement, or halted by an admin) queued orders wait for the next
+  // batch after it reopens instead of being rejected.
+  const marketStatus = await marketState.getMarketStatus(pool);
+  if (marketStatus && !marketStatus.is_trading_open) {
+    return { batch_id: null, attempted: 0, filled: 0, rejected: 0, skipped: "market_closed" };
+  }
+  const dueOrders = await listDueLiveOrders(pool, { now, limit });
+  if (dueOrders.length === 0) {
+    return { batch_id: null, attempted: 0, filled: 0, rejected: 0 };
+  }
+
+  const ownLanding = landing || newFillLanding();
+  // The fills' achievement checks wait for the batch: the orders get the pool, and each player is
+  // checked once afterwards with all of their fills.
+  const releaseAchievementChecks = achievements.holdTradeFills();
+  let result;
+  try {
+    result = await settleLiveOrderChunk(pool, dueOrders, { redis, landing: ownLanding });
+  } catch (error) {
+    console.error("live order chunk fell back to row-by-row:", String(error?.code || ""), String(error?.message || error));
+    result = await fillLiveOrdersRowByRow(pool, dueOrders, { redis });
+  } finally {
+    releaseAchievementChecks();
+  }
+  if (!landing) publishFillLanding(redis, ownLanding);
+
+  if (result.skipped) return { ...result, attempted: 0 };
+  return { ...result, attempted: dueOrders.length, more: dueOrders.length >= limit && !result.error };
+}
+
+// The caches the Activity page's queue panel reads (routes/market.js), so it isn't told about orders
+// that just filled.
+const LIVE_ORDER_QUEUE_CACHE_KEYS = ["market:live-orders:*:200", "market:live-flow:*"];
+
+/** The scheduler's run: every order due right now, chunk after chunk, announced together at the end. */
+async function drainDueLiveOrders(pool, { redis = null, logger = console } = {}) {
+  const landing = newFillLanding();
+  let attempted = 0;
+  // Each player's achievements are checked once, after the whole run.
+  const releaseAchievementChecks = achievements.holdTradeFills();
+  try {
+    for (;;) {
+      const result = await processDueLiveOrders(pool, { redis, landing });
+      attempted += result.attempted;
+      if (result.attempted > 0) logger.info?.("market live order batch processed", result);
+      if (!result.more) return { attempted };
+    }
+  } finally {
+    releaseAchievementChecks();
+    if (attempted > 0) {
+      await invalidateMarketAssetsCache(redis);
+      await invalidateCachedJson(redis, LIVE_ORDER_QUEUE_CACHE_KEYS);
+    }
+    publishFillLanding(redis, landing);
+  }
 }
 
 async function acquireLiveOrderSchedulerLock(client) {
@@ -1603,11 +2040,7 @@ function startLiveOrderScheduler(pool, logger = console, redis = null) {
       lockClient = await pool.connect();
       const locked = await acquireLiveOrderSchedulerLock(lockClient);
       if (!locked) return;
-      const result = await processDueLiveOrders(pool, { redis });
-      if (result.attempted > 0) {
-        await invalidateMarketAssetsCache(redis);
-        logger.info?.("market live order batch processed", result);
-      }
+      await drainDueLiveOrders(pool, { redis, logger });
     } catch (error) {
       tickError = error;
       heartbeat.update("error", error);
@@ -1849,6 +2282,7 @@ module.exports = {
   getLiveOrderAllowance,
   cancelLiveOrder,
   processDueLiveOrders,
+  drainDueLiveOrders,
   startLiveOrderScheduler,
   acquireLiveOrderSchedulerLock,
   releaseLiveOrderSchedulerLock,
@@ -1857,5 +2291,5 @@ module.exports = {
   getPortfolioSummary,
   getPortfolioLedger,
   getPortfolioOrders,
-  _test: { clockLiveOrderInterval, resolveLiveOrderInterval, nextLiveOrderWindowAt },
+  _test: { clockLiveOrderInterval, resolveLiveOrderInterval, nextLiveOrderWindowAt, newFillLanding, publishFillLanding, settleLiveOrderChunk },
 };

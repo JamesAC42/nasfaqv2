@@ -1296,6 +1296,17 @@ export type MarketHubResponse = {
   };
 };
 
+/** A batch landing: its newest fills (all of them unless `fills` says more), and each touched stock's last quote. */
+export type MarketTradesEvent = {
+  type: "market.trade_fills";
+  fills: number;
+  gross_cash: number;
+  buy_cash: number;
+  trades: MarketHubTrade[];
+  quotes: Array<MarketTradeEvent["quote"] & { volume_shares: number }>;
+  at: string;
+};
+
 export type MarketTradeEvent = {
   type: "market.trade_fill";
   trade: MarketHubTrade;

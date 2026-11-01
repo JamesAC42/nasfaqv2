@@ -16,7 +16,7 @@ import { useAuth } from "@/app/providers/auth-provider";
 import { useMotion } from "@/app/providers/motion-provider";
 import { useTheme } from "@/app/providers/theme-provider";
 import { talentAccent } from "@/app/lib/talent-color";
-import { fetchLiveOrderFlow, useHubStore } from "@/app/stores/hub-store";
+import { batchKeyOf, fetchLiveOrderFlow, useHubStore } from "@/app/stores/hub-store";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import ui from "@/app/components/market/market.module.scss";
@@ -26,6 +26,9 @@ const BATCH_MS = 10 * 60 * 1000;
 const WHALE = 1000;
 const MEGA = 4000;
 const PAGE_ROWS = 80;
+// A batch lands all at once; its rows then wash down the tape, this many of them 16 ms apart, the rest
+// together. Only how the rows appear: the fills are already in.
+const LANDING_WAVE_ROWS = 40;
 
 type Side = "all" | "buy" | "sell";
 type Who = "all" | "friends" | "rivals" | "me";
@@ -105,6 +108,7 @@ function Queue() {
   const paused = useMarketStore((state) => state.marketStatus?.trading_status === "manual_closed");
   const liveOrders = useHubStore((state) => state.liveOrders);
   const lastFlash = useHubStore((state) => state.lastFlash);
+  const landedAt = useHubStore((state) => state.landedAt);
   const bySymbol = useAssetMap();
   const { calm } = useMotion();
   const [selected, setSelected] = useState<string | null>(null);
@@ -130,7 +134,7 @@ function Queue() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [selected, liveOrders?.pending_count]);
+  }, [selected, liveOrders?.generated_at]);
 
   useEffect(() => {
     let cancelled = false;
@@ -144,7 +148,13 @@ function Queue() {
   }, [selected]);
 
   const perAsset = useMemo(() => new Map((liveOrders?.assets ?? []).map((entry) => [entry.symbol.toUpperCase(), entry])), [liveOrders]);
-  const coins = useMemo(() => [...assets].sort((a, b) => (b.volume_24h ?? 0) - (a.volume_24h ?? 0)), [assets]);
+  // Busiest first, as of the last batch to land: the tiles stay where they are until the next one.
+  const [order, setOrder] = useState<{ key: string; symbols: string[] }>({ key: "", symbols: [] });
+  const orderKey = `${landedAt}:${assets.length}`;
+  if (assets.length && order.key !== orderKey) {
+    setOrder({ key: orderKey, symbols: [...assets].sort((a, b) => (b.volume_24h ?? 0) - (a.volume_24h ?? 0)).map((asset) => asset.symbol.toUpperCase()) });
+  }
+  const coins = useMemo(() => order.symbols.flatMap((symbol) => bySymbol.get(symbol) ?? []), [bySymbol, order.symbols]);
   const maxQty = Math.max(1, ...[...perAsset.values()].map((entry) => entry.pending_buy_quantity + entry.pending_sell_quantity));
   const clock = now ? getMarketClock(now) : null;
   const executeAt = liveOrders?.next_execute_after ? new Date(liveOrders.next_execute_after) : clock?.nextBatchAt ?? null;
@@ -164,7 +174,8 @@ function Queue() {
     ? { buyQty: pick?.pending_buy_quantity ?? 0, sellQty: pick?.pending_sell_quantity ?? 0, n: pick?.pending_count ?? 0 }
     : { buyQty: total.buyQty, sellQty: total.sellQty, n: total.n };
   const asset = selected ? bySymbol.get(selected) : null;
-  const points = flow?.[mode] ?? [];
+  // An empty queue has no pending flow, whatever the last fetch said (a batch just took it).
+  const points = mode === "current_tick" && !stats.n ? [] : (flow?.[mode] ?? []);
 
   return (
     <section className={styles.queue} aria-label="Order queue">
@@ -287,12 +298,12 @@ function Queue() {
 }
 
 // ── The tape, grouped by 10-minute batch ─────────────────────────────────
-const TapeRow = memo(function TapeRow({ trade, icon, tag, fresh, accent }: { trade: MarketHubTrade; icon: string | null | undefined; tag: "friend" | "rival" | "me" | null; fresh: boolean; accent: string }) {
+const TapeRow = memo(function TapeRow({ trade, icon, tag, fresh, wave, accent }: { trade: MarketHubTrade; icon: string | null | undefined; tag: "friend" | "rival" | "me" | null; fresh: boolean; wave: number; accent: string }) {
   const buy = isBuy(trade);
   const whale = trade.gross_cash >= WHALE;
   const mega = trade.gross_cash >= MEGA;
   return (
-    <div className={[styles.fl, whale ? styles.whale : "", mega ? styles.mega : "", tag === "me" ? styles.me : "", fresh ? styles.fresh : ""].filter(Boolean).join(" ")} style={{ "--c": accent } as React.CSSProperties}>
+    <div className={[styles.fl, whale ? styles.whale : "", mega ? styles.mega : "", tag === "me" ? styles.me : "", fresh ? styles.fresh : ""].filter(Boolean).join(" ")} style={{ "--c": accent, "--wave": wave } as React.CSSProperties}>
       <time>{etClock(trade.ts, true)}</time>
       {trade.username ? (
         <Link href={`/profile/${encodeURIComponent(trade.username)}`} className={styles.p}>
@@ -348,6 +359,7 @@ function useFriendSets(enabled: boolean) {
 
 function Tape({ initialTicker = "" }: { initialTicker?: string }) {
   const liveTrades = useHubStore((state) => state.trades);
+  const batchTotals = useHubStore((state) => state.batchTotals);
   const nextCursor = useHubStore((state) => state.nextCursor);
   const isLoadingMore = useHubStore((state) => state.isLoadingMore);
   const loadMoreTrades = useHubStore((state) => state.loadMoreTrades);
@@ -401,7 +413,7 @@ function Tape({ initialTicker = "" }: { initialTicker?: string }) {
   const batches = useMemo(() => {
     const groups: Array<{ key: number; all: MarketHubTrade[] }> = [];
     for (const trade of trades) {
-      const key = Math.floor(new Date(trade.ts).getTime() / BATCH_MS);
+      const key = batchKeyOf(trade.ts);
       const last = groups[groups.length - 1];
       if (last && last.key === key) last.all.push(trade);
       else groups.push({ key, all: [trade] });
@@ -410,13 +422,18 @@ function Tape({ initialTicker = "" }: { initialTicker?: string }) {
   }, [trades]);
 
   let shown = 0;
+  let waved = 0;
   const rendered: React.ReactNode[] = [];
   for (const batch of batches) {
     if (shown >= limit) break;
     const hits = batch.all.filter(match);
     if (!hits.length) continue;
-    const vol = batch.all.reduce((sum, trade) => sum + trade.gross_cash, 0);
-    const buyVol = batch.all.filter(isBuy).reduce((sum, trade) => sum + trade.gross_cash, 0);
+    // Past what's loaded, the server's count of the batch (a big landing only carries its newest rows).
+    const totals = batchTotals[batch.key];
+    const counted = totals && totals.fills > batch.all.length ? totals : null;
+    const fillCount = counted ? counted.fills : batch.all.length;
+    const vol = counted ? counted.gross : batch.all.reduce((sum, trade) => sum + trade.gross_cash, 0);
+    const buyVol = counted ? counted.buy : batch.all.filter(isBuy).reduce((sum, trade) => sum + trade.gross_cash, 0);
     const net = buyVol - (vol - buyVol);
     const landed = batch.all.some((trade) => fresh.has(trade.id));
     rendered.push(
@@ -424,7 +441,7 @@ function Tape({ initialTicker = "" }: { initialTicker?: string }) {
         <div className={styles.bgrpHead}>
           <b>{formatEtTime(new Date(batch.key * BATCH_MS))} BATCH</b>
           <span>
-            {batch.all.length} fills{hits.length < batch.all.length ? ` · ${hits.length} shown` : ""}
+            {fillCount.toLocaleString("en-US")} fills{hits.length < fillCount ? ` · ${hits.length} shown` : ""}
           </span>
           <span>{compactMoney(vol)}</span>
           <span className={styles.flow} title="buy vs sell dollars">
@@ -432,9 +449,10 @@ function Tape({ initialTicker = "" }: { initialTicker?: string }) {
           </span>
           <span className={`${styles.net} ${ui[toneClass(net)]}`}>net {net >= 0 ? `buy +${compactMoney(net)}` : `sell −${compactMoney(Math.abs(net))}`}</span>
         </div>
-        {hits.map((trade) => (
-          <TapeRow key={trade.id} trade={trade} icon={bySymbol.get(trade.symbol.toUpperCase())?.icon} tag={tagOf(trade)} fresh={fresh.has(trade.id)} accent={talentAccent(trade.color, theme)} />
-        ))}
+        {hits.map((trade) => {
+          const isFresh = fresh.has(trade.id);
+          return <TapeRow key={trade.id} trade={trade} icon={bySymbol.get(trade.symbol.toUpperCase())?.icon} tag={tagOf(trade)} fresh={isFresh} wave={isFresh ? Math.min(waved++, LANDING_WAVE_ROWS) : 0} accent={talentAccent(trade.color, theme)} />;
+        })}
       </div>,
     );
     shown += hits.length;
@@ -486,8 +504,10 @@ function Tape({ initialTicker = "" }: { initialTicker?: string }) {
           className={styles.more}
           disabled={isLoadingMore}
           onClick={() => {
-            setLimit((current) => current + PAGE_ROWS);
-            if (shown < limit + PAGE_ROWS) void loadMoreTrades();
+            // A batch shows whole, so more rows than the limit can already be on screen.
+            const next = Math.max(limit, shown) + PAGE_ROWS;
+            setLimit(next);
+            if (trades.filter(match).length < next) void loadMoreTrades();
           }}
         >
           {isLoadingMore ? "LOADING…" : "LOAD EARLIER BATCHES ↓"}

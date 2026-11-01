@@ -61,7 +61,7 @@ A batch fills orders back to back, so each tab did this up to 1.4 times a second
 
 - Authenticated reads (orders, portfolio, notifications): about 0.5–0.7 ms of CPU each.
 - Queuing an order: 2 ms of CPU, about 330 a second per pod.
-- The batch executor fills about 200 orders a second, so 10,000 queued orders clear in under a minute.
+- The batch executor settles about 1,000 orders a second with a production-like 17 ms to the database (`api/scripts/bench-live-orders.js`, measured 2026-11-01), so 5,000 queued orders clear in about 5 seconds. See "Live-order batches" below.
 
 ## Estimate
 
@@ -135,6 +135,35 @@ The order-flow charts got indexes, so they no longer scan every order ever place
 - Draft and private prediction markets are hidden on the chart, trades and quote routes.
 - Other people's profiles no longer show staff permission flags. The ADMIN tag stays, on purpose.
 - Security headers on the site (no framing by other sites, nosniff) and on the API.
+
+## Live-order batches (2026-11-01)
+
+Measured locally: PostgreSQL 16 on the owner's Windows machine, 77 stocks, 2,000 players, 100,000 past fills, with 17 ms added before each statement. That delay is chosen, not measured: it's what makes the old path fill one player's orders at the 3.5 a second seen in production's 15:40 batch on 2026-11-01. Production's own timings haven't been read.
+
+| Orders | Row at a time | Batched |
+|---|---|---|
+| One player, 1 share of 77 stocks | 21.9 s, 1,704 statements, 77 commits | 0.45 s, 22 statements, 1 commit |
+| One player, 180 orders (the share limit) | 51.5 s | 0.46 s |
+| Many players, 100 orders | 10.1 s | 0.44 s |
+| Many players, 1,000 orders | 100 s | 1.05 s |
+| One player, 1,000 orders (over the limit) | 290 s | 1.05 s |
+| Many players, 5,000 orders | 502 s, 112,357 statements, 5,401 commits | 4.8 s, 386 statements, 29 commits |
+
+About 99% of the old path's time was round trips: 22 statements a fill, and only about 4 ms of work in the database and in JS. With one player, 3 of the 4 workers also sat waiting on that player's cash row.
+
+**1,000 sockets on one local API process, a batch of 1,000 orders:**
+
+| | Row at a time | Batched |
+|---|---|---|
+| Messages per socket | 252 | 1 |
+| Sent per socket | 888 KB | 111 KB |
+| API CPU | 4.9 s, over 84 s | 0.2 s |
+
+**The Activity page, one player's 77 fills:** the stock tiles reordered 77 times before, at most once now; 77 socket messages became 1; about 157 DOM updates above idle became about 23.
+
+**Overlap.** Row at a time, a batch ran into the next one at about 6,000 orders (10 a second), or about 2,100 if they were all one player's (one player can't place that many: the limit is 180 shares a window). Batched it holds about 1,000 orders a second, which would be some 600,000 in the ten minutes. That's arithmetic, not a test: the largest run was 50,000 (37 s with 13 ms added), on a local database. Production's is 1 CPU and 4 GB, and its own write speed is likely to give out before the round trips do.
+
+Nothing here has run on TimescaleDB: `trade_fills` is a hypertable in production and a plain table in these tests. If a chunk fails there it falls back to row by row, and the log says so (docs/market-operations.md).
 
 ## Still open
 

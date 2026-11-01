@@ -218,7 +218,12 @@ function eventUserId(payload: Record<string, unknown>) {
 
 function scheduleTradingStateRefresh(payload: Record<string, unknown>) {
   const userId = useAuthStore.getState().user?.id || null;
-  if (!userId || eventUserId(payload) !== userId || typeof window === "undefined" || tradingStateRefreshTimer !== null) return;
+  if (!userId || eventUserId(payload) !== userId) return;
+  refreshTradingStateSoon();
+}
+
+function refreshTradingStateSoon() {
+  if (typeof window === "undefined" || tradingStateRefreshTimer !== null) return;
 
   tradingStateRefreshTimer = window.setTimeout(() => {
     tradingStateRefreshTimer = null;
@@ -433,6 +438,30 @@ export const useMarketStore = create<MarketState>((set, get) => ({
           return;
         }
 
+        // A batch landing: every stock it touched moves to its last quote, once.
+        if (payload.type === "market.trade_fills") {
+          const quotes = new Map(
+            (Array.isArray(payload.quotes) ? (payload.quotes as Array<Record<string, unknown>>) : []).map((quote) => [String(quote.symbol || "").toUpperCase(), quote]),
+          );
+          quotes.forEach((_quote, symbol) => detailCache.delete(symbol));
+          const statusPayload = payload.market_status && typeof payload.market_status === "object" ? (payload.market_status as Record<string, unknown>) : null;
+
+          set((state) => ({
+            assets: state.assets.map((asset) => {
+              const quote = quotes.get(asset.symbol.toUpperCase());
+              return quote ? { ...patchAssetFromQuote(asset, quote), volume_24h: (asset.volume_24h ?? 0) + (toNumber(quote.volume_shares) ?? 0) } : asset;
+            }),
+            marketStatus: statusPayload ? patchStatusFromTrade(state.marketStatus, statusPayload) : state.marketStatus,
+            detail: quotes.has(state.selectedSymbol.trim().toUpperCase()) ? null : state.detail,
+          }));
+          scheduleIndexRefresh(get().fetchMarketIndexes, get().marketIndexes.length > 0);
+          scheduleOverviewRefresh(get().refreshOverview);
+          // A big landing only names its newest fills, so anyone with orders in the queue checks theirs.
+          const userId = useAuthStore.getState().user?.id || null;
+          if (userId && useProfileStore.getState().pendingLiveOrders.length) refreshTradingStateSoon();
+          return;
+        }
+
         if (payload.type === "market.snapshot") {
           const assets = Array.isArray(payload.assets)
             ? (payload.assets as Array<Record<string, unknown>>).map(normalizeAsset)
@@ -537,7 +566,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
       wsRef.onmessage = (event) => {
         try {
           const parsed = JSON.parse(String(event.data || "{}")) as Record<string, unknown>;
-          // Events that land within ~100ms of each other (a batch of fills) arrive as one bundle.
+          // Events that land within ~100ms of each other arrive as one bundle.
           const payloads = parsed.type === "market.bundle" && Array.isArray(parsed.events) ? (parsed.events as Array<Record<string, unknown>>) : [parsed];
           for (const payload of payloads) {
             try {
