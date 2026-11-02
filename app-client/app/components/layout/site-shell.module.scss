@@ -90,6 +90,12 @@
   border-bottom-color: transparent;
 }
 
+// Page styles work out sticky offsets and full-height layouts from --rail-height + --tape-height, so
+// inside the page the strip counts as part of the tape. (The phone's hidden header still wins: 0px.)
+:global([data-season="winter"]) .main {
+  --tape-height: calc(1.875rem + 25px);
+}
+
 :global([data-season="winter"]) .seasonLights {
   position: relative;
   display: block;
