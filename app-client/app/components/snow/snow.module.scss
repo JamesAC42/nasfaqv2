@@ -27,6 +27,11 @@
 
 .wrap {
   position: relative;
+  display: none;
+}
+
+:global([data-season-now~="winter"]) .wrap {
+  display: block;
 }
 
 .popover {

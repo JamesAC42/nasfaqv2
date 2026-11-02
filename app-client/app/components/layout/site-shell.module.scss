@@ -80,8 +80,8 @@
 // Winter lights: the top bar is a snowy eave with string lights hanging off it. Three layers of one
 // tile: the eave, wire and bulbs, then two sets of glows on their own compositor-only opacity loops,
 // so twinkling repaints nothing. All decoration: it can't take a click, and it's static in calm mode.
-// The eave takes a strip of the header, so sticky page elements (--site-shell-chrome-height) stop
-// below it and only the bulbs' tips hang over the page.
+// The bulbs have a strip of the header to themselves, so nothing on the page sits under them: sticky
+// page elements (--site-shell-chrome-height) stop below it. Only the faint glow spills over.
 .seasonLights {
   display: none;
 }
@@ -93,7 +93,7 @@
 :global([data-season="winter"]) .seasonLights {
   position: relative;
   display: block;
-  height: 14px;
+  height: 25px;
   pointer-events: none;
 
   &::before,
@@ -255,6 +255,18 @@
     background: var(--season-accent, var(--blue));
     transform: rotate(45deg);
     box-shadow: 0 0 12px var(--season-glow, var(--blue-line));
+  }
+}
+
+// The snowflake button takes room in the top bar while snow is on offer. At the narrowest full-rail
+// widths, win it back from the spacing rather than from the countdown, which clips first.
+@media (min-width: $bp-tablet + 1) and (max-width: 1140px) {
+  :global([data-season-now~="winter"]) .rail {
+    gap: 0.42rem;
+  }
+
+  :global([data-season-now~="winter"]) .navItem {
+    padding-inline: 0.32rem;
   }
 }
 

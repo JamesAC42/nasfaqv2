@@ -34,7 +34,7 @@ const W = 720, H = 40;
   const colors = [ { c: "#fff1cf", g: "255,226,160" }, { c: "#ffc861", g: "255,190,84" }, { c: "#c3e9ff", g: "150,215,255" }, { c: "#fff1cf", g: "255,226,160" }, { c: "#e7c2ff", g: "212,160,255" }, { c: "#ffc861", g: "255,190,84" } ];
   let n = 0;
   for (let i = 0; i < spans; i++) {
-    const a = i * span, b = a + span, sag = 13 + (i % 3) * 2;
+    const a = i * span, b = a + span, sag = 10 + (i % 3) * 1.5;
     const control = wireY + sag * 2 - 6;
     wire += ` Q${f((a + b) / 2)} ${f(control)} ${f(b)} ${wireY}`;
     // Three bulbs a span, along the curve, each hanging plumb with a little tilt.

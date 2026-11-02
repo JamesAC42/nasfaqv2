@@ -366,6 +366,7 @@ export class SnowEngine {
   private sleighSprite: ReturnType<typeof makeSleigh> | null = null;
 
   private readonly coarse: boolean;
+  private readonly frugal: boolean;
   private readonly maxFlakes: number;
   private readonly maxDpr: number;
   private readonly frameMs: number;
@@ -410,6 +411,7 @@ export class SnowEngine {
   private bottomInset = 0;
 
   private ledges: Ledge[] = [];
+  private readonly inView: Ledge[] = [];
   private measuring = false;
   private measureDue = 0;
   private main: Element | null = null;
@@ -469,7 +471,8 @@ export class SnowEngine {
     const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8;
     const slow = cores <= 4 || memory <= 4;
     this.maxFlakes = phone ? 140 : slow ? 320 : 900;
-    this.maxDpr = phone ? 2 : slow ? 1.5 : 2;
+    this.frugal = this.coarse || slow;
+    this.maxDpr = this.frugal ? 1.5 : 2;
     this.frameMs = phone ? 1000 / 30 : 1000 / 60;
 
     let start = 0;
@@ -708,14 +711,16 @@ export class SnowEngine {
   private readonly frame = (now: number) => {
     if (this.destroyed) return;
     this.schedule();
-    // High-refresh screens get 60 fps, phones 30, and calm mode's slow snow needs less still.
-    const frameMs = this.options.still ? 1000 / 24 : this.frameMs;
+    // High-refresh screens get 60 fps, phones 30, and calm mode's slow snow needs less still. Phones and
+    // slow machines give the CPU to the page while it scrolls: nobody can see 15 fps snow over a moving page.
+    const scrolling = this.time - this.lastScrollAt < 0.14;
+    const frameMs = this.options.still ? 1000 / 24 : this.frugal && scrolling ? 1000 / 15 : this.frameMs;
     const since = now - this.lastFrame;
     if (this.lastFrame && since < frameMs - 3) return;
     this.lastFrame = now;
     const dt = Math.min(since || 16, 50) / 1000;
     this.time += dt;
-    if (since && since < 1000) this.watchFrameTime(since, frameMs);
+    if (since && since < 1000 && !scrolling) this.watchFrameTime(since, frameMs);
     if (this.time >= this.measureDue) this.measure();
     this.step(dt);
     this.draw();
@@ -974,7 +979,8 @@ export class SnowEngine {
   }
 
   private visibleLedges() {
-    const list: Ledge[] = [];
+    const list = this.inView;
+    list.length = 0;
     for (const ledge of this.ledges) {
       const edgeY = ledge.y - this.scrollY;
       if (edgeY > 0 && edgeY < this.height) list.push(ledge);

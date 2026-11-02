@@ -88,9 +88,12 @@ function SnowPanel() {
   );
 }
 
-/** Top bar: a snowflake next to the theme switch. Only there while snow is on offer. */
+/**
+ * Top bar: a snowflake next to the theme switch. Only there while snow is on offer, which CSS decides
+ * from the attribute the boot script stamps, so the top bar doesn't jump when the page hydrates.
+ */
 export function SnowButton() {
-  const { offered, on } = useSnow();
+  const { on } = useSnow();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
@@ -107,8 +110,6 @@ export function SnowButton() {
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [open]);
-
-  if (!offered) return null;
 
   return (
     <div ref={wrapRef} className={styles.wrap}>
