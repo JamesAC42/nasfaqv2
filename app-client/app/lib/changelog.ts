@@ -14,6 +14,20 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-11-01",
+    title: "Batches land all at once",
+    changes: [
+      {
+        kind: "improved",
+        text: "A 10-minute batch now fills in a moment instead of trickling in one fill at a time. Its fills land on the Activity page together and wash quickly down the tape, and each stock's price jumps straight to where the batch left it.",
+      },
+      {
+        kind: "fixed",
+        text: "The stock tiles on the Activity page no longer shuffle around while a batch fills. They stay put and only re-sort, busiest first, once when the batch has landed.",
+      },
+    ],
+  },
+  {
+    date: "2026-11-01",
     title: "Link your v1 account",
     changes: [
       {

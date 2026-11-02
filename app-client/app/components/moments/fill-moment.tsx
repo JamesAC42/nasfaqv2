@@ -138,24 +138,29 @@ function useOwnFills() {
   useEffect(() => {
     if (!user) return;
     return onMarketEvent((payload) => {
-      if (payload.type !== "market.trade_fill" || !payload.trade || typeof payload.trade !== "object") return;
-      const trade = normalizeMarketHubTrade(payload.trade as Record<string, unknown>);
-      if (trade.user_id !== user.id) return;
-      const tracked = useTradeStore.getState().pendingOrderIds;
-      if (trade.order_id !== null && tracked.some((id) => String(id) === String(trade.order_id))) useTradeStore.getState().untrackOrder(trade.order_id);
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-      announceFill({
-        id: String(trade.id),
-        side: trade.side,
-        symbol: trade.symbol,
-        name: trade.display_name,
-        quantity: trade.quantity,
-        price: trade.price,
-        fee: trade.fee_cash,
-        gross: trade.gross_cash,
-        at: trade.ts,
-      });
-      void useProfileStore.getState().refreshTradingState();
+      let rows: Array<Record<string, unknown>> = [];
+      if (payload.type === "market.trade_fills" && Array.isArray(payload.trades)) rows = payload.trades as Array<Record<string, unknown>>;
+      else if (payload.type === "market.trade_fill" && payload.trade && typeof payload.trade === "object") rows = [payload.trade as Record<string, unknown>];
+      const mine = rows.map(normalizeMarketHubTrade).filter((trade) => trade.user_id === user.id);
+      if (!mine.length) return;
+      const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+      for (const trade of mine) {
+        const tracked = useTradeStore.getState().pendingOrderIds;
+        if (trade.order_id !== null && tracked.some((id) => String(id) === String(trade.order_id))) useTradeStore.getState().untrackOrder(trade.order_id);
+        if (hidden) continue;
+        announceFill({
+          id: String(trade.id),
+          side: trade.side,
+          symbol: trade.symbol,
+          name: trade.display_name,
+          quantity: trade.quantity,
+          price: trade.price,
+          fee: trade.fee_cash,
+          gross: trade.gross_cash,
+          at: trade.ts,
+        });
+      }
+      if (!hidden) void useProfileStore.getState().refreshTradingState();
     });
   }, [user]);
 }

@@ -34,6 +34,20 @@ function tradeCursor(trade: MarketHubTrade | undefined) {
   return btoa(unescape(encodeURIComponent(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 const RECONCILE_MS = 60_000;
+const BATCH_MS = 10 * 60 * 1000;
+
+/** The 10-minute batch a fill belongs to, as the tape groups them. */
+export function batchKeyOf(ts: string) {
+  return Math.floor(new Date(ts).getTime() / BATCH_MS);
+}
+
+/** Older than `other` in the tape's order: fills in one write share a time, so ids break the tie. */
+function isOlderTrade(trade: MarketHubTrade, other: MarketHubTrade) {
+  return trade.ts < other.ts || (trade.ts === other.ts && trade.id < other.id);
+}
+
+/** A batch as the server counted it: a landing can carry fewer rows than it filled. */
+export type BatchTotals = { fills: number; gross: number; buy: number };
 
 type OrderFlash = { symbol: string; side: "buy" | "sell"; at: number };
 
@@ -44,6 +58,9 @@ type HubState = {
   liveOrders: MarketLiveOrderSummary | null;
   adjustments: MarketAdjustmentSummary | null;
   lastFlash: OrderFlash | null;
+  /** When the last batch of fills landed; the heatmap only changes its order then. */
+  landedAt: number;
+  batchTotals: Record<number, BatchTotals>;
   error: string | null;
   isLoading: boolean;
   isLoadingMore: boolean;
@@ -60,6 +77,8 @@ export const useHubStore = create<HubState>((set, get) => ({
   liveOrders: null,
   adjustments: null,
   lastFlash: null,
+  landedAt: 0,
+  batchTotals: {},
   error: null,
   isLoading: true,
   isLoadingMore: false,
@@ -72,8 +91,8 @@ export const useHubStore = create<HubState>((set, get) => ({
         // Keep any older pages we already loaded behind the fresh first page.
         const fresh = hub.recent_trades.items;
         const freshIds = new Set(fresh.map((trade) => trade.id));
-        const oldest = fresh.at(-1)?.ts ?? "";
-        const older = state.trades.filter((trade) => !freshIds.has(trade.id) && trade.ts < oldest);
+        const oldest = fresh.at(-1);
+        const older = oldest ? state.trades.filter((trade) => !freshIds.has(trade.id) && isOlderTrade(trade, oldest)) : [];
         return {
           hub,
           trades: [...fresh, ...older],
@@ -141,6 +160,7 @@ let subscribers = 0;
 let stopRealtime: (() => void) | null = null;
 let reconcileTimer: number | null = null;
 let liveOrderTimer: number | null = null;
+let landingHubTimer: number | null = null;
 
 function start() {
   const store = useHubStore.getState();
@@ -164,6 +184,47 @@ function start() {
 
   stopRealtime = onMarketEvent((payload) => {
     const type = String(payload.type || "");
+    if (type === "market.trade_fills" && Array.isArray(payload.trades)) {
+      // A batch landing, in one go: one update however many fills it holds.
+      const landed = (payload.trades as Array<Record<string, unknown>>).map(normalizeMarketHubTrade).reverse();
+      const fills = Number(payload.fills) || landed.length;
+      const gross = Number(payload.gross_cash) || 0;
+      const buy = Number(payload.buy_cash) || 0;
+      useHubStore.setState((state) => {
+        const key = landed.length ? batchKeyOf(landed[0].ts) : null;
+        const known = key === null ? null : state.batchTotals[key];
+        const batchTotals = key === null ? state.batchTotals : { ...state.batchTotals, [key]: { fills: (known?.fills ?? 0) + fills, gross: (known?.gross ?? 0) + gross, buy: (known?.buy ?? 0) + buy } };
+        // The queue is what just filled; the refetch below brings back anything placed since.
+        const liveOrders = state.liveOrders && {
+          ...state.liveOrders,
+          next_execute_after: null,
+          pending_count: 0,
+          pending_buy_count: 0,
+          pending_sell_count: 0,
+          pending_buy_quantity: 0,
+          pending_sell_quantity: 0,
+          assets: [],
+        };
+        // Fewer rows than fills: those rows and the older ones have a gap between them, so start
+        // over from these, and "load earlier" picks up right behind them.
+        if (fills > landed.length) return { trades: landed, nextCursor: tradeCursor(landed.at(-1)), batchTotals, liveOrders, landedAt: Date.now() };
+        const ids = new Set(state.trades.map((trade) => trade.id));
+        const trades = [...landed.filter((trade) => !ids.has(trade.id)), ...state.trades];
+        if (trades.length <= MAX_LIVE_TRADES) return { trades, batchTotals, liveOrders, landedAt: Date.now() };
+        const kept = trades.slice(0, TRIM_TO);
+        return { trades: kept, nextCursor: tradeCursor(kept[kept.length - 1]), batchTotals, liveOrders, landedAt: Date.now() };
+      });
+      refreshLiveOrders();
+      // The activity windows (trades in 5m, the hour's flow) only come from the server. Once per
+      // batch, jittered: the hub is cached, and every open tab hears the landing at the same moment.
+      if (landingHubTimer === null) {
+        landingHubTimer = window.setTimeout(() => {
+          landingHubTimer = null;
+          void useHubStore.getState().loadHub();
+        }, 1_000 + Math.random() * 3_000);
+      }
+      return;
+    }
     if (type === "market.trade_fill" && payload.trade && typeof payload.trade === "object") {
       const trade = normalizeMarketHubTrade(payload.trade as Record<string, unknown>);
       useHubStore.setState((state) => {
@@ -206,6 +267,8 @@ function stop() {
   reconcileTimer = null;
   if (liveOrderTimer !== null) window.clearTimeout(liveOrderTimer);
   liveOrderTimer = null;
+  if (landingHubTimer !== null) window.clearTimeout(landingHubTimer);
+  landingHubTimer = null;
 }
 
 /** Subscribe a view to the live hub. Loads once, stays live while any view is mounted. */
