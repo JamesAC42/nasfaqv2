@@ -1882,6 +1882,53 @@ async function applySchema(pool) {
     )
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS market_v1_link_attempts_user_idx ON market.v1_link_attempts (user_id, created_at DESC, id DESC)`);
+
+  // Announcement popups (services/announcements.js), and which players have dismissed each one.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.announcements (
+      id BIGSERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      button_label TEXT NULL,
+      button_link TEXT NULL,
+      audience TEXT NOT NULL DEFAULT 'everyone' CHECK (audience IN ('everyone', 'signed_in', 'signed_out')),
+      hide_from_v1_linked BOOLEAN NOT NULL DEFAULT false,
+      starts_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      ends_at TIMESTAMPTZ NULL,
+      retired_at TIMESTAMPTZ NULL,
+      created_by BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.announcement_dismissals (
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      announcement_id BIGINT NOT NULL REFERENCES market.announcements(id) ON DELETE CASCADE,
+      dismissed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (user_id, announcement_id)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_announcement_dismissals_announcement_idx ON market.announcement_dismissals (announcement_id)`);
+  // Announcements the site ships with, each added once. This table remembers that, so one an admin
+  // later edits or deletes stays that way when this runs again on the next deploy.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.announcement_seeds (
+      seed_key TEXT PRIMARY KEY,
+      seeded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  const seed = require("./services/announcements").V1_LINK_SEED;
+  await pool.query(
+    `
+    WITH first_time AS (
+      INSERT INTO market.announcement_seeds (seed_key) VALUES ($1) ON CONFLICT (seed_key) DO NOTHING RETURNING seed_key
+    )
+    INSERT INTO market.announcements (title, body, button_label, button_link, audience, hide_from_v1_linked)
+    SELECT $2::text, $3::text, $4::text, $5::text, $6::text, $7::boolean FROM first_time
+  `,
+    [seed.key, seed.title, seed.body, seed.button_label, seed.button_link, seed.audience, seed.hide_from_v1_linked]
+  );
 }
 
 module.exports = { applySchema };

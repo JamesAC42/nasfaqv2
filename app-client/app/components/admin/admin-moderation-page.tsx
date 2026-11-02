@@ -44,6 +44,11 @@ const ACTION_LABELS: Record<string, string> = {
   "chat.channel.update": "Changed chat room",
   "site.announcement.post": "Posted announcement",
   "site.announcement.clear": "Cleared announcement",
+  "announcement.create": "Wrote the popup",
+  "announcement.update": "Edited the popup",
+  "announcement.retire": "Retired the popup",
+  "announcement.restore": "Brought back the popup",
+  "announcement.delete": "Deleted the popup",
   "news.thumbnail.remove": "Removed the thumbnail of",
   "news.front_page.pins": "Changed the front page pins",
 };
@@ -79,7 +84,7 @@ function targetText(entry: AdminAction) {
   if (entry.target_type && TARGET_LABELS[entry.target_type]) return `${entry.target_label ?? "someone"} on ${TARGET_LABELS[entry.target_type]}`;
   if (entry.target_type === "chat_message" || entry.target_type === "chat_report") return entry.target_label ?? null;
   if (entry.target_type === "chat_channel") return entry.target_label ?? entry.target_id;
-  if (entry.target_type === "news_article") return entry.target_label ?? entry.target_id;
+  if (entry.target_type === "news_article" || entry.target_type === "announcement") return entry.target_label ?? entry.target_id;
   return null;
 }
 

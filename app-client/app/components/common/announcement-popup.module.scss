@@ -1,0 +1,126 @@
+@use "../../styles/mixins" as *;
+
+// Above every other layer (the highest is 1000), seasonal overlays included. That can't cover anything
+// that matters: it waits for other dialogs to close before it opens.
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: var(--scrim);
+}
+
+.panel {
+  width: min(30rem, 100%);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  background: var(--ink-2);
+  box-shadow: var(--shadow-pop);
+  animation: rise var(--dur-med) var(--ease-out);
+
+  &:focus {
+    outline: none;
+  }
+}
+
+:global(html[data-calm="true"]) .panel {
+  animation: none;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+
+.card {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem 1.25rem;
+  border: 1px solid var(--rule-2);
+  border-top: 2px solid var(--blue);
+  background: var(--ink-2);
+  color: var(--text);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 1.5rem;
+}
+
+.kicker {
+  @include label;
+  color: var(--blue);
+}
+
+.close {
+  padding: 0.2rem 0.4rem;
+  margin-right: -0.4rem;
+  border: 0;
+  background: none;
+  color: var(--dim);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.title {
+  @include display(1.5rem);
+  margin: 0;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+// Plain text: line breaks are the only formatting.
+.body {
+  margin: 0;
+  color: var(--mid);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+
+  @include phone {
+    flex-direction: column-reverse;
+
+    > * {
+      width: 100%;
+    }
+  }
+}
+
+.primary {
+  @include button-primary;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ghost {
+  @include button-secondary;
+  color: var(--mid);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: var(--text);
+  }
+}

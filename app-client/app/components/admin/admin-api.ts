@@ -164,6 +164,50 @@ export type ChatRestrictionEntry = {
 export const fetchActiveChatRestrictions = () => apiFetch<{ actions: ChatRestrictionEntry[] }>("/api/chat/moderation/active", { cache: "no-store" });
 
 /** The banner under every page's header: post one (replacing any other) or clear it. */
+// ── /api/admin/announcements: the popups (the banner is just below) ──────
+
+export type PopupAudience = "everyone" | "signed_in" | "signed_out";
+
+export type AdminAnnouncement = {
+  id: number;
+  title: string;
+  body: string;
+  button_label: string | null;
+  button_link: string | null;
+  audience: PopupAudience;
+  hide_from_v1_linked: boolean;
+  starts_at: string;
+  ends_at: string | null;
+  retired_at: string | null;
+  status: "live" | "scheduled" | "ended" | "retired";
+  /** Signed-in players only: signed-out visitors' dismissals stay in their browsers. */
+  dismissed_count: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** A blank or null start means now and a null end means no end. A time left out of an edit doesn't change. */
+export type AnnouncementDraft = {
+  title: string;
+  body: string;
+  button_label: string;
+  button_link: string;
+  audience: PopupAudience;
+  hide_from_v1_linked: boolean;
+  starts_at?: string | null;
+  ends_at?: string | null;
+};
+
+type OneAnnouncement = { announcement: AdminAnnouncement };
+
+export const fetchAnnouncements = () => apiFetch<{ announcements: AdminAnnouncement[] }>("/api/admin/announcements", { cache: "no-store" });
+export const createAnnouncement = (body: AnnouncementDraft) => apiFetch<OneAnnouncement>("/api/admin/announcements", { method: "POST", body: JSON.stringify(body) });
+export const updateAnnouncement = (id: number, body: AnnouncementDraft) => apiFetch<OneAnnouncement>(`/api/admin/announcements/${id}`, { method: "PATCH", body: JSON.stringify(body) });
+export const retireAnnouncement = (id: number) => apiFetch<OneAnnouncement>(`/api/admin/announcements/${id}/retire`, { method: "POST", body: "{}" });
+export const restoreAnnouncement = (id: number) => apiFetch<OneAnnouncement>(`/api/admin/announcements/${id}/restore`, { method: "POST", body: "{}" });
+export const deleteAnnouncement = (id: number) => apiFetch<{ id: number }>(`/api/admin/announcements/${id}`, { method: "DELETE" });
+
 export const postAnnouncement = (body: { text: string; tone: "info" | "warning"; link?: string; expires_in_hours?: number | null }) =>
   apiFetch<{ site: unknown }>("/internal/site/announcement", { method: "POST", body: JSON.stringify(body) });
 export const clearAnnouncement = () => apiFetch<{ site: unknown }>("/internal/site/announcement", { method: "DELETE" });
