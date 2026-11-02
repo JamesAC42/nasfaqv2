@@ -13,6 +13,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-11-02",
+    title: "Announcement popups",
+    changes: [
+      {
+        kind: "new",
+        text: "Big news now shows up in a small popup. You see each one once: dismiss it and it stays gone, on your other devices too if you're signed in. It waits while you're signing in, trading, typing or in a game. The first one is about linking your account from the original NASFAQ.",
+      },
+    ],
+  },
+  {
     date: "2026-11-01",
     title: "The site knows it's you",
     changes: [

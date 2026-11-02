@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { AnnouncementPopup } from "@/app/components/common/announcement-popup";
 import { StreamDock } from "@/app/components/livestreams/stream-dock";
 import { AuthProvider } from "@/app/providers/auth-provider";
 import { MotionProvider } from "@/app/providers/motion-provider";
@@ -26,7 +27,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
           {children}
           {/* Outside each page's shell so a playing stream survives moving between pages. */}
           <StreamDock />
-
+          <AnnouncementPopup />
         </AuthProvider>
       </MotionProvider>
     </ThemeProvider>

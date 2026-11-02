@@ -44,6 +44,11 @@ const ACTION_LABELS: Record<string, string> = {
   "chat.channel.update": "Changed chat room",
   "site.announcement.post": "Posted announcement",
   "site.announcement.clear": "Cleared announcement",
+  "announcement.create": "Wrote the popup",
+  "announcement.update": "Edited the popup",
+  "announcement.retire": "Retired the popup",
+  "announcement.restore": "Brought back the popup",
+  "announcement.delete": "Deleted the popup",
   "news.thumbnail.remove": "Removed the thumbnail of",
   "news.front_page.pins": "Changed the front page pins",
 };
@@ -70,6 +75,7 @@ function detailLine(entry: AdminAction): string | null {
   if (entry.action.startsWith("comment.") || entry.action === "chat.message.remove") return text(d.excerpt) ? `“${text(d.excerpt)}”` : null;
   if (entry.action === "chat.mute" || entry.action === "chat.ban") return d.expires_at ? `until ${new Date(String(d.expires_at)).toLocaleString()}` : "until lifted";
   if (entry.action.startsWith("site.announcement")) return text(d.text) ? `“${text(d.text)}”` : null;
+  if (entry.action === "announcement.update") return Array.isArray(d.changed) && d.changed.length ? `changed ${d.changed.join(", ").replaceAll("_", " ")}` : null;
   if (entry.action === "news.front_page.pins") return Array.isArray(d.after) ? (d.after.length ? `${d.after.length} pinned` : "none pinned") : null;
   return null;
 }
@@ -79,7 +85,7 @@ function targetText(entry: AdminAction) {
   if (entry.target_type && TARGET_LABELS[entry.target_type]) return `${entry.target_label ?? "someone"} on ${TARGET_LABELS[entry.target_type]}`;
   if (entry.target_type === "chat_message" || entry.target_type === "chat_report") return entry.target_label ?? null;
   if (entry.target_type === "chat_channel") return entry.target_label ?? entry.target_id;
-  if (entry.target_type === "news_article") return entry.target_label ?? entry.target_id;
+  if (entry.target_type === "news_article" || entry.target_type === "announcement") return entry.target_label ?? entry.target_id;
   return null;
 }
 
