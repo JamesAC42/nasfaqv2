@@ -2,12 +2,12 @@
 
 import type { IconType } from "react-icons";
 import { FiMoon, FiSun } from "react-icons/fi";
-import { LuLeaf } from "react-icons/lu";
+import { LuLeaf, LuTreePine } from "react-icons/lu";
 import { findSeason } from "@/app/lib/seasons";
 import { useTheme, type ThemeChoice } from "@/app/providers/theme-provider";
 import styles from "@/app/components/layout/site-shell.module.scss";
 
-const ICONS: Record<ThemeChoice, IconType> = { dark: FiMoon, light: FiSun, fall: LuLeaf };
+const ICONS: Record<ThemeChoice, IconType> = { dark: FiMoon, light: FiSun, fall: LuLeaf, winter: LuTreePine };
 
 function themeLabel(choice: ThemeChoice) {
   return findSeason(choice)?.label ?? (choice === "light" ? "Light mode" : "Dark mode");

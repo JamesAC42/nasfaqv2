@@ -440,6 +440,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
 
         // A batch landing: every stock it touched moves to its last quote, once.
         if (payload.type === "market.trade_fills") {
+          useMomentStore.getState().noteBatch();
           const quotes = new Map(
             (Array.isArray(payload.quotes) ? (payload.quotes as Array<Record<string, unknown>>) : []).map((quote) => [String(quote.symbol || "").toUpperCase(), quote]),
           );

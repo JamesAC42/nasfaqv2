@@ -13,6 +13,24 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-11-02",
+    title: "Winter lights, and snow",
+    changes: [
+      {
+        kind: "new",
+        text: "A new theme next to dark, light and fall, until January 6: Winter lights. A snowy blue night with an icy accent, string lights under the top bar, a star on the logo and a little cabin at the bottom of the page. Green and red still mean up and down, and amber still means a warning. Press the theme button in the top bar until you see it (it shows a pine tree), or pick it in the phone menu.",
+      },
+      {
+        kind: "new",
+        text: "It snows on Winter lights, and you can have the snow on any theme: press the snowflake in the top bar, or Snow in the phone menu, to turn it on or off and set the amount, speed, wind and size. It piles up on panel edges, parts around your mouse, and gets shaken off when you scroll hard. It can't block a click, it pauses when the tab is hidden, and in calm mode it stays off unless you turn it on, and then it barely moves.",
+      },
+      {
+        kind: "new",
+        text: "The snow keeps an eye on the market: wind picks up when a batch lands, and when one of your orders fills, some of it falls gold for a few seconds. If a tick leaves more stocks up than down, look up.",
+      },
+    ],
+  },
+  {
     date: "2026-11-01",
     title: "Batches land all at once",
     changes: [

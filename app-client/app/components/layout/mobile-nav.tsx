@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { isActivePath, MOBILE_TABS, NAV } from "@/app/components/layout/nav-config";
 import { ThemeChoices } from "@/app/components/layout/theme-switch";
+import { SnowSheetControls } from "@/app/components/snow/snow-controls";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMotion } from "@/app/providers/motion-provider";
 import styles from "@/app/components/layout/site-shell.module.scss";
@@ -60,6 +61,7 @@ export function MobileNav() {
                 CALM MODE {calm ? "ON" : "OFF"}
               </button>
               <ThemeChoices />
+              <SnowSheetControls />
             </div>
           </div>
         </div>

@@ -52,6 +52,10 @@
     border-radius: 5px;
     letter-spacing: 0;
   }
+
+  .seasonLights {
+    display: none;
+  }
 }
 
 // ── Header: rail + tape, sticky together ────────────────────────────────────
@@ -68,10 +72,141 @@
   }
 }
 
+// Winter lights: the top bar is a snowy eave with string lights hanging off it. Three layers of one
+// tile: the eave, wire and bulbs, then two sets of glows on their own compositor-only opacity loops,
+// so twinkling repaints nothing. All decoration: it can't take a click, and it's static in calm mode.
+// The eave takes a strip of the header, so sticky page elements (--site-shell-chrome-height) stop
+// below it and only the bulbs' tips hang over the page.
+.seasonLights {
+  display: none;
+}
+
+:global([data-season="winter"]) .header {
+  border-bottom-color: transparent;
+}
+
+:global([data-season="winter"]) .seasonLights {
+  position: relative;
+  display: block;
+  height: 14px;
+  pointer-events: none;
+
+  &::before,
+  &::after,
+  i {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 40px;
+    background: url("/seasonal/winter-lights.svg") 0 0 / 720px 40px repeat-x;
+  }
+
+  &::before,
+  &::after {
+    content: "";
+  }
+
+  &::after,
+  i {
+    background-image: url("/seasonal/winter-lights-a.svg");
+    animation: twinkle 4.6s ease-in-out infinite;
+  }
+
+  i {
+    background-image: url("/seasonal/winter-lights-b.svg");
+    animation-duration: 6.7s;
+    animation-delay: -2.4s;
+  }
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  44% {
+    opacity: 0.86;
+  }
+  56% {
+    opacity: 0.12;
+  }
+  70% {
+    opacity: 0.8;
+  }
+}
+
+// The star on top, in place of the diamond. It catches the light now and then.
+:global([data-season="winter"]) .logo i,
+:global([data-season="winter"]) .footerLogo i {
+  width: 1rem;
+  height: 1rem;
+  margin-inline: -0.1rem;
+  background: none;
+  box-shadow: none;
+  transform: none;
+  filter: drop-shadow(0 0 5px var(--season-glow));
+  animation: starGlint 7s ease-in-out infinite;
+
+  &::before {
+    content: "";
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: var(--season-accent);
+    clip-path: polygon(50% 0, 59% 41%, 100% 50%, 59% 59%, 50% 100%, 41% 59%, 0 50%, 41% 41%);
+  }
+}
+
+@keyframes starGlint {
+  0%,
+  86%,
+  100% {
+    transform: none;
+  }
+  92% {
+    transform: scale(1.32) rotate(45deg);
+  }
+}
+
+// A hillside along the top of the footer, with the links on the snow below it.
+:global([data-season="winter"]) .footer {
+  position: relative;
+  padding-top: 7.25rem;
+  border-top: 0;
+  background: #14264a;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 8.25rem;
+    pointer-events: none;
+    background:
+      url("/seasonal/winter-hills.svg") 50% 100% / 1600px 132px repeat-x,
+      linear-gradient(transparent, var(--ink));
+    background-color: var(--ink);
+  }
+
+  .footerInner {
+    position: relative;
+  }
+
+  .footerMeta {
+    color: #a3b4d0;
+  }
+
+  .footerLinks {
+    color: #d2deef;
+  }
+}
+
 // Phones, scrolling down (site-shell.tsx): the header slides away and sticky page elements move up.
 .shell[data-chrome="hidden"] {
   .header {
     transform: translateY(calc(-100% - env(safe-area-inset-top, 0px)));
+  }
+
+  .seasonLights {
+    visibility: hidden;
   }
 
   .main {

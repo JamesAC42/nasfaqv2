@@ -12,6 +12,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MarketTape } from "@/app/components/layout/market-tape";
 import { MobileNav } from "@/app/components/layout/mobile-nav";
 import { ThemeButton } from "@/app/components/layout/theme-switch";
+import { SnowButton } from "@/app/components/snow/snow-controls";
 import { announceOrderFill, FillMomentLayer } from "@/app/components/moments/fill-moment";
 import { TickMomentLayer } from "@/app/components/moments/tick-moment";
 import { StreamSheetHost } from "@/app/components/livestreams/stream-sheet";
@@ -473,6 +474,7 @@ export function SiteShell({
             >
               CALM
             </button>
+            <SnowButton />
             <ThemeButton />
           </div>
 
@@ -500,6 +502,9 @@ export function SiteShell({
         </div>
 
         {!hideRibbon ? <MarketTape /> : null}
+        <span className={styles.seasonLights} aria-hidden="true">
+          <i />
+        </span>
       </header>
 
       <SiteStatusBar />
