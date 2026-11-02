@@ -14,6 +14,20 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-11-01",
+    title: "v1 Classic has a dark mode",
+    changes: [
+      {
+        kind: "improved",
+        text: "The v1 Classic theme now follows your own light or dark setting, using the colors from the old site's dark mode. Anyone visiting a v1 Classic profile sees it in their setting, and Fall colors shows the dark version.",
+      },
+      {
+        kind: "fixed",
+        text: "A one-day streak on a profile now says 1 day, not 1 days.",
+      },
+    ],
+  },
+  {
+    date: "2026-11-01",
     title: "Batches land all at once",
     changes: [
       {

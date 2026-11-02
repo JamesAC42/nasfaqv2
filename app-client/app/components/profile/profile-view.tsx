@@ -312,7 +312,9 @@ export function ProfileView({ username }: { username?: string | null }) {
           </div>
           <div>
             <span className={styles.label}>Streak</span>
-            <b>{profile.streaks.current_streak_days} days</b>
+            <b>
+              {profile.streaks.current_streak_days} day{profile.streaks.current_streak_days === 1 ? "" : "s"}
+            </b>
             <small>best {profile.streaks.longest_streak_days}</small>
           </div>
           <div>
