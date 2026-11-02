@@ -51,6 +51,7 @@
   align-items: center;
   justify-content: space-between;
   min-height: 1.5rem;
+  margin-block: -0.5rem;
 }
 
 .kicker {
@@ -59,8 +60,9 @@
 }
 
 .close {
-  padding: 0.2rem 0.4rem;
-  margin-right: -0.4rem;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  margin-right: -0.75rem;
   border: 0;
   background: none;
   color: var(--dim);
@@ -104,6 +106,7 @@
 
     > * {
       width: 100%;
+      min-height: 2.75rem;
     }
   }
 }

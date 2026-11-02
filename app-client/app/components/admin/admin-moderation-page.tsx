@@ -75,6 +75,7 @@ function detailLine(entry: AdminAction): string | null {
   if (entry.action.startsWith("comment.") || entry.action === "chat.message.remove") return text(d.excerpt) ? `“${text(d.excerpt)}”` : null;
   if (entry.action === "chat.mute" || entry.action === "chat.ban") return d.expires_at ? `until ${new Date(String(d.expires_at)).toLocaleString()}` : "until lifted";
   if (entry.action.startsWith("site.announcement")) return text(d.text) ? `“${text(d.text)}”` : null;
+  if (entry.action === "announcement.update") return Array.isArray(d.changed) && d.changed.length ? `changed ${d.changed.join(", ").replaceAll("_", " ")}` : null;
   if (entry.action === "news.front_page.pins") return Array.isArray(d.after) ? (d.after.length ? `${d.after.length} pinned` : "none pinned") : null;
   return null;
 }
