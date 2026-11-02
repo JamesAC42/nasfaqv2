@@ -14,7 +14,7 @@ Tokens live in `app/styles/_theme.scss`, mixins in `app/styles/_mixins.scss`, fo
 6. **Talents own their pages.** Talent colors come from the API. Always pass them through `talentAccent()` (lib/talent-color.ts) before use, and expose them as `--tal` on the subtree.
 7. **Oshimarks represent stocks.** Wherever a ticker appears, put its oshimark next to it (`<Oshimark icon={asset.icon} />`). `AssetCoin` renders the bare oshimark too.
 8. **Art comes from the manifest.** Use `<ArtSlot kind="keyart" | "chibi" />`. It reads the art pipeline's `manifest.json` (`NEXT_PUBLIC_ART_MANIFEST_URL`, default `/art/manifest.json`) and falls back to a talent-colored placeholder, so pages look finished before art exists.
-9. **Motion is earned and optional.** Price flashes, the tape marquee, tick and fill moments. Everything must still work in calm mode (`html[data-calm="true"]`, `useMotion()`, `isCalm()`), which is on by default under `prefers-reduced-motion`.
+9. **Motion is earned and optional.** Price flashes, the tape marquee, tick and fill moments. Everything must still work in calm mode (`html[data-calm="true"]`, `useMotion()`, `isCalm()`), which is on by default under `prefers-reduced-motion`. The seasonal snow (`components/snow`) is one canvas under the top bar: it can't take a click, does no layout work per frame, and keeps to its own frame budget, so keep it that way.
 10. **Copy has a voice.** Talk like the thread, not like a SaaS dashboard. Don't explain the UI in subtitles ("Market Search: search by symbol..."); name things by what players call them (bags, the bell, bagholders).
 
 ## Market rhythm (drives countdowns)

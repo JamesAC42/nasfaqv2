@@ -118,6 +118,38 @@
   --season-rule: rgba(255, 122, 26, 0.4);
 }
 
+// Winter lights (November through Twelfth Night, built on dark): a snowy night at blue hour, lit warm.
+// Christmas colors would be red and green, which this site keeps for down and up, so the cold is in
+// the ground and the accent (ice, the one chill hue well clear of --up) and the warmth is decoration
+// only: the star, the string lights and the windows in the footer. Gold can't be the accent, for the
+// same reason orange couldn't be Fall's: meters turn from --blue to --warn. The scenery is in
+// site-shell.module.scss and public/seasonal; the snow itself is components/snow.
+[data-season="winter"][data-theme="dark"] {
+  --ink: #071022;
+  --ink-2: #0b172e;
+  --ink-3: #0f1c37;
+  --ink-4: #142442;
+
+  --rule: #1e3155;
+  --rule-2: #2d456f;
+
+  --mid: #aebbd3;
+  --dim: #8391ae;
+
+  --blue: #9dd5ff;
+  --blue-2: #d2ebff;
+  --blue-ink: #05142b;
+  --blue-wash: rgba(157, 213, 255, 0.13);
+  --blue-line: rgba(157, 213, 255, 0.42);
+
+  --shadow-pop: 0 18px 44px rgba(1, 5, 18, 0.7);
+  --scrim: rgba(3, 8, 22, 0.8);
+
+  --season-accent: #ffd27a;
+  --season-glow: rgba(255, 196, 92, 0.65);
+  --season-rule: rgba(157, 213, 255, 0.32);
+}
+
 // Theme-independent tokens
 :root {
   // Type. Font files are loaded by next/font in app/fonts.ts, which defines

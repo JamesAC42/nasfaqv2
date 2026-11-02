@@ -46,6 +46,10 @@ type MomentStore = {
   pushTick: (payload: Record<string, unknown>) => void;
   revealMissed: () => void;
   dismissTick: () => void;
+  /** When a live-order batch last landed, and when one of your fills last came in (the snow reacts). */
+  batchAt: number;
+  noteBatch: () => void;
+  fillAt: number;
 };
 
 const shownFills = new Set<string>();
@@ -96,6 +100,7 @@ export const useMomentStore = create<MomentStore>((set, get) => ({
   pushFill: (fill) => {
     if (shownFills.has(fill.id)) return;
     shownFills.add(fill.id);
+    set({ fillAt: Date.now() });
     if (!get().fillPopups) {
       gathered.push(fill);
       if (gatherTimer) clearTimeout(gatherTimer);
@@ -144,4 +149,7 @@ export const useMomentStore = create<MomentStore>((set, get) => ({
     if (missed) set({ tick: missed, missedTick: null });
   },
   dismissTick: () => set({ tick: null }),
+  batchAt: 0,
+  noteBatch: () => set({ batchAt: Date.now() }),
+  fillAt: 0,
 }));

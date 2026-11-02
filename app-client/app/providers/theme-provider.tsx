@@ -1,19 +1,21 @@
 "use client";
 
 import { createContext, useCallback, useContext, useMemo } from "react";
-import { findSeason, type SeasonId } from "@/app/lib/seasons";
+import { findSeason, parseSeasonsNow, type SeasonId } from "@/app/lib/seasons";
 import { useRootAttribute } from "@/app/lib/use-root-attribute";
 
 type Theme = "dark" | "light";
 
-/** What the player picked: dark, light, or the seasonal theme on offer (app/lib/seasons.ts). */
+/** What the player picked: dark, light, or a seasonal theme on offer (app/lib/seasons.ts). */
 export type ThemeChoice = Theme | SeasonId;
 
 type ThemeContextValue = {
   /** The light/dark palette in use; a seasonal theme reports the one it's built on. */
   theme: Theme;
   choice: ThemeChoice;
-  /** Dark, the seasonal theme while one is on offer, then light: the order the switch cycles in. */
+  /** The seasonal themes on offer now. */
+  seasonsNow: SeasonId[];
+  /** Dark, the seasonal themes on offer, then light: the order the switch cycles in. */
   choices: ThemeChoice[];
   /** Where toggleTheme goes from here. */
   next: ThemeChoice;
@@ -30,7 +32,7 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const theme: Theme = useRootAttribute("theme", "dark") === "light" ? "light" : "dark";
   const season = findSeason(useRootAttribute("season", ""));
-  const seasonNow = findSeason(useRootAttribute("seasonNow", ""));
+  const seasonNowAttribute = useRootAttribute("seasonNow", "");
   const choice: ThemeChoice = season?.id ?? theme;
 
   const setChoice = useCallback((next: ThemeChoice) => {
@@ -51,10 +53,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<ThemeContextValue>(() => {
-    const choices: ThemeChoice[] = seasonNow ? ["dark", seasonNow.id, "light"] : ["dark", "light"];
+    const seasonsNow = parseSeasonsNow(seasonNowAttribute);
+    const choices: ThemeChoice[] = ["dark", ...seasonsNow, "light"];
     const next = choices[(choices.indexOf(choice) + 1) % choices.length];
-    return { theme, choice, choices, next, setChoice, toggleTheme: () => setChoice(next) };
-  }, [choice, seasonNow, setChoice, theme]);
+    return { theme, choice, seasonsNow, choices, next, setChoice, toggleTheme: () => setChoice(next) };
+  }, [choice, seasonNowAttribute, setChoice, theme]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

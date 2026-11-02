@@ -76,6 +76,25 @@ body {
   overflow-x: hidden;
 }
 
+// Winter lights: the night behind the page, stars and a little aurora, on the ground the panels leave
+// showing. It's a fixed layer of its own, so scrolling doesn't repaint it.
+[data-season="winter"] body {
+  background: transparent;
+
+  &::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      url("/seasonal/winter-stars.svg") 0 0 / 640px 640px,
+      radial-gradient(70% 34% at 78% 0%, rgba(116, 150, 255, 0.13), transparent 70%),
+      radial-gradient(46% 26% at 30% 2%, rgba(120, 214, 255, 0.08), transparent 70%),
+      linear-gradient(#050c1c, var(--ink) 34%, #0a1730);
+  }
+}
+
 h1,
 h2,
 h3,
