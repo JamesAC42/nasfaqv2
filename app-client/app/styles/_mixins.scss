@@ -52,7 +52,7 @@ $bp-desktop: 1280px;
 }
 
 // The original NASFAQ's palette and fonts, from its settings.scss, for the v1 Classic profile theme.
-// It keeps the old site's look whichever theme the visitor uses here.
+// This is its light look; v1-classic-dark-tokens goes on top for a visitor who isn't on a light theme.
 @mixin v1-classic-tokens {
   color-scheme: light;
 
@@ -85,6 +85,23 @@ $bp-desktop: 1280px;
   --mono-wide: normal;
   --mono-normal: normal;
   --mono-narrow: normal;
+}
+
+// The old site's .dark, also from settings.scss. Its blue, its green and red, and the rule under its
+// headers stayed the same in dark mode, and it had one shade of subtle text.
+@mixin v1-classic-dark-tokens {
+  color-scheme: dark;
+
+  --ink: rgb(46, 45, 49);
+  --ink-2: rgb(46, 45, 49);
+  --ink-3: rgb(41, 41, 46);
+  --ink-4: rgb(27, 27, 27);
+  --rule: rgb(77, 77, 77);
+  --text: #fff;
+  --mid: rgb(196, 196, 196);
+  --dim: rgb(196, 196, 196);
+  --blue-2: #75d5f7;
+  --season-rule: rgb(77, 77, 77);
 }
 
 @mixin num($width: narrow) {

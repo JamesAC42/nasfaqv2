@@ -458,7 +458,7 @@ export function CommunitySection() {
             title: "HoloNews & articles",
             body: "Headlines import on their own. Anyone can draft the full story, players vote, and an editor picks the official version. Or write your own DD.",
           },
-          { k: "/profile", title: "Profile", body: "Bio, colour, your oshi, a showcase of five cards, your locker, badges and trade history." },
+          { k: "/profile", title: "Profile", body: "Bio, color, your oshi, a showcase of five cards, your locker, badges and trade history." },
           {
             k: "oshi",
             title: "Oshi & oshiboards",

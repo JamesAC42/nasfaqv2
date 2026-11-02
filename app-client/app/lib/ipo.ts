@@ -269,7 +269,7 @@ const IPO_ERRORS: Record<string, string> = {
   waiting_for_stats: "A talent has no settled snapshot for the listing day yet.",
   symbol_taken: "That ticker is taken.",
   invalid_symbol: "Tickers are 2–5 letters.",
-  invalid_color: "Colours are #rrggbb.",
+  invalid_color: "Colors are #rrggbb.",
   invalid_oshimark: "An oshimark is a single emoji.",
   listing_date_past: "The listing date has to be after today.",
   invalid_listing_date: "That listing date isn't valid.",

@@ -1639,6 +1639,10 @@
   }
 }
 
+:global(html:not([data-theme="light"])) .themeChoice[data-theme-pattern="v1"] {
+  background: rgb(46, 45, 49);
+}
+
 // ── The original NASFAQ ──────────────────────────────────────────────────
 .v1Invite {
   margin: 0;
@@ -1694,8 +1698,9 @@
 }
 
 // ── v1 Classic: the whole page as the old site ───────────────────────────
-// Values are from the old site's master.scss and profile.scss: white sections with a 5px blue border
-// over a gradient block offset down and left, big centered headers, Work Sans, and offset buttons.
+// Values are from the old site's master.scss and profile.scss: sections with a 5px blue border over a
+// gradient block offset down and left, big centered headers, Work Sans, and offset buttons. Colors that
+// change with light and dark come from the tokens in styles/_mixins.scss.
 @font-face {
   font-family: "v1 Work Sans";
   src: url("/fonts/v1/WorkSans-Regular.woff2") format("woff2");
@@ -1726,7 +1731,7 @@ $v1-primary: #75d5f7;
   padding: 15px;
   border: 5px solid $v1-blue;
   border-radius: 5px;
-  background: #fff;
+  background: var(--ink-2);
   overflow: visible;
 
   &::after {
@@ -1789,12 +1794,12 @@ $v1-primary: #75d5f7;
       content: "Profile";
       display: block;
       height: 80px;
-      border-bottom: 1px solid rgb(117, 117, 117);
+      border-bottom: 1px solid var(--rule-2);
       font-weight: 600;
       font-size: 32px;
       line-height: 80px;
       text-align: center;
-      color: #000;
+      color: var(--text);
     }
   }
 
@@ -1858,7 +1863,7 @@ $v1-primary: #75d5f7;
     > div {
       padding: 15px 20px;
       border: 0;
-      border-left: 1px solid rgb(211, 211, 211);
+      border-left: 1px solid var(--rule);
       text-align: center;
 
       &:first-child {
@@ -1873,7 +1878,7 @@ $v1-primary: #75d5f7;
       }
 
       &:last-child {
-        border-right: 1px solid rgb(211, 211, 211);
+        border-right: 1px solid var(--rule);
       }
     }
 
@@ -1931,11 +1936,28 @@ $v1-primary: #75d5f7;
 
   .grid2 > section:first-child,
   .col {
-    border-color: rgb(211, 211, 211);
+    border-color: var(--rule);
   }
 
   .sec:not(.wide) {
-    border-color: rgb(211, 211, 211);
+    border-color: var(--rule);
+  }
+
+  // The admin links, as a block of their own like every other part of the old site.
+  .admin {
+    @include v1-section;
+    justify-content: center;
+    gap: 10px 24px;
+
+    a {
+      font-family: var(--font-body);
+      font-size: 16px;
+      color: $v1-blue;
+
+      &:hover {
+        color: var(--blue-2);
+      }
+    }
   }
 
   // Section headers, like the old .header but smaller, since there are several to a block.
@@ -1944,14 +1966,14 @@ $v1-primary: #75d5f7;
     position: relative;
     margin-bottom: 15px;
     padding-bottom: 12px;
-    border-bottom: 1px solid rgb(117, 117, 117);
+    border-bottom: 1px solid var(--rule-2);
 
     h2 {
       font-weight: 600;
       font-size: 24px;
       letter-spacing: 0;
       text-transform: none;
-      color: #000;
+      color: var(--text);
     }
   }
 
@@ -1971,7 +1993,7 @@ $v1-primary: #75d5f7;
     font-weight: 400;
     letter-spacing: 0;
     text-transform: none;
-    color: #000;
+    color: var(--text);
   }
 
   // Tabs: plain words, a thick bar under the chosen one.
@@ -1984,12 +2006,12 @@ $v1-primary: #75d5f7;
       border-bottom: 5px solid transparent;
       font-size: 16px;
       letter-spacing: 0;
-      color: #000;
+      color: var(--text);
 
       &[aria-pressed="true"] {
         border-bottom-color: rgb(112, 160, 248);
         background: none;
-        color: #000;
+        color: var(--text);
         font-weight: 400;
       }
     }
@@ -2007,7 +2029,7 @@ $v1-primary: #75d5f7;
     margin: 0 0 12px 8px;
     border: 3px solid $v1-primary;
     border-radius: 5px;
-    background: #fff;
+    background: var(--ink-2);
     box-shadow: -8px 12px 0 -1px rgb(110, 190, 252);
     font-weight: 700;
     font-size: 14px;
@@ -2029,11 +2051,11 @@ $v1-primary: #75d5f7;
   }
 
   .up {
-    color: rgb(77, 182, 108);
+    color: var(--up);
   }
 
   .down {
-    color: rgb(255, 108, 108);
+    color: var(--down);
   }
 
   a:not(.primary, .ghost) {
@@ -2056,6 +2078,11 @@ $v1-primary: #75d5f7;
       display: none;
     }
   }
+}
+
+// Seasonal themes count as their base here, and a season that's over is back on dark.
+:global(html:not([data-theme="light"])) .page[data-theme-pattern="v1"] {
+  @include v1-classic-dark-tokens;
 }
 
 .v1Coin {

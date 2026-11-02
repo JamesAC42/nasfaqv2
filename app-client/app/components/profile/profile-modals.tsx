@@ -32,7 +32,7 @@ const PROFILE_ERRORS: Record<string, string> = {
   username_reserved: "That name is reserved. Usernames can't look like staff or the site (admin, mod, official, support, NASFAQ…).",
   username_talent: "That's a talent's name or ticker, so it's hers. Make it yours, like “PekoraFan”.",
   rename_needs_verified_email: "Verify your email before changing your username.",
-  invalid_profile_update: "Something in there isn't valid. Bios are up to 250 characters, and colours are hex like #3FB8F5.",
+  invalid_profile_update: "Something in there isn't valid. Bios are up to 250 characters, and colors are hex like #3FB8F5.",
 };
 
 function profileErrorText(reason: unknown) {
@@ -107,7 +107,7 @@ function HexColorInput({ value, onChange }: { value: string; onChange: (hex: str
       maxLength={7}
       spellCheck={false}
       autoComplete="off"
-      aria-label="Profile colour as hex"
+      aria-label="Profile color as hex"
       aria-invalid={invalid || undefined}
       onChange={(event) => {
         setDraft(event.target.value);
@@ -235,9 +235,9 @@ export function SettingsModal({
         </label>
         <div className={styles.formRow}>
           <label>
-            <span className={styles.label}>Profile colour</span>
+            <span className={styles.label}>Profile color</span>
             <span className={styles.colorRow}>
-              <input type="color" value={color} onChange={(event) => setColor(event.target.value)} aria-label="Pick a profile colour" />
+              <input type="color" value={color} onChange={(event) => setColor(event.target.value)} aria-label="Pick a profile color" />
               <HexColorInput value={color} onChange={setColor} />
               <PlayerAvatar username={name || "?"} pictureUrl={profile.profile_picture_url} color={color} size={28} />
             </span>
@@ -251,7 +251,7 @@ export function SettingsModal({
         <BannerChoice options={profile.banner_options} value={banner} onChange={setBanner} />
         {themeId !== null && banner && themes?.find((entry) => entry.id === themeId)?.theme.pattern !== "v1" ? (
           <small className={styles.themeNote}>
-            Your banner art fills the header, in place of the theme&apos;s pattern there. The theme still shades the banner and colours the rest of your page.
+            Your banner art fills the header, in place of the theme&apos;s pattern there. The theme still shades the banner and colors the rest of your page.
           </small>
         ) : null}
         {onSecurity ? (
@@ -451,7 +451,7 @@ function ThemeChoice({ themes, value, onChange }: { themes: OwnedTheme[] | null;
         {themes === null ? (
           "Loading your themes…"
         ) : themes.length ? (
-          "Colours your whole profile page, for everyone who visits."
+          "Colors your whole profile page, for everyone who visits."
         ) : (
           <>
             Themes come out of the capsule machine. <Link href="/games/capsule">Capsule machine →</Link>
