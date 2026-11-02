@@ -254,6 +254,94 @@
   overflow: auto;
 }
 
+// ── v1 players ─────────────────────────────────────────────────────────────
+.v1Note {
+  margin: 0.5rem 0 1rem;
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+.v1Heading {
+  @include label;
+  margin: 0 0 0.5rem;
+}
+
+.v1Links {
+  margin-top: 1.25rem;
+}
+
+.v1LinksHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.v1Table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+
+  th,
+  td {
+    padding: 0.35rem 0.75rem 0.35rem 0;
+    border-bottom: 1px solid var(--rule);
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  thead th {
+    @include label;
+    position: sticky;
+    top: 0;
+    background: var(--ink);
+  }
+
+  tbody th {
+    font-weight: 500;
+  }
+
+  a {
+    color: var(--blue);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.undo {
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--rule-2);
+  background: none;
+  font-size: 0.75rem;
+  color: var(--mid);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--dim);
+    color: var(--text);
+  }
+
+  &[data-danger] {
+    border-color: var(--down);
+    color: var(--down);
+  }
+}
+
+.undoForm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+
+  input {
+    width: 12rem;
+  }
+}
+
 // ── Ranked lists ───────────────────────────────────────────────────────────
 .rank {
   display: grid;

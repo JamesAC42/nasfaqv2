@@ -27,6 +27,7 @@ const ACTION_LABELS: Record<string, string> = {
   "user.suspend": "Suspended",
   "user.unsuspend": "Lifted suspension",
   "user.reset_profile": "Reset profile",
+  "user.v1_unlink": "Undid the v1 link of",
   "user.roles": "Changed roles",
   "user.exchange_freeze": "Froze exchange",
   "user.exchange_unfreeze": "Unfroze exchange",
@@ -60,6 +61,7 @@ function detailLine(entry: AdminAction): string | null {
   const d = entry.details;
   const text = (value: unknown) => (typeof value === "string" && value ? value : null);
   if (entry.action === "user.suspend") return d.until ? `until ${new Date(String(d.until)).toLocaleString()}` : "until lifted";
+  if (entry.action === "user.v1_unlink") return text(d.v1_username) ? `v1 account ${text(d.v1_username)}` : null;
   if (entry.action === "user.reset_profile") {
     const after = d.after && typeof d.after === "object" ? text((d.after as Record<string, unknown>).username) : null;
     return after ? `now ${after}` : null;

@@ -1,0 +1,144 @@
+@use "../../styles/mixins" as *;
+
+.page {
+  width: 100%;
+  max-width: 46rem;
+  margin: 0 auto;
+  padding-block: 1.5rem 3rem;
+}
+
+.head {
+  margin-bottom: 1.25rem;
+
+  h1 {
+    @include display;
+    margin: 0;
+    font-size: clamp(1.75rem, 5vw, 2.6rem);
+    line-height: 1.05;
+  }
+
+  p {
+    margin: 0.5rem 0 0;
+    color: var(--mid);
+  }
+}
+
+.notice {
+  margin: 0 0 1rem;
+  padding: 0.65rem 0.85rem;
+  border-left: 2px solid var(--warn);
+  background: var(--warn-wash);
+  font-size: 0.875rem;
+
+  &[data-tone="ok"] {
+    border-left-color: var(--blue);
+    background: var(--blue-wash);
+  }
+}
+
+.rewards {
+  display: grid;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  border: 1px solid var(--rule);
+  list-style: none;
+
+  li {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--rule);
+
+    &:last-child {
+      border-bottom: 0;
+    }
+  }
+
+  b {
+    font-weight: 700;
+  }
+
+  span {
+    font-size: 0.875rem;
+    color: var(--mid);
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0 0 2rem;
+}
+
+.primary,
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.7rem 1.1rem;
+  border: 1px solid var(--rule-2);
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+.primary {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: var(--blue-ink);
+}
+
+.ghost:hover {
+  border-color: var(--dim);
+}
+
+.rules {
+  h2 {
+    @include section-heading;
+    margin: 0 0 0.6rem;
+  }
+
+  ol {
+    display: grid;
+    gap: 0.45rem;
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: 0.875rem;
+    color: var(--mid);
+  }
+
+  a {
+    color: var(--blue);
+  }
+}
+
+.next {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin: 1rem 0 0.4rem;
+
+  a {
+    color: var(--blue);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.note {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--dim);
+}

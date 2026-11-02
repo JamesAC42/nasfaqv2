@@ -19,7 +19,7 @@ function equippedJsonSql(userIdSql) {
   )`;
 }
 
-const THEME_PATTERNS = new Set(["petals", "waves", "grid", "stripes", "stars", "plain"]);
+const THEME_PATTERNS = new Set(["petals", "waves", "grid", "stripes", "stars", "plain", "v1"]);
 const HEX = /^#[0-9a-f]{6}$/i;
 
 /** A portfolio theme's look ({ accent, accent2, pattern }), or null if it doesn't have a usable one. */

@@ -1415,7 +1415,8 @@
 // An equipped theme sets --th-a (accent), --th-b (deep colour) and a pattern, and restyles the whole
 // page: its pattern and glow behind everything, tinted panels, accented headings, tabs and avatar.
 // Banner art (Edit profile → Banner) takes the header, and the theme tints its shading and edge.
-.page[data-theme-pattern] {
+// v1 Classic has its own rules further down.
+.page[data-theme-pattern]:not([data-theme-pattern="v1"]) {
   --th-line: color-mix(in srgb, var(--th-a) 38%, var(--rule));
   --th-panel: color-mix(in oklab, var(--th-b) 26%, color-mix(in oklab, var(--ink) 88%, transparent));
   position: relative;
@@ -1530,7 +1531,7 @@
 
 // Light mode keeps the page light: the accent tints the header, panels and backdrop instead of the
 // deep colour.
-:global(html[data-theme="light"]) .page[data-theme-pattern] {
+:global(html[data-theme="light"]) .page[data-theme-pattern]:not([data-theme-pattern="v1"]) {
   --th-panel: color-mix(in oklab, var(--th-a) 6%, color-mix(in oklab, var(--ink-2) 90%, transparent));
 
   &::before {
@@ -1625,6 +1626,443 @@
   --th-pattern:
     radial-gradient(circle at 30% 40%, color-mix(in srgb, var(--th-a) 85%, transparent) 1.2px, transparent 1.8px) 0 0 / 38px 34px,
     radial-gradient(circle at 70% 80%, color-mix(in srgb, var(--th-a) 60%, transparent) 0.8px, transparent 1.4px) 9px 13px / 26px 29px;
+}
+
+.themeChoice[data-theme-pattern="v1"] {
+  border: 3px solid #38b6f6;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: -5px 5px 0 #6e9cfc;
+
+  &[aria-checked="true"] {
+    box-shadow: -5px 5px 0 #6e9cfc, 0 0 0 2px var(--blue);
+  }
+}
+
+// ── The original NASFAQ ──────────────────────────────────────────────────
+.v1Invite {
+  margin: 0;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--rule);
+  border-top: 0;
+  font-size: 0.8125rem;
+  color: var(--mid);
+
+  a {
+    color: var(--blue);
+  }
+}
+
+.v1Trophy {
+  @include section(1rem 1rem 1.1rem);
+  border: 1px solid var(--rule);
+  border-top: 0;
+}
+
+.v1Show {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--mid);
+  cursor: pointer;
+}
+
+.v1Stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(12.5rem, 100%), 1fr));
+  gap: 0.75rem 1rem;
+
+  > div {
+    display: grid;
+    align-content: start;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+
+  b {
+    @include num;
+    font-size: 1rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  small {
+    font-size: 0.6875rem;
+    color: var(--dim);
+  }
+}
+
+// ── v1 Classic: the whole page as the old site ───────────────────────────
+// Values are from the old site's master.scss and profile.scss: white sections with a 5px blue border
+// over a gradient block offset down and left, big centered headers, Work Sans, and offset buttons.
+@font-face {
+  font-family: "v1 Work Sans";
+  src: url("/fonts/v1/WorkSans-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "v1 Work Sans";
+  src: url("/fonts/v1/WorkSans-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "v1 Work Sans";
+  src: url("/fonts/v1/WorkSans-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+
+$v1-blue: #38b6f6;
+$v1-primary: #75d5f7;
+
+@mixin v1-section {
+  position: relative;
+  margin: 50px 0 0;
+  padding: 15px;
+  border: 5px solid $v1-blue;
+  border-radius: 5px;
+  background: #fff;
+  overflow: visible;
+
+  &::after {
+    content: "";
+    position: absolute;
+    left: -25px;
+    bottom: -25px;
+    width: calc(100% + 10px);
+    height: calc(100% + 10px);
+    border-radius: 5px;
+    background: linear-gradient(135deg, rgb(123, 250, 255) 0%, rgb(110, 156, 252) 100%);
+    z-index: -1;
+  }
+
+  @include phone {
+    margin-top: 30px;
+
+    &::after {
+      left: -13px;
+      bottom: -13px;
+    }
+  }
+}
+
+.page[data-theme-pattern="v1"] {
+  @include v1-classic-tokens;
+  position: relative;
+  isolation: isolate;
+  width: 70vw;
+  max-width: none;
+  padding-bottom: 70px;
+  font-family: var(--font-body);
+  color: var(--text);
+
+  @include desktop-down {
+    width: auto;
+    padding-left: 25px;
+  }
+
+  @include phone {
+    padding-left: 13px;
+  }
+
+  .back,
+  .bannerBg,
+  .bannerArt,
+  .bannerPlate,
+  .bannerScrim {
+    display: none;
+  }
+
+  // The "Profile" block: a big header over the player's coin and name.
+  .banner {
+    @include v1-section;
+    display: block;
+    min-height: 0;
+    isolation: auto;
+
+    &::before {
+      content: "Profile";
+      display: block;
+      height: 80px;
+      border-bottom: 1px solid rgb(117, 117, 117);
+      font-weight: 600;
+      font-size: 32px;
+      line-height: 80px;
+      text-align: center;
+      color: #000;
+    }
+  }
+
+  // The player's coin with their name under it, centered like the old profile card.
+  .idRow {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 10px 10px;
+    text-align: center;
+  }
+
+  .avatarBtn {
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+
+  .avatar {
+    border-radius: 14px;
+  }
+
+  .id {
+    flex: none;
+    min-width: 0;
+
+    h1 {
+      font-weight: 600;
+      font-size: 22px;
+      line-height: 1.3;
+      letter-spacing: 0;
+    }
+  }
+
+  .meta {
+    justify-content: center;
+    font-size: 16px;
+  }
+
+  .actions {
+    justify-content: center;
+    margin-top: 10px;
+  }
+
+  .bio {
+    color: var(--mid);
+  }
+
+  .tag,
+  .tagWarn {
+    border-radius: 5px;
+    font-family: var(--font-body);
+    letter-spacing: 0;
+  }
+
+  // The balance row: every figure under a thin rule, the net worth huge like the old site's.
+  .kstrip {
+    @include v1-section;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+
+    > div {
+      padding: 15px 20px;
+      border: 0;
+      border-left: 1px solid rgb(211, 211, 211);
+      text-align: center;
+
+      &:first-child {
+        grid-column: 1 / -1;
+        padding-bottom: 20px;
+        border-left: 0;
+
+        b {
+          font-size: clamp(30px, 4vw, 50px);
+          line-height: 1.2;
+        }
+      }
+
+      &:last-child {
+        border-right: 1px solid rgb(211, 211, 211);
+      }
+    }
+
+    b {
+      font-weight: 600;
+      font-size: 20px;
+      letter-spacing: 0;
+    }
+
+    small {
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+
+    @include phone {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+
+      > div {
+        border-bottom: 0;
+        border-right: 0 !important;
+      }
+    }
+  }
+
+  .v1Trophy {
+    @include v1-section;
+
+    .v1Stats > div {
+      text-align: center;
+    }
+
+    b {
+      font-weight: 600;
+      font-size: 18px;
+    }
+
+    small {
+      font-size: 14px;
+    }
+  }
+
+  .v1Invite {
+    margin-top: 30px;
+    border: 0;
+    font-size: 16px;
+    text-align: center;
+  }
+
+  .grid2,
+  .grid3,
+  .wide {
+    @include v1-section;
+    padding: 15px;
+  }
+
+  .grid2 > section:first-child,
+  .col {
+    border-color: rgb(211, 211, 211);
+  }
+
+  .sec:not(.wide) {
+    border-color: rgb(211, 211, 211);
+  }
+
+  // Section headers, like the old .header but smaller, since there are several to a block.
+  .secHead {
+    justify-content: center;
+    position: relative;
+    margin-bottom: 15px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgb(117, 117, 117);
+
+    h2 {
+      font-weight: 600;
+      font-size: 24px;
+      letter-spacing: 0;
+      text-transform: none;
+      color: #000;
+    }
+  }
+
+  .aside {
+    width: 100%;
+    font-size: 14px;
+    text-align: center;
+    color: var(--mid);
+
+    a {
+      color: $v1-blue;
+    }
+  }
+
+  .label {
+    font-size: 16px;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: #000;
+  }
+
+  // Tabs: plain words, a thick bar under the chosen one.
+  .tabs {
+    gap: 12px;
+    border: 0;
+
+    button {
+      padding: 0 0 4px;
+      border-bottom: 5px solid transparent;
+      font-size: 16px;
+      letter-spacing: 0;
+      color: #000;
+
+      &[aria-pressed="true"] {
+        border-bottom-color: rgb(112, 160, 248);
+        background: none;
+        color: #000;
+        font-weight: 400;
+      }
+    }
+  }
+
+  // Buttons: outlined in the old blue, with the gradient block behind them.
+  .primary,
+  .ghost,
+  .on,
+  .rival,
+  .rivalOn {
+    position: relative;
+    min-height: 40px;
+    justify-content: center;
+    margin: 0 0 12px 8px;
+    border: 3px solid $v1-primary;
+    border-radius: 5px;
+    background: #fff;
+    box-shadow: -8px 12px 0 -1px rgb(110, 190, 252);
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0;
+    color: $v1-primary;
+    transition:
+      box-shadow 0.1s ease-in-out,
+      transform 0.05s linear;
+
+    &:hover:not(:disabled) {
+      border-color: $v1-primary;
+      box-shadow: -12px 18px 0 -1px rgb(110, 190, 252);
+    }
+
+    &:active:not(:disabled) {
+      box-shadow: none;
+      transform: translate(-9px, 9px);
+    }
+  }
+
+  .up {
+    color: rgb(77, 182, 108);
+  }
+
+  .down {
+    color: rgb(255, 108, 108);
+  }
+
+  a:not(.primary, .ghost) {
+    text-decoration: none;
+  }
+
+  // The old site's corner mascot, where there's room for her beside the page.
+  &::before {
+    content: "";
+    position: fixed;
+    left: 17px;
+    bottom: 0;
+    width: 13%;
+    max-width: 230px;
+    height: 250px;
+    background: url("/images/v1/botan.webp") left bottom / contain no-repeat;
+    pointer-events: none;
+
+    @media (max-width: 1500px) {
+      display: none;
+    }
+  }
+}
+
+.v1Coin {
+  margin-right: 0.35em;
+  font-size: 0.6em;
+  color: $v1-primary;
+  vertical-align: 0.05em;
 }
 
 // Shares left this tick, above your pending orders.

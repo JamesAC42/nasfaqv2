@@ -18,11 +18,21 @@ export const CHANGELOG: ChangelogEntry[] = [
     changes: [
       {
         kind: "improved",
-        text: "A 10-minute batch now fills in a moment instead of trickling in over a minute or more. Its fills show up on the Activity page together, and each stock's price jumps straight to where the batch left it.",
+        text: "A 10-minute batch now fills in a moment instead of trickling in one fill at a time. Its fills land on the Activity page together and wash quickly down the tape, and each stock's price jumps straight to where the batch left it.",
       },
       {
         kind: "fixed",
         text: "The stock tiles on the Activity page no longer shuffle around while a batch fills. They stay put and only re-sort, busiest first, once when the batch has landed.",
+      },
+    ],
+  },
+  {
+    date: "2026-11-01",
+    title: "Link your v1 account",
+    changes: [
+      {
+        kind: "new",
+        text: "Played the original NASFAQ? Link your old account from your profile, or at /link-v1. You get a v1 Veteran badge with the year you joined, a trophy on your profile with your v1 name, join date, peak net worth and rank, and the v1 Classic theme, which makes your profile page look like the old site. You confirm on nasfaq.biz, so this site never sees your old password. It works for v1 accounts made before October 1, 2026, one v1 account per player.",
       },
     ],
   },

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } fr
 import { fetchSiteAnalytics, type AnalyticsPoint, type AnalyticsRow, type AnalyticsSite, type SiteAnalytics } from "@/app/components/admin/admin-api";
 import { AdminFrame, AdminGate, AdminLoading, useAdminAccess } from "@/app/components/admin/admin-frame";
 import { Notice, Section, adminErrorText, adminUi as ui, fmtCount, marketDateKey } from "@/app/components/admin/admin-ui";
+import { AdminV1Players } from "@/app/components/admin/admin-v1-players";
 import styles from "@/app/components/admin/admin-analytics-page.module.scss";
 
 const SITE_TABS: { key: AnalyticsSite; label: string }[] = [
@@ -326,6 +327,8 @@ export function AdminAnalyticsPage() {
       ) : !error ? (
         <p className={ui.empty}>Loading…</p>
       ) : null}
+
+      <AdminV1Players />
     </AdminFrame>
   );
 }

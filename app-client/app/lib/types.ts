@@ -58,7 +58,22 @@ export type ChatChannel = {
 };
 
 /** One equipped capsule cosmetic (see api/src/services/games/equipped.js). */
-export type CosmeticTheme = { accent: string; accent2: string | null; pattern: "petals" | "waves" | "grid" | "stripes" | "stars" | "plain" };
+export type CosmeticTheme = { accent: string; accent2: string | null; pattern: "petals" | "waves" | "grid" | "stripes" | "stars" | "plain" | "v1" };
+
+/** A linked account on the original NASFAQ: a snapshot from the day it was linked. */
+export type V1Account = {
+  username: string;
+  joined_at: string;
+  peak_net_worth: number | null;
+  peak_at: string | null;
+  net_worth: number | null;
+  rank: number | null;
+  rank_of: number | null;
+  hats: number;
+  items: number;
+  linked_at: string;
+  show_on_profile: boolean;
+};
 
 export type EquippedCosmetic = {
   key: string;
@@ -1760,6 +1775,8 @@ export type ProfileBundle = {
     profile_banner: ProfileOshiCoin | null;
     /** Your own profile only: talents whose banner you've unlocked (own her SSR or UR). */
     banner_options: ProfileOshiCoin[];
+    /** Their account on the original NASFAQ, unless they hid it (it's always there on your own). */
+    v1_account: V1Account | null;
     stats: {
       /** Cash, with what queued buys hold. */
       cash_balance: number;
