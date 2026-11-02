@@ -540,6 +540,7 @@ test("abuse limits end to end", { skip: !databaseUrl, timeout: 240_000 }, async 
     assert.equal((await call("GET", "/api/auth/me", { cookie: here })).status, 401);
     assert.equal((await call("GET", "/api/auth/me", { cookie: elsewhere })).status, 401);
     assert.equal((await call("GET", "/api/auth/me", { cookie: changed.cookie })).body.user.username, "Changer");
+    assert.equal(typeof (await call("GET", "/api/auth/me", { cookie: changed.cookie })).body.user.id, "number", "the client compares ids as numbers");
     assert.deepEqual((await passwordRow(userId)).password_params_json, { N: 131072, r: 8, p: 1 });
     assert.equal((await login("Changer", "first password")).status, 401);
     assert.equal((await login("Changer", "second password")).status, 200);
