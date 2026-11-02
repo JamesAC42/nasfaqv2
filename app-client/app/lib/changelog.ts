@@ -14,6 +14,24 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-11-01",
+    title: "The site knows it's you",
+    changes: [
+      {
+        kind: "fixed",
+        text: "Your spot on the oshiboards now shows your place, and your own row is marked YOU.",
+      },
+      {
+        kind: "fixed",
+        text: "Your own fills now pop up as they land, and your portfolio refreshes after them without reloading the page.",
+      },
+      {
+        kind: "fixed",
+        text: "Your own articles, comments and chat messages are now treated as yours, so the right options show on them.",
+      },
+    ],
+  },
+  {
+    date: "2026-11-01",
     title: "v1 Classic has a dark mode",
     changes: [
       {
