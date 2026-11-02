@@ -13,17 +13,17 @@
   }
 }
 
-// A profile wearing the v1 Classic theme dresses the top bar as the old site's: white, with a soft
-// shadow and the old logo, in plain words.
+// A profile wearing the v1 Classic theme dresses the top bar as the old site's: a soft shadow and the
+// old logo, in plain words, in its light or dark colors to match the visitor's theme.
 .shell:has([data-v1-classic]) {
   @include v1-classic-tokens;
-  background: #fff;
-  color: #000;
+  background: var(--ink);
+  color: var(--text);
   font-family: var(--font-body);
 
   .header {
     border-bottom: 0;
-    background: #fff;
+    background: var(--ink);
     box-shadow: 0 7px 32px -14px rgba(0, 0, 0, 0.75);
   }
 
@@ -44,7 +44,7 @@
   .navItem {
     border-bottom: 0;
     font-size: 14px;
-    color: #000;
+    color: var(--text);
   }
 
   .textButton {
@@ -52,6 +52,11 @@
     border-radius: 5px;
     letter-spacing: 0;
   }
+}
+
+// Seasonal themes count as their base here, and a season that's over is back on dark.
+:global(html:not([data-theme="light"])) .shell:has([data-v1-classic]) {
+  @include v1-classic-dark-tokens;
 }
 
 // ── Header: rail + tape, sticky together ────────────────────────────────────

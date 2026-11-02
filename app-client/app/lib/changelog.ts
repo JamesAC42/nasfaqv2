@@ -14,6 +14,20 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-11-01",
+    title: "v1 Classic has a dark mode",
+    changes: [
+      {
+        kind: "improved",
+        text: "The v1 Classic theme now follows your own light or dark setting, using the colors from the old site's dark mode. Anyone visiting a v1 Classic profile sees it in their setting, and Fall colors shows the dark version.",
+      },
+      {
+        kind: "fixed",
+        text: "A one-day streak on a profile now says 1 day, not 1 days.",
+      },
+    ],
+  },
+  {
+    date: "2026-11-01",
     title: "Batches land all at once",
     changes: [
       {
@@ -62,7 +76,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     changes: [
       {
         kind: "improved",
-        text: "Account emails got a makeover: the email that verifies your address and the password reset now come in NASFAQ colours with one big button to press, and the link spelled out underneath in case the button doesn't work.",
+        text: "Account emails got a makeover: the email that verifies your address and the password reset now come in NASFAQ colors with one big button to press, and the link spelled out underneath in case the button doesn't work.",
       },
     ],
   },
@@ -419,8 +433,8 @@ export const CHANGELOG: ChangelogEntry[] = [
   },
   {
     date: "2026-09-30",
-    title: "Profile colour by hex",
-    changes: [{ kind: "fixed", text: "Typing a profile colour's hex code in capitals (007FAB) set the wrong colour. Edit profile has its own hex box now, next to the swatch: any case, with or without #." }],
+    title: "Profile color by hex",
+    changes: [{ kind: "fixed", text: "Typing a profile color's hex code in capitals (007FAB) set the wrong color. Edit profile has its own hex box now, next to the swatch: any case, with or without #." }],
   },
   {
     date: "2026-09-29",
@@ -450,7 +464,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     changes: [
       { kind: "new", text: "Pick your theme in Edit profile, next to your banner." },
       { kind: "improved", text: "Themes now style your whole profile: a backdrop in the theme's pattern, tinted panels, and accents on headings, tabs and your avatar." },
-      { kind: "improved", text: "With banner art on, the theme still shades the banner and colours the rest of the page." },
+      { kind: "improved", text: "With banner art on, the theme still shades the banner and colors the rest of the page." },
     ],
   },
   {

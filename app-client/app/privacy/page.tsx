@@ -46,7 +46,7 @@ const sections: LegalSection[] = [
           </Fact>
           <Fact term="Your profile">
             <p>
-              Your bio, the profile picture you pick from our set (you can’t upload your own), your profile colour,
+              Your bio, the profile picture you pick from our set (you can’t upload your own), your profile color,
               your oshi coin, and your friends and rivals. If you link an account from the original NASFAQ (nasfaq.biz),
               we keep a snapshot of it from that day: its ID and username, when it joined, its net worth and rank, and how
               many hats and items it held. We don’t get its email or password.
@@ -141,7 +141,7 @@ const sections: LegalSection[] = [
           <Fact term="Public">
             <ul>
               <li>
-                your username, profile picture, colour, bio, oshi coin, join date, badges and achievements, trading
+                your username, profile picture, color, bio, oshi coin, join date, badges and achievements, trading
                 streak, friends and rivals
               </li>
               <li>your rank, cash, total stock value, net worth and net worth history</li>
@@ -334,7 +334,7 @@ const sections: LegalSection[] = [
         </ul>
         <h3>Changing your data</h3>
         <p>
-          You can change your username, bio, profile picture, colour and oshi coin in your profile settings. To change the
+          You can change your username, bio, profile picture, color and oshi coin in your profile settings. To change the
           email on your account, email us.
         </p>
         <h3>Getting a copy, or deleting your account</h3>

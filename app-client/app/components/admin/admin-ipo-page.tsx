@@ -417,8 +417,8 @@ function CandidateRow({ talent, draft, onDraft, used }: { talent: DetectedTalent
       </td>
       <td>
         <span className={styles.colorField}>
-          <input type="color" value={HEX.test(draft.color) ? draft.color : "#3fb8f5"} onChange={(event) => onDraft({ ...draft, color: event.target.value })} aria-label="Colour" />
-          <input className={`${ui.input} ${styles.hexInput}`} value={draft.color} maxLength={7} placeholder="#rrggbb" onChange={(event) => onDraft({ ...draft, color: event.target.value.trim() })} aria-label="Colour hex" />
+          <input type="color" value={HEX.test(draft.color) ? draft.color : "#3fb8f5"} onChange={(event) => onDraft({ ...draft, color: event.target.value })} aria-label="Color" />
+          <input className={`${ui.input} ${styles.hexInput}`} value={draft.color} maxLength={7} placeholder="#rrggbb" onChange={(event) => onDraft({ ...draft, color: event.target.value.trim() })} aria-label="Color hex" />
         </span>
       </td>
       <td>
@@ -605,7 +605,7 @@ export function AdminIpoPage() {
                   <th>Talent</th>
                   <th>Oshimark</th>
                   <th>Ticker</th>
-                  <th>Colour</th>
+                  <th>Color</th>
                   <th>Unit</th>
                 </tr>
               </thead>
@@ -672,7 +672,7 @@ export function AdminIpoPage() {
               <button type="submit" className={ui.btnPrimary} disabled={!canCreate}>
                 {busy ? "Working…" : `Create IPO${pickedCount ? ` with ${pickedCount}` : ""} and start tracking`}
               </button>
-              {invalidNew.length ? <small className={styles.warnText}>Fix the ticker or colour for {invalidNew.map((talent) => talent.name_short).join(", ")}.</small> : null}
+              {invalidNew.length ? <small className={styles.warnText}>Fix the ticker or color for{invalidNew.map((talent) => talent.name_short).join(", ")}.</small> : null}
             </div>
           </form>
         ) : (
