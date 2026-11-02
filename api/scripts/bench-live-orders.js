@@ -6,8 +6,8 @@
 //     node scripts/bench-live-orders.js --engine=old,new --scenario=one-player-77,mixed-100 --rtt=0,17
 //
 // --rtt adds that many ms before every statement, the round trip production pays (the API is in nyc3,
-// the database in us-east-2; 17 makes the old path fill one player's orders at the 3.5 a second seen in
-// production). "old" is the row-at-a-time batch (test/fixtures/live-order-batch-reference.js).
+// the database in us-east-2; 17 makes the old path fill one player's orders at 3.5 a second, close to
+// the 3.71 production measured). "old" is the row-at-a-time batch (test/fixtures/live-order-batch-reference.js).
 // Refuses to run against anything but localhost, so it can never touch production.
 process.env.MARKET_LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL = "100000000";
 process.env.ACHIEVEMENT_WORKER_CONCURRENCY = process.env.ACHIEVEMENT_WORKER_CONCURRENCY || "2";

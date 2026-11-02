@@ -138,7 +138,7 @@ The order-flow charts got indexes, so they no longer scan every order ever place
 
 ## Live-order batches (2026-11-01)
 
-Measured locally: PostgreSQL 16 on the owner's Windows machine, 77 stocks, 2,000 players, 100,000 past fills, with 17 ms added before each statement. That delay is chosen, not measured: it's what makes the old path fill one player's orders at the 3.5 a second seen in production's 15:40 batch on 2026-11-01. Production's own timings haven't been read.
+Measured locally: PostgreSQL 16 on the owner's Windows machine, 77 stocks, 2,000 players, 100,000 past fills, with 17 ms added before each statement. That delay is chosen to match production, not measured directly: with it the old path fills one player's 77 orders at 3.5 a second, and production's 15:40 batch on 2026-11-01 filled 77 orders from 2 players in 20.8 s, 3.71 a second (`market.trade_fills`). Everything else in the table is local.
 
 | Orders | Row at a time | Batched |
 |---|---|---|
