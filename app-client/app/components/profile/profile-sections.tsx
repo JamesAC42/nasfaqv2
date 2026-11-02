@@ -11,10 +11,10 @@ import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { ShowcaseStrip } from "@/app/components/games/locker/showcase-strip";
 import { apiFetch } from "@/app/lib/api";
 import { formatEtTime } from "@/app/lib/market-clock";
-import { normalizeArticleListResponse, normalizeProfileTradesPage } from "@/app/lib/normalizers";
+import { normalizeArticleListResponse, normalizeProfileTradesPage, normalizeV1Account } from "@/app/lib/normalizers";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct, timeAgo, toneOf } from "@/app/lib/time";
-import type { ArticleListResponse, PredictionPortfolioResponse, ProfileBundle, ProfileRelationUser } from "@/app/lib/types";
+import type { ArticleListResponse, PredictionPortfolioResponse, ProfileBundle, ProfileRelationUser, V1Account } from "@/app/lib/types";
 import { useNow } from "@/app/lib/use-now";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useTheme } from "@/app/providers/theme-provider";
@@ -424,6 +424,76 @@ export function GachaBadges({ profile, isSelf }: { profile: Profile; isSelf: boo
       )}
       {profile.gacha_total_spent_cash ? <p className={styles.note}>{money(profile.gacha_total_spent_cash)} spent on pulls.</p> : null}
     </Sec>
+  );
+}
+
+// ── The original NASFAQ ──────────────────────────────────────────────────
+const longDay = (at: string | null) => (at ? new Date(at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "");
+
+/** A snapshot of a player's account on the original NASFAQ, from the day they linked it. Theirs to hide. */
+export function V1Trophy({ account, isSelf, onChange }: { account: V1Account; isSelf: boolean; onChange: (next: V1Account) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const setShown = async (show: boolean) => {
+    setBusy(true);
+    setFailed(false);
+    try {
+      const result = await apiFetch<{ link: unknown }>("/api/v1-link/me", { method: "PUT", body: JSON.stringify({ show_on_profile: show }) });
+      const next = normalizeV1Account(result.link);
+      if (next) onChange(next);
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className={styles.v1Trophy}>
+      <div className={styles.secHead}>
+        <h2>On the original NASFAQ</h2>
+        {isSelf ? (
+          <label className={styles.v1Show}>
+            <input type="checkbox" checked={account.show_on_profile} disabled={busy} onChange={(event) => void setShown(event.target.checked)} />
+            Show on my profile
+          </label>
+        ) : null}
+      </div>
+      {isSelf && !account.show_on_profile ? <p className={styles.note}>Hidden. Only you can see this.</p> : null}
+      {failed ? (
+        <p className={styles.err} role="alert">
+          That didn&apos;t save. Try again in a minute.
+        </p>
+      ) : null}
+      <div className={styles.v1Stats}>
+        <div>
+          <span className={styles.label}>Username</span>
+          <b>{account.username}</b>
+          <small>joined {longDay(account.joined_at)}</small>
+        </div>
+        <div>
+          <span className={styles.label}>Peak net worth</span>
+          <b>{money(account.peak_net_worth)}</b>
+          <small>{longDay(account.peak_at)}</small>
+        </div>
+        <div>
+          <span className={styles.label}>Net worth at link</span>
+          <b>{money(account.net_worth)}</b>
+          <small>linked {longDay(account.linked_at)}</small>
+        </div>
+        <div>
+          <span className={styles.label}>Rank at link</span>
+          <b>{account.rank ? `#${account.rank.toLocaleString("en-US")}` : "Not ranked"}</b>
+          <small>{account.rank && account.rank_of ? `of ${account.rank_of.toLocaleString("en-US")}` : ""}</small>
+        </div>
+        <div>
+          <span className={styles.label}>Collection</span>
+          <b>{account.hats.toLocaleString("en-US")} hats</b>
+          <small>{account.items.toLocaleString("en-US")} other items</small>
+        </div>
+      </div>
+    </section>
   );
 }
 

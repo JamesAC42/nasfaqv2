@@ -415,6 +415,37 @@ export type SiteAnalytics = {
 export const fetchSiteAnalytics = (site: AnalyticsSite, from: string, to: string) =>
   apiFetch<SiteAnalytics>(`/api/admin/analytics?site=${site}&from=${from}&to=${to}`, { cache: "no-store" });
 
+// ── /api/admin/v1-links ──────────────────────────────────────────────────
+
+export type V1LinkRow = {
+  user_id: number;
+  username: string;
+  v1_username: string;
+  v1_joined_at: string;
+  peak_net_worth: number | null;
+  rank: number | null;
+  linked_at: string;
+};
+
+export type V1LinkSummary = {
+  eligible_accounts: number;
+  joined_before: string;
+  linked: number;
+  active_7d: number;
+  players_started: number;
+  in_progress: number;
+  by_day: { day: string; linked: number }[];
+  /** Players who tried and haven't linked, by why their last try stopped. */
+  not_finished: { reason: string; players: number }[];
+  recent: V1LinkRow[];
+};
+
+export const fetchV1Links = (search = "") =>
+  apiFetch<V1LinkSummary>(`/api/admin/v1-links?q=${encodeURIComponent(search)}`, { cache: "no-store" });
+
+export const undoV1Link = (userId: number, reason: string) =>
+  apiFetch<{ username: string; v1_username: string }>(`/api/admin/v1-links/${userId}`, { method: "DELETE", body: JSON.stringify({ reason }) });
+
 // ── /api/admin/holonews/front-page ───────────────────────────────────────
 
 /** A story pinned to the top of the home page. `status` "draft" ones stay pinned but aren't shown. */

@@ -100,6 +100,7 @@ import {
   type ProfileTrade,
   type SuperchatCurrencySummary,
   type TickerTapLeaderboardEntry,
+  type V1Account,
   type TickerTapLeaderboardResponse,
   type TickerTapSessionConfig,
   type TickerTapSessionCreateResponse,
@@ -1700,13 +1701,31 @@ export function normalizeEquipped(value: unknown): Equipped {
   return out;
 }
 
-const THEME_PATTERNS = ["petals", "waves", "grid", "stripes", "stars", "plain"] as const;
+const THEME_PATTERNS = ["petals", "waves", "grid", "stripes", "stars", "plain", "v1"] as const;
 export function normalizeTheme(raw: Record<string, unknown>): CosmeticTheme | null {
   const hex = (value: unknown) => (typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value : null);
   const accent = hex(raw.accent);
   if (!accent) return null;
   const pattern = THEME_PATTERNS.find((entry) => entry === raw.pattern) ?? "plain";
   return { accent, accent2: hex(raw.accent2), pattern };
+}
+
+export function normalizeV1Account(value: unknown): V1Account | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  return {
+    username: String(raw.username || ""),
+    joined_at: String(raw.joined_at || ""),
+    peak_net_worth: toNumber(raw.peak_net_worth),
+    peak_at: raw.peak_at ? String(raw.peak_at) : null,
+    net_worth: toNumber(raw.net_worth),
+    rank: toNumber(raw.rank),
+    rank_of: toNumber(raw.rank_of),
+    hats: Number(toNumber(raw.hats) || 0),
+    items: Number(toNumber(raw.items) || 0),
+    linked_at: String(raw.linked_at || ""),
+    show_on_profile: raw.show_on_profile !== false,
+  };
 }
 
 export function normalizeLeaderboard(rows: Array<Record<string, unknown>>): LeaderboardEntry[] {
@@ -2336,6 +2355,7 @@ export function normalizeProfileBundle(value: Record<string, unknown>): ProfileB
       banner_options: Array.isArray(profile?.banner_options)
         ? (profile.banner_options as unknown[]).map(normalizeProfileTalent).filter((entry): entry is NonNullable<typeof entry> => entry !== null)
         : [],
+      v1_account: normalizeV1Account(profile?.v1_account),
       stats: {
         cash_balance: Number(toNumber(stats?.cash_balance) || 0),
         credit_balance: Number(toNumber(stats?.credit_balance) || 0),

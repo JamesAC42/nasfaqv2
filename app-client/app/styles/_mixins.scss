@@ -51,6 +51,42 @@ $bp-desktop: 1280px;
   }
 }
 
+// The original NASFAQ's palette and fonts, from its settings.scss, for the v1 Classic profile theme.
+// It keeps the old site's look whichever theme the visitor uses here.
+@mixin v1-classic-tokens {
+  color-scheme: light;
+
+  --ink: #fff;
+  --ink-2: #fff;
+  --ink-3: #f4f4f4;
+  --ink-4: #e9e9e9;
+  --rule: rgb(211, 211, 211);
+  --rule-2: rgb(117, 117, 117);
+  --text: #000;
+  --mid: rgb(71, 71, 71);
+  --dim: rgb(105, 105, 105);
+  --blue: #38b6f6;
+  --blue-2: #1c8fd0;
+  --blue-ink: #fff;
+  --blue-wash: rgba(56, 182, 246, 0.12);
+  --blue-line: rgba(56, 182, 246, 0.45);
+  --up: rgb(77, 182, 108);
+  --up-ink: #fff;
+  --up-wash: rgba(77, 182, 108, 0.12);
+  --down: rgb(255, 108, 108);
+  --down-ink: #fff;
+  --down-wash: rgba(255, 108, 108, 0.12);
+  --season-accent: #38b6f6;
+  --season-rule: rgb(211, 211, 211);
+  --season-glow: transparent;
+  --font-display: "v1 Work Sans", sans-serif;
+  --font-body: "v1 Work Sans", sans-serif;
+  --font-mono: "v1 Work Sans", sans-serif;
+  --mono-wide: normal;
+  --mono-normal: normal;
+  --mono-narrow: normal;
+}
+
 @mixin num($width: narrow) {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
