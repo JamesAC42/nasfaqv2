@@ -57,7 +57,8 @@ function validateEmail(email) {
 
 function publicUser(user) {
   return {
-    id: user.id,
+    // market.users.id is a BIGINT, which pg returns as a string. The client's ids are all numbers.
+    id: Number(user.id),
     username: user.username,
     email: user.email || null,
     email_verified: Boolean(user.email_verified),

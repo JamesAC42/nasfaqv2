@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { AnnouncementPopup } from "@/app/components/common/announcement-popup";
 import { SnowLayer } from "@/app/components/snow/snow-layer";
 import { StreamDock } from "@/app/components/livestreams/stream-dock";
 import { AuthProvider } from "@/app/providers/auth-provider";
@@ -27,6 +28,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
           {children}
           {/* Outside each page's shell so a playing stream survives moving between pages. */}
           <StreamDock />
+          <AnnouncementPopup />
           {/* Beside the shell, not in it: a transformed ancestor would break position: fixed. */}
           <SnowLayer />
         </AuthProvider>

@@ -52,8 +52,8 @@ function requireUploader(allowed) {
 }
 
 const READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
-/** Writes a suspended player can still make: signing in and out, password resets, marking things read. */
-const ALLOWED_WHILE_SUSPENDED = [/^\/api\/auth\//, /^\/api\/notifications\/read$/, /^\/api\/chat\/channels\/[^/]+\/read$/];
+/** Writes a suspended player can still make: signing in and out, password resets, marking things read, closing a popup. */
+const ALLOWED_WHILE_SUSPENDED = [/^\/api\/auth\//, /^\/api\/notifications\/read$/, /^\/api\/chat\/channels\/[^/]+\/read$/, /^\/api\/site\/announcements\/dismiss$/];
 
 /**
  * Middleware, right after the session lookup: a suspended player (services/moderation.js) keeps

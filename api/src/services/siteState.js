@@ -70,6 +70,22 @@ function announcementError(field) {
 }
 
 /**
+ * A link an admin may post: a path on this site or an https URL, up to 300 characters. Anything else
+ * is null: javascript: and other schemes, //elsewhere, and spaces or control characters, which
+ * browsers drop from an address (so "/<tab>/elsewhere" would leave the site).
+ */
+function safeLink(value) {
+  const link = String(value ?? "");
+  if (!link || link.length > 300 || /[\s\p{Cc}\p{Cf}\\]/u.test(link)) return null;
+  if (link.startsWith("/")) return link.startsWith("//") ? null : link;
+  try {
+    return new URL(link).protocol === "https:" ? link : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Checks an admin's announcement: { text (1-280), tone ("info" | "warning"), link (a path on the
  * site or an https URL, optional), expires_in_hours (1-720, optional: none means until cleared) }.
  * Returns the cleaned values or throws invalid_announcement with the field.
@@ -82,13 +98,8 @@ function planAnnouncement(body) {
   const rawLink = String(body?.link ?? "").trim();
   let link = null;
   if (rawLink) {
-    const local = rawLink.startsWith("/") && !rawLink.startsWith("//") && !rawLink.includes("\\");
-    let external = false;
-    try {
-      external = new URL(rawLink).protocol === "https:";
-    } catch {}
-    if ((!local && !external) || rawLink.length > 300) throw announcementError("link");
-    link = rawLink;
+    link = safeLink(rawLink);
+    if (!link) throw announcementError("link");
   }
   let expiresInHours = null;
   if (body?.expires_in_hours !== undefined && body?.expires_in_hours !== null && body?.expires_in_hours !== "") {
@@ -228,6 +239,7 @@ module.exports = {
   onGamesPausedChange,
   planAnnouncement,
   publishSiteState,
+  safeLink,
   schema,
   setAnnouncement,
   setMaintenance,

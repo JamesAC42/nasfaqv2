@@ -5,9 +5,12 @@
 // Moderation (services/moderation.js): suspensions, profile resets, hidden comments and the log of
 // admin actions (GET /moderation/actions).
 // Site traffic (services/umami.js): GET /analytics.
+// Announcement popups (services/announcements.js): GET and POST /announcements, PATCH and DELETE
+// /announcements/:id, POST /announcements/:id/retire and /restore.
 
 const express = require("express");
 const adminConsole = require("../services/adminConsole");
+const announcements = require("../services/announcements");
 const exchange = require("../services/games/exchange");
 const { ipClusters, ipHashingEnabled, sharedIpAccounts } = require("../services/ipHash");
 const schedulerHealth = require("../services/schedulerHealth");
@@ -43,6 +46,8 @@ const ERROR_STATUS = {
   analytics_forbidden: 503,
   analytics_unavailable: 503,
   v1_link_not_found: 404,
+  invalid_announcement: 400,
+  announcement_not_found: 404,
 };
 
 const handle = (fn) => async (req, res, next) => {
@@ -231,6 +236,57 @@ router.post(
         reason: req.body?.reason,
       })
     );
+  })
+);
+
+// Announcement popups: every one there is, newest first, with how many players have dismissed it.
+router.get(
+  "/announcements",
+  handle(async (req, res) => {
+    requireSiteAdmin(req);
+    res.set("Cache-Control", "no-store");
+    res.json({ announcements: await announcements.listForAdmin(req.ctx.pool) });
+  })
+);
+
+router.post(
+  "/announcements",
+  handle(async (req, res) => {
+    const actor = requireSiteAdmin(req);
+    res.status(201).json({ announcement: await announcements.create(req.ctx.pool, actor, req.body) });
+  })
+);
+
+router.patch(
+  "/announcements/:id",
+  handle(async (req, res) => {
+    const actor = requireSiteAdmin(req);
+    res.json({ announcement: await announcements.update(req.ctx.pool, actor, req.params.id, req.body) });
+  })
+);
+
+// Retire takes it down and keeps the row; restore puts it back up. Delete is for good.
+router.post(
+  "/announcements/:id/retire",
+  handle(async (req, res) => {
+    const actor = requireSiteAdmin(req);
+    res.json({ announcement: await announcements.setRetired(req.ctx.pool, actor, req.params.id, true) });
+  })
+);
+
+router.post(
+  "/announcements/:id/restore",
+  handle(async (req, res) => {
+    const actor = requireSiteAdmin(req);
+    res.json({ announcement: await announcements.setRetired(req.ctx.pool, actor, req.params.id, false) });
+  })
+);
+
+router.delete(
+  "/announcements/:id",
+  handle(async (req, res) => {
+    const actor = requireSiteAdmin(req);
+    res.json(await announcements.remove(req.ctx.pool, actor, req.params.id));
   })
 );
 

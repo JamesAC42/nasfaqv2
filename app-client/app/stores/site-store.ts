@@ -35,6 +35,17 @@ export type SiteState = {
   announcement: Announcement | null;
 };
 
+/** A popup from the admins, shown once to each visitor while it runs (components/common/announcement-popup.tsx). */
+export type PopupAnnouncement = {
+  id: number;
+  title: string;
+  body: string;
+  button_label: string | null;
+  button_link: string | null;
+  audience: "everyone" | "signed_in" | "signed_out";
+  hide_from_v1_linked: boolean;
+};
+
 /** This page's release, baked in at build ("sha-<commit>"). Empty in local builds: no refresh notice. */
 export const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "";
 
@@ -61,8 +72,24 @@ function normalizeSite(value: unknown): SiteState | null {
   };
 }
 
+function normalizePopups(value: unknown): PopupAnnouncement[] {
+  if (!Array.isArray(value)) return [];
+  const text = (v: unknown) => (typeof v === "string" && v ? v : null);
+  return value.flatMap((entry) => {
+    const raw = (entry && typeof entry === "object" ? entry : {}) as Record<string, unknown>;
+    const id = Number(raw.id);
+    const title = text(raw.title);
+    const body = text(raw.body);
+    if (!Number.isSafeInteger(id) || !title || !body) return [];
+    const audience = raw.audience === "signed_in" || raw.audience === "signed_out" ? raw.audience : ("everyone" as const);
+    return [{ id, title, body, button_label: text(raw.button_label), button_link: text(raw.button_link), audience, hide_from_v1_linked: raw.hide_from_v1_linked === true }];
+  });
+}
+
 type SiteStore = {
   site: SiteState | null;
+  /** The announcement popups running for this visitor, oldest first. */
+  announcements: PopupAnnouncement[];
   /** The version the server named when this page first asked. A later, different one is a new release. */
   baseline: string | null | undefined;
   /** A release the player waved off with "Later"; the notice comes back for the next one. */
@@ -75,16 +102,17 @@ type SiteStore = {
 
 export const useSiteStore = create<SiteStore>((set, get) => ({
   site: null,
+  announcements: [],
   baseline: undefined,
   dismissed: null,
   online: null,
   refresh: async () => {
     try {
-      const data = await apiFetch<{ site: unknown; online?: unknown }>("/api/site");
+      const data = await apiFetch<{ site: unknown; online?: unknown; announcements?: unknown }>("/api/site");
       const site = normalizeSite(data.site);
       if (!site) return;
       const online = typeof data.online === "number" && data.online >= 0 ? data.online : get().online;
-      set((state) => ({ site, online, baseline: state.baseline === undefined ? site.version : state.baseline }));
+      set((state) => ({ site, online, announcements: normalizePopups(data.announcements), baseline: state.baseline === undefined ? site.version : state.baseline }));
     } catch {
       // An API from before /api/site, or a blip: keep what we had.
     }
@@ -104,7 +132,7 @@ export function newRelease(state: Pick<SiteStore, "site" | "baseline">): string 
 }
 
 /** Something half done that a reload would lose: an open trade ticket, a game table, typed text. */
-function busy() {
+export function busy() {
   if (useTradeStore.getState().symbol) return true;
   if (/^\/games\/(blackjack|duel|high-low|ticker-tap)(\/|$)/.test(window.location.pathname)) return true;
   return Array.from(document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("textarea, input")).some((field) => {

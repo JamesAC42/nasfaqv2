@@ -56,6 +56,7 @@ Most of the tools come from PR #54 (moderation tools), live since 2026-10-29.
 | Exchange review | `/admin/exchange` | Read-only. Lopsided sales and trades involving new accounts, pairs that keep trading with each other, accounts dealing with several new ones, and groups of accounts sharing an IP address. **same IP** marks flagged accounts that share one. |
 | Delete an article | On the article, as an admin: **DELETE** (a player's article) or **DELETE BODY** (the player-written part of a news article) | **Can't be undone and isn't in the Admin log.** Screenshot it and post in the mod channel before you press it. |
 | Announcement banner | `/admin` → **Health** → **Post an announcement…** | 280 characters, Info or Warning, optional link, and an end time. **Edit…** and **Clear announcement** are in the same spot. |
+| Announcement popup | `/admin/announcements` | For news, not emergencies: each visitor sees it once, and it waits until they aren't busy, so use the banner when everyone needs to know now. Title, text, optional button, who it's for, and start and end times. **Retire** takes it down and keeps it; **Delete** is for good, though the Admin log keeps the wording. Dismissing is remembered per browser and, for signed-in players, per account. |
 | Admin log | `/admin/moderation` → **Admin log** | Every action above except article deletes, newest first, with who did it and why. |
 | Bug reports | `/admin` → **Bug reports** | From the **Report a bug** button in the footer. They also post to Discord. |
 

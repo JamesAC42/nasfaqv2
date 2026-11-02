@@ -1,4 +1,7 @@
-// GET /api/site: which release is live, whether maintenance is on, and how many people are online.
+// GET /api/site: which release is live, whether maintenance is on, how many people are online, and
+// the announcement popups this visitor may see (services/announcements.js).
+// GET /api/site/announcements/me: which popups a signed-in player has dismissed.
+// POST /api/site/announcements/dismiss: a signed-in player dismisses some.
 // POST /api/site/bug-reports: a bug report (services/bugReports.js).
 // POST /api/site/csp-report: a browser's Content-Security-Policy violation report.
 // Every page reads it on load and when it comes back into view (changes also arrive on the market
@@ -6,10 +9,12 @@
 
 const express = require("express");
 const { rateLimit, byIp, byUser } = require("../rateLimit");
+const announcements = require("../services/announcements");
 const bugReports = require("../services/bugReports");
 const cspReports = require("../services/cspReports");
 const presence = require("../services/presence");
 const siteState = require("../services/siteState");
+const { requireUserId } = require("../userContext");
 
 const router = express.Router();
 const CACHE_MS = 3000;
@@ -24,9 +29,32 @@ router.get("/", async (req, res, next) => {
       ]);
       cached = { at: Date.now(), site, online };
     }
+    const running = await announcements.listLive(req.ctx.pool);
     res.set("Cache-Control", "no-store");
-    res.json({ site: cached.site, online: cached.online });
+    res.json({ site: cached.site, online: cached.online, announcements: announcements.forViewer(running, req.ctx.user) });
   } catch (error) {
+    next(error);
+  }
+});
+
+// The page only asks when it has an announcement left to show, so a player who has seen them all
+// costs nothing here.
+router.get("/announcements/me", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    res.set("Cache-Control", "no-store");
+    res.json(await announcements.viewerState(req.ctx.pool, userId));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/announcements/dismiss", async (req, res, next) => {
+  try {
+    await announcements.dismiss(req.ctx.pool, requireUserId(req), req.body?.ids);
+    res.json({ ok: true });
+  } catch (error) {
+    if (error?.code === "invalid_announcement_ids") return res.status(400).json({ error: error.code });
     next(error);
   }
 });

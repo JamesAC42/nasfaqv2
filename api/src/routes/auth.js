@@ -21,7 +21,8 @@ router.get("/me", async (req, res) => {
 
   res.json({
     user: {
-      id: req.ctx.user.id,
+      // A BIGINT, which pg returns as a string. The client's ids are all numbers (see publicUser).
+      id: Number(req.ctx.user.id),
       username: req.ctx.user.username,
       email: req.ctx.user.email || null,
       email_verified: Boolean(req.ctx.user.email_verified),

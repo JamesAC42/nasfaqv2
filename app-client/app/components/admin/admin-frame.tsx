@@ -84,6 +84,7 @@ export function AdminFrame({ kicker = "Back office", title, blurb, aside, live =
     { href: predictionsHref(access, user as Record<string, unknown> | null), label: "Predictions", show: access.canPredictions, external: true },
     { href: "/admin/people", label: "People & roles", show: access.isAdmin },
     { href: "/admin/moderation", label: "Moderation", show: access.isAdmin },
+    { href: "/admin/announcements", label: "Announcements", show: access.isAdmin },
     { href: "/admin/front-page", label: "Front page", show: access.isAdmin },
     { href: "/admin/exchange", label: "Exchange review", show: access.isAdmin },
     { href: "/admin/analytics", label: "Analytics", show: access.isAdmin },
