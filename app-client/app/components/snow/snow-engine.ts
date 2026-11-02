@@ -92,7 +92,7 @@ const TONES: Record<SnowTone, { flake: string; core: string; pile: string; pileS
   light: { flake: "#6a8fc2", core: "#a9c4e6", pile: "rgba(233, 241, 250, 0.98)", pileShade: "rgba(205, 221, 240, 0.9)", pileEdge: "rgba(112, 145, 186, 0.55)", sleigh: "#54709a", sleighAlpha: 0.7 },
 };
 
-const GOLD = { flake: "#ffcf73", core: "#fff4d6" };
+const GOLD = { flake: "#ffb52e", core: "#ffd566" };
 
 function random(min: number, max: number) {
   return min + Math.random() * (max - min);
@@ -1126,7 +1126,7 @@ export class SnowEngine {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, this.width, this.height);
     const sizeScale = this.sizeScale();
-    const goldShare = t < this.goldUntil ? clamp01((this.goldUntil - t) / 2.5) * 0.55 : 0;
+    const goldShare = t < this.goldUntil ? clamp01((this.goldUntil - t) / 2.5) * 0.75 : 0;
 
     this.drawFlakes(0, sizeScale, goldShare);
     if (this.sleighStart >= 0) this.drawSleigh(t);
