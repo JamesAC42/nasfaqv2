@@ -13,7 +13,7 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    date: "2026-11-04",
+    date: "2026-11-05",
     title: "Chat from anywhere",
     changes: [
       {
@@ -27,6 +27,20 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         kind: "new",
         text: "Mute a player from the ⋯ menu on any of their chat messages. You get no popups or @mention and reply notifications from them, and their messages collapse for you. Only you can tell, and you can undo it on the Notifications page.",
+      },
+    ],
+  },
+  {
+    date: "2026-11-04",
+    title: "Quicker to max out a tick",
+    changes: [
+      {
+        kind: "improved",
+        text: "The share buttons on the order ticket now stop at what you have left this tick. Press 100 twice and you land on 180, the most you can queue, instead of having to type it. ALL does the same on a sell.",
+      },
+      {
+        kind: "fixed",
+        text: "On the v1 Classic profile, everything in the On the original NASFAQ box is now centered, including the stats on the second line.",
       },
     ],
   },

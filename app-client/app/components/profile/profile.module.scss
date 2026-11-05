@@ -1906,8 +1906,15 @@ $v1-primary: #75d5f7;
   .v1Trophy {
     @include v1-section;
 
-    .v1Stats > div {
-      text-align: center;
+    // Flex rather than the grid above, so a short last row spreads out and stays centered.
+    .v1Stats {
+      display: flex;
+      flex-wrap: wrap;
+
+      > div {
+        flex: 1 1 min(12.5rem, 100%);
+        text-align: center;
+      }
     }
 
     b {
