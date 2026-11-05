@@ -22,6 +22,10 @@ import { Term } from "@/app/components/common/tip";
 const PRESETS = [1, 10, 25, 50, 100];
 export const FEE_RATE = 0.01;
 
+// Buying Towa takes some convincing: the submit button says each of these in turn before it sends anything.
+const TOWA_DOUBTS = ["ARE YOU SURE?", "I'D RECONSIDER", "EXPERTS ADVISE AGAINST THIS"];
+const TOWA_REGRETS = ["Regrettably,", "Unfortunately,", "Against all recommendations,", "Against expert advice,", "Sadly,"];
+
 /**
  * What you can spend on a buy: Cash with every hold already taken out, what's held and for what
  * (queued buys, IPO subscriptions), and what's left once this order holds its share. A queued buy
@@ -141,6 +145,7 @@ export function TradeTicket({
   const marketStatus = useMarketStore((state) => state.marketStatus);
   const portfolio = useProfileStore((state) => state.portfolio);
   const refreshTradingState = useProfileStore((state) => state.refreshTradingState);
+  const allowance = useProfileStore((state) => state.orderAllowance);
   const pushFill = useMomentStore((state) => state.pushFill);
   const { user } = useAuth();
   // A stock frozen for a buyback can only be sold (to the broker), so the ticket opens on Sell.
@@ -148,6 +153,7 @@ export function TradeTicket({
   const [side, setSide] = useState<TradeSide>(startSide);
   const [quantity, setQuantity] = useState("25");
   const [lastPreset, setLastPreset] = useState<number | null>(null);
+  const [doubts, setDoubts] = useState({ order: "", count: 0 });
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<TradeFailureNotice | null>(null);
   const [queued, setQueued] = useState<TradeConfirmation | null>(null);
@@ -186,10 +192,24 @@ export function TradeTicket({
   const canSell = (holding?.quantity ?? 0) > 0;
   const tooMuch = side === "buy" ? (portfolio ? total > portfolio.cash_balance : false) : qty > (holding?.quantity ?? 0);
 
+  // The share buttons stop at what's left this tick, so pressing 100 twice lands on the most you can queue.
+  const room = allowance ? Math.max(0, Math.floor(allowance.remaining)) : Infinity;
+  const presetTarget = (value: number) => Math.min(lastPreset === value ? qty + value : value, room);
   const preset = (value: number) => {
-    setQuantity(String(lastPreset === value ? qty + value : value));
+    setQuantity(String(presetTarget(value)));
     setLastPreset(value);
   };
+  const presetLabel = (value: number) => {
+    if (lastPreset !== value) return value;
+    const step = presetTarget(value) - qty;
+    return step > 0 ? `+${step}` : "MAX";
+  };
+
+  // Changing the shares, side or stock makes it a new order, so the doubts start over.
+  const towaBuy = side === "buy" && symbol === "TOW";
+  const orderKey = `${symbol}:${side}:${qty}`;
+  if (doubts.count > 0 && doubts.order !== orderKey) setDoubts({ order: "", count: 0 });
+  const doubtCount = towaBuy && doubts.order === orderKey ? doubts.count : 0;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -206,6 +226,11 @@ export function TradeTicket({
       return;
     }
     if (!qty) return;
+    if (towaBuy && doubtCount < TOWA_DOUBTS.length) {
+      setDoubts({ order: orderKey, count: doubtCount + 1 });
+      return;
+    }
+    setDoubts({ order: "", count: 0 });
     setBusy(true);
     setFailure(null);
     try {
@@ -255,6 +280,7 @@ export function TradeTicket({
               </div>
             </div>
             <p>
+              {queued.side === "buy" && queued.symbol.toUpperCase() === "TOW" ? `${TOWA_REGRETS[Number(queued.orderId ?? queued.requestedQuantity) % TOWA_REGRETS.length]} ` : null}
               <b className={queued.side === "buy" ? styles.up : styles.down}>
                 {queued.side.toUpperCase()} {queued.requestedQuantity.toLocaleString("en-US")} {queued.symbol}
               </b>{" "}
@@ -291,11 +317,11 @@ export function TradeTicket({
             <div className={styles.presets}>
               {PRESETS.map((value) => (
                 <button key={value} type="button" onClick={() => preset(value)}>
-                  {lastPreset === value ? `+${value}` : value}
+                  {presetLabel(value)}
                 </button>
               ))}
               {side === "sell" && canSell ? (
-                <button type="button" onClick={() => setQuantity(String(holding?.quantity ?? 0))}>
+                <button type="button" onClick={() => setQuantity(String(Math.min(holding?.quantity ?? 0, room)))}>
                   ALL
                 </button>
               ) : null}
@@ -364,7 +390,9 @@ export function TradeTicket({
                     ? frozen
                       ? "FROZEN FOR A BUYBACK"
                       : "SOLD OUT"
-                    : frozen
+                    : doubtCount > 0
+                      ? TOWA_DOUBTS[doubtCount - 1]
+                      : frozen
                       ? `SELL ${qty.toLocaleString("en-US")} TO THE BROKER`
                       : `${side.toUpperCase()} ${qty.toLocaleString("en-US")} ${asset.symbol}${side === "buy" && forSale !== null && qty > forSale ? ` (${Math.floor(forSale).toLocaleString("en-US")} LEFT)` : ""}`}
             </button>
