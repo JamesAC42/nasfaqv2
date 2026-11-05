@@ -7,13 +7,18 @@ import { TEMPLATE_LABEL, money, timeAgo } from "@/app/lib/predictions/format";
 import type { AutoTemplate } from "@/app/lib/predictions/types";
 import styles from "@/app/components/predictions/admin/admin-console.module.scss";
 
-// Auto templates (spec §6): on/off, and the params the API accepts (count, liquidity_b, fee_bps,
-// min_past_streams). Each shows its last run and what it did.
+// Auto templates (spec §6): on/off, and the params the API accepts. Each shows its last run and what
+// it did. This is where to change how many markets get made: count, and daily_cap and talents for
+// streams.
 
 const INFO: Record<string, { example: string; fields: string[]; outcomes: (params: Record<string, number>) => number }> = {
-  "tick-direction": { example: "PEK up on the Late tick?", fields: ["count", "liquidity_b", "fee_bps"], outcomes: () => 2 },
-  "tick-top-gainer": { example: "Top gainer on the Late tick?", fields: ["count", "liquidity_b", "fee_bps"], outcomes: (params) => (params.count ?? 6) + 1 },
-  "stream-peak": { example: "Marine's stream peaks above 45k?", fields: ["min_past_streams", "liquidity_b", "fee_bps"], outcomes: () => 2 },
+  "tick-direction": { example: "PEK up on the Lunch tick?", fields: ["count", "liquidity_b", "fee_bps"], outcomes: () => 2 },
+  "tick-top-gainer": { example: "Top gainer on the Lunch tick?", fields: ["count", "liquidity_b", "fee_bps"], outcomes: (params) => (params.count ?? 6) + 1 },
+  "stream-peak": {
+    example: "Marine's stream peaks above 45k?",
+    fields: ["daily_cap", "talents", "close_lead_minutes", "open_lead_hours", "min_past_streams", "liquidity_b", "fee_bps"],
+    outcomes: () => 2,
+  },
 };
 
 const FIELD: Record<string, { label: string; hint: string; min: number; max: number; step: number }> = {
@@ -21,6 +26,10 @@ const FIELD: Record<string, { label: string; hint: string; min: number; max: num
   liquidity_b: { label: "Liquidity b", hint: "depth", min: 10, max: 100000, step: 10 },
   fee_bps: { label: "Fee bps", hint: "100 = 1%", min: 0, max: 1000, step: 5 },
   min_past_streams: { label: "Min streams", hint: "history needed", min: 1, max: 50, step: 1 },
+  daily_cap: { label: "Per day", hint: "most in 24 h; 0 = none", min: 0, max: 50, step: 1 },
+  talents: { label: "Talents", hint: "K most active", min: 1, max: 200, step: 1 },
+  close_lead_minutes: { label: "Close lead", hint: "min before start", min: 5, max: 180, step: 5 },
+  open_lead_hours: { label: "Opens ahead", hint: "hours before start", min: 1, max: 72, step: 1 },
 };
 
 function resultText(result: Record<string, unknown>) {
@@ -82,6 +91,7 @@ function TemplateRow({ template, liveCount, now, onChanged }: { template: AutoTe
           role="switch"
           aria-checked={on}
           aria-label={`${TEMPLATE_LABEL[template.key] ?? template.key} ${on ? "on" : "off"}`}
+          title="Off stops new markets and shuts betting on any still open. They still settle."
           className={styles.switch}
           disabled={busy === "toggle"}
           onClick={() => void toggle()}
@@ -122,7 +132,7 @@ function TemplateRow({ template, liveCount, now, onChanged }: { template: AutoTe
           <dd>{template.last_run_at ? `${timeAgo(template.last_run_at, now)} ago` : "never"}</dd>
         </div>
       </dl>
-      <p className={styles.templateResult}>{resultText(template.last_result)}</p>
+      <p className={styles.templateResult}>{on ? resultText(template.last_result) : "Off: no new markets, and betting is shut on any still open. They still settle."}</p>
       <ErrorLine error={error} />
       {dirty ? (
         <div className={styles.templateSave}>

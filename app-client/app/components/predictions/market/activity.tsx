@@ -110,6 +110,17 @@ export function Activity({ market, trades }: { market: PredictionMarketDetail; t
   );
 }
 
+// Why the system shut betting early on an auto market (services/predictions/guards.js).
+const LOCK_REASON: Record<string, string> = {
+  stream_started: "the stream went live",
+  stream_starting: "the stream is about to start",
+  stream_missing: "the stream can't be found",
+  stream_unscheduled: "the stream lost its scheduled time",
+  stream_data_stale: "the stream tracker has gone quiet",
+  tick_landed: "the tick has landed",
+  template_off: "these markets were turned off",
+};
+
 function describe(event: TimelineEvent, market: PredictionMarketDetail) {
   const d = event.data as Record<string, unknown>;
   const who = event.actor ?? "the system";
@@ -128,6 +139,7 @@ function describe(event: TimelineEvent, market: PredictionMarketDetail) {
     case "market_opened":
       return "Trading opened";
     case "market_closed":
+      if (typeof d.reason === "string" && LOCK_REASON[d.reason]) return `Trading closed: ${LOCK_REASON[d.reason]}`;
       return d.reason === "resolution_proposed" ? "Trading closed for a call" : d.reason === "resolved_by_data" ? "Trading closed: the data is in" : event.actor ? `${who} closed trading` : "Trading closed";
     case "market_halted":
       return `${who} halted trading`;
@@ -147,7 +159,7 @@ function describe(event: TimelineEvent, market: PredictionMarketDetail) {
     case "market_resolved":
       return `Resolved ${label(d.outcome)}: paid ${money(Number(d.paid_out ?? 0))} across ${d.positions ?? 0} positions`;
     case "market_voided":
-      return `Voided${d.reason ? `: ${d.reason}` : ""}. Refunded ${money(Number(d.refunded ?? 0))}`;
+      return `Voided${d.reason ? `: ${d.reason}` : ""}. Refunded ${money(Number(d.refunded ?? 0))}${Number(d.clawed_back ?? 0) > 0 ? `, took back ${money(Number(d.clawed_back))} made selling` : ""}`;
     case "legacy_orders_released":
       return `Old order-book orders released (${d.released_orders ?? 0})`;
     default:

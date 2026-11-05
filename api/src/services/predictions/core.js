@@ -48,6 +48,22 @@ async function moveCash(client, userId, delta, { entryType, marketId, quantityDe
   return round2(economy.sideModeSpendable(result.after));
 }
 
+/**
+ * Takes back what a player made selling on a market that then voided. It came in as Credit, so it
+ * goes out as Credit, and can leave the balance negative (like a share fee can): a void puts everyone
+ * back where they started.
+ */
+async function clawBackCash(client, userId, amount, { marketId, quantityDelta = 0 }) {
+  return economy.charge(client, userId, round2(amount), {
+    from: "credit",
+    shortfall: "credit",
+    entryType: "prediction_void_clawback",
+    referenceType: "prediction_void",
+    referenceId: marketId,
+    quantityDelta: round6(quantityDelta),
+  });
+}
+
 async function cashBalance(client, userId) {
   return economy.sideModeSpendable(await economy.lockWallet(client, userId));
 }
@@ -188,6 +204,7 @@ module.exports = {
   ammState,
   cashBalance,
   ceil2,
+  clawBackCash,
   floor2,
   getPosition,
   headlineProbability,

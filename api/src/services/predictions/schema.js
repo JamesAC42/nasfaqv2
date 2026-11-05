@@ -136,7 +136,7 @@ async function applyPredictionsSchema(pool) {
   `);
   await pool.query(`
     INSERT INTO market.prediction_auto_templates (key, enabled, params_json) VALUES
-      ('tick-direction', true, '{"count": 6, "liquidity_b": 400, "fee_bps": 100}'),
+      ('tick-direction', false, '{"count": 3, "liquidity_b": 400, "fee_bps": 100, "lockdown_2026_11": 1}'),
       ('tick-top-gainer', true, '{"count": 6, "liquidity_b": 500, "fee_bps": 100}'),
       ('stream-peak', true, '{"liquidity_b": 500, "fee_bps": 100, "min_past_streams": 3}')
     ON CONFLICT (key) DO NOTHING
@@ -147,6 +147,20 @@ async function applyPredictionsSchema(pool) {
     UPDATE market.prediction_auto_templates t SET params_json = t.params_json || jsonb_build_object('liquidity_b', v.b)
     FROM (VALUES ('tick-direction', '120', 400), ('tick-top-gainer', '150', 500), ('stream-peak', '150', 500)) AS v(key, old, b)
     WHERE t.key = v.key AND t.params_json->>'liquidity_b' = v.old
+  `);
+  // The November 2026 lockdown (PREDICTIONS_DESIGN.md §6): tick calls go off, once, because a tick's
+  // direction mostly follows from the move before it. The marker stops this running again, so turning
+  // them back on in the admin console sticks. The stream limits only fill in what isn't set yet.
+  await pool.query(`
+    UPDATE market.prediction_auto_templates
+    SET enabled = false, updated_at = now(),
+        params_json = params_json || '{"lockdown_2026_11": 1}'::jsonb || CASE WHEN params_json->>'count' = '6' THEN '{"count": 3}'::jsonb ELSE '{}'::jsonb END
+    WHERE key = 'tick-direction' AND NOT params_json ? 'lockdown_2026_11'
+  `);
+  await pool.query(`
+    UPDATE market.prediction_auto_templates
+    SET params_json = '{"talents": 15, "daily_cap": 5, "close_lead_minutes": 15, "open_lead_hours": 24}'::jsonb || params_json
+    WHERE key = 'stream-peak'
   `);
 
   await pool.query(`

@@ -1,11 +1,16 @@
 // Auto markets (docs/predictions/PREDICTIONS_DESIGN.md §6): opened and resolved by the scheduler
 // from site data. Idempotent: each market has a unique auto_key, so reruns never duplicate.
 //
-//   tick-direction   "PEK up on the Late tick?"          ← asset_adjustment_intervals
-//   tick-top-gainer  "Top gainer on the Late tick?"      ← asset_adjustment_intervals
+//   tick-direction   "PEK up on the Lunch tick?"         ← asset_adjustment_intervals
+//   tick-top-gainer  "Top gainer on the Lunch tick?"     ← asset_adjustment_intervals
 //   stream-peak      "Marine's stream peaks above 45k?"  ← yt.livestream_sessions
+//
+// Betting must end before the outcome can be known. closes_at is the schedule; guards.js checks the
+// data on every bet. How many markets get made is set by each template's params, in the admin
+// console: see generateTickMarkets and generateStreamMarkets.
 
 const core = require("./core");
+const guards = require("./guards");
 const markets = require("./markets");
 const resolution = require("./resolution");
 
@@ -14,8 +19,27 @@ const { num, predictionError } = core;
 const TICK_LABEL = { open: "Open", lunch: "Lunch", late: "Late", overnight: "Overnight" };
 const CLOSE_BEFORE_TICK_MS = 5 * 60_000;
 const TICK_GRACE_MS = 2 * 3_600_000;
-const STREAM_WINDOW_MS = 30 * 60_000;
+// The only ticks that get markets. All four of a day's ticks pull toward one hidden target, so each
+// tick's move gives away part of what the next will do. Open can't have a market: settlement creates
+// its row and it lands a minute later. That leaves Lunch as the one with the least given away.
+const TICKS_WITH_MARKETS = ["lunch"];
 const STREAM_GIVE_UP_MS = 12 * 3_600_000;
+// A stream market gets at least this long to take bets.
+const MIN_BETTING_MS = 30 * 60_000;
+const STREAM_DEFAULTS = { talents: 15, daily_cap: 5, close_lead_minutes: guards.DEFAULT_CLOSE_LEAD_MINUTES, open_lead_hours: 24, min_past_streams: 3 };
+// What the admin console may set; updateTemplate clamps to these.
+const PARAM_LIMITS = {
+  count: [1, 20],
+  liquidity_b: [10, 100_000],
+  fee_bps: [0, 1000],
+  min_past_streams: [1, 50],
+  talents: [1, 200],
+  daily_cap: [0, 50],
+  close_lead_minutes: [5, 180],
+  open_lead_hours: [1, 72],
+};
+const clampParam = (field, value) => Math.min(PARAM_LIMITS[field][1], Math.max(PARAM_LIMITS[field][0], field === "liquidity_b" ? num(value) : Math.round(num(value))));
+const streamParam = (params, field) => clampParam(field, params[field] ?? STREAM_DEFAULTS[field]);
 
 const etTime = (date) =>
   new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", weekday: "short" }).format(date) + " ET";
@@ -50,21 +74,25 @@ async function createAuto(pool, input, { template, autoKey, autoData }) {
 async function nextTick(pool) {
   const { rows } = await pool.query(
     `SELECT scheduled_at, interval_key, COUNT(*)::int AS assets FROM market.asset_adjustment_intervals
-     WHERE status = 'scheduled' AND scheduled_at > now() + interval '10 minutes'
-     GROUP BY scheduled_at, interval_key ORDER BY scheduled_at LIMIT 1`
+     WHERE status = 'scheduled' AND interval_key = ANY($1::text[]) AND scheduled_at > now() + interval '10 minutes'
+     GROUP BY scheduled_at, interval_key ORDER BY scheduled_at LIMIT 1`,
+    [TICKS_WITH_MARKETS]
   );
   return rows[0] || null;
 }
 
-/** The K most active talents that have a scheduled interval at this tick. */
-async function activeAssets(pool, tickAt, count) {
+/** The K most active talents, by shares traded in 24 h and then holders; with `tickAt`, only those on that tick. */
+async function activeAssets(pool, { tickAt = null, count }) {
   const { rows } = await pool.query(
     `SELECT a.id, a.symbol, a.display_name, COALESCE(v.volume, 0) AS volume, COALESCE(h.holders, 0) AS holders
      FROM market.market_assets a
-     JOIN market.asset_adjustment_intervals i ON i.asset_id = a.id AND i.scheduled_at = $1 AND i.status = 'scheduled'
      LEFT JOIN (SELECT asset_id, SUM(quantity) AS volume FROM market.trade_fills WHERE ts > now() - interval '24 hours' GROUP BY asset_id) v ON v.asset_id = a.id
      LEFT JOIN (SELECT asset_id, COUNT(*) AS holders FROM market.portfolio_holdings WHERE quantity > 0 GROUP BY asset_id) h ON h.asset_id = a.id
      WHERE a.status = 'active'
+       AND a.trading_state IS DISTINCT FROM 'buyback'
+       AND ($1::timestamptz IS NULL OR EXISTS (
+         SELECT 1 FROM market.asset_adjustment_intervals i WHERE i.asset_id = a.id AND i.scheduled_at = $1 AND i.status = 'scheduled'
+       ))
      ORDER BY volume DESC, holders DESC, a.id ASC
      LIMIT $2`,
     [tickAt, count]
@@ -86,7 +114,7 @@ async function generateTickMarkets(pool, templates) {
   let created = 0;
 
   if (direction?.enabled) {
-    const assets = await activeAssets(pool, tickAt, Math.min(20, Math.max(1, num(direction.params.count, 6))));
+    const assets = await activeAssets(pool, { tickAt, count: clampParam("count", direction.params.count ?? 3) });
     for (const asset of assets) {
       const autoKey = `tick-direction:${tickAt.toISOString()}:${asset.symbol}`;
       const market = await createAuto(
@@ -114,7 +142,7 @@ async function generateTickMarkets(pool, templates) {
 
   if (gainer?.enabled) {
     const count = Math.min(11, Math.max(2, num(gainer.params.count, 6)));
-    const assets = await activeAssets(pool, tickAt, count);
+    const assets = await activeAssets(pool, { tickAt, count });
     if (assets.length >= 2) {
       const autoKey = `tick-top-gainer:${tickAt.toISOString()}`;
       const each = 0.45 / assets.length;
@@ -149,7 +177,7 @@ async function resolveTickMarket(pool, market) {
   // trades on a known result; give up and void 2 h after the scheduled time.
   const late = Date.now() - tickAt.getTime() > TICK_GRACE_MS;
   const { rows } = await pool.query(
-    `SELECT asset_id, status, price_before, price_after FROM market.asset_adjustment_intervals WHERE scheduled_at = $1`,
+    `SELECT asset_id, status, price_before, price_after FROM market.asset_adjustment_intervals WHERE scheduled_at = $1 ORDER BY asset_id`,
     [tickAt]
   );
   if (market.auto_template === "tick-direction") {
@@ -176,24 +204,51 @@ async function resolveTickMarket(pool, market) {
 }
 
 // ── Streams ────────────────────────────────────────────────────────────────
+/** The median rounded to two significant figures, so the line is readable and stays within 5% of it. */
 function niceLine(median) {
-  if (median < 20_000) return Math.max(1000, Math.round(median / 1000) * 1000);
-  return Math.round(median / 5000) * 5000;
+  const step = 10 ** Math.max(0, Math.floor(Math.log10(Math.max(median, 1))) - 1);
+  return Math.max(step, Math.round(median / step) * step);
 }
 
 const fmtViewers = (value) => (value >= 1000 ? `${Math.round(value / 100) / 10}k`.replace(".0k", "k") : String(value));
 
+/**
+ * Opens a market on a scheduled stream before it starts. Never on one already live: once a stream
+ * is on, anyone can watch the viewer count. A stream with no schedule, or one announced too late for
+ * MIN_BETTING_MS of betting, gets no market.
+ *
+ * At most daily_cap in any 24 hours and one per talent, from the `talents` most active talents.
+ */
 async function generateStreamMarkets(pool, templates) {
   const template = templates.get("stream-peak");
   if (!template?.enabled) return { created: 0 };
-  const minPast = Math.max(1, num(template.params.min_past_streams, 3));
-  const { rows: live } = await pool.query(
-    `SELECT s.video_id, s.video_title, s.actual_start_at, s.youtube_channel_id, a.id AS asset_id, a.symbol, a.display_name
+  const params = template.params;
+  const dailyCap = streamParam(params, "daily_cap");
+  const { rows: recent } = await pool.query(
+    `SELECT auto_data->>'symbol' AS symbol FROM market.prediction_markets WHERE auto_template = 'stream-peak' AND created_at > now() - interval '24 hours'`
+  );
+  let room = dailyCap - recent.length;
+  if (room <= 0) return { created: 0, note: `daily cap of ${dailyCap} reached` };
+  const taken = new Set(recent.map((row) => row.symbol));
+  const closeLeadMinutes = streamParam(params, "close_lead_minutes");
+  const closeLeadMs = closeLeadMinutes * 60_000;
+  const minPast = streamParam(params, "min_past_streams");
+  const talents = await activeAssets(pool, { count: streamParam(params, "talents") });
+  const { rows: upcoming } = await pool.query(
+    `SELECT s.video_id, s.video_title, s.scheduled_start_at, s.youtube_channel_id, a.id AS asset_id, a.symbol, a.display_name
      FROM yt.livestream_sessions s JOIN market.market_assets a ON a.youtube_channel_id = s.youtube_channel_id
-     WHERE s.status = 'live' AND s.actual_start_at > now() - interval '20 minutes' AND a.status = 'active'`
+     WHERE s.status = 'upcoming' AND s.actual_start_at IS NULL
+       AND s.last_seen_at > now() - make_interval(secs => $1)
+       AND s.scheduled_start_at > now() + make_interval(secs => $2)
+       AND s.scheduled_start_at <= now() + make_interval(hours => $3)
+       AND a.id = ANY($4::bigint[])
+     ORDER BY array_position($4::bigint[], a.id), s.scheduled_start_at`,
+    [guards.STREAM_STALE_MS / 1000, (closeLeadMs + MIN_BETTING_MS) / 1000, streamParam(params, "open_lead_hours"), talents.map((talent) => talent.id)]
   );
   let created = 0;
-  for (const stream of live) {
+  for (const stream of upcoming) {
+    if (room <= 0) break;
+    if (taken.has(stream.symbol)) continue;
     const autoKey = `stream-peak:${stream.video_id}`;
     if (await marketExists(pool, autoKey)) continue;
     const { rows: past } = await pool.query(
@@ -207,41 +262,73 @@ async function generateStreamMarkets(pool, templates) {
     const mid = Math.floor(peaks.length / 2);
     const median = peaks.length % 2 ? peaks[mid] : (peaks[mid - 1] + peaks[mid]) / 2;
     const line = niceLine(median);
-    const closesAt = new Date(new Date(stream.actual_start_at).getTime() + STREAM_WINDOW_MS);
-    if (closesAt.getTime() - Date.now() < 3 * 60_000) continue;
+    const scheduledAt = new Date(stream.scheduled_start_at);
+    const closesAt = new Date(scheduledAt.getTime() - closeLeadMs);
     const firstName = stream.display_name.split(" ").pop();
     const market = await createAuto(
       pool,
       {
         title: `${firstName}'s stream peaks above ${fmtViewers(line)}?`,
         subtitle: stream.video_title ? String(stream.video_title).slice(0, 200) : stream.display_name,
-        rules_text: `Resolves YES if this stream's peak concurrent viewers reach ${line.toLocaleString("en-US")} or more, as recorded by NASFAQ's stream tracker when the stream ends. The line is ${stream.display_name}'s median peak over their last ${peaks.length} streams. Resolves YES as soon as the peak crosses the line. Voids if the tracker has no peak within 12 hours.`,
+        rules_text: `Resolves YES if this stream's peak concurrent viewers reach ${line.toLocaleString("en-US")} or more, as recorded by NASFAQ's stream tracker. The line is ${stream.display_name}'s median peak over their last ${peaks.length} streams. Betting closes ${closeLeadMinutes} minutes before the scheduled start (${etTime(scheduledAt)}), or as soon as the tracker sees the stream go live if that's sooner. If a bet still lands after the real start, the market voids and everyone gets their money back. It also voids if the stream hasn't started within 12 hours of its scheduled time, or ends with no peak on record.`,
         resolution_source_text: `NASFAQ stream tracker for YouTube video ${stream.video_id}.`,
         category: "streams",
         market_type: "binary",
         probability: 0.5,
         closes_at: closesAt,
-        resolves_after: closesAt,
-        liquidity_b: num(template.params.liquidity_b, 500),
-        fee_bps: num(template.params.fee_bps, 100),
+        resolves_after: scheduledAt,
+        liquidity_b: num(params.liquidity_b, 500),
+        fee_bps: num(params.fee_bps, 100),
       },
-      { template: "stream-peak", autoKey, autoData: { video_id: stream.video_id, asset_id: Number(stream.asset_id), symbol: stream.symbol, line, median, sample: peaks.length, started_at: stream.actual_start_at } }
+      {
+        template: "stream-peak",
+        autoKey,
+        autoData: {
+          video_id: stream.video_id,
+          asset_id: Number(stream.asset_id),
+          symbol: stream.symbol,
+          line,
+          median,
+          sample: peaks.length,
+          scheduled_at: scheduledAt.toISOString(),
+          close_lead_minutes: closeLeadMinutes,
+          closes_before_start: true,
+        },
+      }
     );
-    if (market) created += 1;
+    if (market) {
+      created += 1;
+      room -= 1;
+      taken.add(stream.symbol);
+    }
   }
   return { created };
 }
 
 async function resolveStreamMarket(pool, market) {
   const data = market.auto_data || {};
-  const { rows } = await pool.query(`SELECT status, max_concurrent_viewers, ended_at FROM yt.livestream_sessions WHERE video_id = $1`, [data.video_id]);
+  const { rows } = await pool.query(
+    `SELECT s.status, s.actual_start_at, s.max_concurrent_viewers,
+            (SELECT MAX(b.max_viewers) FROM yt.livestream_viewer_buckets_5m b WHERE b.livestream_video_id = s.video_id) AS bucket_peak
+     FROM yt.livestream_sessions s WHERE s.video_id = $1`,
+    [data.video_id]
+  );
   const stream = rows[0];
   const line = num(data.line);
-  const peak = stream?.max_concurrent_viewers === null || stream?.max_concurrent_viewers === undefined ? null : num(stream.max_concurrent_viewers);
+  const startedAt = stream?.actual_start_at ? new Date(stream.actual_start_at) : null;
+  // The last line of defense: the tracker can learn of a start after the fact, and a bet placed in
+  // between must never pay. Markets from before this rule opened after the start, so it can't apply.
+  if (data.closes_before_start && startedAt) {
+    const { rows: late } = await pool.query(`SELECT COUNT(*)::int AS trades FROM market.prediction_market_trades WHERE market_id = $1 AND matched_at >= $2`, [market.id, startedAt]);
+    if (late[0].trades > 0) return { outcome: "void", evidence: { reason: "A bet landed after the stream started", late_trades: late[0].trades, started_at: startedAt.toISOString(), line } };
+  }
+  // The session's peak is only written when the stream ends; its 5-minute buckets have the running one.
+  const known = [stream?.max_concurrent_viewers, stream?.bucket_peak].filter((value) => value !== null && value !== undefined).map((value) => num(value));
+  const peak = known.length ? Math.max(...known) : null;
   if (peak !== null && peak >= line) return { outcome: "yes", evidence: { peak, line } };
   if (stream?.status === "ended") return peak === null ? { outcome: "void", evidence: { reason: "no peak recorded", line } } : { outcome: "no", evidence: { peak, line } };
-  const started = new Date(data.started_at || market.opens_at).getTime();
-  if (Date.now() - started > STREAM_GIVE_UP_MS) return { outcome: "void", evidence: { reason: "stream still unresolved after 12h", line } };
+  const since = new Date(startedAt || data.started_at || data.scheduled_at || market.opens_at).getTime();
+  if (Date.now() - since > STREAM_GIVE_UP_MS) return { outcome: "void", evidence: { reason: startedAt || data.started_at ? "stream still unresolved after 12h" : "stream didn't start within 12h of its scheduled time", line } };
   return null;
 }
 
@@ -265,6 +352,36 @@ async function resolveBySystem(pool, marketId, { outcome, evidence }) {
     if (outcome === "void") return resolution.voidWithClient(client, market, { reason: evidence?.reason || "Voided by data" });
     return resolution.settleWithClient(client, market, proposal.outcome_id);
   });
+}
+
+/**
+ * Closes whatever guards.js has locked, every scheduler cycle, so the page and the trade path agree
+ * and resting orders go back. First, a stream moved earlier pulls its market's close in with it (a
+ * stream moved later keeps the close it has: an early close never lets anyone bet on a known result).
+ */
+async function closeLockedMarkets(pool) {
+  await pool.query(
+    `UPDATE market.prediction_markets m
+     SET closes_at = GREATEST(s.scheduled_start_at - make_interval(mins => (m.auto_data->>'close_lead_minutes')::int), m.opens_at + interval '1 second'), updated_at = now()
+     FROM yt.livestream_sessions s
+     WHERE m.kind = 'auto' AND m.auto_template = 'stream-peak' AND m.status = 'open' AND m.auto_data ? 'close_lead_minutes'
+       AND s.video_id = m.auto_data->>'video_id' AND s.scheduled_start_at IS NOT NULL
+       AND s.scheduled_start_at - make_interval(mins => (m.auto_data->>'close_lead_minutes')::int) < m.closes_at`
+  );
+  const { rows } = await pool.query(`SELECT * FROM market.prediction_markets WHERE kind = 'auto' AND status = 'open' ORDER BY closes_at LIMIT 200`);
+  const closed = [];
+  for (const market of rows) {
+    const lock = await guards.autoMarketLock(pool, market);
+    if (!lock) continue;
+    const done = await core.inTransaction(pool, async (client) => {
+      const fresh = await core.lockMarket(client, { id: market.id });
+      if (fresh.status !== "open") return null;
+      await resolution.closeWithClient(client, fresh, { reason: lock });
+      return { id: Number(fresh.id), slug: fresh.slug };
+    });
+    if (done) closed.push(done);
+  }
+  return closed;
 }
 
 async function resolveAutoMarkets(pool) {
@@ -310,12 +427,9 @@ async function updateTemplate(pool, actor, key, { enabled, params }) {
   const { rows } = await pool.query(`SELECT * FROM market.prediction_auto_templates WHERE key = $1`, [key]);
   if (!rows[0]) throw predictionError("template_not_found");
   const next = { ...(rows[0].params_json || {}) };
-  for (const field of ["count", "liquidity_b", "fee_bps", "min_past_streams"]) {
-    if (params && params[field] !== undefined && Number.isFinite(Number(params[field]))) next[field] = Number(params[field]);
+  for (const field of Object.keys(PARAM_LIMITS)) {
+    if (params && params[field] !== undefined && Number.isFinite(Number(params[field]))) next[field] = clampParam(field, params[field]);
   }
-  if (next.liquidity_b !== undefined) next.liquidity_b = Math.min(100_000, Math.max(10, next.liquidity_b));
-  if (next.fee_bps !== undefined) next.fee_bps = Math.min(1000, Math.max(0, Math.round(next.fee_bps)));
-  if (next.count !== undefined) next.count = Math.min(20, Math.max(1, Math.round(next.count)));
   const { rows: updated } = await pool.query(
     `UPDATE market.prediction_auto_templates SET enabled = COALESCE($2, enabled), params_json = $3, updated_at = now() WHERE key = $1 RETURNING *`,
     [key, typeof enabled === "boolean" ? enabled : null, JSON.stringify(next)]
@@ -323,4 +437,4 @@ async function updateTemplate(pool, actor, key, { enabled, params }) {
   return { key, enabled: updated[0].enabled, params: updated[0].params_json };
 }
 
-module.exports = { niceLine, resolveAutoMarkets, resolveBySystem, runAutoTemplates, updateTemplate };
+module.exports = { TICKS_WITH_MARKETS, closeLockedMarkets, niceLine, resolveAutoMarkets, resolveBySystem, runAutoTemplates, updateTemplate };

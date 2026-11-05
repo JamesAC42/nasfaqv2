@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { escapeHtml } = require("../src/services/email");
-const { passwordResetEmail, verificationEmail } = require("../src/services/emailTemplates");
+const { emailChangedEmail, passwordResetEmail, verificationEmail } = require("../src/services/emailTemplates");
 
 const env = { PUBLIC_APP_BASE_URL: "https://holo.example/" };
 const username = `<b>"Tom" & 'Jerry'</b>`;
@@ -24,6 +24,14 @@ const EMAILS = [
     subject: "Reset your NASFAQ password",
     button: "Choose a new password",
     expiry: "the link works once, for an hour",
+  },
+  {
+    name: "email changed",
+    render: (fields, emailEnv) => emailChangedEmail({ ...fields, newEmailMasked: "pe****@usada.jp" }, emailEnv),
+    url: "https://holo.example/rules?from=notice&x=1",
+    subject: "The email on your NASFAQ account changed",
+    button: "Contact us",
+    expiry: "tell us right away",
   },
 ];
 

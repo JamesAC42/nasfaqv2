@@ -1290,7 +1290,7 @@ async function resolveReportsForMessage(pool, { messageId, reviewerId }) {
 }
 
 /** Mutes and bans in force (not lifted, not run out), newest first, for the moderation page. */
-async function listActiveModerationActions(pool, { limit = 100 } = {}) {
+async function listActiveModerationActions(pool, { limit = 100, userId = null } = {}) {
   const safeLimit = parseLimit(limit, 100, { min: 1, max: 500 });
   const { rows } = await pool.query(
     `
@@ -1312,10 +1312,11 @@ async function listActiveModerationActions(pool, { limit = 100 } = {}) {
     LEFT JOIN chat.channels c ON c.id = uma.channel_id
     WHERE uma.revoked_at IS NULL
       AND (uma.expires_at IS NULL OR uma.expires_at > now())
+      AND ($2::bigint IS NULL OR uma.user_id = $2::bigint)
     ORDER BY uma.created_at DESC, uma.id DESC
     LIMIT $1
   `,
-    [safeLimit]
+    [safeLimit, userId]
   );
   return rows.map((row) => ({
     id: Number(row.id),
