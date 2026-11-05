@@ -1883,6 +1883,10 @@ async function applySchema(pool) {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS market_v1_link_attempts_user_idx ON market.v1_link_attempts (user_id, created_at DESC, id DESC)`);
 
+  // Blackjack table rooms (chatDb.TABLE_ROOMS) are a new kind of chat room.
+  await pool.query(`ALTER TABLE chat.channels DROP CONSTRAINT IF EXISTS chat_channels_scope_type_check`);
+  await pool.query(`ALTER TABLE chat.channels ADD CONSTRAINT chat_channels_scope_type_check CHECK (scope_type IN ('asset', 'unit', 'market', 'meta', 'table'))`);
+
   // Announcement popups (services/announcements.js), and which players have dismissed each one.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS market.announcements (

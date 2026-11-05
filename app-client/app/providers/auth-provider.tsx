@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from "react";
 import { apiErrorCode, apiFetch } from "@/app/lib/api";
+import { setGamesViewer } from "@/app/lib/games/use-games-socket";
 import type { AuthUser } from "@/app/lib/types";
 import { useAuthStore } from "@/app/stores/auth-store";
 import { useProfileStore } from "@/app/stores/profile-store";
@@ -136,6 +137,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     hasBootstrappedRef.current = true;
     void refreshSession();
   }, [initialized, isLoading, refreshSession]);
+
+  // What the games socket's permissions depend on: who you are, and whether your email is verified.
+  const gamesViewer = user ? `${user.id}:${user.email_verified ? "verified" : "unverified"}` : null;
+  useEffect(() => {
+    if (initialized) setGamesViewer(gamesViewer);
+  }, [gamesViewer, initialized]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

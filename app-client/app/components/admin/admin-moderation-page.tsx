@@ -59,7 +59,11 @@ const TARGET_LABELS: Record<string, string> = {
   prediction_comment: "prediction",
 };
 
-const chatHref = (channelKey: string) => `/chat?channel=${encodeURIComponent(channelKey)}`;
+// A blackjack table's room lives on the table's page, not in /chat.
+const chatHref = (channelKey: string) => {
+  const table = /^table:blackjack-([a-z0-9-]+)$/.exec(channelKey);
+  return table ? `/games/blackjack/${table[1]}` : `/chat?channel=${encodeURIComponent(channelKey)}`;
+};
 
 /** One line of what else the log entry recorded, where there's something worth showing. */
 function detailLine(entry: AdminAction): string | null {

@@ -26,7 +26,7 @@ export type AuthUser = {
 export type ChatChannel = {
   id: number;
   channel_key: string;
-  scope_type: "asset" | "unit" | "market" | "meta";
+  scope_type: "asset" | "unit" | "market" | "meta" | "table";
   scope_key: string;
   display_name: string;
   description: string | null;
