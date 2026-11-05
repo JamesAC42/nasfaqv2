@@ -17,7 +17,10 @@ import { Hand, Seat, Shoe } from "@/app/components/games/blackjack/bj-parts";
 import { BlackjackControls, type BjAction } from "@/app/components/games/blackjack/bj-controls";
 import { BJ_BET_MS, BJ_TURN_MS, HOUSE_RULES, handValue, momentOf, netOf, usePhone, wagerOf, withLiveDeadline } from "@/app/components/games/blackjack/bj-utils";
 import { SceneArt } from "@/app/components/common/scene-art";
-import { TalentReaction } from "@/app/components/common/talent-reaction";
+import { TalentReaction, talentsWithPose } from "@/app/components/common/talent-reaction";
+import { ShareMoment } from "@/app/components/games/share/share-moment";
+import { blackjackMomentId, blackjackShareText, seededPick } from "@/app/lib/games/moments";
+import { useArtStore } from "@/app/stores/art-store";
 import styles from "@/app/components/games/blackjack/blackjack-table.module.scss";
 
 type Payload = { type: "blackjack"; table: BlackjackTable; server_time?: number };
@@ -69,6 +72,8 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
   const [error, setError] = useState<string | null>(null);
   const [lastBet, setLastBet] = useState<number | null>(null);
   const [tally, setTally] = useState<Tally>(EMPTY_TALLY);
+  // Your seat in each round you played on this visit, so those rows in "Last rounds" can be shared.
+  const [myRounds, setMyRounds] = useState<Record<number, number>>({});
   const [skipped, setSkipped] = useState(0);
   const [kicked, setKicked] = useState(false);
   const tableRef = useRef(table);
@@ -149,6 +154,8 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
     // Settled hand: count it once, and pick up the payout.
     if (table.phase === "results" && table.round_id && mySeat?.outcome && mySeat.bet > 0 && !counted.current.has(table.round_id)) {
       counted.current.add(table.round_id);
+      const roundId = table.round_id;
+      setMyRounds((current) => ({ ...current, [roundId]: myIndex }));
       const net = netOf(mySeat);
       setTally((current) => ({
         net: Math.round((current.net + net) * 100) / 100,
@@ -169,7 +176,7 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
         setSkipped(0);
       }
     }
-  }, [table, mySeat]);
+  }, [table, mySeat, myIndex]);
 
   const players = useMemo(() => (table ? table.seats.filter((seat) => seat && seat.bet > 0 && seat.hand.length > 0).length : 0), [table]);
 
@@ -338,6 +345,7 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
                 {table.history.map((round) => {
                   const mine = user ? round.results.find((result) => result.username === user.username) : undefined;
                   const net = mine ? Math.round((mine.payout - mine.bet) * 100) / 100 : null;
+                  const mySeatThen = myRounds[round.round_id];
                   return (
                     <li key={round.round_id}>
                       <span className={styles.histRound}>#{round.round_id}</span>
@@ -354,6 +362,9 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
                       </span>
                       <span className={`${styles.histNet} ${net === null ? "" : net > 0 ? styles.up : net < 0 ? styles.down : ""}`}>
                         {net === null ? "" : net > 0 ? `+${fmtNumber(net, "$")}` : net < 0 ? `−${fmtNumber(-net, "$")}` : "push"}
+                        {mine && net !== null && mySeatThen !== undefined && mine.outcome !== "refund" ? (
+                          <HistoryShare roundId={round.round_id} seat={mySeatThen} outcome={mine.outcome} net={net} dealer={round.dealer} tableName={table.name} />
+                        ) : null}
                       </span>
                     </li>
                   );
@@ -446,16 +457,37 @@ function PhaseBanner({ table, myIndex }: { table: BlackjackTable; myIndex: numbe
   const announce = moment.kind === "betting" ? "Bets are open" : typeof head === "string" ? head : "";
   // Your hand's result gets a talent reacting: hype for a win, cope for a loss.
   const reaction = moment.kind === "results" && (tone === "up" || tone === "gold") ? "hype" : moment.kind === "results" && tone === "down" ? "cope" : null;
+  // The reacting talent is picked from the round, so the share card can show the same one.
+  const manifest = useArtStore((state) => state.manifest);
+  const talent = useMemo(() => (reaction && table.round_id ? seededPick(talentsWithPose(manifest, reaction), `blackjack:${table.round_id}`) : null), [manifest, reaction, table.round_id]);
+  const share =
+    moment.kind === "results" && mySeat?.outcome && mySeat.bet > 0 && table.round_id && myIndex >= 0
+      ? {
+          id: blackjackMomentId(table.round_id, myIndex),
+          text: blackjackShareText({ outcome: mySeat.outcome, doubled: mySeat.doubled, net: netOf(mySeat), dealerValue: handValue(table.dealer.hand).total, tableName: table.name }),
+        }
+      : null;
 
   return (
     <div className={styles.banner} data-tone={tone} data-kind={moment.kind} data-reacting={reaction ? "" : undefined}>
-      {reaction ? <TalentReaction key={`${table.round_id}-${reaction}`} pose={reaction} size={56} className={styles.bannerReaction} fresh /> : null}
+      {reaction ? <TalentReaction key={`${table.round_id}-${reaction}`} pose={reaction} symbol={talent} size={56} className={styles.bannerReaction} fresh /> : null}
       <span className={styles.srOnly} aria-live="polite">
         {announce}
       </span>
       <strong aria-hidden="true" key={`${moment.kind}-${table.round_id}-${moment.kind === "turn" ? moment.seat : ""}`}>{head}</strong>
       {sub ? <span>{sub}</span> : null}
       {timer ? <div className={styles.bannerTimer}>{timer}</div> : null}
+      {share ? <ShareMoment kind="blackjack" id={share.id} talent={talent} text={share.text} label="Share this hand" /> : null}
     </div>
   );
+}
+
+/** Share button on a "Last rounds" row you played. (The row doesn't know about a double; the card does.) */
+function HistoryShare({ roundId, seat, outcome, net, dealer, tableName }: { roundId: number; seat: number; outcome: string; net: number; dealer: number; tableName: string }) {
+  const manifest = useArtStore((state) => state.manifest);
+  const pose = net > 0 ? "hype" : net < 0 ? "cope" : null;
+  const talent = useMemo(() => (pose ? seededPick(talentsWithPose(manifest, pose), `blackjack:${roundId}`) : null), [manifest, pose, roundId]);
+  if (!["blackjack", "win", "push", "loss", "bust"].includes(outcome)) return null;
+  const text = blackjackShareText({ outcome: outcome as "blackjack" | "win" | "push" | "loss" | "bust", doubled: false, net, dealerValue: dealer, tableName });
+  return <ShareMoment kind="blackjack" id={blackjackMomentId(roundId, seat)} talent={talent} text={text} label={`Share round ${roundId}`} compact />;
 }
