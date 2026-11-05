@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-11-05",
+    title: "Reactions at the blackjack tables",
+    changes: [
+      {
+        kind: "new",
+        text: "Send emoji at a blackjack table: tap the row along the top of the felt and they float down for everyone at the table, whether you're seated or just watching. Tap as fast as you like, or hold one down. If you're seated, yours fall over your seat. They can't block a button, and the eye at the end of the row hides them on your screen. In calm mode nothing moves: you see a small count on each emoji instead.",
+      },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "Prediction markets you can't call after the fact",
     changes: [
       {

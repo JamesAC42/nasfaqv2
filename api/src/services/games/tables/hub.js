@@ -2,12 +2,13 @@
 //   lobby:{gameKey}      → { type: "lobby", game, tables }
 //   table:{id}           → { type: "table", table }
 //   blackjack:{tableKey} → { type: "blackjack", table }
+//   reactions:blackjack:{tableKey} → { type: "reactions", items: [[id, seat, count]] } (reactions.js)
 // Every message carries its `channel`. The hub is anonymous: everything it sends is public. Hidden information (duel picks before the
 // reveal, the dealer's hole card) is withheld by the engines before it gets here.
 
 const { WebSocketServer } = require("ws");
 
-const CHANNEL_RE = /^(lobby:[a-z0-9-]{1,40}|table:\d{1,12}|blackjack:[a-z0-9-]{1,20}|exchange)$/;
+const CHANNEL_RE = /^(lobby:[a-z0-9-]{1,40}|table:\d{1,12}|blackjack:[a-z0-9-]{1,20}|reactions:blackjack:[a-z0-9-]{1,20}|exchange)$/;
 // `me` is the signed-in player's own feed (exchange alerts: outbid, sold, trade offers). The
 // socket is authenticated at upgrade; `me` maps to `user:{id}` and is never public.
 const ME = "me";
@@ -16,6 +17,7 @@ const MAX_CHANNELS_PER_CLIENT = 8;
 
 const channels = new Map(); // channel → Set<ws>
 const snapshotProviders = []; // (channel) => payload | null
+const actions = new Map(); // what a client can send besides subscribing: action name -> (ws, message) => void
 let wss = null;
 
 function send(ws, payload) {
@@ -105,6 +107,9 @@ function createGamesWss() {
   wss.on("connection", (ws, req) => {
     ws.on("error", () => ws.terminate()); // a bad frame must not take the process down
     ws.userId = req?.gamesUser?.id ? Number(req.gamesUser.id) : null;
+    // Read when the socket opens. A suspension signs the player out, which closes this socket, so
+    // the next one knows; and a verified email stays verified.
+    ws.canReact = Boolean(req?.gamesUser?.email_verified && !req.gamesUser.suspension);
     ws.gameChannels = new Set();
     ws.isAlive = true;
     ws.on("pong", () => {
@@ -122,6 +127,13 @@ function createGamesWss() {
       if (message?.action === "subscribe") list.forEach((channel) => subscribe(ws, channel));
       else if (message?.action === "unsubscribe") list.forEach((channel) => unsubscribe(ws, channel));
       else if (message?.action === "ping") send(ws, { type: "pong" });
+      else if (actions.has(message?.action)) {
+        try {
+          actions.get(message.action)(ws, message);
+        } catch (error) {
+          console.error(`games socket action ${message.action} failed:`, String(error?.message || error));
+        }
+      }
     });
     ws.on("close", () => {
       for (const channel of [...ws.gameChannels]) unsubscribe(ws, channel);
@@ -155,4 +167,5 @@ module.exports = {
   setBridge,
   deliverBridged,
   registerSnapshotProvider: (provider) => snapshotProviders.push(provider),
+  registerAction: (name, handler) => actions.set(name, handler),
 };
