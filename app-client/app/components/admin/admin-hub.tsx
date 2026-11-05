@@ -651,6 +651,7 @@ export function AdminHub() {
     { href: "/admin/assets", label: "Assets & prizes", line: "Emojis, profile pictures and the capsule prize pool.", show: access.canAssets },
     { href: predsLink, label: "Predictions control room", line: "Approvals, calls, disputes and auto templates.", show: canPredictions },
     { href: "/predictions/create", label: "New prediction market", line: "Write one up and send it for approval.", show: isAdmin || Boolean((user as Record<string, unknown> | null)?.can_create_prediction_markets) },
+    { href: "/admin/users", label: "Users", line: "Every account: search, sort, verify, rename, suspend, and what admins have done to each.", show: isAdmin },
     { href: "/admin/people", label: "People & roles", line: "Find a player, hand out or take back roles, suspend or reset a profile.", show: isAdmin },
     { href: "/admin/moderation", label: "Moderation", line: "Chat reports, mutes and bans, and the log of admin actions.", show: isAdmin },
     { href: "/admin/announcements", label: "Announcements", line: "Popups visitors see once: write, schedule and retire them.", show: isAdmin },
@@ -886,7 +887,7 @@ export function AdminHub() {
             <Section id="activity" title="Activity" hint="Last 24 hours unless it says otherwise">
               <div className={ui.stripWrap}>
                 <div className={ui.strip} style={{ ["--cols" as string]: 4 }}>
-                  <Link href="/admin/people" className={ui.stat}>
+                  <Link href="/admin/users" className={ui.stat}>
                     <small>Players</small>
                     <b>{fmtCount(s?.users.total)}</b>
                     <em>{s ? `${fmtCount(s.users.verified)} verified` : "\u00a0"}</em>
