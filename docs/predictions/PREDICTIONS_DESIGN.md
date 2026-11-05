@@ -151,11 +151,18 @@ be known or guessed well while it's open, the first bettor takes up to `b·ln N`
 - **The tracker watches for early starts.** Every minute, a cheap `videos.list` checks streams due in
   the next 3 hours. If one has gone live or changed its time, its channel is polled at once. Before
   this, a stream starting early could go unnoticed for a full 30-minute poll. Streams with no schedule
-  never get a market.
+  never get a market. In the 60 days to 2026-11-05, 6 of 2,506 streams started 15 or more minutes
+  early, and the earliest by 67 minutes, so all of them fall inside that window.
+- **Canceled and deleted streams void.** The tracker never hears of them again, so they sit as
+  "upcoming" forever (76 in production on 2026-11-05, the oldest from 2025-12-24). One that's already
+  past its time never gets a market. One that goes quiet after its market opened locks once its data
+  is stale or its time comes, and voids 12 hours after the time it was scheduled for when it opened.
 - **Why tick calls are off.** All four of a day's ticks pull toward one hidden target, and strengths
   are drawn so they total 200%. So a tick moves the same way as the tick before it unless the one
   before overshot the target, about 82% of the time with the default strength bounds and every time
   when a talent's bounds stay under 100%. A market seeded at 50/50 on that is close to free money.
+  Production agreed (30 days to 2026-11-05): 81–83% of ticks moved the same way as the one before, and
+  127 of 145 resolved tick calls (87.6%) followed the previous tick.
 - **Why Lunch.** Open can't have a market: settlement creates its row at 09:00 and it lands a minute
   later. Lunch is the earliest tick that can, and the least given away. `TICKS_WITH_MARKETS` in
   `auto.js` is the one place to change this. The top gainer stays because it turns on the biggest %

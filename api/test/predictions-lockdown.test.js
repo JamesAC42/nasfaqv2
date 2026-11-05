@@ -183,10 +183,12 @@ test("prediction lockdown end to end", { skip: !databaseUrl, timeout: 180_000 },
     const tooFar = await addStream(mio.channel, { scheduled: minutes(60 * 30) });
     const unscheduled = await addStream(mio.channel, {});
     const staleData = await addStream(mio.channel, { scheduled: minutes(90), last_seen: minutes(-120) });
+    // Production had 76 of these: canceled or deleted, still "upcoming", their time long gone.
+    const stuck = await addStream(mio.channel, { scheduled: new Date("2025-12-24T15:00:00Z"), last_seen: new Date("2025-12-24T14:00:00Z") });
     await auto.runAutoTemplates(pool);
     const market = await marketFor(upcoming);
     assert.ok(market, "a scheduled stream gets a market");
-    for (const id of [live, tooSoon, tooFar, unscheduled, staleData]) assert.equal(await marketFor(id), null, id);
+    for (const id of [live, tooSoon, tooFar, unscheduled, staleData, stuck]) assert.equal(await marketFor(id), null, id);
     assert.equal(market.status, "open");
     assert.equal(new Date(market.closes_at).getTime(), scheduled.getTime() - 15 * 60_000, "closes 15 minutes before the scheduled start");
     assert.equal(new Date(market.resolves_after).getTime(), scheduled.getTime());
@@ -265,12 +267,13 @@ test("prediction lockdown end to end", { skip: !databaseUrl, timeout: 180_000 },
 
   await t.test("a bet that lands after the real start voids the market, so it never pays", async () => {
     const start = await wallet(alice);
-    const video = await addStream(kor.channel, { scheduled: minutes(120) });
+    const video = await addStream(kor.channel, { scheduled: minutes(70) });
     await auto.runAutoTemplates(pool);
     const { slug, id } = await marketFor(video);
     await buy(slug, alice, "yes", 500);
-    // The tracker only learns afterward that it had started 10 minutes ago, and it beat the line.
-    await updateStream(video, `status = 'ended', actual_start_at = now() - interval '10 minutes', max_concurrent_viewers = 99999`);
+    // The earliest start in production's last 60 days: 67 minutes ahead of schedule. The tracker
+    // only learns afterward that it had started a few seconds before this bet, and it beat the line.
+    await updateStream(video, `status = 'ended', actual_start_at = now() - interval '3 minutes', max_concurrent_viewers = 99999`);
     const resolved = await auto.resolveAutoMarkets(pool);
     assert.deepEqual(resolved.map((row) => row.slug), [slug]);
     const { rows } = await pool.query(`SELECT status, resolution_notes FROM market.prediction_markets WHERE id = $1`, [id]);
