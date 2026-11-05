@@ -13,6 +13,24 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-11-04",
+    title: "Chat from anywhere",
+    changes: [
+      {
+        kind: "new",
+        text: "A small popup when someone talks in a chat room you've posted in during the last 30 days, or one you chose with the bell in its header. Busy rooms get bunched into one popup a minute, and the new speech bubble button in the top bar counts what you've missed. Turn it off for one room or for all of chat on the Notifications page, or press the crossed-out bell on a popup. Calm mode keeps popups still and shows them less often.",
+      },
+      {
+        kind: "new",
+        text: "A floating chat window you can read and post from on any page. Press the speech bubble button in the top bar to show or hide it, pick the room in its title bar, and drag it where you like: it remembers. It moves out of the way of the order ticket and the stream miniplayer. On a phone it opens as a sheet above the bottom bar and closes when you change pages.",
+      },
+      {
+        kind: "new",
+        text: "Mute a player from the ⋯ menu on any of their chat messages. You get no popups or @mention and reply notifications from them, and their messages collapse for you. Only you can tell, and you can undo it on the Notifications page.",
+      },
+    ],
+  },
+  {
     date: "2026-11-02",
     title: "Winter lights, and snow",
     changes: [

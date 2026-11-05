@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { announceKeepClear, bottomInset, clamp, FLOAT_MARGIN, readOffset, saveOffset, type Offset } from "@/app/lib/floating";
 import { useOpenStream, useStreamStore, type PlayingStream } from "@/app/stores/stream-store";
 import styles from "@/app/components/livestreams/stream-dock.module.scss";
 
@@ -10,35 +11,7 @@ import styles from "@/app/components/livestreams/stream-dock.module.scss";
 // around. The iframe never moves in the DOM, so switching between the two doesn't reload it.
 
 const POSITION_KEY = "nasfaq.miniplayer";
-const MARGIN = 12;
-
-/** Where the miniplayer sits, as distances from the right and bottom edges of the window. */
-type Offset = { right: number; bottom: number };
-
-function readOffset(): Offset | null {
-  try {
-    const raw = JSON.parse(localStorage.getItem(POSITION_KEY) ?? "null") as Partial<Offset> | null;
-    return raw && Number.isFinite(raw.right) && Number.isFinite(raw.bottom) ? { right: raw.right as number, bottom: raw.bottom as number } : null;
-  } catch {
-    return null;
-  }
-}
-
-function saveOffset(offset: Offset) {
-  try {
-    localStorage.setItem(POSITION_KEY, JSON.stringify(offset));
-  } catch {
-    /* storage blocked: it just won't be remembered */
-  }
-}
-
-const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
-
-/** Height the phone/tablet bottom nav takes at the foot of the window (0 where there isn't one). */
-function bottomInset() {
-  const rect = document.querySelector<HTMLElement>("[data-bottom-nav]")?.getBoundingClientRect();
-  return rect && rect.height > 0 ? Math.max(0, window.innerHeight - rect.top) : 0;
-}
+const MARGIN = FLOAT_MARGIN;
 
 /** Mounted once at the app root. */
 export function StreamDock() {
@@ -59,13 +32,15 @@ function Dock({ playing }: { playing: PlayingStream }) {
     const el = box.current;
     if (!el) return;
     Object.assign(el.style, { width: "", height: "", clipPath: "" });
-    offset.current ??= readOffset();
+    offset.current ??= readOffset(POSITION_KEY);
     const { right, bottom } = offset.current ?? { right: MARGIN, bottom: MARGIN };
     const w = el.offsetWidth;
     const h = el.offsetHeight;
     const left = clamp(window.innerWidth - w - right, MARGIN, window.innerWidth - w - MARGIN);
     const top = clamp(window.innerHeight - h - bottom, MARGIN, window.innerHeight - h - MARGIN - bottomInset());
     Object.assign(el.style, { left: `${left}px`, top: `${top}px`, visibility: "visible" });
+    // The chat window keeps clear of the miniplayer (data-keep-clear below).
+    announceKeepClear();
   }, []);
 
   useLayoutEffect(() => {
@@ -132,7 +107,8 @@ function Dock({ playing }: { playing: PlayingStream }) {
       setDragging(false);
       const placed = el.getBoundingClientRect();
       offset.current = { right: window.innerWidth - placed.right, bottom: window.innerHeight - placed.bottom };
-      saveOffset(offset.current);
+      saveOffset(POSITION_KEY, offset.current);
+      announceKeepClear();
     };
     handle.addEventListener("pointermove", move);
     handle.addEventListener("pointerup", end);
@@ -149,6 +125,7 @@ function Dock({ playing }: { playing: PlayingStream }) {
       ref={box}
       className={`${styles.dock} ${dragging ? styles.dragging : ""}`}
       data-mode={playing.mini ? "mini" : "sheet"}
+      data-keep-clear={playing.mini ? "" : undefined}
       style={{ "--tal": playing.accent ?? undefined } as CSSProperties}
       role={playing.mini ? "region" : undefined}
       aria-label={playing.mini ? `Miniplayer: ${playing.title}` : undefined}

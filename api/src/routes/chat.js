@@ -1,6 +1,7 @@
 const express = require("express");
 
 const chatDb = require("../chatDb");
+const chatNotify = require("../services/chatNotify");
 const { logAction } = require("../services/moderation");
 const notifications = require("../services/notifications");
 const { requireAdmin, requireUserId, requireVerifiedUserId } = require("../userContext");
@@ -28,6 +29,67 @@ async function usernameOf(pool, userId) {
   const { rows } = await pool.query(`SELECT username FROM market.users WHERE id = $1`, [Number(userId) || 0]);
   return rows[0]?.username ?? null;
 }
+
+// ── Popups: the overall switch, one room at a time, and muting a player ─────────────
+// Every change answers with the whole picture and tells this player's other tabs and devices.
+async function answerWithSettings(req, res, userId) {
+  await publishChatEvent(req.ctx.redis, { type: "chat.user.notify_changed", user_id: userId });
+  res.json(await chatNotify.getSettings(req.ctx.pool, userId));
+}
+
+router.get("/notify", async (req, res, next) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    res.json(await chatNotify.getSettings(req.ctx.pool, requireUserId(req)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/notify", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    await chatNotify.setEnabled(req.ctx.pool, userId, req.body?.enabled);
+    await answerWithSettings(req, res, userId);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/channels/:channelKey/notify", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    await ensureTopology(req.ctx.pool);
+    const [channel] = await chatDb.findChannels(req.ctx.pool, [req.params.channelKey]);
+    if (!channel) {
+      return res.status(404).json({ error: "chat_channel_not_found" });
+    }
+    await chatNotify.setRoom(req.ctx.pool, userId, channel.id, req.body?.notify);
+    await answerWithSettings(req, res, userId);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/mutes/:userId", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    await chatNotify.mutePlayer(req.ctx.pool, userId, req.params.userId);
+    await answerWithSettings(req, res, userId);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/mutes/:userId", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    await chatNotify.unmutePlayer(req.ctx.pool, userId, req.params.userId);
+    await answerWithSettings(req, res, userId);
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.get("/channels", async (req, res, next) => {
   try {

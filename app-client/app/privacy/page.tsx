@@ -47,7 +47,7 @@ const sections: LegalSection[] = [
           <Fact term="Your profile">
             <p>
               Your bio, the profile picture you pick from our set (you can’t upload your own), your profile color,
-              your oshi coin, and your friends and rivals. If you link an account from the original NASFAQ (nasfaq.biz),
+              your oshi coin, your friends and rivals, and your chat popup settings and the players you’ve muted. If you link an account from the original NASFAQ (nasfaq.biz),
               we keep a snapshot of it from that day: its ID and username, when it joined, its net worth and rank, and how
               many hats and items it held. We don’t get its email or password.
             </p>
@@ -296,6 +296,9 @@ const sections: LegalSection[] = [
           </Fact>
           <Fact term="nasfaq.chat.pinned_channels">
             <p>Chat rooms you pinned.</p>
+          </Fact>
+          <Fact term="nasfaq.chat.window, nasfaq.chat.window.position">
+            <p>Whether the floating chat window is showing, its room, and where you left it.</p>
           </Fact>
           <Fact term="nasfaq.screener.views">
             <p>Your saved stock screener views.</p>

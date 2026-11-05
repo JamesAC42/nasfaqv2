@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { normalizeChatMessage } from "@/app/lib/normalizers";
 import { MUTE_DURATIONS, REPORT_REASONS, moderationErrorText, removeChatMessage, reportChatMessage, restrictChatUser } from "@/app/lib/moderation";
 import type { AuthUser, ChatMessage } from "@/app/lib/types";
+import { muteChatPlayer, unmuteChatPlayer, useChatNotifyStore } from "@/app/stores/chat-notify-store";
 import styles from "@/app/components/chat/chat.module.scss";
 
 /**
@@ -26,6 +27,9 @@ export function MessageMenu({ message, viewer, onUpdated }: { message: ChatMessa
   const own = Boolean(viewer && author && author.id === viewer.id);
   const isAdmin = Boolean(viewer?.is_admin);
   const canReport = Boolean(viewer && !own && !viewer.suspension);
+  // Anyone signed in can mute someone for themselves: it's nobody else's business.
+  const canMute = Boolean(viewer && author && !own);
+  const mutedNow = useChatNotifyStore((state) => Boolean(author && state.mutedIds.has(author.id)));
 
   // Clicking elsewhere or Escape closes it.
   useEffect(() => {
@@ -44,7 +48,7 @@ export function MessageMenu({ message, viewer, onUpdated }: { message: ChatMessa
     };
   }, [open]);
 
-  if (message.status !== "active" || (!canReport && !isAdmin)) return null;
+  if (message.status !== "active" || (!canReport && !isAdmin && !canMute)) return null;
 
   const toggle = () => {
     setOpen((value) => !value);
@@ -137,6 +141,26 @@ export function MessageMenu({ message, viewer, onUpdated }: { message: ChatMessa
               {canReport ? (
                 <button type="button" role="menuitem" onClick={() => setMode("report")}>
                   Report message…
+                </button>
+              ) : null}
+              {canMute && author ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={busy}
+                  title={mutedNow ? undefined : "No popups or bell pings from them, and their messages collapse. Only you can tell."}
+                  onClick={() =>
+                    void run(async () => {
+                      if (mutedNow) {
+                        await unmuteChatPlayer(author.id);
+                        return `${author.username} is unmuted.`;
+                      }
+                      await muteChatPlayer(author.id);
+                      return `${author.username} is muted, for you only. Undo it here or on Notifications.`;
+                    })
+                  }
+                >
+                  {mutedNow ? `Unmute ${author.username} for me` : `Mute ${author.username} for me`}
                 </button>
               ) : null}
               {isAdmin ? (
