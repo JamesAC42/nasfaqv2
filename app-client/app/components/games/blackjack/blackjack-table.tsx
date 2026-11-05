@@ -16,7 +16,6 @@ import { useProfileStore } from "@/app/stores/profile-store";
 import { Hand, Seat, Shoe } from "@/app/components/games/blackjack/bj-parts";
 import { BlackjackControls, type BjAction } from "@/app/components/games/blackjack/bj-controls";
 import { ReactionBar, ReactionLayer, useTableReactions } from "@/app/components/games/blackjack/bj-reactions";
-import { TableChat } from "@/app/components/games/blackjack/bj-table-chat";
 import { BJ_BET_MS, BJ_TURN_MS, HOUSE_RULES, handValue, momentOf, netOf, usePhone, wagerOf, withLiveDeadline } from "@/app/components/games/blackjack/bj-utils";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { TalentReaction } from "@/app/components/common/talent-reaction";
@@ -67,9 +66,6 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
   const mySeat = table && myIndex >= 0 ? table.seats[myIndex] : null;
 
   const reactions = useTableReactions(tableKey, myIndex, phone);
-  // The same names in a new array on every table push shouldn't re-render the chat.
-  const seatedKey = table ? table.seats.flatMap((seat) => (seat ? [seat.username] : [])).join("\n") : "";
-  const seated = useMemo(() => (seatedKey ? seatedKey.split("\n") : []), [seatedKey]);
 
   // ── Actions ────────────────────────────────────────────────────────────
   const [busy, setBusy] = useState<BjAction | null>(null);
@@ -337,8 +333,6 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
               </span>
             </div>
           </section>
-
-          <TableChat key={table.key} tableKey={table.key} seated={seated} />
 
           <section className={styles.block} aria-label="Recent rounds">
             <h2 className={styles.secHead}>

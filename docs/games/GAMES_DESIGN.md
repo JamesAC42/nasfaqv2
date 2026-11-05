@@ -110,9 +110,6 @@ gains:
 - **Reactions:** anyone signed in and verified, seated or watching, can send emoji from a fixed list
   (`services/games/tables/reactions.js`). They float down over the felt for everyone at the table.
   They only exist on the socket: nothing is stored, and they never touch a seat, a bet or a wallet.
-- **Table chat:** each table has a chat room, `table:blackjack-low` and so on (`chatDb.TABLE_ROOMS`).
-  It's ordinary chat with a smaller face on the table page, so mutes, bans, reports, rate limits and
-  history work as they do everywhere else. The rooms don't appear in `/chat`.
 
 ## 5. High-low duel (2 players, staked)
 

@@ -279,8 +279,7 @@ async function notifyChatMessage(pool, { message, channel, author }) {
   }
   recipients.delete(authorId);
   const room = channel?.display_name || "chat";
-  // A blackjack table's room isn't in /chat: its metadata points at the table.
-  const href = channel?.metadata?.href || (channel?.channel_key ? `/chat?channel=${encodeURIComponent(channel.channel_key)}` : "/chat");
+  const href = channel?.channel_key ? `/chat?channel=${encodeURIComponent(channel.channel_key)}` : "/chat";
   for (const [userId, kind] of recipients) {
     await notify(pool, userId, {
       kind,

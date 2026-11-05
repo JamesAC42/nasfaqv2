@@ -7,8 +7,6 @@ const { WebSocket } = require("ws");
 
 const { BURST, PER_SECOND, REACTIONS, SPECTATOR, channelOf, createReactions } = require("../src/services/games/tables/reactions");
 const hub = require("../src/services/games/tables/hub");
-const blackjack = require("../src/services/games/tables/blackjack");
-const chatDb = require("../src/chatDb");
 
 function harness({ seats = { 1: 2 } } = {}) {
   const pushes = [];
@@ -143,14 +141,6 @@ test("the client's emoji are the server's list, and it stays under the server's 
   assert.ok(10_000 / Number(/const SEND_EVERY_MS = (\d+)/.exec(source)[1]) <= 20);
 });
 
-test("a table room's key parses, and each room belongs to a real table", () => {
-  assert.deepEqual(chatDb.parseChannelKey("table:blackjack-low"), { channelKey: "table:blackjack-low", scopeType: "table", scopeKey: "blackjack-low" });
-  assert.equal(chatDb.parseChannelKey("table:has spaces"), null);
-  assert.equal(chatDb.parseChannelKey("table:"), null);
-  assert.deepEqual(chatDb.TABLE_ROOMS.map((room) => room.table), blackjack.TABLES.map((table) => table.key));
-  for (const room of chatDb.TABLE_ROOMS) assert.equal(room.key, `blackjack-${room.table}`);
-});
-
 // The real hub, over a real socket: the action reaches its handler, and channels stay separate.
 test("the hub passes react messages on and keeps reactions off the table's own channel", async (t) => {
   const seen = [];
@@ -216,102 +206,4 @@ test("a suspended or unverified player's socket is marked at connection", async 
     client.close();
   }
   assert.deepEqual(opened, [false, false, false]);
-});
-
-// The room behaves like any other: mutes, bans, reports, the 3-second rule, and it stays out of the room
-// list. On a freshly migrated database of its own, from the local or CI test server.
-const databaseUrl = process.env.CHAT_TEST_DATABASE_URL;
-
-test("table rooms use chat's own moderation", { skip: !databaseUrl, timeout: 180_000 }, async (t) => {
-  const { Pool } = require("pg");
-  const { applySchema } = require("../src/migrations");
-  const notifications = require("../src/services/notifications");
-
-  const target = new URL(databaseUrl);
-  assert.ok(["127.0.0.1", "localhost"].includes(target.hostname));
-  assert.equal(target.pathname, "/nasfaq_chat_test");
-  const admin = new Pool({ connectionString: databaseUrl });
-  try {
-    await admin.query("DROP DATABASE IF EXISTS nasfaq_table_rooms_test WITH (FORCE)");
-    await admin.query("CREATE DATABASE nasfaq_table_rooms_test");
-  } finally {
-    await admin.end();
-  }
-  target.pathname = "/nasfaq_table_rooms_test";
-  const pool = new Pool({ connectionString: target.href });
-  t.after(() => pool.end());
-  const quiet = [console.warn, console.log, console.info];
-  console.warn = console.log = console.info = () => {};
-  try {
-    await applySchema(pool);
-    await chatDb.ensureChatTopology(pool);
-  } finally {
-    [console.warn, console.log, console.info] = quiet;
-  }
-
-  const addUser = async (username, { isAdmin = false } = {}) => {
-    const { rows } = await pool.query(
-      `INSERT INTO market.users (username, username_normalized, email, email_verified, password_hash, password_salt, password_params_json, is_admin)
-       VALUES ($1, lower($1), $1 || '@example.test', true, 'x', 'x', '{}', $2) RETURNING id`,
-      [username, isAdmin]
-    );
-    return { id: Number(rows[0].id), username, is_admin: isAdmin };
-  };
-  const speaker = await addUser("speaker");
-  const reporter = await addUser("reporter");
-  const moderator = await addUser("moderator", { isAdmin: true });
-
-  for (const room of chatDb.TABLE_ROOMS) {
-    const channel = await chatDb.getChannelByKey(pool, `table:${room.key}`, { viewerUserId: speaker.id });
-    assert.ok(channel, room.key);
-    assert.equal(channel.posting_policy, "authenticated");
-    assert.equal(channel.metadata.href, `/games/blackjack/${room.table}`);
-  }
-
-  // Not in the room list, so not in its unread counts; still there if you ask for that kind.
-  const listed = await chatDb.listChannels(pool, { viewerUserId: speaker.id });
-  assert.equal(listed.filter((channel) => channel.scope_type === "table").length, 0);
-  assert.ok(listed.some((channel) => channel.scope_type === "market"));
-  const tableRooms = await chatDb.listChannels(pool, { viewerUserId: speaker.id, scopeType: "table" });
-  assert.equal(tableRooms.length, chatDb.TABLE_ROOMS.length);
-
-  const room = await chatDb.getChannelByKey(pool, "table:blackjack-low", { viewerUserId: speaker.id });
-  const { message } = await chatDb.createMessage(pool, { channelId: room.id, viewer: speaker, body: "nice hand" });
-  assert.equal(message.channel_key, "table:blackjack-low");
-
-  // The 3-second rule.
-  await assert.rejects(chatDb.createMessage(pool, { channelId: room.id, viewer: speaker, body: "again" }), /chat_rate_limited/);
-  await pool.query("UPDATE chat.messages SET created_at = now() - interval '1 minute' WHERE author_id = $1", [speaker.id]);
-
-  // A report lands in the same queue.
-  const report = await chatDb.createMessageReport(pool, { messageId: message.id, reporterId: reporter.id, reason: "Spam" });
-  const queue = await chatDb.listReports(pool, { status: "open", limit: 100 });
-  const queued = queue.reports.find((entry) => Number(entry.id) === Number(report.id));
-  assert.equal(queued.message.channel_key, "table:blackjack-low");
-
-  // A site-wide mute (what the ⋯ menu does) silences the player here too, then lifts.
-  await chatDb.createModerationAction(pool, { targetUserId: speaker.id, moderatorId: moderator.id, channelId: null, actionType: "mute", reason: "test", durationMinutes: 10 });
-  await assert.rejects(chatDb.createMessage(pool, { channelId: room.id, viewer: speaker, body: "muted" }), /chat_user_muted/);
-  const muted = await chatDb.getChannelByKey(pool, "table:blackjack-low", { viewerUserId: speaker.id });
-  assert.equal(muted.chat_restriction.type, "mute");
-  await chatDb.revokeModerationActions(pool, { targetUserId: speaker.id, actionType: "mute", channelId: null });
-
-  // So does a ban.
-  await chatDb.createModerationAction(pool, { targetUserId: speaker.id, moderatorId: moderator.id, channelId: null, actionType: "ban", reason: "test" });
-  await assert.rejects(chatDb.createMessage(pool, { channelId: room.id, viewer: speaker, body: "banned" }), /chat_user_banned/);
-  await chatDb.revokeModerationActions(pool, { targetUserId: speaker.id, actionType: "ban", channelId: null });
-
-  // A room an admin locked stays locked after the next topology sync.
-  await chatDb.updateChannel(pool, room.id, { postingPolicy: "read_only" });
-  await chatDb.ensureChatTopology(pool);
-  const locked = await chatDb.getChannelByKey(pool, "table:blackjack-low", { viewerUserId: speaker.id });
-  assert.equal(locked.posting_policy, "read_only");
-  await assert.rejects(chatDb.createMessage(pool, { channelId: room.id, viewer: speaker, body: "locked" }), /chat_channel_locked/);
-  await chatDb.updateChannel(pool, room.id, { postingPolicy: "authenticated" });
-
-  // A mention in a table room links to the table, since the room isn't in /chat.
-  const high = await chatDb.getChannelByKey(pool, "table:blackjack-high", { viewerUserId: speaker.id });
-  await notifications.notifyChatMessage(pool, { message: { id: 1, body: "nice one @reporter" }, channel: high, author: speaker });
-  const { rows } = await pool.query("SELECT href FROM market.notifications WHERE user_id = $1", [reporter.id]);
-  assert.equal(rows[0]?.href, "/games/blackjack/high");
 });

@@ -1,12 +1,4 @@
-const VALID_SCOPE_TYPES = new Set(["asset", "unit", "market", "meta", "table"]);
-// One room per blackjack table (the panel on the table page; `table` is its key in
-// services/games/tables/blackjack.js). They're ordinary rooms: mutes, bans, reports, rate limits and
-// history all work as they do anywhere else. They don't show in the room list (listChannels).
-const TABLE_ROOMS = [
-  { key: "blackjack-low", table: "low", name: "Low table" },
-  { key: "blackjack-mid", table: "mid", name: "Mid table" },
-  { key: "blackjack-high", table: "high", name: "High table" },
-];
+const VALID_SCOPE_TYPES = new Set(["asset", "unit", "market", "meta"]);
 const VALID_POSTING_POLICIES = new Set(["authenticated", "admins_only", "read_only"]);
 const { equippedJsonSql, normalizeEquipped } = require("./services/games/equipped");
 const { profilePictureUrlSql } = require("./profilePictures");
@@ -62,10 +54,6 @@ function normalizeScopeKey(scopeType, scopeKey) {
     }
     case "unit":
       return normalizeUnitKey(scopeKey);
-    case "table": {
-      const key = String(scopeKey ?? "").trim().toLowerCase();
-      return /^[a-z0-9-]{1,60}$/.test(key) ? key : null;
-    }
     case "market":
     case "meta":
       return "global";
@@ -330,25 +318,6 @@ async function ensureCoreChannels(pool) {
   );
 }
 
-// The posting policy stays out of the update, so a room an admin locked stays locked.
-async function ensureTableChannels(pool) {
-  for (const room of TABLE_ROOMS) {
-    await pool.query(
-      `
-      INSERT INTO chat.channels (scope_type, scope_key, display_name, description, posting_policy, is_active, metadata, updated_at)
-      VALUES ('table', $1, $2, $3, 'authenticated', true, $4::jsonb, now())
-      ON CONFLICT (scope_type, scope_key)
-      DO UPDATE SET
-        display_name = EXCLUDED.display_name,
-        description = EXCLUDED.description,
-        metadata = EXCLUDED.metadata,
-        updated_at = now()
-    `,
-      [room.key, `${room.name} chat`, `Table talk at the blackjack ${room.name.toLowerCase()}.`, JSON.stringify({ game: "blackjack", table: room.table, href: `/games/blackjack/${room.table}` })]
-    );
-  }
-}
-
 async function syncAssetChannels(pool) {
   await pool.query(
     `
@@ -478,7 +447,6 @@ async function ensureChatTopologyRecent(pool) {
 
 async function ensureChatTopology(pool) {
   await ensureCoreChannels(pool);
-  await ensureTableChannels(pool);
   await syncAssetChannels(pool);
   await syncUnitChannels(pool);
 }
@@ -596,9 +564,6 @@ async function listChannels(pool, { viewerUserId = null, scopeType = null, inclu
   if (normalizedScopeType) {
     params.push(normalizedScopeType);
     where += ` AND c.scope_type = $${params.length}`;
-  } else {
-    // Table rooms live on their table's page, so the room list and its unread counts leave them out.
-    where += ` AND c.scope_type <> 'table'`;
   }
 
   const orderBy = `
@@ -1378,7 +1343,6 @@ module.exports = {
   createMessage,
   createMessageReport,
   createModerationAction,
-  TABLE_ROOMS,
   ensureChatTopology,
   ensureChatTopologyRecent,
   getChannelById,
