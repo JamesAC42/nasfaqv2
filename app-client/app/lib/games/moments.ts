@@ -23,7 +23,12 @@ export type BlackjackMoment = {
   payout: number;
   net: number;
   hand: Array<{ rank: string | number; suit: "S" | "H" | "D" | "C" }>;
-  dealer: { hand: Array<{ rank: string | number; suit: "S" | "H" | "D" | "C" }>; value: number | null };
+  dealer: {
+    hand: Array<{ rank: string | number; suit: "S" | "H" | "D" | "C" }>;
+    value: number | null;
+    /** That table's dealer of the day when the hand settled. */
+    talent?: { symbol: string; name: string | null; color: string | null } | null;
+  };
   others: number;
 };
 
@@ -69,7 +74,7 @@ const withTalent = (path: string, talent?: string | null, extra: string[] = []) 
 };
 
 /** Bump when the card's design changes: cards are cached for a day, and link previews longer. */
-export const MOMENT_CARD_VERSION = 1;
+export const MOMENT_CARD_VERSION = 2;
 
 /** The public page for a moment (its link unfurls with the share card). */
 export const momentPath = (kind: MomentKind, id: string, talent?: string | null) => withTalent(`/games/moments/${kind}/${encodeURIComponent(id)}`, talent);

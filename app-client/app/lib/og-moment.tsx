@@ -9,6 +9,7 @@ import { ImageResponse } from "next/og";
 import { OG, OG_SIZE, Backdrop, Wordmark, alpha, artDataUri, cardText, fetchApi, loadAssets, loadFonts, loadManifest } from "@/app/lib/og";
 import { lookupArt, type ArtManifest, type ChibiPose } from "@/app/lib/art-manifest";
 import { talentAccent } from "@/app/lib/talent-color";
+import { DEALER_FALLBACK_POSE, dealerStateForOutcome } from "@/app/lib/games/dealer-states";
 import { blackjackHeadline, cardsHeadline, cleanSymbol, seededPick, signedMoney, type BlackjackMoment, type CardsMoment, type Moment, type MomentKind, type Tone } from "@/app/lib/games/moments";
 
 const GOLD = "#f5c542";
@@ -161,12 +162,26 @@ function FanMade() {
 async function blackjackCard(moment: BlackjackMoment, talentHint: string | null) {
   const [manifest, assets, fonts] = await Promise.all([loadManifest(), loadAssets(), loadFonts()]);
   const { head, tone, pose } = blackjackHeadline(moment);
-  const symbol = pickTalent(manifest, pose, [moment.player.oshi?.symbol, talentHint], `blackjack:${moment.id}`);
-  const reaction = symbol ? await artDataUri(manifest, `${symbol}/reaction/${pose}`, 768) : null;
-  const color = symbol === moment.player.oshi?.symbol ? moment.player.oshi?.color : assets.find((asset) => asset.symbol.toUpperCase() === symbol)?.color;
+  // The table's dealer that day reacts to the hand: their dealer art, or their reaction set until it
+  // exists. Without a dealer (older hands, API trouble): the oshi, the talent the player saw, or a pick.
+  const host = moment.dealer.talent?.symbol ? moment.dealer.talent : null;
+  const state = dealerStateForOutcome(moment.outcome, moment.dealer.value);
+  let symbol: string | null = null;
+  let reaction: string | null = null;
+  if (host) {
+    reaction = (await artDataUri(manifest, `${host.symbol}/dealer/${state}`, 768)) ?? (await artDataUri(manifest, `${host.symbol}/reaction/${DEALER_FALLBACK_POSE[state]}`, 768));
+    if (reaction) symbol = host.symbol;
+  }
+  if (!reaction) {
+    symbol = pickTalent(manifest, pose, [moment.player.oshi?.symbol, talentHint], `blackjack:${moment.id}`);
+    reaction = symbol ? await artDataUri(manifest, `${symbol}/reaction/${pose}`, 768) : null;
+  }
+  const color =
+    symbol === host?.symbol ? host?.color : symbol === moment.player.oshi?.symbol ? moment.player.oshi?.color : assets.find((asset) => asset.symbol.toUpperCase() === symbol)?.color;
   const accent = symbol ? talentAccent(color, "dark") : OG.blue;
   const money = moment.net === 0 ? "Bet back" : signedMoney(moment.net);
-  const dealer = moment.dealer.value === null ? null : moment.dealer.value > 21 ? `Dealer bust (${moment.dealer.value})` : `Dealer ${moment.dealer.value}`;
+  const dealerName = host && symbol === host.symbol ? cardText(host.name ?? host.symbol, 22) : "Dealer";
+  const dealer = moment.dealer.value === null ? null : moment.dealer.value > 21 ? `${dealerName} busts (${moment.dealer.value})` : `vs ${dealerName}: ${moment.dealer.value}`;
   const tableName = cardText(moment.table.name, 20).toUpperCase();
 
   return new ImageResponse(
@@ -195,7 +210,7 @@ async function blackjackCard(moment: BlackjackMoment, talentHint: string | null)
             {moment.hand.slice(0, 6).map((card, index) => (
               <MiniCard key={index} card={card} width={moment.hand.length > 4 ? 52 : 64} />
             ))}
-            {dealer ? <div style={{ display: "flex", marginLeft: 16, padding: "8px 16px", borderRadius: 999, border: `2px solid ${OG.rule}`, fontSize: 22, color: OG.dim }}>{`vs ${dealer}`}</div> : null}
+            {dealer ? <div style={{ display: "flex", marginLeft: 16, padding: "8px 16px", borderRadius: 999, border: `2px solid ${OG.rule}`, fontSize: 22, color: OG.dim }}>{dealer}</div> : null}
           </div>
           <div style={{ display: "flex", marginTop: 26 }}>
             <PlayerLine moment={moment} />

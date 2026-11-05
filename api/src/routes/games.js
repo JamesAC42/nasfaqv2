@@ -7,6 +7,7 @@ const gamesSessions = require("../services/games/sessions");
 const cardGacha = require("../services/games/cardGacha");
 const exchange = require("../services/games/exchange");
 const moments = require("../services/games/moments");
+const dealers = require("../services/games/dealers");
 const { requireUserId, requireVerifiedUserId } = require("../userContext");
 const { rateLimit, byUser } = require("../rateLimit");
 
@@ -505,6 +506,17 @@ router.get("/ticker-tap/leaderboard", async (req, res, next) => {
   try {
     const result = await gamesSessions.listTickerTapLeaderboard(req.ctx.pool, { userId: req.ctx?.user?.id || null });
     res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Today's blackjack dealers, one talent per table, the same for everyone until midnight ET.
+router.get("/dealers", async (req, res, next) => {
+  try {
+    const today = await dealers.blackjackDealers(req.ctx.pool);
+    res.set("Cache-Control", `public, max-age=${Math.max(5, Math.min(300, Math.floor(today.changes_in_ms / 1000)))}`);
+    res.json({ blackjack: today });
   } catch (error) {
     next(error);
   }

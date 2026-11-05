@@ -22,6 +22,9 @@ import { TalentReaction, talentsWithPose } from "@/app/components/common/talent-
 import { ShareMoment } from "@/app/components/games/share/share-moment";
 import { blackjackMomentId, blackjackShareText, seededPick } from "@/app/lib/games/moments";
 import { useArtStore } from "@/app/stores/art-store";
+import { TableDealerCard } from "@/app/components/games/blackjack/bj-dealer";
+import { dealerStateOf, useTableDealer, type TableDealer } from "@/app/lib/games/dealers";
+import dealerStyles from "@/app/components/games/blackjack/bj-dealer.module.scss";
 import styles from "@/app/components/games/blackjack/blackjack-table.module.scss";
 
 type Payload = { type: "blackjack"; table: BlackjackTable; server_time?: number };
@@ -44,6 +47,7 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
   const wallet = useGamesWallet();
   const connected = useGamesConnected();
   const phone = usePhone();
+  const dealer = useTableDealer(tableKey);
 
   const [seed, setSeed] = useState<Payload | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -235,7 +239,10 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
             <ReactionBar stage={reactions.stage} hidden={reactions.hidden} canSend={Boolean(user?.email_verified && !user.suspension)} connected={connected} />
             {reactions.hidden ? null : <ReactionLayer stage={reactions.stage} />}
             <div className={styles.feltTop}>
-              <Shoe remaining={table.shoe_remaining} size={table.shoe_size} compact={phone} />
+              <div className={dealerStyles.left}>
+                <Shoe remaining={table.shoe_remaining} size={table.shoe_size} compact={phone} />
+                {dealer ? <TableDealerCard dealer={dealer} state={dealerStateOf(table)} compact={phone} /> : null}
+              </div>
               <div className={styles.dealer}>
                 <span className={styles.dealerLabel}>Dealer</span>
                 <div className={styles.dealerCards}>
@@ -261,7 +268,7 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
               </div>
             </div>
 
-            <PhaseBanner table={table} myIndex={myIndex} />
+            <PhaseBanner table={table} myIndex={myIndex} dealer={dealer} />
 
 
             <div className={styles.seats}>
@@ -368,7 +375,7 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
                       <span className={`${styles.histNet} ${net === null ? "" : net > 0 ? styles.up : net < 0 ? styles.down : ""}`}>
                         {net === null ? "" : net > 0 ? `+${fmtNumber(net, "$")}` : net < 0 ? `−${fmtNumber(-net, "$")}` : "push"}
                         {mine && net !== null && mySeatThen !== undefined && mine.outcome !== "refund" ? (
-                          <HistoryShare roundId={round.round_id} seat={mySeatThen} outcome={mine.outcome} net={net} dealer={round.dealer} tableName={table.name} />
+                          <HistoryShare roundId={round.round_id} seat={mySeatThen} outcome={mine.outcome} net={net} dealer={round.dealer} tableName={table.name} host={dealer?.symbol ?? null} />
                         ) : null}
                       </span>
                     </li>
@@ -397,7 +404,7 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
   );
 }
 
-function PhaseBanner({ table, myIndex }: { table: BlackjackTable; myIndex: number }) {
+function PhaseBanner({ table, myIndex, dealer }: { table: BlackjackTable; myIndex: number; dealer: TableDealer | null }) {
   const moment = momentOf(table);
   const left = useRemaining(table.deadline, 250);
   const secs = left === null ? null : Math.ceil(left / 1000);
@@ -464,7 +471,9 @@ function PhaseBanner({ table, myIndex }: { table: BlackjackTable; myIndex: numbe
   const reaction = moment.kind === "results" && (tone === "up" || tone === "gold") ? "hype" : moment.kind === "results" && tone === "down" ? "cope" : null;
   // The reacting talent is picked from the round, so the share card can show the same one.
   const manifest = useArtStore((state) => state.manifest);
-  const talent = useMemo(() => (reaction && table.round_id ? seededPick(talentsWithPose(manifest, reaction), `blackjack:${table.round_id}`) : null), [manifest, reaction, table.round_id]);
+  const seeded = useMemo(() => (reaction && table.round_id ? seededPick(talentsWithPose(manifest, reaction), `blackjack:${table.round_id}`) : null), [manifest, reaction, table.round_id]);
+  // With a dealer at the table, they do the reacting (in their portrait) and star on the share card.
+  const talent = dealer?.symbol ?? seeded;
   const share =
     moment.kind === "results" && mySeat?.outcome && mySeat.bet > 0 && table.round_id && myIndex >= 0
       ? {
@@ -474,8 +483,8 @@ function PhaseBanner({ table, myIndex }: { table: BlackjackTable; myIndex: numbe
       : null;
 
   return (
-    <div className={styles.banner} data-tone={tone} data-kind={moment.kind} data-reacting={reaction ? "" : undefined}>
-      {reaction ? <TalentReaction key={`${table.round_id}-${reaction}`} pose={reaction} symbol={talent} size={56} className={styles.bannerReaction} fresh /> : null}
+    <div className={styles.banner} data-tone={tone} data-kind={moment.kind} data-reacting={reaction && !dealer ? "" : undefined}>
+      {reaction && !dealer ? <TalentReaction key={`${table.round_id}-${reaction}`} pose={reaction} symbol={talent} size={56} className={styles.bannerReaction} fresh /> : null}
       <span className={styles.srOnly} aria-live="polite">
         {announce}
       </span>
@@ -488,11 +497,11 @@ function PhaseBanner({ table, myIndex }: { table: BlackjackTable; myIndex: numbe
 }
 
 /** Share button on a "Last rounds" row you played. (The row doesn't know about a double; the card does.) */
-function HistoryShare({ roundId, seat, outcome, net, dealer, tableName }: { roundId: number; seat: number; outcome: string; net: number; dealer: number; tableName: string }) {
+function HistoryShare({ roundId, seat, outcome, net, dealer, tableName, host }: { roundId: number; seat: number; outcome: string; net: number; dealer: number; tableName: string; host: string | null }) {
   const manifest = useArtStore((state) => state.manifest);
   const pose = net > 0 ? "hype" : net < 0 ? "cope" : null;
   const talent = useMemo(() => (pose ? seededPick(talentsWithPose(manifest, pose), `blackjack:${roundId}`) : null), [manifest, pose, roundId]);
   if (!["blackjack", "win", "push", "loss", "bust"].includes(outcome)) return null;
   const text = blackjackShareText({ outcome: outcome as "blackjack" | "win" | "push" | "loss" | "bust", doubled: false, net, dealerValue: dealer, tableName });
-  return <ShareMoment kind="blackjack" id={blackjackMomentId(roundId, seat)} talent={talent} text={text} label={`Share round ${roundId}`} compact />;
+  return <ShareMoment kind="blackjack" id={blackjackMomentId(roundId, seat)} talent={host ?? talent} text={text} label={`Share round ${roundId}`} compact />;
 }

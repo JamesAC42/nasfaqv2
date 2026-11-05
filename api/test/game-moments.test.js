@@ -17,6 +17,7 @@ function fakePool(rows) {
 const player = { username: "honk", profile_color: "#ff8800", oshi_symbol: "pek", oshi_name: "Usada Pekora", oshi_color: "#7fb5ff" };
 
 test("blackjack moment: a settled hand, public facts only", async () => {
+  require("../src/services/games/dealers").resetCache();
   const pool = fakePool([
     {
       round_id: "412",
@@ -74,4 +75,48 @@ test("cards moment: the best card leads, unknown kinds are not found", async () 
   await assert.rejects(moments.getMoment(pool, "cards", "not-a-uuid"), { code: "moment_not_found" });
   await assert.rejects(moments.getMoment(pool, "duel", "1"), { code: "moment_not_found" });
   await assert.rejects(moments.getMoment(fakePool([]), "cards", id), { code: "moment_not_found" });
+});
+
+const dealers = require("../src/services/games/dealers");
+
+test("dealers: one talent per table, all different, the same all day, new each day", () => {
+  const talents = ["AKI", "PEK", "MAR", "SUI", "KYR", "BLZ", "BYS"].map((symbol) => ({ symbol, name: symbol, color: null }));
+  const today = dealers.pickDealers("2026-11-05", talents);
+  assert.deepEqual(today.map((d) => d.table), ["low", "mid", "high"]);
+  assert.equal(new Set(today.map((d) => d.symbol)).size, 3);
+  // Order of the talent list doesn't matter, only the date.
+  assert.deepEqual(dealers.pickDealers("2026-11-05", [...talents].reverse()), today);
+  const week = ["2026-11-06", "2026-11-07", "2026-11-08", "2026-11-09"].map((date) => dealers.pickDealers(date, talents).map((d) => d.symbol).join());
+  assert.ok(new Set(week).size > 1, "the line-up changes from day to day");
+  // Fewer talents than tables still fills every table.
+  assert.equal(dealers.pickDealers("2026-11-05", talents.slice(0, 1)).filter((d) => d.symbol === "AKI").length, 3);
+  assert.deepEqual(dealers.pickDealers("2026-11-05", []).map((d) => d.symbol), [null, null, null]);
+});
+
+test("dealers: the day turns over at midnight ET", () => {
+  assert.equal(dealers.etDate(new Date("2026-11-06T04:59:00Z")), "2026-11-05"); // 23:59 EST
+  assert.equal(dealers.etDate(new Date("2026-11-06T05:00:00Z")), "2026-11-06"); // 00:00 EST
+  assert.equal(dealers.etDate(new Date("2026-07-01T03:59:00Z")), "2026-06-30"); // 23:59 EDT
+  const left = dealers.msUntilNextEtDay(new Date("2026-11-06T04:59:00.000Z"));
+  assert.equal(left, 60_000);
+  const noon = dealers.msUntilNextEtDay(new Date("2026-11-05T17:00:00.000Z")); // 12:00 EST
+  assert.equal(noon, 12 * 3600_000);
+});
+
+test("blackjack moment names that day's dealer", async () => {
+  dealers.resetCache();
+  const calls = [];
+  const pool = {
+    query: async (sql, params) => {
+      calls.push(sql);
+      if (/FROM games\.blackjack_bets/.test(sql)) {
+        return { rows: [{ round_id: "7", seat: 0, bet_cash: "10", doubled: false, outcome: "blackjack", payout_cash: "25", table_key: "low", settled_at: "2026-11-05T21:00:00Z", dealer_json: { hand: [], value: 19 }, seats_json: [], ...player }] };
+      }
+      return { rows: ["AKI", "PEK", "MAR", "SUI"].map((symbol) => ({ symbol, name: `${symbol} name`, color: "#123456" })) };
+    },
+  };
+  const moment = await moments.getMoment(pool, "blackjack", "7-0");
+  const expected = dealers.pickDealers("2026-11-05", ["AKI", "PEK", "MAR", "SUI"].map((symbol) => ({ symbol, name: `${symbol} name`, color: "#123456" })))[0];
+  assert.deepEqual(moment.dealer.talent, { symbol: expected.symbol, name: expected.name, color: "#123456" });
+  dealers.resetCache();
 });

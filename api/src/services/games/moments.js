@@ -4,6 +4,7 @@
 // UR pulls by name). No balances, emails or ids beyond the moment's own.
 
 const { RARITY_INFO } = require("./cards");
+const dealers = require("./dealers");
 
 const TABLE_NAMES = { low: "Low table", mid: "Mid table", high: "High table" };
 const SEATS = 5;
@@ -61,6 +62,8 @@ async function blackjackMoment(pool, id) {
   const seat = seats.find((entry) => Number(entry?.seat) === Number(row.seat)) || {};
   const wager = num(row.bet_cash) * (row.doubled ? 2 : 1);
   const dealer = row.dealer_json && typeof row.dealer_json === "object" ? row.dealer_json : {};
+  // Who dealt: that table's dealer on the ET day the hand settled.
+  const host = await dealers.dealerAt(pool, row.table_key, row.settled_at).catch(() => null);
   return {
     kind: "blackjack",
     id: `${row.round_id}-${row.seat}`,
@@ -74,7 +77,11 @@ async function blackjackMoment(pool, id) {
     payout: num(row.payout_cash),
     net: Math.round((num(row.payout_cash) - wager) * 100) / 100,
     hand: Array.isArray(seat.hand) ? seat.hand : [],
-    dealer: { hand: Array.isArray(dealer.hand) ? dealer.hand : [], value: Number.isFinite(Number(dealer.value)) ? Number(dealer.value) : null },
+    dealer: {
+      hand: Array.isArray(dealer.hand) ? dealer.hand : [],
+      value: Number.isFinite(Number(dealer.value)) ? Number(dealer.value) : null,
+      talent: host?.symbol ? { symbol: host.symbol, name: host.name, color: host.color } : null,
+    },
     others: seats.filter((entry) => Number(entry?.seat) !== Number(row.seat)).length,
   };
 }
