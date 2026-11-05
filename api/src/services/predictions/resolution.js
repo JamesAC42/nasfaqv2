@@ -248,7 +248,11 @@ async function settleWithClient(client, market, winningOutcomeId, { actorUserId 
   return { id: Number(market.id), slug: market.slug, outcome: winner.outcome_code, paid_out: round2(paid) };
 }
 
-/** Everyone gets back what they put in net of what they took out (never negative). */
+/**
+ * As if the market never ran: everyone gets back what they put in net of what they took out, and
+ * anyone who took out more gives the difference back. Otherwise a void pays out more than went in:
+ * sell high to someone (or your own alt), the market voids, they're refunded and you keep the gain.
+ */
 async function voidWithClient(client, market, { actorUserId = null, reason = null } = {}) {
   await trading.releaseMarketOrdersWithClient(client, market.id, "market_voided");
   const { rows } = await client.query(
@@ -256,9 +260,21 @@ async function voidWithClient(client, market, { actorUserId = null, reason = nul
     [market.id]
   );
   let refunded = 0;
+  let clawedBack = 0;
   for (const row of rows) {
-    const refund = Math.max(0, round2(num(row.net)));
-    if (refund > 0 || num(row.shares) > 0) {
+    const net = round2(num(row.net));
+    const refund = Math.max(0, net);
+    if (net < 0) {
+      await core.clawBackCash(client, row.user_id, -net, { marketId: market.id, quantityDelta: -num(row.shares) });
+      clawedBack += -net;
+      await notifications.notify(client, row.user_id, {
+        kind: "prediction_void",
+        title: `Voided: ${market.title}`,
+        body: `${reason ? `${reason}. ` : ""}A void undoes the market, so the ${notifications.money(-net)} you made selling goes back too.`,
+        href: `/predictions/${encodeURIComponent(market.slug)}`,
+        data: { market_id: Number(market.id), clawed_back: -net },
+      });
+    } else if (refund > 0 || num(row.shares) > 0) {
       // What it paid in came from buys (this market) and limit orders (their reserves, net of releases).
       const { rows: limitOrders } = await client.query(`SELECT id FROM market.prediction_limit_orders WHERE market_id = $1 AND user_id = $2`, [market.id, row.user_id]);
       const sources = [{ referenceType: "prediction_market", referenceId: market.id }, ...limitOrders.map((order) => ({ referenceType: "prediction_limit_order", referenceId: order.id }))];
@@ -273,16 +289,16 @@ async function voidWithClient(client, market, { actorUserId = null, reason = nul
       });
     }
   }
-  await client.query(`UPDATE market.prediction_market_positions SET shares = 0, updated_at = now() WHERE market_id = $1`, [market.id]);
+  await client.query(`UPDATE market.prediction_market_positions SET shares = 0, realized_pnl_cash = 0, updated_at = now() WHERE market_id = $1`, [market.id]);
   await client.query(
     `UPDATE market.prediction_markets
      SET status = 'voided', trading_status = 'voided', resolution_outcome = 'void', resolver_user_id = $2, resolution_notes = $3,
-         voided_at = now(), house_net_cash = house_net_cash - $4, open_interest_shares = 0, updated_at = now()
+         voided_at = now(), house_net_cash = house_net_cash - $4 + $5, open_interest_shares = 0, updated_at = now()
      WHERE id = $1`,
-    [market.id, actorUserId, reason, round2(refunded)]
+    [market.id, actorUserId, reason, round2(refunded), round2(clawedBack)]
   );
-  await core.logEvent(client, market.id, "market_voided", { reason, refunded: round2(refunded) }, actorUserId);
-  return { id: Number(market.id), slug: market.slug, refunded: round2(refunded) };
+  await core.logEvent(client, market.id, "market_voided", { reason, refunded: round2(refunded), clawed_back: round2(clawedBack) }, actorUserId);
+  return { id: Number(market.id), slug: market.slug, refunded: round2(refunded), clawed_back: round2(clawedBack) };
 }
 
 async function voidMarket(pool, actor, marketId, { reason }) {

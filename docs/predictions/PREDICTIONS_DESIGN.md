@@ -124,17 +124,57 @@ the source.
 
 | Template | Market | Opens | Closes | Resolves |
 |---|---|---|---|---|
-| `tick-direction` | "PEK up on the Late tick?" (binary) for the K most active talents (K = 6) | right after the previous tick | 5 min before the tick | from that asset's tick row: YES if `price_after > price_before`; void if the tick was skipped |
-| `tick-top-gainer` | "Top gainer on the Late tick?" (multi): the same K talents plus "Someone else" | right after the previous tick | 5 min before the tick | the largest % move among **all** assets on that tick |
-| `stream-peak` | "Marine's stream peaks above 45k?" (binary) | when a talent goes live and has 3+ past streams | 30 min after the stream starts (or when it ends) | when the stream ends: YES if its max concurrent viewers reach the line; void if no data within 12 h |
+| `tick-direction` (off) | "PEK up on the Lunch tick?" (binary) for the K most active talents (K = 3) | after settlement, about 09:00 ET | 5 min before the tick | from that asset's tick row: YES if `price_after > price_before`; void if the tick was skipped |
+| `tick-top-gainer` | "Top gainer on the Lunch tick?" (multi): the K most active talents (K = 6) plus "Someone else" | after settlement, about 09:00 ET | 5 min before the tick | the largest % move among **all** assets on that tick |
+| `stream-peak` | "Marine's stream peaks above 45k?" (binary) | up to 24 h before a scheduled stream, with at least 30 min of betting left, when the talent has 3+ past streams | 15 min before the scheduled start, or as soon as the tracker sees it live | YES as soon as the running peak reaches the line; NO when it ends under it; void if it hasn't started within 12 h of its scheduled time, runs 12 h unresolved, or ends with no peak on record |
 
-- Ticks are Open 09:00, Lunch 15:00, Late 21:00, Overnight 03:00 ET (`marketAdjustments.js`). Tick
-  moves pull prices toward fair value, so there's real skill in these.
-- The stream line is the talent's median peak over their last 10 streams, rounded to a readable
-  number (1k steps under 20k, 5k steps above).
+- Ticks are Open 09:00, Lunch 15:00, Late 21:00, Overnight 03:00 ET (`marketAdjustments.js`).
+- The stream line is the talent's median peak over their last 10 streams, rounded to two significant
+  figures (within 5% of the median).
 - "Most active" = most shares traded in the last 24 h, then most holders.
-- Each auto market has a unique `auto_key` (e.g. `tick-direction:2026-09-24:late:PEK`), so the
-  scheduler is idempotent and restarts never duplicate markets.
+- Each auto market has a unique `auto_key` (e.g. `stream-peak:<video id>`), so the scheduler is
+  idempotent and restarts never duplicate markets.
+
+### Betting ends before the outcome can be known
+
+This is the rule every auto market has to meet. A market is seeded near 50/50, so if the result can
+be known or guessed well while it's open, the first bettor takes up to `b·ln N` from the house.
+
+- **Checked on every bet.** `closes_at` is only the schedule. `guards.js` reads the data behind the
+  market on every buy, sell and limit-order fill, with the market row locked, and refuses the bet if:
+  the stream has started, is inside its close lead, moved, has no row or has stale data (three missed
+  scraper polls); or any row of the tick has landed (an admin can force one early); or the template is
+  off. The scheduler then closes whatever's locked, within 30 seconds, and releases resting orders.
+- **A late bet can't pay.** The tracker can learn of a start after the fact. At settlement, a market
+  with any trade at or after the stream's `actual_start_at` voids. Everyone gets their money back, so
+  the worst a player can do with this is get a refund.
+- **The tracker watches for early starts.** Every minute, a cheap `videos.list` checks streams due in
+  the next 3 hours. If one has gone live or changed its time, its channel is polled at once. Before
+  this, a stream starting early could go unnoticed for a full 30-minute poll. Streams with no schedule
+  never get a market.
+- **Why tick calls are off.** All four of a day's ticks pull toward one hidden target, and strengths
+  are drawn so they total 200%. So a tick moves the same way as the tick before it unless the one
+  before overshot the target, about 82% of the time with the default strength bounds and every time
+  when a talent's bounds stay under 100%. A market seeded at 50/50 on that is close to free money.
+- **Why Lunch.** Open can't have a market: settlement creates its row at 09:00 and it lands a minute
+  later. Lunch is the earliest tick that can, and the least given away. `TICKS_WITH_MARKETS` in
+  `auto.js` is the one place to change this. The top gainer stays because it turns on the biggest %
+  move across the whole market, with random strengths, which one earlier move doesn't give away.
+- **Still possible, and small.** Someone holding a tick market can trade the stock after betting
+  closes to push it across the target. They don't know the target, stock trades cost more than a thin
+  market pays (`b·ln N`), and the only tick market left spans the whole market.
+
+### How many get made
+
+| Template | Most per day | Why | Change it |
+|---|---|---|---|
+| `tick-top-gainer` | 1 | One market a day people can follow | on/off |
+| `stream-peak` | 5, one per talent, from the 15 most active talents | Enough to always have one open; thin markets on talents nobody holds just hand the first bettor free odds | `daily_cap`, `talents` |
+| `tick-direction` | 0 (off); 3 if turned on | See above | on/off, `count` |
+
+Before this: 7 tick markets on each of 3 ticks (21 a day), plus one for every stream of a talent with
+enough history. All of these are set from `/predictions/manage` with no deploy. Turning a template off
+stops new markets and shuts betting on open ones; they still settle.
 
 ## 7. Admin console (`/predictions/admin`)
 

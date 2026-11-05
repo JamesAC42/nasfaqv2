@@ -1,6 +1,7 @@
 // Predictions v2 scheduler (docs/predictions/PREDICTIONS_DESIGN.md §4–6). Every cycle, under an
-// advisory lock so only one API process runs it: open and close markets on schedule, settle
-// undisputed proposals whose window ended, resolve and open auto markets, and sweep limit orders.
+// advisory lock so only one API process runs it: open and close markets on schedule (and auto
+// markets as soon as their data locks them), settle undisputed proposals whose window ended, resolve
+// and open auto markets, and sweep limit orders.
 
 const auto = require("./auto");
 const events = require("./events");
@@ -29,6 +30,7 @@ async function runCycle(pool, redis = null, logger = console) {
       return steps[name];
     };
     await events.publishMarkets(redis, "opened", await step("opened", () => resolution.openDueMarkets(pool)));
+    await events.publishMarkets(redis, "closed", await step("auto_locked", () => auto.closeLockedMarkets(pool)));
     await events.publishMarkets(redis, "closed", await step("closed", () => resolution.closeDueMarkets(pool)));
     await events.publishMarkets(redis, "resolved", await step("finalized", () => resolution.finalizeDueProposals(pool)));
     await events.publishMarkets(redis, "resolved", await step("auto_resolved", () => auto.resolveAutoMarkets(pool)));
