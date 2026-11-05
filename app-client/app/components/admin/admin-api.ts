@@ -105,6 +105,80 @@ export const resetUserProfile = (userId: number, reason?: string) =>
     body: JSON.stringify({ reason: reason?.trim() || undefined }),
   });
 
+// ── /admin/users (api/src/services/adminUsers.js) ───────────────────────
+
+export type DirectoryFilter = "all" | "unverified" | "suspended" | "frozen" | "staff" | "new";
+export type DirectorySort = "username" | "joined" | "last_seen" | "cash" | "net_worth";
+export type SortDir = "asc" | "desc";
+export type DirectoryUser = AdminUser & { net_worth: number | null };
+export type DirectoryQuery = { q: string; filter: DirectoryFilter; sort: DirectorySort; dir: SortDir; page: number };
+
+export type UserDirectory = {
+  users: DirectoryUser[];
+  total: number;
+  page: number;
+  limit: number;
+  filter: DirectoryFilter;
+  sort: DirectorySort;
+  dir: SortDir;
+  /** How many accounts each filter holds, over all accounts (the search doesn't change these). */
+  counts: Record<DirectoryFilter, number>;
+  ip_linking?: boolean;
+};
+
+export const fetchUserDirectory = ({ q, filter, sort, dir, page }: DirectoryQuery) => {
+  const params = new URLSearchParams({ filter, sort, dir, page: String(page) });
+  if (q.trim()) params.set("q", q.trim());
+  return apiFetch<UserDirectory>(`/api/admin/users/directory?${params.toString()}`, { cache: "no-store" });
+};
+
+/** The account on this exact address, if any. A POST, so the address stays out of URLs and access logs. */
+export const findUsersByEmail = (email: string) =>
+  apiFetch<{ users: DirectoryUser[] }>("/api/admin/users/find-by-email", { method: "POST", body: JSON.stringify({ email }) });
+
+export type AdminUserDetail = {
+  user: DirectoryUser;
+  bio: string | null;
+  holdings_value: number | null;
+  username_changed_at: string | null;
+  verification_sent_at: string | null;
+  password_reset_sent_at: string | null;
+  chat_reports: { open: number; total: number };
+  chat_restrictions: ChatRestrictionEntry[];
+  v1_link: { v1_username: string; v1_joined_at: string; linked_at: string } | null;
+  history: AdminAction[];
+  ip_linking?: boolean;
+};
+
+export const fetchUserDetail = (userId: number) => apiFetch<AdminUserDetail>(`/api/admin/users/${userId}`, { cache: "no-store" });
+
+/** Same format and name rules as a player's own rename, but no wait. */
+export const renameUser = (userId: number, username: string, reason: string) =>
+  apiFetch<{ before: string; after: string; changed: boolean }>(`/api/admin/users/${userId}/username`, {
+    method: "PATCH",
+    body: JSON.stringify({ username, reason: reason.trim() || undefined }),
+  });
+
+/** What became of an account email: sent, failed, not_configured (no mail set up here) or skipped. */
+export type EmailStatus = "sent" | "failed" | "not_configured" | "skipped";
+
+/** Back to unverified until the player uses the link sent to the new address. Not for admins. */
+export const changeUserEmail = (userId: number, email: string, reason: string) =>
+  apiFetch<{ verification_email: EmailStatus; notice_email: EmailStatus }>(`/api/admin/users/${userId}/email`, {
+    method: "PATCH",
+    body: JSON.stringify({ email, reason, confirm: true }),
+  });
+
+export const clearUserBio = (userId: number, reason: string) =>
+  apiFetch<{ changed: boolean }>(`/api/admin/users/${userId}/clear-bio`, { method: "POST", body: JSON.stringify({ reason: reason.trim() || undefined }) });
+
+export const signOutUser = (userId: number, reason: string) =>
+  apiFetch<{ sessions_revoked: number }>(`/api/admin/users/${userId}/sign-out`, { method: "POST", body: JSON.stringify({ reason: reason.trim() || undefined }) });
+
+export const sendVerificationEmail = (userId: number) => apiFetch<{ status: EmailStatus }>(`/api/admin/users/${userId}/verification-email`, { method: "POST", body: "{}" });
+
+export const sendPasswordResetEmail = (userId: number) => apiFetch<{ status: EmailStatus }>(`/api/admin/users/${userId}/password-reset-email`, { method: "POST", body: "{}" });
+
 export type AdminAction = {
   id: number;
   actor: { id: number; username: string | null } | null;

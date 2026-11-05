@@ -197,7 +197,7 @@
   }
 }
 
-// Role switches: small pills with a dot that fills when granted.
+// The role switches themselves, and the confirmations, are in admin-user-actions.module.scss.
 .roles {
   display: flex;
   flex-wrap: wrap;
@@ -214,125 +214,6 @@
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     padding-left: 0;
-  }
-}
-
-.role {
-  @include label;
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 0.4rem;
-  min-width: 5.6rem;
-  padding: 0.35rem 0.6rem 0.35rem 0.45rem;
-  border: 1px solid var(--rule-2);
-  border-radius: var(--radius-sm);
-  background: none;
-  font-size: 0.6rem;
-  color: var(--dim);
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    border-color var(--dur-fast) ease,
-    color var(--dur-fast) ease,
-    background-color var(--dur-fast) ease;
-
-  i {
-    flex: 0 0 auto;
-    width: 0.7rem;
-    height: 0.7rem;
-    border-radius: 2px;
-    border: 1px solid var(--rule-2);
-    background: transparent;
-  }
-
-  &:hover:not(:disabled) {
-    color: var(--text);
-    border-color: var(--text);
-  }
-
-  &[aria-checked="true"] {
-    color: var(--blue);
-    border-color: var(--blue-line);
-    background: var(--blue-wash);
-
-    i {
-      border-color: var(--blue);
-      background: var(--blue);
-      box-shadow: inset 0 0 0 2px var(--ink);
-    }
-  }
-
-  &[data-admin][aria-checked="true"] {
-    color: var(--warn);
-    border-color: color-mix(in srgb, var(--warn) 45%, transparent);
-    background: var(--warn-wash);
-
-    i {
-      border-color: var(--warn);
-      background: var(--warn);
-    }
-  }
-
-  &[aria-busy="true"] {
-    opacity: 0.6;
-    cursor: progress;
-  }
-
-  &:disabled:not([aria-busy="true"]) {
-    cursor: not-allowed;
-    opacity: 0.7;
-  }
-
-  &:focus-visible {
-    @include focus-ring;
-  }
-
-  @include phone {
-    min-width: 0;
-  }
-}
-
-.confirm {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-  min-width: 0;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--rule-2));
-  border-radius: var(--radius-sm);
-  background: var(--ink-2);
-
-  &[data-tone="danger"] {
-    border-color: color-mix(in srgb, var(--down) 45%, var(--rule-2));
-  }
-
-  p {
-    flex: 1 1 18rem;
-    min-width: 0;
-    margin: 0;
-    font-size: 0.85rem;
-    color: var(--mid);
-
-    b {
-      color: var(--text);
-    }
-  }
-}
-
-.confirmBtns {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.status {
-  grid-column: 1 / -1;
-
-  &:empty {
-    display: none;
   }
 }
 

@@ -1,0 +1,179 @@
+@use "../../styles/mixins" as *;
+
+// /admin/users/[userId]
+
+.pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+// Stays in view, so what an action did shows without scrolling back to it.
+.statusBar {
+  position: sticky;
+  z-index: 2;
+  top: calc(var(--site-shell-chrome-height, 5rem) + 0.25rem);
+
+  > div {
+    margin: 0.5rem 0 0;
+    padding: 0.45rem 0.7rem;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    background: var(--ink-2);
+  }
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 19rem;
+  gap: 0 2.25rem;
+  min-width: 0;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.main,
+.side {
+  min-width: 0;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 1.5rem;
+  margin: 0;
+
+  .side & {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--rule);
+
+  dt {
+    @include label;
+    flex: 0 0 auto;
+    font-size: 0.58rem;
+    color: var(--dim);
+  }
+
+  dd {
+    min-width: 0;
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--text);
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+}
+
+.mono {
+  @include num;
+}
+
+.dim {
+  color: var(--dim);
+}
+
+.bio {
+  white-space: pre-wrap;
+}
+
+.actions {
+  display: grid;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  min-width: 0;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--rule);
+}
+
+.actionText {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+
+  b {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text);
+    overflow-wrap: anywhere;
+  }
+
+  span {
+    font-size: 0.78rem;
+    color: var(--mid);
+    overflow-wrap: anywhere;
+  }
+
+  code {
+    @include num;
+    font-size: 0.74rem;
+  }
+}
+
+.actionButton {
+  justify-self: end;
+  min-width: 0;
+}
+
+.buttonRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.line {
+  display: block;
+}
+
+.roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+  min-width: 0;
+
+  @include phone {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.note {
+  margin: 0.6rem 0 0;
+  font-size: 0.76rem;
+  color: var(--dim);
+
+  a {
+    color: var(--blue);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
