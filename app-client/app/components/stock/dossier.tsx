@@ -335,7 +335,7 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
 
           <aside className={styles.side} aria-label="Order ticket">
             <div className={styles.sideSticky}>
-              <div className={styles.ticket}>
+              <div className={styles.ticket} data-keep-clear="column">
                 <div className={styles.ticketTop}>
                   <TalentCoin icon={asset.icon} symbol={sym} accent={accent} size={58} spin={coinSpins} />
                   <div>
@@ -396,7 +396,7 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
         </div>
       </div>
 
-      <div className={styles.mobileBar} role="group" aria-label={`Trade ${sym}`}>
+      <div className={styles.mobileBar} role="group" aria-label={`Trade ${sym}`} data-bottom-bar="">
         <span>
           <b>{n2(asset.current_mid_price)}</b>
           <small className={styles[toneOf(move)]}>{signedPct(move)}</small>

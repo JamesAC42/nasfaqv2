@@ -15,6 +15,7 @@ import { useAuth } from "@/app/providers/auth-provider";
 import { useProfileStore } from "@/app/stores/profile-store";
 import { Hand, Seat, Shoe } from "@/app/components/games/blackjack/bj-parts";
 import { BlackjackControls, type BjAction } from "@/app/components/games/blackjack/bj-controls";
+import { ReactionBar, ReactionLayer, useTableReactions } from "@/app/components/games/blackjack/bj-reactions";
 import { BJ_BET_MS, BJ_TURN_MS, HOUSE_RULES, handValue, momentOf, netOf, usePhone, wagerOf, withLiveDeadline } from "@/app/components/games/blackjack/bj-utils";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { TalentReaction } from "@/app/components/common/talent-reaction";
@@ -63,6 +64,8 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
 
   const myIndex = table && user ? table.seats.findIndex((seat) => seat && String(seat.user_id) === String(user.id)) : -1;
   const mySeat = table && myIndex >= 0 ? table.seats[myIndex] : null;
+
+  const reactions = useTableReactions(tableKey, myIndex, phone);
 
   // ── Actions ────────────────────────────────────────────────────────────
   const [busy, setBusy] = useState<BjAction | null>(null);
@@ -222,6 +225,8 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
         <div className={styles.main}>
           <section className={styles.felt} data-phase={table.phase} aria-label={`${table.name} felt`}>
             <SceneArt slot="games-felt" fill width={1200} className={styles.feltArt} />
+            <ReactionBar stage={reactions.stage} hidden={reactions.hidden} canSend={Boolean(user?.email_verified && !user.suspension)} connected={connected} />
+            {reactions.hidden ? null : <ReactionLayer stage={reactions.stage} />}
             <div className={styles.feltTop}>
               <Shoe remaining={table.shoe_remaining} size={table.shoe_size} compact={phone} />
               <div className={styles.dealer}>

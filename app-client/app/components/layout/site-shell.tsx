@@ -1,5 +1,6 @@
 "use client";
 
+import { ChatButton } from "@/app/components/chat/chat-button";
 import { ExchangeAlerts } from "@/app/components/games/exchange/exchange-alerts";
 import { OrderAllowanceMeter } from "@/app/components/trade/order-allowance";
 import { SiteStatusBar } from "@/app/components/common/site-status-bar";
@@ -384,6 +385,7 @@ export function SiteShell({
 
           {user ? (
             <>
+            <ChatButton classes={{ button: styles.iconButton, hot: styles.iconButtonHot, badge: styles.badge, icon: styles.icon }} />
             <NotificationBell userId={Number(user.id)} classes={{ button: styles.iconButton, hot: styles.iconButtonHot, badge: styles.badge, icon: styles.icon }} />
             <div ref={ordersRef} className={styles.ordersWrap}>
               <button

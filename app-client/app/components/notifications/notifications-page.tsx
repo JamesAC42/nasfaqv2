@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import { ChatNotifySettings } from "@/app/components/chat/chat-notify-settings";
 import { TalentReaction } from "@/app/components/common/talent-reaction";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { NotificationRow } from "@/app/components/notifications/notification-row";
@@ -44,6 +45,7 @@ export function NotificationsPage() {
             </button>
           ) : null}
         </header>
+        {user ? <ChatNotifySettings /> : null}
         {!user ? (
           <p className={styles.empty}>
             <Link href="/login">Sign in</Link> to see your notifications.

@@ -2,7 +2,7 @@
 
 import { CosmeticChip } from "@/app/components/common/cosmetic-chip";
 import { ReactionFace } from "@/app/components/common/reaction-face";
-import { parseSticker, stickerPreview } from "@/app/lib/stickers";
+import { parseSticker } from "@/app/lib/stickers";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -13,73 +13,27 @@ import { Sparkline } from "@/app/components/common/sparkline";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { ChatComposer } from "@/app/components/chat/chat-composer";
 import { MessageMenu } from "@/app/components/chat/message-menu";
+import { RoomNotifyButton } from "@/app/components/chat/room-notify-button";
 import { RoomRail } from "@/app/components/chat/room-rail";
 import { apiFetch } from "@/app/lib/api";
+import { buildRooms, GLOBAL_ROOM, messagePreview, postingBlockedReason, roomTag, type Room } from "@/app/lib/chat-rooms";
+import { holdChatSocket, onChatSocketEvent, retainChatRooms, useChatSocketStatus } from "@/app/lib/chat-socket";
 import { markSeries, unitName } from "@/app/lib/market-units";
 import { normalizeChatChannel, normalizeChatMessage } from "@/app/lib/normalizers";
 import { money, signedPct, timeAgo, toneOf } from "@/app/lib/time";
 import type { AuthUser, ChatChannel, ChatMessage, MarketAsset } from "@/app/lib/types";
-import { getChatWsUrl } from "@/app/lib/ws";
+import { useReadReceipts } from "@/app/lib/use-read-receipts";
 import { useAuth } from "@/app/providers/auth-provider";
+import { notePosted, setForegroundRoom, useChatNotifyStore } from "@/app/stores/chat-notify-store";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useTradeStore } from "@/app/stores/trade-store";
 import styles from "@/app/components/chat/chat.module.scss";
-
-// ── Rooms ────────────────────────────────────────────────────────────────
-type Room = {
-  channel: ChatChannel;
-  section: "global" | "unit" | "asset";
-  key: string;
-  label: string;
-  short: string;
-  symbol: string | null;
-  icon: string | null;
-  subtitle: string | null;
-  unit: string | null;
-};
-
-type WsEvent =
-  | { type: "chat.message.created" | "chat.message.updated"; channel_key: string; message: Record<string, unknown> }
-  | { type: "chat.channel.updated"; channel_key: string; channel: Record<string, unknown> }
-  | { type: "chat.user.moderated"; user_id: number; channel_key: string | null }
-  | { type: string };
 
 type Page = { messages: Array<Record<string, unknown>>; has_more: boolean; next_cursor: string | null; history_limited: boolean; visible_days: number | null; minimum_messages?: number | null };
 type Worth = { rank: number; total_equity: number };
 
 const PINS_KEY = "nasfaq.chat.pinned_channels";
 const GROUP_MS = 5 * 60_000;
-const READ_RECEIPT_MS = 10_000;
-
-function buildRooms(channels: ChatChannel[], assets: MarketAsset[]): Room[] {
-  const byId = new Map(assets.map((asset) => [asset.id, asset]));
-  const rooms: Room[] = [];
-  for (const channel of channels) {
-    if (!channel.is_active || channel.scope_type === "meta") continue;
-    if (channel.scope_type === "market") {
-      rooms.push({ channel, section: "global", key: channel.channel_key, label: "Global", short: "ALL", symbol: null, icon: null, subtitle: channel.description || "The whole floor", unit: null });
-    } else if (channel.scope_type === "unit") {
-      const unit = channel.metadata.unit || channel.display_name.replace(/\s+Unit Chat$/i, "");
-      rooms.push({ channel, section: "unit", key: channel.channel_key, label: unitName(unit), short: unitName(unit), symbol: null, icon: null, subtitle: channel.metadata.asset_count ? `${channel.metadata.asset_count} talents` : channel.description, unit });
-    } else if (channel.scope_type === "asset") {
-      const asset = channel.metadata.asset_id ? byId.get(channel.metadata.asset_id) : undefined;
-      const symbol = (channel.metadata.symbol || asset?.symbol || "").toUpperCase() || null;
-      rooms.push({ channel, section: "asset", key: channel.channel_key, label: channel.metadata.display_name || asset?.display_name || channel.display_name, short: symbol ?? "CHAT", symbol, icon: channel.metadata.icon || asset?.icon || null, subtitle: channel.metadata.unit || asset?.unit || null, unit: channel.metadata.unit || asset?.unit || null });
-    }
-  }
-  // One room per talent: if an old room for the same ticker is still around (its asset was
-  // re-created under a new id), keep the one tied to a listed asset.
-  const best = new Map<string, Room>();
-  for (const room of rooms) {
-    if (room.section !== "asset" || !room.symbol) continue;
-    const current = best.get(room.symbol);
-    const listed = (candidate: Room) => byId.has(Number(candidate.channel.metadata.asset_id));
-    if (!current || (!listed(current) && listed(room))) best.set(room.symbol, room);
-  }
-  const deduped = rooms.filter((room) => room.section !== "asset" || !room.symbol || best.get(room.symbol) === room);
-  const order = { global: 0, unit: 1, asset: 2 };
-  return deduped.sort((a, b) => order[a.section] - order[b.section] || a.short.localeCompare(b.short));
-}
 
 function readPins(): string[] {
   try {
@@ -105,13 +59,6 @@ function upsert(list: ChatMessage[], message: ChatMessage) {
   next[index] = message;
   return next;
 }
-
-const preview = (body: string | null | undefined) => {
-  const sticker = stickerPreview(body);
-  if (sticker) return sticker;
-  const text = String(body || "").replace(/\s+/g, " ").trim();
-  return text.length > 60 ? `${text.slice(0, 60)}…` : text;
-};
 
 const clock = (value: string) => new Date(value).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
 
@@ -149,7 +96,7 @@ export function ChatApp() {
   const [filter, setFilter] = useState("");
   const [drawer, setDrawer] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
-  const activeKey = params.get("channel") || "market:global";
+  const activeKey = params.get("channel") || GLOBAL_ROOM;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
@@ -160,13 +107,11 @@ export function ChatApp() {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [history, setHistory] = useState<{ limited: boolean; days: number | null; minimum: number | null }>({ limited: false, days: null, minimum: null });
   const [worth, setWorth] = useState<Record<number, Worth>>({});
-  const [socket, setSocket] = useState<"connecting" | "open" | "closed">("connecting");
+  const socket = useChatSocketStatus();
   const [atBottom, setAtBottom] = useState(true);
   const [unseen, setUnseen] = useState(0);
 
   const viewport = useRef<HTMLDivElement | null>(null);
-  const ws = useRef<WebSocket | null>(null);
-  const subscribed = useRef<string | null>(null);
   const activeRef = useRef<string | null>(null);
   const loadedRef = useRef<string | null>(null);
   const stickToBottom = useRef(false);
@@ -221,73 +166,22 @@ export function ChatApp() {
     [router],
   );
 
-  // Read receipts: the badge clears at once, but the server hears at most once per room every
-  // READ_RECEIPT_MS (a busy room used to cost a request per message per reader), and again
-  // straight away when you leave the room or hide the tab.
-  const receipts = useRef(new Map<string, { id: number; sentId: number; sentAt: number; timer: number | null }>());
-
-  const sendRead = useCallback((key: string) => {
-    const entry = receipts.current.get(key);
-    if (!entry) return;
-    if (entry.timer !== null) window.clearTimeout(entry.timer);
-    entry.timer = null;
-    if (entry.id <= entry.sentId) return;
-    entry.sentId = entry.id;
-    entry.sentAt = Date.now();
-    // keepalive: this can be the last thing a closing tab sends.
-    void apiFetch(`/api/chat/channels/${encodeURIComponent(key)}/read`, { method: "POST", body: JSON.stringify({ last_read_message_id: entry.id }), keepalive: true }).catch(() => undefined);
-  }, []);
-
+  // Read receipts: the badge clears at once; the hook keeps the server from hearing about every message.
+  const sendReceipt = useReadReceipts(user ? Number(user.id) : null, roomKey);
   const markRead = useCallback(
     (key: string, id: number) => {
       if (!user) return;
       setChannels((current) => current.map((channel) => (channel.channel_key === key ? { ...channel, unread_count: 0 } : channel)));
-      let entry = receipts.current.get(key);
-      if (!entry) {
-        entry = { id: 0, sentId: 0, sentAt: 0, timer: null };
-        receipts.current.set(key, entry);
-      }
-      entry.id = Math.max(entry.id, id);
-      if (entry.timer !== null) return;
-      const wait = entry.sentAt + READ_RECEIPT_MS - Date.now();
-      if (wait <= 0) sendRead(key);
-      else entry.timer = window.setTimeout(() => sendRead(key), wait);
+      sendReceipt(key, id);
     },
-    [sendRead, user],
+    [sendReceipt, user],
   );
 
-  // Leaving a room (or the page) sends what's pending for it.
+  // The room on screen doesn't pop up.
   useEffect(() => {
-    if (!roomKey) return;
-    return () => sendRead(roomKey);
-  }, [roomKey, sendRead]);
-
-  // So does hiding the tab.
-  useEffect(() => {
-    const flush = () => {
-      if (activeRef.current) sendRead(activeRef.current);
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === "hidden") flush();
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("pagehide", flush);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("pagehide", flush);
-    };
-  }, [sendRead]);
-
-  // Signing out or in as someone else drops what's pending: it was the last player's. (Declared after
-  // the effects above so that leaving the page sends first.)
-  const viewerId = user?.id ?? null;
-  useEffect(() => {
-    const pending = receipts.current;
-    return () => {
-      for (const entry of pending.values()) if (entry.timer !== null) window.clearTimeout(entry.timer);
-      pending.clear();
-    };
-  }, [viewerId]);
+    setForegroundRoom("page", roomKey);
+    return () => setForegroundRoom("page", null);
+  }, [roomKey]);
 
   // Load the selected room.
   useEffect(() => {
@@ -419,37 +313,22 @@ export function ChatApp() {
     if (el.scrollTop < 120) void loadOlder();
   };
 
-  // Live updates.
-  useEffect(() => {
-    let disposed = false;
-    let retry: number | null = null;
-    const connect = () => {
-      const url = getChatWsUrl();
-      if (!url || disposed) return;
-      setSocket("connecting");
-      const socketNow = new WebSocket(url);
-      ws.current = socketNow;
-      socketNow.onopen = () => {
-        setSocket("open");
-        const key = activeRef.current;
-        if (key) {
-          socketNow.send(JSON.stringify({ action: "subscribe", channel_keys: [key] }));
-          subscribed.current = key;
-        }
-      };
-      socketNow.onmessage = (event) => {
-        let payload: WsEvent;
-        try {
-          payload = JSON.parse(String(event.data || "")) as WsEvent;
-        } catch {
-          return;
-        }
-        if ((payload.type === "chat.message.created" || payload.type === "chat.message.updated") && "message" in payload) {
-          const message = normalizeChatMessage(payload.message);
+  // Live updates, on the tab's one chat socket (lib/chat-socket.ts). It also carries the rooms this
+  // player gets popups from, which keeps their previews and unread counts in the list moving too.
+  useEffect(() => holdChatSocket(), []);
+  useEffect(() => (roomKey ? retainChatRooms([roomKey]) : undefined), [roomKey]);
+  useEffect(
+    () =>
+      onChatSocketEvent((payload) => {
+        if ((payload.type === "chat.message.created" || payload.type === "chat.message.updated") && payload.message) {
+          const parsed = normalizeChatMessage(payload.message);
+          // On a broadcast, is_mine is about the author, so work it out for this reader.
+          const mine = Boolean(user && parsed.author?.id === Number(user.id));
+          const message = { ...parsed, is_mine: mine };
           const created = payload.type === "chat.message.created";
           if (message.channel_key === loadedRef.current) {
             if (created && atBottomRef.current) stickToBottom.current = true;
-            else if (created && !message.is_mine) setUnseen((count) => count + 1);
+            else if (created && !mine) setUnseen((count) => count + 1);
             setMessages((current) => upsert(current, message));
           }
           setChannels((current) =>
@@ -461,62 +340,23 @@ export function ChatApp() {
                     last_message_at: message.created_at,
                     last_message_preview: message.body,
                     message_count: created && channel.last_message_id !== message.id ? channel.message_count + 1 : channel.message_count,
-                    unread_count: channel.channel_key === activeRef.current ? 0 : channel.unread_count + (created ? 1 : 0),
+                    unread_count: channel.channel_key === activeRef.current ? 0 : channel.unread_count + (created && !mine ? 1 : 0),
                   }
                 : channel,
             ),
           );
           if (message.channel_key === activeRef.current && created) markRead(message.channel_key, message.id);
-        } else if (payload.type === "chat.channel.updated" && "channel" in payload) {
+        } else if (payload.type === "chat.channel.updated" && payload.channel) {
           const next = normalizeChatChannel(payload.channel);
           setChannels((current) => current.map((channel) => (channel.channel_key === next.channel_key ? next : channel)));
-        } else if (payload.type === "chat.user.moderated" && "user_id" in payload && user && Number(payload.user_id) === user.id) {
+        } else if (payload.type === "chat.user.moderated" && user && Number(payload.user_id) === Number(user.id)) {
           setRestrictionRevision((value) => value + 1);
         }
-      };
-      socketNow.onclose = () => {
-        if (ws.current === socketNow) ws.current = null;
-        subscribed.current = null;
-        setSocket("closed");
-        if (!disposed) retry = window.setTimeout(connect, 2000);
-      };
-      socketNow.onerror = () => socketNow.close();
-    };
-    connect();
-    return () => {
-      disposed = true;
-      if (retry !== null) window.clearTimeout(retry);
-      ws.current?.close();
-      ws.current = null;
-    };
-  }, [markRead, user]);
+      }),
+    [markRead, user],
+  );
 
-  useEffect(() => {
-    const socketNow = ws.current;
-    if (!socketNow || socketNow.readyState !== WebSocket.OPEN || !roomKey) return;
-    if (subscribed.current && subscribed.current !== roomKey) socketNow.send(JSON.stringify({ action: "unsubscribe", channel_keys: [subscribed.current] }));
-    socketNow.send(JSON.stringify({ action: "subscribe", channel_keys: [roomKey] }));
-    subscribed.current = roomKey;
-  }, [roomKey, socket]);
-
-  const restriction = room?.channel.chat_restriction ?? null;
-  const blockedReason = !room
-    ? null
-    : user?.suspension
-      ? "Your account is suspended, so you can't post."
-      : restriction?.type === "ban"
-        ? restriction.until
-          ? `You're banned from chat until ${new Date(restriction.until).toLocaleString()}.`
-          : "You're banned from chat."
-        : restriction?.type === "mute" || room.channel.muted_until
-          ? restriction?.until || room.channel.muted_until
-            ? `You're muted here until ${new Date(String(restriction?.until || room.channel.muted_until)).toLocaleString()}.`
-            : "You're muted in chat until an admin lifts it."
-          : room.channel.posting_policy === "read_only"
-        ? "This room is read-only."
-        : room.channel.posting_policy === "admins_only" && !user?.is_admin
-          ? "Only admins can post in this room right now."
-          : null;
+  const blockedReason = postingBlockedReason(room?.channel ?? null, user);
   const canPost = Boolean(room && user?.email_verified && !blockedReason);
 
   const send = useCallback(
@@ -527,6 +367,7 @@ export function ChatApp() {
       stickToBottom.current = true;
       setMessages((current) => upsert(current, message));
       markRead(room.key, message.id);
+      notePosted(room.key);
     },
     [markRead, room],
   );
@@ -603,7 +444,7 @@ export function ChatApp() {
                   {unseen} new message{unseen === 1 ? "" : "s"} ↓
                 </button>
               ) : null}
-              <ChatComposer user={user} roomKey={room.key} roomLabel={room.section === "asset" ? `#${room.short.toLowerCase()}` : room.section === "global" ? "#global" : `#${room.short.toLowerCase().replace(/\s+/g, "-")}`} canPost={canPost} blockedReason={blockedReason} emojis={emojis} usernames={usernames} onSend={send} />
+              <ChatComposer user={user} roomKey={room.key} roomLabel={roomTag(room)} canPost={canPost} blockedReason={blockedReason} emojis={emojis} usernames={usernames} onSend={send} />
             </>
           ) : (
             <p className={styles.sys}>{loadingRooms ? "Loading rooms…" : "No chat rooms are open."}</p>
@@ -684,7 +525,7 @@ function RoomList({
                             </time>
                           ) : null}
                         </span>
-                        <span className={styles.roomPrev}>{preview(room.channel.last_message_preview) || (room.section === "asset" ? room.label : room.subtitle) || "No messages yet"}</span>
+                        <span className={styles.roomPrev}>{messagePreview(room.channel.last_message_preview) || (room.section === "asset" ? room.label : room.subtitle) || "No messages yet"}</span>
                       </span>
                       {room.channel.unread_count ? <span className={styles.unread}>{room.channel.unread_count > 99 ? "99+" : room.channel.unread_count}</span> : null}
                     </button>
@@ -754,6 +595,7 @@ function RoomHeader({ room, socket, count, unreadElsewhere, onOpenRooms, onOpenR
           ))}
         </div>
       ) : null}
+      <RoomNotifyButton roomKey={room.key} roomName={roomTag(room)} className={styles.notifyBtn} />
       <button type="button" className={styles.railBtn} onClick={onOpenRail}>
         {room.section === "asset" ? "CHART" : "STATS"}
       </button>
@@ -777,6 +619,7 @@ function Messages({
   onUpdated: (message: ChatMessage) => void;
   options: Parameters<typeof RichText>[0]["options"];
 }) {
+  const mutedIds = useChatNotifyStore((state) => state.mutedIds);
   const mentionRe = useMemo(() => (me ? new RegExp(`(^|[^\\w])@${me.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=$|[^\\w])`, "i") : null), [me]);
   return (
     <>
@@ -831,6 +674,8 @@ function Messages({
                 ) : null}
                 {removed ? (
                   <p className={styles.removed}>{message.status === "moderated" ? "removed by a moderator" : "deleted"}</p>
+                ) : author && mutedIds.has(author.id) ? (
+                  <p className={styles.removed}>from a player you muted</p>
                 ) : sticker ? (
                   <ReactionFace symbol={sticker.symbol} pose={sticker.pose} size={136} crop="full" className={styles.sticker} />
                 ) : (

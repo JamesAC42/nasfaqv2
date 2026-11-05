@@ -107,6 +107,9 @@ gains:
 - Rounds: 15 s betting window → deal → each seat acts in order (15 s timer, auto-stand) → dealer →
   settle. Bets are debited when placed; payouts are credited at settle.
 - Each round is recorded in `games.blackjack_rounds`. A round still open at startup refunds its bets.
+- **Reactions:** anyone signed in and verified, seated or watching, can send emoji from a fixed list
+  (`services/games/tables/reactions.js`). They float down over the felt for everyone at the table.
+  They only exist on the socket: nothing is stored, and they never touch a seat, a bet or a wallet.
 
 ## 5. High-low duel (2 players, staked)
 
