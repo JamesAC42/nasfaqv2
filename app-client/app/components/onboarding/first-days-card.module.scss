@@ -1,0 +1,192 @@
+@use "../../styles/mixins" as *;
+
+// "Your first days": a checklist strip for brand-new accounts, on the front page and the profile.
+
+.card {
+  margin-top: 1rem;
+  border: 1px solid var(--blue-line);
+  background: var(--blue-wash);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 1rem;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--blue-line);
+
+  h2 {
+    @include section-heading;
+    margin: 0;
+  }
+}
+
+.progress {
+  @include label;
+  color: var(--blue);
+}
+
+.links {
+  display: inline-flex;
+  gap: 1rem;
+  margin-left: auto;
+  font-size: 0.78rem;
+
+  a {
+    color: var(--mid);
+
+    &:hover {
+      color: var(--blue);
+    }
+  }
+}
+
+.hide {
+  @include label;
+  border: 0;
+  background: none;
+  padding: 0.2rem 0;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text);
+  }
+}
+
+.verify {
+  padding: 0.7rem 1rem 0;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  @include desktop-down {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.step {
+  display: flex;
+  gap: 0.7rem;
+  padding: 0.85rem 1rem;
+  border-right: 1px solid var(--blue-line);
+  min-width: 0;
+
+  &:last-child {
+    border-right: 0;
+  }
+
+  @include desktop-down {
+    border-right: 0;
+    border-bottom: 1px solid var(--blue-line);
+  }
+
+  &[data-next] {
+    background: var(--ink-2);
+    box-shadow: inset 0 2px 0 var(--blue);
+  }
+
+  &[data-done] {
+    h3 {
+      color: var(--dim);
+    }
+
+    .num {
+      color: var(--up);
+      border-color: var(--up);
+    }
+
+    // On a phone a finished step is one line, so the next one stays near the top.
+    @include phone {
+      align-items: center;
+      padding-block: 0.5rem;
+
+      .num {
+        width: 1.3rem;
+        height: 1.3rem;
+      }
+
+      h3 {
+        margin: 0;
+      }
+
+      p,
+      .action {
+        display: none;
+      }
+    }
+  }
+}
+
+.num {
+  @include num;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 1px solid var(--blue-line);
+  color: var(--blue);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.text {
+  min-width: 0;
+
+  h3 {
+    margin: 0 0 0.25rem;
+    font-size: 0.9rem;
+  }
+
+  p {
+    margin: 0;
+    color: var(--mid);
+    font-size: 0.8rem;
+    line-height: 1.45;
+  }
+}
+
+.action {
+  display: inline-block;
+  margin-top: 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+
+  a,
+  button {
+    color: var(--blue);
+    border: 0;
+    background: none;
+    padding: 0;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  a:hover,
+  button:hover {
+    text-decoration: underline;
+  }
+}
+
+.up { color: var(--up); }
+.down { color: var(--down); }
+.flat { color: var(--mid); }
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

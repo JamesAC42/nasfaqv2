@@ -291,6 +291,34 @@
   user-select: all;
 }
 
+// A new player's buy: what happens next, in place of the greentext.
+.next {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--blue-line);
+  background: var(--blue-wash);
+  font-size: 0.72rem;
+  line-height: 1.45;
+
+  .hdr b {
+    color: var(--blue);
+  }
+
+  ul {
+    margin: 0 0 0.35rem;
+    padding-left: 1rem;
+    color: var(--text);
+  }
+
+  li + li {
+    margin-top: 0.2rem;
+  }
+
+  a {
+    color: var(--blue);
+    font-weight: 600;
+  }
+}
+
 .hdr {
   display: block;
   margin-bottom: 0.25rem;

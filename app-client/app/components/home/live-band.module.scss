@@ -1,0 +1,187 @@
+@use "../../styles/mixins" as *;
+
+// The front page's live band: last-day totals, the newest action of each kind, the next batch.
+
+.band {
+  margin-top: 1rem;
+  border: 1px solid var(--rule);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem 1rem;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--rule);
+
+  h2 {
+    @include section-heading;
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+
+    &::before {
+      content: "";
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 50%;
+      background: var(--up);
+      animation: live-pulse 2s ease-in-out infinite;
+    }
+
+    &[data-quiet]::before {
+      background: var(--dim);
+      animation: none;
+    }
+  }
+}
+
+.sub {
+  color: var(--mid);
+  font-size: 0.78rem;
+}
+
+.batch {
+  @include num;
+  margin-left: auto;
+  color: var(--dim);
+  font-size: 0.72rem;
+
+  b {
+    color: var(--blue);
+    font-weight: 700;
+  }
+
+  @include phone {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+}
+
+.tallies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.65rem 1rem;
+  list-style: none;
+  border-bottom: 1px solid var(--rule);
+
+  a {
+    @include num;
+    display: inline-block;
+    padding: 0.25rem 0.55rem;
+    border: 1px solid var(--rule-2);
+    color: var(--text);
+    font-size: 0.75rem;
+
+    &:hover {
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+  }
+}
+
+.latest {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    min-width: 0;
+    border-bottom: 1px solid var(--rule);
+
+    &:nth-child(odd) {
+      border-right: 1px solid var(--rule);
+    }
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+
+    li:nth-child(odd) {
+      border-right: 0;
+    }
+
+    // Three is plenty on a phone.
+    li:nth-child(n + 4) {
+      display: none;
+    }
+  }
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.55rem 1rem;
+  color: var(--text);
+  min-width: 0;
+
+  &:hover {
+    background: var(--ink-2);
+  }
+}
+
+.tag {
+  @include label;
+  flex: none;
+  font-style: normal;
+  min-width: 5.6rem;
+
+  &[data-kind="trade"] {
+    color: var(--blue);
+  }
+
+  @include phone {
+    min-width: 4.8rem;
+  }
+}
+
+.text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.when {
+  @include num;
+  flex: none;
+  color: var(--dim);
+  font-size: 0.72rem;
+}
+
+.all {
+  @include label;
+  justify-self: end;
+  padding: 0.5rem 1rem;
+
+  &:hover {
+    color: var(--blue);
+  }
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .head h2::before {
+    animation: none;
+  }
+}

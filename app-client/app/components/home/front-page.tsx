@@ -36,6 +36,8 @@ import type { PredictionMarket as PredictionMarketV2 } from "@/app/lib/predictio
 import styles from "@/app/components/home/front-page.module.scss";
 import { LIFTS_FAIR_VALUE, WIRE_TAGS, wireTone, wireWhen } from "@/app/components/wire/wire-kit";
 import { Term } from "@/app/components/common/tip";
+import { LiveBand } from "@/app/components/home/live-band";
+import { FirstDaysCard } from "@/app/components/onboarding/first-days-card";
 
 
 function newsHref(item: NewsItem) {
@@ -882,6 +884,8 @@ export function FrontPage() {
       <div className={styles.page}>
         <Masthead assets={assets} />
         <TradingPausedBanner className={styles.paused} />
+        <FirstDaysCard />
+        <LiveBand />
         <NewbieStrip />
         <FrontNews items={frontItems} isLoading={isLoadingNews || (!newsItems.length && !wireLoaded)} />
         <TheWire items={wireItems} />

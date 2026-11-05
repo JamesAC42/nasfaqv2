@@ -13,6 +13,7 @@ const { canonicalEmail, isDisposableEmail } = require("./emailRules");
 const { requestIpHash } = require("./ipHash");
 const { suspensionOf } = require("./moderation");
 const { assertUsernameAllowed } = require("./nameRules");
+const { FIRST_DAYS } = require("./firstDays");
 
 
 function normalizeUsername(username) {
@@ -71,6 +72,8 @@ function publicUser(user) {
     can_resolve_prediction_markets: Boolean(user.can_resolve_prediction_markets),
     can_void_prediction_markets: Boolean(user.can_void_prediction_markets),
     created_at: user.created_at,
+    // Set on accounts made since the first-days guide shipped, which shows until then (services/firstDays.js).
+    first_days_until: user.first_days_until || null,
     // Set while an admin has suspended the account: signed in, but read-only (see moderation.js).
     suspension: suspensionOf(user),
   };
@@ -250,8 +253,9 @@ async function createUser(pool, { username, email, password, ipHash = null }) {
         email_verified,
         is_admin,
         can_manage_assets,
+        first_days_until,
         updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,false,false,false,now())
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,false,false,false,now() + make_interval(days => $9::int),now())
       RETURNING
         id,
         username,
@@ -265,9 +269,10 @@ async function createUser(pool, { username, email, password, ipHash = null }) {
         can_approve_prediction_markets,
         can_resolve_prediction_markets,
         can_void_prediction_markets,
-        created_at
+        created_at,
+        first_days_until
     `,
-      [safeUsername, normalized, safeEmail, canonicalEmail(safeEmail), ipHash, hashed.hash, hashed.salt, JSON.stringify(hashed.params)]
+      [safeUsername, normalized, safeEmail, canonicalEmail(safeEmail), ipHash, hashed.hash, hashed.salt, JSON.stringify(hashed.params), FIRST_DAYS]
     );
     await sendVerificationEmail(pool, rows[0]);
     return publicUser(rows[0]);
@@ -392,6 +397,7 @@ async function findUserByLogin(pool, login) {
       u.can_resolve_prediction_markets,
       u.can_void_prediction_markets,
       u.created_at,
+      u.first_days_until,
       u.suspended_at,
       u.suspended_until,
       u.suspension_reason
@@ -469,6 +475,7 @@ async function getAuthenticatedUser(pool, req) {
       u.can_resolve_prediction_markets,
       u.can_void_prediction_markets,
       u.created_at,
+      u.first_days_until,
       u.suspended_at,
       u.suspended_until,
       u.suspension_reason,
@@ -650,7 +657,7 @@ async function resetPassword(pool, { token, password, ipHash = null }) {
   const { rows } = await pool.query(
     `SELECT u.id, u.username, u.email, u.email_verified, ${profilePictureUrlSql("small")} AS profile_picture_url, u.profile_color,
             u.is_admin, u.can_manage_assets, u.can_create_prediction_markets, u.can_approve_prediction_markets,
-            u.can_resolve_prediction_markets, u.can_void_prediction_markets, u.created_at,
+            u.can_resolve_prediction_markets, u.can_void_prediction_markets, u.created_at, u.first_days_until,
             u.suspended_at, u.suspended_until, u.suspension_reason
      FROM market.users u LEFT JOIN market.profile_pictures pp ON pp.id = u.profile_picture_id
      WHERE u.id = $1`,

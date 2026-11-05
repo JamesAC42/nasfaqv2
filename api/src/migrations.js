@@ -1929,6 +1929,9 @@ async function applySchema(pool) {
   `,
     [seed.key, seed.title, seed.body, seed.button_label, seed.button_link, seed.audience, seed.hide_from_v1_linked]
   );
+  // The first-days guide (services/firstDays.js) shows until this passes or the player closes it. Only
+  // accounts made after it shipped get a date (auth.createUser), so players already on v2 never see it.
+  await pool.query(`ALTER TABLE market.users ADD COLUMN IF NOT EXISTS first_days_until TIMESTAMPTZ NULL`);
 }
 
 module.exports = { applySchema };
