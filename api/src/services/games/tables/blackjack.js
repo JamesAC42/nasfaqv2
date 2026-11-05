@@ -9,6 +9,7 @@ const crypto = require("node:crypto");
 const gamesWallet = require("../wallet");
 const siteState = require("../../siteState");
 const hub = require("./hub");
+const reactions = require("./reactions");
 
 const TABLES = [
   { key: "low", name: "Low table", min: 10, max: 200 },
@@ -491,12 +492,19 @@ async function init(db) {
   for (const spec of TABLES) {
     tables.set(spec.key, { ...spec, seats: Array(SEATS).fill(null), dealer: { hand: [], hidden: true }, phase: "idle", turn: null, deadline: null, roundId: null, shoe: newShoe(), history: [], timer: null });
   }
+  hub.registerAction("react", reactions.createReactions({ publish: hub.publish, seatOf }).handle);
   hub.registerSnapshotProvider((channel) => {
     const match = /^blackjack:([a-z]+)$/.exec(channel);
     if (match && tables.has(match[1])) return { type: "blackjack", table: publicTable(tables.get(match[1])) };
     if (channel === "lobby:blackjack") return { type: "lobby", game: "blackjack", tables: lobby() };
     return null;
   });
+}
+
+/** The player's seat at a table, -1 if they aren't in one, null if there's no such table. */
+function seatOf(tableKey, userId) {
+  const table = tables.get(String(tableKey));
+  return table ? table.seats.findIndex((entry) => entry?.user_id === userId) : null;
 }
 
 function getTable(tableKey) {

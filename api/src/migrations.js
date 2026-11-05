@@ -1929,6 +1929,40 @@ async function applySchema(pool) {
   `,
     [seed.key, seed.title, seed.body, seed.button_label, seed.button_link, seed.audience, seed.hide_from_v1_linked]
   );
+
+  // Chat popups (services/chatNotify.js). A row in user_notify_rooms is a choice the player made;
+  // rooms they've only posted in have no row. since_message_id is where a room they chose starts
+  // counting as unread, so choosing a busy room doesn't open at 99+.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chat.user_notify_settings (
+      user_id BIGINT PRIMARY KEY REFERENCES market.users(id) ON DELETE CASCADE,
+      enabled BOOLEAN NOT NULL DEFAULT true,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chat.user_notify_rooms (
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      channel_id BIGINT NOT NULL REFERENCES chat.channels(id) ON DELETE CASCADE,
+      notify BOOLEAN NOT NULL,
+      since_message_id BIGINT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (user_id, channel_id)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS chat_user_notify_rooms_channel_idx ON chat.user_notify_rooms (channel_id)`);
+  // One player muting another: no popups or bell pings from them, and their messages collapse.
+  // Nothing to do with an admin's mute (chat.user_moderation_actions), which stops someone posting.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chat.user_mutes (
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      muted_user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (user_id, muted_user_id),
+      CONSTRAINT chat_user_mutes_not_self CHECK (user_id <> muted_user_id)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS chat_user_mutes_muted_idx ON chat.user_mutes (muted_user_id)`);
 }
 
 module.exports = { applySchema };

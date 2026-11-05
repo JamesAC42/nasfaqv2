@@ -590,6 +590,26 @@ async function listChannels(pool, { viewerUserId = null, scopeType = null, inclu
   return rows.map(mapChannelRow);
 }
 
+/**
+ * Just whether these rooms exist, in one query: { id, channel_key } for each. Subscribing a socket
+ * needs nothing more, and getChannelByKey counts a room's messages (and its unread) to answer. A
+ * page with several followed rooms, or every open page reconnecting after a deploy, adds up.
+ */
+async function findChannels(pool, channelKeys, { includeInactive = false } = {}) {
+  const parsed = (channelKeys || []).map(parseChannelKey).filter(Boolean);
+  if (!parsed.length) return [];
+  const { rows } = await pool.query(
+    `
+    SELECT c.id, c.scope_type, c.scope_key
+    FROM unnest($1::text[], $2::text[]) AS wanted(scope_type, scope_key)
+    JOIN chat.channels c ON c.scope_type = wanted.scope_type AND c.scope_key = wanted.scope_key
+    WHERE $3::boolean IS TRUE OR c.is_active = true
+  `,
+    [parsed.map((entry) => entry.scopeType), parsed.map((entry) => entry.scopeKey), Boolean(includeInactive)]
+  );
+  return rows.map((row) => ({ id: Number(row.id), channel_key: buildChannelKey(row.scope_type, row.scope_key) }));
+}
+
 async function getChannelByKey(pool, channelKey, { viewerUserId = null, includeInactive = false } = {}) {
   const parsed = parseChannelKey(channelKey);
   if (!parsed) {
@@ -1355,6 +1375,7 @@ module.exports = {
   listReports,
   markChannelRead,
   moderateMessage,
+  findChannels,
   parseChannelKey,
   resolveReportsForMessage,
   revokeModerationActions,

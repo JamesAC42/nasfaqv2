@@ -56,6 +56,7 @@ Most of the tools come from PR #54 (moderation tools), live since 2026-10-29.
 | Mute from chat | Same menu → **Mute *name* in all of chat**: 10 minutes, 1 hour, 24 hours or 7 days | Applies to every room. They can still read. |
 | Ban from chat | Same menu → **Ban from chat…** → **Ban** | Lasts until an admin lifts it. There's no timed ban; use a mute or a suspension for that. |
 | Lift a mute or ban | `/admin/moderation` → **Chat mutes & bans** → **Unmute** / **Unban** | |
+| Blackjack reactions | Nothing to remove: they come from a fixed emoji list, aren't stored and carry no name | A chat mute or ban doesn't stop them. A suspension does. Each player has a rate limit on the server. |
 | Hide a comment | The **Hide** button on stock board, article and prediction comments | Optional reason. It's gone for everyone but admins, who see it dimmed with **Unhide**. |
 | Suspend an account | `/admin/people` → find them → **Suspend…** → 24 hours, 7 days, 30 days or Until lifted | The reason is **required** and **the player sees it**, so keep it short and neutral. It signs them out everywhere. They can sign back in and read, but can't trade, post, chat or play, and they drop off the leaderboards. **Lift suspension** ends it early. |
 | Reset a profile | `/admin/people` → **Reset profile…** | Renames them to `player_<id>` and clears their bio and banner. Use it for offensive or impersonating names and profiles. It also clears their 7-day rename wait, so they can pick a new name straight away. |

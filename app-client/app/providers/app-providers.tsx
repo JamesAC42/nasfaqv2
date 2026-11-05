@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { ChatEverywhere } from "@/app/components/chat/chat-everywhere";
 import { AnnouncementPopup } from "@/app/components/common/announcement-popup";
 import { SnowLayer } from "@/app/components/snow/snow-layer";
 import { StreamDock } from "@/app/components/livestreams/stream-dock";
@@ -28,6 +29,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
           {children}
           {/* Outside each page's shell so a playing stream survives moving between pages. */}
           <StreamDock />
+          <ChatEverywhere />
           <AnnouncementPopup />
           {/* Beside the shell, not in it: a transformed ancestor would break position: fixed. */}
           <SnowLayer />

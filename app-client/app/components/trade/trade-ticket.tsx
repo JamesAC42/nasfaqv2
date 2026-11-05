@@ -16,6 +16,7 @@ import { useMarketStore } from "@/app/stores/market-store";
 import { useMomentStore } from "@/app/stores/moment-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import { useTradeStore } from "@/app/stores/trade-store";
+import { announceKeepClear } from "@/app/lib/floating";
 import styles from "@/app/components/trade/trade-drawer.module.scss";
 import { Term } from "@/app/components/common/tip";
 
@@ -160,6 +161,8 @@ export function TradeTicket({
   const qtyInput = useRef<HTMLInputElement | null>(null);
   const symbol = asset.symbol.toUpperCase();
 
+  // Whatever floats over the page (the chat window) moves off the ticket as soon as it's there.
+  useEffect(() => announceKeepClear(), []);
   useEffect(() => setSide(startSide), [startSide]);
   useEffect(() => {
     if (!autoFocus) return;
