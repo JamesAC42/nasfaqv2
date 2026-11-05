@@ -378,6 +378,7 @@ app.use((err, req, res, _next) => {
     || err?.code === "invalid_chat_message"
     || err?.code === "invalid_chat_report"
     || err?.code === "invalid_chat_moderation"
+    || err?.code === "invalid_chat_notify"
     || err?.code === "proposal_not_allowed"
     || err?.code === "cannot_edit_news_article"
     || err?.code === "invalid_profile_target"
@@ -433,6 +434,7 @@ app.use((err, req, res, _next) => {
     err?.code === "chat_channel_not_found"
     || err?.code === "chat_message_not_found"
     || err?.code === "chat_report_not_found"
+    || err?.code === "chat_player_not_found"
     || err?.code === "admin_asset_not_found"
     || err?.code === "gacha_prize_not_found"
     || err?.code === "prediction_market_not_found"
@@ -726,25 +728,14 @@ async function main() {
         // A handful of rooms at a time; one socket can't make the server look up thousands.
         const requestedChannelKeys = normalizeChannelKeyList(payload.channel_keys).slice(0, 20);
         const subscribed = [];
-        const rejected = [];
 
         await chatDb.ensureChatTopologyRecent(pool).catch(() => {});
-        for (const channelKey of requestedChannelKeys) {
-          try {
-            const channel = await chatDb.getChannelByKey(pool, channelKey, {
-              viewerUserId: req.chatUser?.id || null,
-              includeInactive: Boolean(req.chatUser?.is_admin),
-            });
-            if (!channel) {
-              rejected.push(channelKey);
-              continue;
-            }
-            ws.chatSubscriptions.add(channel.channel_key);
-            subscribed.push(channel.channel_key);
-          } catch {
-            rejected.push(channelKey);
-          }
+        const found = await chatDb.findChannels(pool, requestedChannelKeys, { includeInactive: Boolean(req.chatUser?.is_admin) }).catch(() => []);
+        for (const channel of found) {
+          ws.chatSubscriptions.add(channel.channel_key);
+          subscribed.push(channel.channel_key);
         }
+        const rejected = requestedChannelKeys.filter((channelKey) => !subscribed.includes(channelKey));
 
         sendWsText(
           ws,
@@ -932,7 +923,8 @@ async function main() {
     const payload = String(message);
     const parsed = safeParseJSON(payload);
     // A mute or ban (or lifting one) goes only to the player it's about, so their rooms can say so.
-    if (parsed?.type === "chat.user.moderated") {
+    // So does a change to their popup settings, for their other tabs and devices.
+    if (parsed?.type === "chat.user.moderated" || parsed?.type === "chat.user.notify_changed") {
       const userId = Number(parsed.user_id);
       chatWss.clients.forEach((client) => {
         if (client.chatUserId && client.chatUserId === userId) sendWsText(client, payload);

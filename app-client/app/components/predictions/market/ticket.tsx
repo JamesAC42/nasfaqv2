@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { usePredictionCash } from "@/app/components/predictions/shell/predictions-frame";
 import { centsFine, inkOn, isTradeable, signedMoney, tone, useNow } from "@/app/components/predictions/market/shared";
+import { announceKeepClear } from "@/app/lib/floating";
 import { fetchQuote, placeLimitOrder, trade, type PredictionApiError } from "@/app/lib/predictions/api";
 import { predictionErrorText } from "@/app/lib/predictions/errors";
 import { cents, centsDelta, money, outcomeColor, shares as fmtShares, timeLeft } from "@/app/lib/predictions/format";
@@ -37,6 +38,8 @@ const wholeMoney = (value: number) => money(value, Number.isInteger(value) ? 0 :
 const upper = (text: string) => text.toUpperCase();
 
 export function Ticket({ market, intent, onTraded }: { market: PredictionMarketDetail; intent: TicketIntent; onTraded: () => void }) {
+  // Whatever floats over the page (the chat window) moves off the ticket as soon as it's there.
+  useEffect(() => announceKeepClear(), []);
   const { user } = useAuth();
   const { cash: frameCash, liquid, refreshCash } = usePredictionCash();
   const signedIn = Boolean(user);

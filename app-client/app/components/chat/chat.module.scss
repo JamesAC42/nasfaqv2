@@ -495,6 +495,23 @@
   }
 }
 
+// This room's popups, on or off (room-notify-button.tsx).
+.notifyBtn {
+  @include button-secondary;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  font-size: 0.85rem;
+
+  &[aria-pressed="true"] {
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+}
+
 .railBtn {
   @include button-secondary;
   display: none;
@@ -746,6 +763,49 @@
   @include phone {
     padding: 0.5rem 0.75rem 0.4rem;
   }
+}
+
+// In the floating window: the same composer, tighter.
+.composerCompact {
+  padding: 0.4rem 0.5rem;
+
+  .inputRow {
+    gap: 0.3rem;
+
+    textarea {
+      padding: 0.35rem 0.5rem;
+      font-size: 0.82rem;
+      line-height: 1.2rem;
+    }
+  }
+
+  .stickerBtn {
+    width: 1.95rem;
+    height: 1.95rem;
+    font-size: 0.85rem;
+  }
+
+  .send {
+    height: 1.95rem;
+    padding: 0 0.55rem;
+    font-size: 0.66rem;
+  }
+
+  .composeHint {
+    display: none;
+  }
+
+  .blocked,
+  .sendErr {
+    margin-bottom: 0.3rem;
+    font-size: 0.68rem;
+  }
+}
+
+// A row in the floating window: the ⋯ menu shows on hover here too.
+.floatRow:hover .msgTools,
+.floatRow:focus-within .msgTools {
+  opacity: 1;
 }
 
 .composerOff {

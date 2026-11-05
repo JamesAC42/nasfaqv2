@@ -213,7 +213,7 @@ export function MarketPage({ slug }: { slug: string }) {
             <Comments market={market} />
           </div>
           {!compact ? (
-            <aside className={styles.aside} id="ticket" aria-label="Trade">
+            <aside className={styles.aside} id="ticket" aria-label="Trade" data-keep-clear="column">
               <div className={styles.sticky}>{ticket}</div>
             </aside>
           ) : null}
@@ -244,7 +244,7 @@ function MobileBar({ market, tradeable, onOpen, onOpenClosed }: { market: Predic
   if (!tradeable) {
     const winner = market.outcomes.find((outcome) => outcome.is_winner);
     return (
-      <div className={styles.mobileBar} data-closed="true">
+      <div className={styles.mobileBar} data-closed="true" data-bottom-bar="">
         <span className={styles.mobileStatus} data-tone={status.tone}>
           {status.label}
           {winner ? <b style={{ color: outcomeColor(market, winner) }}>{winner.label}</b> : null}
@@ -257,7 +257,7 @@ function MobileBar({ market, tradeable, onOpen, onOpenClosed }: { market: Predic
   }
   if (market.market_type === "binary") {
     return (
-      <div className={styles.mobileBar}>
+      <div className={styles.mobileBar} data-bottom-bar="">
         {market.outcomes.map((outcome) => {
           const color = outcomeColor(market, outcome);
           return (
@@ -273,7 +273,7 @@ function MobileBar({ market, tradeable, onOpen, onOpenClosed }: { market: Predic
   const top = leader(market.outcomes);
   const color = top ? outcomeColor(market, top) : "var(--blue)";
   return (
-    <div className={styles.mobileBar}>
+    <div className={styles.mobileBar} data-bottom-bar="">
       <span className={styles.mobileLeader} style={{ "--oc": color } as CSSProperties}>
         <small>Leading</small>
         <b>

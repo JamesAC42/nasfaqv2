@@ -7,6 +7,7 @@
 // and the push goes out a moment later (a rolled-back row then shows until the next refresh).
 // In title/body, "{actor}" becomes the actor's username.
 
+const chatNotify = require("./chatNotify");
 const hub = require("./games/tables/hub");
 
 const KEEP_PER_USER = 300;
@@ -278,6 +279,9 @@ async function notifyChatMessage(pool, { message, channel, author }) {
     if (replyTo && !recipients.has(replyTo)) recipients.set(replyTo, "reply");
   }
   recipients.delete(authorId);
+  if (!recipients.size) return;
+  // Someone who muted this player doesn't hear from them here either.
+  for (const userId of await chatNotify.playersWhoMuted(pool, authorId, [...recipients.keys()])) recipients.delete(userId);
   const room = channel?.display_name || "chat";
   const href = channel?.channel_key ? `/chat?channel=${encodeURIComponent(channel.channel_key)}` : "/chat";
   for (const [userId, kind] of recipients) {

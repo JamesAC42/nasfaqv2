@@ -417,14 +417,31 @@
   white-space: nowrap;
 }
 
-// Narrow phones: the bell and orders need the room, so the tick's name goes and its countdown stays.
+// Narrow phones: the chat button, bell and orders need the room, so the tick's name goes and its
+// countdown stays, with everything a little closer together.
 @media (max-width: 440px) {
+  .rail {
+    gap: 0.4rem;
+  }
+
   .status {
     gap: 0.45rem;
   }
 
+  .pill {
+    padding-inline: 0.35rem;
+    letter-spacing: 0.04em;
+  }
+
   .nextTick b:not(.countdown) {
     display: none;
+  }
+}
+
+@media (max-width: 400px) {
+  .rail {
+    gap: 0.3rem;
+    padding-inline: 0.6rem;
   }
 }
 
@@ -559,6 +576,13 @@
 .iconButtonHot {
   color: var(--blue);
   border-color: var(--blue);
+}
+
+// The chat button while its window is showing.
+.iconButton[aria-pressed="true"] {
+  background: var(--ink-3);
+  color: var(--text);
+  border-color: var(--text);
 }
 
 .icon {

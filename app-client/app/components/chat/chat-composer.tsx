@@ -37,6 +37,7 @@ export const ChatComposer = memo(function ChatComposer({
   emojis,
   usernames,
   onSend,
+  compact = false,
 }: {
   user: AuthUser | null;
   roomKey: string;
@@ -46,6 +47,8 @@ export const ChatComposer = memo(function ChatComposer({
   emojis: Emoji[];
   usernames: string[];
   onSend: (body: string) => Promise<void>;
+  /** The floating window: tighter, and no line of typing tips. */
+  compact?: boolean;
 }) {
   const [draft, setDraft] = useState("");
   const [cursor, setCursor] = useState(0);
@@ -201,7 +204,7 @@ export const ChatComposer = memo(function ChatComposer({
 
   return (
     <form
-      className={styles.composer}
+      className={`${styles.composer} ${compact ? styles.composerCompact : ""}`}
       onSubmit={(event) => {
         event.preventDefault();
         void send();
