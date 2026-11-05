@@ -6,7 +6,7 @@ RUN go mod download
 COPY holonews/ ./
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/holonews ./cmd/holonews
 
-FROM alpine:3.21
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates tzdata
 RUN adduser -D -H -u 10001 appuser
 USER appuser
