@@ -302,17 +302,19 @@ async function createEmailVerificationToken(pool, userId, email) {
   return token;
 }
 
-async function sendVerificationEmail(pool, user) {
-  if (!user?.id || !user?.email || user.email_verified) return;
+/** Emails a verification link. Returns "sent", "not_configured" or "failed", or "skipped" when it doesn't apply. */
+async function sendVerificationEmail(pool, user, { send = sendEmail } = {}) {
+  if (!user?.id || !user?.email || user.email_verified) return "skipped";
   const token = await createEmailVerificationToken(pool, user.id, user.email);
   const verificationUrl = appUrl(`${process.env.EMAIL_VERIFICATION_PATH || "/verify-email"}?token=${encodeURIComponent(token)}`);
   const status = verificationUrl
-    ? await sendEmail({ to: user.email, ...verificationEmail({ username: user.username, url: verificationUrl }) })
+    ? await send({ to: user.email, ...verificationEmail({ username: user.username, url: verificationUrl }) })
     : "not_configured";
   if (status === "not_configured") {
     // eslint-disable-next-line no-console
     console.warn(`Email verification link for ${user.email}: ${verificationUrl || token}`);
   }
+  return status;
 }
 
 async function verifyEmailToken(pool, token) {
@@ -742,5 +744,6 @@ module.exports = {
   revokeSession,
   sendVerificationEmail,
   signOutEverywhere,
+  validateEmail,
   verifyEmailToken,
 };

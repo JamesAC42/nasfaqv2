@@ -96,15 +96,23 @@ async function logAction(db, { actor, action, targetType = null, targetId = null
   return rows[0];
 }
 
-async function listActions(db, { limit = 50 } = {}) {
+/** The log, newest first: everything, or with `targetType` and `targetId` what was done to one thing. */
+async function listActions(db, { limit = 50, targetType = null, targetId = null } = {}) {
   const safeLimit = Math.min(200, Math.max(1, Number.parseInt(String(limit), 10) || 50));
+  const params = [safeLimit];
+  let where = "";
+  if (targetType !== null && targetId !== null) {
+    params.push(targetType, String(targetId));
+    where = "WHERE a.target_type = $2 AND a.target_id = $3";
+  }
   const { rows } = await db.query(
     `SELECT a.id, a.actor_id, actor.username AS actor_username, a.action, a.target_type, a.target_id, a.target_label, a.reason, a.details, a.created_at
      FROM market.admin_actions a
      LEFT JOIN market.users actor ON actor.id = a.actor_id
+     ${where}
      ORDER BY a.created_at DESC, a.id DESC
      LIMIT $1`,
-    [safeLimit]
+    params
   );
   return rows.map((row) => ({
     id: Number(row.id),
@@ -240,6 +248,7 @@ module.exports = {
   SUSPENSION_HOURS,
   activeSuspensionSql,
   cleanText,
+  inTransaction,
   listActions,
   logAction,
   moderationError,
