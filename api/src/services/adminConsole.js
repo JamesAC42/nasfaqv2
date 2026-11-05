@@ -363,8 +363,12 @@ async function getOverview(pool) {
 
 module.exports = {
   ROLE_FLAGS,
+  USER_COLUMNS,
+  USER_FROM,
   planRoleChange,
   maskEmail,
+  toAdminUser,
+  withSharedIps,
   searchUsers,
   getAdminUser,
   updateUserRoles,

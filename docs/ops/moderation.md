@@ -34,8 +34,9 @@ Most of the tools come from PR #54 (moderation tools), live since 2026-10-29.
 - **Every role change is logged** in the Admin log on `/admin/moderation`.
 - **When someone joins or leaves the team,** add or remove them in the [rota](#rota) and the mod
   channel.
-- **People & roles shows players' email addresses.** Never share them or paste them into
-  Discord.
+- **Players' email addresses stay masked** on Users and People & roles (`pe****@usada.jp`). To
+  check an address a player gave you, type the whole thing into the search on `/admin/users`. Never
+  share addresses or paste them into Discord.
 - **Admins can't be suspended.** To deal with a moderator who goes rogue, the owner takes their
   admin away first.
 
@@ -43,6 +44,13 @@ Most of the tools come from PR #54 (moderation tools), live since 2026-10-29.
 
 | What | Where | Notes |
 | --- | --- | --- |
+| Every account | `/admin/users` | Search by username, `#id` or a whole email address; filter by unverified, suspended, frozen, staff or new; sort by name, joined, last seen, Cash or net worth. Click a row for that account's page, which has all the tools below that apply to one player and what admins have done to them. |
+| Verify an email | `/admin/users` → the player → **Verify…** | Marks the address as theirs, for when the email never arrived. It unlocks trading and paid games. Only do it if you know the address is theirs. |
+| Send a verification or password reset email | `/admin/users` → the player → **Send…** | Goes to the address on file, one a minute. You never see the link. A password reset changes nothing unless they use it. |
+| Rename a player | `/admin/users` → the player → **Rename…** | For a typo or a request. The name rules still apply, but not their 7-day wait, and it doesn't start one. Use **Reset profile** for offensive names. |
+| Change a player's email | `/admin/users` → the player → **Change…** | For an address typed wrong at sign-up or one they've lost; players can't change their own. **Check it's really them first**: password resets go to this address, so a wrong change hands over the account. Needs a reason. They go back to unverified until they use the new link, links sent to the old address stop working, and a verified old address gets a notice. Refused on admin accounts. |
+| Clear a bio | `/admin/users` → the player → **Clear…** | Only the bio. The log keeps what it said. |
+| Sign a player out | `/admin/users` → the player → **Sign out…** | Ends every session and open tab, for a stolen session or a shared computer. Doesn't change their password. |
 | Report queue | `/admin/moderation` → **Chat reports** (Open / Resolved / Dismissed) | **Remove message**, **Resolve**, **Dismiss**, **Reopen**. Removing a message resolves every open report on it. Open reports also show under **Needs attention** on `/admin`. |
 | Remove a chat message | Hover the message (tap **⋯** on a phone) → **Remove message** | Type a reason in the **Reason** box first; it goes in the log. Removal can't be undone. |
 | Mute from chat | Same menu → **Mute *name* in all of chat**: 10 minutes, 1 hour, 24 hours or 7 days | Applies to every room. They can still read. |
@@ -58,7 +66,7 @@ Most of the tools come from PR #54 (moderation tools), live since 2026-10-29.
 | Delete an article | On the article, as an admin: **DELETE** (a player's article) or **DELETE BODY** (the player-written part of a news article) | **Can't be undone and isn't in the Admin log.** Screenshot it and post in the mod channel before you press it. |
 | Announcement banner | `/admin` → **Health** → **Post an announcement…** | 280 characters, Info or Warning, optional link, and an end time. **Edit…** and **Clear announcement** are in the same spot. |
 | Announcement popup | `/admin/announcements` | For news, not emergencies: each visitor sees it once, and it waits until they aren't busy, so use the banner when everyone needs to know now. Title, text, optional button, who it's for, and start and end times. **Retire** takes it down and keeps it; **Delete** is for good, though the Admin log keeps the wording. Dismissing is remembered per browser and, for signed-in players, per account. |
-| Admin log | `/admin/moderation` → **Admin log** | Every action above except article deletes, newest first, with who did it and why. |
+| Admin log | `/admin/moderation` → **Admin log** | Every action above except article deletes, newest first, with who did it and why. One account's page lists what was done to that account. |
 | Bug reports | `/admin` → **Bug reports** | From the **Report a bug** button in the footer. They also post to Discord. |
 
 **What doesn't exist yet:**
@@ -67,7 +75,9 @@ Most of the tools come from PR #54 (moderation tools), live since 2026-10-29.
 - a button to lock a room (the API can make a room read-only; ask the owner);
 - restoring a removed chat message;
 - per-room mutes in the UI;
-- IP addresses (NASFAQ only keeps salted hashes of them, for **Shares an IP**).
+- IP addresses (NASFAQ only keeps salted hashes of them, for **Shares an IP**);
+- changing a player's Cash, Credit or holdings, canceling their queued orders, or deleting an
+  account. On purpose: those are the owner's call, case by case.
 
 **What the site refuses on its own** (no action needed): usernames with slurs or hate terms
 (however they're spelled), names that look like staff or the site (admin, mod, official, NASFAQ…)

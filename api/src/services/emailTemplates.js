@@ -171,4 +171,40 @@ function passwordResetEmail({ username, url }, env = process.env) {
   };
 }
 
-module.exports = { accountEmailHtml, passwordResetEmail, verificationEmail };
+/**
+ * Told to the old address when an admin changes a verified account's email (adminUsers.js). The new
+ * address comes in masked, since whoever reads this may not be the player any more. `url` is where
+ * to reach us.
+ */
+function emailChangedEmail({ username, newEmailMasked, url }, env = process.env) {
+  const subject = "The email on your NASFAQ account changed";
+  const asked = "If you asked us for this, you're all set: use the link we sent to the new address.";
+  const notYou = "If you didn't, tell us right away.";
+  const footer = "You got this because this address was on that NASFAQ account until now.";
+  return {
+    subject,
+    html: accountEmailHtml(
+      {
+        subject,
+        preheader: "An admin changed the email on your account. Didn't ask for it? Tell us.",
+        kicker: "Account notice",
+        heading: "Your account email changed",
+        paragraphs: [
+          `An admin changed the email on your NASFAQ account, <strong style="color:${COLOR.text};font-weight:700;">${escapeHtml(username)}</strong>, to ${escapeHtml(newEmailMasked)}.`,
+          asked,
+        ],
+        button: { label: "Contact us", url },
+        notes: [notYou],
+        footer,
+      },
+      env
+    ),
+    text: accountEmailText(
+      [`An admin changed the email on your NASFAQ account, ${username}, to ${newEmailMasked}.`, asked, `${notYou} Contact us:\n${url}`, footer],
+      url,
+      env
+    ),
+  };
+}
+
+module.exports = { accountEmailHtml, emailChangedEmail, passwordResetEmail, verificationEmail };

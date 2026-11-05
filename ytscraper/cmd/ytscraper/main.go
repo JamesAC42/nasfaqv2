@@ -252,7 +252,9 @@ func pollScheduledUpcomingLoop(ctx context.Context, pool *pgxpool.Pool, yt *yout
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			dueChannels := tracker.priorityPollChannels(time.Now().UTC())
+			now := time.Now().UTC()
+			dueChannels := tracker.priorityPollChannels(now)
+			dueChannels = mergeChannels(dueChannels, tracker.earlyStartChannels(ctx, yt, now))
 			if len(dueChannels) == 0 {
 				continue
 			}
@@ -630,6 +632,100 @@ func (t *liveTracker) priorityPollChannels(now time.Time) []db.Channel {
 		out = append(out, ch)
 	}
 	return out
+}
+
+// earlyStartWatchWindow is how far ahead of its scheduled time a stream is watched for going live
+// early. A prediction market on a stream closes before the scheduled start, and until the tracker
+// knows a stream started it can't refuse bets on it. The full detection poll runs only every
+// LIVE_POLL_SECONDS (30 minutes in production) because search.list costs 100 units a call; this
+// videos.list costs 1 unit per 50 videos, at most 1,440 units a day.
+const earlyStartWatchWindow = 3 * time.Hour
+
+// watchedUpcoming copies the streams due to start within the window. Overdue ones are left to
+// priorityPollChannels.
+func (t *liveTracker) watchedUpcoming(now time.Time, window time.Duration) map[string]upcomingStreamState {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	out := make(map[string]upcomingStreamState)
+	for videoID, st := range t.upcoming {
+		if st == nil || st.ScheduledStartTime.IsZero() {
+			continue
+		}
+		until := st.ScheduledStartTime.Sub(now)
+		if until <= 0 || until > window {
+			continue
+		}
+		out[videoID] = *st
+	}
+	return out
+}
+
+// channelsWithChangedStreams names the channels of watched streams that have gone live or ended, or
+// whose scheduled time moved. A video missing from the response (deleted, gone private) says nothing:
+// it stays as it is until a detection poll.
+func channelsWithChangedStreams(watched map[string]upcomingStreamState, videos []youtube.Video) map[string]struct{} {
+	out := make(map[string]struct{})
+	for _, v := range videos {
+		st, ok := watched[v.VideoID]
+		if !ok {
+			continue
+		}
+		moved := v.ScheduledStartTime != nil && !v.ScheduledStartTime.Equal(st.ScheduledStartTime)
+		if v.ActualStartTime != nil || v.ActualEndTime != nil || moved {
+			out[st.ChannelID] = struct{}{}
+		}
+	}
+	return out
+}
+
+// earlyStartChannels returns the channels to poll now because of a watched stream that changed.
+func (t *liveTracker) earlyStartChannels(ctx context.Context, yt *youtube.Client, now time.Time) []db.Channel {
+	watched := t.watchedUpcoming(now, earlyStartWatchWindow)
+	if len(watched) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(watched))
+	for videoID := range watched {
+		ids = append(ids, videoID)
+	}
+	cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	videos, err := yt.FetchVideos(cctx, ids)
+	cancel()
+	if err != nil {
+		log.Printf("livestreams: early start check FetchVideos: %v", err)
+		return nil
+	}
+	changed := channelsWithChangedStreams(watched, videos)
+	if len(changed) == 0 {
+		return nil
+	}
+
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	out := make([]db.Channel, 0, len(changed))
+	for _, ch := range t.channels {
+		if _, ok := changed[ch.YouTubeChannelID]; ok {
+			out = append(out, ch)
+		}
+	}
+	return out
+}
+
+// mergeChannels adds to `channels` the ones in `more` it doesn't already have.
+func mergeChannels(channels, more []db.Channel) []db.Channel {
+	seen := make(map[string]struct{}, len(channels))
+	for _, ch := range channels {
+		seen[ch.YouTubeChannelID] = struct{}{}
+	}
+	for _, ch := range more {
+		if _, ok := seen[ch.YouTubeChannelID]; ok {
+			continue
+		}
+		seen[ch.YouTubeChannelID] = struct{}{}
+		channels = append(channels, ch)
+	}
+	return channels
 }
 
 func (t *liveTracker) replaceUpcomingForChannel(channelID string, streams []livestreams.Stream) {

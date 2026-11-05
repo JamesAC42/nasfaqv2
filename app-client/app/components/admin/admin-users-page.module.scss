@@ -1,0 +1,279 @@
+@use "../../styles/mixins" as *;
+
+// /admin/users
+
+.controls {
+  display: grid;
+  gap: 0.6rem;
+  padding: 1rem 0 0.75rem;
+  min-width: 0;
+}
+
+.search {
+  display: block;
+  min-width: 0;
+  max-width: 34rem;
+
+  input {
+    width: 100%;
+    font-size: 0.95rem;
+    padding: 0.6rem 0.75rem;
+  }
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+
+  button {
+    @include label;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--rule-2);
+    border-radius: 999px;
+    background: none;
+    font-size: 0.6rem;
+    color: var(--mid);
+    cursor: pointer;
+    white-space: nowrap;
+
+    small {
+      @include num;
+      font-size: 0.62rem;
+      color: var(--dim);
+    }
+
+    &:hover {
+      color: var(--text);
+      border-color: var(--text);
+    }
+
+    &[aria-checked="true"] {
+      background: var(--text);
+      border-color: var(--text);
+      color: var(--ink);
+
+      small {
+        color: var(--ink);
+      }
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+// Only where the table's own headers aren't all there.
+.sortPicker {
+  display: none;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+
+  span {
+    @include label;
+    font-size: 0.58rem;
+  }
+
+  select {
+    flex: 1 1 auto;
+  }
+
+  @include phone {
+    display: flex;
+  }
+}
+
+.tableWrap {
+  min-width: 0;
+
+  &[aria-busy="true"] {
+    opacity: 0.7;
+  }
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+
+  th {
+    padding: 0.45rem 0.75rem 0.45rem 0;
+    border-bottom: 1px solid var(--rule-2);
+    text-align: left;
+    white-space: nowrap;
+
+    button {
+      @include label;
+      padding: 0;
+      border: 0;
+      background: none;
+      font-size: 0.6rem;
+      color: var(--dim);
+      cursor: pointer;
+
+      &:hover {
+        color: var(--text);
+      }
+
+      &:focus-visible {
+        @include focus-ring;
+      }
+    }
+
+    &[aria-sort="ascending"] button,
+    &[aria-sort="descending"] button {
+      color: var(--text);
+    }
+
+    &[data-col="cash"],
+    &[data-col="net_worth"] {
+      text-align: right;
+    }
+
+    &[data-col="net_worth"] {
+      padding-right: 0;
+    }
+  }
+
+  tbody tr {
+    position: relative;
+
+    &:hover {
+      background: var(--ink-2);
+    }
+  }
+
+  td {
+    padding: 0.6rem 0.75rem 0.6rem 0;
+    border-bottom: 1px solid var(--rule);
+    color: var(--mid);
+    white-space: nowrap;
+    vertical-align: middle;
+
+    &[data-col="username"] {
+      width: 100%;
+      min-width: 0;
+      white-space: normal;
+    }
+
+    &[data-col="net_worth"] {
+      padding-right: 0;
+    }
+  }
+
+  // Phones keep the player and when they were last seen; the rest is a tap away.
+  @include tablet-down {
+    [data-col="joined"] {
+      display: none;
+    }
+  }
+
+  @include phone {
+    [data-col="cash"],
+    [data-col="net_worth"] {
+      display: none;
+    }
+
+    [data-col="last_seen"] {
+      padding-right: 0;
+      text-align: right;
+    }
+  }
+}
+
+.num {
+  @include num;
+  text-align: right;
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.whoText {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+
+  p {
+    margin: 0;
+  }
+}
+
+.name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.4rem;
+  min-width: 0;
+
+  a {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+
+    // The whole row opens the account.
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+    }
+
+    &:hover {
+      color: var(--blue);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+
+  // Their titles still show on hover, over the row's link.
+  span {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+.email {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.5rem;
+  font-size: 0.72rem;
+  color: var(--dim);
+}
+
+.id {
+  @include num;
+}
+
+.dim {
+  color: var(--dim);
+}
+
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.8rem 0 0.4rem;
+  font-size: 0.78rem;
+  color: var(--dim);
+
+  div {
+    display: flex;
+    gap: 0.4rem;
+  }
+}
