@@ -13,7 +13,7 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    date: "2026-11-04",
+    date: "2026-11-05",
     title: "Prediction markets you can't call after the fact",
     changes: [
       {
@@ -31,6 +31,20 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         kind: "fixed",
         text: "A voided market now undoes everything. If you sold for more than you paid and the market later voids, that gain goes back along with everyone else's refunds, and a voided market no longer moves you on the forecasters board.",
+      },
+    ],
+  },
+  {
+    date: "2026-11-04",
+    title: "Quicker to max out a tick",
+    changes: [
+      {
+        kind: "improved",
+        text: "The share buttons on the order ticket now stop at what you have left this tick. Press 100 twice and you land on 180, the most you can queue, instead of having to type it. ALL does the same on a sell.",
+      },
+      {
+        kind: "fixed",
+        text: "On the v1 Classic profile, everything in the On the original NASFAQ box is now centered, including the stats on the second line.",
       },
     ],
   },
