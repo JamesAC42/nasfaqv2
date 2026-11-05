@@ -29,9 +29,9 @@ const TABS: { key: FloorTab; label: string }[] = [
 ];
 
 const EMPTY_COPY: Record<FloorTab, string> = {
-  live: "Nothing's trading right now. The next tick opens a fresh batch.",
+  live: "Nothing's trading right now. New markets open each morning and ahead of scheduled streams.",
   closing: "Nothing closes in the next few hours.",
-  auto: "No auto markets open. They start right after each tick.",
+  auto: "No auto markets open. They start each morning and ahead of scheduled streams.",
   events: "No event markets live. Got an idea? Pitch it.",
   resolving: "No calls pending. Everything's settled.",
   resolved: "Nothing's settled yet.",

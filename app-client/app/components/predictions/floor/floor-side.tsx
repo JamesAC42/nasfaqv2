@@ -102,7 +102,7 @@ export function HowItWorks() {
           <b>$1 a share</b> if you’re right, $0 if you’re not. Sell any time before close.
         </li>
         <li>
-          <b>Auto markets</b> open all day on every tick and live stream, and settle themselves.
+          <b>Auto markets</b> open on the Lunch tick and a few scheduled streams, close before the result can be known, and settle themselves.
         </li>
         <li>
           <b>Calls are public.</b> Every result gets a dispute window. Think it’s wrong? Say so.

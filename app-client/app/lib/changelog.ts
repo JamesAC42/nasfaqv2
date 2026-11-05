@@ -13,6 +13,28 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-11-05",
+    title: "Prediction markets you can't call after the fact",
+    changes: [
+      {
+        kind: "fixed",
+        text: "Stream peak markets used to stay open for 30 minutes after a stream started, long enough to watch the viewer count pass the line and then bet on it. They now open before a scheduled stream and close 15 minutes before it's due, or the moment it goes live if it starts early. If a bet ever lands after the real start, that market voids and everyone gets their money back.",
+      },
+      {
+        kind: "improved",
+        text: "Fewer automatic markets, so the bets are in one place: one Top gainer a day on the Lunch tick and up to five stream peaks a day, one per talent, on the busiest talents. The \"Up on the tick?\" calls are off for now, because a tick usually moves the same way as the one before it, which made them too easy to call.",
+      },
+      {
+        kind: "fixed",
+        text: "Stream peak lines now sit within 5% of the talent's median. Rounding could put a smaller channel's line a third below it, which made YES nearly free.",
+      },
+      {
+        kind: "fixed",
+        text: "A voided market now undoes everything. If you sold for more than you paid and the market later voids, that gain goes back along with everyone else's refunds, and a voided market no longer moves you on the forecasters board.",
+      },
+    ],
+  },
+  {
     date: "2026-11-04",
     title: "Quicker to max out a tick",
     changes: [

@@ -226,7 +226,7 @@ export function TicksSection() {
       }
       links={[
         { href: "/market/report", label: "See today's ticks" },
-        { href: "/predictions", label: "Bet on the next tick" },
+        { href: "/predictions", label: "Bet on the Lunch tick" },
       ]}
     >
       <TickKoma className={styles.ticksBand} />
@@ -404,17 +404,16 @@ export function PredictionsSection() {
               title: "The result gets called",
               body: "A resolver proposes the outcome with a source. Holders get a dispute window (12 h by default). No disputes and it's final.",
             },
-            { title: "Winners get $1 a share", body: "Losing shares close at $0. If a market is voided, everyone gets back what they put in, fees included." },
+            { title: "Winners get $1 a share", body: "Losing shares close at $0. A void undoes the whole market: everyone gets back what they put in, fees included, and anything made by selling goes back too." },
           ]}
         />
       </div>
       <SubHead>Markets that open themselves</SubHead>
       <Rules
-        cols={3}
+        cols={2}
         items={[
-          { k: "every tick", title: "Tick calls", body: "\"Up on the Late tick?\" for the six busiest talents. Opens right after a tick, closes 5 minutes before the next." },
-          { k: "every tick", title: "Top gainer", body: "Which of them moves most on the next tick, or \"someone else\". Settles on the biggest % move across the whole market." },
-          { k: "live", title: "Stream peaks", body: "When a talent goes live: will the stream peak above their usual viewer count? Settles when the stream ends." },
+          { k: "every day", title: "Top gainer", body: "Which of six busy talents moves most on the Lunch tick, or \"someone else\". Closes 5 minutes before the tick and settles on the biggest % move across the whole market." },
+          { k: "before streams", title: "Stream peaks", body: "A few of the day's scheduled streams: will it peak above that talent's usual viewer count? Betting closes 15 minutes before the stream is due, or the moment it goes live. Settles when the peak crosses the line or the stream ends." },
         ]}
       />
     </Section>

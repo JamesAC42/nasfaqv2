@@ -4,6 +4,7 @@
 
 const lmsr = require("./lmsr");
 const core = require("./core");
+const guards = require("./guards");
 
 const { num, round2, round6, ceil2, floor2, predictionError } = core;
 
@@ -184,7 +185,7 @@ function quoteView(fill, side) {
 
 async function loadTradeableMarket(client, slug) {
   const market = await core.lockMarket(client, { slug });
-  if (!core.isTradeable(market)) throw predictionError("prediction_market_closed");
+  if (!core.isTradeable(market) || (await guards.autoMarketLock(client, market))) throw predictionError("prediction_market_closed");
   const outcomes = await core.loadOutcomes(client, market.id);
   return { market, outcomes, state: core.ammState(market, outcomes) };
 }
@@ -209,7 +210,7 @@ async function quote(pool, { slug, outcomeCode, side, amount = null, shares = nu
     slug,
     outcome_code: outcomes[index].outcome_code,
     price: round6(state.prices[index]),
-    tradeable: core.isTradeable(market),
+    tradeable: core.isTradeable(market) && !(await guards.autoMarketLock(pool, market)),
     quote: fill ? { ...quoteView(fill, side === "sell" ? "sell" : "buy"), price_after: round6(fill.pricesAfter[index]), payout_if_right: side === "sell" ? null : round2(fill.shares) } : null,
   };
 }
@@ -341,7 +342,7 @@ async function sweepMarket(pool, marketId) {
   for (let step = 0; step < MAX_SWEEP_FILLS; step += 1) {
     const fill = await core.inTransaction(pool, async (client) => {
       const market = await core.lockMarket(client, { id: marketId });
-      if (!core.isTradeable(market)) return null;
+      if (!core.isTradeable(market) || (await guards.autoMarketLock(client, market))) return null;
       const outcomes = await core.loadOutcomes(client, market.id);
       const state = core.ammState(market, outcomes);
       const { rows } = await client.query(
