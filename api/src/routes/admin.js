@@ -4,13 +4,17 @@
 // services/adminConsole.js).
 // Moderation (services/moderation.js): suspensions, profile resets, hidden comments and the log of
 // admin actions (GET /moderation/actions).
+// The /admin/users page (services/adminUsers.js): GET /users/directory, POST /users/find-by-email,
+// GET /users/:id and the account fixes under /users/:id.
 // Site traffic (services/umami.js): GET /analytics.
 // Announcement popups (services/announcements.js): GET and POST /announcements, PATCH and DELETE
 // /announcements/:id, POST /announcements/:id/retire and /restore.
 
 const express = require("express");
 const adminConsole = require("../services/adminConsole");
+const adminUsers = require("../services/adminUsers");
 const announcements = require("../services/announcements");
+const { announceSessionsRevoked } = require("../services/auth");
 const exchange = require("../services/games/exchange");
 const { ipClusters, ipHashingEnabled, sharedIpAccounts } = require("../services/ipHash");
 const schedulerHealth = require("../services/schedulerHealth");
@@ -39,6 +43,22 @@ const ERROR_STATUS = {
   cannot_unverify_email: 400,
   admin_change_needs_confirm: 409,
   username_taken: 409,
+  invalid_username: 400,
+  username_not_allowed: 400,
+  username_reserved: 400,
+  username_talent: 400,
+  invalid_email: 400,
+  disposable_email: 400,
+  email_taken: 409,
+  email_unchanged: 409,
+  email_change_needs_confirm: 409,
+  reason_required: 400,
+  cannot_change_own_email: 403,
+  cannot_change_admin_email: 403,
+  cannot_sign_out_self: 403,
+  no_email: 409,
+  already_verified: 409,
+  too_soon: 429,
   invalid_site: 400,
   invalid_range: 400,
   // 503 rather than 502: Cloudflare can swap a 502 for its own error page, and the page needs the code.
@@ -172,6 +192,88 @@ router.get(
   })
 );
 
+// /admin/users: every account, a page at a time: ?q (username or #id), filter, sort, dir, page, limit.
+router.get(
+  "/users/directory",
+  handle(async (req, res) => {
+    requireSiteAdmin(req);
+    res.set("Cache-Control", "no-store");
+    res.json({ ...(await adminUsers.listUsers(req.ctx.pool, req.query)), ip_linking: ipHashingEnabled() });
+  })
+);
+
+// Looks an account up by its exact address. A POST so the address stays out of URLs and access logs.
+// It reads nothing back but the masked form, and changes nothing.
+router.post(
+  "/users/find-by-email",
+  handle(async (req, res) => {
+    requireSiteAdmin(req);
+    res.set("Cache-Control", "no-store");
+    res.json(await adminUsers.findUsersByEmail(req.ctx.pool, req.body));
+  })
+);
+
+router.get(
+  "/users/:userId",
+  handle(async (req, res) => {
+    requireSiteAdmin(req);
+    res.set("Cache-Control", "no-store");
+    res.json({ ...(await adminUsers.getUserDetail(req.ctx.pool, targetUserId(req))), ip_linking: ipHashingEnabled() });
+  })
+);
+
+// Fix a username: { username, reason? }. Same format and name rules as a player's own rename.
+router.patch(
+  "/users/:userId/username",
+  handle(async (req, res) => {
+    const actor = requireSiteAdmin(req);
+    res.json(await adminUsers.renameUser(req.ctx.pool, actor, targetUserId(req), req.body));
+  })
+);
+
+// Fix an email: { email, reason, confirm: true }. Back to unverified until the player uses the new link.
+router.patch(
+  "/users/:userId/email",
+  handle(async (req, res) => {
+    const actor = requireSiteAdmin(req);
+    res.json(await adminUsers.changeUserEmail(req.ctx.pool, actor, targetUserId(req), req.body));
+  })
+);
+
+router.post(
+  "/users/:userId/clear-bio",
+  handle(async (req, res) => {
+    const actor = requireSiteAdmin(req);
+    res.json(await adminUsers.clearBio(req.ctx.pool, actor, targetUserId(req), req.body));
+  })
+);
+
+// Signed out on every device: { reason? }.
+router.post(
+  "/users/:userId/sign-out",
+  handle(async (req, res) => {
+    const actor = requireSiteAdmin(req);
+    res.json(await adminUsers.signOutUser(req.ctx.pool, req.ctx.redis, actor, targetUserId(req), req.body));
+  })
+);
+
+// The account emails, to the address on file. Each answers { status }; the link is never returned.
+router.post(
+  "/users/:userId/verification-email",
+  handle(async (req, res) => {
+    const actor = requireSiteAdmin(req);
+    res.json(await adminUsers.sendVerification(req.ctx.pool, actor, targetUserId(req)));
+  })
+);
+
+router.post(
+  "/users/:userId/password-reset-email",
+  handle(async (req, res) => {
+    const actor = requireSiteAdmin(req);
+    res.json(await adminUsers.sendPasswordReset(req.ctx.pool, actor, targetUserId(req)));
+  })
+);
+
 router.patch(
   "/users/:userId/roles",
   handle(async (req, res) => {
@@ -199,6 +301,8 @@ router.patch(
     const actor = requireSiteAdmin(req);
     const userId = targetUserId(req);
     const result = await moderation.setSuspension(req.ctx.pool, actor, userId, req.body);
+    // Their open tabs too: a socket signs in once, when it connects.
+    if (result.sessions_revoked) await announceSessionsRevoked(req.ctx.redis, userId);
     res.json({ user: await adminConsole.getAdminUser(req.ctx.pool, userId), sessions_revoked: result.sessions_revoked });
   })
 );

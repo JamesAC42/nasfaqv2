@@ -742,6 +742,30 @@ async function resetProfile(pool, userId) {
   };
 }
 
+/**
+ * An admin fixing a player's name. The format and name rules still apply (changing only the capitals
+ * skips the name rules, as it does for a player's own rename), but not the verified email or the
+ * 7-day wait, and it doesn't start that wait. Takes a client so the caller can log it in the same
+ * transaction; the caller refreshes the copies on the leaderboards. Returns { before, after, changed }.
+ */
+async function renameByAdmin(client, userId, username) {
+  const safeUsername = validateUsername(username);
+  const { rows } = await client.query(`SELECT id, username, username_normalized FROM market.users WHERE id = $1 FOR UPDATE`, [userId]);
+  const current = rows[0];
+  if (!current) throw profileError("profile_not_found");
+  if (safeUsername === current.username) return { before: current.username, after: current.username, changed: false };
+
+  const normalized = normalizeUsername(safeUsername);
+  if (normalized !== current.username_normalized) await assertUsernameAllowed(client, safeUsername);
+  try {
+    await client.query(`UPDATE market.users SET username = $2, username_normalized = $3, updated_at = now() WHERE id = $1`, [current.id, safeUsername, normalized]);
+  } catch (error) {
+    if (error?.code === "23505") throw profileError("username_taken");
+    throw error;
+  }
+  return { before: current.username, after: safeUsername, changed: true };
+}
+
 async function updateProfileSettings(pool, userId, { username, bio, profileColor, oshiCoinAssetId, profileBannerAssetId }) {
   const safeUserId = Number(userId);
   if (!Number.isInteger(safeUserId) || safeUserId <= 0) {
@@ -992,6 +1016,7 @@ module.exports = {
   listProfileArticles,
   listProfileTrades,
   removeFriendship,
+  renameByAdmin,
   resetProfile,
   resolveProfileUser,
   bannerAssetForSymbol,
