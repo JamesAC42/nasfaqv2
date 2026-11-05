@@ -18,6 +18,10 @@ export const CHANGELOG: ChangelogEntry[] = [
     changes: [
       {
         kind: "new",
+        text: "Send emoji at a blackjack table: tap the row along the top of the felt and they float down for everyone at the table, whether you're seated or just watching. Tap as fast as you like, or hold one down. If you're seated, yours fall over your seat. They can't block a button, and the eye at the end of the row hides them on your screen. In calm mode nothing moves: you see a small count on each emoji instead.",
+      },
+      {
+        kind: "new",
         text: "A small popup when someone talks in a chat room you've posted in during the last 30 days, or one you chose with the bell in its header. Busy rooms get bunched into one popup a minute, and the new speech bubble button in the top bar counts what you've missed. Turn it off for one room or for all of chat on the Notifications page, or press the crossed-out bell on a popup. Calm mode keeps popups still and shows them less often.",
       },
       {
@@ -28,7 +32,6 @@ export const CHANGELOG: ChangelogEntry[] = [
         kind: "new",
         text: "Mute a player from the ⋯ menu on any of their chat messages. You get no popups or @mention and reply notifications from them, and their messages collapse for you. Only you can tell, and you can undo it on the Notifications page.",
       },
-    ],
   },
   {
     date: "2026-11-05",

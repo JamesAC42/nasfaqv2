@@ -149,6 +149,24 @@ export function useGamesConnected() {
   );
 }
 
+// The server reads who a socket belongs to when it opens. Signing in or out doesn't load a new page,
+// and this socket can outlive the sign-in page by up to 20 seconds (the idle timer above), so it would
+// carry on as the old viewer: no `me` feed, and table reactions nobody else gets.
+let viewer: string | null | undefined; // undefined until the first answer from the auth check
+
+/** Tells the socket who's signed in now (auth-provider.tsx). It reconnects if that changed. */
+export function setGamesViewer(next: string | null) {
+  if (viewer !== undefined && viewer !== next) socket?.close();
+  viewer = next;
+}
+
+/** Sends something on the shared socket. False if it isn't open right now (nothing is queued). */
+export function sendGamesMessage(message: unknown) {
+  if (socket?.readyState !== WebSocket.OPEN) return false;
+  send(message);
+  return true;
+}
+
 /** Feed an HTTP response into a channel so the UI updates before the push arrives. */
 export function primeChannel(channel: string, payload: Payload) {
   accept(channel, { ...payload, channel });

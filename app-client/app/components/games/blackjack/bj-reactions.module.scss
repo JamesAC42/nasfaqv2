@@ -1,0 +1,144 @@
+@use "../../../styles/mixins" as *;
+
+// Floating emoji over the felt, and the row that sends them.
+
+.layer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+
+// Added by hand, moved by the Web Animations API (bj-reactions.tsx): transform and opacity only.
+.floater {
+  position: absolute;
+  top: 0;
+  margin-left: -0.5em;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  line-height: 1;
+  opacity: 0;
+  user-select: none;
+  will-change: transform, opacity;
+}
+
+.bar {
+  position: relative;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  align-self: center;
+  gap: 0.1rem;
+  max-width: 100%;
+  margin-bottom: 0.6rem;
+  padding: 0.15rem 0.25rem;
+  overflow-x: auto;
+  border: 1px solid rgba(190, 215, 255, 0.24);
+  border-radius: 999px;
+  background: rgba(5, 14, 30, 0.5);
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  @include phone {
+    margin-bottom: 0.4rem;
+    padding: 0.1rem 0.15rem;
+  }
+}
+
+.button {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.1rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 90ms ease-out;
+
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      background: rgba(190, 215, 255, 0.14);
+    }
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.84);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  // Calm mode: how many came in lately, in place of anything moving.
+  small {
+    @include num;
+    position: absolute;
+    top: 0;
+    right: 0;
+    min-width: 1rem;
+    padding: 0 0.2rem;
+    border-radius: 999px;
+    background: #e9f1ff;
+    color: #0a2149;
+    font-size: 0.56rem;
+    font-weight: 700;
+    line-height: 1rem;
+    text-align: center;
+
+    &:empty {
+      display: none;
+    }
+  }
+
+  @include phone {
+    width: 2.05rem;
+    font-size: 1.05rem;
+  }
+}
+
+.toggle {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 2.1rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: rgba(214, 228, 255, 0.62);
+  font-size: 0.8rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+
+  @media (hover: hover) {
+    &:hover {
+      color: #e9f1ff;
+    }
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
