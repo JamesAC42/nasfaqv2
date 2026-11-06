@@ -656,7 +656,7 @@ export function AdminHub() {
     { href: "/admin/moderation", label: "Moderation", line: "Chat reports, mutes and bans, and the log of admin actions.", show: isAdmin },
     { href: "/admin/announcements", label: "Announcements", line: "Popups visitors see once: write, schedule and retire them.", show: isAdmin },
     { href: "/admin/exchange", label: "Exchange review", line: "Lopsided card sales and trades involving new accounts.", show: isAdmin },
-    { href: "/admin/analytics", label: "Analytics", line: "Visitors, page views, top pages and referrers from Umami, for both sites.", show: isAdmin },
+    { href: "/admin/analytics", label: "Analytics", line: "Sign-ups, active players, retention, referrals and visitors from our own data, plus Umami for both sites.", show: isAdmin },
   ].filter((tool) => tool.show);
 
   return (

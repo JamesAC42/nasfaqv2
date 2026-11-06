@@ -294,7 +294,7 @@ app.use(async (req, _res, next) => {
 app.use(blockSuspendedWrites);
 // Every signed-in write counts against 60 a minute (rateLimit.writeLimit), also before any body is
 // parsed. Signing out, and what the browser sends by itself (article view counts, CSP reports), stay out.
-app.use("/api", writeLimit({ skip: [/^\/auth\/logout$/, /^\/articles\/[^/]+\/view$/, /^\/site\/csp-report$/] }));
+app.use("/api", writeLimit({ skip: [/^\/auth\/logout$/, /^\/articles\/[^/]+\/view$/, /^\/site\/csp-report$/, /^\/site\/here$/] }));
 
 // Bodies are parsed after the session lookup, so the 25 MB allowance (images uploaded as data URLs
 // in the admin tools) only goes to the people who may upload; anyone else is turned away before the
@@ -327,6 +327,7 @@ api.use("/prediction-markets", predictionMarketsRoutes);
 api.use("/profiles", profileRoutes);
 api.use("/v1-link", v1LinkRoutes);
 api.use("/notifications", notificationRoutes);
+api.use("/referrals", require("./routes/referrals"));
 api.use("/stats", statsRoutes);
 api.use("/site", siteRoutes);
 api.use("/admin/assets", adminAssetsRoutes);
@@ -988,6 +989,9 @@ async function main() {
     stoppers.push(require("./services/ipo").startIpoScheduler(pool, console, redis));
     // Moves chat past the visible window to the archive table (CHAT_ARCHIVE_ENABLED=false to stop it).
     stoppers.push(require("./services/chatArchive").startChatArchiveScheduler(pool, console, redis));
+    // Pays referral rewards after a new player's first fill, and deletes visit rows past retention
+    // (services/referrals.js; REFERRALS_ENABLED=false to stop it).
+    stoppers.push(require("./services/referrals").startReferralScheduler(pool, console, redis));
   }
   // Turned off (PREDICTION_MARKET_SCHEDULER_ENABLED=false) it only reports Off, from the scheduler pod.
   stoppers.push(startPredictionsScheduler(pool, console, redis));
