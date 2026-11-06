@@ -6,6 +6,8 @@ const gamesInventory = require("../services/games/inventory");
 const gamesSessions = require("../services/games/sessions");
 const cardGacha = require("../services/games/cardGacha");
 const exchange = require("../services/games/exchange");
+const moments = require("../services/games/moments");
+const dealers = require("../services/games/dealers");
 const { requireUserId, requireVerifiedUserId } = require("../userContext");
 const { rateLimit, byUser } = require("../rateLimit");
 
@@ -76,6 +78,8 @@ const ERROR_STATUS = {
   not_an_auction: 409,
   bid_too_low: 409,
   trade_closed: 409,
+  // Share cards
+  moment_not_found: 404,
 };
 
 function sendGameError(res, next, error) {
@@ -504,6 +508,29 @@ router.get("/ticker-tap/leaderboard", async (req, res, next) => {
     res.json(result);
   } catch (error) {
     next(error);
+  }
+});
+
+// Today's blackjack dealers, one talent per table, the same for everyone until midnight ET.
+router.get("/dealers", async (req, res, next) => {
+  try {
+    const today = await dealers.blackjackDealers(req.ctx.pool);
+    res.set("Cache-Control", `public, max-age=${Math.max(5, Math.min(300, Math.floor(today.changes_in_ms / 1000)))}`);
+    res.json({ blackjack: today });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// A shareable moment (a settled blackjack hand, a card-pull batch) for the share card. Public:
+// everything in it was public when it happened.
+router.get("/moments/:kind/:id", async (req, res, next) => {
+  try {
+    const moment = await moments.getMoment(req.ctx.pool, req.params.kind, req.params.id);
+    res.set("Cache-Control", "public, max-age=300");
+    res.json({ moment });
+  } catch (error) {
+    sendGameError(res, next, error);
   }
 });
 

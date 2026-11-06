@@ -14,6 +14,28 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-11-05",
+    title: "Today's dealers, and sharing your best hands and pulls",
+    changes: [
+      {
+        kind: "new",
+        text: "Every blackjack table has a dealer of the day: a different talent at each table, the same for everyone, changing at midnight ET. They sit next to the dealer's cards and react to the round, and the tables list shows who's dealing where.",
+      },
+      {
+        kind: "new",
+        text: "A Share button on your blackjack result and on a card pull's summary. It makes a picture of the moment: your hand and that table's dealer reacting to it, or your best card with its talent, plus your name and holo.nasfaq.biz. Copy it, save it or post it to X.",
+      },
+      {
+        kind: "new",
+        text: "Every shared moment gets its own link. It opens a page with the picture and a way into the game, and it shows the picture as a preview in Discord and on X.",
+      },
+      {
+        kind: "new",
+        text: "Hands you play at a blackjack table can still be shared from Last rounds after the next one starts, until you leave the page.",
+      },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "Chat window fixes",
     changes: [
       {
