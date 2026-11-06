@@ -29,11 +29,13 @@ import { useMarketStore } from "@/app/stores/market-store";
 import { useTradeStore } from "@/app/stores/trade-store";
 import styles from "@/app/components/chat/chat.module.scss";
 
-type Page = { messages: Array<Record<string, unknown>>; has_more: boolean; next_cursor: string | null; history_limited: boolean; visible_days: number | null; minimum_messages?: number | null };
+type Page = { channel?: Record<string, unknown>; messages: Array<Record<string, unknown>>; has_more: boolean; next_cursor: string | null; history_limited: boolean; visible_days: number | null; minimum_messages?: number | null };
 type Worth = { rank: number; total_equity: number };
 
 const PINS_KEY = "nasfaq.chat.pinned_channels";
 const GROUP_MS = 5 * 60_000;
+/** Pages of 50 a reconnect fetches to close the gap before giving up and starting the room over. */
+const CATCH_UP_PAGES = 5;
 
 function readPins(): string[] {
   try {
@@ -58,6 +60,12 @@ function upsert(list: ChatMessage[], message: ChatMessage) {
   const next = [...list];
   next[index] = message;
   return next;
+}
+
+function mergeMessages(list: ChatMessage[], incoming: ChatMessage[]) {
+  const byId = new Map(list.map((message) => [message.id, message]));
+  for (const message of incoming) byId.set(message.id, message);
+  return [...byId.values()].sort((a, b) => a.id - b.id);
 }
 
 const clock = (value: string) => new Date(value).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -117,11 +125,16 @@ export function ChatApp() {
   const stickToBottom = useRef(false);
   const olderBusy = useRef(false);
   const atBottomRef = useRef(true);
+  const messagesRef = useRef<ChatMessage[]>([]);
+  /** Bumped whenever the list is replaced rather than added to, so a page fetched for the old list is dropped. */
+  const listGen = useRef(0);
+  const [reloads, setReloads] = useState(0);
 
   const rooms = useMemo(() => buildRooms(channels, assets), [assets, channels]);
   const room = useMemo(() => rooms.find((entry) => entry.key === activeKey) ?? rooms[0] ?? null, [activeKey, rooms]);
   const roomKey = room?.key ?? null;
   activeRef.current = roomKey;
+  messagesRef.current = messages;
   const shown = useMemo(() => (roomKey && roomKey === loadedKey ? messages : []), [loadedKey, messages, roomKey]);
 
   // Rooms, emoji and pins.
@@ -195,6 +208,7 @@ export function ChatApp() {
         if (cancelled) return;
         const list = (page.messages || []).map(normalizeChatMessage);
         loadedRef.current = roomKey;
+        listGen.current += 1;
         stickToBottom.current = true;
         setMessages(list);
         setLoadedKey(roomKey);
@@ -207,6 +221,7 @@ export function ChatApp() {
       .catch((reason) => {
         if (cancelled) return;
         loadedRef.current = roomKey;
+        listGen.current += 1;
         setLoadedKey(roomKey);
         setMessages([]);
         setMessagesError(String((reason as Error).message || reason));
@@ -215,7 +230,8 @@ export function ChatApp() {
     return () => {
       cancelled = true;
     };
-  }, [markRead, roomKey]);
+    // reloads: a reconnect while this load was in flight asks for it again (see catchUp).
+  }, [markRead, roomKey, reloads]);
 
   // Net worth badges for anyone who posted.
   useEffect(() => {
@@ -282,8 +298,11 @@ export function ChatApp() {
     setLoadingOlder(true);
     const height = el?.scrollHeight ?? 0;
     const top = el?.scrollTop ?? 0;
+    const gen = listGen.current;
     try {
       const page = await apiFetch<Page>(`/api/chat/channels/${encodeURIComponent(roomKey)}/messages?limit=50&before=${encodeURIComponent(cursor)}`);
+      // The list started over meanwhile (another room, or a reconnect after a long gap): this page no longer joins on.
+      if (gen !== listGen.current) return;
       const older = (page.messages || []).map(normalizeChatMessage);
       setMessages((current) => {
         const known = new Set(current.map((item) => item.id));
@@ -355,6 +374,88 @@ export function ChatApp() {
       }),
     [markRead, user],
   );
+
+  // The socket dropped and came back: fetch what was said while it was gone and add it on, keeping the
+  // older pages already loaded and the reader's place. After a long gap (more than CATCH_UP_PAGES
+  // pages missed) the room starts over from its newest page, as a reload would.
+  const catchUp = useCallback(async () => {
+    const key = activeRef.current;
+    if (!key) return;
+    if (loadedRef.current !== key) {
+      // The room is still loading, and that request may have gone out before the drop.
+      setReloads((count) => count + 1);
+      return;
+    }
+    const gen = listGen.current;
+    const newestKnown = messagesRef.current[messagesRef.current.length - 1]?.id ?? 0;
+    try {
+      let fetched: ChatMessage[] = [];
+      let first: Page | null = null;
+      let page: Page | null = null;
+      let before: string | null = null;
+      let joined = false;
+      for (let count = 0; count < CATCH_UP_PAGES; count += 1) {
+        const query: string = before ? `&before=${encodeURIComponent(before)}` : "";
+        page = await apiFetch<Page>(`/api/chat/channels/${encodeURIComponent(key)}/messages?limit=50${query}`);
+        if (gen !== listGen.current || activeRef.current !== key) return;
+        first ??= page;
+        const list = (page.messages || []).map(normalizeChatMessage);
+        fetched = [...list, ...fetched];
+        // Joined: this reaches back to what we had, or to the start of the room.
+        joined = Boolean(newestKnown) && (!page.has_more || !list.length || list[0].id <= newestKnown);
+        before = page.next_cursor;
+        if (joined || !newestKnown || !before) break;
+      }
+      if (!page || !first) return;
+
+      const newest = fetched[fetched.length - 1];
+      const highest = newest?.id ?? 0;
+      if (!joined) {
+        listGen.current += 1;
+        stickToBottom.current = true;
+        // Anything the socket brought after these pages were read stays.
+        setMessages((current) => [...fetched, ...current.filter((message) => message.id > highest)]);
+        setHasMore(Boolean(page.has_more));
+        setCursor(page.next_cursor || null);
+        setHistory({ limited: Boolean(page.history_limited), days: page.visible_days ?? null, minimum: page.minimum_messages ?? null });
+        setMessagesError(null);
+        setUnseen(0);
+      } else {
+        // The pages hold every live message from `lowest` up, so one of ours in that range that's missing
+        // was deleted or removed while the socket was down.
+        const ids = new Set(fetched.map((message) => message.id));
+        const lowest = page.has_more ? (fetched[0]?.id ?? 0) : 0;
+        if (atBottomRef.current) stickToBottom.current = true;
+        else {
+          const have = new Set(messagesRef.current.map((message) => message.id));
+          const unseenCount = fetched.filter((message) => !have.has(message.id) && message.status === "active" && !message.is_mine).length;
+          if (unseenCount) setUnseen((count) => count + unseenCount);
+        }
+        setMessages((current) =>
+          mergeMessages(
+            current.filter((message) => message.id < lowest || message.id > highest || ids.has(message.id) || message.status !== "active"),
+            fetched,
+          ),
+        );
+      }
+      if (first.channel) {
+        const fresh = normalizeChatChannel(first.channel);
+        setChannels((current) => current.map((channel) => (channel.channel_key === key ? { ...fresh, unread_count: 0 } : channel)));
+      }
+      if (newest && newest.id > newestKnown) markRead(key, newest.id);
+    } catch {
+      // The next reconnect tries again.
+    }
+  }, [markRead]);
+
+  // Not on the first connection: loading the room already fetched its newest page.
+  const socketSeen = useRef<"never" | "open" | "lost">("never");
+  useEffect(() => {
+    if (socket === "open") {
+      if (socketSeen.current === "lost") void catchUp();
+      socketSeen.current = "open";
+    } else if (socketSeen.current === "open") socketSeen.current = "lost";
+  }, [catchUp, socket]);
 
   const blockedReason = postingBlockedReason(room?.channel ?? null, user);
   const canPost = Boolean(room && user?.email_verified && !blockedReason);
