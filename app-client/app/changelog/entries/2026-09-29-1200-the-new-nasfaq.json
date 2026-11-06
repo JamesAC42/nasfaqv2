@@ -1,0 +1,25 @@
+{
+  "title": "The new NASFAQ",
+  "changes": [
+    {
+      "kind": "new",
+      "text": "A redesigned site, with the Wire as the front page: headlines written from real channel and market numbers."
+    },
+    {
+      "kind": "new",
+      "text": "New stock pages with channel charts, supply, and each week's dividend review."
+    },
+    {
+      "kind": "new",
+      "text": "Saturday dividend reviews: holders are paid, or charged, on each channel's week, and max shares reset."
+    },
+    {
+      "kind": "new",
+      "text": "Games: talent cards and a collection, card duels, High-Low, multiplayer blackjack, the capsule machine, and a card exchange."
+    },
+    {
+      "kind": "new",
+      "text": "Prediction markets, notifications, profile banners and portfolio themes."
+    }
+  ]
+}

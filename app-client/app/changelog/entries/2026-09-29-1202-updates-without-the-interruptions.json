@@ -1,0 +1,17 @@
+{
+  "title": "Updates without the interruptions",
+  "changes": [
+    {
+      "kind": "new",
+      "text": "Updates don't cut games off anymore. While one goes out, new games wait a few minutes and the ones in play finish first."
+    },
+    {
+      "kind": "new",
+      "text": "When a new version is out, a bar at the top offers a refresh. Tabs you aren't looking at update on their own."
+    },
+    {
+      "kind": "new",
+      "text": "This page: what changed in each update."
+    }
+  ]
+}

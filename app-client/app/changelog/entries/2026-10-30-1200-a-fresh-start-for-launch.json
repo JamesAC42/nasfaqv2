@@ -1,0 +1,21 @@
+{
+  "title": "A fresh start for launch",
+  "changes": [
+    {
+      "kind": "improved",
+      "text": "Everyone starts again on an even footing: stocks, Cash, cards, cosmetics, prizes, predictions, achievements and notifications from the playtest were reset, and chat and comments were cleared. You get the same starting Cash and credit as a brand-new account."
+    },
+    {
+      "kind": "improved",
+      "text": "Your account, username, profile, oshi and friends are just as they were."
+    },
+    {
+      "kind": "improved",
+      "text": "Stock prices were rebuilt from each talent's YouTube history, without the playtest's trades. The upcoming IPO is still on."
+    },
+    {
+      "kind": "fixed",
+      "text": "Sign-up, About and How to play now say what you start with: $10,000 cash for stocks and $100,000 Credit for games, predictions and fees. Your profile measures your all-time change, and draws its start line, from that $110,000."
+    }
+  ]
+}

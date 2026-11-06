@@ -1,0 +1,9 @@
+{
+  "title": "Profile color by hex",
+  "changes": [
+    {
+      "kind": "fixed",
+      "text": "Typing a profile color's hex code in capitals (007FAB) set the wrong color. Edit profile has its own hex box now, next to the swatch: any case, with or without #."
+    }
+  ]
+}

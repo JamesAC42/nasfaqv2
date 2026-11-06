@@ -1,0 +1,9 @@
+{
+  "title": "Who's around",
+  "changes": [
+    {
+      "kind": "new",
+      "text": "The front page shows how many people are on the site right now."
+    }
+  ]
+}

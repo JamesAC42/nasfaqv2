@@ -1,0 +1,9 @@
+{
+  "title": "Coin fix",
+  "changes": [
+    {
+      "kind": "fixed",
+      "text": "On Firefox, the spinning coin on a stock's order ticket could smear into a long streak while you scrolled. It stays a coin now."
+    }
+  ]
+}

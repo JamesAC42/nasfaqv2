@@ -1,0 +1,13 @@
+{
+  "title": "Launch day fixes",
+  "changes": [
+    {
+      "kind": "fixed",
+      "text": "Stock pages wouldn't load for a while after launch."
+    },
+    {
+      "kind": "fixed",
+      "text": "The Wire's mood of /vt/ wasn't reading posts. It is now, and it says how many it hasn't read yet."
+    }
+  ]
+}

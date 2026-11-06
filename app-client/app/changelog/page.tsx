@@ -8,6 +8,9 @@ export const metadata: Metadata = {
   description: "What changed on NASFAQ in each update: new features, improvements and fixes.",
 };
 
+// Built once per release: app/lib/changelog.ts reads the entries folder during the build.
+export const dynamic = "force-static";
+
 const DISCORD = "https://discord.gg/Bw4S6EbBNW";
 const KIND_LABEL: Record<ChangeKind, string> = { new: "New", improved: "Better", fixed: "Fixed" };
 

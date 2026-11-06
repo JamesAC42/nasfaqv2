@@ -1,0 +1,9 @@
+{
+  "title": "Tell us what's broken",
+  "changes": [
+    {
+      "kind": "new",
+      "text": "\"Report a bug\" at the bottom of every page sends what went wrong straight to us."
+    }
+  ]
+}

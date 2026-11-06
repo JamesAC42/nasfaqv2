@@ -1,0 +1,17 @@
+{
+  "title": "Tidier pages",
+  "changes": [
+    {
+      "kind": "fixed",
+      "text": "Other players' profiles said \"All cash, no bags\" even when they held stocks. They show how much is in stocks now (which stocks stays private)."
+    },
+    {
+      "kind": "fixed",
+      "text": "Cards on the exchange no longer poke out of their listing."
+    },
+    {
+      "kind": "fixed",
+      "text": "On phones, the price tags at the top of How to play fit in their boxes."
+    }
+  ]
+}

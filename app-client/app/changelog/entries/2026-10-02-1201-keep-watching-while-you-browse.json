@@ -1,0 +1,13 @@
+{
+  "title": "Keep watching while you browse",
+  "changes": [
+    {
+      "kind": "new",
+      "text": "A stream you're watching keeps playing when you close its panel (with Miniplayer, Esc, Back, or a click outside it). It shrinks into a miniplayer that follows you around the site, and you can drag it anywhere. ⤢ opens the panel again; ✕ stops it."
+    },
+    {
+      "kind": "fixed",
+      "text": "A stream panel opened from a shared link wouldn't close."
+    }
+  ]
+}

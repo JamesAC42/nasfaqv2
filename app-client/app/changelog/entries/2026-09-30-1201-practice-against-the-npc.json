@@ -1,0 +1,9 @@
+{
+  "title": "Practice against the NPC",
+  "changes": [
+    {
+      "kind": "new",
+      "text": "Oshi Card Duel and High-low have a free practice mode: play the NPC any time, no stake and nothing recorded."
+    }
+  ]
+}

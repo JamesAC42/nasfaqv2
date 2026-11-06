@@ -1,0 +1,9 @@
+{
+  "title": "Chat window fixes",
+  "changes": [
+    {
+      "kind": "fixed",
+      "text": "Stickers in the floating chat window no longer stretch across the whole window and go blurry. They're half its width now, and sharp."
+    }
+  ]
+}
