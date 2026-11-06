@@ -1,0 +1,70 @@
+@use "../../../styles/mixins" as *;
+
+.layout {
+  display: grid;
+  gap: 1rem;
+  max-width: 60rem;
+}
+
+.card {
+  margin: 0;
+
+  img {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1200 / 630;
+    border: 1px solid var(--rule-2);
+    background: #0a0c11;
+  }
+
+  figcaption {
+    margin-top: 0.5rem;
+    color: var(--dim);
+    font-size: 0.875rem;
+
+    time {
+      color: var(--faint, var(--dim));
+    }
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.play {
+  @include button-primary;
+  text-decoration: none;
+}
+
+// The Share button's own style is for dark game surfaces; here it sits on the page.
+.share {
+  border-color: var(--rule-2);
+  background: none;
+  color: var(--text);
+
+  &:hover:not(:disabled) {
+    border-color: var(--text);
+    background: none;
+  }
+}
+
+.secondary {
+  @include button-secondary;
+  text-decoration: none;
+}
+
+.pitch {
+  margin: 0;
+  color: var(--dim);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.missing {
+  color: var(--dim);
+}

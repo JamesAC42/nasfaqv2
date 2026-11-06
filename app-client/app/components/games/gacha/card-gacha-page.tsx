@@ -10,6 +10,7 @@ import { CardBack, TalentCard } from "@/app/components/games/cards/talent-card";
 import { PityBar, PullButton, ShardGlyph, fmtCountdown, fmtLeft } from "@/app/components/games/gacha/gacha-parts";
 import { PullFeed } from "@/app/components/games/gacha/pull-feed";
 import { RevealStage, type RevealItem, type RevealStat } from "@/app/components/games/gacha/reveal-stage";
+import { ShareMoment } from "@/app/components/games/share/share-moment";
 import { GamesFrame, SignInToPlay, useGamesWallet } from "@/app/components/games/shell/games-frame";
 import { artId } from "@/app/lib/art-manifest";
 import { fetchBanners, pullCards } from "@/app/lib/games/api";
@@ -167,6 +168,9 @@ export function CardGachaPage() {
     return symbols.length ? { count: result!.cards.filter((card) => card.was_new).length, href: symbols.length === 1 ? `/games/cards/gallery/${symbols[0]}` : "/games/cards/gallery" } : null;
   }, [result]);
 
+  // The pull's best card leads its share card (highest rarity, first of a tie, as the server picks it).
+  const shareBest = useMemo(() => (result?.cards ?? []).reduce<PulledCard | null>((top, card) => (!top || rarityRank(card.rarity) > rarityRank(top.rarity) ? card : top), null), [result]);
+
   const againCount = (result?.cards.length === 1 ? 1 : 10) as 1 | 10;
   const againCost = againCount === 1 ? costOne : costTen;
 
@@ -258,11 +262,21 @@ export function CardGachaPage() {
           setError(null);
         }}
         extra={
-          newArt ? (
-            <Link href={newArt.href} className={styles.newArt}>
-              {newArt.count === 1 ? "New art unlocked" : `${newArt.count} new illustrations`} in the gallery →
-            </Link>
-          ) : null
+          <>
+            {result && shareBest ? (
+              <ShareMoment
+                kind="cards"
+                id={result.batch_id}
+                text={`Pulled ${shareBest.name} ${shareBest.rarity}${result.cards.length > 1 ? ` in a ${result.cards.length}-pull` : ""} on NASFAQ #hololive`}
+                label={isHighRarity(shareBest.rarity) ? "Share this pull" : "Share"}
+              />
+            ) : null}
+            {newArt ? (
+              <Link href={newArt.href} className={styles.newArt}>
+                {newArt.count === 1 ? "New art unlocked" : `${newArt.count} new illustrations`} in the gallery →
+              </Link>
+            ) : null}
+          </>
         }
       />
     </GamesFrame>

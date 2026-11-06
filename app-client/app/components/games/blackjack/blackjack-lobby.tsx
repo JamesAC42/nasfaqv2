@@ -14,6 +14,8 @@ import { useAuth } from "@/app/providers/auth-provider";
 import { Chip } from "@/app/components/games/blackjack/bj-parts";
 import { HOUSE_RULES, chipsFor } from "@/app/components/games/blackjack/bj-utils";
 import { SceneArt } from "@/app/components/common/scene-art";
+import { LobbyDealer } from "@/app/components/games/blackjack/bj-dealer";
+import { useBlackjackDealers } from "@/app/lib/games/dealers";
 import styles from "@/app/components/games/blackjack/blackjack-lobby.module.scss";
 
 type LobbyPayload = { type: "lobby"; game: "blackjack"; tables: BlackjackLobbyRow[] };
@@ -44,6 +46,7 @@ export function BlackjackLobbyPage() {
   const channel = "lobby:blackjack";
   const { user } = useAuth();
   const connected = useGamesConnected();
+  const dealers = useBlackjackDealers();
   const router = useRouter();
 
   const [seed, setSeed] = useState<LobbyPayload | null>(null);
@@ -106,6 +109,7 @@ export function BlackjackLobbyPage() {
       <div className={styles.tables}>
         {(tables ?? []).map((table) => {
           const phase = PHASE[table.phase];
+          const dealer = dealers.find((entry) => entry.table === table.key && entry.symbol);
           const full = table.seated >= table.seats;
           return (
             <article key={table.key} className={styles.tile} data-key={table.key}>
@@ -145,6 +149,7 @@ export function BlackjackLobbyPage() {
                   {fmtNumber(table.max_bet, "$")}
                 </p>
                 <p className={styles.flavor}>{FLAVOR[table.key] ?? "Five seats, one dealer."}</p>
+                {dealer ? <LobbyDealer dealer={dealer} /> : null}
                 <div className={styles.buttons}>
                   {user ? (
                     <button type="button" className={styles.sit} onClick={() => void sit(table.key)} disabled={full || busyKey !== null}>
