@@ -11,7 +11,7 @@ const visits = require("../src/services/visits");
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
-const settings = { cash: 1000, credit: 10000, weeklyCap: 3, windowDays: 30, minAgeHours: 72 };
+const settings = { cash: 250, credit: 2500, weeklyCap: 3, windowDays: 30, minAgeHours: 72 };
 const now = new Date("2026-11-06T12:00:00Z");
 const ago = (ms) => new Date(now.getTime() - ms).toISOString();
 const player = (id, overrides = {}) => ({ id, created_at: ago(30 * DAY), email_verified: true, suspended: false, ...overrides });
@@ -305,7 +305,7 @@ test("referrals, visits and the admin numbers, end to end", { skip: !databaseUrl
     code = me.body.code;
     assert.match(code, /^[a-z2-9]{8}$/);
     assert.equal(me.body.path, `/?ref=${code}`);
-    assert.deepEqual(me.body.settings, { cash: 1000, credit: 10000, weekly_cap: 5, window_days: 30, min_age_hours: referrals.referralSettings().minAgeHours });
+    assert.deepEqual(me.body.settings, { cash: 250, credit: 2500, weekly_cap: 3, window_days: 30, min_age_hours: referrals.referralSettings().minAgeHours });
     assert.equal((await call("GET", "/api/referrals/me", { cookie: sharer })).body.code, code, "the same code every time");
     assert.equal((await call("GET", "/api/referrals/me")).status, 401);
     const invite = await call("GET", `/api/referrals/invite/${code.toUpperCase()}`);
@@ -350,19 +350,19 @@ test("referrals, visits and the admin numbers, end to end", { skip: !databaseUrl
     assert.ok(referral.referee_paid_at && referral.referrer_paid_at);
     const after = { friend: await wallet(friend.id), sharer: await wallet(sharerId) };
     // A player without a cash row yet gets one (with the starting grant) first.
-    assert.deepEqual(after.friend, { cash: (before.friend?.cash ?? 10000) + 1000, credit: (before.friend?.credit ?? 100000) + 10000 });
-    assert.deepEqual(after.sharer, { cash: (before.sharer?.cash ?? 10000) + 1000, credit: (before.sharer?.credit ?? 100000) + 10000 });
+    assert.deepEqual(after.friend, { cash: (before.friend?.cash ?? 10000) + 250, credit: (before.friend?.credit ?? 100000) + 2500 });
+    assert.deepEqual(after.sharer, { cash: (before.sharer?.cash ?? 10000) + 250, credit: (before.sharer?.credit ?? 100000) + 2500 });
     const { rows: ledger } = await pool.query(
       `SELECT user_id, cash_delta, credit_delta FROM market.ledger_entries WHERE entry_type = 'referral_reward' AND reference_type = 'referral' AND reference_id = $1 ORDER BY user_id`,
       [referral.id]
     );
     assert.deepEqual(
       ledger.map((row) => [Number(row.user_id), Number(row.cash_delta), Number(row.credit_delta)]),
-      [sharerId, friend.id].sort((a, b) => a - b).map((id) => [id, 1000, 10000])
+      [sharerId, friend.id].sort((a, b) => a - b).map((id) => [id, 250, 2500])
     );
     const { rows: notes } = await pool.query(`SELECT user_id, title FROM market.notifications WHERE kind = 'referral' ORDER BY user_id`);
     assert.equal(notes.length, 2);
-    assert.ok(notes.every((note) => note.title.includes("$1,000 and 10,000 Credit")));
+    assert.ok(notes.every((note) => note.title.includes("$250 and 2,500 Credit")));
     // Settling again pays nothing more.
     assert.deepEqual(await settle(), []);
     assert.equal((await pool.query(`SELECT count(*)::int AS n FROM market.ledger_entries WHERE entry_type = 'referral_reward'`)).rows[0].n, 2);
@@ -413,7 +413,7 @@ test("referrals, visits and the admin numbers, end to end", { skip: !databaseUrl
     assert.equal((await referralOf(third.id)).referrer_status, "paid");
     const capped = await referralOf(fourth.id);
     assert.equal(capped.status, "paid", "the new player's share isn't capped");
-    assert.equal(Number(capped.referee_cash), 1000);
+    assert.equal(Number(capped.referee_cash), 250);
     assert.equal(capped.referrer_status, "waiting");
     assert.equal(capped.referrer_reason, "weekly_cap");
     assert.equal(Number(capped.referrer_cash), 0);
@@ -463,7 +463,7 @@ test("referrals, visits and the admin numbers, end to end", { skip: !databaseUrl
     const me = (await call("GET", "/api/referrals/me", { cookie: sharer })).body;
     assert.equal(me.totals.joined, 8);
     assert.equal(me.totals.paid, 4);
-    assert.equal(me.totals.cash, 4000);
+    assert.equal(me.totals.cash, 1000);
     const byName = new Map(me.joined.map((row) => [row.username, row]));
     assert.equal(byName.get("Friend").via, "blackjack");
     assert.equal(byName.get("Friend").your_share, "paid");
@@ -471,7 +471,7 @@ test("referrals, visits and the admin numbers, end to end", { skip: !databaseUrl
     assert.equal(byName.get("Idler").status, "expired");
     assert.ok(!JSON.stringify(me).includes("example.test"), "no emails");
     const invited = (await call("GET", "/api/referrals/me", { cookie: friend.cookie })).body.invited_by;
-    assert.deepEqual({ username: invited.username, status: invited.status, cash: invited.cash, credit: invited.credit }, { username: "Sharer", status: "paid", cash: 1000, credit: 10000 });
+    assert.deepEqual({ username: invited.username, status: invited.status, cash: invited.cash, credit: invited.credit }, { username: "Sharer", status: "paid", cash: 250, credit: 2500 });
   });
 
   await t.test("signed-out visits are counted without an address; signed-in and bots aren't", async () => {
@@ -525,7 +525,7 @@ test("referrals, visits and the admin numbers, end to end", { skip: !databaseUrl
     assert.equal(vias.get("link").signups, signups - 3);
     assert.equal(data.referrals.top[0].username, "Sharer");
     assert.ok(data.referrals.reasons.some((row) => row.label === "shared_ip" && row.count === 3));
-    assert.equal(data.referrals.paid_out.cash, (5 + 4 + 1) * 1000, "5 new players paid, 4 Sharer shares, 1 Youngster share");
+    assert.equal(data.referrals.paid_out.cash, (5 + 4 + 1) * 250, "5 new players paid, 4 Sharer shares, 1 Youngster share");
     const games = new Map(data.activity.games.map((row) => [row.key, row]));
     assert.equal(games.get("stock_fills").events, 8);
     assert.equal(data.activity.stocks[0].symbol, "PEK");

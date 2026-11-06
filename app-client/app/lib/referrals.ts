@@ -110,7 +110,7 @@ export function fetchReferralSummary(userId: number, fresh = false) {
 /** The full link for a code on this site. */
 export const referralLink = (origin: string, code: string) => `${origin}/?ref=${encodeURIComponent(code)}`;
 
-/** "$1,000 and 10,000 Credit" */
+/** "$250 and 2,500 Credit" */
 export function rewardText(settings: Pick<ReferralSettings, "cash" | "credit">) {
   const parts: string[] = [];
   if (settings.cash > 0) parts.push(`$${settings.cash.toLocaleString("en-US")}`);

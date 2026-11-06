@@ -1,8 +1,8 @@
 // Referral links. Every player has a link (holo.nasfaq.biz/?ref=<code>), and the share cards for
 // game moments carry it too. Someone who signs up through one is recorded in market.referrals.
 // When they get their first stock fill, both players are paid REFERRAL_REWARD_CASH and
-// REFERRAL_REWARD_CREDIT (default $1,000 and 10,000 Credit, a tenth of what a new account starts
-// with).
+// REFERRAL_REWARD_CREDIT (default $250 and 2,500 Credit). A sharer's own share is paid at most
+// REFERRAL_WEEKLY_CAP (default 3) times a week, so at most $8,250 of net worth a week.
 //
 // The same `ref` parameter also carries plain source tags (?ref=v1-email). A value that isn't
 // anyone's code is stored as the new account's signup_source, for counting on /admin/analytics.
@@ -50,9 +50,9 @@ const amount = (value, fallback) => {
 
 function referralSettings(env = process.env) {
   return {
-    cash: amount(env.REFERRAL_REWARD_CASH, 1000),
-    credit: amount(env.REFERRAL_REWARD_CREDIT, 10000),
-    weeklyCap: Math.floor(amount(env.REFERRAL_WEEKLY_CAP, 5)),
+    cash: amount(env.REFERRAL_REWARD_CASH, 250),
+    credit: amount(env.REFERRAL_REWARD_CREDIT, 2500),
+    weeklyCap: Math.floor(amount(env.REFERRAL_WEEKLY_CAP, 3)),
     windowDays: amount(env.REFERRAL_WINDOW_DAYS, 30),
     minAgeHours: MIN_ACCOUNT_AGE_HOURS,
   };
