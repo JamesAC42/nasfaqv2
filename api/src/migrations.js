@@ -1963,6 +1963,10 @@ async function applySchema(pool) {
     )
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS chat_user_mutes_muted_idx ON chat.user_mutes (muted_user_id)`);
+
+  // The first-days guide (services/firstDays.js) shows until this passes or the player closes it. Only
+  // accounts made after it shipped get a date (auth.createUser), so players already on v2 never see it.
+  await pool.query(`ALTER TABLE market.users ADD COLUMN IF NOT EXISTS first_days_until TIMESTAMPTZ NULL`);
 }
 
 module.exports = { applySchema };

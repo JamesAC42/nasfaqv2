@@ -1,5 +1,6 @@
 const express = require("express");
 const auth = require("../services/auth");
+const firstDays = require("../services/firstDays");
 const { requestIpHash } = require("../services/ipHash");
 const { verifyTurnstile } = require("../services/turnstile");
 
@@ -35,9 +36,31 @@ router.get("/me", async (req, res) => {
       can_resolve_prediction_markets: Boolean(req.ctx.user.can_resolve_prediction_markets),
       can_void_prediction_markets: Boolean(req.ctx.user.can_void_prediction_markets),
       created_at: req.ctx.user.created_at,
+      first_days_until: req.ctx.user.first_days_until || null,
       suspension: req.ctx.user.suspension || null,
     },
   });
+});
+
+// The first-days guide for new accounts (services/firstDays.js).
+router.get("/me/first-days", async (req, res, next) => {
+  try {
+    if (!req.ctx.user) return res.status(401).json({ error: "unauthenticated" });
+    res.set("Cache-Control", "no-store");
+    res.json(await firstDays.getFirstDays(req.ctx.pool, req.ctx.user.id));
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/me/first-days/dismiss", async (req, res, next) => {
+  try {
+    if (!req.ctx.user) return res.status(401).json({ error: "unauthenticated" });
+    await firstDays.dismissFirstDays(req.ctx.pool, req.ctx.user.id);
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
 });
 
 router.post("/register", rateLimit(byIp("register", 10, 3600)), async (req, res, next) => {

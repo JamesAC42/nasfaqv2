@@ -20,6 +20,8 @@ export type AuthUser = {
   can_resolve_prediction_markets: boolean;
   can_void_prediction_markets: boolean;
   created_at: string;
+  /** Set on accounts made since the first-days guide shipped; the guide shows until then. */
+  first_days_until?: string | null;
   suspension?: Suspension | null;
 };
 

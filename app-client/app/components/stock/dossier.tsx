@@ -14,7 +14,7 @@ import { ChannelSection, StreamsSection, SuperchatSection } from "@/app/componen
 import { BoardSection, HoldersSection, NewsSection } from "@/app/components/stock/community-sections";
 import { fmtBig, yen, type Rank } from "@/app/components/stock/format";
 import { useChannelStreams, useSuperchats } from "@/app/components/stock/use-stock-data";
-import { n2, TradeTicket } from "@/app/components/trade/trade-ticket";
+import { FEE_RATE, n2, TradeTicket } from "@/app/components/trade/trade-ticket";
 import { markSeries, unitLabel } from "@/app/lib/market-units";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct, toneOf } from "@/app/lib/time";
@@ -69,6 +69,38 @@ function useScrollSpy(ids: readonly string[]) {
     return () => observer.disconnect();
   }, [ids]);
   return active;
+}
+
+/**
+ * What selling the whole position right now would bring: the bid (the broker's price in a buyback)
+ * less the 1% fee, against what it cost. An estimate: the sell fills in the next batch, big ones slip.
+ */
+function SellNow({ asset, quantity, avgCost }: { asset: MarketAsset; quantity: number; avgCost: number | null }) {
+  const price = asset.trading_state === "buyback" && asset.buyback ? asset.buyback.price : asset.current_bid_price ?? asset.current_mid_price;
+  if (price === null || price === undefined || !Number.isFinite(price) || quantity <= 0) return null;
+  const gross = price * quantity;
+  const net = gross - gross * FEE_RATE;
+  const result = avgCost !== null && Number.isFinite(avgCost) ? net - avgCost * quantity : null;
+  return (
+    <div className={styles.sellNow}>
+      <dl className={styles.kv}>
+        <dt>If you sold it all now</dt>
+        <dd>{money(net)}</dd>
+        {result !== null ? (
+          <>
+            <dt>{result >= 0 ? "Profit" : "Loss"} after the fee</dt>
+            <dd className={styles[toneOf(result)]}>
+              {result >= 0 ? "+" : "−"}
+              {money(Math.abs(result))}
+            </dd>
+          </>
+        ) : null}
+      </dl>
+      <p>
+        At {n2(price)} a share less the 1% fee. Sells fill in the next batch, and big ones slip a little. <Link href="/how-to-play#when-to-sell">When should I sell?</Link>
+      </p>
+    </div>
+  );
 }
 
 export function Dossier({ symbol }: { symbol: string }) {
@@ -340,6 +372,7 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
                       <dt>Share of your book</dt>
                       <dd>{portfolio && portfolio.total_market_value > 0 ? `${((holding.market_value / portfolio.total_market_value) * 100).toFixed(1)}%` : "—"}</dd>
                     </dl>
+                    <SellNow asset={asset} quantity={holding.quantity} avgCost={holding.avg_cost_basis} />
                   </>
                 ) : (
                   <p className={styles.none}>You don&apos;t hold any {sym}.</p>

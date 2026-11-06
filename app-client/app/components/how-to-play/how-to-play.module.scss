@@ -1247,6 +1247,8 @@ $sticky-top: calc(var(--rail-height) + var(--tape-height) + env(safe-area-inset-
 
 .faqItem {
   border-bottom: 1px solid var(--rule);
+  // Linked answers (how-to-play#when-to-sell) clear the sticky bars like the sections do.
+  scroll-margin-top: calc(#{$sticky-top} + 3.25rem);
 
   summary {
     display: flex;
