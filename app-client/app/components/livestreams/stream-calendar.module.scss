@@ -341,8 +341,9 @@
 }
 
 .chip {
+  position: relative;
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto auto;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.35rem;
   min-width: 0;
@@ -403,6 +404,15 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+}
+
+// An open peak prediction: a small mark in the chip's corner, clear of the name.
+.chip > .betMark {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 0.55rem;
+  height: 0.55rem;
 }
 
 .chipPeak {
