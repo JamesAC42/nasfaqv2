@@ -8,6 +8,7 @@
 const crypto = require("node:crypto");
 const gamesWallet = require("../wallet");
 const siteState = require("../../siteState");
+const { profilePictureUrlSql } = require("../../../profilePictures");
 const hub = require("./hub");
 const reactions = require("./reactions");
 
@@ -110,6 +111,7 @@ function publicTable(table) {
             user_id: seat.user_id,
             username: seat.username,
             profile_color: seat.profile_color,
+            profile_picture_url: seat.profile_picture_url ?? null,
             bet: seat.bet,
             doubled: seat.doubled,
             hand: seat.hand,
@@ -172,9 +174,28 @@ async function sit({ userId, tableKey, seat }) {
     let index = Number.isInteger(Number(seat)) ? Number(seat) : table.seats.findIndex((entry) => !entry);
     if (index < 0 || index >= SEATS || table.seats[index]) index = table.seats.findIndex((entry) => !entry);
     if (index < 0) throw bjError("table_full");
-    const { rows } = await pool.query(`SELECT id, username, profile_color FROM market.users WHERE id = $1`, [userId]);
+    // The picture is read the same way as the top bar's (an upload's small size, or a card reaction), at sit-down.
+    const { rows } = await pool.query(
+      `SELECT u.id, u.username, u.profile_color, ${profilePictureUrlSql("small")} AS profile_picture_url
+       FROM market.users u
+       LEFT JOIN market.profile_pictures pp ON pp.id = u.profile_picture_id
+       WHERE u.id = $1`,
+      [userId]
+    );
     if (!rows[0]) throw bjError("unauthenticated");
-    table.seats[index] = { user_id: userId, username: rows[0].username, profile_color: rows[0].profile_color, bet: 0, doubled: false, hand: [], status: "waiting", outcome: null, payout: 0, idle_rounds: 0 };
+    table.seats[index] = {
+      user_id: userId,
+      username: rows[0].username,
+      profile_color: rows[0].profile_color,
+      profile_picture_url: rows[0].profile_picture_url || null,
+      bet: 0,
+      doubled: false,
+      hand: [],
+      status: "waiting",
+      outcome: null,
+      payout: 0,
+      idle_rounds: 0,
+    };
     publish(table);
     return publicTable(table);
   });

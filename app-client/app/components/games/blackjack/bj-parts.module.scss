@@ -281,6 +281,29 @@ $felt-line: rgba(190, 215, 255, 0.28);
   }
 }
 
+// The cards, then the hand's total and result, in an area of the same height on every seat. It
+// grows upward (more cards, a result that wraps to two lines), so the spot and name stay on the arc
+// whether the seat is empty, sitting out or mid-hand.
+.play {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  min-width: 0;
+  height: calc(78px + 0.35rem + 1.35rem);
+
+  > * {
+    flex: none;
+  }
+
+  @include phone {
+    gap: 0.25rem;
+    height: calc(48px + 0.25rem + 1.35rem);
+  }
+}
+
 .cards {
   display: flex;
   align-items: flex-end;
@@ -473,6 +496,12 @@ $felt-line: rgba(190, 215, 255, 0.28);
   gap: 0.3rem;
   min-width: 0;
   max-width: 100%;
+  // As tall as a player's picture, so "Seat 3" lines up with the names beside it.
+  min-height: 24px;
+
+  @include phone {
+    min-height: 18px;
+  }
 
   &[data-empty] {
     color: $felt-dim;

@@ -214,7 +214,7 @@ export function Seat({
   if (!seat) {
     return (
       <div className={styles.seat} data-empty="true">
-        <div className={styles.cards} />
+        <div className={styles.play} />
         {canSit ? (
           <button type="button" className={styles.spot} data-open="true" onClick={() => onSit(index)} disabled={sitting} aria-label={`Sit in seat ${index + 1}`}>
             <span>{sitting ? "…" : "Sit"}</span>
@@ -241,24 +241,26 @@ export function Seat({
 
   return (
     <div className={styles.seat} data-turn={isTurn || undefined} data-me={isMe || undefined} data-out={sittingOut || undefined} data-outcome={table.phase === "results" ? seat.outcome ?? undefined : undefined}>
-      <div className={styles.cards}>
-        {inHand ? <Hand cards={seat.hand} width={width} step={step} order={playerOrder} players={players} highlight={isTurn} stagger={dealing} /> : null}
-      </div>
-      <div className={styles.meta}>
-        {value ? (
-          <span className={styles.value} data-bust={total > 21 || undefined} aria-label={`Hand value ${value}`}>
-            {value}
+      <div className={styles.play}>
+        <div className={styles.cards}>
+          {inHand ? <Hand cards={seat.hand} width={width} step={step} order={playerOrder} players={players} highlight={isTurn} stagger={dealing} /> : null}
+        </div>
+        <div className={styles.meta}>
+          {value ? (
+            <span className={styles.value} data-bust={total > 21 || undefined} aria-label={`Hand value ${value}`}>
+              {value}
+            </span>
+          ) : null}
+          <span aria-live={isMe ? "polite" : undefined}>
+            <LiveStatus seat={seat} phase={table.phase} />
           </span>
-        ) : null}
-        <span aria-live={isMe ? "polite" : undefined}>
-          <LiveStatus seat={seat} phase={table.phase} />
-        </span>
+        </div>
       </div>
       <span className={styles.spot} data-bet={seat.bet > 0 || undefined}>
         {seat.bet > 0 ? <ChipStack amount={seat.bet} doubled={seat.doubled} size={compact ? 24 : 38} /> : <small>{sittingOut ? "Out" : table.phase === "betting" ? "…" : ""}</small>}
       </span>
       <span className={styles.who}>
-        <PlayerAvatar username={seat.username} color={seat.profile_color} size={compact ? 18 : 24} />
+        <PlayerAvatar username={seat.username} pictureUrl={seat.profile_picture_url} color={seat.profile_color} size={compact ? 18 : 24} />
         <span className={styles.name} title={seat.username}>
           {seat.username}
         </span>

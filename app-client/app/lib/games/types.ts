@@ -263,6 +263,7 @@ export type BlackjackSeat = {
   user_id: number | string;
   username: string;
   profile_color: string | null;
+  profile_picture_url?: string | null;
   bet: number;
   doubled: boolean;
   hand: BlackjackCard[];
