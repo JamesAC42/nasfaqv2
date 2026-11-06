@@ -1,17 +1,20 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { Oshimark } from "@/app/components/common/oshimark";
+import { FEE_RATE } from "@/app/components/trade/trade-ticket";
 import { getMarketClock } from "@/app/lib/market-clock";
 import { normalizeMarketHubTrade } from "@/app/lib/normalizers";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money } from "@/app/lib/time";
-import type { PortfolioOrder } from "@/app/lib/types";
+import type { MarketAsset, PortfolioOrder } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMotion } from "@/app/providers/motion-provider";
 import { useTheme } from "@/app/providers/theme-provider";
 import { onMarketEvent, useMarketStore } from "@/app/stores/market-store";
+import { inFirstDays, useFirstDaysStore } from "@/app/stores/first-days-store";
 import { useMomentStore, type FillMoment } from "@/app/stores/moment-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import { useTradeStore } from "@/app/stores/trade-store";
@@ -161,6 +164,8 @@ function useOwnFills() {
         });
       }
       if (!hidden) void useProfileStore.getState().refreshTradingState();
+      // A new player's first fill ticks "Buy your first shares" on the first-days card.
+      void useFirstDaysStore.getState().refresh();
     });
   }, [user]);
 }
@@ -194,8 +199,44 @@ function toSlides(fills: FillMoment[]): Slide[] {
 
 const AUTO_MS = 4200;
 
+/** True while a brand-new account hasn't seen its first tick: its buy fills explain what happens next. */
+function useLearning() {
+  const { user } = useAuth();
+  const eligible = inFirstDays(user);
+  const load = useFirstDaysStore((state) => state.load);
+  const learning = useFirstDaysStore((state) => Boolean(state.data?.active && !state.data.first_tick && state.userId === user?.id));
+  useEffect(() => {
+    if (user && eligible) void load(user.id);
+  }, [eligible, load, user]);
+  return eligible && learning;
+}
+
+/** In place of the greentext on a new player's buy: what the shares are worth, and what moves them next. */
+function WhatHappensNow({ fill, asset, tick, until, onLeave }: { fill: Slide; asset: MarketAsset | null; tick: string; until: string; onLeave: () => void }) {
+  const bid = asset?.current_bid_price ?? asset?.current_mid_price ?? null;
+  const worth = bid !== null && Number.isFinite(bid) ? bid * fill.quantity * (1 - FEE_RATE) : null;
+  return (
+    <div className={styles.next}>
+      <span className={styles.hdr}>
+        <b>What happens now</b>
+      </span>
+      <ul>
+        {worth !== null ? <li>Sold right now, these would bring about {money(worth)} (the bid, less the 1% fee).</li> : null}
+        <li>
+          The price moves whenever players trade, and at the {tick} tick in {until}, when it&apos;s pulled toward {fill.symbol}&apos;s hidden fair value.
+        </li>
+        <li>Hold through Saturday 00:00 ET: the fastest-growing channels pay their holders a dividend, the slowest charge a fee.</li>
+      </ul>
+      <Link href="/how-to-play#when-to-sell" onClick={onLeave}>
+        When should I sell? →
+      </Link>
+    </div>
+  );
+}
+
 export function FillMomentLayer() {
   useOwnFills();
+  const learning = useLearning();
   const fills = useMomentStore((state) => state.fills);
   const dismiss = useMomentStore((state) => state.dismissFill);
   const setFillPopups = useMomentStore((state) => state.setFillPopups);
@@ -256,6 +297,8 @@ export function FillMomentLayer() {
 
   if (!fill) return null;
 
+  const fillClock = getMarketClock(new Date(fill.at).getTime());
+  const untilTick = `${Math.floor(fillClock.secondsToNextTick / 3600)}h ${Math.floor((fillClock.secondsToNextTick % 3600) / 60)}m`;
   const buys = slides.filter((entry) => entry.side === "buy");
   const sells = slides.filter((entry) => entry.side === "sell");
   const spent = buys.reduce((sum, entry) => sum + entry.gross + entry.fee, 0);
@@ -406,7 +449,9 @@ export function FillMomentLayer() {
                 </>
               )}
             </dl>
-            {!onSummary ? (
+            {!onSummary && learning && buy ? (
+              <WhatHappensNow fill={fill} asset={asset} tick={fillClock.nextTick.label} until={untilTick} onLeave={dismiss} />
+            ) : !onSummary ? (
               <div className={styles.brag}>
                 <span className={styles.hdr}>
                   <b>Anonymous</b> No.{(Number(fill.id) || seed) % 100000000}

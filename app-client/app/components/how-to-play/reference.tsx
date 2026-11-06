@@ -76,12 +76,20 @@ function FaqArt() {
 }
 
 export function FaqSection() {
+  // Arriving at how-to-play#<id> (e.g. #when-to-sell) opens that answer.
+  const [target, setTarget] = useState<string | null>(null);
+  useEffect(() => {
+    const read = () => setTarget(window.location.hash.slice(1) || null);
+    read();
+    window.addEventListener("hashchange", read);
+    return () => window.removeEventListener("hashchange", read);
+  }, []);
   return (
     <Section id="faq" title="FAQ" lede={<p>The questions new players ask in chat every single day.</p>} links={[{ href: "/chat", label: "Still stuck? Ask the floor" }]}>
       <div className={styles.faqWrap}>
         <div className={styles.faq}>
           {FAQ.map((item) => (
-            <details key={item.q} className={styles.faqItem}>
+            <details key={item.q} id={item.id} className={styles.faqItem} open={item.id !== undefined && item.id === target ? true : undefined}>
               <summary>
                 <span>{item.q}</span>
                 <i aria-hidden="true" />

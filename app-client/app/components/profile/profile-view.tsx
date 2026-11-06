@@ -11,6 +11,7 @@ import { Oshimark } from "@/app/components/common/oshimark";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { SiteShell } from "@/app/components/layout/site-shell";
+import { FirstDaysCard } from "@/app/components/onboarding/first-days-card";
 import { PictureModal, SecurityModal, SettingsModal } from "@/app/components/profile/profile-modals";
 import {
   Achievements,
@@ -34,6 +35,7 @@ import type { PredictionPortfolioResponse, ProfileBundle } from "@/app/lib/types
 import { useAuth } from "@/app/providers/auth-provider";
 import { useTheme } from "@/app/providers/theme-provider";
 import { useMarketStore } from "@/app/stores/market-store";
+import { useFirstDaysStore } from "@/app/stores/first-days-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/profile/profile.module.scss";
 
@@ -81,6 +83,17 @@ export function ProfileView({ username }: { username?: string | null }) {
   }, [load, revision]);
 
   const isSelf = Boolean(bundle?.viewer_context.is_self);
+
+  // /profile?edit=1 (the first-days card's "Pick your oshi") opens your settings once, then drops the flag.
+  useEffect(() => {
+    if (!isSelf) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("edit") !== "1") return;
+    params.delete("edit");
+    const rest = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+    setModal("settings");
+  }, [isSelf]);
 
   useEffect(() => {
     if (!isSelf) {
@@ -277,6 +290,7 @@ export function ProfileView({ username }: { username?: string | null }) {
           </p>
         ) : null}
         {verify ? <VerificationRequiredNotice action="trade, post, comment, vote, or write articles" /> : null}
+        {isSelf ? <FirstDaysCard onPickOshi={() => setModal("settings")} verifyNotice={!verify} /> : null}
 
         <div className={styles.kstrip}>
           <div>
@@ -377,7 +391,10 @@ export function ProfileView({ username }: { username?: string | null }) {
             open={modal === "settings"}
             profile={profile}
             onClose={() => setModal(null)}
-            onSaved={(next) => setBundle(next)}
+            onSaved={(next) => {
+              setBundle(next);
+              void useFirstDaysStore.getState().refresh();
+            }}
             onSecurity={() => setModal("security")}
           />
           <SecurityModal open={modal === "security"} username={profile.username} onClose={() => setModal(null)} />

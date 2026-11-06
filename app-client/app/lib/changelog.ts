@@ -36,6 +36,28 @@ export const CHANGELOG: ChangelogEntry[] = [
   },
   {
     date: "2026-11-05",
+    title: "See who's playing, and a guide for your first days",
+    changes: [
+      {
+        kind: "new",
+        text: "The front page now shows what players did in the last 24 hours: trades, blackjack hands, card pulls and prediction bets, the newest of each with who did it and when, and a countdown to the next order batch. When it's quiet, it says so.",
+      },
+      {
+        kind: "new",
+        text: "New accounts get a Your first days card on the front page and their profile: pick your oshi, buy your first shares, hold through a tick, hold through Saturday's Dividend Review, and claim your 5 free cards. Each step ticks itself off when you've done it, and you can hide it any time.",
+      },
+      {
+        kind: "new",
+        text: "Your position on a stock's page now shows what selling it all right now would bring after the fee, and your profit or loss. How to play has a new answer: When should I sell?",
+      },
+      {
+        kind: "improved",
+        text: "While you're new, the fill card after a buy explains what happens next: what the shares are worth, when the next tick lands, and what Saturday's review does.",
+      },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "Chat from anywhere",
     changes: [
       {

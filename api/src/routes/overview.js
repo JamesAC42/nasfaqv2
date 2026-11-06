@@ -3,6 +3,7 @@ const db = require("../db");
 const articleDb = require("../articleDb");
 const wire = require("../services/wire");
 const chatter = require("../services/chatter");
+const activity = require("../services/activity");
 
 const { sendCachedJson } = require("../responseCache");
 
@@ -107,6 +108,15 @@ router.get("/chatter", async (req, res, next) => {
   try {
     res.set("cache-control", "public, max-age=60");
     res.json(await chatter.getSummary(req.ctx.pool));
+  } catch (e) {
+    next(e);
+  }
+});
+
+// The front page's live band: what players did in the last day, and the newest of each kind.
+router.get("/activity", async (req, res, next) => {
+  try {
+    await sendCachedJson(req, res, "overview:activity", { ttlSeconds: 30, memoMs: 5000, load: () => activity.getActivity(req.ctx.pool) });
   } catch (e) {
     next(e);
   }

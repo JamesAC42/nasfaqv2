@@ -135,7 +135,13 @@ export const GAMES: Game[] = ALL_GAMES.filter((game) => TICKER_TAP_ENABLED || ga
 
 export { GLOSSARY } from "@/app/lib/glossary";
 
-export const FAQ: ReadonlyArray<{ q: string; a: string }> = [
+/** `id` anchors an entry (how-to-play#<id>) and opens it when the page is reached that way. */
+export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
+  {
+    id: "when-to-sell",
+    q: "When should I sell?",
+    a: "Whenever you'd rather have the cash than the shares. The usual reasons: you're up and want to lock it in; the price has run above where you think the ticks will pull it (fair value follows the channel's views, subscribers and uploads); the channel is having a slow week, and Saturday's Dividend Review charges a share fee on the slowest growers; or you want the money for another talent. A sell fills in the next 10-minute batch at the bid, less the 1% fee, and counts toward your 180 shares a tick window. Buying back costs another 1%, so selling and rebuying often bleeds. Your position on a stock's page shows what selling right now would bring.",
+  },
   {
     q: "Is any of this real money?",
     a: "No. Everything on NASFAQ is play money. You can't deposit, withdraw or cash out, and nothing here is worth anything outside the site.",

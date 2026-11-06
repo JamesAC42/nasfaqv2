@@ -1819,6 +1819,28 @@
   }
 }
 
+// What selling the whole position now would bring, under the position's numbers.
+.sellNow {
+  margin-top: 0.6rem;
+  padding-top: 0.55rem;
+  border-top: 1px dashed var(--rule-2);
+
+  .kv {
+    margin-top: 0;
+  }
+
+  p {
+    margin: 0.4rem 0 0;
+    color: var(--dim);
+    font-size: 0.7rem;
+    line-height: 1.45;
+  }
+
+  a {
+    color: var(--blue);
+  }
+}
+
 .posBig {
   @include num;
   font-size: 1.375rem;
