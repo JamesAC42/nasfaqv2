@@ -4,7 +4,7 @@
 import type { ChibiPose } from "@/app/lib/art-manifest";
 import type { BlackjackTable } from "@/app/lib/games/types";
 
-/** The dealer art set (art-pipeline poses.dealers.json): `SYM/dealer/<state>`. */
+/** One picture per state: `SYM/dealer/<state>` once a talent has dealer art (none ships yet). */
 export type DealerState = "idle" | "shuffle" | "deal" | "reveal" | "house" | "bust" | "blackjack" | "push";
 
 /** Until a talent's dealer art exists, the reaction set stands in. */
