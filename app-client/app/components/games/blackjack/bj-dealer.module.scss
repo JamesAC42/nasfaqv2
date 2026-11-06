@@ -1,6 +1,6 @@
 @use "../../../styles/mixins" as *;
 
-// The felt is always dark (whatever the theme), so these colours are fixed like the table's.
+// The felt is always dark (whatever the theme), so these colors are fixed like the table's.
 $felt-ink: #e9f1ff;
 $felt-dim: rgba(214, 228, 255, 0.62);
 
@@ -62,7 +62,7 @@ $felt-dim: rgba(214, 228, 255, 0.62);
   }
 }
 
-// A round window onto the dealer, lit in their colour, the cutout standing on its bottom edge.
+// A round window onto the dealer, lit in their color, the cutout standing on its bottom edge.
 .portrait {
   position: relative;
   display: block;
@@ -147,7 +147,7 @@ $felt-dim: rgba(214, 228, 255, 0.62);
   white-space: nowrap;
 }
 
-// Lobby tile line (on the page, not the felt): theme colours.
+// Lobby tile line (on the page, not the felt): theme colors.
 .lobby {
   display: flex;
   align-items: center;

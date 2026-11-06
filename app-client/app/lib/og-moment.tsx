@@ -131,7 +131,7 @@ function FeltEdge({ height = 104 }: { height?: number }) {
   );
 }
 
-/** A faint dot screen behind the talent, in the talent's colour. */
+/** A faint dot screen behind the talent, in the talent's color. */
 function Halftone({ color, left, top, size }: { color: string; left: number; top: number; size: number }) {
   return (
     <div
