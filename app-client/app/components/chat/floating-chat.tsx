@@ -470,7 +470,7 @@ const Row = memo(function Row({ message, grouped, viewer, muted, options, onUpda
         ) : muted ? (
           <p className={styles.gone}>from a player you muted</p>
         ) : sticker ? (
-          <ReactionFace symbol={sticker.symbol} pose={sticker.pose} size={72} crop="full" className={styles.sticker} />
+          <ReactionFace symbol={sticker.symbol} pose={sticker.pose} size={208} crop="full" className={styles.sticker} />
         ) : (
           <RichText text={message.body} options={options} className={styles.text} />
         )}
