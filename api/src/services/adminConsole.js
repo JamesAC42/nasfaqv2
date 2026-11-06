@@ -14,6 +14,8 @@ const ROLE_FLAGS = [
   "can_approve_prediction_markets",
   "can_resolve_prediction_markets",
   "can_void_prediction_markets",
+  // Runs prediction pools: opens them without approval and resolves them (predictions-pools.md).
+  "is_bookie",
 ];
 
 /** Games whose "sessions" are really pulls; they're counted separately from rounds. */

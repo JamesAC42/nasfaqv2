@@ -19,6 +19,8 @@ export type AuthUser = {
   can_approve_prediction_markets: boolean;
   can_resolve_prediction_markets: boolean;
   can_void_prediction_markets: boolean;
+  /** Runs prediction pools (docs/design/predictions-pools.md). Older API builds leave it out. */
+  is_bookie?: boolean;
   created_at: string;
   /** Set on accounts made since the first-days guide shipped; the guide shows until then. */
   first_days_until?: string | null;

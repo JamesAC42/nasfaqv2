@@ -454,13 +454,21 @@ async function getPredictionMarketCommentViewerContext(client, slug, viewerUserI
           outcome.outcome_code,
           outcome.label AS outcome_label,
           pos.shares,
-          pos.avg_entry_price
+          pos.avg_entry_price,
+          outcome.sort_order
         FROM market.prediction_market_positions pos
         JOIN market.prediction_market_outcomes outcome ON outcome.id = pos.outcome_id
         WHERE pos.market_id = $1
           AND pos.user_id = $2
           AND pos.shares > 0
-        ORDER BY pos.shares DESC, outcome.sort_order ASC, outcome.id ASC
+        UNION ALL
+        -- A stake in a pool (docs/design/predictions-pools.md) is skin in it too.
+        SELECT stake.outcome_id, outcome.outcome_code, outcome.label, stake.stake, 0, outcome.sort_order
+        FROM market.prediction_pool_stakes stake
+        JOIN market.prediction_market_outcomes outcome ON outcome.id = stake.outcome_id
+        WHERE stake.market_id = $1
+          AND stake.user_id = $2
+        ORDER BY shares DESC, sort_order ASC, outcome_id ASC
       `,
         [market.id, viewerUserId]
       )

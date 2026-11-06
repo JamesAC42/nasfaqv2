@@ -3,6 +3,7 @@ const path = require("node:path");
 
 const { applyGamesSchema } = require("./gamesSchema");
 const { applyPredictionsSchema } = require("./services/predictions/schema");
+const { applyPoolsSchema } = require("./services/predictions/poolSchema");
 
 // ── Plain Postgres (local dev without TimescaleDB) ─────────────────────────
 // Production always has TimescaleDB. For a dev machine with a plain Postgres install, the schema
@@ -1967,6 +1968,10 @@ async function applySchema(pool) {
   // The first-days guide (services/firstDays.js) shows until this passes or the player closes it. Only
   // accounts made after it shipped get a date (auth.createUser), so players already on v2 never see it.
   await pool.query(`ALTER TABLE market.users ADD COLUMN IF NOT EXISTS first_days_until TIMESTAMPTZ NULL`);
+
+  // Prediction pools and margin (docs/design/predictions-pools.md): pool columns and tables, the
+  // bookie flag, and the auto pool templates (off).
+  await applyPoolsSchema(pool);
 }
 
 module.exports = { applySchema };

@@ -890,6 +890,7 @@ router.post("/orders/buy", async (req, res, next) => {
     if (e?.code === "asset_not_active") return res.status(409).json({ error: "asset_not_active" });
     if (e?.code === "market_closed") return res.status(409).json({ error: "market_closed", market_status: e.marketStatus || null });
     if (e?.code === "insufficient_cash") return res.status(409).json({ error: "insufficient_cash" });
+    if (e?.code === "in_the_red") return res.status(409).json({ error: "in_the_red", owed: e.owed ?? null });
     if (e?.code === "sold_out") return res.status(409).json({ error: "sold_out" });
     if (e?.code === "buyback_frozen") return res.status(409).json({ error: "buyback_frozen" });
     if (e?.code === "live_order_limit_exceeded") {

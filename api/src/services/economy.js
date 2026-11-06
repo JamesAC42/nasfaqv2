@@ -1,5 +1,6 @@
 const { ensureUserCashAccount } = require("./portfolioCash");
 const pgNumeric = require("./pgNumeric");
+const poolAccess = require("./predictions/poolAccess");
 
 // Cash and Credit, BBB's two currencies (docs/market/credit.md).
 //
@@ -112,11 +113,25 @@ async function writeMove(client, userId, { cash, credit, entryType, referenceTyp
 }
 
 /**
+ * Margin (docs/design/predictions-pools.md §3): Credit below zero is a debt, "in the red". While
+ * it lasts the player can't spend on anything (side modes, predictions, share buys); fees and other
+ * charges that name a `shortfall` still go through. Only for players who can use pools: for everyone
+ * else, Credit a void pushed below zero works as it always has.
+ */
+async function assertNotInRed(client, userId, wallet) {
+  if (!(num(wallet.credit) < 0)) return;
+  if (!(await poolAccess.poolsVisibleToId(client, userId))) return;
+  throw economyError("in_the_red", { owed: Math.round(-num(wallet.credit) * 100) / 100 });
+}
+
+/**
  * Takes `amount` from the player (see splitCharge for `from` and `shortfall`) and writes the ledger
- * row. Returns the balances before and after, and how much came from each.
+ * row. Returns the balances before and after, and how much came from each. A charge with no
+ * `shortfall` is spending, and is refused while the player is in the red (assertNotInRed).
  */
 async function charge(client, userId, amount, { from, shortfall = null, entryType, referenceType, referenceId, assetId = null, quantityDelta = 0 }) {
   const wallet = await lockWallet(client, userId);
+  if (!shortfall) await assertNotInRed(client, userId, wallet);
   const split = splitCharge(wallet, amount, from, { shortfall });
   await writeMove(client, userId, { cash: -split.cash, credit: -split.credit, entryType, referenceType, referenceId, assetId, quantityDelta });
   return {
@@ -259,6 +274,7 @@ function publicSettings() {
 
 module.exports = {
   SETTINGS,
+  assertNotInRed,
   charge,
   conversionMoves,
   convertCredit,

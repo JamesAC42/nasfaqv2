@@ -6,6 +6,8 @@ const lmsr = require("./lmsr");
 const core = require("./core");
 const trading = require("./trading");
 const { currentProposal } = require("./resolution");
+const poolAccess = require("./poolAccess");
+const poolMath = require("./poolMath");
 
 const { num, round2, round6, predictionError } = core;
 
@@ -157,6 +159,8 @@ async function createMarketWithClient(client, input, { creatorId = null, status 
 async function createMarket(pool, actor, input) {
   const isAdmin = Boolean(actor?.is_admin);
   if (!isAdmin && !actor?.can_create_prediction_markets) throw predictionError("forbidden");
+  // Once pools are on for everyone, new markets are pools (docs/design/predictions-pools.md §4).
+  if (poolAccess.poolsFlag() === "on") throw predictionError("lmsr_retired");
   const publish = Boolean(input?.publish) && isAdmin;
   return core.inTransaction(pool, async (client) => {
     const market = await createMarketWithClient(client, input || {}, {
@@ -243,6 +247,15 @@ async function decorate(db, markets) {
       [ids]
     ),
   ]);
+  const poolIds = markets.filter((market) => market.pricing === "pool").map((market) => market.id);
+  if (poolIds.length) {
+    const { rows: poolStats } = await db.query(
+      `SELECT market_id, COALESCE(SUM(amount), 0) AS volume, COUNT(*)::int AS trades, COUNT(DISTINCT user_id)::int AS traders
+       FROM market.prediction_pool_bets WHERE market_id = ANY($1::bigint[]) AND created_at > now() - interval '24 hours' GROUP BY market_id`,
+      [poolIds]
+    );
+    stats.rows.push(...poolStats);
+  }
   const statsBy = new Map(stats.rows.map((row) => [String(row.market_id), row]));
   const historyBy = new Map();
   for (const row of history.rows) {
@@ -261,9 +274,18 @@ async function decorate(db, markets) {
   });
 }
 
+/** A pool's "price" for each option is its share of the pool (even while the pool is empty). */
+function poolShares(outcomes) {
+  const odds = poolMath.odds(outcomes.map((outcome) => num(outcome.pool_stake)));
+  const empty = odds.every((entry) => entry.share === 0);
+  return { odds, prices: odds.map((entry) => (empty ? 1 / Math.max(1, outcomes.length) : entry.share)) };
+}
+
 function marketView(market, outcomes, historyBy = new Map()) {
   const b = num(market.liquidity_b, 250);
-  const prices = lmsr.prices(outcomes.map((outcome) => num(outcome.amm_shares)), b);
+  const isPool = market.pricing === "pool";
+  const pool = isPool ? poolShares(outcomes) : null;
+  const prices = isPool ? pool.prices : lmsr.prices(outcomes.map((outcome) => num(outcome.amm_shares)), b);
   const headline = core.headlineProbability(market, outcomes, prices);
   return {
     id: Number(market.id),
@@ -271,6 +293,8 @@ function marketView(market, outcomes, historyBy = new Map()) {
     title: market.title,
     subtitle: market.subtitle,
     kind: market.kind,
+    pricing: isPool ? "pool" : "lmsr",
+    pool_total: isPool ? round2(num(market.pool_total)) : null,
     market_type: market.market_type,
     status: market.status,
     trading_status: market.trading_status,
@@ -304,6 +328,8 @@ function marketView(market, outcomes, historyBy = new Map()) {
         change_24h: open === null ? 0 : round6(prices[index] - open),
         sparkline: series.map(round6),
         is_winner: Boolean(outcome.is_winner),
+        pool_stake: isPool ? round2(num(outcome.pool_stake)) : null,
+        multiplier: isPool ? pool.odds[index].multiplier : null,
         asset: outcome.asset_symbol ? { symbol: outcome.asset_symbol, icon: outcome.asset_icon, color: outcome.asset_color } : null,
       };
     }),
@@ -330,10 +356,13 @@ const TAB_ORDER = {
   all: `CASE WHEN pm.status = 'open' THEN 0 ELSE 1 END, pm.closes_at ASC`,
 };
 
-async function listMarkets(pool, { tab = "live", category = null, q = null, limit = 30, page = 1, status = null } = {}) {
+async function listMarkets(pool, { tab = "live", category = null, q = null, limit = 30, page = 1, status = null, viewer = null } = {}) {
   const safeTab = TAB_WHERE[tab] ? tab : "live";
   const params = [];
   const where = [`pm.visibility = 'public'`];
+  // Pools stay out of the floor for anyone the prediction-pools flag doesn't cover yet.
+  const showPools = poolAccess.poolsVisibleTo(viewer);
+  if (!showPools) where.push(`pm.pricing = 'lmsr'`);
   if (status && PUBLIC_STATUSES.includes(status)) {
     params.push(status);
     where.push(`pm.status = $${params.length}`);
@@ -365,13 +394,14 @@ async function listMarkets(pool, { tab = "live", category = null, q = null, limi
   );
   const items = await decorate(pool, rows);
   if (safeTab === "live" && !status) items.sort((a, b) => b.volume_24h - a.volume_24h || 0);
-  return { items, total: num(rows[0]?.total_count), page: safePage, limit: safeLimit, counts: await tabCounts(pool, { category, q }) };
+  return { items, total: num(rows[0]?.total_count), page: safePage, limit: safeLimit, counts: await tabCounts(pool, { category, q, showPools }) };
 }
 
 /** Market counts for every floor tab under the same category and search, so the tabs never jump. */
-async function tabCounts(pool, { category = null, q = null } = {}) {
+async function tabCounts(pool, { category = null, q = null, showPools = false } = {}) {
   const params = [PUBLIC_STATUSES];
   const where = [`pm.visibility = 'public'`, `pm.status = ANY($1::text[])`];
+  if (!showPools) where.push(`pm.pricing = 'lmsr'`);
   if (category) {
     params.push(String(category));
     where.push(`cat.slug = $${params.length}`);
@@ -397,6 +427,7 @@ async function getMarketRow(db, slug) {
 }
 
 function canSeeMarket(market, user) {
+  if (market.pricing === "pool" && !poolAccess.poolsVisibleTo(user)) return false;
   if (PUBLIC_STATUSES.includes(market.status) && market.visibility !== "private") return true;
   if (!user) return false;
   return Boolean(user.is_admin || user.can_approve_prediction_markets || String(market.creator_user_id) === String(user.id));
@@ -680,7 +711,8 @@ async function getLeaderboard(pool, { limit = 10 } = {}) {
 
 async function getAdminOverview(pool) {
   const section = async (where, order, limit = 40) => {
-    const { rows } = await pool.query(`${MARKET_SELECT} WHERE ${where} ORDER BY ${order} LIMIT ${limit}`);
+    // Pools have their own bookie panel; this console is the market maker's.
+    const { rows } = await pool.query(`${MARKET_SELECT} WHERE pm.pricing = 'lmsr' AND ${where} ORDER BY ${order} LIMIT ${limit}`);
     return decorate(pool, rows).then((views) =>
       views.map((view, index) => ({ ...view, house_net_cash: round2(num(rows[index].house_net_cash)), max_house_loss: round2(lmsr.maxLoss(view.liquidity_b, view.outcomes.length)), creator: rows[index].creator_username }))
     );
@@ -736,6 +768,7 @@ async function listCategories(pool) {
 }
 
 module.exports = {
+  MARKET_SELECT,
   approveMarket,
   canSeeMarket,
   createMarket,
@@ -752,4 +785,5 @@ module.exports = {
   marketView,
   rejectMarket,
   submitMarket,
+  uniqueSlug,
 };

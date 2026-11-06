@@ -13,6 +13,9 @@ export type Outcome = {
   sparkline: number[]; // hourly closes, last 24 h
   is_winner: boolean;
   asset: { symbol: string; icon: string | null; color: string | null } | null;
+  /** Pools only: what's staked on it, and what $1 on it pays if it wins. */
+  pool_stake?: number | null;
+  multiplier?: number | null;
 };
 
 export type PredictionMarket = {
@@ -39,7 +42,10 @@ export type PredictionMarket = {
   liquidity_b: number;
   fee_bps: number;
   dispute_hours?: number;
-  auto_template: "tick-direction" | "tick-top-gainer" | "stream-peak" | null;
+  auto_template: "tick-direction" | "tick-top-gainer" | "stream-peak" | "stream-peak-pool" | "top-gainer-pool" | null;
+  /** "pool" for a prediction pool (docs/design/predictions-pools.md); older API builds leave it out. */
+  pricing?: "lmsr" | "pool";
+  pool_total?: number | null;
   last_traded_probability: number;
   last_trade_at: string | null;
   outcomes: Outcome[];

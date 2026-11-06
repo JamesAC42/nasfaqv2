@@ -1,0 +1,869 @@
+@use "../../../styles/mixins" as *;
+
+// Prediction pools (docs/design/predictions-pools.md): the pool page, its bet slip and tools, the
+// history page and the bookie desk. Same frame as the market page: main column, slip sticky on the
+// right, one column at tablet width. --oc is an option's color.
+
+.page {
+  --sticky-top: calc(var(--rail-height) + var(--tape-height) + env(safe-area-inset-top, 0px));
+  width: 100%;
+  min-width: 0;
+
+  [data-tone="up"] {
+    color: var(--up);
+  }
+
+  [data-tone="flat"] {
+    color: var(--mid);
+  }
+}
+
+.crumbs {
+  @include label;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.7rem 0 0;
+
+  a {
+    color: var(--mid);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--blue);
+    }
+  }
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 23rem;
+  gap: 0 2rem;
+  align-items: start;
+  min-width: 0;
+
+  @include desktop-down {
+    grid-template-columns: minmax(0, 1fr) 21rem;
+    gap: 0 1.5rem;
+  }
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.main {
+  min-width: 0;
+}
+
+.aside {
+  min-width: 0;
+  align-self: stretch;
+  border-left: 1px solid var(--rule);
+  padding-left: 1.5rem;
+}
+
+.sticky {
+  position: sticky;
+  top: calc(var(--sticky-top) + 1rem);
+  padding: 1rem 0 1.5rem;
+}
+
+.slipInline {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.empty {
+  @include empty-state;
+  margin: 1.5rem 0;
+}
+
+.skeleton {
+  height: 18rem;
+  margin: 1.5rem 0;
+  border-radius: var(--radius-sm);
+  background: var(--ink-2);
+}
+
+.section {
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--rule);
+  min-width: 0;
+}
+
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin-bottom: 0.75rem;
+
+  h2 {
+    @include section-heading;
+    margin: 0;
+  }
+}
+
+.hint {
+  @include label;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  font-size: 0.72rem;
+}
+
+.small {
+  margin: 0.4rem 0 0;
+  color: var(--dim);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.prose {
+  margin: 0 0 0.6rem;
+  line-height: 1.55;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+// ── Header ──
+.header {
+  padding: 1rem 0 1.25rem;
+  border-bottom: 1px solid var(--rule);
+
+  h1 {
+    @include display;
+    margin: 0.35rem 0 0;
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    line-height: 1.05;
+    overflow-wrap: anywhere;
+  }
+}
+
+.kicker {
+  @include label;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+
+  i {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--up);
+  }
+
+  a {
+    color: var(--text);
+  }
+}
+
+.subtitle {
+  margin: 0.4rem 0 0;
+  color: var(--mid);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, auto));
+  justify-content: start;
+  gap: 0.5rem 2rem;
+  margin: 1rem 0 0;
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  dt {
+    @include label;
+  }
+
+  dd {
+    @include num;
+    margin: 0.15rem 0 0;
+    font-size: 1.15rem;
+  }
+}
+
+.lock {
+  margin: 0.8rem 0 0;
+  color: var(--warn);
+  font-size: 0.85rem;
+}
+
+// ── Result ──
+.result {
+  margin: 1rem 0 0;
+  padding: 0.9rem 1rem;
+  border-left: 3px solid var(--oc, var(--blue));
+  background: var(--ink-2);
+  border-radius: var(--radius-sm);
+
+  small {
+    @include label;
+  }
+
+  strong {
+    @include display;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.2rem;
+    font-size: 1.5rem;
+    font-weight: 400;
+  }
+
+  p {
+    margin: 0.35rem 0 0;
+    color: var(--mid);
+  }
+
+  &[data-tone="void"] {
+    border-left-color: var(--warn);
+  }
+}
+
+// ── Options ──
+.options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.option {
+  min-width: 0;
+
+  &[data-winner="true"] .optionMain {
+    border-color: var(--oc);
+  }
+
+  &[data-picked="true"] .optionMain {
+    border-color: var(--oc);
+    box-shadow: inset 0 0 0 1px var(--oc);
+  }
+}
+
+.optionMain {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: var(--ink-2);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: var(--oc);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.optionFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--oc);
+  opacity: 0.16;
+  pointer-events: none;
+  transition: width var(--dur-med) var(--ease-out);
+}
+
+.optionLabel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.dot {
+  flex: none;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--oc);
+}
+
+.won {
+  @include label;
+  font-style: normal;
+  color: var(--oc);
+}
+
+.optionNums {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: none;
+}
+
+.optionStake {
+  @include num;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 0.85rem;
+
+  small {
+    color: var(--dim);
+    font-size: 0.7rem;
+  }
+}
+
+.multiplier {
+  @include num(normal);
+  min-width: 3.6rem;
+  text-align: right;
+  font-size: 1.15rem;
+  color: var(--oc);
+}
+
+.optionFoot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  padding: 0.3rem 0.2rem 0;
+  font-size: 0.78rem;
+  color: var(--dim);
+}
+
+.mine {
+  color: var(--text);
+}
+
+.nobody {
+  margin-left: auto;
+}
+
+.bettorsToggle {
+  margin-left: auto;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--dim);
+  font: inherit;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text);
+  }
+}
+
+.bettors {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0.4rem 0.8rem;
+  border-left: 2px solid var(--oc);
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.85rem;
+
+  li {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  a {
+    color: var(--text);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  span {
+    @include num;
+  }
+}
+
+// ── Record and feed ──
+.record {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+
+  li {
+    padding-left: 0.8rem;
+    border-left: 2px solid var(--blue);
+
+    &[data-action="voided"] {
+      border-left-color: var(--warn);
+    }
+
+    &[data-action="corrected"] {
+      border-left-color: var(--warn);
+    }
+
+    p {
+      margin: 0.25rem 0 0;
+      overflow-wrap: anywhere;
+    }
+  }
+}
+
+.recordHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.6rem;
+
+  b {
+    @include label;
+    color: var(--text);
+  }
+
+  time {
+    margin-left: auto;
+    color: var(--dim);
+    font-size: 0.78rem;
+  }
+}
+
+.was {
+  color: var(--dim);
+  text-decoration: line-through;
+}
+
+.source {
+  display: inline-block;
+  margin-top: 0.25rem;
+  color: var(--blue);
+  font-size: 0.85rem;
+}
+
+.feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li {
+    display: grid;
+    grid-template-columns: minmax(0, 8rem) minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.85rem;
+
+    @include phone {
+      grid-template-columns: minmax(0, 1fr) auto;
+
+      span {
+        grid-column: 1 / -1;
+        grid-row: 2;
+      }
+    }
+  }
+
+  a {
+    color: var(--text);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  time {
+    color: var(--dim);
+  }
+}
+
+// ── Bet slip ──
+.slip {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.slipHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+
+  h2 {
+    @include section-heading;
+    margin: 0;
+  }
+}
+
+// One column in the sidebar and on phones, two where there's room (the inline slip on tablets).
+.picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.4rem;
+}
+
+.pick {
+  @include button-base;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-size: 0.8rem;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  b {
+    color: var(--oc);
+  }
+
+  &[aria-checked="true"] {
+    border-color: var(--oc);
+    box-shadow: inset 0 0 0 1px var(--oc);
+  }
+
+  &:hover {
+    border-color: var(--oc);
+  }
+}
+
+.select,
+.input {
+  @include input-base;
+}
+
+.amount {
+  display: grid;
+  gap: 0.3rem;
+
+  span {
+    @include label;
+  }
+
+  input {
+    @include input-base;
+    @include num;
+    font-size: 1.1rem;
+  }
+}
+
+.quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+
+  button {
+    @include button-secondary;
+    padding: 0.35rem 0.6rem;
+  }
+}
+
+.preview {
+  @include panel;
+  padding: 0.7rem 0.8rem;
+  display: grid;
+  gap: 0.3rem;
+
+  div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  span {
+    color: var(--mid);
+    font-size: 0.85rem;
+  }
+
+  b {
+    @include num;
+  }
+}
+
+.marginOpt {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-sm);
+  background: var(--warn-wash);
+  font-size: 0.8rem;
+  line-height: 1.45;
+
+  input {
+    margin-top: 0.15rem;
+    flex: none;
+  }
+}
+
+.warn {
+  margin: 0;
+  color: var(--warn);
+  font-size: 0.85rem;
+}
+
+.error {
+  margin: 0;
+  color: var(--down);
+  font-size: 0.85rem;
+}
+
+.done {
+  margin: 0;
+  color: var(--up);
+  font-size: 0.85rem;
+}
+
+.primary {
+  @include button-primary;
+}
+
+.secondary {
+  @include button-secondary;
+}
+
+.danger {
+  @include button-base;
+  border-color: var(--down);
+  color: var(--down);
+
+  &:hover:not(:disabled) {
+    background: var(--down);
+    color: var(--down-ink);
+  }
+}
+
+.red {
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--down);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--down) 12%, transparent);
+
+  strong {
+    display: block;
+    color: var(--down);
+  }
+
+  p {
+    margin: 0.35rem 0 0;
+    font-size: 0.85rem;
+    line-height: 1.45;
+  }
+
+  &[data-compact="true"] p {
+    font-size: 0.8rem;
+  }
+}
+
+.redActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  margin-top: 0.6rem;
+
+  a {
+    color: var(--blue);
+    font-size: 0.85rem;
+  }
+}
+
+// ── Tools ──
+.toolRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.toolForm {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+  max-width: 34rem;
+
+  label {
+    display: grid;
+    gap: 0.3rem;
+
+    span {
+      @include label;
+    }
+  }
+
+  button {
+    justify-self: start;
+  }
+}
+
+// ── History and the bookie desk ──
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 1rem 0;
+
+  input {
+    @include input-base;
+    max-width: 20rem;
+  }
+}
+
+.tabs {
+  @include tabs;
+
+  button {
+    @include tab;
+  }
+
+  button[aria-pressed="true"] {
+    @include tab-selected;
+  }
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.25rem 1rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--rule);
+
+  > a {
+    color: var(--text);
+    text-decoration: none;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+
+    &:hover {
+      color: var(--blue);
+    }
+  }
+}
+
+.rowMeta {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 1rem;
+  color: var(--dim);
+  font-size: 0.8rem;
+
+  b {
+    color: var(--text);
+    font-weight: 500;
+  }
+}
+
+.rowRight {
+  @include num;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  white-space: nowrap;
+
+  small {
+    @include label;
+    font-size: 0.6rem;
+  }
+}
+
+.net {
+  @include num;
+
+  &[data-tone="up"] {
+    color: var(--up);
+  }
+
+  &[data-tone="down"] {
+    color: var(--down);
+  }
+}
+
+.pager {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin: 1rem 0;
+}
+
+.form {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 40rem;
+  padding: 1rem 0 1.5rem;
+
+  label {
+    display: grid;
+    gap: 0.3rem;
+
+    > span {
+      @include label;
+    }
+  }
+
+  textarea {
+    @include input-base;
+    resize: vertical;
+  }
+}
+
+.optionInputs {
+  display: grid;
+  gap: 0.4rem;
+
+  div {
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  button {
+    @include button-secondary;
+    padding: 0.4rem 0.7rem;
+  }
+}
+
+.split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.fieldLabel {
+  @include label;
+}

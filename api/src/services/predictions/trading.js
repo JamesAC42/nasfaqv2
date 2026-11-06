@@ -185,7 +185,8 @@ function quoteView(fill, side) {
 
 async function loadTradeableMarket(client, slug) {
   const market = await core.lockMarket(client, { slug });
-  if (!core.isTradeable(market) || (await guards.autoMarketLock(client, market))) throw predictionError("prediction_market_closed");
+  // A pool has no market maker: its bets go through pools.placeBet.
+  if (market.pricing === "pool" || !core.isTradeable(market) || (await guards.autoMarketLock(client, market))) throw predictionError("prediction_market_closed");
   const outcomes = await core.loadOutcomes(client, market.id);
   return { market, outcomes, state: core.ammState(market, outcomes) };
 }
@@ -196,6 +197,7 @@ async function quote(pool, { slug, outcomeCode, side, amount = null, shares = nu
   const { rows } = await pool.query(`SELECT * FROM market.prediction_markets WHERE slug = $1`, [slug]);
   const market = rows[0];
   if (!market) throw predictionError("prediction_market_not_found");
+  if (market.pricing === "pool") throw predictionError("prediction_market_closed");
   const outcomes = await core.loadOutcomes(pool, market.id);
   const state = core.ammState(market, outcomes);
   const index = outcomeIndex(outcomes, outcomeCode);
