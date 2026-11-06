@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { TalentReaction } from "@/app/components/common/talent-reaction";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { SceneArt } from "@/app/components/common/scene-art";
@@ -37,7 +38,8 @@ type View = "now" | "past";
 type PastSort = "newest" | "peak" | "avg" | "longest";
 type Week = { page: number; week_start: string; week_end: string; has_older: boolean; streams: PastStream[] };
 
-export function LivestreamsPage() {
+/** `initialView`: "past" opens Past streams (the calendar's tab links here with ?view=past). */
+export function LivestreamsPage({ initialView }: { initialView?: string } = {}) {
   const live = useLivestreamStore((state) => state.live);
   const upcoming = useLivestreamStore((state) => state.upcoming);
   const isLoading = useLivestreamStore((state) => state.isLoading);
@@ -48,7 +50,7 @@ export function LivestreamsPage() {
   const { user } = useAuth();
   const openStream = useOpenStream();
 
-  const [view, setView] = useState<View>("now");
+  const [view, setView] = useState<View>(initialView === "past" ? "past" : "now");
   const [units, setUnits] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [mine, setMine] = useState(false);
@@ -57,6 +59,7 @@ export function LivestreamsPage() {
   useEffect(() => {
     void fetchLivestreams();
   }, [fetchLivestreams]);
+
 
   // Minute-level labels only; the uptime clocks tick on their own (LiveClock), so the page
   // (and the price tape above it) isn't re-rendered every second.
@@ -127,6 +130,7 @@ export function LivestreamsPage() {
             <button type="button" role="tab" aria-selected={view === "past"} onClick={() => setView("past")}>
               Past streams
             </button>
+            <Link href="/livestreams/calendar">Calendar</Link>
           </div>
         </header>
 

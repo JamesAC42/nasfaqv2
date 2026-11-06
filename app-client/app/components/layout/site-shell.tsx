@@ -19,7 +19,7 @@ import { TickMomentLayer } from "@/app/components/moments/tick-moment";
 import { StreamSheetHost } from "@/app/components/livestreams/stream-sheet";
 import { TradeDrawer } from "@/app/components/trade/trade-drawer";
 import { PeekLayer } from "@/app/components/peek/peek-layer";
-import { isActivePath, isGroupActive, NAV } from "@/app/components/layout/nav-config";
+import { isActiveLink, isActivePath, isGroupActive, NAV } from "@/app/components/layout/nav-config";
 import { RailStatus, RailWorth } from "@/app/components/layout/rail-status";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMotion } from "@/app/providers/motion-provider";
@@ -351,7 +351,7 @@ export function SiteShell({
                           key={link.href}
                           href={link.href}
                           className={styles.menuLink}
-                          aria-current={isActivePath(pathname, link.href) ? "page" : undefined}
+                          aria-current={isActiveLink(pathname, link.href, group.links ?? []) ? "page" : undefined}
                           onClick={() => setOpenMenu(null)}
                         >
                           <b>{link.label}</b>

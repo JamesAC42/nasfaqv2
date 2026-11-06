@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { isActivePath, MOBILE_TABS, NAV } from "@/app/components/layout/nav-config";
+import { isActiveLink, isActivePath, MOBILE_TABS, NAV } from "@/app/components/layout/nav-config";
 import { ThemeChoices } from "@/app/components/layout/theme-switch";
 import { SnowSheetControls } from "@/app/components/snow/snow-controls";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -39,7 +39,7 @@ export function MobileNav() {
                     key={link.href}
                     href={link.href}
                     className={styles.sheetLink}
-                    aria-current={isActivePath(pathname, link.href) ? "page" : undefined}
+                    aria-current={isActiveLink(pathname, link.href, group.links ?? []) ? "page" : undefined}
                     onClick={close}
                   >
                     {link.label}
