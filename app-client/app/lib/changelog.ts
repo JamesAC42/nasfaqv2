@@ -36,6 +36,16 @@ export const CHANGELOG: ChangelogEntry[] = [
   },
   {
     date: "2026-11-05",
+    title: "Chat window fixes",
+    changes: [
+      {
+        kind: "fixed",
+        text: "Stickers in the floating chat window no longer stretch across the whole window and go blurry. They're half its width now, and sharp.",
+      },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "See who's playing, and a guide for your first days",
     changes: [
       {

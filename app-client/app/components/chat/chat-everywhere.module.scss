@@ -358,10 +358,15 @@
   color: var(--text);
 }
 
-.sticker {
+// A sticker: half the message column, and never past 13rem, where the 512px art is still sharp on a
+// 2x screen. Two classes, so it beats the art's own `.face { width: 100% }` whichever stylesheet
+// loads last: this one loads with the window's lazy chunk, and in production `.face` came after it.
+.row .sticker {
   display: block;
-  width: 4.5rem;
-  height: 4.5rem;
+  width: min(50%, 13rem);
+  height: auto;
+  aspect-ratio: 1;
+  margin: 0.1rem 0;
 }
 
 .gone {
