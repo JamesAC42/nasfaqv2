@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-11-05",
+    title: "Blackjack seats",
+    changes: [
+      {
+        kind: "fixed",
+        text: "At a blackjack table, a seat no longer drops out of line when someone sits in it, and seated players show their profile picture instead of their initials.",
+      },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "See who's playing, and a guide for your first days",
     changes: [
       {
