@@ -20,6 +20,10 @@ export const CHANGELOG: ChangelogEntry[] = [
         kind: "fixed",
         text: "Stickers in the floating chat window no longer stretch across the whole window and go blurry. They're half its width now, and sharp.",
       },
+      {
+        kind: "fixed",
+        text: "A sticker in the floating chat window no longer hangs over the message below it, or slips behind it when you hover.",
+      },
     ],
   },
   {

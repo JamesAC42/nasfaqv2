@@ -311,6 +311,9 @@
   position: relative;
   display: grid;
   grid-template-columns: 1.4rem minmax(0, 1fr);
+  // Don't stretch the message to the row's height. A stretched cell lets anything sized in
+  // percentages count the name line too, which is how a sticker spilled onto the next message.
+  align-items: start;
   column-gap: 0.45rem;
   padding: 0.25rem 0.6rem 0.1rem;
 
