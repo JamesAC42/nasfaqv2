@@ -77,6 +77,15 @@ test("cards moment: the best card leads, unknown kinds are not found", async () 
   await assert.rejects(moments.getMoment(fakePool([]), "cards", id), { code: "moment_not_found" });
 });
 
+test("moment kinds from the URL never reach Object.prototype", async () => {
+  const pool = fakePool([]);
+  for (const kind of ["constructor", "__proto__", "toString", "hasOwnProperty", "valueOf"]) {
+    await assert.rejects(moments.getMoment(pool, kind, "1-0"), { code: "moment_not_found" }, kind);
+  }
+  assert.equal(pool.calls.length, 0);
+  assert.deepEqual(moments.KINDS, ["blackjack", "cards"]);
+});
+
 const dealers = require("../src/services/games/dealers");
 
 test("dealers: one talent per table, all different, the same all day, new each day", () => {

@@ -129,12 +129,17 @@ async function cardsMoment(pool, id) {
   };
 }
 
-const KINDS = { blackjack: blackjackMoment, cards: cardsMoment };
+// A Map, not an object: the kind comes from the URL, and "constructor" or "toString" must not find
+// a function on Object.prototype.
+const KINDS = new Map([
+  ["blackjack", blackjackMoment],
+  ["cards", cardsMoment],
+]);
 
 async function getMoment(pool, kind, id) {
-  const load = KINDS[String(kind)];
+  const load = KINDS.get(String(kind));
   if (!load) throw momentError("moment_not_found");
   return load(pool, String(id));
 }
 
-module.exports = { KINDS: Object.keys(KINDS), getMoment, blackjackMoment, cardsMoment };
+module.exports = { KINDS: [...KINDS.keys()], getMoment, blackjackMoment, cardsMoment };
