@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-11-05",
+    title: "Chat fills in what you missed",
+    changes: [
+      {
+        kind: "fixed",
+        text: "If your connection drops while you're on the chat page, the messages sent in the meantime now show up as soon as it reconnects, without a reload. If you'd scrolled back through older messages, they stay loaded and you stay where you were.",
+      },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "Chat window fixes",
     changes: [
       {
