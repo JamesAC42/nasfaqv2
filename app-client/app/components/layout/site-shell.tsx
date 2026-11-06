@@ -9,7 +9,7 @@ import { ReactionFace, parseReaction } from "@/app/components/common/reaction-fa
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FaDiscord } from "react-icons/fa6";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { MarketTape } from "@/app/components/layout/market-tape";
 import { MobileNav } from "@/app/components/layout/mobile-nav";
 import { ThemeButton } from "@/app/components/layout/theme-switch";
@@ -19,7 +19,8 @@ import { TickMomentLayer } from "@/app/components/moments/tick-moment";
 import { StreamSheetHost } from "@/app/components/livestreams/stream-sheet";
 import { TradeDrawer } from "@/app/components/trade/trade-drawer";
 import { PeekLayer } from "@/app/components/peek/peek-layer";
-import { isActiveLink, isActivePath, isGroupActive, NAV } from "@/app/components/layout/nav-config";
+import { isActiveLink, isActivePath, isGroupActive, navFor } from "@/app/components/layout/nav-config";
+import { useFeatures } from "@/app/lib/features";
 import { RailStatus, RailWorth } from "@/app/components/layout/rail-status";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMotion } from "@/app/providers/motion-provider";
@@ -68,6 +69,8 @@ export function SiteShell({
 }) {
   const pathname = usePathname();
   const { user, isLoading } = useAuth();
+  const flags = useFeatures();
+  const nav = useMemo(() => navFor(flags), [flags]);
   const { calm, toggleCalm } = useMotion();
   const assets = useMarketStore((state) => state.assets);
   const refreshOverview = useMarketStore((state) => state.refreshOverview);
@@ -317,7 +320,7 @@ export function SiteShell({
           </Link>
 
           <nav ref={navRef} className={styles.nav} aria-label="Main">
-            {NAV.map((group) => {
+            {nav.map((group) => {
               const active = isGroupActive(pathname, group);
               if (group.href) {
                 return (

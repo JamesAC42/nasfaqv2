@@ -9,6 +9,7 @@ import { SceneArt } from "@/app/components/common/scene-art";
 import { HeroCast } from "@/app/components/common/hero-cast";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
+import { useFeature } from "@/app/lib/features";
 import { unitLabel, unitName, UNIT_ORDER } from "@/app/lib/market-units";
 import {
   assetForStream,
@@ -49,6 +50,7 @@ export function LivestreamsPage({ initialView }: { initialView?: string } = {}) 
   const portfolio = useProfileStore((state) => state.portfolio);
   const { user } = useAuth();
   const openStream = useOpenStream();
+  const calendar = useFeature("stream-calendar");
 
   const [view, setView] = useState<View>(initialView === "past" ? "past" : "now");
   const [units, setUnits] = useState<string[]>([]);
@@ -130,7 +132,7 @@ export function LivestreamsPage({ initialView }: { initialView?: string } = {}) 
             <button type="button" role="tab" aria-selected={view === "past"} onClick={() => setView("past")}>
               Past streams
             </button>
-            <Link href="/livestreams/calendar">Calendar</Link>
+            {calendar ? <Link href="/livestreams/calendar">Calendar</Link> : null}
           </div>
         </header>
 

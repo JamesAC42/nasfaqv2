@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { isActiveLink, isActivePath, MOBILE_TABS, NAV } from "@/app/components/layout/nav-config";
+import { useEffect, useMemo, useState } from "react";
+import { isActiveLink, isActivePath, MOBILE_TABS, navFor } from "@/app/components/layout/nav-config";
+import { useFeatures } from "@/app/lib/features";
 import { ThemeChoices } from "@/app/components/layout/theme-switch";
 import { SnowSheetControls } from "@/app/components/snow/snow-controls";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -16,6 +17,8 @@ export function MobileNav() {
   const { user } = useAuth();
   const { calm, toggleCalm } = useMotion();
   const [moreOpen, setMoreOpen] = useState(false);
+  const flags = useFeatures();
+  const nav = useMemo(() => navFor(flags), [flags]);
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -31,7 +34,7 @@ export function MobileNav() {
       {moreOpen ? (
         <div className={styles.sheetScrim} onClick={close}>
           <div className={styles.sheet} role="dialog" aria-label="More" onClick={(event) => event.stopPropagation()}>
-            {NAV.filter((group) => group.links).map((group) => (
+            {nav.filter((group) => group.links).map((group) => (
               <div key={group.key} className={styles.sheetGroup}>
                 <div className={styles.sheetLabel}>{group.label}</div>
                 {group.links?.map((link) => (

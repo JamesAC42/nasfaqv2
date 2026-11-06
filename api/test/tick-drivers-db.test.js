@@ -7,6 +7,10 @@ const marketAdjustments = require("../src/services/marketAdjustments");
 const marketDb = require("../src/marketDb");
 const reportSession = require("../src/services/reportSession");
 const { scrubPublicMarketPayload } = require("../src/services/marketSecrecy");
+const express = require("express");
+const features = require("../src/features");
+const marketRoutes = require("../src/routes/market");
+const { invalidateCachedJson } = require("../src/responseCache");
 
 // The live tick end to end on a real database: it records why it moved, the next tick carries that
 // forward, and every public read has the line but never the private split behind it.
@@ -192,4 +196,69 @@ test("a tick records why it moved, and public reads never carry the private spli
   const forced = await marketAdjustments.forceNextAdjustment(pool, { marketDate: last, now: at(1) });
   assert.equal(forced.applied_count, 1);
   assert.ok(Array.isArray(forced.adjustments[0].reasons));
+
+  // Over HTTP, as each viewer. While tick-reasons is staff-only, only admins get any tick's line,
+  // whoever warms a shared cache first; turned on, everyone does.
+  const { rows: written } = await pool.query(`SELECT reasons_json FROM market.asset_adjustment_intervals WHERE reasons_json IS NOT NULL`);
+  const lines = [...new Set(written.flatMap((row) => row.reasons_json.flatMap((reason) => [reason.text, reason.detail].filter(Boolean))))];
+  assert.ok(lines.length >= 2);
+  let viewer = null;
+  const app = express();
+  app.use((req, _res, next) => {
+    req.ctx = { pool, redis: null, user: viewer };
+    next();
+  });
+  app.use("/api/market", marketRoutes);
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((resolve) => server.once("listening", resolve));
+  t.after(() => {
+    server.closeAllConnections();
+    return new Promise((resolve) => server.close(resolve));
+  });
+  const base = `http://127.0.0.1:${server.address().port}/api/market`;
+  const routes = ["/assets", "/hub", "/assets/PEK", "/assets/PEK/adjustments", "/adjustments/summary", `/report/daily/${last}/session`];
+  const cacheKeys = ["market:assets", "market:hub:20", "market:asset:PEK", "market:adjustments:20", `market:report:session:${last}`];
+  const read = async (user, route) => {
+    viewer = user;
+    const response = await fetch(`${base}${route}`);
+    assert.equal(response.status, 200, `${route}: ${response.status}`);
+    return { text: await response.text(), cache: response.headers.get("cache-control") };
+  };
+  const anonymous = null;
+  const player = { id: Number(user[0].id), username: "buyer", is_admin: false, can_manage_assets: true };
+  const admin = { id: 999, username: "boss", is_admin: true };
+
+  const staffOnly = features.override({ "tick-reasons": "staff" });
+  try {
+    for (const route of routes) {
+      // Signed out first (warming everyone's copy), then an admin, then a player after the admin.
+      for (const [who, user] of [["signed out", anonymous], ["admin", admin], ["player", player]]) {
+        const { text, cache } = await read(user, route);
+        assert.equal(cache, "private, no-cache", `${route} as ${who}: no proxy may keep a copy`);
+        if (user?.is_admin) {
+          assert.ok(text.includes('"reasons"'), `${route}: an admin gets the lines`);
+        } else {
+          assert.ok(!text.includes('"reasons"'), `${route} as ${who} carries tick reasons`);
+          for (const line of lines) assert.ok(!text.includes(line), `${route} as ${who} carries "${line}"`);
+        }
+        assert.ok(!text.includes("driver_state") && !text.includes('"parts"'), `${route} as ${who} leaks the split`);
+      }
+    }
+  } finally {
+    staffOnly();
+  }
+
+  const everyone = features.override({ "tick-reasons": "on" });
+  try {
+    await invalidateCachedJson(null, cacheKeys);
+    for (const route of routes) {
+      for (const user of [anonymous, player]) {
+        const { text } = await read(user, route);
+        assert.ok(text.includes('"reasons"'), `${route}: turned on, everyone gets the lines`);
+        assert.ok(!text.includes("driver_state"), route);
+      }
+    }
+  } finally {
+    everyone();
+  }
 });

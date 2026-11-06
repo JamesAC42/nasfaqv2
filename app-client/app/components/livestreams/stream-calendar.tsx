@@ -7,6 +7,7 @@ import { ReactionFace } from "@/app/components/common/reaction-face";
 import { HeroCast } from "@/app/components/common/hero-cast";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
+import { useFeature } from "@/app/lib/features";
 import { unitLabel, unitName, UNIT_ORDER } from "@/app/lib/market-units";
 import { chatRoomKind, compactCount, shortDuration, untilLabel } from "@/app/lib/streams";
 import { talentAccent } from "@/app/lib/talent-color";
@@ -293,7 +294,12 @@ export function StreamCalendarPage() {
 // ── The market floor's box ───────────────────────────────────────────────
 
 /** Who's live and who's next, for the market floor, with the way into the calendar. */
-export function StreamsUpNext({ className, headClass, asideClass }: { className?: string; headClass?: string; asideClass?: string }) {
+export function StreamsUpNext(props: { className?: string; headClass?: string; asideClass?: string }) {
+  // Behind the stream-calendar flag (api/src/features), like the calendar it reads.
+  return useFeature("stream-calendar") ? <UpNextBox {...props} /> : null;
+}
+
+function UpNextBox({ className, headClass, asideClass }: { className?: string; headClass?: string; asideClass?: string }) {
   const { data } = useCalendar();
   const now = useClock();
   const real = (data?.streams ?? []).filter((stream) => stream.starts_at && !((stream.state === "upcoming" || stream.state === "late") && now !== null && chatRoomKind({ title: stream.title ?? "", started_at: stream.starts_at }, now)));

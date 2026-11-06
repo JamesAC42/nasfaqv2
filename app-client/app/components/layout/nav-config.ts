@@ -1,4 +1,5 @@
-export type NavLink = { href: string; label: string; hint?: string };
+/** `feature`: shown only while that feature flag is on for the viewer (api/src/features). */
+export type NavLink = { href: string; label: string; hint?: string; feature?: string };
 
 /** A direct link (href) or a menu of links. */
 export type NavGroup = { key: string; label: string; href?: string; links?: NavLink[] };
@@ -19,7 +20,7 @@ export const NAV: NavGroup[] = [
       { href: "/threads", label: "/vt/ threads", hint: "The general, mirrored" },
       { href: "/articles", label: "Articles", hint: "HoloNews headlines and player-written DD" },
       { href: "/livestreams", label: "Livestreams", hint: "Who's on air right now" },
-      { href: "/livestreams/calendar", label: "Stream calendar", hint: "Every talent's streams for the week ahead" },
+      { href: "/livestreams/calendar", label: "Stream calendar", hint: "Every talent's streams for the week ahead", feature: "stream-calendar" },
     ],
   },
   { key: "games", label: "Games", href: "/games" },
@@ -32,6 +33,11 @@ export const MOBILE_TABS: NavLink[] = [
   { href: "/stocks", label: "Stocks" },
   { href: "/leaderboard", label: "Ranks" },
 ];
+
+/** The navigation without links behind a feature flag this viewer doesn't have (flags from useFeatures). */
+export function navFor(flags: Record<string, boolean>, nav: NavGroup[] = NAV): NavGroup[] {
+  return nav.map((group) => (group.links ? { ...group, links: group.links.filter((link) => !link.feature || flags[link.feature] === true) } : group));
+}
 
 export function isActivePath(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
