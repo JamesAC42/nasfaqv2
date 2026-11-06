@@ -38,6 +38,10 @@ const ALWAYS_HIDDEN = new Set([
   "current_fair_value",
   "current_fair_value_raw",
   "current_premium_pct",
+  // A tick's private split of the distance it closed (services/tickDrivers.js). Never selected by a
+  // public query; dropped here too in case one ever does.
+  "driver_state",
+  "driver_state_json",
   "event_signal",
   "fundamental_value_raw",
   "fundamental_value_smoothed",

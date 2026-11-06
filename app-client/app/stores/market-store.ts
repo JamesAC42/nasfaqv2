@@ -11,6 +11,7 @@ import {
   normalizeMarketStatus,
   normalizeStats,
   normalizeTrades,
+  normalizeTickReasons,
   normalizeTreasury,
 } from "@/app/lib/normalizers";
 import { getMarketClock } from "@/app/lib/market-clock";
@@ -503,11 +504,31 @@ export const useMarketStore = create<MarketState>((set, get) => ({
             : [];
           const changedSymbols = new Set(quotes.map((quote) => String(quote.symbol || "").toUpperCase()).filter(Boolean));
           changedSymbols.forEach((symbol) => detailCache.delete(symbol));
+          // The tick itself (its move and why), for the stocks table's Last tick column.
+          const landed = new Map(
+            (Array.isArray(payload.adjustments) ? (payload.adjustments as Array<Record<string, unknown>>) : []).map((item) => [String(item.symbol || "").toUpperCase(), item])
+          );
 
           set((state) => ({
             assets: state.assets.map((asset) => {
               const quote = quotes.find((item) => String(item.symbol || "").toUpperCase() === asset.symbol.toUpperCase());
-              return quote ? patchAssetFromQuote(asset, quote) : asset;
+              const patched = quote ? patchAssetFromQuote(asset, quote) : asset;
+              const tick = landed.get(asset.symbol.toUpperCase());
+              return tick
+                ? {
+                    ...patched,
+                    latest_adjustment: {
+                      interval_key: String(tick.interval_key || ""),
+                      scheduled_at: null,
+                      applied_at: typeof payload.at === "string" ? payload.at : new Date().toISOString(),
+                      base_rate: null,
+                      price_before: toNumber(tick.price_before),
+                      price_after: toNumber(tick.price_after),
+                      market_date: tick.market_date ? String(tick.market_date).slice(0, 10) : null,
+                      reasons: normalizeTickReasons(tick.reasons),
+                    },
+                  }
+                : patched;
             }),
             detail: changedSymbols.has(state.selectedSymbol.trim().toUpperCase()) ? null : state.detail,
           }));

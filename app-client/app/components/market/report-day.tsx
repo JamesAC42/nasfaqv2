@@ -12,7 +12,7 @@ import { num } from "@/app/components/market/bits";
 import { apiFetch } from "@/app/lib/api";
 import { formatEtTime, TICKS } from "@/app/lib/market-clock";
 import { signedPct } from "@/app/lib/time";
-import type { MarketAsset, SessionBreakdown } from "@/app/lib/types";
+import type { MarketAsset, SessionBreakdown, TickReason } from "@/app/lib/types";
 import { useHubStore } from "@/app/stores/hub-store";
 import ui from "@/app/components/market/market.module.scss";
 import styles from "@/app/components/market/report-tab.module.scss";
@@ -69,7 +69,7 @@ export function useSession(date: string | null, live: boolean) {
 }
 
 // ── One talent's path through the day ─────────────────────────────────────
-export type PathPoint = { at: number; price: number; kind: "open" | "before" | "after" | "now"; key?: string; strength?: number | null };
+export type PathPoint = { at: number; price: number; kind: "open" | "before" | "after" | "now"; key?: string; strength?: number | null; reasons?: TickReason[] | null };
 
 export type TalentPath = {
   symbol: string;
@@ -113,7 +113,7 @@ export function buildPaths(session: SessionBreakdown, priceOf: (symbol: string) 
       tradeFactor *= step.before / price;
       adjFactor *= step.after / step.before;
       points.push({ at, price: step.before, kind: "before", key: step.key });
-      points.push({ at, price: step.after, kind: "after", key: step.key, strength: step.strength_pct });
+      points.push({ at, price: step.after, kind: "after", key: step.key, strength: step.strength_pct, reasons: step.reasons ?? null });
       price = step.after;
       landed += 1;
     }
@@ -347,7 +347,7 @@ export function TalentDay({
         kind: point.kind,
         key: point.key,
         label: pct(move, 1),
-        tip: `${adjustmentLabel(point.key ?? "")} adjustment · ${et(point.at)} ET · ${num(prev?.price)} → ${num(point.price)} (${pct(move)})${pull}`,
+        tip: `${adjustmentLabel(point.key ?? "")} adjustment · ${et(point.at)} ET · ${num(prev?.price)} → ${num(point.price)} (${pct(move)})${pull}${point.reasons?.length ? ` · ${point.reasons[0].text}` : ""}`,
       };
     }
     return { at: point.at, value: point.price, kind: point.kind, tip: `${live ? "Now" : "Close"} · ${num(point.price)} · ${pct(path.total)} on the day` };
@@ -362,12 +362,12 @@ export function TalentDay({
   const pending = live ? session.adjustments.filter((entry) => entry.landed < entry.total).map((entry) => ({ at: Date.parse(entry.scheduled_at), label: adjustmentLabel(entry.key) })) : [];
 
   // The same steps as rows: the table view of the chart.
-  const rows: Array<{ what: string; when: string; from: number; to: number; pull: number | null; adj: boolean }> = [];
+  const rows: Array<{ what: string; when: string; from: number; to: number; pull: number | null; adj: boolean; why?: TickReason[] | null }> = [];
   path.points.forEach((point, i) => {
     const prev = path.points[i - 1];
     if (!prev) return;
     if (point.kind === "before" && Math.abs(point.price / prev.price - 1) > 1e-9) rows.push({ what: "Trading", when: `${et(prev.at)}–${et(point.at)}`, from: prev.price, to: point.price, pull: null, adj: false });
-    if (point.kind === "after") rows.push({ what: `${adjustmentLabel(point.key ?? "")} adjustment`, when: et(point.at), from: prev.price, to: point.price, pull: point.strength ?? null, adj: true });
+    if (point.kind === "after") rows.push({ what: `${adjustmentLabel(point.key ?? "")} adjustment`, when: et(point.at), from: prev.price, to: point.price, pull: point.strength ?? null, adj: true, why: point.reasons });
     if (point.kind === "now" && Math.abs(point.price / prev.price - 1) > 1e-9) rows.push({ what: "Trading", when: `${et(prev.at)}–${live ? "now" : et(point.at)}`, from: prev.price, to: point.price, pull: null, adj: false });
   });
 
@@ -450,7 +450,10 @@ export function TalentDay({
             <tbody>
               {rows.map((row, i) => (
                 <tr key={i} data-adj={row.adj || undefined}>
-                  <td className={styles.l}>{row.what}</td>
+                  <td className={styles.l}>
+                    {row.what}
+                    {row.why?.length ? <small className={styles.tdWhy}>{row.why.map((reason) => reason.text).join(" · ")}</small> : null}
+                  </td>
                   <td className={styles.l}>{row.when}</td>
                   <td>
                     {num(row.from)} → {num(row.to)}

@@ -1253,6 +1253,17 @@
   margin-top: 0.6rem;
 }
 
+// Why an adjustment moved the price, under its step name (report-day.tsx).
+.tdWhy {
+  display: block;
+  max-width: 22rem;
+  margin-top: 0.1rem;
+  font-family: var(--font-body);
+  font-size: 0.656rem;
+  color: var(--dim);
+  white-space: normal;
+}
+
 .tdTable {
   width: 100%;
   border-collapse: collapse;

@@ -778,6 +778,71 @@
   display: grid;
 }
 
+// Why the last tick moved (market-sections.tsx WhyItMoved), and the short reason under each tick.
+.why {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0 0 0.9rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--blue);
+  background: var(--blue-wash);
+}
+
+.whyHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+
+  .label {
+    margin: 0;
+  }
+}
+
+.whyTick {
+  @include num;
+  font-size: 0.656rem;
+  letter-spacing: 0.06em;
+  color: var(--dim);
+}
+
+.whyLines > span {
+  font-size: 0.875rem;
+  color: var(--text);
+}
+
+.whyDetail {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--dim);
+}
+
+// Short enough for a tick's box; wraps rather than clipping on phones.
+.tnodeWhy {
+  min-width: 0;
+  font-family: var(--font-body);
+
+  > span,
+  > span > span {
+    white-space: normal;
+    overflow: visible;
+  }
+}
+
+// The tick log's reason line, under the row's tick and price.
+.logWhy {
+  grid-column: 2 / -1;
+  margin-top: -0.1rem;
+  font-family: var(--font-body);
+  white-space: normal;
+
+  > span {
+    font-size: 0.72rem;
+  }
+}
+
 .logRow {
   @include num;
   display: grid;
