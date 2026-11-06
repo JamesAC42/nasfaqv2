@@ -45,8 +45,9 @@ async function autoMarketLock(db, market, now = new Date()) {
   if (market.kind !== "auto") return null;
   const { rows } = await db.query(`SELECT enabled FROM market.prediction_auto_templates WHERE key = $1`, [market.auto_template]);
   if (!rows[0]?.enabled) return "template_off";
-  if (market.auto_template === "stream-peak") return streamLock(db, market, now);
-  if (market.auto_template === "tick-direction" || market.auto_template === "tick-top-gainer") return tickLock(db, market);
+  // The pool versions (auto.js) read the same data as the market-maker ones.
+  if (market.auto_template === "stream-peak" || market.auto_template === "stream-peak-pool") return streamLock(db, market, now);
+  if (market.auto_template === "tick-direction" || market.auto_template === "tick-top-gainer" || market.auto_template === "top-gainer-pool") return tickLock(db, market);
   return "template_unknown";
 }
 

@@ -19,6 +19,13 @@ const INFO: Record<string, { example: string; fields: string[]; outcomes: (param
     fields: ["daily_cap", "talents", "close_lead_minutes", "open_lead_hours", "min_past_streams", "liquidity_b", "fee_bps"],
     outcomes: () => 2,
   },
+  // Pools (docs/design/predictions-pools.md): players bet against each other, so no liquidity or fee.
+  "stream-peak-pool": {
+    example: "Marine's stream peaks above 45k? (pool)",
+    fields: ["daily_cap", "talents", "close_lead_minutes", "open_lead_hours", "min_past_streams"],
+    outcomes: () => 2,
+  },
+  "top-gainer-pool": { example: "Top gainer on the Lunch tick? (pool)", fields: ["count"], outcomes: (params) => (params.count ?? 6) + 1 },
 };
 
 const FIELD: Record<string, { label: string; hint: string; min: number; max: number; step: number }> = {

@@ -1,6 +1,7 @@
 # Predictions as pools, with margin (design)
 
-Status: proposal, waiting on the owner's five decisions at the end (2026-11-05).
+Status: built behind the `prediction-pools` flag, at `staff` (2026-11-06). The owner confirmed all
+five decisions below as recommended. §7 says what the build added or changed.
 
 The ask, from a trusted v1 player via the owner: "V1 plus quality of life things, including
 something like margin betting", meaning borrowing money and being allowed to go in the red.
@@ -150,7 +151,42 @@ $15,000: $2,000 comes from Cash and $13,000 is borrowed, leaving Credit at −$1
   - voids before and after resolution, including a margin bet's debt;
   - guards on auto pools.
 
-## Decisions for the owner
+## 7. As built
+
+- **The flag.** `services/predictions/poolAccess.js` is the one place that reads it:
+  - `off`: nobody sees pools.
+  - `staff`: admins, bookies and prediction staff see them. This is the default.
+  - `on`: everyone sees them.
+
+  Until the shared flag mechanism lands it reads `FEATURE_PREDICTION_POOLS`. While pools are hidden
+  from a player, nothing changes for them:
+  - no pools on the floor, the pool routes return not-found, and pool comments are hidden too;
+  - none of the in-the-red rules or the repayment sweep apply. Credit a void pushes below zero works
+    as before.
+- **Auto pools** are their own templates, `stream-peak-pool` and `top-gainer-pool`. Both start off
+  and carry #124's pause marker, so turning one on sticks. The market-maker templates stay as #124
+  left them.
+- **Retiring the market maker.** Once the flag is `on`, creating a market-maker market or turning
+  one of their templates on is refused (`lmsr_retired`). Open ones finish as before.
+- **Bookies.** `market.users.is_bookie` appears as "Bookie" on the admin people page.
+- **Tables.** `prediction_pool_stakes`, `prediction_pool_bets` and `prediction_pool_resolutions`.
+  The record is the last of these.
+- **Pages.**
+  - Each pool lives at `/predictions/pools/[slug]`, and an old link under `/predictions/` forwards
+    there.
+  - Finished pools are at `/predictions/history`, and the bookie tools at `/predictions/bookie`.
+  - "My bets" gains a Pools section with margin.
+- **Comments.** A stake counts as the position a player needs to post in a pool's thread.
+- **Notices** reuse the won, lost and void kinds, including for corrections and no-winner refunds.
+- **Tests.** `api/test/predictions-pools.test.js` covers:
+  - payout math;
+  - margin limits;
+  - negative balances and repayment;
+  - voids and corrections;
+  - auto pools;
+  - the flag.
+
+## Decisions for the owner (all confirmed as recommended, 2026-11-06)
 
 1. **Currency and sizes:** pools run on Credit (then Cash) and pay out in Credit. The minimum bet
    and raise is $1,000, and there's no rake. *Default: yes.*

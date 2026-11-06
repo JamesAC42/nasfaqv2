@@ -5,6 +5,10 @@
 //   tick-top-gainer  "Top gainer on the Lunch tick?"     ← asset_adjustment_intervals
 //   stream-peak      "Marine's stream peaks above 45k?"  ← yt.livestream_sessions
 //
+// stream-peak-pool and top-gainer-pool are the same questions as player pools
+// (docs/design/predictions-pools.md §4). They start off, and stay separate from the market-maker
+// templates so each can be turned on alone.
+//
 // Betting must end before the outcome can be known. closes_at is the schedule; guards.js checks the
 // data on every bet. How many markets get made is set by each template's params, in the admin
 // console: see generateTickMarkets and generateStreamMarkets.
@@ -12,7 +16,13 @@
 const core = require("./core");
 const guards = require("./guards");
 const markets = require("./markets");
+const poolAccess = require("./poolAccess");
+const pools = require("./pools");
 const resolution = require("./resolution");
+
+const POOL_TEMPLATES = new Set(["stream-peak-pool", "top-gainer-pool"]);
+const STREAM_TEMPLATES = new Set(["stream-peak", "stream-peak-pool"]);
+const TICK_TEMPLATES = new Set(["tick-direction", "tick-top-gainer", "top-gainer-pool"]);
 
 const { num, predictionError } = core;
 
@@ -62,7 +72,9 @@ async function createAuto(pool, input, { template, autoKey, autoData }) {
   if (await marketExists(pool, autoKey)) return null;
   try {
     return await core.inTransaction(pool, (client) =>
-      markets.createMarketWithClient(client, { ...input, publish: true }, { status: "open", kind: "auto", autoTemplate: template, autoKey, autoData })
+      POOL_TEMPLATES.has(template)
+        ? pools.insertPoolWithClient(client, input, { kind: "auto", autoTemplate: template, autoKey, autoData })
+        : markets.createMarketWithClient(client, { ...input, publish: true }, { status: "open", kind: "auto", autoTemplate: template, autoKey, autoData })
     );
   } catch (error) {
     if (error?.code === "23505") return null; // another instance created it first
@@ -169,6 +181,35 @@ async function generateTickMarkets(pool, templates) {
   return { created, tick_at: tickAt.toISOString() };
 }
 
+/** The top-gainer question as a pool: the K most active talents on the tick, plus Someone else. */
+async function generateTopGainerPool(pool, templates) {
+  const template = templates.get("top-gainer-pool");
+  if (!template?.enabled) return { created: 0 };
+  const tick = await nextTick(pool);
+  if (!tick) return { created: 0, note: "no scheduled tick" };
+  const tickAt = new Date(tick.scheduled_at);
+  const closesAt = new Date(tickAt.getTime() - CLOSE_BEFORE_TICK_MS);
+  if (closesAt.getTime() - Date.now() < 5 * 60_000) return { created: 0, note: "tick too close" };
+  const label = TICK_LABEL[tick.interval_key] || tick.interval_key;
+  const when = etTime(tickAt);
+  const assets = await activeAssets(pool, { tickAt, count: Math.min(11, Math.max(2, num(template.params.count, 6))) });
+  if (assets.length < 2) return { created: 0, note: "not enough talents on the tick" };
+  const market = await createAuto(
+    pool,
+    {
+      title: `Top gainer on the ${label} tick?`,
+      subtitle: `Pool · ${when}`,
+      rules_text: `The winner is the talent with the biggest percentage move up on the ${label} tick (${when}), measured right before vs right after the tick, across every listed talent. If that isn't one of the named talents, Someone else wins. Voids if the tick doesn't run. Betting closes 5 minutes before the tick.`,
+      resolution_source_text: `NASFAQ tick records at ${when}.`,
+      category: "ticks",
+      options: [...assets.map((asset) => ({ label: asset.display_name, asset_id: Number(asset.id) })), { label: "Someone else" }],
+      closes_at: closesAt,
+    },
+    { template: "top-gainer-pool", autoKey: `top-gainer-pool:${tickAt.toISOString()}`, autoData: { tick_at: tickAt.toISOString(), interval_key: tick.interval_key, asset_ids: assets.map((asset) => Number(asset.id)) } }
+  );
+  return { created: market ? 1 : 0, tick_at: tickAt.toISOString() };
+}
+
 async function resolveTickMarket(pool, market) {
   const data = market.auto_data || {};
   const tickAt = new Date(data.tick_at);
@@ -219,13 +260,15 @@ const fmtViewers = (value) => (value >= 1000 ? `${Math.round(value / 100) / 10}k
  *
  * At most daily_cap in any 24 hours and one per talent, from the `talents` most active talents.
  */
-async function generateStreamMarkets(pool, templates) {
-  const template = templates.get("stream-peak");
+async function generateStreamMarkets(pool, templates, key = "stream-peak") {
+  const template = templates.get(key);
   if (!template?.enabled) return { created: 0 };
+  const asPool = POOL_TEMPLATES.has(key);
   const params = template.params;
   const dailyCap = streamParam(params, "daily_cap");
   const { rows: recent } = await pool.query(
-    `SELECT auto_data->>'symbol' AS symbol FROM market.prediction_markets WHERE auto_template = 'stream-peak' AND created_at > now() - interval '24 hours'`
+    `SELECT auto_data->>'symbol' AS symbol FROM market.prediction_markets WHERE auto_template = $1 AND created_at > now() - interval '24 hours'`,
+    [key]
   );
   let room = dailyCap - recent.length;
   if (room <= 0) return { created: 0, note: `daily cap of ${dailyCap} reached` };
@@ -249,7 +292,7 @@ async function generateStreamMarkets(pool, templates) {
   for (const stream of upcoming) {
     if (room <= 0) break;
     if (taken.has(stream.symbol)) continue;
-    const autoKey = `stream-peak:${stream.video_id}`;
+    const autoKey = `${key}:${stream.video_id}`;
     if (await marketExists(pool, autoKey)) continue;
     const { rows: past } = await pool.query(
       `SELECT max_concurrent_viewers FROM yt.livestream_sessions
@@ -270,10 +313,11 @@ async function generateStreamMarkets(pool, templates) {
       {
         title: `${firstName}'s stream peaks above ${fmtViewers(line)}?`,
         subtitle: stream.video_title ? String(stream.video_title).slice(0, 200) : stream.display_name,
-        rules_text: `Resolves YES if this stream's peak concurrent viewers reach ${line.toLocaleString("en-US")} or more, as recorded by NASFAQ's stream tracker. The line is ${stream.display_name}'s median peak over their last ${peaks.length} streams. Betting closes ${closeLeadMinutes} minutes before the scheduled start (${etTime(scheduledAt)}), or as soon as the tracker sees the stream go live if that's sooner. If a bet still lands after the real start, the market voids and everyone gets their money back. It also voids if the stream hasn't started within 12 hours of its scheduled time, or ends with no peak on record.`,
+        rules_text: `Resolves YES if this stream's peak concurrent viewers reach ${line.toLocaleString("en-US")} or more, as recorded by NASFAQ's stream tracker. The line is ${stream.display_name}'s median peak over their last ${peaks.length} streams. Betting closes ${closeLeadMinutes} minutes before the scheduled start (${etTime(scheduledAt)}), or as soon as the tracker sees the stream go live if that's sooner. If a bet still lands after the real start, the ${asPool ? "pool" : "market"} voids and everyone gets their money back. It also voids if the stream hasn't started within 12 hours of its scheduled time, or ends with no peak on record.`,
         resolution_source_text: `NASFAQ stream tracker for YouTube video ${stream.video_id}.`,
         category: "streams",
         market_type: "binary",
+        options: [{ code: "yes", label: "Yes" }, { code: "no", label: "No" }],
         probability: 0.5,
         closes_at: closesAt,
         resolves_after: scheduledAt,
@@ -281,7 +325,7 @@ async function generateStreamMarkets(pool, templates) {
         fee_bps: num(params.fee_bps, 100),
       },
       {
-        template: "stream-peak",
+        template: key,
         autoKey,
         autoData: {
           video_id: stream.video_id,
@@ -319,7 +363,12 @@ async function resolveStreamMarket(pool, market) {
   // The last line of defense: the tracker can learn of a start after the fact, and a bet placed in
   // between must never pay. Markets from before this rule opened after the start, so it can't apply.
   if (data.closes_before_start && startedAt) {
-    const { rows: late } = await pool.query(`SELECT COUNT(*)::int AS trades FROM market.prediction_market_trades WHERE market_id = $1 AND matched_at >= $2`, [market.id, startedAt]);
+    const { rows: late } = await pool.query(
+      market.pricing === "pool"
+        ? `SELECT COUNT(*)::int AS trades FROM market.prediction_pool_bets WHERE market_id = $1 AND created_at >= $2`
+        : `SELECT COUNT(*)::int AS trades FROM market.prediction_market_trades WHERE market_id = $1 AND matched_at >= $2`,
+      [market.id, startedAt]
+    );
     if (late[0].trades > 0) return { outcome: "void", evidence: { reason: "A bet landed after the stream started", late_trades: late[0].trades, started_at: startedAt.toISOString(), line } };
   }
   // The session's peak is only written when the stream ends; its 5-minute buckets have the running one.
@@ -339,6 +388,12 @@ async function resolveBySystem(pool, marketId, { outcome, evidence }) {
     const market = await core.lockMarket(client, { id: marketId });
     if (!["open", "closed", "resolving"].includes(market.status)) return null;
     if (market.status === "open") await resolution.closeWithClient(client, market, { reason: "resolved_by_data" });
+    if (market.pricing === "pool") {
+      if (outcome === "void") return pools.voidWithClient(client, market, { reason: evidence?.reason || "Voided by data", evidence });
+      const winner = (await core.loadOutcomes(client, market.id)).find((entry) => entry.outcome_code === outcome);
+      if (!winner) throw predictionError("invalid_outcome");
+      return pools.settleWithClient(client, market, winner, { note: "Resolved automatically from NASFAQ data.", evidence });
+    }
     const proposal = await resolution.insertProposal(client, market, {
       proposerId: null,
       outcomeCode: outcome,
@@ -364,7 +419,7 @@ async function closeLockedMarkets(pool) {
     `UPDATE market.prediction_markets m
      SET closes_at = GREATEST(s.scheduled_start_at - make_interval(mins => (m.auto_data->>'close_lead_minutes')::int), m.opens_at + interval '1 second'), updated_at = now()
      FROM yt.livestream_sessions s
-     WHERE m.kind = 'auto' AND m.auto_template = 'stream-peak' AND m.status = 'open' AND m.auto_data ? 'close_lead_minutes'
+     WHERE m.kind = 'auto' AND m.auto_template IN ('stream-peak', 'stream-peak-pool') AND m.status = 'open' AND m.auto_data ? 'close_lead_minutes'
        AND s.video_id = m.auto_data->>'video_id' AND s.scheduled_start_at IS NOT NULL
        AND s.scheduled_start_at - make_interval(mins => (m.auto_data->>'close_lead_minutes')::int) < m.closes_at`
   );
@@ -392,8 +447,8 @@ async function resolveAutoMarkets(pool) {
   for (const market of rows) {
     let call = null;
     try {
-      if (market.auto_template === "tick-direction" || market.auto_template === "tick-top-gainer") call = await resolveTickMarket(pool, market);
-      else if (market.auto_template === "stream-peak") call = await resolveStreamMarket(pool, market);
+      if (TICK_TEMPLATES.has(market.auto_template)) call = await resolveTickMarket(pool, market);
+      else if (STREAM_TEMPLATES.has(market.auto_template)) call = await resolveStreamMarket(pool, market);
       if (!call) continue;
       const result = await resolveBySystem(pool, market.id, call);
       if (result) resolved.push(result);
@@ -410,6 +465,8 @@ async function runAutoTemplates(pool) {
   for (const [key, run] of [
     ["tick", generateTickMarkets],
     ["stream-peak", generateStreamMarkets],
+    ["stream-peak-pool", (db, loaded) => generateStreamMarkets(db, loaded, "stream-peak-pool")],
+    ["top-gainer-pool", generateTopGainerPool],
   ]) {
     try {
       results[key] = await run(pool, templates);
@@ -418,7 +475,7 @@ async function runAutoTemplates(pool) {
     }
   }
   for (const key of ["tick-direction", "tick-top-gainer"]) if (templates.get(key)?.enabled) await recordRun(pool, key, results.tick);
-  if (templates.get("stream-peak")?.enabled) await recordRun(pool, "stream-peak", results["stream-peak"]);
+  for (const key of ["stream-peak", "stream-peak-pool", "top-gainer-pool"]) if (templates.get(key)?.enabled) await recordRun(pool, key, results[key]);
   return results;
 }
 
@@ -426,6 +483,8 @@ async function updateTemplate(pool, actor, key, { enabled, params }) {
   if (!actor?.is_admin && !actor?.can_resolve_prediction_markets) throw predictionError("forbidden");
   const { rows } = await pool.query(`SELECT * FROM market.prediction_auto_templates WHERE key = $1`, [key]);
   if (!rows[0]) throw predictionError("template_not_found");
+  // Once pools are on for everyone, the market-maker templates stay off (predictions-pools.md §4).
+  if (enabled === true && !POOL_TEMPLATES.has(key) && poolAccess.poolsFlag() === "on") throw predictionError("lmsr_retired");
   const next = { ...(rows[0].params_json || {}) };
   for (const field of Object.keys(PARAM_LIMITS)) {
     if (params && params[field] !== undefined && Number.isFinite(Number(params[field]))) next[field] = clampParam(field, params[field]);

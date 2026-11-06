@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { StaffActions } from "@/app/components/predictions/admin/staff-actions";
 import { Activity } from "@/app/components/predictions/market/activity";
@@ -37,6 +37,7 @@ function patchPrices(market: PredictionMarketDetail, fill: Fill): PredictionMark
 /** /predictions/[slug]: where people trade one market. */
 export function MarketPage({ slug }: { slug: string }) {
   const search = useSearchParams();
+  const router = useRouter();
   const wanted = search.get("outcome");
   const { isStaff } = useStaff();
   const compact = useCompact();
@@ -90,6 +91,11 @@ export function MarketPage({ slug }: { slug: string }) {
     fetchMarket(slug)
       .then(({ market: next }) => {
         if (!alive || mine !== seq.current) return;
+        // A pool has its own page.
+        if ((next as { pricing?: string }).pricing === "pool") {
+          router.replace(`/predictions/pools/${encodeURIComponent(slug)}`);
+          return;
+        }
         setMarket(next);
         setOrder(byPrice(next));
         setLoadError(null);

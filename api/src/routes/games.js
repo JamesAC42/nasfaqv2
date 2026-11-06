@@ -23,6 +23,7 @@ const ERROR_STATUS = {
   forbidden: 403,
   insufficient_cash: 409,
   insufficient_credit: 409,
+  in_the_red: 409,
   insufficient_shards: 409,
   reward_already_claimed: 409,
   set_incomplete: 409,

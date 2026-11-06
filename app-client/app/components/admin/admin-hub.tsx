@@ -974,6 +974,7 @@ export function AdminHub() {
                 <Row label="Approvers">{fmtCount(s.users.roles.can_approve_prediction_markets)}</Row>
                 <Row label="Resolvers">{fmtCount(s.users.roles.can_resolve_prediction_markets)}</Row>
                 <Row label="Voiders">{fmtCount(s.users.roles.can_void_prediction_markets)}</Row>
+                <Row label="Bookies">{fmtCount(s.users.roles.is_bookie)}</Row>
               </dl>
             </Section>
           ) : null}
