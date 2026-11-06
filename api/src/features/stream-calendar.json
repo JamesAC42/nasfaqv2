@@ -1,0 +1,4 @@
+{
+  "state": "staff",
+  "description": "The stream calendar: /livestreams/calendar, GET /api/livestreams/calendar, its Community menu link and Livestreams tab, and the market floor's On stream box."
+}

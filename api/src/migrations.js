@@ -1967,6 +1967,15 @@ async function applySchema(pool) {
   // The first-days guide (services/firstDays.js) shows until this passes or the player closes it. Only
   // accounts made after it shipped get a date (auth.createUser), so players already on v2 never see it.
   await pool.query(`ALTER TABLE market.users ADD COLUMN IF NOT EXISTS first_days_until TIMESTAMPTZ NULL`);
+
+  // Why each tick moved a stock (services/tickDrivers.js), written when the tick lands. reasons_json
+  // is public (kind and wording, from public numbers only); driver_state_json is the private split of
+  // the distance the tick closed, carried into the next tick, and no public query reads it.
+  await pool.query(`
+    ALTER TABLE market.asset_adjustment_intervals
+      ADD COLUMN IF NOT EXISTS reasons_json JSONB NULL,
+      ADD COLUMN IF NOT EXISTS driver_state_json JSONB NULL
+  `);
 }
 
 module.exports = { applySchema };

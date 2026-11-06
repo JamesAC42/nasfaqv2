@@ -4,6 +4,8 @@ Each file here is one entry on the player-facing [/changelog](https://holo.nasfa
 
 **Only bigger, player-visible features get an entry.** A new game, a new page, a change to how trading or predictions work: yes. A small bug fix, a layout tweak or a behind-the-scenes change: no, leave it out.
 
+**A feature behind a feature flag gets its entry in the PR that turns the flag on**, not in the PR that adds the feature. That way the changelog announces it when players can actually see it. Keep a draft in the first PR's description until then. Flags are explained in [`api/src/features/README.md`](../../../../api/src/features/README.md).
+
 ## Adding one
 
 Add a new file. Don't edit other entries to add yours, and never go back to a single shared list: separate files are why PRs don't conflict here.

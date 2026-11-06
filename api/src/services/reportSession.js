@@ -31,7 +31,8 @@ async function getSessionBreakdown(pool, marketDate) {
             'status', i.status,
             'before', CASE WHEN i.status = 'applied' THEN i.price_before::float8 END,
             'after', CASE WHEN i.status = 'applied' THEN i.price_after::float8 END,
-            'strength_pct', CASE WHEN $2 THEN i.strength_pct::float8 END
+            'strength_pct', CASE WHEN $2 THEN i.strength_pct::float8 END,
+            'reasons', CASE WHEN i.status = 'applied' THEN i.reasons_json END
           )
           ORDER BY i.scheduled_at
         ) FILTER (WHERE i.id IS NOT NULL),
@@ -79,6 +80,7 @@ async function getSessionBreakdown(pool, marketDate) {
         before: step.before,
         after: step.after,
         strength_pct: step.strength_pct,
+        reasons: step.reasons ?? null,
       })),
     })),
   };

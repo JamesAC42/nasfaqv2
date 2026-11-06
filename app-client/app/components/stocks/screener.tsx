@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
+import { TickReasons } from "@/app/components/market/tick-reason";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { SiteShell } from "@/app/components/layout/site-shell";
@@ -482,8 +483,9 @@ export function Screener({ initialView }: { initialView?: string }) {
         );
       case "tick":
         return (
-          <td key={key} className={styles[toneOf(row.tick)]}>
-            {signedPct(row.tick)}
+          <td key={key} className={styles.tickCell}>
+            <span className={styles[toneOf(row.tick)]}>{signedPct(row.tick)}</span>
+            <TickReasons reasons={row.asset.latest_adjustment?.reasons} compact className={styles.tickWhy} />
           </td>
         );
       case "d15":
@@ -897,6 +899,7 @@ export function Screener({ initialView }: { initialView?: string }) {
                         <span className={styles[toneOf(row.move)]}>{signedPct(row.move)}</span>
                         <span className={styles[toneOf(row.d15)]}>{signedPct(row.d15, 1)} 15D</span>
                       </span>
+                      <TickReasons reasons={row.asset.latest_adjustment?.reasons} compact className={styles.cardWhy} />
                       <Spark15 asset={row.asset} width={200} height={30} />
                     </span>
                   </Link>

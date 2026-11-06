@@ -404,7 +404,7 @@ function Ticks({ date, session }: { date: string; session?: SessionBreakdown | n
       key={`${item.symbol}-${item.interval_key}-${value}`}
       symbol={item.symbol}
       icon={bySymbol.get(item.symbol.toUpperCase())?.icon ?? item.icon}
-      detail={`${label(item.interval_key)} · ${item.applied_at ? `${formatEtTime(new Date(item.applied_at))} ET` : ""}`}
+      detail={`${label(item.interval_key)} · ${item.applied_at ? `${formatEtTime(new Date(item.applied_at))} ET` : ""}${item.reasons?.length ? ` · ${item.reasons[0].text}` : ""}`}
       tone="flat"
       valueTone={tone}
       value={value}

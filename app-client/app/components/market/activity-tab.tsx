@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { OrderAllowanceMeter } from "@/app/components/trade/order-allowance";
 import { memo, useEffect, useMemo, useState } from "react";
+import { TickReasons } from "@/app/components/market/tick-reason";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { compactMoney, DivBar, num, RankRow, Seg, toneClass, useAssetMap } from "@/app/components/market/bits";
 import { FlowBars, MiniCandles } from "@/app/components/market/mini-charts";
@@ -757,6 +758,7 @@ function LastTick() {
         <span>
           {item.symbol}
           <small>{num(item.price_after)}</small>
+          <TickReasons reasons={item.reasons} compact className={styles.adjWhy} />
         </span>
         <b className={ui[tone]}>{signedPct(item.move_pct)}</b>
       </Link>
