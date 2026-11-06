@@ -154,6 +154,24 @@ test("prediction lockdown end to end", { skip: !databaseUrl, timeout: 180_000 },
     );
   });
 
+  await t.test("every auto template starts paused, once, and turning one back on sticks", async () => {
+    let { rows } = await pool.query(`SELECT key, enabled, params_json FROM market.prediction_auto_templates ORDER BY key`);
+    assert.deepEqual(rows.map((row) => row.key), ["stream-peak", "tick-direction", "tick-top-gainer"]);
+    for (const row of rows) {
+      assert.equal(row.enabled, false, row.key);
+      assert.equal(row.params_json.paused_2026_11, 1, row.key);
+    }
+    await auto.runAutoTemplates(pool);
+    ({ rows } = await pool.query(`SELECT count(*)::int AS n FROM market.prediction_markets WHERE kind = 'auto'`));
+    assert.equal(rows[0].n, 0, "nothing opens while paused");
+    // The tests below cover the templates while they're on; the owner can turn them back on any time.
+    await setTemplate("stream-peak", { enabled: true });
+    await setTemplate("tick-top-gainer", { enabled: true });
+    await applyPredictionsSchema(pool);
+    ({ rows } = await pool.query(`SELECT key, enabled FROM market.prediction_auto_templates WHERE key IN ('stream-peak', 'tick-top-gainer') ORDER BY key`));
+    assert.deepEqual(rows.map((row) => row.enabled), [true, true], "the next deploy leaves them on");
+  });
+
   await t.test("the lockdown runs once and doesn't undo the owner's choices", async () => {
     // A database from before it: tick calls on at the old count, an existing stream setting.
     await pool.query(`UPDATE market.prediction_auto_templates SET enabled = true, params_json = '{"count": 6, "liquidity_b": 400, "fee_bps": 100}' WHERE key = 'tick-direction'`);
@@ -172,7 +190,8 @@ test("prediction lockdown end to end", { skip: !databaseUrl, timeout: 180_000 },
     assert.equal(rows[0].params_json.daily_cap, 9, "a setting already there stays");
     assert.equal(rows[0].params_json.close_lead_minutes, 15, "a missing one is filled in");
     await setTemplate("tick-direction", { enabled: false, params: { count: 3 } });
-    await setTemplate("stream-peak", { params: { daily_cap: 5 } });
+    // Replacing stream-peak's settings above dropped its pause marker too, so the schema paused it again.
+    await setTemplate("stream-peak", { enabled: true, params: { daily_cap: 5 } });
   });
 
   await t.test("markets open only on streams that haven't started, with time left to bet", async () => {
