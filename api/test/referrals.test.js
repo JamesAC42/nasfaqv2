@@ -127,6 +127,20 @@ test("visits: only a daily-salted hash, the path and the referring host", () => 
   assert.equal(visits.dayKey(new Date("2026-11-06T03:30:00Z")), "2026-11-05", "New York days");
 });
 
+test("visits: huge inputs are cut before any regex runs on them", () => {
+  const slashes = "/".repeat(200_000);
+  const started = process.hrtime.bigint();
+  assert.equal(visits.cleanPath(`/market${slashes}`), "/market", "a long run of trailing slashes");
+  assert.equal(visits.cleanPath(`/market${slashes}x`), "/market", "cut before the slashes end");
+  assert.equal(visits.cleanPath(`/a${"/b".repeat(100_000)}/`), null, "too long once cut");
+  assert.equal(visits.cleanPath(slashes), null);
+  assert.equal(visits.cleanPath(`/profile/honk/?x=${slashes}`), "/profile/honk", "a short path with a huge query");
+  assert.equal(visits.cleanReferrerHost(`https://www.example.com/${slashes}`), "example.com");
+  assert.ok(!visits.isBot(`Mozilla/5.0 ${"a".repeat(200_000)} bot/1.0`), "only the start of a user agent is read");
+  const ms = Number(process.hrtime.bigint() - started) / 1e6;
+  assert.ok(ms < 500, `took ${ms.toFixed(1)} ms`);
+});
+
 test("visits: the salt is shared through Redis, and falls back to one of the process's own", async () => {
   const store = new Map();
   const redis = {

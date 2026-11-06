@@ -23,6 +23,10 @@ const SALT_TTL_SECONDS = 2 * 86_400;
 const FALLBACK_SALT_MS = 60_000;
 const MAX_PATH = 200;
 const MAX_HOST = 100;
+// Every value from the request is cut to this before any regex runs on it. A path or referrer
+// longer than this isn't one we'd keep anyway.
+const MAX_RAW = 2048;
+const MAX_USER_AGENT = 512;
 // Link unfurlers, crawlers and scripts. Most never run the page's JavaScript, so never call in;
 // these are the ones that do.
 const BOTS = /\bbot\b|bot\/|crawl|spider|slurp|headless|lighthouse|pagespeed|preview|prerender|puppeteer|playwright|phantom|selenium|python|curl|wget|httpclient|okhttp|monitor|uptime/i;
@@ -77,10 +81,11 @@ function visitorHash(salt, ip, userAgent) {
 
 /** A page path as stored: no query or fragment, at most 200 characters, or null. */
 function cleanPath(value) {
-  let path = String(value ?? "").split(/[?#]/)[0].trim();
+  let path = String(value ?? "").slice(0, MAX_RAW).split(/[?#]/)[0].trim();
   if (!path.startsWith("/") || path.startsWith("//")) return null;
   path = path.replace(/\/{2,}/g, "/");
-  if (path.length > 1) path = path.replace(/\/+$/, "");
+  // Runs of slashes are one slash by now, so at most one is left at the end.
+  if (path.length > 1 && path.endsWith("/")) path = path.slice(0, -1);
   if (path.length > MAX_PATH || !/^\/[A-Za-z0-9/_\-.~%:@!$&'()*+,;=]*$/.test(path)) return null;
   return path;
 }
@@ -90,7 +95,7 @@ function cleanReferrerHost(value, ownHosts = new Set()) {
   if (!value) return null;
   let url;
   try {
-    url = new URL(String(value));
+    url = new URL(String(value).slice(0, MAX_RAW));
   } catch {
     return null;
   }
@@ -107,12 +112,16 @@ function ownHosts(req) {
       if (value) hosts.add(new URL(value).hostname.toLowerCase().replace(/^www\./, ""));
     } catch {}
   }
-  const header = String(req?.headers?.["x-forwarded-host"] || req?.headers?.host || "").split(",")[0].trim().toLowerCase();
+  const header = String(req?.headers?.["x-forwarded-host"] || req?.headers?.host || "")
+    .slice(0, MAX_HOST * 3)
+    .split(",")[0]
+    .trim()
+    .toLowerCase();
   if (header) hosts.add(header.replace(/:\d+$/, "").replace(/^www\./, ""));
   return hosts;
 }
 
-const isBot = (userAgent) => !userAgent || BOTS.test(userAgent);
+const isBot = (userAgent) => !userAgent || BOTS.test(String(userAgent).slice(0, MAX_USER_AGENT));
 
 /**
  * Counts one page view from a signed-out visitor. Returns { counted, reason }: signed-in players,
@@ -120,7 +129,7 @@ const isBot = (userAgent) => !userAgent || BOTS.test(userAgent);
  */
 async function recordVisit(pool, redis, req, body, { now = new Date() } = {}) {
   if (req.ctx?.user) return { counted: false, reason: "signed_in" };
-  const userAgent = String(req.headers?.["user-agent"] || "");
+  const userAgent = String(req.headers?.["user-agent"] || "").slice(0, MAX_USER_AGENT);
   if (isBot(userAgent)) return { counted: false, reason: "bot" };
   const path = cleanPath(body?.path);
   if (!path) return { counted: false, reason: "invalid_path" };
