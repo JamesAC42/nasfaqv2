@@ -162,6 +162,15 @@ async function applyPredictionsSchema(pool) {
     SET params_json = '{"talents": 15, "daily_cap": 5, "close_lead_minutes": 15, "open_lead_hours": 24}'::jsonb || params_json
     WHERE key = 'stream-peak'
   `);
+  // November 2026: every auto template goes off, once, while predictions move to player pools.
+  // No new auto markets open, and betting on the open ones shuts (guards.js: template_off), but they
+  // still resolve and pay out as usual. Like the lockdown, the marker stops this running again, so
+  // turning a template back on in the admin console sticks.
+  await pool.query(`
+    UPDATE market.prediction_auto_templates
+    SET enabled = false, updated_at = now(), params_json = params_json || '{"paused_2026_11": 1}'::jsonb
+    WHERE NOT params_json ? 'paused_2026_11'
+  `);
 
   await pool.query(`
     INSERT INTO market.prediction_market_categories (slug, display_name, description, sort_order) VALUES
