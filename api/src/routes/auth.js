@@ -2,6 +2,7 @@ const express = require("express");
 const auth = require("../services/auth");
 const firstDays = require("../services/firstDays");
 const { requestIpHash } = require("../services/ipHash");
+const referrals = require("../services/referrals");
 const { verifyTurnstile } = require("../services/turnstile");
 
 const { rateLimit, byIp, byUser, hit, peek, clear, tooMany } = require("../rateLimit");
@@ -77,6 +78,11 @@ router.post("/register", rateLimit(byIp("register", 10, 3600)), async (req, res,
       ipHash,
     });
     const session = await auth.createSession(req.ctx.pool, user.id, { ipHash });
+    // Whose link they came through, or the source tag (?ref=...), kept by the browser. Never stops the sign-up.
+    await referrals.recordSignup(req.ctx.pool, { userId: user.id, refs: req.body?.refs }).catch((error) => {
+      // eslint-disable-next-line no-console
+      console.error("referral sign-up record failed:", error?.message || error);
+    });
     res.setHeader("Set-Cookie", session.cookie);
     res.status(201).json({ user });
   } catch (e) {

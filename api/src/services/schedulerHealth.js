@@ -24,6 +24,8 @@ const SCHEDULERS = [
   { name: "chatter", label: "Chatter", staleAfterMs: 180 * MINUTE, stallAfterMs: 30 * MINUTE },
   // Readers see the same history either way; a backlog only makes chat.messages bigger.
   { name: "chat-archive", label: "Chat archive", staleAfterMs: 120 * MINUTE },
+  // Referral rewards land a minute or so after a first fill; a late one is only late.
+  { name: "referrals", label: "Referrals", staleAfterMs: 30 * MINUTE },
   { name: "watchdog", label: "Watchdog", staleAfterMs: 10 * MINUTE },
 ];
 const specFor = (name) => SCHEDULERS.find((spec) => spec.name === name) || null;

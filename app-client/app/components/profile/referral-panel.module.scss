@@ -1,0 +1,108 @@
+@use "../../styles/mixins" as *;
+
+// The "Invite friends" section on your own profile (referral-panel.tsx).
+
+.panel {
+  display: grid;
+  align-content: start;
+  // Clear of the sticky header and price tape when /profile?invite=1 scrolls here.
+  scroll-margin-top: 6.5rem;
+}
+
+.pitch {
+  margin: 0 0 0.65rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--mid);
+
+  b {
+    color: var(--up);
+    font-weight: 600;
+  }
+}
+
+.linkRow {
+  display: flex;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.linkBox {
+  @include input-base;
+  @include num;
+  flex: 1;
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.copy {
+  @include button-secondary;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: none;
+  padding: 0.45rem 0.7rem;
+  font-family: var(--font-mono);
+  font-size: 0.656rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.note {
+  margin: 0.45rem 0 0;
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+.invited {
+  margin: 0.7rem 0 0;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--blue-line);
+  background: var(--blue-wash);
+  font-size: 0.75rem;
+  color: var(--mid);
+
+  a {
+    color: var(--blue-2);
+  }
+}
+
+.list {
+  margin-top: 0.7rem;
+  border-top: 1px solid var(--rule);
+
+  small {
+    font-size: 0.7rem;
+    text-align: right;
+  }
+}
+
+.up { color: var(--up); }
+.down { color: var(--down); }
+.flat { color: var(--dim); }
+
+.empty {
+  @include empty-state;
+  margin-top: 0.7rem;
+}
+
+.rules {
+  margin-top: 0.7rem;
+  font-size: 0.75rem;
+  color: var(--mid);
+
+  summary {
+    @include label;
+    cursor: pointer;
+  }
+
+  ul {
+    display: grid;
+    gap: 0.3rem;
+    margin: 0.5rem 0 0;
+    padding-left: 1.1rem;
+    line-height: 1.4;
+  }
+}

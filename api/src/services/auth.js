@@ -517,6 +517,19 @@ async function getAuthenticatedUser(pool, req) {
     `,
       [user.session_id, requestIpHash(req)]
     );
+    // Today (New York) counts as a day this player was on the site: daily and weekly actives and
+    // retention on /admin/analytics (services/playerAnalytics.js). A schema without the table (an
+    // older test database) just skips it.
+    await pool
+      .query(
+        `INSERT INTO market.user_active_days (user_id, day) VALUES ($1, (now() AT TIME ZONE 'America/New_York')::date) ON CONFLICT DO NOTHING`,
+        [user.id]
+      )
+      .catch((error) => {
+        if (error?.code === "42P01") return;
+        // eslint-disable-next-line no-console
+        console.error("active day write failed:", error?.message || error);
+      });
   }
 
   return user;

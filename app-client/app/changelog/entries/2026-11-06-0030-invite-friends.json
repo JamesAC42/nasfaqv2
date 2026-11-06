@@ -1,0 +1,8 @@
+{
+  "title": "Invite friends",
+  "changes": [
+    { "kind": "new", "text": "Your profile has an invite link. When a friend signs up through it and makes their first stock trade, you each get $250 and 2,500 Credit, up to 3 times a week." },
+    { "kind": "new", "text": "The hands and pulls you share carry your invite link too, so a friend who signs up from one counts." },
+    { "kind": "new", "text": "Your profile lists everyone who joined through your link, and the bell tells you when a bonus lands." }
+  ]
+}
