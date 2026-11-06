@@ -33,8 +33,6 @@ export const CHANGELOG: ChangelogEntry[] = [
         text: "While you're new, the fill card after a buy explains what happens next: what the shares are worth, when the next tick lands, and what Saturday's review does.",
       },
     ],
-      },
-    ],
   },
   {
     date: "2026-11-05",
@@ -56,6 +54,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         kind: "new",
         text: "Mute a player from the ⋯ menu on any of their chat messages. You get no popups or @mention and reply notifications from them, and their messages collapse for you. Only you can tell, and you can undo it on the Notifications page.",
       },
+    ],
   },
   {
     date: "2026-11-05",
