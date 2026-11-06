@@ -1,0 +1,9 @@
+{
+  "title": "Snappier deck editing",
+  "changes": [
+    {
+      "kind": "fixed",
+      "text": "Changing cards in the Oshi Card Duel deck editor froze for most of a second with a UR card on screen. It's instant now. (UR sparkles fade in and out now instead of growing and spinning.)"
+    }
+  ]
+}

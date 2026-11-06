@@ -1,0 +1,9 @@
+{
+  "title": "Blackjack table print",
+  "changes": [
+    {
+      "kind": "fixed",
+      "text": "The small print on the blackjack table (\"Dealer stands on all 17s · Double on any two\") lost its first and last letters. It's all there now."
+    }
+  ]
+}

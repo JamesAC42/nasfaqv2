@@ -1,0 +1,17 @@
+{
+  "title": "Link previews",
+  "changes": [
+    {
+      "kind": "fixed",
+      "text": "Links to NASFAQ in Discord and elsewhere showed an empty box instead of a picture."
+    },
+    {
+      "kind": "new",
+      "text": "Shared links get their own pictures: today's movers for the market, the week's top payer for the Dividend Review, the top five for the leaderboard, a player card for profiles, and the story's art for news."
+    },
+    {
+      "kind": "fixed",
+      "text": "A stock's link picture showed no price."
+    }
+  ]
+}

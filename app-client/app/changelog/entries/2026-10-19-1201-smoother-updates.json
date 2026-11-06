@@ -1,0 +1,9 @@
+{
+  "title": "Smoother updates",
+  "changes": [
+    {
+      "kind": "improved",
+      "text": "Putting out an update no longer cuts off a trade or chat message you'd just sent: it finishes first, and you shouldn't see errors while the update rolls out."
+    }
+  ]
+}

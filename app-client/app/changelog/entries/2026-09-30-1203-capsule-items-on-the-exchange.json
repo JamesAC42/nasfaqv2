@@ -1,0 +1,17 @@
+{
+  "title": "Capsule items on the exchange",
+  "changes": [
+    {
+      "kind": "new",
+      "text": "Sell, auction and trade what you pull from the capsule machine: the exchange has a Capsule items market, each item has its own price page, and your locker has Sell buttons."
+    },
+    {
+      "kind": "new",
+      "text": "Trades can include items on either side."
+    },
+    {
+      "kind": "improved",
+      "text": "Players hold one of each item, so you can't buy one you already have. Anything you buy or trade for can go back on the exchange after 24 hours. Set rewards stay with you."
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "title": "Hold your item",
+  "changes": [
+    {
+      "kind": "new",
+      "text": "The item you equip from the capsule machine now shows on your picture, held at the lower right in front of your hat, everywhere your picture appears. One hat and one item at a time."
+    }
+  ]
+}

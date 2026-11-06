@@ -1,0 +1,9 @@
+{
+  "title": "/hlgg/",
+  "changes": [
+    {
+      "kind": "fixed",
+      "text": "The Threads page calls the Hololive Global general by its name, /hlgg/, not /hlg/."
+    }
+  ]
+}
