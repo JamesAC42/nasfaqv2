@@ -176,11 +176,11 @@ export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
   },
   {
     q: "What's Credit?",
-    a: "Your second balance. Games, the capsule machine, the card exchange and predictions spend it first, and your cash only once it runs out; so does the trading fee. Dividends, winnings, achievements and a little of every sale land in it, it counts toward your net worth, and every Saturday 5% of it (or $10k, if that's more) turns into cash.",
+    a: "Your second balance. Games, the capsule machine, the card exchange and predictions spend it first, and your cash only once it runs out; so does the trading fee. Dividends, winnings, achievements, the daily check-in and a little of every sale land in it, it counts toward your net worth, and every Saturday 5% of it (or $10k, if that's more) turns into cash.",
   },
   {
     q: "How do I get more cash?",
-    a: "Sell shares for more than you paid, and let Saturdays work: part of your Credit turns into cash every week. Credit comes from dividends, winnings, achievements ($100 for your first fill up to $2,500 for a 30-day trading streak) and a little of every sale. Games and predictions can pay out, and they can also take it.",
+    a: "Sell shares for more than you paid, and let Saturdays work: part of your Credit turns into cash every week. Credit comes from dividends, winnings, achievements ($100 for your first fill up to $2,500 for a 30-day trading streak), the daily check-in on the front page ($50 a day, $100 while you trade every day) and a little of every sale. Games and predictions can pay out, and they can also take it.",
   },
   {
     q: "Why is my cash negative?",

@@ -142,6 +142,20 @@
     @include num;
     font-size: 0.8rem;
   }
+
+  // Under a line oshi protection covered: the fee it skipped.
+  .waived {
+    grid-column: 1 / -1;
+    margin-top: -0.2rem;
+    font-style: normal;
+    font-size: 0.7rem;
+    color: var(--blue);
+
+    b {
+      font-size: inherit;
+      color: inherit;
+    }
+  }
 }
 
 .table {

@@ -480,6 +480,8 @@ export type EvaluationRow = {
   max_supply_before: number;
   max_supply_after: number;
   buyback: string | null;
+  /** Share fees oshi protection skipped on this stock (only when it skipped some). */
+  oshi_waived?: number;
 };
 
 /** The Weekly Evaluation (Saturday 00:00 ET): dividends and fees, max shares, buybacks. */
@@ -506,6 +508,8 @@ export type WeeklyEvaluation = {
   max_shares_lowered: EvaluationRow[];
   buybacks_started: Array<{ symbol: string; display_name: string; held: number; max_supply: number; over: number; frozen_price: number; offer: number }>;
   buybacks_closed: Array<{ symbol: string; display_name: string; status: string; forced_shares: number | null; forced_price: number | null; shares_bought: number | null }>;
+  /** Share fees skipped on oshi shares held all week (reviews before oshi protection don't have it). */
+  oshi_protection?: { enabled: boolean; players: number; shares: number; waived: number };
   assets: EvaluationRow[];
   config?: Record<string, number>;
 };
@@ -513,7 +517,24 @@ export type WeeklyEvaluation = {
 export type MyDividendWeek = {
   eval_date: string;
   net: number;
-  lines: Array<{ symbol: string; display_name: string; quantity: number; per_share: number; amount: number }>;
+  /** The share fees your oshi skipped that week (positive). */
+  waived?: number;
+  /** protected_quantity / waived: oshi shares held all week that skipped a fee, and the fee. */
+  lines: Array<{ symbol: string; display_name: string; quantity: number; per_share: number; amount: number; protected_quantity?: number; waived?: number }>;
+};
+
+/** Your oshi and this week's protection from the share fee (GET /api/market/me/oshi). */
+export type OshiStatus = {
+  oshi: { id: number; symbol: string; display_name: string } | null;
+  set_at: string | null;
+  /** Your oshi has been your oshi since the week started, so the shares held all week are covered. */
+  covered: boolean;
+  held: number;
+  protected_shares: number;
+  week_start: string;
+  next_review_at: string;
+  protection_enabled: boolean;
+  change: { cooldown_days: number; available_at: string | null; first_pick: boolean };
 };
 
 export type MarketAdjustment = {
@@ -1761,6 +1782,8 @@ export type ProfileBundle = {
     profile_color: string | null;
     /** Your own profile only: when you can next change your username (null on other people's). */
     rename: ProfileRename | null;
+    /** Only yours: when your oshi can change again (once every cooldown_days; the first pick is free). */
+    oshi_change?: { available_at: string | null; cooldown_days: number; first_pick: boolean } | null;
     equipped: Equipped;
     is_admin: boolean;
     permissions: {

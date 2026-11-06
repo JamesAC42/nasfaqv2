@@ -14,6 +14,9 @@
 //   Rookies (listed by an IPO in the last ROOKIE_DAYS, docs/market/ipo.md): no dividend or fee (their
 //   week-over-week shift reads the launch, so they're left out of the ranking too), and their max
 //   shares never drop below what players hold.
+//   Oshi protection (OSHI_PROTECTION, services/oshi.js): a player's oshi charges no share fee on the
+//   shares they held all week (the fewest they held at any moment since last Saturday 00:00 ET), if
+//   it has been their oshi all that week. A dividend still pays on every share.
 //   4. The Dividend Review (report_json), notifications to holders, a market socket event.
 //
 // The transaction reads what it needs in a few set-based queries, works the whole evaluation out in
@@ -26,6 +29,7 @@
 
 const supply = require("./marketSupply");
 const economy = require("./economy");
+const oshi = require("./oshi");
 const pgNumeric = require("./pgNumeric");
 const notifications = require("./notifications");
 const marketState = require("./marketState");
@@ -60,6 +64,9 @@ const CONFIG = {
  */
 const CLOSE_TRADING = (process.env.MARKET_WEEKLY_EVALUATION_CLOSE_TRADING || "true").toLowerCase() !== "false";
 
+/** Oshi protection from share fees; MARKET_OSHI_FEE_PROTECTION=false turns it off. */
+const OSHI_PROTECTION = (process.env.MARKET_OSHI_FEE_PROTECTION || "true").toLowerCase() !== "false";
+
 const toNumber = (value, fallback = 0) => {
   if (value === null || value === undefined || value === "") return fallback;
   const parsed = Number(value);
@@ -67,6 +74,11 @@ const toNumber = (value, fallback = 0) => {
 };
 const round = (value, digits = 6) => (value === null || value === undefined || !Number.isFinite(Number(value)) ? null : Number(Number(value).toFixed(digits)));
 const money = (value) => `${value < 0 ? "−" : ""}$${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/** "a 4.2%" or "an 8.5%": a fee's rate with its article. */
+const ratePhrase = (rate) => {
+  const pct = (Math.abs(rate) * 100).toFixed(1);
+  return `${pct.startsWith("8") ? "an" : "a"} ${pct}%`;
+};
 
 // ── Dates ─────────────────────────────────────────────────────────────────
 const dateFormatter = new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" });
@@ -275,15 +287,25 @@ async function loadWallets(client, userIds, { lock }) {
  *
  * holdings: Map stock id (text) → Map player → exact quantity (loadHoldings); updated in place.
  * wallets: Map player → { cash, credit }, exact (loadWallets); updated in place.
+ * protectedOshis: Map player → { assetId, added } (oshi.loadProtectedOshis): players whose oshi was
+ * theirs all week, and the most of its shares they added since the week started. Null: protection off.
  */
-function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, assets, activeBuybacks, holdings, wallets }) {
+function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, assets, activeBuybacks, holdings, wallets, protectedOshis = null }) {
   const writes = { holdings: [], buybacksClosed: [], assets: [], buybacksStarted: [], assetEvaluations: [], payouts: [], accountsOpened: [], moves: [] };
   const ledger = { referenceType: "weekly_evaluation", referenceId: evaluationId };
-  const byUser = new Map(); // userId → { dividends, fees, forced: [...], buybacks: [...] }
+  const byUser = new Map(); // userId → { dividends, fees, forced: [...], buybacks: [...], waived: [...] }
   const userEntry = (userId) => {
-    if (!byUser.has(userId)) byUser.set(userId, { dividends: 0, fees: 0, lines: [], forced: [], buybacks: [] });
+    if (!byUser.has(userId)) byUser.set(userId, { dividends: 0, fees: 0, lines: [], forced: [], buybacks: [], waived: [] });
     return byUser.get(userId);
   };
+  // The fewest oshi shares each protected player held at any moment this week, before this run:
+  // "userId:assetId" → shares (the holding the ledger led to, less the most added since the week began).
+  const fewestHeld = new Map();
+  for (const [userId, entry] of protectedOshis || []) {
+    const quantity = holdings.get(String(entry.assetId))?.get(userId);
+    const fewest = quantity ? pgNumeric.toNumber(quantity) - entry.added : 0;
+    if (fewest > 0) fewestHeld.set(`${userId}:${entry.assetId}`, fewest);
+  }
   // Keyed by the id as text (node-pg returns BIGINT ids as strings).
   const results = new Map(assets.map((asset) => [String(asset.id), { asset, held: toNumber(asset.circulating_supply, 0), buybackAction: null }]));
   /** A stock's holders (quantity > 0) in id order, as JS numbers. */
@@ -364,29 +386,46 @@ function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, ass
   const shiftZ = rankScores(shifts);
   let dividendsTotal = 0;
   let feesTotal = 0;
+  const waivedTotals = { amount: 0, shares: 0, players: new Set() };
   for (const [index, asset] of assets.entries()) {
     const result = results.get(String(asset.id));
     const z = shiftZ[index];
     const rate = dividendRate(z);
     const basis = toNumber(asset.avg_base, 0); // revealed base rates only; none known means no payout
     const perShare = rate * basis;
-    Object.assign(result, { shift: Number.isFinite(shifts[index]) ? shifts[index] : null, z, rate, basis, perShare, paid: 0 });
+    Object.assign(result, { shift: Number.isFinite(shifts[index]) ? shifts[index] : null, z, rate, basis, perShare, paid: 0, waived: 0 });
     if (!perShare) continue;
     for (const holder of holdersOf(asset.id)) {
-      const amount = Math.round(holder.quantity * perShare * 100) / 100;
-      if (!amount) continue;
+      const full = Math.round(holder.quantity * perShare * 100) / 100;
+      // A fee on the player's oshi skips the shares they held all week (never more than they hold
+      // now, after any forced buyback above): it charges the rest, and `waived` is what it skipped.
+      const fewest = perShare < 0 ? fewestHeld.get(`${holder.userId}:${asset.id}`) : undefined;
+      const covered = fewest ? Math.floor(Math.min(holder.quantity, fewest) * 1e6 + 1e-6) / 1e6 : 0;
+      const charged = covered > 0 ? Math.max(0, Math.round((holder.quantity - covered) * 1e6) / 1e6) : holder.quantity;
+      const amount = covered > 0 ? Math.round(charged * perShare * 100) / 100 || 0 : full;
+      const waived = covered > 0 ? Math.round((amount - full) * 100) / 100 : 0;
+      if (!amount && !waived) continue;
       // Dividends pay Credit; share fees come out of Credit first, then Cash (which can go below zero).
-      const wallet = walletOf(holder.userId, { opening: "starter" });
-      if (amount > 0) move(holder.userId, { assetId: asset.id, entryType: "dividend", credit: Math.max(0, amount) });
-      else {
-        const split = economy.splitCharge({ cash: pgNumeric.toNumber(wallet.cash), credit: pgNumeric.toNumber(wallet.credit) }, -amount, "credit_then_cash", { shortfall: "cash" });
-        move(holder.userId, { assetId: asset.id, entryType: "share_fee", cash: -split.cash, credit: -split.credit });
+      if (amount) {
+        const wallet = walletOf(holder.userId, { opening: "starter" });
+        if (amount > 0) move(holder.userId, { assetId: asset.id, entryType: "dividend", credit: Math.max(0, amount) });
+        else {
+          const split = economy.splitCharge({ cash: pgNumeric.toNumber(wallet.cash), credit: pgNumeric.toNumber(wallet.credit) }, -amount, "credit_then_cash", { shortfall: "cash" });
+          move(holder.userId, { assetId: asset.id, entryType: "share_fee", cash: -split.cash, credit: -split.credit });
+        }
       }
-      writes.payouts.push({ userId: holder.userId, assetId: asset.id, quantity: holder.quantity, perShare, amount });
+      writes.payouts.push({ userId: holder.userId, assetId: asset.id, quantity: holder.quantity, perShare, amount, protectedQuantity: covered, waived });
       const entry = userEntry(holder.userId);
       if (amount > 0) entry.dividends += amount;
       else entry.fees += amount;
       entry.lines.push({ symbol: asset.symbol, amount });
+      if (waived) {
+        entry.waived.push({ symbol: asset.symbol, shares: covered, amount: waived, rate });
+        waivedTotals.amount += waived;
+        waivedTotals.shares += covered;
+        waivedTotals.players.add(holder.userId);
+        result.waived += waived;
+      }
       result.paid += amount;
       if (amount > 0) dividendsTotal += amount;
       else feesTotal += amount;
@@ -453,6 +492,8 @@ function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, ass
       max_supply_before: result.maxBefore,
       max_supply_after: result.maxAfter,
       buyback: result.buybackAction,
+      // The fees oshi protection skipped on this stock, when it skipped any.
+      ...(result.waived ? { oshi_waived: round(result.waived, 2) } : {}),
     };
   });
   const payers = rows.filter((row) => row.rate > 0).sort((a, b) => b.rate - a.rate);
@@ -481,6 +522,7 @@ function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, ass
     max_shares_lowered: rows.filter((row) => row.max_supply_after < row.max_supply_before).sort((a, b) => a.max_supply_after - a.max_supply_before - (b.max_supply_after - b.max_supply_before)).slice(0, 5),
     buybacks_started: buybacksStarted,
     buybacks_closed: buybacksClosed,
+    oshi_protection: { enabled: Boolean(protectedOshis), players: waivedTotals.players.size, shares: round(waivedTotals.shares), waived: round(waivedTotals.amount, 2) },
     assets: rows,
     config: { ...CONFIG, buyback_start: supply.BUYBACK_START, buyback_daily_step: supply.BUYBACK_DAILY_STEP, buyback_floor: supply.BUYBACK_FLOOR },
   };
@@ -493,10 +535,19 @@ function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, ass
     if (entry.dividends) parts.push(`${money(entry.dividends)} in dividends, as Credit`);
     if (entry.fees) parts.push(`${money(entry.fees)} in share fees`);
     if (entry.converted) parts.push(`${money(entry.converted)} of your Credit turned into Cash`);
+    for (const item of entry.waived) parts.push(`your oshi ${item.symbol} skipped ${ratePhrase(item.rate)} share fee (${money(item.amount)}) on the ${round(item.shares, 2)} shares you held all week`);
     for (const item of entry.forced) parts.push(`the broker bought back ${round(item.shares, 2)} ${item.symbol} for ${money(item.cash)}`);
     for (const item of entry.buybacks) parts.push(`${item.symbol} is frozen for a buyback at ${money(item.offer)} a share`);
     if (!parts.length) continue;
-    const title = entry.dividends && !entry.fees ? `DIVS: ${money(entry.dividends)}` : entry.fees && !entry.dividends ? `Share fees: ${money(entry.fees)}` : `Weekly evaluation: ${money(net)}`;
+    const waived = entry.waived.reduce((sum, item) => sum + item.amount, 0);
+    const title =
+      entry.dividends && !entry.fees
+        ? `DIVS: ${money(entry.dividends)}`
+        : entry.fees && !entry.dividends
+          ? `Share fees: ${money(entry.fees)}`
+          : waived && !entry.dividends && !entry.fees
+            ? `Oshi protection: ${money(waived)} fee skipped`
+            : `Weekly evaluation: ${money(net)}`;
     notices.push({ userId, kind: entry.buybacks.length || entry.forced.length ? "buyback" : "dividend", title, body: `${parts.join("; ")}.`, href: "/market/dividends", data: { eval_date: evalDate, net: round(net, 2) } });
   }
 
@@ -554,9 +605,9 @@ async function applyEvaluation(client, evaluationId, { report, writes, notices }
         basis numeric, "perShare" numeric, held numeric, subscribers bigint, "maxBefore" numeric, "maxAfter" numeric, "buybackAction" text)
     ),
     payouts AS (
-      INSERT INTO market.dividend_payouts (evaluation_id, user_id, asset_id, quantity, per_share, amount)
-      SELECT $1, p."userId", p."assetId", p.quantity, p."perShare", p.amount
-      FROM jsonb_to_recordset($5::jsonb) AS p("userId" bigint, "assetId" bigint, quantity numeric, "perShare" numeric, amount numeric)
+      INSERT INTO market.dividend_payouts (evaluation_id, user_id, asset_id, quantity, per_share, amount, protected_quantity, waived)
+      SELECT $1, p."userId", p."assetId", p.quantity, p."perShare", p.amount, COALESCE(p."protectedQuantity", 0), COALESCE(p.waived, 0)
+      FROM jsonb_to_recordset($5::jsonb) AS p("userId" bigint, "assetId" bigint, quantity numeric, "perShare" numeric, amount numeric, "protectedQuantity" numeric, waived numeric)
     )
     UPDATE market.weekly_evaluations SET status = 'completed', completed_at = now(), report_json = $6::jsonb WHERE id = $1
   `,
@@ -696,7 +747,10 @@ async function evaluate(pool, { evalDate, dryRun, onDemand, redis, logger }) {
     const holders = new Set();
     for (const stock of holdings.values()) for (const userId of stock.keys()) holders.add(userId);
     const wallets = await loadWallets(client, [...holders], { lock });
-    const plan = planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, assets, activeBuybacks, holdings, wallets });
+    // Oshi protection looks back to the Saturday 00:00 ET before this one. The holdings are locked
+    // already, so no fill lands in between; an oshi change meanwhile only counts from next week.
+    const protectedOshis = OSHI_PROTECTION ? await oshi.loadProtectedOshis(client, assets.map((asset) => asset.id), weekStartFor(evalDate)) : null;
+    const plan = planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, assets, activeBuybacks, holdings, wallets, protectedOshis });
     report = plan.report;
     if (dryRun) {
       await client.query("ROLLBACK");
@@ -748,6 +802,11 @@ function evaluationStartsAt(evalDate) {
     if (Number(et) % 24 === 0) return candidate;
   }
   return new Date(`${evalDate}T05:00:00Z`);
+}
+
+/** When the week an evaluation looks back over started: the Saturday 00:00 ET a week before it. */
+function weekStartFor(evalDate) {
+  return evaluationStartsAt(shiftDate(evalDate, -7));
 }
 
 /** The evaluation the preview should show: this Saturday's if it hasn't run yet, else next Saturday's. */
@@ -867,24 +926,35 @@ async function getEvaluation(pool, evalDate = null) {
 async function listUserDividends(pool, userId, { limit = 8 } = {}) {
   const { rows } = await pool.query(
     `
-    SELECT e.eval_date::text AS eval_date, a.symbol, a.display_name, p.quantity, p.per_share, p.amount
+    SELECT e.eval_date::text AS eval_date, a.symbol, a.display_name, p.quantity, p.per_share, p.amount, p.protected_quantity, p.waived
     FROM market.dividend_payouts p
     JOIN market.weekly_evaluations e ON e.id = p.evaluation_id
     JOIN market.market_assets a ON a.id = p.asset_id
     WHERE p.user_id = $1 AND e.eval_date IN (
       SELECT eval_date FROM market.weekly_evaluations WHERE status = 'completed' ORDER BY eval_date DESC LIMIT $2
     )
-    ORDER BY e.eval_date DESC, ABS(p.amount) DESC
+    ORDER BY e.eval_date DESC, ABS(p.amount) + p.waived DESC
   `,
     [userId, Math.min(52, Math.max(1, Number(limit) || 8))]
   );
   const weeks = new Map();
   for (const row of rows) {
-    if (!weeks.has(row.eval_date)) weeks.set(row.eval_date, { eval_date: row.eval_date, net: 0, lines: [] });
+    if (!weeks.has(row.eval_date)) weeks.set(row.eval_date, { eval_date: row.eval_date, net: 0, waived: 0, lines: [] });
     const week = weeks.get(row.eval_date);
     const amount = toNumber(row.amount, 0);
+    const waived = toNumber(row.waived, 0);
     week.net = Math.round((week.net + amount) * 100) / 100;
-    week.lines.push({ symbol: row.symbol, display_name: row.display_name, quantity: toNumber(row.quantity, 0), per_share: toNumber(row.per_share, 0), amount });
+    week.waived = Math.round((week.waived + waived) * 100) / 100;
+    // protected_quantity and waived: the oshi shares held all week that skipped a share fee, and the fee.
+    week.lines.push({
+      symbol: row.symbol,
+      display_name: row.display_name,
+      quantity: toNumber(row.quantity, 0),
+      per_share: toNumber(row.per_share, 0),
+      amount,
+      protected_quantity: toNumber(row.protected_quantity, 0),
+      waived,
+    });
   }
   return [...weeks.values()];
 }
@@ -894,6 +964,9 @@ module.exports = {
   CONFIG,
   evaluationDateFor,
   evaluationStartsAt,
+  weekStartFor,
+  OSHI_PROTECTION,
+  planEvaluation,
   todayInNewYork,
   pendingEvaluationDate,
   shiftDate,

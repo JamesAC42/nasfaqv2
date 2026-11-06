@@ -38,6 +38,7 @@ import { LIFTS_FAIR_VALUE, WIRE_TAGS, wireTone, wireWhen } from "@/app/component
 import { Term } from "@/app/components/common/tip";
 import { LiveBand } from "@/app/components/home/live-band";
 import { FirstDaysCard } from "@/app/components/onboarding/first-days-card";
+import { CheckinCard } from "@/app/components/home/checkin-card";
 
 
 function newsHref(item: NewsItem) {
@@ -604,6 +605,7 @@ function DividendReview() {
       }))
     : [];
   const myNet = user && review && mine?.eval_date === review.eval_date ? mine.net : null;
+  const mySkipped = myNet !== null && mine?.waived ? mine.waived : 0;
 
   return (
     <section className={styles.block} aria-labelledby="review-title">
@@ -625,6 +627,7 @@ function DividendReview() {
           {myNet !== null ? (
             <p className={styles.reviewMine}>
               Your last: <b className={styles[toneOf(myNet)]}>{myNet >= 0 ? "+" : ""}{money(myNet)}</b>
+              {mySkipped ? <> · your oshi skipped a {money(mySkipped)} fee</> : null}
             </p>
           ) : null}
           <p className={styles.note}>
@@ -884,6 +887,7 @@ export function FrontPage() {
       <div className={styles.page}>
         <Masthead assets={assets} />
         <TradingPausedBanner className={styles.paused} />
+        <CheckinCard />
         <FirstDaysCard />
         <LiveBand />
         <NewbieStrip />

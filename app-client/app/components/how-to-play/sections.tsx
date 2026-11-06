@@ -280,6 +280,10 @@ export function WeeklySection() {
             Dividends are paid in <Term k="credit">Credit</Term>. Fees come out of your Credit first, then your cash, even if that takes your cash below zero. In the red, you
             can&apos;t buy until you sell something or earn it back. Pick your bags like it matters. The same night, part of everyone&apos;s Credit turns into cash: 5%, or $10k if that&apos;s more.
           </p>
+          <p>
+            <b>Your oshi never charges you a fee</b> on the shares you held all week (the fewest you held at any point since the last Saturday), as long as they were your
+            oshi all week. A good week still pays a dividend on every share. Your oshi can change once every 30 days; your first pick is free.
+          </p>
         </>
       }
       links={[{ href: "/market/dividends", label: "The Dividend Review" }]}
@@ -461,13 +465,18 @@ export function CommunitySection() {
           {
             k: "oshi",
             title: "Oshi & oshiboards",
-            body: "Pick your oshi on your profile. Make them your biggest bag too and you're ranked on their oshiboard by shares held.",
+            body: "Pick your oshi on your profile: their shares you hold all week skip Saturday's share fee. Make them your biggest bag too and you're ranked on their oshiboard by shares held.",
           },
           { k: "/leaderboard", title: "Leaderboard", body: "Net worth over a day, a week or all time. Filter to friends and rivals, or flip to a talent's oshiboard." },
           {
             k: "badges",
             title: "Achievements",
             body: "Pay Credit: $100 for your first fill, $250 at 10 trades, $1,000 at 100, $300 for trading 3 talents, and $150 / $500 / $2,500 for 3, 7 and 30-day streaks.",
+          },
+          {
+            k: "check-in",
+            title: "Daily check-in",
+            body: "Check in on the front page once a day for $50 Credit, or $100 while you're on a trading streak (you traded yesterday). Days turn over at 00:00 UTC.",
           },
           { k: "/threads", title: "/vt/ threads", body: "The general, mirrored, with tickers linked. Lurk the source." },
           { k: "/livestreams", title: "Livestreams", body: "Who's on air right now, with viewer counts. Streams feed the stream-peak predictions." },
