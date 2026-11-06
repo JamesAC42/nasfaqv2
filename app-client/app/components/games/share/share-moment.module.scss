@@ -1,0 +1,199 @@
+@use "../../../styles/mixins" as *;
+
+// The Share button sits on game surfaces that are always dark (felt, reveal stage), so it carries
+// its own contrast rather than borrowing the page's.
+.button {
+  @include button-base;
+  padding: 0.4rem 0.75rem;
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(10, 12, 17, 0.55);
+  color: #fff;
+
+  svg {
+    width: 0.95rem;
+    height: 0.95rem;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: #fff;
+    background: rgba(10, 12, 17, 0.75);
+  }
+}
+
+.iconButton {
+  appearance: none;
+  display: inline-grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--dim);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--blue);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  // Above the gacha reveal stage (1000) and the chat window and its popups (58–75).
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: var(--scrim, rgba(0, 0, 0, 0.66));
+}
+
+.sheet {
+  width: min(44rem, 100%);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  border: 1px solid var(--rule-2);
+  background: var(--ink-2);
+  box-shadow: var(--shadow-pop, 0 16px 48px rgba(0, 0, 0, 0.45));
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--rule);
+
+  h2 {
+    @include section-heading;
+    margin: 0;
+  }
+}
+
+.close {
+  display: inline-grid;
+  place-items: center;
+  padding: 0.25rem;
+  border: 0;
+  background: none;
+  color: var(--dim);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.preview {
+  position: relative;
+  margin: 1rem 1rem 0;
+  aspect-ratio: 1200 / 630;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  background: #0a0c11;
+
+  // A soft shimmer while the server draws the card (first load takes a second or two).
+  &:not([data-loaded])::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.06) 50%, transparent 70%);
+    background-size: 200% 100%;
+    animation: shimmer 1.2s linear infinite;
+  }
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview:not([data-loaded])::after {
+    animation: none;
+  }
+}
+
+.failed {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  margin: 0;
+  padding: 1rem;
+  color: #c8cfdc;
+  text-align: center;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 1rem 1rem 0;
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  button,
+  a {
+    @include button-secondary;
+    text-decoration: none;
+    cursor: pointer;
+
+    svg {
+      flex: none;
+      width: 0.95rem;
+      height: 0.95rem;
+    }
+  }
+
+  > :first-child {
+    @include button-primary;
+    cursor: pointer;
+  }
+}
+
+.hint {
+  margin: 0.75rem 1rem 0;
+  color: var(--dim);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.linkBox {
+  display: block;
+  width: calc(100% - 2rem);
+  margin: 0.5rem 1rem 1rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--rule-2);
+  background: var(--input-bg, var(--ink));
+  color: var(--dim);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+
+  &:focus {
+    outline: none;
+    border-color: var(--blue);
+    color: var(--text);
+  }
+}

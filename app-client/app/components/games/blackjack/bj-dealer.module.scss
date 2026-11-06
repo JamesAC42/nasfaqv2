@@ -1,0 +1,177 @@
+@use "../../../styles/mixins" as *;
+
+// The felt is always dark (whatever the theme), so these colors are fixed like the table's.
+$felt-ink: #e9f1ff;
+$felt-dim: rgba(214, 228, 255, 0.62);
+
+// The left column of the felt's top row: the shoe on the left, today's dealer beside their cards.
+.left {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+
+  // On a phone the column is too narrow for both side by side (the name broke mid-word), so the
+  // dealer goes under the shoe.
+  &:has(> .host[data-compact]) {
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.4rem;
+  }
+}
+
+.host {
+  --size: 104px;
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  margin: 0;
+
+  figcaption {
+    display: grid;
+    justify-items: center;
+    max-width: calc(var(--size) + 2.5rem);
+    text-align: center;
+
+    small {
+      @include label;
+      font-size: 0.5rem;
+      color: $felt-dim;
+    }
+
+    b {
+      @include label;
+      overflow: hidden;
+      max-width: 100%;
+      font-size: 0.62rem;
+      color: $felt-ink;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  &[data-compact] figcaption {
+    max-width: 5.2rem;
+
+    small {
+      display: none;
+    }
+
+    // Two short lines beat one cut-off name on a phone.
+    b {
+      display: -webkit-box;
+      line-height: 1.15;
+      white-space: normal;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+  }
+}
+
+// A round window onto the dealer, lit in their color, the cutout standing on its bottom edge.
+.portrait {
+  position: relative;
+  display: block;
+  width: var(--size);
+  height: var(--size);
+  overflow: hidden;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--tal) 45%, transparent), transparent 70%),
+    color-mix(in srgb, var(--tal) 14%, #0b1a33);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--tal) 50%, transparent),
+    0 0 0 3px rgba(5, 12, 26, 0.55),
+    0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.art {
+  position: absolute;
+  inset: 4% 0 0;
+  animation: pop var(--dur-med, 240ms) var(--ease-out, ease-out) both;
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: 50% 100%;
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(8%) scale(0.96);
+  }
+}
+
+// A bust gets a jolt, a player's blackjack a hop; once each.
+.portrait[data-state="bust"] .art {
+  animation:
+    pop var(--dur-med, 240ms) var(--ease-out, ease-out) both,
+    jolt 420ms 240ms ease-out 1;
+}
+
+.portrait[data-state="blackjack"] .art {
+  animation:
+    pop var(--dur-med, 240ms) var(--ease-out, ease-out) both,
+    hop 520ms 240ms ease-out 1;
+}
+
+@keyframes jolt {
+  20% {
+    transform: translateX(-4%);
+  }
+  40% {
+    transform: translateX(4%);
+  }
+  60% {
+    transform: translateX(-2%);
+  }
+}
+
+@keyframes hop {
+  40% {
+    transform: translateY(-7%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .art,
+  .portrait[data-state] .art {
+    animation: none;
+  }
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+// Lobby tile line (on the page, not the felt): theme colors.
+.lobby {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--dim);
+  font-size: 0.8125rem;
+
+  .portrait {
+    flex: none;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tal) 50%, transparent);
+  }
+
+  b {
+    color: var(--text);
+    font-weight: 600;
+  }
+}
