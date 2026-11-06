@@ -14,15 +14,21 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-11-05",
+    title: "Stickers stay in their message",
+    changes: [
+      {
+        kind: "fixed",
+        text: "A sticker in the floating chat window no longer hangs over the message below it, or slips behind it when you hover.",
+      },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "Chat window fixes",
     changes: [
       {
         kind: "fixed",
         text: "Stickers in the floating chat window no longer stretch across the whole window and go blurry. They're half its width now, and sharp.",
-      },
-      {
-        kind: "fixed",
-        text: "A sticker in the floating chat window no longer hangs over the message below it, or slips behind it when you hover.",
       },
     ],
   },
