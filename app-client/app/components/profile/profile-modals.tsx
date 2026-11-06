@@ -38,6 +38,11 @@ const PROFILE_ERRORS: Record<string, string> = {
 function profileErrorText(reason: unknown) {
   const body = (reason as { body?: Record<string, unknown> | null })?.body ?? null;
   const code = typeof body?.error === "string" ? body.error : String((reason as Error)?.message || reason);
+  if (code === "oshi_change_cooldown") {
+    return typeof body?.available_at === "string"
+      ? `Your oshi changed recently. You can pick a different one ${day(body.available_at)}.`
+      : "Your oshi changed recently. It can change once every 30 days.";
+  }
   if (code === "rename_cooldown") {
     return typeof body?.available_at === "string"
       ? `You changed your username recently. You can change it again ${day(body.available_at)}.`
@@ -213,6 +218,19 @@ export function SettingsModal({
   // Renaming needs a verified email, then once a week (the API checks both).
   const rename = profile.rename;
   const nameLocked = Boolean(rename && (rename.needs_verified_email || rename.available_at));
+  // The oshi changes once every 30 days; the first pick is free and removing it always works (api/src/services/oshi.js).
+  const oshiRule = profile.oshi_change ?? null;
+  const currentOshi = profile.oshi_coin?.symbol ?? "";
+  const oshiWaitUntil = oshiRule?.available_at ?? null;
+  const oshiLocked = Boolean(oshiWaitUntil) && oshi === currentOshi && currentOshi !== "";
+  const oshiCooldown = oshiRule?.cooldown_days ?? 30;
+  const oshiNote = oshiWaitUntil
+    ? oshi === ""
+      ? `Removing your oshi is always allowed; picking one again waits until ${day(oshiWaitUntil)}. `
+      : `You can pick a different oshi ${day(oshiWaitUntil)}. `
+    : oshi !== "" && oshi !== currentOshi && !oshiRule?.first_pick
+      ? `Saving uses your oshi change: the next one opens in ${oshiCooldown} days. `
+      : `Your oshi can change once every ${oshiCooldown} days${oshiRule?.first_pick ? " (your first pick doesn't count)" : ""}. `;
 
   return (
     <Modal title="Edit profile" onClose={onClose}>
@@ -242,9 +260,23 @@ export function SettingsModal({
               <PlayerAvatar username={name || "?"} pictureUrl={profile.profile_picture_url} color={color} size={28} />
             </span>
           </label>
-          <div>
+          <div className={styles.oshiField}>
             <span className={styles.label}>Oshi</span>
-            <AssetPicker assets={assets} value={oshi} onChange={setOshi} placeholder="Pick your oshi" emptyLabel="No oshi" />
+            {oshiLocked ? (
+              <span className={styles.oshiLocked}>
+                <Oshimark icon={assets.find((entry) => entry.symbol === currentOshi)?.icon} symbol={currentOshi} size={20} />
+                <b>{profile.oshi_coin?.display_name ?? currentOshi}</b>
+                <button type="button" className={styles.oshiRemove} onClick={() => setOshi("")}>
+                  Remove
+                </button>
+              </span>
+            ) : (
+              <AssetPicker assets={assets} value={oshi} onChange={setOshi} placeholder="Pick your oshi" emptyLabel="No oshi" />
+            )}
+            <small>
+              {oshiNote}
+              Shares of your oshi held all week skip Saturday&apos;s share fee.
+            </small>
           </div>
         </div>
         <ThemeChoice themes={themes} value={themeId} onChange={setThemeId} />

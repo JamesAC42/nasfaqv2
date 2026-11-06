@@ -59,10 +59,10 @@ export function FirstDaysCard({ onPickOshi, verifyNotice = true }: { onPickOshi?
       done: Boolean(oshi),
       body: oshi ? (
         <>
-          Your oshi is <b>{oshi.name}</b>. Their mark follows your name.
+          Your oshi is <b>{oshi.name}</b>. Their mark follows your name, and the {oshi.symbol} shares you hold all week skip Saturday&apos;s share fee.
         </>
       ) : (
-        "Your favorite talent. Their mark follows your name, and holding the most of them puts you on their oshiboard."
+        "Your favorite talent. Their mark follows your name, and the shares of them you hold all week skip Saturday's share fee. It can change once every 30 days, so choose well."
       ),
       action: oshi ? null : onPickOshi ? (
         <button type="button" onClick={onPickOshi}>
@@ -116,7 +116,8 @@ export function FirstDaysCard({ onPickOshi, verifyNotice = true }: { onPickOshi?
         )
       ) : (
         <>
-          Saturday 00:00 ET{reviewIn ? ` (in ${reviewIn})` : ""}, the fastest-growing channels pay their holders a dividend and the slowest charge a fee.
+          Saturday 00:00 ET{reviewIn ? ` (in ${reviewIn})` : ""}, the fastest-growing channels pay their holders a dividend and the slowest charge a fee. Your oshi
+          never charges one on shares held all week.
         </>
       ),
       action: review ? null : <Link href="/market/dividends">Last week&apos;s review →</Link>,

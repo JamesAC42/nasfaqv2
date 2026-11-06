@@ -16,6 +16,8 @@ const {
 const trading = require("../services/trading");
 const marketAdjustments = require("../services/marketAdjustments");
 const weeklyEvaluation = require("../services/weeklyEvaluation");
+const checkins = require("../services/checkins");
+const oshi = require("../services/oshi");
 const ipo = require("../services/ipo");
 const reportSession = require("../services/reportSession");
 const { scrubPublicMarketPayload, publicDailyReport, revealedTargets } = require("../services/marketSecrecy");
@@ -233,6 +235,44 @@ router.get("/me/dividends", async (req, res, next) => {
   try {
     const userId = requireUserId(req);
     res.json({ weeks: await weeklyEvaluation.listUserDividends(req.ctx.pool, userId, { limit: req.query.limit }) });
+  } catch (e) {
+    if (e?.code === "unauthenticated") return res.status(401).json({ error: "unauthenticated" });
+    next(e);
+  }
+});
+
+// The daily check-in (services/checkins.js): today's, and claiming it. Verified accounts only.
+router.get("/me/checkin", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    res.json(await checkins.getCheckin(req.ctx.pool, userId));
+  } catch (e) {
+    if (e?.code === "unauthenticated") return res.status(401).json({ error: "unauthenticated" });
+    next(e);
+  }
+});
+
+router.post("/me/checkin", rateLimit(byUser("checkin", 10, 60)), async (req, res, next) => {
+  try {
+    const userId = requireVerifiedUserId(req);
+    res.json(await checkins.claimCheckin(req.ctx.pool, userId));
+  } catch (e) {
+    if (e?.code === "unauthenticated") return res.status(401).json({ error: "unauthenticated" });
+    if (e?.code === "email_verification_required") return res.status(403).json({ error: e.code });
+    if (e?.code === "already_checked_in") return res.status(409).json({ error: e.code, checkin: e.checkin });
+    next(e);
+  }
+});
+
+// Your oshi and this week's protection from the share fee (services/oshi.js), for the stock page.
+router.get("/me/oshi", async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    const evalDate = await weeklyEvaluation.pendingEvaluationDate(req.ctx.pool);
+    res.json({
+      ...(await oshi.getOshiStatus(req.ctx.pool, userId, { weekStart: weeklyEvaluation.weekStartFor(evalDate), nextReviewAt: weeklyEvaluation.evaluationStartsAt(evalDate) })),
+      protection_enabled: weeklyEvaluation.OSHI_PROTECTION,
+    });
   } catch (e) {
     if (e?.code === "unauthenticated") return res.status(401).json({ error: "unauthenticated" });
     next(e);

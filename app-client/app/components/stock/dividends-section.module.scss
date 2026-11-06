@@ -126,3 +126,16 @@
     }
   }
 }
+
+// Under "Your last payout here": the share fee oshi protection skipped.
+.waived {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--blue);
+  font-size: 0.7rem;
+  line-height: 1.4;
+
+  b {
+    font-family: var(--font-mono);
+  }
+}

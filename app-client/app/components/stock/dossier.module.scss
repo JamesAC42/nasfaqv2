@@ -1841,6 +1841,49 @@
   }
 }
 
+// Oshi protection (oshi-protection.tsx): on your oshi, what skips Saturday's share fee.
+.oshiShield {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.6rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--blue-line);
+  background: var(--blue-wash);
+
+  p {
+    margin: 0;
+    color: var(--mid);
+    font-size: 0.74rem;
+    line-height: 1.45;
+  }
+
+  b {
+    @include num;
+    color: var(--text);
+  }
+
+  small {
+    color: var(--dim);
+    font-size: 0.68rem;
+  }
+}
+
+.oshiShieldHead {
+  @include label;
+  color: var(--blue);
+}
+
+.oshiHint {
+  margin: 0.6rem 0 0;
+  color: var(--dim);
+  font-size: 0.7rem;
+  line-height: 1.45;
+
+  a {
+    color: var(--blue);
+  }
+}
+
 .posBig {
   @include num;
   font-size: 1.375rem;

@@ -9,6 +9,7 @@ const { profilePictureUrlSql } = require("./profilePictures");
 const reactions = require("./services/games/reactions");
 const notifications = require("./services/notifications");
 const { assertCleanText, assertUsernameAllowed } = require("./services/nameRules");
+const oshi = require("./services/oshi");
 
 // Renaming needs a verified email and waits this long after the last rename. An admin's profile
 // reset clears the wait, so the player can pick a new name straight away.
@@ -543,6 +544,7 @@ async function getProfileBundle(pool, {
         outgoing: await listPendingFriendRequests(pool, profileUser.id, "outgoing"),
       }
     : null;
+  const oshiRule = isSelf ? await oshi.readChangeRule(pool, profileUser.id) : null;
 
   return {
     profile: {
@@ -572,6 +574,10 @@ async function getProfileBundle(pool, {
       rank: Number(leaderboardEntry?.rank || 0),
       oshiboards,
       oshi_coin: profileUser.oshi_coin,
+      // Only yours: when the oshi can change again (once every 30 days; the first pick is free).
+      oshi_change: oshiRule
+        ? { available_at: oshiRule.nextChangeAt, cooldown_days: oshi.CHANGE_COOLDOWN_DAYS, first_pick: !profileUser.oshi_coin && !oshiRule.hasHistory }
+        : null,
       profile_banner: profileUser.profile_banner || null,
       banner_options: bannerOptions,
       stats: {
@@ -809,7 +815,8 @@ async function updateProfileSettings(pool, userId, { username, bio, profileColor
     throw error;
   }
 
-  let safeOshiCoinAssetId = null;
+  // Left out of the request = unchanged; null or "" = no oshi.
+  let safeOshiCoinAssetId = oshiCoinAssetId === undefined ? undefined : null;
   if (oshiCoinAssetId !== null && oshiCoinAssetId !== undefined && oshiCoinAssetId !== "") {
     safeOshiCoinAssetId = Number(oshiCoinAssetId);
     if (!Number.isInteger(safeOshiCoinAssetId) || safeOshiCoinAssetId <= 0) {
@@ -834,34 +841,44 @@ async function updateProfileSettings(pool, userId, { username, bio, profileColor
     }
   }
 
+  // The oshi's 30-day rule (services/oshi.js), checked before anything is saved; checked again
+  // under a lock below.
+  if (safeOshiCoinAssetId !== undefined) await oshi.assertCanChange(pool, safeUserId, safeOshiCoinAssetId);
+
   // Left out of the request = unchanged. Checked first, so a locked banner saves nothing.
   if (profileBannerAssetId !== undefined) await setProfileBanner(pool, safeUserId, profileBannerAssetId);
 
+  const client = await pool.connect();
   try {
+    await client.query("BEGIN");
     // The cooldown is checked again here, so two saves at once can't both rename.
-    const result = await pool.query(
+    const result = await client.query(
       `
       UPDATE market.users
       SET username = $2,
           username_normalized = $3,
           bio = $4,
           profile_color = $5,
-          oshi_coin_asset_id = $6,
           username_changed_at = CASE WHEN username = $2 THEN username_changed_at ELSE now() END,
           updated_at = now()
       WHERE id = $1
-        AND (username = $2 OR username_changed_at IS NULL OR username_changed_at <= now() - make_interval(days => $7))
+        AND (username = $2 OR username_changed_at IS NULL OR username_changed_at <= now() - make_interval(days => $6))
     `,
-      [safeUserId, safeUsername, safeUsernameNormalized, safeBio, safeProfileColor, safeOshiCoinAssetId, RENAME_COOLDOWN_DAYS]
+      [safeUserId, safeUsername, safeUsernameNormalized, safeBio, safeProfileColor, RENAME_COOLDOWN_DAYS]
     );
     if (!result.rowCount) throw profileError("rename_cooldown");
+    if (safeOshiCoinAssetId !== undefined) await oshi.setOshiWithClient(client, safeUserId, safeOshiCoinAssetId);
+    await client.query("COMMIT");
   } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
     if (error?.code === "23505") {
       const e = new Error("username_taken");
       e.code = "username_taken";
       throw e;
     }
     throw error;
+  } finally {
+    client.release();
   }
 
   await netWorth.refreshCurrentOshiboards(pool, { userIds: [safeUserId] });

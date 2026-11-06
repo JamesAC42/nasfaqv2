@@ -128,6 +128,13 @@ export function DividendsTab({ initialDate }: { initialDate?: string }) {
                 <b>{review.buybacks_started.length}</b> {review.buybacks_started.length === 1 ? "stock is" : "stocks are"} now frozen for a <Term k="buyback">buyback</Term>.
               </>
             ) : null}
+            {review.oshi_protection?.waived ? (
+              <>
+                {" "}
+                Oshi protection skipped <b>{money(review.oshi_protection.waived)}</b> of share fees for {review.oshi_protection.players.toLocaleString("en-US")}{" "}
+                {review.oshi_protection.players === 1 ? "player" : "players"} who held their oshi all week.
+              </>
+            ) : null}
           </p>
         </div>
         <label className={styles.pick}>
@@ -172,7 +179,7 @@ export function DividendsTab({ initialDate }: { initialDate?: string }) {
         </div>
       </div>
 
-      {user ? <YourWeek week={myWeek} loading={mine === null} evalDate={review.eval_date} /> : null}
+      {user ? <YourWeek week={myWeek} loading={mine === null} evalDate={review.eval_date} rates={new Map(review.assets.map((row) => [row.symbol, row.rate]))} /> : null}
 
       <div className={styles.grid}>
         <List title="Dividends" hint="rate · per share" tone="up" kind="rate" rows={review.top_dividends} icon={icon} render={(row) => [`${money(row.per_share)} a share`, rate(row.rate)]} empty="Nobody paid this week." />
@@ -321,7 +328,15 @@ function List({
   );
 }
 
-function YourWeek({ week, loading, evalDate }: { week: MyDividendWeek | null; loading: boolean; evalDate: string }) {
+/** "Your oshi's shares skipped a 4.2% fee", from a line oshi protection covered. */
+function skippedText(line: MyDividendWeek["lines"][number], rates: Map<string, number>) {
+  const rate = rates.get(line.symbol);
+  if (!rate) return "Your oshi's shares skipped a fee";
+  const pct = (Math.abs(rate) * 100).toFixed(1);
+  return `Your oshi's shares skipped ${pct.startsWith("8") ? "an" : "a"} ${pct}% fee`;
+}
+
+function YourWeek({ week, loading, evalDate, rates }: { week: MyDividendWeek | null; loading: boolean; evalDate: string; rates: Map<string, number> }) {
   return (
     <div className={`${ui.sec} ${styles.mine}`}>
       <div className={ui.secHead}>
@@ -335,8 +350,8 @@ function YourWeek({ week, loading, evalDate }: { week: MyDividendWeek | null; lo
       ) : (
         <>
           <p className={styles.net}>
-            <b className={week.net >= 0 ? ui.up : ui.down}>{money(week.net)}</b>
-            <span>{week.net >= 0 ? "DIVS" : "net share fees"}</span>
+            <b className={week.net > 0 ? ui.up : week.net < 0 ? ui.down : ui.flat}>{money(week.net)}</b>
+            <span>{week.net > 0 ? "DIVS" : week.net < 0 ? "net share fees" : week.waived ? "your oshi skipped its fee" : "DIVS"}</span>
           </p>
           <div className={styles.mineRows}>
             {week.lines.map((line) => (
@@ -345,7 +360,12 @@ function YourWeek({ week, loading, evalDate }: { week: MyDividendWeek | null; lo
                 <small>
                   {num(line.quantity, 0)} sh × {money(line.per_share)}
                 </small>
-                <b className={line.amount >= 0 ? ui.up : ui.down}>{money(line.amount)}</b>
+                <b className={line.amount > 0 ? ui.up : line.amount < 0 ? ui.down : ui.flat}>{money(line.amount)}</b>
+                {line.waived ? (
+                  <em className={styles.waived}>
+                    {skippedText(line, rates)}: <b>{money(line.waived)}</b> not charged on {num(line.protected_quantity ?? 0, 0)} sh held all week
+                  </em>
+                ) : null}
               </span>
             ))}
           </div>

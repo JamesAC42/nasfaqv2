@@ -1,0 +1,185 @@
+@use "../../styles/mixins" as *;
+
+// The daily check-in strip on the front page: the claim on the left, tomorrow and the streak ladder
+// on the right.
+
+.card {
+  display: grid;
+  grid-template-columns: minmax(16rem, 0.9fr) minmax(0, 1.6fr);
+  margin-top: 1rem;
+  border: 1px solid var(--blue-line);
+  background: var(--blue-wash);
+
+  &[data-claimed] {
+    border-color: var(--rule-2);
+    background: var(--ink-2);
+  }
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem;
+  border-right: 1px solid var(--blue-line);
+
+  .card[data-claimed] & {
+    border-color: var(--rule);
+  }
+
+  @include tablet-down {
+    border-right: 0;
+    border-bottom: 1px solid var(--blue-line);
+  }
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem 0.8rem;
+
+  h2 {
+    @include section-heading;
+    margin: 0;
+  }
+}
+
+.streak {
+  @include label;
+  color: var(--blue);
+}
+
+.claim {
+  @include button-primary;
+  align-self: flex-start;
+  font-size: 0.78rem;
+  padding: 0.7rem 1.1rem;
+}
+
+.done {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.9rem;
+
+  b {
+    @include num;
+  }
+}
+
+.tick {
+  @include num;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid var(--blue);
+  color: var(--blue);
+  font-size: 0.75rem;
+}
+
+.locked {
+  margin: 0;
+  color: var(--mid);
+  font-size: 0.82rem;
+  line-height: 1.45;
+
+  a {
+    color: var(--blue);
+  }
+}
+
+.err {
+  margin: 0;
+  color: var(--down);
+  font-size: 0.8rem;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.85rem 1rem;
+  min-width: 0;
+}
+
+.label {
+  @include label;
+  margin-right: 0.6rem;
+}
+
+.tomorrow {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--mid);
+
+  b {
+    @include num;
+    color: var(--text);
+  }
+}
+
+.trade {
+  color: var(--blue);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ladder {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    padding: 0.3rem 0.1rem;
+    border: 1px solid var(--rule);
+    background: var(--ink-3);
+    min-width: 0;
+  }
+
+  b {
+    @include num;
+    font-size: 0.72rem;
+  }
+
+  small {
+    @include label;
+    font-size: 0.56rem;
+  }
+
+  li[data-today] {
+    border-color: var(--blue);
+    box-shadow: inset 0 2px 0 var(--blue);
+    background: var(--ink-2);
+
+    b {
+      color: var(--blue);
+    }
+  }
+
+  li[data-tomorrow] {
+    border-style: dashed;
+    border-color: var(--blue-line);
+  }
+}
+
+.fine {
+  margin: 0;
+  color: var(--dim);
+  font-size: 0.74rem;
+  line-height: 1.4;
+}

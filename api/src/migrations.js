@@ -1967,6 +1967,45 @@ async function applySchema(pool) {
   // The first-days guide (services/firstDays.js) shows until this passes or the player closes it. Only
   // accounts made after it shipped get a date (auth.createUser), so players already on v2 never see it.
   await pool.query(`ALTER TABLE market.users ADD COLUMN IF NOT EXISTS first_days_until TIMESTAMPTZ NULL`);
+
+  // The daily check-in (services/checkins.js): Credit once a day, more the longer the player's trade
+  // streak. The unique key is what keeps it to one claim per player per day, whatever races.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.daily_checkins (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      checkin_day DATE NOT NULL,
+      streak_days INTEGER NOT NULL,
+      reward NUMERIC NOT NULL,
+      claimed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT daily_checkins_user_day_key UNIQUE (user_id, checkin_day),
+      CONSTRAINT daily_checkins_streak_check CHECK (streak_days >= 0),
+      CONSTRAINT daily_checkins_reward_check CHECK (reward > 0)
+    )
+  `);
+  // Every oshi pick and change (services/oshi.js). kind: 'first_pick' (none before, ever), 'change'
+  // (the once-every-30-days one) or 'clear' (back to no oshi, always allowed). The 30-day rule counts
+  // 'change' rows; the weekly evaluation's oshi protection wants no row of any kind during the week.
+  // An oshi picked before this table existed has no row and counts as long-held.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.user_oshi_changes (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      asset_id_before BIGINT NULL REFERENCES market.market_assets(id) ON DELETE SET NULL,
+      asset_id_after BIGINT NULL REFERENCES market.market_assets(id) ON DELETE SET NULL,
+      kind TEXT NOT NULL,
+      changed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT user_oshi_changes_kind_check CHECK (kind IN ('first_pick', 'change', 'clear'))
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_user_oshi_changes_user_idx ON market.user_oshi_changes (user_id, changed_at DESC)`);
+  // A share fee the oshi protection skipped: protected_quantity of the holding paid nothing, and
+  // waived is the fee those shares would have paid (positive). amount stays what was charged.
+  await pool.query(`
+    ALTER TABLE market.dividend_payouts
+      ADD COLUMN IF NOT EXISTS protected_quantity NUMERIC NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS waived NUMERIC NOT NULL DEFAULT 0
+  `);
 }
 
 module.exports = { applySchema };

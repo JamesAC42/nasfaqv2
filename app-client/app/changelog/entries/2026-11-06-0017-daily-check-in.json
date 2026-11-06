@@ -1,0 +1,13 @@
+{
+  "title": "Daily check-in",
+  "changes": [
+    {
+      "kind": "new",
+      "text": "Check in once a day on the front page for Credit: $100, plus $25 for every day in a row you've traded, up to $300 a day. Miss a day of trading and it starts over at $100."
+    },
+    {
+      "kind": "new",
+      "text": "The check-in card shows today's Credit, what tomorrow's pays if you trade today, and what it drops to if you don't. A new day starts at 00:00 UTC, the same time trade streaks count a new day. Verified accounts only."
+    }
+  ]
+}
