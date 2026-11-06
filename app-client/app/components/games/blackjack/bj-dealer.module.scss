@@ -11,6 +11,15 @@ $felt-dim: rgba(214, 228, 255, 0.62);
   justify-content: space-between;
   gap: 0.5rem;
   min-width: 0;
+
+  // On a phone the column is too narrow for both side by side (the name broke mid-word), so the
+  // dealer goes under the shoe.
+  &:has(> .host[data-compact]) {
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.4rem;
+  }
 }
 
 .host {

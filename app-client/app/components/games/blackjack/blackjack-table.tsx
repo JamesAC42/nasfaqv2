@@ -19,7 +19,7 @@ import { ReactionBar, ReactionLayer, useTableReactions } from "@/app/components/
 import { BJ_BET_MS, BJ_TURN_MS, HOUSE_RULES, handValue, momentOf, netOf, usePhone, wagerOf, withLiveDeadline } from "@/app/components/games/blackjack/bj-utils";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { TalentReaction, talentsWithPose } from "@/app/components/common/talent-reaction";
-import { ShareMoment } from "@/app/components/games/share/share-moment";
+import { ShareMoment, ShareSheet, type ShareTarget } from "@/app/components/games/share/share-moment";
 import { blackjackMomentId, blackjackShareText, seededPick } from "@/app/lib/games/moments";
 import { useArtStore } from "@/app/stores/art-store";
 import { TableDealerCard } from "@/app/components/games/blackjack/bj-dealer";
@@ -81,6 +81,10 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
   const [tally, setTally] = useState<Tally>(EMPTY_TALLY);
   // Your seat in each round you played on this visit, so those rows in "Last rounds" can be shared.
   const [myRounds, setMyRounds] = useState<Record<number, number>>({});
+  // The open share sheet lives here, not in its button: the result banner's button goes away when
+  // the next round starts, and the sheet has to stay open through that.
+  const [sharing, setSharing] = useState<ShareTarget | null>(null);
+  const closeShare = useCallback(() => setSharing(null), []);
   const [skipped, setSkipped] = useState(0);
   const [kicked, setKicked] = useState(false);
   const tableRef = useRef(table);
@@ -268,7 +272,7 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
               </div>
             </div>
 
-            <PhaseBanner table={table} myIndex={myIndex} dealer={dealer} />
+            <PhaseBanner table={table} myIndex={myIndex} dealer={dealer} onShare={setSharing} />
 
 
             <div className={styles.seats}>
@@ -375,7 +379,7 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
                       <span className={`${styles.histNet} ${net === null ? "" : net > 0 ? styles.up : net < 0 ? styles.down : ""}`}>
                         {net === null ? "" : net > 0 ? `+${fmtNumber(net, "$")}` : net < 0 ? `−${fmtNumber(-net, "$")}` : "push"}
                         {mine && net !== null && mySeatThen !== undefined && mine.outcome !== "refund" ? (
-                          <HistoryShare roundId={round.round_id} seat={mySeatThen} outcome={mine.outcome} net={net} dealer={round.dealer} tableName={table.name} host={dealer?.symbol ?? null} />
+                          <HistoryShare roundId={round.round_id} seat={mySeatThen} outcome={mine.outcome} net={net} dealer={round.dealer} tableName={table.name} host={dealer?.symbol ?? null} onShare={setSharing} />
                         ) : null}
                       </span>
                     </li>
@@ -400,11 +404,12 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
           </section>
         </aside>
       </div>
+      {sharing ? <ShareSheet {...sharing} onClose={closeShare} /> : null}
     </GamesFrame>
   );
 }
 
-function PhaseBanner({ table, myIndex, dealer }: { table: BlackjackTable; myIndex: number; dealer: TableDealer | null }) {
+function PhaseBanner({ table, myIndex, dealer, onShare }: { table: BlackjackTable; myIndex: number; dealer: TableDealer | null; onShare: (target: ShareTarget) => void }) {
   const moment = momentOf(table);
   const left = useRemaining(table.deadline, 250);
   const secs = left === null ? null : Math.ceil(left / 1000);
@@ -491,17 +496,17 @@ function PhaseBanner({ table, myIndex, dealer }: { table: BlackjackTable; myInde
       <strong aria-hidden="true" key={`${moment.kind}-${table.round_id}-${moment.kind === "turn" ? moment.seat : ""}`}>{head}</strong>
       {sub ? <span>{sub}</span> : null}
       {timer ? <div className={styles.bannerTimer}>{timer}</div> : null}
-      {share ? <ShareMoment kind="blackjack" id={share.id} talent={talent} text={share.text} label="Share this hand" /> : null}
+      {share ? <ShareMoment kind="blackjack" id={share.id} talent={talent} text={share.text} label="Share this hand" onOpen={onShare} /> : null}
     </div>
   );
 }
 
 /** Share button on a "Last rounds" row you played. (The row doesn't know about a double; the card does.) */
-function HistoryShare({ roundId, seat, outcome, net, dealer, tableName, host }: { roundId: number; seat: number; outcome: string; net: number; dealer: number; tableName: string; host: string | null }) {
+function HistoryShare({ roundId, seat, outcome, net, dealer, tableName, host, onShare }: { roundId: number; seat: number; outcome: string; net: number; dealer: number; tableName: string; host: string | null; onShare: (target: ShareTarget) => void }) {
   const manifest = useArtStore((state) => state.manifest);
   const pose = net > 0 ? "hype" : net < 0 ? "cope" : null;
   const talent = useMemo(() => (pose ? seededPick(talentsWithPose(manifest, pose), `blackjack:${roundId}`) : null), [manifest, pose, roundId]);
   if (!["blackjack", "win", "push", "loss", "bust"].includes(outcome)) return null;
   const text = blackjackShareText({ outcome: outcome as "blackjack" | "win" | "push" | "loss" | "bust", doubled: false, net, dealerValue: dealer, tableName });
-  return <ShareMoment kind="blackjack" id={blackjackMomentId(roundId, seat)} talent={host ?? talent} text={text} label={`Share round ${roundId}`} compact />;
+  return <ShareMoment kind="blackjack" id={blackjackMomentId(roundId, seat)} talent={host ?? talent} text={text} label={`Share round ${roundId}`} compact onOpen={onShare} />;
 }

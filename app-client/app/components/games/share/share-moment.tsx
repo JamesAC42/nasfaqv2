@@ -20,20 +20,26 @@ type ShareMomentProps = {
   className?: string;
 };
 
+/** What a share sheet shows: one moment, plus the talent and post text the button was given. */
+export type ShareTarget = { kind: MomentKind; id: string; talent?: string | null; text: string };
+
 type Copied = "image" | "link" | null;
 
 /**
  * Share button for a game moment: opens a sheet with the 1200×630 share card and ways to take it
  * elsewhere (copy the picture, save it, copy the link, post on X). The link unfurls with the card.
+ *
+ * Where the button can vanish while the sheet is open (a blackjack result banner gives way to the
+ * next round), pass `onOpen` and render `<ShareSheet>` from a parent that stays mounted.
  */
-export function ShareMoment({ kind, id, talent, text, label = "Share", compact = false, className }: ShareMomentProps) {
+export function ShareMoment({ kind, id, talent, text, label = "Share", compact = false, className, onOpen }: ShareMomentProps & { onOpen?: (target: ShareTarget) => void }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button
         type="button"
         className={[compact ? styles.iconButton : styles.button, className].filter(Boolean).join(" ")}
-        onClick={() => setOpen(true)}
+        onClick={() => (onOpen ? onOpen({ kind, id, talent, text }) : setOpen(true))}
         aria-label={compact ? `${label}: ${text}` : undefined}
         title={compact ? label : undefined}
       >
@@ -45,9 +51,15 @@ export function ShareMoment({ kind, id, talent, text, label = "Share", compact =
   );
 }
 
-function ShareSheet({ kind, id, talent, text, onClose }: { kind: MomentKind; id: string; talent?: string | null; text: string; onClose: () => void }) {
+export function ShareSheet({ kind, id, talent, text, onClose }: ShareTarget & { onClose: () => void }) {
   const titleId = useId();
   const sheetRef = useRef<HTMLDivElement | null>(null);
+  // The latest onClose without re-running the focus effect: parents re-render many times a second
+  // (table clocks), and each re-run would pull focus back to the first button.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [copied, setCopied] = useState<Copied>(null);
@@ -71,7 +83,7 @@ function ShareSheet({ kind, id, talent, text, onClose }: { kind: MomentKind; id:
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key === "Tab") {
@@ -95,9 +107,9 @@ function ShareSheet({ kind, id, talent, text, onClose }: { kind: MomentKind; id:
     window.addEventListener("keydown", onKey, true);
     return () => {
       window.removeEventListener("keydown", onKey, true);
-      previous?.focus?.();
+      if (previous?.isConnected) previous.focus();
     };
-  }, [onClose]);
+  }, []);
 
   const flash = useCallback((what: Copied) => {
     setCopied(what);
