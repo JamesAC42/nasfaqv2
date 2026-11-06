@@ -180,7 +180,7 @@ export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
   },
   {
     q: "How do I get more cash?",
-    a: "Sell shares for more than you paid, and let Saturdays work: part of your Credit turns into cash every week. Credit comes from dividends, winnings, achievements ($100 for your first fill up to $2,500 for a 30-day trading streak), the daily check-in on the front page ($100 to $300 a day, more the longer you trade every day) and a little of every sale. Games and predictions can pay out, and they can also take it.",
+    a: "Sell shares for more than you paid, and let Saturdays work: part of your Credit turns into cash every week. Credit comes from dividends, winnings, achievements ($100 for your first fill up to $2,500 for a 30-day trading streak), the daily check-in on the front page ($50 a day, $100 while you trade every day) and a little of every sale. Games and predictions can pay out, and they can also take it.",
   },
   {
     q: "Why is my cash negative?",

@@ -1,5 +1,6 @@
-// The daily check-in: once a day a verified player claims Credit, and the longer their trade streak
-// the more it pays (SETTINGS: 100, plus 25 a streak day, up to 300).
+// The daily check-in: once a day a verified player claims Credit: 50, or 100 while they're on a trade
+// streak (they traded yesterday). SETTINGS can also make it ramp with the streak's length; by default
+// it doesn't (the owner, 2026-11-06: trading profits are thin, so the check-in stays small).
 //
 // The day is the one trade streaks count in (achievements/streaks.js reads fills as ts::date, and the
 // pool runs in UTC, db.js), so CURRENT_DATE here and a streak day always turn over together, at 00:00
@@ -30,14 +31,14 @@ function envNumber(name, fallback) {
 
 const SETTINGS = Object.freeze({
   /** Credit for a check-in with no streak. */
-  base: envNumber("CHECKIN_BASE_CREDIT", 100),
+  base: envNumber("CHECKIN_BASE_CREDIT", 50),
   /** Added for each day of the trade streak through yesterday. */
-  perStreakDay: envNumber("CHECKIN_STREAK_DAY_CREDIT", 25),
-  /** The most one check-in pays. */
-  max: envNumber("CHECKIN_MAX_CREDIT", 300),
+  perStreakDay: envNumber("CHECKIN_STREAK_DAY_CREDIT", 50),
+  /** The most one check-in pays: with the defaults, any streak at all reaches it (no ramp). */
+  max: envNumber("CHECKIN_MAX_CREDIT", 100),
 });
 
-/** The streak length at which the check-in stops growing (8 with the defaults). */
+/** The streak length at which the check-in stops growing (1 with the defaults). */
 function maxStreakDays() {
   return SETTINGS.perStreakDay > 0 ? Math.max(0, Math.ceil((SETTINGS.max - SETTINGS.base) / SETTINGS.perStreakDay)) : 0;
 }

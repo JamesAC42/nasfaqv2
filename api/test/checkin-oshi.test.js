@@ -17,10 +17,10 @@ const databaseUrl = process.env.CHAT_TEST_DATABASE_URL;
 const quiet = { log() {}, warn() {}, error() {} };
 
 // ── Pure ──────────────────────────────────────────────────────────────────
-test("check-in: 100 Credit, plus 25 a streak day, up to 300", () => {
-  assert.deepEqual([0, 1, 2, 3, 7, 8, 9, 40].map(checkins.rewardFor), [100, 125, 150, 175, 275, 300, 300, 300]);
-  assert.equal(checkins.maxStreakDays(), 8);
-  assert.equal(checkins.rewardFor(-3), 100, "never below the base");
+test("check-in: 50 Credit, or 100 on a trade streak; no ramp", () => {
+  assert.deepEqual([0, 1, 2, 3, 7, 8, 9, 40].map(checkins.rewardFor), [50, 100, 100, 100, 100, 100, 100, 100]);
+  assert.equal(checkins.maxStreakDays(), 1);
+  assert.equal(checkins.rewardFor(-3), 50, "never below the base");
 });
 
 test("check-in: today's pays for the streak through yesterday", () => {
@@ -205,53 +205,53 @@ test("the daily check-in", { skip: !databaseUrl, timeout: 120_000 }, async (t) =
     const before = await checkins.getCheckin(pool, fresh);
     assert.equal(before.eligible, true);
     assert.equal(before.claimed, null);
-    assert.equal(before.reward, 100);
-    assert.deepEqual(before.tomorrow, { if_trade: 125, if_skip: 100 });
+    assert.equal(before.reward, 50);
+    assert.deepEqual(before.tomorrow, { if_trade: 100, if_skip: 50 });
     assert.equal((await pool.query(`SELECT 1 FROM market.user_trade_streaks WHERE user_id = $1`, [fresh])).rowCount, 0, "reading it wrote no streak row");
     // Yesterday's check-in doesn't count against today's.
-    await pool.query(`INSERT INTO market.daily_checkins (user_id, checkin_day, streak_days, reward) VALUES ($1, CURRENT_DATE - 1, 0, 100)`, [fresh]);
+    await pool.query(`INSERT INTO market.daily_checkins (user_id, checkin_day, streak_days, reward) VALUES ($1, CURRENT_DATE - 1, 0, 50)`, [fresh]);
 
     const claimed = await checkins.claimCheckin(pool, fresh);
-    assert.equal(claimed.claimed.reward, 100);
-    assert.equal(claimed.credit_balance, 100);
-    assert.equal(await credit(fresh), 100);
+    assert.equal(claimed.claimed.reward, 50);
+    assert.equal(claimed.credit_balance, 50);
+    assert.equal(await credit(fresh), 50);
     const { rows: ledger } = await pool.query(`SELECT entry_type, cash_delta::text, credit_delta::text, reference_type, reference_id FROM market.ledger_entries WHERE user_id = $1`, [fresh]);
     const { rows: claim } = await pool.query(`SELECT id FROM market.daily_checkins WHERE user_id = $1 AND checkin_day = CURRENT_DATE`, [fresh]);
-    assert.deepEqual(ledger, [{ entry_type: "daily_checkin", cash_delta: "0", credit_delta: "100", reference_type: "daily_checkin", reference_id: claim[0].id }]);
+    assert.deepEqual(ledger, [{ entry_type: "daily_checkin", cash_delta: "0", credit_delta: "50", reference_type: "daily_checkin", reference_id: claim[0].id }]);
 
     const again = await refused(checkins.claimCheckin(pool, fresh), "already_checked_in");
-    assert.equal(again.checkin.claimed.reward, 100);
-    assert.equal(await credit(fresh), 100, "paid once");
-    assert.equal((await checkins.getCheckin(pool, fresh)).claimed.reward, 100);
+    assert.equal(again.checkin.claimed.reward, 50);
+    assert.equal(await credit(fresh), 50, "paid once");
+    assert.equal((await checkins.getCheckin(pool, fresh)).claimed.reward, 50);
   });
 
   await t.test("the trade streak through yesterday sets it, whether or not they've traded today", async () => {
     const streaker = await addUser(pool, "Streaker");
     for (const daysAgo of [3, 2, 1]) await fill(streaker, daysAgo);
     const before = await checkins.getCheckin(pool, streaker);
-    assert.equal(before.reward, 175, "a 3-day streak: 100 + 3 × 25");
+    assert.equal(before.reward, 100, "on a 3-day streak");
     assert.deepEqual(before.streak, { current: 3, through_yesterday: 3, traded_today: false, last_trade_day: before.streak.last_trade_day });
-    assert.deepEqual(before.tomorrow, { if_trade: 200, if_skip: 100 });
+    assert.deepEqual(before.tomorrow, { if_trade: 100, if_skip: 50 });
     // Trading today first changes tomorrow's, not today's.
     await fill(streaker, 0);
     const after = await checkins.getCheckin(pool, streaker);
-    assert.equal(after.reward, 175);
+    assert.equal(after.reward, 100);
     assert.equal(after.streak.current, 4);
-    assert.deepEqual(after.tomorrow, { if_trade: 200, if_skip: null });
+    assert.deepEqual(after.tomorrow, { if_trade: 100, if_skip: null });
     const claimed = await checkins.claimCheckin(pool, streaker);
-    assert.equal(claimed.claimed.reward, 175);
+    assert.equal(claimed.claimed.reward, 100);
     assert.equal(claimed.claimed.streak_days, 3);
-    assert.equal(await credit(streaker), 175);
+    assert.equal(await credit(streaker), 100);
 
     const lapsed = await addUser(pool, "Lapsed");
     for (const daysAgo of [4, 3, 2]) await fill(lapsed, daysAgo);
     const broken = await checkins.claimCheckin(pool, lapsed);
-    assert.equal(broken.claimed.reward, 100, "a day missed: back to the base");
-    assert.deepEqual(broken.tomorrow, { if_trade: 125, if_skip: 100 });
+    assert.equal(broken.claimed.reward, 50, "a day missed: back to the base");
+    assert.deepEqual(broken.tomorrow, { if_trade: 100, if_skip: 50 });
 
     const long = await addUser(pool, "Marathon");
     for (let daysAgo = 12; daysAgo >= 1; daysAgo -= 1) await fill(long, daysAgo);
-    assert.equal((await checkins.claimCheckin(pool, long)).claimed.reward, 300, "capped");
+    assert.equal((await checkins.claimCheckin(pool, long)).claimed.reward, 100, "no more for a longer streak");
   });
 
   await t.test("one claim a day, however many race for it", async () => {
@@ -260,7 +260,7 @@ test("the daily check-in", { skip: !databaseUrl, timeout: 120_000 }, async (t) =
     const results = await Promise.allSettled(Array.from({ length: 8 }, () => checkins.claimCheckin(pool, racer)));
     assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
     assert.ok(results.filter((result) => result.status === "rejected").every((result) => result.reason.code === "already_checked_in"));
-    assert.equal(await credit(racer), 125);
+    assert.equal(await credit(racer), 100);
     assert.equal((await pool.query(`SELECT COUNT(*)::int AS n FROM market.ledger_entries WHERE user_id = $1 AND entry_type = 'daily_checkin'`, [racer])).rows[0].n, 1);
     // The database itself refuses a second row for the day.
     await assert.rejects(pool.query(`INSERT INTO market.daily_checkins (user_id, checkin_day, streak_days, reward) VALUES ($1, CURRENT_DATE, 0, 100)`, [racer]), { code: "23505" });

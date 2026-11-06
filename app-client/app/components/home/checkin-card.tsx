@@ -11,8 +11,9 @@ import { useAuth } from "@/app/providers/auth-provider";
 import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/home/checkin-card.module.scss";
 
-// The daily check-in (api/src/services/checkins.js): Credit once a day, more for every day of the
-// trade streak through yesterday, up to the max. It resets at 00:00 UTC, the day trade streaks count in.
+// The daily check-in (api/src/services/checkins.js): Credit once a day, more while the player is on a
+// trade streak (through yesterday). By default that's 50, or 100 on a streak, with no ramp; when the
+// API's schedule does ramp, the card shows the ladder. It resets at 00:00 UTC, the day streaks count in.
 
 export type Checkin = {
   eligible: boolean;
@@ -26,7 +27,8 @@ export type Checkin = {
   credit_balance?: number;
 };
 
-const credit = (value: number) => `+${money(value).replace(".00", "")}`;
+const whole = (value: number) => money(value).replace(".00", "");
+const credit = (value: number) => `+${whole(value)}`;
 
 /** "19:00 ET": when the day turns over, in market time. */
 function resetClock(iso: string) {
@@ -92,6 +94,8 @@ export function CheckinCard() {
   const todayStep = Math.min(claimed ? claimed.streak_days : streak.through_yesterday, schedule.max_streak_days);
   const tomorrowStep = Math.min(streak.traded_today ? streak.current : streak.through_yesterday + 1, schedule.max_streak_days);
   const resetIn = now && Number.isFinite(resetsAt) ? untilText(resetsAt - now) : null;
+  // One step from the base to the max (the default) needs no ladder: the sentence says it all.
+  const ramps = schedule.max_streak_days > 1;
 
   return (
     <section className={styles.card} aria-labelledby="checkin-title" data-claimed={claimed ? "" : undefined}>
@@ -116,7 +120,7 @@ export function CheckinCard() {
           </button>
         ) : (
           <p className={styles.locked}>
-            <Link href="/profile">Verify your email</Link> to check in. Every day pays Credit, more the longer you trade in a row.
+            <Link href="/profile">Verify your email</Link> to check in. Every day pays Credit, more while you trade every day.
           </p>
         )}
         {error ? (
@@ -142,17 +146,27 @@ export function CheckinCard() {
             </>
           )}
         </p>
-        <ol className={styles.ladder} aria-label={`Check-in Credit by trade streak: ${steps.map((value, days) => `${days} days ${money(value)}`).join(", ")}`}>
-          {steps.map((value, days) => (
-            <li key={days} data-today={days === todayStep || undefined} data-tomorrow={days === tomorrowStep && tomorrowStep !== todayStep ? "" : undefined}>
-              <b>{value}</b>
-              <small>{days === schedule.max_streak_days ? `${days}d+` : `${days}d`}</small>
-            </li>
-          ))}
-        </ol>
+        {ramps ? (
+          <ol className={styles.ladder} aria-label={`Check-in Credit by trade streak: ${steps.map((value, days) => `${days} days ${money(value)}`).join(", ")}`}>
+            {steps.map((value, days) => (
+              <li key={days} data-today={days === todayStep || undefined} data-tomorrow={days === tomorrowStep && tomorrowStep !== todayStep ? "" : undefined}>
+                <b>{value}</b>
+                <small>{days === schedule.max_streak_days ? `${days}d+` : `${days}d`}</small>
+              </li>
+            ))}
+          </ol>
+        ) : null}
         <p className={styles.fine} suppressHydrationWarning>
-          {money(schedule.base).replace(".00", "")} Credit, plus {money(schedule.per_streak_day).replace(".00", "")} for every day in a row you&apos;ve traded, up to{" "}
-          {money(schedule.max).replace(".00", "")}. A new day starts at {resetClock(data.resets_at)}
+          {ramps ? (
+            <>
+              {whole(schedule.base)} Credit, plus {whole(schedule.per_streak_day)} for every day in a row you&apos;ve traded, up to {whole(schedule.max)}.
+            </>
+          ) : (
+            <>
+              {whole(schedule.base)} Credit a day, or {whole(schedule.max)} while you&apos;re on a trade streak (you traded yesterday).
+            </>
+          )}{" "}
+          A new day starts at {resetClock(data.resets_at)}
           {resetIn ? ` (in ${resetIn})` : ""}.
         </p>
       </div>

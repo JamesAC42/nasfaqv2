@@ -476,7 +476,7 @@ export function CommunitySection() {
           {
             k: "check-in",
             title: "Daily check-in",
-            body: "Check in on the front page once a day for $100 Credit, plus $25 for every day in a row you've traded, up to $300. Miss a day of trading and it starts over. Days turn over at 00:00 UTC.",
+            body: "Check in on the front page once a day for $50 Credit, or $100 while you're on a trading streak (you traded yesterday). Days turn over at 00:00 UTC.",
           },
           { k: "/threads", title: "/vt/ threads", body: "The general, mirrored, with tickers linked. Lurk the source." },
           { k: "/livestreams", title: "Livestreams", body: "Who's on air right now, with viewer counts. Streams feed the stream-peak predictions." },
