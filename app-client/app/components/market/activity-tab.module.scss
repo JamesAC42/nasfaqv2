@@ -996,6 +996,18 @@
   }
 }
 
+// Why the tick moved it (tick-reason.tsx), one short line under the price.
+.adjWhy {
+  margin-top: 0.1rem;
+  font-family: var(--font-body);
+
+  > span,
+  > span > span {
+    white-space: normal;
+    overflow: visible;
+  }
+}
+
 // ── Boards + heartbeat ───────────────────────────────────────────────────
 .boards {
   display: grid;

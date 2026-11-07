@@ -6,10 +6,13 @@
 // re-stringify per request), gzipped once when a client accepts gzip, with a strong ETag so a
 // client that already has it gets a 304.
 //
-// Only for payloads that are the same for every viewer.
+// Only for payloads that are the same for every viewer, or (the `features` option) the same for each
+// audience: a payload carrying fields behind a feature flag gets one copy for staff and one for
+// everyone else (features/index.js), and the staff copy lives under its own key.
 
 const crypto = require("crypto");
 const zlib = require("zlib");
+const features = require("./features");
 
 const PREFIX = "resp:v1:";
 const memo = new Map(); // key -> { body, etag, gz, until }
@@ -52,7 +55,8 @@ async function getEntry(redis, key, { ttlSeconds, memoMs, load }) {
 
 function send(req, res, entry) {
   res.setHeader("ETag", entry.etag);
-  res.setHeader("Cache-Control", "no-cache");
+  // Private when the body depends on who's asking (features.markPrivate), so no proxy keeps it.
+  res.setHeader("Cache-Control", res.locals?.privateCache ? "private, no-cache" : "no-cache");
   res.vary("Accept-Encoding");
   const ifNoneMatch = req.headers["if-none-match"];
   if (ifNoneMatch && ifNoneMatch.split(/\s*,\s*/).includes(entry.etag)) {
@@ -69,9 +73,22 @@ function send(req, res, entry) {
   res.end(entry.body);
 }
 
-/** Sends the cached JSON for `key`, building it with `load()` when Redis doesn't have it. */
-async function sendCachedJson(req, res, key, { ttlSeconds = 5, memoMs = 1000, load, notFound = "not_found" }) {
-  const entry = await getEntry(req.ctx?.redis ?? null, key, { ttlSeconds, memoMs, load });
+/**
+ * Sends the cached JSON for `key`, building it with `load()` when Redis doesn't have it. With
+ * `features: true` the payload may carry fields behind feature flags: each audience gets its own
+ * copy, built without the fields it may not see.
+ */
+async function sendCachedJson(req, res, key, { ttlSeconds = 5, memoMs = 1000, load, notFound = "not_found", features: gated = false }) {
+  let cacheKey = key;
+  let build = load;
+  if (gated) {
+    const user = req.ctx?.user ?? null;
+    const audience = features.audienceOf(user);
+    cacheKey = features.cacheKey(key, user);
+    build = async () => features.forAudience(await load(), audience);
+    features.viewerVaries(res);
+  }
+  const entry = await getEntry(req.ctx?.redis ?? null, cacheKey, { ttlSeconds, memoMs, load: build });
   if (entry.body === "null") {
     res.status(404).json({ error: notFound });
     return;
@@ -84,10 +101,11 @@ async function getCachedBody(redis, key, { ttlSeconds = 5, memoMs = 1000, load }
   return (await getEntry(redis, key, { ttlSeconds, memoMs, load })).body;
 }
 
-/** Drops keys everywhere this pod can (Redis for every pod; other pods' memory expires in memoMs). */
+/** Drops keys (every audience's copy) everywhere this pod can (Redis for every pod; other pods' memory expires in memoMs). */
 async function invalidateCachedJson(redis, keys) {
-  for (const key of keys) memo.delete(key);
-  if (redis && keys.length) await redis.del(keys.map((key) => PREFIX + key)).catch(() => {});
+  const all = features.cacheKeyVariants(keys);
+  for (const key of all) memo.delete(key);
+  if (redis && all.length) await redis.del(all.map((key) => PREFIX + key)).catch(() => {});
 }
 
 module.exports = { sendCachedJson, getCachedBody, invalidateCachedJson };

@@ -1,6 +1,8 @@
 // The public market payloads every open tab reads: the asset board and the latest daily report
 // (plus the /market hub). Cached through responseCache; invalidateMarketAssetsCache clears them
 // whenever prices, supply or the report change (fills, ticks, settlement, evaluations, rebuilds).
+// The board and the hub carry each stock's latest tick, whose reasons are behind the tick-reasons
+// flag, so they're cached per audience (responseCache's `features` option).
 
 const marketDb = require("./marketDb");
 const { scrubPublicMarketPayload, publicDailyReport, revealedTargets } = require("./services/marketSecrecy");
@@ -14,6 +16,7 @@ const HUB_TRADE_LIMITS = [20, 50, 100];
 const assetsOptions = (pool) => ({
   ttlSeconds: 5,
   memoMs: 1000,
+  features: true,
   load: async () => scrubPublicMarketPayload(await marketDb.listAssets(pool)),
 });
 
@@ -38,7 +41,7 @@ const sendLatestReport = (req, res) => sendCachedJson(req, res, REPORT_KEY, repo
 /** Sends the /market hub (5s; the page patches fills in from the socket between refetches). */
 function sendHub(req, res, tradeLimit, build) {
   const limit = HUB_TRADE_LIMITS.find((value) => value >= tradeLimit) ?? 100;
-  return sendCachedJson(req, res, hubKey(limit), { ttlSeconds: 5, memoMs: 1000, load: () => build(limit) });
+  return sendCachedJson(req, res, hubKey(limit), { ttlSeconds: 5, memoMs: 1000, features: true, load: () => build(limit) });
 }
 
 // /api/market/adjustments/summary is cached per recent_limit bucket (routes/market.js).

@@ -75,7 +75,8 @@ test("the day's breakdown: landed adjustments only, strengths once the day is do
     CREATE TABLE market.asset_adjustment_intervals (
       id bigserial PRIMARY KEY, session_id bigint NOT NULL, asset_id bigint NOT NULL, interval_key text NOT NULL,
       scheduled_at timestamptz NOT NULL, applied_at timestamptz, status text NOT NULL,
-      price_before numeric, price_after numeric, strength_pct numeric, base_rate numeric
+      price_before numeric, price_after numeric, strength_pct numeric, base_rate numeric,
+      reasons_json jsonb, driver_state_json jsonb
     );
     CREATE TABLE market.daily_market_reports (market_date date PRIMARY KEY);
     CREATE TABLE market.market_assets (id bigint PRIMARY KEY, symbol text, status text);
@@ -92,6 +93,10 @@ test("the day's breakdown: landed adjustments only, strengths once the day is do
       (29, 1, 'lunch', '2026-09-29T19:00:00Z', '2026-09-29T19:00:01Z', 'applied', 20.1, 19.8, 12, 18),
       (29, 1, 'late', '2026-09-30T01:00:00Z', NULL, 'scheduled', NULL, NULL, 150, 18),
       (29, 1, 'overnight', '2026-09-30T07:00:00Z', NULL, 'scheduled', NULL, NULL, 33, 18);
+    UPDATE market.asset_adjustment_intervals
+    SET reasons_json = '[{"kind":"players","text":"Eased after player buying since the Overnight tick","short":"Player buying"}]',
+      driver_state_json = '{"v":1,"parts":{"players":-0.01}}'
+    WHERE interval_key = 'open';
   `);
   const { getSessionBreakdown } = require("../src/services/reportSession");
   let day = await getSessionBreakdown(pool, "2026-09-29");
@@ -102,6 +107,9 @@ test("the day's breakdown: landed adjustments only, strengths once the day is do
   assert.deepEqual([pek.open, pek.close], [20, 19.5]);
   assert.deepEqual(pek.steps.map((s) => [s.key, s.before, s.after, s.strength_pct]), [["open", 20, 19.9, null], ["lunch", 20.1, 19.8, null], ["late", null, null, null], ["overnight", null, null, null]]);
   assert.ok(!JSON.stringify(day).includes("base_rate"));
+  // Why each landed tick moved comes along; the private split behind it never does.
+  assert.deepEqual(pek.steps.map((s) => s.reasons?.[0]?.kind ?? null), ["players", null, null, null]);
+  assert.ok(!JSON.stringify(day).includes("driver_state") && !JSON.stringify(day).includes("parts"));
 
   await pool.query("UPDATE market.asset_adjustment_intervals SET status = 'applied', applied_at = scheduled_at, price_before = 19.8, price_after = 19.6 WHERE status = 'scheduled'");
   day = await getSessionBreakdown(pool, "2026-09-29");

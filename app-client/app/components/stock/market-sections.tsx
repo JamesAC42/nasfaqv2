@@ -14,6 +14,7 @@ import { useNow } from "@/app/lib/use-now";
 import { useMarketStore } from "@/app/stores/market-store";
 import styles from "@/app/components/stock/dossier.module.scss";
 import { Term, Tip } from "@/app/components/common/tip";
+import { TickReasons } from "@/app/components/market/tick-reason";
 
 const OVERLAYS: Array<[keyof Overlays, string]> = [
   ["mark", "MARK"],
@@ -159,6 +160,9 @@ export function TicksSection({ asset }: { asset: MarketAsset }) {
     [items],
   );
   const dayMove = [...todays.values()].reduce((product, item) => product * (1 + (item.applied_at ? item.move_pct ?? 0 : 0)), 1) - 1;
+  // The latest tick only: an older one's reason would read as this one's.
+  const latest = log.find((item) => item.applied_at) ?? null;
+  const lastLanded = latest?.reasons?.length ? latest : null;
 
   return (
     <section className={styles.sec} id="s-ticks">
@@ -181,6 +185,7 @@ export function TicksSection({ asset }: { asset: MarketAsset }) {
           </>
         ) : null}
       </p>
+      {lastLanded ? <WhyItMoved item={lastLanded} /> : null}
       <div className={styles.tickGrid}>
         <div>
           <div className={styles.label}>Today&apos;s ticks</div>
@@ -199,6 +204,7 @@ export function TicksSection({ asset }: { asset: MarketAsset }) {
                   <strong className={applied ? styles[toneOf(item?.move_pct)] : undefined} suppressHydrationWarning>
                     {applied ? signedPct(item?.move_pct) : skipped ? "skipped" : next && clock ? formatCountdown(clock.secondsToNextTick) : "—"}
                   </strong>
+                  {applied ? <TickReasons reasons={item?.reasons} compact className={styles.tnodeWhy} /> : null}
                 </div>
               );
             })}
@@ -231,6 +237,28 @@ export function TicksSection({ asset }: { asset: MarketAsset }) {
   );
 }
 
+/**
+ * Why the latest tick moved this stock, in plain words: what in the channel or the trading pushed
+ * the way it went. Only what already happened; never the target or what the next tick does.
+ */
+function WhyItMoved({ item }: { item: MarketAdjustmentOutcome }) {
+  const when = item.applied_at ? new Date(item.applied_at) : null;
+  const details = (item.reasons ?? []).map((reason) => reason.detail).filter(Boolean);
+  return (
+    <div className={styles.why}>
+      <div className={styles.whyHead}>
+        <span className={styles.label}>Why the last tick moved</span>
+        <span className={styles.whyTick} suppressHydrationWarning>
+          {(TICK_LABEL[item.interval_key] ?? item.interval_key).toUpperCase()}
+          {when ? ` · ${formatEtTime(when)} ET` : ""} · <b className={styles[toneOf(item.move_pct)]}>{signedPct(item.move_pct)}</b>
+        </span>
+      </div>
+      <TickReasons reasons={item.reasons} className={styles.whyLines} />
+      {details.length ? <p className={styles.whyDetail}>{details.join(" · ")}</p> : null}
+    </div>
+  );
+}
+
 function TickLogRow({ item }: { item: MarketAdjustmentOutcome }) {
   const when = item.applied_at ?? item.scheduled_at;
   const date = when ? new Date(when) : null;
@@ -249,6 +277,7 @@ function TickLogRow({ item }: { item: MarketAdjustmentOutcome }) {
           <span className={styles.dim}>
             {item.gap_compression_pct !== null && item.gap_compression_pct !== undefined ? `${Math.round(item.gap_compression_pct * 100)}%` : ""}
           </span>
+          {item.reasons?.length ? <TickReasons reasons={item.reasons} className={styles.logWhy} /> : null}
         </>
       ) : (
         <span className={styles.dim} style={{ gridColumn: "span 3", textAlign: "left" }}>
