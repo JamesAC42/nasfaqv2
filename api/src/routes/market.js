@@ -213,6 +213,7 @@ router.get("/evaluations/latest", async (req, res, next) => {
       ttlSeconds: 60,
       memoMs: 10_000,
       notFound: "evaluation_not_found",
+      features: true, // oshi protection's totals (the oshi-protection flag)
       load: () => weeklyEvaluation.getEvaluation(req.ctx.pool),
     });
   } catch (e) {
@@ -226,7 +227,8 @@ router.get("/evaluations/:date", async (req, res, next) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: "invalid_date" });
     const report = await weeklyEvaluation.getEvaluation(req.ctx.pool, date);
     if (!report) return res.status(404).json({ error: "evaluation_not_found" });
-    res.json(report);
+    features.viewerVaries(res);
+    res.json(features.forAudience(report, features.audienceOf(req.ctx.user)));
   } catch (e) {
     next(e);
   }
@@ -235,15 +237,18 @@ router.get("/evaluations/:date", async (req, res, next) => {
 router.get("/me/dividends", async (req, res, next) => {
   try {
     const userId = requireUserId(req);
-    res.json({ weeks: await weeklyEvaluation.listUserDividends(req.ctx.pool, userId, { limit: req.query.limit }) });
+    const weeks = await weeklyEvaluation.listUserDividends(req.ctx.pool, userId, { limit: req.query.limit });
+    features.viewerVaries(res);
+    res.json(features.forAudience({ weeks }, features.audienceOf(req.ctx.user)));
   } catch (e) {
     if (e?.code === "unauthenticated") return res.status(401).json({ error: "unauthenticated" });
     next(e);
   }
 });
 
-// The daily check-in (services/checkins.js): today's, and claiming it. Verified accounts only.
-router.get("/me/checkin", async (req, res, next) => {
+// The daily check-in (services/checkins.js): today's, and claiming it. Verified accounts only, behind
+// the daily-checkin feature flag (404 without it).
+router.get("/me/checkin", features.requireFeature("daily-checkin"), async (req, res, next) => {
   try {
     const userId = requireUserId(req);
     res.json(await checkins.getCheckin(req.ctx.pool, userId));
@@ -253,7 +258,7 @@ router.get("/me/checkin", async (req, res, next) => {
   }
 });
 
-router.post("/me/checkin", rateLimit(byUser("checkin", 10, 60)), async (req, res, next) => {
+router.post("/me/checkin", features.requireFeature("daily-checkin"), rateLimit(byUser("checkin", 10, 60)), async (req, res, next) => {
   try {
     const userId = requireVerifiedUserId(req);
     res.json(await checkins.claimCheckin(req.ctx.pool, userId));
@@ -266,14 +271,12 @@ router.post("/me/checkin", rateLimit(byUser("checkin", 10, 60)), async (req, res
 });
 
 // Your oshi and this week's protection from the share fee (services/oshi.js), for the stock page.
-router.get("/me/oshi", async (req, res, next) => {
+// Behind the oshi-protection feature flag (404 without it).
+router.get("/me/oshi", features.requireFeature("oshi-protection"), async (req, res, next) => {
   try {
     const userId = requireUserId(req);
     const evalDate = await weeklyEvaluation.pendingEvaluationDate(req.ctx.pool);
-    res.json({
-      ...(await oshi.getOshiStatus(req.ctx.pool, userId, { weekStart: weeklyEvaluation.weekStartFor(evalDate), nextReviewAt: weeklyEvaluation.evaluationStartsAt(evalDate) })),
-      protection_enabled: weeklyEvaluation.OSHI_PROTECTION,
-    });
+    res.json(await oshi.getOshiStatus(req.ctx.pool, userId, { weekStart: weeklyEvaluation.weekStartFor(evalDate), nextReviewAt: weeklyEvaluation.evaluationStartsAt(evalDate) }));
   } catch (e) {
     if (e?.code === "unauthenticated") return res.status(401).json({ error: "unauthenticated" });
     next(e);

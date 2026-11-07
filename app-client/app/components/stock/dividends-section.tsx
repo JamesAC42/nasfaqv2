@@ -135,10 +135,10 @@ export function DividendsSection({ asset }: { asset: MarketAsset }) {
                     <span className={styles.kpiD}>
                       on {myLines[0].line.quantity.toLocaleString("en-US")} sh · {shortDate(myLines[0].eval_date)}
                     </span>
-                    {myLines[0].line.waived ? (
+                    {myLines[0].line.oshi_waived ? (
                       <span className={local.waived}>
-                        Your oshi&apos;s shares skipped {feeWithRate(items.find((item) => item.eval_date === myLines[0].eval_date)?.rate ?? null)}:{" "}
-                        <b>{money(myLines[0].line.waived)}</b> not charged on {myLines[0].line.protected_quantity?.toLocaleString("en-US") ?? 0} sh held all week
+                        Your oshi’s shares skipped {feeWithRate(items.find((item) => item.eval_date === myLines[0].eval_date)?.rate ?? null)}:{" "}
+                        <b>{money(myLines[0].line.oshi_waived)}</b> not charged on {myLines[0].line.oshi_protected_quantity?.toLocaleString("en-US") ?? 0} sh held all week
                       </span>
                     ) : null}
                   </>

@@ -1,0 +1,4 @@
+{
+  "state": "staff",
+  "description": "The daily check-in: 50 Credit a day, or 100 while on a trade streak. Home's check-in card, How to play's rule, and GET/POST /api/market/me/checkin (404 without the flag)."
+}

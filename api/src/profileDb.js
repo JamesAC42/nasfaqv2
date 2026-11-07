@@ -544,7 +544,8 @@ async function getProfileBundle(pool, {
         outgoing: await listPendingFriendRequests(pool, profileUser.id, "outgoing"),
       }
     : null;
-  const oshiRule = isSelf ? await oshi.readChangeRule(pool, profileUser.id) : null;
+  // The 30-day oshi rule, for a player the oshi-protection flag is on for.
+  const oshiRule = isSelf && oshi.protectionFor(profileUser) ? await oshi.readChangeRule(pool, profileUser.id) : null;
 
   return {
     profile: {

@@ -351,7 +351,7 @@ function YourWeek({ week, loading, evalDate, rates }: { week: MyDividendWeek | n
         <>
           <p className={styles.net}>
             <b className={week.net > 0 ? ui.up : week.net < 0 ? ui.down : ui.flat}>{money(week.net)}</b>
-            <span>{week.net > 0 ? "DIVS" : week.net < 0 ? "net share fees" : week.waived ? "your oshi skipped its fee" : "DIVS"}</span>
+            <span>{week.net > 0 ? "DIVS" : week.net < 0 ? "net share fees" : week.oshi_waived ? "your oshi skipped its fee" : "DIVS"}</span>
           </p>
           <div className={styles.mineRows}>
             {week.lines.map((line) => (
@@ -361,9 +361,9 @@ function YourWeek({ week, loading, evalDate, rates }: { week: MyDividendWeek | n
                   {num(line.quantity, 0)} sh × {money(line.per_share)}
                 </small>
                 <b className={line.amount > 0 ? ui.up : line.amount < 0 ? ui.down : ui.flat}>{money(line.amount)}</b>
-                {line.waived ? (
+                {line.oshi_waived ? (
                   <em className={styles.waived}>
-                    {skippedText(line, rates)}: <b>{money(line.waived)}</b> not charged on {num(line.protected_quantity ?? 0, 0)} sh held all week
+                    {skippedText(line, rates)}: <b>{money(line.oshi_waived)}</b> not charged on {num(line.oshi_protected_quantity ?? 0, 0)} sh held all week
                   </em>
                 ) : null}
               </span>

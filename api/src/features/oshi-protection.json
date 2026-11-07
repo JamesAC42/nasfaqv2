@@ -1,0 +1,5 @@
+{
+  "state": "staff",
+  "description": "Oshi protection: at the Saturday review, the oshi's shares held all week skip a share fee, and the oshi can change once every 30 days. Only players with the flag get the skip and the 30-day rule; oshi picks and changes are logged for everyone. Shows on the stock page (GET /api/market/me/oshi), the Dividend Review, the profile editor, the first-days card and How to play.",
+  "fields": ["oshi_protection", "oshi_waived", "oshi_protected_quantity"]
+}

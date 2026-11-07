@@ -605,7 +605,7 @@ function DividendReview() {
       }))
     : [];
   const myNet = user && review && mine?.eval_date === review.eval_date ? mine.net : null;
-  const mySkipped = myNet !== null && mine?.waived ? mine.waived : 0;
+  const mySkipped = myNet !== null && mine?.oshi_waived ? mine.oshi_waived : 0;
 
   return (
     <section className={styles.block} aria-labelledby="review-title">

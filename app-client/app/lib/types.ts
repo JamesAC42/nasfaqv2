@@ -517,10 +517,10 @@ export type WeeklyEvaluation = {
 export type MyDividendWeek = {
   eval_date: string;
   net: number;
-  /** The share fees your oshi skipped that week (positive). */
-  waived?: number;
-  /** protected_quantity / waived: oshi shares held all week that skipped a fee, and the fee. */
-  lines: Array<{ symbol: string; display_name: string; quantity: number; per_share: number; amount: number; protected_quantity?: number; waived?: number }>;
+  /** The share fees your oshi skipped that week (positive; only with the oshi-protection flag). */
+  oshi_waived?: number;
+  /** oshi_protected_quantity / oshi_waived: oshi shares held all week that skipped a fee, and the fee. */
+  lines: Array<{ symbol: string; display_name: string; quantity: number; per_share: number; amount: number; oshi_protected_quantity?: number; oshi_waived?: number }>;
 };
 
 /** Your oshi and this week's protection from the share fee (GET /api/market/me/oshi). */
@@ -533,7 +533,6 @@ export type OshiStatus = {
   protected_shares: number;
   week_start: string;
   next_review_at: string;
-  protection_enabled: boolean;
   change: { cooldown_days: number; available_at: string | null; first_pick: boolean };
 };
 

@@ -14,9 +14,11 @@
 //   Rookies (listed by an IPO in the last ROOKIE_DAYS, docs/market/ipo.md): no dividend or fee (their
 //   week-over-week shift reads the launch, so they're left out of the ranking too), and their max
 //   shares never drop below what players hold.
-//   Oshi protection (OSHI_PROTECTION, services/oshi.js): a player's oshi charges no share fee on the
-//   shares they held all week (the fewest they held at any moment since last Saturday 00:00 ET), if
-//   it has been their oshi all that week. A dividend still pays on every share.
+//   Oshi protection (services/oshi.js, the oshi-protection feature flag): a player's oshi charges no
+//   share fee on the shares they held all week (the fewest they held at any moment since last
+//   Saturday 00:00 ET), if it has been their oshi all that week. A dividend still pays on every share.
+//   Only players the flag is on for get it; its report fields (oshi_protection, oshi_waived) reach
+//   only viewers with the flag (features.forAudience).
 //   4. The Dividend Review (report_json), notifications to holders, a market socket event.
 //
 // The transaction reads what it needs in a few set-based queries, works the whole evaluation out in
@@ -30,6 +32,7 @@
 const supply = require("./marketSupply");
 const economy = require("./economy");
 const oshi = require("./oshi");
+const features = require("../features");
 const pgNumeric = require("./pgNumeric");
 const notifications = require("./notifications");
 const marketState = require("./marketState");
@@ -63,9 +66,6 @@ const CONFIG = {
  * evaluation has run in production once; then set MARKET_WEEKLY_EVALUATION_CLOSE_TRADING=false.
  */
 const CLOSE_TRADING = (process.env.MARKET_WEEKLY_EVALUATION_CLOSE_TRADING || "true").toLowerCase() !== "false";
-
-/** Oshi protection from share fees; MARKET_OSHI_FEE_PROTECTION=false turns it off. */
-const OSHI_PROTECTION = (process.env.MARKET_OSHI_FEE_PROTECTION || "true").toLowerCase() !== "false";
 
 const toNumber = (value, fallback = 0) => {
   if (value === null || value === undefined || value === "") return fallback;
@@ -288,7 +288,7 @@ async function loadWallets(client, userIds, { lock }) {
  * holdings: Map stock id (text) → Map player → exact quantity (loadHoldings); updated in place.
  * wallets: Map player → { cash, credit }, exact (loadWallets); updated in place.
  * protectedOshis: Map player → { assetId, added } (oshi.loadProtectedOshis): players whose oshi was
- * theirs all week, and the most of its shares they added since the week started. Null: protection off.
+ * theirs all week, and the most of its shares they added since the week started. Null: the flag is off.
  */
 function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, assets, activeBuybacks, holdings, wallets, protectedOshis = null }) {
   const writes = { holdings: [], buybacksClosed: [], assets: [], buybacksStarted: [], assetEvaluations: [], payouts: [], accountsOpened: [], moves: [] };
@@ -749,7 +749,7 @@ async function evaluate(pool, { evalDate, dryRun, onDemand, redis, logger }) {
     const wallets = await loadWallets(client, [...holders], { lock });
     // Oshi protection looks back to the Saturday 00:00 ET before this one. The holdings are locked
     // already, so no fill lands in between; an oshi change meanwhile only counts from next week.
-    const protectedOshis = OSHI_PROTECTION ? await oshi.loadProtectedOshis(client, assets.map((asset) => asset.id), weekStartFor(evalDate)) : null;
+    const protectedOshis = features.enabledFor(oshi.FLAG, "staff") ? await oshi.loadProtectedOshis(client, assets.map((asset) => asset.id), weekStartFor(evalDate)) : null;
     const plan = planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, assets, activeBuybacks, holdings, wallets, protectedOshis });
     report = plan.report;
     if (dryRun) {
@@ -939,21 +939,22 @@ async function listUserDividends(pool, userId, { limit = 8 } = {}) {
   );
   const weeks = new Map();
   for (const row of rows) {
-    if (!weeks.has(row.eval_date)) weeks.set(row.eval_date, { eval_date: row.eval_date, net: 0, waived: 0, lines: [] });
+    if (!weeks.has(row.eval_date)) weeks.set(row.eval_date, { eval_date: row.eval_date, net: 0, oshi_waived: 0, lines: [] });
     const week = weeks.get(row.eval_date);
     const amount = toNumber(row.amount, 0);
     const waived = toNumber(row.waived, 0);
     week.net = Math.round((week.net + amount) * 100) / 100;
-    week.waived = Math.round((week.waived + waived) * 100) / 100;
-    // protected_quantity and waived: the oshi shares held all week that skipped a share fee, and the fee.
+    week.oshi_waived = Math.round((week.oshi_waived + waived) * 100) / 100;
+    // oshi_protected_quantity and oshi_waived: the oshi shares held all week that skipped a share fee,
+    // and the fee (fields of the oshi-protection flag: the route drops them for viewers without it).
     week.lines.push({
       symbol: row.symbol,
       display_name: row.display_name,
       quantity: toNumber(row.quantity, 0),
       per_share: toNumber(row.per_share, 0),
       amount,
-      protected_quantity: toNumber(row.protected_quantity, 0),
-      waived,
+      oshi_protected_quantity: toNumber(row.protected_quantity, 0),
+      oshi_waived: waived,
     });
   }
   return [...weeks.values()];
@@ -965,7 +966,6 @@ module.exports = {
   evaluationDateFor,
   evaluationStartsAt,
   weekStartFor,
-  OSHI_PROTECTION,
   planEvaluation,
   todayInNewYork,
   pendingEvaluationDate,

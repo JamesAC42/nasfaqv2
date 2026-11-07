@@ -9,10 +9,12 @@ const checkins = require("../src/services/checkins");
 const oshi = require("../src/services/oshi");
 const pgNumeric = require("../src/services/pgNumeric");
 const profileDb = require("../src/profileDb");
+const features = require("../src/features");
 
 // The daily check-in (services/checkins.js), the oshi's 30-day rule (services/oshi.js) and the weekly
-// evaluation's oshi protection from share fees (services/weeklyEvaluation.js). The pure parts run
-// anywhere; the rest needs CHAT_TEST_DATABASE_URL (a local server) and makes its own database.
+// evaluation's oshi protection from share fees (services/weeklyEvaluation.js), each behind its feature
+// flag (daily-checkin, oshi-protection). The pure parts run anywhere; the rest needs
+// CHAT_TEST_DATABASE_URL (a local server) and makes its own database.
 const databaseUrl = process.env.CHAT_TEST_DATABASE_URL;
 const quiet = { log() {}, warn() {}, error() {} };
 
@@ -266,6 +268,36 @@ test("the daily check-in", { skip: !databaseUrl, timeout: 120_000 }, async (t) =
     await assert.rejects(pool.query(`INSERT INTO market.daily_checkins (user_id, checkin_day, streak_days, reward) VALUES ($1, CURRENT_DATE, 0, 100)`, [racer]), { code: "23505" });
   });
 
+  await t.test("at staff, the endpoints answer only admins (404 for everyone else)", async () => {
+    const express = require("express");
+    const marketRoutes = require("../src/routes/market");
+    const restore = features.override({ "daily-checkin": "staff", "oshi-protection": "staff" });
+    const player = await addUser(pool, "Flagless");
+    const staff = await addUser(pool, "Staffer");
+    await pool.query(`UPDATE market.users SET is_admin = true WHERE id = $1`, [staff]);
+    const app = express();
+    app.use((req, _res, next) => {
+      const id = Number(req.headers["x-test-user"]) || null;
+      req.ctx = { pool, redis: null, user: id ? { id, is_admin: id === staff, email_verified: true } : null };
+      next();
+    });
+    app.use("/api/market", marketRoutes);
+    const server = app.listen(0, "127.0.0.1");
+    try {
+      await new Promise((resolve) => server.once("listening", resolve));
+      const get = (path, userId) => fetch(`http://127.0.0.1:${server.address().port}/api/market${path}`, { headers: { "x-test-user": String(userId) } });
+      assert.equal((await get("/me/checkin", player)).status, 404);
+      assert.equal((await get("/me/oshi", player)).status, 404);
+      const checkin = await get("/me/checkin", staff);
+      assert.equal(checkin.status, 200);
+      assert.equal((await checkin.json()).reward, 50);
+      assert.equal((await get("/me/oshi", staff)).status, 200);
+    } finally {
+      server.close();
+      restore();
+    }
+  });
+
   await t.test("verified accounts only", async () => {
     const unverified = await addUser(pool, "Unverified", { verified: false });
     assert.equal((await checkins.getCheckin(pool, unverified)).eligible, false);
@@ -277,7 +309,11 @@ test("the daily check-in", { skip: !databaseUrl, timeout: 120_000 }, async (t) =
 
 test("the oshi changes once every 30 days; the first pick is free", { skip: !databaseUrl, timeout: 120_000 }, async (t) => {
   const pool = await freshDatabase("nasfaq_oshi_rule_test");
-  t.after(() => pool.end());
+  const restoreFlags = features.override({ "oshi-protection": "on" });
+  t.after(() => {
+    restoreFlags();
+    return pool.end();
+  });
   await pool.query(`INSERT INTO yt.youtube_channels (youtube_channel_id, name_short) SELECT 'UCo' || s, s FROM unnest(ARRAY['a', 'b', 'c']) s`);
   const { rows } = await pool.query(
     `INSERT INTO market.market_assets (youtube_channel_id, symbol, display_name, status, max_supply, circulating_supply, treasury_supply, liquidity_depth, spread_bps)
@@ -357,6 +393,29 @@ test("the oshi changes once every 30 days; the first pick is free", { skip: !dat
     assert.ok(bundle.profile.oshi_change.available_at);
     assert.equal(bundle.profile.oshi_change.first_pick, false);
   });
+
+  await t.test("at staff: only admins wait 30 days; everyone else changes freely, and it's still logged", async () => {
+    const restore = features.override({ "oshi-protection": "staff" });
+    try {
+      const player = await addUser(pool, "Freepicker");
+      assert.equal(await set(player, asset.AAA), "first_pick");
+      assert.equal(await set(player, asset.BBB), "change");
+      assert.equal(await set(player, asset.CCC), "change", "no wait without the flag");
+      await profileDb.updateProfileSettings(pool, player, { username: "Freepicker", bio: "", profileColor: null, oshiCoinAssetId: asset.AAA });
+      assert.deepEqual((await history(player)).map((row) => row[2]), ["first_pick", "change", "change", "change"], "every move logged");
+      const bundle = await profileDb.getProfileBundle(pool, { viewerUserId: player, selfOnly: true });
+      assert.equal(bundle.profile.oshi_change, null, "no rule to show");
+
+      const staff = await addUser(pool, "Staffpicker");
+      await pool.query(`UPDATE market.users SET is_admin = true WHERE id = $1`, [staff]);
+      await set(staff, asset.AAA);
+      await set(staff, asset.BBB);
+      await assert.rejects(set(staff, asset.CCC), { code: "oshi_change_cooldown" });
+      assert.ok((await profileDb.getProfileBundle(pool, { viewerUserId: staff, selfOnly: true })).profile.oshi_change.available_at);
+    } finally {
+      restore();
+    }
+  });
 });
 
 /**
@@ -402,7 +461,11 @@ async function seedMarket(pool) {
 
 test("the weekly evaluation skips the share fee on oshi shares held all week", { skip: !databaseUrl, timeout: 180_000 }, async (t) => {
   const pool = await freshDatabase("nasfaq_oshi_eval_test");
-  t.after(() => pool.end());
+  const restoreFlags = features.override({ "oshi-protection": "on" });
+  t.after(() => {
+    restoreFlags();
+    return pool.end();
+  });
   const asset = await seedMarket(pool);
   const SATURDAY = "2026-10-17";
   const weekStart = weekly.weekStartFor(SATURDAY);
@@ -489,6 +552,28 @@ test("the weekly evaluation skips the share fee on oshi shares held all week", {
 
   const [week] = await weekly.listUserDividends(pool, users.fan);
   assert.equal(week.net, 0);
-  assert.equal(week.waived, -full);
-  assert.deepEqual([week.lines[0].symbol, week.lines[0].amount, week.lines[0].protected_quantity, week.lines[0].waived], [feeRow.symbol, 0, 100, -full]);
+  assert.equal(week.oshi_waived, -full);
+  assert.deepEqual([week.lines[0].symbol, week.lines[0].amount, week.lines[0].oshi_protected_quantity, week.lines[0].oshi_waived], [feeRow.symbol, 0, 100, -full]);
+
+  // At staff (the flag file's own fields): only admins get protection, and only viewers with the
+  // flag see what it did. Everyone else's payloads are what they were before it.
+  const restore = features.override({ "oshi-protection": "staff" });
+  try {
+    await pool.query(`UPDATE market.users SET is_admin = true WHERE id = $1`, [users.fan]);
+    const covered = await oshi.loadProtectedOshis(pool, [fee], weekStart);
+    assert.deepEqual([...covered.keys()], [users.fan], "only the admin");
+    const toEveryone = JSON.stringify(features.forAudience({ report, weeks: [week] }, "everyone"));
+    assert.ok(!/oshi_(protection|waived|protected_quantity)/.test(toEveryone), "nothing of it reaches players");
+    const toStaff = features.forAudience({ report, weeks: [week] }, "staff");
+    assert.equal(toStaff.report.oshi_protection.players, 2);
+    assert.equal(toStaff.weeks[0].oshi_waived, -full);
+  } finally {
+    restore();
+  }
+  const offRestore = features.override({ "oshi-protection": "off" });
+  try {
+    assert.equal((await oshi.loadProtectedOshis(pool, [fee], weekStart)).size, 0, "off: nobody");
+  } finally {
+    offRestore();
+  }
 });

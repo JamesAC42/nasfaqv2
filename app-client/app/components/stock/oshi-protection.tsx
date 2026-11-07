@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { useApi } from "@/app/components/stock/use-stock-data";
+import { useFeature } from "@/app/lib/features";
 import type { OshiStatus } from "@/app/lib/types";
 import styles from "@/app/components/stock/dossier.module.scss";
 
 // Oshi protection on the stock page (api/src/services/oshi.js): on your oshi, the shares you've held
 // since last Saturday 00:00 ET skip a share fee at this Saturday's review. A dividend still pays on
-// every share. Nothing shows on a stock that isn't your oshi, unless you have none yet.
+// every share. Nothing shows on a stock that isn't your oshi, unless you have none yet. Behind the
+// oshi-protection feature flag: without it this never asks the API (which would 404).
 
 const num = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : Number(value) || 0);
 const normalize = (raw: Record<string, unknown>) => raw as unknown as OshiStatus;
@@ -16,7 +18,8 @@ const shares = (value: number) => value.toLocaleString("en-US", { maximumFractio
 const weekday = (iso: string) => new Date(iso).toLocaleDateString("en-US", { weekday: "short", timeZone: "America/New_York" });
 
 export function OshiProtection({ symbol, held }: { symbol: string; held: number }) {
-  const status = useApi<OshiStatus>("/api/market/me/oshi", normalize);
+  const enabled = useFeature("oshi-protection");
+  const status = useApi<OshiStatus>(enabled ? "/api/market/me/oshi" : null, normalize);
   const { reload } = status;
   // A fill here changes what's covered: read it again when the position moves.
   const lastHeld = useRef(held);
@@ -27,11 +30,11 @@ export function OshiProtection({ symbol, held }: { symbol: string; held: number 
   }, [held, reload]);
 
   const data = status.data;
-  if (!data || !data.protection_enabled) return null;
+  if (!enabled || !data) return null;
   if (!data.oshi) {
     return (
       <p className={styles.oshiHint}>
-        No oshi yet. <Link href="/profile?edit=1">Pick one</Link>: the shares of your oshi you hold all week skip Saturday&apos;s share fee.
+        No oshi yet. <Link href="/profile?edit=1">Pick one</Link>: the shares of your oshi you hold all week skip Saturday’s share fee.
       </p>
     );
   }
@@ -52,11 +55,11 @@ export function OshiProtection({ symbol, held }: { symbol: string; held: number 
           <b>
             {shares(covered)} of {shares(holding)}
           </b>{" "}
-          shares held since Sat 00:00 ET pay no share fee at Saturday&apos;s review.
+          shares held since Sat 00:00 ET pay no share fee at Saturday’s review.
           {covered < holding ? ` The ${shares(holding - covered)} bought since are covered from next week.` : ""} A dividend still pays on every share.
         </p>
       ) : (
-        <p>Shares of your oshi held all week skip Saturday&apos;s share fee. A dividend still pays on every share.</p>
+        <p>Shares of your oshi held all week skip Saturday’s share fee. A dividend still pays on every share.</p>
       )}
       {data.change.available_at ? (
         <small>Your oshi can change again {new Date(data.change.available_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}.</small>

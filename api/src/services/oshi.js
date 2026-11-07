@@ -8,8 +8,18 @@
 //   - Every pick, change and clear is a row in market.user_oshi_changes.
 //   - Protection covers only an oshi held the whole week (no row since the week started) and only
 //     the shares held all week: the fewest the player held at any moment since then.
+//
+// Behind the oshi-protection feature flag (features/oshi-protection.json): only players it's on for
+// get the skip and the 30-day rule. Everyone else changes their oshi as freely as before. Every
+// player's picks and changes are logged either way, so the week's history is there when it turns on.
+
+const features = require("../features");
 
 const CHANGE_COOLDOWN_DAYS = 30;
+const FLAG = "oshi-protection";
+
+/** Whether this player gets oshi protection and its 30-day rule (`user` needs is_admin). */
+const protectionFor = (user) => features.isEnabled(FLAG, user);
 
 function oshiError(code, extra = {}) {
   return Object.assign(new Error(code), { code, ...extra });
@@ -45,8 +55,9 @@ function kindOf(before, after, hasHistory) {
  * nothing). Throws oshi_change_cooldown with available_at.
  */
 async function assertCanChange(db, userId, assetId) {
-  const { rows } = await db.query(`SELECT oshi_coin_asset_id FROM market.users WHERE id = $1`, [userId]);
+  const { rows } = await db.query(`SELECT oshi_coin_asset_id, is_admin FROM market.users WHERE id = $1`, [userId]);
   if (!rows[0]) throw oshiError("profile_not_found");
+  if (!protectionFor(rows[0])) return;
   const before = rows[0].oshi_coin_asset_id === null ? null : Number(rows[0].oshi_coin_asset_id);
   const rule = await readChangeRule(db, userId);
   if (kindOf(before, assetId, rule.hasHistory) === "change" && rule.cooling) throw oshiError("oshi_change_cooldown", { available_at: rule.nextChangeAt });
@@ -55,17 +66,18 @@ async function assertCanChange(db, userId, assetId) {
 /**
  * Sets the player's oshi (an asset id, or null for none) inside the caller's transaction, under a
  * lock on their row so two saves at once can't both use the month's change. Returns the move's kind
- * (null when nothing changed). Throws oshi_change_cooldown with available_at.
+ * (null when nothing changed). Throws oshi_change_cooldown with available_at, for a player with the
+ * flag; without it the move is only logged.
  */
 async function setOshiWithClient(client, userId, assetId) {
-  const { rows } = await client.query(`SELECT oshi_coin_asset_id FROM market.users WHERE id = $1 FOR UPDATE`, [userId]);
+  const { rows } = await client.query(`SELECT oshi_coin_asset_id, is_admin FROM market.users WHERE id = $1 FOR UPDATE`, [userId]);
   if (!rows[0]) throw oshiError("profile_not_found");
   const before = rows[0].oshi_coin_asset_id === null ? null : Number(rows[0].oshi_coin_asset_id);
   const after = assetId === null || assetId === undefined ? null : Number(assetId);
   const rule = await readChangeRule(client, userId);
   const kind = kindOf(before, after, rule.hasHistory);
   if (!kind) return null;
-  if (kind === "change" && rule.cooling) throw oshiError("oshi_change_cooldown", { available_at: rule.nextChangeAt });
+  if (kind === "change" && rule.cooling && protectionFor(rows[0])) throw oshiError("oshi_change_cooldown", { available_at: rule.nextChangeAt });
   await client.query(`UPDATE market.users SET oshi_coin_asset_id = $2, updated_at = now() WHERE id = $1`, [userId, after]);
   await client.query(`INSERT INTO market.user_oshi_changes (user_id, asset_id_before, asset_id_after, kind) VALUES ($1, $2, $3, $4)`, [userId, before, after, kind]);
   return kind;
@@ -102,20 +114,21 @@ async function sharesAddedSince(db, pairs, since) {
 }
 
 /**
- * The players whose oshi is one of `assetIds` and has been since `since` (no pick, change or clear
- * after it), with how many of its shares they've added since then. Map userId → { assetId, added }.
+ * The players the flag is on for whose oshi is one of `assetIds` and has been since `since` (no pick,
+ * change or clear after it), with how many of its shares they've added since then.
+ * Map userId → { assetId, added }.
  */
 async function loadProtectedOshis(db, assetIds, since) {
   const { rows } = await db.query(
     `
-    SELECT u.id AS user_id, u.oshi_coin_asset_id AS asset_id
+    SELECT u.id AS user_id, u.oshi_coin_asset_id AS asset_id, u.is_admin
     FROM market.users u
     WHERE u.oshi_coin_asset_id = ANY($1::bigint[])
       AND NOT EXISTS (SELECT 1 FROM market.user_oshi_changes c WHERE c.user_id = u.id AND c.changed_at >= $2)
   `,
     [assetIds, since]
   );
-  const pairs = rows.map((row) => ({ userId: Number(row.user_id), assetId: Number(row.asset_id) }));
+  const pairs = rows.filter(protectionFor).map((row) => ({ userId: Number(row.user_id), assetId: Number(row.asset_id) }));
   const added = await sharesAddedSince(db, pairs, since);
   return new Map(pairs.map((pair) => [pair.userId, { assetId: pair.assetId, added: added.get(`${pair.userId}:${pair.assetId}`) ?? 0 }]));
 }
@@ -161,6 +174,8 @@ async function getOshiStatus(pool, userId, { weekStart, nextReviewAt }) {
 
 module.exports = {
   CHANGE_COOLDOWN_DAYS,
+  FLAG,
+  protectionFor,
   assertCanChange,
   getOshiStatus,
   kindOf,

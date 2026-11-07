@@ -260,7 +260,7 @@ export function SettingsModal({
               <PlayerAvatar username={name || "?"} pictureUrl={profile.profile_picture_url} color={color} size={28} />
             </span>
           </label>
-          <div className={styles.oshiField}>
+          <div className={oshiRule ? styles.oshiField : undefined}>
             <span className={styles.label}>Oshi</span>
             {oshiLocked ? (
               <span className={styles.oshiLocked}>
@@ -273,10 +273,12 @@ export function SettingsModal({
             ) : (
               <AssetPicker assets={assets} value={oshi} onChange={setOshi} placeholder="Pick your oshi" emptyLabel="No oshi" />
             )}
-            <small>
-              {oshiNote}
-              Shares of your oshi held all week skip Saturday&apos;s share fee.
-            </small>
+            {oshiRule ? (
+              <small>
+                {oshiNote}
+                Shares of your oshi held all week skip Saturday’s share fee.
+              </small>
+            ) : null}
           </div>
         </div>
         <ThemeChoice themes={themes} value={themeId} onChange={setThemeId} />

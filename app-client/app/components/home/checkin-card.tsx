@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { untilText } from "@/app/components/market/dividends-tab";
 import { apiFetch } from "@/app/lib/api";
+import { useFeature } from "@/app/lib/features";
 import { MARKET_TIME_ZONE } from "@/app/lib/market-clock";
 import { money } from "@/app/lib/time";
 import { useNow } from "@/app/lib/use-now";
@@ -14,6 +15,7 @@ import styles from "@/app/components/home/checkin-card.module.scss";
 // The daily check-in (api/src/services/checkins.js): Credit once a day, more while the player is on a
 // trade streak (through yesterday). By default that's 50, or 100 on a streak, with no ramp; when the
 // API's schedule does ramp, the card shows the ladder. It resets at 00:00 UTC, the day streaks count in.
+// Behind the daily-checkin feature flag: without it the card never asks the API (which would 404).
 
 export type Checkin = {
   eligible: boolean;
@@ -37,6 +39,7 @@ function resetClock(iso: string) {
 
 export function CheckinCard() {
   const { user } = useAuth();
+  const enabled = useFeature("daily-checkin");
   const now = useNow();
   const [data, setData] = useState<Checkin | null>(null);
   const [busy, setBusy] = useState(false);
@@ -52,7 +55,7 @@ export function CheckinCard() {
   }, []);
 
   useEffect(() => {
-    if (!user) {
+    if (!user || !enabled) {
       setData(null);
       return;
     }
@@ -61,16 +64,16 @@ export function CheckinCard() {
     const onVisible = () => document.visibilityState === "visible" && void load();
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [load, user]);
+  }, [enabled, load, user]);
 
   // Past the reset: read the new day.
   const resetsAt = data ? Date.parse(data.resets_at) : NaN;
   const pastReset = Boolean(now && Number.isFinite(resetsAt) && now >= resetsAt);
   useEffect(() => {
-    if (pastReset) void load();
-  }, [load, pastReset]);
+    if (pastReset && enabled) void load();
+  }, [enabled, load, pastReset]);
 
-  if (!user || !data) return null;
+  if (!user || !enabled || !data) return null;
 
   const claim = async () => {
     setBusy(true);
@@ -135,11 +138,11 @@ export function CheckinCard() {
           <span className={styles.label}>Tomorrow</span>
           {streak.traded_today ? (
             <>
-              <b>{credit(tomorrow.if_trade)}</b> locked in by today&apos;s trade.
+              <b>{credit(tomorrow.if_trade)}</b> locked in by today’s trade.
             </>
           ) : (
             <>
-              <b>{credit(tomorrow.if_trade)}</b> if you trade today{tomorrow.if_skip !== null ? <>, {credit(tomorrow.if_skip)} if you don&apos;t</> : null}.{" "}
+              <b>{credit(tomorrow.if_trade)}</b> if you trade today{tomorrow.if_skip !== null ? <>, {credit(tomorrow.if_skip)} if you don’t</> : null}.{" "}
               <Link href="/stocks" className={styles.trade}>
                 Trade now →
               </Link>
@@ -159,11 +162,11 @@ export function CheckinCard() {
         <p className={styles.fine} suppressHydrationWarning>
           {ramps ? (
             <>
-              {whole(schedule.base)} Credit, plus {whole(schedule.per_streak_day)} for every day in a row you&apos;ve traded, up to {whole(schedule.max)}.
+              {whole(schedule.base)} Credit, plus {whole(schedule.per_streak_day)} for every day in a row you’ve traded, up to {whole(schedule.max)}.
             </>
           ) : (
             <>
-              {whole(schedule.base)} Credit a day, or {whole(schedule.max)} while you&apos;re on a trade streak (you traded yesterday).
+              {whole(schedule.base)} Credit a day, or {whole(schedule.max)} while you’re on a trade streak (you traded yesterday).
             </>
           )}{" "}
           A new day starts at {resetClock(data.resets_at)}
