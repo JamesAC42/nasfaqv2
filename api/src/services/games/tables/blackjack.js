@@ -233,17 +233,22 @@ async function bet({ userId, tableKey, amount }) {
     const wager = round2(amount);
     if (!Number.isFinite(wager) || wager < table.min || wager > table.max) throw bjError("invalid_bet");
 
+    // The first bet creates the round. Its id reaches the table only once the bet commits: a bet that
+    // fails (the wallet can't cover it) rolls the row back, and a table left holding that id would
+    // fail every later bet on its foreign key.
+    let roundId = table.roundId;
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      if (!table.roundId) {
+      if (!roundId) {
         const { rows } = await client.query(`INSERT INTO games.blackjack_rounds (table_key, status) VALUES ($1, 'betting') RETURNING id`, [table.key]);
-        table.roundId = Number(rows[0].id);
+        roundId = Number(rows[0].id);
       }
-      await client.query(`INSERT INTO games.blackjack_bets (round_id, user_id, seat, bet_cash) VALUES ($1,$2,$3,$4)`, [table.roundId, userId, index, wager]);
-      await client.query(`UPDATE games.blackjack_rounds SET total_bet_cash = total_bet_cash + $2 WHERE id = $1`, [table.roundId, wager]);
-      await gamesWallet.debitCashForGameWithClient(client, { userId, amount: wager, entryType: "table_bet_debit", referenceType: "blackjack_round", referenceId: table.roundId });
+      await client.query(`INSERT INTO games.blackjack_bets (round_id, user_id, seat, bet_cash) VALUES ($1,$2,$3,$4)`, [roundId, userId, index, wager]);
+      await client.query(`UPDATE games.blackjack_rounds SET total_bet_cash = total_bet_cash + $2 WHERE id = $1`, [roundId, wager]);
+      await gamesWallet.debitCashForGameWithClient(client, { userId, amount: wager, entryType: "table_bet_debit", referenceType: "blackjack_round", referenceId: roundId });
       await client.query("COMMIT");
+      table.roundId = roundId;
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
