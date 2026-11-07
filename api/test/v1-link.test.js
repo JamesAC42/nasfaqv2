@@ -32,6 +32,14 @@ test("messages only read back with the right secret and kind", () => {
   assert.equal(v1Link.readMessage(SECRET, `${forged}.${mac}`, "result"), null);
   assert.equal(v1Link.readMessage(SECRET, body, "result"), null);
   assert.equal(v1Link.readMessage(SECRET, `${message}.extra`, "result"), null);
+  // Other spellings of the right MAC: the last character's spare low bits, and characters base64url
+  // decoding would skip. They decode to the same bytes, so only comparing the text catches them.
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  const respelled = mac.slice(0, -1) + alphabet[alphabet.indexOf(mac.at(-1)) ^ 1];
+  assert.deepEqual(Buffer.from(respelled, "base64url"), Buffer.from(mac, "base64url"));
+  for (const variant of [respelled, `${mac}=`, `${mac}!`, `${mac.slice(0, 10)} ${mac.slice(10)}`]) {
+    assert.equal(v1Link.readMessage(SECRET, `${body}.${variant}`, "result"), null, variant);
+  }
   assert.equal(v1Link.readMessage(SECRET, undefined, "result"), null);
   assert.equal(v1Link.readMessage(SECRET, ["a"], "result"), null);
 });
