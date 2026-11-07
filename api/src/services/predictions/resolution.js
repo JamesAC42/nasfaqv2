@@ -7,6 +7,7 @@ const lmsr = require("./lmsr");
 const core = require("./core");
 const trading = require("./trading");
 const notifications = require("../notifications");
+const features = require("../../features");
 
 const { num, round2, predictionError } = core;
 
@@ -48,9 +49,10 @@ async function closeMarket(pool, actor, marketId) {
   if (!canActAs(actor, "can_resolve_prediction_markets")) throw predictionError("forbidden");
   return core.inTransaction(pool, async (client) => {
     const market = await core.lockMarket(client, { id: marketId });
+    if (market.pricing === "pool" && !features.isEnabled("prediction-pools", actor)) throw predictionError("prediction_market_not_found");
     if (market.status !== "open") throw predictionError("prediction_market_transition_invalid");
     await closeWithClient(client, market, { actorUserId: actor.id, reason: "closed_early" });
-    return { id: Number(market.id), slug: market.slug };
+    return { id: Number(market.id), slug: market.slug, pricing: market.pricing };
   });
 }
 
@@ -315,6 +317,7 @@ async function voidMarket(pool, actor, marketId, { reason }) {
   return core.inTransaction(pool, async (client) => {
     const market = await core.lockMarket(client, { id: marketId });
     if (market.pricing === "pool") {
+      if (!features.isEnabled("prediction-pools", actor)) throw predictionError("prediction_market_not_found");
       // Required here, not at the top: pools.js requires this file.
       if (!["open", "closed", "resolving"].includes(market.status)) throw predictionError("prediction_market_transition_invalid");
       return require("./pools").voidWithClient(client, market, { actorUserId: actor.id, actorId: actor.id, reason: String(reason || "").slice(0, 2000) || null });
@@ -331,7 +334,7 @@ async function openDueMarkets(pool) {
   const { rows } = await pool.query(
     `UPDATE market.prediction_markets SET trading_status = 'open', trading_opened_at = now(), updated_at = now()
      WHERE status = 'open' AND trading_status = 'pending_open' AND opens_at <= now() AND amm_ready
-     RETURNING id, slug`
+     RETURNING id, slug, pricing`
   );
   for (const row of rows) await core.logEvent(pool, row.id, "market_opened", {});
   return rows;
@@ -348,14 +351,14 @@ async function closeDueMarkets(pool, { limit = 100 } = {}) {
       const market = await core.lockMarket(client, { id: row.id });
       if (market.status !== "open" || new Date(market.closes_at) > new Date()) return null;
       await closeWithClient(client, market);
-      return { id: Number(market.id), slug: market.slug };
+      return { id: Number(market.id), slug: market.slug, pricing: market.pricing };
     });
     if (done) closed.push(done);
   }
   // Event markets closed with a later resolves_after move to "resolving" once it passes.
   const { rows: ready } = await pool.query(
     `UPDATE market.prediction_markets SET status = 'resolving', updated_at = now()
-     WHERE kind = 'event' AND status = 'closed' AND (resolves_after IS NULL OR resolves_after <= now()) RETURNING id, slug`
+     WHERE kind = 'event' AND status = 'closed' AND (resolves_after IS NULL OR resolves_after <= now()) RETURNING id, slug, pricing`
   );
   return [...closed, ...ready];
 }

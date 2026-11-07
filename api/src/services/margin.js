@@ -14,7 +14,7 @@
 // - No interest and no forced sales, for now.
 
 const economy = require("./economy");
-const poolAccess = require("./predictions/poolAccess");
+const features = require("../features");
 
 function envNumber(name, fallback) {
   const raw = process.env[name];
@@ -146,11 +146,13 @@ async function repay(pool, userId) {
   });
 }
 
-/** The scheduler's sweep: every player who can use pools, in the red with Cash on hand. */
+/** The scheduler's sweep: every player the prediction-pools flag covers, in the red with Cash on hand. */
 async function sweep(pool, { limit = 200 } = {}) {
+  // At "staff" the flag covers admins (api/src/features/README.md).
+  const covered = features.enabledFor("prediction-pools", "everyone") ? "true" : features.enabledFor("prediction-pools", "staff") ? "u.is_admin" : "false";
   const { rows } = await pool.query(
     `SELECT b.user_id FROM market.portfolio_cash_balances b JOIN market.users u ON u.id = b.user_id
-     WHERE b.credit_balance < 0 AND b.cash_balance > 0 AND ${poolAccess.poolsVisibleSql("u")}
+     WHERE b.credit_balance < 0 AND b.cash_balance > 0 AND ${covered}
      ORDER BY b.user_id LIMIT $1`,
     [limit]
   );

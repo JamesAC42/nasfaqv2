@@ -1,6 +1,6 @@
 const { ensureUserCashAccount } = require("./portfolioCash");
 const pgNumeric = require("./pgNumeric");
-const poolAccess = require("./predictions/poolAccess");
+const features = require("../features");
 
 // Cash and Credit, BBB's two currencies (docs/market/credit.md).
 //
@@ -115,12 +115,16 @@ async function writeMove(client, userId, { cash, credit, entryType, referenceTyp
 /**
  * Margin (docs/design/predictions-pools.md §3): Credit below zero is a debt, "in the red". While
  * it lasts the player can't spend on anything (side modes, predictions, share buys); fees and other
- * charges that name a `shortfall` still go through. Only for players who can use pools: for everyone
- * else, Credit a void pushed below zero works as it always has.
+ * charges that name a `shortfall` still go through. Only for players the prediction-pools flag covers
+ * (api/src/features): for everyone else, Credit a void pushed below zero works as it always has.
  */
 async function assertNotInRed(client, userId, wallet) {
   if (!(num(wallet.credit) < 0)) return;
-  if (!(await poolAccess.poolsVisibleToId(client, userId))) return;
+  if (!features.enabledFor("prediction-pools", "everyone")) {
+    // Only being an admin changes how a flag resolves, and here we only have the id.
+    const { rows } = await client.query(`SELECT is_admin FROM market.users WHERE id = $1`, [userId]);
+    if (!features.isEnabled("prediction-pools", rows[0] || null)) return;
+  }
   throw economyError("in_the_red", { owed: Math.round(-num(wallet.credit) * 100) / 100 });
 }
 

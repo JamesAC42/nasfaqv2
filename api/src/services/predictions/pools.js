@@ -11,7 +11,7 @@
 // - Every resolve, correction and void goes in prediction_pool_resolutions, the pool's public record.
 // - Auto pools (stream-peak-pool, top-gainer-pool) come from auto.js and go through guards.js on
 //   every bet, like the LMSR auto markets.
-// - All of it is behind the prediction-pools flag (poolAccess.js).
+// - All of it is behind the prediction-pools flag (api/src/features/prediction-pools.json).
 
 const economy = require("../economy");
 const margin = require("../margin");
@@ -19,7 +19,7 @@ const notifications = require("../notifications");
 const core = require("./core");
 const guards = require("./guards");
 const markets = require("./markets");
-const poolAccess = require("./poolAccess");
+const features = require("../../features");
 const poolMath = require("./poolMath");
 const resolution = require("./resolution");
 
@@ -52,6 +52,8 @@ const REFERENCE = "prediction_pool";
 
 const money = (value) => notifications.money(value);
 const poolHref = (slug) => `/predictions/pools/${encodeURIComponent(slug)}`;
+/** Bookies open and resolve pools; admins count as bookies. */
+const isBookie = (user) => Boolean(user?.is_admin || user?.is_bookie);
 const isStaff = (user) => Boolean(user?.is_admin || user?.can_void_prediction_markets || user?.can_resolve_prediction_markets);
 
 function notFound() {
@@ -59,7 +61,7 @@ function notFound() {
 }
 
 function assertCanSee(user) {
-  if (!poolAccess.poolsVisibleTo(user)) throw notFound();
+  if (!features.isEnabled("prediction-pools", user)) throw notFound();
 }
 
 /** Who runs this pool: its bookie, an admin, or (for auto pools) resolving staff. */
@@ -67,7 +69,7 @@ function canManage(user, market) {
   if (!user) return false;
   if (user.is_admin) return true;
   if (market.creator_user_id === null || market.creator_user_id === undefined) return Boolean(user.can_resolve_prediction_markets);
-  return poolAccess.isBookie(user) && String(market.creator_user_id) === String(user.id);
+  return isBookie(user) && String(market.creator_user_id) === String(user.id);
 }
 
 function correctionOpen(market, now = Date.now()) {
@@ -163,10 +165,10 @@ async function insertPoolWithClient(client, input, { creatorId = null, kind = "e
 
 async function createPool(pool, actor, input) {
   assertCanSee(actor);
-  if (!poolAccess.isBookie(actor)) throw predictionError("forbidden");
+  if (!isBookie(actor)) throw predictionError("forbidden");
   return core.inTransaction(pool, async (client) => {
     const market = await insertPoolWithClient(client, input || {}, { creatorId: actor.id });
-    return { id: Number(market.id), slug: market.slug, status: market.status };
+    return { id: Number(market.id), slug: market.slug, status: market.status, pricing: "pool" };
   });
 }
 
@@ -293,7 +295,7 @@ async function closePool(pool, actor, marketId) {
     if (!canManage(actor, market)) throw predictionError("forbidden");
     if (market.status !== "open") throw predictionError("prediction_market_transition_invalid");
     await resolution.closeWithClient(client, market, { actorUserId: actor.id, reason: "closed_early" });
-    return { id: Number(market.id), slug: market.slug };
+    return { id: Number(market.id), slug: market.slug, pricing: "pool" };
   });
 }
 
@@ -312,7 +314,7 @@ async function extendPool(pool, actor, marketId, { closesAt }) {
     }
     await client.query(`UPDATE market.prediction_markets SET closes_at = $2, updated_at = now() WHERE id = $1`, [market.id, next]);
     await core.logEvent(client, market.id, "pool_extended", { from: market.closes_at, to: next.toISOString() }, actor.id);
-    return { id: Number(market.id), slug: market.slug };
+    return { id: Number(market.id), slug: market.slug, pricing: "pool" };
   });
 }
 
@@ -499,7 +501,7 @@ async function settleWithClient(client, market, winner, { actorId = null, source
     }
     await notifications.notify(client, userId, { kind, title, body, href, data: { market_id: Number(market.id), payout: entry.payout, staked: entry.staked } });
   }
-  return { id: Number(market.id), slug: market.slug, outcome: winner.outcome_code, mode: result.mode, pool_total: result.total, paid_out: paidOut, refunded, dust: result.dust };
+  return { id: Number(market.id), slug: market.slug, pricing: "pool", outcome: winner.outcome_code, mode: result.mode, pool_total: result.total, paid_out: paidOut, refunded, dust: result.dust };
 }
 
 async function voidWithClient(client, market, { actorId = null, reason = null, sourceUrl = null, evidence = {} } = {}) {
@@ -540,7 +542,7 @@ async function voidWithClient(client, market, { actorId = null, reason = null, s
       data: { market_id: Number(market.id), refund: amount, clawed_back: took },
     });
   }
-  return { id: Number(market.id), slug: market.slug, refunded, clawed_back: reversed?.clawed_back ?? 0 };
+  return { id: Number(market.id), slug: market.slug, pricing: "pool", refunded, clawed_back: reversed?.clawed_back ?? 0 };
 }
 
 // ── Views ──────────────────────────────────────────────────────────────────
@@ -723,7 +725,7 @@ async function listHistory(pool, user, { q = null, mine = false, page = 1, limit
 /** The bookie panel: a bookie's own pools (admins see every pool), open ones first. */
 async function listBookiePools(pool, actor, { scope = "mine" } = {}) {
   assertCanSee(actor);
-  if (!poolAccess.isBookie(actor) && !isStaff(actor)) throw predictionError("forbidden");
+  if (!isBookie(actor) && !isStaff(actor)) throw predictionError("forbidden");
   const everyone = scope === "all" && (actor.is_admin || isStaff(actor));
   const params = [];
   const where = [`pm.pricing = 'pool'`, `(pm.status IN ('open', 'closed', 'resolving') OR COALESCE(pm.resolved_at, pm.voided_at) > now() - interval '14 days')`];

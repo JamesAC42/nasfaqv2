@@ -10,7 +10,7 @@ const resolution = require("../services/predictions/resolution");
 const auto = require("../services/predictions/auto");
 const events = require("../services/predictions/events");
 const pools = require("../services/predictions/pools");
-const poolAccess = require("../services/predictions/poolAccess");
+const features = require("../features");
 const margin = require("../services/margin");
 const { requireAuthenticatedUser, requireVerifiedUser } = require("../services/predictionPermissions");
 const { rateLimit, byUser } = require("../rateLimit");
@@ -18,6 +18,14 @@ const { rateLimit, byUser } = require("../rateLimit");
 const router = express.Router();
 // Trades, limit orders and cancels share one budget per player, under the site-wide 60 writes a minute.
 const tradeLimit = rateLimit(byUser("prediction-trade", 20, 60));
+// Pools (and margin) are behind the prediction-pools flag (api/src/features). Its routes 404 for anyone
+// it doesn't cover, and the floor, a market's reads and comments leave pools out for them
+// (markets.canSeeMarket). While it's staff-only, no shared cache may keep a predictions response.
+const poolsOnly = features.requireFeature("prediction-pools");
+router.use((req, res, next) => {
+  if (features.enabledFor("prediction-pools", "staff") && !features.enabledFor("prediction-pools", "everyone")) features.markPrivate(res);
+  next();
+});
 
 const ERROR_STATUS = {
   unauthenticated: 401,
@@ -210,22 +218,11 @@ router.post(
 );
 
 // ── Pools (docs/design/predictions-pools.md), behind the prediction-pools flag ─────
-const publishPool = (req, action, result) => events.publishMarkets(req.ctx.redis, action, [result]);
-
-// What the client needs to know about the flag for this viewer: whether pools show at all, and
-// whether they get the bookie tools.
-router.get(
-  "/pools/access",
-  handle(async (req, res) => {
-    const user = req.ctx.user || null;
-    const visible = poolAccess.poolsVisibleTo(user);
-    const staff = Boolean(user && (user.is_admin || user.can_void_prediction_markets || user.can_resolve_prediction_markets));
-    res.json({ visible, bookie: visible && poolAccess.isBookie(user), staff: visible && staff });
-  })
-);
+const publishPool = (req, action, result) => events.publishMarkets(req.ctx.redis, action, [{ ...result, pricing: "pool" }]);
 
 router.get(
   "/pools/history",
+  poolsOnly,
   handle(async (req, res) => {
     const result = await pools.listHistory(req.ctx.pool, req.ctx.user || null, { q: req.query.q, mine: req.query.mine === "1", page: req.query.page, limit: req.query.limit });
     const pageCount = result.total > 0 ? Math.ceil(result.total / result.limit) : 1;
@@ -235,6 +232,7 @@ router.get(
 
 router.get(
   "/pools/me",
+  poolsOnly,
   handle(async (req, res) => {
     const user = requireAuthenticatedUser(req);
     res.json(await pools.getMyPools(req.ctx.pool, user));
@@ -243,6 +241,7 @@ router.get(
 
 router.get(
   "/pools/bookie",
+  poolsOnly,
   handle(async (req, res) => {
     const user = requireAuthenticatedUser(req);
     res.json(await pools.listBookiePools(req.ctx.pool, user, { scope: req.query.scope }));
@@ -251,6 +250,7 @@ router.get(
 
 router.post(
   "/pools",
+  poolsOnly,
   handle(async (req, res) => {
     const user = requireVerifiedUser(req);
     const result = await pools.createPool(req.ctx.pool, user, req.body || {});
@@ -259,10 +259,11 @@ router.post(
   })
 );
 
-router.get("/pools/:slug", handle(async (req, res) => res.json({ pool: await pools.getPoolDetail(req.ctx.pool, req.params.slug, req.ctx.user || null) })));
+router.get("/pools/:slug", poolsOnly, handle(async (req, res) => res.json({ pool: await pools.getPoolDetail(req.ctx.pool, req.params.slug, req.ctx.user || null) })));
 
 router.post(
   "/pools/:slug/bet",
+  poolsOnly,
   tradeLimit,
   handle(async (req, res) => {
     const user = requireVerifiedUser(req);
@@ -280,6 +281,7 @@ router.post(
 const poolAction = (path, fn, action) =>
   router.post(
     `/pools/:id/${path}`,
+    poolsOnly,
     handle(async (req, res) => {
       const user = requireVerifiedUser(req);
       const result = await fn(req, user, marketId(req));
@@ -297,9 +299,9 @@ poolAction("void", (req, user, id) => pools.voidPool(req.ctx.pool, user, id, { r
 // Margin: what a player owes and can borrow, and "Repay now" (Cash into negative Credit).
 router.get(
   "/margin",
+  poolsOnly,
   handle(async (req, res) => {
     const user = requireAuthenticatedUser(req);
-    if (!poolAccess.poolsVisibleTo(user)) throw Object.assign(new Error("prediction_market_not_found"), { code: "prediction_market_not_found" });
     const { rows } = await req.ctx.pool.query(`SELECT cash_balance, credit_balance FROM market.portfolio_cash_balances WHERE user_id = $1`, [user.id]);
     res.json({ margin: await margin.status(req.ctx.pool, user.id, { cash: Number(rows[0]?.cash_balance || 0), credit: Number(rows[0]?.credit_balance || 0) }) });
   })
@@ -307,10 +309,10 @@ router.get(
 
 router.post(
   "/margin/repay",
+  poolsOnly,
   tradeLimit,
   handle(async (req, res) => {
     const user = requireAuthenticatedUser(req);
-    if (!poolAccess.poolsVisibleTo(user)) throw Object.assign(new Error("prediction_market_not_found"), { code: "prediction_market_not_found" });
     res.json(await margin.repay(req.ctx.pool, user.id));
   })
 );

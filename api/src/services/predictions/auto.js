@@ -16,7 +16,7 @@
 const core = require("./core");
 const guards = require("./guards");
 const markets = require("./markets");
-const poolAccess = require("./poolAccess");
+const features = require("../../features");
 const pools = require("./pools");
 const resolution = require("./resolution");
 
@@ -432,7 +432,7 @@ async function closeLockedMarkets(pool) {
       const fresh = await core.lockMarket(client, { id: market.id });
       if (fresh.status !== "open") return null;
       await resolution.closeWithClient(client, fresh, { reason: lock });
-      return { id: Number(fresh.id), slug: fresh.slug };
+      return { id: Number(fresh.id), slug: fresh.slug, pricing: fresh.pricing };
     });
     if (done) closed.push(done);
   }
@@ -484,7 +484,7 @@ async function updateTemplate(pool, actor, key, { enabled, params }) {
   const { rows } = await pool.query(`SELECT * FROM market.prediction_auto_templates WHERE key = $1`, [key]);
   if (!rows[0]) throw predictionError("template_not_found");
   // Once pools are on for everyone, the market-maker templates stay off (predictions-pools.md §4).
-  if (enabled === true && !POOL_TEMPLATES.has(key) && poolAccess.poolsFlag() === "on") throw predictionError("lmsr_retired");
+  if (enabled === true && !POOL_TEMPLATES.has(key) && features.enabledFor("prediction-pools", "everyone")) throw predictionError("lmsr_retired");
   const next = { ...(rows[0].params_json || {}) };
   for (const field of Object.keys(PARAM_LIMITS)) {
     if (params && params[field] !== undefined && Number.isFinite(Number(params[field]))) next[field] = clampParam(field, params[field]);

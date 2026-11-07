@@ -6,7 +6,7 @@ const lmsr = require("./lmsr");
 const core = require("./core");
 const trading = require("./trading");
 const { currentProposal } = require("./resolution");
-const poolAccess = require("./poolAccess");
+const features = require("../../features");
 const poolMath = require("./poolMath");
 
 const { num, round2, round6, predictionError } = core;
@@ -160,7 +160,7 @@ async function createMarket(pool, actor, input) {
   const isAdmin = Boolean(actor?.is_admin);
   if (!isAdmin && !actor?.can_create_prediction_markets) throw predictionError("forbidden");
   // Once pools are on for everyone, new markets are pools (docs/design/predictions-pools.md §4).
-  if (poolAccess.poolsFlag() === "on") throw predictionError("lmsr_retired");
+  if (features.enabledFor("prediction-pools", "everyone")) throw predictionError("lmsr_retired");
   const publish = Boolean(input?.publish) && isAdmin;
   return core.inTransaction(pool, async (client) => {
     const market = await createMarketWithClient(client, input || {}, {
@@ -361,7 +361,7 @@ async function listMarkets(pool, { tab = "live", category = null, q = null, limi
   const params = [];
   const where = [`pm.visibility = 'public'`];
   // Pools stay out of the floor for anyone the prediction-pools flag doesn't cover yet.
-  const showPools = poolAccess.poolsVisibleTo(viewer);
+  const showPools = features.isEnabled("prediction-pools", viewer);
   if (!showPools) where.push(`pm.pricing = 'lmsr'`);
   if (status && PUBLIC_STATUSES.includes(status)) {
     params.push(status);
@@ -427,7 +427,7 @@ async function getMarketRow(db, slug) {
 }
 
 function canSeeMarket(market, user) {
-  if (market.pricing === "pool" && !poolAccess.poolsVisibleTo(user)) return false;
+  if (market.pricing === "pool" && !features.isEnabled("prediction-pools", user)) return false;
   if (PUBLIC_STATUSES.includes(market.status) && market.visibility !== "private") return true;
   if (!user) return false;
   return Boolean(user.is_admin || user.can_approve_prediction_markets || String(market.creator_user_id) === String(user.id));

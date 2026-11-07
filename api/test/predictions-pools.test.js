@@ -8,6 +8,7 @@ const { Pool } = require("pg");
 const poolMath = require("../src/services/predictions/poolMath");
 const margin = require("../src/services/margin");
 const economy = require("../src/services/economy");
+const features = require("../src/features");
 
 // ── Payout math ──────────────────────────────────────────────────────────
 const stakes = (list) => list.map(([key, outcomeId, stake]) => ({ key, outcomeId, stake }));
@@ -107,6 +108,11 @@ test("the Saturday conversion leaves negative Credit alone", () => {
   assert.deepEqual(plan.moves.map((move) => move.userId), [2]);
 });
 
+test("pools ship behind the prediction-pools flag at staff", () => {
+  // Read from the file, not the running state (the end-to-end test below overrides it).
+  assert.equal(features.readFlags().get("prediction-pools")?.state, "staff");
+});
+
 // ── End to end, on a throwaway database ──────────────────────────────────
 const databaseUrl = process.env.CHAT_TEST_DATABASE_URL;
 
@@ -123,11 +129,10 @@ test("prediction pools and margin end to end", { skip: !databaseUrl, timeout: 24
   }
   target.pathname = "/nasfaq_predictions_pools_test";
   const pool = new Pool({ connectionString: target.href });
-  const previousFlag = process.env.FEATURE_PREDICTION_POOLS;
-  process.env.FEATURE_PREDICTION_POOLS = "on";
+  // The flag file says "staff"; most of these run as players would once it's on.
+  const restoreFlags = features.override({ "prediction-pools": "on" });
   t.after(async () => {
-    if (previousFlag === undefined) delete process.env.FEATURE_PREDICTION_POOLS;
-    else process.env.FEATURE_PREDICTION_POOLS = previousFlag;
+    restoreFlags();
     await new Promise((resolve) => setTimeout(resolve, 500));
     await pool.end();
   });
@@ -530,30 +535,42 @@ test("prediction pools and margin end to end", { skip: !databaseUrl, timeout: 24
     assert.equal((await pool.query(`SELECT status FROM market.prediction_markets WHERE id = $1`, [lateMarket.id])).rows[0].status, "voided");
   });
 
-  await t.test("behind the flag: at `staff`, players see no pools and the red rules leave them alone", async () => {
-    const { slug } = await openPool(bookie);
-    process.env.FEATURE_PREDICTION_POOLS = "staff";
+  await t.test("behind the flag: at `staff`, only admins see pools and the red rules leave everyone else alone", async () => {
+    const { slug, id } = await openPool(bookie);
+    let restore = features.override({ "prediction-pools": "staff" });
     try {
       await assert.rejects(pools.getPoolDetail(pool, slug, alice), { code: "prediction_market_not_found" });
       await assert.rejects(bet(alice, slug, "o1", 5000), { code: "prediction_market_not_found" });
       await assert.rejects(pools.listHistory(pool, alice), { code: "prediction_market_not_found" });
       const floor = await markets.listMarkets(pool, { tab: "live", viewer: alice });
       assert.equal(floor.items.filter((item) => item.pricing === "pool").length, 0);
-      const staffFloor = await markets.listMarkets(pool, { tab: "live", viewer: bookie });
-      assert.ok(staffFloor.items.some((item) => item.slug === slug));
+      const adminFloor = await markets.listMarkets(pool, { tab: "live", viewer: owner });
+      assert.ok(adminFloor.items.some((item) => item.slug === slug));
       await assert.rejects(markets.getMarketDetail(pool, slug, alice), { code: "prediction_market_not_found" });
+      // The flag's "staff" is admins: bookies and prediction staff wait for "on" like everyone else,
+      // and the generic close and void don't reach a pool they can't see.
+      await assert.rejects(pools.getPoolDetail(pool, slug, bookie), { code: "prediction_market_not_found" });
+      await assert.rejects(resolution.closeMarket(pool, staff, id), { code: "prediction_market_not_found" });
+      await assert.rejects(resolution.voidMarket(pool, staff, id, { reason: "no" }), { code: "prediction_market_not_found" });
       // A player with Credit below zero (from a void, as today) still spends Cash as before.
       await setWallet(dave, { credit: -200, cash: 1000 });
       await core.inTransaction(pool, (client) => economy.charge(client, dave.id, 100, { from: "credit_then_cash", entryType: "game_entry_fee", referenceType: "game_session", referenceId: 2 }));
       assert.deepEqual(await wallet(dave), { credit: -200, cash: 900 });
       assert.deepEqual(await margin.sweep(pool), [], "and the sweep doesn't touch them");
-      // Staff in the preview can bet.
-      await setWallet(staff, { credit: 10000, cash: 0 });
-      await bet(staff, slug, "o1", 2000);
-      process.env.FEATURE_PREDICTION_POOLS = "off";
+      // An admin in the preview can bet, and an admin in the red is held to the red rules.
+      await setWallet(owner, { credit: 10000, cash: 0 });
+      await bet(owner, slug, "o1", 2000);
+      await setWallet(owner, { credit: -200, cash: 1000 });
+      await assert.rejects(
+        core.inTransaction(pool, (client) => economy.charge(client, owner.id, 100, { from: "credit_then_cash", entryType: "game_entry_fee", referenceType: "game_session", referenceId: 3 })),
+        { code: "in_the_red" }
+      );
+      assert.deepEqual(await margin.sweep(pool), [{ user_id: owner.id, amount: 200 }], "and the sweep repays them");
+      restore();
+      restore = features.override({ "prediction-pools": "off" });
       await assert.rejects(pools.getPoolDetail(pool, slug, owner), { code: "prediction_market_not_found" });
     } finally {
-      process.env.FEATURE_PREDICTION_POOLS = "on";
+      restore();
     }
   });
 });

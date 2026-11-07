@@ -797,7 +797,9 @@ async function main() {
     })();
     ws.on("close", () => {});
   });
-  predictionMarketWss.on("connection", (ws) => {
+  predictionMarketWss.on("connection", (ws, req) => {
+    // Events behind a feature flag (a staff-only pool's) go only to viewers it covers.
+    ws.predictionAudience = features.audienceOf(req?.predictionUser);
     sendWsText(ws, JSON.stringify({ type: "prediction.hello", at: new Date().toISOString() }));
     ws.on("close", () => {});
   });
@@ -872,9 +874,13 @@ async function main() {
         // So a signed-in player with several tabs counts once as online, and staff get staff-only fields.
         req.marketUser = await authService.getAuthenticatedUser(pool, req).catch(() => null);
       }
+      if (target === predictionMarketWss) {
+        // So staff get events behind a staff-only feature flag (prediction-pools).
+        req.predictionUser = await authService.getAuthenticatedUser(pool, req).catch(() => null);
+      }
       target.handleUpgrade(req, socket, head, (ws) => {
         // Whose socket it is, so signing out everywhere can close it (socketLimits.closeUserSockets).
-        const user = req.chatUser || req.gamesUser || req.marketUser;
+        const user = req.chatUser || req.gamesUser || req.marketUser || req.predictionUser;
         ws.socketUserId = user?.id ? Number(user.id) : null;
         target.emit("connection", ws, req);
       });
@@ -942,11 +948,14 @@ async function main() {
   // Signed out everywhere, or a new password: that player's sockets reconnect as whoever they now are.
   await redisSub.subscribe(authService.SESSIONS_REVOKED_CHANNEL, (message) => {
     const userId = Number(safeParseJSON(String(message))?.user_id);
-    if (userId) socketLimits.closeUserSockets([chatWss, marketWss, gamesWss], userId);
+    if (userId) socketLimits.closeUserSockets([chatWss, marketWss, gamesWss, predictionMarketWss], userId);
   });
   await redisSub.subscribe(PREDICTION_MARKET_EVENTS_REDIS_CHANNEL, (message) => {
     const payload = String(message);
+    // A pool's events name their flag (services/predictions/events.js): only its viewers get them.
+    const gate = safeParseJSON(payload)?.feature;
     predictionMarketWss.clients.forEach((client) => {
+      if (gate && !features.enabledFor(gate, client.predictionAudience || "everyone")) return;
       sendWsText(client, payload);
     });
   });

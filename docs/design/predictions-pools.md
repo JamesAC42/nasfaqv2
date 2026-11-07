@@ -1,7 +1,7 @@
 # Predictions as pools, with margin (design)
 
-Status: built behind the `prediction-pools` flag, at `staff` (2026-11-06). The owner confirmed all
-five decisions below as recommended. §7 says what the build added or changed.
+Status: built behind the `prediction-pools` flag (`api/src/features`), at `staff` (2026-11-07). The
+owner confirmed all five decisions below as recommended. §7 says what the build added or changed.
 
 The ask, from a trusted v1 player via the owner: "V1 plus quality of life things, including
 something like margin betting", meaning borrowing money and being allowed to go in the red.
@@ -153,15 +153,15 @@ $15,000: $2,000 comes from Cash and $13,000 is borrowed, leaving Credit at −$1
 
 ## 7. As built
 
-- **The flag.** `services/predictions/poolAccess.js` is the one place that reads it:
-  - `off`: nobody sees pools.
-  - `staff`: admins, bookies and prediction staff see them. This is the default.
-  - `on`: everyone sees them.
-
-  Until the shared flag mechanism lands it reads `FEATURE_PREDICTION_POOLS`. While pools are hidden
-  from a player, nothing changes for them:
-  - no pools on the floor, the pool routes return not-found, and pool comments are hidden too;
-  - none of the in-the-red rules or the repayment sweep apply. Credit a void pushes below zero works
+- **The flag.** `api/src/features/prediction-pools.json` (the shared flags, see the README there)
+  ships at `staff`, which means admins only. Bookies and prediction staff wait for `on` like
+  everyone else. While pools are hidden from a player, nothing changes for them:
+  - no pools on the floor;
+  - the pool and margin routes return not-found (`requireFeature`), and so do pool comments and the
+    generic close and void routes;
+  - pool events on the predictions socket go only to viewers the flag covers;
+  - the pages 404 (`requireFeature` in each page's server component);
+  - none of the in-the-red rules or the repayment sweep apply. Credit a void pushed below zero works
     as before.
 - **Auto pools** are their own templates, `stream-peak-pool` and `top-gainer-pool`. Both start off
   and carry #124's pause marker, so turning one on sticks. The market-maker templates stay as #124

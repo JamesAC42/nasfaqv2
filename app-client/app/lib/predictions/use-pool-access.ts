@@ -1,27 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { fetchPoolAccess, type PoolAccess } from "@/app/lib/predictions/pools";
+import { useFeature, useFeatures } from "@/app/lib/features";
 import { useAuth } from "@/app/providers/auth-provider";
 
-// Whether this player can see prediction pools yet (the prediction-pools flag: off, staff, on) and
-// whether they get the bookie tools. The API decides; this asks once per sign-in.
-
-const NONE: PoolAccess = { visible: false, bookie: false, staff: false };
-const cache = new Map<string, Promise<PoolAccess>>();
+// Pools and margin are behind the prediction-pools flag (api/src/features/prediction-pools.json). The
+// API withholds pools from anyone the flag doesn't cover; this only decides which links and tools to
+// show: whether pools show at all, and whether this player gets the bookie and staff tools.
 
 export function usePoolAccess() {
+  const visible = useFeature("prediction-pools");
+  const flags = useFeatures();
   const { user } = useAuth();
-  const key = user ? String(user.id) : "anon";
-  const [access, setAccess] = useState<{ key: string; value: PoolAccess } | null>(null);
-  useEffect(() => {
-    let alive = true;
-    if (!cache.has(key)) cache.set(key, fetchPoolAccess().catch(() => NONE));
-    void cache.get(key)!.then((value) => alive && setAccess({ key, value }));
-    return () => {
-      alive = false;
-    };
-  }, [key]);
-  const value = access?.key === key ? access.value : null;
-  return { ...(value ?? NONE), loaded: value !== null };
+  return {
+    visible,
+    bookie: visible && Boolean(user?.is_admin || user?.is_bookie),
+    staff: visible && Boolean(user?.is_admin || user?.can_void_prediction_markets || user?.can_resolve_prediction_markets),
+    /** The API has answered for this viewer (every flag is listed then). */
+    loaded: "prediction-pools" in flags,
+  };
 }

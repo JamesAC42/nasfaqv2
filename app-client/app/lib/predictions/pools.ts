@@ -5,8 +5,8 @@ import type { Outcome, PredictionMarket } from "@/app/lib/predictions/types";
 
 // Prediction pools and margin (docs/design/predictions-pools.md; api/src/services/predictions/pools.js).
 // Players stake Credit (then Cash, then margin) on an option; the winners split the whole pool in
-// proportion to stake. Behind the prediction-pools flag: fetchPoolAccess says whether this player can
-// see them yet.
+// proportion to stake. Behind the prediction-pools flag (usePoolAccess says whether this player sees
+// them yet).
 
 const BASE = "/api/prediction-markets";
 
@@ -133,8 +133,6 @@ export type MyPools = BettorState & {
 
 export type BookiePool = PredictionMarket & { pricing: "pool"; pool_total: number; bookie: string | null; bettors: number; min_bet: number; can_correct: boolean };
 
-export type PoolAccess = { visible: boolean; bookie: boolean; staff: boolean };
-
 export type CreatePoolInput = { title: string; options: string[]; closes_at: string; rules_text?: string; description?: string; category?: string; min_bet?: number };
 
 export type BetResult = {
@@ -166,7 +164,6 @@ async function post<T>(path: string, body: unknown = {}): Promise<T> {
 
 export const poolHref = (slug: string) => `/predictions/pools/${encodeURIComponent(slug)}`;
 
-export const fetchPoolAccess = () => apiFetch<PoolAccess>(`${BASE}/pools/access`, { cache: "no-store" });
 export const fetchPool = (slug: string) => apiFetch<{ pool: PoolDetail }>(`${BASE}/pools/${encodeURIComponent(slug)}`, { cache: "no-store" });
 export const fetchMyPools = () => apiFetch<MyPools>(`${BASE}/pools/me`, { cache: "no-store" });
 export const fetchBookiePools = (scope: "mine" | "all" = "mine") => apiFetch<{ pools: BookiePool[] }>(`${BASE}/pools/bookie?scope=${scope}`, { cache: "no-store" });
