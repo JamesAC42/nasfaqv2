@@ -1,0 +1,4 @@
+{
+  "state": "staff",
+  "description": "Referral links and rewards: the Invite friends panel on a player's own profile (GET /api/referrals/me), the ref code on shared hands and pulls, the sign-up form's invited-by line and the payouts. Decided by the sharer: only links of players the flag is on for are looked up, recorded and paid (both sides), so at staff an admin's link works end to end for the non-staff friend who signs up through it. Source tags (?ref=v1-email) and signed-out visits are recorded whatever the state."
+}

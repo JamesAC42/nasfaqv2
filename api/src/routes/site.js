@@ -4,6 +4,7 @@
 // POST /api/site/announcements/dismiss: a signed-in player dismisses some.
 // POST /api/site/bug-reports: a bug report (services/bugReports.js).
 // POST /api/site/csp-report: a browser's Content-Security-Policy violation report.
+// POST /api/site/here: a signed-out visitor's page view (services/visits.js).
 // Every page reads it on load and when it comes back into view (changes also arrive on the market
 // socket), so it's cached for a few seconds per process.
 
@@ -14,6 +15,7 @@ const bugReports = require("../services/bugReports");
 const cspReports = require("../services/cspReports");
 const presence = require("../services/presence");
 const siteState = require("../services/siteState");
+const visits = require("../services/visits");
 const { requireUserId } = require("../userContext");
 
 const router = express.Router();
@@ -81,6 +83,17 @@ router.post(
     }
   }
 );
+
+// POST /api/site/here: a signed-out visitor's page view, from the site's own counter
+// (services/visits.js). Same origin, so ad blockers leave it alone; it stores no address.
+router.post("/here", rateLimit(byIp("visit", 120, 60)), async (req, res) => {
+  await visits.recordVisit(req.ctx.pool, req.ctx.redis, req, req.body).catch((error) => {
+    // eslint-disable-next-line no-console
+    console.error("visit count failed:", error?.message || error);
+  });
+  res.set("Cache-Control", "no-store");
+  res.status(204).end();
+});
 
 // POST /api/site/csp-report: Content-Security-Policy violation reports, sent by browsers on their
 // own (services/cspReports.js). server.js keeps them out of the players' write budget.

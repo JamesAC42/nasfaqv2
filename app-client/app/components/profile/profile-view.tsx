@@ -13,6 +13,7 @@ import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/co
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { FirstDaysCard } from "@/app/components/onboarding/first-days-card";
 import { PictureModal, SecurityModal, SettingsModal } from "@/app/components/profile/profile-modals";
+import { ReferralPanel } from "@/app/components/profile/referral-panel";
 import {
   Achievements,
   Articles,
@@ -28,6 +29,7 @@ import {
   V1Trophy,
 } from "@/app/components/profile/profile-sections";
 import { apiFetch } from "@/app/lib/api";
+import { useFeature } from "@/app/lib/features";
 import { normalizePredictionPortfolioResponse, normalizeProfileBundle } from "@/app/lib/normalizers";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct, toneOf } from "@/app/lib/time";
@@ -47,6 +49,7 @@ export function ProfileView({ username }: { username?: string | null }) {
   const router = useRouter();
   const { user, logout } = useAuth();
   const { theme } = useTheme();
+  const referralsOn = useFeature("referrals");
   const assets = useMarketStore((state) => state.assets);
   const tradingRevision = useProfileStore((state) => state.tradingRevision);
   const [bundle, setBundle] = useState<ProfileBundle | null>(null);
@@ -369,6 +372,7 @@ export function ProfileView({ username }: { username?: string | null }) {
             {!isSelf && viewer.is_authenticated ? <HeadToHead profile={profile} /> : null}
           </div>
           <div className={styles.col}>
+            {isSelf && referralsOn ? <ReferralPanel /> : null}
             <FriendsRivals profile={profile} isSelf={isSelf} busy={busy} relation={relation} />
             <Articles bundle={bundle} base={base} isSelf={isSelf} onChange={(next) => setBundle((current) => (current ? { ...current, ...next } : current))} />
           </div>

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { FaXTwitter } from "react-icons/fa6";
 import { FiCheck, FiDownload, FiImage, FiLink, FiShare2, FiX } from "react-icons/fi";
 import { momentCardPath, momentPath, type MomentKind } from "@/app/lib/games/moments";
+import { useReferralCode } from "@/app/lib/use-referral-code";
 import styles from "@/app/components/games/share/share-moment.module.scss";
 
 type ShareMomentProps = {
@@ -66,7 +67,9 @@ export function ShareSheet({ kind, id, talent, text, onClose }: ShareTarget & { 
   const [copyError, setCopyError] = useState<string | null>(null);
   const [origin, setOrigin] = useState("");
   const cardPath = momentCardPath(kind, id, talent);
-  const link = `${origin}${momentPath(kind, id, talent)}`;
+  // The link carries the sharer's referral code, so a sign-up from it counts for them.
+  const referralCode = useReferralCode();
+  const link = `${origin}${momentPath(kind, id, talent, referralCode)}`;
   const canCopyImage = typeof window !== "undefined" && typeof window.ClipboardItem !== "undefined" && Boolean(navigator.clipboard?.write);
 
   useEffect(() => {
@@ -176,7 +179,10 @@ export function ShareSheet({ kind, id, talent, text, onClose }: ShareTarget & { 
           </a>
         </div>
         <p className={styles.hint} aria-live="polite">
-          {copyError ?? "Paste the picture into Discord or X, or post the link: it unfurls with this card."}
+          {copyError ??
+            (referralCode
+              ? "Paste the picture into Discord or X, or post the link: it unfurls with this card, and anyone who signs up from it counts as your referral."
+              : "Paste the picture into Discord or X, or post the link: it unfurls with this card.")}
         </p>
         <input className={styles.linkBox} readOnly value={link} aria-label="Moment link" onFocus={(event) => event.currentTarget.select()} />
       </div>
