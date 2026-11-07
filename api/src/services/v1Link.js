@@ -51,8 +51,10 @@ function readMessage(secret, message, kind) {
   if (typeof message !== "string" || message.length > 8000) return null;
   const [body, mac, extra] = message.split(".");
   if (!body || !mac || extra !== undefined) return null;
-  const expected = crypto.createHmac("sha256", secret).update(body).digest();
-  const given = Buffer.from(mac, "base64url");
+  // Compare the text, not the decoded bytes: base64url decoding skips stray characters and the spare low
+  // bits of the last one, so several spellings would decode to the right MAC. Only the one v1 sends counts.
+  const expected = Buffer.from(crypto.createHmac("sha256", secret).update(body).digest("base64url"));
+  const given = Buffer.from(mac);
   if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return null;
   try {
     const payload = JSON.parse(Buffer.from(body, "base64url").toString());

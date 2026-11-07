@@ -156,17 +156,52 @@ async function setMarketManualClosed(client, { message = null, nextScheduledSett
   return updateMarketRuntimeState(client, changes);
 }
 
+/**
+ * Puts the last settled day's fair values back on every trading stock. The daily cycle's fundamentals
+ * step commits the new day's fair values before settlement runs; if the cycle stops there, reopening
+ * as it is would price fills off fair values that are meant to stay hidden until the Open, and the
+ * jump would show which way each one moved. A no-op when nothing moved.
+ */
+async function restoreSettledFairValues(client) {
+  const result = await client.query(`
+    UPDATE market.market_assets a
+    SET
+      current_fair_value = d.fair_value,
+      current_fair_value_raw = COALESCE(d.fair_value_raw, a.current_fair_value_raw),
+      latest_snapshot_id = d.snapshot_id,
+      latest_snapshot_date = s.snapshot_date,
+      updated_at = now()
+    FROM market.asset_daily_market_state d
+    JOIN market.channel_daily_snapshots s ON s.id = d.snapshot_id
+    WHERE d.asset_id = a.id
+      AND d.market_date = (SELECT max(market_date) FROM market.market_settlement_runs WHERE status = 'completed')
+      AND a.status = 'active'
+      AND (a.current_fair_value IS DISTINCT FROM d.fair_value OR a.latest_snapshot_id IS DISTINCT FROM d.snapshot_id)
+  `);
+  return result.rowCount || 0;
+}
+
+/** After a failed daily cycle: reopens on the previous market state, its fair values included, in one transaction. */
 async function setMarketCycleError(client, errorText, { nextScheduledSettlementAt = null } = {}) {
-  return updateMarketRuntimeState(client, {
-    trading_status: "open",
-    active_phase: "idle",
-    trading_message: "Daily settlement failed. Trading reopened on the previous market state.",
-    current_market_date: null,
-    current_cycle_started_at: null,
-    current_cycle_updated_at: null,
-    next_scheduled_settlement_at: nextScheduledSettlementAt,
-    last_cycle_error: errorText || null,
-  });
+  await client.query("BEGIN");
+  try {
+    await restoreSettledFairValues(client);
+    const status = await updateMarketRuntimeState(client, {
+      trading_status: "open",
+      active_phase: "idle",
+      trading_message: "Daily settlement failed. Trading reopened on the previous market state.",
+      current_market_date: null,
+      current_cycle_started_at: null,
+      current_cycle_updated_at: null,
+      next_scheduled_settlement_at: nextScheduledSettlementAt,
+      last_cycle_error: errorText || null,
+    });
+    await client.query("COMMIT");
+    return status;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  }
 }
 
 async function setNextScheduledSettlementAt(client, nextScheduledSettlementAt) {
@@ -186,6 +221,7 @@ module.exports = {
   ensureMarketRuntimeState,
   getMarketStatus,
   getMarketStatusWithClient,
+  restoreSettledFairValues,
   setMarketOpen,
   setMarketSettling,
   updateSettlementPhase,

@@ -238,6 +238,30 @@ async function getLatestCompletedSettlementDate(client) {
   return rows[0]?.market_date ? normalizeDateOnly(rows[0].market_date) : null;
 }
 
+// The last steps of a cycle, after the settlement has committed: the day's tick session, the board
+// cache, and the market reopened on the new day. Each is safe to repeat, so a cycle that failed
+// partway through them is finished by the next one (see runScheduledCycle).
+async function finishSettledDay(pool, lockClient, { marketDate, nextScheduledAt, redis }) {
+  const adjustmentSession = await marketAdjustments.ensureAdjustmentSession(pool, { marketDate });
+  await invalidateMarketAssetsCache(redis);
+  const openStatus = await marketState.setMarketOpen(lockClient, {
+    message: `Daily settlement completed for ${marketDate}. Trading is open.`,
+    nextScheduledSettlementAt: nextScheduledAt.toISOString(),
+    lastSettlementMarketDate: marketDate,
+    clearError: true,
+  });
+  void publishMarketStatusEvent(redis, openStatus);
+  return adjustmentSession;
+}
+
+/** Whether the last settled day still lacks its tick session, or the market isn't on it yet. */
+async function settledDayUnfinished(client, marketDate, runtimeState) {
+  const recorded = normalizeDateOnly(runtimeState?.last_settlement_market_date);
+  if (!recorded || recorded < marketDate) return true;
+  const { rows } = await client.query(`SELECT 1 FROM market.adjustment_sessions WHERE market_date = $1 LIMIT 1`, [marketDate]);
+  return rows.length === 0;
+}
+
 async function acquireSchedulerLock(client) {
   const { rows } = await client.query("SELECT pg_try_advisory_lock($1) AS locked", [SCHEDULER_LOCK_KEY]);
   return Boolean(rows[0]?.locked);
@@ -284,6 +308,18 @@ async function runScheduledCycle(pool, schedulerConfig, logger = console, redis 
     });
 
     if (readyDates.length === 0) {
+      // A cycle that failed after its settlement committed (a release's SIGTERM, a database or Redis
+      // error) left that day without ticks and the market on the day before. Finish it now.
+      if (lastCompletedDate && (await settledDayUnfinished(lockClient, lastCompletedDate, runtimeState))) {
+        const adjustmentSession = await finishSettledDay(pool, lockClient, { marketDate: lastCompletedDate, nextScheduledAt, redis });
+        logger.warn?.(`market scheduler finished the bookkeeping of ${lastCompletedDate}, left undone by a failed cycle`);
+        return {
+          ok: true,
+          finished: lastCompletedDate,
+          adjustment_session: adjustmentSession,
+          next_scheduled_settlement_at: nextScheduledAt.toISOString(),
+        };
+      }
       await marketState.setMarketOpen(lockClient, {
         nextScheduledSettlementAt: nextScheduledAt.toISOString(),
       });
@@ -344,17 +380,7 @@ async function runScheduledCycle(pool, schedulerConfig, logger = console, redis 
     }
 
     const latestSettled = settlementResult.settled_dates[settlementResult.settled_dates.length - 1]?.market_date || to;
-    const adjustmentSession = await marketAdjustments.ensureAdjustmentSession(pool, {
-      marketDate: latestSettled,
-    });
-    await invalidateMarketAssetsCache(redis);
-    const openStatus = await marketState.setMarketOpen(lockClient, {
-      message: `Daily settlement completed for ${latestSettled}. Trading is open.`,
-      nextScheduledSettlementAt: nextScheduledAt.toISOString(),
-      lastSettlementMarketDate: latestSettled,
-      clearError: true,
-    });
-    void publishMarketStatusEvent(redis, openStatus);
+    const adjustmentSession = await finishSettledDay(pool, lockClient, { marketDate: latestSettled, nextScheduledAt, redis });
 
     return {
       ok: true,
@@ -367,6 +393,8 @@ async function runScheduledCycle(pool, schedulerConfig, logger = console, redis 
     };
   } catch (error) {
     const nextScheduledAt = computeNextScheduledAt(new Date(), schedulerConfig);
+    // Reopens on the last settled day, fair values included: fundamentals may have committed the new
+    // ones before settlement failed.
     const errorStatus = await marketState.setMarketCycleError(lockClient, String(error?.message || error), {
       nextScheduledSettlementAt: nextScheduledAt.toISOString(),
     });
