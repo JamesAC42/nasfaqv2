@@ -542,6 +542,9 @@ async function main() {
     } else if (existingStatus?.trading_status === "manual_closed") {
       await marketState.setNextScheduledSettlementAt(stateClient, nextScheduledAt);
     } else {
+      // A cycle cut off between its fundamentals and its settlement left the new fair values on the
+      // stocks: the last committed market state is the last settled day's.
+      if (existingStatus?.trading_status === "settling") await marketState.restoreSettledFairValues(stateClient);
       await marketState.setMarketOpen(stateClient, {
         message: existingStatus?.trading_status === "settling" ? "API restarted. Trading reopened on the last committed market state." : existingStatus?.trading_message || null,
         nextScheduledSettlementAt: nextScheduledAt,
