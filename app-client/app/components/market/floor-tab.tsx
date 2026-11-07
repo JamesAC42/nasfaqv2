@@ -24,6 +24,7 @@ import { useMarketStore } from "@/app/stores/market-store";
 import { useNewsStore } from "@/app/stores/news-store";
 import { netWorthCash } from "@/app/lib/economy";
 import { useProfileStore } from "@/app/stores/profile-store";
+import { StreamsUpNext } from "@/app/components/livestreams/stream-calendar";
 import ui from "@/app/components/market/market.module.scss";
 import styles from "@/app/components/market/floor-tab.module.scss";
 
@@ -504,6 +505,7 @@ export function FloorTab() {
       </div>
       <aside className={styles.colR}>
         <Bell />
+        <StreamsUpNext className={ui.sec} headClass={ui.secHead} asideClass={ui.aside} />
         <WhaleWatch />
         <Thread />
         <FloorTop />

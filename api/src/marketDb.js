@@ -342,6 +342,7 @@ async function listAssets(pool) {
         i.base_rate,
         i.price_before,
         i.price_after,
+        i.reasons_json,
         s.market_date
       FROM market.asset_adjustment_intervals i
       JOIN market.adjustment_sessions s ON s.id = i.session_id
@@ -431,7 +432,8 @@ async function listAssets(pool) {
           'applied_at', la.applied_at,
           'price_before', la.price_before,
           'price_after', la.price_after,
-          'market_date', la.market_date
+          'market_date', la.market_date,
+          'reasons', la.reasons_json
         )
       END AS latest_adjustment,
       a.current_daily_emission,
@@ -556,6 +558,7 @@ async function getAssetBySymbol(pool, symbol) {
         i.base_rate,
         i.price_before,
         i.price_after,
+        i.reasons_json,
         s.market_date
       FROM market.asset_adjustment_intervals i
       JOIN market.adjustment_sessions s ON s.id = i.session_id
@@ -686,7 +689,8 @@ async function getAssetBySymbol(pool, symbol) {
           'applied_at', la.applied_at,
           'price_before', la.price_before,
           'price_after', la.price_after,
-          'market_date', la.market_date
+          'market_date', la.market_date,
+          'reasons', la.reasons_json
         )
       END AS latest_adjustment,
       ld.market_date,

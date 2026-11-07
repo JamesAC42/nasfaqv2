@@ -516,6 +516,20 @@ export type MyDividendWeek = {
   lines: Array<{ symbol: string; display_name: string; quantity: number; per_share: number; amount: number }>;
 };
 
+/**
+ * Why a tick moved a stock, written when the tick lands (api/src/services/tickDrivers.js). Built from
+ * public numbers only: never the fair value, the distance to it, or what comes next.
+ */
+export type TickReason = {
+  kind: "subs" | "views" | "uploads" | "quiet" | "stream" | "players" | "mixed" | string;
+  /** "Subscribers up 0.6% this week" */
+  text: string;
+  /** "Subs +0.6%", for tight spots like the stocks table. */
+  short: string;
+  /** "170 shares net bought since the Open tick" */
+  detail?: string;
+};
+
 export type MarketAdjustment = {
   interval_key: string;
   scheduled_at: string | null;
@@ -524,6 +538,7 @@ export type MarketAdjustment = {
   price_before?: number | null;
   price_after?: number | null;
   market_date?: string | null;
+  reasons?: TickReason[] | null;
 };
 
 export type MarketAdjustmentSessionSummary = {
@@ -570,6 +585,7 @@ export type MarketAdjustmentOutcome = {
   move_pct: number | null;
   gap_compression_pct?: number | null;
   skip_reason?: string | null;
+  reasons?: TickReason[] | null;
 };
 
 export type MarketAdjustmentHealth = {
@@ -1158,6 +1174,8 @@ export type SessionStep = {
   after: number | null;
   /** How hard it pulled toward the target, in % of the gap: only once the whole day has finished. */
   strength_pct: number | null;
+  /** Why it moved, once it has landed. */
+  reasons?: TickReason[] | null;
 };
 
 /** A market day step by step: opening price, every landed adjustment, and the price now or at the close. */

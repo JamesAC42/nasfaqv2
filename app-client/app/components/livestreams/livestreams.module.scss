@@ -120,11 +120,14 @@
 .tabs {
   @include tabs;
 
-  button {
+  button,
+  a {
     @include tab;
     padding: 0.5rem 0.9rem;
+    text-decoration: none;
 
-    &[aria-selected="true"] {
+    &[aria-selected="true"],
+    &[aria-current="page"] {
       @include tab-selected;
     }
   }
