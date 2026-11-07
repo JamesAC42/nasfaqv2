@@ -507,6 +507,19 @@
   }
 }
 
+// Last tick: the move, and why in a few words (tick-reason.tsx), stacked at the cell's right.
+.tickCell {
+  .tickWhy {
+    align-items: flex-end;
+    max-width: 8.5rem;
+    margin: 0.1rem 0 0 auto;
+  }
+}
+
+.cardWhy {
+  margin-top: 0.15rem;
+}
+
 .sort {
   cursor: pointer;
 

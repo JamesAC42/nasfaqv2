@@ -17,6 +17,7 @@ import {
   type ChatChannel,
   type ChatMessage,
   type DailyReport,
+  type TickReason,
   type GameCatalogEntry,
   type GameCatalogResponse,
   type GameCosmetic,
@@ -565,6 +566,24 @@ function normalizeBuyback(value: unknown): MarketBuyback | null {
   };
 }
 
+/** A tick's reasons (why it moved), keeping only well-formed lines. */
+export function normalizeTickReasons(value: unknown): TickReason[] | null {
+  if (!Array.isArray(value)) return null;
+  const out: TickReason[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    if (typeof row.text !== "string" || !row.text) continue;
+    out.push({
+      kind: String(row.kind || "mixed"),
+      text: row.text,
+      short: typeof row.short === "string" && row.short ? row.short : row.text,
+      ...(typeof row.detail === "string" && row.detail ? { detail: row.detail } : {}),
+    });
+  }
+  return out;
+}
+
 export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
   const nextAdjustment = asset.next_adjustment && typeof asset.next_adjustment === "object"
     ? asset.next_adjustment as Record<string, unknown>
@@ -629,6 +648,7 @@ export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
           price_before: toNumber(latestAdjustment.price_before),
           price_after: toNumber(latestAdjustment.price_after),
           market_date: latestAdjustment.market_date ? String(latestAdjustment.market_date) : null,
+          reasons: normalizeTickReasons(latestAdjustment.reasons),
         }
       : null,
     sparkline_candles: normalizeCandles(
@@ -687,6 +707,7 @@ function normalizeAdjustmentOutcome(value: Record<string, unknown>): MarketAdjus
     move_pct: toNumber(value.move_pct),
     gap_compression_pct: toNumber(value.gap_compression_pct),
     skip_reason: value.skip_reason ? String(value.skip_reason) : null,
+    reasons: normalizeTickReasons(value.reasons),
   };
 }
 

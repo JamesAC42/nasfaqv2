@@ -1968,7 +1968,15 @@ async function applySchema(pool) {
   // accounts made after it shipped get a date (auth.createUser), so players already on v2 never see it.
   await pool.query(`ALTER TABLE market.users ADD COLUMN IF NOT EXISTS first_days_until TIMESTAMPTZ NULL`);
 
-  // The daily check-in (services/checkins.js): Credit once a day, more the longer the player's trade
+  // Why each tick moved a stock (services/tickDrivers.js), written when the tick lands. reasons_json
+  // is public (kind and wording, from public numbers only); driver_state_json is the private split of
+  // the distance the tick closed, carried into the next tick, and no public query reads it.
+  await pool.query(`
+    ALTER TABLE market.asset_adjustment_intervals
+      ADD COLUMN IF NOT EXISTS reasons_json JSONB NULL,
+      ADD COLUMN IF NOT EXISTS driver_state_json JSONB NULL
+  `);
+  // The daily check-in (services/checkins.js): Credit once a day, more while the player is on a trade
   // streak. The unique key is what keeps it to one claim per player per day, whatever races.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS market.daily_checkins (

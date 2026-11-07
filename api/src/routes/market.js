@@ -24,6 +24,7 @@ const { scrubPublicMarketPayload, publicDailyReport, revealedTargets } = require
 const marketState = require("../services/marketState");
 const { sendPublicAssets, sendLatestReport, sendHub, ADJUSTMENT_SUMMARY_LIMITS } = require("../publicMarketCache");
 const { sendCachedJson } = require("../responseCache");
+const features = require("../features");
 const { requireAdmin, requireUserId, requireVerifiedUserId } = require("../userContext");
 
 const { rateLimit, byUser, voteLimit } = require("../rateLimit");
@@ -296,6 +297,7 @@ router.get("/report/daily/:date/session", async (req, res, next) => {
     await sendCachedJson(req, res, `market:report:session:${marketDate}`, {
       ttlSeconds: 20,
       memoMs: 5000,
+      features: true, // each tick's reasons (the tick-reasons flag)
       load: () => reportSession.getSessionBreakdown(req.ctx.pool, marketDate),
     });
   } catch (e) {
@@ -335,6 +337,7 @@ router.get("/adjustments/summary", async (req, res, next) => {
     await sendCachedJson(req, res, `market:adjustments:${recentLimit}`, {
       ttlSeconds: 60,
       memoMs: 2000,
+      features: true, // each tick's reasons (the tick-reasons flag)
       load: () => marketAdjustments.getAdjustmentSummary(req.ctx.pool, { recentLimit }),
     });
   } catch (e) {
@@ -551,7 +554,9 @@ router.get("/assets/:symbol/adjustments", async (req, res, next) => {
       recentLimit,
       upcomingLimit,
     });
-    res.json(result);
+    // Each tick's reasons only for viewers with the tick-reasons flag.
+    features.viewerVaries(res);
+    res.json(features.forAudience(result, features.audienceOf(req.ctx.user)));
   } catch (e) {
     next(e);
   }
@@ -895,6 +900,7 @@ router.get("/assets/:symbol", async (req, res, next) => {
       ttlSeconds: 5,
       memoMs: 1000,
       notFound: "asset_not_found",
+      features: true, // the latest tick's reasons (the tick-reasons flag)
       load: async () => {
         const asset = await marketDb.getAssetBySymbol(req.ctx.pool, symbol);
         return asset ? scrubPublicMarketPayload(asset) : null;

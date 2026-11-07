@@ -1,0 +1,53 @@
+@use "../../styles/mixins" as *;
+
+// A tick's reasons (tick-reason.tsx): small, quiet lines under a move, each with its driver's mark.
+
+.reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.reason {
+  --kind: var(--dim);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--mid);
+
+  &[data-kind="subs"] { --kind: var(--blue); }
+  &[data-kind="views"] { --kind: #8b7cf6; }
+  &[data-kind="uploads"] { --kind: #2bb3a3; }
+  &[data-kind="stream"] { --kind: #e46aa8; }
+  &[data-kind="players"] { --kind: #e0a12e; }
+}
+
+.icon {
+  flex: none;
+  width: 0.7rem;
+  height: 0.7rem;
+  color: var(--kind);
+  transform: translateY(0.08rem);
+}
+
+.text {
+  min-width: 0;
+}
+
+// Tables: one short label on one line.
+.compact {
+  .reason {
+    max-width: 100%;
+    font-size: 0.656rem;
+    white-space: nowrap;
+  }
+
+  .text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

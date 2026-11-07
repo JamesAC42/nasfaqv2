@@ -1,0 +1,661 @@
+@use "../../styles/mixins" as *;
+
+// The stream calendar (stream-calendar.tsx). Header and filters come from livestreams.module.scss.
+// States: live is the chassis blue with a pulse (as on the Livestreams page), running late is a
+// dashed blue edge, upcoming is plain, ended fades back. Each talent's face is ringed in her color.
+
+.up { color: var(--up); }
+.down { color: var(--down); }
+.flat { color: var(--mid); }
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--blue) 55%, transparent);
+  }
+
+  70%,
+  100% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+.liveDot {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--blue);
+  animation: pulse 1.8s ease-out infinite;
+}
+
+// ── Faces ────────────────────────────────────────────────────────────────
+.face {
+  position: relative;
+  display: block;
+  flex: none;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--tal) 22%, var(--ink-2));
+  box-shadow: 0 0 0 1.5px var(--tal);
+
+  &[data-state="live"] {
+    box-shadow: 0 0 0 2px var(--blue);
+    animation: pulse 1.8s ease-out infinite;
+  }
+
+  &[data-state="ended"] {
+    filter: grayscale(0.7);
+    opacity: 0.75;
+  }
+}
+
+// ── Legend ───────────────────────────────────────────────────────────────
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.1rem;
+  padding: 0.65rem 0;
+  @include label;
+  font-size: 0.6rem;
+  color: var(--dim);
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  i {
+    width: 0.8rem;
+    height: 0.55rem;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    background: var(--ink);
+  }
+
+  [data-state="live"] i {
+    border-color: var(--blue);
+    background: var(--blue-wash);
+  }
+
+  [data-state="late"] i {
+    border: 1px dashed var(--blue);
+  }
+
+  [data-state="ended"] i {
+    opacity: 0.45;
+  }
+}
+
+.betMark {
+  flex: none;
+  width: 0.7rem;
+  height: 0.7rem;
+  color: var(--blue);
+}
+
+// ── On air and up next ───────────────────────────────────────────────────
+.strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+  gap: 0.75rem 1.5rem;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.stripGroup {
+  min-width: 0;
+
+  // Phones: the day list below shows what's next, with the same countdowns.
+  &[data-next] {
+    @include tablet-down {
+      display: none;
+    }
+  }
+
+  h2 {
+    @include label;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0 0 0.5rem;
+    font-size: 0.656rem;
+    color: var(--text);
+
+    small {
+      color: var(--dim);
+    }
+  }
+}
+
+.stripRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: 0.5rem;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+
+  &[data-state="live"] {
+    border-color: var(--blue-line);
+    background: linear-gradient(90deg, var(--blue-wash), transparent 70%), var(--ink);
+  }
+
+  &[data-state="late"] {
+    border-style: dashed;
+    border-color: var(--blue-line);
+  }
+}
+
+.cardMain {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0.55rem 0.65rem;
+  color: inherit;
+  text-decoration: none;
+
+  &:hover b {
+    color: var(--blue);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.cardText,
+.rowText {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.cardWho {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+
+  b {
+    @include display(0.95rem);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.tick {
+  flex: none;
+  margin-left: auto;
+  @include num;
+  font-size: 0.625rem;
+  color: var(--mid);
+}
+
+.cardState {
+  @include num;
+  font-size: 0.656rem;
+  color: var(--blue);
+
+  [data-state="ended"] & {
+    color: var(--dim);
+  }
+}
+
+.cardTitle {
+  overflow: hidden;
+  font-size: 0.75rem;
+  color: var(--mid);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.betLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  align-self: flex-start;
+  margin: 0 0.65rem 0.55rem;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--blue-line);
+  border-radius: var(--radius-sm);
+  @include label;
+  font-size: 0.6rem;
+  color: var(--blue);
+  text-decoration: none;
+
+  &:hover {
+    background: var(--blue-wash);
+  }
+}
+
+// ── The week ─────────────────────────────────────────────────────────────
+.skeleton {
+  height: 32rem;
+  border: 1px solid var(--rule);
+  background: linear-gradient(90deg, var(--ink-2), var(--ink-3), var(--ink-2));
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.week {
+  display: grid;
+  grid-template-columns: 4.75rem repeat(7, minmax(0, 1fr));
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+
+  @include tablet-down {
+    display: none;
+  }
+}
+
+.corner,
+.dayHead {
+  border-bottom: 1px solid var(--rule-2);
+}
+
+.dayHead {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.55rem 0.6rem 0.5rem;
+  border-left: 1px solid var(--rule);
+
+  b {
+    @include display(1rem);
+  }
+
+  span {
+    @include num;
+    font-size: 0.6rem;
+    color: var(--dim);
+  }
+
+  &[data-weekend] {
+    background: var(--ink-2);
+  }
+
+  &[data-today] {
+    box-shadow: inset 0 2px 0 var(--blue);
+
+    b {
+      color: var(--blue);
+    }
+  }
+}
+
+.band {
+  padding: 0.45rem 0.5rem;
+  border-top: 1px solid var(--rule);
+  @include label;
+  font-size: 0.56rem;
+  line-height: 1.4;
+  color: var(--dim);
+
+  &[data-empty] {
+    padding-block: 0.25rem;
+    opacity: 0.6;
+  }
+}
+
+// Busy bands pack two streams a row once the column is wide enough.
+.cell {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.1rem, 1fr));
+  align-content: start;
+  gap: 0.25rem;
+  min-width: 0;
+  min-height: 3rem;
+  padding: 0.35rem;
+  border-top: 1px solid var(--rule);
+  border-left: 1px solid var(--rule);
+
+  &[data-today] {
+    background: color-mix(in srgb, var(--blue) 4%, transparent);
+  }
+
+  &[data-past] {
+    opacity: 0.6;
+  }
+
+  &[data-empty] {
+    min-height: 1.1rem;
+    padding-block: 0.15rem;
+  }
+}
+
+.chip {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.2rem 0.3rem 0.2rem 0.2rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.12s ease, transform 0.12s ease;
+
+  @include hover-device {
+    &:hover {
+      border-color: var(--tal);
+      transform: translateY(-1px);
+    }
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  &[data-state="live"] {
+    border-color: var(--blue-line);
+    background: var(--blue-wash);
+
+    time {
+      color: var(--blue);
+      font-weight: 700;
+    }
+  }
+
+  &[data-state="late"] {
+    border-style: dashed;
+    border-color: var(--blue-line);
+  }
+
+  &[data-state="ended"] {
+    opacity: 0.6;
+  }
+}
+
+.chipText {
+  display: grid;
+  min-width: 0;
+  line-height: 1.15;
+
+  time {
+    @include num;
+    font-size: 0.56rem;
+    color: var(--dim);
+  }
+
+  b {
+    overflow: hidden;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+// An open peak prediction: a small mark in the chip's corner, clear of the name.
+.chip > .betMark {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 0.55rem;
+  height: 0.55rem;
+}
+
+.chipPeak {
+  @include num;
+  font-size: 0.56rem;
+  color: var(--dim);
+}
+
+.nowLine {
+  position: relative;
+  grid-column: 1 / -1;
+  height: 0;
+  margin: 0.45rem 0 0.3rem;
+  border-top: 1px solid var(--blue);
+
+  span {
+    position: absolute;
+    top: -0.45rem;
+    left: 0;
+    padding: 0 0.3rem;
+    border-radius: var(--radius-sm);
+    background: var(--blue);
+    color: var(--blue-ink);
+    @include num;
+    font-size: 0.5rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    line-height: 0.9rem;
+  }
+}
+
+// ── Phones and tablets: one day at a time ────────────────────────────────
+.phone {
+  display: none;
+
+  @include tablet-down {
+    display: block;
+  }
+}
+
+.dayPicker {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(2.7rem, 1fr));
+  gap: 0.3rem;
+  overflow-x: auto;
+  padding-bottom: 0.6rem;
+  scrollbar-width: none;
+}
+
+.dayPill {
+  display: grid;
+  justify-items: center;
+  gap: 0.05rem;
+  padding: 0.4rem 0.2rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: var(--mid);
+
+  span {
+    @include label;
+    font-size: 0.56rem;
+  }
+
+  b {
+    @include display(1.15rem);
+    color: var(--text);
+  }
+
+  small {
+    @include num;
+    font-size: 0.56rem;
+    color: var(--dim);
+  }
+
+  &[aria-selected="true"] {
+    border-color: var(--text);
+    background: var(--text);
+
+    span,
+    b,
+    small {
+      color: var(--ink);
+    }
+  }
+}
+
+.dayList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 3.4rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0 0.6rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--rule);
+
+  &[data-state="ended"] {
+    opacity: 0.6;
+  }
+
+  &[data-state="live"] {
+    background: linear-gradient(90deg, var(--blue-wash), transparent 80%);
+  }
+
+  .betLink {
+    grid-column: 2;
+    margin: 0.35rem 0 0 calc(40px + 0.65rem);
+  }
+}
+
+.rowTime {
+  display: grid;
+  justify-items: end;
+  @include num;
+  font-size: 0.875rem;
+  color: var(--text);
+
+  small {
+    font-size: 0.56rem;
+    color: var(--dim);
+  }
+
+  [data-state="live"] & {
+    color: var(--blue);
+  }
+}
+
+.rowMain {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  .cardTitle {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+}
+
+.nowRow {
+  padding: 0.4rem 0;
+}
+
+// ── The market floor's box (StreamsUpNext) ───────────────────────────────
+.floorList {
+  display: grid;
+}
+
+.floorSkeleton {
+  height: 7rem;
+  background: linear-gradient(90deg, var(--ink-2), var(--ink-3), var(--ink-2));
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+.floorRow {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--rule);
+  color: inherit;
+  text-decoration: none;
+
+  &:first-child {
+    border-top: 0;
+  }
+
+  &:hover b {
+    color: var(--blue);
+  }
+
+  &[data-state="live"] .floorWhen {
+    color: var(--blue);
+    font-weight: 700;
+  }
+}
+
+.floorName {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+
+  b {
+    overflow: hidden;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  small {
+    @include num;
+    font-size: 0.6rem;
+    color: var(--dim);
+  }
+}
+
+.floorWhen {
+  display: grid;
+  justify-items: end;
+  @include num;
+  font-size: 0.72rem;
+
+  small {
+    font-size: 0.56rem;
+    font-weight: 400;
+    color: var(--dim);
+  }
+}
+
+.floorEmpty {
+  margin: 0;
+  padding: 0.4rem 0;
+  font-size: 0.78rem;
+  color: var(--dim);
+}
+
+.floorMore {
+  display: inline-block;
+  margin-top: 0.5rem;
+  @include label;
+  font-size: 0.625rem;
+  color: var(--blue);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}

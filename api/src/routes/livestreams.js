@@ -1,6 +1,8 @@
 const express = require("express");
 
 const { sendCachedJson } = require("../responseCache");
+const { requireFeature } = require("../features");
+const streamCalendar = require("../services/streamCalendar");
 
 const router = express.Router();
 
@@ -233,6 +235,22 @@ router.get("/history", async (req, res, next) => {
       week_end: window.end.toISOString(),
       has_older: olderResult.rowCount > 0,
       streams: historyResult.rows,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// The stream calendar: listed talents' streams from a day ago to a week out (services/streamCalendar.js).
+// Before /:videoId, which would take "calendar" for a video id. A 404 for anyone without the
+// stream-calendar flag.
+router.get("/calendar", requireFeature("stream-calendar"), async (req, res, next) => {
+  try {
+    const days = Math.min(Math.max(Number.parseInt(String(req.query.days ?? "7"), 10) || 7, 1), 8);
+    await sendCachedJson(req, res, `livestreams:calendar:${days}`, {
+      ttlSeconds: 30,
+      memoMs: 5000,
+      load: () => streamCalendar.getStreamCalendar(req.ctx.pool, { days }),
     });
   } catch (e) {
     next(e);
