@@ -1,6 +1,7 @@
 @use "../../styles/mixins" as *;
 
-// The stream calendar (stream-calendar.tsx). Header and filters come from livestreams.module.scss.
+// The stream calendar (stream-calendar.tsx), the Livestreams page's calendar mode: the page's header
+// and filters sit above it.
 // States: live is the chassis blue with a pulse (as on the Livestreams page), running late is a
 // dashed blue edge, upcoming is plain, ended fades back. Each talent's face is ringed in her color.
 
@@ -52,6 +53,22 @@
 }
 
 // ── Legend ───────────────────────────────────────────────────────────────
+// The states on the left; whose clock the times are in on the right.
+.legendRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 1.5rem;
+}
+
+.zone {
+  margin: 0;
+  padding: 0.65rem 0;
+  font-size: 0.72rem;
+  color: var(--dim);
+}
+
 .legend {
   display: flex;
   flex-wrap: wrap;

@@ -20,7 +20,6 @@ export const NAV: NavGroup[] = [
       { href: "/threads", label: "/vt/ threads", hint: "The general, mirrored" },
       { href: "/articles", label: "Articles", hint: "HoloNews headlines and player-written DD" },
       { href: "/livestreams", label: "Livestreams", hint: "Who's on air right now" },
-      { href: "/livestreams/calendar", label: "Stream calendar", hint: "Every talent's streams for the week ahead", feature: "stream-calendar" },
     ],
   },
   { key: "games", label: "Games", href: "/games" },
@@ -44,7 +43,7 @@ export function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** In a menu, only the most specific matching link is current (/livestreams/calendar, not /livestreams too). */
+/** In a menu, only the most specific matching link is current (a link to /a/b, not one to /a too). */
 export function isActiveLink(pathname: string, href: string, links: NavLink[]) {
   if (!isActivePath(pathname, href)) return false;
   return !links.some((other) => other.href !== href && other.href.startsWith(`${href}/`) && isActivePath(pathname, other.href));
