@@ -75,8 +75,8 @@ function UmamiView({ from, to }: { from: string; to: string }) {
   return (
     <>
       <p className={styles.viewNote}>
-        Umami doesn&apos;t use cookies, so a visitor is a browser and device, not a player. Ad blockers block its tracker, so it misses many visitors: on Nov 5 it counted 10
-        when the site&apos;s logs had 28 browsers. It&apos;s the only record of v1&apos;s traffic.
+        Umami doesn’t use cookies, so a visitor is a browser and device, not a player. Ad blockers block its tracker, so it misses many visitors: on Nov 5 it counted 10
+        when the site’s logs had 28 browsers. It’s the only record of v1’s traffic.
       </p>
       <div className={ui.tabs} role="tablist" aria-label="Site">
         {SITE_TABS.map((tab) => (
@@ -185,7 +185,7 @@ export function AdminAnalyticsPage() {
       title="Analytics"
       blurb={
         <>
-          Who signs up, comes back and plays, from our own database, plus signed-out visitors from the site&apos;s own counter, which ad blockers don&apos;t block. Days are New
+          Who signs up, comes back and plays, from our own database, plus signed-out visitors from the site’s own counter, which ad blockers don’t block. Days are New
           York days, and &ldquo;before&rdquo; means the same length of time just before this range.
         </>
       }

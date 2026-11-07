@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const express = require("express");
 const { Pool } = require("pg");
+const features = require("../src/features");
 const referrals = require("../src/services/referrals");
 const visits = require("../src/services/visits");
 
@@ -79,6 +80,18 @@ test("rules: with IP linking off, the sharer's share waits (the alt check can't 
   assert.equal(off.referrer.action, "wait");
   assert.equal(off.referrer.reason, "ip_check_off");
   assert.equal(off.referrer.retryAt.getTime(), now.getTime() + HOUR);
+});
+
+test("rules: with the referrals flag off for the sharer, nothing is decided or paid", () => {
+  assert.deepEqual(decide({ featureOn: false }), { referee: { action: "wait", reason: "feature_off" }, referrer: { action: "none", reason: null, retryAt: null } });
+  // Not even a refusal: that waits for the flag too.
+  assert.equal(decide({ featureOn: false, sharedIp: true }).referee.reason, "feature_off");
+  const waiting = decide({ featureOn: false, referral: { status: "paid", referrer_status: "waiting" } });
+  assert.deepEqual(waiting.referee, { action: "done", reason: null });
+  assert.equal(waiting.referrer.action, "wait");
+  assert.equal(waiting.referrer.reason, "feature_off");
+  assert.equal(waiting.referrer.retryAt.getTime(), now.getTime() + HOUR);
+  assert.equal(decide({ featureOn: true }).referrer.action, "pay");
 });
 
 test("rules: a waiting share is checked again, alt checks included", () => {
@@ -220,8 +233,10 @@ test("referrals, visits and the admin numbers, end to end", { skip: !databaseUrl
   const pool = new Pool({ connectionString: target.href });
   const savedSalt = process.env.IP_HASH_SALT;
   process.env.IP_HASH_SALT = "referrals-test-salt";
+  const restoreFlags = features.override({ referrals: "on" });
   const quiet = [console.warn, console.log, console.info];
   t.after(async () => {
+    restoreFlags();
     [console.warn, console.log, console.info] = quiet;
     if (savedSalt === undefined) delete process.env.IP_HASH_SALT;
     else process.env.IP_HASH_SALT = savedSalt;
@@ -537,5 +552,61 @@ test("referrals, visits and the admin numbers, end to end", { skip: !databaseUrl
     const month = await call("GET", `/api/admin/player-analytics?from=2026-10-01&to=${today}`, { cookie: boss });
     assert.equal(month.status, 200);
     assert.equal(month.body.series.at(-1).at, today);
+  });
+
+  await t.test("the referrals flag: decided by the sharer, at staff and off", async () => {
+    const bossId = Number((await pool.query(`SELECT id FROM market.users WHERE username = 'Boss'`)).rows[0].id);
+    const boss = await cookieFor(bossId);
+    // Recorded while the flag was on for everyone, traded after it went back to staff.
+    const stranded = await register("Stranded", "203.0.113.110", [code]);
+    const restore = features.override({ referrals: "staff" });
+    try {
+      // A player it's off for has no link: no panel, no code made, and their code is nobody's invite.
+      const quietId = await addUser("QuietPlayer", { ip: "198.51.100.120" });
+      const quiet = await cookieFor(quietId);
+      assert.equal((await call("GET", "/api/referrals/me", { cookie: quiet })).status, 404);
+      assert.equal((await pool.query(`SELECT referral_code FROM market.users WHERE id = $1`, [quietId])).rows[0].referral_code, null);
+      assert.equal((await call("GET", "/api/referrals/me", { cookie: sharer })).status, 404);
+      assert.equal((await call("GET", "/api/referrals/me")).status, 404);
+      assert.equal((await call("GET", `/api/referrals/invite/${code}`)).status, 404);
+
+      // Signing up through their code records nothing, not even as a source tag.
+      const late = await register("Late", "203.0.113.111", [code]);
+      assert.equal(await referralOf(late.id), undefined);
+      assert.equal((await pool.query(`SELECT signup_source FROM market.users WHERE id = $1`, [late.id])).rows[0].signup_source, null);
+
+      // A referral already recorded for them isn't paid, and doesn't run out either.
+      await verify(stranded.id);
+      await fill(stranded.id);
+      assert.deepEqual(await settle(), []);
+      assert.equal((await referralOf(stranded.id)).status, "pending");
+
+      // An admin's link works end to end for the player (not staff) who signs up through it.
+      const bossMe = await call("GET", "/api/referrals/me", { cookie: boss });
+      assert.equal(bossMe.status, 200);
+      const invite = await call("GET", `/api/referrals/invite/${bossMe.body.code}`);
+      assert.equal(invite.status, 200);
+      assert.equal(invite.body.username, "Boss");
+      const pal = await register("BossPal", "203.0.113.112", [{ ref: bossMe.body.code, via: "cards" }]);
+      await verify(pal.id);
+      await fill(pal.id);
+      const results = await settle();
+      assert.deepEqual(results.map((result) => result.id), [Number((await referralOf(pal.id)).id)], "only the admin's referral");
+      const paid = await referralOf(pal.id);
+      assert.equal(paid.status, "paid");
+      assert.equal(paid.referrer_status, "paid");
+      assert.equal(Number(paid.referee_cash), 250);
+
+      // Off: not even an admin has a link, and nothing is settled.
+      features.override({ referrals: "off" });
+      assert.equal((await call("GET", "/api/referrals/me", { cookie: boss })).status, 404);
+      assert.equal((await call("GET", `/api/referrals/invite/${bossMe.body.code}`)).status, 404);
+      assert.deepEqual(await settle(), []);
+    } finally {
+      restore();
+    }
+    // On again: the stranded referral is paid.
+    await settle();
+    assert.equal((await referralOf(stranded.id)).status, "paid");
   });
 });

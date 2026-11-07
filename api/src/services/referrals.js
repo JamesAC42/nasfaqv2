@@ -22,8 +22,15 @@
 //
 // The scheduler pod settles referrals every minute (startReferralScheduler), and the same loop
 // deletes old visit rows (visits.js).
+//
+// Behind the `referrals` feature flag (features/referrals.json), decided by the sharer: the person
+// signing up through a link usually isn't staff. A code only counts while the flag is on for its
+// owner. Otherwise it isn't looked up for the sign-up form, isn't recorded at sign-up (and isn't
+// kept as a source tag either), and nobody is paid for a referral already recorded. Those wait
+// until the flag is on for the sharer again. Source tags are recorded whatever the flag says.
 
 const crypto = require("node:crypto");
+const features = require("../features");
 const economy = require("./economy");
 const { ensureUserCashAccount } = require("./portfolioCash");
 const { accountStatus, MIN_ACCOUNT_AGE_HOURS } = require("./games/accountRules");
@@ -40,6 +47,11 @@ const UNVERIFIED_RETRY_MS = 15 * 60_000;
 const IP_CHECK_RETRY_MS = 60 * 60_000;
 const CODE_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 const CODE_LENGTH = 8;
+const FLAG = "referrals";
+const FEATURE_RETRY_MS = 60 * 60_000;
+
+/** Whether referral links work for this sharer ({ is_admin }), by the `referrals` flag. */
+const sharerEnabled = (sharer) => features.isEnabled(FLAG, sharer ? { is_admin: Boolean(sharer.is_admin) } : null);
 // Where a link was found: a plain link, or a shared game moment (lib/games/moments.ts kinds).
 const VIAS = new Set(["link", "blackjack", "cards"]);
 
@@ -125,10 +137,12 @@ async function ensureReferralCode(db, userId) {
 async function recordSignup(db, { userId, refs }) {
   const tags = cleanRefs(refs);
   if (!tags.length) return { referral_id: null, referrer_id: null, source: null };
-  const { rows } = await db.query(`SELECT id, referral_code FROM market.users WHERE referral_code = ANY($1::text[])`, [tags.map((entry) => entry.tag)]);
+  const { rows } = await db.query(`SELECT id, referral_code, is_admin FROM market.users WHERE referral_code = ANY($1::text[])`, [tags.map((entry) => entry.tag)]);
   const owners = new Map(rows.map((row) => [row.referral_code, Number(row.id)]));
-  // Someone's code is never a source tag, the player's own included (that one just doesn't count).
-  const code = tags.find((entry) => owners.has(entry.tag) && owners.get(entry.tag) !== Number(userId)) || null;
+  const live = new Set(rows.filter(sharerEnabled).map((row) => row.referral_code));
+  // Someone's code is never a source tag, the player's own included (that one just doesn't count),
+  // and neither is the code of a sharer the flag is off for.
+  const code = tags.find((entry) => live.has(entry.tag) && owners.get(entry.tag) !== Number(userId)) || null;
   const source = tags.find((entry) => !owners.has(entry.tag)) || null;
   if (source) await db.query(`UPDATE market.users SET signup_source = $2 WHERE id = $1 AND signup_source IS NULL`, [userId, source.tag]);
   let referralId = null;
@@ -156,6 +170,7 @@ const time = (value) => (value ? new Date(value).getTime() : null);
  *     sharer already got paid for,
  *   ipCheck: IP linking is on (ipHash.js), so sharedIp means something (default true),
  *   referrerPaidAt: when the sharer's payouts in the last 7 days landed,
+ *   featureOn: the `referrals` flag is on for the sharer (default true),
  * }
  * Returns { referee: { action: "wait" | "pay" | "refuse" | "expire" | "done", reason },
  *           referrer: { action: "wait" | "pay" | "refuse" | "none", reason, retryAt } }.
@@ -164,6 +179,13 @@ function decideReferral(facts, settings = referralSettings(), now = new Date()) 
   const { referral, referrer, referee } = facts;
   const nowMs = now.getTime();
   const none = { action: "none", reason: null, retryAt: null };
+  // With the flag off for the sharer nothing is decided or paid, on either side, until it's on again.
+  if (facts.featureOn === false) {
+    if (referral.status === "pending") return { referee: { action: "wait", reason: "feature_off" }, referrer: none };
+    if (referral.status === "paid" && referral.referrer_status === "waiting") {
+      return { referee: { action: "done", reason: null }, referrer: { action: "wait", reason: "feature_off", retryAt: new Date(nowMs + FEATURE_RETRY_MS) } };
+    }
+  }
   let refereeSide;
   if (referral.status === "pending") {
     if (!referrer || !referee || Number(referrer.id) === Number(referee.id)) return { referee: { action: "refuse", reason: "self" }, referrer: none };
@@ -205,7 +227,7 @@ async function gatherFacts(db, referral, now = new Date()) {
   const referrerId = Number(referral.referrer_id);
   const refereeId = Number(referral.referee_id);
   const { rows: users } = await db.query(
-    `SELECT u.id, u.username, u.created_at, u.email_verified, ${activeSuspensionSql("u")} AS suspended FROM market.users u WHERE u.id = ANY($1::bigint[])`,
+    `SELECT u.id, u.username, u.created_at, u.email_verified, u.is_admin, ${activeSuspensionSql("u")} AS suspended FROM market.users u WHERE u.id = ANY($1::bigint[])`,
     [[referrerId, refereeId]]
   );
   const byId = new Map(users.map((row) => [Number(row.id), { ...row, id: Number(row.id), suspended: Boolean(row.suspended) }]));
@@ -231,6 +253,7 @@ async function gatherFacts(db, referral, now = new Date()) {
     sharedIp,
     ipCheck: ipHashingEnabled(),
     referrerPaidAt: paid.map((row) => row.referrer_paid_at),
+    featureOn: sharerEnabled(byId.get(referrerId)),
   };
 }
 
@@ -335,18 +358,23 @@ async function settleReferral(pool, referralId, { settings = referralSettings(),
 
 /** Settles every referral that's due: new players with a first fill or past the window, and waiting shares. */
 async function settleDueReferrals(pool, { settings = referralSettings(), now = new Date(), limit = 100 } = {}) {
+  // Only sharers the flag is on for: everyone, staff (admins) only, or nobody.
+  if (!features.enabledFor(FLAG, "staff")) return [];
+  const staffOnly = !features.enabledFor(FLAG, "everyone");
   const { rows } = await pool.query(
     `
     SELECT r.id FROM market.referrals r
     JOIN market.users e ON e.id = r.referee_id
-    WHERE (r.status = 'pending' AND (
+    JOIN market.users s ON s.id = r.referrer_id
+    WHERE ((r.status = 'pending' AND (
             EXISTS (SELECT 1 FROM market.trade_fills f WHERE f.user_id = r.referee_id)
             OR e.created_at <= $1::timestamptz - $2::double precision * interval '1 day'))
-       OR (r.status = 'paid' AND r.referrer_status = 'waiting' AND (r.referrer_retry_at IS NULL OR r.referrer_retry_at <= $1::timestamptz))
+       OR (r.status = 'paid' AND r.referrer_status = 'waiting' AND (r.referrer_retry_at IS NULL OR r.referrer_retry_at <= $1::timestamptz)))
+      AND (NOT $4::boolean OR s.is_admin)
     ORDER BY r.id
     LIMIT $3
   `,
-    [now.toISOString(), settings.windowDays, limit]
+    [now.toISOString(), settings.windowDays, limit, staffOnly]
   );
   const results = [];
   for (const row of rows) {
@@ -425,8 +453,8 @@ async function referralSummary(db, userId, { settings = referralSettings(), now 
 async function inviteFor(db, code) {
   const tag = cleanTag(code);
   if (!tag) return null;
-  const { rows } = await db.query(`SELECT u.username FROM market.users u WHERE u.referral_code = $1 AND NOT ${activeSuspensionSql("u")}`, [tag]);
-  return rows[0] ? { username: rows[0].username } : null;
+  const { rows } = await db.query(`SELECT u.username, u.is_admin FROM market.users u WHERE u.referral_code = $1 AND NOT ${activeSuspensionSql("u")}`, [tag]);
+  return rows[0] && sharerEnabled(rows[0]) ? { username: rows[0].username } : null;
 }
 
 /** The referral loop, on the scheduler pod. It also deletes visit rows past their retention (visits.js). */

@@ -105,7 +105,7 @@ export function ReferralPanel() {
           </span>
         ) : null}
       </div>
-      {failed ? <p className={styles.note}>Your link didn&apos;t load. Try again in a moment.</p> : null}
+      {failed ? <p className={styles.note}>Your link didn’t load. Try again in a moment.</p> : null}
       {summary ? (
         <>
           <p className={styles.pitch}>
@@ -122,7 +122,7 @@ export function ReferralPanel() {
 
           {summary.invited_by ? (
             <p className={styles.invited}>
-              You joined through <Link href={`/profile/${enc(summary.invited_by.username)}`}>{summary.invited_by.username}</Link>&apos;s link.{" "}
+              You joined through <Link href={`/profile/${enc(summary.invited_by.username)}`}>{summary.invited_by.username}</Link>’s link.{" "}
               {summary.invited_by.status === "paid"
                 ? `You got ${rewardText({ cash: summary.invited_by.cash, credit: summary.invited_by.credit })}.`
                 : summary.invited_by.status === "pending"
@@ -160,7 +160,7 @@ export function ReferralPanel() {
                 You get the same, up to {summary.settings.weekly_cap} times a week (this week: {summary.totals.paid_this_week}). Past that, yours waits for next week. Your email
                 needs to be verified and your account {days} day{days === 1 ? "" : "s"} old.
               </li>
-              <li>Accounts that have used the same network as you, or as someone else you brought in, don&apos;t count. Neither do extra accounts of your own.</li>
+              <li>Accounts that have used the same network as you, or as someone else you brought in, don’t count. Neither do extra accounts of your own.</li>
             </ul>
           </details>
         </>

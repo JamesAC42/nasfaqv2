@@ -27,6 +27,7 @@ const REASON_LABEL: Record<string, string> = {
   refused: "Refused",
   sharer_rewards_off: "Sharer rewards turned off",
   ip_check_off: "IP linking is off, so the alt check can't run (waiting; set IP_HASH_SALT)",
+  feature_off: "The referrals flag is off for the sharer (waiting)",
 };
 
 const STATUS_LABEL: Record<string, string> = { pending: "waiting for a trade", paid: "paid", refused: "not paid", expired: "ran out" };
@@ -299,8 +300,8 @@ export function PlayerAnalyticsView({ from, to }: { from: string; to: string }) 
                   <th scope="col">New player</th>
                   <th scope="col">Sharer</th>
                   <th scope="col">Link</th>
-                  <th scope="col">New player&apos;s share</th>
-                  <th scope="col">Sharer&apos;s share</th>
+                  <th scope="col">New player’s share</th>
+                  <th scope="col">Sharer’s share</th>
                 </tr>
               </thead>
               <tbody>
@@ -390,7 +391,7 @@ export function PlayerAnalyticsView({ from, to }: { from: string; to: string }) 
           </Section>
         </div>
         <p className={styles.viewNote}>
-          Active players come from sessions: a day counts when a player&apos;s session was seen that day. Signed-out visitors are counted by the site itself, with a hash salted
+          Active players come from sessions: a day counts when a player’s session was seen that day. Signed-out visitors are counted by the site itself, with a hash salted
           afresh each day, the page and the referring site, and no address or cookie. Visit rows are deleted after {data.visits_kept_days} days.
         </p>
       </div>
