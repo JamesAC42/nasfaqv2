@@ -150,16 +150,22 @@ func main() {
 		upcoming:     make(map[string]*upcomingStreamState),
 	}
 	if cfg.EnableLivePoll {
-		bootstrapFreshCutoff := time.Now().UTC().Add(-time.Duration(cfg.LiveRedisFreshMinutes) * time.Minute)
-		hasFreshRedisData := bootstrapFromRedis(ctx, pool, yt, liveStore, tracker, cfg, bootstrapFreshCutoff)
+		// The first full detection poll keeps the last finished one's schedule (fullpoll.go). The
+		// tracker starts from Redis either way, so viewer polling picks up at once.
+		startedAt := time.Now().UTC()
+		lastFullPoll := readLastFullPoll(ctx, rdb)
+		firstPoll := firstFullPollDelay(startedAt, lastFullPoll, cfg.LivePollInterval)
+		bootstrapFreshCutoff := startedAt.Add(-time.Duration(cfg.LiveRedisFreshMinutes) * time.Minute)
+		if firstPoll > 0 && lastFullPoll.Before(bootstrapFreshCutoff) {
+			bootstrapFreshCutoff = lastFullPoll // everything the last full poll saw
+		}
+		bootstrapFromRedis(ctx, pool, yt, liveStore, tracker, cfg, bootstrapFreshCutoff)
 
-		// If redis already has fresh live stream data, we skip the initial detection round.
-		runImmediately := !hasFreshRedisData
-		if cfg.LiveDetectionPollLogEnabled && !runImmediately {
-			log.Printf("livestreams: skipping initial detection poll (fresh livestream data found in redis)")
+		if cfg.LiveDetectionPollLogEnabled && firstPoll > 0 {
+			log.Printf("livestreams: last full detection poll started %s; next one in %s", lastFullPoll.Format(time.RFC3339), firstPoll.Round(time.Second))
 		}
 
-		go pollLivestreamsLoop(ctx, pool, yt, liveStore, tracker, cfg, runImmediately)
+		go pollLivestreamsLoop(ctx, pool, yt, liveStore, tracker, cfg, firstPoll)
 		go pollScheduledUpcomingLoop(ctx, pool, yt, liveStore, tracker, cfg)
 		go viewerPollLoop(ctx, pool, yt, liveStore, tracker, cfg)
 	} else {
@@ -205,18 +211,28 @@ func main() {
 	}
 }
 
-func pollLivestreamsLoop(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, store *livestreams.RedisStore, tracker *liveTracker, cfg Config, runImmediately bool) {
+func pollLivestreamsLoop(ctx context.Context, pool *pgxpool.Pool, yt *youtube.Client, store *livestreams.RedisStore, tracker *liveTracker, cfg Config, firstPoll time.Duration) {
 	run := func() {
+		startedAt := time.Now().UTC()
 		if err := pollLivestreamsOnce(ctx, pool, yt, store, tracker, cfg); err != nil {
 			log.Printf("livestreams: poll failed: %v", err)
+			return
 		}
+		recordFullPoll(ctx, store.Client, startedAt)
 	}
 	if cfg.LiveDetectionPollLogEnabled {
 		log.Printf("livestreams: detection polling enabled (interval=%s)", cfg.LivePollInterval)
 	}
-	if runImmediately {
-		run()
+	if firstPoll > 0 {
+		first := time.NewTimer(firstPoll)
+		select {
+		case <-ctx.Done():
+			first.Stop()
+			return
+		case <-first.C:
+		}
 	}
+	run()
 
 	t := time.NewTicker(cfg.LivePollInterval)
 	defer t.Stop()
@@ -795,8 +811,9 @@ func strPtr(s string) *string {
 	return &s
 }
 
-// bootstrapFromRedis preloads tracker.live from redis so we can skip an initial detection round.
-// It returns true if redis has any livestream data (live or upcoming) updated within the freshness window.
+// bootstrapFromRedis preloads tracker.live from redis, so viewer polling resumes before the first
+// detection round. It returns true if redis has any livestream data (live or upcoming) updated
+// within the freshness window. When that first round runs is fullpoll.go's call, not this one's.
 func bootstrapFromRedis(
 	ctx context.Context,
 	pool *pgxpool.Pool,

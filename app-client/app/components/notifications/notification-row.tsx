@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ComponentType } from "react";
-import { FaAt, FaHandHoldingDollar, FaMedal, FaNewspaper, FaRegBell, FaReply, FaRightLeft, FaHeart, FaSnowflake, FaSquarePollVertical, FaUserCheck, FaUserPlus } from "react-icons/fa6";
+import { FaAt, FaHandHoldingDollar, FaMedal, FaNewspaper, FaRegBell, FaReply, FaRightLeft, FaHeart, FaSnowflake, FaSquarePollVertical, FaUserCheck, FaUserGroup, FaUserPlus } from "react-icons/fa6";
 import { timeAgo } from "@/app/lib/time";
 import type { NotificationItem } from "@/app/stores/notification-store";
 import styles from "@/app/components/notifications/notifications.module.scss";
@@ -21,6 +21,7 @@ const ICONS: Record<string, ComponentType<{ "aria-hidden"?: boolean }>> = {
   wishlist: FaHeart,
   dividend: FaHandHoldingDollar,
   buyback: FaSnowflake,
+  referral: FaUserGroup,
 };
 
 const TONE: Record<string, string> = {
@@ -33,6 +34,7 @@ const TONE: Record<string, string> = {
   wishlist: "blue",
   dividend: "win",
   buyback: "blue",
+  referral: "win",
 };
 
 /** One line of the inbox: icon, what happened, when, and a dot while it's new. */

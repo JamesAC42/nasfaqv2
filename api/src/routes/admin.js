@@ -6,7 +6,8 @@
 // admin actions (GET /moderation/actions).
 // The /admin/users page (services/adminUsers.js): GET /users/directory, POST /users/find-by-email,
 // GET /users/:id and the account fixes under /users/:id.
-// Site traffic (services/umami.js): GET /analytics.
+// Site traffic (services/umami.js): GET /analytics. Our own numbers (services/playerAnalytics.js):
+// GET /player-analytics.
 // Announcement popups (services/announcements.js): GET and POST /announcements, PATCH and DELETE
 // /announcements/:id, POST /announcements/:id/retire and /restore.
 
@@ -20,6 +21,8 @@ const { ipClusters, ipHashingEnabled, sharedIpAccounts } = require("../services/
 const schedulerHealth = require("../services/schedulerHealth");
 const moderation = require("../services/moderation");
 const umami = require("../services/umami");
+const playerAnalytics = require("../services/playerAnalytics");
+const visits = require("../services/visits");
 const v1Link = require("../services/v1Link");
 const profileDb = require("../profileDb");
 const { requireAdmin } = require("../userContext");
@@ -131,6 +134,17 @@ router.get(
     requireSiteAdmin(req);
     res.set("Cache-Control", "no-store");
     res.json(await umami.siteAnalytics({ site: req.query.site, from: req.query.from, to: req.query.to }));
+  })
+);
+
+// Sign-ups, active players, retention, referrals and source tags, activity by game and market, and
+// signed-out visitors, from our own tables (no Umami, so ad blockers don't hide anyone).
+router.get(
+  "/player-analytics",
+  handle(async (req, res) => {
+    requireSiteAdmin(req);
+    res.set("Cache-Control", "no-store");
+    res.json(await playerAnalytics.playerAnalytics(req.ctx.pool, { from: req.query.from, to: req.query.to, today: visits.dayKey() }));
   })
 );
 

@@ -383,3 +383,95 @@
     opacity: 0.8;
   }
 }
+
+// ── Players & visits (admin-player-analytics.tsx) ─────────────────────────
+.viewNote {
+  margin: 0.75rem 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--dim);
+}
+
+.stripHeading {
+  @include label;
+  margin: 1rem 0 0.4rem;
+}
+
+.muted {
+  color: var(--dim);
+  opacity: 0.7;
+}
+
+.dataScroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.dataTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+
+  th,
+  td {
+    padding: 0.32rem 0.75rem 0.32rem 0;
+    border-bottom: 1px solid var(--rule);
+    font-weight: 400;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  th:first-child {
+    text-align: left;
+    color: var(--text);
+  }
+
+  thead th {
+    @include label;
+    font-size: 0.58rem;
+    color: var(--dim);
+  }
+
+  td {
+    @include num;
+    color: var(--mid);
+  }
+
+  // Tables of names and words rather than counts.
+  &[data-text] td {
+    font-family: inherit;
+    text-align: left;
+  }
+
+  &[data-text] th {
+    text-align: left;
+  }
+
+  td[data-tone="up"] {
+    color: var(--up);
+  }
+
+  td[data-tone="down"] {
+    color: var(--down);
+  }
+
+  tfoot th,
+  tfoot td {
+    border-bottom: 0;
+    color: var(--text);
+  }
+
+  code {
+    @include num;
+    font-size: 0.78rem;
+  }
+
+  a {
+    color: var(--blue);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}

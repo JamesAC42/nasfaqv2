@@ -9,6 +9,7 @@ import { SceneArt } from "@/app/components/common/scene-art";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiErrorCode, apiFetch } from "@/app/lib/api";
+import { keptRefs, rewardText, type ReferralSettings } from "@/app/lib/referrals";
 import { signedPct, toneOf } from "@/app/lib/time";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -103,6 +104,27 @@ export function AuthForm({ mode, token = "" }: { mode: AuthMode; token?: string 
   const [done, setDone] = useState(false);
   const turnstileRef = useRef<HTMLDivElement | null>(null);
   const turnstileWidget = useRef("");
+  // Whose referral link brought this visitor here, if any (lib/referrals.ts).
+  const [invite, setInvite] = useState<{ username: string; reward: ReferralSettings } | null>(null);
+
+  useEffect(() => {
+    if (mode !== "register") return;
+    let cancelled = false;
+    (async () => {
+      for (const { ref } of keptRefs()) {
+        try {
+          const found = await apiFetch<{ username: string; reward: ReferralSettings }>(`/api/referrals/invite/${encodeURIComponent(ref)}`, { cache: "no-store" });
+          if (!cancelled) setInvite(found);
+          return;
+        } catch {
+          // Not anyone's code (a source tag), or gone: try the next.
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mode]);
 
   const usesStore = mode === "login" || mode === "register";
   const newPassword = mode === "register" || mode === "reset";
@@ -324,6 +346,13 @@ export function AuthForm({ mode, token = "" }: { mode: AuthMode; token?: string 
               <>
                 <h1>{HEADINGS[mode]}</h1>
                 <p className={styles.lede}>{LEDES[mode]}</p>
+                {mode === "register" && invite && !user ? (
+                  <p className={styles.info}>
+                    <span>
+                      <b>{invite.username}</b> invited you. After your first stock trade you both get {rewardText(invite.reward)}.
+                    </span>
+                  </p>
+                ) : null}
 
                 {user && usesStore ? (
                   <div className={styles.info}>

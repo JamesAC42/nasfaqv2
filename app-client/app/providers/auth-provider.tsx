@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from "react";
 import { apiErrorCode, apiFetch } from "@/app/lib/api";
 import { setGamesViewer } from "@/app/lib/games/use-games-socket";
+import { forgetRefs, keptRefs } from "@/app/lib/referrals";
 import type { AuthUser } from "@/app/lib/types";
 import { useAuthStore } from "@/app/stores/auth-store";
 import { useProfileStore } from "@/app/stores/profile-store";
@@ -78,10 +79,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       setError(null);
       try {
+        // Whose link brought them, and any source tag (lib/referrals.ts).
+        const refs = keptRefs().map(({ ref, via }) => ({ ref, via }));
         const result = await apiFetch<{ user: AuthUser }>("/api/auth/register", {
           method: "POST",
-          body: JSON.stringify({ username, email, password, ogey, turnstile_token: turnstileToken }),
+          body: JSON.stringify({ username, email, password, ogey, turnstile_token: turnstileToken, refs }),
         });
+        forgetRefs();
         setUser(result.user);
         setInitialized(true);
         return result.user;

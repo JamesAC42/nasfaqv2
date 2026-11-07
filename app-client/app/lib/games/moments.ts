@@ -76,8 +76,12 @@ const withTalent = (path: string, talent?: string | null, extra: string[] = []) 
 /** Bump when the card's design changes: cards are cached for a day, and link previews longer. */
 export const MOMENT_CARD_VERSION = 2;
 
-/** The public page for a moment (its link unfurls with the share card). */
-export const momentPath = (kind: MomentKind, id: string, talent?: string | null) => withTalent(`/games/moments/${kind}/${encodeURIComponent(id)}`, talent);
+/**
+ * The public page for a moment (its link unfurls with the share card). `referralCode` is the
+ * sharer's (lib/referrals.ts): someone who signs up after opening it counts as their referral.
+ */
+export const momentPath = (kind: MomentKind, id: string, talent?: string | null, referralCode?: string | null) =>
+  withTalent(`/games/moments/${kind}/${encodeURIComponent(id)}`, talent, referralCode ? [`ref=${encodeURIComponent(referralCode)}`] : []);
 
 /** The share card itself, 1200×630 PNG. */
 export const momentCardPath = (kind: MomentKind, id: string, talent?: string | null) =>
