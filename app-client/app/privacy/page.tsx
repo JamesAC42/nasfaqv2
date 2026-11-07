@@ -74,7 +74,23 @@ const sections: LegalSection[] = [
           <Fact term="Sign-in sessions">
             <p>
               When you sign in we create a random session token. The database keeps only a hash of it, plus when it was
-              created, when it expires, when it was last used, and whether you signed out.
+              created, when it expires, when it was last used, and whether you signed out. We also note which days you
+              were signed in, to count how many players come back.
+            </p>
+          </Fact>
+          <Fact term="Invite links">
+            <p>
+              Your profile has an invite link with a code that’s yours. If you sign up through someone’s link, we
+              record whose it was, and they see your username in their list of people who joined. A link can also carry a
+              plain tag saying where it was posted (like <code>v1-email</code>), which we save with your account.
+            </p>
+          </Fact>
+          <Fact term="Visits while signed out">
+            <p>
+              Our own server counts the pages people open while they’re not signed in. It keeps the page (without
+              anything after a <code>?</code>), the site that linked to it, and a code made from your IP address and
+              browser with a key that changes every day and is deleted after two days. Neither the code nor the count can
+              be traced back to you or linked from one day to the next. No cookie is involved.
             </p>
           </Fact>
           <Fact term="Moderation records">
@@ -309,6 +325,9 @@ const sections: LegalSection[] = [
           <Fact term="nasfaq-thread-you-state-v1">
             <p>Which posts in the thread watcher are yours, so replies to you stand out.</p>
           </Fact>
+          <Fact term="nasfaq:refs">
+            <p>Up to three invite codes or link tags from links you opened, for 30 days, sent along when you sign up.</p>
+          </Fact>
           <Fact term="nasfaq.returnTo, nasfaq.tapeEpoch">
             <p>Session storage: the page to send you back to after signing in, and the price tape’s position. Cleared when you close the tab.</p>
           </Fact>
@@ -329,6 +348,9 @@ const sections: LegalSection[] = [
           <li>
             <strong>Sessions</strong> stop working after 30 days or when you sign out. <strong>Verification links</strong>{" "}
             expire after 24 hours.
+          </li>
+          <li>
+            <strong>Signed-out visit counts</strong> are deleted after 90 days.
           </li>
           <li>
             <strong>Chat:</strong> older messages move out of the live chat into an archive. They aren’t deleted
@@ -412,7 +434,7 @@ export default function PrivacyPage() {
     <LegalPage
       doc="privacy"
       title="Privacy Policy"
-      updated={{ iso: "2026-11-01", label: "November 1, 2026" }}
+      updated={{ iso: "2026-11-06", label: "November 6, 2026" }}
       art="legal-privacy-spot"
       intro={
         <p>

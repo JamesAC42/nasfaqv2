@@ -1976,6 +1976,92 @@ async function applySchema(pool) {
       ADD COLUMN IF NOT EXISTS reasons_json JSONB NULL,
       ADD COLUMN IF NOT EXISTS driver_state_json JSONB NULL
   `);
+
+  // Referral links (services/referrals.js). Each player's code is made the first time they ask for
+  // their link. signup_source is a plain tag a sign-up arrived with (?ref=v1-email), for counting.
+  await pool.query(`ALTER TABLE market.users ADD COLUMN IF NOT EXISTS referral_code TEXT NULL`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS market_users_referral_code_key ON market.users (referral_code) WHERE referral_code IS NOT NULL`);
+  await pool.query(`ALTER TABLE market.users ADD COLUMN IF NOT EXISTS signup_source TEXT NULL`);
+  // One row per account that signed up through someone's link. status is the new player's side
+  // (pending until their first stock fill); referrer_status is the sharer's, which can wait on its
+  // own (account too new, unverified, weekly cap) and is tried again at referrer_retry_at.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.referrals (
+      id BIGSERIAL PRIMARY KEY,
+      referrer_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      referee_id BIGINT NOT NULL UNIQUE REFERENCES market.users(id) ON DELETE CASCADE,
+      via TEXT NOT NULL DEFAULT 'link',
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'refused', 'expired')),
+      reason TEXT NULL,
+      referee_cash NUMERIC NOT NULL DEFAULT 0,
+      referee_credit NUMERIC NOT NULL DEFAULT 0,
+      referee_paid_at TIMESTAMPTZ NULL,
+      referrer_status TEXT NULL CHECK (referrer_status IN ('waiting', 'paid', 'refused')),
+      referrer_reason TEXT NULL,
+      referrer_retry_at TIMESTAMPTZ NULL,
+      referrer_cash NUMERIC NOT NULL DEFAULT 0,
+      referrer_credit NUMERIC NOT NULL DEFAULT 0,
+      referrer_paid_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      decided_at TIMESTAMPTZ NULL,
+      CONSTRAINT market_referrals_not_self CHECK (referrer_id <> referee_id)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_referrals_referrer_idx ON market.referrals (referrer_id, created_at DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_referrals_referrer_paid_idx ON market.referrals (referrer_id, referrer_paid_at) WHERE referrer_paid_at IS NOT NULL`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_referrals_open_idx ON market.referrals (id) WHERE status = 'pending' OR referrer_status = 'waiting'`);
+
+  // The days (New York) each player was signed in on the site, for daily and weekly actives and
+  // retention on /admin/analytics. auth.getAuthenticatedUser adds today's row when it marks a
+  // session seen. The first time, it's filled in from what's already there: sessions, sign-ups and
+  // the things players do.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.user_active_days (
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      day DATE NOT NULL,
+      PRIMARY KEY (user_id, day)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_user_active_days_day_idx ON market.user_active_days (day, user_id)`);
+  const { rows: activeDays } = await pool.query(`SELECT EXISTS (SELECT 1 FROM market.user_active_days) AS filled`);
+  if (!activeDays[0].filled) {
+    const day = (column) => `(${column} AT TIME ZONE 'America/New_York')::date`;
+    const sources = [
+      ["market.users", `SELECT id, ${day("created_at")} FROM market.users`],
+      ["market.user_sessions", `SELECT user_id, ${day("created_at")} FROM market.user_sessions UNION SELECT user_id, ${day("last_seen_at")} FROM market.user_sessions WHERE last_seen_at IS NOT NULL`],
+      ["market.trade_orders", `SELECT user_id, ${day("requested_at")} FROM market.trade_orders`],
+      ["games.blackjack_bets", `SELECT user_id, ${day("created_at")} FROM games.blackjack_bets`],
+      ["games.card_pulls", `SELECT user_id, ${day("created_at")} FROM games.card_pulls`],
+      ["games.gacha_pulls", `SELECT user_id, ${day("created_at")} FROM games.gacha_pulls`],
+      ["games.pvp_match_players", `SELECT user_id, ${day("joined_at")} FROM games.pvp_match_players`],
+      ["market.prediction_market_trades", `SELECT taker_user_id, ${day("matched_at")} FROM market.prediction_market_trades WHERE taker_user_id IS NOT NULL`],
+      ["chat.messages", `SELECT author_id, ${day("created_at")} FROM chat.messages WHERE author_id IS NOT NULL`],
+    ];
+    for (const [table, select] of sources) {
+      const { rows: present } = await pool.query(`SELECT to_regclass($1) IS NOT NULL AS present`, [table]);
+      if (!present[0].present) continue;
+      await pool.query(`
+        INSERT INTO market.user_active_days (user_id, day)
+        SELECT DISTINCT s.user_id, s.day FROM (${select}) AS s(user_id, day)
+        JOIN market.users u ON u.id = s.user_id
+        ON CONFLICT DO NOTHING
+      `);
+    }
+  }
+
+  // Signed-out visits, counted by the site's own beacon (POST /api/site/here, services/visits.js):
+  // a hash salted afresh each day (the salt is thrown away after two days), the page path and the
+  // referring site's host. No address, no cookie. Rows older than VISIT_RETENTION_DAYS are deleted.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.site_visits (
+      day DATE NOT NULL,
+      visitor_hash TEXT NOT NULL,
+      path TEXT NOT NULL,
+      referrer_host TEXT NULL,
+      views INTEGER NOT NULL DEFAULT 1,
+      PRIMARY KEY (day, visitor_hash, path)
+    )
+  `);
 }
 
 module.exports = { applySchema };

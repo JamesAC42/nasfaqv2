@@ -533,6 +533,81 @@ export type SiteAnalytics = {
 export const fetchSiteAnalytics = (site: AnalyticsSite, from: string, to: string) =>
   apiFetch<SiteAnalytics>(`/api/admin/analytics?site=${site}&from=${from}&to=${to}`, { cache: "no-store" });
 
+// ── /api/admin/player-analytics (our own tables, api/src/services/playerAnalytics.js) ──
+
+export type PlayerTotals = {
+  signups: number;
+  verified: number;
+  first_orders: number;
+  first_fills: number;
+  /** Players signed in on any day of the range. */
+  active: number;
+  /** Signed-out visitors, one per browser per day, summed over the range. */
+  visitors: number;
+  pageviews: number;
+  /** Sign-ups through someone's referral link. */
+  referred: number;
+  /** Sign-ups with a plain source tag (?ref=v1-email). */
+  tagged: number;
+  /** Sign-ups with neither a referral nor a source tag. */
+  neither: number;
+};
+
+export type PlayerPoint = {
+  at: string;
+  signups: number;
+  verified: number;
+  active: number;
+  weekly_active: number;
+  first_orders: number;
+  visitors: number;
+  pageviews: number;
+};
+
+export type RetentionRow = { day: string; age_days: number; signups: number; day1: number; week1: number; month1: number; recent: number; traded: number };
+
+export type ReferralOutcome = {
+  id: number;
+  at: string;
+  via: string;
+  referrer: string;
+  referee: string;
+  status: "pending" | "paid" | "refused" | "expired";
+  reason: string | null;
+  sharer_status: "waiting" | "paid" | "refused" | null;
+  sharer_reason: string | null;
+};
+
+export type PlayerAnalytics = {
+  from: string;
+  to: string;
+  today: string;
+  time_zone: string;
+  totals: PlayerTotals;
+  previous: PlayerTotals;
+  now: { active_today: number; active_7d: number; active_30d: number; visitors_today: number };
+  series: PlayerPoint[];
+  retention: RetentionRow[];
+  sources: {
+    tags: { label: string; signups: number; verified: number; traded: number }[];
+    referrals: { label: string; signups: number; paid: number; pending: number; not_paid: number; traded: number }[];
+  };
+  referrals: {
+    top: { username: string; signups: number; paid: number; sharer_paid: number }[];
+    reasons: { side: string; label: string; count: number }[];
+    paid_out: { cash: number; credit: number };
+    recent: ReferralOutcome[];
+  };
+  activity: {
+    games: { key: string; label: string; events: number; players: number }[];
+    stocks: { symbol: string; name: string; fills: number; players: number; shares: number; sells: number }[];
+  };
+  visitors: { pages: (AnalyticsRow & { visitors: number })[]; referrers: AnalyticsRow[] };
+  visits_kept_days: number;
+};
+
+export const fetchPlayerAnalytics = (from: string, to: string) => apiFetch<PlayerAnalytics>(`/api/admin/player-analytics?from=${from}&to=${to}`, { cache: "no-store" });
+
 // ── /api/admin/v1-links ──────────────────────────────────────────────────
 
 export type V1LinkRow = {
