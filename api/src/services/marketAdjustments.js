@@ -1,4 +1,5 @@
 const schedulerHealth = require("./schedulerHealth");
+const tickDrivers = require("./tickDrivers");
 const { invalidateMarketAssetsCache } = require("../marketCache");
 const { publishMarketEvent } = require("./marketEvents");
 
@@ -197,6 +198,8 @@ function computeAdjustedPrice(currentMid, baseRate, strengthPct) {
   return currentMid + ((baseRate - currentMid) * (strengthPct / 100));
 }
 
+const intervalLabel = (key) => INTERVALS.find((interval) => interval.key === key)?.label ?? key;
+
 function toPublicAdjustment(adjustment) {
   if (!adjustment) return adjustment;
   return {
@@ -210,6 +213,7 @@ function toPublicAdjustment(adjustment) {
     price_before: adjustment.price_before,
     price_after: adjustment.price_after,
     premium_discount_pct: adjustment.premium_discount_pct,
+    reasons: tickDrivers.publicReasons(adjustment.reasons),
     quote: adjustment.quote,
   };
 }
@@ -382,7 +386,8 @@ async function getDueIntervals(client, { now = new Date(), limit = DEFAULT_BATCH
       i.scheduled_at,
       i.strength_pct,
       i.base_rate,
-      s.market_date
+      s.market_date,
+      s.market_date::text AS market_day
     FROM market.asset_adjustment_intervals i
     JOIN market.adjustment_sessions s ON s.id = i.session_id
     WHERE i.status = 'scheduled'
@@ -397,7 +402,49 @@ async function getDueIntervals(client, { now = new Date(), limit = DEFAULT_BATCH
   return rows;
 }
 
-async function applyInterval(client, interval, now = new Date()) {
+/**
+ * Why this tick moved the price (services/tickDrivers.js), or nulls if that can't be worked out: a
+ * missing explanation never holds a tick up.
+ */
+function explainInterval(drivers, interval, { asset, priceBefore, priceAfter, baseRate, now }) {
+  if (!drivers) return { reasons: null, state: null };
+  try {
+    const input = tickDrivers.tickInput(drivers, interval, {
+      priceBefore,
+      priceAfter,
+      fairValue: baseRate,
+      liquidityDepth: asset.liquidity_depth,
+      now,
+      labelOf: intervalLabel,
+    });
+    const result = tickDrivers.explainTick(input);
+    tickDrivers.rememberTick(drivers, interval, { priceAfter, fairValue: baseRate, state: result.state, now });
+    return result;
+  } catch (error) {
+    console.warn("tick drivers failed", interval.asset_id, String(error?.message || error));
+    return { reasons: null, state: null };
+  }
+}
+
+/**
+ * The batch's tick-driver inputs, read in a savepoint: if a query fails, the ticks still land, just
+ * without reasons.
+ */
+async function loadDrivers(client, intervals, now) {
+  if (!intervals.length) return null;
+  await client.query("SAVEPOINT tick_drivers");
+  try {
+    const drivers = await tickDrivers.loadTickContext(client, intervals, { now, timeZone: getTimeZone() });
+    await client.query("RELEASE SAVEPOINT tick_drivers");
+    return drivers;
+  } catch (error) {
+    await client.query("ROLLBACK TO SAVEPOINT tick_drivers");
+    console.warn("tick driver inputs failed", String(error?.message || error));
+    return null;
+  }
+}
+
+async function applyInterval(client, interval, now = new Date(), drivers = null) {
   const { rows } = await client.query(
     `
     SELECT
@@ -412,6 +459,7 @@ async function applyInterval(client, interval, now = new Date()) {
       offsets_updated_at,
       latest_snapshot_id,
       spread_bps,
+      liquidity_depth,
       trading_state
     FROM market.market_assets
     WHERE id = $1
@@ -456,6 +504,7 @@ async function applyInterval(client, interval, now = new Date()) {
   const quotes = computeQuotes(priceAfter, asset.spread_bps);
   const nextCombinedOffset = Math.log(priceAfter / Math.max(baseRate, 0.000001));
   const nextTransientOffset = nextCombinedOffset - persistentOffset;
+  const explained = explainInterval(drivers, interval, { asset, priceBefore, priceAfter, baseRate, now });
 
   await client.query(
     `
@@ -481,10 +530,12 @@ async function applyInterval(client, interval, now = new Date()) {
       price_after = $3,
       status = 'applied',
       applied_at = $4,
+      reasons_json = $5::jsonb,
+      driver_state_json = $6::jsonb,
       updated_at = now()
     WHERE id = $1
   `,
-    [interval.id, priceBefore, priceAfter, now]
+    [interval.id, priceBefore, priceAfter, now, explained.reasons ? JSON.stringify(explained.reasons) : null, explained.state ? JSON.stringify(explained.state) : null]
   );
 
   await client.query(
@@ -547,6 +598,7 @@ async function applyInterval(client, interval, now = new Date()) {
     price_before: priceBefore,
     price_after: priceAfter,
     premium_discount_pct: nextPremium,
+    reasons: explained.reasons,
     quote: {
       asset_id: asset.id,
       symbol: asset.symbol,
@@ -586,9 +638,10 @@ async function applyDueAdjustments(pool, { now = new Date(), limit = DEFAULT_BAT
   try {
     await client.query("BEGIN");
     const intervals = await getDueIntervals(client, { now, limit });
+    const drivers = await loadDrivers(client, intervals, now);
 
     for (const interval of intervals) {
-      const result = await applyInterval(client, interval, now);
+      const result = await applyInterval(client, interval, now, drivers);
       if (result) {
         applied.push(result);
       } else {
@@ -909,7 +962,8 @@ async function forceNextAdjustment(pool, { marketDate, now = new Date(), redis =
         i.scheduled_at,
         i.strength_pct,
         i.base_rate,
-        s.market_date
+        s.market_date,
+        s.market_date::text AS market_day
       FROM market.asset_adjustment_intervals i
       JOIN market.adjustment_sessions s ON s.id = i.session_id
       WHERE s.market_date = $1
@@ -922,8 +976,9 @@ async function forceNextAdjustment(pool, { marketDate, now = new Date(), redis =
       [normalizedMarketDate, target.interval_key, target.scheduled_at]
     );
 
+    const drivers = await loadDrivers(client, intervalsResult.rows, now);
     for (const interval of intervalsResult.rows) {
-      const result = await applyInterval(client, interval, now);
+      const result = await applyInterval(client, interval, now, drivers);
       if (result) {
         applied.push(result);
       } else {
@@ -1130,6 +1185,7 @@ async function getAdjustmentSummary(pool, { recentLimit = 20 } = {}) {
           i.applied_at,
           i.price_before,
           i.price_after,
+          i.reasons_json AS reasons,
           CASE
             WHEN i.price_before IS NULL OR i.price_before = 0 THEN NULL
             ELSE (i.price_after - i.price_before) / i.price_before
@@ -1173,6 +1229,7 @@ async function getAdjustmentSummary(pool, { recentLimit = 20 } = {}) {
         i.applied_at,
         i.price_before,
         i.price_after,
+        i.reasons_json AS reasons,
         CASE
           WHEN i.price_before IS NULL OR i.price_before = 0 THEN NULL
           ELSE (i.price_after - i.price_before) / i.price_before
@@ -1208,6 +1265,7 @@ async function getAdjustmentSummary(pool, { recentLimit = 20 } = {}) {
         i.price_before,
         i.price_after,
         i.metadata_json->>'skip_reason' AS skip_reason,
+        i.reasons_json AS reasons,
         CASE
           WHEN i.price_before IS NULL OR i.price_before = 0 THEN NULL
           ELSE (i.price_after - i.price_before) / i.price_before
@@ -1280,6 +1338,7 @@ async function getAssetAdjustmentHistory(pool, symbol, { limit = 20, recentLimit
         i.price_before,
         i.price_after,
         i.metadata_json->>'skip_reason' AS skip_reason,
+        NULL::jsonb AS reasons,
         CASE
           WHEN i.price_before IS NULL OR i.price_before = 0 THEN NULL
           ELSE (i.price_after - i.price_before) / i.price_before
@@ -1305,6 +1364,7 @@ async function getAssetAdjustmentHistory(pool, symbol, { limit = 20, recentLimit
         i.price_before,
         i.price_after,
         i.metadata_json->>'skip_reason' AS skip_reason,
+        i.reasons_json AS reasons,
         CASE
           WHEN i.price_before IS NULL OR i.price_before = 0 THEN NULL
           ELSE (i.price_after - i.price_before) / i.price_before
@@ -1329,6 +1389,7 @@ async function getAssetAdjustmentHistory(pool, symbol, { limit = 20, recentLimit
       price_before,
       price_after,
       skip_reason,
+      reasons,
       move_pct,
       gap_compression_pct
     FROM (

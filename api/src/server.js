@@ -47,6 +47,9 @@ const v1LinkRoutes = require("./routes/v1Link");
 const notificationRoutes = require("./routes/notifications");
 const predictionMarketsRoutes = require("./routes/predictions");
 const authRoutes = require("./routes/auth");
+const featuresRoutes = require("./routes/features");
+const features = require("./features");
+const { createMarketFanout } = require("./marketFanout");
 const statsRoutes = require("./routes/stats");
 const nasfaqThreadRoutes = require("./routes/nasfaqThread");
 const adminAssetsRoutes = require("./routes/adminAssets");
@@ -70,10 +73,9 @@ function sendWsText(client, payload) {
   client.send(payload, { binary: false, compress: false });
 }
 
-// Market events go out in bundles: everything that arrives within MARKET_BUNDLE_MS becomes one
-// message ({ type: "market.bundle", events: [...] }) for sockets that said they understand bundles,
-// so a batch of fills costs each socket a few sends instead of one per fill. Sending is the cost
-// that grows with sockets × events; older clients still get one message per event.
+// Market events go out in bundles (marketFanout.js): everything that arrives within
+// MARKET_BUNDLE_MS becomes one message for sockets that understand bundles, so a batch of fills
+// costs each socket a few sends instead of one per fill.
 const GAMES_EVENTS_REDIS_CHANNEL = "nasfaq_games:events";
 // Clients only ever send small control messages (subscribe, hello, ping); the ws default is 100 MiB.
 const WS_MAX_PAYLOAD = 16 * 1024;
@@ -83,26 +85,11 @@ const allowLoopbackOrigins = process.env.NODE_ENV !== "production";
 const SHUTDOWN_DRAIN_MS = Number(process.env.SHUTDOWN_DRAIN_MS || 20_000);
 let shuttingDown = false;
 const MARKET_BUNDLE_MS = 100;
-let marketQueue = [];
-let marketFlushTimer = null;
 let marketWssRef = null;
-
-function queueMarketEvent(text) {
-  marketQueue.push(text);
-  if (!marketFlushTimer) marketFlushTimer = setTimeout(flushMarketEvents, MARKET_BUNDLE_MS);
-}
-
-function flushMarketEvents() {
-  marketFlushTimer = null;
-  const events = marketQueue;
-  marketQueue = [];
-  if (!events.length || !marketWssRef) return;
-  const bundle = events.length === 1 ? events[0] : `{"type":"market.bundle","events":[${events.join(",")}]}`;
-  marketWssRef.clients.forEach((client) => {
-    if (client.marketBundles) sendWsText(client, bundle);
-    else for (const text of events) sendWsText(client, text);
-  });
-}
+// queueMarketEvent(text, staffText?): staff sockets get staffText, which can carry fields behind a
+// staff-only feature flag (features.audienceTexts); everyone else gets text.
+const marketFanout = createMarketFanout({ clients: () => marketWssRef?.clients ?? null, send: (client, text) => sendWsText(client, text), bundleMs: MARKET_BUNDLE_MS });
+const queueMarketEvent = marketFanout.queue;
 
 function safeParseJSON(s) {
   try {
@@ -304,6 +291,7 @@ app.use("/api/channels", requireUploader((user) => user?.is_admin), express.json
 app.use(express.json({ limit: "1mb" }));
 
 api.use("/auth", authRoutes);
+api.use("/features", featuresRoutes);
 
 app.use("/internal/market", internalMarketRoutes);
 app.use("/internal/site", internalSiteRoutes);
@@ -774,6 +762,8 @@ async function main() {
   const online = presence.startPresence({ redis, wss: marketWss, send: sendWsText, broadcast: queueMarketEvent });
   marketWss.on("connection", (ws, req) => {
     ws.visitor = presence.visitorKey(req?.marketUser);
+    // Staff sockets get the fields behind staff-only feature flags (queueMarketEvent).
+    ws.marketStaff = features.audienceOf(req?.marketUser) === "staff";
     void online.welcome(ws);
     ws.on("message", (raw) => {
       const hello = safeParseJSON(String(raw).slice(0, 512));
@@ -880,7 +870,7 @@ async function main() {
         req.gamesUser = await authService.getAuthenticatedUser(pool, req).catch(() => null);
       }
       if (target === marketWss) {
-        // Only so a signed-in player with several tabs counts once as online.
+        // So a signed-in player with several tabs counts once as online, and staff get staff-only fields.
         req.marketUser = await authService.getAuthenticatedUser(pool, req).catch(() => null);
       }
       target.handleUpgrade(req, socket, head, (ws) => {
@@ -941,12 +931,14 @@ async function main() {
   });
   await redisSub.subscribe(MARKET_EVENTS_REDIS_CHANNEL, (message) => {
     // Every market socket is public: strip fair value and premiums (the hidden tick target) from
-    // settlement, tick and fill events before they go out.
+    // settlement, tick and fill events before they go out. Fields behind a feature flag go only to
+    // the sockets of viewers who have it (each tick's reasons, while tick-reasons is staff-only).
     const parsed = safeParseJSON(String(message));
     if (!parsed) return;
     // Maintenance and releases ride this channel too: this process hears them, then every page does.
     if (parsed.type === siteState.SITE_EVENT) siteState.applyEvent(parsed.site);
-    queueMarketEvent(JSON.stringify(scrubPublicMarketPayload(parsed)));
+    const texts = features.audienceTexts(scrubPublicMarketPayload(parsed));
+    queueMarketEvent(texts.everyone, texts.staff);
   });
   // Signed out everywhere, or a new password: that player's sockets reconnect as whoever they now are.
   await redisSub.subscribe(authService.SESSIONS_REVOKED_CHANNEL, (message) => {
