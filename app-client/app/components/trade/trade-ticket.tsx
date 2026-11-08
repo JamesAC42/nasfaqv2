@@ -6,10 +6,11 @@ import { ArtSlot } from "@/app/components/common/art-slot";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { apiFetch } from "@/app/lib/api";
-import { formatEtTime, getMarketClock } from "@/app/lib/market-clock";
+import { formatEtTime, getMarketClock, ORDER_BATCH_MS } from "@/app/lib/market-clock";
 import { money } from "@/app/lib/time";
 import { buildTradeConfirmation, getTradeFailureNotice, type TradeConfirmation, type TradeExecutionResult, type TradeFailureNotice, type TradeSide } from "@/app/lib/trade";
 import type { MarketAsset } from "@/app/lib/types";
+import { useNowEvery } from "@/app/lib/use-now";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMotion } from "@/app/providers/motion-provider";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -152,6 +153,12 @@ export function TradeTicket({
   // A stock frozen for a buyback can only be sold (to the broker), so the ticket opens on Sell.
   const startSide: TradeSide = asset.trading_state === "buyback" ? "sell" : initialSide;
   const [side, setSide] = useState<TradeSide>(startSide);
+  // A buyback starting or ending while the ticket is open moves it to the new starting side.
+  const [seenStartSide, setSeenStartSide] = useState(startSide);
+  if (seenStartSide !== startSide) {
+    setSeenStartSide(startSide);
+    setSide(startSide);
+  }
   const [quantity, setQuantity] = useState("25");
   const [lastPreset, setLastPreset] = useState<number | null>(null);
   const [doubts, setDoubts] = useState({ order: "", count: 0 });
@@ -163,7 +170,6 @@ export function TradeTicket({
 
   // Whatever floats over the page (the chat window) moves off the ticket as soon as it's there.
   useEffect(() => announceKeepClear(), []);
-  useEffect(() => setSide(startSide), [startSide]);
   useEffect(() => {
     if (!autoFocus) return;
     const id = window.setTimeout(() => qtyInput.current?.focus(), 60);
@@ -189,7 +195,7 @@ export function TradeTicket({
   const total = side === "buy" ? gross + fee - feeFromCredit : gross - (fee - feeFromCredit);
   const creditEarned = side === "sell" ? gross * (portfolio?.economy?.sell_credit_rate ?? 0) : 0;
   const tradingOpen = marketStatus?.is_trading_open ?? true;
-  const clock = getMarketClock(Date.now());
+  const clock = getMarketClock(useNowEvery(ORDER_BATCH_MS));
   const batchAt = asset.next_live_order_execute_after ? new Date(asset.next_live_order_execute_after) : clock.nextBatchAt;
   const queuedAhead = asset.pending_live_order_count ?? 0;
   const canSell = (holding?.quantity ?? 0) > 0;

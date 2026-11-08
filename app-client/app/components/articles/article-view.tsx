@@ -79,6 +79,7 @@ export function ArticleView({ slug }: { slug: string }) {
   }, [slug]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a fetch's loading state: load() turns it on as the request goes out.
     void load();
   }, [load]);
 

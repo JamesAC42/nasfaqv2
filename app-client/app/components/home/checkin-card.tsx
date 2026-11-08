@@ -46,19 +46,21 @@ export function CheckinCard() {
   const [error, setError] = useState<string | null>(null);
   const [justClaimed, setJustClaimed] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      setData(await apiFetch<Checkin>("/api/market/me/checkin", { cache: "no-store" }));
-    } catch {
-      /* keep what we had */
-    }
-  }, []);
+  // Signed out or switched off: drop the last player's card.
+  if ((!user || !enabled) && data) setData(null);
+
+  const load = useCallback(
+    () =>
+      apiFetch<Checkin>("/api/market/me/checkin", { cache: "no-store" })
+        .then(setData)
+        .catch(() => {
+          /* keep what we had */
+        }),
+    [],
+  );
 
   useEffect(() => {
-    if (!user || !enabled) {
-      setData(null);
-      return;
-    }
+    if (!user || !enabled) return;
     void load();
     // A trade on another page (or a new day) shows when the player comes back.
     const onVisible = () => document.visibilityState === "visible" && void load();

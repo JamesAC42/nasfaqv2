@@ -295,6 +295,7 @@ function LiveCard({ item, asset, now, onOpen }: { item: LivestreamItem; asset: M
 
 // ── Schedule ─────────────────────────────────────────────────────────────
 function Schedule({ items, assets, now, onOpen }: { items: LivestreamItem[]; assets: MarketAsset[]; now: number; onOpen: (item: LivestreamItem) => void }) {
+  const minute = Math.floor(now / 60_000);
   const groups = useMemo(() => {
     const out: Array<{ heading: string; items: LivestreamItem[] }> = [];
     for (const item of items) {
@@ -307,7 +308,7 @@ function Schedule({ items, assets, now, onOpen }: { items: LivestreamItem[]; ass
     return out.sort((a, b) => (a.heading === "Waiting to start" ? -1 : b.heading === "Waiting to start" ? 1 : 0));
     // `now` ticks each second; day headings only change at midnight.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, Math.floor(now / 60_000)]);
+  }, [items, minute]);
 
   return (
     <div className={styles.schedule}>

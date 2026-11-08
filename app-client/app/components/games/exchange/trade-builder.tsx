@@ -60,21 +60,21 @@ export function TradeBuilder() {
       .catch(() => setMyItems([]));
   }, [user]);
 
-  const loadPartner = async (username: string) => {
-    setError(null);
-    try {
-      const result = await fetchTradeableCards(username);
-      if (user && result.user.username.toLowerCase() === user.username.toLowerCase()) {
-        setError("That's you. Pick someone else to trade with.");
-        return;
-      }
-      setPartner(result.user);
-      setTheirPool(result.cards);
-      setTheirItems(result.items ?? []);
-    } catch (reason) {
-      setError(gameErrorText(reason) === "trade partner not found" ? `No player called “${username}”.` : gameErrorText(reason));
-    }
-  };
+  const loadPartner = (username: string) =>
+    fetchTradeableCards(username)
+      .then((result) => {
+        if (user && result.user.username.toLowerCase() === user.username.toLowerCase()) {
+          setError("That's you. Pick someone else to trade with.");
+          return;
+        }
+        setError(null);
+        setPartner(result.user);
+        setTheirPool(result.cards);
+        setTheirItems(result.items ?? []);
+      })
+      .catch((reason) => {
+        setError(gameErrorText(reason) === "trade partner not found" ? `No player called “${username}”.` : gameErrorText(reason));
+      });
 
   // Countering: your side is what they asked of you, theirs is what they offered; edit from there.
   useEffect(() => {
@@ -169,7 +169,9 @@ export function TradeBuilder() {
           className={styles.partnerBar}
           onSubmit={(event) => {
             event.preventDefault();
-            if (partnerInput.trim()) void loadPartner(partnerInput.trim());
+            if (!partnerInput.trim()) return;
+            setError(null);
+            void loadPartner(partnerInput.trim());
           }}
         >
           <label className={styles.field}>

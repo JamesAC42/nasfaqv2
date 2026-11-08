@@ -54,26 +54,24 @@ export function ArticleEditor({ mode, slug }: { mode: "create" | "edit"; slug?: 
   const router = useRouter();
   const { user, initialized, isLoading: authLoading } = useAuth();
   const assets = useMarketStore((state) => state.assets);
-  const [title, setTitle] = useState("");
-  const [subtitle, setSubtitle] = useState("");
-  const [thumbnailUrl, setThumbnailUrl] = useState("");
-  const [tagText, setTagText] = useState("");
-  const [content, setContent] = useState("");
-  const [status, setStatus] = useState("published");
-  const [assetIds, setAssetIds] = useState<number[]>([]);
+  // The form only renders once the session check below has passed, so nothing here shows during hydration and
+  // the browser-only draft and screen width can be read as it mounts.
+  const [draft] = useState(() => (mode === "create" ? readDraft() : null));
+  const [title, setTitle] = useState(draft?.title ?? "");
+  const [subtitle, setSubtitle] = useState(draft?.subtitle ?? "");
+  const [thumbnailUrl, setThumbnailUrl] = useState(draft?.thumbnailUrl ?? "");
+  const [tagText, setTagText] = useState(draft?.tagText ?? "");
+  const [content, setContent] = useState(draft?.content ?? "");
+  const [status, setStatus] = useState(draft?.status ?? "published");
+  const [assetIds, setAssetIds] = useState<number[]>(draft?.selectedAssetIds ?? []);
   const [ticker, setTicker] = useState("");
   const [original, setOriginal] = useState<ArticleDetail | null>(null);
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [restored, setRestored] = useState(mode !== "create");
-  const [savedAt, setSavedAt] = useState<string | null>(null);
-  const [view, setView] = useState<View>("split");
+  const [savedAt, setSavedAt] = useState<string | null>(draft?.savedAt || null);
+  const [view, setView] = useState<View>(() => (typeof window !== "undefined" && window.matchMedia("(max-width: 1020px)").matches ? "write" : "split"));
   const [discard, setDiscard] = useState(false);
-
-  useEffect(() => {
-    if (window.matchMedia("(max-width: 1020px)").matches) setView("write");
-  }, []);
 
   useEffect(() => {
     if (mode !== "edit" || !slug) return;
@@ -100,22 +98,6 @@ export function ArticleEditor({ mode, slug }: { mode: "create" | "edit"; slug?: 
 
   useEffect(() => {
     if (mode !== "create") return;
-    const draft = readDraft();
-    if (draft) {
-      setTitle(draft.title);
-      setSubtitle(draft.subtitle);
-      setThumbnailUrl(draft.thumbnailUrl);
-      setTagText(draft.tagText);
-      setContent(draft.content);
-      setStatus(draft.status);
-      setAssetIds(draft.selectedAssetIds);
-      setSavedAt(draft.savedAt || null);
-    }
-    setRestored(true);
-  }, [mode]);
-
-  useEffect(() => {
-    if (mode !== "create" || !restored) return;
     const id = window.setTimeout(() => {
       const empty = !(title.trim() || subtitle.trim() || thumbnailUrl.trim() || tagText.trim() || content.trim() || assetIds.length);
       if (empty) {
@@ -128,7 +110,7 @@ export function ArticleEditor({ mode, slug }: { mode: "create" | "edit"; slug?: 
       setSavedAt(at);
     }, 600);
     return () => window.clearTimeout(id);
-  }, [assetIds, content, mode, restored, status, subtitle, tagText, thumbnailUrl, title]);
+  }, [assetIds, content, mode, status, subtitle, tagText, thumbnailUrl, title]);
 
   const selected = useMemo(() => assetIds.map((id) => assets.find((asset) => asset.id === id)).filter((asset): asset is NonNullable<typeof asset> => Boolean(asset)), [assetIds, assets]);
   const words = content.trim() ? content.trim().split(/\s+/).length : 0;

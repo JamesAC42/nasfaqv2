@@ -97,6 +97,12 @@ export function FloatingChat() {
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [unseen, setUnseen] = useState(0);
+  // Another room starts with nothing unseen.
+  const [unseenRoom, setUnseenRoom] = useState(roomKey);
+  if (unseenRoom !== roomKey) {
+    setUnseenRoom(roomKey);
+    setUnseen(0);
+  }
   const [dragging, setDragging] = useState(false);
 
   const box = useRef<HTMLElement | null>(null);
@@ -109,6 +115,7 @@ export function FloatingChat() {
   // A layout effect so it's current before any effect below loads the room.
   useLayoutEffect(() => {
     liveKey.current = roomKey;
+    pending.current = [];
   }, [roomKey]);
 
   const markRead = useReadReceipts(viewerId, roomKey);
@@ -235,31 +242,32 @@ export function FloatingChat() {
 
   // ── The room itself ─────────────────────────────────────────────────────
   const loadedKeyRef = useRef<string | null>(null);
-  const loadLatest = useCallback(async (key: string) => {
-    try {
-      const page = await apiFetch<Page>(`/api/chat/channels/${encodeURIComponent(key)}/messages?limit=${FIRST_PAGE}`);
-      if (liveKey.current !== key) return;
-      const fresh = (page.messages || []).map(normalizeChatMessage);
-      const el = list.current;
-      if (el && el.scrollHeight - el.clientHeight - el.scrollTop < 40) stick.current = true;
-      const sameRoom = loadedKeyRef.current === key;
-      loadedKeyRef.current = key;
-      setCurrent(normalizeChatChannel(page.channel));
-      setMessages((existing) => merge(sameRoom ? existing : [], fresh));
-      setLoadedKey(key);
-      setError(null);
-    } catch (reason) {
-      if (liveKey.current !== key) return;
-      setError(String((reason as Error).message || reason));
-      loadedKeyRef.current = key;
-      setLoadedKey(key);
-    }
-  }, []);
+  const loadLatest = useCallback(
+    (key: string) =>
+      apiFetch<Page>(`/api/chat/channels/${encodeURIComponent(key)}/messages?limit=${FIRST_PAGE}`)
+        .then((page) => {
+          if (liveKey.current !== key) return;
+          const fresh = (page.messages || []).map(normalizeChatMessage);
+          const el = list.current;
+          if (el && el.scrollHeight - el.clientHeight - el.scrollTop < 40) stick.current = true;
+          const sameRoom = loadedKeyRef.current === key;
+          loadedKeyRef.current = key;
+          setCurrent(normalizeChatChannel(page.channel));
+          setMessages((existing) => merge(sameRoom ? existing : [], fresh));
+          setLoadedKey(key);
+          setError(null);
+        })
+        .catch((reason) => {
+          if (liveKey.current !== key) return;
+          setError(String((reason as Error).message || reason));
+          loadedKeyRef.current = key;
+          setLoadedKey(key);
+        }),
+    [],
+  );
 
   useEffect(() => {
     stick.current = true;
-    setUnseen(0);
-    pending.current = [];
     void loadLatest(roomKey);
     const release = retainChatRooms([roomKey]);
     return release;

@@ -5,7 +5,7 @@ import { ReactionFace } from "@/app/components/common/reaction-face";
 import { parseSticker } from "@/app/lib/stickers";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { RichText, type Emoji } from "@/app/components/common/rich-text";
@@ -23,6 +23,7 @@ import { normalizeChatChannel, normalizeChatMessage } from "@/app/lib/normalizer
 import { money, signedPct, timeAgo, toneOf } from "@/app/lib/time";
 import type { AuthUser, ChatChannel, ChatMessage, MarketAsset } from "@/app/lib/types";
 import { useReadReceipts } from "@/app/lib/use-read-receipts";
+import { useStoredState } from "@/app/lib/use-stored-state";
 import { useAuth } from "@/app/providers/auth-provider";
 import { notePosted, setForegroundRoom, useChatNotifyStore } from "@/app/stores/chat-notify-store";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -37,22 +38,8 @@ const GROUP_MS = 5 * 60_000;
 /** Pages of 50 a reconnect fetches to close the gap before giving up and starting the room over. */
 const CATCH_UP_PAGES = 5;
 
-function readPins(): string[] {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(PINS_KEY) || "[]");
-    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writePins(keys: string[]) {
-  try {
-    window.localStorage.setItem(PINS_KEY, JSON.stringify(keys));
-  } catch {
-    /* storage blocked */
-  }
-}
+const NO_PINS: string[] = [];
+const parsePins = (stored: unknown) => (Array.isArray(stored) ? stored.map(String).filter(Boolean) : null);
 
 function upsert(list: ChatMessage[], message: ChatMessage) {
   const index = list.findIndex((item) => item.id === message.id);
@@ -100,7 +87,7 @@ export function ChatApp() {
   const [loadingRooms, setLoadingRooms] = useState(true);
   const [roomsError, setRoomsError] = useState<string | null>(null);
   const [emojis, setEmojis] = useState<Emoji[]>([]);
-  const [pins, setPins] = useState<string[]>([]);
+  const [pins, setPins] = useStoredState(PINS_KEY, NO_PINS, { parse: parsePins });
   const [filter, setFilter] = useState("");
   const [drawer, setDrawer] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
@@ -133,13 +120,15 @@ export function ChatApp() {
   const rooms = useMemo(() => buildRooms(channels, assets), [assets, channels]);
   const room = useMemo(() => rooms.find((entry) => entry.key === activeKey) ?? rooms[0] ?? null, [activeKey, rooms]);
   const roomKey = room?.key ?? null;
-  activeRef.current = roomKey;
-  messagesRef.current = messages;
+  // A layout effect so these are current before any effect below, and before any socket message or click.
+  useLayoutEffect(() => {
+    activeRef.current = roomKey;
+    messagesRef.current = messages;
+  }, [messages, roomKey]);
   const shown = useMemo(() => (roomKey && roomKey === loadedKey ? messages : []), [loadedKey, messages, roomKey]);
 
-  // Rooms, emoji and pins.
+  // Rooms and emoji.
   useEffect(() => {
-    setPins(readPins());
     let cancelled = false;
     apiFetch<{ channels: Array<Record<string, unknown>> }>("/api/chat/channels")
       .then((raw) => !cancelled && setChannels((raw.channels || []).map(normalizeChatChannel)))
@@ -200,6 +189,7 @@ export function ChatApp() {
   useEffect(() => {
     if (!roomKey) return;
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a fetch's loading state: on for the request this effect sends.
     setLoadingMessages(true);
     setMessagesError(null);
     setUnseen(0);
@@ -259,7 +249,9 @@ export function ChatApp() {
 
   // Ranks and net worth move all day: refresh the badges we've shown every few minutes.
   const worthIds = useRef<number[]>([]);
-  worthIds.current = Object.keys(worth).map(Number);
+  useEffect(() => {
+    worthIds.current = Object.keys(worth).map(Number);
+  }, [worth]);
   useEffect(() => {
     const timer = window.setInterval(() => {
       if (document.hidden) return;
@@ -473,12 +465,7 @@ export function ChatApp() {
     [markRead, room],
   );
 
-  const togglePin = (key: string) =>
-    setPins((current) => {
-      const next = current.includes(key) ? current.filter((item) => item !== key) : [key, ...current];
-      writePins(next);
-      return next;
-    });
+  const togglePin = (key: string) => setPins((current) => (current.includes(key) ? current.filter((item) => item !== key) : [key, ...current]));
 
   const usernames = useMemo(() => [...new Set(shown.map((message) => message.author?.username).filter((name): name is string => Boolean(name)))].sort((a, b) => a.localeCompare(b)), [shown]);
   const voices = useMemo(() => {

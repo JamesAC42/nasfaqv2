@@ -150,20 +150,24 @@ export function SettingsModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    setName(profile.username);
-    setBio(profile.bio ?? "");
-    setColor(profile.profile_color || "#3FB8F5");
-    setOshi(profile.oshi_coin?.symbol ?? "");
-    setBanner(profile.profile_banner?.symbol ?? "");
-    setError(null);
-  }, [open, profile]);
+  // Opening it, or the profile changing while it's open, starts the form over from the profile.
+  const [formFor, setFormFor] = useState({ open, profile });
+  if (formFor.open !== open || formFor.profile !== profile) {
+    setFormFor({ open, profile });
+    if (open) {
+      setName(profile.username);
+      setBio(profile.bio ?? "");
+      setColor(profile.profile_color || "#3FB8F5");
+      setOshi(profile.oshi_coin?.symbol ?? "");
+      setBanner(profile.profile_banner?.symbol ?? "");
+      setError(null);
+      if (!formFor.open) setThemes(null);
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    setThemes(null);
     apiFetch<Record<string, unknown>>("/api/games/me/inventory")
       .then((raw) => {
         if (cancelled) return;

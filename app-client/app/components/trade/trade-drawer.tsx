@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { n2, TradeTicket } from "@/app/components/trade/trade-ticket";
@@ -31,7 +31,6 @@ export function TradeDrawer() {
   const { user } = useAuth();
   const { theme } = useTheme();
   const returnFocus = useRef<HTMLElement | null>(null);
-  const [session, setSession] = useState(0);
 
   // Opened on another page: the shell (and this drawer) was remounted by the navigation. Don't
   // show it here, and close it.
@@ -47,7 +46,6 @@ export function TradeDrawer() {
   useEffect(() => {
     if (!symbol) return;
     returnFocus.current = document.activeElement as HTMLElement | null;
-    setSession((value) => value + 1);
   }, [initialSide, symbol]);
 
   useEffect(() => {
@@ -134,7 +132,7 @@ export function TradeDrawer() {
           </div>
         ) : null}
 
-        <TradeTicket key={`${symbol}:${session}`} asset={asset} initialSide={initialSide} autoFocus onClose={close} onFilled={closeTrade} artSize="small" />
+        <TradeTicket key={`${symbol}:${initialSide}`} asset={asset} initialSide={initialSide} autoFocus onClose={close} onFilled={closeTrade} artSize="small" />
         <footer className={styles.foot}>
           <Link href={`/stocks/${encodeURIComponent(asset.symbol)}`} onClick={close}>
             Open the {asset.symbol} dossier →

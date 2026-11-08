@@ -169,7 +169,6 @@ type RoomProps = {
 /** Puts her banner behind your profile header (also in Edit profile → Banner). */
 function UseBanner({ symbol }: { symbol: string }) {
   const [state, setState] = useState<"idle" | "busy" | "done" | "error">("idle");
-  useEffect(() => setState("idle"), [symbol]);
   const use = async () => {
     setState("busy");
     try {

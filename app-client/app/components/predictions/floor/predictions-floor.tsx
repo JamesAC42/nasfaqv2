@@ -80,8 +80,13 @@ export function PredictionsFloor() {
   const [portfolio, setPortfolio] = useState<Portfolio | null | undefined>(undefined);
   const [live, setLive] = useState<{ count: number; volume: number } | null>(null);
 
-  // Everything we know about markets (any tab, plus the tape), for titles and colours on the tape.
+  // Signed out: forget the last player's bets.
+  if (!username && portfolio !== undefined) setPortfolio(undefined);
+
+  // Everything we know about markets (any tab, plus the tape), for titles and colors on the tape.
   const known = useRef(new Map<string, { title: string; market?: PredictionMarket }>());
+  // A copy of `known` to color the tape from during render, taken whenever a load adds markets to it.
+  const [knownForTape, setKnownForTape] = useState<ReadonlyMap<string, { market?: PredictionMarket }>>(() => new Map());
   const request = useRef(0);
   const flashCounter = useRef(0);
 
@@ -94,6 +99,7 @@ export function PredictionsFloor() {
         const result = await fetchFloor({ tab, category: category || undefined, q: q || undefined, limit: PAGE_SIZE * pages });
         if (id !== request.current) return;
         for (const market of result.items) known.current.set(market.slug, { title: market.title, market });
+        setKnownForTape(new Map(known.current));
         setMarkets(result.items);
         setTotal(result.pagination.total);
         if (result.counts) setCounts(result.counts);
@@ -109,17 +115,21 @@ export function PredictionsFloor() {
     [tab, category, q, pages],
   );
 
-  const loadLive = useCallback(async () => {
-    try {
-      const result = await fetchFloor({ tab: "live", limit: 100 });
-      for (const market of result.items) if (!known.current.get(market.slug)?.market) known.current.set(market.slug, { title: market.title, market });
-      setLive({ count: result.pagination.total, volume: result.items.reduce((sum, market) => sum + market.volume_24h, 0) });
-    } catch {
-      // The blurb just keeps its last numbers.
-    }
-  }, []);
+  const loadLive = useCallback(
+    () =>
+      fetchFloor({ tab: "live", limit: 100 })
+        .then((result) => {
+          for (const market of result.items) if (!known.current.get(market.slug)?.market) known.current.set(market.slug, { title: market.title, market });
+          setKnownForTape(new Map(known.current));
+          setLive({ count: result.pagination.total, volume: result.items.reduce((sum, market) => sum + market.volume_24h, 0) });
+        })
+        .catch(() => {
+          // The blurb just keeps its last numbers.
+        }),
+    [],
+  );
 
-  const loadSide = useCallback(async () => {
+  const loadSide = useCallback(() => {
     fetchForecasters(8)
       .then((result) => setForecasters(result.forecasters))
       .catch(() => setForecasters((rows) => rows ?? []));
@@ -127,7 +137,7 @@ export function PredictionsFloor() {
       fetchPortfolio()
         .then(setPortfolio)
         .catch(() => setPortfolio((current) => current ?? null));
-    } else setPortfolio(undefined);
+    }
   }, [username]);
 
   const loadTape = useCallback(() => {
@@ -153,6 +163,7 @@ export function PredictionsFloor() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a fetch's loading state: loadMarkets() turns it on as the request goes out.
     void loadMarkets();
   }, [loadMarkets]);
 
@@ -165,7 +176,7 @@ export function PredictionsFloor() {
   }, [loadLive, loadTape]);
 
   useEffect(() => {
-    void loadSide();
+    loadSide();
   }, [loadSide]);
 
   // Debounced search.
@@ -195,7 +206,7 @@ export function PredictionsFloor() {
       refetchTimer.current = null;
       void loadMarkets(true);
       void loadLive();
-      void loadSide();
+      loadSide();
     }, 700);
   }, [loadMarkets, loadLive, loadSide]);
   useEffect(() => () => {
@@ -276,13 +287,8 @@ export function PredictionsFloor() {
   }, catchUp);
 
   // ── Derived ─────────────────────────────────────────────────────────────
-  // Colours resolve late: the tape can arrive before the markets it mentions.
-  const tapeItems = useMemo(
-    () => tape?.map((item) => ({ ...item, color: tapeColor(known.current.get(item.slug)?.market, item.outcome_code) })) ?? null,
-    // `markets` and `live` refresh what `known` holds.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tape, markets, live],
-  );
+  // Colors resolve late: the tape can arrive before the markets it mentions.
+  const tapeItems = useMemo(() => tape?.map((item) => ({ ...item, color: tapeColor(knownForTape.get(item.slug)?.market, item.outcome_code) })) ?? null, [tape, knownForTape]);
   const hasMore = markets !== null && markets.length < total;
   const pools = usePoolAccess();
   const blurb = useMemo(() => {

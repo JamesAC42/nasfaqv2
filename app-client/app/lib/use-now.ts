@@ -39,3 +39,13 @@ function getServerSnapshot() {
 export function useNow(): number | null {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
+
+/**
+ * The time rounded down to `stepMs`, for values that only change at a boundary: it re-renders when
+ * the step rolls over, not every second. Unlike useNow it has a value during SSR and hydration, so
+ * keep it behind a session gate or in text marked suppressHydrationWarning.
+ */
+export function useNowEvery(stepMs: number): number {
+  const read = () => Math.floor(Date.now() / stepMs) * stepMs;
+  return useSyncExternalStore(subscribe, read, read);
+}

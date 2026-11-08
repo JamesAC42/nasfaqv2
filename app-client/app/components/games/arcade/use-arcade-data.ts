@@ -142,11 +142,13 @@ export function useMySeats(userId: string | number | null | undefined, lobbies: 
   const [mine, setMine] = useState<GameTable[] | null>(null);
   const [bjSeats, setBjSeats] = useState<MySeat[]>([]);
 
+  // Signed out, or nobody at the blackjack tables: drop what's held so it can't show again later.
+  const bjOccupied = (blackjack ?? []).filter((row) => row.seated > 0);
+  if (!me && mine !== null) setMine(null);
+  if ((!me || !bjOccupied.length) && bjSeats.length) setBjSeats([]);
+
   useEffect(() => {
-    if (!me) {
-      setMine(null);
-      return;
-    }
+    if (!me) return;
     let alive = true;
     fetchMyTables()
       .then((result) => {
@@ -160,17 +162,9 @@ export function useMySeats(userId: string | number | null | undefined, lobbies: 
 
   const bjSignature = (blackjack ?? []).map((row) => `${row.key}:${row.seated}`).join(",");
   useEffect(() => {
-    if (!me || !blackjack) {
-      setBjSeats([]);
-      return;
-    }
-    const occupied = blackjack.filter((row) => row.seated > 0);
-    if (!occupied.length) {
-      setBjSeats([]);
-      return;
-    }
+    if (!me || !bjOccupied.length) return;
     let alive = true;
-    Promise.all(occupied.map((row) => fetchBlackjackTable(row.key).catch(() => null))).then((results) => {
+    Promise.all(bjOccupied.map((row) => fetchBlackjackTable(row.key).catch(() => null))).then((results) => {
       if (!alive) return;
       const seats: MySeat[] = [];
       for (const result of results) {

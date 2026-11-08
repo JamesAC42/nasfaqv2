@@ -149,9 +149,11 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
 
   // Clear a stale error when the table moves on to a new phase.
   const phaseKey = table ? `${table.phase}:${table.round_id}:${table.turn}` : "";
-  useEffect(() => {
+  const [errorPhase, setErrorPhase] = useState(phaseKey);
+  if (errorPhase !== phaseKey) {
+    setErrorPhase(phaseKey);
     setError(null);
-  }, [phaseKey]);
+  }
 
   // ── Session tally, idle notices, cash refresh ─────────────────────────────
   const counted = useRef(new Set<number>());
@@ -181,6 +183,7 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
     if (!before) return;
     // Cards went out and we had no chips down: the server counts that as a skipped round.
     if (before.phase === "betting" && table.phase === "playing") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- the table comes off the socket: this counts a change between two of its pushes, which only shows up here.
       if (mySeat && mySeat.bet === 0) setSkipped((count) => count + 1);
       if (before.seated && !mySeat && !leftOnPurpose.current) {
         setKicked(true);
