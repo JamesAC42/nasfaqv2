@@ -10,15 +10,15 @@
 //     amounts, holdings or balances.
 //
 // Players the site keeps out of the spotlight get no headline: unverified emails (the leaderboards'
-// bar, so an alt can't fill the feed), suspensions (moderation.js) and site-wide chat bans. The
-// Wire's reads check the same rules again (visibleSql), so a headline disappears if its player is
-// suspended or banned later. A player who keeps switching gets at most PER_PLAYER_DAY headlines in
-// any 24 hours.
+// bar, so an alt can't fill the feed), suspensions (moderation.js) and site-wide chat bans, the
+// rule every Wire headline that names a player follows (players.js). The Wire's reads check it
+// again, so a headline disappears if its player is suspended or banned later. A player who keeps
+// switching gets at most PER_PLAYER_DAY headlines in any 24 hours.
 //
 // Generated for everyone; only viewers with the oshi-wire flag are sent them (routes/overview.js).
 
 const crypto = require("node:crypto");
-const { leaderboardPlayerSql } = require("../moderation");
+const { headlinePlayerSql } = require("./players");
 
 const KIND = "oshi_change";
 const LOOKBACK_HOURS = 48;
@@ -36,16 +36,7 @@ const ordinal = (n) => {
 };
 const fill = (template, values) => template.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? "");
 
-/** SQL that's true when the player `userIdSql` points at may be named in a headline. */
-function headlinePlayerSql(userIdSql) {
-  return `(${leaderboardPlayerSql(userIdSql)} AND NOT EXISTS (
-    SELECT 1 FROM chat.user_moderation_actions cb
-    WHERE cb.user_id = ${userIdSql} AND cb.action_type = 'ban' AND cb.channel_id IS NULL
-      AND cb.revoked_at IS NULL AND (cb.expires_at IS NULL OR cb.expires_at > now())
-  ))`;
-}
-
-/** For the Wire's reads: true for every item except an oshi move whose player may no longer be named. */
+/** For the Wire's reads: true for every item except an oshi move whose player may no longer be named (players.visibleSql covers it too). */
 const visibleSql = () => `(kind <> '${KIND}' OR ${headlinePlayerSql("(meta->>'user_id')::bigint")})`;
 
 /**
@@ -155,4 +146,4 @@ async function oshiMoves(pool, upsert) {
   return { items: added };
 }
 
-module.exports = { BUY_IN_CASH, KIND, PER_PLAYER_DAY, SWITCH_WINDOW_DAYS, headlinePlayerSql, oshiHeadline, oshiItem, oshiMoves, ordinal, visibleSql };
+module.exports = { BUY_IN_CASH, KIND, PER_PLAYER_DAY, SWITCH_WINDOW_DAYS, oshiHeadline, oshiItem, oshiMoves, ordinal, visibleSql };
