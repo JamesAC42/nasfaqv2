@@ -33,6 +33,7 @@ import { useFeature } from "@/app/lib/features";
 import { normalizePredictionPortfolioResponse, normalizeProfileBundle } from "@/app/lib/normalizers";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct, toneOf } from "@/app/lib/time";
+import { useNowEvery } from "@/app/lib/use-now";
 import type { PredictionPortfolioResponse, ProfileBundle } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useTheme } from "@/app/providers/theme-provider";
@@ -58,6 +59,7 @@ export function ProfileView({ username }: { username?: string | null }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [predictions, setPredictions] = useState<PredictionPortfolioResponse | null>(null);
   const [modal, setModal] = useState<"settings" | "picture" | "security" | null>(null);
+  const thisMinute = useNowEvery(60_000);
 
   const base = username ? `/api/profiles/${enc(username)}` : "/api/profiles/me";
   const revision = username ? 0 : tradingRevision;
@@ -70,6 +72,7 @@ export function ProfileView({ username }: { username?: string | null }) {
 
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a fetch's loading state: on for the request this effect sends.
     setLoading(true);
     setError(null);
     load()
@@ -95,14 +98,15 @@ export function ProfileView({ username }: { username?: string | null }) {
     params.delete("edit");
     const rest = params.toString();
     window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the flag lives in the URL, and whose profile this is only arrives with the fetch.
     setModal("settings");
   }, [isSelf]);
 
+  // Not your profile: don't keep your bets around.
+  if (!isSelf && predictions) setPredictions(null);
+
   useEffect(() => {
-    if (!isSelf) {
-      setPredictions(null);
-      return;
-    }
+    if (!isSelf) return;
     let cancelled = false;
     apiFetch<Record<string, unknown>>("/api/portfolio/me/predictions")
       .then((raw) => !cancelled && setPredictions(normalizePredictionPortfolioResponse(raw)))
@@ -165,7 +169,7 @@ export function ProfileView({ username }: { username?: string | null }) {
   const oshiAsset = oshi ? assets.find((asset) => asset.symbol.toUpperCase() === oshi.symbol.toUpperCase()) : undefined;
   const allTime = profile.stats.total_equity - (profile.stats.starting_net_worth ?? START_CASH);
   const history = profile.networth_history;
-  const dayAgo = [...history].reverse().find((point) => Date.parse(point.recorded_at) <= Date.now() - 86_400_000);
+  const dayAgo = [...history].reverse().find((point) => Date.parse(point.recorded_at) <= thisMinute - 86_400_000);
   const today = dayAgo && dayAgo.total_equity ? profile.stats.total_equity / dayAgo.total_equity - 1 : null;
   const verify = isSelf && userNeedsEmailVerification(user);
   // v1 Classic dresses the whole page as the old site, which had no price tape or footer.

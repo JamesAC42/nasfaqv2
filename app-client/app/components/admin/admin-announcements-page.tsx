@@ -17,6 +17,7 @@ import { AdminFrame, AdminGate, AdminLoading, useAdminAccess } from "@/app/compo
 import { Notice, Section, adminErrorText, adminUi as ui, etTime, fmtCount } from "@/app/components/admin/admin-ui";
 import { AnnouncementCard } from "@/app/components/common/announcement-popup";
 import { apiErrorCode, type ApiError } from "@/app/lib/api";
+import { useNowEvery } from "@/app/lib/use-now";
 import styles from "@/app/components/admin/admin-announcements-page.module.scss";
 
 const TITLE_MAX = 120;
@@ -122,6 +123,7 @@ export function AdminAnnouncementsPage() {
   const [saved, setSaved] = useState<string | null>(null);
   const [armed, setArmed] = useState<number | null>(null);
   const titleField = useRef<HTMLInputElement>(null);
+  const thisMinute = useNowEvery(60_000);
 
   const load = useCallback(async () => {
     try {
@@ -181,7 +183,8 @@ export function AdminAnnouncementsPage() {
     }
   };
 
-  const startsLater = Boolean(form.starts_at) && new Date(form.starts_at).getTime() > Date.now();
+  // The field has minute precision, so comparing against the minute gives the same answer as the exact time.
+  const startsLater = Boolean(form.starts_at) && new Date(form.starts_at).getTime() > thisMinute;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();

@@ -26,15 +26,16 @@ export function Comments({ market }: { market: PredictionMarketDetail }) {
   const [error, setError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      const result = await fetchComments(market.slug, 1);
-      setPage(result);
-      setItems(result.comments);
-    } catch {
-      setPage(null);
-    }
-  }, [market.slug]);
+  const load = useCallback(
+    () =>
+      fetchComments(market.slug, 1)
+        .then((result) => {
+          setPage(result);
+          setItems(result.comments);
+        })
+        .catch(() => setPage(null)),
+    [market.slug],
+  );
 
   // Reload when the viewer's position changes (it decides whether they can post).
   const positionKey = market.mine?.positions.map((position) => `${position.outcome_id}:${position.shares > 0}`).join(",") ?? "";
