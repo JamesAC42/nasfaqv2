@@ -1,0 +1,9 @@
+{
+  "title": "Fewer shares per stock",
+  "changes": [
+    {
+      "kind": "improved",
+      "text": "At the next Saturday review, every stock's max shares drop to a fifth: 2,000 to 10,000, still based on subscribers. With fewer shares for sale, popular stocks can actually sell out."
+    }
+  ]
+}
