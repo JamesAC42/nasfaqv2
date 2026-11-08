@@ -1,5 +1,5 @@
 {
-  "state": "staff",
+  "state": "on",
   "description": "Why each tick moved a stock: the stock page, the Report tab, Activity's Last tick and the stocks table. Ticks record their reasons whatever the state.",
   "fields": ["reasons"]
 }
