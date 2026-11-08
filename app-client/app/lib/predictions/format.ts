@@ -90,6 +90,8 @@ export const TEMPLATE_LABEL: Record<string, string> = {
   "tick-direction": "Tick call",
   "tick-top-gainer": "Top gainer",
   "stream-peak": "Stream peak",
+  "stream-peak-pool": "Stream pool",
+  "top-gainer-pool": "Top gainer pool",
 };
 
 /** The leading outcome (highest price). */

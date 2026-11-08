@@ -8,6 +8,7 @@ import { SceneArt } from "@/app/components/common/scene-art";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { money } from "@/app/lib/predictions/format";
 import { sideModeFunds, sideModesUseCash } from "@/app/lib/economy";
+import { usePoolAccess } from "@/app/lib/predictions/use-pool-access";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/predictions/shell/predictions-frame.module.scss";
@@ -58,9 +59,13 @@ export function PredictionsFrame({ kicker, title, blurb, aside, live = false, ba
   const pathname = usePathname() || "/predictions";
   const { isStaff, canCreate } = useStaff();
   const { signedIn, credit, liquid } = usePredictionCash();
+  // Pools (behind the prediction-pools flag): their history and the bookie desk.
+  const pools = usePoolAccess();
   const items = [
     { href: "/predictions", label: "Floor", exact: true },
     { href: "/predictions/portfolio", label: "My bets", show: signedIn },
+    { href: "/predictions/history", label: "Pool history", show: pools.visible },
+    { href: "/predictions/bookie", label: "Bookie desk", show: pools.bookie || pools.staff },
     { href: "/predictions/create", label: "New market", show: canCreate },
     { href: "/predictions/manage", label: "Admin", show: isStaff },
   ].filter((item) => item.show !== false);

@@ -4,6 +4,7 @@ import { TalentReaction } from "@/app/components/common/talent-reaction";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
+import { MyPoolsSection } from "@/app/components/predictions/pool/my-pools";
 import { PredictionsFrame, usePredictionCash } from "@/app/components/predictions/shell/predictions-frame";
 import { cancelLimitOrder, fetchMarket, fetchPortfolio } from "@/app/lib/predictions/api";
 import { predictionErrorText } from "@/app/lib/predictions/errors";
@@ -503,6 +504,7 @@ export function PredictionsPortfolio() {
       ) : (
         <div className={styles.page}>
           <Totals portfolio={portfolio} />
+          <MyPoolsSection />
           <section className={styles.section} aria-labelledby="open-head">
             <header className={styles.head}>
               <h2 id="open-head">Open positions</h2>

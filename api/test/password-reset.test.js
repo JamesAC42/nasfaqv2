@@ -76,7 +76,7 @@ test("password reset against PostgreSQL", { skip: !databaseUrl }, async (t) => {
       profile_picture_id BIGINT, profile_reaction TEXT, profile_color TEXT,
       is_admin BOOLEAN NOT NULL DEFAULT false, can_manage_assets BOOLEAN NOT NULL DEFAULT false,
       can_create_prediction_markets BOOLEAN NOT NULL DEFAULT false, can_approve_prediction_markets BOOLEAN NOT NULL DEFAULT false,
-      can_resolve_prediction_markets BOOLEAN NOT NULL DEFAULT false, can_void_prediction_markets BOOLEAN NOT NULL DEFAULT false,
+      can_resolve_prediction_markets BOOLEAN NOT NULL DEFAULT false, can_void_prediction_markets BOOLEAN NOT NULL DEFAULT false, is_bookie BOOLEAN NOT NULL DEFAULT false,
       suspended_at TIMESTAMPTZ, suspended_until TIMESTAMPTZ, suspension_reason TEXT, suspended_by BIGINT,
       first_days_until TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

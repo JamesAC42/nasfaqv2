@@ -23,7 +23,8 @@ export type RoleFlag =
   | "can_create_prediction_markets"
   | "can_approve_prediction_markets"
   | "can_resolve_prediction_markets"
-  | "can_void_prediction_markets";
+  | "can_void_prediction_markets"
+  | "is_bookie";
 
 export type AdminOverviewStats = {
   generated_at: string;

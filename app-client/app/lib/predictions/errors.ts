@@ -27,6 +27,19 @@ const COPY: Record<string, string> = {
   prediction_market_transition_invalid: "The market can't do that from its current state.",
   prediction_market_self_approval_forbidden: "Someone else has to approve your market.",
   invalid_prediction_market: "Some fields need fixing.",
+  // Pools and margin
+  invalid_pool: "Some fields need fixing.",
+  resolution_note_required: "Add a source link or a note saying how you know.",
+  in_the_red: "You're in the red. Winnings and share sales pay it back first; until then you can't bet, buy or spend.",
+  margin_line_exceeded: "That's more than your margin line.",
+  margin_account_too_new: "Margin opens 7 days after you sign up.",
+  account_suspended: "Your account is suspended.",
+  new_account_pool_cap: "New accounts can have $10,000 in pools for their first 7 days.",
+  bookie_own_pool: "Bookies can't bet in their own pools.",
+  bookie_has_stake: "You have money in this pool, so someone else has to call it.",
+  correction_window_closed: "Results can only be corrected or voided for 7 days.",
+  same_outcome: "That's already the result.",
+  lmsr_retired: "New markets are pools now.",
 };
 
 export function predictionErrorText(error: unknown) {

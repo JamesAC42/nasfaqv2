@@ -13,7 +13,12 @@ import styles from "@/app/components/predictions/floor/floor.module.scss";
 export type Flash = { dir: "up" | "down"; n: number };
 
 const marketHref = (market: PredictionMarket, outcome?: string) =>
-  `/predictions/${encodeURIComponent(market.slug)}${outcome ? `?outcome=${encodeURIComponent(outcome)}` : ""}`;
+  market.pricing === "pool"
+    ? `/predictions/pools/${encodeURIComponent(market.slug)}${outcome ? `?option=${encodeURIComponent(outcome)}` : ""}`
+    : `/predictions/${encodeURIComponent(market.slug)}${outcome ? `?outcome=${encodeURIComponent(outcome)}` : ""}`;
+
+/** "3.33×": what $1 on a pool option pays if it wins, if the pool closed now. */
+const payText = (value: number | null | undefined) => (value ? `${value >= 10 ? value.toFixed(1) : value.toFixed(2)}×` : "—");
 
 /** Ticks every second; amber inside the last hour. */
 export function Countdown({ to, prefix }: { to: string; prefix?: string }) {
@@ -43,6 +48,7 @@ function Badge({ market }: { market: PredictionMarket }) {
       </span>
     );
   }
+  if (market.pricing === "pool") return <span className={styles.badge} data-kind="pool">Pool{market.category ? ` · ${market.category.display_name}` : ""}</span>;
   return <span className={styles.badge}>{market.category?.display_name ?? "Event"}</span>;
 }
 
@@ -69,6 +75,19 @@ function When({ market }: { market: PredictionMarket }) {
 }
 
 function Stats({ market }: { market: PredictionMarket }) {
+  if (market.pricing === "pool") {
+    return (
+      <div className={styles.stats}>
+        <span>
+          <b>{compactMoney(market.pool_total ?? 0)}</b> pool
+        </span>
+        <span>
+          <b>{market.trades_24h}</b> {market.trades_24h === 1 ? "bet" : "bets"} 24h
+        </span>
+        <span>no rake</span>
+      </div>
+    );
+  }
   return (
     <div className={styles.stats}>
       <span>
@@ -170,7 +189,7 @@ function OutcomeBar({ market, outcome, flash, tradeable }: { market: PredictionM
         {settled && outcome.is_winner ? <em className={styles.won}>won</em> : null}
       </span>
       <span key={flash ? `${outcome.id}-${flash.n}` : outcome.id} className={`${styles.barPrice} ${flashClass(flash) ?? ""}`}>
-        {percent(outcome.price)}
+        {market.pricing === "pool" ? payText(outcome.multiplier) : percent(outcome.price)}
       </span>
     </>
   );
@@ -220,7 +239,7 @@ export const MarketCard = memo(function MarketCard({ market, flashes }: { market
         <Link href={marketHref(market)}>{market.title}</Link>
       </h3>
       <div className={styles.cardBody}>
-        {market.market_type === "multi" ? (
+        {market.market_type === "multi" || market.pricing === "pool" ? (
           <MultiBody market={market} flashes={flashes} tradeable={tradeable} />
         ) : (
           <BinaryBody market={market} flashes={flashes} tradeable={tradeable} />

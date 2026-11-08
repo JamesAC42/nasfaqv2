@@ -71,6 +71,8 @@ function publicUser(user) {
     can_approve_prediction_markets: Boolean(user.can_approve_prediction_markets),
     can_resolve_prediction_markets: Boolean(user.can_resolve_prediction_markets),
     can_void_prediction_markets: Boolean(user.can_void_prediction_markets),
+    // Runs prediction pools (docs/design/predictions-pools.md); admins count as bookies too.
+    is_bookie: Boolean(user.is_bookie),
     created_at: user.created_at,
     // Set on accounts made since the first-days guide shipped, which shows until then (services/firstDays.js).
     first_days_until: user.first_days_until || null,
@@ -269,6 +271,7 @@ async function createUser(pool, { username, email, password, ipHash = null }) {
         can_approve_prediction_markets,
         can_resolve_prediction_markets,
         can_void_prediction_markets,
+        is_bookie,
         created_at,
         first_days_until
     `,
@@ -398,6 +401,7 @@ async function findUserByLogin(pool, login) {
       u.can_approve_prediction_markets,
       u.can_resolve_prediction_markets,
       u.can_void_prediction_markets,
+      u.is_bookie,
       u.created_at,
       u.first_days_until,
       u.suspended_at,
@@ -476,6 +480,7 @@ async function getAuthenticatedUser(pool, req) {
       u.can_approve_prediction_markets,
       u.can_resolve_prediction_markets,
       u.can_void_prediction_markets,
+      u.is_bookie,
       u.created_at,
       u.first_days_until,
       u.suspended_at,
@@ -672,7 +677,7 @@ async function resetPassword(pool, { token, password, ipHash = null }) {
   const { rows } = await pool.query(
     `SELECT u.id, u.username, u.email, u.email_verified, ${profilePictureUrlSql("small")} AS profile_picture_url, u.profile_color,
             u.is_admin, u.can_manage_assets, u.can_create_prediction_markets, u.can_approve_prediction_markets,
-            u.can_resolve_prediction_markets, u.can_void_prediction_markets, u.created_at, u.first_days_until,
+            u.can_resolve_prediction_markets, u.can_void_prediction_markets, u.is_bookie, u.created_at, u.first_days_until,
             u.suspended_at, u.suspended_until, u.suspension_reason
      FROM market.users u LEFT JOIN market.profile_pictures pp ON pp.id = u.profile_picture_id
      WHERE u.id = $1`,

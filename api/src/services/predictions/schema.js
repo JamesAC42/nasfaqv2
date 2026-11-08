@@ -28,7 +28,7 @@ async function applyPredictionsSchema(pool) {
   await replaceCheck(pool, "market.prediction_markets", "prediction_markets_dispute_hours_check", `dispute_hours >= 1 AND dispute_hours <= 72`);
   // resolution_outcome now holds an outcome code of any shape (yes/no/o1..o12) or 'void'.
   await replaceCheck(pool, "market.prediction_markets", "prediction_markets_resolution_outcome_check",
-    `resolution_outcome IS NULL OR resolution_outcome ~ '^(yes|no|void|o[0-9]{1,2})$'`);
+    `resolution_outcome IS NULL OR resolution_outcome ~ '^(yes|no|void|o[0-9]{1,3})$'`);
 
   // ── Outcomes ───────────────────────────────────────────────────────────
   await pool.query(`
@@ -38,7 +38,7 @@ async function applyPredictionsSchema(pool) {
       ADD COLUMN IF NOT EXISTS asset_id BIGINT NULL REFERENCES market.market_assets(id) ON DELETE SET NULL,
       ADD COLUMN IF NOT EXISTS color TEXT NULL
   `);
-  await replaceCheck(pool, "market.prediction_market_outcomes", "prediction_market_outcomes_code_check", `outcome_code ~ '^(yes|no|o[0-9]{1,2})$'`);
+  await replaceCheck(pool, "market.prediction_market_outcomes", "prediction_market_outcomes_code_check", `outcome_code ~ '^(yes|no|o[0-9]{1,3})$'`);
 
   // ── Positions ──────────────────────────────────────────────────────────
   await pool.query(`ALTER TABLE market.prediction_market_positions ADD COLUMN IF NOT EXISTS net_cost_cash NUMERIC NOT NULL DEFAULT 0`);
@@ -61,7 +61,8 @@ async function applyPredictionsSchema(pool) {
     'market_created', 'market_updated', 'submitted_for_approval', 'market_approved', 'market_rejected', 'market_opened',
     'market_closed', 'market_halted', 'market_resumed', 'resolution_proposed', 'resolution_disputed', 'resolution_confirmed',
     'resolution_withdrawn', 'resolution_finalized', 'market_resolved', 'market_voided', 'order_placed', 'order_cancelled',
-    'trade_matched', 'auto_created', 'legacy_orders_released'
+    'trade_matched', 'auto_created', 'legacy_orders_released',
+    'pool_created', 'pool_extended', 'pool_resolved', 'pool_corrected', 'pool_voided'
   )`);
 
   // ── New tables ─────────────────────────────────────────────────────────
