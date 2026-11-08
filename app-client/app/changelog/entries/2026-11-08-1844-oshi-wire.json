@@ -1,0 +1,13 @@
+{
+  "title": "Oshi moves on the Wire",
+  "changes": [
+    {
+      "kind": "new",
+      "text": "The Wire now reports when a player changes or drops their oshi, so everyone can see who's loyal and who's hopping. Switch twice in a month, or buy a stock right before making them your oshi, and the headline says so. First picks don't make the news."
+    },
+    {
+      "kind": "new",
+      "text": "The Wire page has an Oshi chip for just those headlines. On the front page they sit under the day's news, three at most."
+    }
+  ]
+}
