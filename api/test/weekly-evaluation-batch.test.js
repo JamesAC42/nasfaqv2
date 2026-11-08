@@ -249,7 +249,8 @@ test("NUMERIC arithmetic in JS lands where Postgres does", () => {
 async function snapshot(pool) {
   const q = async (sql) => (await pool.query(sql)).rows;
   const report = (row) => {
-    const { generated_at: _ignored, ...rest } = row.report_json || {};
+    // oshi_protection came after the reference; nobody here has an oshi (checkin-oshi.test.js covers it).
+    const { generated_at: _ignored, oshi_protection: _later, ...rest } = row.report_json || {};
     return { eval_date: row.eval_date, status: row.status, completed: row.completed, report: rest };
   };
   return {

@@ -350,6 +350,8 @@ app.use((err, req, res, _next) => {
   }
   if (err?.code === "rename_needs_verified_email") return res.status(403).json({ error: err.code });
   if (err?.code === "rename_cooldown") return res.status(429).json({ error: err.code, available_at: err.available_at ?? null });
+  // The oshi changes once every 30 days (services/oshi.js).
+  if (err?.code === "oshi_change_cooldown") return res.status(429).json({ error: err.code, available_at: err.available_at ?? null });
   if (
     err?.code === "already_friends"
     || err?.code === "friend_request_pending"

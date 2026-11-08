@@ -1148,6 +1148,42 @@
   gap: 0.5rem;
 }
 
+// The oshi: the picker, or (inside the 30-day wait) the oshi itself with a way to remove it.
+.oshiField {
+  display: grid;
+  gap: 0.3rem;
+  align-content: start;
+}
+
+.oshiLocked {
+  @include input-base;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.25rem;
+
+  b {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+}
+
+.oshiRemove {
+  @include label;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text);
+  }
+}
+
 // Edit profile → Account security (SecurityModal).
 .securityLink {
   display: grid;
