@@ -22,8 +22,8 @@ jobs:
       matrix:
         app: [api, app-client]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
       # Production dependencies only (the image's), high or critical only. Reads the lockfile, so
@@ -45,8 +45,8 @@ jobs:
       # Each module on its own, as its Dockerfile builds it, not through the repo's go.work.
       GOWORK: "off"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.27"
           check-latest: true
