@@ -120,15 +120,27 @@
 .tabs {
   @include tabs;
 
-  button,
-  a {
+  button {
     @include tab;
     padding: 0.5rem 0.9rem;
-    text-decoration: none;
 
-    &[aria-selected="true"],
-    &[aria-current="page"] {
+    &[aria-selected="true"] {
       @include tab-selected;
+    }
+  }
+
+  // With the Calendar tab (the stream-calendar flag), all three share one row on phones.
+  &[data-modes="3"] {
+    @include phone {
+      display: flex;
+      flex-wrap: nowrap;
+      width: 100%;
+
+      button {
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 0.5rem 0.45rem;
+      }
     }
   }
 }

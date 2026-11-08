@@ -156,7 +156,8 @@ test("prediction lockdown end to end", { skip: !databaseUrl, timeout: 180_000 },
 
   await t.test("every auto template starts paused, once, and turning one back on sticks", async () => {
     let { rows } = await pool.query(`SELECT key, enabled, params_json FROM market.prediction_auto_templates ORDER BY key`);
-    assert.deepEqual(rows.map((row) => row.key), ["stream-peak", "tick-direction", "tick-top-gainer"]);
+    // The pool versions (predictions-pools.md) start off too, with the same marker.
+    assert.deepEqual(rows.map((row) => row.key), ["stream-peak", "stream-peak-pool", "tick-direction", "tick-top-gainer", "top-gainer-pool"]);
     for (const row of rows) {
       assert.equal(row.enabled, false, row.key);
       assert.equal(row.params_json.paused_2026_11, 1, row.key);

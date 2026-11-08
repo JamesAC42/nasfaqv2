@@ -2,12 +2,13 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { TalentReaction } from "@/app/components/common/talent-reaction";
-import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { HeroCast } from "@/app/components/common/hero-cast";
 import { SiteShell } from "@/app/components/layout/site-shell";
+import { StreamCalendar } from "@/app/components/livestreams/stream-calendar";
 import { apiFetch } from "@/app/lib/api";
 import { useFeature } from "@/app/lib/features";
 import { unitLabel, unitName, UNIT_ORDER } from "@/app/lib/market-units";
@@ -35,12 +36,17 @@ import { useProfileStore } from "@/app/stores/profile-store";
 import { useOpenStream } from "@/app/stores/stream-store";
 import styles from "@/app/components/livestreams/livestreams.module.scss";
 
-type View = "now" | "past";
+type View = "now" | "past" | "calendar";
 type PastSort = "newest" | "peak" | "avg" | "longest";
 type Week = { page: number; week_start: string; week_end: string; has_older: boolean; streams: PastStream[] };
 
-/** `initialView`: "past" opens Past streams (the calendar's tab links here with ?view=past). */
-export function LivestreamsPage({ initialView }: { initialView?: string } = {}) {
+/**
+ * The mode is in the URL (?view=past, ?view=calendar), so each one can be linked. The calendar is
+ * behind the stream-calendar flag: without it the tab isn't there and ?view=calendar shows the
+ * usual page. `calendarConfirmed`: the server already found the flag on for this viewer, so a link
+ * straight to the calendar opens on it instead of waiting for the flags to load.
+ */
+export function LivestreamsPage({ calendarConfirmed = false }: { calendarConfirmed?: boolean } = {}) {
   const live = useLivestreamStore((state) => state.live);
   const upcoming = useLivestreamStore((state) => state.upcoming);
   const isLoading = useLivestreamStore((state) => state.isLoading);
@@ -50,9 +56,16 @@ export function LivestreamsPage({ initialView }: { initialView?: string } = {}) 
   const portfolio = useProfileStore((state) => state.portfolio);
   const { user } = useAuth();
   const openStream = useOpenStream();
-  const calendar = useFeature("stream-calendar");
-
-  const [view, setView] = useState<View>(initialView === "past" ? "past" : "now");
+  const calendarOn = useFeature("stream-calendar") || calendarConfirmed;
+  const asked = useSearchParams().get("view");
+  const view: View = asked === "past" ? "past" : asked === "calendar" && calendarOn ? "calendar" : "now";
+  // Switching modes updates the URL (Next keeps useSearchParams in step), so Back returns to the last one.
+  const setView = (next: View) => {
+    const url = new URL(window.location.href);
+    if (next === "now") url.searchParams.delete("view");
+    else url.searchParams.set("view", next);
+    window.history.pushState(null, "", url);
+  };
   const [units, setUnits] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [mine, setMine] = useState(false);
@@ -125,14 +138,18 @@ export function LivestreamsPage({ initialView }: { initialView?: string } = {}) 
               <b>{live.length}</b> live now · <b>{compactCount(watching)}</b> watching · <b>{next24}</b> scheduled in the next 24 hours
             </p>
           </div>
-          <div className={styles.tabs} role="tablist" aria-label="Streams">
+          <div className={styles.tabs} role="tablist" aria-label="Streams" data-modes={calendarOn ? 3 : 2}>
             <button type="button" role="tab" aria-selected={view === "now"} onClick={() => setView("now")}>
               Live & upcoming
             </button>
             <button type="button" role="tab" aria-selected={view === "past"} onClick={() => setView("past")}>
               Past streams
             </button>
-            {calendar ? <Link href="/livestreams/calendar">Calendar</Link> : null}
+            {calendarOn ? (
+              <button type="button" role="tab" aria-selected={view === "calendar"} onClick={() => setView("calendar")}>
+                Calendar
+              </button>
+            ) : null}
           </div>
         </header>
 
@@ -168,7 +185,7 @@ export function LivestreamsPage({ initialView }: { initialView?: string } = {}) 
           ) : null}
         </div>
 
-        {error ? <p className={styles.empty}>The stream feed is unavailable right now ({error}).</p> : null}
+        {error && view !== "calendar" ? <p className={styles.empty}>The stream feed is unavailable right now ({error}).</p> : null}
 
         {view === "now" ? (
           <div className={styles.layout}>
@@ -212,8 +229,10 @@ export function LivestreamsPage({ initialView }: { initialView?: string } = {}) 
             </main>
             <OnAirRail live={live} upcoming={scheduled} assets={assets} now={now} onOpen={(item) => openStream(previewOf(item))} />
           </div>
-        ) : (
+        ) : view === "past" ? (
           <PastStreams matcher={matcher} filtering={filtering} onOpen={(stream) => openStream(previewOf(stream))} />
+        ) : (
+          <StreamCalendar query={query} units={units} mine={mine} />
         )}
       </div>
     </SiteShell>

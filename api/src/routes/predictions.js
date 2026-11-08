@@ -9,12 +9,23 @@ const trading = require("../services/predictions/trading");
 const resolution = require("../services/predictions/resolution");
 const auto = require("../services/predictions/auto");
 const events = require("../services/predictions/events");
+const pools = require("../services/predictions/pools");
+const features = require("../features");
+const margin = require("../services/margin");
 const { requireAuthenticatedUser, requireVerifiedUser } = require("../services/predictionPermissions");
 const { rateLimit, byUser } = require("../rateLimit");
 
 const router = express.Router();
 // Trades, limit orders and cancels share one budget per player, under the site-wide 60 writes a minute.
 const tradeLimit = rateLimit(byUser("prediction-trade", 20, 60));
+// Pools (and margin) are behind the prediction-pools flag (api/src/features). Its routes 404 for anyone
+// it doesn't cover, and the floor, a market's reads and comments leave pools out for them
+// (markets.canSeeMarket). While it's staff-only, no shared cache may keep a predictions response.
+const poolsOnly = features.requireFeature("prediction-pools");
+router.use((req, res, next) => {
+  if (features.enabledFor("prediction-pools", "staff") && !features.enabledFor("prediction-pools", "everyone")) features.markPrivate(res);
+  next();
+});
 
 const ERROR_STATUS = {
   unauthenticated: 401,
@@ -45,13 +56,28 @@ const ERROR_STATUS = {
   already_disputed: 409,
   confirm_requires_second_resolver: 409,
   no_open_proposal: 409,
+  // Pools and margin (docs/design/predictions-pools.md)
+  invalid_pool: 400,
+  resolution_note_required: 400,
+  in_the_red: 409,
+  margin_line_exceeded: 409,
+  margin_account_too_new: 403,
+  account_suspended: 403,
+  new_account_pool_cap: 409,
+  bookie_own_pool: 409,
+  bookie_has_stake: 409,
+  correction_window_closed: 409,
+  same_outcome: 409,
+  lmsr_retired: 409,
 };
 
 function sendError(res, next, error) {
   const status = ERROR_STATUS[error?.code];
   if (!status) return next(error);
   const body = { error: error.code };
-  for (const key of ["field", "quote", "cash_balance", "required_cash", "shares_held"]) if (error[key] !== undefined) body[key] = error[key];
+  for (const key of ["field", "quote", "cash_balance", "required_cash", "shares_held", "owed", "line", "borrowed", "margin_available", "min_bet", "cap", "staked", "available_at"]) {
+    if (error[key] !== undefined) body[key] = error[key];
+  }
   return res.status(status).json(body);
 }
 
@@ -91,6 +117,7 @@ router.get(
       status: req.query.status,
       limit: req.query.limit,
       page: req.query.page,
+      viewer: req.ctx.user || null,
     });
     const pageCount = result.total > 0 ? Math.ceil(result.total / result.limit) : 1;
     res.json({
@@ -190,12 +217,112 @@ router.post(
   })
 );
 
+// ── Pools (docs/design/predictions-pools.md), behind the prediction-pools flag ─────
+const publishPool = (req, action, result) => events.publishMarkets(req.ctx.redis, action, [{ ...result, pricing: "pool" }]);
+
+router.get(
+  "/pools/history",
+  poolsOnly,
+  handle(async (req, res) => {
+    const result = await pools.listHistory(req.ctx.pool, req.ctx.user || null, { q: req.query.q, mine: req.query.mine === "1", page: req.query.page, limit: req.query.limit });
+    const pageCount = result.total > 0 ? Math.ceil(result.total / result.limit) : 1;
+    res.json({ items: result.items, pagination: { total: result.total, page: result.page, limit: result.limit, page_count: pageCount } });
+  })
+);
+
+router.get(
+  "/pools/me",
+  poolsOnly,
+  handle(async (req, res) => {
+    const user = requireAuthenticatedUser(req);
+    res.json(await pools.getMyPools(req.ctx.pool, user));
+  })
+);
+
+router.get(
+  "/pools/bookie",
+  poolsOnly,
+  handle(async (req, res) => {
+    const user = requireAuthenticatedUser(req);
+    res.json(await pools.listBookiePools(req.ctx.pool, user, { scope: req.query.scope }));
+  })
+);
+
+router.post(
+  "/pools",
+  poolsOnly,
+  handle(async (req, res) => {
+    const user = requireVerifiedUser(req);
+    const result = await pools.createPool(req.ctx.pool, user, req.body || {});
+    await publishPool(req, "created", result);
+    res.status(201).json({ pool: result });
+  })
+);
+
+router.get("/pools/:slug", poolsOnly, handle(async (req, res) => res.json({ pool: await pools.getPoolDetail(req.ctx.pool, req.params.slug, req.ctx.user || null) })));
+
+router.post(
+  "/pools/:slug/bet",
+  poolsOnly,
+  tradeLimit,
+  handle(async (req, res) => {
+    const user = requireVerifiedUser(req);
+    const result = await pools.placeBet(req.ctx.pool, user, {
+      slug: req.params.slug,
+      outcomeCode: req.body?.outcome,
+      amount: req.body?.amount,
+      useMargin: req.body?.use_margin === true,
+    });
+    await publishPool(req, "bet", { id: result.bet.market_id, slug: result.bet.slug });
+    res.status(201).json(result);
+  })
+);
+
+const poolAction = (path, fn, action) =>
+  router.post(
+    `/pools/:id/${path}`,
+    poolsOnly,
+    handle(async (req, res) => {
+      const user = requireVerifiedUser(req);
+      const result = await fn(req, user, marketId(req));
+      await publishPool(req, action, result);
+      res.json({ pool: result });
+    })
+  );
+
+poolAction("close", (req, user, id) => pools.closePool(req.ctx.pool, user, id), "closed");
+poolAction("extend", (req, user, id) => pools.extendPool(req.ctx.pool, user, id, { closesAt: req.body?.closes_at }), "updated");
+poolAction("resolve", (req, user, id) => pools.resolvePool(req.ctx.pool, user, id, { outcome: req.body?.outcome, sourceUrl: req.body?.source_url, note: req.body?.note }), "resolved");
+poolAction("correct", (req, user, id) => pools.correctPool(req.ctx.pool, user, id, { outcome: req.body?.outcome, sourceUrl: req.body?.source_url, note: req.body?.note }), "resolved");
+poolAction("void", (req, user, id) => pools.voidPool(req.ctx.pool, user, id, { reason: req.body?.reason, sourceUrl: req.body?.source_url }), "voided");
+
+// Margin: what a player owes and can borrow, and "Repay now" (Cash into negative Credit).
+router.get(
+  "/margin",
+  poolsOnly,
+  handle(async (req, res) => {
+    const user = requireAuthenticatedUser(req);
+    const { rows } = await req.ctx.pool.query(`SELECT cash_balance, credit_balance FROM market.portfolio_cash_balances WHERE user_id = $1`, [user.id]);
+    res.json({ margin: await margin.status(req.ctx.pool, user.id, { cash: Number(rows[0]?.cash_balance || 0), credit: Number(rows[0]?.credit_balance || 0) }) });
+  })
+);
+
+router.post(
+  "/margin/repay",
+  poolsOnly,
+  tradeLimit,
+  handle(async (req, res) => {
+    const user = requireAuthenticatedUser(req);
+    res.json(await margin.repay(req.ctx.pool, user.id));
+  })
+);
+
 // ── Market reads ───────────────────────────────────────────────────────────
 router.get("/:slug", handle(async (req, res) => res.json({ market: await markets.getMarketDetail(req.ctx.pool, req.params.slug, req.ctx.user || null) })));
 // The chart, tape and quote follow the market page's rule: a draft or private market is only
 // visible to its creator and the approvers (anyone else gets not-found, not its title and outcomes).
 const visibleMarket = handle(async (req, res) => {
-  const { rows } = await req.ctx.pool.query(`SELECT status, visibility, creator_user_id FROM market.prediction_markets WHERE slug = $1`, [String(req.params.slug || "")]);
+  const { rows } = await req.ctx.pool.query(`SELECT status, visibility, creator_user_id, pricing FROM market.prediction_markets WHERE slug = $1`, [String(req.params.slug || "")]);
   if (!rows[0] || !markets.canSeeMarket(rows[0], req.ctx.user || null)) {
     const error = new Error("prediction_market_not_found");
     error.code = "prediction_market_not_found";
@@ -278,7 +405,7 @@ router.delete(
 // ── Comments (from the first build) ───────────────────────────────────────
 router.get(
   "/:slug/comments",
-  handle(async (req, res) => {
+  whenVisible(handle(async (req, res) => {
     const result = await predictionMarketDb.listPredictionMarketComments(req.ctx.pool, req.params.slug, {
       page: req.query.page,
       limit: req.query.limit,
@@ -292,17 +419,17 @@ router.get(
       pagination: { total: result.total, page: result.page, limit: result.limit, page_count: pageCount, has_previous_page: result.page > 1, has_next_page: result.page < pageCount },
       viewer_context: result.viewer_context,
     });
-  })
+  }))
 );
 
 router.post(
   "/:slug/comments",
   rateLimit(byUser("prediction-comment", 10, 60)),
-  handle(async (req, res) => {
+  whenVisible(handle(async (req, res) => {
     const user = requireVerifiedUser(req);
     const comment = await predictionMarketDb.createPredictionMarketComment(req.ctx.pool, req.params.slug, user.id, { body: req.body?.body });
     res.status(201).json({ comment });
-  })
+  }))
 );
 
 module.exports = router;

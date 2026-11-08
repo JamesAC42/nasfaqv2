@@ -28,6 +28,7 @@ export const ROLES: RoleDef[] = [
   { key: "can_approve_prediction_markets", label: "Approver", short: "Approve", filter: "Approvers", line: "Approves or rejects the queue. Not their own markets." },
   { key: "can_resolve_prediction_markets", label: "Resolver", short: "Resolve", filter: "Resolvers", line: "Makes the calls and settles disputes. Someone else confirms theirs." },
   { key: "can_void_prediction_markets", label: "Voider", short: "Void", filter: "Voiders", line: "Voids a market and refunds everyone. The big red button." },
+  { key: "is_bookie", label: "Bookie", short: "Bookie", filter: "Bookies", line: "Opens prediction pools without approval and picks the winners. Can't bet in their own pools." },
 ];
 
 const SUSPENSION_LENGTHS: { key: SuspensionDuration; label: string }[] = [

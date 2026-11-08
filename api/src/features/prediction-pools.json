@@ -1,0 +1,4 @@
+{
+  "state": "staff",
+  "description": "Prediction pools and margin (docs/design/predictions-pools.md): pools on the predictions floor and their pages (/predictions/pools/*, /predictions/history, /predictions/bookie, the Pools section of My bets), GET and POST /api/prediction-markets/pools/* and /margin, pool events on the predictions socket, and margin's in-the-red rules and repayment sweep. At \"on\", creating market-maker markets or turning their templates back on is refused."
+}

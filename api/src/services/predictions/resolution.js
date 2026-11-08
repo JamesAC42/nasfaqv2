@@ -7,6 +7,7 @@ const lmsr = require("./lmsr");
 const core = require("./core");
 const trading = require("./trading");
 const notifications = require("../notifications");
+const features = require("../../features");
 
 const { num, round2, predictionError } = core;
 
@@ -15,6 +16,11 @@ const CAN_PROPOSE = ["open", "closed", "resolving"];
 
 function canActAs(user, flag) {
   return Boolean(user?.is_admin || user?.[flag]);
+}
+
+/** Pools resolve through pools.js (no proposals or disputes); these flows are the market maker's. */
+function assertLmsr(market) {
+  if (market.pricing === "pool") throw predictionError("prediction_market_transition_invalid");
 }
 
 async function currentProposal(client, marketId, { lock = false } = {}) {
@@ -43,9 +49,10 @@ async function closeMarket(pool, actor, marketId) {
   if (!canActAs(actor, "can_resolve_prediction_markets")) throw predictionError("forbidden");
   return core.inTransaction(pool, async (client) => {
     const market = await core.lockMarket(client, { id: marketId });
+    if (market.pricing === "pool" && !features.isEnabled("prediction-pools", actor)) throw predictionError("prediction_market_not_found");
     if (market.status !== "open") throw predictionError("prediction_market_transition_invalid");
     await closeWithClient(client, market, { actorUserId: actor.id, reason: "closed_early" });
-    return { id: Number(market.id), slug: market.slug };
+    return { id: Number(market.id), slug: market.slug, pricing: market.pricing };
   });
 }
 
@@ -94,6 +101,7 @@ async function propose(pool, actor, marketId, { outcome, sourceUrl, note }) {
   if (!source) throw predictionError("source_required");
   return core.inTransaction(pool, async (client) => {
     const market = await core.lockMarket(client, { id: marketId });
+    assertLmsr(market);
     if (!CAN_PROPOSE.includes(market.status)) throw predictionError("prediction_market_transition_invalid");
     if (market.status === "open") await closeWithClient(client, market, { actorUserId: actor.id, reason: "resolution_proposed" });
     const proposal = await insertProposal(client, market, { proposerId: actor.id, outcomeCode: outcome, sourceUrl: source, note });
@@ -108,6 +116,7 @@ async function dispute(pool, user, marketId, { reason }) {
   if (text.length < 20 || text.length > 2000) throw predictionError("invalid_dispute_reason");
   return core.inTransaction(pool, async (client) => {
     const market = await core.lockMarket(client, { id: marketId });
+    assertLmsr(market);
     if (!["proposed", "disputed"].includes(market.status)) throw predictionError("prediction_market_transition_invalid");
     const proposal = await currentProposal(client, market.id, { lock: true });
     if (!proposal || new Date(proposal.window_ends_at) <= new Date()) throw predictionError("dispute_window_closed");
@@ -129,6 +138,7 @@ async function confirm(pool, actor, marketId) {
   if (!canActAs(actor, "can_resolve_prediction_markets")) throw predictionError("forbidden");
   return core.inTransaction(pool, async (client) => {
     const market = await core.lockMarket(client, { id: marketId });
+    assertLmsr(market);
     const proposal = await currentProposal(client, market.id, { lock: true });
     if (!proposal) throw predictionError("no_open_proposal");
     const sameUser = String(proposal.proposer_user_id) === String(actor.id);
@@ -158,6 +168,7 @@ async function overturn(pool, actor, marketId, { outcome, sourceUrl, note }) {
   if (!source) throw predictionError("source_required");
   return core.inTransaction(pool, async (client) => {
     const market = await core.lockMarket(client, { id: marketId });
+    assertLmsr(market);
     const previous = await currentProposal(client, market.id, { lock: true });
     if (!previous) throw predictionError("no_open_proposal");
     await client.query(`UPDATE market.prediction_resolution_proposals SET status = 'overturned' WHERE id = $1`, [previous.id]);
@@ -305,6 +316,12 @@ async function voidMarket(pool, actor, marketId, { reason }) {
   if (!canActAs(actor, "can_void_prediction_markets")) throw predictionError("forbidden");
   return core.inTransaction(pool, async (client) => {
     const market = await core.lockMarket(client, { id: marketId });
+    if (market.pricing === "pool") {
+      if (!features.isEnabled("prediction-pools", actor)) throw predictionError("prediction_market_not_found");
+      // Required here, not at the top: pools.js requires this file.
+      if (!["open", "closed", "resolving"].includes(market.status)) throw predictionError("prediction_market_transition_invalid");
+      return require("./pools").voidWithClient(client, market, { actorUserId: actor.id, actorId: actor.id, reason: String(reason || "").slice(0, 2000) || null });
+    }
     if (!UNRESOLVED.includes(market.status)) throw predictionError("prediction_market_transition_invalid");
     const open = await currentProposal(client, market.id, { lock: true });
     if (open) await client.query(`UPDATE market.prediction_resolution_proposals SET status = 'overturned' WHERE id = $1`, [open.id]);
@@ -317,7 +334,7 @@ async function openDueMarkets(pool) {
   const { rows } = await pool.query(
     `UPDATE market.prediction_markets SET trading_status = 'open', trading_opened_at = now(), updated_at = now()
      WHERE status = 'open' AND trading_status = 'pending_open' AND opens_at <= now() AND amm_ready
-     RETURNING id, slug`
+     RETURNING id, slug, pricing`
   );
   for (const row of rows) await core.logEvent(pool, row.id, "market_opened", {});
   return rows;
@@ -334,14 +351,14 @@ async function closeDueMarkets(pool, { limit = 100 } = {}) {
       const market = await core.lockMarket(client, { id: row.id });
       if (market.status !== "open" || new Date(market.closes_at) > new Date()) return null;
       await closeWithClient(client, market);
-      return { id: Number(market.id), slug: market.slug };
+      return { id: Number(market.id), slug: market.slug, pricing: market.pricing };
     });
     if (done) closed.push(done);
   }
   // Event markets closed with a later resolves_after move to "resolving" once it passes.
   const { rows: ready } = await pool.query(
     `UPDATE market.prediction_markets SET status = 'resolving', updated_at = now()
-     WHERE kind = 'event' AND status = 'closed' AND (resolves_after IS NULL OR resolves_after <= now()) RETURNING id, slug`
+     WHERE kind = 'event' AND status = 'closed' AND (resolves_after IS NULL OR resolves_after <= now()) RETURNING id, slug, pricing`
   );
   return [...closed, ...ready];
 }

@@ -36,6 +36,7 @@ router.get("/me", async (req, res) => {
       can_approve_prediction_markets: Boolean(req.ctx.user.can_approve_prediction_markets),
       can_resolve_prediction_markets: Boolean(req.ctx.user.can_resolve_prediction_markets),
       can_void_prediction_markets: Boolean(req.ctx.user.can_void_prediction_markets),
+      is_bookie: Boolean(req.ctx.user.is_bookie),
       created_at: req.ctx.user.created_at,
       first_days_until: req.ctx.user.first_days_until || null,
       suspension: req.ctx.user.suspension || null,

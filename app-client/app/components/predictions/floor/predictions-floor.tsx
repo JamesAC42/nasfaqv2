@@ -14,6 +14,7 @@ import { fetchCategories, fetchFloor, fetchForecasters, fetchPortfolio, fetchTap
 import { predictionErrorText } from "@/app/lib/predictions/errors";
 import { compactMoney, outcomeColor } from "@/app/lib/predictions/format";
 import type { Category, Fill, FloorTab, Forecaster, Portfolio, PredictionMarket, SocketMessage, Trade } from "@/app/lib/predictions/types";
+import { usePoolAccess } from "@/app/lib/predictions/use-pool-access";
 import { usePredictionFeed } from "@/app/lib/predictions/use-prediction-feed";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -283,14 +284,23 @@ export function PredictionsFloor() {
     [tape, markets, live],
   );
   const hasMore = markets !== null && markets.length < total;
+  const pools = usePoolAccess();
   const blurb = useMemo(() => {
+    if (pools.visible) {
+      if (!live) return "Bet on what happens next. Winners split the pool.";
+      return (
+        <>
+          <b>{live.count}</b> live · <b>{compactMoney(live.volume)}</b> bet in the last 24 h. Winners split the pool.
+        </>
+      );
+    }
     if (!live) return "Prices are chances. Right calls pay $1 a share.";
     return (
       <>
         <b>{live.count}</b> {live.count === 1 ? "market" : "markets"} live · <b>{compactMoney(live.volume)}</b> traded in the last 24 h. Prices are chances; right calls pay $1 a share.
       </>
     );
-  }, [live]);
+  }, [live, pools.visible]);
 
   // The header's cast: talents the busiest markets are about (their outcomes, or named in the title).
   const assets = useMarketStore((state) => state.assets);

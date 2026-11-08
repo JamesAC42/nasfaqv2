@@ -3,6 +3,7 @@ const path = require("node:path");
 
 const { applyGamesSchema } = require("./gamesSchema");
 const { applyPredictionsSchema } = require("./services/predictions/schema");
+const { applyPoolsSchema } = require("./services/predictions/poolSchema");
 
 // ── Plain Postgres (local dev without TimescaleDB) ─────────────────────────
 // Production always has TimescaleDB. For a dev machine with a plain Postgres install, the schema
@@ -2101,6 +2102,11 @@ async function applySchema(pool) {
       ADD COLUMN IF NOT EXISTS protected_quantity NUMERIC NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS waived NUMERIC NOT NULL DEFAULT 0
   `);
+
+  // Prediction pools and margin (docs/design/predictions-pools.md): pool columns and tables, the
+  // bookie flag, and the auto pool templates (off).
+  await applyPoolsSchema(pool);
+
   // The Wire shows a headline that names a player only while that player may be named
   // (services/wire/players.js), going by meta.user_id. UR pulls and card sales written before
   // they kept it get it from the pull or sale their dedupe_key points at. A sale whose buyer's

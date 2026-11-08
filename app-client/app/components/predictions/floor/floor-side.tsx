@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { money } from "@/app/lib/predictions/format";
 import type { Forecaster, Portfolio } from "@/app/lib/predictions/types";
+import { usePoolAccess } from "@/app/lib/predictions/use-pool-access";
 import styles from "@/app/components/predictions/floor/floor.module.scss";
 
 const tone = (value: number) => (value > 0.004 ? styles.up : value < -0.004 ? styles.down : styles.flat);
@@ -86,12 +87,33 @@ export function MyBetsSummary({ signedIn, portfolio }: { signedIn: boolean; port
 }
 
 export function HowItWorks() {
+  // Pools (docs/design/predictions-pools.md), once the prediction-pools flag shows them.
+  const pools = usePoolAccess();
   return (
     <section className={styles.sideBlock} aria-labelledby="how-head">
       <header className={styles.sideHead}>
         <h2 id="how-head">How it works</h2>
       </header>
-      <ul className={styles.how}>
+      {pools.visible ? (
+        <ul className={styles.how}>
+          <li>
+            <b>Pools.</b> Everyone’s bets on a question go in one pot. When the bookie calls it, the winners split the whole pot by how much they put in. No rake.
+          </li>
+          <li>
+            <b>Odds move</b> with every bet until the pool closes. 3.00× means $1 pays $3 if it closed now.
+          </li>
+          <li>
+            <b>Raise, don’t withdraw.</b> Add to a bet any time it’s open; bets can’t be taken back.
+          </li>
+          <li>
+            <b>Margin.</b> Out of Credit and Cash? Borrow up to 25% of your shares’ value. Until it’s paid back you can’t spend; winnings pay it first.
+          </li>
+          <li>
+            <b>Calls are public.</b> Every result shows who made it and the source. <Link href="/predictions/history">See the history</Link>.
+          </li>
+        </ul>
+      ) : null}
+      <ul className={styles.how} hidden={pools.visible}>
         <li>
           <b>Instant fills.</b> The house always quotes a price. No waiting for a counterparty.
         </li>

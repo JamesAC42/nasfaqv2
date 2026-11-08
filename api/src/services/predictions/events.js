@@ -11,10 +11,13 @@ async function publishTrades(redis, fills, extra = {}) {
   }
 }
 
+// A pool's events name the prediction-pools flag: the predictions socket sends them only to viewers the
+// flag covers (server.js), so a staff-only pool's slug never reaches everyone.
 async function publishMarkets(redis, action, markets) {
   for (const market of markets || []) {
     if (!market) continue;
-    await publishPredictionMarketEvent(redis, { type: "prediction.market.updated", action, slug: market.slug, market_id: market.id });
+    const gate = market.pricing === "pool" ? { feature: "prediction-pools" } : {};
+    await publishPredictionMarketEvent(redis, { type: "prediction.market.updated", action, slug: market.slug, market_id: market.id, ...gate });
   }
 }
 

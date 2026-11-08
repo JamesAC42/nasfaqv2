@@ -1,15 +1,10 @@
-import type { Metadata } from "next";
-import { StreamCalendarPage } from "@/app/components/livestreams/stream-calendar";
+import { redirect } from "next/navigation";
 import { requireFeature } from "@/app/lib/features-server";
 
-// Behind the stream-calendar flag (api/src/features): a 404 for anyone it isn't on for.
-
-export async function generateMetadata(): Promise<Metadata> {
-  await requireFeature("stream-calendar");
-  return { title: "Stream calendar", description: "Every listed talent's streams for the week ahead, in your time zone." };
-}
+// The calendar is a mode of the Livestreams page now. Old links land on it; anyone without the
+// stream-calendar flag (api/src/features) still gets a 404 here.
 
 export default async function Page() {
   await requireFeature("stream-calendar");
-  return <StreamCalendarPage />;
+  redirect("/livestreams?view=calendar");
 }

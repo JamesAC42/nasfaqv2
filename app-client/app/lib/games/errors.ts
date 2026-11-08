@@ -7,6 +7,7 @@ const COPY: Record<string, string> = {
   email_verification_required: "Verify your email to play for money.",
   insufficient_cash: "Not enough cash for that.",
   insufficient_credit: "Not enough Credit or cash for that.",
+  in_the_red: "You're in the red on margin. Winnings and share sales pay it back first; until then you can't spend.",
   insufficient_shards: "Not enough shards.",
   reward_already_claimed: "Already claimed.",
   set_incomplete: "That set isn't complete yet.",

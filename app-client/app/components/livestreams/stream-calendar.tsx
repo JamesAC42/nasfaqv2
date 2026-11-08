@@ -4,25 +4,23 @@ import Link from "next/link";
 import { Fragment, useEffect, useMemo, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { FaBullseye } from "react-icons/fa6";
 import { ReactionFace } from "@/app/components/common/reaction-face";
-import { HeroCast } from "@/app/components/common/hero-cast";
-import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
 import { useFeature } from "@/app/lib/features";
-import { unitLabel, unitName, UNIT_ORDER } from "@/app/lib/market-units";
+import { unitName } from "@/app/lib/market-units";
 import { chatRoomKind, compactCount, shortDuration, untilLabel } from "@/app/lib/streams";
 import { talentAccent } from "@/app/lib/talent-color";
 import { signedPct, toneOf } from "@/app/lib/time";
 import type { MarketAsset } from "@/app/lib/types";
-import { useAuth } from "@/app/providers/auth-provider";
 import { useTheme } from "@/app/providers/theme-provider";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import ls from "@/app/components/livestreams/livestreams.module.scss";
 import styles from "@/app/components/livestreams/stream-calendar.module.scss";
 
-// The stream calendar: listed talents' streams for the next week, laid out by day and time in the
-// viewer's own time zone. A week grid on wide screens, a day list on phones. Each stream links to
-// the talent's stock; one with an open peak prediction carries a target mark (and a link on phones).
+// The stream calendar, a mode of the Livestreams page (/livestreams?view=calendar): listed talents'
+// streams for the next week, laid out by day and time in the viewer's own time zone. A week grid on
+// wide screens, a day list on phones. Each stream links to the talent's stock; one with an open peak
+// prediction carries a target mark (and a link on phones).
 // Same data as the stream-peak predictions (GET /api/livestreams/calendar).
 
 export type CalendarStream = {
@@ -138,24 +136,20 @@ function useCalendar() {
   return { data, error };
 }
 
-export function StreamCalendarPage() {
+/**
+ * The calendar mode of the Livestreams page (behind the stream-calendar flag): the page's own search,
+ * holdings and unit filters apply here too.
+ */
+export function StreamCalendar({ query, units, mine }: { query: string; units: string[]; mine: boolean }) {
   const { data, error } = useCalendar();
   const assets = useMarketStore((state) => state.assets);
   const portfolio = useProfileStore((state) => state.portfolio);
-  const { user } = useAuth();
   const now = useClock();
   const zone = useTimeZone();
-  const [units, setUnits] = useState<string[]>([]);
-  const [query, setQuery] = useState("");
-  const [mine, setMine] = useState(false);
   const [picked, setPicked] = useState(0);
 
   const bySymbol = useMemo(() => new Map(assets.map((asset) => [asset.symbol.toUpperCase(), asset])), [assets]);
   const held = useMemo(() => new Set((portfolio?.holdings ?? []).filter((row) => row.quantity > 0).map((row) => row.symbol.toUpperCase())), [portfolio]);
-  const unitOptions = useMemo(() => {
-    const present = new Set(assets.map((asset) => unitName(asset.unit)).filter(Boolean));
-    return [...UNIT_ORDER.filter((unit) => present.has(unit)), ...[...present].filter((unit) => !UNIT_ORDER.includes(unit)).sort()];
-  }, [assets]);
 
   const minute = now === null ? null : Math.floor(now / 60_000);
   const streams = useMemo(() => {
@@ -190,104 +184,44 @@ export function StreamCalendarPage() {
     () => (now === null ? [] : streams.filter((stream) => (stream.state === "upcoming" || stream.state === "late") && Date.parse(stream.starts_at as string) > now - 2 * 3600_000).slice(0, 4)),
     [now, streams]
   );
-  const thisWeek = week.length ? streams.filter((stream) => stream.state !== "ended" && Date.parse(stream.starts_at as string) < week[week.length - 1].end).length : 0;
-  const cast = useMemo(() => {
-    const out: MarketAsset[] = [];
-    for (const stream of [...live, ...upNext]) {
-      const asset = bySymbol.get(stream.symbol.toUpperCase());
-      if (asset && !out.includes(asset)) out.push(asset);
-    }
-    return out;
-  }, [bySymbol, live, upNext]);
   const filtering = units.length > 0 || Boolean(query.trim()) || mine;
   const day = week[Math.min(picked, week.length - 1)] ?? null;
 
   return (
-    <SiteShell>
-      <div className={ls.page}>
-        <header className={ls.top} data-cast={cast.length ? "" : undefined}>
-          <HeroCast talents={cast} max={10} fill />
-          <div className={ls.title}>
-            <span className={ls.kicker}>
-              <i aria-hidden="true" /> SCHEDULE
-            </span>
-            <h1>Stream calendar</h1>
-            <p suppressHydrationWarning>
-              <b>{live.length}</b> live now · <b>{thisWeek}</b> coming up this week{zone ? <> · times in your time zone ({zone.replace(/_/g, " ")})</> : null}
-            </p>
-          </div>
-          <nav className={ls.tabs} aria-label="Streams">
-            <Link href="/livestreams">Live & upcoming</Link>
-            <Link href="/livestreams?view=past">Past streams</Link>
-            <Link href="/livestreams/calendar" aria-current="page">
-              Calendar
-            </Link>
-          </nav>
-        </header>
+    <>
+      {error && !data ? <p className={ls.empty}>The calendar is unavailable right now ({error}).</p> : null}
 
-        <div className={ls.filters}>
-          <label className={ls.search}>
-            <span aria-hidden="true">⌕</span>
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Talent, ticker or title" aria-label="Search the calendar" />
-          </label>
-          {user ? (
-            <button type="button" className={ls.chip} aria-pressed={mine} onClick={() => setMine((value) => !value)} title="Only talents whose stock you hold">
-              My holdings
-            </button>
-          ) : null}
-          <div className={ls.units} role="group" aria-label="Units">
-            {unitOptions.map((unit) => (
-              <button key={unit} type="button" className={ls.chip} aria-pressed={units.includes(unit)} onClick={() => setUnits((current) => (current.includes(unit) ? current.filter((entry) => entry !== unit) : [...current, unit]))}>
-                {unitLabel(unit)}
-              </button>
-            ))}
-          </div>
-          {filtering ? (
-            <button
-              type="button"
-              className={ls.clear}
-              onClick={() => {
-                setUnits([]);
-                setQuery("");
-                setMine(false);
-              }}
-            >
-              CLEAR
-            </button>
-          ) : null}
-        </div>
+      {now !== null && (live.length || upNext.length) ? <NowStrip live={live} upNext={upNext} now={now} bySymbol={bySymbol} /> : null}
 
-        {error && !data ? <p className={ls.empty}>The calendar is unavailable right now ({error}).</p> : null}
-
-        {now !== null && (live.length || upNext.length) ? <NowStrip live={live} upNext={upNext} now={now} bySymbol={bySymbol} /> : null}
-
+      <div className={styles.legendRow}>
         <Legend />
-
-        {now === null || !data ? (
-          <div className={styles.skeleton} aria-hidden="true" />
-        ) : (
-          <>
-            <WeekGrid week={week} byDay={byDay} now={now} />
-            <div className={styles.phone}>
-              <div className={styles.dayPicker} role="tablist" aria-label="Day">
-                {week.map((entry) => {
-                  const count = (byDay.get(entry.key) ?? []).length;
-                  return (
-                    <button key={entry.key} type="button" role="tab" aria-selected={entry.index === day?.index} onClick={() => setPicked(entry.index)} className={styles.dayPill}>
-                      <span>{entry.index === 0 ? "Today" : entry.date.toLocaleDateString("en-US", { weekday: "short" })}</span>
-                      <b>{entry.date.getDate()}</b>
-                      <small>{count ? `${count}` : "—"}</small>
-                    </button>
-                  );
-                })}
-              </div>
-              {day ? <DayList day={day} streams={byDay.get(day.key) ?? []} now={now} bySymbol={bySymbol} filtering={filtering} /> : null}
-            </div>
-            {!streams.length ? <p className={ls.empty}>{filtering ? "No streams match these filters." : "Nothing on the schedule yet."}</p> : null}
-          </>
-        )}
+        {zone ? <p className={styles.zone}>Times in your time zone ({zone.replace(/_/g, " ")})</p> : null}
       </div>
-    </SiteShell>
+
+      {now === null || !data ? (
+        <div className={styles.skeleton} aria-hidden="true" />
+      ) : (
+        <>
+          <WeekGrid week={week} byDay={byDay} now={now} />
+          <div className={styles.phone}>
+            <div className={styles.dayPicker} role="tablist" aria-label="Day">
+              {week.map((entry) => {
+                const count = (byDay.get(entry.key) ?? []).length;
+                return (
+                  <button key={entry.key} type="button" role="tab" aria-selected={entry.index === day?.index} onClick={() => setPicked(entry.index)} className={styles.dayPill}>
+                    <span>{entry.index === 0 ? "Today" : entry.date.toLocaleDateString("en-US", { weekday: "short" })}</span>
+                    <b>{entry.date.getDate()}</b>
+                    <small>{count ? `${count}` : "—"}</small>
+                  </button>
+                );
+              })}
+            </div>
+            {day ? <DayList day={day} streams={byDay.get(day.key) ?? []} now={now} bySymbol={bySymbol} filtering={filtering} /> : null}
+          </div>
+          {!streams.length ? <p className={ls.empty}>{filtering ? "No streams match these filters." : "Nothing on the schedule yet."}</p> : null}
+        </>
+      )}
+    </>
   );
 }
 
@@ -335,7 +269,7 @@ function UpNextBox({ className, headClass, asideClass }: { className?: string; h
           : null}
         {now !== null && data && !shown.length ? <p className={styles.floorEmpty}>Nobody&apos;s scheduled in the next few hours.</p> : null}
       </div>
-      <Link href="/livestreams/calendar" className={styles.floorMore} prefetch={false}>
+      <Link href="/livestreams?view=calendar" className={styles.floorMore} prefetch={false}>
         Stream calendar →
       </Link>
     </section>
