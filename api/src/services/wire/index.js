@@ -5,11 +5,17 @@
 //
 // Sources: stream events judged from titles (streams.js; Jev when configured), subscriber
 // milestones, viewer records, the day's top superchat stream, market movers, IPOs, big card-exchange
-// sales, UR pulls and resolved prediction markets. A scheduler runs every 10 minutes; items are
-// keyed (dedupe_key) so each fact is posted once. Stream items refresh their live/upcoming state.
+// sales, UR pulls, resolved prediction markets and players' oshi moves (oshiMoves.js). A scheduler
+// runs every 10 minutes; items are keyed (dedupe_key) so each fact is posted once. Stream items
+// refresh their live/upcoming state.
+//
+// Oshi moves are only read out to viewers with the oshi-wire flag (`withOshi`). In the ranked list
+// (the front page) they rank a day behind their age, under the day's news, and at most
+// FRONT_OSHI_MAX of them are in it.
 
 const crypto = require("node:crypto");
 const streams = require("./streams");
+const oshiWire = require("./oshiMoves");
 const chatter = require("../chatter");
 const autotag = require("../autotag");
 const newsMoods = require("../newsMoods");
@@ -535,11 +541,15 @@ async function ipoNews(pool) {
   return { items: added };
 }
 
-const GENERATORS = { streamEvents, subscriberMilestones, viewerRecords, superchatLeader, marketMovers, marketSupplyNews, ipoNews, gameMoments, chatterSpikes, autotagArticles, newsReactions };
+const oshiMoves = (pool) => oshiWire.oshiMoves(pool, upsert);
 
-async function runWire(pool, logger = console) {
+const GENERATORS = { streamEvents, subscriberMilestones, viewerRecords, superchatLeader, marketMovers, marketSupplyNews, ipoNews, gameMoments, oshiMoves, chatterSpikes, autotagArticles, newsReactions };
+
+/** Runs every generator (or `only` the ones named) and returns what each did. */
+async function runWire(pool, logger = console, { only = null } = {}) {
   const summary = {};
   for (const [name, generate] of Object.entries(GENERATORS)) {
+    if (only && !only.includes(name)) continue;
     try {
       summary[name] = await generate(pool);
     } catch (error) {
@@ -557,7 +567,29 @@ const WIRE_GROUPS = {
   market: "kind IN ('market_mover', 'dividend_review', 'buyback', 'sold_out', 'ipo')",
   games: "kind IN ('exchange_sale', 'ur_pull', 'prediction_resolved')",
   vt: "kind = 'chatter_spike'",
+  oshi: `kind = '${oshiWire.KIND}'`, // only with the oshi-wire flag (groupFor)
 };
+/** The most oshi moves the ranked list (the front page) carries. */
+const FRONT_OSHI_MAX = 3;
+/** In the ranked list, an oshi move ranks as if it were this many hours older: under the day's news. */
+const OSHI_HOURS_BEHIND = 24;
+
+/** The group a viewer asked for, or null for everything (unknown, or the oshi group without the flag). */
+function groupFor(group, { withOshi = false } = {}) {
+  if (!group || !Object.hasOwn(WIRE_GROUPS, group)) return null;
+  if (group === "oshi" && !withOshi) return null;
+  return group;
+}
+
+/** The conditions every read starts with: shown, in the window, and oshi moves only `withOshi`. */
+function baseWhere(withOshi) {
+  return [
+    "NOT hidden",
+    "occurred_at > now() - ($1 || ' hours')::interval",
+    "occurred_at < now() + interval '7 days'",
+    withOshi ? oshiWire.visibleSql() : `kind <> '${oshiWire.KIND}'`,
+  ];
+}
 
 function wireRow(row) {
   return {
@@ -577,12 +609,13 @@ function wireRow(row) {
 /**
  * Recent items. The front page takes the most important and freshest first (order "rank"); the Wire
  * page reads them newest first (order "time"), optionally one group (WIRE_GROUPS) or one talent, and
- * pages back with `before` (an occurred_at).
+ * pages back with `before` (an occurred_at). Oshi moves only `withOshi` (the oshi-wire flag).
  */
-async function listWire(pool, { limit = 40, hours = 168, order = "rank", group = null, symbol = null, before = null } = {}) {
+async function listWire(pool, { limit = 40, hours = 168, order = "rank", group = null, symbol = null, before = null, withOshi = false } = {}) {
   const params = [String(Math.min(24 * 30, Math.max(1, Number(hours) || 168))), Math.min(200, Math.max(1, Number(limit) || 40))];
-  const where = ["NOT hidden", "occurred_at > now() - ($1 || ' hours')::interval", "occurred_at < now() + interval '7 days'"];
-  if (group && WIRE_GROUPS[group]) where.push(WIRE_GROUPS[group]);
+  const where = baseWhere(withOshi);
+  const only = groupFor(group, { withOshi });
+  if (only) where.push(WIRE_GROUPS[only]);
   if (symbol) {
     params.push(String(symbol).toUpperCase());
     where.push(`$${params.length} = ANY(symbols)`);
@@ -592,37 +625,49 @@ async function listWire(pool, { limit = 40, hours = 168, order = "rank", group =
     params.push(before);
     where.push(`occurred_at < $${params.length}::timestamptz`);
   }
-  const orderBy =
-    order === "time"
-      ? "occurred_at DESC, id DESC"
-      : "(importance * 6 - EXTRACT(EPOCH FROM (now() - LEAST(occurred_at, now()))) / 3600) DESC, occurred_at DESC";
-  const { rows } = await pool.query(
-    `
-    SELECT id, kind, headline, blurb, symbols, image_url, link_url, importance, occurred_at, meta
-    FROM content.wire_items
-    WHERE ${where.join(" AND ")}
-    ORDER BY ${orderBy}
-    LIMIT $2
-  `,
-    params
-  );
+  const columns = "id, kind, headline, blurb, symbols, image_url, link_url, importance, occurred_at, meta";
+  const score = "(importance * 6 - EXTRACT(EPOCH FROM (now() - LEAST(occurred_at, now()))) / 3600)";
+  const conditions = where.join(" AND ");
+  let sql;
+  if (order === "time") {
+    sql = `SELECT ${columns} FROM content.wire_items WHERE ${conditions} ORDER BY occurred_at DESC, id DESC LIMIT $2`;
+  } else if (withOshi && only !== "oshi") {
+    // Ranked with oshi moves: they rank OSHI_HOURS_BEHIND behind their age, and only the best
+    // FRONT_OSHI_MAX are in the list at all, so they never crowd out the news.
+    sql = `
+      SELECT ${columns} FROM (
+        (SELECT ${columns}, ${score} AS score FROM content.wire_items
+          WHERE ${conditions} AND kind <> '${oshiWire.KIND}' ORDER BY score DESC, occurred_at DESC LIMIT $2)
+        UNION ALL
+        (SELECT ${columns}, ${score} - ${OSHI_HOURS_BEHIND} AS score FROM content.wire_items
+          WHERE ${conditions} AND kind = '${oshiWire.KIND}' ORDER BY score DESC, occurred_at DESC LIMIT ${FRONT_OSHI_MAX})
+      ) ranked
+      ORDER BY score DESC, occurred_at DESC
+      LIMIT $2`;
+  } else {
+    sql = `SELECT ${columns} FROM content.wire_items WHERE ${conditions} ORDER BY ${score} DESC, occurred_at DESC LIMIT $2`;
+  }
+  const { rows } = await pool.query(sql, params);
   return rows.map(wireRow);
 }
 
-/** How many items each group has in the window (the Wire page's chips), plus the total. */
-async function countWire(pool, { hours = 168, symbol = null } = {}) {
+/** How many items each group has in the window (the Wire page's chips), plus the total. The oshi group only `withOshi`. */
+async function countWire(pool, { hours = 168, symbol = null, withOshi = false } = {}) {
   const params = [String(Math.min(24 * 30, Math.max(1, Number(hours) || 168)))];
-  let symbolFilter = "";
+  const where = baseWhere(withOshi);
   if (symbol) {
     params.push(String(symbol).toUpperCase());
-    symbolFilter = `AND $2 = ANY(symbols)`;
+    where.push(`$2 = ANY(symbols)`);
   }
-  const columns = Object.entries(WIRE_GROUPS).map(([key, condition]) => `COUNT(*) FILTER (WHERE ${condition})::int AS ${key}`);
+  where.push(players.visibleSql());
+  const columns = Object.entries(WIRE_GROUPS)
+    .filter(([key]) => groupFor(key, { withOshi }))
+    .map(([key, condition]) => `COUNT(*) FILTER (WHERE ${condition})::int AS ${key}`);
   const { rows } = await pool.query(
     `
     SELECT COUNT(*)::int AS all, ${columns.join(", ")}
     FROM content.wire_items
-    WHERE NOT hidden AND occurred_at > now() - ($1 || ' hours')::interval AND occurred_at < now() + interval '7 days' AND ${players.visibleSql()} ${symbolFilter}
+    WHERE ${where.join(" AND ")}
   `,
     params
   );
@@ -673,4 +718,4 @@ function startWireScheduler(pool, logger = console, { intervalMs = 10 * 60_000, 
   };
 }
 
-module.exports = { WIRE_GROUPS, countWire, listWire, milestoneStep, runWire, startWireScheduler };
+module.exports = { FRONT_OSHI_MAX, OSHI_HOURS_BEHIND, WIRE_GROUPS, countWire, groupFor, listWire, milestoneStep, runWire, startWireScheduler };

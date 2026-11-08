@@ -34,7 +34,7 @@ import { fetchFloor } from "@/app/lib/predictions/api";
 import { leader as predictionLeader, outcomeColor } from "@/app/lib/predictions/format";
 import type { PredictionMarket as PredictionMarketV2 } from "@/app/lib/predictions/types";
 import styles from "@/app/components/home/front-page.module.scss";
-import { LIFTS_FAIR_VALUE, WIRE_TAGS, wireTone, wireWhen } from "@/app/components/wire/wire-kit";
+import { LIFTS_FAIR_VALUE, WIRE_TAGS, isOshiMove, wireTone, wireWhen } from "@/app/components/wire/wire-kit";
 import { Term } from "@/app/components/common/tip";
 import { LiveBand } from "@/app/components/home/live-band";
 import { FirstDaysCard } from "@/app/components/onboarding/first-days-card";
@@ -877,10 +877,12 @@ export function FrontPage() {
     void fetchLeaderboard({ limit: 5 });
   }, [fetchLeaderboard, fetchLivestreams, fetchMarketIndexes, fetchNews, fetchWire]);
 
-  // No articles at all: the Wire leads the front page, and its list carries on from there.
-  const wireLeads = !newsItems.length && !isLoadingNews && wire.length > 0;
-  const frontItems = wireLeads ? wire.slice(0, 6).map(wireStory) : newsItems;
-  const wireItems = wireLeads ? wire.slice(6) : wire;
+  // No articles at all: the Wire leads the front page, and its list carries on from there. A
+  // player's oshi move never leads; it stays in the list.
+  const wireLeads = !newsItems.length && !isLoadingNews && wire.some((item) => !isOshiMove(item));
+  const leads = wireLeads ? wire.filter((item) => !isOshiMove(item)).slice(0, 6) : [];
+  const frontItems = wireLeads ? leads.map(wireStory) : newsItems;
+  const wireItems = wireLeads ? wire.filter((item) => !leads.includes(item)) : wire;
 
   return (
     <SiteShell>
