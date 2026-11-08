@@ -381,6 +381,7 @@ const RESET_TABLES = [
   "market.user_leaderboard_current",
   "market.user_oshiboard_current",
   "market.user_trade_streaks",
+  "market.daily_checkins",
   "market.user_achievements",
   "market.achievement_evaluation_runs",
   // Prices and settlement history (rebuilt from the YouTube data)

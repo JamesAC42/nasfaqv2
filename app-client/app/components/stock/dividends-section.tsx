@@ -44,6 +44,12 @@ const normalize = (raw: Record<string, unknown>): Review[] =>
     of: num(row.of),
   }));
 
+/** "a 4.2% fee" / "an 8.5% fee", or "a fee" when the rate isn't known. */
+const feeWithRate = (rate: number | null) => {
+  if (!rate) return "a fee";
+  const pct = (Math.abs(rate) * 100).toFixed(1);
+  return `${pct.startsWith("8") ? "an" : "a"} ${pct}% fee`;
+};
 const tone = (value: number | null) => (value === null || value === 0 ? "" : value > 0 ? styles.up : styles.down);
 const shortDate = (value: string) => new Date(`${value}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
@@ -129,6 +135,12 @@ export function DividendsSection({ asset }: { asset: MarketAsset }) {
                     <span className={styles.kpiD}>
                       on {myLines[0].line.quantity.toLocaleString("en-US")} sh · {shortDate(myLines[0].eval_date)}
                     </span>
+                    {myLines[0].line.oshi_waived ? (
+                      <span className={local.waived}>
+                        Your oshi’s shares skipped {feeWithRate(items.find((item) => item.eval_date === myLines[0].eval_date)?.rate ?? null)}:{" "}
+                        <b>{money(myLines[0].line.oshi_waived)}</b> not charged on {myLines[0].line.oshi_protected_quantity?.toLocaleString("en-US") ?? 0} sh held all week
+                      </span>
+                    ) : null}
                   </>
                 ) : (
                   <>

@@ -9,6 +9,7 @@ import { Oshimark } from "@/app/components/common/oshimark";
 import { ComingToMarketNote } from "@/app/components/market/ipo-banner";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { DividendsSection } from "@/app/components/stock/dividends-section";
+import { OshiProtection } from "@/app/components/stock/oshi-protection";
 import { ChartSection, DaySection, TicksSection } from "@/app/components/stock/market-sections";
 import { ChannelSection, StreamsSection, SuperchatSection } from "@/app/components/stock/channel-sections";
 import { BoardSection, HoldersSection, NewsSection } from "@/app/components/stock/community-sections";
@@ -377,6 +378,7 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
                 ) : (
                   <p className={styles.none}>You don&apos;t hold any {sym}.</p>
                 )}
+                {user ? <OshiProtection symbol={sym} held={holding?.quantity ?? 0} /> : null}
                 {pending.length ? (
                   <div className={styles.pending}>
                     {pending.map((order) => (

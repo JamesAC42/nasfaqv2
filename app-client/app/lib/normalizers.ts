@@ -2328,6 +2328,16 @@ function normalizeProfileRename(value: unknown): ProfileBundle["profile"]["renam
   };
 }
 
+function normalizeOshiChange(value: unknown): ProfileBundle["profile"]["oshi_change"] {
+  if (!value || typeof value !== "object") return null;
+  const change = value as Record<string, unknown>;
+  return {
+    available_at: change.available_at ? String(change.available_at) : null,
+    cooldown_days: Number(toNumber(change.cooldown_days) || 30),
+    first_pick: Boolean(change.first_pick),
+  };
+}
+
 export function normalizeProfileBundle(value: Record<string, unknown>): ProfileBundle {
   const profile = (value.profile || null) as Record<string, unknown> | null;
   const stats = (profile?.stats || null) as Record<string, unknown> | null;
@@ -2352,6 +2362,7 @@ export function normalizeProfileBundle(value: Record<string, unknown>): ProfileB
       profile_picture_url: profile?.profile_picture_url ? String(profile.profile_picture_url) : null,
       profile_color: profile?.profile_color ? String(profile.profile_color) : null,
       rename: normalizeProfileRename(profile?.rename),
+      oshi_change: normalizeOshiChange(profile?.oshi_change),
       equipped: normalizeEquipped(profile?.equipped),
       is_admin: Boolean(profile?.is_admin),
       permissions: {

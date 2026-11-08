@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, type ReactNode } from "react";
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { nextEvaluationAt, untilText } from "@/app/components/market/dividends-tab";
+import { useFeature } from "@/app/lib/features";
 import { getMarketClock } from "@/app/lib/market-clock";
 import { money, signedPct, toneOf } from "@/app/lib/time";
 import { useNow } from "@/app/lib/use-now";
@@ -29,6 +30,7 @@ export function FirstDaysCard({ onPickOshi, verifyNotice = true }: { onPickOshi?
   const refresh = useFirstDaysStore((state) => state.refresh);
   const dismiss = useFirstDaysStore((state) => state.dismiss);
   const eligible = inFirstDays(user);
+  const oshiProtection = useFeature("oshi-protection");
 
   useEffect(() => {
     if (user && eligible) void load(user.id);
@@ -59,8 +61,11 @@ export function FirstDaysCard({ onPickOshi, verifyNotice = true }: { onPickOshi?
       done: Boolean(oshi),
       body: oshi ? (
         <>
-          Your oshi is <b>{oshi.name}</b>. Their mark follows your name.
+          Your oshi is <b>{oshi.name}</b>. Their mark follows your name
+          {oshiProtection ? <>, and the {oshi.symbol} shares you hold all week skip Saturday’s share fee</> : null}.
         </>
+      ) : oshiProtection ? (
+        "Your favorite talent. Their mark follows your name, and the shares of them you hold all week skip Saturday's share fee. It can change once every 30 days, so choose well."
       ) : (
         "Your favorite talent. Their mark follows your name, and holding the most of them puts you on their oshiboard."
       ),
@@ -117,6 +122,7 @@ export function FirstDaysCard({ onPickOshi, verifyNotice = true }: { onPickOshi?
       ) : (
         <>
           Saturday 00:00 ET{reviewIn ? ` (in ${reviewIn})` : ""}, the fastest-growing channels pay their holders a dividend and the slowest charge a fee.
+          {oshiProtection ? " Your oshi never charges one on shares held all week." : null}
         </>
       ),
       action: review ? null : <Link href="/market/dividends">Last week&apos;s review →</Link>,
