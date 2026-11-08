@@ -1,5 +1,7 @@
 const express = require("express");
 const netWorth = require("../services/netWorth");
+const dividendBoard = require("../services/dividendBoard");
+const features = require("../features");
 const { scrubPublicMarketPayload } = require("../services/marketSecrecy");
 const {
   buildAssetOshiboardCacheKey,
@@ -91,6 +93,60 @@ router.get("/oshiboard/:symbol", async (req, res, next) => {
     if (!board) return res.status(404).json({ error: "asset_not_found" });
     await setCachedJson(req.ctx.redis, cacheKey, board, MARKET_ASSET_OSHIBOARD_CACHE_TTL_SECONDS);
     res.json(board);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// The dividend leaderboard (services/dividendBoard.js), behind the dividend-spotlight flag. Each copy
+// is per audience (features: true drops oshi protection's fields) and per oshi-protection answer
+// (dropping rows that only exist because a fee was skipped), so a staff copy never reaches a player.
+router.get("/dividends", features.requireFeature(dividendBoard.FLAG), async (req, res, next) => {
+  try {
+    const query = {
+      window: dividendBoard.parseWindow(req.query.window),
+      page: parsePage(req.query.page, 1),
+      limit: parseLimit(req.query.limit, 25),
+      withOshi: dividendBoard.withOshiFor(req.ctx.user),
+    };
+    await sendCachedJson(req, res, dividendBoard.pageKey(query), {
+      ttlSeconds: 30,
+      memoMs: 5000,
+      features: true,
+      load: () => dividendBoard.boardPage(req.ctx, query),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/dividends/me", features.requireFeature(dividendBoard.FLAG), async (req, res, next) => {
+  try {
+    const userId = req.ctx.user?.id;
+    if (!userId) return res.status(401).json({ error: "unauthenticated" });
+    const place = await dividendBoard.myPlace(req.ctx, userId, {
+      window: dividendBoard.parseWindow(req.query.window),
+      withOshi: dividendBoard.withOshiFor(req.ctx.user),
+    });
+    features.markPrivate(res);
+    res.json(features.forAudience(place, features.audienceOf(req.ctx.user)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/dividends/players/:userId", features.requireFeature(dividendBoard.FLAG), async (req, res, next) => {
+  try {
+    const userId = Number.parseInt(String(req.params.userId || ""), 10);
+    if (!Number.isFinite(userId) || userId <= 0) return res.status(400).json({ error: "invalid_user_id" });
+    const query = { userId, window: dividendBoard.parseWindow(req.query.window), withOshi: dividendBoard.withOshiFor(req.ctx.user) };
+    await sendCachedJson(req, res, dividendBoard.breakdownKey(query), {
+      ttlSeconds: 60,
+      memoMs: 10_000,
+      features: true,
+      notFound: "player_not_found",
+      load: () => dividendBoard.playerBreakdown(req.ctx.pool, userId, query),
+    });
   } catch (error) {
     next(error);
   }

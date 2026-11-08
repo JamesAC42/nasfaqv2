@@ -91,6 +91,12 @@
   }
 }
 
+.tabExtra {
+  @include phone {
+    display: none;
+  }
+}
+
 // ── KPI strip ────────────────────────────────────────────────────────────
 .kstrip {
   display: grid;
@@ -607,6 +613,126 @@
     @include button-secondary;
     padding: 0.3rem 0.65rem;
     font-size: 0.625rem;
+  }
+}
+
+// ── Dividends ────────────────────────────────────────────────────────────
+.saved {
+  color: var(--blue);
+}
+
+.meLink a {
+  font-size: 0.78rem;
+  color: var(--blue);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.expand {
+  @include num;
+  padding: 0.15rem 0.35rem;
+  border: 1px solid var(--rule-2);
+  background: none;
+  font-size: 0.72rem;
+  color: var(--mid);
+  cursor: pointer;
+
+  i {
+    font-style: normal;
+    color: var(--blue);
+  }
+
+  &:hover,
+  &[aria-expanded="true"] {
+    border-color: var(--blue);
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.linesRow > td {
+  padding: 0;
+  background: var(--ink-2);
+}
+
+// On a phone: rank, player, net and the button that opens the rest, with no sideways scrolling.
+.divTable {
+  @include phone {
+    th,
+    td {
+      padding-inline: 0.3rem;
+    }
+
+    .rank {
+      width: 1.5rem;
+    }
+
+    .who {
+      gap: 0.35rem;
+      max-width: 9.75rem;
+
+      b {
+        min-width: 0;
+      }
+    }
+  }
+}
+
+.linesSplit {
+  display: none;
+  margin: 0;
+  padding: 0.5rem 0.75rem 0;
+  font-size: 0.72rem;
+  text-align: left;
+  white-space: normal;
+  color: var(--mid);
+
+  @include phone {
+    display: block;
+  }
+}
+
+.linesNote {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+.lines {
+  width: 100%;
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: 0.35rem 0.75rem;
+  }
+
+  tr:last-child td {
+    border-bottom: 0;
+  }
+
+  small {
+    margin-left: 0.25rem;
+    font-size: 0.66rem;
+    color: var(--dim);
+  }
+
+  @include phone {
+    th,
+    td {
+      padding-inline: 0.4rem;
+    }
+
+    th {
+      letter-spacing: 0.04em;
+    }
   }
 }
 

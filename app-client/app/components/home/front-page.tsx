@@ -39,6 +39,8 @@ import { Term } from "@/app/components/common/tip";
 import { LiveBand } from "@/app/components/home/live-band";
 import { FirstDaysCard } from "@/app/components/onboarding/first-days-card";
 import { CheckinCard } from "@/app/components/home/checkin-card";
+import { DividendWeekCard } from "@/app/components/home/dividend-week-card";
+import { useFeature } from "@/app/lib/features";
 
 
 function newsHref(item: NewsItem) {
@@ -570,6 +572,7 @@ function shortEvalDate(value: string) {
 function DividendReview() {
   const { user } = useAuth();
   const now = useNow();
+  const spotlight = useFeature("dividend-spotlight");
   const [review, setReview] = useState<WeeklyEvaluation | null | undefined>(undefined);
   const [mine, setMine] = useState<MyDividendWeek | null>(null);
   useEffect(() => {
@@ -613,9 +616,16 @@ function DividendReview() {
         <h2 id="review-title">
           The <Term k="evaluation">Dividend Review</Term>
         </h2>
-        <Link href="/market/dividends" className={styles.label}>
-          {day ? `${day} · ` : ""}full review →
-        </Link>
+        <span className={styles.blockLinks}>
+          {spotlight ? (
+            <Link href="/leaderboard?tab=dividends" className={styles.label}>
+              leaderboard →
+            </Link>
+          ) : null}
+          <Link href="/market/dividends" className={styles.label}>
+            {day ? `${day} · ` : ""}full review →
+          </Link>
+        </span>
       </div>
       <div className={styles.report}>
         <div className={`${styles.reportCol} ${styles.reviewNext}`}>
@@ -889,6 +899,7 @@ export function FrontPage() {
       <div className={styles.page}>
         <Masthead assets={assets} />
         <TradingPausedBanner className={styles.paused} />
+        <DividendWeekCard />
         <CheckinCard />
         <FirstDaysCard />
         <LiveBand />

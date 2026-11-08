@@ -69,6 +69,10 @@ In BBB's order:
 4. **The Dividend Review** (Market → Dividends): a public report (total pool, biggest payers and
    fee-takers, max share changes, buybacks, every stock), each player's own week, a notification to
    every holder, and a Wire post. Buybacks and sell-outs get Wire posts too.
+   Behind the `dividend-spotlight` flag (`services/dividendBoard.js`): Home shows each player's week for
+   four days after a review and counts down over the last three before the next, and the leaderboard's
+   Dividends tab ranks players from the most earned down to the highest fees, for the latest week or all
+   time, by the Wire's rule for who can be named.
 
 The very first evaluation never shrinks a stock below what players already hold (no surprise
 buybacks on launch day).

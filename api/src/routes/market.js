@@ -16,6 +16,7 @@ const {
 const trading = require("../services/trading");
 const marketAdjustments = require("../services/marketAdjustments");
 const weeklyEvaluation = require("../services/weeklyEvaluation");
+const dividendBoard = require("../services/dividendBoard");
 const checkins = require("../services/checkins");
 const oshi = require("../services/oshi");
 const ipo = require("../services/ipo");
@@ -248,6 +249,19 @@ router.get("/me/dividends", async (req, res, next) => {
 
 // The daily check-in (services/checkins.js): today's, and claiming it. Verified accounts only, behind
 // the daily-checkin feature flag (404 without it).
+// Your last review and the countdown to the next, for the front page's card (the dividend-spotlight flag).
+router.get("/me/dividend-week", features.requireFeature(dividendBoard.FLAG), async (req, res, next) => {
+  try {
+    const userId = requireUserId(req);
+    const summary = await dividendBoard.myWeek(req.ctx, userId, { withOshi: dividendBoard.withOshiFor(req.ctx.user) });
+    features.markPrivate(res);
+    res.json(features.forAudience(summary, features.audienceOf(req.ctx.user)));
+  } catch (e) {
+    if (e?.code === "unauthenticated") return res.status(401).json({ error: "unauthenticated" });
+    next(e);
+  }
+});
+
 router.get("/me/checkin", features.requireFeature("daily-checkin"), async (req, res, next) => {
   try {
     const userId = requireUserId(req);

@@ -525,6 +525,68 @@ export type MyDividendWeek = {
   lines: Array<{ symbol: string; display_name: string; quantity: number; per_share: number; amount: number; oshi_protected_quantity?: number; oshi_waived?: number }>;
 };
 
+export type DividendBoardWindow = "latest" | "all";
+
+/** A player on the dividend leaderboard. oshi_waived: fees their oshi skipped (only with the oshi-protection flag). */
+export type DividendBoardEntry = {
+  rank: number;
+  user_id: number;
+  username: string;
+  net: number;
+  dividends: number;
+  fees: number;
+  stocks: number;
+  oshi_waived?: number;
+  profile_picture_url?: string | null;
+  profile_color?: string | null;
+  equipped_hat?: LeaderboardEntry["equipped_hat"];
+  equipped?: Equipped;
+};
+
+type DividendBoardPlayer = { user_id: number; username: string; net: number };
+
+/** GET /api/leaderboard/dividends: from the most earned at the review down to the highest fees. */
+export type DividendBoard = {
+  window: DividendBoardWindow;
+  eval_date: string | null;
+  weeks: number;
+  totals: { players: number; dividends: number; fees: number; oshi_waived?: number };
+  top: DividendBoardPlayer | null;
+  bottom: DividendBoardPlayer | null;
+  pagination: LeaderboardPagination;
+  entries: DividendBoardEntry[];
+};
+
+/** GET /api/leaderboard/dividends/me: your own place on that board, if you're on it. */
+export type DividendBoardPlace = { window: DividendBoardWindow; eval_date: string | null; players: number; me: DividendBoardEntry | null };
+
+/** GET /api/leaderboard/dividends/players/:id: one player's dividends and fees by stock. */
+export type DividendBreakdown = {
+  window: DividendBoardWindow;
+  eval_date: string | null;
+  user_id: number;
+  username: string;
+  lines: Array<{ symbol: string; display_name: string; net: number; dividends: number; fees: number; weeks: number; oshi_waived?: number; oshi_protected_quantity?: number }>;
+};
+
+/** GET /api/market/me/dividend-week: the front page's card. `week` is null once the last review is a few days old. */
+export type MyDividendSummary = {
+  next_review_at: string;
+  holds_stocks: boolean;
+  week: null | {
+    eval_date: string;
+    show_until: string;
+    net: number;
+    dividends: number;
+    fees: number;
+    stocks: number;
+    rank: number | null;
+    players: number;
+    oshi_waived?: number;
+    highlights: Array<{ symbol: string; amount: number; oshi_waived?: number }>;
+  };
+};
+
 /** Your oshi and this week's protection from the share fee (GET /api/market/me/oshi). */
 export type OshiStatus = {
   oshi: { id: number; symbol: string; display_name: string } | null;

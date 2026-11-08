@@ -1,0 +1,267 @@
+@use "../../styles/mixins" as *;
+
+// The front page's strip after a Saturday review: your net on the left, what made it on the right.
+// The slimmer strip below it counts down to the next review.
+
+.up { color: var(--up); }
+.down { color: var(--down); }
+.flat { color: var(--mid); }
+.saved { color: var(--blue); }
+
+.card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(14rem, 0.6fr) minmax(0, 1.6fr);
+  margin-top: 1rem;
+  border: 1px solid var(--blue-line);
+  background: var(--blue-wash);
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.close {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 1.05rem;
+  line-height: 1;
+  color: var(--dim);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.9rem 1rem;
+  border-right: 1px solid var(--blue-line);
+
+  h2 {
+    @include section-heading;
+    margin: 0;
+  }
+
+  @include tablet-down {
+    border-right: 0;
+    border-bottom: 1px solid var(--blue-line);
+  }
+}
+
+.kick {
+  @include label;
+  color: var(--blue);
+}
+
+.net {
+  @include num(wide);
+  margin-top: 0.35rem;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.verdict {
+  font-size: 0.82rem;
+  color: var(--mid);
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.9rem 2.25rem 0.9rem 1rem;
+
+  @include phone {
+    padding-right: 1rem;
+  }
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 2rem;
+
+  > div {
+    display: grid;
+    gap: 0.1rem;
+    min-width: 0;
+  }
+
+  b {
+    @include num;
+    font-size: 1.05rem;
+    font-weight: 600;
+  }
+
+  small {
+    @include num;
+    font-size: 0.625rem;
+    color: var(--dim);
+  }
+}
+
+.label {
+  @include label;
+}
+
+.moves {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+  }
+
+  b {
+    @include num;
+    font-size: 0.78rem;
+  }
+}
+
+.stock {
+  @include num;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--blue);
+  }
+}
+
+.more {
+  @include num;
+  font-size: 0.72rem;
+  color: var(--dim);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  font-size: 0.82rem;
+
+  a {
+    color: var(--blue);
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  a.primary {
+    @include button-primary;
+    padding: 0.5rem 0.85rem;
+    font-size: 0.72rem;
+
+    &:hover {
+      text-decoration: none;
+    }
+  }
+}
+
+.next {
+  margin-left: auto;
+  font-size: 0.74rem;
+  color: var(--dim);
+
+  b {
+    @include num;
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  @include phone {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+}
+
+// ── The countdown ────────────────────────────────────────────────────────────
+.strip {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 1rem;
+  margin-top: 1rem;
+  padding: 0.6rem 2.5rem 0.6rem 1rem;
+  border: 1px solid var(--blue-line);
+  background: var(--blue-wash);
+
+  h2 {
+    @include section-heading;
+    margin: 0;
+  }
+
+  p {
+    flex: 1 1 18rem;
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--mid);
+  }
+
+  a {
+    color: var(--blue);
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  .close {
+    top: 50%;
+    transform: translateY(-50%);
+
+    @include phone {
+      top: 0.35rem;
+      transform: none;
+    }
+  }
+}
+
+.clock {
+  @include num(wide);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--blue);
+}
