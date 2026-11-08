@@ -10,6 +10,7 @@ import { SiteShell } from "@/app/components/layout/site-shell";
 import { LIFTS_FAIR_VALUE, WIRE_TAGS, wireTone, wireWhen } from "@/app/components/wire/wire-kit";
 import { apiFetch } from "@/app/lib/api";
 import type { ChibiPose } from "@/app/lib/art-manifest";
+import { useFeature } from "@/app/lib/features";
 import { talentAccent } from "@/app/lib/talent-color";
 import { useTheme } from "@/app/providers/theme-provider";
 import type { MarketAsset, WireItem } from "@/app/lib/types";
@@ -21,7 +22,7 @@ import styles from "@/app/components/wire/wire-page.module.scss";
 // and /vt/ in depth: the board's posts per hour for the week, who it's talking about and why, and
 // any one talent's week.
 
-type Group = "all" | "streams" | "records" | "market" | "games" | "vt";
+type Group = "all" | "streams" | "records" | "market" | "games" | "vt" | "oshi";
 const GROUPS: Array<{ key: Group; label: string }> = [
   { key: "all", label: "Everything" },
   { key: "streams", label: "Streams" },
@@ -30,6 +31,8 @@ const GROUPS: Array<{ key: Group; label: string }> = [
   { key: "games", label: "Games" },
   { key: "vt", label: "/vt/" },
 ];
+/** Players' oshi changes: only with the oshi-wire flag (the API only sends them, and counts them, for it). */
+const OSHI_GROUP: { key: Group; label: string } = { key: "oshi", label: "Oshi" };
 const WINDOWS: Array<{ hours: number; label: string }> = [
   { hours: 24, label: "24h" },
   { hours: 72, label: "3 days" },
@@ -38,7 +41,7 @@ const WINDOWS: Array<{ hours: number; label: string }> = [
 ];
 const PAGE = 40;
 
-type Counts = Record<Group, number>;
+type Counts = Partial<Record<Group, number>>;
 type History = {
   board: string;
   symbol: string | null;
@@ -407,6 +410,8 @@ function WireFeed({
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
+  const oshiMoves = useFeature("oshi-wire");
+  const groups = oshiMoves ? [...GROUPS, OSHI_GROUP] : GROUPS;
   const [items, setItems] = useState<WireItem[]>([]);
   const [counts, setCounts] = useState<Counts | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "more" | "error">("loading");
@@ -501,7 +506,7 @@ function WireFeed({
     <>
       <div className={styles.filters}>
         <div className={styles.chips} role="group" aria-label="What kind">
-          {GROUPS.map((entry) => (
+          {groups.map((entry) => (
             <button key={entry.key} type="button" className={styles.chip} aria-pressed={group === entry.key} onClick={() => onGroup(entry.key)}>
               {entry.label}
               {counts ? <b>{counts[entry.key] ?? 0}</b> : null}

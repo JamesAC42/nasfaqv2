@@ -4,10 +4,12 @@ const articleDb = require("../articleDb");
 const wire = require("../services/wire");
 const chatter = require("../services/chatter");
 const activity = require("../services/activity");
+const features = require("../features");
 
 const { sendCachedJson } = require("../responseCache");
 
 const router = express.Router();
+const OSHI_WIRE = "oshi-wire";
 const HOLO_NEWS_META_KEY = "nasfaq_holonews:meta";
 const HOLO_NEWS_ITEMS_KEY = "nasfaq_holonews:items";
 const THUMBNAIL_CDN_BASE_URL = "https://images.nasfaq.biz";
@@ -122,20 +124,31 @@ router.get("/activity", async (req, res, next) => {
   }
 });
 
-// The Wire: automatic headlines from streams, milestones, the market and the games.
+/**
+ * Whether this viewer gets oshi moves on the Wire (features/oshi-wire.json). The two answers are
+ * cached apart (the key ends ":oshi" for the copy with them, ":-" without), so a copy with them
+ * never reaches a viewer without the flag; while the flag is staff-only the response is private.
+ */
+function oshiWireFor(req, res) {
+  if (features.staffOnly(OSHI_WIRE)) features.markPrivate(res);
+  return features.isEnabled(OSHI_WIRE, req.ctx.user);
+}
+
+// The Wire: automatic headlines from streams, milestones, the market, the games and oshi moves.
 router.get("/wire", async (req, res, next) => {
   try {
     const limit = Math.min(200, Math.max(1, Number.parseInt(req.query.limit, 10) || 40));
     const hours = Math.min(24 * 30, Math.max(1, Number.parseInt(req.query.hours, 10) || 168));
     const order = req.query.order === "time" ? "time" : "rank";
-    const group = wire.WIRE_GROUPS[req.query.group] ? String(req.query.group) : null;
+    const withOshi = oshiWireFor(req, res);
+    const group = wire.groupFor(String(req.query.group || ""), { withOshi });
     const symbol = /^[A-Za-z0-9]{1,12}$/.test(String(req.query.symbol || "")) ? String(req.query.symbol).toUpperCase() : null;
     const beforeMs = req.query.before ? Date.parse(String(req.query.before)) : Number.NaN;
     const before = Number.isFinite(beforeMs) ? new Date(beforeMs).toISOString() : null;
-    await sendCachedJson(req, res, `overview:wire:${limit}:${hours}:${order}:${group || "*"}:${symbol || "*"}:${before || "-"}`, {
+    await sendCachedJson(req, res, `overview:wire:${limit}:${hours}:${order}:${group || "*"}:${symbol || "*"}:${before || "-"}:${withOshi ? "oshi" : "-"}`, {
       ttlSeconds: 30,
       memoMs: 5000,
-      load: async () => ({ items: await wire.listWire(req.ctx.pool, { limit, hours, order, group, symbol, before }) }),
+      load: async () => ({ items: await wire.listWire(req.ctx.pool, { limit, hours, order, group, symbol, before, withOshi }) }),
     });
   } catch (e) {
     next(e);
@@ -147,7 +160,12 @@ router.get("/wire/counts", async (req, res, next) => {
   try {
     const hours = Math.min(24 * 30, Math.max(1, Number.parseInt(req.query.hours, 10) || 168));
     const symbol = /^[A-Za-z0-9]{1,12}$/.test(String(req.query.symbol || "")) ? String(req.query.symbol).toUpperCase() : null;
-    await sendCachedJson(req, res, `overview:wire-counts:${hours}:${symbol || "*"}`, { ttlSeconds: 30, memoMs: 5000, load: () => wire.countWire(req.ctx.pool, { hours, symbol }) });
+    const withOshi = oshiWireFor(req, res);
+    await sendCachedJson(req, res, `overview:wire-counts:${hours}:${symbol || "*"}:${withOshi ? "oshi" : "-"}`, {
+      ttlSeconds: 30,
+      memoMs: 5000,
+      load: () => wire.countWire(req.ctx.pool, { hours, symbol, withOshi }),
+    });
   } catch (e) {
     next(e);
   }

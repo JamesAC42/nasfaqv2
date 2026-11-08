@@ -1,0 +1,4 @@
+{
+  "state": "staff",
+  "description": "Oshi moves on the Wire: a headline when a player changes or drops their oshi (never first picks), the Oshi chip on /wire, and up to three of them on the front page's Wire, ranked a day behind the rest. The headlines are generated for everyone whatever the state; only viewers with the flag are sent them (GET /api/overview/wire and /wire/counts)."
+}

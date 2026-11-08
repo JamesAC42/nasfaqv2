@@ -35,7 +35,8 @@ The API is the authority. The client only hides what the API already withholds.
   - Cached responses: pass `features: true` to `sendCachedJson`. It builds a separate copy for staff under its own key and marks the response private.
   - Uncached responses: send `forAudience(payload, audienceOf(req.ctx.user))` and call `viewerVaries(res)`.
   - Market socket events: these are split by audience already (`audienceTexts` in `server.js`).
-- **Anything else:** branch on `isEnabled("my-flag", req.ctx.user)`. If the answer changes what a response contains, call `markPrivate(res)`.
+- **Anything else:** branch on `isEnabled("my-flag", req.ctx.user)`. If the answer changes what a response contains, call `markPrivate(res)` (needed while `staffOnly("my-flag")`).
+  - **Rows in a cached list** (items only flagged viewers get): put the answer in the cache key, e.g. `${key}:${shown ? "with" : "-"}`, and build each copy with or without them. The Wire's oshi moves (`oshi-wire`, `routes/overview.js`) work this way.
 - **Background work** (ticks, scrapers, jobs): don't gate it. Keep recording, so there's history when the flag turns on.
 
 **In the client:**

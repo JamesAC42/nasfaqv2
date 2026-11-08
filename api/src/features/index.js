@@ -68,6 +68,9 @@ function enabledFor(key, audience) {
 /** Whether `flag` is on for this user (null when signed out). */
 const isEnabled = (key, user) => enabledFor(key, audienceOf(user));
 
+/** Whether `flag` is at "staff": its answer then depends on who's asking. */
+const staffOnly = (key) => flagOf(key)?.state === "staff";
+
 /** Every flag as this viewer resolves it: { "tick-reasons": true, ... }. */
 function forViewer(user) {
   const audience = audienceOf(user);
@@ -125,7 +128,7 @@ function viewerVaries(res) {
 /** Express middleware: 404 for anyone `flag` isn't on for (and private while it's staff-only). */
 function requireFeature(key) {
   return (req, res, next) => {
-    if (flagOf(key)?.state === "staff") markPrivate(res);
+    if (staffOnly(key)) markPrivate(res);
     if (isEnabled(key, req.ctx?.user ?? null)) return next();
     return res.status(404).json({ error: "not_found" });
   };
@@ -167,6 +170,7 @@ module.exports = {
   override,
   readFlags,
   requireFeature,
+  staffOnly,
   staffSeesMore,
   viewerVaries,
 };
