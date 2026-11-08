@@ -2101,6 +2101,22 @@ async function applySchema(pool) {
       ADD COLUMN IF NOT EXISTS protected_quantity NUMERIC NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS waived NUMERIC NOT NULL DEFAULT 0
   `);
+  // The Wire shows a headline that names a player only while that player may be named
+  // (services/wire/players.js), going by meta.user_id. UR pulls and card sales written before
+  // they kept it get it from the pull or sale their dedupe_key points at. A sale whose buyer's
+  // account is gone names nobody and stays without one. Rows that have it already are skipped.
+  await pool.query(`
+    UPDATE content.wire_items w SET meta = w.meta || jsonb_build_object('user_id', p.user_id)
+    FROM games.card_pulls p
+    WHERE w.kind = 'ur_pull' AND NOT (w.meta ? 'user_id')
+      AND p.id = CASE WHEN w.dedupe_key ~ '^pull:[0-9]{1,18}$' THEN substr(w.dedupe_key, 6)::bigint END
+  `);
+  await pool.query(`
+    UPDATE content.wire_items w SET meta = w.meta || jsonb_build_object('user_id', s.buyer_id)
+    FROM games.card_sales s
+    WHERE w.kind = 'exchange_sale' AND NOT (w.meta ? 'user_id') AND s.buyer_id IS NOT NULL
+      AND s.id = CASE WHEN w.dedupe_key ~ '^sale:[0-9]{1,18}$' THEN substr(w.dedupe_key, 6)::bigint END
+  `);
 }
 
 module.exports = { applySchema };

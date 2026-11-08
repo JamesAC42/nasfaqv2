@@ -15,6 +15,7 @@ const autotag = require("../autotag");
 const newsMoods = require("../newsMoods");
 const { BUYBACK_START, BUYBACK_DAILY_STEP } = require("../marketSupply");
 const schedulerHealth = require("../schedulerHealth");
+const players = require("./players");
 
 const THUMB = (videoId) => `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 const WATCH = (videoId) => `https://www.youtube.com/watch?v=${videoId}`;
@@ -274,23 +275,27 @@ async function marketMovers(pool) {
 }
 
 // ── Card exchange, pulls, predictions ─────────────────────────────────────
+// A sale names its buyer and a pull its puller, so both keep meta.user_id and skip players the Wire
+// may not name (players.js). A sale whose buyer's account is gone says "A player" and names nobody.
 async function gameMoments(pool) {
   let added = 0;
   const [sales, pulls, calls] = await Promise.all([
     pool.query(`
-      SELECT s.id, s.card_key, s.rarity, s.price, s.created_at, a.symbol, a.display_name, b.username AS buyer
+      SELECT s.id, s.card_key, s.rarity, s.price, s.created_at, a.symbol, a.display_name, s.buyer_id, b.username AS buyer
       FROM games.card_sales s
       JOIN market.market_assets a ON a.id = s.asset_id
       LEFT JOIN market.users b ON b.id = s.buyer_id
       WHERE s.created_at > now() - interval '48 hours'
         AND ((s.rarity = 'UR' AND s.price >= 500) OR (s.rarity = 'SSR' AND s.price >= 1000))
+        AND (b.id IS NULL OR ${players.headlinePlayerSql("b.id")})
     `).catch(() => ({ rows: [] })),
     pool.query(`
-      SELECT p.id, p.rarity, p.created_at, a.symbol, a.display_name, u.username
+      SELECT p.id, p.rarity, p.created_at, a.symbol, a.display_name, p.user_id, u.username
       FROM games.card_pulls p
       JOIN market.market_assets a ON a.id = p.asset_id
       JOIN market.users u ON u.id = p.user_id
       WHERE p.rarity = 'UR' AND p.created_at > now() - interval '48 hours'
+        AND ${players.headlinePlayerSql("p.user_id")}
     `).catch(() => ({ rows: [] })),
     pool.query(`
       SELECT m.id, m.slug, m.title, m.resolved_at, o.label
@@ -310,7 +315,7 @@ async function gameMoments(pool) {
       link_url: `/games/exchange/card/${row.symbol}/${row.rarity}`,
       importance: row.rarity === "UR" ? 2 : 1,
       occurred_at: row.created_at,
-      meta: { price: Number(row.price), rarity: row.rarity },
+      meta: { price: Number(row.price), rarity: row.rarity, ...(row.buyer ? { user_id: Number(row.buyer_id) } : {}) },
     });
   }
   for (const row of pulls.rows) {
@@ -323,7 +328,7 @@ async function gameMoments(pool) {
       link_url: `/games/cards/gallery/${row.symbol}`,
       importance: 1,
       occurred_at: row.created_at,
-      meta: { rarity: row.rarity },
+      meta: { rarity: row.rarity, user_id: Number(row.user_id) },
     });
   }
   for (const row of calls.rows) {
@@ -532,9 +537,11 @@ async function ipoNews(pool) {
 
 const GENERATORS = { streamEvents, subscriberMilestones, viewerRecords, superchatLeader, marketMovers, marketSupplyNews, ipoNews, gameMoments, chatterSpikes, autotagArticles, newsReactions };
 
-async function runWire(pool, logger = console) {
+/** Runs every generator (or `only` the ones named) and returns what each did. */
+async function runWire(pool, logger = console, { only = null } = {}) {
   const summary = {};
   for (const [name, generate] of Object.entries(GENERATORS)) {
+    if (only && !only.includes(name)) continue;
     try {
       summary[name] = await generate(pool);
     } catch (error) {
@@ -576,7 +583,7 @@ function wireRow(row) {
  */
 async function listWire(pool, { limit = 40, hours = 168, order = "rank", group = null, symbol = null, before = null } = {}) {
   const params = [String(Math.min(24 * 30, Math.max(1, Number(hours) || 168))), Math.min(200, Math.max(1, Number(limit) || 40))];
-  const where = ["NOT hidden", "occurred_at > now() - ($1 || ' hours')::interval", "occurred_at < now() + interval '7 days'"];
+  const where = ["NOT hidden", "occurred_at > now() - ($1 || ' hours')::interval", "occurred_at < now() + interval '7 days'", players.visibleSql()];
   if (group && WIRE_GROUPS[group]) where.push(WIRE_GROUPS[group]);
   if (symbol) {
     params.push(String(symbol).toUpperCase());
@@ -616,7 +623,7 @@ async function countWire(pool, { hours = 168, symbol = null } = {}) {
     `
     SELECT COUNT(*)::int AS all, ${columns.join(", ")}
     FROM content.wire_items
-    WHERE NOT hidden AND occurred_at > now() - ($1 || ' hours')::interval AND occurred_at < now() + interval '7 days' ${symbolFilter}
+    WHERE NOT hidden AND occurred_at > now() - ($1 || ' hours')::interval AND occurred_at < now() + interval '7 days' AND ${players.visibleSql()} ${symbolFilter}
   `,
     params
   );
