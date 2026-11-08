@@ -537,11 +537,9 @@ async function ipoNews(pool) {
 
 const GENERATORS = { streamEvents, subscriberMilestones, viewerRecords, superchatLeader, marketMovers, marketSupplyNews, ipoNews, gameMoments, chatterSpikes, autotagArticles, newsReactions };
 
-/** Runs every generator (or `only` the ones named) and returns what each did. */
-async function runWire(pool, logger = console, { only = null } = {}) {
+async function runWire(pool, logger = console) {
   const summary = {};
   for (const [name, generate] of Object.entries(GENERATORS)) {
-    if (only && !only.includes(name)) continue;
     try {
       summary[name] = await generate(pool);
     } catch (error) {
@@ -583,12 +581,13 @@ function wireRow(row) {
  */
 async function listWire(pool, { limit = 40, hours = 168, order = "rank", group = null, symbol = null, before = null } = {}) {
   const params = [String(Math.min(24 * 30, Math.max(1, Number(hours) || 168))), Math.min(200, Math.max(1, Number(limit) || 40))];
-  const where = ["NOT hidden", "occurred_at > now() - ($1 || ' hours')::interval", "occurred_at < now() + interval '7 days'", players.visibleSql()];
+  const where = ["NOT hidden", "occurred_at > now() - ($1 || ' hours')::interval", "occurred_at < now() + interval '7 days'"];
   if (group && WIRE_GROUPS[group]) where.push(WIRE_GROUPS[group]);
   if (symbol) {
     params.push(String(symbol).toUpperCase());
     where.push(`$${params.length} = ANY(symbols)`);
   }
+  where.push(players.visibleSql()); // nobody the Wire may not name now (players.js)
   if (before) {
     params.push(before);
     where.push(`occurred_at < $${params.length}::timestamptz`);

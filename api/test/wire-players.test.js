@@ -87,7 +87,8 @@ test("the Wire names only players it may", { skip: !databaseUrl, timeout: 180_00
     );
     return Number(rows[0].id);
   };
-  const run = () => wire.runWire(pool, quiet, { only: ["gameMoments"] });
+  // Every generator runs; in this database only the card pulls and sales have anything to say.
+  const run = () => wire.runWire(pool, quiet);
   const stored = async () => (await pool.query(`SELECT kind, dedupe_key, headline, blurb, meta FROM content.wire_items ORDER BY id`)).rows;
   const naming = (items, userId) => items.filter((item) => Number(item.meta.user_id) === userId);
   const read = () => wire.listWire(pool, { order: "time", limit: 200 });
