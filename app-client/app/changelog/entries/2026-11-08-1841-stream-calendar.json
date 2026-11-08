@@ -1,0 +1,13 @@
+{
+  "title": "Stream calendar",
+  "changes": [
+    {
+      "kind": "new",
+      "text": "A stream calendar: every listed talent's streams for the week ahead, laid out by day and time in your own time zone. Live streams, streams running late and ones that already ended are easy to tell apart, and each talent links to their stock."
+    },
+    {
+      "kind": "new",
+      "text": "Find it as the Calendar tab on the Livestreams page, and from the new On stream box on the market floor."
+    }
+  ]
+}

@@ -1,4 +1,4 @@
 {
-  "state": "staff",
+  "state": "on",
   "description": "The stream calendar: the Calendar mode of the Livestreams page (/livestreams?view=calendar; /livestreams/calendar redirects there), GET /api/livestreams/calendar, and the market floor's On stream box."
 }
