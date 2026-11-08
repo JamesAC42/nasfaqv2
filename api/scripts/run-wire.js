@@ -39,7 +39,7 @@ async function main() {
     const wire = require("../src/services/wire");
     console.log(`Jev: ${jev.isConfigured() ? "on" : "off (keyword rules only; set JEV_API_KEY)"}`);
     console.log(JSON.stringify(await wire.runWire(pool), null, 2));
-    for (const item of await wire.listWire(pool, { limit: 15 })) console.log(`${String(item.importance).padStart(2)} ${item.kind.padEnd(22)} ${item.headline}`);
+    for (const item of await wire.listWire(pool, { limit: 15, withOshi: true })) console.log(`${String(item.importance).padStart(2)} ${item.kind.padEnd(22)} ${item.headline}`);
     console.log("jev usage:", jev.stats());
   } finally {
     await pool.end();

@@ -24,16 +24,20 @@ export const WIRE_TAGS: Record<string, string> = {
   ur_pull: "Pull",
   prediction_resolved: "Called",
   chatter_spike: "/vt/",
+  oshi_change: "Oshi",
 };
+
+/** A player's oshi move (behind the oshi-wire flag; the API only sends them to viewers with it). */
+export const isOshiMove = (item: WireItem) => item.kind === "oshi_change";
 
 /** Stream events that feed fair value at the next settlement (see STREAM_EVENT_WEIGHTS in the API). */
 export const LIFTS_FAIR_VALUE = new Set(["stream_three_d", "stream_new_outfit", "stream_original_song", "stream_anniversary", "stream_birthday", "stream_milestone", "stream_cover_song"]);
 
-/** The color family of a Wire kind: streams, market, games, or records (everything else). */
+/** The color family of a Wire kind: streams, market, games and players' moments, or records (everything else). */
 export function wireTone(kind: string) {
   if (kind.startsWith("stream_")) return "stream";
   if (kind === "market_mover" || kind === "dividend_review" || kind === "buyback" || kind === "sold_out" || kind === "ipo") return "market";
-  if (kind === "exchange_sale" || kind === "ur_pull" || kind === "prediction_resolved") return "games";
+  if (kind === "exchange_sale" || kind === "ur_pull" || kind === "prediction_resolved" || kind === "oshi_change") return "games";
   return "record";
 }
 
