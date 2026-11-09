@@ -18,6 +18,7 @@ import { threadLines, useThreadPosts } from "@/app/lib/use-thread";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMotion } from "@/app/providers/motion-provider";
 import { useTheme } from "@/app/providers/theme-provider";
+import { threadLine, useChatterStore } from "@/app/stores/chatter-store";
 import { useHubStore } from "@/app/stores/hub-store";
 import { useLeaderboardStore } from "@/app/stores/leaderboard-store";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -29,6 +30,8 @@ import ui from "@/app/components/market/market.module.scss";
 import styles from "@/app/components/market/floor-tab.module.scss";
 
 const WHALE_CASH = 1000;
+// The chatter index rescans every 5 minutes, and the Floor can stay open all day.
+const CHATTER_REFRESH_MS = 5 * 60_000;
 
 function priceSeries(asset: MarketAsset | undefined) {
   return (asset?.sparkline_candles ?? []).map((candle) => candle.close).filter((value): value is number => typeof value === "number" && Number.isFinite(value));
@@ -202,6 +205,13 @@ function Breaking() {
 
 function Spot({ assets }: { assets: MarketAsset[] }) {
   const { theme } = useTheme();
+  const chatter = useChatterStore((state) => state.summary);
+  const fetchChatter = useChatterStore((state) => state.fetchChatter);
+  useEffect(() => {
+    void fetchChatter();
+    const timer = window.setInterval(() => void fetchChatter(), CHATTER_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [fetchChatter]);
   const ranked = useMemo(() => [...assets].filter((asset) => asset.move_24h_pct !== null).sort((a, b) => (b.move_24h_pct ?? 0) - (a.move_24h_pct ?? 0)), [assets]);
   if (ranked.length < 2) return null;
   const cards: Array<{ asset: MarketAsset; kind: "up" | "down" }> = [
@@ -226,7 +236,9 @@ function Spot({ assets }: { assets: MarketAsset[] }) {
               <div className={`${styles.spotMove} ${ui[kind]}`}>
                 {kind === "up" ? "▲" : "▼"} {signedPct(asset.move_24h_pct)} <span className={ui.flat}>{num(asset.current_mid_price)}</span>
               </div>
-              <div className={styles.spotLine}>{kind === "up" ? "Top gainer since settlement. The thread is calling it a breakout." : "Worst on the board today. Cope levels are rising in the thread."}</div>
+              <div className={styles.spotLine}>
+                {kind === "up" ? "Top gainer since settlement." : "Worst on the board today."} {threadLine(chatter, asset.symbol)}
+              </div>
             </div>
             <ArtSlot kind="chibi" pose={kind === "up" ? "hype" : "cope"} symbol={asset.symbol} icon={asset.icon} accent={accent} width={200} className={styles.spotArt} />
           </Link>
