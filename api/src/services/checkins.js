@@ -2,25 +2,19 @@
 // streak (they traded yesterday). SETTINGS can also make it ramp with the streak's length; by default
 // it doesn't (the owner, 2026-11-06: trading profits are thin, so the check-in stays small).
 //
-// The day is the one trade streaks count in (achievements/streaks.js reads fills as ts::date, and the
-// pool runs in UTC, db.js), so CURRENT_DATE here and a streak day always turn over together, at 00:00
-// UTC. A check-in pays for the streak through yesterday: trading today grows tomorrow's check-in, not
-// today's, so claiming before or after the day's first trade pays the same. Missing a day of trading
-// takes the next check-in back to the base. The unique key on (user_id, checkin_day) is what allows
-// one claim per player per day.
+// The day is a New York day, the one market.user_active_days counts (auth.js): today, yesterday, the
+// reset and checkin_day all turn over at 00:00 ET, across DST and whatever the pool's time zone (UTC,
+// db.js). The streak is counted here from the player's fills in those same days, and writes nothing.
+// It isn't market.user_trade_streaks: trade streak achievements keep their UTC days
+// (achievements/streaks.js), so the two counts can differ by a day. A check-in pays for the streak
+// through yesterday: trading today grows tomorrow's check-in, not today's, so claiming before or after
+// the day's first trade pays the same. Missing a day of trading takes the next check-in back to the
+// base. The unique key on (user_id, checkin_day) is what allows one claim per player per day. Claims
+// made before the day moved to New York (2026-11) hold UTC days.
 
 const economy = require("./economy");
-const { applyTradeFillsToStreakWithClient, normalizeDateKey } = require("./achievements/streaks");
-
-/** A DATE column as YYYY-MM-DD. node-pg reads one as local midnight, so the local parts are the date. */
-function dateKey(value) {
-  if (value instanceof Date) {
-    if (Number.isNaN(value.getTime())) return null;
-    const pad = (n) => String(n).padStart(2, "0");
-    return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
-  }
-  return normalizeDateKey(value);
-}
+const { buildStreakStateFromTradeDays } = require("./achievements/streaks");
+const { TIME_ZONE } = require("./visits");
 
 function envNumber(name, fallback) {
   const raw = process.env[name];
@@ -60,23 +54,22 @@ function checkinError(code, extra = {}) {
  */
 function streakOn(streak, today, yesterday) {
   const days = Math.max(0, Number(streak?.current_streak_days || 0));
-  const last = dateKey(streak?.last_trade_day);
+  const last = streak?.last_trade_day ?? null;
   const tradedToday = last === today;
   const throughYesterday = tradedToday ? Math.max(0, days - 1) : last === yesterday ? days : 0;
   return { current: tradedToday ? days : throughYesterday, throughYesterday, tradedToday, lastTradeDay: last };
 }
 
-/**
- * The player's trade streak brought up to date with their fills (the achievement queue does the same
- * after each batch, a moment later). Null for a player who has never traded, without writing a row.
- */
-async function freshStreak(client, userId) {
-  const { rows } = await client.query(`SELECT 1 FROM market.user_trade_streaks WHERE user_id = $1`, [userId]);
-  if (!rows[0]) {
-    const { rows: fills } = await client.query(`SELECT 1 FROM market.trade_fills WHERE user_id = $1 LIMIT 1`, [userId]);
-    if (!fills[0]) return null;
-  }
-  return applyTradeFillsToStreakWithClient(client, userId);
+/** The player's trade streak in New York days, from every fill before `until`. Reads only. */
+async function tradeStreak(client, userId, until) {
+  const { rows } = await client.query(
+    `SELECT DISTINCT (ts AT TIME ZONE '${TIME_ZONE}')::date::text AS day
+     FROM market.trade_fills
+     WHERE user_id = $1 AND ts < $2
+     ORDER BY day`,
+    [userId, until]
+  );
+  return buildStreakStateFromTradeDays(rows.map((row) => row.day));
 }
 
 /** What the check-in card shows, from the streak, the day and today's claim (null if none). */
@@ -105,17 +98,20 @@ function describe({ verified, today, resetsAt, streak, claim }) {
   };
 }
 
-async function readDay(client) {
+/** The New York day at `now` (the database's clock unless a test sets it) and the midnight that ends it. */
+async function readDay(client, now) {
   const { rows } = await client.query(
-    `SELECT CURRENT_DATE::text AS today, (CURRENT_DATE - 1)::text AS yesterday, (CURRENT_DATE + 1)::timestamptz AS resets_at`
+    `SELECT today::text AS today, (today - 1)::text AS yesterday, (today + 1)::timestamp AT TIME ZONE '${TIME_ZONE}' AS resets_at
+     FROM (SELECT (COALESCE($1::timestamptz, now()) AT TIME ZONE '${TIME_ZONE}')::date AS today) AS day`,
+    [now]
   );
   return rows[0];
 }
 
-async function readClaim(client, userId) {
+async function readClaim(client, userId, today) {
   const { rows } = await client.query(
-    `SELECT id, reward, streak_days, claimed_at FROM market.daily_checkins WHERE user_id = $1 AND checkin_day = CURRENT_DATE`,
-    [userId]
+    `SELECT id, reward, streak_days, claimed_at FROM market.daily_checkins WHERE user_id = $1 AND checkin_day = $2::date`,
+    [userId, today]
   );
   return rows[0] || null;
 }
@@ -142,12 +138,12 @@ async function verifiedUser(client, userId) {
 }
 
 /** Today's check-in for one player: claimed or not, what it pays, and what tomorrow's would. */
-async function getCheckin(pool, userId) {
+async function getCheckin(pool, userId, { now = null } = {}) {
   return inTransaction(pool, async (client) => {
     const verified = await verifiedUser(client, userId);
-    const day = await readDay(client);
-    const streak = streakOn(await freshStreak(client, userId), day.today, day.yesterday);
-    const claim = await readClaim(client, userId);
+    const day = await readDay(client, now);
+    const streak = streakOn(await tradeStreak(client, userId, day.resets_at), day.today, day.yesterday);
+    const claim = await readClaim(client, userId, day.today);
     return describe({ verified, today: day.today, resetsAt: day.resets_at, streak, claim });
   });
 }
@@ -157,23 +153,23 @@ async function getCheckin(pool, userId) {
  * email_verification_required for an unverified account and already_checked_in (with today's claim)
  * when today's is taken, however many requests race for it.
  */
-async function claimCheckin(pool, userId) {
+async function claimCheckin(pool, userId, { now = null } = {}) {
   return inTransaction(pool, async (client) => {
     if (!(await verifiedUser(client, userId))) throw checkinError("email_verification_required");
-    const day = await readDay(client);
-    const streak = streakOn(await freshStreak(client, userId), day.today, day.yesterday);
+    const day = await readDay(client, now);
+    const streak = streakOn(await tradeStreak(client, userId, day.resets_at), day.today, day.yesterday);
     const reward = rewardFor(streak.throughYesterday);
     const { rows } = await client.query(
       `
       INSERT INTO market.daily_checkins (user_id, checkin_day, streak_days, reward)
-      VALUES ($1, CURRENT_DATE, $2, $3)
+      VALUES ($1, $2::date, $3, $4)
       ON CONFLICT (user_id, checkin_day) DO NOTHING
       RETURNING id, reward, streak_days, claimed_at
     `,
-      [userId, streak.throughYesterday, reward]
+      [userId, day.today, streak.throughYesterday, reward]
     );
     if (!rows[0]) {
-      const claim = await readClaim(client, userId);
+      const claim = await readClaim(client, userId, day.today);
       throw checkinError("already_checked_in", { checkin: describe({ verified: true, today: day.today, resetsAt: day.resets_at, streak, claim }) });
     }
     const paid = await economy.pay(client, userId, reward, { to: "credit", entryType: "daily_checkin", referenceType: "daily_checkin", referenceId: Number(rows[0].id) });
