@@ -203,9 +203,9 @@ async function refreshNameCopies(pool, userId) {
 }
 
 /**
- * Changes a player's email ({ email, reason, confirm: true }), for an address typed wrong at sign-up
- * or one they've lost: players can't change their own. This can hand over an account, because the
- * password reset goes to the new address, so:
+ * Changes a player's email ({ email, reason, confirm: true }), for an address they've lost or a typo
+ * they can't fix: players can change only an unverified one (auth.changeUnverifiedEmail). This can
+ * hand over an account, because the password reset goes to the new address, so:
  *  - it needs a reason and `confirm`, and it's refused on admins (and on yourself);
  *  - the new address passes the sign-up rules (no throwaway domains, one inbox per account);
  *  - the account goes back to unverified until the link sent to the new address is used;
@@ -227,21 +227,7 @@ async function changeUserEmail(pool, actor, userId, body, { send = sendEmail } =
     if (String(row.id) === String(actor.id)) throw accountError("cannot_change_own_email");
     if (row.is_admin) throw accountError("cannot_change_admin_email");
     if (row.email && row.email.toLowerCase() === email) throw accountError("email_unchanged");
-    try {
-      await client.query(
-        `UPDATE market.users
-         SET email = $2, email_normalized = $3, email_verified = false, email_verified_at = NULL, updated_at = now()
-         WHERE id = $1`,
-        [row.id, email, canonicalEmail(email)]
-      );
-    } catch (error) {
-      if (error?.code === "23505") throw accountError("email_taken");
-      throw error;
-    }
-    // Reset links only work while the account has the address they went to, and verification links
-    // would "succeed" without verifying anything. Spend them so an old link just says it's expired.
-    await client.query(`UPDATE market.user_email_verification_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL`, [row.id]);
-    await client.query(`UPDATE market.user_password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL`, [row.id]);
+    await auth.setAccountEmail(client, row.id, email);
     await logAction(client, {
       actor,
       action: "user.email_change",

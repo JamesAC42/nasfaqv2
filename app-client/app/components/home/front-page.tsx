@@ -88,6 +88,7 @@ function wireStory(item: WireItem): NewsItem {
 
 // ── Masthead ──────────────────────────────────────────────────────────────────
 function Masthead({ assets }: { assets: MarketAsset[] }) {
+  const { user } = useAuth();
   const marketStatus = useMarketStore((state) => state.marketStatus);
   const online = useSiteStore((state) => state.online);
 
@@ -138,7 +139,7 @@ function Masthead({ assets }: { assets: MarketAsset[] }) {
         </div>
       </div>
       {pulse ? (
-        <div className={styles.pulse}>
+        <div className={styles.pulse} data-guest={user ? undefined : true}>
           <div>
             <span className={styles.label}>Market today</span>
             <span className={`${styles.big} ${styles[toneOf(pulse.avgMove)]}`}>{signedPct(pulse.avgMove)}</span>

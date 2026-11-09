@@ -531,6 +531,8 @@ export type OshiStatus = {
   set_at: string | null;
   /** Your oshi has been your oshi since the week started, so the shares held all week are covered. */
   covered: boolean;
+  /** A new account's first pick counts as held all week at its first review: every share is covered. */
+  first_week: boolean;
   held: number;
   protected_shares: number;
   week_start: string;

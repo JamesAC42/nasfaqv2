@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { ChangeEmail } from "@/app/components/common/change-email";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
@@ -102,6 +103,9 @@ function VerifyEmail() {
             </button>
             {resent === "failed" ? <span className={styles.fail}>Couldn&apos;t send it. Try again in a minute.</span> : null}
           </div>
+          <div className={styles.change}>
+            <ChangeEmail />
+          </div>
         </>
       ) : (
         <>
@@ -114,6 +118,9 @@ function VerifyEmail() {
                 {resent === "sent" ? "NEW LINK SENT" : resent === "busy" ? "SENDING…" : "SEND A NEW LINK"}
               </button>
               {resent === "failed" ? <span className={styles.fail}>Couldn&apos;t send it. Try again in a minute.</span> : null}
+              <div className={styles.change}>
+                <ChangeEmail />
+              </div>
             </div>
           ) : user ? (
             <div className={styles.actions}>

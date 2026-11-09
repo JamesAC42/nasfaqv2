@@ -285,7 +285,8 @@ export function WeeklySection() {
           {oshiProtection ? (
             <p>
               <b>Your oshi never charges you a fee</b> on the shares you held all week (the fewest you held at any point since the last Saturday), as long as they were
-              your oshi all week. A good week still pays a dividend on every share. Your oshi can change once every 30 days; your first pick is free.
+              your oshi all week. New account? Your first pick counts as held all week at its first Saturday, so every share of it you hold that night skips the fee. A good week still pays a
+              dividend on every share. Your oshi can change once every 30 days; your first pick is free.
             </p>
           ) : null}
         </>

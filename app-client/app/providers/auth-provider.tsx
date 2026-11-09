@@ -17,6 +17,8 @@ type AuthContextValue = {
   login: (username: string, password: string, turnstileToken?: string) => Promise<AuthUser>;
   register: (username: string, email: string, password: string, ogey: string, turnstileToken?: string) => Promise<AuthUser>;
   resendVerification: () => Promise<void>;
+  /** Fixes the address on an unverified account. Throws the API's error, for the caller to word. */
+  changeEmail: (email: string) => Promise<{ email: string; verification_email: string }>;
   logout: () => Promise<void>;
 };
 
@@ -117,6 +119,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [setError, setLoading]);
 
+  const changeEmail = useCallback(
+    async (email: string) => {
+      const result = await apiFetch<{ email: string; verification_email: string }>("/api/auth/change-email", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      });
+      const current = useAuthStore.getState().user;
+      if (current) setUser({ ...current, email: result.email });
+      return result;
+    },
+    [setUser]
+  );
+
   const logout = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -158,9 +173,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       register,
       resendVerification,
+      changeEmail,
       logout,
     }),
-    [error, initialized, isLoading, login, logout, refreshSession, register, resendVerification, user]
+    [changeEmail, error, initialized, isLoading, login, logout, refreshSession, register, resendVerification, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

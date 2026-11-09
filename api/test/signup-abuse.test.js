@@ -210,6 +210,71 @@ test("sign-up abuse rules end to end", { skip: !databaseUrl, timeout: 240_000 },
     assert.equal((await register("GuraFan", "gurafan@example.test")).status, 201);
   });
 
+  await t.test("an unverified address can be fixed: sign-up rules hold, old links die, a new one goes out", async () => {
+    const sent = [];
+    const fake = async (message) => (sent.push(message), "sent");
+    const change = (userId, email) => auth.changeUnverifiedEmail(pool, userId, email, { send: fake });
+    const tokenIn = (message) => decodeURIComponent(/token=([^\s"&]+)/.exec(message.text)[1]);
+    const accountOf = async (userId) => (await pool.query(`SELECT email, email_normalized, email_verified FROM market.users WHERE id = $1`, [userId])).rows[0];
+    process.env.PUBLIC_APP_BASE_URL = "https://holo.example.test";
+    t.after(() => {
+      delete process.env.PUBLIC_APP_BASE_URL;
+    });
+
+    const typoId = await addUser("Typo_Fan", { email: "typo.fan@misspelled.example", verified: false, ageDays: 0 });
+    await assert.rejects(change(typoId, "not an address"), { code: "invalid_email" });
+    await assert.rejects(change(typoId, "x@mailinator.com"), { code: "disposable_email" });
+    await assert.rejects(change(typoId, "p.e.k.o+typo@gmail.com"), { code: "email_taken" }, "another account's inbox, by another spelling");
+    await assert.rejects(change(typoId, " TYPO.FAN@misspelled.example "), { code: "email_unchanged" });
+    assert.deepEqual(sent, [], "a refused change sends nothing");
+    assert.equal((await accountOf(typoId)).email, "typo.fan@misspelled.example");
+
+    // Links already out on the wrong address. A reset link there would hand over the account.
+    await auth.sendVerificationEmail(pool, { id: typoId, username: "Typo_Fan", email: "typo.fan@misspelled.example", email_verified: false }, { send: fake });
+    await auth.requestPasswordReset(pool, "Typo_Fan", { send: fake });
+    const [oldVerify, oldReset] = sent.splice(0).map(tokenIn);
+
+    assert.deepEqual(await change(typoId, " Typo.Fan+stocks@Gmail.com "), { email: "typo.fan+stocks@gmail.com", verification_email: "sent" });
+    assert.deepEqual(await accountOf(typoId), { email: "typo.fan+stocks@gmail.com", email_normalized: "typofan@gmail.com", email_verified: false });
+    assert.deepEqual(sent.map((message) => message.to), ["typo.fan+stocks@gmail.com"], "the new link goes to the new address only");
+    await assert.rejects(auth.verifyEmailToken(pool, oldVerify), { code: "invalid_verification_token" });
+    await assert.rejects(auth.resetPassword(pool, { token: oldReset, password: "a new password" }), { code: "invalid_reset_token" });
+    assert.equal((await accountOf(typoId)).email_verified, false, "the old link verified nothing");
+
+    // The inbox it moved to is taken now, and the one it left is free.
+    assert.deepEqual((await register("Typo_Twin", "typofan@gmail.com")).body, { error: "email_taken" });
+    assert.equal((await register("Typo_Owner", "typo.fan@misspelled.example")).status, 201);
+
+    const { rows: log } = await pool.query(`SELECT actor_id, action, target_id, details FROM market.admin_actions WHERE action = 'user.email_change' AND target_id = $1`, [String(typoId)]);
+    assert.deepEqual(log, [{ actor_id: String(typoId), action: "user.email_change", target_id: String(typoId), details: { before: "ty******@misspelled.example", after: "ty******@gmail.com", was_verified: false } }], "addresses masked in the log");
+
+    // The new link works, and from then on the address is what proves the account.
+    await auth.verifyEmailToken(pool, tokenIn(sent[0]));
+    assert.equal((await accountOf(typoId)).email_verified, true);
+    await assert.rejects(change(typoId, "typo.again@gmail.com"), { code: "email_already_verified" });
+
+    // Through the route: signed in, its answers, and a limit that counts refusals too.
+    const route = (email, opts) => call("POST", "/api/auth/change-email", { body: { email }, ...opts });
+    assert.equal((await route("anyone@example.test", { ip: "203.0.113.90" })).status, 401);
+    assert.deepEqual((await route("x@example.test", { cookie: await cookieFor(typoId), ip: "203.0.113.91" })).body, { error: "email_already_verified" });
+    const unverifiedAdmin = await addUser("Odd_Staff", { verified: false, isAdmin: true });
+    const adminAnswer = await route("odd.staff.new@example.test", { cookie: await cookieFor(unverifiedAdmin), ip: "203.0.113.92" });
+    assert.deepEqual([adminAnswer.status, adminAnswer.body], [403, { error: "cannot_change_admin_email" }]);
+
+    const limitedId = await addUser("Limited_Fan", { verified: false, ageDays: 0 });
+    const limited = { cookie: await cookieFor(limitedId), ip: "203.0.113.93" };
+    const taken = await route("typofan@gmail.com", limited);
+    assert.deepEqual([taken.status, taken.body], [409, { error: "email_taken" }]);
+    const throwaway = await route("x@mailinator.com", limited);
+    assert.deepEqual([throwaway.status, throwaway.body], [400, { error: "disposable_email" }]);
+    const fixed = await route("limited.fan@example.com", limited);
+    assert.deepEqual([fixed.status, fixed.body.ok, fixed.body.email], [200, true, "limited.fan@example.com"]);
+    // The 60-second window can roll over mid-test, so look for the limit a few tries on.
+    const answers = [];
+    for (let attempt = 0; attempt < 8; attempt += 1) answers.push((await route(`limited.fan${attempt}@example.com`, limited)).status);
+    assert.ok(answers.includes(429), `limited by now: ${answers}`);
+  });
+
   await t.test("IP hashes: stored at sign-up and per session, shown to admins as linked accounts, never as addresses", async () => {
     const first = await register("Alt_One", "alt.one@example.test", "203.0.113.7");
     assert.equal(first.status, 201);

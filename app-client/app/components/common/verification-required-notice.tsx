@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { ChangeEmail } from "@/app/components/common/change-email";
 import { useAuth } from "@/app/providers/auth-provider";
 
 export const VERIFICATION_REQUIRED_MESSAGE = "Verify your email before trading, posting, commenting, voting, or writing articles.";
@@ -62,6 +63,11 @@ export function VerificationRequiredNotice({
       ) : (
         <Link href="/login" className="appLink">Sign in</Link>
       )}
+      {user?.email ? (
+        <>
+          . <ChangeEmail />
+        </>
+      ) : null}
       {status ? <div>{status}</div> : null}
     </div>
   );

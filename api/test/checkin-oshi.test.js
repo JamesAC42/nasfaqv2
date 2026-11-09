@@ -480,7 +480,9 @@ test("the weekly evaluation skips the share fee on oshi shares held all week", {
   const div = asset[divRow.symbol];
 
   const users = {};
-  for (const name of ["fan", "newfan", "topup", "seller", "plain", "divfan"]) users[name] = await addUser(pool, name, { cash: 10000, credit: 100000 });
+  for (const name of ["fan", "newfan", "topup", "seller", "plain", "divfan", "rookie", "rookiediv", "rookiemoved", "rookielate", "rookielapsed"]) users[name] = await addUser(pool, name, { cash: 10000, credit: 100000 });
+  // Accounts are older than the week under test, unless a case below says so.
+  await pool.query(`UPDATE market.users SET created_at = '2026-08-01T15:00:00Z'`);
   // Shares, with the ledger rows that put them there (created_at set: the week's moves are what count).
   const holds = async (userId, assetId, moves) => {
     const total = moves.reduce((sum, [quantity]) => sum + quantity, 0);
@@ -495,7 +497,7 @@ test("the weekly evaluation skips the share fee on oshi shares held all week", {
   const BEFORE = "2026-10-01T15:00:00Z";
   // fan: their oshi since before the log, 100 shares all week. Fully protected.
   await holds(users.fan, fee, [[100, BEFORE]]);
-  // newfan: the same shares, but picked their oshi midweek. Charged.
+  // newfan: the same shares, but an old account that picked its oshi midweek. Charged.
   await holds(users.newfan, fee, [[100, BEFORE]]);
   await pool.query(`INSERT INTO market.user_oshi_changes (user_id, asset_id_before, asset_id_after, kind, changed_at) VALUES ($1, NULL, $2, 'first_pick', '2026-10-13T15:00:00Z')`, [users.newfan, fee]);
   // topup: oshi since September; 40 shares all week and 60 bought midweek. 40 protected.
@@ -510,13 +512,50 @@ test("the weekly evaluation skips the share fee on oshi shares held all week", {
   for (const name of ["fan", "newfan", "topup", "seller"]) await pool.query(`UPDATE market.users SET oshi_coin_asset_id = $2 WHERE id = $1`, [users[name], fee]);
   await pool.query(`UPDATE market.users SET oshi_coin_asset_id = $2 WHERE id = $1`, [users.divfan, div]);
 
+  // New accounts, signed up that Monday. A pick is the row in the log and the column on the account.
+  const picks = async (name, assetId, moves) => {
+    for (const [kind, at] of moves) await pool.query(`INSERT INTO market.user_oshi_changes (user_id, asset_id_before, asset_id_after, kind, changed_at) VALUES ($1, NULL, $2, $3, $4)`, [users[name], assetId, kind, at]);
+    await pool.query(`UPDATE market.users SET oshi_coin_asset_id = $2 WHERE id = $1`, [users[name], assetId]);
+  };
+  const SIGNED_UP = "2026-10-12T15:00:00Z";
+  // rookie: picked Tuesday, bought Wednesday and Thursday, sold a little Friday. Every share left is covered.
+  await holds(users.rookie, fee, [[50, "2026-10-14T15:00:00Z"], [30, "2026-10-15T15:00:00Z"], [-5, "2026-10-16T15:00:00Z"]]);
+  await picks("rookie", fee, [["first_pick", "2026-10-13T15:00:00Z"]]);
+  // rookiediv: the same on a stock that pays. A dividend pays on every share, as ever.
+  await holds(users.rookiediv, div, [[20, "2026-10-14T15:00:00Z"]]);
+  await picks("rookiediv", div, [["first_pick", "2026-10-13T15:00:00Z"]]);
+  // rookiemoved: changed the first pick the same week. Charged: it isn't aimed at this week's fee for free.
+  await holds(users.rookiemoved, fee, [[10, "2026-10-14T15:00:00Z"]]);
+  await picks("rookiemoved", fee, [["first_pick", "2026-10-13T15:00:00Z"], ["change", "2026-10-13T16:00:00Z"]]);
+  // rookielate: picked after this review's moment but before it ran. Charged now; next week's review is its first.
+  await holds(users.rookielate, fee, [[10, "2026-10-14T15:00:00Z"]]);
+  await picks("rookielate", fee, [["first_pick", "2026-10-17T04:01:00Z"]]);
+  // rookielapsed: signed up long enough ago that this first pick isn't a newcomer's. Charged.
+  await holds(users.rookielapsed, fee, [[10, BEFORE]]);
+  await picks("rookielapsed", fee, [["first_pick", "2026-10-13T15:00:00Z"]]);
+  await pool.query(`UPDATE market.users SET created_at = $2 WHERE id = ANY($1::bigint[])`, [[users.rookie, users.rookiediv, users.rookiemoved, users.rookielate].map(Number), SIGNED_UP]);
+  await pool.query(`UPDATE market.users SET created_at = '2026-09-28T15:00:00Z' WHERE id = $1`, [users.rookielapsed]);
+
   // What the stock page shows before the run.
   const status = (name) => oshi.getOshiStatus(pool, users[name], { weekStart, nextReviewAt: weekly.evaluationStartsAt(SATURDAY) });
   assert.deepEqual([(await status("fan")).covered, (await status("fan")).protected_shares], [true, 100]);
+  assert.equal((await status("fan")).first_week, false);
   assert.deepEqual([(await status("newfan")).covered, (await status("newfan")).protected_shares], [false, 0]);
   assert.deepEqual([(await status("topup")).covered, (await status("topup")).protected_shares], [true, 40]);
   assert.equal((await status("seller")).protected_shares, 0);
   assert.equal((await status("plain")).oshi, null);
+  const rookie = await status("rookie");
+  assert.deepEqual([rookie.covered, rookie.first_week, rookie.protected_shares], [true, true, 75]);
+  for (const name of ["rookiemoved", "rookielate", "rookielapsed"]) {
+    const other = await status(name);
+    assert.deepEqual([other.covered, other.first_week, other.protected_shares], [false, false, 0], name);
+  }
+  // The week after, the same pick is an oshi like any other: covered on what's held all that week.
+  const nextWeek = { weekStart: weekly.evaluationStartsAt(SATURDAY), nextReviewAt: weekly.evaluationStartsAt(weekly.shiftDate(SATURDAY, 7)) };
+  assert.equal((await oshi.getOshiStatus(pool, users.rookie, nextWeek)).first_week, false);
+  assert.equal((await oshi.getOshiStatus(pool, users.rookie, nextWeek)).protected_shares, 75);
+  // And the late pick gets its first week then, once.
+  assert.equal((await oshi.getOshiStatus(pool, users.rookielate, nextWeek)).first_week, true);
 
   const result = await weekly.runWeeklyEvaluation(pool, { evalDate: SATURDAY, closeTrading: false, logger: quiet });
   assert.equal(result.ok, true);
@@ -534,6 +573,15 @@ test("the weekly evaluation skips the share fee on oshi shares held all week", {
   assert.ok(Math.abs(payout("topup").amount - payout("topup").waived - full) < 0.011, "charged plus skipped is the whole fee, to the cent");
   assert.equal(payout("divfan", div).waived, 0);
   assert.ok(payout("divfan", div).amount > 0 && payout("divfan", div).quantity === 150, "a dividend pays on every share");
+  // A new account's first pick: every share held at the review skips the fee, though all were bought this week.
+  assert.deepEqual([payout("rookie").quantity, payout("rookie").amount, payout("rookie").protected_quantity], [75, 0, 75]);
+  assert.equal(payout("rookie").waived, -Math.round(75 * perShare * 100) / 100);
+  assert.equal(payout("rookiediv", div).waived, 0);
+  assert.ok(payout("rookiediv", div).amount > 0, "and its dividends still pay");
+  for (const name of ["rookiemoved", "rookielate", "rookielapsed"]) {
+    assert.equal(payout(name).amount, Math.round(10 * perShare * 100) / 100, name);
+    assert.equal(payout(name).waived, 0, name);
+  }
 
   // The ledger: no share fee at all for the fully protected fan.
   const feeLedger = async (name) => (await pool.query(`SELECT COUNT(*)::int AS n FROM market.ledger_entries WHERE user_id = $1 AND entry_type = 'share_fee'`, [users[name]])).rows[0].n;
@@ -542,7 +590,7 @@ test("the weekly evaluation skips the share fee on oshi shares held all week", {
   assert.equal(await feeLedger("plain"), 1);
 
   const report = (await weekly.getEvaluation(pool, SATURDAY));
-  assert.deepEqual(report.oshi_protection, { enabled: true, players: 2, shares: 140, waived: Math.round((payout("fan").waived + payout("topup").waived) * 100) / 100 });
+  assert.deepEqual(report.oshi_protection, { enabled: true, players: 3, shares: 215, waived: Math.round((payout("fan").waived + payout("topup").waived + payout("rookie").waived) * 100) / 100 });
   assert.equal(report.assets.find((row) => row.symbol === feeRow.symbol).oshi_waived, report.oshi_protection.waived);
 
   const { rows: notices } = await pool.query(`SELECT title, body FROM market.notifications WHERE user_id = $1`, [users.fan]);
@@ -565,7 +613,7 @@ test("the weekly evaluation skips the share fee on oshi shares held all week", {
     const toEveryone = JSON.stringify(features.forAudience({ report, weeks: [week] }, "everyone"));
     assert.ok(!/oshi_(protection|waived|protected_quantity)/.test(toEveryone), "nothing of it reaches players");
     const toStaff = features.forAudience({ report, weeks: [week] }, "staff");
-    assert.equal(toStaff.report.oshi_protection.players, 2);
+    assert.equal(toStaff.report.oshi_protection.players, 3);
     assert.equal(toStaff.weeks[0].oshi_waived, -full);
   } finally {
     restore();

@@ -13,8 +13,8 @@ import { inFirstDays, useFirstDaysStore } from "@/app/stores/first-days-store";
 import styles from "@/app/components/onboarding/first-days-card.module.scss";
 
 // "Your first days": what to do after signing up, for accounts made since this shipped. Every tick
-// comes from what the player has actually done (api/src/services/firstDays.js). It goes away when
-// every step is done, when they hide it, or two weeks after sign-up.
+// comes from what the player has actually done (api/src/services/firstDays.js). With every step done
+// it's one closing line. It goes away when they hide it, or two weeks after sign-up.
 
 const TICK_LABELS: Record<string, string> = { open: "Open", lunch: "Lunch", late: "Late", overnight: "Overnight" };
 
@@ -62,10 +62,10 @@ export function FirstDaysCard({ onPickOshi, verifyNotice = true }: { onPickOshi?
       body: oshi ? (
         <>
           Your oshi is <b>{oshi.name}</b>. Their mark follows your name
-          {oshiProtection ? <>, and from your first full week with them, the {oshi.symbol} shares you hold all week skip Saturday’s share fee</> : null}.
+          {oshiProtection ? <>, and at your first Saturday with them, every {oshi.symbol} share you hold skips the share fee. After that it’s the shares you hold all week</> : null}.
         </>
       ) : oshiProtection ? (
-        "Your favorite talent. Their mark follows your name, and from your first full week with them, the shares you hold all week skip Saturday's share fee. It can change once every 30 days, so choose well."
+        "Your favorite talent. Their mark follows your name, and at your first Saturday with them, every share you hold skips the share fee. After that it's the shares you hold all week. It can change once every 30 days, so choose well."
       ) : (
         "Your favorite talent. Their mark follows your name, and holding the most of them puts you on their oshiboard."
       ),
@@ -122,7 +122,7 @@ export function FirstDaysCard({ onPickOshi, verifyNotice = true }: { onPickOshi?
       ) : (
         <>
           Saturday 00:00 ET{reviewIn ? ` (in ${reviewIn})` : ""}, the fastest-growing channels pay their holders a dividend and the slowest charge a fee.
-          {oshiProtection ? " After your first full week with your oshi, they never charge one on shares held all week." : null}
+          {oshiProtection ? " Your oshi won’t charge you one at your first Saturday with them." : null}
         </>
       ),
       action: review ? null : <Link href="/market/dividends">Last week&apos;s review →</Link>,
@@ -137,7 +137,18 @@ export function FirstDaysCard({ onPickOshi, verifyNotice = true }: { onPickOshi?
   ];
 
   const doneCount = steps.filter((step) => step.done).length;
-  if (doneCount === steps.length) return null;
+  if (doneCount === steps.length) {
+    return (
+      <section className={`${styles.card} ${styles.closing}`} aria-label="Your first days are done">
+        <p>
+          <b>That’s your first days done.</b> Week two is yours: a new review every Saturday, <Link href="/oshiboard">your oshi’s board</Link> to climb, and the <Link href="/leaderboard">leaderboard</Link> when you’re ready to see who’s ahead.
+        </p>
+        <button type="button" className={styles.hide} onClick={() => void dismiss()}>
+          Close
+        </button>
+      </section>
+    );
+  }
   const nextKey = steps.find((step) => !step.done)?.key;
 
   return (
