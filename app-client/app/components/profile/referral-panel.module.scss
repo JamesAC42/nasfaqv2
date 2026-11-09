@@ -73,6 +73,11 @@
   margin-top: 0.7rem;
   border-top: 1px solid var(--rule);
 
+  // A long status wraps rather than squeezing the player's name down to nothing.
+  a {
+    min-width: 6.5rem;
+  }
+
   small {
     font-size: 0.7rem;
     text-align: right;
