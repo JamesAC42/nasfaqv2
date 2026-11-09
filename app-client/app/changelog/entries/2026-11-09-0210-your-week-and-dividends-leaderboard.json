@@ -1,0 +1,13 @@
+{
+  "title": "Your week, and a dividends leaderboard",
+  "changes": [
+    {
+      "kind": "new",
+      "text": "After each Saturday review, Home shows your week for a few days: what you made, your dividends and share fees, what your oshi saved you, your biggest moves and your rank, with a link to the full breakdown. In the last three days before the next review, it counts down."
+    },
+    {
+      "kind": "new",
+      "text": "The leaderboard has a Dividends tab: everyone from the most earned down to the highest fees, for the latest week or all time. Open a player to see their dividends, fees and what their oshi saved them, stock by stock."
+    }
+  ]
+}
