@@ -14,11 +14,16 @@ const enc = encodeURIComponent;
 const dayFormat = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 const whenText = (iso: string) => `${dayFormat.format(new Date(iso))} ET`;
 
-/** Where one person who joined stands, in a few words. */
+const SAME_NETWORK = "This account has used the same network as you or someone else you invited.";
+
+/**
+ * Where one person who joined stands, in a few words. The shared network is the only reason a refusal
+ * names: another player's suspension reads as a plain "didn't qualify" (the API doesn't send it either).
+ */
 function statusOf(row: ReferralJoin): { text: string; tone: "up" | "down" | "flat"; title?: string } {
   if (row.status === "pending") return { text: "waiting for their first trade", tone: "flat" };
-  if (row.status === "expired") return { text: "no trade in time", tone: "flat" };
-  if (row.status === "refused") return { text: "didn't qualify", tone: "down", title: "Referrals don't pay between accounts that have used the same network." };
+  if (row.status === "expired") return { text: row.reason === "unverified" ? "email not verified in time" : "no trade in time", tone: "flat" };
+  if (row.status === "refused") return row.reason === "shared_ip" ? { text: "didn't qualify: same network", tone: "down", title: SAME_NETWORK } : { text: "didn't qualify", tone: "down" };
   if (row.your_share === "paid") return { text: "you were paid", tone: "up" };
   if (row.your_share === "waiting") {
     const when = row.your_share_retry_at ? whenText(row.your_share_retry_at) : null;
@@ -27,8 +32,17 @@ function statusOf(row: ReferralJoin): { text: string; tone: "up" | "down" | "fla
     if (row.your_share_reason === "unverified") return { text: "verify your email to get yours", tone: "flat" };
     return { text: "yours is on hold for a check", tone: "flat" };
   }
-  if (row.your_share === "refused") return { text: "they were paid, you weren't", tone: "down", title: "Referrals don't pay between accounts that have used the same network." };
+  if (row.your_share === "refused") return row.your_share_reason === "shared_ip" ? { text: "they were paid, you weren't: same network", tone: "down", title: SAME_NETWORK } : { text: "they were paid, you weren't", tone: "down" };
   return { text: "they were paid", tone: "up" };
+}
+
+/** The new player's side, after "You joined through X’s link." */
+function invitedText({ username, status, reason, cash, credit }: NonNullable<ReferralSummary["invited_by"]>, reward: string, windowDays: number) {
+  if (status === "paid") return `You got ${rewardText({ cash, credit })}.`;
+  if (status === "pending") return `Make your first stock trade and you both get ${reward}.`;
+  if (status === "expired") return `The bonus has expired: it needed ${reason === "unverified" ? "a verified email" : "a first stock trade"} within ${windowDays} days of signing up.`;
+  if (reason === "shared_ip") return `The bonus doesn’t apply: your account has used the same network as ${username} or someone else they invited.`;
+  return "This account didn’t qualify for the bonus.";
 }
 
 /**
@@ -109,7 +123,7 @@ export function ReferralPanel() {
       {summary ? (
         <>
           <p className={styles.pitch}>
-            When a friend signs up through your link and makes their first stock trade, you each get <b>{reward}</b>.
+            When a friend signs up through your link and makes their first stock trade, you each get <b>{reward}</b>. Referrals don’t pay between accounts that have used the same network.
           </p>
           <div className={styles.linkRow}>
             <input className={styles.linkBox} readOnly value={link} aria-label="Your referral link" onFocus={(event) => event.currentTarget.select()} />
@@ -123,11 +137,7 @@ export function ReferralPanel() {
           {summary.invited_by ? (
             <p className={styles.invited}>
               You joined through <Link href={`/profile/${enc(summary.invited_by.username)}`}>{summary.invited_by.username}</Link>’s link.{" "}
-              {summary.invited_by.status === "paid"
-                ? `You got ${rewardText({ cash: summary.invited_by.cash, credit: summary.invited_by.credit })}.`
-                : summary.invited_by.status === "pending"
-                  ? `Make your first stock trade and you both get ${reward}.`
-                  : null}
+              {invitedText(summary.invited_by, reward, summary.settings.window_days)}
             </p>
           ) : null}
 

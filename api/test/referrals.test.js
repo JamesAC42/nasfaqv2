@@ -618,4 +618,23 @@ test("referrals, visits and the admin numbers, end to end", { skip: !databaseUrl
     await settle();
     assert.equal((await referralOf(stranded.id)).status, "paid");
   });
+
+  await t.test("the panel names the shared network and the expired reason, but never another player's suspension", async () => {
+    const benched = await register("BenchedKid", "203.0.113.96", [code]);
+    await verify(benched.id);
+    await fill(benched.id);
+    await pool.query(`UPDATE market.users SET suspended_at = now() - interval '1 hour', suspended_until = now() + interval '1 day' WHERE id = $1`, [benched.id]);
+    await settle();
+    const referral = await referralOf(benched.id);
+    assert.equal(referral.status, "refused");
+    assert.equal(referral.reason, "suspended");
+
+    const me = (await call("GET", "/api/referrals/me", { cookie: sharer })).body;
+    const byName = new Map(me.joined.map((row) => [row.username, row]));
+    assert.equal(byName.get("BenchedKid").status, "refused");
+    assert.equal(byName.get("BenchedKid").reason, null, "just a refusal, with no reason");
+    assert.ok(!JSON.stringify(byName.get("BenchedKid")).includes("suspend"));
+    assert.equal(byName.get("AltKid").reason, "shared_ip");
+    assert.equal(byName.get("Idler").reason, "no_trade");
+  });
 });
