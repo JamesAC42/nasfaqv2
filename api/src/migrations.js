@@ -2123,6 +2123,10 @@ async function applySchema(pool) {
     WHERE w.kind = 'exchange_sale' AND NOT (w.meta ? 'user_id') AND s.buyer_id IS NOT NULL
       AND s.id = CASE WHEN w.dedupe_key ~ '^sale:[0-9]{1,18}$' THEN substr(w.dedupe_key, 6)::bigint END
   `);
+
+  // The source tag on the link a signed-out visitor arrived by (?ref=vt-banner; services/visits.js),
+  // so /admin/analytics can set visitors next to sign-ups for each tag.
+  await pool.query(`ALTER TABLE market.site_visits ADD COLUMN IF NOT EXISTS source TEXT NULL`);
 }
 
 module.exports = { applySchema };

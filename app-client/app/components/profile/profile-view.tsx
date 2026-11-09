@@ -209,7 +209,7 @@ export function ProfileView({ username }: { username?: string | null }) {
             <div className={styles.id}>
               <h1>{profile.username}</h1>
               <div className={styles.meta}>
-                <span>Rank #{profile.rank.toLocaleString("en-US")}</span>
+                {profile.rank > 0 ? <span>Rank #{profile.rank.toLocaleString("en-US")}</span> : null}
                 {oshi ? (
                   <Link href={`/stocks/${enc(oshi.symbol)}`} className={styles.oshi} data-peek-stock={oshi.symbol}>
                     <Oshimark icon={oshi.icon} symbol={oshi.symbol} size={16} /> Oshi {oshi.display_name}

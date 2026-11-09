@@ -483,6 +483,11 @@ export function SiteShell({
             <ThemeButton />
           </div>
 
+          {!user && !isLoading && !/^\/(login|register)(\/|$)/.test(pathname) ? (
+            <Link href="/register" className={styles.join}>
+              Join
+            </Link>
+          ) : null}
           <Link href={profileHref} className={user ? styles.profile : styles.signIn}>
             {user ? (
               <>

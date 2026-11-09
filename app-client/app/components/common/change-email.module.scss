@@ -1,0 +1,44 @@
+@use "../../styles/mixins" as *;
+
+// Sits inside whatever notice shows it, so it stays narrow enough for the chat composer.
+.form {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+
+  label {
+    display: grid;
+    gap: 0.25rem;
+  }
+
+  label > span {
+    @include label;
+  }
+
+  input {
+    width: 100%;
+    min-width: 0;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid var(--rule-2);
+    background: var(--ink);
+    color: var(--text);
+    // Under 16px, iPhones zoom the page in when the field takes focus.
+    font-size: 1rem;
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
+}
+
+.save {
+  @include button-primary;
+}
+
+.error {
+  margin: 0;
+  color: var(--down);
+}

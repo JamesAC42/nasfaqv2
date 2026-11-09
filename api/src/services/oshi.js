@@ -8,15 +8,31 @@
 //   - Every pick, change and clear is a row in market.user_oshi_changes.
 //   - Protection covers only an oshi held the whole week (no row since the week started) and only
 //     the shares held all week: the fewest the player held at any moment since then.
+//   - One exception, so a newcomer's first Saturday isn't a fee on the talent they just picked: a first
+//     pick made in an account's first FIRST_DAYS days counts as held all week at the first review
+//     after it, for every share they hold then. Changing or clearing it that week ends that.
+//     An older account's first pick doesn't get it, or it could be aimed at a stock about to charge.
 //
 // Behind the oshi-protection feature flag (features/oshi-protection.json): only players it's on for
 // get the skip and the 30-day rule. Everyone else changes their oshi as freely as before. Every
 // player's picks and changes are logged either way, so the week's history is there when it turns on.
 
 const features = require("../features");
+const { FIRST_DAYS } = require("./firstDays");
 
 const CHANGE_COOLDOWN_DAYS = 30;
 const FLAG = "oshi-protection";
+
+/**
+ * SQL: whether player `u`'s only oshi move since the week started ($since) is a first pick made before
+ * this week's review ($until), while the account was new. (A first pick can only happen once, so
+ * every row since then passing means there's the one.) False with no rows.
+ */
+const firstWeekSql = (since, until) => `(
+  SELECT COALESCE(BOOL_AND(c.kind = 'first_pick' AND c.changed_at < ${until} AND c.changed_at < u.created_at + make_interval(days => ${FIRST_DAYS})), false)
+  FROM market.user_oshi_changes c
+  WHERE c.user_id = u.id AND c.changed_at >= ${since}
+)`;
 
 /** Whether this player gets oshi protection and its 30-day rule (`user` needs is_admin). */
 const protectionFor = (user) => features.isEnabled(FLAG, user);
@@ -115,22 +131,24 @@ async function sharesAddedSince(db, pairs, since) {
 
 /**
  * The players the flag is on for whose oshi is one of `assetIds` and has been since `since` (no pick,
- * change or clear after it), with how many of its shares they've added since then.
+ * change or clear after it), with how many of its shares they've added since then. `until` is this
+ * week's review: a new account's first pick between the two counts as held all week, so added is 0.
  * Map userId → { assetId, added }.
  */
-async function loadProtectedOshis(db, assetIds, since) {
+async function loadProtectedOshis(db, assetIds, since, until) {
   const { rows } = await db.query(
     `
-    SELECT u.id AS user_id, u.oshi_coin_asset_id AS asset_id, u.is_admin
+    SELECT u.id AS user_id, u.oshi_coin_asset_id AS asset_id, u.is_admin,
+           ${firstWeekSql("$2", "$3")} AS first_week,
+           EXISTS (SELECT 1 FROM market.user_oshi_changes c WHERE c.user_id = u.id AND c.changed_at >= $2) AS moved
     FROM market.users u
     WHERE u.oshi_coin_asset_id = ANY($1::bigint[])
-      AND NOT EXISTS (SELECT 1 FROM market.user_oshi_changes c WHERE c.user_id = u.id AND c.changed_at >= $2)
   `,
-    [assetIds, since]
+    [assetIds, since, until]
   );
-  const pairs = rows.filter(protectionFor).map((row) => ({ userId: Number(row.user_id), assetId: Number(row.asset_id) }));
-  const added = await sharesAddedSince(db, pairs, since);
-  return new Map(pairs.map((pair) => [pair.userId, { assetId: pair.assetId, added: added.get(`${pair.userId}:${pair.assetId}`) ?? 0 }]));
+  const players = rows.filter((row) => (row.first_week || !row.moved) && protectionFor(row)).map((row) => ({ userId: Number(row.user_id), assetId: Number(row.asset_id), firstWeek: row.first_week }));
+  const added = await sharesAddedSince(db, players.filter((player) => !player.firstWeek), since);
+  return new Map(players.map((player) => [player.userId, { assetId: player.assetId, added: added.get(`${player.userId}:${player.assetId}`) ?? 0 }]));
 }
 
 /** Shares covered: the fewest held since the week started, never more than now, rounded to the micro-share. */
@@ -141,32 +159,35 @@ function protectedShares(heldNow, added) {
 
 /**
  * One player's oshi as the stock page and the profile show it: the talent, the 30-day rule, and this
- * week's protection (shares held since `weekStart`, the last Saturday 00:00 ET).
+ * week's protection (shares held since `weekStart`, the last Saturday 00:00 ET). `first_week`: a new
+ * account's first pick, so every share they hold at `nextReviewAt` is covered.
  */
 async function getOshiStatus(pool, userId, { weekStart, nextReviewAt }) {
   const { rows } = await pool.query(
     `
-    SELECT a.id, a.symbol, a.display_name, COALESCE(h.quantity, 0) AS held
+    SELECT a.id, a.symbol, a.display_name, COALESCE(h.quantity, 0) AS held, ${firstWeekSql("$2", "$3")} AS first_week
     FROM market.users u
     JOIN market.market_assets a ON a.id = u.oshi_coin_asset_id
     LEFT JOIN market.portfolio_holdings h ON h.user_id = u.id AND h.asset_id = a.id
     WHERE u.id = $1
   `,
-    [userId]
+    [userId, weekStart, nextReviewAt]
   );
   const rule = await readChangeRule(pool, userId);
   const change = { cooldown_days: CHANGE_COOLDOWN_DAYS, available_at: rule.nextChangeAt, first_pick: !rows[0] && !rule.hasHistory };
   const base = { week_start: weekStart.toISOString(), next_review_at: nextReviewAt.toISOString(), change };
-  if (!rows[0]) return { ...base, oshi: null, set_at: rule.setAt, covered: false, held: 0, protected_shares: 0 };
+  if (!rows[0]) return { ...base, oshi: null, set_at: rule.setAt, covered: false, first_week: false, held: 0, protected_shares: 0 };
   const assetId = Number(rows[0].id);
   const held = Number(rows[0].held) || 0;
-  const covered = !rule.setAt || new Date(rule.setAt).getTime() < weekStart.getTime();
-  const added = covered ? (await sharesAddedSince(pool, [{ userId, assetId }], weekStart)).get(`${userId}:${assetId}`) ?? 0 : 0;
+  const firstWeek = rows[0].first_week;
+  const covered = firstWeek || !rule.setAt || new Date(rule.setAt).getTime() < weekStart.getTime();
+  const added = covered && !firstWeek ? (await sharesAddedSince(pool, [{ userId, assetId }], weekStart)).get(`${userId}:${assetId}`) ?? 0 : 0;
   return {
     ...base,
     oshi: { id: assetId, symbol: rows[0].symbol, display_name: rows[0].display_name },
     set_at: rule.setAt,
     covered,
+    first_week: firstWeek,
     held,
     protected_shares: covered ? protectedShares(held, added) : 0,
   };

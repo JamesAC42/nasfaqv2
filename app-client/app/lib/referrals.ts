@@ -76,7 +76,7 @@ export function forgetRefs() {
 
 /**
  * Keeps this page's ?ref= (or, with none, its utm_source), and takes `ref` out of the address bar so
- * it isn't copied along when the page is shared.
+ * it isn't copied along when the page is shared. Returns the value it kept, if any.
  */
 export function captureRef() {
   const url = new URL(window.location.href);
@@ -88,6 +88,7 @@ export function captureRef() {
     url.searchParams.delete("ref");
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   }
+  return value;
 }
 
 let summaryRequest: { userId: number; promise: Promise<ReferralSummary> } | null = null;

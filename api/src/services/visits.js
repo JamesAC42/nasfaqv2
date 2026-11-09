@@ -9,6 +9,8 @@
 //   gone, so a hash can't be traced back to an address or linked to another day's.
 // - the page path, without its query or fragment (that's where reset and verification tokens go);
 // - the host of the site that linked here, if any;
+// - the source tag on the link they arrived by (?ref=vt-banner, or utm_source), if any. A player's
+//   invite code is left out, so a visit is never tied to the player who shared the link;
 // - how many times that visitor viewed that page that day.
 // No address, cookie or account. Signed-in players aren't counted here: their days are in
 // market.user_active_days. Rows older than VISIT_RETENTION_DAYS (90) are deleted
@@ -105,6 +107,20 @@ function cleanReferrerHost(value, ownHosts = new Set()) {
   return host;
 }
 
+/** A link's source tag as stored, or null. The same shape as a kept ref (app-client lib/referrals.ts). */
+function cleanSource(value) {
+  const text = String(value ?? "").slice(0, MAX_RAW).trim().toLowerCase();
+  return /^[a-z0-9][a-z0-9_-]{0,39}$/.test(text) ? text : null;
+}
+
+/** The tag to keep for this visit: none when it's a player's invite code. */
+async function sourceTag(pool, value) {
+  const tag = cleanSource(value);
+  if (!tag) return null;
+  const { rows } = await pool.query(`SELECT 1 FROM market.users WHERE referral_code = $1 LIMIT 1`, [tag]);
+  return rows.length ? null : tag;
+}
+
 function ownHosts(req) {
   const hosts = new Set(["holo.nasfaq.biz", "localhost", "127.0.0.1"]);
   for (const value of [process.env.APP_URL, process.env.PUBLIC_SITE_URL, process.env.NEXT_PUBLIC_SITE_URL]) {
@@ -137,13 +153,14 @@ async function recordVisit(pool, redis, req, body, { now = new Date() } = {}) {
   const hash = visitorHash(await dailySalt(redis, day, now.getTime()), clientIp(req), userAgent);
   await pool.query(
     `
-    INSERT INTO market.site_visits (day, visitor_hash, path, referrer_host)
-    VALUES ($1::date, $2, $3, $4)
+    INSERT INTO market.site_visits (day, visitor_hash, path, referrer_host, source)
+    VALUES ($1::date, $2, $3, $4, $5)
     ON CONFLICT (day, visitor_hash, path) DO UPDATE
       SET views = LEAST(market.site_visits.views + 1, 100000),
-          referrer_host = COALESCE(market.site_visits.referrer_host, EXCLUDED.referrer_host)
+          referrer_host = COALESCE(market.site_visits.referrer_host, EXCLUDED.referrer_host),
+          source = COALESCE(market.site_visits.source, EXCLUDED.source)
   `,
-    [day, hash, path, cleanReferrerHost(body?.referrer, ownHosts(req))]
+    [day, hash, path, cleanReferrerHost(body?.referrer, ownHosts(req)), await sourceTag(pool, body?.source)]
   );
   return { counted: true, reason: null };
 }
@@ -154,4 +171,4 @@ async function pruneOldVisits(pool, { days = retentionDays(), now = new Date() }
   return rowCount || 0;
 }
 
-module.exports = { TIME_ZONE, cleanPath, cleanReferrerHost, dailySalt, dayKey, isBot, pruneOldVisits, recordVisit, retentionDays, visitorHash };
+module.exports = { TIME_ZONE, cleanPath, cleanReferrerHost, cleanSource, dailySalt, dayKey, isBot, pruneOldVisits, recordVisit, retentionDays, visitorHash };

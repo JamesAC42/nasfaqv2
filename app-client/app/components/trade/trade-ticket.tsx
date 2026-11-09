@@ -166,6 +166,7 @@ export function TradeTicket({
   const [failure, setFailure] = useState<TradeFailureNotice | null>(null);
   const [queued, setQueued] = useState<TradeConfirmation | null>(null);
   const qtyInput = useRef<HTMLInputElement | null>(null);
+  const failureRef = useRef<HTMLDivElement | null>(null);
   const symbol = asset.symbol.toUpperCase();
 
   // Whatever floats over the page (the chat window) moves off the ticket as soon as it's there.
@@ -175,6 +176,10 @@ export function TradeTicket({
     const id = window.setTimeout(() => qtyInput.current?.focus(), 60);
     return () => window.clearTimeout(id);
   }, [autoFocus]);
+  // On a phone the submit button stays pinned, so what went wrong can be out of view above it.
+  useEffect(() => {
+    if (failure) failureRef.current?.scrollIntoView({ block: "center" });
+  }, [failure]);
 
   const holding = useMemo(() => portfolio?.holdings.find((item) => item.symbol.toUpperCase() === symbol) ?? null, [portfolio, symbol]);
   const close = () => onClose?.();
@@ -227,7 +232,7 @@ export function TradeTicket({
       return;
     }
     if (userNeedsEmailVerification(user)) {
-      setFailure({ title: "Verify your email", message: "Verify your email before you can trade." });
+      setFailure({ title: "Verify your email first", message: "Open the link we emailed you, then come back to trade." });
       return;
     }
     if (!tradingOpen) {
@@ -374,7 +379,7 @@ export function TradeTicket({
               {queuedAhead ? ` · ${queuedAhead} order${queuedAhead === 1 ? "" : "s"} queued on ${asset.symbol}` : ""}. The final price is set when the batch executes.
             </p>
             {failure ? (
-              <div className={styles.fail} role="alert">
+              <div ref={failureRef} className={styles.fail} role="alert">
                 <b>{failure.title}</b>
                 <span>{failure.message}</span>
                 {!user ? (
@@ -387,9 +392,31 @@ export function TradeTicket({
                       Sign in
                     </Link>
                   </span>
+                ) : userNeedsEmailVerification(user) ? (
+                  <span className={styles.failLinks}>
+                    <Link href="/verify-email" onClick={close}>
+                      Didn’t get it? Send a new link
+                    </Link>
+                  </span>
                 ) : null}
               </div>
             ) : null}
+            {!user ? (
+              <>
+                <Link href="/register" onClick={close} className={styles.submit}>
+                  MAKE AN ACCOUNT TO TRADE
+                </Link>
+                <p className={styles.batch}>
+                  Play money, free to join. Already have an account?{" "}
+                  <span className={styles.failLinks}>
+                    <Link href="/login" onClick={close}>
+                      Sign in
+                    </Link>
+                  </span>
+                  .
+                </p>
+              </>
+            ) : (
             <button type="submit" className={`${styles.submit} ${side === "sell" ? styles.sell : ""}`} disabled={busy || !qty || !tradingOpen || buyBlocked}>
               {busy
                 ? "SENDING…"
@@ -405,6 +432,7 @@ export function TradeTicket({
                       ? `SELL ${qty.toLocaleString("en-US")} TO THE BROKER`
                       : `${side.toUpperCase()} ${qty.toLocaleString("en-US")} ${asset.symbol}${side === "buy" && forSale !== null && qty > forSale ? ` (${Math.floor(forSale).toLocaleString("en-US")} LEFT)` : ""}`}
             </button>
+            )}
           </form>
         )
   );

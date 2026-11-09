@@ -669,11 +669,22 @@
 }
 
 .signIn {
-  @include button-primary;
+  @include button-secondary;
   padding: 0.45rem 0.8rem;
 
   @include tablet-down {
     display: none;
+  }
+}
+
+// The way in for a visitor, on every page and width (phones have Sign in in the bottom bar).
+.join {
+  @include button-primary;
+  padding: 0.45rem 0.8rem;
+  flex: none;
+
+  @include phone {
+    padding: 0.3rem 0.6rem;
   }
 }
 
