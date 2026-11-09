@@ -43,6 +43,12 @@ const ERROR_STATUS = {
   pvp_account_too_new: 403,
   invalid_deck: 400,
   invalid_bet: 400,
+  blackjack_no_credit: 409,
+  blackjack_weekly_limit: 409,
+  blackjack_daily_limit: 429,
+  blackjack_net_worth_floor: 403,
+  blackjack_bet_over_limit: 400,
+  blackjack_double_over_limit: 409,
   card_pool_empty: 503,
   games_paused: 503,
   game_session_not_found: 404,
@@ -87,7 +93,7 @@ function sendGameError(res, next, error) {
   const status = ERROR_STATUS[error?.code];
   if (!status) return next(error);
   const body = { error: error.code };
-  for (const key of ["cash_balance", "required_cash", "shards", "required_shards", "min_bid", "available_at", "limit", "field", "card_key", "cosmetic_key", "tradeable", "status"]) {
+  for (const key of ["cash_balance", "required_cash", "shards", "required_shards", "min_bid", "available_at", "limit", "max_bet", "field", "card_key", "cosmetic_key", "tradeable", "status"]) {
     if (error[key] !== undefined) body[key] = error[key];
   }
   return res.status(status).json(body);

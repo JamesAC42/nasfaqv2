@@ -1,7 +1,9 @@
 import { apiFetch } from "@/app/lib/api";
 import type {
   BannersResponse,
+  BlackjackLimits,
   BlackjackLobbyRow,
+  BlackjackRules,
   BlackjackTable,
   ClaimResponse,
   CollectionResponse,
@@ -79,7 +81,8 @@ export const forfeitTable = (id: number) => post<{ table: GameTable }>(`/api/gam
 
 // Blackjack
 export const fetchBlackjackLobby = () =>
-  apiFetch<{ tables: BlackjackLobbyRow[] }>("/api/games/blackjack", { cache: "no-store" }).then(expectShape<{ tables: BlackjackLobbyRow[] }>(hasArray("tables")));
+  apiFetch<{ tables: BlackjackLobbyRow[]; rules?: BlackjackRules }>("/api/games/blackjack", { cache: "no-store" }).then(expectShape<{ tables: BlackjackLobbyRow[]; rules?: BlackjackRules }>(hasArray("tables")));
+export const fetchBlackjackLimits = () => apiFetch<{ limits: BlackjackLimits }>("/api/games/blackjack/limits", { cache: "no-store" }).then((response) => response.limits);
 export const fetchBlackjackTable = (key: string) =>
   apiFetch<{ table: BlackjackTable }>(`/api/games/blackjack/${key}`, { cache: "no-store" }).then(
     expectShape<{ table: BlackjackTable }>((value) => isObject(value.table) && Array.isArray((value.table as Record<string, unknown>).seats)),

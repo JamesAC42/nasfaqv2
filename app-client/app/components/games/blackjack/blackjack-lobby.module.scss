@@ -302,6 +302,16 @@
   }
 }
 
+.standing {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: var(--mid);
+
+  &[data-blocked] {
+    color: var(--warn);
+  }
+}
+
 .fine {
   margin: 0.75rem 0 0;
   font-size: 0.8125rem;

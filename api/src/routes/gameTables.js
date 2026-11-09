@@ -4,6 +4,7 @@
 const express = require("express");
 const pvp = require("../services/games/tables/pvp");
 const blackjack = require("../services/games/tables/blackjack");
+const blackjackLimits = require("../services/games/tables/blackjackLimits");
 const { requireUserId, requireVerifiedUserId } = require("../userContext");
 const { sendGameError } = require("./games");
 const { rateLimit, byUser } = require("../rateLimit");
@@ -91,7 +92,19 @@ router.post("/tables/:id/action", moveLimit, async (req, res, next) => {
 
 // ── Blackjack ──────────────────────────────────────────────────────────────
 router.get("/blackjack", (req, res) => {
-  res.json({ tables: blackjack.lobby() });
+  res.json({ tables: blackjack.lobby(), rules: blackjackLimits.publicRules() });
+});
+
+// Where the signed-in player stands against the limits. Ahead of /blackjack/:key, which would take
+// "limits" for a table.
+router.get("/blackjack/limits", async (req, res, next) => {
+  try {
+    const userId = Number(requireUserId(req));
+    res.set("Cache-Control", "no-store");
+    res.json({ limits: await blackjack.limitsForPlayer({ userId }) });
+  } catch (error) {
+    sendGameError(res, next, error);
+  }
 });
 
 router.get("/blackjack/:key", (req, res, next) => {
