@@ -4,7 +4,7 @@ import type { PredictionApiError } from "@/app/lib/predictions/api";
 import type { Outcome, PredictionMarket } from "@/app/lib/predictions/types";
 
 // Prediction pools and margin (docs/design/predictions-pools.md; api/src/services/predictions/pools.js).
-// Players stake Credit (then Cash, then margin) on an option; the winners split the whole pool in
+// Players stake Credit (then margin) on an option; the winners split the whole pool in
 // proportion to stake. Behind the prediction-pools flag (usePoolAccess says whether this player sees
 // them yet).
 

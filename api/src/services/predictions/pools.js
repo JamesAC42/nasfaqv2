@@ -14,6 +14,7 @@
 // - All of it is behind the prediction-pools flag (api/src/features/prediction-pools.json).
 
 const economy = require("../economy");
+const { assertAboveFloor } = require("../sideModeFloor");
 const margin = require("../margin");
 const notifications = require("../notifications");
 const core = require("./core");
@@ -219,6 +220,7 @@ async function placeBet(pool, user, { slug, outcomeCode, amount, useMargin = fal
 
     const wallet = await economy.lockWallet(client, userId);
     if (wallet.credit < 0) throw predictionError("in_the_red", { owed: round2(-wallet.credit) });
+    await assertAboveFloor(client, userId);
     const row = await margin.userRow(client, userId);
     const newUntil = newAccountUntil(row);
     if (newUntil) {

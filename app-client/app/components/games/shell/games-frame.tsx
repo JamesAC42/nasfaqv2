@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { TICKER_TAP_ENABLED } from "@/app/lib/games/flags";
 import { usePathname } from "next/navigation";
+import { NetWorthFloorNotice } from "@/app/components/games/shell/net-worth-floor-notice";
 import { useEffect, type ReactNode } from "react";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { fmtInteger, fmtNumber } from "@/app/lib/format";
@@ -87,7 +88,7 @@ export function GamesFrame({ kicker, title, blurb, aside, children, live = false
           </div>
           {wallet.signedIn ? (
             <div className={styles.wallet} aria-label="Your wallet">
-              <span title="Credit: what games, the capsule machine and the exchange spend first">
+              <span title="Credit: what games, the capsule machine and the exchange spend">
                 <small>CREDIT</small>
                 <b>{wallet.credit === null ? "…" : fmtNumber(wallet.credit, "$")}</b>
               </span>
@@ -120,6 +121,7 @@ export function GamesFrame({ kicker, title, blurb, aside, children, live = false
           {aside ? <div className={styles.aside}>{aside}</div> : null}
         </header>
 
+        <NetWorthFloorNotice className={styles.floorNotice} />
         {children}
       </div>
     </SiteShell>

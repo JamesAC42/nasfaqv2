@@ -27,10 +27,10 @@ writes one ledger row with `cash_delta` and `credit_delta`.
 | Buying shares | Cash (queued buys hold it: `trading.js`) | |
 | Selling shares | | Cash, plus a little Credit (`sellCreditRate`) |
 | Trading fee (1%) | Credit first, then Cash | |
-| Games, capsule machine, card gacha (games wallet) | Credit, then Cash (`sideModeFunds`) | Credit; refunds go back where they came from |
-| Blackjack | Credit only, never Cash (owner and BBB, 2026-11-09; `services/games/tables/blackjackLimits.js` has its limits) | Credit; refunds go back where they came from |
-| Card exchange: bids, buys, trade escrow | Credit, then Cash (`sideModeFunds`) | Credit (sales, a trade's cash); refunds go back where they came from |
-| Predictions | Credit, then Cash (`sideModeFunds`) | Credit (payouts, sales); releases and void refunds go back where they came from. A void also takes back what a player made selling, as Credit (can go below zero) |
+| Games, capsule machine, card gacha (games wallet) | Credit only (`sideModeFunds`). Pulls, entry fees and stakes stop under the net worth floor (`sideModeMinNetWorth`, `services/sideModeFloor.js`) | Credit; refunds go back where they came from |
+| Blackjack | Credit only, with its own limits (`services/games/tables/blackjackLimits.js`) and the same floor | Credit; refunds go back where they came from |
+| Card exchange: bids, buys, trade escrow | Credit only (`sideModeFunds`); no floor, since a card is bought for its price and players need to be able to sell | Credit (sales, a trade's cash); refunds go back where they came from |
+| Predictions | Credit only (`sideModeFunds`). Buys, limit orders and pool bets stop under the net worth floor | Credit (payouts, sales); releases and void refunds go back where they came from. A void also takes back what a player made selling, as Credit (can go below zero) |
 | Dividends (Saturday) | | Credit |
 | Share fees (Saturday) | Credit first, then Cash (can go below zero) | |
 | Forced buybacks (Saturday) | | Cash (it's a share sale) |
@@ -59,7 +59,8 @@ BBB answered (October 1):
 | Weekly conversion rate before licenses | `weeklyConversionRate` (`ECONOMY_WEEKLY_CONVERSION_RATE`, capped at 0.5) | **5%** (5-10%, to tune after a few rounds) |
 | A minimum conversion | `weeklyConversionMinimum` (`ECONOMY_WEEKLY_CONVERSION_MINIMUM`) | **$10,000**: "5% or $10k, whichever is more". A balance under $10,000 converts entirely, so the floor can go past the 50% cap. |
 | Fees when Credit runs out | (code: `weeklyEvaluation.js`) | **Pull from Cash** for the difference (Cash can go below zero) |
-| Minigames, gacha, gambling, player trading | `sideModeFunds` (`ECONOMY_SIDE_MODE_FUNDS`: `credit` / `credit_then_cash`) | **Credit first, then Cash** (`credit_then_cash`) |
+| Minigames, gacha, gambling, player trading | `sideModeFunds` (`ECONOMY_SIDE_MODE_FUNDS`: `credit` / `credit_then_cash`) | **Credit only** (`credit`; the owner, 2026-11-09, so losing at a side mode can't leave a player with no Cash to trade) |
+| Net worth under which games, capsules and bets close | `sideModeMinNetWorth` (`ECONOMY_SIDE_MODE_MIN_NET_WORTH`) | **$50,000** (BBB and the owner, 2026-11-09) |
 
 Still placeholders:
 

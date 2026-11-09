@@ -4,6 +4,12 @@ const { Pool } = require("pg");
 
 // Pools and margin (docs/design/predictions-pools.md): parimutuel payouts with no rake, the margin
 // line and who gets one, life in the red, voids and corrections, and the prediction-pools flag.
+//
+// These are about a pool's own rules, so they run without the net worth floor and with bets able to
+// reach Cash: that's how bets placed before Credit-only refund, and it stays one setting away.
+// side-mode-floor.test.js covers both rules as they are in production.
+process.env.ECONOMY_SIDE_MODE_FUNDS = "credit_then_cash";
+process.env.ECONOMY_SIDE_MODE_MIN_NET_WORTH = "0";
 
 const poolMath = require("../src/services/predictions/poolMath");
 const margin = require("../src/services/margin");

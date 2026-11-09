@@ -115,7 +115,7 @@ $15,000: $2,000 comes from Cash and $13,000 is borrowed, leaving Credit at −$1
 
 ## 5. Currency
 
-- **Credit,** same as predictions today. Bets spend Credit, then Cash (`sideModeFunds`), and
+- **Credit,** same as predictions today. Bets spend Credit (`sideModeFunds`, Credit only since 2026-11-09), and
   winnings land in Credit.
 - **Refunds** go back where the money came from (`economy.refund`), so a voided margin bet cancels
   its own debt.
