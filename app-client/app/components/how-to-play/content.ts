@@ -86,6 +86,8 @@ const ALL_GAMES: Game[] = [
       "Blackjack pays 3:2, a win 1:1, a push refunds",
       "Double on your first two cards; no split, no insurance",
       "Dealer stands on all 17s. 15 s to bet, 15 s per turn",
+      "Spends Credit only, never your cash",
+      "Up or down $10,000 a week (5% of your Credit if that's more), 50 hands a day, no bets under $50,000 net worth",
     ],
     tag: "table",
   },
@@ -176,7 +178,7 @@ export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
   },
   {
     q: "What's Credit?",
-    a: "Your second balance. Games, the capsule machine, the card exchange and predictions spend it first, and your cash only once it runs out; so does the trading fee. Dividends, winnings, achievements and a little of every sale land in it, it counts toward your net worth, and every Saturday 5% of it (or $10k, if that's more) turns into cash.",
+    a: "Your second balance. Games, the capsule machine, the card exchange and predictions spend it first, and your cash only once it runs out; so does the trading fee. Blackjack spends Credit only. Dividends, winnings, achievements and a little of every sale land in it, it counts toward your net worth, and every Saturday 5% of it (or $10k, if that's more) turns into cash.",
   },
   {
     q: "How do I get more cash?",

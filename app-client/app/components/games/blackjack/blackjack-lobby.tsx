@@ -8,11 +8,12 @@ import { GamesFrame, SignInToPlay } from "@/app/components/games/shell/games-fra
 import { fmtInteger, fmtNumber } from "@/app/lib/format";
 import { fetchBlackjackLobby, sitBlackjack } from "@/app/lib/games/api";
 import { gameErrorText } from "@/app/lib/games/errors";
-import type { BlackjackLobbyRow } from "@/app/lib/games/types";
+import type { BlackjackLobbyRow, BlackjackRules } from "@/app/lib/games/types";
 import { primeChannel, useGamesChannel, useGamesConnected, useSeedChannel } from "@/app/lib/games/use-games-socket";
 import { useAuth } from "@/app/providers/auth-provider";
 import { Chip } from "@/app/components/games/blackjack/bj-parts";
 import { HOUSE_RULES, chipsFor } from "@/app/components/games/blackjack/bj-utils";
+import { blockedText, limitsLine, useBlackjackLimits } from "@/app/components/games/blackjack/use-blackjack-limits";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { LobbyDealer } from "@/app/components/games/blackjack/bj-dealer";
 import { useBlackjackDealers } from "@/app/lib/games/dealers";
@@ -49,13 +50,17 @@ export function BlackjackLobbyPage() {
   const dealers = useBlackjackDealers();
   const router = useRouter();
 
+  const { limits } = useBlackjackLimits(Boolean(user));
+  const [rules, setRules] = useState<BlackjackRules | null>(null);
   const [seed, setSeed] = useState<LobbyPayload | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     fetchBlackjackLobby()
       .then((response) => {
-        if (!cancelled) setSeed({ type: "lobby", game: "blackjack", tables: response.tables });
+        if (cancelled) return;
+        setSeed({ type: "lobby", game: "blackjack", tables: response.tables });
+        setRules(response.rules ?? null);
       })
       .catch((error) => {
         if (!cancelled) setLoadError(gameErrorText(error));
@@ -105,6 +110,11 @@ export function BlackjackLobbyPage() {
     >
       {!user ? <SignInToPlay what="take a seat. Watching is free" /> : null}
       {loadError && !tables ? <p className={styles.empty}>Couldn&apos;t reach the tables ({loadError}).</p> : null}
+      {limits ? (
+        <p className={styles.standing} data-blocked={limits.blocked ? "" : undefined}>
+          {blockedText(limits) ?? limitsLine(limits)}
+        </p>
+      ) : null}
 
       <div className={styles.tables}>
         {(tables ?? []).map((table) => {
@@ -152,7 +162,7 @@ export function BlackjackLobbyPage() {
                 {dealer ? <LobbyDealer dealer={dealer} /> : null}
                 <div className={styles.buttons}>
                   {user ? (
-                    <button type="button" className={styles.sit} onClick={() => void sit(table.key)} disabled={full || busyKey !== null}>
+                    <button type="button" className={styles.sit} onClick={() => void sit(table.key)} disabled={full || busyKey !== null || Boolean(limits?.blocked)}>
                       {busyKey === table.key ? "Sitting…" : full ? "Full" : "Sit"}
                     </button>
                   ) : null}
@@ -183,8 +193,13 @@ export function BlackjackLobbyPage() {
           ))}
         </ul>
         <p className={styles.fine}>
-          Bets come out of your cash the moment you place them; wins land when the dealer settles. Sit out three rounds in a row and the dealer gives your seat away.
+          Bets come out of your Credit the moment you place them, and wins land in Credit when the dealer settles. Blackjack never spends your Cash. Sit out three rounds in a row and the dealer gives your seat away.
         </p>
+        {rules ? (
+          <p className={styles.fine}>
+            Limits: up or down {fmtNumber(rules.weekly_minimum, "$")} a week ({fmtInteger(rules.weekly_rate * 100)}% of your Credit if that&apos;s more), {fmtInteger(rules.hands_per_day)} hands a day, and no bets under {fmtNumber(rules.min_net_worth, "$")} net worth. The week resets Saturday at midnight ET.
+          </p>
+        ) : null}
       </section>
     </GamesFrame>
   );

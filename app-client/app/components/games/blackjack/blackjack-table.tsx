@@ -14,6 +14,7 @@ import { useRemaining } from "@/app/lib/games/use-remaining";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useProfileStore } from "@/app/stores/profile-store";
 import { Hand, Seat, Shoe } from "@/app/components/games/blackjack/bj-parts";
+import { useBlackjackLimits } from "@/app/components/games/blackjack/use-blackjack-limits";
 import { BlackjackControls, type BjAction } from "@/app/components/games/blackjack/bj-controls";
 import { ReactionBar, ReactionLayer, useTableReactions } from "@/app/components/games/blackjack/bj-reactions";
 import { BJ_BET_MS, BJ_TURN_MS, HOUSE_RULES, handValue, momentOf, netOf, usePhone, wagerOf, withLiveDeadline } from "@/app/components/games/blackjack/bj-utils";
@@ -73,6 +74,7 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
   const mySeat = table && myIndex >= 0 ? table.seats[myIndex] : null;
 
   const reactions = useTableReactions(tableKey, myIndex, phone);
+  const { limits, refresh: refreshLimits } = useBlackjackLimits(Boolean(user));
 
   // ── Actions ────────────────────────────────────────────────────────────
   const [busy, setBusy] = useState<BjAction | null>(null);
@@ -137,11 +139,18 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
           setLastBet(amount);
           setSkipped(0);
         }
+        refreshLimits();
       });
     },
-    [run, tableKey],
+    [refreshLimits, run, tableKey],
   );
-  const onAct = useCallback((action: "hit" | "stand" | "double") => void run(action, () => actBlackjack(tableKey, action), action === "double"), [run, tableKey]);
+  const onAct = useCallback(
+    (action: "hit" | "stand" | "double") =>
+      void run(action, () => actBlackjack(tableKey, action), action === "double").then(() => {
+        if (action === "double") refreshLimits();
+      }),
+    [refreshLimits, run, tableKey],
+  );
   const onLeave = useCallback(() => {
     leftOnPurpose.current = true;
     void run("leave", () => leaveBlackjack(tableKey));
@@ -178,19 +187,19 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
         pushes: current.pushes + (net === 0 ? 1 : 0),
       }));
       void useProfileStore.getState().fetchPortfolio();
+      refreshLimits();
     }
 
     if (!before) return;
     // Cards went out and we had no chips down: the server counts that as a skipped round.
     if (before.phase === "betting" && table.phase === "playing") {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- the table comes off the socket: this counts a change between two of its pushes, which only shows up here.
       if (mySeat && mySeat.bet === 0) setSkipped((count) => count + 1);
       if (before.seated && !mySeat && !leftOnPurpose.current) {
         setKicked(true);
         setSkipped(0);
       }
     }
-  }, [table, mySeat, myIndex]);
+  }, [table, mySeat, myIndex, refreshLimits]);
 
   const players = useMemo(() => (table ? table.seats.filter((seat) => seat && seat.bet > 0 && seat.hand.length > 0).length : 0), [table]);
 
@@ -208,7 +217,7 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
     );
   }
 
-  const canSit = Boolean(user) && !mySeat;
+  const canSit = Boolean(user) && !mySeat && !limits?.blocked;
   const orderOf = (index: number) =>
     table.seats.slice(0, index).filter((seat) => seat && seat.bet > 0 && seat.hand.length > 0).length;
   const dealerTotal = table.dealer.hand.length ? handValue(table.dealer.hand).total : null;
@@ -322,7 +331,8 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
             signedIn={Boolean(user)}
             busy={busy}
             error={error}
-            cash={wallet.cash}
+            credit={wallet.credit}
+            limits={limits}
             lastBet={lastBet}
             skipped={skipped}
             kicked={kicked}

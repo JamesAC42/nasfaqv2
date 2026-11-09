@@ -41,24 +41,25 @@ test("a bet the wallet can't cover leaves the table playable", { skip: !database
     [console.warn, console.log, console.info] = saved;
   }
 
-  const user = async (name, cash) => {
+  const user = async (name, { cash = 0, credit = 0 }) => {
     const { rows } = await pool.query(
       `INSERT INTO market.users (username, username_normalized, email, email_verified, password_hash, password_salt, password_params_json)
        VALUES ($1, $1, $1 || '@example.test', true, 'x', 'x', '{}') RETURNING id`,
       [name]
     );
     const id = Number(rows[0].id);
-    await pool.query(`INSERT INTO market.portfolio_cash_balances (user_id, cash_balance, credit_balance) VALUES ($1, $2, 0)`, [id, cash]);
+    await pool.query(`INSERT INTO market.portfolio_cash_balances (user_id, cash_balance, credit_balance) VALUES ($1, $2, $3)`, [id, cash, credit]);
     return id;
   };
-  const broke = await user("broke", 0);
-  const rich = await user("rich", 1000);
+  // Over the net worth floor, but blackjack spends Credit and they have none.
+  const broke = await user("broke", { cash: 60000 });
+  const rich = await user("rich", { credit: 60000 });
 
   await blackjack.init(pool);
   await blackjack.sit({ userId: broke, tableKey: "low", seat: 0 });
   await blackjack.sit({ userId: rich, tableKey: "low", seat: 1 });
 
-  await assert.rejects(blackjack.bet({ userId: broke, tableKey: "low", amount: 50 }), { code: "insufficient_credit" });
+  await assert.rejects(blackjack.bet({ userId: broke, tableKey: "low", amount: 50 }), { code: "blackjack_no_credit" });
   const afterFailure = blackjack.getTable("low");
   assert.equal(afterFailure.phase, "idle", "the failed bet didn't start a round");
   assert.equal(afterFailure.round_id, null, "the table doesn't keep the rolled-back round");

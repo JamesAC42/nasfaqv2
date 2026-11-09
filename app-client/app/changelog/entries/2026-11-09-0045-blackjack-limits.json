@@ -1,0 +1,17 @@
+{
+  "title": "Blackjack limits",
+  "changes": [
+    {
+      "kind": "improved",
+      "text": "Blackjack now spends Credit only. It never touches your Cash."
+    },
+    {
+      "kind": "new",
+      "text": "Your blackjack result for the week is capped, up or down, at $10,000, or 5% of your Credit if that's more. The week resets Saturday at midnight ET."
+    },
+    {
+      "kind": "new",
+      "text": "You get 50 hands a day, and the tables close while your net worth is under $50,000."
+    }
+  ]
+}

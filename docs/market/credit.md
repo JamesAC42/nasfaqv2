@@ -28,6 +28,7 @@ writes one ledger row with `cash_delta` and `credit_delta`.
 | Selling shares | | Cash, plus a little Credit (`sellCreditRate`) |
 | Trading fee (1%) | Credit first, then Cash | |
 | Games, capsule machine, card gacha (games wallet) | Credit, then Cash (`sideModeFunds`) | Credit; refunds go back where they came from |
+| Blackjack | Credit only, never Cash (owner and BBB, 2026-11-09; `services/games/tables/blackjackLimits.js` has its limits) | Credit; refunds go back where they came from |
 | Card exchange: bids, buys, trade escrow | Credit, then Cash (`sideModeFunds`) | Credit (sales, a trade's cash); refunds go back where they came from |
 | Predictions | Credit, then Cash (`sideModeFunds`) | Credit (payouts, sales); releases and void refunds go back where they came from. A void also takes back what a player made selling, as Credit (can go below zero) |
 | Dividends (Saturday) | | Credit |

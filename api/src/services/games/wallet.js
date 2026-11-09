@@ -1,9 +1,9 @@
 const economy = require("../economy");
 
 // Games, the capsule machine and the card exchange run on Credit (services/economy.js): stakes,
-// fees, bids and purchases spend it (or Credit then Cash, by SETTINGS.sideModeFunds), and winnings,
-// refunds and sale proceeds land in it. The helpers keep their old names; "cash" here is the money
-// the player has for these modes.
+// fees, bids and purchases spend it (or Credit then Cash, by SETTINGS.sideModeFunds; blackjack passes
+// from: "credit", so it never reaches Cash), and winnings, refunds and sale proceeds land in it. The
+// helpers keep their old names; "cash" here is the money the player has for these modes.
 
 const VALID_ENTRY_TYPES = new Set([
   "gacha_pull_fee",
@@ -100,13 +100,14 @@ async function debitCashForGameWithClient(client, {
   referenceType,
   referenceId,
   assetId = null,
+  from = economy.SETTINGS.sideModeFunds,
 }) {
   const debitAmount = requirePositiveCashAmount(amount);
   const safeEntryType = requireEntryType(entryType);
   const safeReferenceType = requireReferenceType(referenceType);
   const safeReferenceId = requireReferenceId(referenceId);
   const result = await economy.charge(client, userId, debitAmount, {
-    from: economy.SETTINGS.sideModeFunds,
+    from,
     entryType: safeEntryType,
     referenceType: safeReferenceType,
     referenceId: safeReferenceId,

@@ -4,9 +4,10 @@ import { useState } from "react";
 import { FaArrowRotateLeft, FaXmark } from "react-icons/fa6";
 import { SignInToPlay } from "@/app/components/games/shell/games-frame";
 import { fmtNumber } from "@/app/lib/format";
-import type { BlackjackSeat, BlackjackTable } from "@/app/lib/games/types";
+import type { BlackjackLimits, BlackjackSeat, BlackjackTable } from "@/app/lib/games/types";
 import { Chip } from "@/app/components/games/blackjack/bj-parts";
 import { BJ_IDLE_KICK, chipsFor, netOf, usePhone, valueText } from "@/app/components/games/blackjack/bj-utils";
+import { blockedText, canDoubleWithin, limitsLine } from "@/app/components/games/blackjack/use-blackjack-limits";
 import styles from "@/app/components/games/blackjack/bj-controls.module.scss";
 
 export type BjAction = "sit" | "bet" | "hit" | "stand" | "double" | "leave";
@@ -18,7 +19,8 @@ type Props = {
   signedIn: boolean;
   busy: BjAction | null;
   error: string | null;
-  cash: number | null;
+  credit: number | null;
+  limits: BlackjackLimits | null;
   lastBet: number | null;
   skipped: number;
   kicked: boolean;
@@ -29,14 +31,21 @@ type Props = {
 };
 
 export function BlackjackControls(props: Props) {
-  const { table, mySeat, signedIn, busy, error, kicked, onSit } = props;
+  const { table, mySeat, signedIn, busy, error, kicked, limits, onSit } = props;
   const open = table.seats.filter((seat) => !seat).length;
+  const blocked = limits ? blockedText(limits) : null;
 
   let body: React.ReactNode;
   if (!signedIn) {
     body = (
       <div className={styles.row}>
         <SignInToPlay what="take a seat" />
+      </div>
+    );
+  } else if (!mySeat && blocked) {
+    body = (
+      <div className={styles.row}>
+        <p className={styles.note}>{blocked} You can still watch.</p>
       </div>
     );
   } else if (!mySeat) {
@@ -66,7 +75,7 @@ export function BlackjackControls(props: Props) {
   );
 }
 
-function Seated({ table, mySeat, busy, cash, lastBet, skipped, onBet, onAct, onLeave, myIndex }: Props & { mySeat: NonNullable<BlackjackSeat> }) {
+function Seated({ table, mySeat, busy, credit, limits, lastBet, skipped, onBet, onAct, onLeave, myIndex }: Props & { mySeat: NonNullable<BlackjackSeat> }) {
   const canBet = (table.phase === "idle" || table.phase === "betting") && mySeat.bet === 0;
   const myTurn = table.phase === "playing" && table.turn === myIndex;
   const canLeave = mySeat.bet === 0 || table.phase === "idle";
@@ -78,10 +87,19 @@ function Seated({ table, mySeat, busy, cash, lastBet, skipped, onBet, onAct, onL
     </button>
   ) : null;
 
+  if (canBet && limits?.blocked) {
+    return (
+      <div className={styles.row}>
+        <p className={styles.note}>{blockedText(limits)}</p>
+        {leave}
+      </div>
+    );
+  }
+
   if (canBet) {
     return (
       <>
-        <BetPicker key={table.key} table={table} cash={cash} lastBet={lastBet} busy={busy} onBet={onBet} leave={leave} />
+        <BetPicker key={table.key} table={table} credit={credit} limits={limits} lastBet={lastBet} busy={busy} onBet={onBet} leave={leave} />
         {skipped > 0 ? (
           <p className={styles.idle}>
             {skipped >= BJ_IDLE_KICK - 1
@@ -98,6 +116,7 @@ function Seated({ table, mySeat, busy, cash, lastBet, skipped, onBet, onAct, onL
 
   if (myTurn) {
     const canDouble = hand.length === 2 && !mySeat.doubled;
+    const doubleFits = canDoubleWithin(limits, mySeat.bet);
     return (
       <div className={styles.turn}>
         <div className={styles.turnHead}>
@@ -115,7 +134,7 @@ function Seated({ table, mySeat, busy, cash, lastBet, skipped, onBet, onAct, onL
             {busy === "stand" ? "…" : "Stand"}
           </button>
           {canDouble ? (
-            <button type="button" className={styles.double} onClick={() => onAct("double")} disabled={inflight || (cash !== null && cash < mySeat.bet)} title="Double your bet, take exactly one more card">
+            <button type="button" className={styles.double} onClick={() => onAct("double")} disabled={inflight || !doubleFits || (credit !== null && credit < mySeat.bet)} title={doubleFits ? "Double your bet, take exactly one more card" : "Doubling could take you past this week's limit"}>
               {busy === "double" ? "…" : <>Double · {fmtNumber(mySeat.bet, "$")}</>}
             </button>
           ) : null}
@@ -174,28 +193,43 @@ function Seated({ table, mySeat, busy, cash, lastBet, skipped, onBet, onAct, onL
 
 function BetPicker({
   table,
-  cash,
+  credit,
+  limits,
   lastBet,
   busy,
   onBet,
   leave,
 }: {
   table: BlackjackTable;
-  cash: number | null;
+  credit: number | null;
+  limits: BlackjackLimits | null;
   lastBet: number | null;
   busy: BjAction | null;
   onBet: (amount: number) => void;
   leave: React.ReactNode;
 }) {
   const min = table.min_bet;
-  const max = table.max_bet;
+  // What's left of the week's limit can be less than the table allows.
+  const max = limits ? Math.min(table.max_bet, Math.floor(limits.max_bet)) : table.max_bet;
+  const tooLittleRoom = max < min;
   const clamp = (value: number) => Math.max(min, Math.min(max, Math.round(value)));
   const [text, setText] = useState(() => String(clamp(lastBet ?? min)));
   const amount = Number(text);
   const valid = Number.isFinite(amount) && amount >= min && amount <= max;
-  const short = cash !== null && valid && amount > cash;
+  const short = credit !== null && valid && amount > credit;
   const chips = chipsFor(min, max);
   const phone = usePhone();
+
+  if (tooLittleRoom) {
+    return (
+      <div className={styles.row}>
+        <p className={styles.note}>
+          You have {fmtNumber(Math.max(0, max), "$")} of room left this week, less than this table&apos;s minimum. Try a lower table.
+        </p>
+        {leave}
+      </div>
+    );
+  }
 
   const add = (value: number) => {
     const base = Number.isFinite(amount) && amount >= min ? amount : 0;
@@ -248,7 +282,10 @@ function BetPicker({
         </button>
         {leave}
       </form>
-      {short ? <p className={styles.hint}>Not enough Credit or cash for that. You have {fmtNumber(cash, "$")}.</p> : !valid && text ? <p className={styles.hint}>Table limits are {fmtNumber(min, "$")} to {fmtNumber(max, "$")}.</p> : null}
+      {short ? (
+        <p className={styles.hint}>Not enough Credit for that. You have {fmtNumber(credit, "$")}. Blackjack never spends your Cash.</p>
+      ) : !valid && text ? <p className={styles.hint}>{max < table.max_bet ? "With this week's limit you can bet" : "Table limits are"} {fmtNumber(min, "$")} to {fmtNumber(max, "$")}.</p> : null}
+      {limits ? <p className={styles.limits}>{limitsLine(limits)}</p> : null}
     </div>
   );
 }

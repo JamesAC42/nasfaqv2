@@ -4,10 +4,15 @@
 // auto-stand) → dealer → settle → idle. Bets are debited when placed; payouts are credited at
 // settle in one transaction. A round still open at startup refunds its bets. During maintenance
 // (siteState) no bets are taken, so no round starts; a round already dealt plays out.
+//
+// Blackjack spends Credit only, never Cash, and blackjackLimits.js caps what a player can win or lose
+// in a week, how many hands they play a day, and closes the tables under a net worth floor.
 
 const crypto = require("node:crypto");
+const economy = require("../../economy");
 const gamesWallet = require("../wallet");
 const siteState = require("../../siteState");
+const limits = require("./blackjackLimits");
 const { profilePictureUrlSql } = require("../../../profilePictures");
 const hub = require("./hub");
 const reactions = require("./reactions");
@@ -39,6 +44,9 @@ function bjError(code) {
   error.code = code;
   return error;
 }
+
+/** A wallet short of Credit, said as what it is: blackjack doesn't fall back on Cash. */
+const noCredit = (error) => (error?.code === "insufficient_credit" ? bjError("blackjack_no_credit") : error);
 
 function withLock(key, fn) {
   const previous = locks.get(key) || Promise.resolve();
@@ -240,18 +248,22 @@ async function bet({ userId, tableKey, amount }) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      // A player's bets run one at a time across all three tables: the limits count what's still out
+      // on the others, and this row lock holds until the bet commits.
+      await economy.lockWallet(client, userId);
+      limits.assertCanBet(await limits.readPlan(client, userId), wager);
       if (!roundId) {
         const { rows } = await client.query(`INSERT INTO games.blackjack_rounds (table_key, status) VALUES ($1, 'betting') RETURNING id`, [table.key]);
         roundId = Number(rows[0].id);
       }
       await client.query(`INSERT INTO games.blackjack_bets (round_id, user_id, seat, bet_cash) VALUES ($1,$2,$3,$4)`, [roundId, userId, index, wager]);
       await client.query(`UPDATE games.blackjack_rounds SET total_bet_cash = total_bet_cash + $2 WHERE id = $1`, [roundId, wager]);
-      await gamesWallet.debitCashForGameWithClient(client, { userId, amount: wager, entryType: "table_bet_debit", referenceType: "blackjack_round", referenceId: roundId });
+      await gamesWallet.debitCashForGameWithClient(client, { userId, amount: wager, from: "credit", entryType: "table_bet_debit", referenceType: "blackjack_round", referenceId: roundId });
       await client.query("COMMIT");
       table.roundId = roundId;
     } catch (error) {
       await client.query("ROLLBACK");
-      throw error;
+      throw noCredit(error);
     } finally {
       client.release();
     }
@@ -356,13 +368,15 @@ async function act({ userId, tableKey, action }) {
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
-        await gamesWallet.debitCashForGameWithClient(client, { userId, amount: seat.bet, entryType: "table_bet_debit", referenceType: "blackjack_round", referenceId: table.roundId });
+        await economy.lockWallet(client, userId);
+        if (!limits.canDouble(await limits.readPlan(client, userId), seat.bet)) throw bjError("blackjack_double_over_limit");
+        await gamesWallet.debitCashForGameWithClient(client, { userId, amount: seat.bet, from: "credit", entryType: "table_bet_debit", referenceType: "blackjack_round", referenceId: table.roundId });
         await client.query(`UPDATE games.blackjack_bets SET doubled = true WHERE round_id = $1 AND seat = $2`, [table.roundId, index]);
         await client.query(`UPDATE games.blackjack_rounds SET total_bet_cash = total_bet_cash + $2 WHERE id = $1`, [table.roundId, seat.bet]);
         await client.query("COMMIT");
       } catch (error) {
         await client.query("ROLLBACK");
-        throw error;
+        throw noCredit(error);
       } finally {
         client.release();
       }
@@ -537,4 +551,9 @@ function getTable(tableKey) {
   return publicTable(getTableOrThrow(tableKey));
 }
 
-module.exports = { TABLES, act, bet, getTable, handValue, init, leave, lobby, outcomeFor, sit };
+/** Where the player stands against blackjackLimits.js, for their screen. */
+function limitsForPlayer({ userId }) {
+  return limits.readPlan(pool, userId);
+}
+
+module.exports = { TABLES, act, bet, getTable, handValue, init, leave, limitsForPlayer, lobby, outcomeFor, sit };
