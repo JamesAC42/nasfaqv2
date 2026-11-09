@@ -175,6 +175,12 @@ test("sign-up abuse rules end to end", { skip: !databaseUrl, timeout: 240_000 },
     assert.equal((await pool.query(`SELECT count(*)::int AS n FROM market.users WHERE email_normalized IS NULL AND email IS NOT NULL`)).rows[0].n, 2);
   });
 
+  await t.test("sign-up: the ogey check takes a phone keyboard's capital, and nothing else", async () => {
+    const answer = (ogey, n) => call("POST", "/api/auth/register", { body: { username: `Ogey${n}`, email: `ogey${n}@example.com`, password: "correct horse battery", ogey }, ip: `198.51.100.${(nextIp += 1)}` });
+    assert.deepEqual((await answer("ogey", 1)).body, { error: "invalid_ogey" });
+    assert.equal((await answer(" Rrat ", 2)).status, 201);
+  });
+
   await t.test("sign-up: one inbox one account, no throwaway inboxes, name rules", async () => {
     for (const email of ["p.e.k.o@gmail.com", "peko+again@googlemail.com", "Peko@Gmail.com"]) {
       assert.deepEqual((await register("NewPeko", email)).body, { error: "email_taken" }, email);

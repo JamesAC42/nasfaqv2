@@ -252,12 +252,13 @@ export function PlayerAnalyticsView({ from, to }: { from: string; to: string }) 
               <p className={ui.empty}>Nobody signed up through a referral link in this range.</p>
             )}
           </Section>
-          <Section title="Sign-ups by source tag" hint="Links with ?ref=<tag>, or only utm_source">
+          <Section title="Visitors and sign-ups by source tag" hint="Links with ?ref=<tag>, or only utm_source. Visitors: signed-out arrivals, once per person per day.">
             {data.sources.tags.length ? (
               <DataTable>
                 <thead>
                   <tr>
                     <th scope="col">Tag</th>
+                    <th scope="col">Visitors</th>
                     <th scope="col">Sign-ups</th>
                     <th scope="col">Verified</th>
                     <th scope="col">Traded</th>
@@ -269,6 +270,7 @@ export function PlayerAnalyticsView({ from, to }: { from: string; to: string }) 
                       <th scope="row">
                         <code>{row.label}</code>
                       </th>
+                      <td>{fmtCount(row.visitors)}</td>
                       <td>{fmtCount(row.signups)}</td>
                       <td>{fmtCount(row.verified)}</td>
                       <td>{fmtCount(row.traded)}</td>
@@ -277,7 +279,7 @@ export function PlayerAnalyticsView({ from, to }: { from: string; to: string }) 
                 </tbody>
               </DataTable>
             ) : (
-              <p className={ui.empty}>No tagged sign-ups in this range.</p>
+              <p className={ui.empty}>No tagged visitors or sign-ups in this range.</p>
             )}
           </Section>
           <Section title="Top sharers" hint="Sign-ups through each player's links">

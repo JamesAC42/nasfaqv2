@@ -194,7 +194,7 @@ export function StreamCalendar({ query, units, mine }: { query: string; units: s
       {now !== null && (live.length || upNext.length) ? <NowStrip live={live} upNext={upNext} now={now} bySymbol={bySymbol} /> : null}
 
       <div className={styles.legendRow}>
-        <Legend />
+        <Legend bets={streams.some((stream) => stream.prediction)} />
         {zone ? <p className={styles.zone}>Times in your time zone ({zone.replace(/_/g, " ")})</p> : null}
       </div>
 
@@ -292,7 +292,7 @@ function Face({ stream, size }: { stream: CalendarStream; size: number }) {
   );
 }
 
-function Legend() {
+function Legend({ bets }: { bets: boolean }) {
   return (
     <div className={styles.legend} aria-hidden="true">
       <span data-state="live">
@@ -307,9 +307,11 @@ function Legend() {
       <span data-state="ended">
         <i /> Ended
       </span>
-      <span>
-        <FaBullseye className={styles.betMark} /> Peak prediction open
-      </span>
+      {bets ? (
+        <span>
+          <FaBullseye className={styles.betMark} /> Peak prediction open
+        </span>
+      ) : null}
     </div>
   );
 }

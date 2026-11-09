@@ -181,8 +181,8 @@ function NewbieStrip() {
     <aside className={styles.newbie}>
       <SceneArt slot="home-welcome" width={132} className={styles.newbieArt} />
       <p>
-        <b>New here?</b> Everyone starts with $10,000 cash to trade and $100,000 Credit for games and predictions. Every hololive talent is a stock, and prices follow their real YouTube
-        growth plus what players buy and sell.
+        <b>The hololive stock market game.</b> Every talent is a stock, and prices follow their real YouTube numbers plus what players buy and sell. Start with $10,000 of play money, back your oshi,
+        collect dividends on Saturdays and climb the leaderboard. It’s free, and no real money is involved.
       </p>
       <div className={styles.newbieActions}>
         <Link href="/register" className={styles.newbiePrimary}>
@@ -887,12 +887,12 @@ export function FrontPage() {
   return (
     <SiteShell>
       <div className={styles.page}>
+        <NewbieStrip />
         <Masthead assets={assets} />
         <TradingPausedBanner className={styles.paused} />
-        <CheckinCard />
         <FirstDaysCard />
+        <CheckinCard />
         <LiveBand />
-        <NewbieStrip />
         <FrontNews items={frontItems} isLoading={isLoadingNews || (!newsItems.length && !wireLoaded)} />
         <TheWire items={wireItems} />
         <HotOnVt />

@@ -590,7 +590,7 @@ export type PlayerAnalytics = {
   series: PlayerPoint[];
   retention: RetentionRow[];
   sources: {
-    tags: { label: string; signups: number; verified: number; traded: number }[];
+    tags: { label: string; visitors: number; signups: number; verified: number; traded: number }[];
     referrals: { label: string; signups: number; paid: number; pending: number; not_paid: number; traded: number }[];
   };
   referrals: {

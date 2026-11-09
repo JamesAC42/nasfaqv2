@@ -267,7 +267,7 @@ export function AuthForm({ mode, token = "" }: { mode: AuthMode; token?: string 
       {mode === "register" ? (
         <label>
           <span className={styles.label}>ogey?</span>
-          <input value={ogey} onChange={(event) => setOgey(event.target.value)} autoComplete="off" spellCheck={false} required className={ogeyWrong ? styles.bad : undefined} />
+          <input value={ogey} onChange={(event) => setOgey(event.target.value)} autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} required className={ogeyWrong ? styles.bad : undefined} />
           {ogeyWrong ? <small className={styles.warnText}>that&apos;s not ogey</small> : null}
         </label>
       ) : null}

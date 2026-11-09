@@ -62,10 +62,10 @@ export function FirstDaysCard({ onPickOshi, verifyNotice = true }: { onPickOshi?
       body: oshi ? (
         <>
           Your oshi is <b>{oshi.name}</b>. Their mark follows your name
-          {oshiProtection ? <>, and the {oshi.symbol} shares you hold all week skip Saturday’s share fee</> : null}.
+          {oshiProtection ? <>, and from your first full week with them, the {oshi.symbol} shares you hold all week skip Saturday’s share fee</> : null}.
         </>
       ) : oshiProtection ? (
-        "Your favorite talent. Their mark follows your name, and the shares of them you hold all week skip Saturday's share fee. It can change once every 30 days, so choose well."
+        "Your favorite talent. Their mark follows your name, and from your first full week with them, the shares you hold all week skip Saturday's share fee. It can change once every 30 days, so choose well."
       ) : (
         "Your favorite talent. Their mark follows your name, and holding the most of them puts you on their oshiboard."
       ),
@@ -83,7 +83,7 @@ export function FirstDaysCard({ onPickOshi, verifyNotice = true }: { onPickOshi?
       done: Boolean(fill),
       body: fill ? (
         <>
-          Your first fill was <b>{fill.symbol}</b>. You own a piece of her now.
+          Your first fill was <b>{fill.symbol}</b>. You’re a shareholder now.
         </>
       ) : (
         "Every talent is a stock. Hit BUY and your order fills in the next batch, every 10 minutes."
@@ -122,7 +122,7 @@ export function FirstDaysCard({ onPickOshi, verifyNotice = true }: { onPickOshi?
       ) : (
         <>
           Saturday 00:00 ET{reviewIn ? ` (in ${reviewIn})` : ""}, the fastest-growing channels pay their holders a dividend and the slowest charge a fee.
-          {oshiProtection ? " Your oshi never charges one on shares held all week." : null}
+          {oshiProtection ? " After your first full week with your oshi, they never charge one on shares held all week." : null}
         </>
       ),
       action: review ? null : <Link href="/market/dividends">Last week&apos;s review →</Link>,

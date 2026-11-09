@@ -209,6 +209,7 @@ export function TradingSection() {
 
 export function TicksSection() {
   const [first, second] = useBusiestTalents(2);
+  const tickReasons = useFeature("tick-reasons");
   return (
     <Section
       id="ticks"
@@ -227,7 +228,6 @@ export function TicksSection() {
       }
       links={[
         { href: "/market/report", label: "See today's ticks" },
-        { href: "/predictions", label: "Bet on the Lunch tick" },
       ]}
     >
       <TickKoma className={styles.ticksBand} />
@@ -256,7 +256,7 @@ export function TicksSection() {
         cols={3}
         items={[
           { k: "09:00 ET", title: "Settlement", body: "Once a day, fair values reprice from the latest YouTube numbers and each stock draws its four tick strengths. The Open tick lands the same hour." },
-          { k: "per talent", title: "Your stock's next tick", body: "Every stock page shows the next scheduled tick and what the last one did." },
+          { k: "per talent", title: "Your stock's next tick", body: `Every stock page shows the next scheduled tick and what the last one did${tickReasons ? ", with what moved it" : ""}.` },
           { k: "trades", title: "Between ticks", body: "Prices only move when players trade. The four ticks are the tide; the trades are the waves." },
         ]}
       />
@@ -416,14 +416,6 @@ export function PredictionsSection() {
           ]}
         />
       </div>
-      <SubHead>Markets that open themselves</SubHead>
-      <Rules
-        cols={2}
-        items={[
-          { k: "every day", title: "Top gainer", body: "Which of six busy talents moves most on the Lunch tick, or \"someone else\". Closes 5 minutes before the tick and settles on the biggest % move across the whole market." },
-          { k: "before streams", title: "Stream peaks", body: "A few of the day's scheduled streams: will it peak above that talent's usual viewer count? Betting closes 15 minutes before the stream is due, or the moment it goes live. Settles when the peak crosses the line or the stream ends." },
-        ]}
-      />
     </Section>
   );
 }
@@ -434,6 +426,8 @@ export function CommunitySection() {
   const [a, b] = useBusiestTalents(2);
   const oshiProtection = useFeature("oshi-protection");
   const checkin = useFeature("daily-checkin");
+  const calendar = useFeature("stream-calendar");
+  const invites = useFeature("referrals");
   return (
     <Section
       id="community"
@@ -490,8 +484,17 @@ export function CommunitySection() {
                 },
               ]
             : []),
+          ...(invites
+            ? [
+                {
+                  k: "invites",
+                  title: "Invite friends",
+                  body: "Your profile has your invite link. When a friend signs up through it and makes their first stock trade, you both get a bonus.",
+                },
+              ]
+            : []),
           { k: "/threads", title: "/vt/ threads", body: "The general, mirrored, with tickers linked. Lurk the source." },
-          { k: "/livestreams", title: "Livestreams", body: "Who's on air right now, with viewer counts. Streams feed the stream-peak predictions." },
+          { k: "/livestreams", title: "Livestreams", body: `Who's on air right now, with viewer counts${calendar ? ", and a calendar of what's coming up" : ""}.` },
         ]}
       />
     </Section>

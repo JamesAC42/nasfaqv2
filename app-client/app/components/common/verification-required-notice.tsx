@@ -43,12 +43,21 @@ export function VerificationRequiredNotice({
     }
   }
 
+  // Says where the link went: the next step is in their inbox, and a typo shows here.
   return (
     <div className="statusMessage statusMessageWarn" role={compact ? "status" : "alert"}>
-      <strong>Email verification required.</strong> {verificationRequiredText(action)}{" "}
+      {user?.email ? (
+        <>
+          <strong>Check your inbox.</strong> We sent a link to <b>{user.email}</b>. Open it and you can {action}. Not there? Look in spam, or{" "}
+        </>
+      ) : (
+        <>
+          <strong>Email verification required.</strong> {verificationRequiredText(action)}{" "}
+        </>
+      )}
       {user ? (
         <button type="button" className="appLink" onClick={() => void handleResend()} disabled={busy}>
-          {busy ? "Sending..." : "Resend verification email"}
+          {busy ? "Sending..." : user.email ? "send it again" : "Resend verification email"}
         </button>
       ) : (
         <Link href="/login" className="appLink">Sign in</Link>

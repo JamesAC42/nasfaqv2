@@ -134,6 +134,10 @@ test("visits: only a daily-salted hash, the path and the referring host", () => 
   assert.equal(visits.cleanReferrerHost("https://www.Reddit.com/r/Hololive?x=1"), "reddit.com");
   assert.equal(visits.cleanReferrerHost("https://holo.nasfaq.biz/market", new Set(["holo.nasfaq.biz"])), null);
   assert.equal(visits.cleanReferrerHost("javascript:alert(1)"), null);
+  assert.equal(visits.cleanSource(" VT-Banner "), "vt-banner");
+  assert.equal(visits.cleanSource("two words"), null);
+  assert.equal(visits.cleanSource(`a${"b".repeat(40)}`), null);
+  assert.equal(visits.cleanSource(null), null);
   assert.ok(visits.isBot("Mozilla/5.0 (compatible; Googlebot/2.1)"));
   assert.ok(visits.isBot("Mozilla/5.0 HeadlessChrome/120"));
   assert.ok(!visits.isBot("Mozilla/5.0 (Linux; Android 13; Cubot X30) Chrome/120 Mobile Safari/537.36"));
@@ -491,21 +495,22 @@ test("referrals, visits and the admin numbers, end to end", { skip: !databaseUrl
 
   await t.test("signed-out visits are counted without an address; signed-in and bots aren't", async () => {
     const page = (body, options) => call("POST", "/api/site/here", { body, ...options });
-    assert.equal((await page({ path: "/market?ref=abc", referrer: "https://www.reddit.com/r/Hololive" }, { ip: "203.0.113.200" })).status, 204);
+    assert.equal((await page({ path: "/market?ref=abc", referrer: "https://www.reddit.com/r/Hololive", source: "VT-Banner" }, { ip: "203.0.113.200" })).status, 204);
     await page({ path: "/market" }, { ip: "203.0.113.200" });
-    await page({ path: "/" }, { ip: "203.0.113.201" });
+    await page({ path: "/", source: code }, { ip: "203.0.113.201" });
     await page({ path: "/" }, { ip: "203.0.113.202", ua: "Mozilla/5.0 (compatible; Googlebot/2.1)" });
     await page({ path: "/" }, { ip: "203.0.113.203", cookie: sharer });
     await page({ path: "not a path" }, { ip: "203.0.113.204" });
     const { rows } = await pool.query(`SELECT * FROM market.site_visits ORDER BY path`);
     assert.deepEqual(
-      rows.map((row) => [row.path, row.referrer_host, row.views]),
+      rows.map((row) => [row.path, row.referrer_host, row.views, row.source]),
       [
-        ["/", null, 1],
-        ["/market", "reddit.com", 2],
-      ]
+        ["/", null, 1, null],
+        ["/market", "reddit.com", 2, "vt-banner"],
+      ],
+      "a source tag sticks to the page it arrived on; a player's invite code isn't kept"
     );
-    assert.deepEqual(Object.keys(rows[0]).sort(), ["day", "path", "referrer_host", "views", "visitor_hash"]);
+    assert.deepEqual(Object.keys(rows[0]).sort(), ["day", "path", "referrer_host", "source", "views", "visitor_hash"]);
     assert.ok(!JSON.stringify(rows).includes("203.0.113"), "no addresses");
     // Old rows go after the retention limit.
     await pool.query(`INSERT INTO market.site_visits (day, visitor_hash, path) VALUES (current_date - 120, 'old', '/')`);
@@ -532,8 +537,12 @@ test("referrals, visits and the admin numbers, end to end", { skip: !databaseUrl
     assert.equal(data.series.length, 1);
     assert.equal(data.series[0].signups, signups);
     assert.deepEqual(
-      data.sources.tags.map((row) => [row.label, row.signups]),
-      [["v1-email", 2]]
+      data.sources.tags.map((row) => [row.label, row.visitors, row.signups]),
+      [
+        ["v1-email", 0, 2],
+        ["vt-banner", 1, 0],
+      ],
+      "a tag with visitors shows even before it brings a sign-up"
     );
     const vias = new Map(data.sources.referrals.map((row) => [row.label, row]));
     assert.equal(vias.get("blackjack").signups, 1);

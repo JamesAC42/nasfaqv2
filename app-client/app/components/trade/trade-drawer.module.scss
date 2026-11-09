@@ -400,8 +400,16 @@
   border: 0;
   padding: 0.8rem;
   @include display(1.06rem);
+  text-align: center;
   background: var(--up);
   color: var(--up-ink);
+
+  // The ticket is taller than most phones: the button stays in reach without scrolling to it.
+  @include phone {
+    position: sticky;
+    bottom: 0.5rem;
+    z-index: 2;
+  }
 
   &:active:not(:disabled) {
     transform: translateY(1px);

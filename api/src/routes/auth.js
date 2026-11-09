@@ -68,7 +68,8 @@ router.post("/me/first-days/dismiss", async (req, res, next) => {
 router.post("/register", rateLimit(byIp("register", 10, 3600)), async (req, res, next) => {
   try {
     await verifyTurnstile(req, { required: true });
-    if (String(req.body?.ogey || "").trim() !== "rrat") {
+    // Phone keyboards capitalize the first letter, so "Rrat" counts too.
+    if (String(req.body?.ogey || "").trim().toLowerCase() !== "rrat") {
       return res.status(400).json({ error: "invalid_ogey" });
     }
     const ipHash = requestIpHash(req);
