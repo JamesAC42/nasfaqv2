@@ -888,9 +888,9 @@ export function FrontPage() {
     <SiteShell>
       <div className={styles.page}>
         <NewbieStrip />
+        <FirstDaysCard />
         <Masthead assets={assets} />
         <TradingPausedBanner className={styles.paused} />
-        <FirstDaysCard />
         <CheckinCard />
         <LiveBand />
         <FrontNews items={frontItems} isLoading={isLoadingNews || (!newsItems.length && !wireLoaded)} />
