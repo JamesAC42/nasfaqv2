@@ -7,7 +7,7 @@
     },
     {
       "kind": "new",
-      "text": "The check-in card shows today's Credit, what tomorrow's pays if you trade today, and what it drops to if you don't. A new day starts at 00:00 UTC, the same time trade streaks count a new day. Verified accounts only."
+      "text": "The check-in card shows today's Credit, what tomorrow's pays if you trade today, and what it drops to if you don't. A new day starts at midnight ET. Verified accounts only."
     }
   ]
 }
