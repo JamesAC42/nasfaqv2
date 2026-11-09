@@ -512,6 +512,8 @@ export type WeeklyEvaluation = {
   buybacks_closed: Array<{ symbol: string; display_name: string; status: string; forced_shares: number | null; forced_price: number | null; shares_bought: number | null }>;
   /** Share fees skipped on oshi shares held all week (reviews before oshi protection don't have it). */
   oshi_protection?: { enabled: boolean; players: number; shares: number; waived: number };
+  /** The auto-bailout's totals: who qualifies and who's paid (reviews before it don't have them). */
+  auto_bailout?: { qualified: number; players: number; cash: number; credit: number; debt_cleared: number; cheapest_share: number | null };
   assets: EvaluationRow[];
   config?: Record<string, number>;
 };

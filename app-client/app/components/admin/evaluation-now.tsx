@@ -149,6 +149,12 @@ function Summary({ report, final }: { report: WeeklyEvaluation; final: boolean }
         shares players hold.
       </p>
       {report.first_evaluation ? <p className={styles.small}>This is the first evaluation, so it never sets a max below what players already hold.</p> : null}
+      {report.auto_bailout ? (
+        <p className={styles.small}>
+          Auto-bailout: {plural(report.auto_bailout.qualified, "player")} would qualify, with the cheapest share at {report.auto_bailout.cheapest_share === null ? "n/a" : money(report.auto_bailout.cheapest_share)}. A run from here
+          pays nobody; Saturday&apos;s review pays them.
+        </p>
+      ) : null}
     </div>
   );
 }

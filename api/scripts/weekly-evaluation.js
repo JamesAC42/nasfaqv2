@@ -44,6 +44,8 @@ async function main() {
     }
     if (report.buybacks_started.length) console.log(`\nbuybacks starting: ${report.buybacks_started.map((row) => `${row.symbol} (${Math.round(row.over)} over)`).join(", ")}`);
     if (report.buybacks_closed.length) console.log(`buybacks closing: ${report.buybacks_closed.map((row) => `${row.symbol} ${row.status}`).join(", ")}`);
+    const bailout = report.auto_bailout;
+    if (bailout) console.log(`auto-bailout: ${bailout.qualified} qualify, ${bailout.players} paid (${bailout.cash} Cash, ${bailout.credit} Credit); the cheapest share costs ${bailout.cheapest_share}`);
   } finally {
     await pool.end();
   }
