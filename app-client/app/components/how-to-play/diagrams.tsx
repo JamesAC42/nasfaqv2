@@ -175,20 +175,20 @@ export function TradingDiagram() {
   );
 }
 
-/** 04 Games: one cash balance; solo games roll on the server at posted odds, versus stakes sit in escrow. */
+/** 04 Games: they spend Credit; solo games roll on the server at posted odds, versus stakes sit in escrow. */
 export function GamesDiagram() {
   const arrow = useArrow();
   return (
-    <svg className={styles.diagram} viewBox={VB} role="img" aria-label="Games spend the same cash you trade with. Solo games are rolled by the server at posted rates. In versus games both stakes sit in escrow until the hand ends, then the winner takes the pot.">
+    <svg className={styles.diagram} viewBox={VB} role="img" aria-label="Games spend your Credit, never the cash you trade with. Solo games are rolled by the server at posted rates. In versus games both stakes sit in escrow until the hand ends, then the winner takes the pot.">
       <defs>
         <Arrowhead id={arrow} />
       </defs>
       <rect className={styles.boxStrong} x={20} y={206} width={150} height={88} rx={10} />
       <text className={styles.boxLabel} x={95} y={244}>
-        Your cash
+        Your Credit
       </text>
       <text className={styles.boxSub} x={95} y={270}>
-        same as trading
+        never your cash
       </text>
 
       {/* Solo lane. */}

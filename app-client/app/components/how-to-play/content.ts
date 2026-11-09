@@ -86,7 +86,6 @@ const ALL_GAMES: Game[] = [
       "Blackjack pays 3:2, a win 1:1, a push refunds",
       "Double on your first two cards; no split, no insurance",
       "Dealer stands on all 17s. 15 s to bet, 15 s per turn",
-      "Spends Credit only, never your cash",
       "Up or down $10,000 a week (5% of your Credit if that's more), 50 hands a day, no bets under $50,000 net worth",
     ],
     tag: "table",
@@ -154,7 +153,7 @@ export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
   },
   {
     q: "Why can't I trade, play or post?",
-    a: "Check three things: you're signed in, your email is verified (the link in your inbox), and the market isn't settling. Trading pauses for a few minutes around 09:00 ET while fair values reprice.",
+    a: "Check three things: you're signed in, your email is verified (the link in your inbox; if you mistyped the address, you can change it from the notice), and the market isn't settling. Trading pauses for a few minutes around 09:00 ET while fair values reprice. Games, bets and buying cards also close while your net worth is under $50,000, and blackjack has its own weekly and daily limits.",
   },
   {
     q: "My order filled at a different price than I saw. Why?",
@@ -178,7 +177,7 @@ export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
   },
   {
     q: "What's Credit?",
-    a: "Your second balance. Games, the capsule machine, the card exchange and predictions spend it and never your cash, so you always have something to trade with. Games and bets close while your net worth is under $50,000. The trading fee comes out of it first, then your cash. Dividends, winnings, achievements and a little of every sale land in it, it counts toward your net worth, and every Saturday 5% of it (or $10k, if that's more) turns into cash.",
+    a: "Your second balance. Games, the capsule machine, the card exchange and predictions spend it and never your cash, so you always have something to trade with. Games, bets and buying cards close while your net worth is under $50,000. The trading fee comes out of it first, then your cash. Dividends, winnings, achievements and a little of every sale land in it, it counts toward your net worth, and every Saturday 5% of it (or $10k, if that's more) turns into cash.",
   },
   {
     q: "How do I get more cash?",
@@ -202,7 +201,7 @@ export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
   },
   {
     q: "Who decides how a prediction resolves?",
-    a: "Auto markets resolve themselves from site data. Event markets get a proposed result with a source, then a dispute window. No disputes and it finalizes; a dispute sends it to a resolver to confirm or overturn.",
+    a: "A resolver proposes the result with a source, then a dispute window opens. No disputes and it finalizes; a dispute sends it to a resolver to confirm or overturn.",
   },
   {
     q: "What if a prediction market gets voided?",
