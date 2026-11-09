@@ -382,7 +382,7 @@ async function handleTradeFills(pool, { userId, fillIds, since = null }) {
     await finishEvaluationRun(client, evaluationRunId, { status: "completed" });
     const noted = [];
     for (const award of result.awarded || []) {
-      const reward = Number(award.reward_cash) > 0 ? ` +${notifications.money(award.reward_cash)} added to your cash.` : "";
+      const reward = Number(award.reward_cash) > 0 ? ` +${notifications.money(award.reward_cash)} added to your ${economy.SETTINGS.achievementRewards === "cash" ? "cash" : "Credit"}.` : "";
       noted.push(
         await notifications.notify(
           client,

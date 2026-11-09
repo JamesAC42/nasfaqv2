@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { ChangeEmail } from "@/app/components/common/change-email";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiFetch } from "@/app/lib/api";
@@ -16,10 +17,12 @@ const REASONS: Record<string, string> = {
 
 function VerifyEmail() {
   const token = useSearchParams().get("token") || "";
-  const { user, refreshSession, resendVerification } = useAuth();
+  const { user, initialized, refreshSession, resendVerification } = useAuth();
   const [status, setStatus] = useState<"pending" | "success" | "error">(token ? "pending" : "error");
   const [error, setError] = useState(token ? "" : "missing_token");
   const [resent, setResent] = useState<"idle" | "busy" | "sent" | "failed">("idle");
+  // Reached from a "verify your email" link rather than from the email: nothing has gone wrong yet.
+  const waiting = !token && initialized && Boolean(user) && !user?.email_verified;
 
   useEffect(() => {
     if (!token) return;
@@ -52,7 +55,7 @@ function VerifyEmail() {
 
   return (
     <section className={styles.card} aria-live="polite">
-      <SceneArt key={status} slot={status === "success" ? "site-verify-ok" : status === "error" ? "site-verify-failed" : "site-verify-pending"} width={96} className={styles.chibi} />
+      <SceneArt key={status} slot={status === "success" ? "site-verify-ok" : status === "error" && !waiting ? "site-verify-failed" : "site-verify-pending"} width={96} className={styles.chibi} />
       {status === "pending" ? (
         <>
           <span className={styles.kicker}>CHECKING</span>
@@ -63,14 +66,45 @@ function VerifyEmail() {
         <>
           <span className={`${styles.kicker} ${styles.ok}`}>VERIFIED</span>
           <h1>You&apos;re in.</h1>
-          <p>Your email is verified. You can trade, chat, comment and write articles now.</p>
+          {user ? (
+            <>
+              <p>Your email is verified. You can trade, chat, comment and write articles now.</p>
+              <div className={styles.actions}>
+                <Link href="/stocks" className={styles.primary}>
+                  PICK YOUR FIRST STOCK
+                </Link>
+                <Link href="/profile" className={styles.ghost}>
+                  YOUR PROFILE
+                </Link>
+              </div>
+            </>
+          ) : (
+            // The link opened in another browser or a mail app, which isn't signed in.
+            <>
+              <p>Your email is verified. Sign in on this browser to start trading.</p>
+              <div className={styles.actions}>
+                <Link href="/login?next=/stocks" className={styles.primary}>
+                  SIGN IN
+                </Link>
+              </div>
+            </>
+          )}
+        </>
+      ) : waiting ? (
+        <>
+          <span className={styles.kicker}>ALMOST THERE</span>
+          <h1>Check your inbox.</h1>
+          <p>
+            We sent a link to <b>{user?.email ?? "your email"}</b>. Open it and you can trade, chat, comment and write articles. Not there? Look in spam, or send it again.
+          </p>
           <div className={styles.actions}>
-            <Link href="/stocks" className={styles.primary}>
-              PICK YOUR FIRST STOCK
-            </Link>
-            <Link href="/profile" className={styles.ghost}>
-              YOUR PROFILE
-            </Link>
+            <button type="button" className={styles.primary} onClick={() => void resend()} disabled={resent === "busy" || resent === "sent"}>
+              {resent === "sent" ? "NEW LINK SENT" : resent === "busy" ? "SENDING…" : "SEND A NEW LINK"}
+            </button>
+            {resent === "failed" ? <span className={styles.fail}>Couldn&apos;t send it. Try again in a minute.</span> : null}
+          </div>
+          <div className={styles.change}>
+            <ChangeEmail />
           </div>
         </>
       ) : (
@@ -84,6 +118,9 @@ function VerifyEmail() {
                 {resent === "sent" ? "NEW LINK SENT" : resent === "busy" ? "SENDING…" : "SEND A NEW LINK"}
               </button>
               {resent === "failed" ? <span className={styles.fail}>Couldn&apos;t send it. Try again in a minute.</span> : null}
+              <div className={styles.change}>
+                <ChangeEmail />
+              </div>
             </div>
           ) : user ? (
             <div className={styles.actions}>

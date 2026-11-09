@@ -90,6 +90,7 @@ function wireStory(item: WireItem): NewsItem {
 
 // ── Masthead ──────────────────────────────────────────────────────────────────
 function Masthead({ assets }: { assets: MarketAsset[] }) {
+  const { user } = useAuth();
   const marketStatus = useMarketStore((state) => state.marketStatus);
   const online = useSiteStore((state) => state.online);
 
@@ -140,7 +141,7 @@ function Masthead({ assets }: { assets: MarketAsset[] }) {
         </div>
       </div>
       {pulse ? (
-        <div className={styles.pulse}>
+        <div className={styles.pulse} data-guest={user ? undefined : true}>
           <div>
             <span className={styles.label}>Market today</span>
             <span className={`${styles.big} ${styles[toneOf(pulse.avgMove)]}`}>{signedPct(pulse.avgMove)}</span>
@@ -183,8 +184,8 @@ function NewbieStrip() {
     <aside className={styles.newbie}>
       <SceneArt slot="home-welcome" width={132} className={styles.newbieArt} />
       <p>
-        <b>New here?</b> Everyone starts with $10,000 cash to trade and $100,000 Credit for games and predictions. Every hololive talent is a stock, and prices follow their real YouTube
-        growth plus what players buy and sell.
+        <b>The hololive stock market game.</b> Every talent is a stock, and prices follow their real YouTube numbers plus what players buy and sell. Start with $10,000 of play money, back your oshi,
+        collect dividends on Saturdays and climb the leaderboard. It’s free, and no real money is involved.
       </p>
       <div className={styles.newbieActions}>
         <Link href="/register" className={styles.newbiePrimary}>
@@ -897,13 +898,13 @@ export function FrontPage() {
   return (
     <SiteShell>
       <div className={styles.page}>
+        <NewbieStrip />
+        <FirstDaysCard />
         <Masthead assets={assets} />
         <TradingPausedBanner className={styles.paused} />
         <DividendWeekCard />
         <CheckinCard />
-        <FirstDaysCard />
         <LiveBand />
-        <NewbieStrip />
         <FrontNews items={frontItems} isLoading={isLoadingNews || (!newsItems.length && !wireLoaded)} />
         <TheWire items={wireItems} />
         <HotOnVt />

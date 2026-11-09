@@ -68,7 +68,8 @@ router.post("/me/first-days/dismiss", async (req, res, next) => {
 router.post("/register", rateLimit(byIp("register", 10, 3600)), async (req, res, next) => {
   try {
     await verifyTurnstile(req, { required: true });
-    if (String(req.body?.ogey || "").trim() !== "rrat") {
+    // Phone keyboards capitalize the first letter, so "Rrat" counts too.
+    if (String(req.body?.ogey || "").trim().toLowerCase() !== "rrat") {
       return res.status(400).json({ error: "invalid_ogey" });
     }
     const ipHash = requestIpHash(req);
@@ -182,6 +183,21 @@ router.post("/resend-verification", rateLimit(byUser("resend", 1, 60), byUser("r
     await auth.sendVerificationEmail(req.ctx.pool, req.ctx.user);
     res.json({ ok: true });
   } catch (e) {
+    next(e);
+  }
+});
+
+// Fixing a mistyped address, while it's unverified (auth.changeUnverifiedEmail). Each one can email a
+// stranger and each answer says whether an inbox has an account, so few of them, failures included.
+// A second try right after a typo is fine, hence more than the resend's one a minute.
+router.post("/change-email", rateLimit(byUser("change-email", 3, 60), byUser("change-email-day", 8, 86400), byIp("change-email", 10, 3600)), async (req, res, next) => {
+  try {
+    if (!req.ctx.user) return res.status(401).json({ error: "unauthenticated" });
+    res.json({ ok: true, ...(await auth.changeUnverifiedEmail(req.ctx.pool, req.ctx.user.id, req.body?.email)) });
+  } catch (e) {
+    if (["invalid_email", "disposable_email", "email_unchanged"].includes(e?.code)) return res.status(400).json({ error: e.code });
+    if (["email_taken", "email_already_verified"].includes(e?.code)) return res.status(409).json({ error: e.code });
+    if (e?.code === "cannot_change_admin_email") return res.status(403).json({ error: e.code });
     next(e);
   }
 });

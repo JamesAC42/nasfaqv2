@@ -112,6 +112,11 @@ a.label:hover {
 
   @include phone {
     grid-template-columns: repeat(2, auto);
+
+    // A signed-out visitor on a phone gets the pitch and the Live band on the first screen.
+    &[data-guest] {
+      display: none;
+    }
   }
 }
 
@@ -141,7 +146,7 @@ a.label:hover {
   align-items: center;
   gap: 0.8rem 1.4rem;
   padding: 0.8rem 1rem;
-  margin-top: 1rem;
+  margin-bottom: 0.75rem;
   border: 1px solid var(--blue-line);
   background: var(--blue-wash);
 

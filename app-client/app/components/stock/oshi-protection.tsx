@@ -8,8 +8,9 @@ import type { OshiStatus } from "@/app/lib/types";
 import styles from "@/app/components/stock/dossier.module.scss";
 
 // Oshi protection on the stock page (api/src/services/oshi.js): on your oshi, the shares you've held
-// since last Saturday 00:00 ET skip a share fee at this Saturday's review. A dividend still pays on
-// every share. Nothing shows on a stock that isn't your oshi, unless you have none yet. Behind the
+// since last Saturday 00:00 ET skip a share fee at this Saturday's review, or every share at a new
+// account's first review with its first pick. A dividend still pays on every share. Nothing shows
+// on a stock that isn't your oshi, unless you have none yet. Behind the
 // oshi-protection feature flag: without it this never asks the API (which would 404).
 
 const num = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : Number(value) || 0);
@@ -45,7 +46,12 @@ export function OshiProtection({ symbol, held }: { symbol: string; held: number 
   return (
     <div className={styles.oshiShield} aria-label="Oshi protection">
       <span className={styles.oshiShieldHead}>Your oshi · fee protection</span>
-      {!data.covered ? (
+      {data.first_week ? (
+        <p>
+          Your first Saturday with your oshi: {holding > 0 ? <b>all {shares(holding)} shares</b> : "every share"} you hold at the review {holding > 0 ? "pay" : "pays"} no share fee. After that, it’s the shares you hold all week. A dividend still pays
+          on every share.
+        </p>
+      ) : !data.covered ? (
         <p>
           {data.set_at ? `Your oshi since ${weekday(data.set_at)}. ` : ""}Protection starts with next week: hold through it and those shares skip the share fee. A dividend
           still pays on every share.

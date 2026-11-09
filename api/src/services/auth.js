@@ -11,7 +11,8 @@ const { appUrl, sendEmail } = require("./email");
 const { passwordResetEmail, verificationEmail } = require("./emailTemplates");
 const { canonicalEmail, isDisposableEmail } = require("./emailRules");
 const { requestIpHash } = require("./ipHash");
-const { suspensionOf } = require("./moderation");
+const { maskEmail } = require("./adminConsole");
+const { inTransaction, logAction, suspensionOf } = require("./moderation");
 const { assertUsernameAllowed } = require("./nameRules");
 const { FIRST_DAYS } = require("./firstDays");
 
@@ -42,6 +43,10 @@ function validatePassword(password) {
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
+}
+
+function emailError(code) {
+  return Object.assign(new Error(code), { code });
 }
 
 function validateEmail(email) {
@@ -323,6 +328,64 @@ async function sendVerificationEmail(pool, user, { send = sendEmail } = {}) {
     console.warn(`Email verification link for ${user.email}: ${verificationUrl || token}`);
   }
   return status;
+}
+
+/**
+ * Moves an account to a new address inside the caller's transaction, with its row locked: it goes back
+ * to unverified, and the links already out stop working. A verification link would "succeed" without
+ * verifying anything, and a reset link in the wrong inbox hands over the account. Throws email_taken
+ * when another account has that inbox.
+ */
+async function setAccountEmail(client, userId, email) {
+  try {
+    await client.query(
+      `UPDATE market.users
+       SET email = $2, email_normalized = $3, email_verified = false, email_verified_at = NULL, updated_at = now()
+       WHERE id = $1`,
+      [userId, email, canonicalEmail(email)]
+    );
+  } catch (error) {
+    if (error?.code === "23505") throw emailError("email_taken");
+    throw error;
+  }
+  await client.query(`UPDATE market.user_email_verification_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL`, [userId]);
+  await client.query(`UPDATE market.user_password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL`, [userId]);
+}
+
+/**
+ * A player fixing the address on their own unverified account, since a typo at sign-up sends the
+ * link, and any password reset, to the wrong inbox. The new address passes the sign-up rules, and a
+ * new link goes to it. A verified address is what proves an account, so those stay with admins
+ * (adminUsers.changeUserEmail), and so does any admin's. The log has both addresses masked.
+ * Returns { email, verification_email }: "sent", "failed" or "not_configured".
+ */
+async function changeUnverifiedEmail(pool, userId, email, { send = sendEmail } = {}) {
+  const safeEmail = validateEmail(email);
+  if (isDisposableEmail(safeEmail)) throw emailError("disposable_email");
+
+  const user = await inTransaction(pool, async (client) => {
+    const { rows } = await client.query(`SELECT id, username, email, email_verified, is_admin FROM market.users WHERE id = $1 FOR UPDATE`, [userId]);
+    const row = rows[0];
+    if (!row) throw emailError("user_not_found");
+    if (row.email_verified) throw emailError("email_already_verified");
+    if (row.is_admin) throw emailError("cannot_change_admin_email");
+    if (row.email && row.email.toLowerCase() === safeEmail) throw emailError("email_unchanged");
+    await setAccountEmail(client, row.id, safeEmail);
+    await logAction(client, {
+      actor: { id: row.id },
+      action: "user.email_change",
+      targetType: "user",
+      targetId: row.id,
+      targetLabel: row.username,
+      reason: "Fixed their own unverified address",
+      details: { before: maskEmail(row.email), after: maskEmail(safeEmail), was_verified: false },
+    });
+    return row;
+  });
+
+  // After the commit: nothing holds the row while Resend answers, and a failed send can be redone.
+  const verification = await sendVerificationEmail(pool, { id: user.id, username: user.username, email: safeEmail, email_verified: false }, { send });
+  return { email: safeEmail, verification_email: verification };
 }
 
 async function verifyEmailToken(pool, token) {
@@ -767,7 +830,9 @@ module.exports = {
   requestPasswordReset,
   resetPassword,
   revokeSession,
+  changeUnverifiedEmail,
   sendVerificationEmail,
+  setAccountEmail,
   signOutEverywhere,
   validateEmail,
   verifyEmailToken,

@@ -88,7 +88,8 @@ const sections: LegalSection[] = [
           <Fact term="Visits while signed out">
             <p>
               Our own server counts the pages people open while they’re not signed in. It keeps the page (without
-              anything after a <code>?</code>), the site that linked to it, and a code made from your IP address and
+              anything after a <code>?</code>), the site that linked to it, the tag on the link if it had one (like{" "}
+              <code>vt-banner</code>, never an invite code), and a code made from your IP address and
               browser with a key that changes every day and is deleted after two days. Neither the code nor the count can
               be traced back to you or linked from one day to the next. No cookie is involved.
             </p>
@@ -434,7 +435,7 @@ export default function PrivacyPage() {
     <LegalPage
       doc="privacy"
       title="Privacy Policy"
-      updated={{ iso: "2026-11-06", label: "November 6, 2026" }}
+      updated={{ iso: "2026-11-08", label: "November 8, 2026" }}
       art="legal-privacy-spot"
       intro={
         <p>

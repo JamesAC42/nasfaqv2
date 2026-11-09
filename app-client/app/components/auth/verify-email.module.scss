@@ -109,3 +109,10 @@
 .fail {
   color: var(--warn);
 }
+
+.change {
+  flex-basis: 100%;
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--mid);
+}

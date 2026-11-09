@@ -166,6 +166,14 @@ async function sources(db, from, to) {
   `,
     [from, to]
   );
+  // Signed-out arrivals by the same tags, so an ad that brings visitors and no sign-ups still shows.
+  const { rows: arrivals } = await db.query(
+    `SELECT source AS label, count(DISTINCT (day, visitor_hash)) AS visitors FROM market.site_visits
+     WHERE day BETWEEN $1::date AND $2::date AND source IS NOT NULL GROUP BY source ORDER BY count(DISTINCT (day, visitor_hash)) DESC, source LIMIT 25`,
+    [from, to]
+  );
+  const visitorsByTag = new Map(arrivals.map((row) => [row.label, n(row.visitors)]));
+  const taggedSignups = new Set(tags.map((row) => row.label));
   const { rows: vias } = await db.query(
     `
     SELECT r.via AS label, count(*) AS signups,
@@ -182,7 +190,10 @@ async function sources(db, from, to) {
     [from, to]
   );
   return {
-    tags: tags.map((row) => ({ label: row.label, signups: n(row.signups), verified: n(row.verified), traded: n(row.traded) })),
+    tags: [
+      ...tags.map((row) => ({ label: row.label, visitors: visitorsByTag.get(row.label) ?? 0, signups: n(row.signups), verified: n(row.verified), traded: n(row.traded) })),
+      ...arrivals.filter((row) => !taggedSignups.has(row.label)).map((row) => ({ label: row.label, visitors: n(row.visitors), signups: 0, verified: 0, traded: 0 })),
+    ],
     referrals: vias.map((row) => ({ label: row.label, signups: n(row.signups), paid: n(row.paid), pending: n(row.pending), not_paid: n(row.not_paid), traded: n(row.traded) })),
   };
 }

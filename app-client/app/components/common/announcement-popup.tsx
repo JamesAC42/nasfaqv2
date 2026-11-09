@@ -35,7 +35,15 @@ const TIME_STORAGE = { parse: parseTime };
 
 const remember = (ids: number[], more: number[]) => [...new Set([...ids, ...more])].slice(-KEEP_IDS);
 
-const meantFor = (item: PopupAnnouncement, signedIn: boolean) => item.audience === "everyone" || item.audience === (signedIn ? "signed_in" : "signed_out");
+/** A popup for v1 players (hide_from_v1_linked) needs an account to act on, and to anyone else it's a question about a game they've never heard of. */
+const meantFor = (item: PopupAnnouncement, signedIn: boolean) =>
+  (item.audience === "everyone" || item.audience === (signedIn ? "signed_in" : "signed_out")) && (signedIn || !item.hide_from_v1_linked);
+
+/** Under a day old: the v1 popup waits, so it doesn't land on top of the first-days guide. The profile links it meanwhile. */
+const brandNew = (createdAt: string | null | undefined) => {
+  const at = createdAt ? Date.parse(createdAt) : NaN;
+  return Number.isFinite(at) && Date.now() - at < 86_400_000;
+};
 
 /** Something else has the player's attention: an open trade ticket, a game, typed text, a field they're in, another dialog. */
 function occupied() {
@@ -228,7 +236,8 @@ export function AnnouncementPopup() {
 
   const accountKnown = userId === null || account?.userId === userId;
   const v1Linked = accountKnown && account?.v1Linked === true;
-  const next = accountKnown ? waiting.find((item) => !(item.hide_from_v1_linked && v1Linked)) : undefined;
+  const skipV1 = v1Linked || brandNew(user?.created_at);
+  const next = accountKnown ? waiting.find((item) => !(item.hide_from_v1_linked && skipV1)) : undefined;
   const open = openId === null ? undefined : waiting.find((item) => item.id === openId);
   const openedId = open?.id ?? null;
   const nextId = next?.id ?? null;

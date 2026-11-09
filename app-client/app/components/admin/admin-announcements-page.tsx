@@ -255,7 +255,7 @@ export function AdminAnnouncementsPage() {
             </Field>
             <label className={styles.check}>
               <input type="checkbox" checked={form.hide_from_v1_linked} onChange={(event) => set("hide_from_v1_linked", event.target.checked)} />
-              <span>Hide it from players who have linked a v1 account</span>
+              <span>Only for v1 players: hide it from anyone who has linked, signed-out visitors and accounts under a day old</span>
             </label>
             <div className={styles.buttons}>
               <button type="submit" className={ui.btnPrimary} disabled={busy}>

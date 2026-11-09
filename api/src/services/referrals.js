@@ -49,6 +49,9 @@ const CODE_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 const CODE_LENGTH = 8;
 const FLAG = "referrals";
 const FEATURE_RETRY_MS = 60 * 60_000;
+// What a sharer's list may say about why someone who joined didn't count. Anything else (another
+// player's suspension) goes out as no reason at all, so it can't reach them in the response either.
+const SHARER_REASONS = new Set(["shared_ip", "no_trade", "unverified"]);
 
 /** Whether referral links work for this sharer ({ is_admin }), by the `referrals` flag. */
 const sharerEnabled = (sharer) => features.isEnabled(FLAG, sharer ? { is_admin: Boolean(sharer.is_admin) } : null);
@@ -430,7 +433,7 @@ async function referralSummary(db, userId, { settings = referralSettings(), now 
       joined_at: row.created_at,
       via: row.via,
       status: row.status,
-      reason: row.reason,
+      reason: SHARER_REASONS.has(row.reason) ? row.reason : null,
       your_share: row.referrer_status || null,
       your_share_reason: row.referrer_reason || null,
       your_share_retry_at: row.referrer_status === "waiting" ? row.referrer_retry_at : null,

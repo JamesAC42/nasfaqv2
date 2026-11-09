@@ -36,8 +36,6 @@ test("check-in: today's pays for the streak through yesterday", () => {
   // A first trade today.
   assert.deepEqual(on(1, "2026-11-06"), { current: 1, throughYesterday: 0, tradedToday: true, lastTradeDay: "2026-11-06" });
   assert.deepEqual(checkins.streakOn(null, "2026-11-06", "2026-11-05"), { current: 0, throughYesterday: 0, tradedToday: false, lastTradeDay: null });
-  // node-pg reads a DATE as local midnight: the local parts are the day, in any time zone.
-  assert.equal(on(2, new Date(2026, 10, 5)).throughYesterday, 2);
 });
 
 test("oshi: what a move counts as", () => {
@@ -145,7 +143,7 @@ async function freshDatabase(name) {
     await admin.end();
   }
   target.pathname = `/${name}`;
-  // UTC, as the API's pools are (db.js): streak and check-in days are UTC dates.
+  // UTC, as the API's pools are (db.js): the check-in's New York days can't come from the session.
   const pool = new Pool({ connectionString: target.href, options: "-c timezone=UTC" });
   const log = [console.log, console.warn];
   console.log = () => {};
@@ -178,18 +176,23 @@ test("the daily check-in", { skip: !databaseUrl, timeout: 120_000 }, async (t) =
      VALUES ('UCcheckin', 'CHK', 'Check', 'active', 10000, 0, 10000, 2000, 400) RETURNING id`
   );
   const assetId = Number(assets[0].id);
-  // A fill at noon UTC, `daysAgo` days before today (UTC).
-  const fill = async (userId, daysAgo) => {
+  const fillAt = async (userId, at) => {
     const { rows: order } = await pool.query(
       `INSERT INTO market.trade_orders (user_id, asset_id, side, order_type, status, requested_quantity, filled_quantity, requested_at)
-       VALUES ($1, $2, 'buy', 'market', 'filled', 1, 1, (CURRENT_DATE - $3::int)::timestamptz + interval '12 hours') RETURNING id, requested_at`,
-      [userId, assetId, daysAgo]
+       VALUES ($1, $2, 'buy', 'market', 'filled', 1, 1, $3) RETURNING id`,
+      [userId, assetId, at]
     );
     await pool.query(
       `INSERT INTO market.trade_fills (order_id, user_id, asset_id, side, price, quantity, gross_cash, fee_cash, net_cash, counterparty_type, ts)
        VALUES ($1, $2, $3, 'buy', 10, 1, 10, 0.1, -10.1, 'treasury', $4)`,
-      [order[0].id, userId, assetId, order[0].requested_at]
+      [order[0].id, userId, assetId, at]
     );
+  };
+  // Today in New York, and a fill at noon there `daysAgo` days before it.
+  const nyToday = `(now() AT TIME ZONE 'America/New_York')::date`;
+  const fill = async (userId, daysAgo) => {
+    const { rows } = await pool.query(`SELECT ((${nyToday} - $1::int)::timestamp + interval '12 hours') AT TIME ZONE 'America/New_York' AS at`, [daysAgo]);
+    await fillAt(userId, rows[0].at);
   };
   const credit = async (userId) => Number((await pool.query(`SELECT credit_balance FROM market.portfolio_cash_balances WHERE user_id = $1`, [userId])).rows[0].credit_balance);
   const refused = async (promise, code) => {
@@ -211,14 +214,14 @@ test("the daily check-in", { skip: !databaseUrl, timeout: 120_000 }, async (t) =
     assert.deepEqual(before.tomorrow, { if_trade: 100, if_skip: 50 });
     assert.equal((await pool.query(`SELECT 1 FROM market.user_trade_streaks WHERE user_id = $1`, [fresh])).rowCount, 0, "reading it wrote no streak row");
     // Yesterday's check-in doesn't count against today's.
-    await pool.query(`INSERT INTO market.daily_checkins (user_id, checkin_day, streak_days, reward) VALUES ($1, CURRENT_DATE - 1, 0, 50)`, [fresh]);
+    await pool.query(`INSERT INTO market.daily_checkins (user_id, checkin_day, streak_days, reward) VALUES ($1, ${nyToday} - 1, 0, 50)`, [fresh]);
 
     const claimed = await checkins.claimCheckin(pool, fresh);
     assert.equal(claimed.claimed.reward, 50);
     assert.equal(claimed.credit_balance, 50);
     assert.equal(await credit(fresh), 50);
     const { rows: ledger } = await pool.query(`SELECT entry_type, cash_delta::text, credit_delta::text, reference_type, reference_id FROM market.ledger_entries WHERE user_id = $1`, [fresh]);
-    const { rows: claim } = await pool.query(`SELECT id FROM market.daily_checkins WHERE user_id = $1 AND checkin_day = CURRENT_DATE`, [fresh]);
+    const { rows: claim } = await pool.query(`SELECT id FROM market.daily_checkins WHERE user_id = $1 AND checkin_day = ${nyToday}`, [fresh]);
     assert.deepEqual(ledger, [{ entry_type: "daily_checkin", cash_delta: "0", credit_delta: "50", reference_type: "daily_checkin", reference_id: claim[0].id }]);
 
     const again = await refused(checkins.claimCheckin(pool, fresh), "already_checked_in");
@@ -256,6 +259,72 @@ test("the daily check-in", { skip: !databaseUrl, timeout: 120_000 }, async (t) =
     assert.equal((await checkins.claimCheckin(pool, long)).claimed.reward, 100, "no more for a longer streak");
   });
 
+  await t.test("the day is New York's: a trade one afternoon pays that evening's check-in the next day", async () => {
+    // Saturday 2:50pm ET, then Sunday 8:25pm ET, which is already Monday in UTC. It used to pay the base.
+    const player = await addUser(pool, "Evening");
+    await fillAt(player, new Date("2026-11-07T19:50:00Z"));
+    const sunday = { now: new Date("2026-11-09T01:25:00Z") };
+    const offer = await checkins.getCheckin(pool, player, sunday);
+    assert.equal(offer.day, "2026-11-08");
+    assert.equal(offer.reward, 100);
+    assert.deepEqual(offer.streak, { current: 1, through_yesterday: 1, traded_today: false, last_trade_day: "2026-11-07" });
+    assert.equal(new Date(offer.resets_at).toISOString(), "2026-11-09T05:00:00.000Z", "midnight ET");
+    const claimed = await checkins.claimCheckin(pool, player, sunday);
+    assert.equal(claimed.claimed.reward, 100);
+    const { rows } = await pool.query(`SELECT checkin_day::text AS day FROM market.daily_checkins WHERE user_id = $1`, [player]);
+    assert.deepEqual(rows, [{ day: "2026-11-08" }], "the claim holds the New York day");
+
+    // Still Sunday a minute before midnight ET, and Monday a minute after.
+    await refused(checkins.claimCheckin(pool, player, { now: new Date("2026-11-09T04:59:00Z") }), "already_checked_in");
+    const monday = await checkins.getCheckin(pool, player, { now: new Date("2026-11-09T05:01:00Z") });
+    assert.equal(monday.day, "2026-11-09");
+    assert.equal(monday.claimed, null);
+    assert.equal(monday.reward, 50, "Sunday had no trade");
+    assert.deepEqual(monday.streak, { current: 0, through_yesterday: 0, traded_today: false, last_trade_day: "2026-11-07" });
+  });
+
+  await t.test("the streak counts fills in New York days, not UTC ones", async () => {
+    // 9pm ET Saturday and 10pm ET Sunday: UTC calls those Sunday and Monday.
+    const owl = await addUser(pool, "NightOwl");
+    await fillAt(owl, new Date("2026-11-08T02:00:00Z"));
+    await fillAt(owl, new Date("2026-11-09T03:00:00Z"));
+    const sunday = await checkins.getCheckin(pool, owl, { now: new Date("2026-11-09T04:00:00Z") });
+    assert.equal(sunday.day, "2026-11-08");
+    assert.deepEqual(sunday.streak, { current: 2, through_yesterday: 1, traded_today: true, last_trade_day: "2026-11-08" });
+    assert.equal(sunday.reward, 100);
+    assert.deepEqual(sunday.tomorrow, { if_trade: 100, if_skip: null });
+
+    // 11pm ET Friday is Saturday in UTC. By Sunday morning in New York, Saturday had no trade.
+    const lapsed = await addUser(pool, "FridayNight");
+    await fillAt(lapsed, new Date("2026-11-07T04:00:00Z"));
+    assert.equal((await checkins.getCheckin(pool, lapsed, { now: new Date("2026-11-08T15:00:00Z") })).reward, 50);
+    assert.equal((await pool.query(`SELECT 1 FROM market.user_trade_streaks WHERE user_id = ANY($1::bigint[])`, [[owl, lapsed]])).rowCount, 0, "it writes no streak row");
+  });
+
+  await t.test("the reset is the next New York midnight, across DST", async () => {
+    const player = await addUser(pool, "Clockwatcher");
+    const at = async (iso) => {
+      const checkin = await checkins.getCheckin(pool, player, { now: new Date(iso) });
+      return [checkin.day, new Date(checkin.resets_at).toISOString()];
+    };
+    assert.deepEqual(await at("2026-10-31T16:00:00Z"), ["2026-10-31", "2026-11-01T04:00:00.000Z"], "EDT: midnight is 04:00 UTC");
+    // The clocks go back on 2026-11-01: a 25-hour day, ending at 05:00 UTC.
+    assert.deepEqual(await at("2026-11-01T04:00:00Z"), ["2026-11-01", "2026-11-02T05:00:00.000Z"]);
+    assert.deepEqual(await at("2026-11-02T04:59:00Z"), ["2026-11-01", "2026-11-02T05:00:00.000Z"]);
+    assert.deepEqual(await at("2026-11-02T05:00:00Z"), ["2026-11-02", "2026-11-03T05:00:00.000Z"]);
+    // The clocks go forward on 2027-03-14: a 23-hour day, ending at 04:00 UTC.
+    assert.deepEqual(await at("2027-03-14T05:00:00Z"), ["2027-03-14", "2027-03-15T04:00:00.000Z"]);
+    assert.deepEqual(await at("2027-03-15T03:59:00Z"), ["2027-03-14", "2027-03-15T04:00:00.000Z"]);
+    assert.deepEqual(await at("2027-03-15T04:00:00Z"), ["2027-03-15", "2027-03-16T04:00:00.000Z"]);
+
+    // A streak runs through the long day.
+    const steady = await addUser(pool, "Steady");
+    await fillAt(steady, new Date("2026-10-31T16:00:00Z"));
+    await fillAt(steady, new Date("2026-11-01T16:00:00Z"));
+    const after = await checkins.getCheckin(pool, steady, { now: new Date("2026-11-02T16:00:00Z") });
+    assert.equal(after.streak.through_yesterday, 2);
+  });
+
   await t.test("one claim a day, however many race for it", async () => {
     const racer = await addUser(pool, "Racer");
     await fill(racer, 1);
@@ -265,7 +334,7 @@ test("the daily check-in", { skip: !databaseUrl, timeout: 120_000 }, async (t) =
     assert.equal(await credit(racer), 100);
     assert.equal((await pool.query(`SELECT COUNT(*)::int AS n FROM market.ledger_entries WHERE user_id = $1 AND entry_type = 'daily_checkin'`, [racer])).rows[0].n, 1);
     // The database itself refuses a second row for the day.
-    await assert.rejects(pool.query(`INSERT INTO market.daily_checkins (user_id, checkin_day, streak_days, reward) VALUES ($1, CURRENT_DATE, 0, 100)`, [racer]), { code: "23505" });
+    await assert.rejects(pool.query(`INSERT INTO market.daily_checkins (user_id, checkin_day, streak_days, reward) VALUES ($1, ${nyToday}, 0, 100)`, [racer]), { code: "23505" });
   });
 
   await t.test("at staff, the endpoints answer only admins (404 for everyone else)", async () => {
@@ -480,7 +549,9 @@ test("the weekly evaluation skips the share fee on oshi shares held all week", {
   const div = asset[divRow.symbol];
 
   const users = {};
-  for (const name of ["fan", "newfan", "topup", "seller", "plain", "divfan"]) users[name] = await addUser(pool, name, { cash: 10000, credit: 100000 });
+  for (const name of ["fan", "newfan", "topup", "seller", "plain", "divfan", "rookie", "rookiediv", "rookiemoved", "rookielate", "rookielapsed"]) users[name] = await addUser(pool, name, { cash: 10000, credit: 100000 });
+  // Accounts are older than the week under test, unless a case below says so.
+  await pool.query(`UPDATE market.users SET created_at = '2026-08-01T15:00:00Z'`);
   // Shares, with the ledger rows that put them there (created_at set: the week's moves are what count).
   const holds = async (userId, assetId, moves) => {
     const total = moves.reduce((sum, [quantity]) => sum + quantity, 0);
@@ -495,7 +566,7 @@ test("the weekly evaluation skips the share fee on oshi shares held all week", {
   const BEFORE = "2026-10-01T15:00:00Z";
   // fan: their oshi since before the log, 100 shares all week. Fully protected.
   await holds(users.fan, fee, [[100, BEFORE]]);
-  // newfan: the same shares, but picked their oshi midweek. Charged.
+  // newfan: the same shares, but an old account that picked its oshi midweek. Charged.
   await holds(users.newfan, fee, [[100, BEFORE]]);
   await pool.query(`INSERT INTO market.user_oshi_changes (user_id, asset_id_before, asset_id_after, kind, changed_at) VALUES ($1, NULL, $2, 'first_pick', '2026-10-13T15:00:00Z')`, [users.newfan, fee]);
   // topup: oshi since September; 40 shares all week and 60 bought midweek. 40 protected.
@@ -510,13 +581,50 @@ test("the weekly evaluation skips the share fee on oshi shares held all week", {
   for (const name of ["fan", "newfan", "topup", "seller"]) await pool.query(`UPDATE market.users SET oshi_coin_asset_id = $2 WHERE id = $1`, [users[name], fee]);
   await pool.query(`UPDATE market.users SET oshi_coin_asset_id = $2 WHERE id = $1`, [users.divfan, div]);
 
+  // New accounts, signed up that Monday. A pick is the row in the log and the column on the account.
+  const picks = async (name, assetId, moves) => {
+    for (const [kind, at] of moves) await pool.query(`INSERT INTO market.user_oshi_changes (user_id, asset_id_before, asset_id_after, kind, changed_at) VALUES ($1, NULL, $2, $3, $4)`, [users[name], assetId, kind, at]);
+    await pool.query(`UPDATE market.users SET oshi_coin_asset_id = $2 WHERE id = $1`, [users[name], assetId]);
+  };
+  const SIGNED_UP = "2026-10-12T15:00:00Z";
+  // rookie: picked Tuesday, bought Wednesday and Thursday, sold a little Friday. Every share left is covered.
+  await holds(users.rookie, fee, [[50, "2026-10-14T15:00:00Z"], [30, "2026-10-15T15:00:00Z"], [-5, "2026-10-16T15:00:00Z"]]);
+  await picks("rookie", fee, [["first_pick", "2026-10-13T15:00:00Z"]]);
+  // rookiediv: the same on a stock that pays. A dividend pays on every share, as ever.
+  await holds(users.rookiediv, div, [[20, "2026-10-14T15:00:00Z"]]);
+  await picks("rookiediv", div, [["first_pick", "2026-10-13T15:00:00Z"]]);
+  // rookiemoved: changed the first pick the same week. Charged: it isn't aimed at this week's fee for free.
+  await holds(users.rookiemoved, fee, [[10, "2026-10-14T15:00:00Z"]]);
+  await picks("rookiemoved", fee, [["first_pick", "2026-10-13T15:00:00Z"], ["change", "2026-10-13T16:00:00Z"]]);
+  // rookielate: picked after this review's moment but before it ran. Charged now; next week's review is its first.
+  await holds(users.rookielate, fee, [[10, "2026-10-14T15:00:00Z"]]);
+  await picks("rookielate", fee, [["first_pick", "2026-10-17T04:01:00Z"]]);
+  // rookielapsed: signed up long enough ago that this first pick isn't a newcomer's. Charged.
+  await holds(users.rookielapsed, fee, [[10, BEFORE]]);
+  await picks("rookielapsed", fee, [["first_pick", "2026-10-13T15:00:00Z"]]);
+  await pool.query(`UPDATE market.users SET created_at = $2 WHERE id = ANY($1::bigint[])`, [[users.rookie, users.rookiediv, users.rookiemoved, users.rookielate].map(Number), SIGNED_UP]);
+  await pool.query(`UPDATE market.users SET created_at = '2026-09-28T15:00:00Z' WHERE id = $1`, [users.rookielapsed]);
+
   // What the stock page shows before the run.
   const status = (name) => oshi.getOshiStatus(pool, users[name], { weekStart, nextReviewAt: weekly.evaluationStartsAt(SATURDAY) });
   assert.deepEqual([(await status("fan")).covered, (await status("fan")).protected_shares], [true, 100]);
+  assert.equal((await status("fan")).first_week, false);
   assert.deepEqual([(await status("newfan")).covered, (await status("newfan")).protected_shares], [false, 0]);
   assert.deepEqual([(await status("topup")).covered, (await status("topup")).protected_shares], [true, 40]);
   assert.equal((await status("seller")).protected_shares, 0);
   assert.equal((await status("plain")).oshi, null);
+  const rookie = await status("rookie");
+  assert.deepEqual([rookie.covered, rookie.first_week, rookie.protected_shares], [true, true, 75]);
+  for (const name of ["rookiemoved", "rookielate", "rookielapsed"]) {
+    const other = await status(name);
+    assert.deepEqual([other.covered, other.first_week, other.protected_shares], [false, false, 0], name);
+  }
+  // The week after, the same pick is an oshi like any other: covered on what's held all that week.
+  const nextWeek = { weekStart: weekly.evaluationStartsAt(SATURDAY), nextReviewAt: weekly.evaluationStartsAt(weekly.shiftDate(SATURDAY, 7)) };
+  assert.equal((await oshi.getOshiStatus(pool, users.rookie, nextWeek)).first_week, false);
+  assert.equal((await oshi.getOshiStatus(pool, users.rookie, nextWeek)).protected_shares, 75);
+  // And the late pick gets its first week then, once.
+  assert.equal((await oshi.getOshiStatus(pool, users.rookielate, nextWeek)).first_week, true);
 
   const result = await weekly.runWeeklyEvaluation(pool, { evalDate: SATURDAY, closeTrading: false, logger: quiet });
   assert.equal(result.ok, true);
@@ -534,6 +642,15 @@ test("the weekly evaluation skips the share fee on oshi shares held all week", {
   assert.ok(Math.abs(payout("topup").amount - payout("topup").waived - full) < 0.011, "charged plus skipped is the whole fee, to the cent");
   assert.equal(payout("divfan", div).waived, 0);
   assert.ok(payout("divfan", div).amount > 0 && payout("divfan", div).quantity === 150, "a dividend pays on every share");
+  // A new account's first pick: every share held at the review skips the fee, though all were bought this week.
+  assert.deepEqual([payout("rookie").quantity, payout("rookie").amount, payout("rookie").protected_quantity], [75, 0, 75]);
+  assert.equal(payout("rookie").waived, -Math.round(75 * perShare * 100) / 100);
+  assert.equal(payout("rookiediv", div).waived, 0);
+  assert.ok(payout("rookiediv", div).amount > 0, "and its dividends still pay");
+  for (const name of ["rookiemoved", "rookielate", "rookielapsed"]) {
+    assert.equal(payout(name).amount, Math.round(10 * perShare * 100) / 100, name);
+    assert.equal(payout(name).waived, 0, name);
+  }
 
   // The ledger: no share fee at all for the fully protected fan.
   const feeLedger = async (name) => (await pool.query(`SELECT COUNT(*)::int AS n FROM market.ledger_entries WHERE user_id = $1 AND entry_type = 'share_fee'`, [users[name]])).rows[0].n;
@@ -542,7 +659,7 @@ test("the weekly evaluation skips the share fee on oshi shares held all week", {
   assert.equal(await feeLedger("plain"), 1);
 
   const report = (await weekly.getEvaluation(pool, SATURDAY));
-  assert.deepEqual(report.oshi_protection, { enabled: true, players: 2, shares: 140, waived: Math.round((payout("fan").waived + payout("topup").waived) * 100) / 100 });
+  assert.deepEqual(report.oshi_protection, { enabled: true, players: 3, shares: 215, waived: Math.round((payout("fan").waived + payout("topup").waived + payout("rookie").waived) * 100) / 100 });
   assert.equal(report.assets.find((row) => row.symbol === feeRow.symbol).oshi_waived, report.oshi_protection.waived);
 
   const { rows: notices } = await pool.query(`SELECT title, body FROM market.notifications WHERE user_id = $1`, [users.fan]);
@@ -565,7 +682,7 @@ test("the weekly evaluation skips the share fee on oshi shares held all week", {
     const toEveryone = JSON.stringify(features.forAudience({ report, weeks: [week] }, "everyone"));
     assert.ok(!/oshi_(protection|waived|protected_quantity)/.test(toEveryone), "nothing of it reaches players");
     const toStaff = features.forAudience({ report, weeks: [week] }, "staff");
-    assert.equal(toStaff.report.oshi_protection.players, 2);
+    assert.equal(toStaff.report.oshi_protection.players, 3);
     assert.equal(toStaff.weeks[0].oshi_waived, -full);
   } finally {
     restore();

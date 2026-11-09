@@ -359,7 +359,7 @@ function AccountSection({ detail, isSelf, action, onSaved, now }: { detail: Admi
         />
         <ActionRow
           title={user.has_email ? "Change email" : "Add email"}
-          line={isSelf || user.is_admin ? "Not available on admin accounts. Take admin away first." : "For an address typed wrong at sign-up, or one they've lost. Players can't change their own."}
+          line={isSelf || user.is_admin ? "Not available on admin accounts. Take admin away first." : "For an address they've lost, or a typo they can't fix themselves. Players can change their own only while it's unverified."}
           button={isSelf || user.is_admin ? null : <OpenButton action={action} name="change-email" label="Change…" danger />}
           panel={panel("change-email", <ChangeEmailForm user={user} action={action} onSaved={onSaved} />)}
         />

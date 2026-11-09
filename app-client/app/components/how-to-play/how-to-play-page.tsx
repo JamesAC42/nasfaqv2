@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { Term } from "@/app/components/common/tip";
 import { SiteShell } from "@/app/components/layout/site-shell";
@@ -9,6 +10,7 @@ import { FaqSection, FinePrint, GlossarySection } from "@/app/components/how-to-
 import { SectionNav } from "@/app/components/how-to-play/section-nav";
 import { CommunitySection, GamesSection, MarketSection, PredictionsSection, TicksSection, TradingSection, WeeklySection } from "@/app/components/how-to-play/sections";
 import { useAuth } from "@/app/providers/auth-provider";
+import { inFirstDays, useFirstDaysStore } from "@/app/stores/first-days-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/how-to-play/how-to-play.module.scss";
 
@@ -104,6 +106,13 @@ function StartHere() {
   const portfolio = useProfileStore((state) => state.portfolio);
   const verified = Boolean(user?.email_verified);
   const traded = Boolean(portfolio?.holdings?.length);
+  // A new account's guide knows the steps that have no other source here (first-days-card.tsx).
+  const guide = useFirstDaysStore((state) => (user && state.userId === user.id ? state.data : null));
+  const loadGuide = useFirstDaysStore((state) => state.load);
+  const inGuide = inFirstDays(user);
+  useEffect(() => {
+    if (user && inGuide) void loadGuide(user.id);
+  }, [inGuide, loadGuide, user]);
 
   const steps = [
     {
@@ -120,9 +129,9 @@ function StartHere() {
     {
       title: "Pick an oshi",
       body: "Edit your profile and choose your talent. Their oshimark follows your name.",
-      href: "/profile",
-      cta: "Edit profile",
-      done: false,
+      href: user ? "/profile?edit=1" : "/register",
+      cta: "Pick one",
+      done: Boolean(guide?.oshi),
     },
     {
       title: "Make your first trade",
@@ -136,7 +145,7 @@ function StartHere() {
       body: "Claim 5 free cards, pull the gacha, or sit at a blackjack table.",
       href: "/games",
       cta: "Open the arcade",
-      done: false,
+      done: Boolean(guide?.cards_claimed),
     },
   ];
 

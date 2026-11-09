@@ -17,6 +17,7 @@
 //   Oshi protection (services/oshi.js, the oshi-protection feature flag): a player's oshi charges no
 //   share fee on the shares they held all week (the fewest they held at any moment since last
 //   Saturday 00:00 ET), if it has been their oshi all that week. A dividend still pays on every share.
+//   A new account's first pick counts as held all week at the first review after it (oshi.js).
 //   Only players the flag is on for get it; its report fields (oshi_protection, oshi_waived) reach
 //   only viewers with the flag (features.forAudience).
 //   4. The Dividend Review (report_json), notifications to holders, a market socket event.
@@ -288,7 +289,8 @@ async function loadWallets(client, userIds, { lock }) {
  * holdings: Map stock id (text) → Map player → exact quantity (loadHoldings); updated in place.
  * wallets: Map player → { cash, credit }, exact (loadWallets); updated in place.
  * protectedOshis: Map player → { assetId, added } (oshi.loadProtectedOshis): players whose oshi was
- * theirs all week, and the most of its shares they added since the week started. Null: the flag is off.
+ * theirs all week, and the most of its shares they added since the week started (0 for a new account's
+ * first pick, which counts as held all week). Null: the flag is off.
  */
 function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, assets, activeBuybacks, holdings, wallets, protectedOshis = null }) {
   const writes = { holdings: [], buybacksClosed: [], assets: [], buybacksStarted: [], assetEvaluations: [], payouts: [], accountsOpened: [], moves: [] };
@@ -749,7 +751,7 @@ async function evaluate(pool, { evalDate, dryRun, onDemand, redis, logger }) {
     const wallets = await loadWallets(client, [...holders], { lock });
     // Oshi protection looks back to the Saturday 00:00 ET before this one. The holdings are locked
     // already, so no fill lands in between; an oshi change meanwhile only counts from next week.
-    const protectedOshis = features.enabledFor(oshi.FLAG, "staff") ? await oshi.loadProtectedOshis(client, assets.map((asset) => asset.id), weekStartFor(evalDate)) : null;
+    const protectedOshis = features.enabledFor(oshi.FLAG, "staff") ? await oshi.loadProtectedOshis(client, assets.map((asset) => asset.id), weekStartFor(evalDate), evaluationStartsAt(evalDate)) : null;
     const plan = planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, assets, activeBuybacks, holdings, wallets, protectedOshis });
     report = plan.report;
     if (dryRun) {

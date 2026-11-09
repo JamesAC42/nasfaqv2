@@ -30,7 +30,7 @@ const TABS: { key: FloorTab; label: string }[] = [
 ];
 
 const EMPTY_COPY: Record<FloorTab, string> = {
-  live: "Nothing's trading right now. New markets open each morning and ahead of scheduled streams.",
+  live: "Nothing's trading right now. New markets open around big events, so check back soon.",
   closing: "Nothing closes in the next few hours.",
   auto: "No auto markets open. They start each morning and ahead of scheduled streams.",
   events: "No event markets live. Got an idea? Pitch it.",
