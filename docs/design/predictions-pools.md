@@ -78,29 +78,30 @@ and the leaderboard. The Saturday conversion only converts positive Credit.
 - The margin line is 25% of the market value of the shares you hold, at current prices, up to
   $100,000.
 - This is the design doc's "Coin-Backed Margin" (`PREDICTION_MARKET_DESIGN.md`), simplified to a
-  flat 75% haircut. It isn't 25% of all net worth for one reason. Borrowing only starts after your
-  Credit and Cash are spent, so shares are what you have left to sell. Someone who borrowed against
-  Credit they then lost would end up with no shares, no Cash and no way to earn their way back.
+  flat 75% haircut. Shares only size the line, which keeps it to players with a stake in the market:
+  nothing is sold or taken to repay it.
 
-**How a bet draws money.** Credit first, then Cash (as predictions do today), then the margin line.
+**How a bet draws money.** Credit first, then the margin line, and never Cash (the owner, 2026-11-09:
+Cash stays untouched by anything but stocks).
 - Margin is opt-in on each bet: the slip shows "Borrow up to $X" and a checkbox, off by default.
 - Since borrowing makes Credit negative, you can only be borrowing on one bet at a time.
 
 **In the red.**
-- **Refused:** new bets and raises, prediction buys, share buys, games, the capsule machine and
-  card exchange spending.
-- **Still allowed:** selling shares and positions, cancelling orders, fees, and receiving money.
-- **Repayment.** Every Credit payment repays the debt first, because it lands on the negative
-  balance: pool winnings, dividends, achievements. Cash from share sales also repays first: a sweep
-  moves it into Credit within a minute of the sale, and you can press "Repay now" yourself.
+- **Refused:** everything that spends Credit: new bets and raises, prediction buys, games, the capsule
+  machine and card exchange spending.
+- **Still allowed:** all stock trading, buys included (the owner, 2026-11-09: a debt affects net worth
+  but never stops a player participating in the market), selling positions, cancelling orders, fees,
+  and receiving money.
+- **Repayment.** Every Credit payment repays the debt, because it lands on the negative balance: pool
+  winnings, dividends, achievements, the little Credit a share sale earns. Cash never repays it.
 - **No interest and no forced sales** for now. If share prices fall after you borrow, nothing
   happens until you sell.
 - The same rules apply to Credit that a void already pushed below zero (#109): a debt is a debt.
 
-Example: you have $0 Credit, $2,000 Cash and $80,000 in shares, so your line is $20,000. You bet
-$15,000: $2,000 comes from Cash and $13,000 is borrowed, leaving Credit at −$13,000.
+Example: you have $2,000 Credit, $5,000 Cash and $80,000 in shares, so your line is $20,000. You bet
+$15,000: $2,000 comes from Credit and $13,000 is borrowed, leaving Credit at −$13,000 and Cash at $5,000.
 - Win a $30,000 payout and Credit goes to +$17,000.
-- Lose, and you're in the red until $13,000 of payouts or share sales comes in.
+- Lose, and you're in the red until $13,000 of Credit comes in. You can keep trading stocks meanwhile.
 
 ## 4. Existing LMSR markets
 
@@ -128,15 +129,13 @@ $15,000: $2,000 comes from Cash and $13,000 is borrowed, leaving Credit at −$1
   The outcomes table gets `pool_stake`, and outcome codes extend to o1–o100.
   - `market.prediction_pool_stakes` holds one row per user and option: stake, borrowed, payout.
   - `market.prediction_pool_bets` logs each bet and raise: from Credit, from Cash, borrowed.
-  - New ledger types: `pool_bet`, `pool_payout`, `pool_refund`, `pool_payout_reversal` and
-    `margin_repay`.
+  - New ledger types: `pool_bet`, `pool_payout`, `pool_refund` and `pool_payout_reversal`.
   - Migrations are appended to `applySchema`.
 - **Roles.** A new `is_bookie` flag, granted from the admin users page. Admins count as bookies.
 - **API.** Pool bet, raise and quote; bookie create, close, extend, resolve and void; staff correct;
   history; and the margin line in the portfolio.
   - The in-the-red block is one check in `economy.charge` (charges with no `shortfall`, so fees still
-    go through) plus one at share order placement.
-  - The repayment sweep runs in the predictions scheduler.
+    go through). Stock orders don't pass through it.
 - **Client.**
   - The pool page: options with odds, bettors and the bet slip.
   - The floor, with pool cards.
@@ -147,7 +146,7 @@ $15,000: $2,000 comes from Cash and $13,000 is borrowed, leaving Credit at −$1
   - payout math: proportional split, rounding, no winner backed, one-sided pools;
   - raises and multiple options;
   - margin limits: line from shares, ceiling, eligibility, opt-in;
-  - negative balances: the block, repayment by payout and by sweep, the conversion skip;
+  - negative balances: the block, repayment by Credit, stock trading staying open, the conversion skip;
   - voids before and after resolution, including a margin bet's debt;
   - guards on auto pools.
 
@@ -161,7 +160,7 @@ $15,000: $2,000 comes from Cash and $13,000 is borrowed, leaving Credit at −$1
     generic close and void routes;
   - pool events on the predictions socket go only to viewers the flag covers;
   - the pages 404 (`requireFeature` in each page's server component);
-  - none of the in-the-red rules or the repayment sweep apply. Credit a void pushed below zero works
+  - none of the in-the-red rules apply. Credit a void pushed below zero works
     as before.
 - **Auto pools** are their own templates, `stream-peak-pool` and `top-gainer-pool`. Both start off
   and carry #124's pause marker, so turning one on sticks. The market-maker templates stay as #124
@@ -188,7 +187,7 @@ $15,000: $2,000 comes from Cash and $13,000 is borrowed, leaving Credit at −$1
 
 ## Decisions for the owner (all confirmed as recommended, 2026-11-06)
 
-1. **Currency and sizes:** pools run on Credit (then Cash) and pay out in Credit. The minimum bet
+1. **Currency and sizes:** pools run on Credit and pay out in Credit. The minimum bet
    and raise is $1,000, and there's no rake. *Default: yes.*
 2. **Bookies:** a new bookie flag that you grant. Bookies' pools open without approval and pay out
    the moment they resolve (with a source). Bookies can't bet in their own pools, and staff can
@@ -199,5 +198,5 @@ $15,000: $2,000 comes from Cash and $13,000 is borrowed, leaving Credit at −$1
    $10,000 staked across open pools, since a pool moves money between players, as a PvP table does.
    Margin needs 7 days and a verified email. *Default: yes.*
 5. **Margin size and the red:** the line is 25% of share value, up to $100,000, opted into per
-   bet. In the red, you can't bet, buy or spend; Credit payments and share sales repay first; and
-   there's no interest and no forced sales. *Default: yes.*
+   bet. In the red, you can't bet or spend Credit; only Credit repays it, never Cash; stock trading
+   stays open (the owner changed these on 2026-11-09); and there's no interest and no forced sales.

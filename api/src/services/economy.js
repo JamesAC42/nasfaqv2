@@ -117,8 +117,9 @@ async function writeMove(client, userId, { cash, credit, entryType, referenceTyp
 
 /**
  * Margin (docs/design/predictions-pools.md §3): Credit below zero is a debt, "in the red". While
- * it lasts the player can't spend on anything (side modes, predictions, share buys); fees and other
- * charges that name a `shortfall` still go through. Only for players the prediction-pools flag covers
+ * it lasts the player can't spend Credit on anything (side modes, predictions); fees and other
+ * charges that name a `shortfall` still go through. Stock trades don't come through here, so the debt
+ * never stops a player trading (the owner, 2026-11-09). Only for players the prediction-pools flag covers
  * (api/src/features): for everyone else, Credit a void pushed below zero works as it always has.
  */
 async function assertNotInRed(client, userId, wallet) {
@@ -282,7 +283,6 @@ function publicSettings() {
 
 module.exports = {
   SETTINGS,
-  assertNotInRed,
   charge,
   conversionMoves,
   convertCredit,

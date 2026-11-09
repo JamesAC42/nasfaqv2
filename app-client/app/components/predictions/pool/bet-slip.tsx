@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, type CSSProperties } from "react";
 import { predictionErrorText } from "@/app/lib/predictions/errors";
 import { money, outcomeColor } from "@/app/lib/predictions/format";
-import { multiplierText, placeBet, previewBet, repayMargin, splitBet, type MarginStatus, type PoolDetail, type PoolOption } from "@/app/lib/predictions/pools";
+import { multiplierText, placeBet, previewBet, splitBet, type MarginStatus, type PoolDetail, type PoolOption } from "@/app/lib/predictions/pools";
 import type { PredictionApiError } from "@/app/lib/predictions/api";
 import { useAuth } from "@/app/providers/auth-provider";
 import styles from "@/app/components/predictions/pool/pool.module.scss";
@@ -19,34 +19,13 @@ const MARGIN_WHY: Record<string, string> = {
   in_the_red: "You're already borrowing. Pay it back to borrow again.",
 };
 
-/** The red banner: what's owed, why spending's shut, and "Repay now" from Cash. */
-export function InTheRed({ margin, cash, onRepaid, compact = false }: { margin: MarginStatus; cash: number; onRepaid: () => void; compact?: boolean }) {
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
+/** The red banner: what's owed, and what it does and doesn't stop. */
+export function InTheRed({ margin, compact = false }: { margin: MarginStatus; compact?: boolean }) {
   if (!margin.in_red) return null;
-  const repay = async () => {
-    setBusy(true);
-    try {
-      const result = await repayMargin();
-      setNote(result.repaid > 0 ? `Paid back ${money(result.repaid)}.${result.owed > 0 ? ` ${money(result.owed)} still owed.` : " You're clear."}` : "No Cash to pay with yet.");
-      onRepaid();
-    } catch (error) {
-      setNote(predictionErrorText(error));
-    } finally {
-      setBusy(false);
-    }
-  };
   return (
     <div className={styles.red} role="status" data-compact={compact || undefined}>
       <strong>In the red: you owe {money(margin.owed)}</strong>
-      <p>Until it’s paid back you can’t bet, buy shares or spend. Winnings and the Cash from share sales pay it back first. No interest.</p>
-      <div className={styles.redActions}>
-        <button type="button" className={styles.secondary} onClick={() => void repay()} disabled={busy || cash <= 0}>
-          {busy ? "Paying…" : cash > 0 ? `Repay from Cash (${money(Math.min(cash, margin.owed))})` : "Repay now"}
-        </button>
-        <Link href="/profile">Sell shares</Link>
-      </div>
-      {note ? <p className={styles.small}>{note}</p> : null}
+      <p>Until it’s paid back you can’t bet or spend Credit. Winnings, dividends and any other Credit pay it back. Your cash isn’t touched, and you can keep trading stocks. No interest.</p>
     </div>
   );
 }
@@ -111,7 +90,7 @@ export function BetSlip({ pool, choice, onPick, onPlaced }: { pool: PoolDetail; 
         ) : null}
       </div>
 
-      {mine && margin ? <InTheRed margin={margin} cash={mine.wallet.cash} onRepaid={onPlaced} compact /> : null}
+      {mine && margin ? <InTheRed margin={margin} compact /> : null}
 
       {blocked === "signin" ? (
         <p className={styles.small}>

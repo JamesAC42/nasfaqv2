@@ -102,22 +102,25 @@ test("Credit only and the net worth floor, end to end", { skip: !databaseUrl, ti
 
   await t.test("under the floor, what can be lost to chance stops and the wallet is untouched", async () => {
     const low = await user("low", { cash: 5000, credit: 40000 });
-    for (const entryType of ["gacha_pull_fee", "game_entry_fee", "pvp_stake_debit"]) await assert.rejects(debit(low.id, entryType), floored, entryType);
+    for (const entryType of ["gacha_pull_fee", "game_entry_fee", "pvp_stake_debit", "exchange_purchase", "exchange_bid_hold", "exchange_trade_escrow", "exchange_trade_settle"]) {
+      await assert.rejects(debit(low.id, entryType), floored, entryType);
+    }
     await assert.rejects(inTx((client) => core.moveCash(client, low.id, -100, { entryType: "prediction_buy", marketId: 1 })), floored);
     await assert.rejects(inTx((client) => core.moveCash(client, low.id, -100, { entryType: "prediction_limit_reserve", marketId: 1 })), floored);
     assert.deepEqual(await balances(low.id), { cash: 5000, credit: 40000 });
   });
 
-  await t.test("under the floor, money still comes in and the card exchange stays open", async () => {
+  await t.test("under the floor, money still comes in, selling a card included", async () => {
     const low = await user("low2", { cash: 5000, credit: 40000 });
     await inTx((client) => core.moveCash(client, low.id, 250, { entryType: "prediction_sell", marketId: 1 }));
     await inTx((client) => core.moveCash(client, low.id, 250, { entryType: "prediction_payout", marketId: 1 }));
     await inTx((client) =>
       wallet.creditCashForGameWithClient(client, { userId: low.id, amount: 100, entryType: "game_prize_payout", referenceType: "game_session", referenceId: 1 })
     );
-    assert.deepEqual(await balances(low.id), { cash: 5000, credit: 40600 });
-    await debit(low.id, "exchange_purchase");
-    assert.deepEqual(await balances(low.id), { cash: 5000, credit: 40500 });
+    await inTx((client) =>
+      wallet.creditCashForGameWithClient(client, { userId: low.id, amount: 100, entryType: "exchange_sale", referenceType: "card_listing", referenceId: 1 })
+    );
+    assert.deepEqual(await balances(low.id), { cash: 5000, credit: 40700 });
   });
 
   await t.test("the floor counts everything net worth counts: shares, Cash and Credit, and exactly at it passes", async () => {
@@ -156,5 +159,18 @@ test("Credit only and the net worth floor, end to end", { skip: !databaseUrl, ti
     await pool.query(older, [high.id]);
     await pools.placeBet(pool, high, { slug, outcomeCode, amount: 1000 });
     assert.deepEqual(await balances(high.id), { cash: 10000, credit: 59000 });
+
+    // Margin borrows past Credit and never reaches for Cash, then or when it's owed.
+    const borrower = await user("borrower", { cash: 5000, credit: 1000 });
+    await pool.query(older, [borrower.id]);
+    await pool.query(
+      `INSERT INTO market.portfolio_holdings (user_id, asset_id, quantity, avg_cost_basis) SELECT $1, id, 8000, 10 FROM market.market_assets WHERE symbol = 'FLR'`,
+      [borrower.id]
+    );
+    const placed = await pools.placeBet(pool, borrower, { slug, outcomeCode, amount: 5000, useMargin: true });
+    assert.deepEqual([placed.bet.from_credit, placed.bet.from_cash, placed.bet.borrowed], [1000, 0, 4000]);
+    assert.deepEqual(await balances(borrower.id), { cash: 5000, credit: -4000 });
+    await assert.rejects(pools.placeBet(pool, borrower, { slug, outcomeCode, amount: 1000, useMargin: true }), { code: "in_the_red", owed: 4000 });
+    assert.deepEqual(await balances(borrower.id), { cash: 5000, credit: -4000 });
   });
 });

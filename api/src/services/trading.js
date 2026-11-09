@@ -1098,11 +1098,7 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
     }
 
     const cashAccount = await ensureUserCashAccount(client, userId);
-    // In the red on margin (Credit below zero): no new buys until it's paid back. Selling is fine,
-    // and the sale's Cash repays first (services/margin.js).
-    if (normalizedSide === "buy") {
-      await economy.assertNotInRed(client, userId, { credit: toNumber(cashAccount.credit_balance, 0) });
-    }
+    // Credit below zero (margin, a void) never stops a stock order: the market is the way back up.
     const holding = await getLockedHolding(client, userId, asset.id);
     const now = new Date();
     const fairPrice = Math.max(toNumber(asset.current_fair_value, 0), 0.000001);

@@ -1,20 +1,17 @@
 // Margin for prediction pools (docs/design/predictions-pools.md §3).
 //
-// A pool bet can borrow once the player's Credit and Cash are spent. What it borrows takes Credit
-// below zero, and that negative Credit is the debt: it already counts against net worth, and the
-// Saturday conversion only converts positive Credit. While Credit is below zero the player is "in
-// the red" (economy.assertNotInRed refuses spending), so only one bet borrows at a time.
+// A pool bet can borrow once the player's Credit is spent. What it borrows takes Credit below zero,
+// and that negative Credit is the debt: it already counts against net worth, and the Saturday
+// conversion only converts positive Credit. While Credit is below zero the player is "in the red"
+// (economy.assertNotInRed refuses spending Credit), so only one bet borrows at a time.
 //
-// - The line is 25% of the market value of the shares the player holds, up to $100,000 ("coin
-//   backed": shares are what's left to sell once Credit and Cash are gone).
+// - The line is 25% of the market value of the shares the player holds, up to $100,000. Shares only
+//   size it: nothing is sold or taken to repay it.
 // - Only accounts 7+ days old with a verified email, not suspended, can borrow.
-// - Every Credit payment repays first, simply by landing on the negative balance. Cash (a share sale)
-//   repays first too: repayFromCash moves it into Credit, from the scheduler's sweep within a minute,
-//   from "Repay now", and before every pool bet.
+// - Every Credit payment repays it, simply by landing on the negative balance. Cash never does (the
+//   owner, 2026-11-09: Cash stays untouched by anything but stocks), and the debt never stops a player
+//   trading stocks.
 // - No interest and no forced sales, for now.
-
-const economy = require("./economy");
-const features = require("../features");
 
 function envNumber(name, fallback) {
   const raw = process.env[name];
@@ -107,61 +104,4 @@ async function status(db, userId, wallet) {
   };
 }
 
-/**
- * Moves Cash into Credit while Credit is below zero, so a share sale repays first. Returns how much
- * moved (0 when there's nothing to do). Runs inside the caller's transaction.
- */
-async function repayFromCash(client, userId) {
-  const wallet = await economy.lockWallet(client, userId);
-  if (!(wallet.credit < 0) || !(wallet.cash > 0)) return 0;
-  const amount = round2(Math.min(wallet.cash, -wallet.credit));
-  if (!(amount > 0)) return 0;
-  await economy.writeMoves(client, [
-    { userId: Number(userId), cash: -amount, credit: amount, entryType: "margin_repay", referenceType: "margin", referenceId: Number(userId) },
-  ]);
-  return amount;
-}
-
-async function inTransaction(pool, fn) {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const result = await fn(client);
-    await client.query("COMMIT");
-    return result;
-  } catch (error) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw error;
-  } finally {
-    client.release();
-  }
-}
-
-/** "Repay now": what moved and what's still owed. */
-async function repay(pool, userId) {
-  return inTransaction(pool, async (client) => {
-    const repaid = await repayFromCash(client, userId);
-    const wallet = await economy.lockWallet(client, userId);
-    return { repaid, owed: round2(Math.max(0, -wallet.credit)), cash: round2(wallet.cash), credit: round2(wallet.credit) };
-  });
-}
-
-/** The scheduler's sweep: every player the prediction-pools flag covers, in the red with Cash on hand. */
-async function sweep(pool, { limit = 200 } = {}) {
-  // At "staff" the flag covers admins (api/src/features/README.md).
-  const covered = features.enabledFor("prediction-pools", "everyone") ? "true" : features.enabledFor("prediction-pools", "staff") ? "u.is_admin" : "false";
-  const { rows } = await pool.query(
-    `SELECT b.user_id FROM market.portfolio_cash_balances b JOIN market.users u ON u.id = b.user_id
-     WHERE b.credit_balance < 0 AND b.cash_balance > 0 AND ${covered}
-     ORDER BY b.user_id LIMIT $1`,
-    [limit]
-  );
-  const repaid = [];
-  for (const row of rows) {
-    const amount = await inTransaction(pool, (client) => repayFromCash(client, row.user_id));
-    if (amount > 0) repaid.push({ user_id: Number(row.user_id), amount });
-  }
-  return repaid;
-}
-
-module.exports = { SETTINGS, computeLine, eligibility, marginError, repay, repayFromCash, shareValue, status, sweep, userRow };
+module.exports = { SETTINGS, computeLine, eligibility, marginError, shareValue, status, userRow };

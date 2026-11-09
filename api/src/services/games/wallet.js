@@ -26,9 +26,18 @@ const VALID_ENTRY_TYPES = new Set([
   "exchange_trade_settle",
 ]);
 
-// What can be lost to chance, so it stops under the net worth floor (sideModeFloor.js). Blackjack's
-// table_bet_debit isn't here: its limits check the floor once per hand, so a double never trips it.
-const FLOORED_ENTRY_TYPES = new Set(["gacha_pull_fee", "game_entry_fee", "pvp_stake_debit"]);
+// Spending that stops under the net worth floor (sideModeFloor.js): pulls, fees and stakes, and buying
+// on the card exchange. Selling only brings money in, so it never gets here. Blackjack's
+// table_bet_debit isn't listed: its limits check the floor once per hand, so a double never trips it.
+const FLOORED_ENTRY_TYPES = new Set([
+  "gacha_pull_fee",
+  "game_entry_fee",
+  "pvp_stake_debit",
+  "exchange_purchase",
+  "exchange_bid_hold",
+  "exchange_trade_escrow",
+  "exchange_trade_settle",
+]);
 
 function invalidGameWallet(code = "invalid_game_wallet") {
   const error = new Error(code);

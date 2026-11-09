@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { InTheRed } from "@/app/components/predictions/pool/bet-slip";
 import { Countdown } from "@/app/components/predictions/floor/market-card";
-import { usePredictionCash } from "@/app/components/predictions/shell/predictions-frame";
 import { money } from "@/app/lib/predictions/format";
 import { fetchMyPools, poolHref, type MyPools } from "@/app/lib/predictions/pools";
 import { usePoolAccess } from "@/app/lib/predictions/use-pool-access";
@@ -21,7 +20,6 @@ const MARGIN_REASON: Record<string, string> = {
 /** "My bets" for pools: stakes in pools still running, results, and margin. */
 export function MyPoolsSection() {
   const access = usePoolAccess();
-  const { refreshCash } = usePredictionCash();
   const [data, setData] = useState<MyPools | null>(null);
 
   const load = useCallback(() => {
@@ -51,14 +49,7 @@ export function MyPoolsSection() {
         </span>
       </div>
       {margin.in_red ? (
-        <InTheRed
-          margin={margin}
-          cash={data.wallet.cash}
-          onRepaid={() => {
-            load();
-            void refreshCash();
-          }}
-        />
+        <InTheRed margin={margin} />
       ) : (
         <p className={styles.small}>
           {margin.available > 0

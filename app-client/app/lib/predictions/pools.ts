@@ -183,7 +183,6 @@ export const extendPool = (id: number, closesAt: string) => post<PoolAction>(`/p
 export const resolvePool = (id: number, body: { outcome: string; source_url?: string; note?: string }) => post<PoolAction>(`/pools/${id}/resolve`, body);
 export const correctPool = (id: number, body: { outcome: string; source_url?: string; note?: string }) => post<PoolAction>(`/pools/${id}/correct`, body);
 export const voidPool = (id: number, body: { reason?: string; source_url?: string }) => post<PoolAction>(`/pools/${id}/void`, body);
-export const repayMargin = () => post<{ repaid: number; owed: number; cash: number; credit: number }>("/margin/repay");
 
 // ── The math, as the API does it (api/src/services/predictions/poolMath.js), in cents ──
 const toCents = (value: number) => Math.round((value || 0) * 100);

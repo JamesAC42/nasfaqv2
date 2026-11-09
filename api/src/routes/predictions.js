@@ -308,16 +308,6 @@ router.get(
   })
 );
 
-router.post(
-  "/margin/repay",
-  poolsOnly,
-  tradeLimit,
-  handle(async (req, res) => {
-    const user = requireAuthenticatedUser(req);
-    res.json(await margin.repay(req.ctx.pool, user.id));
-  })
-);
-
 // ── Market reads ───────────────────────────────────────────────────────────
 router.get("/:slug", handle(async (req, res) => res.json({ market: await markets.getMarketDetail(req.ctx.pool, req.params.slug, req.ctx.user || null) })));
 // The chart, tape and quote follow the market page's rule: a draft or private market is only

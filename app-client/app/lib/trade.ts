@@ -104,13 +104,6 @@ export function getTradeFailureNotice(errorCode: string, side: TradeSide, symbol
         title: "Not enough cash",
         message: `You don't have enough cash for this ${symbol} order. Cash held for your queued buys can't be spent until they fill or you cancel them.`,
       };
-    case "in_the_red": {
-      const owed = Number(details?.owed);
-      return {
-        title: "You're in the red",
-        message: `You owe ${Number.isFinite(owed) && owed > 0 ? `$${owed.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ` : ""}on margin, so buys wait until it's paid back. Selling is fine: the Cash from a sale pays it back first.`,
-      };
-    }
     case "sold_out":
       return {
         title: "Sold out",

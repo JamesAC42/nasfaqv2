@@ -29,9 +29,10 @@ writes one ledger row with `cash_delta` and `credit_delta`.
 | Trading fee (1%) | Credit first, then Cash | |
 | Games, capsule machine, card gacha (games wallet) | Credit only (`sideModeFunds`). Pulls, entry fees and stakes stop under the net worth floor (`sideModeMinNetWorth`, `services/sideModeFloor.js`) | Credit; refunds go back where they came from |
 | Blackjack | Credit only, with its own limits (`services/games/tables/blackjackLimits.js`) and the same floor | Credit; refunds go back where they came from |
-| Card exchange: bids, buys, trade escrow | Credit only (`sideModeFunds`); no floor, since a card is bought for its price and players need to be able to sell | Credit (sales, a trade's cash); refunds go back where they came from |
+| Card exchange: bids, buys, trade escrow | Credit only (`sideModeFunds`). Buys, bids and trade offers stop under the net worth floor; selling stays open | Credit (sales, a trade's cash); refunds go back where they came from |
 | Predictions | Credit only (`sideModeFunds`). Buys, limit orders and pool bets stop under the net worth floor | Credit (payouts, sales); releases and void refunds go back where they came from. A void also takes back what a player made selling, as Credit (can go below zero) |
 | Dividends (Saturday) | | Credit |
+| Margin on prediction pools (flag at staff) | Credit only, going below zero. The debt counts against net worth and never stops stock trading | Only Credit pays it back, never Cash |
 | Share fees (Saturday) | Credit first, then Cash (can go below zero) | |
 | Forced buybacks (Saturday) | | Cash (it's a share sale) |
 | Weekly conversion (Saturday, after dividends): 5% or $10,000, whichever is more | Credit | Cash |
