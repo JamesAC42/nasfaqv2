@@ -331,7 +331,7 @@ export function GamesSection() {
       lede={
         <>
           <p>
-            Every game spends <Term k="credit">Credit</Term> and never your cash, and games and bets close while your net worth is under $50,000. Winnings come back as Credit; refunds go back where they came
+            Every game spends <Term k="credit">Credit</Term> and never your cash. Games, bets and buying cards close while your net worth is under $50,000; free cards and selling your cards stay open. Winnings come back as Credit; refunds go back where they came
             from. The server rolls every result, rates are posted on each game, and multiplayer stakes sit in escrow until the hand is done.
           </p>
           <p>Open tables can be watched by anyone, even signed out. Hidden picks stay hidden until the reveal.</p>
@@ -413,7 +413,7 @@ export function PredictionsSection() {
         <ChanceDemo />
         <Steps
           items={[
-            { title: "Buy YES or NO", body: "Spend $1 up to $25,000. Your buy moves the price; prices stay between 1¢ and 99¢. 1% fee." },
+            { title: "Buy YES or NO", body: "Spend $1 up to $25,000 of Credit. Your buy moves the price; prices stay between 1¢ and 99¢. 1% fee." },
             { title: "Or set a limit", body: "\"Buy YES while it's 40¢ or less, up to $200.\" It rests, reserving your Credit, and fills when the price gets there." },
             { title: "Trading closes", body: "Resting orders are cancelled and their Credit released. Now it waits for the answer." },
             {
@@ -436,6 +436,7 @@ export function CommunitySection() {
   const checkin = useFeature("daily-checkin");
   const calendar = useFeature("stream-calendar");
   const invites = useFeature("referrals");
+  const oshiWire = useFeature("oshi-wire");
   return (
     <Section
       id="community"
@@ -497,10 +498,15 @@ export function CommunitySection() {
                 {
                   k: "invites",
                   title: "Invite friends",
-                  body: "Your profile has your invite link. When a friend signs up through it and makes their first stock trade, you both get a bonus.",
+                  body: "Your profile has your invite link. When a friend signs up through it and makes their first stock trade, you each get $250 and 2,500 Credit, up to 3 times a week. Accounts that have used the same network don't count.",
                 },
               ]
             : []),
+          {
+            k: "/wire",
+            title: "The Wire",
+            body: `Headlines as they happen: big price moves, sell-outs, buybacks, records, rare pulls, card sales, called predictions and IPOs${oshiWire ? ", and who changed their oshi" : ""}.`,
+          },
           { k: "/threads", title: "/vt/ threads", body: "The general, mirrored, with tickers linked. Lurk the source." },
           { k: "/livestreams", title: "Livestreams", body: `Who's on air right now, with viewer counts${calendar ? ", and a calendar of what's coming up" : ""}.` },
         ]}
