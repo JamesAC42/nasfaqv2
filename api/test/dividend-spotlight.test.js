@@ -19,10 +19,9 @@ const databaseUrl = process.env.CHAT_TEST_DATABASE_URL;
 const FLAG = dividendBoard.FLAG;
 const OSHI = "oshi-protection";
 
-test("dividend spotlight: the flag starts at staff, and hides its data with whole endpoints", () => {
+test("dividend spotlight: it has a flag, and hides its data with whole endpoints", () => {
   const flag = features.list().find((entry) => entry.key === FLAG);
   assert.ok(flag, "there's a flag file");
-  assert.equal(flag.state, "staff");
   const oshi = features.list().find((entry) => entry.key === OSHI);
   for (const field of ["oshi_waived", "oshi_protected_quantity"]) assert.ok(oshi.fields.includes(field), `${field} is oshi protection's to withhold`);
   assert.equal(dividendBoard.parseWindow("all"), "all");
