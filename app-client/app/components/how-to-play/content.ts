@@ -188,6 +188,10 @@ export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
     a: "Share fees. Every Saturday, stocks whose channels had a bad week charge a fee per share held. It comes out of your Credit first, then your cash, even if that takes you below zero. In the red you can't buy; sell something or earn it back.",
   },
   {
+    q: "What if I run out of everything?",
+    a: "The Saturday review gives you a way back in. If it ends with you holding no shares, with no Credit left to turn into cash and too little cash to buy the cheapest share, your cash goes up to $1,000, clearing anything fees took below zero, and you get $1,000 Credit. You need a verified email and a visit to the site in the last two weeks. If your Credit is below zero, the $1,000 goes toward what you owe.",
+  },
+  {
     q: "Why can't I buy this stock?",
     a: "Either it's sold out (players hold every share for sale; buys wait for a seller or next Saturday's new max) or it's frozen for a buyback (max shares dropped below what players hold; you can only sell to the broker until it's over).",
   },

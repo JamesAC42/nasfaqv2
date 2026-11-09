@@ -20,6 +20,8 @@
 //   A new account's first pick counts as held all week at the first review after it (oshi.js).
 //   Only players the flag is on for get it; its report fields (oshi_protection, oshi_waived) reach
 //   only viewers with the flag (features.forAudience).
+//   The auto-bailout (services/autoBailout.js): once the fees, the conversion and the new max shares are
+//   done, a player left with no shares and no money to buy any gets a little Cash and Credit.
 //   4. The Dividend Review (report_json), notifications to holders, a market socket event.
 //
 // The transaction reads what it needs in a few set-based queries, works the whole evaluation out in
@@ -31,6 +33,7 @@
 // writes nothing, without row locks (scripts/weekly-evaluation.js preview, GET /api/market/evaluations/preview).
 
 const supply = require("./marketSupply");
+const autoBailout = require("./autoBailout");
 const economy = require("./economy");
 const oshi = require("./oshi");
 const features = require("../features");
@@ -231,7 +234,7 @@ async function loadAssets(client, evalDate, ids = null) {
       ORDER BY d.asset_id, d.market_date DESC
     )
     SELECT a.id, a.symbol, a.display_name, a.max_supply, a.circulating_supply, a.treasury_supply, a.broker_buffer_pct,
-           a.trading_state, a.current_mid_price, o.mid_open AS day_open,
+           a.trading_state, a.current_mid_price, a.current_fair_value, a.spread_bps, a.liquidity_depth, o.mid_open AS day_open,
            sb.subscriber_count, n.value_now, b.value_before, r.avg_base, r.last_base AS last_revealed_base,
            (l.listed_on IS NOT NULL AND l.listed_on > $1::date - ${ROOKIE_DAYS}) AS rookie
     FROM market.market_assets a
@@ -270,13 +273,13 @@ async function loadHoldings(client, assetIds, { lock }) {
   return holdings;
 }
 
-/** The wallets the evaluation can move (these players', and every positive Credit balance for the conversion), exact. */
+/** The wallets the evaluation can move (these players', and every positive Credit balance for the conversion), exact. Only the bailout reads `held`. */
 async function loadWallets(client, userIds, { lock }) {
   const { rows } = await client.query(
-    `SELECT user_id, cash_balance, credit_balance FROM market.portfolio_cash_balances WHERE user_id = ANY($1::bigint[]) OR credit_balance > 0 ORDER BY user_id ${lock ? "FOR UPDATE" : ""}`,
+    `SELECT user_id, cash_balance, credit_balance, held_cash FROM market.portfolio_cash_balances WHERE user_id = ANY($1::bigint[]) OR credit_balance > 0 ORDER BY user_id ${lock ? "FOR UPDATE" : ""}`,
     [userIds]
   );
-  return new Map(rows.map((row) => [Number(row.user_id), { cash: pgNumeric.parse(row.cash_balance), credit: pgNumeric.parse(row.credit_balance) }]));
+  return new Map(rows.map((row) => [Number(row.user_id), { cash: pgNumeric.parse(row.cash_balance), credit: pgNumeric.parse(row.credit_balance), held: pgNumeric.parse(row.held_cash) }]));
 }
 
 // ── Working it out ────────────────────────────────────────────────────────
@@ -291,8 +294,9 @@ async function loadWallets(client, userIds, { lock }) {
  * protectedOshis: Map player → { assetId, added } (oshi.loadProtectedOshis): players whose oshi was
  * theirs all week, and the most of its shares they added since the week started (0 for a new account's
  * first pick, which counts as held all week). Null: the flag is off.
+ * bailoutPlayers: autoBailout.loadPlayers' set of who could be bailed out.
  */
-function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, assets, activeBuybacks, holdings, wallets, protectedOshis = null }) {
+function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, assets, activeBuybacks, holdings, wallets, protectedOshis = null, bailoutPlayers = new Set() }) {
   const writes = { holdings: [], buybacksClosed: [], assets: [], buybacksStarted: [], assetEvaluations: [], payouts: [], accountsOpened: [], moves: [] };
   const ledger = { referenceType: "weekly_evaluation", referenceId: evaluationId };
   const byUser = new Map(); // userId → { dividends, fees, forced: [...], buybacks: [...], waived: [...] }
@@ -439,11 +443,17 @@ function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, ass
     [...wallets.entries()].sort(([a], [b]) => a - b).map(([userId, wallet]) => ({ userId, credit: wallet.credit }))
   );
   writes.moves.push(...economy.conversionMoves(conversion, evaluationId));
-  for (const converted of conversion.moves) if (byUser.has(converted.userId)) byUser.get(converted.userId).converted = converted.amount;
+  for (const converted of conversion.moves) {
+    const wallet = wallets.get(converted.userId);
+    wallet.cash = pgNumeric.add(wallet.cash, pgNumeric.parse(converted.amount));
+    wallet.credit = pgNumeric.add(wallet.credit, pgNumeric.parse(-converted.amount));
+    if (byUser.has(converted.userId)) byUser.get(converted.userId).converted = converted.amount;
+  }
 
   // 3. Max shares from subscribers; buybacks for stocks now over their max.
   const subsZ = zScores(assets.map((asset) => (toNumber(asset.subscriber_count, 0) > 0 ? Math.log(toNumber(asset.subscriber_count, 0)) : NaN)));
   const buybacksStarted = [];
+  const reviewedStocks = []; // each stock as this review leaves it, for the bailout's cheapest share
   for (const [index, asset] of assets.entries()) {
     const result = results.get(String(asset.id));
     const before = toNumber(asset.max_supply, 0);
@@ -463,6 +473,7 @@ function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, ass
       buybacksStarted.push({ symbol: asset.symbol, display_name: asset.display_name, held: round(result.held), max_supply: after, over: round(result.held - after), frozen_price: round(frozenPrice), offer: round(frozenPrice * supply.BUYBACK_START) });
       for (const holder of holdersOf(asset.id)) userEntry(holder.userId).buybacks.push({ symbol: asset.symbol, offer: frozenPrice * supply.BUYBACK_START });
     }
+    reviewedStocks.push({ ...asset, max_supply: after, treasury_supply: Math.max(after - result.held, 0), trading_state: result.tradingState ?? asset.trading_state });
     writes.assets.push({ id: asset.id, maxAfter: after, setHeld: Boolean(result.setHeld), held: result.held, tradingState: result.tradingState ?? null });
     writes.assetEvaluations.push({
       assetId: asset.id,
@@ -480,6 +491,10 @@ function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, ass
       buybackAction: result.buybackAction,
     });
   }
+
+  // The auto-bailout, on what the steps above have left everyone with.
+  const bailouts = autoBailout.planBailouts({ evalDate, players: bailoutPlayers, wallets, holdings, stocks: reviewedStocks, onDemand });
+  for (const bailout of bailouts.paid) move(bailout.userId, { entryType: autoBailout.ENTRY_TYPE, cash: bailout.cash, credit: bailout.credit });
 
   // 4. The Dividend Review.
   const rows = assets.map((asset) => {
@@ -525,6 +540,7 @@ function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, ass
     buybacks_started: buybacksStarted,
     buybacks_closed: buybacksClosed,
     oshi_protection: { enabled: Boolean(protectedOshis), players: waivedTotals.players.size, shares: round(waivedTotals.shares), waived: round(waivedTotals.amount, 2) },
+    auto_bailout: bailouts.summary,
     assets: rows,
     config: { ...CONFIG, buyback_start: supply.BUYBACK_START, buyback_daily_step: supply.BUYBACK_DAILY_STEP, buyback_floor: supply.BUYBACK_FLOOR },
   };
@@ -552,6 +568,7 @@ function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, ass
             : `Weekly evaluation: ${money(net)}`;
     notices.push({ userId, kind: entry.buybacks.length || entry.forced.length ? "buyback" : "dividend", title, body: `${parts.join("; ")}.`, href: "/market/dividends", data: { eval_date: evalDate, net: round(net, 2) } });
   }
+  notices.push(...bailouts.paid.map((bailout) => bailout.notice));
 
   return { report, writes, notices };
 }
@@ -748,11 +765,13 @@ async function evaluate(pool, { evalDate, dryRun, onDemand, redis, logger }) {
     const holdings = await loadHoldings(client, assets.map((asset) => asset.id), { lock });
     const holders = new Set();
     for (const stock of holdings.values()) for (const userId of stock.keys()) holders.add(userId);
-    const wallets = await loadWallets(client, [...holders], { lock });
+    // Everyone the bailout could pay is locked with the rest, in one statement, in id order.
+    const bailoutPlayers = await autoBailout.loadPlayers(client, evalDate);
+    const wallets = await loadWallets(client, [...holders, ...bailoutPlayers], { lock });
     // Oshi protection looks back to the Saturday 00:00 ET before this one. The holdings are locked
     // already, so no fill lands in between; an oshi change meanwhile only counts from next week.
     const protectedOshis = features.enabledFor(oshi.FLAG, "staff") ? await oshi.loadProtectedOshis(client, assets.map((asset) => asset.id), weekStartFor(evalDate), evaluationStartsAt(evalDate)) : null;
-    const plan = planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, assets, activeBuybacks, holdings, wallets, protectedOshis });
+    const plan = planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, assets, activeBuybacks, holdings, wallets, protectedOshis, bailoutPlayers });
     report = plan.report;
     if (dryRun) {
       await client.query("ROLLBACK");

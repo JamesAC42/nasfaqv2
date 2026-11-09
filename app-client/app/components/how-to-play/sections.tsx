@@ -290,6 +290,11 @@ export function WeeklySection() {
               dividend on every share. Your oshi can change once every 30 days; your first pick is free.
             </p>
           ) : null}
+          <p>
+            <b>Nothing left to trade with?</b> If the review ends with you holding no shares, with no Credit left to turn into cash and too little cash to buy the cheapest share, you get a{" "}
+            <Term k="bailout">bailout</Term>: your cash goes up to $1,000, clearing anything fees took below zero, and you get $1,000 Credit. You need a verified email and a visit to the site in
+            the last two weeks.
+          </p>
           {dividendSpotlight ? (
             <p>
               <b>After each review,</b> Home shows your week for a few days, and <Link href="/market/dividends">the Dividend Review</Link> has every stock. The{" "}

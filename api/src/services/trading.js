@@ -138,6 +138,12 @@ function computeQuotes(midPrice, spreadBps) {
   };
 }
 
+/** What buying one share costs at this stock's mid price, fee included: the ask and its slippage, plus the fee. */
+function oneShareCost(asset) {
+  const { bidPrice, askPrice } = computeQuotes(toNumber(asset.current_mid_price, 0), asset.spread_bps);
+  return computeExecutionPrice({ side: "buy", bidPrice, askPrice, quantity: 1, liquidityDepth: asset.liquidity_depth }) * (1 + getTradingFeeRate());
+}
+
 async function getLockedAssetBySymbol(client, symbol, { lock = true } = {}) {
   const { rows } = await client.query(
     `
@@ -2289,6 +2295,7 @@ module.exports = {
   releaseLiveOrderSchedulerLock,
   getLiveOrderAdminHealth,
   getStarterCash,
+  oneShareCost,
   getPortfolioSummary,
   getPortfolioLedger,
   getPortfolioOrders,

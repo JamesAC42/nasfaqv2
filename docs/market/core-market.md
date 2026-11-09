@@ -65,7 +65,9 @@ In BBB's order:
    fees take Credit first, then Cash (`credit.md`). A frozen stock's holders are paid or charged
    too. **Fees can push cash below zero**: a player in the red can't buy until they sell or earn it
    back. Then part of every Credit balance turns into Cash.
-3. **Max shares** reset from subscriber counts; stocks now over their max start a buyback.
+3. **Max shares** reset from subscriber counts; stocks now over their max start a buyback. Then a
+   player left with no shares and no money to buy any gets a little Cash and Credit (the auto-bailout,
+   `credit.md`).
 4. **The Dividend Review** (Market → Dividends): a public report (total pool, biggest payers and
    fee-takers, max share changes, buybacks, every stock), each player's own week, a notification to
    every holder, and a Wire post. Buybacks and sell-outs get Wire posts too.
@@ -107,7 +109,8 @@ locks, writes nothing and rolls back, so it is safe against production. Admins c
 now (`POST /internal/market/weekly-evaluation/run-now`, `{ dry_run }` or `{ confirmation: "evaluate" }`).
 It is dated today in New York, so each date still runs once, and its report says `on_demand: true`.
 Saturday's evaluation still runs on schedule afterwards and, with the same revealed days behind it,
-pays about the same again, so it is a playtest tool, not something to press in the live game.
+pays about the same again, so it is a playtest tool, not something to press in the live game. It
+never pays an auto-bailout; its report only says who would qualify.
 
 Code: `api/src/services/marketSupply.js` (shares, buybacks), `api/src/services/weeklyEvaluation.js`
 (the evaluation), `api/src/services/trading.js` (fills), `api/src/services/settlement.js` (no daily

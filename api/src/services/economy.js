@@ -8,7 +8,9 @@ const features = require("../features");
 // the buffer most money lands in: games, the capsule machine, the card exchange and predictions run
 // on it and nothing else, dividends pay it, share fees and the trading fee come out of it first, and
 // part of it turns into Cash at each Saturday review. So gambling spends Credit while shares are
-// bought with Cash, and losing everything at a side mode still leaves a player Cash to trade with. Every move writes one ledger row carrying cash_delta and credit_delta.
+// bought with Cash, and losing everything at a side mode still leaves a player Cash to trade with. If
+// they run out anyway, the review's auto-bailout puts them back in the market (autoBailout.js). Every
+// move writes one ledger row carrying cash_delta and credit_delta.
 //
 // PLACEHOLDER marks a number or a choice still waiting on BBB; BBB marks his answers. Change them here
 // (or with their env vars).
@@ -49,6 +51,15 @@ const SETTINGS = Object.freeze({
   sideModeFunds: envChoice("ECONOMY_SIDE_MODE_FUNDS", ["credit", "credit_then_cash"], "credit"),
   /** BBB and the owner, 2026-11-09: no games, capsules or bets under this net worth (sideModeFloor.js). 0 turns it off. */
   sideModeMinNetWorth: envNumber("ECONOMY_SIDE_MODE_MIN_NET_WORTH", 50000),
+  /**
+   * The auto-bailout (services/autoBailout.js). BBB: "a small amount of cash and credit". A bailout puts
+   * Cash at bailoutCash (about 80 shares of a $12 stock, November 2026) and adds bailoutCredit. Together
+   * they have to stay well under sideModeMinNetWorth, so it can't reopen the games.
+   */
+  bailoutCash: envNumber("ECONOMY_BAILOUT_CASH", 1000),
+  bailoutCredit: envNumber("ECONOMY_BAILOUT_CREDIT", 1000),
+  /** A player must have been on the site within this many days of the review to get one. 0 turns the bailout off. */
+  bailoutActiveDays: envNumber("ECONOMY_BAILOUT_ACTIVE_DAYS", 14),
   /** PLACEHOLDER. Credit a share sale earns, as a share of the sale's value (BBB: "a small % of that coin's tax value"). */
   sellCreditRate: envNumber("ECONOMY_SELL_CREDIT_RATE", 0.01),
   /** PLACEHOLDER. Where achievement rewards land (BBB: early ones give both; this pays them all in one). */
