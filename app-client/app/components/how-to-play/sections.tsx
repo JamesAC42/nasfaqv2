@@ -493,7 +493,7 @@ export function CommunitySection() {
                 {
                   k: "check-in",
                   title: "Daily check-in",
-                  body: "Check in on the front page once a day for $50 Credit, or $100 while you're on a trading streak (you traded yesterday). Days turn over at 00:00 UTC.",
+                  body: "Check in on the front page once a day for $50 Credit, or $100 while you're on a trading streak (you traded yesterday). Days turn over at 00:00 ET.",
                 },
               ]
             : []),

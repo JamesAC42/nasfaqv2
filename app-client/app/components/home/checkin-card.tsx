@@ -14,7 +14,8 @@ import styles from "@/app/components/home/checkin-card.module.scss";
 
 // The daily check-in (api/src/services/checkins.js): Credit once a day, more while the player is on a
 // trade streak (through yesterday). By default that's 50, or 100 on a streak, with no ramp; when the
-// API's schedule does ramp, the card shows the ladder. It resets at 00:00 UTC, the day streaks count in.
+// API's schedule does ramp, the card shows the ladder. It resets at midnight in New York, the day the API
+// counts check-ins and their streak in.
 // Behind the daily-checkin feature flag: without it the card never asks the API (which would 404).
 
 export type Checkin = {
@@ -32,9 +33,9 @@ export type Checkin = {
 const whole = (value: number) => money(value).replace(".00", "");
 const credit = (value: number) => `+${whole(value)}`;
 
-/** "19:00 ET": when the day turns over, in market time. */
+/** "00:00 ET": when the day turns over, in market time. h23, because hour12: false can read midnight as 24:00. */
 function resetClock(iso: string) {
-  return `${new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: MARKET_TIME_ZONE })} ET`;
+  return `${new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: MARKET_TIME_ZONE })} ET`;
 }
 
 export function CheckinCard() {

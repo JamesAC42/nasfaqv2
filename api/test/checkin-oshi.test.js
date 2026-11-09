@@ -36,8 +36,6 @@ test("check-in: today's pays for the streak through yesterday", () => {
   // A first trade today.
   assert.deepEqual(on(1, "2026-11-06"), { current: 1, throughYesterday: 0, tradedToday: true, lastTradeDay: "2026-11-06" });
   assert.deepEqual(checkins.streakOn(null, "2026-11-06", "2026-11-05"), { current: 0, throughYesterday: 0, tradedToday: false, lastTradeDay: null });
-  // node-pg reads a DATE as local midnight: the local parts are the day, in any time zone.
-  assert.equal(on(2, new Date(2026, 10, 5)).throughYesterday, 2);
 });
 
 test("oshi: what a move counts as", () => {
@@ -145,7 +143,7 @@ async function freshDatabase(name) {
     await admin.end();
   }
   target.pathname = `/${name}`;
-  // UTC, as the API's pools are (db.js): streak and check-in days are UTC dates.
+  // UTC, as the API's pools are (db.js): the check-in's New York days can't come from the session.
   const pool = new Pool({ connectionString: target.href, options: "-c timezone=UTC" });
   const log = [console.log, console.warn];
   console.log = () => {};
@@ -178,18 +176,23 @@ test("the daily check-in", { skip: !databaseUrl, timeout: 120_000 }, async (t) =
      VALUES ('UCcheckin', 'CHK', 'Check', 'active', 10000, 0, 10000, 2000, 400) RETURNING id`
   );
   const assetId = Number(assets[0].id);
-  // A fill at noon UTC, `daysAgo` days before today (UTC).
-  const fill = async (userId, daysAgo) => {
+  const fillAt = async (userId, at) => {
     const { rows: order } = await pool.query(
       `INSERT INTO market.trade_orders (user_id, asset_id, side, order_type, status, requested_quantity, filled_quantity, requested_at)
-       VALUES ($1, $2, 'buy', 'market', 'filled', 1, 1, (CURRENT_DATE - $3::int)::timestamptz + interval '12 hours') RETURNING id, requested_at`,
-      [userId, assetId, daysAgo]
+       VALUES ($1, $2, 'buy', 'market', 'filled', 1, 1, $3) RETURNING id`,
+      [userId, assetId, at]
     );
     await pool.query(
       `INSERT INTO market.trade_fills (order_id, user_id, asset_id, side, price, quantity, gross_cash, fee_cash, net_cash, counterparty_type, ts)
        VALUES ($1, $2, $3, 'buy', 10, 1, 10, 0.1, -10.1, 'treasury', $4)`,
-      [order[0].id, userId, assetId, order[0].requested_at]
+      [order[0].id, userId, assetId, at]
     );
+  };
+  // Today in New York, and a fill at noon there `daysAgo` days before it.
+  const nyToday = `(now() AT TIME ZONE 'America/New_York')::date`;
+  const fill = async (userId, daysAgo) => {
+    const { rows } = await pool.query(`SELECT ((${nyToday} - $1::int)::timestamp + interval '12 hours') AT TIME ZONE 'America/New_York' AS at`, [daysAgo]);
+    await fillAt(userId, rows[0].at);
   };
   const credit = async (userId) => Number((await pool.query(`SELECT credit_balance FROM market.portfolio_cash_balances WHERE user_id = $1`, [userId])).rows[0].credit_balance);
   const refused = async (promise, code) => {
@@ -211,14 +214,14 @@ test("the daily check-in", { skip: !databaseUrl, timeout: 120_000 }, async (t) =
     assert.deepEqual(before.tomorrow, { if_trade: 100, if_skip: 50 });
     assert.equal((await pool.query(`SELECT 1 FROM market.user_trade_streaks WHERE user_id = $1`, [fresh])).rowCount, 0, "reading it wrote no streak row");
     // Yesterday's check-in doesn't count against today's.
-    await pool.query(`INSERT INTO market.daily_checkins (user_id, checkin_day, streak_days, reward) VALUES ($1, CURRENT_DATE - 1, 0, 50)`, [fresh]);
+    await pool.query(`INSERT INTO market.daily_checkins (user_id, checkin_day, streak_days, reward) VALUES ($1, ${nyToday} - 1, 0, 50)`, [fresh]);
 
     const claimed = await checkins.claimCheckin(pool, fresh);
     assert.equal(claimed.claimed.reward, 50);
     assert.equal(claimed.credit_balance, 50);
     assert.equal(await credit(fresh), 50);
     const { rows: ledger } = await pool.query(`SELECT entry_type, cash_delta::text, credit_delta::text, reference_type, reference_id FROM market.ledger_entries WHERE user_id = $1`, [fresh]);
-    const { rows: claim } = await pool.query(`SELECT id FROM market.daily_checkins WHERE user_id = $1 AND checkin_day = CURRENT_DATE`, [fresh]);
+    const { rows: claim } = await pool.query(`SELECT id FROM market.daily_checkins WHERE user_id = $1 AND checkin_day = ${nyToday}`, [fresh]);
     assert.deepEqual(ledger, [{ entry_type: "daily_checkin", cash_delta: "0", credit_delta: "50", reference_type: "daily_checkin", reference_id: claim[0].id }]);
 
     const again = await refused(checkins.claimCheckin(pool, fresh), "already_checked_in");
@@ -256,6 +259,72 @@ test("the daily check-in", { skip: !databaseUrl, timeout: 120_000 }, async (t) =
     assert.equal((await checkins.claimCheckin(pool, long)).claimed.reward, 100, "no more for a longer streak");
   });
 
+  await t.test("the day is New York's: a trade one afternoon pays that evening's check-in the next day", async () => {
+    // Saturday 2:50pm ET, then Sunday 8:25pm ET, which is already Monday in UTC. It used to pay the base.
+    const player = await addUser(pool, "Evening");
+    await fillAt(player, new Date("2026-11-07T19:50:00Z"));
+    const sunday = { now: new Date("2026-11-09T01:25:00Z") };
+    const offer = await checkins.getCheckin(pool, player, sunday);
+    assert.equal(offer.day, "2026-11-08");
+    assert.equal(offer.reward, 100);
+    assert.deepEqual(offer.streak, { current: 1, through_yesterday: 1, traded_today: false, last_trade_day: "2026-11-07" });
+    assert.equal(new Date(offer.resets_at).toISOString(), "2026-11-09T05:00:00.000Z", "midnight ET");
+    const claimed = await checkins.claimCheckin(pool, player, sunday);
+    assert.equal(claimed.claimed.reward, 100);
+    const { rows } = await pool.query(`SELECT checkin_day::text AS day FROM market.daily_checkins WHERE user_id = $1`, [player]);
+    assert.deepEqual(rows, [{ day: "2026-11-08" }], "the claim holds the New York day");
+
+    // Still Sunday a minute before midnight ET, and Monday a minute after.
+    await refused(checkins.claimCheckin(pool, player, { now: new Date("2026-11-09T04:59:00Z") }), "already_checked_in");
+    const monday = await checkins.getCheckin(pool, player, { now: new Date("2026-11-09T05:01:00Z") });
+    assert.equal(monday.day, "2026-11-09");
+    assert.equal(monday.claimed, null);
+    assert.equal(monday.reward, 50, "Sunday had no trade");
+    assert.deepEqual(monday.streak, { current: 0, through_yesterday: 0, traded_today: false, last_trade_day: "2026-11-07" });
+  });
+
+  await t.test("the streak counts fills in New York days, not UTC ones", async () => {
+    // 9pm ET Saturday and 10pm ET Sunday: UTC calls those Sunday and Monday.
+    const owl = await addUser(pool, "NightOwl");
+    await fillAt(owl, new Date("2026-11-08T02:00:00Z"));
+    await fillAt(owl, new Date("2026-11-09T03:00:00Z"));
+    const sunday = await checkins.getCheckin(pool, owl, { now: new Date("2026-11-09T04:00:00Z") });
+    assert.equal(sunday.day, "2026-11-08");
+    assert.deepEqual(sunday.streak, { current: 2, through_yesterday: 1, traded_today: true, last_trade_day: "2026-11-08" });
+    assert.equal(sunday.reward, 100);
+    assert.deepEqual(sunday.tomorrow, { if_trade: 100, if_skip: null });
+
+    // 11pm ET Friday is Saturday in UTC. By Sunday morning in New York, Saturday had no trade.
+    const lapsed = await addUser(pool, "FridayNight");
+    await fillAt(lapsed, new Date("2026-11-07T04:00:00Z"));
+    assert.equal((await checkins.getCheckin(pool, lapsed, { now: new Date("2026-11-08T15:00:00Z") })).reward, 50);
+    assert.equal((await pool.query(`SELECT 1 FROM market.user_trade_streaks WHERE user_id = ANY($1::bigint[])`, [[owl, lapsed]])).rowCount, 0, "it writes no streak row");
+  });
+
+  await t.test("the reset is the next New York midnight, across DST", async () => {
+    const player = await addUser(pool, "Clockwatcher");
+    const at = async (iso) => {
+      const checkin = await checkins.getCheckin(pool, player, { now: new Date(iso) });
+      return [checkin.day, new Date(checkin.resets_at).toISOString()];
+    };
+    assert.deepEqual(await at("2026-10-31T16:00:00Z"), ["2026-10-31", "2026-11-01T04:00:00.000Z"], "EDT: midnight is 04:00 UTC");
+    // The clocks go back on 2026-11-01: a 25-hour day, ending at 05:00 UTC.
+    assert.deepEqual(await at("2026-11-01T04:00:00Z"), ["2026-11-01", "2026-11-02T05:00:00.000Z"]);
+    assert.deepEqual(await at("2026-11-02T04:59:00Z"), ["2026-11-01", "2026-11-02T05:00:00.000Z"]);
+    assert.deepEqual(await at("2026-11-02T05:00:00Z"), ["2026-11-02", "2026-11-03T05:00:00.000Z"]);
+    // The clocks go forward on 2027-03-14: a 23-hour day, ending at 04:00 UTC.
+    assert.deepEqual(await at("2027-03-14T05:00:00Z"), ["2027-03-14", "2027-03-15T04:00:00.000Z"]);
+    assert.deepEqual(await at("2027-03-15T03:59:00Z"), ["2027-03-14", "2027-03-15T04:00:00.000Z"]);
+    assert.deepEqual(await at("2027-03-15T04:00:00Z"), ["2027-03-15", "2027-03-16T04:00:00.000Z"]);
+
+    // A streak runs through the long day.
+    const steady = await addUser(pool, "Steady");
+    await fillAt(steady, new Date("2026-10-31T16:00:00Z"));
+    await fillAt(steady, new Date("2026-11-01T16:00:00Z"));
+    const after = await checkins.getCheckin(pool, steady, { now: new Date("2026-11-02T16:00:00Z") });
+    assert.equal(after.streak.through_yesterday, 2);
+  });
+
   await t.test("one claim a day, however many race for it", async () => {
     const racer = await addUser(pool, "Racer");
     await fill(racer, 1);
@@ -265,7 +334,7 @@ test("the daily check-in", { skip: !databaseUrl, timeout: 120_000 }, async (t) =
     assert.equal(await credit(racer), 100);
     assert.equal((await pool.query(`SELECT COUNT(*)::int AS n FROM market.ledger_entries WHERE user_id = $1 AND entry_type = 'daily_checkin'`, [racer])).rows[0].n, 1);
     // The database itself refuses a second row for the day.
-    await assert.rejects(pool.query(`INSERT INTO market.daily_checkins (user_id, checkin_day, streak_days, reward) VALUES ($1, CURRENT_DATE, 0, 100)`, [racer]), { code: "23505" });
+    await assert.rejects(pool.query(`INSERT INTO market.daily_checkins (user_id, checkin_day, streak_days, reward) VALUES ($1, ${nyToday}, 0, 100)`, [racer]), { code: "23505" });
   });
 
   await t.test("at staff, the endpoints answer only admins (404 for everyone else)", async () => {
