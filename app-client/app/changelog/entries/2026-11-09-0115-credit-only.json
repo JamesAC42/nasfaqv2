@@ -1,0 +1,13 @@
+{
+  "title": "Games and bets run on Credit",
+  "changes": [
+    {
+      "kind": "improved",
+      "text": "Games, the capsule machine, the card exchange and predictions now spend Credit only. They never touch your cash, so you always have something to trade with."
+    },
+    {
+      "kind": "new",
+      "text": "Games, capsules, bets and buying cards close while your net worth is under $50,000. Free cards and selling your cards stay open, and building your net worth back up on the market reopens the rest."
+    }
+  ]
+}

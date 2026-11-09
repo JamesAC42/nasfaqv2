@@ -1,9 +1,10 @@
 const economy = require("../economy");
+const { assertAboveFloor } = require("../sideModeFloor");
 
 // Games, the capsule machine and the card exchange run on Credit (services/economy.js): stakes,
-// fees, bids and purchases spend it (or Credit then Cash, by SETTINGS.sideModeFunds; blackjack passes
-// from: "credit", so it never reaches Cash), and winnings, refunds and sale proceeds land in it. The
-// helpers keep their old names; "cash" here is the money the player has for these modes.
+// fees, bids and purchases spend it (SETTINGS.sideModeFunds; blackjack passes from: "credit", so it
+// stays there whatever that says), and winnings, refunds and sale proceeds land in it. The helpers
+// keep their old names; "cash" here is the money the player has for these modes.
 
 const VALID_ENTRY_TYPES = new Set([
   "gacha_pull_fee",
@@ -22,6 +23,19 @@ const VALID_ENTRY_TYPES = new Set([
   "exchange_sale",
   "exchange_trade_escrow",
   "exchange_trade_refund",
+  "exchange_trade_settle",
+]);
+
+// Spending that stops under the net worth floor (sideModeFloor.js): pulls, fees and stakes, and buying
+// on the card exchange. Selling only brings money in, so it never gets here. Blackjack's
+// table_bet_debit isn't listed: its limits check the floor once per hand, so a double never trips it.
+const FLOORED_ENTRY_TYPES = new Set([
+  "gacha_pull_fee",
+  "game_entry_fee",
+  "pvp_stake_debit",
+  "exchange_purchase",
+  "exchange_bid_hold",
+  "exchange_trade_escrow",
   "exchange_trade_settle",
 ]);
 
@@ -106,6 +120,7 @@ async function debitCashForGameWithClient(client, {
   const safeEntryType = requireEntryType(entryType);
   const safeReferenceType = requireReferenceType(referenceType);
   const safeReferenceId = requireReferenceId(referenceId);
+  if (FLOORED_ENTRY_TYPES.has(safeEntryType)) await assertAboveFloor(client, userId);
   const result = await economy.charge(client, userId, debitAmount, {
     from,
     entryType: safeEntryType,

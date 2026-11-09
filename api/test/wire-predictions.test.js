@@ -1,3 +1,6 @@
+// What the Wire calls, not who may bet: these players' balances don't matter, so no net worth floor.
+process.env.ECONOMY_SIDE_MODE_MIN_NET_WORTH = "0";
+
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { Pool } = require("pg");

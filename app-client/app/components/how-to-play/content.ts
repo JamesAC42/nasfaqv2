@@ -178,7 +178,7 @@ export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
   },
   {
     q: "What's Credit?",
-    a: "Your second balance. Games, the capsule machine, the card exchange and predictions spend it first, and your cash only once it runs out; so does the trading fee. Blackjack spends Credit only. Dividends, winnings, achievements and a little of every sale land in it, it counts toward your net worth, and every Saturday 5% of it (or $10k, if that's more) turns into cash.",
+    a: "Your second balance. Games, the capsule machine, the card exchange and predictions spend it and never your cash, so you always have something to trade with. Games and bets close while your net worth is under $50,000. The trading fee comes out of it first, then your cash. Dividends, winnings, achievements and a little of every sale land in it, it counts toward your net worth, and every Saturday 5% of it (or $10k, if that's more) turns into cash.",
   },
   {
     q: "How do I get more cash?",

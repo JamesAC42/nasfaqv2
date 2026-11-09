@@ -110,7 +110,7 @@ export function BlackjackLobbyPage() {
     >
       {!user ? <SignInToPlay what="take a seat. Watching is free" /> : null}
       {loadError && !tables ? <p className={styles.empty}>Couldn&apos;t reach the tables ({loadError}).</p> : null}
-      {limits ? (
+      {limits && limits.blocked !== "net_worth" ? (
         <p className={styles.standing} data-blocked={limits.blocked ? "" : undefined}>
           {blockedText(limits) ?? limitsLine(limits)}
         </p>

@@ -66,12 +66,9 @@ test("rules: doubling needs room for the doubled stake on both sides", () => {
 });
 
 test("rules: env vars change the numbers, and bad ones fall back", () => {
-  const set = limits.limitSettings({ BLACKJACK_HANDS_PER_DAY: "10", BLACKJACK_MIN_NET_WORTH: "75000" });
-  assert.equal(set.handsPerDay, 10);
-  assert.equal(set.minNetWorth, 75000);
-  const fallback = limits.limitSettings({ BLACKJACK_HANDS_PER_DAY: "many", BLACKJACK_MIN_NET_WORTH: "-1" });
-  assert.equal(fallback.handsPerDay, 50);
-  assert.equal(fallback.minNetWorth, 50000);
+  assert.equal(limits.limitSettings({ BLACKJACK_HANDS_PER_DAY: "10" }).handsPerDay, 10);
+  assert.equal(limits.limitSettings({ BLACKJACK_HANDS_PER_DAY: "many" }).handsPerDay, 50);
+  assert.equal(limits.limitSettings({}).minNetWorth, 50000);
 });
 
 async function waitFor(check, { timeoutMs = 20_000, everyMs = 50 } = {}) {

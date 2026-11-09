@@ -6,9 +6,9 @@ const features = require("../features");
 //
 // Cash (BBB's "Liquid"; portfolio_cash_balances.cash_balance) buys shares. Credit (credit_balance) is
 // the buffer most money lands in: games, the capsule machine, the card exchange and predictions run
-// on it, dividends pay it, share fees and the trading fee come out of it first, and part of it turns
-// into Cash at each Saturday review. So gambling spends Credit while shares are bought with Cash,
-// and the two don't cross. Every move writes one ledger row carrying cash_delta and credit_delta.
+// on it and nothing else, dividends pay it, share fees and the trading fee come out of it first, and
+// part of it turns into Cash at each Saturday review. So gambling spends Credit while shares are
+// bought with Cash, and losing everything at a side mode still leaves a player Cash to trade with. Every move writes one ledger row carrying cash_delta and credit_delta.
 //
 // PLACEHOLDER marks a number or a choice still waiting on BBB; BBB marks his answers. Change them here
 // (or with their env vars).
@@ -41,11 +41,14 @@ const SETTINGS = Object.freeze({
   /** BBB: Credit counts toward net worth and the leaderboard ("cash" would leave it out). */
   netWorth: envChoice("ECONOMY_NET_WORTH", ["cash", "cash_and_credit"], "cash_and_credit"),
   /**
-   * BBB: minigames, gacha, gambling (predictions) and player trading (the card exchange) spend Credit
-   * first, then Cash once it runs out ("credit_then_cash"; "credit" would stop at Credit). Winnings
+   * The owner, 2026-11-09: minigames, gacha, gambling (predictions) and player trading (the card
+   * exchange) spend Credit only. Credit is the buffer between losing money and bricking the account
+   * with no Cash left to trade ("credit_then_cash" would dip into Cash, as they first did). Winnings
    * land in Credit; refunds go back where the money came from (see refund).
    */
-  sideModeFunds: envChoice("ECONOMY_SIDE_MODE_FUNDS", ["credit", "credit_then_cash"], "credit_then_cash"),
+  sideModeFunds: envChoice("ECONOMY_SIDE_MODE_FUNDS", ["credit", "credit_then_cash"], "credit"),
+  /** BBB and the owner, 2026-11-09: no games, capsules or bets under this net worth (sideModeFloor.js). 0 turns it off. */
+  sideModeMinNetWorth: envNumber("ECONOMY_SIDE_MODE_MIN_NET_WORTH", 50000),
   /** PLACEHOLDER. Credit a share sale earns, as a share of the sale's value (BBB: "a small % of that coin's tax value"). */
   sellCreditRate: envNumber("ECONOMY_SELL_CREDIT_RATE", 0.01),
   /** PLACEHOLDER. Where achievement rewards land (BBB: early ones give both; this pays them all in one). */
@@ -114,8 +117,9 @@ async function writeMove(client, userId, { cash, credit, entryType, referenceTyp
 
 /**
  * Margin (docs/design/predictions-pools.md §3): Credit below zero is a debt, "in the red". While
- * it lasts the player can't spend on anything (side modes, predictions, share buys); fees and other
- * charges that name a `shortfall` still go through. Only for players the prediction-pools flag covers
+ * it lasts the player can't spend Credit on anything (side modes, predictions); fees and other
+ * charges that name a `shortfall` still go through. Stock trades don't come through here, so the debt
+ * never stops a player trading (the owner, 2026-11-09). Only for players the prediction-pools flag covers
  * (api/src/features): for everyone else, Credit a void pushed below zero works as it always has.
  */
 async function assertNotInRed(client, userId, wallet) {
@@ -260,7 +264,7 @@ async function convertCredit(client, { rate = SETTINGS.weeklyConversionRate, min
   return plan;
 }
 
-/** What games, the capsule machine, the exchange and predictions can spend: Credit, plus Cash when they fall back to it. */
+/** What games, the capsule machine, the exchange and predictions can spend: Credit, plus Cash if set to fall back to it. */
 function sideModeSpendable(wallet) {
   return Math.max(0, num(wallet.credit)) + (SETTINGS.sideModeFunds === "credit_then_cash" ? Math.max(0, num(wallet.cash)) : 0);
 }
@@ -269,6 +273,7 @@ function sideModeSpendable(wallet) {
 function publicSettings() {
   return {
     side_mode_funds: SETTINGS.sideModeFunds,
+    side_mode_min_net_worth: SETTINGS.sideModeMinNetWorth,
     net_worth: SETTINGS.netWorth,
     weekly_conversion_rate: SETTINGS.weeklyConversionRate,
     weekly_conversion_minimum: SETTINGS.weeklyConversionMinimum,
@@ -278,7 +283,6 @@ function publicSettings() {
 
 module.exports = {
   SETTINGS,
-  assertNotInRed,
   charge,
   conversionMoves,
   convertCredit,

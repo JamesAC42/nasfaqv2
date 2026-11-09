@@ -8,7 +8,8 @@ const COPY: Record<string, string> = {
   prediction_market_not_found: "That market doesn't exist.",
   prediction_market_closed: "Trading on this market is closed.",
   insufficient_cash: "Not enough cash.",
-  insufficient_credit: "Not enough Credit or cash.",
+  insufficient_credit: "Not enough Credit. Bets never spend your cash.",
+  net_worth_floor: "Bets are closed while your net worth is this low. Build it back on the market and they reopen.",
   insufficient_shares: "You don't hold that many shares.",
   price_moved: "The price moved. Check the new quote and try again.",
   price_at_limit: "The price is already at the limit; nothing to fill.",
@@ -30,7 +31,7 @@ const COPY: Record<string, string> = {
   // Pools and margin
   invalid_pool: "Some fields need fixing.",
   resolution_note_required: "Add a source link or a note saying how you know.",
-  in_the_red: "You're in the red. Winnings and share sales pay it back first; until then you can't bet, buy or spend.",
+  in_the_red: "You're in the red. Winnings and other Credit pay it back; until then you can't bet or spend Credit. Stock trading isn't affected.",
   margin_line_exceeded: "That's more than your margin line.",
   margin_account_too_new: "Margin opens 7 days after you sign up.",
   account_suspended: "Your account is suspended.",

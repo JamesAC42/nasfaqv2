@@ -4,7 +4,7 @@ import type { PredictionApiError } from "@/app/lib/predictions/api";
 import type { Outcome, PredictionMarket } from "@/app/lib/predictions/types";
 
 // Prediction pools and margin (docs/design/predictions-pools.md; api/src/services/predictions/pools.js).
-// Players stake Credit (then Cash, then margin) on an option; the winners split the whole pool in
+// Players stake Credit (then margin) on an option; the winners split the whole pool in
 // proportion to stake. Behind the prediction-pools flag (usePoolAccess says whether this player sees
 // them yet).
 
@@ -183,7 +183,6 @@ export const extendPool = (id: number, closesAt: string) => post<PoolAction>(`/p
 export const resolvePool = (id: number, body: { outcome: string; source_url?: string; note?: string }) => post<PoolAction>(`/pools/${id}/resolve`, body);
 export const correctPool = (id: number, body: { outcome: string; source_url?: string; note?: string }) => post<PoolAction>(`/pools/${id}/correct`, body);
 export const voidPool = (id: number, body: { reason?: string; source_url?: string }) => post<PoolAction>(`/pools/${id}/void`, body);
-export const repayMargin = () => post<{ repaid: number; owed: number; cash: number; credit: number }>("/margin/repay");
 
 // ── The math, as the API does it (api/src/services/predictions/poolMath.js), in cents ──
 const toCents = (value: number) => Math.round((value || 0) * 100);

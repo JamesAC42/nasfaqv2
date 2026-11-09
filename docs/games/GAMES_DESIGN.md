@@ -110,7 +110,8 @@ gains:
 - **Limits** (owner and BBB, 2026-11-09, `services/games/tables/blackjackLimits.js`), so a table can't
   brick an account: bets spend Credit only, never Cash; a player's result for the week stays within
   what their Credit converts at a review (5% of it or $10,000, whichever is more), up or down, from
-  Saturday 00:00 ET; 50 hands a day; no bets under $50,000 net worth.
+  Saturday 00:00 ET; 50 hands a day; no bets under $50,000 net worth (the floor every paid game shares,
+  `services/sideModeFloor.js`).
 - **Reactions:** anyone signed in and verified, seated or watching, can send emoji from a fixed list
   (`services/games/tables/reactions.js`). They float down over the felt for everyone at the table.
   They only exist on the socket: nothing is stored, and they never touch a seat, a bet or a wallet.

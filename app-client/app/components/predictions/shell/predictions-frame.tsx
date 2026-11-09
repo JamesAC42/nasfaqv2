@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { HeroCast, type HeroTalent } from "@/app/components/common/hero-cast";
+import { NetWorthFloorNotice } from "@/app/components/games/shell/net-worth-floor-notice";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { money } from "@/app/lib/predictions/format";
@@ -86,7 +87,7 @@ export function PredictionsFrame({ kicker, title, blurb, aside, live = false, ba
           </div>
           {signedIn ? (
             <div className={styles.balances}>
-              <span className={styles.cash} title="Credit: what predictions spend first">
+              <span className={styles.cash} title="Credit: what predictions spend">
                 <small>CREDIT</small>
                 <b>{credit === null ? "…" : money(credit)}</b>
               </span>
@@ -114,6 +115,7 @@ export function PredictionsFrame({ kicker, title, blurb, aside, live = false, ba
             {aside ? <div className={styles.aside}>{aside}</div> : null}
           </header>
         )}
+        <NetWorthFloorNotice className={styles.floorNotice} />
         {children}
       </div>
     </SiteShell>

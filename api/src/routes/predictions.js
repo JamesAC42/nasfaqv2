@@ -60,6 +60,7 @@ const ERROR_STATUS = {
   invalid_pool: 400,
   resolution_note_required: 400,
   in_the_red: 409,
+  net_worth_floor: 403,
   margin_line_exceeded: 409,
   margin_account_too_new: 403,
   account_suspended: 403,
@@ -75,7 +76,7 @@ function sendError(res, next, error) {
   const status = ERROR_STATUS[error?.code];
   if (!status) return next(error);
   const body = { error: error.code };
-  for (const key of ["field", "quote", "cash_balance", "required_cash", "shares_held", "owed", "line", "borrowed", "margin_available", "min_bet", "cap", "staked", "available_at"]) {
+  for (const key of ["field", "quote", "cash_balance", "required_cash", "shares_held", "owed", "line", "borrowed", "margin_available", "min_bet", "cap", "staked", "available_at", "limit"]) {
     if (error[key] !== undefined) body[key] = error[key];
   }
   return res.status(status).json(body);
@@ -304,16 +305,6 @@ router.get(
     const user = requireAuthenticatedUser(req);
     const { rows } = await req.ctx.pool.query(`SELECT cash_balance, credit_balance FROM market.portfolio_cash_balances WHERE user_id = $1`, [user.id]);
     res.json({ margin: await margin.status(req.ctx.pool, user.id, { cash: Number(rows[0]?.cash_balance || 0), credit: Number(rows[0]?.credit_balance || 0) }) });
-  })
-);
-
-router.post(
-  "/margin/repay",
-  poolsOnly,
-  tradeLimit,
-  handle(async (req, res) => {
-    const user = requireAuthenticatedUser(req);
-    res.json(await margin.repay(req.ctx.pool, user.id));
   })
 );
 

@@ -882,6 +882,7 @@ export type PortfolioSummary = {
 /** The Credit rules in force (api services/economy.js); some are still open questions. */
 export type EconomySettings = {
   side_mode_funds: "credit" | "credit_then_cash";
+  side_mode_min_net_worth?: number;
   net_worth: "cash" | "cash_and_credit";
   weekly_conversion_rate: number;
   /** The conversion is at least this much (or all of a smaller balance). */

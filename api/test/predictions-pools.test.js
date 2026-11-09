@@ -4,6 +4,12 @@ const { Pool } = require("pg");
 
 // Pools and margin (docs/design/predictions-pools.md): parimutuel payouts with no rake, the margin
 // line and who gets one, life in the red, voids and corrections, and the prediction-pools flag.
+//
+// These are about a pool's own rules, so they run without the net worth floor and with bets able to
+// reach Cash: that's how bets placed before Credit-only refund, and it stays one setting away.
+// side-mode-floor.test.js covers both rules as they are in production.
+process.env.ECONOMY_SIDE_MODE_FUNDS = "credit_then_cash";
+process.env.ECONOMY_SIDE_MODE_MIN_NET_WORTH = "0";
 
 const poolMath = require("../src/services/predictions/poolMath");
 const margin = require("../src/services/margin");
@@ -337,7 +343,7 @@ test("prediction pools and margin end to end", { skip: !databaseUrl, timeout: 24
     assert.deepEqual(await wallet(carol), { credit: -1000, cash: 0 });
   });
 
-  await t.test("in the red: no spending anywhere, fees still land, and Cash from a sale repays first", async () => {
+  await t.test("in the red: no spending Credit, fees still land, stocks stay open and Cash is never taken", async () => {
     // Carol owes 1,000 from the test above.
     const credit = () => wallet(carol).then((w) => w.credit);
     const spend = (amount) => core.inTransaction(pool, (client) => economy.charge(client, carol.id, amount, { from: "credit_then_cash", entryType: "game_entry_fee", referenceType: "game_session", referenceId: 1 }));
@@ -348,26 +354,26 @@ test("prediction pools and margin end to end", { skip: !databaseUrl, timeout: 24
     assert.equal(await credit(), -1000);
     assert.equal((await wallet(carol)).cash, -50);
 
-    // A share buy is refused at the order, even with Cash on hand; a sell isn't.
+    // Stocks stay open, buying included, whatever's owed.
     const asset = (await pool.query(`SELECT a.symbol FROM market.portfolio_holdings h JOIN market.market_assets a ON a.id = h.asset_id WHERE h.user_id = $1`, [carol.id])).rows[0];
     await pool.query(`UPDATE market.portfolio_cash_balances SET cash_balance = 100000 WHERE user_id = $1`, [carol.id]);
     await require("../src/services/marketState").getMarketStatus(pool);
     await pool.query(`UPDATE market.market_runtime_state SET trading_status = 'open'`);
-    await assert.rejects(shareTrading.submitLiveOrder(pool, { userId: carol.id, symbol: asset.symbol, side: "buy", quantity: 1 }), { code: "in_the_red", owed: 1000 });
-    const sell = await shareTrading.submitLiveOrder(pool, { userId: carol.id, symbol: asset.symbol, side: "sell", quantity: 1 });
-    assert.ok(sell, "selling to pay it back is fine");
+    assert.ok(await shareTrading.submitLiveOrder(pool, { userId: carol.id, symbol: asset.symbol, side: "buy", quantity: 1 }), "a buy goes through");
+    assert.ok(await shareTrading.submitLiveOrder(pool, { userId: carol.id, symbol: asset.symbol, side: "sell", quantity: 1 }), "and so does a sell");
+    assert.equal(await credit(), -1000, "still owed");
 
-    // The sweep moves Cash into the debt.
-    const swept = await margin.sweep(pool);
-    assert.deepEqual(swept, [{ user_id: carol.id, amount: 1000 }]);
-    assert.deepEqual(await wallet(carol), { credit: 0, cash: 99000 });
-    await spend(10);
-    const ledger = await pool.query(`SELECT cash_delta, credit_delta FROM market.ledger_entries WHERE user_id = $1 AND entry_type = 'margin_repay'`, [carol.id]);
-    assert.deepEqual(ledger.rows.map((row) => [Number(row.cash_delta), Number(row.credit_delta)]), [[-1000, 1000]]);
-
-    // "Repay now" covers part of a debt when that's all the Cash there is.
+    // A bet is refused while it's owed, and nothing moves Cash into the debt, then or later.
     await setWallet(carol, { credit: -500, cash: 200 });
-    assert.deepEqual(await margin.repay(pool, carol.id), { repaid: 200, owed: 300, cash: 0, credit: -300 });
+    const open = await openPool(bookie);
+    await assert.rejects(bet(carol, open.slug, "o1", 1000, { useMargin: true }), { code: "in_the_red", owed: 500 });
+    assert.deepEqual(await wallet(carol), { credit: -500, cash: 200 });
+    const ledger = await pool.query(`SELECT 1 FROM market.ledger_entries WHERE user_id = $1 AND entry_type = 'margin_repay'`, [carol.id]);
+    assert.equal(ledger.rowCount, 0);
+
+    // Only Credit pays it back: it lands on the negative balance.
+    await core.inTransaction(pool, (client) => economy.pay(client, carol.id, 400, { to: "credit", entryType: "dividend", referenceType: "weekly_evaluation", referenceId: 1 }));
+    assert.deepEqual(await wallet(carol), { credit: -100, cash: 200 });
     await setWallet(carol, { credit: 100000, cash: 0 });
   });
 
@@ -556,7 +562,6 @@ test("prediction pools and margin end to end", { skip: !databaseUrl, timeout: 24
       await setWallet(dave, { credit: -200, cash: 1000 });
       await core.inTransaction(pool, (client) => economy.charge(client, dave.id, 100, { from: "credit_then_cash", entryType: "game_entry_fee", referenceType: "game_session", referenceId: 2 }));
       assert.deepEqual(await wallet(dave), { credit: -200, cash: 900 });
-      assert.deepEqual(await margin.sweep(pool), [], "and the sweep doesn't touch them");
       // An admin in the preview can bet, and an admin in the red is held to the red rules.
       await setWallet(owner, { credit: 10000, cash: 0 });
       await bet(owner, slug, "o1", 2000);
@@ -565,7 +570,6 @@ test("prediction pools and margin end to end", { skip: !databaseUrl, timeout: 24
         core.inTransaction(pool, (client) => economy.charge(client, owner.id, 100, { from: "credit_then_cash", entryType: "game_entry_fee", referenceType: "game_session", referenceId: 3 })),
         { code: "in_the_red" }
       );
-      assert.deepEqual(await margin.sweep(pool), [{ user_id: owner.id, amount: 200 }], "and the sweep repays them");
       restore();
       restore = features.override({ "prediction-pools": "off" });
       await assert.rejects(pools.getPoolDetail(pool, slug, owner), { code: "prediction_market_not_found" });

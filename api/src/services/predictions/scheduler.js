@@ -7,7 +7,6 @@ const auto = require("./auto");
 const events = require("./events");
 const resolution = require("./resolution");
 const trading = require("./trading");
-const margin = require("../margin");
 const schedulerHealth = require("../schedulerHealth");
 
 const LOCK_KEY = 9_204_103;
@@ -38,8 +37,6 @@ async function runCycle(pool, redis = null, logger = console) {
     const generated = await step("auto", () => auto.runAutoTemplates(pool));
     if (generated && Object.values(generated).some((result) => result?.created)) await events.publishMarkets(redis, "created", [{ slug: null, id: null }]);
     await events.publishTrades(redis, await step("swept", () => trading.sweepAllMarkets(pool)));
-    // Margin: Cash from share sales pays down negative Credit (docs/design/predictions-pools.md §3).
-    await step("margin_repaid", () => margin.sweep(pool));
     return steps;
   } finally {
     await lock.query("SELECT pg_advisory_unlock($1)", [LOCK_KEY]).catch(() => {});

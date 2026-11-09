@@ -12,8 +12,9 @@
 // - No bets while net worth is under a floor. A hand already dealt plays out.
 //
 // The week runs from Saturday 00:00 New York, when the review runs (weeklyEvaluation.js), and a day
-// from midnight New York. Hands count by when they were bet; refunded rounds don't count. Each number
-// can be changed with its env var (the weekly cap follows the conversion settings).
+// from midnight New York. Hands count by when they were bet; refunded rounds don't count. Hands a day
+// have an env var; the weekly cap follows the conversion settings and the floor is the one every
+// side mode shares (economy.SETTINGS.sideModeMinNetWorth).
 
 const economy = require("../../economy");
 const { getCurrentNetWorth } = require("../../netWorth");
@@ -29,7 +30,7 @@ function amount(value, fallback) {
 function limitSettings(env = process.env) {
   return {
     handsPerDay: Math.floor(amount(env.BLACKJACK_HANDS_PER_DAY, 50)),
-    minNetWorth: amount(env.BLACKJACK_MIN_NET_WORTH, 50000),
+    minNetWorth: economy.SETTINGS.sideModeMinNetWorth,
     weeklyRate: economy.SETTINGS.weeklyConversionRate,
     weeklyMinimum: economy.SETTINGS.weeklyConversionMinimum,
   };

@@ -193,6 +193,7 @@ export function BlackjackTablePage({ tableKey }: { tableKey: string }) {
     if (!before) return;
     // Cards went out and we had no chips down: the server counts that as a skipped round.
     if (before.phase === "betting" && table.phase === "playing") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- the table comes off the socket: this counts a change between two of its pushes, which only shows up here.
       if (mySeat && mySeat.bet === 0) setSkipped((count) => count + 1);
       if (before.seated && !mySeat && !leftOnPurpose.current) {
         setKicked(true);

@@ -40,7 +40,7 @@ const GAME_DEFINITIONS = [
   {
     key: "oshi-duel",
     name: "Oshi Card Duel",
-    description: "Two players, five cards each, market conditions every round. Stake cash and play live, or watch.",
+    description: "Two players, five cards each, market conditions every round. Stake Credit and play live, or watch.",
     game_type: "pvp",
     status: "active",
     entry_fee_cash: 0,
@@ -121,7 +121,7 @@ const GAME_DEFINITIONS = [
   {
     key: "prediction-duel",
     name: "Prediction Duel",
-    description: "A head-to-head async contest where two players stake cash and compete for the pool.",
+    description: "A head-to-head async contest where two players stake Credit and compete for the pool.",
     game_type: "pvp",
     status: "disabled",
     entry_fee_cash: 0,

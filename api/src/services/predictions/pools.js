@@ -14,6 +14,7 @@
 // - All of it is behind the prediction-pools flag (api/src/features/prediction-pools.json).
 
 const economy = require("../economy");
+const { assertAboveFloor } = require("../sideModeFloor");
 const margin = require("../margin");
 const notifications = require("../notifications");
 const core = require("./core");
@@ -204,9 +205,6 @@ async function placeBet(pool, user, { slug, outcomeCode, amount, useMargin = fal
   const userId = Number(user.id);
   const value = round2(amount);
   if (!(value > 0) || value > SETTINGS.maxBet) throw predictionError("invalid_amount", { min_bet: SETTINGS.minBet });
-  // Cash from a share sale pays down what's owed before anything else.
-  await core.inTransaction(pool, (client) => margin.repayFromCash(client, userId));
-
   return core.inTransaction(pool, async (client) => {
     const market = await lockPool(client, { slug });
     if (!isBettable(market) || (await guards.autoMarketLock(client, market))) throw predictionError("prediction_market_closed");
@@ -219,6 +217,7 @@ async function placeBet(pool, user, { slug, outcomeCode, amount, useMargin = fal
 
     const wallet = await economy.lockWallet(client, userId);
     if (wallet.credit < 0) throw predictionError("in_the_red", { owed: round2(-wallet.credit) });
+    await assertAboveFloor(client, userId);
     const row = await margin.userRow(client, userId);
     const newUntil = newAccountUntil(row);
     if (newUntil) {

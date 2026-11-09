@@ -117,7 +117,7 @@ export function SignedOutPanel() {
         Your stuff
       </h2>
       <p className={styles.joinCopy}>
-        Every account starts with cash. Spend it here: pull cards, stake a duel, sit at the high table.
+        Every account starts with Credit. Spend it here: pull cards, stake a duel, sit at the high table.
       </p>
       <div className={styles.joinCtas}>
         <Link href="/login?next=/games" className={styles.primary}>

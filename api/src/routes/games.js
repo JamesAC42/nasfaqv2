@@ -43,6 +43,7 @@ const ERROR_STATUS = {
   pvp_account_too_new: 403,
   invalid_deck: 400,
   invalid_bet: 400,
+  net_worth_floor: 403,
   blackjack_no_credit: 409,
   blackjack_weekly_limit: 409,
   blackjack_daily_limit: 429,
