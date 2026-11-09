@@ -41,6 +41,16 @@
   }
 }
 
+.lede .boardLink a {
+  color: var(--blue);
+  font-weight: 600;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
 .kick {
   @include label;
   color: var(--blue);
@@ -116,6 +126,12 @@
   span {
     @include label;
   }
+}
+
+.split {
+  @include num;
+  font-size: 0.72rem;
+  color: var(--mid);
 }
 
 .mineRows {

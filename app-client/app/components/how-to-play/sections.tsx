@@ -268,6 +268,7 @@ export function TicksSection() {
 
 export function WeeklySection() {
   const oshiProtection = useFeature("oshi-protection");
+  const dividendSpotlight = useFeature("dividend-spotlight");
   return (
     <Section
       id="weekly"
@@ -286,6 +287,12 @@ export function WeeklySection() {
             <p>
               <b>Your oshi never charges you a fee</b> on the shares you held all week (the fewest you held at any point since the last Saturday), as long as they were
               your oshi all week. A good week still pays a dividend on every share. Your oshi can change once every 30 days; your first pick is free.
+            </p>
+          ) : null}
+          {dividendSpotlight ? (
+            <p>
+              <b>After each review,</b> Home shows your week for a few days, and <Link href="/market/dividends">the Dividend Review</Link> has every stock. The{" "}
+              <Link href="/leaderboard?tab=dividends">Dividends leaderboard</Link> ranks everyone from the most earned down to the highest fees.
             </p>
           ) : null}
         </>

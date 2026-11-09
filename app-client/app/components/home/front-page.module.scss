@@ -336,6 +336,12 @@ a.label:hover {
   margin-top: 1.4rem;
 }
 
+.blockLinks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+}
+
 .blockHead {
   display: flex;
   flex-wrap: wrap;

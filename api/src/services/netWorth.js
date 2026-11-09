@@ -1424,6 +1424,7 @@ module.exports = {
   listCurrentNetWorthByUserIds,
   listDailyNetWorthHistory,
   listLeaderboardBundle,
+  loadLeaderboardDecorations,
   recordDailyNetWorthSnapshot,
   refreshCurrentLeaderboard,
   refreshCurrentLeaderboardForAsset,

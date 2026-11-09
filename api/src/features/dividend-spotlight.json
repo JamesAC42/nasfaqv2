@@ -1,0 +1,4 @@
+{
+  "state": "staff",
+  "description": "Dividend spotlight: the \"your week\" card and the countdown to the next review on Home (GET /api/market/me/dividend-week), and the Dividends tab of the leaderboard (GET /api/leaderboard/dividends, /me and /players/:id). Reads the payouts every review already records, so past weeks show as soon as it turns on. Its oshi protection figures stay behind the oshi-protection flag."
+}

@@ -7,6 +7,7 @@ import { StockChip } from "@/app/components/common/stock-chip";
 import { Term } from "@/app/components/common/tip";
 import { num, RankRow, useAssetMap } from "@/app/components/market/bits";
 import { apiFetch } from "@/app/lib/api";
+import { useFeature } from "@/app/lib/features";
 import { money, signedPct } from "@/app/lib/time";
 import type { EvaluationRow, MyDividendWeek, WeeklyEvaluation } from "@/app/lib/types";
 import { useNow } from "@/app/lib/use-now";
@@ -54,6 +55,7 @@ export function DividendsTab({ initialDate }: { initialDate?: string }) {
   const [review, setReview] = useState<WeeklyEvaluation | null | undefined>(undefined);
   const [mine, setMine] = useState<MyDividendWeek[] | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const spotlight = useFeature("dividend-spotlight");
 
   useEffect(() => {
     apiFetch<{ items: Listing[] }>("/api/market/evaluations?limit=26")
@@ -136,6 +138,11 @@ export function DividendsTab({ initialDate }: { initialDate?: string }) {
               </>
             ) : null}
           </p>
+          {spotlight ? (
+            <p className={styles.boardLink}>
+              <Link href="/leaderboard?tab=dividends">See who earned the most, and who paid the most →</Link>
+            </p>
+          ) : null}
         </div>
         <label className={styles.pick}>
           <span className={ui.label}>Week</span>
@@ -179,7 +186,7 @@ export function DividendsTab({ initialDate }: { initialDate?: string }) {
         </div>
       </div>
 
-      {user ? <YourWeek week={myWeek} loading={mine === null} evalDate={review.eval_date} rates={new Map(review.assets.map((row) => [row.symbol, row.rate]))} /> : null}
+      {user ? <YourWeek week={myWeek} loading={mine === null} evalDate={review.eval_date} rates={new Map(review.assets.map((row) => [row.symbol, row.rate]))} split={spotlight} /> : null}
 
       <div className={styles.grid}>
         <List title="Dividends" hint="rate · per share" tone="up" kind="rate" rows={review.top_dividends} icon={icon} render={(row) => [`${money(row.per_share)} a share`, rate(row.rate)]} empty="Nobody paid this week." />
@@ -336,7 +343,9 @@ function skippedText(line: MyDividendWeek["lines"][number], rates: Map<string, n
   return `Your oshi's shares skipped ${pct.startsWith("8") ? "an" : "a"} ${pct}% fee`;
 }
 
-function YourWeek({ week, loading, evalDate, rates }: { week: MyDividendWeek | null; loading: boolean; evalDate: string; rates: Map<string, number> }) {
+function YourWeek({ week, loading, evalDate, rates, split }: { week: MyDividendWeek | null; loading: boolean; evalDate: string; rates: Map<string, number>; split: boolean }) {
+  const dividends = week?.lines.reduce((sum, line) => sum + Math.max(line.amount, 0), 0) ?? 0;
+  const fees = week?.lines.reduce((sum, line) => sum + Math.min(line.amount, 0), 0) ?? 0;
   return (
     <div className={`${ui.sec} ${styles.mine}`}>
       <div className={ui.secHead}>
@@ -352,6 +361,12 @@ function YourWeek({ week, loading, evalDate, rates }: { week: MyDividendWeek | n
           <p className={styles.net}>
             <b className={week.net > 0 ? ui.up : week.net < 0 ? ui.down : ui.flat}>{money(week.net)}</b>
             <span>{week.net > 0 ? "DIVS" : week.net < 0 ? "net share fees" : week.oshi_waived ? "your oshi skipped its fee" : "DIVS"}</span>
+            {split ? (
+              <small className={styles.split}>
+                {money(dividends)} in dividends · {money(fees)} in fees
+                {week.oshi_waived ? ` · ${money(week.oshi_waived)} oshi saved` : ""}
+              </small>
+            ) : null}
           </p>
           <div className={styles.mineRows}>
             {week.lines.map((line) => (

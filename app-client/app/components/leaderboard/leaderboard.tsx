@@ -8,7 +8,9 @@ import { Medal, type MedalTier } from "@/app/components/common/medal";
 import { CosmeticChip } from "@/app/components/common/cosmetic-chip";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { SiteShell } from "@/app/components/layout/site-shell";
+import { DividendsBoard } from "@/app/components/leaderboard/dividends-board";
 import { OshiboardTab } from "@/app/components/leaderboard/oshiboard-tab";
+import { useFeature } from "@/app/lib/features";
 import { formatEtTime } from "@/app/lib/market-clock";
 import { money, signedPct, toneOf } from "@/app/lib/time";
 import type { LeaderboardEntry, LeaderboardScope, LeaderboardWindow, MarketAsset } from "@/app/lib/types";
@@ -21,7 +23,7 @@ import { Term } from "@/app/components/common/tip";
 const MEDALS: Record<number, string> = { 1: "site-medal-gold", 2: "site-medal-silver", 3: "site-medal-bronze" };
 const TIER: Record<number, MedalTier> = { 1: "gold", 2: "silver", 3: "bronze" };
 
-export type LeaderboardTab = "players" | "talent";
+export type LeaderboardTab = "players" | "talent" | "dividends";
 
 const SCOPES: Array<[LeaderboardScope, string]> = [
   ["global", "GLOBAL"],
@@ -36,24 +38,33 @@ const WINDOWS: Array<[LeaderboardWindow, string]> = [
 const WINDOW_LABEL: Record<LeaderboardWindow, string> = { "1d": "Today", "7d": "7 days", all: "All-time" };
 
 export function Leaderboard({ tab, coin }: { tab: LeaderboardTab; coin?: string }) {
+  // The page only hands "dividends" to viewers with the flag, so the tab shows at once on a direct link.
+  const dividendsTab = useFeature("dividend-spotlight") || tab === "dividends";
   return (
     <SiteShell>
       <div className={styles.page}>
         <header className={styles.head}>
           <div>
             <h1>Leaderboard</h1>
-            <p>Every player ranked by net worth, updated as trades fill.</p>
+            <p>{tab === "dividends" ? "Who the Saturday review paid the most, down to who it charged the most." : "Every player ranked by net worth, updated as trades fill."}</p>
           </div>
           <nav className={styles.tabs} aria-label="Leaderboard">
             <Link href="/leaderboard" aria-current={tab === "players" ? "page" : undefined} scroll={false}>
               PLAYERS
             </Link>
             <Link href="/leaderboard?tab=talent" aria-current={tab === "talent" ? "page" : undefined} scroll={false}>
-              BY TALENT · OSHIBOARDS
+              BY TALENT
+              {/* Three tabs don't fit a phone with the long name. */}
+              {dividendsTab ? <span className={styles.tabExtra}> · OSHIBOARDS</span> : " · OSHIBOARDS"}
             </Link>
+            {dividendsTab ? (
+              <Link href="/leaderboard?tab=dividends" aria-current={tab === "dividends" ? "page" : undefined} scroll={false}>
+                DIVIDENDS
+              </Link>
+            ) : null}
           </nav>
         </header>
-        {tab === "talent" ? <OshiboardTab initialCoin={coin} /> : <PlayersTab />}
+        {tab === "talent" ? <OshiboardTab initialCoin={coin} /> : tab === "dividends" ? <DividendsBoard /> : <PlayersTab />}
       </div>
     </SiteShell>
   );
