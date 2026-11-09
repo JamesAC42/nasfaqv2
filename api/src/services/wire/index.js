@@ -17,6 +17,7 @@ const crypto = require("node:crypto");
 const streams = require("./streams");
 const oshiWire = require("./oshiMoves");
 const chatter = require("../chatter");
+const features = require("../../features");
 const autotag = require("../autotag");
 const newsMoods = require("../newsMoods");
 const { BUYBACK_START, BUYBACK_DAILY_STEP } = require("../marketSupply");
@@ -283,8 +284,11 @@ async function marketMovers(pool) {
 // ── Card exchange, pulls, predictions ─────────────────────────────────────
 // A sale names its buyer and a pull its puller, so both keep meta.user_id and skip players the Wire
 // may not name (players.js). A sale whose buyer's account is gone says "A player" and names nobody.
+// Every Wire item is public, so a call is only a market anyone can find: never an unlisted or private
+// one, and no pool until the prediction-pools flag is on for everyone.
 async function gameMoments(pool) {
   let added = 0;
+  const poolsPublic = features.enabledFor("prediction-pools", "everyone");
   const [sales, pulls, calls] = await Promise.all([
     pool.query(`
       SELECT s.id, s.card_key, s.rarity, s.price, s.created_at, a.symbol, a.display_name, s.buyer_id, b.username AS buyer
@@ -309,6 +313,8 @@ async function gameMoments(pool) {
       LEFT JOIN market.prediction_market_outcomes o ON o.id = m.winning_outcome_id
       WHERE m.status = 'resolved' AND m.resolved_at > now() - interval '48 hours'
         AND m.auto_template IS NULL -- the automatic tick markets resolve all day; players' own markets are the news
+        AND m.visibility = 'public'
+        ${poolsPublic ? "" : "AND m.pricing <> 'pool'"}
     `).catch(() => ({ rows: [] })),
   ]);
   for (const row of sales.rows) {
