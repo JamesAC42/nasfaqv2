@@ -35,7 +35,7 @@ to guess.
 - Each game has one 32-byte seed. Its SHA-256 is published when the game starts (`seed_hash`) and
   the seed itself when the game is over, on the replay page.
 - The wall for hand `n` (counting every hand dealt, from 0) is a Fisher-Yates shuffle of tile ids
-  0 to 135 driven by `SHA-256(seed || "|" || n || "|" || counter)` blocks, four bytes per draw,
+  0 to 135 driven by SHA-256 blocks of the text `<seed as 64 hex characters>|n|counter`, four bytes per draw,
   rejecting values that would bias the result (`mahjong/wall.js`). Anyone can run it again.
 - Tiles are dealt from the front. The last 14 are the dead wall: four replacement tiles, then five
   dora indicators, then the five ura indicators under them. There are no dice; the seed already

@@ -1,0 +1,437 @@
+@use "../../../../styles/mixins" as *;
+
+.page {
+  min-width: 0;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+
+  a {
+    @include label;
+    color: var(--mid);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--blue);
+    }
+  }
+}
+
+.primary {
+  @include button-primary;
+  align-self: start;
+}
+
+.secondary {
+  @include button-secondary;
+  padding: 0.4rem 0.75rem;
+  text-decoration: none;
+}
+
+.note,
+.error {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--mid);
+}
+
+.error {
+  color: var(--down);
+}
+
+.empty {
+  @include empty-state;
+  margin: 0.75rem 0;
+  font-size: 0.875rem;
+}
+
+.section {
+  min-width: 0;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.head {
+  @include section-heading;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0 0 0.6rem;
+
+  small {
+    @include num;
+    color: var(--dim);
+  }
+}
+
+.lede {
+  margin: 0.6rem 0 0;
+  max-width: 46rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--mid);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  margin-top: 0.9rem;
+}
+
+// ── List rows ───────────────────────────────────────────────────────────────
+.rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+}
+
+.row {
+  border-bottom: 1px solid var(--rule);
+}
+
+.rowLink {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.2rem 1rem;
+  padding: 0.8rem 0;
+  color: inherit;
+  text-decoration: none;
+
+  &:hover .rowName {
+    color: var(--blue);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.rowName {
+  @include display(1.1rem);
+  overflow-wrap: anywhere;
+}
+
+.rowMeta {
+  @include label;
+
+  b {
+    @include num;
+    color: var(--text);
+  }
+}
+
+.runningTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--blue);
+
+  i {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--blue);
+  }
+}
+
+// ── Detail ──────────────────────────────────────────────────────────────────
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 1px;
+  margin: 0;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+
+  div {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.7rem 0.85rem;
+    background: var(--ink);
+    min-width: 0;
+  }
+
+  dt {
+    @include label;
+  }
+
+  dd {
+    @include num;
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+
+    small {
+      display: block;
+      font-weight: 400;
+      font-size: 0.75rem;
+      color: var(--blue);
+    }
+  }
+}
+
+.champion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 1.25rem;
+  margin: 1rem 0 0;
+  padding: 1rem 0 1rem 1rem;
+  border-left: 3px solid var(--tal, var(--blue));
+  border-bottom: 1px solid var(--rule);
+
+  small {
+    @include label;
+    color: var(--warn);
+  }
+
+  strong {
+    @include display(2rem);
+    color: var(--tal, var(--text));
+    overflow-wrap: anywhere;
+  }
+
+  span {
+    @include num;
+    color: var(--mid);
+  }
+}
+
+.entrants {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem 0.9rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.875rem;
+  }
+
+  li[data-out] {
+    opacity: 0.65;
+  }
+
+  a {
+    color: var(--tal, var(--text));
+    text-decoration: none;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.entrantState {
+  @include label;
+}
+
+.entrantPicks {
+  @include num;
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--mid);
+}
+
+// ── Bracket ─────────────────────────────────────────────────────────────────
+.bracket {
+  display: flex;
+  gap: 1.25rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+
+  @include phone {
+    flex-direction: column;
+    overflow-x: visible;
+  }
+}
+
+.round {
+  display: grid;
+  align-content: start;
+  gap: 0.6rem;
+  flex: 1 0 14rem;
+  min-width: 0;
+
+  h3 {
+    @include label;
+    margin: 0;
+  }
+
+  ul {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &[data-waiting] {
+    opacity: 0.7;
+  }
+}
+
+.bracketTable {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--rule);
+
+  &[data-status="playing"] {
+    border-color: var(--blue-line);
+    background: var(--blue-wash);
+  }
+
+  &[data-final] {
+    border-color: var(--warn);
+    border-width: 2px;
+  }
+
+  ol {
+    display: grid;
+    gap: 0.2rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  ol li {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    min-width: 0;
+  }
+
+  ol li[data-through] .name {
+    font-weight: 700;
+  }
+}
+
+.tableHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+
+  b {
+    @include display(1rem);
+    font-weight: 400;
+  }
+}
+
+.tableStatus {
+  @include label;
+}
+
+.place {
+  @include num;
+  width: 1rem;
+  color: var(--dim);
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &[data-bot] {
+    color: var(--mid);
+  }
+}
+
+.pts {
+  @include num;
+  color: var(--mid);
+}
+
+.tableLink {
+  @include label;
+  color: var(--blue);
+  text-decoration: none;
+}
+
+// ── Form ────────────────────────────────────────────────────────────────────
+.form {
+  display: grid;
+  gap: 0.9rem;
+  max-width: 46rem;
+
+  h3 {
+    @include display(1.25rem);
+    margin: 0;
+  }
+}
+
+.formRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  align-items: end;
+}
+
+.formField {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+
+  span,
+  legend {
+    @include label;
+    padding: 0;
+  }
+
+  input,
+  select {
+    @include input-base;
+  }
+}
+
+.seg {
+  @include tabs;
+
+  button {
+    @include tab;
+    padding: 0.45rem 0.9rem;
+
+    &[data-on] {
+      @include tab-selected;
+    }
+  }
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--mid);
+}
+
+.formActions {
+  display: flex;
+  gap: 0.6rem;
+}

@@ -1,0 +1,348 @@
+@use "../../../../styles/mixins" as *;
+
+// Shared by every page under /games/mahjong/learn: the sub-nav, prose, small callouts and the
+// pictured examples. Hairlines, not cards; numbers mono; blue is the chassis.
+
+.page {
+  min-width: 0;
+  padding-bottom: 2rem;
+}
+
+// ── Sub-nav ─────────────────────────────────────────────────────────────────
+.subnav {
+  display: flex;
+  min-width: 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--rule);
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  a {
+    @include label;
+    flex: 0 0 auto;
+    padding: 0.7rem 0.85rem 0.6rem;
+    border-bottom: 2px solid transparent;
+    color: var(--mid);
+    text-decoration: none;
+    white-space: nowrap;
+
+    &:first-child {
+      padding-left: 0;
+    }
+
+    &:hover {
+      color: var(--text);
+    }
+
+    &[aria-current="page"] {
+      color: var(--text);
+      border-bottom-color: var(--blue);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+// ── Prose ───────────────────────────────────────────────────────────────────
+.prose {
+  min-width: 0;
+  max-width: 46rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--mid);
+
+  p {
+    margin: 0 0 0.85rem;
+  }
+
+  b,
+  strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  a {
+    color: var(--blue);
+  }
+
+  ul,
+  ol {
+    margin: 0 0 0.9rem;
+    padding-left: 1.25rem;
+
+    li {
+      margin: 0 0 0.35rem;
+    }
+  }
+
+  h3 {
+    @include section-heading;
+    margin: 1.4rem 0 0.5rem;
+  }
+
+  code,
+  .num {
+    @include num;
+    color: var(--text);
+  }
+}
+
+.section {
+  min-width: 0;
+  padding: 1.4rem 0;
+  border-bottom: 1px solid var(--rule);
+  scroll-margin-top: 4.5rem;
+
+  > h2 {
+    @include display(1.35rem);
+    margin: 0 0 0.7rem;
+    color: var(--text);
+  }
+}
+
+.kicker {
+  @include label;
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+// ── Tables of facts ─────────────────────────────────────────────────────────
+.facts {
+  width: 100%;
+  max-width: 46rem;
+  margin: 0.4rem 0 1rem;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+
+  th,
+  td {
+    padding: 0.5rem 0.6rem 0.5rem 0;
+    border-bottom: 1px solid var(--rule);
+    text-align: left;
+    vertical-align: top;
+    color: var(--mid);
+  }
+
+  th {
+    @include label;
+    padding-top: 0.6rem;
+    white-space: nowrap;
+  }
+
+  td:first-child,
+  th:first-child {
+    color: var(--text);
+  }
+
+  .n {
+    @include num;
+    text-align: right;
+    white-space: nowrap;
+    color: var(--text);
+  }
+}
+
+.scroll {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+// ── Callouts and examples ───────────────────────────────────────────────────
+.note {
+  margin: 0.4rem 0 1rem;
+  padding: 0.6rem 0 0.6rem 0.9rem;
+  border-left: 2px solid var(--blue-line);
+  max-width: 46rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--mid);
+
+  b {
+    color: var(--text);
+  }
+}
+
+.picture {
+  display: grid;
+  gap: 0.45rem;
+  justify-items: start;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0.4rem 0 1.1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--rule);
+  background: var(--ink-2);
+  overflow-x: auto;
+}
+
+.caption {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--mid);
+}
+
+.pictureLabel {
+  @include label;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+// ── Buttons and links ───────────────────────────────────────────────────────
+.primary {
+  @include button-primary;
+  @include label;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--blue);
+  border-radius: var(--radius-sm);
+  background: var(--blue);
+  color: var(--blue-ink);
+  text-decoration: none;
+  cursor: pointer;
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.secondary {
+  @include button-secondary;
+  @include label;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.error {
+  margin: 0.4rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--down);
+}
+
+// ── Hub ─────────────────────────────────────────────────────────────────────
+.path {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 1.2rem 0 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--rule);
+  background: var(--rule);
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  > li {
+    display: grid;
+    align-content: start;
+    gap: 0.6rem;
+    min-width: 0;
+    padding: 1rem;
+    background: var(--ink);
+  }
+
+  h2 {
+    @include display(1.3rem);
+    margin: 0;
+    color: var(--text);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--mid);
+  }
+}
+
+.step {
+  @include num;
+  font-size: 0.75rem;
+  color: var(--blue);
+}
+
+.progressLine {
+  @include label;
+  color: var(--dim);
+}
+
+.refs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 2rem;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  li {
+    min-width: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  a {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.8rem 0;
+    color: var(--text);
+    text-decoration: none;
+
+    &:hover b {
+      color: var(--blue);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+
+  b {
+    @include display(1.1rem);
+    font-weight: 400;
+  }
+
+  span {
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--mid);
+  }
+}
+
+.headRow {
+  @include section-heading;
+  margin: 1.8rem 0 0;
+}
+
+.subnavBack {
+  @include label;
+  color: var(--mid);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--blue);
+  }
+}

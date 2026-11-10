@@ -5,14 +5,16 @@
 // If a rule changes there, change it here too.
 import { TICKER_TAP_ENABLED } from "@/app/lib/games/flags";
 
-export type SectionId = "market" | "trading" | "ticks" | "weekly" | "games" | "predictions" | "community" | "glossary" | "faq";
+export type SectionId = "market" | "trading" | "ticks" | "weekly" | "games" | "mahjong" | "predictions" | "community" | "glossary" | "faq";
 
-export const SECTIONS: ReadonlyArray<{ id: SectionId; label: string }> = [
+/** `flag`: a feature flag the section needs; the guide only lists it for viewers it is on for. */
+export const SECTIONS: ReadonlyArray<{ id: SectionId; label: string; flag?: string }> = [
   { id: "market", label: "Market" },
   { id: "trading", label: "Trading" },
   { id: "ticks", label: "Ticks" },
   { id: "weekly", label: "Dividends" },
   { id: "games", label: "Games" },
+  { id: "mahjong", label: "Mahjong", flag: "mahjong" },
   { id: "predictions", label: "Predictions" },
   { id: "community", label: "Community" },
   { id: "glossary", label: "Glossary" },

@@ -947,14 +947,18 @@ function reactionSeat(tableId, userId) {
   return seatIndexOfUser(table, userId);
 }
 
-/** Cheers counted for the table's tally (reactions.js calls this as they go out); the next table push carries it. */
+/** Cheers counted for the table's tally (reactions.js calls this as they go out), pushed with the table within a second. */
 function countCheers(tableId, items) {
   const table = tables.get(Number(tableId));
   if (!table) return;
+  let any = false;
   for (const [id, , count] of items) {
     const match = /^cheer-([0-3])$/.exec(String(id));
-    if (match) table.cheers[Number(match[1])] += count;
+    if (!match) continue;
+    table.cheers[Number(match[1])] += count;
+    any = true;
   }
+  if (any) seatPresence(table);
 }
 
 // ── Reads ──────────────────────────────────────────────────────────────────

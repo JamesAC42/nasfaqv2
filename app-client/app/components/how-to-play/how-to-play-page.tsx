@@ -8,7 +8,7 @@ import { SiteShell } from "@/app/components/layout/site-shell";
 import { ChibiTag, useMovers } from "@/app/components/how-to-play/demos";
 import { FaqSection, FinePrint, GlossarySection } from "@/app/components/how-to-play/reference";
 import { SectionNav } from "@/app/components/how-to-play/section-nav";
-import { CommunitySection, GamesSection, MarketSection, PredictionsSection, TicksSection, TradingSection, WeeklySection } from "@/app/components/how-to-play/sections";
+import { CommunitySection, GamesSection, MahjongSection, MarketSection, PredictionsSection, TicksSection, TradingSection, WeeklySection } from "@/app/components/how-to-play/sections";
 import { useAuth } from "@/app/providers/auth-provider";
 import { inFirstDays, useFirstDaysStore } from "@/app/stores/first-days-store";
 import { useProfileStore } from "@/app/stores/profile-store";
@@ -28,6 +28,7 @@ export function HowToPlayPage() {
             <TicksSection />
             <WeeklySection />
             <GamesSection />
+            <MahjongSection />
             <PredictionsSection />
             <CommunitySection />
             <GlossarySection />

@@ -328,7 +328,7 @@ const ROWS: Row[] = [
     closed: 6,
     open: 5,
     explain: "Every tile is from one suit and no honors. Five han if you called something.",
-    example: { hand: "123345567789m5m", win: "5m", caption: "Characters, wall to wall." },
+    example: { hand: "123345567789m2m", win: "2m", caption: "Characters, wall to wall." },
   },
   // ── Yakuman ───────────────────────────────────────────────────────────────
   {

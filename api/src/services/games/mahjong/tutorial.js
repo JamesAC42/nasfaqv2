@@ -1,7 +1,7 @@
 // The tutorial's guided hands. Each is one hand on an arranged wall (stackedWall.js) where the
 // learner sits East against three seats that only discard what they draw, and the table accepts
 // one move at a time: the next step of the lesson. The words that go with each step are the
-// client's (app/components/games/mahjong/learn); this file is what must happen on the table.
+// client's (app/components/games/mahjong/table/lesson-texts.ts); this file is what must happen on the table.
 //
 // A step is the move the learner has to make: { type: "discard", kind, riichi? }, "pass", "pon",
 // "ron" or "tsumo". Anything else is refused with `tutorial_step`, which names the step.

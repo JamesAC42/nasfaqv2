@@ -1,7 +1,7 @@
 // The game's vocabulary: the how-to-play glossary and every <Term> tooltip on the site read from here.
 // `key` is what <Term k="..."> uses; the glossary anchors each entry as #term-<key>.
 
-export type GlossaryEntry = { key: string; term: string; def: string; href?: string };
+export type GlossaryEntry = { key: string; term: string; def: string; href?: string; /** A feature flag the entry needs; the how-to-play glossary only lists it for viewers it is on for. */ flag?: string };
 
 export const GLOSSARY: ReadonlyArray<GlossaryEntry> = [
   { key: "ticker", term: "Ticker", def: "A talent's short symbol, like PEK or MIKO. One ticker per talent." },
@@ -38,6 +38,15 @@ export const GLOSSARY: ReadonlyArray<GlossaryEntry> = [
   { key: "limit-order", term: "Limit order", def: "Predictions only: \"buy YES at 40¢ or less\". It rests until the price gets there, then fills against the market maker." },
   { key: "dispute-window", term: "Dispute window", def: "After a result is proposed, holders get a window (12 h by default) to challenge it before it's final." },
   { key: "void", term: "Void", def: "A cancelled prediction market. Everyone gets back what they put in, fees included." },
+  // ── Mahjong (behind the "mahjong" flag) ──
+  { key: "mj-riichi", term: "Riichi", def: "Mahjong: with a closed hand one tile from winning, you say riichi and pay a 1,000-point stick. It is a yaku, and from then on you can only discard what you draw.", href: "/games/mahjong/learn/glossary#riichi", flag: "mahjong" },
+  { key: "mj-tenpai", term: "Tenpai", def: "Mahjong: ready. Your 13 tiles need exactly one more tile to be a winning hand, and the tiles that finish it are your waits.", href: "/games/mahjong/learn/glossary#tenpai", flag: "mahjong" },
+  { key: "mj-furiten", term: "Furiten", def: "Mahjong: if a tile you are waiting on is among your own discards, you can’t win on anyone’s discard, only by drawing it yourself.", href: "/games/mahjong/learn/glossary#furiten", flag: "mahjong" },
+  { key: "mj-yaku", term: "Yaku", def: "Mahjong: a scoring pattern. A hand needs at least one to win, and dora are not yaku.", href: "/games/mahjong/learn/yaku", flag: "mahjong" },
+  { key: "mj-han", term: "Han and fu", def: "Mahjong: han is the doubling unit of a hand’s value (each yaku and each dora adds some); fu are minipoints from its shape. Past a point a hand pays a fixed limit: mangan, haneman, baiman, sanbaiman, yakuman.", href: "/games/mahjong/learn/glossary#han", flag: "mahjong" },
+  { key: "mj-dora", term: "Dora", def: "Mahjong: a bonus tile worth one han. The tile after the dora indicator on the wall is the dora, and every red five counts too.", href: "/games/mahjong/learn/glossary#dora", flag: "mahjong" },
+  { key: "mj-calls", term: "Chi, pon, kan", def: "Mahjong: taking another player’s discard to finish a run (chi, only from the player on your left), a triplet (pon) or a four of a kind (kan). It opens your hand.", href: "/games/mahjong/learn/glossary#chi", flag: "mahjong" },
+  { key: "mj-honba", term: "Honba", def: "Mahjong: the repeat counter. It grows whenever a hand ends without the deal passing, and adds 300 to a win on a discard.", href: "/games/mahjong/learn/glossary#honba", flag: "mahjong" },
 ];
 
 const BY_KEY = new Map(GLOSSARY.map((entry) => [entry.key, entry]));
