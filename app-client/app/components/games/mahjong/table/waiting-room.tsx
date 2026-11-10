@@ -57,6 +57,7 @@ export function WaitingRoom({ table, seatStyles, mySeat, userId, signedIn, verif
   let startLine: string | null = null;
   if (table.kind === "ranked") startLine = toStart !== null ? (filled === 4 ? `Dealing in ${clock(toStart)}` : `Bots fill the empty seats in ${clock(toStart)}`) : "Waiting for the first player";
   else if (table.kind === "stakes") startLine = toStart !== null ? `All four seated: dealing in ${clock(toStart)}` : `Needs four players: ${4 - filled} more. Paid tables never use bots.`;
+  else if (table.kind === "tournament") startLine = "Everyone is seated. The first hand deals in a few seconds.";
   else if (table.kind === "friend") startLine = isHost ? "Start when your friends are in. Empty seats are filled by bots." : "Waiting for the host to start.";
 
   return (

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState, type CSSProperties } from "react";
 import type { SeatStyle } from "@/app/components/games/mahjong/table/seat-portrait";
+import { MahjongShareButton } from "@/app/components/games/mahjong/share/share-button";
+import { replayCardPath, replayPath } from "@/app/components/games/mahjong/share/share-links";
 import { fmtNumber } from "@/app/lib/format";
 import { points, seatLabel, sha256Hex, signed } from "@/app/lib/games/mahjong/table-model";
 import type { MahjongTable, SeatIndex } from "@/app/lib/games/mahjong/types";
@@ -50,7 +52,6 @@ export type GameOverProps = {
 /** The end of a game: standings, rating and prizes, the revealed seed, and where to go next. */
 export function GameOver({ table, seatStyles, me, onAgain, againBusy, signedIn }: GameOverProps) {
   const result = table.result;
-  const [copied, setCopied] = useState(false);
   if (!result) return null;
   if ("cancelled" in result) {
     const why: Record<string, string> = { empty: "Everyone left before it started.", not_started: "It couldn’t start.", maintenance: "Tables closed for maintenance.", left: "You left the table.", restart: "The server restarted." };
@@ -68,19 +69,6 @@ export function GameOver({ table, seatStyles, me, onAgain, againBusy, signedIn }
   }
   const mine = me !== null ? result.standings.find((line) => line.seat === me) : null;
   const replayHref = result.replay ? `/games/mahjong/replay/${result.replay}` : null;
-  const share = async () => {
-    const url = replayHref ? `${window.location.origin}${replayHref}` : window.location.href;
-    try {
-      if (navigator.share) await navigator.share({ title: "Mahjong on NASFAQ", url });
-      else {
-        await navigator.clipboard.writeText(url);
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 2500);
-      }
-    } catch {
-      /* cancelled */
-    }
-  };
   return (
     <section className={styles.over} aria-label="Game over">
       <header>
@@ -149,9 +137,20 @@ export function GameOver({ table, seatStyles, me, onAgain, againBusy, signedIn }
             Watch the replay
           </Link>
         ) : null}
-        <button type="button" className={styles.plain} onClick={share}>
-          {copied ? "Link copied" : "Share"}
-        </button>
+        {result.replay ? (
+          <MahjongShareButton
+            className={styles.plain}
+            title="Share this game"
+            text="A finished mahjong game on NASFAQ"
+            cardPath={replayCardPath(result.replay)}
+            linkFor={(code) => replayPath(result.replay as number, null, code)}
+          />
+        ) : null}
+        {table.tournament ? (
+          <Link href={`/games/mahjong/tournaments/${table.tournament.id}`} className={styles.plain}>
+            The bracket
+          </Link>
+        ) : null}
         <Link href="/games/mahjong" className={styles.plain}>
           Lobby
         </Link>

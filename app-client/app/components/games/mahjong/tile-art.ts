@@ -77,6 +77,10 @@ const WINDS: Record<number, string> = {
   30: "M32 8 V80 Q32 90 20 92 M8 36 H32 M10 66 L32 48 M64 8 V66 Q64 82 90 78 M64 36 L88 24 M64 50 L86 44",
 };
 const HATSU = "M30 6 L16 22 M32 14 L50 26 M64 6 L56 24 M68 14 L88 26 M8 42 H38 V58 H10 M10 58 V76 H40 V90 Q40 96 30 94 M54 42 H90 M66 42 L62 56 M78 42 L82 56 M56 66 H92 M74 66 Q72 82 52 94 M74 70 Q80 84 94 92";
+// At about 22px a tile's strokes are a pixel or so wide: 萬 and 發 turn to blobs. The small versions keep
+// the strokes that tell them apart and drop the rest.
+const MAN_SMALL = "M12 14 H88 M32 4 V24 M68 4 V24 M20 36 H80 V66 H20 Z M20 51 H80 M50 36 V92 M28 70 L12 92 M74 70 V82 Q74 92 92 90";
+const HATSU_SMALL = "M30 6 L14 24 M34 14 L52 26 M66 6 L56 24 M70 14 L90 26 M8 44 H38 V90 M8 66 H38 M54 44 H92 M74 44 V56 M56 68 H92 M74 68 Q72 84 52 94 M74 72 Q80 86 94 92";
 const CHUN = "M20 30 H80 V70 H20 Z M50 8 V92";
 
 // Corner labels: 4 x 6 grids of stroke, one per character.
@@ -104,7 +108,7 @@ function labelParts(kind: TileKind): string[] {
 }
 
 // ── Art ─────────────────────────────────────────────────────────────────────
-type Opts = { stroke: number; red: boolean };
+type Opts = { stroke: number; red: boolean; small: boolean };
 
 const stroke = (d: string, color: string, width: number) => n("path", { d, fill: "none", stroke: color, strokeWidth: width, strokeLinecap: "round", strokeLinejoin: "round" });
 
@@ -195,13 +199,13 @@ function souArt(num: number, opts: Opts): Node[] {
 
 function manArt(num: number, opts: Opts): Node[] {
   const numeral = opts.red ? C.red : C.ink;
-  return [glyph(NUMERALS[num], numeral, 0.27, opts.stroke, 8.5, 1), glyph(MAN, C.red, 0.3, opts.stroke, 7, 28.5)];
+  return [glyph(NUMERALS[num], numeral, 0.27, opts.stroke, 8.5, 1), glyph(opts.small ? MAN_SMALL : MAN, C.red, opts.small ? 0.33 : 0.3, opts.small ? opts.stroke * 0.7 : opts.stroke, opts.small ? 5.5 : 7, opts.small ? 27 : 28.5)];
 }
 
 function honorArt(kind: TileKind, opts: Opts): Node[] {
   if (kind <= 30) return [glyph(WINDS[kind], C.ink, 0.44, opts.stroke, 0, 7.5)];
   if (kind === 31) return [n("rect", { x: 5, y: 5, width: 34, height: 49, rx: 3.5, fill: "none", stroke: C.blue, strokeWidth: opts.stroke * 1.1 }), n("rect", { x: 9.5, y: 9.5, width: 25, height: 40, rx: 1.6, fill: "none", stroke: C.blue, strokeWidth: opts.stroke * 0.45, strokeOpacity: 0.55 })];
-  if (kind === 32) return [glyph(HATSU, C.green, 0.44, opts.stroke, 0, 8)];
+  if (kind === 32) return [glyph(opts.small ? HATSU_SMALL : HATSU, C.green, 0.46, opts.small ? opts.stroke * 0.66 : opts.stroke, opts.small ? -1 : 0, 7)];
   return [glyph(CHUN, C.red, 0.44, opts.stroke, 0, 8)];
 }
 
@@ -244,7 +248,7 @@ export type TileSvgOptions = {
 function tileBody(kind: TileKind, options: TileSvgOptions): Node[] {
   const red = Boolean(options.red) && isFive(kind);
   const size = options.size ?? 40;
-  const opts: Opts = { stroke: size < 30 ? 3.4 : size < 48 ? 2.7 : 2.4, red };
+  const opts: Opts = { stroke: size < 30 ? 3.4 : size < 48 ? 2.7 : 2.4, red, small: size < 30 };
   const body = [
     n("rect", { x: 0.8, y: 0.8, width: 58.4, height: 78.4, rx: 7, fill: C.shade, stroke: options.edge ?? EDGE_VAR, strokeWidth: 1.5 }),
   ];

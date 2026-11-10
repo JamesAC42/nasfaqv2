@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { usePhone } from "@/app/components/games/arcade/use-media";
 import { LearnFrame } from "@/app/components/games/mahjong/learn/learn-frame";
 import { TileRow, rowFromExample } from "@/app/components/games/mahjong/tile";
 import { YAKU, YAKU_GROUPS, yakuValueText, type YakuInfo } from "@/app/lib/games/mahjong/yaku";
@@ -18,6 +19,7 @@ const FILTERS: { key: Filter; label: string; test: (info: YakuInfo) => boolean }
 
 /** The pictured example, or nothing if its notation can't be dealt from one set of tiles (never take the whole page down for one picture). */
 function Example({ info }: { info: YakuInfo }) {
+  const phone = usePhone();
   let row: ReturnType<typeof rowFromExample> | null = null;
   try {
     row = rowFromExample(info.example);
@@ -26,7 +28,7 @@ function Example({ info }: { info: YakuInfo }) {
   }
   return (
     <div className={styles.example}>
-      {row ? <TileRow {...row} size={26} /> : null}
+      {row ? <TileRow {...row} size={phone ? 20 : 26} /> : null}
       <span>{info.example.caption}</span>
     </div>
   );

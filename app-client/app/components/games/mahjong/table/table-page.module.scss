@@ -141,6 +141,7 @@
   @include tablet-down {
     display: flex;
     flex-direction: column;
+    align-items: stretch;
     gap: 0.5rem;
   }
 }

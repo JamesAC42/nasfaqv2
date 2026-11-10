@@ -35,7 +35,7 @@ export function LearnHub() {
             {finished} of {LESSONS.length} lessons done
           </span>
           <Link href="/games/mahjong/learn/tutorial" className={styles.primary}>
-            {started ? "Keep going" : "Start the walkthrough"}
+            {finished >= LESSONS.length ? "Review the walkthrough" : started ? "Keep going" : "Start the walkthrough"}
           </Link>
         </li>
         <li>

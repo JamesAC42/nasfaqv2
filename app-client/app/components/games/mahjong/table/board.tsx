@@ -248,7 +248,7 @@ export function Board({ table, game, hand, bottom, me, seatStyles, poses, callou
       <div className={styles.bottomPond}>{pond("bottom")}</div>
       <div className={styles.mineRow}>
         <SeatPlate seat={table.seats[mine]} hand={hand} seatIndex={mine} style={seatStyles[mine]} pose={poses[mine] ?? "idle"} size={plateSize} isMe={me === mine} deadline={me === mine ? null : deadlineOf(mine)} cheers={table.cheers[mine] ?? 0} score />
-        {myInfo.melds.length && mineMelds ? <div className={styles.mineMelds}>{mineMelds(Math.max(14, meldSize + 4))}</div> : null}
+        {myInfo.melds.length && mineMelds ? <div className={styles.mineMelds}>{mineMelds(Math.max(20, meldSize + 8))}</div> : null}
       </div>
       <CalloutLayer callouts={callouts} bottom={bottom} />
       {floaters}

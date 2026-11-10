@@ -74,9 +74,9 @@ export async function handCard(record: GameRecord, hand: RecordedHand, winIndex 
   const [fonts, accent] = await Promise.all([loadFonts(), talentColorFor(player)]);
   const yakuman = win.yakuman > 0;
   const color = yakuman ? GOLD : accent;
-  const yaku = win.yaku.map((line) => `${yakuName(line.key)}${line.han < 13 ? ` ${line.han}` : ""}`);
+  const yaku = win.yaku.map((line) => `${yakuName(line.key)}${line.han < 13 ? ` +${line.han}` : ""}`);
   const bonus = win.dora.dora + win.dora.ura + win.dora.red;
-  if (bonus > 0) yaku.push(`Dora ${bonus}`);
+  if (bonus > 0) yaku.push(`Dora +${bonus}`);
   const winnerName = names(record.players, win.seat);
   const source = win.tsumo ? "self-draw" : `on ${names(record.players, win.from ?? 0)}'s discard`;
 
@@ -109,7 +109,7 @@ export async function handCard(record: GameRecord, hand: RecordedHand, winIndex 
           </div>
           <div style={{ display: "flex", fontFamily: "Chicago", fontSize: 44, color: OG.up }}>{`+${win.gain.toLocaleString("en-US")}`}</div>
         </div>
-        <div style={{ position: "relative", display: "flex", flexWrap: "wrap", gap: "6px 26px", marginTop: 16, fontSize: 28, color: OG.ink }}>
+        <div style={{ position: "relative", display: "flex", flexWrap: "wrap", gap: "6px 36px", marginTop: 16, fontSize: 28, color: OG.ink }}>
           {yaku.slice(0, 6).map((line, index) => (
             <div key={index} style={{ display: "flex" }}>
               {line}
