@@ -65,7 +65,7 @@ const TOPIC_LABEL: Record<string, string> = {
   negative: "Complaints",
   passing: "Passing mentions",
   unread: "Not read yet",
-  rumour: "Rumours",
+  rumour: "Rumors",
   off_topic: "Not her",
 };
 
@@ -87,7 +87,7 @@ const VALENCE: Record<string, Valence> = {
 };
 /** Topics left out of every count, and how the page names them. */
 const SKIPPED = new Set(["rumour", "off_topic"]);
-const SKIPPED_TEXT: Record<string, string> = { rumour: "rumours", off_topic: "not about her" };
+const SKIPPED_TEXT: Record<string, string> = { rumour: "rumors", off_topic: "not about her" };
 /** The mood panel names a leading topic only once Jev has read this many posts, and it has this share of them. */
 const MOOD_MIN_READ = 20;
 const MOOD_MIN_SHARE = 20;
@@ -647,7 +647,7 @@ function Pulse({ assets, onPick }: { assets: Map<string, MarketAsset>; onPick: (
       <header className={styles.sectionHead}>
         <h2>{history?.board ?? "/vt/"} this week</h2>
         <span>
-          Posts per hour in hololive threads that name a talent, or sit in a talent&apos;s own thread. Rumours and posts that aren&apos;t about her don&apos;t count.
+          Posts per hour in hololive threads that name a talent, or sit in a talent&apos;s own thread. Rumors and posts that aren&apos;t about her don&apos;t count.
         </span>
       </header>
       <div className={styles.pulseBody}>

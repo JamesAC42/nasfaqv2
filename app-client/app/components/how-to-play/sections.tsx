@@ -197,7 +197,7 @@ export function TradingSection() {
           {
             k: "09:00",
             title: "Market closed?",
-            body: "Trading pauses while the daily settlement runs around 09:00 ET (and if admins ever halt it). Orders that come due then are rejected.",
+            body: "Trading pauses while the daily settlement runs around 09:00 ET (and if admins ever halt it). Queued orders wait and fill in the first batch after it reopens; new orders can't be placed until then.",
           },
         ]}
       />

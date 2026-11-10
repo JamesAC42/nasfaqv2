@@ -54,7 +54,7 @@ const COPY: Record<string, string> = {
   invalid_duration: "Pick how long the auction runs.",
   invalid_listing: "That listing isn't valid.",
   invalid_trade: "Something in that offer isn't valid.",
-  trade_one_sided: "Both sides need something: cards, Credit or shards.",
+  trade_one_sided: "Both sides need something: cards, items, Credit or shards.",
   trade_with_self: "You can't trade with yourself.",
   listing_not_found: "That listing is gone.",
   trade_not_found: "That offer isn't open any more.",

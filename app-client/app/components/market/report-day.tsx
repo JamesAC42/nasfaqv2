@@ -547,7 +547,7 @@ export function GapChart({ session, window, paths, targets }: { session: Session
       </div>
       <p className={styles.tdSum}>
         At the open prices sat <b>{first.toFixed(1)}%</b> from their new targets on average; by the close, <b>{last.toFixed(1)}%</b>. The blue drops are the adjustments
-        pulling prices in; the grey stretches are trading.
+        pulling prices in; the gray stretches are trading.
       </p>
       <Legend target={false} />
       <StepChart points={points} window={window} ariaLabel={`Average distance from target: ${first.toFixed(1)}% at the open, ${last.toFixed(1)}% at the close.`} height={200} />

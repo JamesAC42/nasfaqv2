@@ -42,7 +42,7 @@ export function LiveStrip({ duel, highLow, blackjack, recent, me, signedIn }: Pr
             "checking the floor…"
           ) : (
             <>
-              <b>{players}</b> {players === 1 ? "player" : "players"} at <b>{playing.length + open.length + bj.filter((row) => row.seated > 0).length}</b> tables
+              <b>{players}</b> {players === 1 ? "player" : "players"} at <b>{playing.length + open.length + bj.filter((row) => row.seated > 0).length}</b> {playing.length + open.length + bj.filter((row) => row.seated > 0).length === 1 ? "table" : "tables"}
             </>
           )}
         </span>
