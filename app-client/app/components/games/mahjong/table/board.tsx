@@ -25,6 +25,22 @@ export function useElementWidth<T extends HTMLElement>() {
   return [ref, width] as const;
 }
 
+/**
+ * The most a pond tile may be so the whole board fits above the hand dock in this window. Only on a
+ * desktop layout (wide window): the board is about 130px plus 15px per pond-tile pixel tall, and what
+ * sits around it (site header, title, status line, the dock) takes roughly 300px.
+ */
+function useHeightCap() {
+  const [cap, setCap] = useState(28);
+  useEffect(() => {
+    const measure = () => setCap(window.innerWidth > 1020 ? Math.floor((window.innerHeight - 300 - 130) / 15.2) : 28);
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+  return cap;
+}
+
 export type Callout = { id: number; seat: SeatIndex; text: string; tone: "call" | "win" | "riichi" };
 
 const clamp = (value: number, low: number, high: number) => Math.max(low, Math.min(high, value));
@@ -185,7 +201,8 @@ export type BoardProps = {
 
 export function Board({ table, game, hand, bottom, me, seatStyles, poses, callouts, mineMelds, floaters }: BoardProps) {
   const [ref, width] = useElementWidth<HTMLDivElement>();
-  const ps = pondSize(width);
+  const heightCap = useHeightCap();
+  const ps = Math.min(pondSize(width), Math.max(16, heightCap));
   const sides = seatsBySide(bottom);
   const lastTile = hand.last_discard?.tile ?? null;
   const plateSize = clamp(Math.round(ps * 1.5), 28, 46);

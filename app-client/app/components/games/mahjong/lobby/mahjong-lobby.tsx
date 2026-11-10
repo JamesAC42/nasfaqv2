@@ -85,6 +85,7 @@ export function MahjongLobby() {
   const [stakesLength, setStakesLength] = useState<GameLength>("east");
   const [busy, setBusy] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [seatedAt, setSeatedAt] = useState<number | null>(null);
 
   const enter = (response: SeatedResponse) => {
     primeChannel(response.seat.channel, { type: "mahjong", table: response.table, server_time: response.table.server_time });
@@ -94,13 +95,15 @@ export function MahjongLobby() {
   const run = async (key: string, make: () => Promise<SeatedResponse>) => {
     setBusy(key);
     setErrors({});
+    setSeatedAt(null);
     try {
       enter(await make());
     } catch (error) {
-      // Already at a table: just go there.
+      // Already at a table: say so and offer the way back, rather than quietly opening it.
       const tableId = (error as Partial<ApiError>)?.body?.table_id;
       if (apiErrorCode(error) === "already_seated" && typeof tableId === "number") {
-        router.push(`/games/mahjong/table/${tableId}`);
+        setSeatedAt(tableId);
+        setBusy(null);
         return;
       }
       setErrors({ [key]: gameErrorText(error) });
@@ -139,6 +142,14 @@ export function MahjongLobby() {
       }
     >
       <div className={styles.page}>
+        {seatedAt !== null ? (
+          <div className={styles.seatedNote} role="alert">
+            <span>You’re still seated at another table.</span>
+            <Link href={`/games/mahjong/table/${seatedAt}`}>
+              Go to that table <FiArrowRight aria-hidden="true" />
+            </Link>
+          </div>
+        ) : null}
         {myTable ? (
           <Link href={`/games/mahjong/table/${myTable.id}`} className={styles.back}>
             <i aria-hidden="true" />

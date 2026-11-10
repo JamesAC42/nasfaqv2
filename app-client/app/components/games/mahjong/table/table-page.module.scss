@@ -129,6 +129,25 @@
   background: var(--warn-wash);
   font-size: 0.8rem;
   color: var(--text);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+}
+
+.bannerButton {
+  margin-left: auto;
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--blue-line);
+  background: var(--blue-wash);
+  color: var(--blue);
+  font: inherit;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
 }
 
 // ── Layout: the table and its controls, then the helpers beside it (below on narrow screens) ──
@@ -333,14 +352,18 @@
   flex-direction: column;
   gap: 0.35rem;
 
+  // Desktop: pinned to the bottom of the window (the board shrinks to leave room for it).
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  padding: 0.35rem 0 0.5rem;
+  border-top: 1px solid var(--rule-2);
+  background: var(--ink);
+
   @include phone {
-    position: sticky;
     bottom: calc(56px + env(safe-area-inset-bottom, 0px));
-    z-index: 20;
     margin: 0 -8px;
     padding: 0.35rem 8px 0.5rem;
-    border-top: 1px solid var(--rule-2);
-    background: var(--ink);
   }
 }
 

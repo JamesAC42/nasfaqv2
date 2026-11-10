@@ -21,7 +21,7 @@ import styles from "@/app/components/games/mahjong/tournaments/tournaments.modul
 const STATUS_WORDS: Record<string, string> = { registered: "In", playing: "Playing", out: "Out", finished: "Finished", withdrawn: "Withdrew" };
 
 export function TournamentView({ id }: { id: number }) {
-  const { user } = useAuth();
+  const { user, initialized } = useAuth();
   const now = useNow();
   const connected = useGamesConnected();
   const [fetched, setFetched] = useState<TournamentResponse | null>(null);
@@ -36,7 +36,9 @@ export function TournamentView({ id }: { id: number }) {
     setMe(payload.me);
   }, []);
 
+  // Wait for the sign-in check so the page is drawn once, for the right viewer (`me` depends on it).
   useEffect(() => {
+    if (!initialized) return;
     let cancelled = false;
     fetchTournament(id)
       .then((payload) => !cancelled && (accept(payload), setError(null)))
@@ -44,7 +46,7 @@ export function TournamentView({ id }: { id: number }) {
     return () => {
       cancelled = true;
     };
-  }, [id, user?.id, accept]);
+  }, [id, user?.id, initialized, accept]);
 
   const channel = mahjongChannels.tournament(id);
   const seedPush = useMemo(() => (fetched ? ({ type: "mahjong-tournament", ...fetched } as TournamentPush) : null), [fetched]);
@@ -94,7 +96,7 @@ export function TournamentView({ id }: { id: number }) {
     >
       <div className={styles.page}>
         {error ? <p className={styles.error}>{error}</p> : null}
-        {!data && !error ? <p className={styles.note}>Loading…</p> : null}
+        {!data && !error ? <div className={styles.waiting} aria-busy="true" /> : null}
         {tournament && data ? (
           <>
             {champion ? (

@@ -24,7 +24,7 @@ import { PublicMeld, TileBack } from "@/app/components/games/mahjong/tile";
 import type { ChibiPose } from "@/app/lib/art-manifest";
 import { apiErrorCode } from "@/app/lib/api";
 import { gameErrorText } from "@/app/lib/games/errors";
-import { actMahjong, createGuestTable, createMahjongTable, leaveMahjongTable, readyForNext, sitMahjongTable, startMahjongTable } from "@/app/lib/games/mahjong/api";
+import { actMahjong, backToSeat, createGuestTable, createMahjongTable, leaveMahjongTable, readyForNext, sitMahjongTable, startMahjongTable } from "@/app/lib/games/mahjong/api";
 import { forgetSeatToken } from "@/app/lib/games/mahjong/seat-token";
 import { seatLabel, seatPose, standingOf } from "@/app/lib/games/mahjong/table-model";
 import { kindName, kindOf, tileName, type TileId } from "@/app/lib/games/mahjong/tiles";
@@ -345,6 +345,11 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
       forgetSeatToken(tableId);
       router.push("/games/mahjong");
     });
+  const onBack = () =>
+    void run("back", async () => {
+      const response = await backToSeat(tableId);
+      apply(response.table);
+    });
   const onNext = () =>
     void run("next", async () => {
       const response = await readyForNext(tableId);
@@ -508,7 +513,7 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
           ) : null}
           {seated && leaving ? (
             <span className={styles.confirm}>
-              {table.kind === "practice" || table.kind === "tutorial" ? "Close this table?" : "Leave? Autopilot takes over."}
+              {table.kind === "practice" || table.kind === "tutorial" ? "Close this table?" : table.tournament ? "Leave? Your seat goes on autopilot and the tournament carries on." : "Leave? Autopilot takes over."}
               <button type="button" className={styles.leave} onClick={onLeave} disabled={working === "leave"}>
                 Yes
               </button>
@@ -519,7 +524,14 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
           ) : null}
         </header>
 
-        {seated && me?.away ? <p className={styles.banner}>You’re on autopilot. Any move puts you back in control.</p> : null}
+        {seated && me?.away ? (
+          <p className={styles.banner}>
+            <span>You’re on autopilot. Any move puts you back in control.</span>
+            <button type="button" className={styles.bannerButton} onClick={onBack} disabled={working === "back"}>
+              I’m back
+            </button>
+          </p>
+        ) : null}
         {!connected ? <p className={styles.banner}>Reconnecting… the table is safe; moves wait for the connection.</p> : null}
 
         <div className={styles.layout}>

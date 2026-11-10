@@ -802,6 +802,13 @@
   color: var(--text);
 }
 
+.paidLine {
+  @include num;
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: var(--mid);
+}
+
 .rating,
 .prize {
   @include num;

@@ -99,15 +99,34 @@ export function GameOver({ table, seatStyles, me, onAgain, againBusy, signedIn }
                   <b data-dir={delta > 0 ? "up" : delta < 0 ? "down" : undefined}>{signed(delta)}</b>
                 </span>
               ) : null}
-              {line.payout > 0 ? (
+              {line.payout > 0 || table.fee > 0 ? (
                 <span className={styles.prize}>
-                  <small>prize</small> <b>{fmtNumber(line.payout, "$")}</b>
+                  {line.payout > 0 ? (
+                    <>
+                      <small>prize</small> <b>{fmtNumber(line.payout, "$")}</b>
+                    </>
+                  ) : null}
+                  {table.fee > 0 ? (
+                    <>
+                      {" "}
+                      <small>net</small>{" "}
+                      <b data-dir={line.payout - table.fee > 0 ? "up" : line.payout - table.fee < 0 ? "down" : undefined}>
+                        {line.payout - table.fee > 0 ? "+" : line.payout - table.fee < 0 ? "−" : ""}
+                        {fmtNumber(Math.abs(line.payout - table.fee), "$")}
+                      </b>
+                    </>
+                  ) : null}
                 </span>
               ) : null}
             </li>
           );
         })}
       </ol>
+      {mine && table.fee > 0 ? (
+        <p className={styles.paidLine}>
+          You paid {fmtNumber(table.fee, "$")} and won {fmtNumber(mine.payout, "$")}.
+        </p>
+      ) : null}
       {table.game?.history.length ? (
         <details className={styles.history}>
           <summary>The hands</summary>

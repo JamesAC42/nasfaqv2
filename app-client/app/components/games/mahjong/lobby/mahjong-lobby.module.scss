@@ -56,6 +56,25 @@
 }
 
 // ── Banners ─────────────────────────────────────────────────────────────────
+.seatedNote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 1rem 0 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--warn);
+  background: var(--warn-wash);
+  color: var(--text);
+
+  a {
+    @include label;
+    margin-left: auto;
+    color: var(--blue);
+    text-decoration: none;
+  }
+}
+
 .back {
   display: flex;
   flex-wrap: wrap;

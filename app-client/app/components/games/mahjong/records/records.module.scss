@@ -341,15 +341,18 @@
 .stats {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
-  gap: 1px;
+  gap: 0;
   margin: 0;
-  background: var(--rule);
-  border: 1px solid var(--rule);
+  border-top: 1px solid var(--rule);
+  border-left: 1px solid var(--rule);
 
+  // Hairlines on the cells, not a filled gap, so a short last row ends cleanly instead of as a slab.
   div {
     display: grid;
     gap: 0.15rem;
     padding: 0.7rem 0.85rem;
+    border-right: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
     background: var(--ink);
   }
 
@@ -610,6 +613,13 @@
   gap: 1px;
   align-items: flex-end;
   min-height: 1.5rem;
+
+  // Nothing thrown yet: on a phone the empty row only reads as a hole under the hand.
+  @include phone {
+    &:empty {
+      display: none;
+    }
+  }
 }
 
 .controls {

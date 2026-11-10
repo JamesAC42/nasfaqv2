@@ -179,7 +179,7 @@ export function LadderView() {
                 ))}
               </ol>
             ) : (
-              <p className={styles.empty}>No picks have been settled yet.</p>
+              <p className={styles.empty}>Five settled picks to appear here.</p>
             )}
           </section>
         ) : null}

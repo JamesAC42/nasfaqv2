@@ -612,7 +612,7 @@ async function wireTournament(db, { tournamentId, name, userId, username, seats 
   await postWire(db, {
     kind: "mahjong_tournament",
     dedupeKey: `mahjong:tournament:${tournamentId}`,
-    headline: `${username} wins the ${name}`,
+    headline: `${username} wins the mahjong tournament “${name}”`,
     blurb: `First of ${seats} at the mahjong tables.`,
     userId,
     link: `/games/mahjong/tournaments/${tournamentId}`,
