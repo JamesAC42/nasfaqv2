@@ -523,13 +523,27 @@ function SettlementReport({ assets }: { assets: MarketAsset[] }) {
 
   const gappers = useMemo<ReportLine[]>(() => {
     const rows = [...(report?.biggest_winners ?? []), ...(report?.biggest_losers ?? [])]
-      .filter((row) => row.move_pct !== null && row.move_pct !== undefined)
+      // Ticks replaced the settlement gap, so most days every move is 0.00%: those aren't gaps.
+      .filter((row) => row.move_pct !== null && row.move_pct !== undefined && Math.abs(row.move_pct) >= 0.00005)
       .sort((x, y) => Math.abs(y.move_pct ?? 0) - Math.abs(x.move_pct ?? 0));
     const seen = new Set<string>();
     return rows
       .filter((row) => (seen.has(row.symbol) ? false : (seen.add(row.symbol), true)))
       .slice(0, 5)
       .map((row) => ({ symbol: row.symbol, left: `opened ${fmt2(row.market_price)}`, right: signedPct(row.move_pct), tone: toneOf(row.move_pct) }));
+  }, [report]);
+
+  // With no real gaps, the fourth column shows what traded instead.
+  const volumeLines = useMemo<ReportLine[]>(() => {
+    return (report?.top_volume ?? [])
+      .filter((row) => (row.volume_shares ?? 0) > 0)
+      .slice(0, 5)
+      .map((row) => ({
+        symbol: row.symbol,
+        left: `${Math.round(row.volume_shares ?? 0).toLocaleString("en-US")} sh`,
+        right: money(row.volume_cash, { compact: true }),
+        tone: "flat" as const,
+      }));
   }, [report]);
 
   // Supply: buybacks first, then sold out, then the least left for sale.
@@ -569,7 +583,11 @@ function SettlementReport({ assets }: { assets: MarketAsset[] }) {
           note="Stagnant channels and missed uploads get marked down."
         />
         <ReportColumn title="Supply watch" lines={supplyLines} note="Buying takes shares from the broker. Sold out means buys wait for sellers; max shares reset every Saturday." />
-        <ReportColumn title="Gapped at the open" lines={gappers} note="Biggest price resets at settlement, either way. Not financial advice, anon." />
+        {gappers.length || !volumeLines.length ? (
+          <ReportColumn title="Gapped at the open" lines={gappers} note="Biggest price resets at settlement, either way. Not financial advice, anon." />
+        ) : (
+          <ReportColumn title="Most traded" lines={volumeLines} note="Shares that changed hands before this settlement." />
+        )}
       </div>
     </section>
   );

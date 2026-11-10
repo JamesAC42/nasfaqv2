@@ -426,7 +426,10 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.45rem 0.6rem;
 
-    > div:first-child {
+    // Bid / ask and the 09:00 open are the widest labels, so each takes two columns; the board chatter
+    // line below takes two as well. Nothing shares a cell narrower than its label.
+    > div:nth-child(-n + 2),
+    > div:nth-child(7) {
       grid-column: span 2;
     }
 
