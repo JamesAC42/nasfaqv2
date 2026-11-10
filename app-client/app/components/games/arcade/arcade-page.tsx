@@ -267,7 +267,7 @@ function buildTiles({
       key: "blackjack",
       href: "/games/blackjack",
       name: "Blackjack",
-      hook: "Three tables, six decks, dealer hits soft 16. Blackjack pays 3:2.",
+      hook: "Three tables, six decks, dealer stands on all 17s. Blackjack pays 3:2.",
       price: `Bets ${range(entry("blackjack"), [10, 10000])}`,
       stat:
         seated === null
@@ -318,7 +318,7 @@ function buildTiles({
       key: "capsule",
       href: "/games/capsule",
       name: "Capsule",
-      hook: "Hats, frames and flair for your profile. Dupes pay shards now.",
+      hook: "Hats, frames and flair for your profile. Dupes pay shards.",
       price: `${fmtCash(capsuleOne)} · ×10 ${fmtCash(capsuleTen)}`,
       stat: {
         text:

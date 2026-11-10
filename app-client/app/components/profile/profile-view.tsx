@@ -317,7 +317,7 @@ export function ProfileView({ username }: { username?: string | null }) {
               {allTime >= 0 ? "+" : "−"}
               {money(Math.abs(allTime))}
             </b>
-            <small>vs your {money(profile.stats.starting_net_worth ?? START_CASH)} start</small>
+            <small>vs {isSelf ? "your" : "their"} {money(profile.stats.starting_net_worth ?? START_CASH)} start</small>
           </div>
           <div>
             <span className={styles.label}>Today</span>
@@ -343,7 +343,7 @@ export function ProfileView({ username }: { username?: string | null }) {
             <span className={styles.label}>Trades</span>
             <b>{profile.stats.trade_count.toLocaleString("en-US")}</b>
             <small>
-              {profile.stats.friend_count} friends · {profile.stats.rival_count} rivals
+              {profile.stats.friend_count} {profile.stats.friend_count === 1 ? "friend" : "friends"} · {profile.stats.rival_count} {profile.stats.rival_count === 1 ? "rival" : "rivals"}
             </small>
           </div>
         </div>

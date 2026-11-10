@@ -23,6 +23,7 @@ export const viewport: Viewport = {
 
 // Applies the saved theme (dark, light or a seasonal one: lib/seasons.ts) and calm-mode preference
 // before first paint so the page never flashes the wrong palette or plays animations it shouldn't.
+// lib/root-preferences.ts does the same after a failed hydration: keep the two in step.
 const bootScript = `(function(){var d=document.documentElement,t=null;try{t=localStorage.getItem("nasfaq.theme");var c=localStorage.getItem("nasfaq.calm");d.dataset.calm=(c==="1"||(c===null&&matchMedia("(prefers-reduced-motion: reduce)").matches))?"true":"false";}catch(e){}d.dataset.theme=t==="light"?"light":"dark";${seasonBootScript}})();`;
 
 export default function RootLayout({

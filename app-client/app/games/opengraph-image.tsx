@@ -12,7 +12,7 @@ export default function Image() {
     plateSlot: "games-og-arcade",
     kicker: "NASFAQ ARCADE",
     title: "The Arcade",
-    line: "Card gacha, oshi duels, blackjack, high-low and Ticker Tap.",
+    line: "Card gacha, oshi duels, blackjack, high-low and the capsule machine.",
     art: "card-ur",
     count: 3,
   });

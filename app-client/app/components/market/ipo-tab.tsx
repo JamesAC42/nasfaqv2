@@ -364,7 +364,7 @@ function OfferBlock({ event, talent, onChanged }: { event: IpoEvent; talent: Ipo
       {terms}
       <DemandBar talent={talent} />
       {!event.window_open ? (
-        <p className={styles.pending}>The window has closed. Shares are handed out at the 09:00 settlement.</p>
+        <p className={styles.pending}>The window has closed. Shares are handed out at the 09:00 ET settlement.</p>
       ) : user ? (
         <OrderPanel event={event} talent={talent} onChanged={onChanged} />
       ) : (
@@ -530,7 +530,7 @@ export function IpoTab() {
         <p>
           We start tracking a new talent&apos;s channel the day she&apos;s announced. Before she lists there&apos;s a window to <b>subscribe</b> at the IPO
           price with Cash (held until listing, like a queued buy). Oversubscribed? Everyone gets a fair share, at least one, and the rest of the cash comes back.
-          She starts trading at the 09:00 settlement on listing day, opening at the IPO price.
+          She starts trading at the 09:00 ET settlement on listing day, opening at the IPO price.
         </p>
       </div>
       {error ? (

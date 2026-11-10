@@ -236,7 +236,7 @@ export function CapsuleGachaPage() {
                 <li>
                   Capsule <b>{CAPSULE_HARD_PITY}</b> is a guaranteed legendary.
                 </li>
-                <li>Dupes pay shards instead of nothing.</li>
+                <li>Dupes pay shards.</li>
               </ul>
             )}
           </div>

@@ -53,16 +53,19 @@ function VerifyEmail() {
     }
   };
 
+  // A verify link opened a second time errors, but an account that is already verified has nothing wrong.
+  const verified = status === "success" || (status === "error" && Boolean(user?.email_verified));
+
   return (
     <section className={styles.card} aria-live="polite">
-      <SceneArt key={status} slot={status === "success" ? "site-verify-ok" : status === "error" && !waiting ? "site-verify-failed" : "site-verify-pending"} width={96} className={styles.chibi} />
+      <SceneArt key={status} slot={verified ? "site-verify-ok" : status === "error" && !waiting ? "site-verify-failed" : "site-verify-pending"} width={96} className={styles.chibi} />
       {status === "pending" ? (
         <>
           <span className={styles.kicker}>CHECKING</span>
           <h1>Verifying your email…</h1>
           <p>One second.</p>
         </>
-      ) : status === "success" ? (
+      ) : verified ? (
         <>
           <span className={`${styles.kicker} ${styles.ok}`}>VERIFIED</span>
           <h1>You&apos;re in.</h1>

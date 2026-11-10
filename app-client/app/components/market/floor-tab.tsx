@@ -94,7 +94,10 @@ function YourBook() {
           {day >= 0 ? "+" : ""}
           {money(day)} ({signedPct(dayPct)}) today
         </span>
-        <span className={ui.flat}>cash {money(cash)}</span>
+        <span className={ui.flat}>
+          cash {money((portfolio?.cash_balance ?? 0) + (portfolio?.held_cash ?? 0))}
+          {portfolio?.economy?.net_worth === "cash_and_credit" ? ` · Credit ${money(portfolio.credit_balance)}` : ""}
+        </span>
       </div>
       <div className={styles.rows}>
         {holdings.length ? (

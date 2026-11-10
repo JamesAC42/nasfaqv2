@@ -4,7 +4,7 @@
 export type GlossaryEntry = { key: string; term: string; def: string; href?: string; /** A feature flag the entry needs; the how-to-play glossary only lists it for viewers it is on for. */ flag?: string };
 
 export const GLOSSARY: ReadonlyArray<GlossaryEntry> = [
-  { key: "ticker", term: "Ticker", def: "A talent's short symbol, like PEK or MIKO. One ticker per talent." },
+  { key: "ticker", term: "Ticker", def: "A talent's short symbol, like PEK or MIK. One ticker per talent." },
   { key: "oshimark", term: "Oshimark", def: "The little logo each talent uses. It sits next to their ticker everywhere on the site." },
   { key: "oshi", term: "Oshi", def: "The talent you pick on your profile. It shows next to your name, and you rank on their oshiboard.", href: "/profile" },
   { key: "fair-value", term: "Fair value", def: "What a talent is worth by their YouTube numbers: subscribers, recent views, sub growth and uploads. Repriced every morning and secret until that day's four ticks have landed; then the settlement report shows it." },

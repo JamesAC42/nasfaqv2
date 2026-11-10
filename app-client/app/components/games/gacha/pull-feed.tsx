@@ -47,7 +47,7 @@ export function PullFeed({ bump = 0 }: { bump?: number }) {
       <header className={styles.railHead}>
         <h2 id="pull-feed-title">
           <i aria-hidden="true" />
-          Pulled just now
+          Latest pulls
         </h2>
         <span>SSR+ only</span>
       </header>

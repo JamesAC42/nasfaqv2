@@ -556,7 +556,8 @@ export function SiteShell({
               </a>
             </div>
             <p className={styles.footerMeta}>
-              © {currentYear} NASFAQ · Fan-made, not affiliated with COVER Corp. · Contact{" "}
+              {/* Most pages are built once per deploy: without this, the first load of a new year fails hydration on all of them. */}
+              © <span suppressHydrationWarning>{currentYear}</span> NASFAQ · Fan-made, not affiliated with COVER Corp. · Contact{" "}
               <a href="mailto:nasfaqsite@gmail.com" className={styles.footerContact}>
                 nasfaqsite@gmail.com
               </a>

@@ -580,7 +580,7 @@ export function FriendsRivals({ profile, isSelf, busy, relation }: { profile: Pr
   const incoming = isSelf ? profile.pending_friend_requests?.incoming ?? [] : [];
   const outgoing = isSelf ? profile.pending_friend_requests?.outgoing ?? [] : [];
   return (
-    <Sec title="Friends & rivals" aside={`${profile.friends.length} friends · ${profile.rivals.length} rivals`}>
+    <Sec title="Friends & rivals" aside={`${profile.friends.length} ${profile.friends.length === 1 ? "friend" : "friends"} · ${profile.rivals.length} ${profile.rivals.length === 1 ? "rival" : "rivals"}`}>
       {incoming.map((person) => (
         <Person key={`in-${person.id}`} person={person} mark="◆">
           <small>wants to be friends</small>
