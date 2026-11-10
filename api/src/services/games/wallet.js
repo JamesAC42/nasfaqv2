@@ -24,6 +24,9 @@ const VALID_ENTRY_TYPES = new Set([
   "exchange_trade_escrow",
   "exchange_trade_refund",
   "exchange_trade_settle",
+  // Mahjong: a stakes table's or a paid tournament's entry fee, and its prizes.
+  "mahjong_entry_fee",
+  "mahjong_prize_payout",
 ]);
 
 // Spending that stops under the net worth floor (sideModeFloor.js): pulls, fees and stakes, and buying
@@ -37,6 +40,7 @@ const FLOORED_ENTRY_TYPES = new Set([
   "exchange_bid_hold",
   "exchange_trade_escrow",
   "exchange_trade_settle",
+  "mahjong_entry_fee",
 ]);
 
 function invalidGameWallet(code = "invalid_game_wallet") {

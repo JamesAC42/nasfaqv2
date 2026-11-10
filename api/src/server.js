@@ -35,6 +35,9 @@ const gamesHub = require("./services/games/tables/hub");
 const gameTablesOwner = String(process.env.GAMES_TABLES_OWNER || "true").toLowerCase() !== "false";
 const pvpTables = require("./services/games/tables/pvp");
 const blackjackTables = require("./services/games/tables/blackjack");
+const mahjongRoutes = require("./routes/mahjong");
+const mahjongTables = require("./services/games/mahjong/tables");
+const mahjongTournaments = require("./services/games/mahjong/tournaments");
 const marketRoutes = require("./routes/market");
 const internalMarketRoutes = require("./routes/internalMarket");
 const internalSiteRoutes = require("./routes/internalSite");
@@ -307,6 +310,9 @@ api.use("/leaderboard", leaderboardRoutes);
 // Only the process holding the tables lease serves table routes (see main()); elsewhere they fall
 // through to 404.
 let ownsGameTables = false;
+// Mahjong: its records, ladder and tournament sign-ups from any process; its tables from the owner.
+api.use("/games/mahjong", mahjongRoutes.site);
+api.use("/games/mahjong", (req, res, next) => (ownsGameTables ? mahjongRoutes.live(req, res, next) : next()));
 api.use("/games", (req, res, next) => (ownsGameTables ? gameTablesRoutes(req, res, next) : next()));
 api.use("/games", gamesRoutes);
 api.use("/market", marketRoutes);
@@ -525,8 +531,11 @@ async function main() {
     stoppers.push(siteState.startWatch(pool));
     await pvpTables.init(pool);
     await blackjackTables.init(pool);
+    await mahjongTables.init(pool, { onTableOver: mahjongTournaments.onTableOver });
+    stoppers.push(mahjongTournaments.init(pool, mahjongTables));
     ownsGameTables = true;
   }
+  mahjongTournaments.setPool(pool);
   require("./services/games/sessions").startWeeklySettlement(pool);
   await mediaCatalog.syncMediaCatalog(pool, console);
   await chatDb.ensureChatTopology(pool);

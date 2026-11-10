@@ -88,13 +88,29 @@ const ERROR_STATUS = {
   trade_closed: 409,
   // Share cards
   moment_not_found: 404,
+  // Mahjong
+  invalid_table: 400,
+  table_not_full: 409,
+  lesson_not_found: 404,
+  tutorial_step: 409,
+  mahjong_weekly_limit: 409,
+  mahjong_daily_limit: 429,
+  mahjong_same_network: 403,
+  mahjong_account_too_new: 403,
+  mahjong_guest_limit: 429,
+  mahjong_guest_busy: 503,
+  mahjong_picks_closed: 409,
+  mahjong_prize_over_cap: 400,
+  tournament_not_found: 404,
+  tournament_closed: 409,
+  invalid_tournament: 400,
 };
 
 function sendGameError(res, next, error) {
   const status = ERROR_STATUS[error?.code];
   if (!status) return next(error);
   const body = { error: error.code };
-  for (const key of ["cash_balance", "required_cash", "shards", "required_shards", "min_bid", "available_at", "limit", "max_bet", "field", "card_key", "cosmetic_key", "tradeable", "status"]) {
+  for (const key of ["cash_balance", "required_cash", "shards", "required_shards", "min_bid", "available_at", "limit", "max_bet", "field", "card_key", "cosmetic_key", "tradeable", "status", "owed", "loss_room", "win_room", "table_id", "step", "why"]) {
     if (error[key] !== undefined) body[key] = error[key];
   }
   return res.status(status).json(body);

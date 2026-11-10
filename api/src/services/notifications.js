@@ -27,6 +27,7 @@ const KINDS = new Set([
   "buyback",
   "ipo",
   "referral",
+  "mahjong",
 ]);
 
 function money(value) {
