@@ -131,12 +131,12 @@ export function SignedOutPanel() {
   );
 }
 
-// ── Pulled just now ────────────────────────────────────────────────────────
+// ── Latest pulls ────────────────────────────────────────────────────────
 export function PullFeed({ pulls }: { pulls: FeedPull[] | null }) {
   return (
     <section className={styles.panel} aria-labelledby="arcade-feed">
       <h2 id="arcade-feed" className={styles.panelHead}>
-        Pulled just now
+        Latest pulls
         <Link href="/games/cards" className={styles.panelLink}>
           Pull <FiArrowRight aria-hidden="true" />
         </Link>
