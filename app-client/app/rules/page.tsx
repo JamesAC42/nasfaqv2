@@ -38,7 +38,7 @@ const RULES: Array<{ id: string; title: string; points: ReactNode[] }> = [
     title: "Respect the talents",
     points: [
       <>NASFAQ is an unofficial fan game. It isn&apos;t affiliated with COVER Corp. or hololive production.</>,
-      <>Don&apos;t harass VTubers, their staff or their chats, and don&apos;t organise raids from here.</>,
+      <>Don&apos;t harass VTubers, their staff or their chats, and don&apos;t organize raids from here.</>,
       <>Don&apos;t post their private info, guesses about who they are off stream, or leaks of members-only or paid content.</>,
       <>Talk about the numbers all you like. Leave the person alone.</>,
     ],
@@ -63,12 +63,12 @@ const RULES: Array<{ id: string; title: string; points: ReactNode[] }> = [
     id: "fair-play",
     title: "Play fair",
     points: [
-      <>No bots, scripts or macros, for trading or for the games (Ticker Tap and the rest included).</>,
+      <>No bots, scripts or macros, for trading or for the games.</>,
       <>
         Found a bug? Don&apos;t use it. Tell us with <strong>Report a bug</strong> at the bottom of the page. Good-faith reports never get
         anyone in trouble.
       </>,
-      <>No coordinated market manipulation: no fake trades between friends and no groups organised to pump and dump on other players. Hyping your oshi in chat is fine.</>,
+      <>No coordinated market manipulation: no fake trades between friends and no groups organized to pump and dump on other players. Hyping your oshi in chat is fine.</>,
     ],
   },
   {

@@ -50,7 +50,7 @@ const sections: LegalSection[] = [
           <p>Markets on what happens next: streams, milestones, the market itself. Buy the outcome you believe in.</p>
         </Fact>
         <Fact term={<Link href="/games">Games</Link>}>
-          <p>Talent cards and a card exchange, the capsule machine for hats and flair, duels, blackjack, high-low and ticker tap.</p>
+          <p>Talent cards and a card exchange, the capsule machine for hats and flair, duels, blackjack and high-low.</p>
         </Fact>
         <Fact term={<Link href="/chat">Chat</Link>}>
           <p>A room for the whole market, one for each unit and one for every talent.</p>

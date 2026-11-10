@@ -374,7 +374,7 @@ function PlayersTab() {
         </div>
       ) : null}
 
-      <p className={styles.foot}>Net worth is cash plus your stocks at the current mid price. Add friends and rivals from their profile pages; the Activity tape can filter to just their fills.</p>
+      <p className={styles.foot}>Net worth is your cash, your Credit and your stocks at the current mid price. Add friends and rivals from their profile pages; the Activity tape can filter to just their fills.</p>
     </>
   );
 }

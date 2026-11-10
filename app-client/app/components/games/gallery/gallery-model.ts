@@ -30,7 +30,7 @@ export const RARITY_FLAVOUR: Record<Rarity, string> = {
   C: "Her everyday look. Page one of every binder.",
   R: "Headset on, chat going wild.",
   SR: "Off the clock in her other fit.",
-  SSR: "Centre stage, penlights up.",
+  SSR: "Center stage, penlights up.",
   UR: "Her legend, fully painted. The chase piece.",
 };
 

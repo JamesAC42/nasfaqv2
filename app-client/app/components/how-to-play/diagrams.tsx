@@ -212,7 +212,7 @@ export function GamesDiagram() {
         prize or payout
       </text>
       <text className={styles.games} x={250} y={172}>
-        Card gacha · Capsule · Blackjack · Ticker Tap
+        Card gacha · Capsule · Blackjack
       </text>
 
       {/* Versus lane. */}
