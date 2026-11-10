@@ -134,9 +134,11 @@ function readStandard(ctx, pairKind, concealedSets, spot) {
   // ── Yaku ─────────────────────────────────────────────────────────────────
   const yaku = [];
   const add = (key, han) => yaku.push({ key, han });
-  if (ctx.riichi === 2) add("double-riichi", 2);
-  else if (ctx.riichi === 1) add("riichi", 1);
-  if (ctx.riichi && ctx.ippatsu) add("ippatsu", 1);
+  // Riichi is a closed hand's yaku: a flag that arrives with a called set on the table scores nothing.
+  const riichi = menzen ? ctx.riichi : 0;
+  if (riichi === 2) add("double-riichi", 2);
+  else if (riichi === 1) add("riichi", 1);
+  if (riichi && ctx.ippatsu) add("ippatsu", 1);
   if (menzen && tsumo) add("menzen-tsumo", 1);
   if (ctx.rinshan) add("rinshan", 1);
   if (ctx.chankan) add("chankan", 1);
@@ -382,7 +384,12 @@ function evaluate(input) {
       const han = reading.yakuHan + dora.dora + dora.ura + dora.red;
       scored = { ...reading, han, dora, ...basePoints(han, reading.fu), noYaku: false };
     }
-    if (!best || scored.base > best.base || (scored.base === best.base && (scored.han > best.han || (scored.han === best.han && scored.fu > best.fu)))) best = scored;
+    // Most points first; at the same points a real yakuman is named over a counted one, then han, then fu.
+    const rank = (entry) => [entry.base, entry.yakuman ? 1 : 0, entry.han, entry.fu];
+    const mine = rank(scored);
+    const theirs = best ? rank(best) : null;
+    const at = theirs ? mine.findIndex((value, index) => value !== theirs[index]) : 0;
+    if (!best || (at >= 0 && mine[at] > theirs[at])) best = scored;
   }
   return { complete: true, ...best };
 }

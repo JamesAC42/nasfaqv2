@@ -301,7 +301,7 @@ test("mahjong tables and money, end to end", { skip: !databaseUrl, timeout: 600_
     assert.equal(second.table.id, first.table.id, "the second player joins the waiting table");
     const id = first.table.id;
     const table = liveTable(id);
-    table.startAt = 0;
+    table.startAt = 1;
     await tables.withLock(id, () => tables._tick(table));
     assert.equal(table.status, "playing");
     assert.equal(table.seats.filter((seat) => seat.bot).length, 2);
@@ -346,7 +346,7 @@ test("mahjong tables and money, end to end", { skip: !databaseUrl, timeout: 600_
   await t.test("a stakes table: Credit only, four players, a fixed prize table and a cut", async () => {
     const fee = 1000;
     const players = [];
-    for (const name of ["s1", "s2", "s3", "s4"]) players.push(await user(name));
+    for (const name of ["stk_1", "stk_2", "stk_3", "stk_4"]) players.push(await user(name));
     // Who can't sit down.
     const poor = await user("poor", { cash: 100, credit: 30000 });
     await assert.rejects(tables.createTable({ userId: poor, kind: "stakes", tier: fee }), { code: "net_worth_floor" });
@@ -387,11 +387,11 @@ test("mahjong tables and money, end to end", { skip: !databaseUrl, timeout: 600_
     assert.equal(table.seats.filter((seat) => seat.bot).length, 0);
     // No bots, ever: with a seat empty the countdown ending deals nothing.
     await tables.leaveTable({ userId: players[3], tableId: stakesId });
-    table.startAt = 0;
+    table.startAt = 1;
     await tables.withLock(stakesId, () => tables._tick(table));
     assert.equal(table.status, "waiting");
     await tables.joinTable({ userId: players[3], tableId: stakesId });
-    table.startAt = 0;
+    table.startAt = 1;
     await tables.withLock(stakesId, () => tables._tick(table));
     assert.equal(table.status, "playing");
 
@@ -414,16 +414,19 @@ test("mahjong tables and money, end to end", { skip: !databaseUrl, timeout: 600_
     }
     assert.equal(paid, 3600, "four fees in, 3,600 out: 400 left circulation");
     const winner = record.players.find((player) => player.place === 1);
-    assert.deepEqual((await ledger(winner.user_id)).filter((row) => row.type.startsWith("mahjong")), [
+    // A player who stood up and sat back down paid twice and was refunded once.
+    const paidTwice = [players[1], players[3]].includes(winner.user_id);
+    assert.deepEqual((await ledger(winner.user_id)).filter((row) => row.type.startsWith("mahjong") || row.type === "game_refund"), [
       { type: "mahjong_entry_fee", cash: 0, credit: -1000 },
+      ...(paidTwice ? [{ type: "game_refund", cash: 0, credit: 1000 }, { type: "mahjong_entry_fee", cash: 0, credit: -1000 }] : []),
       { type: "mahjong_prize_payout", cash: 0, credit: 2000 },
     ]);
     const after = await limits.readPlan(pool, winner.user_id);
     assert.equal(after.week_net, 1000);
     assert.equal(after.open_fees, 0);
     assert.equal(after.win_room, 9000);
-    const { rows: entries } = await pool.query(`SELECT status, COUNT(*)::int AS n FROM games.mahjong_entries WHERE game_id = $1 GROUP BY status`, [stakesId]);
-    assert.deepEqual(entries, [{ status: "settled", n: 4 }], "the two who stood up were refunded, the four who played are settled");
+    const { rows: entries } = await pool.query(`SELECT status, COUNT(*)::int AS n FROM games.mahjong_entries WHERE game_id = $1 GROUP BY status ORDER BY status`, [stakesId]);
+    assert.deepEqual(entries, [{ status: "refunded", n: 2 }, { status: "settled", n: 4 }], "the two who stood up were refunded, the four who played are settled");
     // Closing it twice pays nothing more.
     assert.equal(await records.finishGame(pool, { gameId: stakesId, seed: "0".repeat(64), rated: true, prizes, standings: table.game.final.standings, seats: table.seats, hands: table.game.hands }), null);
   });
@@ -439,7 +442,7 @@ test("mahjong tables and money, end to end", { skip: !databaseUrl, timeout: 600_
 
     const busy = await user("busy");
     for (let i = 0; i < SETTINGS.paidGamesPerDay; i += 1) {
-      await pool.query(`INSERT INTO games.mahjong_entries (user_id, game_id, fee, max_net, payout, status, settled_at) VALUES ($1, $2, 200, 0, 220, 'settled', now())`, [busy, stakesId]);
+      await pool.query(`INSERT INTO games.mahjong_entries (user_id, game_id, fee, max_net, payout, status, settled_at) VALUES ($1, NULL, 200, 0, 220, 'settled', now())`, [busy]);
     }
     await assert.rejects(tables.createTable({ userId: busy, kind: "stakes", tier: 200 }), { code: "mahjong_daily_limit" });
     // A refunded entry doesn't count toward the day.
@@ -454,11 +457,11 @@ test("mahjong tables and money, end to end", { skip: !databaseUrl, timeout: 600_
 
   await t.test("a paid seat on autopilot only discards, and a restart refunds whatever was unfinished", async () => {
     const players = [];
-    for (const name of ["r1", "r2", "r3", "r4"]) players.push(await user(name));
+    for (const name of ["rst_1", "rst_2", "rst_3", "rst_4"]) players.push(await user(name));
     let id;
     for (const player of players) id = (await tables.createTable({ userId: player, kind: "stakes", tier: 200 })).table.id;
     const table = liveTable(id);
-    table.startAt = 0;
+    table.startAt = 1;
     await tables.withLock(id, () => tables._tick(table));
     assert.equal(table.status, "playing");
     // Nobody moves: every clock runs out twice, then the seats are away and only throw back their draws.
@@ -506,14 +509,14 @@ test("mahjong tables and money, end to end", { skip: !databaseUrl, timeout: 600_
   });
 
   await t.test("spectators pick a winner before the second hand, for nothing but the tally", async () => {
-    const a = await user("pa");
-    const b = await user("pb");
+    const a = await user("pick_a");
+    const b = await user("pick_b");
     const watcher = await user("watcher");
     const id = (await tables.createTable({ userId: a, kind: "ranked" })).table.id;
     await tables.createTable({ userId: b, kind: "ranked" });
     await assert.rejects(tables.pickWinner({ userId: watcher, tableId: id, seat: 0 }), { code: "mahjong_picks_closed" });
     const table = liveTable(id);
-    table.startAt = 0;
+    table.startAt = 1;
     await tables.withLock(id, () => tables._tick(table));
     await assert.rejects(tables.pickWinner({ userId: a, tableId: id, seat: 0 }), { code: "forbidden" });
     await tables.pickWinner({ userId: watcher, tableId: id, seat: 1 });
@@ -531,7 +534,7 @@ test("mahjong tables and money, end to end", { skip: !databaseUrl, timeout: 600_
   await t.test("a tournament: sign-up, a knockout with bots filling in, a champion, and no money when a bot sits in", async () => {
     const staff = await user("staff");
     const entrants = [];
-    for (const name of ["t1", "t2", "t3", "t4", "t5"]) entrants.push(await user(name));
+    for (const name of ["ent_1", "ent_2", "ent_3", "ent_4", "ent_5"]) entrants.push(await user(name));
     // First prize can't net more than the weekly minimum cap.
     await assert.rejects(tournaments.create(pool, { name: "Too rich", seats: 16, entryFee: 2500, startsAt: new Date(Date.now() + 3_600_000) }), { code: "mahjong_prize_over_cap" });
     await assert.rejects(tournaments.create(pool, { name: "Odd", seats: 6, startsAt: new Date(Date.now() + 3_600_000) }), { code: "invalid_tournament" });
@@ -567,7 +570,7 @@ test("mahjong tables and money, end to end", { skip: !databaseUrl, timeout: 600_
         const table = liveTable(entry.game_id);
         assert.equal(table.kind, "tournament");
         assert.equal(table.status, "waiting", "seated, dealing in a moment");
-        table.startAt = 0;
+        table.startAt = 1;
         await tables.withLock(table.id, () => tables._tick(table));
         // Nobody has opened the table: every player starts on autopilot, a full bot since it's free now.
         assert.ok(table.seats.every((seat) => seat.bot || seat.away));
@@ -600,7 +603,7 @@ test("mahjong tables and money, end to end", { skip: !databaseUrl, timeout: 600_
 
   await t.test("a full paid tournament pays its fixed split, in Credit, within the caps", async () => {
     const entrants = [];
-    for (const name of ["p1", "p2", "p3", "p4"]) entrants.push(await user(name));
+    for (const name of ["pay_1", "pay_2", "pay_3", "pay_4"]) entrants.push(await user(name));
     const created = await tournaments.create(pool, { name: "Four Seat Final", seats: 4, finalLength: "east", entryFee: 1000, startsAt: new Date(Date.now() + 3_600_000) });
     for (const id of entrants) await tournaments.register(pool, { tournamentId: created.id, userId: id });
     const late = await user("late");
@@ -614,7 +617,7 @@ test("mahjong tables and money, end to end", { skip: !databaseUrl, timeout: 600_
     assert.equal(state.tournament.paid, true);
     const table = liveTable(state.bracket.rounds[0].tables[0].game_id);
     assert.equal(table.paidTournament, true);
-    table.startAt = 0;
+    table.startAt = 1;
     await tables.withLock(table.id, () => tables._tick(table));
     for (const seat of table.seats) seat.away = false;
     await playOut(table.id);

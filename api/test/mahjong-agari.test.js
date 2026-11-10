@@ -1081,13 +1081,40 @@ test("highest reading: 22223333444455m on 5m is best as 22m 234m 234m 345m 345m"
   expectWin(win("22223333444455m", "5m"), { yaku: { ryanpeikou: 3, pinfu: 1, tanyao: 1, chinitsu: 6 }, han: 11, fu: 30, limit: "sanbaiman", base: 6000 });
 });
 
-test("highest reading: a yakuman is named even when another reading counts to 13 han", () => {
+test("highest reading: a yakuman and a counted yakuman of the same size pay the same", () => {
   // 111222333m 555m 99m self-drawn in riichi with dora 1m and 2m. As triplets: four concealed triplets.
   // As runs: full flush 6, riichi 1, self-draw 1, double run 1, dora 6 = 15 han, a counted yakuman.
-  // Both pay 8,000 base; the hand is four concealed triplets.
+  // Both are 8,000 base. The rule sheet only says the hand is read the way that scores most, so which
+  // name it carries is left open; the points are not.
   const result = win("11122233355599m", "9m", { tsumo: true, riichi: 1, dora: parseKinds("1m2m") });
   assert.equal(result.base, 8000);
-  expectYakuman(result, ["suuankou"]);
+  assert.ok(["yakuman", "kazoe"].includes(result.limit), `limit ${result.limit}`);
+  assert.deepEqual(payments({ base: result.base, winner: 1, dealer: 0, tsumo: true }).from, { 0: 16000, 2: 8000, 3: 8000 });
+});
+
+test("highest reading: 234m three times over is three concealed triplets, not one double run (234234234m 567p 99s on 6p)", () => {
+  // Triplets 222m 333m 444m: sanankou 2 han, fu 20 + 10 + 12 + 2 middle wait = 44 -> 50, base 800.
+  // Runs: iipeikou 1 han, fu 20 + 10 + 2 = 32 -> 40, base 320.
+  expectWin(win("234234234m 567p 99s", "6p"), { yaku: { sanankou: 2 }, han: 2, raw: 44, fu: 50, base: 800 });
+});
+
+test("all terminals and honors: closed, a ron on the third of four triplets (111m 999p 111s 333z 44z on 9p)", () => {
+  // Three concealed triplets (999p came by ron), all triplets, all terminals and honors: 6 han.
+  // Fu: 20 + 10 + 8 + 4 (ron triplet) + 8 + 8 = 58 -> 60.
+  expectWin(win("111m 999p 111s 333z 44z", "9p"), { yaku: { toitoi: 2, sanankou: 2, honroutou: 2 }, han: 6, raw: 58, fu: 60, limit: "haneman" });
+});
+
+test("fully concealed hand: a closed hand with an added kan is open, so a self-draw is no yaku", () => {
+  expectNoYaku(win(PLAIN_OPEN, "6p", { melds: [kakan("2222m")], tsumo: true }));
+  expectNoYaku(win(PLAIN_OPEN, "6p", { melds: [minkan("2222m")], tsumo: true }));
+});
+
+test("dora: indicators 9m and 9p point at 1m and 1p, wrapping round", () => {
+  // The plain hand holds one 1m and no 1p: riichi 1 + dora 1.
+  const indicators = ["9m", "9p"].map(kind);
+  const result = win(PLAIN, "6p", { riichi: 1, dora: indicators.map(doraFromIndicator) });
+  assert.deepEqual(result.dora, { dora: 1, ura: 0, red: 0 });
+  assert.equal(result.han, 2);
 });
 
 test("decompose: lists both readings of 111222333m 55z and of 22334455m", () => {
@@ -1148,6 +1175,11 @@ const SHANTEN_HANDS = [
   ["123m 147p 158s 1123z", 0, 5, ""],
   ["147m 258p 369s 1234z", 0, 6, ""],
   ["147m 258p 369s 12345z", 0, 6, null],
+  // More shapes.
+  ["11123m 456p 789s 11z", 0, 0, "14m1z"],
+  ["1234m 1234p 123s 11z", 0, 1, ""],
+  ["123456789m 1234z", 0, 2, ""],
+  ["123m 456p 789s 23s 55z 1z", 0, 0, null],
 ];
 
 for (const [hand, melds, expected, waits] of SHANTEN_HANDS) {

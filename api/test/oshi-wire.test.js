@@ -321,7 +321,8 @@ test("oshi moves on the Wire, end to end", { skip: !databaseUrl, timeout: 180_00
     } finally {
       restore();
     }
-    const on = features.override({ "oshi-wire": "on" });
+    // Any staff-only flag with Wire headlines keeps the response private, so pin the others (mahjong).
+    const on = features.override({ "oshi-wire": "on", mahjong: "off" });
     try {
       const seen = await get("/wire?order=time&limit=200&hours=70", loyal);
       assert.ok(oshiIn(seen.body) > 0, "on: everyone");

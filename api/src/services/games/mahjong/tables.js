@@ -662,7 +662,7 @@ async function createTable({ userId, kind, length, speed, level, tier, lesson, c
     if (!player) throw tableError("unauthenticated");
     if (kind === "tutorial" || kind === "practice") {
       const table = await createSoloTable({ player, lessonKey: kind === "tutorial" ? String(lesson || "") : null, level, length, speed });
-      return seatedView(table, 0);
+      return seatedView(table, humanIndexOf(table));
     }
     if (kind === "friend") {
       const options = parseOptions({ length, speed, level });
@@ -712,8 +712,11 @@ async function createGuestTable({ ipKey, lesson = null, level = "easy" }) {
   guestStarts.set(ipKey, recent);
   if (guestStarts.size > 5000) for (const [key, list] of guestStarts) if (!list.some((at) => now - at < 10 * 60_000)) guestStarts.delete(key);
   const table = await createSoloTable({ player: { username: "Guest" }, guest: true, lessonKey: lesson ? String(lesson) : null, level, length: "east", speed: "untimed" });
-  return seatedView(table, 0);
+  return seatedView(table, humanIndexOf(table));
 }
+
+// The seats are shuffled when a solo table deals, so the one human is wherever they landed.
+const humanIndexOf = (table) => table.seats.findIndex((seat) => seat && !seat.bot);
 
 function seatedView(table, index) {
   return { table: publicTable(table, index), seat: { index, channel: seatChannel(table.seats[index]), token: table.seats[index].guest ? table.seats[index].token : undefined } };
