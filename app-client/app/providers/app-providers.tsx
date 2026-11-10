@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 import { ChatEverywhere } from "@/app/components/chat/chat-everywhere";
 import { AnnouncementPopup } from "@/app/components/common/announcement-popup";
 import { VisitCounter } from "@/app/components/layout/visit-counter";
@@ -9,6 +9,7 @@ import { StreamDock } from "@/app/components/livestreams/stream-dock";
 import { AuthProvider } from "@/app/providers/auth-provider";
 import { MotionProvider } from "@/app/providers/motion-provider";
 import { ThemeProvider } from "@/app/providers/theme-provider";
+import { restoreRootPreferences } from "@/app/lib/root-preferences";
 import { useMarketStore } from "@/app/stores/market-store";
 
 function MarketRealtimeConnector() {
@@ -22,6 +23,12 @@ function MarketRealtimeConnector() {
 }
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
+  // A no-op after a clean load. After a failed hydration React has reset <html>, and this puts the
+  // player's theme, season and calm mode back before the rebuilt page paints.
+  useLayoutEffect(() => {
+    restoreRootPreferences();
+  }, []);
+
   return (
     <ThemeProvider>
       <MotionProvider>

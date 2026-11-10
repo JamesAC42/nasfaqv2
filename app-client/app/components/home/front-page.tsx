@@ -89,6 +89,24 @@ function wireStory(item: WireItem): NewsItem {
 }
 
 // ── Masthead ──────────────────────────────────────────────────────────────────
+/**
+ * Today's date in New York. Home is built once per deploy, so a date in the served HTML is the
+ * build's: the next day it no longer matches what the browser renders, hydration fails and React
+ * rebuilds the whole page. So the date only appears once the page has loaded (useNow is null until then).
+ */
+function DatelineDate() {
+  const now = useNow();
+  if (now === null) return <span aria-hidden="true">{" "}</span>;
+  const today = new Date(now).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: MARKET_TIME_ZONE,
+  });
+  return <span>{today.toUpperCase()}</span>;
+}
+
 function Masthead({ assets }: { assets: MarketAsset[] }) {
   const { user } = useAuth();
   const marketStatus = useMarketStore((state) => state.marketStatus);
@@ -111,13 +129,6 @@ function Masthead({ assets }: { assets: MarketAsset[] }) {
     return { avgMove, up, down, index, soldOut, buybacks };
   }, [assets]);
 
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    timeZone: MARKET_TIME_ZONE,
-  });
   const settled = marketStatus?.last_settlement_completed_at
     ? new Date(marketStatus.last_settlement_completed_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: MARKET_TIME_ZONE })
     : null;
@@ -128,8 +139,8 @@ function Masthead({ assets }: { assets: MarketAsset[] }) {
         <h1>
           Holo<span>News</span>
         </h1>
-        <div className={styles.dateline} suppressHydrationWarning>
-          <span>{today.toUpperCase()}</span>
+        <div className={styles.dateline}>
+          <DatelineDate />
           {settled ? <span>SETTLED {settled} ET</span> : null}
           <span>{assets.length || "—"} TALENTS LISTED</span>
           {online !== null ? (
