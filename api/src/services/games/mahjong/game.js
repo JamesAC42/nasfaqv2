@@ -97,8 +97,10 @@ function next(game) {
       if (reached) over = true;
       else if (!result.renchan && game.number === 3) over = true;
     } else if (result.renchan) {
-      // The dealer may stop in the last hand once they're ahead and over the target.
-      over = reached && dealerLeads;
+      // The dealer stops in the last hand once they've won it, or drawn it tenpai, ahead and over the
+      // target. An abortive draw is neither: the hand is dealt again.
+      const aborted = result.type === "draw" && result.reason !== "exhaustive" && result.reason !== "nagashi";
+      over = !aborted && reached && dealerLeads;
     } else {
       over = reached;
     }
