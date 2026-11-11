@@ -101,7 +101,7 @@ export function MahjongLobby() {
     } catch (error) {
       // Already at a table: say so and offer the way back, rather than quietly opening it.
       const tableId = (error as Partial<ApiError>)?.body?.table_id;
-      if (apiErrorCode(error) === "already_seated" && typeof tableId === "number") {
+      if (apiErrorCode(error) === "already_seated" && typeof tableId === "number" && Number.isSafeInteger(tableId) && tableId > 0) {
         setSeatedAt(tableId);
         setBusy(null);
         return;
@@ -145,7 +145,7 @@ export function MahjongLobby() {
         {seatedAt !== null ? (
           <div className={styles.seatedNote} role="alert">
             <span>You’re still seated at another table.</span>
-            <Link href={`/games/mahjong/table/${seatedAt}`}>
+            <Link href={`/games/mahjong/table/${encodeURIComponent(String(seatedAt))}`}>
               Go to that table <FiArrowRight aria-hidden="true" />
             </Link>
           </div>

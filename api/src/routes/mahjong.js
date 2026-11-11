@@ -35,6 +35,8 @@ const idOf = (value, code = "table_not_found") => {
   if (!Number.isInteger(id) || id <= 0 || String(id) !== String(value)) throw Object.assign(new Error(code), { code });
   return id;
 };
+/** The JSON body as a plain object: an array or a bare string posted in its place reads as empty. */
+const bodyOf = (req) => (req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {});
 const viewerId = (req) => (req.ctx?.user?.id ? Number(req.ctx.user.id) : null);
 const seatToken = (req) => {
   const token = String(req.get("x-mahjong-seat") || req.body?.seat_token || "");
@@ -140,7 +142,7 @@ site.post(
   seatLimit,
   wrap(async (req, res) => {
     const admin = requireAdmin(req);
-    const body = req.body || {};
+    const body = bodyOf(req);
     const tournament = await tournaments.create(req.ctx.pool, {
       name: body.name,
       seats: body.seats,
@@ -222,7 +224,7 @@ live.post(
   "/tables",
   seatLimit,
   wrap(async (req, res) => {
-    const body = req.body || {};
+    const body = bodyOf(req);
     const kind = String(body.kind || "");
     // Practice and the tutorial are open to any account; anything with other people needs a verified one.
     const userId = Number(kind === "practice" || kind === "tutorial" ? requireUserId(req) : requireVerifiedUserId(req));
