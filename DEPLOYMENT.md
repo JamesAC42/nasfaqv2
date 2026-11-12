@@ -205,29 +205,23 @@ redis://nasfaq-redis.nasfaq.svc.cluster.local:6379
 
 This Redis deployment is intentionally simple: a single pod with no persistence. That is acceptable for this stack because Redis is used for cache/pub-sub behavior, not as the source of truth. If DigitalOcean Managed Redis/Valkey becomes available later, replace this service with a managed `rediss://` URL and keep the app secret name unchanged.
 
-### 2.6 Object storage for images (pick one)
+### 2.6 Object storage for images
 
-The audit shows [`api/`](api/) and [`holonews/`](holonews/) both write to an S3 bucket via `AWS_SW_BUCKET`. You have two options:
-
-- **Stay on AWS S3** (what the code does today). No DO provisioning needed; just re-use the existing IAM creds as a k8s Secret.
-- **Migrate to DO Spaces** (S3-compatible, ~$5/mo for 250 GiB + CDN). Create it with:
-
-```bash
-doctl spaces create nasfaq-media --region nyc3
-# create an access key under API → Spaces Keys
-```
-
-Because the clients use the AWS SDK, switching to Spaces only needs an override:
+Everything on `https://images.nasfaq.biz` lives in a Cloudflare R2 bucket, connected to that hostname as an R2 custom domain. The API, holonews and ytscraper write to it through R2's S3 API with the AWS SDK, so it only takes settings in `nasfaq-app-secrets`:
 
 ```
-AWS_ACCESS_KEY_ID=<spaces-key>
-AWS_SECRET_ACCESS_KEY=<spaces-secret>
-AWS_REGION=nyc3
-AWS_SW_BUCKET=nasfaq-media
-AWS_ENDPOINT_URL=https://nyc3.digitaloceanspaces.com   # add support in code if adopting
+AWS_ACCESS_KEY_ID=<R2 API token access key>
+AWS_SECRET_ACCESS_KEY=<R2 API token secret>
+AWS_REGION=auto
+AWS_SW_BUCKET=<bucket>
+AWS_ENDPOINT_URL_S3=https://<account-id>.r2.cloudflarestorage.com
+AWS_REQUEST_CHECKSUM_CALCULATION=WHEN_REQUIRED
+AWS_RESPONSE_CHECKSUM_VALIDATION=WHEN_REQUIRED
 ```
 
-For this runbook we assume S3 stays; Spaces is a future-cost optimization.
+The R2 token needs Object Read & Write on that bucket only. The API reads the endpoint in `api/src/s3Bucket.js`; the Go services' SDK reads `AWS_ENDPOINT_URL_S3` itself. Leaving the endpoint out sends everything to AWS S3 instead.
+
+What the bucket holds, by prefix: `art/` (scripts/upload-art.js), `gachaprizes/` (scripts/seed-gacha-prizes.js), `emojis/64_<name>.jpg`, `profile-pictures/large/256_<name>.*` and `small/128_<name>.*` (both sizes for each), `icons/<name>.svg`, `channel-assets/` (ytscraper), `reference-images/<profile_id>.jpg`, `thumbnails/` (holonews) and `thread-ops/`. The API's media sync rebuilds the emoji and profile picture catalogs from `emojis/` and `profile-pictures/` at every start, so keep those complete; an empty folder is skipped rather than hiding everything.
 
 #### 2.6.2 Capsule prizes
 
@@ -252,17 +246,7 @@ The script uploads only files the bucket doesn't have yet (names carry a content
 
 The client is built with `NEXT_PUBLIC_ART_BASE_URL=https://images.nasfaq.biz/art` (a build-time value; it is the default build arg in `app-client/Dockerfile`). Images load straight from the CDN; the manifest goes through the site at `/art-manifest.json` (app/art-manifest.json/route.ts), so the CDN needs no CORS setup. CloudFront keeps one cached copy per file whatever the Origin, so a CORS header from S3 would name whichever site asked first.
 
-Upload key (optional, safer than the API's key): an IAM user with only this policy, keys in `api/.env` as `ART_UPLOAD_AWS_ACCESS_KEY_ID` / `ART_UPLOAD_AWS_SECRET_ACCESS_KEY`:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    { "Effect": "Allow", "Action": ["s3:PutObject", "s3:GetObject"], "Resource": ["arn:aws:s3:::BUCKET/art/*", "arn:aws:s3:::BUCKET/gachaprizes/*"] },
-    { "Effect": "Allow", "Action": "s3:ListBucket", "Resource": "arn:aws:s3:::BUCKET", "Condition": { "StringLike": { "s3:prefix": ["art/*", "gachaprizes/*"] } } }
-  ]
-}
-```
+Upload settings for these scripts, in `api/.env`: an R2 API token with Object Read & Write on the bucket, as `ART_UPLOAD_AWS_ACCESS_KEY_ID` / `ART_UPLOAD_AWS_SECRET_ACCESS_KEY` (they fall back to the API's `AWS_*` key), plus `ART_S3_BUCKET` (or `AWS_SW_BUCKET`), `AWS_REGION=auto` and `AWS_ENDPOINT_URL_S3` as in 2.6. `ENV_FILE=<path>` points the scripts at a separate settings file instead.
 
 ### 2.7 Load Balancer (auto-provisioned, but understand it)
 
@@ -311,7 +295,7 @@ After Cloudflare is live (§11), tighten `inbound-rules` so public ingress only 
 - [ ] DOKS cluster `nasfaq-prod` running with 3 nodes, autoscale 3-6, in the VPC.
 - [ ] Managed Postgres `nasfaq-pg` running, firewall restricted to cluster, `timescaledb` + `pg_stat_statements` extensions installed, PITR on.
 - [ ] In-cluster Redis deployment/service `nasfaq-redis` running in the `nasfaq` namespace.
-- [ ] S3 (AWS) or Spaces (DO) bucket decided; credentials ready for the `nasfaq-app-secrets` Secret.
+- [ ] R2 bucket on images.nasfaq.biz and its API token in the `nasfaq-app-secrets` Secret (section 2.6).
 - [ ] DO Cloud Firewall covers worker nodes.
 - [ ] Uptime checks + alert policies created.
 - [ ] `DIGITALOCEAN_ACCESS_TOKEN` in GitHub Actions secrets.

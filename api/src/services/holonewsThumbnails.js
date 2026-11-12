@@ -1,7 +1,8 @@
 const crypto = require("node:crypto");
 const path = require("node:path");
 const sharp = require("sharp");
-const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
+const { PutObjectCommand } = require("@aws-sdk/client-s3");
+const s3Bucket = require("../s3Bucket");
 const articleDb = require("../articleDb");
 const talents = require("./talents");
 
@@ -25,23 +26,7 @@ function makeError(code, message = code) {
 }
 
 function getS3Client() {
-  const accessKeyId = optionalTrimmedString(process.env.AWS_ACCESS_KEY_ID);
-  const secretAccessKey = optionalTrimmedString(process.env.AWS_SECRET_ACCESS_KEY);
-  const region = optionalTrimmedString(process.env.AWS_REGION);
-  const bucket = optionalTrimmedString(process.env.AWS_SW_BUCKET);
-
-  if (!accessKeyId || !secretAccessKey || !region || !bucket) {
-    return null;
-  }
-
-  return {
-    bucket,
-    client: new S3Client({
-      region,
-      credentials: { accessKeyId, secretAccessKey },
-      followRegionRedirects: true,
-    }),
-  };
+  return s3Bucket.getS3Client();
 }
 
 function getConfig() {

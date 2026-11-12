@@ -226,7 +226,7 @@ const sections: LegalSection[] = [
           </Fact>
           <Fact term="Hosting and storage">
             <p>
-              Our servers, database and image storage (Amazon Web Services S3, served from{" "}
+              Our servers, database and image storage (Cloudflare R2, served from{" "}
               <code>images.nasfaq.biz</code>) are run by infrastructure providers who handle data only to keep the site
               running.
             </p>

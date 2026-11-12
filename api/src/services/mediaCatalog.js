@@ -1,6 +1,7 @@
 const path = require("node:path");
 const sharp = require("sharp");
-const { ListObjectsV2Command, PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
+const { ListObjectsV2Command, PutObjectCommand } = require("@aws-sdk/client-s3");
+const s3Bucket = require("../s3Bucket");
 
 const EMOJI_PREFIX = "emojis/";
 const PROFILE_PICTURE_LARGE_PREFIX = "profile-pictures/large/";
@@ -15,23 +16,7 @@ function optionalTrimmedString(value) {
 }
 
 function getS3Client() {
-  const accessKeyId = optionalTrimmedString(process.env.AWS_ACCESS_KEY_ID);
-  const secretAccessKey = optionalTrimmedString(process.env.AWS_SECRET_ACCESS_KEY);
-  const region = optionalTrimmedString(process.env.AWS_REGION);
-  const bucket = optionalTrimmedString(process.env.AWS_SW_BUCKET);
-
-  if (!accessKeyId || !secretAccessKey || !region || !bucket) {
-    return null;
-  }
-
-  return {
-    bucket,
-    client: new S3Client({
-      region,
-      credentials: { accessKeyId, secretAccessKey },
-      followRegionRedirects: true,
-    }),
-  };
+  return s3Bucket.getS3Client();
 }
 
 function isS3Configured() {
@@ -163,8 +148,14 @@ function toProfilePictureRow(row) {
   };
 }
 
-async function syncEmojiCatalog(pool) {
+async function syncEmojiCatalog(pool, logger = console) {
   const keys = await listObjectKeys(EMOJI_PREFIX);
+  // An empty listing means a new or misconfigured bucket far more often than a deliberate removal of
+  // every emoji, so leave the catalog alone rather than hide them all.
+  if (keys.length === 0) {
+    logger.warn(`media catalog: nothing under ${EMOJI_PREFIX}, emoji catalog left as it is`);
+    return { total: 0, skipped: true };
+  }
   const parsed = keys
     .map(parseEmojiKey)
     .filter(Boolean)
@@ -208,11 +199,16 @@ async function syncEmojiCatalog(pool) {
   }
 }
 
-async function syncProfilePictureCatalog(pool) {
+async function syncProfilePictureCatalog(pool, logger = console) {
   const [largeKeys, smallKeys] = await Promise.all([
     listObjectKeys(PROFILE_PICTURE_LARGE_PREFIX),
     listObjectKeys(PROFILE_PICTURE_SMALL_PREFIX),
   ]);
+  // Same reasoning as the emojis: an empty folder would hide every profile picture players picked.
+  if (largeKeys.length === 0 || smallKeys.length === 0) {
+    logger.warn("media catalog: profile-pictures/large or small is empty, profile picture catalog left as it is");
+    return { total: 0, skipped: true };
+  }
 
   const largeBySlug = new Map(
     largeKeys
@@ -299,7 +295,7 @@ async function syncMediaCatalog(pool, logger = console) {
     return { emojis: { total: 0 }, profilePictures: { total: 0 }, skipped: true };
   }
 
-  const [emojis, profilePictures] = await Promise.all([syncEmojiCatalog(pool), syncProfilePictureCatalog(pool)]);
+  const [emojis, profilePictures] = await Promise.all([syncEmojiCatalog(pool, logger), syncProfilePictureCatalog(pool, logger)]);
   await pool.query(
     `
     UPDATE market.users u

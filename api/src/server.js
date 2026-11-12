@@ -528,7 +528,11 @@ async function main() {
     ownsGameTables = true;
   }
   require("./services/games/sessions").startWeeklySettlement(pool);
-  await mediaCatalog.syncMediaCatalog(pool, console);
+  // The image bucket can be unreachable or misconfigured. The catalogs then keep their last state and
+  // the API still starts; a crash here takes the whole site down for a missing emoji list.
+  await mediaCatalog
+    .syncMediaCatalog(pool, console)
+    .catch((error) => console.warn("media catalog sync failed:", String(error?.message || error)));
   await chatDb.ensureChatTopology(pool);
 
   const schedulerConfig = loadSchedulerConfig();

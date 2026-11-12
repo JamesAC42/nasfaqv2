@@ -1,6 +1,6 @@
 // The art manifest, served from the site even when the art lives on the CDN. The browser then
-// reads it same-origin, so it doesn't depend on the CDN sending CORS headers (CloudFront keeps one
-// cached copy whatever the Origin, so the header it sends can name the wrong site). The images
+// reads it same-origin, so it doesn't depend on the CDN sending CORS headers (a CDN that keeps one
+// cached copy whatever the Origin can send a header naming the wrong site). The images
 // themselves are plain <img> loads from the CDN and never needed CORS.
 import { ART_MANIFEST_URL } from "@/app/lib/art-manifest";
 

@@ -3,7 +3,8 @@
 // from the detector (routes/channels.js) and when an IPO starts tracking new talents (services/ipo.js).
 // Without S3 credentials (AWS_ACCESS_KEY_ID etc., e.g. local dev) getS3Client() is null and nothing uploads.
 
-const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
+const { PutObjectCommand } = require("@aws-sdk/client-s3");
+const s3Bucket = require("../s3Bucket");
 
 const REFERENCE_IMAGE_CDN_BASE_URL = "https://images.nasfaq.biz/reference-images";
 const MAX_REFERENCE_IMAGE_UPLOAD_BYTES = 12 * 1024 * 1024;
@@ -22,23 +23,7 @@ function getReferenceImageUrl(filename) {
 }
 
 function getS3Client() {
-  const accessKeyId = optionalTrimmedString(process.env.AWS_ACCESS_KEY_ID);
-  const secretAccessKey = optionalTrimmedString(process.env.AWS_SECRET_ACCESS_KEY);
-  const region = optionalTrimmedString(process.env.AWS_REGION);
-  const bucket = optionalTrimmedString(process.env.AWS_SW_BUCKET);
-
-  if (!accessKeyId || !secretAccessKey || !region || !bucket) {
-    return null;
-  }
-
-  return {
-    bucket,
-    client: new S3Client({
-      region,
-      credentials: { accessKeyId, secretAccessKey },
-      followRegionRedirects: true
-    })
-  };
+  return s3Bucket.getS3Client();
 }
 
 function normalizeReferenceImageUrl(value) {
