@@ -67,6 +67,9 @@ function assertCanEnter(plan, { fee, topNet }) {
   }
 }
 
+/** Saturday 00:00 New York, as a timestamp: where this week's mahjong results start (the same boundary TOTALS_SQL uses). */
+const WEEK_START_SQL = `((date_trunc('week', ((now() AT TIME ZONE '${TIME_ZONE}')::date + 2)::timestamp) - interval '2 days') AT TIME ZONE '${TIME_ZONE}')`;
+
 const TOTALS_SQL = `
   WITH local AS (
     SELECT (now() AT TIME ZONE '${TIME_ZONE}')::date AS today
@@ -131,4 +134,4 @@ async function assertPaidAccount(db, userId) {
   }
 }
 
-module.exports = { assertCanEnter, assertNoSharedNetwork, assertPaidAccount, planLimits, readPlan, weeklyLimitFor };
+module.exports = { WEEK_START_SQL, assertCanEnter, assertNoSharedNetwork, assertPaidAccount, planLimits, readPlan, weeklyLimitFor };

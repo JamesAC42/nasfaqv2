@@ -18,7 +18,27 @@ function list(name, fallback) {
   return parsed.length && parsed.every((value) => Number.isFinite(value) && value >= 0) ? parsed : fallback;
 }
 
+// Trial mode (docs/games/MAHJONG_DESIGN.md, "Trial mode"): while it is on, mahjong never takes or pays
+// Cash or Credit. Stakes tables play for chips, which are only a record. On unless MAHJONG_TRIAL says
+// "false", "0" or "off".
+const TRIAL_FROM_ENV = !["false", "0", "off"].includes(String(process.env.MAHJONG_TRIAL ?? "").trim().toLowerCase());
+let trialOverride = null;
+
+/** For tests: pins trial mode on or off (null goes back to the environment). Returns the undo. */
+function setTrialForTests(value) {
+  const before = trialOverride;
+  trialOverride = value === null || value === undefined ? null : Boolean(value);
+  return () => {
+    trialOverride = before;
+  };
+}
+
 const SETTINGS = Object.freeze({
+  /** Trial (beta) mode: no Cash or Credit moves at any mahjong table or tournament. */
+  get trial() {
+    return trialOverride === null ? TRIAL_FROM_ENV : trialOverride;
+  },
+
   // ── Money ────────────────────────────────────────────────────────────────
   /**
    * Entry fees for stakes tables, in Credit. The median player holds about $91,000 Credit and can
@@ -109,6 +129,11 @@ function stakesPrizeTable(fee) {
   return { fee, pot, prizes, cut: Math.round((pot - prizes.reduce((sum, prize) => sum + prize, 0)) * 100) / 100, top_net: Math.round((prizes[0] - fee) * 100) / 100 };
 }
 
+/** What each place (first to fourth) nets in chips at a stakes table in trial mode: its prize less the fee, whole chips. */
+function chipResults(fee) {
+  return stakesPrizeTable(fee).prizes.map((prize) => Math.round(prize - fee));
+}
+
 /** A paid tournament's prizes: fees less the cut, split over the final table. */
 function tournamentPrizeTable(fee, seats) {
   const pot = fee * seats;
@@ -120,7 +145,8 @@ function tournamentPrizeTable(fee, seats) {
 /** The numbers a lobby prints. */
 function publicRules() {
   return {
-    stakes: SETTINGS.stakesTiers.map(stakesPrizeTable),
+    trial: SETTINGS.trial,
+    stakes: SETTINGS.stakesTiers.map((fee) => ({ ...stakesPrizeTable(fee), chips: chipResults(fee) })),
     paid_games_per_day: SETTINGS.paidGamesPerDay,
     weekly_rate: SETTINGS.weeklyRate,
     weekly_minimum: SETTINGS.weeklyMinimum,
@@ -135,4 +161,4 @@ function publicRules() {
   };
 }
 
-module.exports = { RANKED_AFTER_GAMES, RANKS, SETTINGS, SPEEDS, publicRules, rankFor, stakesPrizeTable, tournamentPrizeTable };
+module.exports = { RANKED_AFTER_GAMES, RANKS, SETTINGS, SPEEDS, chipResults, publicRules, rankFor, setTrialForTests, stakesPrizeTable, tournamentPrizeTable };

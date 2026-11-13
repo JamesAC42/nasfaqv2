@@ -6,9 +6,9 @@
 // given seatHand() too, so they play from what a player in that seat can see.
 
 const round = require("./round");
-const { evaluate } = require("./agari");
-const { improvements, shanten } = require("./shanten");
-const { KINDS, countKinds, doraFromIndicator, isRedFive, kindOf, sortTiles } = require("./tiles");
+const coach = require("./coach");
+const { shanten } = require("./shanten");
+const { KINDS, countKinds, kindOf, sortTiles } = require("./tiles");
 
 /** The last thing that happened, as everyone saw it (a draw's tile is left out). */
 function lastEvent(state) {
@@ -58,37 +58,6 @@ function seenCounts(state, seat) {
   return seen;
 }
 
-/** The win a seat would have on `kind`, taken from a discard or drawn: what it scores, or that it has no yaku. */
-function winPreview(state, seat, hand, kind, tsumo) {
-  const melds = state.melds[seat].map((meld) => ({ type: meld.type, kind: round.meldKind(meld) }));
-  let reds = hand.filter(isRedFive).length;
-  for (const meld of state.melds[seat]) reds += meld.tiles.filter(isRedFive).length;
-  const win = evaluate({
-    concealed: [...hand.map(kindOf), kind],
-    melds,
-    winKind: kind,
-    tsumo,
-    seatWind: round.seatWind(state, seat),
-    roundWind: state.roundWind,
-    riichi: state.riichi[seat],
-    ippatsu: false,
-    dora: round.doraIndicators(state).map((id) => doraFromIndicator(kindOf(id))),
-    ura: [],
-    redFives: reds,
-  });
-  if (!win) return null;
-  return { ok: !win.noYaku, han: win.han, fu: win.fu, yaku: win.yaku.map((entry) => entry.key), limit: win.limit };
-}
-
-function describeWaits(state, seat, hand, seen) {
-  return round.waits(state, seat, hand).map((kind) => ({
-    kind,
-    left: Math.max(0, 4 - seen[kind]),
-    ron: winPreview(state, seat, hand, kind, false),
-    tsumo: winPreview(state, seat, hand, kind, true),
-  }));
-}
-
 /**
  * Help every player gets: what the hand waits on and how many are left, whether a win on each has a
  * yaku, furiten and why, and why a tile that completes the hand can't be won on.
@@ -99,7 +68,7 @@ function basicHelp(state, seat, options) {
   const seen = seenCounts(state, seat);
   const resting = round.restingHand(state, seat);
   if (resting.length % 3 === 1) {
-    help.waits = describeWaits(state, seat, resting, seen);
+    help.waits = coach.describeWaits(state, seat, resting, seen);
     if (help.waits.length) help.furiten = round.furitenOf(state, seat);
   }
   if (options?.phase === "turn") {
@@ -111,7 +80,7 @@ function basicHelp(state, seat, options) {
       tried.add(kind);
       const index = state.hands[seat].indexOf(tile);
       const rest = state.hands[seat].filter((_, at) => at !== index);
-      const waiting = describeWaits(state, seat, rest, seen);
+      const waiting = coach.describeWaits(state, seat, rest, seen);
       if (waiting.length) help.tenpai_discards[kind] = waiting;
     }
     if (state.drawn !== null && !options.tsumo && shanten(countKinds(state.hands[seat].map(kindOf)), state.melds[seat].length) === -1) {
@@ -126,37 +95,18 @@ function basicHelp(state, seat, options) {
 }
 
 /**
- * Coaching for tables that allow it (practice, the tutorial, friend rooms): for each tile you could
- * discard, how far from tenpai it leaves you and how many tiles would then improve the hand.
+ * Coaching for tables that allow it (practice, the tutorial, friend rooms); coach.js builds it from what
+ * this seat can see. On a turn: for each tile you could discard, how far from tenpai it leaves you and
+ * how many tiles would then improve the hand (`shanten`, `discards`, `best`), plus the fuller help
+ * (shape, improvers, suggestion, win_path, call_advice). While a discard is being answered: win_path and
+ * call_advice. Once the hand is over: the review.
  */
-function coachHelp(state, seat, options) {
-  if (options?.phase !== "turn") return null;
-  const seen = seenCounts(state, seat);
-  const counts = countKinds(state.hands[seat].map(kindOf));
-  const melds = state.melds[seat].length;
-  const discards = [];
-  const tried = new Set();
-  for (const tile of options.discards) {
-    const kind = kindOf(tile);
-    if (tried.has(kind)) continue;
-    tried.add(kind);
-    counts[kind] -= 1;
-    const result = improvements(counts, melds, seen);
-    counts[kind] += 1;
-    discards.push({ kind, shanten: result.shanten, useful: result.left, kinds: result.kinds });
-  }
-  if (!discards.length) return null;
-  const bestShanten = Math.min(...discards.map((entry) => entry.shanten));
-  const bestUseful = Math.max(...discards.filter((entry) => entry.shanten === bestShanten).map((entry) => entry.useful));
-  return {
-    shanten: bestShanten,
-    discards,
-    best: discards.filter((entry) => entry.shanten === bestShanten && entry.useful === bestUseful).map((entry) => entry.kind),
-  };
+function coachHelp(state, seat, options, help = null) {
+  return coach.analyze(state, seat, options, help);
 }
 
 /** One seat's view: the public table, their own tiles and moves, and help. */
-function seatHand(state, seat, { coach = false } = {}) {
+function seatHand(state, seat, { coach: coachOn = false } = {}) {
   const options = round.optionsFor(state, seat);
   const view = publicHand(state);
   view.seat = seat;
@@ -164,7 +114,7 @@ function seatHand(state, seat, { coach = false } = {}) {
   view.drawn = state.turn === seat && state.phase === "turn" ? state.drawn : null;
   view.options = options;
   view.help = basicHelp(state, seat, options);
-  if (coach) view.help.coach = coachHelp(state, seat, options);
+  if (coachOn) view.help.coach = coachHelp(state, seat, options, view.help);
   if (view.last?.t === "draw" && view.last.s === seat) view.last.tile = state.drawn;
   return view;
 }

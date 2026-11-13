@@ -94,6 +94,8 @@ async function applyMahjongSchema(pool) {
       PRIMARY KEY (game_id, seat)
     )
   `);
+  // Trial mode: what a stakes game netted this player in chips (prize less fee). Null for bots and for any other game.
+  await pool.query(`ALTER TABLE games.mahjong_game_players ADD COLUMN IF NOT EXISTS chips INTEGER NULL`);
   await pool.query(`CREATE INDEX IF NOT EXISTS games_mahjong_game_players_user_idx ON games.mahjong_game_players (user_id, game_id DESC) WHERE user_id IS NOT NULL`);
 
   await pool.query(`
@@ -195,6 +197,33 @@ async function applyMahjongSchema(pool) {
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS games_mahjong_picks_game_idx ON games.mahjong_picks (game_id, user_id) WHERE game_id IS NOT NULL`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS games_mahjong_picks_tournament_idx ON games.mahjong_picks (tournament_id, user_id) WHERE tournament_id IS NOT NULL`);
   await pool.query(`CREATE INDEX IF NOT EXISTS games_mahjong_picks_user_idx ON games.mahjong_picks (user_id, created_at DESC)`);
+
+  // Notes players send from the tables, for staff to read.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS games.mahjong_feedback (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      body TEXT NOT NULL,
+      table_id BIGINT NULL,
+      game_id BIGINT NULL,
+      page TEXT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CONSTRAINT games_mahjong_feedback_body_check CHECK (char_length(body) BETWEEN 1 AND 2000),
+      CONSTRAINT games_mahjong_feedback_page_check CHECK (page IS NULL OR char_length(page) <= 200)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS games_mahjong_feedback_created_idx ON games.mahjong_feedback (id DESC)`);
+
+  // First-time badges: each earned once per player.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS games.mahjong_badges (
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      badge TEXT NOT NULL,
+      earned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      game_id BIGINT NULL REFERENCES games.mahjong_games(id) ON DELETE SET NULL,
+      PRIMARY KEY (user_id, badge)
+    )
+  `);
 }
 
 module.exports = { applyMahjongSchema };

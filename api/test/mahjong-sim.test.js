@@ -187,6 +187,34 @@ test("the public table never carries a concealed tile, and a seat's view only it
   assert.ok(checked > 500);
 });
 
+/**
+ * The same position as `seat` sees it with everything it can't see dealt differently: the other three
+ * hands and every wall tile that isn't a shown indicator are shuffled together and handed back out.
+ */
+function scrambledTwin(state, seat, pick) {
+  const twin = structuredClone(state);
+  const pool = [];
+  for (let other = 0; other < 4; other += 1) if (other !== seat) pool.push(...twin.hands[other]);
+  const wallSlots = [];
+  for (let i = twin.livePos; i < twin.wall.length; i += 1) {
+    const isIndicator = i >= RINSHAN_START + 4 && i < RINSHAN_START + 4 + twin.doraShown;
+    if (!isIndicator) wallSlots.push(i);
+  }
+  for (const slot of wallSlots) pool.push(twin.wall[slot]);
+  for (let i = pool.length - 1; i > 0; i -= 1) {
+    const j = pick(i + 1);
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  let at = 0;
+  for (let other = 0; other < 4; other += 1) {
+    if (other === seat) continue;
+    twin.hands[other] = pool.slice(at, at + twin.hands[other].length);
+    at += twin.hands[other].length;
+  }
+  for (const slot of wallSlots) twin.wall[slot] = pool[at++];
+  return twin;
+}
+
 test("a bot's move doesn't change when everything it can't see is scrambled", () => {
   let compared = 0;
   for (let n = 0; n < 25; n += 1) {
@@ -196,26 +224,7 @@ test("a bot's move doesn't change when everything it can't see is scrambled", ()
     while (state.phase !== "over") {
       for (const seat of round.waitingSeats(state)) {
         // The same position with the other three hands and the rest of the wall dealt differently.
-        const twin = structuredClone(state);
-        const pool = [];
-        for (let other = 0; other < 4; other += 1) if (other !== seat) pool.push(...twin.hands[other]);
-        const wallSlots = [];
-        for (let i = twin.livePos; i < twin.wall.length; i += 1) {
-          const isIndicator = i >= RINSHAN_START + 4 && i < RINSHAN_START + 4 + twin.doraShown;
-          if (!isIndicator) wallSlots.push(i);
-        }
-        for (const slot of wallSlots) pool.push(twin.wall[slot]);
-        for (let i = pool.length - 1; i > 0; i -= 1) {
-          const j = pick(i + 1);
-          [pool[i], pool[j]] = [pool[j], pool[i]];
-        }
-        let at = 0;
-        for (let other = 0; other < 4; other += 1) {
-          if (other === seat) continue;
-          twin.hands[other] = pool.slice(at, at + twin.hands[other].length);
-          at += twin.hands[other].length;
-        }
-        for (const slot of wallSlots) twin.wall[slot] = pool[at++];
+        const twin = scrambledTwin(state, seat, pick);
         // What the seat is asked is public (its own options): keep the question, scramble the rest.
         const level = LEVELS[seat];
         if (state.phase === "calls") continue; // whether a call is offered depends on the real hands; compared on turns
@@ -227,6 +236,45 @@ test("a bot's move doesn't change when everything it can't see is scrambled", ()
     }
   }
   assert.ok(compared > 800);
+});
+
+test("the coach's help for a seat doesn't change when everything it can't see is scrambled", () => {
+  // Everything the coach adds (shape, improvers, suggestion, win path, call advice) and the older help,
+  // on turns and while a discard is being answered. The review is left out: it only runs on finished hands.
+  let turns = 0;
+  let calls = 0;
+  let advised = 0;
+  for (let n = 0; n < 30; n += 1) {
+    const match = game.createGame({ seed: seedFor(4000 + n), length: "east" });
+    const state = match.hand;
+    const pick = seededPicker("ef".repeat(32), n);
+    while (state.phase !== "over") {
+      for (const seat of round.waitingSeats(state)) {
+        const twin = scrambledTwin(state, seat, pick);
+        const mine = view.seatHand(state, seat, { coach: true });
+        const theirs = view.seatHand(twin, seat, { coach: true });
+        assert.ok(mine.help.coach, `hand ${n}: seat ${seat} has no coach help`);
+        assert.deepEqual(theirs.help, mine.help, `hand ${n}: seat ${seat}'s help used hidden tiles`);
+        assert.deepEqual(theirs.options, mine.options);
+        if (state.phase === "turn") turns += 1;
+        else {
+          calls += 1;
+          advised += mine.help.coach.call_advice.length;
+        }
+      }
+      const seat = round.waitingSeats(state)[0];
+      round.act(state, seat, bot.decide(state, seat, { level: LEVELS[seat], random: () => 0.5 }));
+    }
+    // After the hand every seat gets its review, and it adds nothing but the review to the coach.
+    for (let seat = 0; seat < 4; seat += 1) {
+      const help = view.seatHand(state, seat, { coach: true }).help.coach;
+      assert.equal(help.review.seat, seat);
+      assert.deepEqual(help.discards, []);
+      assert.ok(help.review.moments.length <= 2);
+    }
+  }
+  assert.ok(turns > 1000, `only ${turns} turns compared`);
+  assert.ok(calls > 200 && advised >= calls, `only ${calls} answers compared, ${advised} pieces of advice`);
 });
 
 test("the paid tables' autopilot only throws back what it draws and never calls or wins", () => {

@@ -183,6 +183,9 @@ Open hands lose one han where marked (−1), and can't use the ones marked close
 
 ## 5. Money
 
+This section is what applies when trial mode (section 6) is off. While it is on, none of it runs: no
+fee is taken, no prize paid and none of these limits is checked.
+
 The rules every side mode follows (`docs/market/credit.md`, `services/sideModeFloor.js`) apply as
 they are: Credit only, never Cash; no spending under the net worth floor; no spending in the red.
 Mahjong adds a table of four, where two players can agree to lose to each other, so:
@@ -208,3 +211,35 @@ Everything else a player earns is not money: rating and rank, titles, a record o
 their name on a leaderboard, a headline on the Wire.
 
 The numbers are in `mahjong/settings.js`, each with an environment variable.
+
+## 6. Trial mode
+
+Mahjong is released in a trial (beta) mode in which it can never take or pay Cash or Credit. It is
+on unless `MAHJONG_TRIAL` is `false`, `0` or `off` (`SETTINGS.trial`, `services/games/mahjong/settings.js`;
+`publicRules().trial` tells the client). Tests pin it with `setTrialForTests`.
+
+- **Stakes tables are chip tables.** Sitting costs nothing and checks nothing about money: no net
+  worth floor, weekly cap, daily count, account age or same-network rule, and no wallet, economy or
+  ledger call. A verified, signed-in account is still needed. The wait for players works as in quick
+  match: bots (level "normal") take the empty seats after `botFillSeconds`. An absent seat uses the
+  free-table autopilot.
+- **Chips are a record, not a balance.** Each finished chip game writes, for every human player,
+  the prize multiple times the stake less the stake, in whole chips (the 1,000 table: +1,000, +100,
+  -500, -1,000), to `games.mahjong_game_players.chips`. Bots get none; a cancelled or unfinished game
+  writes nothing. There is nothing to grant, spend, send or convert.
+- **Chip leaderboards.** Net chips this week (from Saturday 00:00 New York, the weekly cap's boundary)
+  and all time, `GET /api/games/mahjong/chips/leaderboard?range=week|all`: the top 50 and the viewer's
+  own line. Only players a leaderboard may show take a place.
+- **Tournaments are free.** Creating one with an entry fee is refused (`trial_no_fees`). A paid one
+  booked earlier cannot be joined, and when it starts every fee is refunded and no prize is paid.
+- **A backstop.** `records.payEntry` and `records.payPrize` throw `trial_mode` when called in trial
+  mode, so a missed call site fails before any money moves.
+- **Practice options.** Practice tables take the length `hand` (the game ends after one hand) and the
+  speed `untimed` (no turn clock, no time bank, and the table never plays for the human; one left
+  alone for 30 minutes is closed). No other table kind accepts either.
+- **First-time badges.** `first_game`, `first_win`, `first_riichi_win`, `first_tsumo`, `first_mangan`
+  and `first_table_win`, each earned once per signed-in player at any table but the tutorial
+  (`games.mahjong_badges`). The game-over payload names the ones just earned and a player's record
+  lists them all.
+- **Feedback.** Signed-in players send notes (1 to 2,000 characters, five an hour) to
+  `games.mahjong_feedback`; staff read them newest first.

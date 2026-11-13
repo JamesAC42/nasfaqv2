@@ -15,7 +15,7 @@ const tournaments = require("../services/games/mahjong/tournaments");
 const records = require("../services/games/mahjong/records");
 const limits = require("../services/games/mahjong/limits");
 const ratings = require("../services/games/mahjong/ratings");
-const { publicRules } = require("../services/games/mahjong/settings");
+const { SETTINGS, publicRules } = require("../services/games/mahjong/settings");
 const ipHash = require("../services/ipHash");
 const { requireAdmin, requireUserId, requireVerifiedUserId } = require("../userContext");
 const { sendGameError } = require("./games");
@@ -29,6 +29,7 @@ const moveLimit = rateLimit(byUser("mahjong-move", 150, 60), byIp("mahjong-move"
 const seatLimit = rateLimit(byUser("mahjong-seat", 20, 60));
 const guestLimit = rateLimit(byIp("mahjong-guest", 12, 600));
 const pickLimit = rateLimit(byUser("mahjong-pick", 20, 60));
+const feedbackLimit = rateLimit(byUser("mahjong-feedback", 5, 3600));
 
 const idOf = (value, code = "table_not_found") => {
   const id = Number.parseInt(String(value), 10);
@@ -69,14 +70,73 @@ site.get(
   })
 );
 
-// Where the signed-in player stands: this season's rating, and the paid-game limits.
+// Where the signed-in player stands: this season's rating, the paid-game limits, their chip result
+// (this week and all time; chips only come from stakes tables in trial mode) and first-time badges.
 site.get(
   "/me",
   wrap(async (req, res) => {
     const userId = requireUserId(req);
     noStore(res);
-    const [rating, plan] = await Promise.all([ratings.readRating(req.ctx.pool, userId), limits.readPlan(req.ctx.pool, userId)]);
-    res.json({ rating: { season: rating.season, rating: rating.rating, games: rating.games, rank: rating.rank.key }, limits: plan });
+    const [rating, plan, chips, badges] = await Promise.all([
+      ratings.readRating(req.ctx.pool, userId),
+      limits.readPlan(req.ctx.pool, userId),
+      records.chipTotals(req.ctx.pool, userId),
+      records.badgesOf(req.ctx.pool, userId),
+    ]);
+    res.json({ trial: SETTINGS.trial, rating: { season: rating.season, rating: rating.rating, games: rating.games, rank: rating.rank.key }, limits: plan, chips, badges });
+  })
+);
+
+// Chips (trial mode): the signed-in player's net result this week and all time.
+site.get(
+  "/chips/me",
+  wrap(async (req, res) => {
+    const userId = requireUserId(req);
+    noStore(res);
+    res.json(await records.chipTotals(req.ctx.pool, userId));
+  })
+);
+
+// Leaderboard of net chips: ?range=week (default, since Saturday 00:00 New York) or all.
+site.get(
+  "/chips/leaderboard",
+  wrap(async (req, res) => {
+    noStore(res);
+    res.json(await records.chipLeaderboard(req.ctx.pool, { range: req.query.range === "all" ? "all" : "week", viewerId: viewerId(req) }));
+  })
+);
+
+site.get(
+  "/badges/me",
+  wrap(async (req, res) => {
+    const userId = requireUserId(req);
+    noStore(res);
+    res.json({ badges: await records.badgesOf(req.ctx.pool, userId) });
+  })
+);
+
+// A note from a player to staff.
+site.post(
+  "/feedback",
+  feedbackLimit,
+  wrap(async (req, res) => {
+    const userId = Number(requireUserId(req));
+    const body = bodyOf(req);
+    const id = await records.saveFeedback(req.ctx.pool, { userId, body: body.body, tableId: body.table_id, gameId: body.game_id, page: body.page });
+    res.status(201).json({ ok: true, id });
+  })
+);
+
+// Staff: the notes, newest first, 50 to a page; ?before=<id> for the next page.
+site.get(
+  "/admin/feedback",
+  wrap(async (req, res) => {
+    requireAdmin(req);
+    noStore(res);
+    const raw = req.query.before;
+    const before = raw === undefined || raw === "" ? null : Number(raw);
+    if (before !== null && (!Number.isSafeInteger(before) || before <= 0)) throw Object.assign(new Error("invalid_feedback"), { code: "invalid_feedback", field: "before" });
+    res.json(await records.listFeedback(req.ctx.pool, { before }));
   })
 );
 

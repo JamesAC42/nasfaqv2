@@ -10,6 +10,7 @@ const { headlinePlayerSql } = require("../../wire/players");
 const ratings = require("./ratings");
 const { RANKED_AFTER_GAMES, SETTINGS, rankFor } = require("./settings");
 const { yakuName } = require("./names");
+const { WEEK_START_SQL } = require("./limits");
 
 const TIME_ZONE = "America/New_York";
 const round2 = (value) => Math.round(Number(value) * 100) / 100;
@@ -27,6 +28,10 @@ async function inTransaction(pool, fn) {
   } finally {
     client.release();
   }
+}
+
+function trialError() {
+  return Object.assign(new Error("trial_mode"), { code: "trial_mode" });
 }
 
 // ── Players ────────────────────────────────────────────────────────────────
@@ -157,9 +162,11 @@ function seatStats(hands, seat) {
 /**
  * Closes a finished game: ratings for a rated one, prizes for a paid one, everyone's line in the
  * record, the seed, and spectators' picks. Once only: a game that isn't `playing` is left alone
- * and null comes back. `prizes` is what first to fourth are paid, or null.
+ * and null comes back. `prizes` is what first to fourth are paid, or null. `chips` (trial mode) is
+ * what first to fourth net in chips, or null; chips are written down and nothing else. `badges` says
+ * whether the humans' first-time badges are awarded here.
  */
-async function finishGame(pool, { gameId, seed, rated, prizes, standings, seats, hands }) {
+async function finishGame(pool, { gameId, seed, rated, prizes, chips = null, badges = false, standings, seats, hands }) {
   return inTransaction(pool, async (client) => {
     const { rows: current } = await client.query(`SELECT status FROM games.mahjong_games WHERE id = $1 FOR UPDATE`, [gameId]);
     if (current[0]?.status !== "playing") return null;
@@ -178,7 +185,7 @@ async function finishGame(pool, { gameId, seed, rated, prizes, standings, seats,
     const lines = [];
     for (const [index, seat] of seats.entries()) {
       const standing = placeOf.get(index);
-      const line = { seat: index, user_id: seat.user_id ?? null, place: standing.place, points: standing.points, score: standing.score, rating_before: null, rating_after: null, payout: 0 };
+      const line = { seat: index, user_id: seat.user_id ?? null, place: standing.place, points: standing.points, score: standing.score, rating_before: null, rating_after: null, payout: 0, chips: seat.user_id && chips ? (chips[standing.place - 1] ?? 0) : null };
       if (seat.user_id && rated) {
         const stats = seatStats(hands, index);
         line.rating_before = rated4[index].rating;
@@ -197,12 +204,10 @@ async function finishGame(pool, { gameId, seed, rated, prizes, standings, seats,
       }
       if (seat.user_id && prizes) {
         line.payout = round2(prizes[standing.place - 1] ?? 0);
-        if (line.payout > 0) {
-          await gamesWallet.creditCashForGameWithClient(client, { userId: seat.user_id, amount: line.payout, entryType: "mahjong_prize_payout", referenceType: "mahjong_game", referenceId: gameId });
-        }
+        if (line.payout > 0) await payPrize(client, { userId: seat.user_id, amount: line.payout, gameId });
         await client.query(`UPDATE games.mahjong_entries SET status = 'settled', payout = $3, settled_at = now() WHERE game_id = $1 AND user_id = $2 AND status = 'open'`, [gameId, seat.user_id, line.payout]);
       }
-      await client.query(`UPDATE games.mahjong_game_players SET place = $3, points = $4, score = $5, rating_before = $6, rating_after = $7, payout = $8 WHERE game_id = $1 AND seat = $2`, [
+      await client.query(`UPDATE games.mahjong_game_players SET place = $3, points = $4, score = $5, rating_before = $6, rating_after = $7, payout = $8, chips = $9 WHERE game_id = $1 AND seat = $2`, [
         gameId,
         index,
         line.place,
@@ -211,12 +216,14 @@ async function finishGame(pool, { gameId, seed, rated, prizes, standings, seats,
         line.rating_before,
         line.rating_after,
         line.payout,
+        line.chips,
       ]);
+      if (seat.user_id && badges) line.badges = await grantBadges(client, { userId: seat.user_id, gameId, keys: badgesEarned({ hands, seat: index, place: standing.place }) });
       lines.push(line);
     }
     // A paid game whose prizes aren't being paid (it shouldn't happen) hands the fees back.
     if (!prizes) await refundOpenEntries(client, { gameId });
-    await client.query(`UPDATE games.mahjong_games SET status = 'completed', completed_at = now(), seed = $2, result_json = $3 WHERE id = $1`, [gameId, seed, JSON.stringify({ standings, lines })]);
+    await client.query(`UPDATE games.mahjong_games SET status = 'completed', completed_at = now(), seed = $2, result_json = $3 WHERE id = $1`, [gameId, seed, JSON.stringify({ standings, lines: lines.map(({ badges: _badges, ...rest }) => rest) })]);
     const winner = standings[0].seat;
     await client.query(`UPDATE games.mahjong_picks SET correct = (seat = $2) WHERE game_id = $1`, [gameId, winner]);
     return { season, lines };
@@ -228,9 +235,18 @@ const refOf = ({ gameId, tournamentId }) => (gameId ? { type: "mahjong_game", id
 
 /** Takes an entry fee (Credit, under every side-mode rule) and writes the entry the caps count. */
 async function payEntry(client, { userId, gameId = null, tournamentId = null, fee, maxNet }) {
+  // Trial mode never takes an entry fee; a call that gets here is a bug, and fails before anything moves.
+  if (SETTINGS.trial) throw trialError();
   const ref = refOf({ gameId, tournamentId });
   await gamesWallet.debitCashForGameWithClient(client, { userId, amount: fee, from: "credit", entryType: "mahjong_entry_fee", referenceType: ref.type, referenceId: ref.id });
   await client.query(`INSERT INTO games.mahjong_entries (user_id, game_id, tournament_id, fee, max_net) VALUES ($1,$2,$3,$4,$5)`, [userId, gameId, tournamentId, fee, maxNet]);
+}
+
+/** Pays a prize into the winner's Credit. Never in trial mode. */
+async function payPrize(client, { userId, amount, gameId = null, tournamentId = null }) {
+  if (SETTINGS.trial) throw trialError();
+  const ref = refOf({ gameId, tournamentId });
+  await gamesWallet.creditCashForGameWithClient(client, { userId, amount, entryType: "mahjong_prize_payout", referenceType: ref.type, referenceId: ref.id });
 }
 
 /** Hands back every open entry for a game or a tournament (or one player's), once. Returns how many. */
@@ -302,7 +318,7 @@ const gameRow = (row) => ({
 });
 
 const PLAYERS_SQL = `
-  SELECT p.game_id, p.seat, p.user_id, p.bot_level, p.name, p.talent, p.place, p.points, p.score, p.rating_before, p.rating_after, p.payout,
+  SELECT p.game_id, p.seat, p.user_id, p.bot_level, p.name, p.talent, p.place, p.points, p.score, p.rating_before, p.rating_after, p.payout, p.chips,
          u.username, u.profile_color, ${profilePictureUrlSql("small")} AS profile_picture_url
   FROM games.mahjong_game_players p
   LEFT JOIN market.users u ON u.id = p.user_id
@@ -324,6 +340,7 @@ const playerRow = (row) => ({
   rating_before: row.rating_before === null ? null : Number(row.rating_before),
   rating_after: row.rating_after === null ? null : Number(row.rating_after),
   payout: Number(row.payout),
+  chips: row.chips === null || row.chips === undefined ? null : Number(row.chips),
 });
 
 async function playersOf(db, gameIds) {
@@ -544,8 +561,149 @@ async function playerRecord(db, username) {
     totals,
     tournaments_won: titles.map((row) => ({ id: Number(row.id), name: row.name, at: row.completed_at })),
     picks: picks[0],
+    badges: await badgesOf(db, userId),
+    chips: await chipTotals(db, userId),
     recent: await recentGames(db, { userId, limit: 10 }),
   };
+}
+
+// ── Chips (trial mode) ─────────────────────────────────────────────────────
+/** A player's chip result this week (Saturday 00:00 New York on) and over all time, with games counted. */
+async function chipTotals(db, userId) {
+  const { rows } = await db.query(
+    `SELECT COALESCE(SUM(p.chips), 0)::bigint AS all_chips, COUNT(p.chips)::int AS all_games,
+            COALESCE(SUM(p.chips) FILTER (WHERE g.completed_at >= ${WEEK_START_SQL}), 0)::bigint AS week_chips,
+            (COUNT(p.chips) FILTER (WHERE g.completed_at >= ${WEEK_START_SQL}))::int AS week_games
+     FROM games.mahjong_game_players p JOIN games.mahjong_games g ON g.id = p.game_id AND g.status = 'completed'
+     WHERE p.user_id = $1 AND p.chips IS NOT NULL`,
+    [userId]
+  );
+  const row = rows[0];
+  return { week: Number(row.week_chips), week_games: row.week_games, all: Number(row.all_chips), all_games: row.all_games };
+}
+
+/**
+ * Net chips by player: `range` is "week" (since Saturday 00:00 New York) or "all". The top 50, and the
+ * viewer's own line (rank null when they have no chip games) if there is one.
+ */
+async function chipLeaderboard(db, { range = "week", viewerId = null } = {}) {
+  const week = range !== "all";
+  const { rows } = await db.query(
+    `WITH totals AS (
+       SELECT p.user_id, u.username, SUM(p.chips)::bigint AS chips, COUNT(*)::int AS games
+       FROM games.mahjong_game_players p
+       JOIN games.mahjong_games g ON g.id = p.game_id AND g.status = 'completed'
+       JOIN market.users u ON u.id = p.user_id
+       WHERE p.chips IS NOT NULL AND p.user_id IS NOT NULL ${week ? `AND g.completed_at >= ${WEEK_START_SQL}` : ""}
+         AND (${leaderboardPlayerSql("p.user_id")} OR p.user_id = $1::bigint)
+       GROUP BY p.user_id, u.username
+     ), ranked AS (
+       -- Only players a leaderboard may show take a place; the viewer sees their own result either way.
+       SELECT t.*, ${leaderboardPlayerSql("t.user_id")} AS listed FROM totals t
+     ), numbered AS (
+       SELECT *, ROW_NUMBER() OVER (PARTITION BY listed ORDER BY chips DESC, games DESC, user_id) AS place FROM ranked
+     )
+     SELECT user_id, username, chips, games, CASE WHEN listed THEN place::int END AS rank FROM numbered
+     WHERE (listed AND place <= 50) OR user_id = $1::bigint ORDER BY listed DESC, place`,
+    [viewerId]
+  );
+  const line = (row) => ({ rank: row.rank, username: row.username, chips: Number(row.chips), games: row.games });
+  const top = rows.filter((row) => row.rank !== null && row.rank <= 50).map(line);
+  let me = null;
+  if (viewerId) {
+    const mine = rows.find((row) => Number(row.user_id) === Number(viewerId));
+    if (mine) me = line(mine);
+    else {
+      const { rows: names } = await db.query(`SELECT username FROM market.users WHERE id = $1`, [viewerId]);
+      me = { rank: null, username: names[0]?.username ?? null, chips: 0, games: 0 };
+    }
+  }
+  return { range: week ? "week" : "all", leaders: top, me };
+}
+
+// ── Badges ─────────────────────────────────────────────────────────────────
+const BADGES = Object.freeze(["first_game", "first_win", "first_riichi_win", "first_tsumo", "first_mangan", "first_table_win"]);
+
+/** The badges one seat's finished game makes eligible (the player may hold some already). Pure. */
+function badgesEarned({ hands, seat, place }) {
+  const keys = new Set(["first_game"]);
+  if (place === 1) keys.add("first_table_win");
+  for (const hand of hands) {
+    if (hand.result.type !== "win") continue;
+    for (const win of hand.result.wins) {
+      if (win.seat !== seat) continue;
+      keys.add("first_win");
+      if (win.tsumo) keys.add("first_tsumo");
+      if (win.limit) keys.add("first_mangan");
+      if ((win.yaku ?? []).some((entry) => entry.key === "riichi" || entry.key === "double-riichi")) keys.add("first_riichi_win");
+    }
+  }
+  return BADGES.filter((key) => keys.has(key));
+}
+
+/** Writes badges a player doesn't have yet; returns the ones that were new. */
+async function grantBadges(db, { userId, gameId = null, keys }) {
+  if (!keys.length) return [];
+  const { rows } = await db.query(
+    `INSERT INTO games.mahjong_badges (user_id, badge, game_id) SELECT $1, b, $3 FROM unnest($2::text[]) AS b
+     ON CONFLICT (user_id, badge) DO NOTHING RETURNING badge`,
+    [userId, keys, gameId]
+  );
+  const added = new Set(rows.map((row) => row.badge));
+  return keys.filter((key) => added.has(key));
+}
+
+async function badgesOf(db, userId) {
+  const { rows } = await db.query(`SELECT badge, earned_at, game_id FROM games.mahjong_badges WHERE user_id = $1 ORDER BY earned_at, badge`, [userId]);
+  return rows.map((row) => ({ badge: row.badge, earned_at: row.earned_at, game_id: row.game_id ? Number(row.game_id) : null }));
+}
+
+// ── Feedback ───────────────────────────────────────────────────────────────
+function feedbackError(field) {
+  return Object.assign(new Error("invalid_feedback"), { code: "invalid_feedback", field });
+}
+
+const positiveId = (value, field) => {
+  if (value === undefined || value === null || value === "") return null;
+  const id = Number(value);
+  if (!Number.isSafeInteger(id) || id <= 0) throw feedbackError(field);
+  return id;
+};
+
+async function saveFeedback(db, { userId, body, tableId = null, gameId = null, page = null }) {
+  const text = typeof body === "string" ? body.trim() : "";
+  if (text.length < 1 || text.length > 2000) throw feedbackError("body");
+  if (page !== null && page !== undefined && typeof page !== "string") throw feedbackError("page");
+  const cleanPage = typeof page === "string" && page.trim() ? page.trim().slice(0, 200) : null;
+  const { rows } = await db.query(`INSERT INTO games.mahjong_feedback (user_id, body, table_id, game_id, page) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [
+    userId,
+    text,
+    positiveId(tableId, "table_id"),
+    positiveId(gameId, "game_id"),
+    cleanPage,
+  ]);
+  return Number(rows[0].id);
+}
+
+/** Staff: notes newest first, 50 to a page; `before` is the last id of the page before. */
+async function listFeedback(db, { before = null } = {}) {
+  const { rows } = await db.query(
+    `SELECT f.id, f.user_id, u.username, f.body, f.table_id, f.game_id, f.page, f.created_at
+     FROM games.mahjong_feedback f LEFT JOIN market.users u ON u.id = f.user_id
+     WHERE ($1::bigint IS NULL OR f.id < $1) ORDER BY f.id DESC LIMIT 51`,
+    [before]
+  );
+  const page = rows.slice(0, 50).map((row) => ({
+    id: Number(row.id),
+    user_id: Number(row.user_id),
+    username: row.username ?? null,
+    body: row.body,
+    table_id: row.table_id ? Number(row.table_id) : null,
+    game_id: row.game_id ? Number(row.game_id) : null,
+    page: row.page,
+    created_at: row.created_at,
+  }));
+  return { feedback: page, next_before: rows.length > 50 ? page[page.length - 1].id : null };
 }
 
 /**
@@ -622,26 +780,35 @@ async function wireTournament(db, { tournamentId, name, userId, username, seats 
 }
 
 module.exports = {
+  BADGES,
+  badgesEarned,
+  badgesOf,
   bestWin,
   cancelGame,
   cancelUnfinishedGames,
   createGameRow,
+  chipLeaderboard,
+  chipTotals,
   finishGame,
   getGame,
+  grantBadges,
   highlights,
   inTransaction,
   ladder,
+  listFeedback,
   listTalentSymbols,
   loadPlayer,
   oshiStandings,
   pairReport,
   payEntry,
+  payPrize,
   pickLeaders,
   playerRecord,
   readPick,
   recentGames,
   refundOpenEntries,
   saveHand,
+  saveFeedback,
   savePick,
   seatStats,
   startGameRow,

@@ -11,6 +11,8 @@
 //   friend    a room by link; the host starts it and bots take the empty seats. Recorded, unrated.
 //   ranked    quick match: open seats, bots fill after a wait. Recorded and rated. Free.
 //   stakes    four players, an entry fee each, a fixed prize table. No bots. Recorded and rated.
+//             In trial mode (settings.js) it is a chip table: nothing is paid, bots fill empty seats
+//             after the wait like quick match, and a finished game writes down chips, not money.
 //   tournament  seated by tournaments.js.
 //
 // Everything that changes a table runs under that table's lock, one step at a time. One timer per
@@ -24,15 +26,16 @@ const socketLimits = require("../../../socketLimits");
 const hub = require("../tables/hub");
 const reactions = require("../tables/reactions");
 const bot = require("./bot");
+const coach = require("./coach");
 const game = require("./game");
 const limits = require("./limits");
 const records = require("./records");
 const round = require("./round");
 const tutorial = require("./tutorial");
 const view = require("./view");
-const { newSeed } = require("./wall");
+const { buildWall, newSeed } = require("./wall");
 const { kindOf } = require("./tiles");
-const { SETTINGS, SPEEDS, stakesPrizeTable } = require("./settings");
+const { SETTINGS, SPEEDS, chipResults, stakesPrizeTable } = require("./settings");
 
 const SEATS = 4;
 // Unrecorded tables take ids far above anything the database hands out (and within the hub's 12 digits).
@@ -49,6 +52,8 @@ const DRAW_PAUSE_MS = 6000;
 const READY_PAUSE_MS = 1200;
 const SOLO_PAUSE_MS = 60_000;
 const AUTO_DISCARD_MS = 900;
+// A practice table with no clock waits on its player; one nobody has touched for this long is closed.
+const IDLE_PRACTICE_MS = 30 * 60_000;
 
 const tables = new Map(); // id -> table
 const roomCodes = new Map(); // friend room code -> table id
@@ -114,6 +119,7 @@ function humanSeat(table, player, { guest = false } = {}) {
     bank: 0,
     ready: false,
     fee: 0,
+    badgesEarned: [],
   };
 }
 
@@ -203,7 +209,7 @@ function gameView(table, seatIndex) {
     sticks: match.sticks,
     scores: hand ? [...hand.scores] : [...match.scores],
     hand_index: match.hand_index,
-    length: match.length,
+    length: table.singleHand ? "hand" : match.length,
     seed_hash: match.seed_hash,
     hand: hand ? (seatIndex === null ? view.publicHand(hand) : view.seatHand(hand, seatIndex, { coach: table.coach })) : null,
     history: match.hands.map((summary) => ({ index: summary.index, label: summary.label, honba: summary.honba, result: briefResult(summary.result) })),
@@ -221,11 +227,33 @@ function briefResult(result) {
 function clockView(table) {
   const asks = Object.entries(table.asks);
   if (table.between) return { phase: "between", until: table.between.until, seats: [] };
-  if (!asks.length) return null;
+  if (!asks.length || table.noClock) return null;
   const hand = table.game?.hand;
   // During calls, who is being waited on would say who can use the tile: only the turn is public.
   const shown = hand?.phase === "turn" ? asks.map(([seat, ask]) => ({ seat: Number(seat), deadline: ask.deadline })) : [];
   return { phase: hand?.phase ?? null, until: Math.max(...asks.map(([, ask]) => ask.deadline)), seats: shown };
+}
+
+/**
+ * The coach's look back at the last hand, for a seat once the game is over (after the last hand there is
+ * no hand left to carry it). The seed is public by then, so the wall can be rebuilt from it. Kept per seat;
+ * a failure logs and gives null.
+ */
+function finalReview(table, seatIndex) {
+  const match = table.game;
+  if (!table.coach || !match?.over || match.hand || !match.hands.length) return null;
+  table.finalReviews ??= new Map();
+  if (table.finalReviews.has(seatIndex)) return table.finalReviews.get(seatIndex);
+  let value = null;
+  try {
+    const last = match.hands[match.hands.length - 1];
+    const wall = table.lesson ? null : buildWall(match.seed, last.index);
+    value = coach.review(last, seatIndex, { wall });
+  } catch (error) {
+    console.error("mahjong final review failed:", String(error?.message || error));
+  }
+  table.finalReviews.set(seatIndex, value);
+  return value;
 }
 
 function publicTable(table, seatIndex = null) {
@@ -240,6 +268,8 @@ function publicTable(table, seatIndex = null) {
     coach: table.coach,
     fee: table.fee,
     prizes: prizes ? prizes.prizes : null,
+    chips: table.chips,
+    chip_results: table.chips ? chipResults(table.fee) : null,
     rated: table.rated,
     recorded: Boolean(table.dbId),
     room_code: table.code,
@@ -262,7 +292,7 @@ function publicTable(table, seatIndex = null) {
   if (seatIndex !== null) {
     const seat = table.seats[seatIndex];
     const ask = table.asks[seatIndex];
-    payload.me = { seat: seatIndex, away: seat.away, bank: seat.bank, deadline: ask?.deadline ?? null, turn_ms: speedOf(table).turn * 1000, ready: seat.ready, auto: ask?.kind === "auto" };
+    payload.me = { seat: seatIndex, away: seat.away, bank: seat.bank, deadline: ask?.deadline ?? null, turn_ms: table.noClock ? null : speedOf(table).turn * 1000, ready: seat.ready, auto: ask?.kind === "auto", badges_earned: seat.badgesEarned ?? [], review: finalReview(table, seatIndex) };
   }
   return payload;
 }
@@ -276,6 +306,7 @@ function lobbyEntry(table) {
     length: table.length,
     speed: table.speed,
     fee: table.fee,
+    chips: table.chips,
     seats: table.seats.map((seat, index) => (seat ? { seat: index, username: seat.username, profile_color: seat.profile_color, talent: seat.talent, bot: seat.bot, rank: seat.rank } : null)),
     label: match ? game.roundLabel(match) : null,
     scores: match ? [...(match.hand?.scores ?? match.scores)] : null,
@@ -334,7 +365,10 @@ function refreshAsks(table) {
         // In riichi with nothing to decide, the drawn tile goes straight back out.
         const forced = options.phase === "turn" && hand.riichi[index] > 0 && !options.tsumo && !options.ankan.length;
         if (forced) asks[index] = { key, kind: "auto", since: now, due: now + AUTO_DISCARD_MS, deadline: now + AUTO_DISCARD_MS };
-        else {
+        else if (table.noClock) {
+          // No clock: the table waits for its player (and closes if they never come back).
+          asks[index] = { key, kind: "human", since: now, due: now + IDLE_PRACTICE_MS, deadline: null };
+        } else {
           const gone = seat.seen && hub.count(seatChannel(seat)) === 0;
           const allowed = gone ? Math.min(10_000, speed.turn * 1000 + seat.bank) : speed.turn * 1000 + seat.bank;
           asks[index] = { key, kind: "human", since: now, due: now + allowed, deadline: now + allowed };
@@ -389,6 +423,8 @@ function timeoutAction(hand, index) {
 
 function autopilotLevel(table, seat) {
   if (seat.bot) return seat.bot;
+  // A chip table is free: an absent seat plays as it would anywhere else.
+  if (table.chips) return "normal";
   // On a paid table an absent seat only throws back what it draws: walking away can't beat playing.
   return table.fee > 0 || table.paidTournament ? "auto" : "normal";
 }
@@ -416,6 +452,15 @@ async function tick(table) {
   const index = Number(due[0]);
   const ask = due[1];
   const seat = table.seats[index];
+  if (table.noClock && ask.kind === "human") {
+    // Untimed practice never plays for its player; one left alone this long is closed.
+    table.status = "cancelled";
+    table.result = { cancelled: "idle" };
+    table.asks = {};
+    publish(table);
+    discard(table);
+    return;
+  }
   let action;
   if (ask.kind === "bot") action = bot.decide(hand, index, { level: autopilotLevel(table, seat) });
   else {
@@ -469,6 +514,12 @@ async function nextHand(table) {
   }
   const speed = speedOf(table);
   for (const seat of table.seats) seat.bank = speed.bank * 1000;
+  if (table.singleHand && !match.over) {
+    // One hand and done: close the game the way game.js does at the end of a match.
+    match.over = true;
+    match.hand = null;
+    match.final = { standings: game.standings(match.scores, match.sticks), scores: [...match.scores], sticks: match.sticks };
+  }
   if (match.over || table.lesson) {
     table.settling = Date.now();
     return finishTable(table);
@@ -498,7 +549,7 @@ async function startGame(table) {
   table.rated = RATED.has(table.kind);
   // A tournament seat whose player isn't at the table when it deals starts on autopilot.
   if (table.kind === "tournament") for (const seat of table.seats) if (!seat.bot && hub.count(seatChannel(seat)) === 0) seat.away = true;
-  table.game = game.createGame({ seed: newSeed(), length: table.length, wallFor: table.lesson ? () => table.lesson.wall() : null });
+  table.game = game.createGame({ seed: newSeed(), length: table.singleHand ? "east" : table.length, wallFor: table.lesson ? () => table.lesson.wall() : null });
   if (table.dbId) await records.startGameRow(pool, table.dbId, { seedHash: table.game.seed_hash, seats: table.seats });
   table.status = "playing";
   table.startAt = null;
@@ -508,7 +559,7 @@ async function startGame(table) {
 
 /** A waiting table's moment has come: fill the empty seats with bots where that's allowed, and deal. */
 async function startWhenDue(table) {
-  if (table.kind === "stakes") {
+  if (table.kind === "stakes" && !table.chips) {
     // Needs four players; if someone stood up during the countdown it goes back to waiting.
     if (humansAt(table).length < SEATS) {
       table.startAt = null;
@@ -523,17 +574,27 @@ async function startWhenDue(table) {
 async function finishTable(table) {
   const match = table.game;
   const final = match.final ?? { standings: game.standings(match.scores, match.sticks), scores: [...match.scores], sticks: match.sticks };
-  let lines = final.standings.map((entry) => ({ seat: entry.seat, user_id: table.seats[entry.seat].user_id, place: entry.place, points: entry.points, score: entry.score, rating_before: null, rating_after: null, payout: 0 }));
+  let lines = final.standings.map((entry) => ({ seat: entry.seat, user_id: table.seats[entry.seat].user_id, place: entry.place, points: entry.points, score: entry.score, rating_before: null, rating_after: null, payout: 0, chips: null }));
+  // First-time badges go to signed-in players at any table but the tutorial.
+  const awardBadges = table.kind !== "tutorial";
   if (table.dbId) {
-    const prizes = table.fee > 0 ? stakesPrizeTable(table.fee).prizes : null;
-    const closed = await records.finishGame(pool, { gameId: table.dbId, seed: match.seed, rated: table.rated, prizes, standings: final.standings, seats: table.seats, hands: match.hands });
+    const prizes = table.fee > 0 && !table.chips ? stakesPrizeTable(table.fee).prizes : null;
+    const chips = table.chips ? chipResults(table.fee) : null;
+    const closed = await records.finishGame(pool, { gameId: table.dbId, seed: match.seed, rated: table.rated, prizes, chips, badges: awardBadges, standings: final.standings, seats: table.seats, hands: match.hands });
     if (closed) lines = closed.lines;
+  } else if (awardBadges) {
+    // Practice isn't recorded, but a first win there still earns its badge.
+    for (const line of lines) {
+      if (!line.user_id) continue;
+      line.badges = await records.grantBadges(pool, { userId: line.user_id, keys: records.badgesEarned({ hands: match.hands, seat: line.seat, place: line.place }) }).catch((error) => (logError(error), []));
+    }
   }
+  for (const line of lines) if (line.badges?.length) table.seats[line.seat].badgesEarned = line.badges;
   table.settling = null;
   table.status = "done";
   table.asks = {};
   table.between = null;
-  table.result = { standings: [...lines].sort((a, b) => a.place - b.place), seed: match.seed, seed_hash: match.seed_hash, replay: table.dbId };
+  table.result = { standings: [...lines].sort((a, b) => a.place - b.place).map(({ badges: _badges, ...line }) => line), seed: match.seed, seed_hash: match.seed_hash, replay: table.dbId };
   for (const seat of table.seats) releaseUser(table, seat);
   clearTimeout(table.timer);
   publish(table);
@@ -572,7 +633,7 @@ async function cancelTable(table, reason) {
 }
 
 // ── Creating tables ────────────────────────────────────────────────────────
-function newTable({ id, kind, length = "east", speed = "standard", level = "normal", coach = false, fee = 0, dbId = null, hostUserId = null, code = null, tournament = null, lesson = null }) {
+function newTable({ id, kind, length = "east", speed = "standard", level = "normal", coach = false, fee = 0, chips = false, singleHand = false, noClock = false, dbId = null, hostUserId = null, code = null, tournament = null, lesson = null }) {
   const now = Date.now();
   const table = {
     id,
@@ -584,6 +645,9 @@ function newTable({ id, kind, length = "east", speed = "standard", level = "norm
     level,
     coach,
     fee,
+    chips: Boolean(chips),
+    singleHand: Boolean(singleHand),
+    noClock: Boolean(noClock),
     rated: RATED.has(kind),
     hostUserId,
     code,
@@ -633,16 +697,18 @@ function assertFree(userId) {
 }
 
 /** A table against three bots, dealt at once. `guest` seats a signed-out visitor; `lessonKey` makes it a guided hand. */
-async function createSoloTable({ player, guest = false, lessonKey = null, level, length, speed }) {
+async function createSoloTable({ player, guest = false, lessonKey = null, level, length, speed, singleHand = false, noClock = false }) {
   const lessonSpec = lessonKey ? tutorial.lessonOf(lessonKey) : null;
   if (lessonKey && !lessonSpec) throw tableError("lesson_not_found");
-  const options = parseOptions({ length, speed, level });
+  const options = parseOptions({ length: singleHand ? "east" : length, speed, level });
   memorySeq += 1;
   const table = newTable({
     id: MEMORY_ID_BASE + memorySeq,
     kind: lessonSpec ? "tutorial" : "practice",
     length: "east",
-    ...(lessonSpec ? { speed: "untimed", level: "auto" } : { length: options.length, speed: speed === "untimed" ? "untimed" : options.speed, level: options.level }),
+    ...(lessonSpec ? { speed: "untimed", level: "auto" } : { length: singleHand ? "hand" : options.length, speed: speed === "untimed" ? "untimed" : options.speed, level: options.level }),
+    singleHand: !lessonSpec && singleHand,
+    noClock: !lessonSpec && noClock,
     coach: true,
     lesson: lessonSpec ? { key: lessonKey, step: 0, steps: lessonSpec.steps, wall: lessonSpec.wall } : null,
   });
@@ -656,12 +722,16 @@ async function createSoloTable({ player, guest = false, lessonKey = null, level,
 async function createTable({ userId, kind, length, speed, level, tier, lesson, coach }) {
   return withLock(`user:${userId}`, async () => {
     if (!KINDS.has(kind) || kind === "tournament") throw tableError("invalid_table");
+    // A single hand and a table with no clock are for practice alone.
+    const singleHand = String(length) === "hand";
+    const noClock = speed === "untimed";
+    if (kind !== "practice" && (singleHand || noClock)) throw tableError("invalid_table");
     if (siteState.gamesPaused()) throw tableError("games_paused");
     assertFree(userId);
     const player = await records.loadPlayer(pool, userId);
     if (!player) throw tableError("unauthenticated");
     if (kind === "tutorial" || kind === "practice") {
-      const table = await createSoloTable({ player, lessonKey: kind === "tutorial" ? String(lesson || "") : null, level, length, speed });
+      const table = await createSoloTable({ player, lessonKey: kind === "tutorial" ? String(lesson || "") : null, level, length, speed, singleHand, noClock });
       return seatedView(table, humanIndexOf(table));
     }
     if (kind === "friend") {
@@ -679,7 +749,9 @@ async function createTable({ userId, kind, length, speed, level, tier, lesson, c
       const options = parseOptions({ length, speed: "standard", level: "normal" });
       const fee = kind === "stakes" ? Number(tier) : 0;
       if (kind === "stakes" && !SETTINGS.stakesTiers.includes(fee)) throw tableError("invalid_stake");
-      const open = [...tables.values()].filter((table) => table.kind === kind && table.status === "waiting" && table.length === options.length && table.fee === fee && table.seats.some((seat) => !seat));
+      // Trial mode: a stakes table plays for chips and nothing is paid or checked.
+      const chips = kind === "stakes" && SETTINGS.trial;
+      const open = [...tables.values()].filter((table) => table.kind === kind && table.status === "waiting" && table.length === options.length && table.fee === fee && table.chips === chips && table.seats.some((seat) => !seat));
       for (const table of open.sort((a, b) => a.createdAt - b.createdAt)) {
         try {
           return await withLock(table.id, () => sitLocked(table, player));
@@ -688,8 +760,8 @@ async function createTable({ userId, kind, length, speed, level, tier, lesson, c
           if (error?.code !== "mahjong_same_network") throw error;
         }
       }
-      const dbId = await records.createGameRow(pool, { kind, length: options.length, speed: options.speed, fee, rated: true });
-      const table = newTable({ id: dbId, dbId, kind, ...options, fee });
+      const dbId = await records.createGameRow(pool, { kind, length: options.length, speed: options.speed, fee, rated: true, settings: chips ? { chips: true } : {} });
+      const table = newTable({ id: dbId, dbId, kind, ...options, fee, chips });
       try {
         return await withLock(table.id, () => sitLocked(table, player));
       } catch (error) {
@@ -729,7 +801,7 @@ async function sitLocked(table, player) {
   const index = table.seats.findIndex((seat) => !seat);
   if (index < 0) throw tableError("table_full");
   const seat = humanSeat(table, player);
-  if (table.fee > 0) {
+  if (table.fee > 0 && !table.chips) {
     const prize = stakesPrizeTable(table.fee);
     await limits.assertPaidAccount(pool, player.user_id);
     await limits.assertNoSharedNetwork(pool, player.user_id, humansAt(table).map((other) => other.user_id));
@@ -744,7 +816,7 @@ async function sitLocked(table, player) {
   table.seats[index] = seat;
   registerSeat(table, index);
   const full = table.seats.every(Boolean);
-  if (table.kind === "ranked") {
+  if (table.kind === "ranked" || table.chips) {
     // The wait for players starts with the first one; a full table goes at once.
     if (full) table.startAt = Date.now() + 3000;
     else if (!table.startAt) table.startAt = Date.now() + SETTINGS.botFillSeconds * 1000;
@@ -786,7 +858,7 @@ async function leaveTable({ userId = null, token = null, tableId }) {
         return { ok: true };
       }
       if (table.hostUserId === seat.user_id) table.hostUserId = left[0].user_id;
-      if (table.kind === "stakes") table.startAt = null;
+      if (table.kind === "stakes" && !table.chips) table.startAt = null;
       changed(table);
       return { ok: true };
     }

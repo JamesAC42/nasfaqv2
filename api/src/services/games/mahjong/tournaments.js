@@ -11,7 +11,6 @@
 
 const crypto = require("node:crypto");
 const economy = require("../../economy");
-const gamesWallet = require("../wallet");
 const notifications = require("../../notifications");
 const hub = require("../tables/hub");
 const limits = require("./limits");
@@ -110,6 +109,8 @@ async function create(db, { name, seats, length = "east", finalLength = "south",
   if (!Object.hasOwn(SPEEDS, speed) || speed === "untimed") throw tournamentError("invalid_tournament", { field: "speed" });
   const fee = round2(entryFee);
   if (!Number.isFinite(fee) || fee < 0) throw tournamentError("invalid_tournament", { field: "entry_fee" });
+  // Trial mode: no entry fees, so nothing a tournament does can move money.
+  if (fee > 0 && SETTINGS.trial) throw tournamentError("trial_no_fees");
   // Winning it can't take anyone past a week's cap: first prize less the fee stays within the minimum cap.
   if (fee > 0 && tournamentPrizeTable(fee, Number(seats)).top_net > SETTINGS.weeklyMinimum) {
     throw tournamentError("mahjong_prize_over_cap", { limit: SETTINGS.weeklyMinimum });
@@ -137,6 +138,7 @@ async function register(db, { tournamentId, userId }) {
     if (active.some((entry) => Number(entry.user_id) === Number(userId))) throw tournamentError("already_seated");
     if (active.length >= Number(row.seats)) throw tournamentError("table_full");
     const fee = Number(row.entry_fee);
+    if (fee > 0 && SETTINGS.trial) throw tournamentError("trial_no_fees");
     if (fee > 0) {
       const prize = tournamentPrizeTable(fee, Number(row.seats));
       await limits.assertPaidAccount(client, userId);
@@ -248,8 +250,8 @@ async function start(tournamentId) {
     const seats = Number(row.seats);
     const players = entered.slice(0, seats).map((entry) => ({ user_id: Number(entry.user_id), name: entry.username, bot: null }));
     let paid = row.paid;
-    if (players.length < seats && paid) {
-      // A bot has to sit in: the tournament is free. Everyone gets their fee back.
+    if (paid && (SETTINGS.trial || players.length < seats)) {
+      // A bot has to sit in (or trial mode is on): the tournament is free. Everyone gets their fee back.
       await records.refundOpenEntries(client, { tournamentId });
       paid = false;
     }
@@ -333,14 +335,14 @@ async function onTableOver(table, result) {
 async function complete(client, row, bracket, finalTable) {
   const tournamentId = Number(row.id);
   const fee = Number(row.entry_fee);
-  const prizes = row.paid && fee > 0 ? tournamentPrizeTable(fee, Number(row.seats)).prizes : null;
+  const prizes = !SETTINGS.trial && row.paid && fee > 0 ? tournamentPrizeTable(fee, Number(row.seats)).prizes : null;
   const places = [];
   for (const line of finalTable.result) {
     const payout = prizes && line.user_id ? round2(prizes[line.place - 1] ?? 0) : 0;
     places.push({ place: line.place, user_id: line.user_id, name: line.name, bot: line.bot, payout });
     if (!line.user_id) continue;
     if (payout > 0) {
-      await gamesWallet.creditCashForGameWithClient(client, { userId: line.user_id, amount: payout, entryType: "mahjong_prize_payout", referenceType: "mahjong_tournament", referenceId: tournamentId });
+      await records.payPrize(client, { userId: line.user_id, amount: payout, tournamentId });
     }
     await client.query(`UPDATE games.mahjong_entries SET status = 'settled', payout = $3, settled_at = now() WHERE tournament_id = $1 AND user_id = $2 AND status = 'open'`, [tournamentId, line.user_id, payout]);
     await client.query(`UPDATE games.mahjong_tournament_players SET status = 'finished', place = $3, payout = $4 WHERE tournament_id = $1 AND user_id = $2`, [tournamentId, line.user_id, line.place, payout]);
@@ -375,9 +377,9 @@ async function scheduleRepeat(row) {
   await pool
     .query(
       `INSERT INTO games.mahjong_tournaments (name, seats, length, final_length, speed, entry_fee, paid, starts_at, repeat_weekly, created_by)
-       SELECT $2, seats, length, final_length, speed, entry_fee, entry_fee > 0, $3, true, created_by FROM games.mahjong_tournaments t WHERE t.id = $1
+       SELECT $2, seats, length, final_length, speed, CASE WHEN $4 THEN 0 ELSE entry_fee END, NOT $4 AND entry_fee > 0, $3, true, created_by FROM games.mahjong_tournaments t WHERE t.id = $1
          AND NOT EXISTS (SELECT 1 FROM games.mahjong_tournaments n WHERE n.name = $2 AND n.status = 'signup')`,
-      [row.id, row.name, new Date(next).toISOString()]
+      [row.id, row.name, new Date(next).toISOString(), Boolean(SETTINGS.trial)]
     )
     .catch((error) => console.error("mahjong tournament repeat failed:", String(error?.message || error)));
 }

@@ -13,7 +13,7 @@ const records = require("../src/services/games/mahjong/records");
 const round = require("../src/services/games/mahjong/round");
 const tables = require("../src/services/games/mahjong/tables");
 const tournaments = require("../src/services/games/mahjong/tournaments");
-const { SETTINGS, rankFor, stakesPrizeTable, tournamentPrizeTable } = require("../src/services/games/mahjong/settings");
+const { SETTINGS, rankFor, setTrialForTests, stakesPrizeTable, tournamentPrizeTable } = require("../src/services/games/mahjong/settings");
 const wallet = require("../src/services/games/wallet");
 
 // Mahjong's tables and money: who may sit, what a seat costs and pays, the caps, and what a finished
@@ -148,6 +148,8 @@ test("mahjong tables and money, end to end", { skip: !databaseUrl, timeout: 600_
     [console.warn, console.log, console.info] = saved;
   }
   const restoreFlags = features.override({ mahjong: "on", "prediction-pools": "on" });
+  // These are the paid rules: trial mode (tested in mahjong-trial.test.js) is pinned off.
+  const restoreTrial = setTrialForTests(false);
   const savedSalt = process.env.IP_HASH_SALT;
   process.env.IP_HASH_SALT = "mahjong-test-salt";
   await tables.init(pool, { onTableOver: tournaments.onTableOver });
@@ -156,6 +158,7 @@ test("mahjong tables and money, end to end", { skip: !databaseUrl, timeout: 600_
     stopTournaments();
     tables.reset();
     restoreFlags();
+    restoreTrial();
     if (savedSalt === undefined) delete process.env.IP_HASH_SALT;
     else process.env.IP_HASH_SALT = savedSalt;
     await pool.end();
