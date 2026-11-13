@@ -12,7 +12,7 @@ import { useAuth } from "@/app/providers/auth-provider";
 import styles from "@/app/components/predictions/market/market.module.scss";
 
 const COMMENT_COPY: Record<string, string> = {
-  prediction_market_comment_requires_position: "Take a position to post here.",
+  prediction_market_comment_requires_position: "Place a bet to post here.",
   invalid_prediction_market_comment: "Say something first (4,000 characters max).",
 };
 
@@ -105,7 +105,7 @@ export function Comments({ market }: { market: PredictionMarketDetail }) {
           ) : null}
         </div>
       ) : (
-        <p className={styles.fine}>Take a position to post. Only players with skin in it can talk here.</p>
+        <p className={styles.fine}>Place a bet to post. Only players with skin in it can talk here.</p>
       )}
 
       {items.length ? (

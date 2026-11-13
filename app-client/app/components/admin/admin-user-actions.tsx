@@ -24,7 +24,7 @@ export type RoleDef = { key: RoleFlag; label: string; short: string; line: strin
 export const ROLES: RoleDef[] = [
   { key: "is_admin", label: "Admin", short: "Admin", filter: "Admins", line: "Everything: market controls, prizes, predictions and this page." },
   { key: "can_manage_assets", label: "Asset manager", short: "Assets", filter: "Asset managers", line: "Uploads and edits emojis and profile pictures. No prizes, no market." },
-  { key: "can_create_prediction_markets", label: "Market creator", short: "Create", filter: "Creators", line: "Writes prediction markets and sends them for approval." },
+  { key: "can_create_prediction_markets", label: "Market creator", short: "Create", filter: "Creators", line: "Retired with the market maker: it does nothing while pools are on. Give Bookie to anyone who should open pools." },
   { key: "can_approve_prediction_markets", label: "Approver", short: "Approve", filter: "Approvers", line: "Approves or rejects the queue. Not their own markets." },
   { key: "can_resolve_prediction_markets", label: "Resolver", short: "Resolve", filter: "Resolvers", line: "Makes the calls and settles disputes. Someone else confirms theirs." },
   { key: "can_void_prediction_markets", label: "Voider", short: "Void", filter: "Voiders", line: "Voids a market and refunds everyone. The big red button." },

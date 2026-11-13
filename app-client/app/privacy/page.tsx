@@ -20,7 +20,7 @@ const sections: LegalSection[] = [
       <>
         <p>
           NASFAQ is a fan-made stock market game about hololive VTubers. You trade talent “stocks” with
-          play money, bet on prediction markets, collect cards and chat with other fans. It is not affiliated with COVER
+          play money, bet on prediction pools, collect cards and chat with other fans. It is not affiliated with COVER
           Corp. or hololive production.
         </p>
         <p>
@@ -56,10 +56,10 @@ const sections: LegalSection[] = [
             <p>Everything you write on the site, and the reactions around it:</p>
             <ul>
               <li>chat messages and replies</li>
-              <li>comments on stocks, articles and prediction markets, plus your comment votes</li>
+              <li>comments on stocks, articles and prediction pools, plus your comment votes</li>
               <li>articles and drafts you write, edits you propose to news articles, and your votes on them</li>
               <li>article likes and saves</li>
-              <li>prediction market disputes (with your reason) and markets you create, if you have that permission</li>
+              <li>prediction market disputes (with your reason), and the pools you open and the calls you make, if you’re a bookie</li>
               <li>chat reports you file</li>
               <li>bug reports you send, with the page you were on and your browser (the one place we keep browser details)</li>
             </ul>
@@ -67,7 +67,7 @@ const sections: LegalSection[] = [
           <Fact term="Your game activity">
             <p>
               Your stock orders and trades, cash balance and ledger, holdings, daily net worth, achievements and trading
-              streaks; your prediction market orders, trades and positions; and your games: card collection, pulls,
+              streaks; your prediction bets, margin and past market trades; and your games: card collection, pulls,
               shards, pity counters, showcase, capsule prizes, cosmetics, table game bets and results, and scores.
             </p>
           </Fact>
@@ -121,7 +121,7 @@ const sections: LegalSection[] = [
             that verifies your address, and a password reset link when you ask for one.
           </li>
           <li>
-            <strong>To run the game:</strong> fill trades, settle prediction markets, pay out prizes and achievements, and
+            <strong>To run the game:</strong> fill trades, settle prediction pools, pay out prizes and achievements, and
             work out leaderboards and ranks.
           </li>
           <li>
@@ -164,7 +164,7 @@ const sections: LegalSection[] = [
               <li>your rank, cash, total stock value, net worth and net worth history</li>
               <li>if you linked one, your v1 username and stats, unless you hide them</li>
               <li>your stock trade history: each buy and sell, with the ticker, price and quantity</li>
-              <li>your prediction market trades, disputes (with your reason) and forecaster leaderboard results</li>
+              <li>your prediction bets (who bet what on a pool is public), any disputes (with your reason), the pools you run as a bookie, and forecaster leaderboard results</li>
               <li>
                 your card collection and showcase, pulls in the live pull feed, cosmetics in your item locker, how much
                 you’ve spent on capsules, and game leaderboards
@@ -435,7 +435,7 @@ export default function PrivacyPage() {
     <LegalPage
       doc="privacy"
       title="Privacy Policy"
-      updated={{ iso: "2026-11-08", label: "November 8, 2026" }}
+      updated={{ iso: "2026-11-09", label: "November 9, 2026" }}
       art="legal-privacy-spot"
       intro={
         <p>

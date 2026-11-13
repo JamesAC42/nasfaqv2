@@ -4,8 +4,7 @@ import { useId } from "react";
 import styles from "@/app/components/how-to-play/diagrams.module.scss";
 
 // How-to explainers as diagrams: each one draws the actual mechanism (what feeds fair value and
-// how ticks pull the price, how orders queue into a batch, where stakes go, what a prediction share
-// pays). SVG on a 700×500 grid (the slot's 7:5), coloured from theme tokens so they work in light
+// how ticks pull the price, how orders queue into a batch, where stakes go, how a pool pays). SVG on a 700×500 grid (the slot's 7:5), coloured from theme tokens so they work in light
 // and dark. A `_shared/howto-*` image in the manifest still replaces them.
 
 const VB = "0 0 700 500";
@@ -249,71 +248,78 @@ export function GamesDiagram() {
   );
 }
 
-/** 05 Predictions: the YES price is the chance; a share pays $1 or $0; then how it resolves. */
+/** 05 Predictions: every bet goes in one pot, the winners split it, then how a pool ends. */
 export function PredictionsDiagram() {
   const arrow = useArrow();
-  const yes = 0.62;
   const x0 = 40;
-  const x1 = 660;
-  const split = x0 + (x1 - x0) * yes;
-  const stages = ["Trading", "Closes", "Proposed", "Dispute 12h", "Paid"];
+  const width = 620;
+  const stakes = [
+    { label: "A", share: 0.3, pays: "3.33×", className: styles.yesBar },
+    { label: "B", share: 0.5, pays: "2.00×", className: styles.noBar },
+    { label: "C", share: 0.2, pays: "5.00×", className: styles.thirdBar },
+  ];
+  let left = x0;
+  const bars = stakes.map((stake) => {
+    const bar = { ...stake, x: left, w: stake.share * width };
+    left += bar.w;
+    return bar;
+  });
+  const stages = ["Betting", "Closes", "Called", "Paid"];
   return (
-    <svg className={styles.diagram} viewBox={VB} role="img" aria-label="A YES share at 62 cents means the market thinks it's 62% likely. If it happens, YES pays $1 and NO pays nothing; if not, the other way round. Markets close, a result is proposed, a 12 hour dispute window runs, then winners are paid.">
+    <svg className={styles.diagram} viewBox={VB} role="img" aria-label="A pool has $100,000 in it: $30,000 on A, $50,000 on B and $20,000 on C, so A pays 3.33 times, B 2 times and C 5 times. If A wins, a $6,000 bet on A pays $20,000 and bets on the others pay nothing. If nobody backed the winner, every bet comes back. Betting closes, the result is called, then winners are paid.">
       <defs>
         <Arrowhead id={arrow} />
       </defs>
       <text className={styles.kicker} x={x0} y={46}>
-        THE PRICE IS THE CHANCE
+        EVERY BET GOES IN ONE POT
       </text>
-      <rect className={styles.yesBar} x={x0} y={62} width={split - x0 - 2} height={56} rx={6} />
-      <rect className={styles.noBar} x={split + 2} y={62} width={x1 - split - 2} height={56} rx={6} />
-      <text className={styles.barLabel} x={x0 + 18} y={98} textAnchor="start">
-        YES 62¢
-      </text>
-      <text className={styles.barLabel} x={x1 - 18} y={98} textAnchor="end">
-        NO 38¢
-      </text>
+      {bars.map((bar) => (
+        <g key={bar.label}>
+          <rect className={bar.className} x={bar.x + 1} y={62} width={bar.w - 2} height={56} rx={6} />
+          <text className={styles.barLabel} x={bar.x + bar.w / 2} y={98}>
+            {bar.label} {bar.pays}
+          </text>
+        </g>
+      ))}
       <text className={styles.axis} x={x0} y={144} textAnchor="start">
-        0%
+        $0
       </text>
-      <text className={styles.axis} x={split} y={144}>
-        62% likely
+      <text className={styles.axis} x={350} y={144}>
+        odds: the pot ÷ what’s on it
       </text>
-      <text className={styles.axis} x={x1} y={144} textAnchor="end">
-        100%
+      <text className={styles.axis} x={x0 + width} y={144} textAnchor="end">
+        $100,000
       </text>
 
       {/* Payouts. */}
       {[
-        { x: x0, title: "It happens", yes: "$1.00", no: "$0" },
-        { x: 360, title: "It doesn't", yes: "$0", no: "$1.00" },
+        { x: x0, title: "A wins", rows: [{ label: "$6,000 on A", pays: "$20,000", won: true }, { label: "$5,000 on B", pays: "$0", won: false }] },
+        { x: 360, title: "Nobody backed it", rows: [{ label: "$6,000 on A", pays: "$6,000", won: true }, { label: "$5,000 on B", pays: "$5,000", won: true }] },
       ].map((col) => (
         <g key={col.title}>
           <rect className={styles.box} x={col.x} y={176} width={300} height={150} rx={10} />
           <text className={styles.boxTitle} x={col.x + 20} y={212}>
             {col.title}
           </text>
-          <text className={styles.rowLabel} x={col.x + 20} y={256}>
-            YES share
-          </text>
-          <text className={col.yes === "$0" ? styles.payZero : styles.payWin} x={col.x + 280} y={256} textAnchor="end">
-            {col.yes}
-          </text>
-          <text className={styles.rowLabel} x={col.x + 20} y={298}>
-            NO share
-          </text>
-          <text className={col.no === "$0" ? styles.payZero : styles.payWin} x={col.x + 280} y={298} textAnchor="end">
-            {col.no}
-          </text>
+          {col.rows.map((row, index) => (
+            <g key={row.label}>
+              <text className={styles.rowLabel} x={col.x + 20} y={256 + index * 42}>
+                {row.label}
+              </text>
+              <text className={row.won ? styles.payWin : styles.payZero} x={col.x + 280} y={256 + index * 42} textAnchor="end">
+                {row.pays}
+              </text>
+            </g>
+          ))}
         </g>
       ))}
 
       {/* Lifecycle. */}
       {stages.map((stage, index) => {
-        const cx = x0 + 56 + index * 132;
+        const cx = x0 + 56 + index * 169;
         return (
           <g key={stage}>
-            {index ? <path className={styles.arrow} d={`M ${cx - 132 + 58} 410 H ${cx - 60}`} markerEnd={`url(#${arrow})`} /> : null}
+            {index ? <path className={styles.arrow} d={`M ${cx - 169 + 58} 410 H ${cx - 60}`} markerEnd={`url(#${arrow})`} /> : null}
             <rect className={index === stages.length - 1 ? styles.boxStrong : styles.box} x={cx - 56} y={386} width={112} height={48} rx={24} />
             <text className={styles.stage} x={cx} y={416}>
               {stage}
@@ -322,7 +328,7 @@ export function PredictionsDiagram() {
         );
       })}
       <text className={styles.caption} x={350} y={480}>
-        Sell any time before it closes; voided markets refund everyone
+        Raise a bet any time it’s open; voided pools refund everyone
       </text>
     </svg>
   );

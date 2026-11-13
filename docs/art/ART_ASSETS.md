@@ -1257,16 +1257,16 @@ By priority: P0 456, P1 621, P2 88.
 | Used in | /how-to-play#market → components/how-to-play/sections.tsx Section header, right of the title and lede (above the text on phones) |
 | Notes | No text or numbers. No real talents or channel art. One of five section illustrations (market, trading, games, predictions, community) that must share framing, palette and rendering. |
 
-#### `howto-predictions` · How to play: prices are chances · P0
+#### `howto-predictions` · How to play: winners split the pot · P0
 
 | | |
 |---|---|
 | Export | 1400×1000 (7:5), srcset 600, 1200, 1400, webp |
 | Display | 384×274 (24rem; 256×183 on tablets); phones: full width × 192 (cover, crops to ~1.9:1) css px |
-| Crop | Framed panel. Gauge and token stacks inside the middle 70% of the height; the gavel and magnifier in a lower corner may crop on phones. |
+| Crop | Framed panel. The pot and token stacks inside the middle 70% of the height; the gavel in a lower corner may crop on phones. |
 | Background | full scene |
-| Subject | A big stylised gauge like a speedometer, its needle resting a little past the middle, the arc filled hololive blue on one side and soft pink-red on the other. In front of it, two neat stacks of poker-style tokens: a tall blue stack and a shorter pink stack, with a single gold coin mid-flip above them (the $1 payout). A small gavel and a magnifying glass rest on the table in a corner (the result gets called and checked). Dark ink ground (#0a0c11), flat graphic shapes with halftone shading, clean and confident like a game-manual diagram. |
-| Lighting | neon: blue on one side of the gauge, soft pink-red on the other, one gold glint on the coin |
+| Subject | A big round pot in the middle of the table, overflowing with poker-style tokens. Three neat stacks of tokens slide toward it from different sides, in hololive blue, soft pink-red and warm violet, of three different heights: everyone's bets go in one pot. A small gavel rests on the table in a corner (the result gets called). Dark ink ground (#0a0c11), flat graphic shapes with halftone shading, clean and confident like a game-manual diagram. |
+| Lighting | neon: blue on the tallest stack, soft pink-red and warm violet on the others, one gold glint on the pot |
 | Style | scene |
 | Variants | **default** |
 | Animation | none |

@@ -7,6 +7,7 @@ import { Oshimark } from "@/app/components/common/oshimark";
 import { TalentCard } from "@/app/components/games/cards/talent-card";
 import { RARITIES, RARITY_COLOR, RARITY_NAME } from "@/app/lib/games/rarity";
 import { formatCountdown, formatEtTime, getMarketClock, TICKS } from "@/app/lib/market-clock";
+import { multiplierText, previewBet } from "@/app/lib/predictions/pools";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct, toneOf } from "@/app/lib/time";
 import type { MarketAsset } from "@/app/lib/types";
@@ -330,96 +331,62 @@ export function RarityFan() {
   );
 }
 
-// ── Predictions: price = chance, on the real market-maker math ────────────
+// ── Predictions: one pool, on the real payout math ───────────────────────
 
-const SPENDS = [10, 50, 200];
-const B = 400; // auto tick-direction markets (PREDICTIONS_DESIGN §2)
-const PRED_FEE = 0.01;
+const POOL_SPENDS = [5_000, 10_000, 25_000];
+/** What's on each option so far. */
+const POOL_STAKES = [30_000, 50_000, 20_000];
+const dollars = (value: number) => `$${Math.round(value).toLocaleString("en-US")}`;
 
-/** Binary LMSR buy by cash (fee included), with the 99¢ rail. Mirrors api/src/services/predictions/trading.js priceBuy. */
-function quoteBuy(price: number, spend: number) {
-  const curveBudget = spend / (1 + PRED_FEE);
-  let shares = B * Math.log(1 + Math.expm1(curveBudget / B) / price);
-  const cap = B * Math.log((0.99 * (1 - price)) / (0.01 * price));
-  if (shares > cap) shares = Math.max(0, cap);
-  const curve = B * Math.log(price * Math.exp(shares / B) + (1 - price));
-  const after = (price * Math.exp(shares / B)) / (price * Math.exp(shares / B) + 1 - price);
-  return { shares, cost: curve * (1 + PRED_FEE), avg: shares > 0 ? curve / shares : price, after };
-}
+export function PoolDemo() {
+  const talents = useBusiestTalents(2);
+  const labels = [talents[0]?.symbol ?? "PEK", talents[1]?.symbol ?? "MIKO", "Someone else"];
+  const [picked, setPicked] = useState(0);
+  const [spend, setSpend] = useState(10_000);
 
-export function ChanceDemo() {
-  const now = useNow();
-  const talents = useBusiestTalents(1);
-  const symbol = talents[0]?.symbol ?? "PEK";
-  const nextTick = now ? getMarketClock(now).nextTick.label : "Late";
-  const [yes, setYes] = useState(62);
-  const [side, setSide] = useState<"yes" | "no">("yes");
-  const [spend, setSpend] = useState(50);
-
-  const price = (side === "yes" ? yes : 100 - yes) / 100;
-  const quote = quoteBuy(price, spend);
-  const profit = quote.shares - quote.cost;
-  const afterYes = side === "yes" ? quote.after : 1 - quote.after;
+  const total = POOL_STAKES.reduce((sum, stake) => sum + stake, 0);
+  const preview = previewBet({ total, optionTotal: POOL_STAKES[picked], amount: spend });
 
   return (
     <div className={styles.chance}>
       <div className={styles.chanceHead}>
         <span className={styles.demoTag}>Try it</span>
-        <p className={styles.chanceQ}>
-          {symbol} up on the {nextTick} tick?
-        </p>
+        <p className={styles.chanceQ}>Top gainer on the Lunch tick?</p>
       </div>
 
-      <div className={styles.chanceBig} aria-live="polite">
-        <span className={styles.cents}>
-          {yes}
-          <small>¢</small>
-        </span>
-        <span className={styles.equals}>=</span>
-        <span className={styles.pct}>
-          {yes}% <small>chance of YES</small>
-        </span>
-      </div>
-
-      <label className={styles.slider}>
-        <span className={styles.sr}>YES price in cents</span>
-        <input type="range" min={3} max={97} value={yes} onChange={(event) => setYes(Number(event.target.value))} style={{ "--v": `${((yes - 3) / 94) * 100}%` } as CSSProperties} />
-      </label>
-      <div className={styles.sliderEnds} aria-hidden="true">
-        <span>YES {yes}¢</span>
-        <span>NO {100 - yes}¢</span>
+      <div className={styles.poolOptions} role="group" aria-label="Option">
+        {POOL_STAKES.map((stake, index) => (
+          <button key={labels[index]} type="button" className={styles.poolOption} aria-pressed={picked === index} onClick={() => setPicked(index)}>
+            <span className={styles.poolFill} style={{ width: `${(stake / total) * 100}%` }} aria-hidden="true" />
+            <span className={styles.poolLabel}>{labels[index]}</span>
+            <span className={styles.poolStake}>{dollars(stake)}</span>
+            <b className={styles.poolPays}>{multiplierText(total / stake)}</b>
+          </button>
+        ))}
       </div>
 
       <div className={styles.chanceTicket}>
-        <div className={styles.yesNo} role="group" aria-label="Outcome">
-          <button type="button" data-o="yes" aria-pressed={side === "yes"} onClick={() => setSide("yes")}>
-            YES {yes}¢
-          </button>
-          <button type="button" data-o="no" aria-pressed={side === "no"} onClick={() => setSide("no")}>
-            NO {100 - yes}¢
-          </button>
-        </div>
-        <div className={styles.spends} role="group" aria-label="Spend">
-          {SPENDS.map((value) => (
+        <div className={styles.spends} role="group" aria-label="Your bet">
+          {POOL_SPENDS.map((value) => (
             <button key={value} type="button" aria-pressed={spend === value} onClick={() => setSpend(value)}>
-              ${value}
+              {dollars(value)}
             </button>
           ))}
         </div>
-        <dl className={styles.est}>
-          <dt>You get</dt>
-          <dd>{quote.shares.toFixed(1)} shares</dd>
-          <dt>Avg price</dt>
-          <dd>{(quote.avg * 100).toFixed(1)}¢</dd>
-          <dt>YES after</dt>
-          <dd>{(afterYes * 100).toFixed(0)}¢</dd>
-          <dt className={styles.total}>Pays if right</dt>
+        <dl className={styles.est} aria-live="polite">
+          <dt>Pot with your bet</dt>
+          <dd>{dollars(total + spend)}</dd>
+          <dt>On {labels[picked]} with your bet</dt>
+          <dd>{dollars(POOL_STAKES[picked] + spend)}</dd>
+          <dt>Odds after your bet</dt>
+          <dd>{multiplierText(preview.multiplier)}</dd>
+          <dt className={styles.total}>Pays if it wins</dt>
           <dd className={styles.total}>
-            {money(quote.shares)} <small className={styles.up}>+{money(profit)}</small>
+            {dollars(preview.payout)} <small className={styles.up}>+{dollars(preview.profit)}</small>
           </dd>
         </dl>
       </div>
-      <p className={styles.demoNote}>Real market-maker math at an auto market&apos;s depth, 1% fee in. Your buy moves the price.</p>
+      <p className={styles.demoNote}>Real pool math, if it closed right after your bet. Every bet after yours moves the odds, so the payout can end up higher or lower.</p>
     </div>
   );
 }

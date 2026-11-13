@@ -1,12 +1,12 @@
 // Friendly copy for predictions API error codes (api/src/routes/predictions.js ERROR_STATUS).
 
 const COPY: Record<string, string> = {
-  unauthenticated: "Sign in to trade.",
-  email_verification_required: "Verify your email to trade.",
-  "Verify your email before using this feature.": "Verify your email to trade.",
+  unauthenticated: "Sign in to bet.",
+  email_verification_required: "Verify your email to bet.",
+  "Verify your email before using this feature.": "Verify your email to bet.",
   forbidden: "You don't have permission for that.",
-  prediction_market_not_found: "That market doesn't exist.",
-  prediction_market_closed: "Trading on this market is closed.",
+  prediction_market_not_found: "That pool doesn't exist.",
+  prediction_market_closed: "Betting on this has closed.",
   insufficient_cash: "Not enough cash.",
   insufficient_credit: "Not enough Credit. Bets never spend your cash.",
   net_worth_floor: "Bets are closed while your net worth is this low. Build it back on the market and they reopen.",
@@ -25,7 +25,7 @@ const COPY: Record<string, string> = {
   already_disputed: "You've already disputed this call.",
   confirm_requires_second_resolver: "A different resolver has to confirm a disputed call.",
   no_open_proposal: "There's no open call on this market.",
-  prediction_market_transition_invalid: "The market can't do that from its current state.",
+  prediction_market_transition_invalid: "That can't be done from its current state.",
   prediction_market_self_approval_forbidden: "Someone else has to approve your market.",
   invalid_prediction_market: "Some fields need fixing.",
   // Pools and margin
