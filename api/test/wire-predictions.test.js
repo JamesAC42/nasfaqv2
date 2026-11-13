@@ -68,7 +68,7 @@ test("the Wire's calls: public markets, and pools only once they're on for every
     return Number(rows[0].id);
   };
   const called = async () => (await pool.query(`SELECT dedupe_key, headline, blurb, link_url FROM content.wire_items WHERE kind = 'prediction_resolved' ORDER BY id`)).rows;
-  const slugs = (items) => items.map((item) => item.link_url.replace("/predictions/", "")).sort();
+  const slugs = (items) => items.map((item) => item.link_url.replace(/^\/predictions\/(pools\/)?/, "")).sort();
 
   await resolved("public-market");
   await resolved("test-pool", { pricing: "pool" });
@@ -136,6 +136,9 @@ test("the Wire's calls: public markets, and pools only once they're on for every
     try {
       await wire.runWire(pool, quiet);
       assert.deepEqual(slugs(await called()), [bookiePool.slug, "public-market", "test-pool"].sort());
+      const links = (await called()).map((item) => item.link_url);
+      assert.ok(links.includes("/predictions/pools/test-pool"), "a pool's headline links to its pool page");
+      assert.ok(links.includes("/predictions/public-market"), "a market's headline links to its market page");
       await wire.runWire(pool, quiet);
       assert.equal((await called()).length, 3, "each call once");
     } finally {

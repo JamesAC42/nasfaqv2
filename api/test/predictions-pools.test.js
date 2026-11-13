@@ -114,9 +114,9 @@ test("the Saturday conversion leaves negative Credit alone", () => {
   assert.deepEqual(plan.moves.map((move) => move.userId), [2]);
 });
 
-test("pools ship behind the prediction-pools flag at staff", () => {
+test("pools have a flag", () => {
   // Read from the file, not the running state (the end-to-end test below overrides it).
-  assert.equal(features.readFlags().get("prediction-pools")?.state, "staff");
+  assert.ok(features.readFlags().has("prediction-pools"));
 });
 
 // ── End to end, on a throwaway database ──────────────────────────────────
@@ -135,7 +135,7 @@ test("prediction pools and margin end to end", { skip: !databaseUrl, timeout: 24
   }
   target.pathname = "/nasfaq_predictions_pools_test";
   const pool = new Pool({ connectionString: target.href });
-  // The flag file says "staff"; most of these run as players would once it's on.
+  // Set here too, so these keep testing life at "on" if the flag file ever goes back to "staff".
   const restoreFlags = features.override({ "prediction-pools": "on" });
   t.after(async () => {
     restoreFlags();
@@ -447,14 +447,13 @@ test("prediction pools and margin end to end", { skip: !databaseUrl, timeout: 24
     await setWallet(bob, { credit: 100000, cash: 0 });
   });
 
-  await t.test("nobody resolves a pool they have money in, and bookies close and extend their own", async () => {
+  await t.test("bookies close and extend their own pools, and other bookies can't call them", async () => {
     await setWallet(owner, { credit: 100000, cash: 0 });
     const { slug } = await openPool(bookie, { closes_at: minutesFromNow(60) });
     const id = await poolId(slug);
     await bet(owner, slug, "o1", 5000);
     const otherBookie = await makeUser("otherbookie", { flags: { is_bookie: true } });
     await assert.rejects(pools.resolvePool(pool, otherBookie, id, { outcome: "o1", note: "x" }), { code: "forbidden" });
-    await assert.rejects(pools.resolvePool(pool, owner, id, { outcome: "o1", note: "x" }), { code: "bookie_has_stake" });
     await assert.rejects(pools.extendPool(pool, bookie, id, { closesAt: minutesFromNow(30) }), { code: "invalid_pool" }, "only later");
     await pools.extendPool(pool, bookie, id, { closesAt: minutesFromNow(240) });
     await pools.closePool(pool, bookie, id);
@@ -462,6 +461,137 @@ test("prediction pools and margin end to end", { skip: !databaseUrl, timeout: 24
     const mine = await pools.listBookiePools(pool, bookie);
     assert.ok(mine.pools.some((entry) => entry.slug === slug && entry.bettors === 1));
     await pools.resolvePool(pool, bookie, id, { outcome: "o2", note: "B" });
+  });
+
+  await t.test("admins can call, correct and void any pool, even with money in it; other staff can't act on one they have money in", async () => {
+    const stakeAdmin = await makeUser("stake_admin", { flags: { is_admin: true } });
+    const stakeStaff = await makeUser("stake_staff", { flags: { can_void_prediction_markets: true, can_resolve_prediction_markets: true } });
+    const stakePlayer = await makeUser("stake_player");
+    for (const user of [stakeAdmin, stakeStaff, stakePlayer]) await setWallet(user, { credit: 100000, cash: 0 });
+
+    // Admin with a stake: calls, corrects and voids.
+    const a = await openPool(bookie, { closes_at: minutesFromNow(60) });
+    const aId = await poolId(a.slug);
+    await bet(stakePlayer, a.slug, "o1", 3000);
+    await bet(stakeAdmin, a.slug, "o2", 2000);
+    let can = (await pools.getPoolDetail(pool, a.slug, stakeAdmin)).can;
+    assert.equal(can.resolve, true);
+    assert.equal(can.void, true);
+    await pools.resolvePool(pool, stakeAdmin, aId, { outcome: "o2", note: "B won" });
+    can = (await pools.getPoolDetail(pool, a.slug, stakeAdmin)).can;
+    assert.equal(can.correct, true);
+    await pools.correctPool(pool, stakeAdmin, aId, { outcome: "o1", note: "A won after all" });
+    await pools.voidPool(pool, stakeAdmin, aId, { reason: "Rerun" });
+    assert.equal((await pool.query(`SELECT status FROM market.prediction_markets WHERE id = $1`, [aId])).rows[0].status, "voided");
+
+    // Admin voids an open pool they bet in.
+    const b = await openPool(bookie, { closes_at: minutesFromNow(60) });
+    const bId = await poolId(b.slug);
+    await bet(stakeAdmin, b.slug, "o1", 1000);
+    await pools.voidPool(pool, stakeAdmin, bId, { reason: "Cancelled" });
+    assert.equal((await pool.query(`SELECT status FROM market.prediction_markets WHERE id = $1`, [bId])).rows[0].status, "voided");
+
+    // Non-admin staff with a stake can't void, before or after the call.
+    const c = await openPool(bookie, { closes_at: minutesFromNow(60) });
+    const cId = await poolId(c.slug);
+    await bet(stakeStaff, c.slug, "o1", 1000);
+    await assert.rejects(pools.voidPool(pool, stakeStaff, cId, { reason: "mine" }), { code: "void_has_stake" });
+    await assert.rejects(resolution.voidMarket(pool, stakeStaff, cId, { reason: "mine" }), { code: "void_has_stake" });
+    assert.equal((await pools.getPoolDetail(pool, c.slug, stakeStaff)).can.void, false);
+    await pools.resolvePool(pool, bookie, cId, { outcome: "o2", note: "B" });
+    await assert.rejects(pools.correctPool(pool, stakeStaff, cId, { outcome: "o1", note: "x" }), { code: "bookie_has_stake" });
+    await assert.rejects(pools.voidPool(pool, stakeStaff, cId, { reason: "mine" }), { code: "void_has_stake" });
+    can = (await pools.getPoolDetail(pool, c.slug, stakeStaff)).can;
+    assert.equal(can.correct, false);
+    assert.equal(can.void, false);
+
+    // An auto pool: resolving staff with a stake can't call it.
+    const autoPool = await core.inTransaction(pool, (client) =>
+      pools.insertPoolWithClient(client, { title: "Stake test auto pool", options: ["One", "Two"], closes_at: minutesFromNow(30) }, { kind: "auto", autoTemplate: "top-gainer-pool", autoKey: "stake-test" })
+    );
+    const autoId = Number(autoPool.id);
+    const first = (await pool.query(`SELECT id FROM market.prediction_market_outcomes WHERE market_id = $1 ORDER BY sort_order LIMIT 1`, [autoId])).rows[0].id;
+    await pool.query(`INSERT INTO market.prediction_pool_stakes (market_id, outcome_id, user_id, stake) VALUES ($1, $2, $3, 1000)`, [autoId, first, stakeStaff.id]);
+    const autoSlug = (await pool.query(`SELECT slug FROM market.prediction_markets WHERE id = $1`, [autoId])).rows[0].slug;
+    can = (await pools.getPoolDetail(pool, autoSlug, stakeStaff)).can;
+    assert.equal(can.manage, true);
+    assert.equal(can.resolve, false);
+    await assert.rejects(pools.resolvePool(pool, stakeStaff, autoId, { outcome: "o1", note: "x" }), { code: "bookie_has_stake" });
+    await pool.query(`DELETE FROM market.prediction_markets WHERE id = $1`, [autoId]);
+
+    // Staff without a stake can still void.
+    const d = await openPool(bookie, { closes_at: minutesFromNow(60) });
+    await pools.voidPool(pool, stakeStaff, await poolId(d.slug), { reason: "Cancelled" });
+
+    // A bookie still can't bet in their own pool.
+    const e = await openPool(bookie, { closes_at: minutesFromNow(60) });
+    await assert.rejects(bet(bookie, e.slug, "o1", 1000), { code: "bookie_own_pool" });
+  });
+
+  await t.test("betting reopens once on a pool closed early, before its closing time and before the call, and it's on the record", async () => {
+    const early = await makeUser("reopen_early");
+    const late = await makeUser("reopen_late");
+    await setWallet(early, { credit: 100000, cash: 0 });
+    await setWallet(late, { credit: 100000, cash: 0 });
+    const { slug, id } = await openPool(bookie, { closes_at: minutesFromNow(90) });
+    await bet(early, slug, "o1", 5000);
+    await assert.rejects(pools.reopenPool(pool, bookie, id, { reason: "Still open" }), { code: "prediction_market_transition_invalid" });
+
+    await pools.closePool(pool, bookie, id);
+    assert.equal((await pools.getPoolDetail(pool, slug, bookie)).can.reopen, true);
+    assert.equal((await pools.getPoolDetail(pool, slug, early)).can.reopen, false);
+    await assert.rejects(pools.reopenPool(pool, bookie, id, { reason: "  " }), { code: "reopen_reason_required" });
+    await assert.rejects(pools.reopenPool(pool, early, id, { reason: "Let me back in" }), { code: "forbidden" });
+    const otherBookie = await makeUser("reopen_otherbookie", { flags: { is_bookie: true } });
+    await assert.rejects(pools.reopenPool(pool, otherBookie, id, { reason: "Not mine" }), { code: "forbidden" });
+
+    await pools.reopenPool(pool, bookie, id, { reason: "Closed it by mistake" });
+    const reopened = await pools.getPoolDetail(pool, slug, late);
+    assert.equal(reopened.status, "open");
+    assert.equal(reopened.betting_open, true);
+    assert.deepEqual(
+      reopened.record.map((entry) => [entry.action, entry.actor?.username, entry.note, entry.pool_total]),
+      [
+        ["closed", "bookie", null, 5000],
+        ["reopened", "bookie", "Closed it by mistake", 5000],
+      ]
+    );
+    await bet(late, slug, "o2", 5000);
+    const { rows: events } = await pool.query(`SELECT event_type, event_data FROM market.prediction_market_events WHERE market_id = $1 AND event_type IN ('market_closed', 'pool_reopened') ORDER BY id`, [id]);
+    assert.deepEqual(events.map((row) => [row.event_type, row.event_data.reason]), [["market_closed", "closed_early"], ["pool_reopened", "Closed it by mistake"]]);
+
+    // Once: a second early close is final, and so is a call.
+    await pools.closePool(pool, bookie, id);
+    assert.equal((await pools.getPoolDetail(pool, slug, bookie)).can.reopen, false);
+    await assert.rejects(pools.reopenPool(pool, bookie, id, { reason: "Again" }), { code: "pool_reopened_already" });
+    await pools.resolvePool(pool, bookie, id, { outcome: "o1", note: "A won" });
+    await assert.rejects(pools.reopenPool(pool, owner, id, { reason: "After the call" }), { code: "prediction_market_transition_invalid" });
+    assert.deepEqual((await pools.getPoolDetail(pool, slug, late)).record.map((entry) => entry.action), ["closed", "reopened", "closed", "resolved"]);
+
+    // Past its closing time, it stays closed.
+    const due = await openPool(bookie, { closes_at: minutesFromNow(30) });
+    await pools.closePool(pool, bookie, due.id);
+    await pool.query(`UPDATE market.prediction_markets SET opens_at = now() - interval '1 hour', closes_at = now() - interval '1 minute' WHERE id = $1`, [due.id]);
+    await assert.rejects(pools.reopenPool(pool, bookie, due.id, { reason: "Too late" }), { code: "pool_reopen_too_late" });
+
+    // Only a close someone made by hand: not one from the schedule or a lock. Admins can reopen any pool.
+    const locked = await openPool(bookie, { closes_at: minutesFromNow(30) });
+    await core.inTransaction(pool, async (client) => resolution.closeWithClient(client, await core.lockMarket(client, { id: locked.id }), { reason: "stream_started" }));
+    await assert.rejects(pools.reopenPool(pool, bookie, locked.id, { reason: "Locked" }), { code: "pool_reopen_not_early" });
+    assert.deepEqual((await pools.getPoolDetail(pool, locked.slug, bookie)).record, [], "only an early close goes on the record");
+    const adminClosed = await openPool(bookie, { closes_at: minutesFromNow(30) });
+    await pools.closePool(pool, owner, adminClosed.id);
+    await pools.reopenPool(pool, owner, adminClosed.id, { reason: "Wrong pool" });
+    assert.equal((await pools.getPoolDetail(pool, adminClosed.slug, owner)).status, "open");
+
+    // An auto pool closed early stays shut while its own lock applies (this template is off).
+    const autoPool = await core.inTransaction(pool, (client) =>
+      pools.insertPoolWithClient(client, { title: "Top gainer at the reopen tick?", options: ["One", "Two"], closes_at: minutesFromNow(30) }, { kind: "auto", autoTemplate: "top-gainer-pool", autoKey: "reopen-test" })
+    );
+    await pools.closePool(pool, staff, Number(autoPool.id));
+    await assert.rejects(pools.reopenPool(pool, staff, Number(autoPool.id), { reason: "Mistake" }), { code: "prediction_market_closed" });
+    // It has no tick to resolve from, so it goes before the scheduler tests below see it.
+    await pool.query(`DELETE FROM market.prediction_markets WHERE id = $1`, [autoPool.id]);
   });
 
   await t.test("the market maker's flows don't touch pools", async () => {
@@ -478,6 +608,13 @@ test("prediction pools and margin end to end", { skip: !databaseUrl, timeout: 24
     // Once pools are on for everyone, no new market-maker markets.
     await assert.rejects(markets.createMarket(pool, owner, { title: "An LMSR market", rules_text: "Rules for it here.", resolution_source_text: "Somewhere", closes_at: minutesFromNow(60) }), { code: "lmsr_retired" });
     await assert.rejects(auto.updateTemplate(pool, owner, "stream-peak", { enabled: true }), { code: "lmsr_retired" });
+    // A draft or a queued one can't get through either.
+    const queued = await core.inTransaction(pool, (client) =>
+      markets.createMarketWithClient(client, { title: "A queued LMSR market", rules_text: "Rules for it here.", resolution_source_text: "Somewhere", closes_at: minutesFromNow(60) }, { creatorId: owner.id, status: "pending_approval" })
+    );
+    await assert.rejects(markets.submitMarket(pool, owner, queued.id), { code: "lmsr_retired" });
+    await assert.rejects(markets.approveMarket(pool, owner, queued.id), { code: "lmsr_retired" });
+    assert.equal((await markets.rejectMarket(pool, owner, queued.id, { reason: "Make it a pool." })).id, Number(queued.id), "staff can still clear the queue");
   });
 
   await t.test("auto pools: off to start, guarded on every bet, resolved from the data", async () => {
@@ -507,10 +644,17 @@ test("prediction pools and margin end to end", { skip: !databaseUrl, timeout: 24
     };
     for (const peak of [10000, 20000, 30000, 40000, 50000]) await addStream({ status: "ended", actual: new Date(Date.now() - DAY), peak });
     const video = await addStream({ scheduled: minutesFromNow(120) });
-    await auto.runAutoTemplates(pool);
+    // A market-maker template left on opens nothing while pools are on for everyone.
+    await pool.query(`UPDATE market.prediction_auto_templates SET enabled = true WHERE key IN ('stream-peak', 'tick-top-gainer')`);
+    const ran = await auto.runAutoTemplates(pool);
+    await pool.query(`UPDATE market.prediction_auto_templates SET enabled = false WHERE key IN ('stream-peak', 'tick-top-gainer')`);
+    assert.equal(ran["stream-peak"].created, 0);
+    assert.equal(ran.tick.created, 0);
+    assert.equal((await pool.query(`SELECT count(*)::int AS n FROM market.prediction_markets WHERE auto_template IN ('stream-peak', 'tick-top-gainer')`)).rows[0].n, 0);
     const market = (await pool.query(`SELECT * FROM market.prediction_markets WHERE auto_key = $1`, [`stream-peak-pool:${video}`])).rows[0];
     assert.ok(market, "an auto pool opens on the scheduled stream");
     assert.equal(market.pricing, "pool");
+    assert.equal((await markets.getAdminOverview(pool)).pools_live_by_template["stream-peak-pool"], 1, "its template's row counts it as live");
     assert.equal(market.auto_data.line, 30000);
     const outcomes = (await pool.query(`SELECT outcome_code FROM market.prediction_market_outcomes WHERE market_id = $1 ORDER BY sort_order`, [market.id])).rows;
     assert.deepEqual(outcomes.map((row) => row.outcome_code), ["yes", "no"]);
@@ -539,6 +683,62 @@ test("prediction pools and margin end to end", { skip: !databaseUrl, timeout: 24
     await pool.query(`UPDATE yt.livestream_sessions SET status = 'ended', actual_start_at = now() - interval '1 hour', max_concurrent_viewers = 1000 WHERE video_id = $1`, [late]);
     await auto.resolveAutoMarkets(pool);
     assert.equal((await pool.query(`SELECT status FROM market.prediction_markets WHERE id = $1`, [lateMarket.id])).rows[0].status, "voided");
+  });
+
+  await t.test("on for everyone, pool bets reach the tape, the forecasters and the home page's band", async () => {
+    const activity = require("../src/services/activity");
+    const winner = await makeUser("tape_winner");
+    const loser = await makeUser("tape_loser");
+    await setWallet(winner, { credit: 100000, cash: 0 });
+    await setWallet(loser, { credit: 100000, cash: 0 });
+    const { slug, id } = await openPool(bookie, { title: "Who takes the tape?" });
+    await bet(winner, slug, "o1", 3000);
+    await bet(loser, slug, "o2", 9000);
+
+    const tape = await markets.listTape(pool, { limit: 5 });
+    assert.deepEqual(
+      tape.slice(0, 2).map((row) => [row.username, row.slug, row.cash, row.pricing, row.side, row.outcome_label]),
+      [
+        ["tape_loser", slug, 9000, "pool", "buy", "Team B"],
+        ["tape_winner", slug, 3000, "pool", "buy", "Team A"],
+      ]
+    );
+    const band = await activity.getActivity(pool);
+    assert.ok(band.totals.prediction_bets >= 2);
+    assert.ok(band.totals.prediction_players >= 2);
+    const latest = band.latest.find((row) => row.kind === "prediction");
+    assert.deepEqual([latest.username, latest.slug, latest.cash, latest.pricing], ["tape_loser", slug, 9000, "pool"]);
+
+    await pools.resolvePool(pool, bookie, id, { outcome: "o1", note: "It happened." });
+    const board = await markets.getLeaderboard(pool, { limit: 50 });
+    assert.deepEqual(
+      ["tape_winner", "tape_loser"].map((name) => {
+        const row = board.find((entry) => entry.username === name);
+        return [row.pnl, row.markets];
+      }),
+      [
+        [9000, 1],
+        [-9000, 1],
+      ]
+    );
+
+    // A void gives everything back, so it isn't a call.
+    const voided = await openPool(bookie, { title: "Who takes the void?" });
+    const voider = await makeUser("tape_voider");
+    await setWallet(voider, { credit: 100000, cash: 0 });
+    await bet(voider, voided.slug, "o1", 4000);
+    await pools.voidPool(pool, bookie, voided.id, { reason: "Called off." });
+    assert.ok(!(await markets.getLeaderboard(pool, { limit: 50 })).some((entry) => entry.username === "tape_voider"));
+
+    // These go to everyone from shared code, so at `staff` a pool can't appear in them.
+    const restore = features.override({ "prediction-pools": "staff" });
+    try {
+      assert.ok(!(await markets.listTape(pool, { limit: 50 })).some((row) => row.pricing === "pool"));
+      assert.ok(!(await markets.getLeaderboard(pool, { limit: 50 })).some((entry) => entry.username.startsWith("tape_")));
+      assert.equal((await activity.getActivity(pool)).totals.prediction_bets, 0);
+    } finally {
+      restore();
+    }
   });
 
   await t.test("behind the flag: at `staff`, only admins see pools and the red rules leave everyone else alone", async () => {

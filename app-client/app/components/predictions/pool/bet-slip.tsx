@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useState, type CSSProperties } from "react";
 import { predictionErrorText } from "@/app/lib/predictions/errors";
@@ -24,8 +25,12 @@ export function InTheRed({ margin, compact = false }: { margin: MarginStatus; co
   if (!margin.in_red) return null;
   return (
     <div className={styles.red} role="status" data-compact={compact || undefined}>
-      <strong>In the red: you owe {money(margin.owed)}</strong>
-      <p>Until it’s paid back you can’t bet or spend Credit. Winnings, dividends and any other Credit pay it back. Your cash isn’t touched, and you can keep trading stocks. No interest.</p>
+      <div className={styles.redText}>
+        <strong>In the red: you owe {money(margin.owed)}</strong>
+        <p>Until it’s paid back you can’t bet or spend Credit. Winnings, dividends and any other Credit pay it back. Your cash isn’t touched, and you can keep trading stocks. No interest.</p>
+      </div>
+      {/* The owner's call on where this goes: delete this line, or move it, to change that. */}
+      <Image className={styles.redArt} src="/predictions/in-the-red.webp" alt="" width={360} height={315} unoptimized />
     </div>
   );
 }
@@ -174,7 +179,7 @@ export function BetSlip({ pool, choice, onPick, onPlaced }: { pool: PoolDetail; 
                 <input type="checkbox" checked={useMargin} onChange={(event) => setUseMargin(event.target.checked)} />
                 <span>
                   Borrow {money(split.borrowed)} on margin. Your line is {money(margin?.line ?? 0, 0)} ({Math.round((margin?.line_share ?? 0.25) * 100)}% of your shares). It takes your Credit below zero, and
-                  until it’s paid back you can’t bet, buy or spend. Winnings pay it back first. No interest.
+                  until it’s paid back you can’t bet or spend Credit. Winnings and any other Credit pay it back. Your cash isn’t touched, and you can keep trading stocks. No interest.
                 </span>
               </label>
             ) : (

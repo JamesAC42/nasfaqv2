@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { predictionErrorText } from "@/app/lib/predictions/errors";
-import { closePool, correctPool, extendPool, resolvePool, voidPool, type PoolDetail } from "@/app/lib/predictions/pools";
+import { closePool, correctPool, extendPool, reopenPool, resolvePool, voidPool, type PoolDetail } from "@/app/lib/predictions/pools";
 import styles from "@/app/components/predictions/pool/pool.module.scss";
 
-type Mode = "resolve" | "correct" | "void" | "extend" | null;
+type Mode = "resolve" | "correct" | "void" | "extend" | "reopen" | null;
+
+const when = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 const toLocalInput = (date: Date) => {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
@@ -13,9 +15,9 @@ const toLocalInput = (date: Date) => {
 };
 
 /**
- * The bookie's tools on their pool (close early, extend, call the winner, void), and staff's
- * correction and void for 7 days after it resolves. Every call needs a source link or a note: it
- * goes on the pool's public record.
+ * The bookie's tools on their pool (close early and reopen once, extend, call the winner, void), and
+ * staff's correction and void for 7 days after it resolves. Every call needs a source link or a
+ * note, and a reopen needs a reason: they go on the pool's public record.
  */
 export function PoolActions({ pool, onChanged }: { pool: PoolDetail; onChanged: () => void }) {
   const can = pool.can;
@@ -59,10 +61,15 @@ export function PoolActions({ pool, onChanged }: { pool: PoolDetail; onChanged: 
             Call the winner
           </button>
         ) : null}
-        {can.manage && !can.resolve ? <span className={styles.small}>You have money in this pool, so someone else has to call it.</span> : null}
+        {can.manage && !can.resolve ? <span className={styles.small}>{pool.kind === "auto" ? "You have money in this pool, so you can't call it. NASFAQ data calls it, or an admin can." : "You have money in this pool, so its bookie or an admin has to call it."}</span> : null}
         {can.manage && pool.status === "open" ? (
           <button type="button" className={styles.secondary} disabled={busy} onClick={() => void run(() => closePool(pool.id))}>
             Close betting now
+          </button>
+        ) : null}
+        {can.reopen ? (
+          <button type="button" className={mode === "reopen" ? styles.primary : styles.secondary} onClick={() => setMode(mode === "reopen" ? null : "reopen")}>
+            Reopen betting
           </button>
         ) : null}
         {can.extend ? (
@@ -136,6 +143,25 @@ export function PoolActions({ pool, onChanged }: { pool: PoolDetail; onChanged: 
           </label>
           <button type="submit" className={styles.primary} disabled={busy}>
             {busy ? "Working…" : "Extend"}
+          </button>
+        </form>
+      ) : null}
+
+      {mode === "reopen" ? (
+        <form
+          className={styles.toolForm}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void run(() => reopenPool(pool.id, note.trim()));
+          }}
+        >
+          <label>
+            <span>Why</span>
+            <input className={styles.input} minLength={3} maxLength={500} placeholder="Closed it by mistake" value={note} onChange={(event) => setNote(event.target.value)} required />
+          </label>
+          <p className={styles.small}>Betting reopens until {when(pool.closes_at)}, when the pool was due to close. You can reopen a pool once, and your reason goes on its public record.</p>
+          <button type="submit" className={styles.primary} disabled={busy || note.trim().length < 3}>
+            {busy ? "Working…" : "Reopen betting"}
           </button>
         </form>
       ) : null}

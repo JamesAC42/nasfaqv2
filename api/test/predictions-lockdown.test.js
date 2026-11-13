@@ -5,6 +5,7 @@ const { applySchema } = require("../src/migrations");
 const { applyPredictionsSchema } = require("../src/services/predictions/schema");
 const auto = require("../src/services/predictions/auto");
 const core = require("../src/services/predictions/core");
+const features = require("../src/features");
 const guards = require("../src/services/predictions/guards");
 const lmsr = require("../src/services/predictions/lmsr");
 const resolution = require("../src/services/predictions/resolution");
@@ -64,7 +65,12 @@ test("prediction lockdown end to end", { skip: !databaseUrl, timeout: 180_000 },
   }
   target.pathname = "/nasfaq_predictions_lockdown_test";
   const pool = new Pool({ connectionString: target.href });
+  // These run the market maker, which only opens new markets while pools aren't on for everyone. A
+  // market left open when they turn on still finishes this way. predictions-pools.test.js tests the
+  // retirement itself.
+  const restoreFlags = features.override({ "prediction-pools": "staff" });
   t.after(async () => {
+    restoreFlags();
     await new Promise((resolve) => setTimeout(resolve, 500));
     await pool.end();
   });

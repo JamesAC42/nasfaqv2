@@ -70,6 +70,11 @@ const ERROR_STATUS = {
   correction_window_closed: 409,
   same_outcome: 409,
   lmsr_retired: 409,
+  reopen_reason_required: 400,
+  pool_reopen_too_late: 409,
+  pool_reopen_not_early: 409,
+  pool_reopened_already: 409,
+  void_has_stake: 409,
 };
 
 function sendError(res, next, error) {
@@ -293,6 +298,7 @@ const poolAction = (path, fn, action) =>
 
 poolAction("close", (req, user, id) => pools.closePool(req.ctx.pool, user, id), "closed");
 poolAction("extend", (req, user, id) => pools.extendPool(req.ctx.pool, user, id, { closesAt: req.body?.closes_at }), "updated");
+poolAction("reopen", (req, user, id) => pools.reopenPool(req.ctx.pool, user, id, { reason: req.body?.reason }), "reopened");
 poolAction("resolve", (req, user, id) => pools.resolvePool(req.ctx.pool, user, id, { outcome: req.body?.outcome, sourceUrl: req.body?.source_url, note: req.body?.note }), "resolved");
 poolAction("correct", (req, user, id) => pools.correctPool(req.ctx.pool, user, id, { outcome: req.body?.outcome, sourceUrl: req.body?.source_url, note: req.body?.note }), "resolved");
 poolAction("void", (req, user, id) => pools.voidPool(req.ctx.pool, user, id, { reason: req.body?.reason, sourceUrl: req.body?.source_url }), "voided");

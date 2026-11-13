@@ -62,7 +62,7 @@ async function applyPredictionsSchema(pool) {
     'market_closed', 'market_halted', 'market_resumed', 'resolution_proposed', 'resolution_disputed', 'resolution_confirmed',
     'resolution_withdrawn', 'resolution_finalized', 'market_resolved', 'market_voided', 'order_placed', 'order_cancelled',
     'trade_matched', 'auto_created', 'legacy_orders_released',
-    'pool_created', 'pool_extended', 'pool_resolved', 'pool_corrected', 'pool_voided'
+    'pool_created', 'pool_extended', 'pool_reopened', 'pool_resolved', 'pool_corrected', 'pool_voided'
   )`);
 
   // ── New tables ─────────────────────────────────────────────────────────

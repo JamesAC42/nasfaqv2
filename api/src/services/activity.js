@@ -5,6 +5,7 @@
 // the arcade's pull feed and the blackjack tables. Chat only counts toward "players": no text.
 
 const cardGacha = require("./games/cardGacha");
+const features = require("../features");
 const predictionMarkets = require("./predictions/markets");
 const { TABLES } = require("./games/tables/blackjack");
 
@@ -15,6 +16,14 @@ const round2 = (value) => Math.round(value * 100) / 100;
 const tableName = (key) => TABLES.find((table) => table.key === key)?.name ?? "a table";
 
 async function totals(pool, hours) {
+  // Cached once for everyone, so pool bets only count once pools are on for everyone.
+  const poolBets = features.enabledFor("prediction-pools", "everyone")
+    ? `UNION ALL
+      SELECT 'prediction', b.user_id, b.created_at
+      FROM market.prediction_pool_bets b
+      JOIN market.prediction_markets pm ON pm.id = b.market_id
+      WHERE b.created_at > now() - make_interval(hours => $1::int) AND pm.visibility = 'public'`
+    : "";
   const { rows } = await pool.query(
     `
     WITH acts AS (
@@ -29,6 +38,7 @@ async function totals(pool, hours) {
       FROM market.prediction_market_trades t
       JOIN market.prediction_markets pm ON pm.id = t.market_id
       WHERE t.matched_at > now() - make_interval(hours => $1::int) AND t.trade_kind = 'amm' AND pm.visibility = 'public' AND t.taker_user_id IS NOT NULL
+      ${poolBets}
       UNION ALL
       SELECT 'chat', author_id, created_at FROM chat.messages WHERE created_at > now() - make_interval(hours => $1::int) AND status = 'active'
     )
@@ -103,7 +113,7 @@ async function latestPull(pool) {
 async function latestPrediction(pool) {
   const [bet] = await predictionMarkets.listTape(pool, { limit: 1 });
   if (!bet || !bet.username) return null;
-  return { kind: "prediction", at: bet.at, username: bet.username, side: bet.side, outcome: bet.outcome_label, cash: Math.abs(num(bet.cash)), title: bet.market_title, slug: bet.slug };
+  return { kind: "prediction", at: bet.at, username: bet.username, side: bet.side, outcome: bet.outcome_label, cash: Math.abs(num(bet.cash)), title: bet.market_title, slug: bet.slug, pricing: bet.pricing };
 }
 
 /** The live band's data: totals over the last WINDOW_HOURS and the newest action of each kind, newest first. */

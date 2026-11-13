@@ -308,7 +308,7 @@ async function gameMoments(pool) {
         AND ${players.headlinePlayerSql("p.user_id")}
     `).catch(() => ({ rows: [] })),
     pool.query(`
-      SELECT m.id, m.slug, m.title, m.resolved_at, o.label
+      SELECT m.id, m.slug, m.title, m.resolved_at, m.pricing, o.label
       FROM market.prediction_markets m
       LEFT JOIN market.prediction_market_outcomes o ON o.id = m.winning_outcome_id
       WHERE m.status = 'resolved' AND m.resolved_at > now() - interval '48 hours'
@@ -349,7 +349,7 @@ async function gameMoments(pool) {
       dedupe_key: `pm:${row.id}`,
       headline: `Called: ${String(row.title).slice(0, 110)}`,
       blurb: row.label ? `Resolved “${row.label}”.` : "Resolved.",
-      link_url: `/predictions/${row.slug}`,
+      link_url: row.pricing === "pool" ? `/predictions/pools/${row.slug}` : `/predictions/${row.slug}`,
       importance: 2,
       occurred_at: row.resolved_at,
       meta: { outcome: row.label },

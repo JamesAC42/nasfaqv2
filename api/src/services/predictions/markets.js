@@ -175,6 +175,7 @@ async function createMarket(pool, actor, input) {
 }
 
 async function submitMarket(pool, actor, marketId) {
+  if (features.enabledFor("prediction-pools", "everyone")) throw predictionError("lmsr_retired");
   return core.inTransaction(pool, async (client) => {
     const market = await core.lockMarket(client, { id: marketId });
     if (String(market.creator_user_id) !== String(actor.id) && !actor.is_admin) throw predictionError("forbidden");
@@ -187,6 +188,9 @@ async function submitMarket(pool, actor, marketId) {
 
 async function approveMarket(pool, actor, marketId) {
   if (!actor?.is_admin && !actor?.can_approve_prediction_markets) throw predictionError("forbidden");
+  // A draft or queued market would open as a new market-maker market (predictions-pools.md §4). Staff
+  // reject it and open a pool instead.
+  if (features.enabledFor("prediction-pools", "everyone")) throw predictionError("lmsr_retired");
   return core.inTransaction(pool, async (client) => {
     const market = await core.lockMarket(client, { id: marketId });
     if (market.status !== "pending_approval") throw predictionError("prediction_market_transition_invalid");
@@ -585,6 +589,7 @@ function tradeView(row) {
     avg_price: round6(num(row.price)),
     price_after: row.price_after === null ? null : round6(num(row.price_after)),
     via_limit: Boolean(row.limit_order_id),
+    pricing: "lmsr",
     username: row.username,
     profile_color: row.profile_color,
     at: row.matched_at,
@@ -606,12 +611,45 @@ async function listTrades(pool, slug, { limit = 50 } = {}) {
   return rows.map(tradeView);
 }
 
+/** A pool bet in the tape's shape. Bets are public on a pool's own page too. */
+function poolBetView(row) {
+  return {
+    id: Number(row.id),
+    market_id: Number(row.market_id),
+    slug: row.slug,
+    market_title: row.title,
+    outcome_code: row.outcome_code,
+    outcome_label: row.outcome_label,
+    side: "buy",
+    shares: 0,
+    cash: round2(num(row.amount)),
+    avg_price: 0,
+    price_after: null,
+    via_limit: false,
+    pricing: "pool",
+    username: row.username,
+    profile_color: row.profile_color,
+    at: row.created_at,
+  };
+}
+
+/** The floor's tape: the newest bets. Pools join it once they're on for everyone, since this isn't per viewer. */
 async function listTape(pool, { limit = 40 } = {}) {
-  const { rows } = await pool.query(
-    `${TRADE_SELECT} WHERE pm.visibility = 'public' AND t.trade_kind = 'amm' ORDER BY t.matched_at DESC, t.id DESC LIMIT $1`,
-    [Math.min(100, Math.max(1, Number(limit) || 40))]
+  const safeLimit = Math.min(100, Math.max(1, Number(limit) || 40));
+  const { rows } = await pool.query(`${TRADE_SELECT} WHERE pm.visibility = 'public' AND t.trade_kind = 'amm' ORDER BY t.matched_at DESC, t.id DESC LIMIT $1`, [safeLimit]);
+  const trades = rows.map(tradeView);
+  if (!features.enabledFor("prediction-pools", "everyone")) return trades;
+  const { rows: bets } = await pool.query(
+    `SELECT b.id, b.market_id, b.amount, b.created_at, pm.slug, pm.title, o.outcome_code, o.label AS outcome_label, u.username, u.profile_color
+     FROM market.prediction_pool_bets b
+     JOIN market.prediction_markets pm ON pm.id = b.market_id
+     JOIN market.prediction_market_outcomes o ON o.id = b.outcome_id
+     JOIN market.users u ON u.id = b.user_id
+     WHERE pm.visibility = 'public'
+     ORDER BY b.created_at DESC, b.id DESC LIMIT $1`,
+    [safeLimit]
   );
-  return rows.map(tradeView);
+  return [...trades, ...bets.map(poolBetView)].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, safeLimit);
 }
 
 async function getPortfolio(pool, userId) {
@@ -695,14 +733,29 @@ async function getPortfolio(pool, userId) {
   };
 }
 
-/** Forecasters: realized P&L on markets settled in the last 7 days. */
+/**
+ * Forecasters: realized P&L on markets and pools settled in the last 7 days. A voided pool gave
+ * everything back, so it isn't a call. Pools join once they're on for everyone, since this isn't per
+ * viewer.
+ */
 async function getLeaderboard(pool, { limit = 10 } = {}) {
+  const pools = features.enabledFor("prediction-pools", "everyone")
+    ? `UNION ALL
+       SELECT s.user_id, s.market_id, COALESCE(s.payout, 0) - s.stake AS pnl
+       FROM market.prediction_pool_stakes s
+       JOIN market.prediction_markets pm ON pm.id = s.market_id
+       WHERE pm.status = 'resolved' AND pm.resolved_at > now() - interval '7 days'`
+    : "";
   const { rows } = await pool.query(
-    `SELECT u.username, u.profile_color, SUM(p.realized_pnl_cash) AS pnl, COUNT(DISTINCT p.market_id)::int AS markets
-     FROM market.prediction_market_positions p
-     JOIN market.prediction_markets pm ON pm.id = p.market_id
-     JOIN market.users u ON u.id = p.user_id
-     WHERE pm.status IN ('resolved', 'voided') AND COALESCE(pm.resolved_at, pm.voided_at) > now() - interval '7 days'
+    `SELECT u.username, u.profile_color, SUM(calls.pnl) AS pnl, COUNT(DISTINCT calls.market_id)::int AS markets
+     FROM (
+       SELECT p.user_id, p.market_id, p.realized_pnl_cash AS pnl
+       FROM market.prediction_market_positions p
+       JOIN market.prediction_markets pm ON pm.id = p.market_id
+       WHERE pm.status IN ('resolved', 'voided') AND COALESCE(pm.resolved_at, pm.voided_at) > now() - interval '7 days'
+       ${pools}
+     ) calls
+     JOIN market.users u ON u.id = calls.user_id
      GROUP BY u.id ORDER BY pnl DESC LIMIT $1`,
     [Math.min(50, Math.max(1, Number(limit) || 10))]
   );
@@ -717,13 +770,14 @@ async function getAdminOverview(pool) {
       views.map((view, index) => ({ ...view, house_net_cash: round2(num(rows[index].house_net_cash)), max_house_loss: round2(lmsr.maxLoss(view.liquidity_b, view.outcomes.length)), creator: rows[index].creator_username }))
     );
   };
-  const [queue, needsCall, proposals, live, drafts, templates] = await Promise.all([
+  const [queue, needsCall, proposals, live, drafts, templates, autoPools] = await Promise.all([
     section(`pm.status = 'pending_approval'`, `pm.created_at ASC`),
     section(`pm.kind = 'event' AND pm.status IN ('resolving', 'closed')`, `pm.closes_at ASC`),
     section(`pm.status IN ('proposed', 'disputed')`, `pm.updated_at ASC`),
     section(`pm.status = 'open'`, `pm.closes_at ASC`, 100),
     section(`pm.status IN ('draft', 'rejected')`, `pm.updated_at DESC`),
     pool.query(`SELECT * FROM market.prediction_auto_templates ORDER BY key`),
+    pool.query(`SELECT auto_template, count(*)::int AS open FROM market.prediction_markets WHERE pricing = 'pool' AND status = 'open' AND auto_template IS NOT NULL GROUP BY auto_template`),
   ]);
   for (const market of proposals) {
     const proposal = await currentProposal(pool, market.id);
@@ -755,6 +809,7 @@ async function getAdminOverview(pool) {
     live,
     drafts,
     templates: templates.rows.map((row) => ({ key: row.key, enabled: row.enabled, params: row.params_json || {}, last_run_at: row.last_run_at, last_result: row.last_result_json || {} })),
+    pools_live_by_template: Object.fromEntries(autoPools.rows.map((row) => [row.auto_template, row.open])),
     house: {
       open_markets: live.length,
       worst_case_loss: round2(live.reduce((sum, market) => sum + market.max_house_loss, 0)),

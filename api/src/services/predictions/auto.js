@@ -23,6 +23,8 @@ const resolution = require("./resolution");
 const POOL_TEMPLATES = new Set(["stream-peak-pool", "top-gainer-pool"]);
 const STREAM_TEMPLATES = new Set(["stream-peak", "stream-peak-pool"]);
 const TICK_TEMPLATES = new Set(["tick-direction", "tick-top-gainer", "top-gainer-pool"]);
+/** Once pools are on for everyone, no market-maker market opens, whatever its template says (predictions-pools.md §4). */
+const lmsrRetired = () => features.enabledFor("prediction-pools", "everyone");
 
 const { num, predictionError } = core;
 
@@ -116,6 +118,7 @@ async function generateTickMarkets(pool, templates) {
   const direction = templates.get("tick-direction");
   const gainer = templates.get("tick-top-gainer");
   if (!direction?.enabled && !gainer?.enabled) return { created: 0 };
+  if (lmsrRetired()) return { created: 0, note: "market maker retired" };
   const tick = await nextTick(pool);
   if (!tick) return { created: 0, note: "no scheduled tick" };
   const tickAt = new Date(tick.scheduled_at);
@@ -264,6 +267,7 @@ async function generateStreamMarkets(pool, templates, key = "stream-peak") {
   const template = templates.get(key);
   if (!template?.enabled) return { created: 0 };
   const asPool = POOL_TEMPLATES.has(key);
+  if (!asPool && lmsrRetired()) return { created: 0, note: "market maker retired" };
   const params = template.params;
   const dailyCap = streamParam(params, "daily_cap");
   const { rows: recent } = await pool.query(

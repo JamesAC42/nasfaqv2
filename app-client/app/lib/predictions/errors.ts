@@ -37,10 +37,15 @@ const COPY: Record<string, string> = {
   account_suspended: "Your account is suspended.",
   new_account_pool_cap: "New accounts can have $10,000 in pools for their first 7 days.",
   bookie_own_pool: "Bookies can't bet in their own pools.",
-  bookie_has_stake: "You have money in this pool, so someone else has to call it.",
+  bookie_has_stake: "You have money in this pool, so its bookie or an admin has to call it.",
+  void_has_stake: "You have money in this pool, so you can't void it. An admin can, or its bookie before it's called.",
   correction_window_closed: "Results can only be corrected or voided for 7 days.",
   same_outcome: "That's already the result.",
-  lmsr_retired: "New markets are pools now.",
+  lmsr_retired: "Market-maker markets can't open. Reject this one if it's queued, and open a pool from the bookie desk.",
+  reopen_reason_required: "Say why you're reopening it, in a few words.",
+  pool_reopen_too_late: "Its closing time has passed, so betting stays closed.",
+  pool_reopen_not_early: "Only a pool someone closed early can reopen.",
+  pool_reopened_already: "Betting on a pool can only be reopened once.",
 };
 
 export function predictionErrorText(error: unknown) {
