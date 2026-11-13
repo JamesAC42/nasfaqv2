@@ -5,10 +5,13 @@
 // lose.
 //
 // - Bookies (market.users.is_bookie; admins count) open pools without approval and resolve their
-//   own. They can't bet in their own pools, and nobody resolves a pool they have money in.
+//   own, and can't bet in them. Admins can run, call, correct and void any pool, even one they have
+//   money in. Other staff can't call, correct or void a pool they have money in.
 // - Staff can correct or void a result for 7 days after it first resolves. Payouts are reversed
 //   first, from Credit, which can go below zero (as a void can for the LMSR markets).
-// - Every resolve, correction and void goes in prediction_pool_resolutions, the pool's public record.
+// - A bookie can close betting early, and reopen it once (reopenPool).
+// - Every early close, reopen, resolve, correction and void goes in prediction_pool_resolutions,
+//   the pool's public record.
 // - Auto pools (stream-peak-pool, top-gainer-pool) come from auto.js and go through guards.js on
 //   every bet, like the LMSR auto markets.
 // - All of it is behind the prediction-pools flag (api/src/features/prediction-pools.json).
@@ -48,6 +51,8 @@ const MIN_OPTIONS = 2;
 const MAX_OPTIONS = 100;
 const MIN_CLOSE_MS = 2 * 60_000;
 const MAX_OPEN_MS = 28 * 24 * 3_600_000;
+/** Betting on a pool can be reopened this many times (reopenPool). */
+const MAX_REOPENS = 1;
 const UNRESOLVED = ["open", "closed", "resolving"];
 const REFERENCE = "prediction_pool";
 
@@ -317,6 +322,52 @@ async function extendPool(pool, actor, marketId, { closesAt }) {
   });
 }
 
+/**
+ * Whether betting on a pool can be reopened, or the error code saying why not. Only a pool a person
+ * closed early, before its closing time (closing doesn't move it) and before it's called, and only
+ * once. A pool shut by its schedule, its auto lock or a call never reopens: that close is what stops
+ * anyone betting on a known result.
+ */
+async function reopenBlocker(db, market, now = new Date()) {
+  if (!["closed", "resolving"].includes(market.status)) return "prediction_market_transition_invalid";
+  if (new Date(market.closes_at) <= now) return "pool_reopen_too_late";
+  const { rows } = await db.query(
+    `SELECT (SELECT event_data->>'reason' FROM market.prediction_market_events WHERE market_id = $1 AND event_type = 'market_closed' ORDER BY created_at DESC, id DESC LIMIT 1) AS closed_by,
+            (SELECT COUNT(*)::int FROM market.prediction_market_events WHERE market_id = $1 AND event_type = 'pool_reopened') AS reopens`,
+    [market.id]
+  );
+  if (rows[0]?.closed_by !== "closed_early") return "pool_reopen_not_early";
+  if (rows[0].reopens >= MAX_REOPENS) return "pool_reopened_already";
+  if (await guards.autoMarketLock(db, market, now)) return "prediction_market_closed";
+  return null;
+}
+
+/**
+ * Betting back on, until the pool's closing time. The reason is required and goes on the public
+ * record under the early close, so everyone sees the gap and who reopened it, and staff can void the
+ * pool if it let someone bet on a result that was already known.
+ */
+async function reopenPool(pool, actor, marketId, { reason } = {}) {
+  assertCanSee(actor);
+  const note = String(reason || "").trim();
+  if (note.length < 3 || note.length > 500) throw predictionError("reopen_reason_required");
+  return core.inTransaction(pool, async (client) => {
+    const market = await lockPool(client, { id: marketId });
+    if (!canManage(actor, market)) throw predictionError("forbidden");
+    const blocker = await reopenBlocker(client, market);
+    if (blocker) throw predictionError(blocker);
+    await client.query(`UPDATE market.prediction_markets SET status = 'open', trading_status = 'open', trading_closed_at = NULL, updated_at = now() WHERE id = $1`, [market.id]);
+    await client.query(`INSERT INTO market.prediction_pool_resolutions (market_id, action, actor_user_id, note, pool_total) VALUES ($1, 'reopened', $2, $3, $4)`, [
+      market.id,
+      actor.id,
+      note,
+      round2(market.pool_total),
+    ]);
+    await core.logEvent(client, market.id, "pool_reopened", { reason: note, closes_at: market.closes_at }, actor.id);
+    return { id: Number(market.id), slug: market.slug, pricing: "pool" };
+  });
+}
+
 function sourceAndNote({ sourceUrl, note }, { required = true } = {}) {
   const source = String(sourceUrl || "").trim();
   if (source && (!/^https?:\/\/\S+$/i.test(source) || source.length > 1000)) throw predictionError("invalid_source_url");
@@ -325,9 +376,10 @@ function sourceAndNote({ sourceUrl, note }, { required = true } = {}) {
   return { source: source || null, note: text || null };
 }
 
-async function assertNoStake(client, market, actor) {
+async function assertNoStake(client, market, actor, code = "bookie_has_stake") {
+  if (actor?.is_admin) return;
   const { rows } = await client.query(`SELECT 1 FROM market.prediction_pool_stakes WHERE market_id = $1 AND user_id = $2 LIMIT 1`, [market.id, actor.id]);
-  if (rows.length) throw predictionError("bookie_has_stake");
+  if (rows.length) throw predictionError(code);
 }
 
 function findOutcome(outcomes, code) {
@@ -380,8 +432,10 @@ async function voidPool(pool, actor, marketId, { reason, sourceUrl } = {}) {
     if (market.status === "resolved") {
       if (!isStaff(actor)) throw predictionError("forbidden");
       if (!correctionOpen(market)) throw predictionError("correction_window_closed");
+      await assertNoStake(client, market, actor, "void_has_stake");
     } else if (UNRESOLVED.includes(market.status)) {
       if (!canManage(actor, market) && !isStaff(actor)) throw predictionError("forbidden");
+      await assertNoStake(client, market, actor, "void_has_stake");
     } else {
       throw predictionError("prediction_market_transition_invalid");
     }
@@ -650,14 +704,16 @@ async function getPoolDetail(pool, slug, user = null) {
       stakes: mine.rows.map((row) => ({ outcome_id: Number(row.outcome_id), stake: round2(row.stake), borrowed: round2(row.borrowed), payout: row.payout === null ? null : round2(row.payout) })),
       ...(await bettorState(pool, user.id)),
     };
+    const free = Boolean(user.is_admin) || !hasStake;
     detail.can = {
       bet: open && !own,
       own_pool: Boolean(own),
       manage: canManage(user, market) && UNRESOLVED.includes(market.status),
-      resolve: canManage(user, market) && UNRESOLVED.includes(market.status) && !hasStake,
+      resolve: canManage(user, market) && UNRESOLVED.includes(market.status) && free,
       extend: canManage(user, market) && market.status === "open" && market.kind !== "auto",
-      void: market.status === "resolved" ? isStaff(user) && correctionOpen(market) : UNRESOLVED.includes(market.status) && (canManage(user, market) || isStaff(user)),
-      correct: market.status === "resolved" && isStaff(user) && correctionOpen(market) && !hasStake,
+      reopen: canManage(user, market) && ["closed", "resolving"].includes(market.status) && !(await reopenBlocker(pool, market)),
+      void: (market.status === "resolved" ? isStaff(user) && correctionOpen(market) : UNRESOLVED.includes(market.status) && (canManage(user, market) || isStaff(user))) && free,
+      correct: market.status === "resolved" && isStaff(user) && correctionOpen(market) && free,
     };
   }
   return detail;
@@ -809,6 +865,7 @@ async function getMyPools(pool, user) {
 
 module.exports = {
   SETTINGS,
+  assertNoStake,
   canManage,
   closePool,
   correctPool,
@@ -820,6 +877,7 @@ module.exports = {
   listBookiePools,
   listHistory,
   placeBet,
+  reopenPool,
   resolvePool,
   settleWithClient,
   voidPool,

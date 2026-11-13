@@ -42,6 +42,14 @@ async function closeWithClient(client, market, { actorUserId = null, reason = "s
     [market.id, resolveNow ? "resolving" : "closed"]
   );
   await core.logEvent(client, market.id, "market_closed", { reason, released_orders: released }, actorUserId);
+  // A pool someone closed early goes on its public record, so a reopen (pools.js) shows next to it.
+  if (market.pricing === "pool" && reason === "closed_early") {
+    await client.query(`INSERT INTO market.prediction_pool_resolutions (market_id, action, actor_user_id, pool_total) VALUES ($1, 'closed', $2, $3)`, [
+      market.id,
+      actorUserId,
+      round2(market.pool_total),
+    ]);
+  }
   return true;
 }
 
@@ -320,7 +328,9 @@ async function voidMarket(pool, actor, marketId, { reason }) {
       if (!features.isEnabled("prediction-pools", actor)) throw predictionError("prediction_market_not_found");
       // Required here, not at the top: pools.js requires this file.
       if (!["open", "closed", "resolving"].includes(market.status)) throw predictionError("prediction_market_transition_invalid");
-      return require("./pools").voidWithClient(client, market, { actorUserId: actor.id, actorId: actor.id, reason: String(reason || "").slice(0, 2000) || null });
+      const pools = require("./pools");
+      await pools.assertNoStake(client, market, actor, "void_has_stake");
+      return pools.voidWithClient(client, market, { actorUserId: actor.id, actorId: actor.id, reason: String(reason || "").slice(0, 2000) || null });
     }
     if (!UNRESOLVED.includes(market.status)) throw predictionError("prediction_market_transition_invalid");
     const open = await currentProposal(client, market.id, { lock: true });

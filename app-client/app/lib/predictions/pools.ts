@@ -39,7 +39,7 @@ export type BettorState = {
 
 export type PoolRecordEntry = {
   id: number;
-  action: "resolved" | "corrected" | "voided";
+  action: "closed" | "reopened" | "resolved" | "corrected" | "voided";
   outcome_code: string | null;
   outcome_label: string | null;
   previous_label: string | null;
@@ -85,7 +85,7 @@ export type PoolDetail = PredictionMarket & {
   record: PoolRecordEntry[];
   correction_until: string | null;
   mine?: BettorState & { stakes: { outcome_id: number; stake: number; borrowed: number; payout: number | null }[] };
-  can?: { bet: boolean; own_pool: boolean; manage: boolean; resolve: boolean; extend: boolean; void: boolean; correct: boolean };
+  can?: { bet: boolean; own_pool: boolean; manage: boolean; resolve: boolean; extend: boolean; reopen: boolean; void: boolean; correct: boolean };
 };
 
 export type PoolHistoryItem = {
@@ -180,6 +180,7 @@ export const createPool = (input: CreatePoolInput) => post<{ pool: { id: number;
 type PoolAction = { pool: { id: number; slug: string } };
 export const closePool = (id: number) => post<PoolAction>(`/pools/${id}/close`);
 export const extendPool = (id: number, closesAt: string) => post<PoolAction>(`/pools/${id}/extend`, { closes_at: closesAt });
+export const reopenPool = (id: number, reason: string) => post<PoolAction>(`/pools/${id}/reopen`, { reason });
 export const resolvePool = (id: number, body: { outcome: string; source_url?: string; note?: string }) => post<PoolAction>(`/pools/${id}/resolve`, body);
 export const correctPool = (id: number, body: { outcome: string; source_url?: string; note?: string }) => post<PoolAction>(`/pools/${id}/correct`, body);
 export const voidPool = (id: number, body: { reason?: string; source_url?: string }) => post<PoolAction>(`/pools/${id}/void`, body);
