@@ -1,7 +1,7 @@
 // Copy for the how-to-play guide. Every number here is checked against the API:
 // - market: api/src/services/{trading,marketAdjustments,settlement,fundamentals,portfolioCash}.js
 // - games: api/src/services/games/** and GAMES_DESIGN.md
-// - predictions: api/src/services/predictions/** and docs/predictions/PREDICTIONS_DESIGN.md
+// - predictions: api/src/services/predictions/pools.js, api/src/services/margin.js and docs/design/predictions-pools.md
 // If a rule changes there, change it here too.
 import { TICKER_TAP_ENABLED } from "@/app/lib/games/flags";
 
@@ -153,7 +153,7 @@ export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
   },
   {
     q: "Why can't I trade, play or post?",
-    a: "Check three things: you're signed in, your email is verified (the link in your inbox; if you mistyped the address, you can change it from the notice), and the market isn't settling. Trading pauses for a few minutes around 09:00 ET while fair values reprice. Games, bets and buying cards also close while your net worth is under $50,000, and blackjack has its own weekly and daily limits.",
+    a: "Check three things: you're signed in, your email is verified (the link in your inbox; if you mistyped the address, you can change it from the notice), and the market isn't settling. Trading pauses for a few minutes around 09:00 ET while fair values reprice. Games, bets and buying cards also close while your net worth is under $50,000 or you're in the red on margin, and blackjack has its own weekly and daily limits.",
   },
   {
     q: "My order filled at a different price than I saw. Why?",
@@ -165,7 +165,7 @@ export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
   },
   {
     q: "Can I short a stock or set a limit price?",
-    a: "Not on stocks: you can only sell shares you hold, and every stock order is a market order in the next batch. Limit orders exist on predictions.",
+    a: "Not on stocks: you can only sell shares you hold, and every stock order is a market order in the next batch.",
   },
   {
     q: "How many shares can I trade at once?",
@@ -177,7 +177,7 @@ export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
   },
   {
     q: "What's Credit?",
-    a: "Your second balance. Games, the capsule machine, the card exchange and predictions spend it and never your cash, so you always have something to trade with. Games, bets and buying cards close while your net worth is under $50,000. The trading fee comes out of it first, then your cash. Dividends, winnings, achievements and a little of every sale land in it, it counts toward your net worth, and every Saturday 5% of it (or $10k, if that's more) turns into cash.",
+    a: "Your second balance. Games, the capsule machine, the card exchange and predictions spend it and never your cash, so you always have something to trade with. Games, bets and buying cards close while your net worth is under $50,000. The trading fee comes out of it first, then your cash. Dividends, winnings, achievements and a little of every sale land in it, it counts toward your net worth, and every Saturday 5% of it (or $10k, if that's more) turns into cash. Margin can take it below zero.",
   },
   {
     q: "How do I get more cash?",
@@ -185,7 +185,7 @@ export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
   },
   {
     q: "Why is my cash negative?",
-    a: "Share fees. Every Saturday, stocks whose channels had a bad week charge a fee per share held. It comes out of your Credit first, then your cash, even if that takes you below zero. In the red you can't buy; sell something or earn it back.",
+    a: "Share fees. Every Saturday, stocks whose channels had a bad week charge a fee per share held. It comes out of your Credit first, then your cash, even if that takes you below zero. While your cash is negative you can't buy; sell something or earn it back.",
   },
   {
     q: "What if I run out of everything?",
@@ -204,12 +204,32 @@ export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
     a: "Yes. Open duel, high-low and blackjack tables can be watched by anyone, even signed out. Hidden picks and the dealer's hole card stay hidden until they're revealed.",
   },
   {
-    q: "Who decides how a prediction resolves?",
-    a: "A resolver proposes the result with a source, then a dispute window opens. No disputes and it finalizes; a dispute sends it to a resolver to confirm or overturn.",
+    q: "How do the odds on a pool work?",
+    a: "They're the bets so far. Divide the whole pot by what's on an option and you get what $1 on it pays if it wins: $100,000 in the pot with $20,000 on an option is 5.00×. Your own bet moves them, and so does everyone else's, right up until betting closes. What you're actually paid is your share of the winning side when the pool is called.",
   },
   {
-    q: "What if a prediction market gets voided?",
-    a: "Everyone gets back what they put into that market, fees included. If you already took out more than you put in, you keep it and get nothing back.",
+    q: "Who decides how a pool ends?",
+    a: "Its bookie calls the winner and has to give a source link or a note, which stays public on the pool's record. Auto pools call themselves from NASFAQ's data. Bookies can't bet in their own pools. Admins can call, correct or void any pool. Staff can correct or void a result for 7 days, but not on a pool they have money in.",
+  },
+  {
+    q: "Can I take a bet back?",
+    a: "No. You can raise a bet or back another option while the pool is open, but a bet stays in until the pool ends.",
+  },
+  {
+    q: "What if nobody backed the winner, or a pool gets voided?",
+    a: "Either way, every bet comes back. A void sends each bet back where it came from and cancels any margin debt that bet took on. If staff void or correct a pool that already paid out, what it paid is taken back first, from Credit, even if that takes your Credit below zero.",
+  },
+  {
+    q: "Why did my net worth drop when I bet?",
+    a: "Money in an open pool isn't part of your net worth until it pays out, so it leaves your Credit when you bet and comes back only if you win or the pool is refunded. Bets close while your net worth is under $50,000, so a big enough bet can close them until the pool ends.",
+  },
+  {
+    q: "What's margin?",
+    a: "A way to bet more than your Credit. Once your Credit runs out, a pool bet can borrow the rest, up to 25% of what your shares are worth and $100,000 at most. You tick a box on the bet slip each time, and you need an account 7 days old and a verified email. Borrowing takes your Credit below zero and never touches your cash. There's no interest, and nothing is sold for you.",
+  },
+  {
+    q: "What does being in the red mean?",
+    a: "Your Credit is below zero, and that's what you owe. Until it's paid back you can't bet, play games, pull capsules, buy cards or borrow again. You can still buy and sell shares, and your cash is yours: it never repays the debt. Any Credit that comes in does: pool winnings, dividends, achievements and the little a share sale earns.",
   },
   {
     q: "Why am I not on my oshi's oshiboard?",

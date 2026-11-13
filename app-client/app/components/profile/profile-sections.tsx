@@ -5,12 +5,14 @@ import { EmptyState } from "@/app/components/common/empty-state";
 import { OrderAllowanceMeter } from "@/app/components/trade/order-allowance";
 import { Medal } from "@/app/components/common/medal";
 import Link from "next/link";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { ShowcaseStrip } from "@/app/components/games/locker/showcase-strip";
 import { apiFetch } from "@/app/lib/api";
 import { formatEtTime } from "@/app/lib/market-clock";
+import { fetchMyPools, poolHref, type MyPools } from "@/app/lib/predictions/pools";
+import { usePoolAccess } from "@/app/lib/predictions/use-pool-access";
 import { normalizeArticleListResponse, normalizeProfileTradesPage, normalizeV1Account } from "@/app/lib/normalizers";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct, timeAgo, toneOf } from "@/app/lib/time";
@@ -324,8 +326,35 @@ export function PredictionExposure({ portfolio }: { portfolio: PredictionPortfol
   const positions = portfolio?.positions ?? [];
   const orders = portfolio?.open_orders ?? [];
   const reserved = orders.reduce((sum, order) => sum + order.cash_reserved, 0);
+  const { visible: poolsOn } = usePoolAccess();
+  const [pools, setPools] = useState<MyPools | null>(null);
+  useEffect(() => {
+    if (!poolsOn) return;
+    let alive = true;
+    fetchMyPools()
+      .then((result) => alive && setPools(result))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [poolsOn]);
+  const stakes = pools?.open ?? [];
   return (
-    <Sec title="Prediction exposure" aside={<Link href="/predictions">markets →</Link>}>
+    <Sec title="Prediction exposure" aside={<Link href="/predictions">pools →</Link>}>
+      {pools?.margin.in_red ? <p className={styles.note}>You owe {money(pools.margin.owed)} on margin. Credit that comes in pays it back.</p> : null}
+      {stakes.slice(0, 6).map((stake) => (
+        <Link key={`${stake.market_id}-${stake.outcome_id}`} href={poolHref(stake.slug)} className={styles.row}>
+          <span className={styles.outcome}>{stake.outcome_label.slice(0, 3).toUpperCase()}</span>
+          <span>
+            {stake.title}
+            <small>
+              {money(stake.stake)} on {stake.outcome_label}
+              {stake.borrowed > 0 ? `, ${money(stake.borrowed)} on margin` : ""}
+            </small>
+          </span>
+          <span className={styles.rv}>{stake.payout_if_wins !== null ? `pays ${money(stake.payout_if_wins)}` : ""}</span>
+        </Link>
+      ))}
       {positions.length ? (
         positions.slice(0, 6).map((position) => (
           <Link key={`${position.market_id}-${position.outcome_id}`} href={`/predictions/${enc(position.slug)}`} className={styles.row}>
@@ -339,8 +368,8 @@ export function PredictionExposure({ portfolio }: { portfolio: PredictionPortfol
             <span className={`${styles.rv} ${styles[toneOf(position.realized_pnl_cash)]}`}>{position.realized_pnl_cash ? `${position.realized_pnl_cash >= 0 ? "+" : "−"}${money(Math.abs(position.realized_pnl_cash))}` : ""}</span>
           </Link>
         ))
-      ) : (
-        <EmptyState>No prediction positions.</EmptyState>
+      ) : stakes.length ? null : (
+        <EmptyState>No open bets.</EmptyState>
       )}
       {orders.length ? (
         <p className={styles.note}>

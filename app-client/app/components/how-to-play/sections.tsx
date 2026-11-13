@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { StockChip } from "@/app/components/common/stock-chip";
 import { GAMES, SECTIONS, type SectionId } from "@/app/components/how-to-play/content";
-import { ChanceDemo, ChibiTag, PullDiagram, RarityFan, TalentStrip, TicketDemo, TickTimeline, useBusiestTalents } from "@/app/components/how-to-play/demos";
+import { ChibiTag, PoolDemo, PullDiagram, RarityFan, TalentStrip, TicketDemo, TickTimeline, useBusiestTalents } from "@/app/components/how-to-play/demos";
 import { TickKoma } from "@/app/components/how-to-play/tick-koma";
 import { GamesDiagram, MarketDiagram, PredictionsDiagram, TradingDiagram } from "@/app/components/how-to-play/diagrams";
 import styles from "@/app/components/how-to-play/how-to-play.module.scss";
@@ -280,7 +280,7 @@ export function WeeklySection() {
             <Term k="dividend">dividend</Term> on every share you hold; the worst charge a <b>share fee</b>. The middle pays nothing. Never more than 10% of the stock&apos;s value either way.
           </p>
           <p>
-            Dividends are paid in <Term k="credit">Credit</Term>. Fees come out of your Credit first, then your cash, even if that takes your cash below zero. In the red, you
+            Dividends are paid in <Term k="credit">Credit</Term>. Fees come out of your Credit first, then your cash, even if that takes your cash below zero. With cash below zero, you
             can&apos;t buy until you sell something or earn it back. Pick your bags like it matters. The same night, part of everyone&apos;s Credit turns into cash: 5%, or $10k if that&apos;s more.
           </p>
           {oshiProtection ? (
@@ -336,7 +336,7 @@ export function GamesSection() {
       lede={
         <>
           <p>
-            Every game spends <Term k="credit">Credit</Term> and never your cash. Games, bets and buying cards close while your net worth is under $50,000; free cards and selling your cards stay open. Winnings come back as Credit; refunds go back where they came
+            Every game spends <Term k="credit">Credit</Term> and never your cash. Games, bets and buying cards close while your net worth is under $50,000 or you’re <Term k="in-the-red">in the red</Term>{" "}on margin; free cards and selling your cards stay open. Winnings come back as Credit; refunds go back where they came
             from. The server rolls every result, rates are posted on each game, and multiplayer stakes sit in escrow until the hand is done.
           </p>
           <p>Open tables can be watched by anyone, even signed out. Hidden picks stay hidden until the reveal.</p>
@@ -397,38 +397,62 @@ export function PredictionsSection() {
   return (
     <Section
       id="predictions"
-      title="Prices are chances"
+      title="Winners split the pot"
       art="howto-predictions"
       diagram={<PredictionsDiagram />}
       lede={
         <>
           <p>
-            Prediction markets ask yes-or-no (or which-one) questions about hololive and the market. A share pays <b>$1</b>{" "}if its outcome happens and <b>$0</b>{" "}if it
-            doesn&apos;t, so a YES at 62¢ means the floor thinks it&apos;s 62% likely.
+            Prediction <Term k="pool">pools</Term> ask a question about hololive or the market, with 2 to 100 options to pick from. Everyone’s bets go in one pot. When the result is called, the winners
+            split the whole pot by how much each of them put in. There’s no rake and no house on the other side: players pay players.
           </p>
-          <p>A house market maker always quotes a price, so every trade fills instantly. Sell any time before the market closes.</p>
+          <p>
+            The <Term k="odds">odds</Term> are just the bets so far. <b>3.00×</b>{" "}on an option means every $1 on it pays $3 if it wins and the pool closed right then, and they move with every bet until
+            betting closes.
+          </p>
         </>
       }
       links={[
         { href: "/predictions", label: "Open the floor" },
         { href: "/predictions/portfolio", label: "Your bets" },
+        { href: "/predictions/history", label: "Finished pools" },
       ]}
     >
       <div className={styles.split}>
-        <ChanceDemo />
+        <PoolDemo />
         <Steps
           items={[
-            { title: "Buy YES or NO", body: "Spend $1 up to $25,000 of Credit. Your buy moves the price; prices stay between 1¢ and 99¢. 1% fee." },
-            { title: "Or set a limit", body: "\"Buy YES while it's 40¢ or less, up to $200.\" It rests, reserving your Credit, and fills when the price gets there." },
-            { title: "Trading closes", body: "Resting orders are cancelled and their Credit released. Now it waits for the answer." },
-            {
-              title: "The result gets called",
-              body: "A resolver proposes the outcome with a source. Holders get a dispute window (12 h by default). No disputes and it's final.",
-            },
-            { title: "Winners get $1 a share", body: "Losing shares close at $0. A void undoes the whole market: everyone gets back what they put in, fees included, and anything made by selling goes back too." },
+            { title: "Pick an option and bet", body: "$1,000 of Credit or more (a bookie can ask for more). Bets spend Credit and never your cash, and they need a verified email. Accounts under 7 days old can have $10,000 in open pools." },
+            { title: "Raise it while it's open", body: "Add to your bet or back another option. Bets can't be withdrawn. The slip shows what yours would pay if the pool closed right after it, and the odds keep moving." },
+            { title: "Betting closes", body: "At the time on the pool, or sooner if the bookie closes it early. A bookie can reopen one they closed early, once, until its closing time. Auto pools shut before the answer can be known: stream pools before the stream starts, tick pools 5 minutes before the tick." },
+            { title: "The result gets called", body: "A bookie calls their own pool with a source link or a note, and auto pools call themselves from NASFAQ data. Admins can call or void any pool. Other staff can't call, correct or void a pool they have money in." },
+            { title: "Winners get paid", body: "Right away, in Credit, by their share of the winning side. If nobody backed the winner, every bet comes back." },
           ]}
         />
       </div>
+      <Rules
+        cols={4}
+        items={[
+          { k: "bookies", title: "Who runs them", body: "Bookies are players with the role. Their pools open straight away, and they can close, reopen, extend or void one that hasn't been called. They can't bet in their own." },
+          { k: "7 days", title: "If a call is wrong", body: "Staff can correct or void a result for 7 days. A correction takes back what the first result paid, from Credit, even below zero, then pays the right side. A void gives every bet back." },
+          { k: "public", title: "On the record", body: "Who bet what is public, and so is every early close, reopen, call, correction and void, with who made it and the source or reason. Pool history lists every finished pool and how you did." },
+          { k: "net worth", title: "While it rides", body: "Money in an open pool isn't in your net worth until it pays out. Bets close while your net worth is under $50,000." },
+        ]}
+      />
+      <SubHead>Margin: betting more than you have</SubHead>
+      <Rules
+        cols={4}
+        items={[
+          { k: "25%", title: "The line", body: "Out of Credit? A pool bet can borrow the rest, up to 25% of what your shares are worth and $100,000 at most. You tick the box on the slip each time. It takes an account 7 days old and a verified email." },
+          { k: "below $0", title: "In the red", body: "Borrowing takes your Credit below zero, and that's what you owe. It counts against your net worth. Until it's paid back you can't bet, play games, pull capsules or buy cards." },
+          { k: "repay", title: "Paying it back", body: "Any Credit that comes in goes toward it: winnings, dividends, achievements, the little a share sale earns. Cash never repays it. There's no interest, and nothing gets sold for you." },
+          { k: "stocks", title: "Stocks stay open", body: "Margin never touches your cash, and in the red you can still buy and sell shares. If a pool you borrowed for is voided, the void cancels that debt." },
+        ]}
+      />
+      <p className={styles.worked}>
+        <b>For example:</b>{" "}you have $2,000 Credit, $5,000 cash and $80,000 in shares, so your line is $20,000. You bet $15,000: $2,000 comes from Credit and $13,000 is borrowed, which leaves Credit at <span className={styles.nowrap}>−$13,000</span>{" "}and cash
+        at $5,000. Win $30,000 and Credit lands at +$17,000. Lose, and you’re <Term k="in-the-red">in the red</Term>{" "}until $13,000 of Credit comes in.
+      </p>
     </Section>
   );
 }
@@ -510,7 +534,7 @@ export function CommunitySection() {
           {
             k: "/wire",
             title: "The Wire",
-            body: `Headlines as they happen: big price moves, sell-outs, buybacks, records, rare pulls, card sales, called predictions and IPOs${oshiWire ? ", and who changed their oshi" : ""}.`,
+            body: `Headlines as they happen: big price moves, sell-outs, buybacks, records, rare pulls, card sales, called pools and IPOs${oshiWire ? ", and who changed their oshi" : ""}.`,
           },
           { k: "/threads", title: "/vt/ threads", body: "The general, mirrored, with tickers linked. Lurk the source." },
           { k: "/livestreams", title: "Livestreams", body: `Who's on air right now, with viewer counts${calendar ? ", and a calendar of what's coming up" : ""}.` },

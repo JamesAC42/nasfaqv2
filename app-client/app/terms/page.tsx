@@ -5,7 +5,7 @@ import { Callout, Ext, LegalPage, Mail, type LegalSection } from "@/app/componen
 export const metadata: Metadata = {
   title: "Usage Policy | NASFAQ",
   description:
-    "The rules for playing NASFAQ: play money only, one account per person, fair play, community conduct, prediction markets and moderation.",
+    "The rules for playing NASFAQ: play money only, one account per person, fair play, community conduct, prediction pools and moderation.",
 };
 
 const YOUTUBE_TERMS = "https://www.youtube.com/t/terms";
@@ -37,7 +37,7 @@ const sections: LegalSection[] = [
       <>
         <Callout title="Nothing on NASFAQ is worth real money">
           <p>
-            In-game cash, talent stocks, prediction market shares, cards, shards, capsule prizes, cosmetics, badges and
+            In-game cash, talent stocks, prediction bets, cards, shards, capsule prizes, cosmetics, badges and
             ranks have <strong>no real-world value</strong>. You can’t buy them with real money, and you can’t
             sell them, trade them for anything of value, or cash them out.
           </p>
@@ -138,8 +138,8 @@ const sections: LegalSection[] = [
     body: (
       <>
         <p>
-          These apply everywhere you can write: chat, comments, articles, news edits, profile bios, usernames, market
-          proposals and disputes. Banter and shitposting about the market are part of the fun. Keep it about the game, not
+          These apply everywhere you can write: chat, comments, articles, news edits, profile bios, usernames and
+          prediction pools. Banter and shitposting about the market are part of the fun. Keep it about the game, not
           about hurting people.
         </p>
         <p>
@@ -170,31 +170,33 @@ const sections: LegalSection[] = [
   },
   {
     id: "predictions",
-    title: "Prediction markets",
+    title: "Prediction pools",
     body: (
       <>
         <ul>
           <li>
-            Markets are created by staff and by players who’ve been given permission. Player markets are reviewed
-            before they open, and we can reject or edit any proposal. Markets about a talent’s private life, health or
-            real identity won’t be approved.
+            Pools are opened by bookies, who are players staff have given the role, and by staff. Pools about a
+            talent’s private life, health or real identity aren’t allowed, and staff can void any pool.
           </li>
           <li>
-            Every market has written rules and a resolution source. <strong>Staff resolve markets</strong> by those rules,
-            using public sources. Automatic markets (like tick and stream markets) resolve themselves from NASFAQ and
-            YouTube data.
+            Every pool has written rules. <strong>Its bookie calls the result</strong> by those rules and gives a source
+            or a note, which stays public on the pool’s record. Automatic pools (like tick and stream pools) call
+            themselves from NASFAQ and YouTube data. Admins can call, correct or void any pool; other staff can’t act
+            on a pool they have money in.
           </li>
           <li>
-            When staff propose a result, a <strong>dispute window</strong> opens (the length is shown on the market). If
-            you hold a position you can dispute the result with a reason. Disputes are public.
+            Bets can be raised but not withdrawn, and who bet what is public. Betting on margin takes your Credit below
+            zero until Credit comes back in; while it’s below zero you can’t bet or spend Credit.
           </li>
           <li>
-            If a market can’t be resolved fairly (the question broke, the source vanished, or something went wrong),
-            staff can void it.
+            If a pool can’t be resolved fairly (the question broke, the source vanished, or something went wrong), its
+            bookie or staff can void it, and every bet goes back.
           </li>
           <li>
-            <strong>Once staff have reviewed a market and any disputes, their decision is final.</strong> Please
-            don’t take it out on staff in chat.
+            Staff can correct or void a result for 7 days after it’s called. What the result paid is taken back first,
+            from Credit, even if that takes your Credit below zero.{" "}
+            <strong>Once staff have reviewed a result, their decision is final.</strong> Please don’t take it out on
+            staff in chat.
           </li>
         </ul>
       </>
@@ -342,7 +344,7 @@ export default function TermsPage() {
     <LegalPage
       doc="terms"
       title="Usage policy"
-      updated={{ iso: "2026-09-25", label: "September 25, 2026" }}
+      updated={{ iso: "2026-11-12", label: "November 12, 2026" }}
       art="legal-terms-spot"
       intro={
         <p>
@@ -363,7 +365,7 @@ export default function TermsPage() {
         </>,
         <>Be decent in chat and posts. No harassment, doxxing, NSFW or spam, and respect the talents.</>,
         <>
-          Staff resolve prediction markets and moderate the site. After a dispute is reviewed,{" "}
+          Bookies call their prediction pools and staff moderate the site. After staff review a result,{" "}
           <strong>their call is final</strong>.
         </>,
         <>Ko-fi donations keep the lights on and buy nothing in the game.</>,

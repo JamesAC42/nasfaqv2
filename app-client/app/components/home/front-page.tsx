@@ -32,6 +32,7 @@ import { useNewsStore } from "@/app/stores/news-store";
 import { CHATTER_TOPIC, heatLabel, useChatterStore, type ChatterTalent } from "@/app/stores/chatter-store";
 import { fetchFloor } from "@/app/lib/predictions/api";
 import { leader as predictionLeader, outcomeColor } from "@/app/lib/predictions/format";
+import { multiplierText, poolHref } from "@/app/lib/predictions/pools";
 import type { PredictionMarket as PredictionMarketV2 } from "@/app/lib/predictions/types";
 import styles from "@/app/components/home/front-page.module.scss";
 import { LIFTS_FAIR_VALUE, WIRE_TAGS, isOshiMove, wireTone, wireWhen } from "@/app/components/wire/wire-kit";
@@ -825,11 +826,11 @@ function PredictionsMini() {
       <div className={styles.colHead}>
         <h3>Predictions</h3>
         <Link href="/predictions" className={styles.label}>
-          All markets →
+          All pools →
         </Link>
       </div>
       {markets === null ? (
-        <p className={styles.empty}>Loading markets…</p>
+        <p className={styles.empty}>Loading pools…</p>
       ) : open.length ? (
         open.map((market) => {
           // Binary shows both sides with their labels (Yes/No, Up/Down); multi shows the leader.
@@ -838,28 +839,32 @@ function PredictionsMini() {
           const top = market.market_type === "multi" ? predictionLeader(market.outcomes) : null;
           const main = top ?? yes;
           const pct = main ? Math.round(main.price * 100) : null;
+          const isPool = market.pricing === "pool";
+          const noBets = isPool && !market.pool_total;
+          const mainText = isPool ? `${main?.label} ${multiplierText(main?.multiplier)}` : `${main?.label} ${top ? `${pct}%` : `${pct}¢`}`;
+          const otherText = top ? `${market.outcomes.length - 1} more` : isPool ? `${no?.label ?? "No"} ${multiplierText(no?.multiplier)}` : `${no?.label ?? "No"} ${100 - (pct ?? 0)}¢`;
           const barStyle = {
             "--pm-a": main ? outcomeColor(market, main) : "var(--blue)",
             "--pm-b": no && !top ? outcomeColor(market, no) : "var(--dim)",
           } as CSSProperties;
           return (
-            <Link key={market.id} href={`/predictions/${encodeURIComponent(market.slug)}`} className={styles.pm}>
+            <Link key={market.id} href={isPool ? poolHref(market.slug) : `/predictions/${encodeURIComponent(market.slug)}`} className={styles.pm}>
               <span className={styles.pmQ}>{market.title}</span>
-              {main && pct !== null ? (
+              {main && pct !== null && !noBets ? (
                 <span className={styles.pmBar} style={barStyle}>
                   <span className={styles.pmYes} style={{ width: `${Math.max(top ? 34 : 22, Math.min(78, pct))}%` }}>
-                    {main.label} {top ? `${pct}%` : `${pct}¢`}
+                    {mainText}
                   </span>
-                  <span className={styles.pmNo}>{top ? `${market.outcomes.length - 1} more` : `${no?.label ?? "No"} ${100 - pct}¢`}</span>
+                  <span className={styles.pmNo}>{otherText}</span>
                 </span>
               ) : (
-                <span className={styles.meta}>No trades yet</span>
+                <span className={styles.meta}>No bets yet</span>
               )}
             </Link>
           );
         })
       ) : (
-        <p className={styles.empty}>No open markets.</p>
+        <p className={styles.empty}>No open pools.</p>
       )}
     </div>
   );

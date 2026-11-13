@@ -47,7 +47,7 @@ const sections: LegalSection[] = [
     body: (
       <Facts>
         <Fact term={<Link href="/predictions">Predictions</Link>}>
-          <p>Markets on what happens next: streams, milestones, the market itself. Buy the outcome you believe in.</p>
+          <p>Betting pools on what happens next: streams, milestones, the market itself. Back the option you believe in, and the winners split the pot.</p>
         </Fact>
         <Fact term={<Link href="/games">Games</Link>}>
           <p>Talent cards and a card exchange, the capsule machine for hats and flair, duels, blackjack and high-low.</p>

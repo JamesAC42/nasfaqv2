@@ -1,0 +1,10 @@
+{
+  "title": "Prediction pools are back",
+  "changes": [
+    { "kind": "new", "text": "Betting pools, like v1: everyone's bets on a question go in one pot, and when the bookie calls it, the winners split the whole pot by how much they put in. No rake. If nobody backed the winner, every bet comes back. Pools replace the house market maker, so there are no new $1-a-share markets." },
+    { "kind": "new", "text": "Live odds on every option, and a bet slip that shows what your bet would pay if the pool closed right then. Raise a bet any time the pool is open; bets can't be withdrawn. Bets spend Credit, never your Cash." },
+    { "kind": "new", "text": "Margin: out of Credit? A pool bet can borrow up to 25% of the value of your shares (accounts 7 days old with a verified email). Borrowing takes your Credit below zero and never touches your Cash. Until it's paid back you can't bet or spend Credit, but you can keep trading stocks. Any Credit that comes in pays it back. No interest." },
+    { "kind": "new", "text": "Every pool shows its record: who called it, the source, any correction, and any early close or reopening of betting. Pool history lists every finished pool and how you did, and you get a notification when a pool you bet on is called, corrected or voided." },
+    { "kind": "improved", "text": "The stream calendar links to open stream pools, and pool bets show on the floor's tape, the forecasters board and the home page." }
+  ]
+}

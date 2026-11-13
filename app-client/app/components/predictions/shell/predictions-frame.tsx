@@ -67,7 +67,7 @@ export function PredictionsFrame({ kicker, title, blurb, aside, live = false, ba
     { href: "/predictions/portfolio", label: "My bets", show: signedIn },
     { href: "/predictions/history", label: "Pool history", show: pools.visible },
     { href: "/predictions/bookie", label: "Bookie desk", show: pools.bookie || pools.staff },
-    { href: "/predictions/create", label: "New market", show: canCreate },
+    { href: "/predictions/create", label: "New market", show: canCreate && !pools.visible },
     { href: "/predictions/manage", label: "Admin", show: isStaff },
   ].filter((item) => item.show !== false);
 
