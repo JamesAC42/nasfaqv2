@@ -1,0 +1,647 @@
+@use "../../../../styles/mixins" as *;
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1rem 1.25rem;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+
+  h1 {
+    @include display(1.25rem);
+    margin: 0;
+  }
+
+  p {
+    margin: 0;
+    color: var(--mid);
+    font-size: 0.8125rem;
+  }
+}
+
+.beta {
+  @include label;
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--warn);
+  background: var(--warn-wash);
+  color: var(--warn);
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+  vertical-align: middle;
+}
+
+// ── Stage box ────────────────────────────────────────────────────────────────
+.viewport {
+  display: flex;
+  justify-content: center;
+
+  &[data-phone] {
+    padding: 0.5rem 0;
+
+    .stage {
+      width: 375px;
+      height: 812px;
+      flex: none;
+      border-radius: 44px;
+      border: 10px solid #11141b;
+      box-shadow:
+        0 0 0 1px #2c3240,
+        0 30px 60px rgba(0, 0, 0, 0.45);
+    }
+  }
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  height: clamp(520px, calc(100dvh - 15rem), 960px);
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  background: #04060b;
+  isolation: isolate;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+
+  &[data-day] {
+    background: #e7dcc6;
+  }
+
+  canvas {
+    display: block;
+    touch-action: manipulation;
+  }
+}
+
+.loading {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  @include label;
+}
+
+.overlays {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 1;
+}
+
+// A pinned overlay: the canvas writes its translate3d every frame; content offsets itself from there.
+.pin {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  visibility: hidden;
+  will-change: transform;
+}
+
+// ── Nameplates ───────────────────────────────────────────────────────────────
+.plate {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.22rem 0.5rem 0.22rem 0.3rem;
+  white-space: nowrap;
+  border: 1px solid color-mix(in srgb, var(--seat) 55%, transparent);
+  border-radius: 3px;
+  background: rgba(6, 9, 16, 0.78);
+  backdrop-filter: blur(6px);
+  color: #eef2fa;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+
+  .stage[data-day] & {
+    background: rgba(255, 252, 244, 0.88);
+    color: #0c111a;
+    box-shadow: 0 6px 18px rgba(80, 60, 30, 0.18);
+  }
+}
+
+.plateWind {
+  @include num;
+  display: grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 2px;
+  background: var(--seat);
+  color: #05070c;
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.plateName {
+  @include label;
+  color: var(--seat);
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.platePts {
+  @include num;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.plateRiichi {
+  @include label;
+  padding: 0 0.3rem;
+  border-radius: 2px;
+  background: var(--seat);
+  color: #05070c;
+  font-size: 0.55rem;
+  font-weight: 700;
+}
+
+.spark {
+  width: 42px;
+  height: 15px;
+  overflow: visible;
+}
+
+// Phones: compact plates (three share one row under the portraits).
+@mixin compact-plate {
+  gap: 0.3rem;
+  padding: 0.16rem 0.4rem 0.16rem 0.22rem;
+
+  .spark,
+  .plateWind {
+    display: none;
+  }
+
+  .plateName {
+    font-size: 0.58rem;
+  }
+
+  .platePts {
+    font-size: 0.7rem;
+  }
+}
+
+.viewport[data-phone] .plate {
+  @include compact-plate;
+}
+
+@include phone {
+  .plate {
+    @include compact-plate;
+  }
+}
+
+.sparkTail {
+  stroke-dasharray: 60;
+  stroke-dashoffset: 60;
+  animation: draw 0.9s 0.2s ease-out forwards;
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+// ── Cheers ───────────────────────────────────────────────────────────────────
+.cheers {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+}
+
+.counter {
+  @include num;
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, 0);
+  padding: 0.08rem 0.38rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--seat) 45%, transparent);
+  background: rgba(6, 9, 16, 0.66);
+  color: var(--seat);
+  font-size: 0.66rem;
+  font-weight: 600;
+  white-space: nowrap;
+
+  span {
+    font-size: 0.5rem;
+    vertical-align: 0.08em;
+  }
+
+  .stage[data-day] & {
+    background: rgba(255, 252, 244, 0.85);
+  }
+}
+
+.chip {
+  position: absolute;
+  left: 0;
+  top: -0.4rem;
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.7rem;
+  height: 1.7rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--seat) 22%, rgba(8, 10, 18, 0.82));
+  border: 1px solid color-mix(in srgb, var(--seat) 60%, transparent);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0;
+  transform: translate(calc(-50% + var(--dx, 0px)), 0) scale(0.6);
+  animation: rise 2.2s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+
+  .stage[data-day] & {
+    background: color-mix(in srgb, var(--seat) 16%, #fffaf0);
+    color: #0c111a;
+  }
+
+  .cheers[data-reduced] & {
+    animation: fade 1.6s ease forwards;
+  }
+}
+
+@keyframes rise {
+  0% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx, 0px)), 0) scale(0.6);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--dx, 0px)), -14px) scale(1.05);
+  }
+  70% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx, 0px) * 1.4), -86px) scale(0.92);
+  }
+}
+
+@keyframes fade {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  20%,
+  70% {
+    opacity: 1;
+  }
+}
+
+// ── Ticker ───────────────────────────────────────────────────────────────────
+.ticker {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: stretch;
+  height: 2rem;
+  overflow: hidden;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--seat) 92%, #000), color-mix(in srgb, var(--seat) 70%, #000));
+  color: #05070c;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  animation: tickerIn 4.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.tickerTag {
+  @include label;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  flex: none;
+  padding: 0 0.7rem;
+  background: #05070c;
+  color: var(--seat);
+  font-weight: 700;
+}
+
+.tickerText {
+  @include num;
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  padding-left: 1.2rem;
+  white-space: nowrap;
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  animation: tickerScroll 4.2s linear forwards;
+}
+
+.tickerSep {
+  opacity: 0.55;
+  font-size: 0.6rem;
+}
+
+@keyframes tickerIn {
+  0% {
+    transform: translateX(100%);
+  }
+  12% {
+    transform: translateX(0);
+  }
+  88% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+@keyframes tickerScroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-30%);
+  }
+}
+
+// ── Lower third ──────────────────────────────────────────────────────────────
+.lower {
+  position: absolute;
+  left: 1.25rem;
+  bottom: 19%;
+  z-index: 3;
+  min-width: min(26rem, calc(100% - 2.5rem));
+  max-width: calc(100% - 2.5rem);
+  padding: 0.7rem 1rem 0.65rem 1.1rem;
+  border-left: 5px solid var(--seat);
+  background: linear-gradient(90deg, rgba(5, 7, 12, 0.94), rgba(5, 7, 12, 0.72) 75%, rgba(5, 7, 12, 0));
+  color: #eef2fa;
+  pointer-events: none;
+  animation: lowerIn 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+
+  .stage[data-day] & {
+    background: linear-gradient(90deg, rgba(255, 252, 244, 0.96), rgba(255, 252, 244, 0.8) 75%, rgba(255, 252, 244, 0));
+    color: #0c111a;
+  }
+}
+
+.lowerKicker {
+  @include label;
+  color: var(--seat);
+  font-weight: 700;
+}
+
+.lowerHead {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.8rem;
+  margin-top: 0.15rem;
+}
+
+.lowerTitle {
+  @include display(clamp(1.35rem, 3.2vw, 2.1rem));
+  letter-spacing: 0.02em;
+  line-height: 1.05;
+}
+
+.lowerValue {
+  @include num;
+  font-size: clamp(1.2rem, 2.8vw, 1.8rem);
+  font-weight: 700;
+  color: var(--up);
+
+  .lower[data-kind="draw"] & {
+    color: var(--mid);
+  }
+}
+
+.lowerLines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    @include label;
+    color: inherit;
+    opacity: 0.85;
+    animation: lineIn 0.4s ease both;
+
+    &:nth-child(2) {
+      animation-delay: 0.12s;
+    }
+
+    &:nth-child(3) {
+      animation-delay: 0.24s;
+    }
+
+    &::before {
+      content: "▸ ";
+      color: var(--seat);
+    }
+  }
+}
+
+.lowerDesk {
+  margin-top: 0.45rem;
+  font-size: 0.66rem;
+  opacity: 0.55;
+}
+
+@keyframes lowerIn {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+
+@keyframes lineIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lower,
+  .lowerLines li,
+  .ticker,
+  .tickerText,
+  .sparkTail {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+  }
+
+  .ticker {
+    animation: none;
+  }
+}
+
+// ── HUD ──────────────────────────────────────────────────────────────────────
+.hudTop {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.6rem 0.3rem 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--seat) 45%, transparent);
+  border-radius: 3px;
+  background: rgba(6, 9, 16, 0.7);
+  backdrop-filter: blur(6px);
+  color: #eef2fa;
+
+  .stage[data-day] & {
+    background: rgba(255, 252, 244, 0.85);
+    color: #0c111a;
+  }
+}
+
+.hudWind {
+  @include num;
+  display: grid;
+  place-items: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 2px;
+  background: var(--seat);
+  color: #05070c;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.hudLabel {
+  @include label;
+  color: var(--seat);
+  font-weight: 700;
+}
+
+.hudPts {
+  @include num;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.actionsPin {
+  z-index: 2;
+  transition: opacity 0.25s ease;
+
+  &[data-quiet] {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+// Centered just above your hand (the canvas pins the point).
+.actions {
+  position: absolute;
+  left: 0;
+  bottom: 0.5rem;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.4rem;
+}
+
+.act {
+  @include button-secondary;
+  min-width: 4.4rem;
+  min-height: 2.4rem;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.74rem;
+  background: rgba(6, 9, 16, 0.72);
+  color: #eef2fa;
+  border-color: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(6px);
+  touch-action: manipulation;
+
+  .stage[data-day] & {
+    background: rgba(255, 252, 244, 0.86);
+    color: #0c111a;
+    border-color: rgba(12, 17, 26, 0.2);
+  }
+
+  .viewport[data-phone] & {
+    min-width: 3.9rem;
+    padding: 0.4rem 0.5rem;
+  }
+}
+
+.actHot:not(:disabled) {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+// ── Debug bar ────────────────────────────────────────────────────────────────
+.debug {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--rule);
+  background: var(--ink-2);
+}
+
+.debugGroup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.debugLabel {
+  @include label;
+  margin-right: 0.15rem;
+}
+
+.dbtn,
+.seatPick {
+  @include button-secondary;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.62rem;
+
+  &[data-on] {
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+}
+
+.seatPick {
+  &[data-on] {
+    border-color: var(--seat);
+    color: var(--seat);
+    background: color-mix(in srgb, var(--seat) 12%, transparent);
+  }
+}
+
+.fps {
+  @include num;
+  min-width: 4.5rem;
+  color: var(--mid);
+  font-size: 0.75rem;
+}

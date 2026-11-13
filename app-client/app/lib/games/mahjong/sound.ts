@@ -202,12 +202,20 @@ function burst(context: AudioContext, out: AudioNode, at: number, dur: number, f
   source.stop(at + dur + 0.02);
 }
 
-/** A soft wooden tap: a dull thump with a short woody click on top. `weight` scales its loudness and depth. */
+/**
+ * A hard tile clack: a sharp transient and a few short, bright, inharmonic rings, the way a dense
+ * plastic or bone tile sounds against the table or another tile, with almost no low thump. Each
+ * clack is tuned a little differently so a run of them doesn't sound machine-made. `weight` scales
+ * its loudness.
+ */
 function tap(context: AudioContext, out: AudioNode, at: number, weight = 1, pitch = 1) {
-  note(context, out, at, 210 * pitch, 0.07, { type: "sine", gain: 0.34 * weight, to: 120 * pitch, attack: 0.002 });
-  note(context, out, at, 420 * pitch, 0.035, { type: "triangle", gain: 0.08 * weight, to: 260 * pitch, attack: 0.001 });
-  burst(context, out, at, 0.03, 1700 * pitch, 2.4, 0.42 * weight);
-  burst(context, out, at, 0.012, 4200 * pitch, 1.2, 0.12 * weight, "highpass");
+  const p = pitch * (0.96 + Math.random() * 0.08);
+  burst(context, out, at, 0.006, 3000 * p, 0.7, 0.5 * weight, "highpass");
+  burst(context, out, at, 0.022, 3300 * p, 6, 0.32 * weight);
+  note(context, out, at, 2450 * p, 0.05, { type: "sine", gain: 0.11 * weight, attack: 0.0005 });
+  note(context, out, at, 3780 * p, 0.035, { type: "sine", gain: 0.07 * weight, attack: 0.0005 });
+  note(context, out, at, 5650 * p, 0.022, { type: "sine", gain: 0.035 * weight, attack: 0.0005 });
+  note(context, out, at, 640 * p, 0.025, { type: "triangle", gain: 0.05 * weight, attack: 0.001 });
 }
 
 const NOTE = (semitonesFromA4: number) => 440 * 2 ** (semitonesFromA4 / 12);
@@ -220,17 +228,18 @@ type Voice = (context: AudioContext, out: AudioNode, at: number, pitch: number) 
 
 const SYNTH: Record<Cue, Voice> = {
   draw: (c, o, t, p) => {
-    tap(c, o, t, 0.5, 1.25 * p);
-    burst(c, o, t - 0.02, 0.05, 900, 0.8, 0.05);
+    burst(c, o, t - 0.03, 0.04, 2500, 0.9, 0.03);
+    tap(c, o, t, 0.45, 1.15 * p);
   },
   discard: (c, o, t, p) => {
     tap(c, o, t, 1, p);
-    tap(c, o, t + 0.05, 0.3, 0.9 * p);
+    tap(c, o, t + 0.032, 0.35, 0.94 * p);
   },
   call: (c, o, t) => {
-    tap(c, o, t, 0.8, 1.1);
-    tap(c, o, t + 0.07, 0.8, 0.95);
-    note(c, o, t + 0.08, NOTE(-5), 0.22, { type: "triangle", gain: 0.1, to: NOTE(-3) });
+    tap(c, o, t, 0.75, 1.05);
+    tap(c, o, t + 0.045, 0.7, 0.98);
+    tap(c, o, t + 0.09, 0.6, 1.02);
+    note(c, o, t + 0.1, NOTE(-5), 0.2, { type: "triangle", gain: 0.07, to: NOTE(-3) });
   },
   riichi: (c, o, t) => {
     tap(c, o, t, 1.1, 0.8);
