@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { Tile } from "@/app/components/games/mahjong/tile";
 import type { LessonMove } from "@/app/components/games/mahjong/table/lesson-texts";
 import { kindOf, kindName, sortTiles, type TileId, type TileKind } from "@/app/lib/games/mahjong/tiles";
-import type { CallOptions, MahjongAction, Options, TurnOptions } from "@/app/lib/games/mahjong/types";
+import { effectText, RECOMMEND_TEXT } from "@/app/lib/games/mahjong/coach-texts";
+import { playCue } from "@/app/lib/games/mahjong/sound";
+import type { CallAdvice, CallOptions, CallRecommend, CoachSuggestion, MahjongAction, Options, TurnOptions } from "@/app/lib/games/mahjong/types";
+import coachStyles from "@/app/components/games/mahjong/table/coach.module.scss";
 import styles from "@/app/components/games/mahjong/table/table-panels.module.scss";
 
 type Choice = { label: string; tiles: TileId[]; kinds?: TileKind[]; action: MahjongAction };
@@ -33,7 +36,59 @@ export type ActionBarProps = {
   onRiichiMode: (on: boolean) => void;
   onAct: (action: MahjongAction) => void;
   guide: LessonMove | null;
+  /** The coach's `call_advice`: when present, each button says what it does. */
+  advice?: CallAdvice[] | null;
+  suggestion?: CoachSuggestion | null;
+  /** A clock is running: keep each explanation's space reserved so nothing moves under a finger. */
+  timed?: boolean;
 };
+
+const sameTiles = (a: readonly number[], b: readonly number[]) => a.length === b.length && [...a].sort((x, y) => x - y).every((id, at) => id === [...b].sort((x, y) => x - y)[at]);
+
+/** The advice that belongs to one button (or one way of making the call). */
+function adviceFor(advice: CallAdvice[], kind: Kind, choice?: Choice): CallAdvice | null {
+  if (kind === "tsumo" || kind === "ron") return advice.find((entry) => entry.option.type === kind) ?? null;
+  if (kind === "riichi") return null;
+  if (!choice) return null;
+  const action = choice.action;
+  return (
+    advice.find((entry) => {
+      const option = entry.option;
+      if (action.type === "pon" || action.type === "chi") return option.type === action.type && "tiles" in option && action.tiles !== undefined && sameTiles(option.tiles, action.tiles);
+      if (action.type === "kan") return option.type === "kan";
+      if (action.type === "ankan" || action.type === "kakan") return option.type === action.type && "kind" in option && option.kind === action.kind;
+      return false;
+    }) ?? null
+  );
+}
+
+/** Riichi has one button for several tiles: the coach's pick, else the first, stands for all. */
+function riichiAdvice(advice: CallAdvice[], suggestion: CoachSuggestion | null | undefined): { entry: CallAdvice; recommend: CallRecommend } | null {
+  const all = advice.filter((entry) => entry.option.type === "riichi");
+  if (!all.length) return null;
+  const picked = (suggestion?.riichi && all.find((entry) => "kind" in entry.option && entry.option.kind === suggestion.kind)) || all.find((entry) => entry.recommend === "take") || all[0];
+  const recommend: CallRecommend = suggestion?.riichi ? "take" : all.some((entry) => entry.recommend === "take") ? "take" : all.every((entry) => entry.recommend === "skip") ? "skip" : "either";
+  return { entry: picked, recommend };
+}
+
+function Why({ advice, recommend }: { advice: CallAdvice; recommend?: CallRecommend }) {
+  const lines = advice.effects.map((effect, at) => ({ at, text: effectText(effect) })).filter((line) => line.text);
+  const rec = recommend ?? advice.recommend;
+  return (
+    <>
+      <ul className={coachStyles.why}>
+        {lines.map((line) => (
+          <li key={line.at}>{line.text}</li>
+        ))}
+      </ul>
+      {advice.option.type === "tsumo" || advice.option.type === "ron" ? null : RECOMMEND_TEXT[rec] ? (
+        <span className={coachStyles.badge} data-rec={rec}>
+          {RECOMMEND_TEXT[rec]}
+        </span>
+      ) : null}
+    </>
+  );
+}
 
 function plan(options: Options): { kinds: Kind[]; choices: Partial<Record<Kind, Choice[]>> } {
   const choices: Partial<Record<Kind, Choice[]>> = {};
@@ -73,7 +128,7 @@ function plan(options: Options): { kinds: Kind[]; choices: Partial<Record<Kind, 
 }
 
 /** The buttons for what you may do now. Several ways to call: pick the shape in a row under the buttons. */
-export function ActionBar({ options, waiting, busy, riichiMode, onRiichiMode, onAct, guide }: ActionBarProps) {
+export function ActionBar({ options, waiting, busy, riichiMode, onRiichiMode, onAct, guide, advice, suggestion, timed }: ActionBarProps) {
   const [choosing, setChoosing] = useState<Kind | null>(null);
   const { kinds, choices } = options ? plan(options) : { kinds: [] as Kind[], choices: {} as Partial<Record<Kind, Choice[]>> };
   const signature = options ? `${options.phase}:${kinds.join(",")}` : "none";
@@ -92,6 +147,7 @@ export function ActionBar({ options, waiting, busy, riichiMode, onRiichiMode, on
     if (kind === "kyuushu") return onAct({ type: "kyuushu" });
     const list = choices[kind] ?? [];
     if (list.length === 1) return onAct(list[0].action);
+    playCue("ui_click");
     setChoosing((current) => (current === kind ? null : kind));
   };
 
@@ -122,37 +178,80 @@ export function ActionBar({ options, waiting, busy, riichiMode, onRiichiMode, on
     return guide.type === kind;
   };
 
+  const coached = Boolean(advice && advice.length && !guide);
+  // The explanation under one button: what it does, and the coach's lean.
+  const whyOf = (kind: Kind) => {
+    if (!coached || !advice) return null;
+    if (kind === "pass") return <p className={coachStyles.why}>Nothing changes. Play goes on.</p>;
+    if (kind === "kyuushu") return <p className={coachStyles.why}>Calls the hand off and deals again. Nobody pays.</p>;
+    if (kind === "tsumo" || kind === "ron") {
+      const entry = adviceFor(advice, kind);
+      return entry ? <Why advice={entry} /> : null;
+    }
+    if (kind === "riichi") {
+      const found = riichiAdvice(advice, suggestion);
+      return found ? <Why advice={found.entry} recommend={found.recommend} /> : null;
+    }
+    const list = choices[kind] ?? [];
+    if (list.length === 1) {
+      const entry = adviceFor(advice, kind, list[0]);
+      return entry ? <Why advice={entry} /> : null;
+    }
+    if (list.length > 1) return <p className={coachStyles.why}>{list.length} ways to do it: pick one below.</p>;
+    return null;
+  };
+  const multi = (kind: Kind) => coached && (choices[kind]?.length ?? 0) > 1;
+  const shown = (Object.keys(choices) as Kind[]).filter((kind) => (choosing === kind || multi(kind)) && (choices[kind]?.length ?? 0) > 1);
+
+  const button = (kind: Kind) => (
+    <button
+      key={kind}
+      type="button"
+      className={styles.act}
+      data-kind={kind}
+      data-on={(kind === "riichi" && riichiMode) || choosing === kind || undefined}
+      data-guide={guided(kind) || undefined}
+      data-faded={(guide && !guided(kind)) || undefined}
+      disabled={busy}
+      onClick={() => press(kind)}
+      aria-pressed={kind === "riichi" ? riichiMode : undefined}
+    >
+      {kind === "riichi" && riichiMode ? "Cancel riichi" : NAMES[kind]}
+      <kbd aria-hidden="true">{KEYS[kind].toUpperCase()}</kbd>
+    </button>
+  );
+
   return (
     <div className={styles.actions}>
-      <div className={styles.actionRow} role="group" aria-label="Your moves">
-        {kinds.map((kind) => (
-          <button
-            key={kind}
-            type="button"
-            className={styles.act}
-            data-kind={kind}
-            data-on={(kind === "riichi" && riichiMode) || choosing === kind || undefined}
-            data-guide={guided(kind) || undefined}
-            data-faded={(guide && !guided(kind)) || undefined}
-            disabled={busy}
-            onClick={() => press(kind)}
-            aria-pressed={kind === "riichi" ? riichiMode : undefined}
-          >
-            {kind === "riichi" && riichiMode ? "Cancel riichi" : NAMES[kind]}
-            <kbd aria-hidden="true">{KEYS[kind].toUpperCase()}</kbd>
-          </button>
-        ))}
+      <div className={coached ? coachStyles.callRow : styles.actionRow} role="group" aria-label="Your moves">
+        {kinds.map((kind) =>
+          coached ? (
+            <div key={kind} className={coachStyles.call} data-reserve={(timed && kind !== "pass" && kind !== "kyuushu") || undefined}>
+              {button(kind)}
+              {whyOf(kind)}
+            </div>
+          ) : (
+            button(kind)
+          ),
+        )}
       </div>
-      {choosing && choices[choosing] ? (
-        <div className={styles.choices} role="group" aria-label={`Choose how to ${NAMES[choosing]}`}>
-          {choices[choosing]!.map((choice, index) => (
-            <button key={index} type="button" className={styles.choice} disabled={busy} onClick={() => onAct(choice.action)} title={choice.label}>
-              {choice.tiles.length ? choice.tiles.map((id) => <Tile key={id} id={id} size={24} />) : choice.kinds ? choice.kinds.map((kind, at) => <Tile key={at} kind={kind} size={24} />) : null}
-              {choice.tiles.length === 0 ? <span>{choice.label}</span> : null}
-            </button>
-          ))}
+      {shown.map((kind) => (
+        <div key={kind} className={coached ? coachStyles.shapes : styles.choices} role="group" aria-label={`Choose how to ${NAMES[kind]}`}>
+          {choices[kind]!.map((choice, index) => {
+            const entry = coached && advice ? adviceFor(advice, kind, choice) : null;
+            const tiles = choice.tiles.length ? choice.tiles.map((id) => <Tile key={id} id={id} size={24} />) : choice.kinds ? choice.kinds.map((tileKind, at) => <Tile key={at} kind={tileKind} size={24} />) : null;
+            return (
+              <button key={index} type="button" className={entry ? coachStyles.shape : styles.choice} disabled={busy} onClick={() => onAct(choice.action)} title={choice.label}>
+                <span>
+                  {tiles}
+                  {choice.tiles.length === 0 ? <span>{choice.label}</span> : null}
+                </span>
+                {entry ? <Why advice={entry} /> : null}
+              </button>
+            );
+          })}
         </div>
-      ) : null}
+      ))}
       {riichiMode ? <p className={styles.say}>Now pick the tile to throw. Only the ones that leave you ready are lit.</p> : null}
     </div>
   );

@@ -5,27 +5,38 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FaArrowLeft, FaEye } from "react-icons/fa6";
 import { SiteShell } from "@/app/components/layout/site-shell";
+import { BetaTag } from "@/app/components/games/mahjong/beta/beta";
+import { FeedbackButton } from "@/app/components/games/mahjong/feedback/feedback-button";
 import { usePhone } from "@/app/components/games/blackjack/bj-utils";
 import { ActionBar, ActionHints } from "@/app/components/games/mahjong/table/action-bar";
 import { Board, useCallouts } from "@/app/components/games/mahjong/table/board";
 import { GameOver } from "@/app/components/games/mahjong/table/game-over";
+import { CoachPanel, CoachStrip, safeTiles } from "@/app/components/games/mahjong/table/coach-panel";
 import { CheatSheet, HelpPanel } from "@/app/components/games/mahjong/table/help-panel";
+import { ReviewCard } from "@/app/components/games/mahjong/table/review-card";
 import { LessonCoach, LessonDone, lessonMoveOf } from "@/app/components/games/mahjong/table/lesson";
 import { lessonOf } from "@/app/components/games/mahjong/table/lesson-texts";
 import { MyHand, type TileMark } from "@/app/components/games/mahjong/table/my-hand";
 import { ResultPanel } from "@/app/components/games/mahjong/table/result-panel";
 import { useSeatStyles } from "@/app/components/games/mahjong/table/seat-portrait";
+import { SoundControl } from "@/app/components/games/mahjong/table/sound-control";
 import { SpectatorStrip } from "@/app/components/games/mahjong/table/spectator-strip";
 import { useHelpOn, useSingleTap } from "@/app/components/games/mahjong/table/table-prefs";
 import { ReactionBar, ReactionLayer, useTableReactions } from "@/app/components/games/mahjong/table/table-reactions";
 import { useMahjongTable } from "@/app/components/games/mahjong/table/use-mahjong-table";
+import { useTableSounds } from "@/app/components/games/mahjong/table/use-table-sounds";
+import { HandReveal } from "@/app/components/games/mahjong/table/win-reveal";
 import { WaitingRoom } from "@/app/components/games/mahjong/table/waiting-room";
-import { PublicMeld, TileBack } from "@/app/components/games/mahjong/tile";
+import { TileBack } from "@/app/components/games/mahjong/tile";
+import type { Coach } from "@/app/lib/games/mahjong/types";
 import type { ChibiPose } from "@/app/lib/art-manifest";
 import { apiErrorCode } from "@/app/lib/api";
 import { gameErrorText } from "@/app/lib/games/errors";
+import { markPlayedHere } from "@/app/lib/games/mahjong/chips";
 import { actMahjong, backToSeat, createGuestTable, createMahjongTable, leaveMahjongTable, readyForNext, sitMahjongTable, startMahjongTable } from "@/app/lib/games/mahjong/api";
+import { motionOff, useDisplayTable } from "@/app/lib/games/mahjong/motion";
 import { forgetSeatToken } from "@/app/lib/games/mahjong/seat-token";
+import { playCue } from "@/app/lib/games/mahjong/sound";
 import { seatLabel, seatPose, standingOf } from "@/app/lib/games/mahjong/table-model";
 import { kindName, kindOf, tileName, type TileId } from "@/app/lib/games/mahjong/tiles";
 import { isSeatedTable, isSeatHand, type HandResult, type MahjongAction, type SeatedResponse, type SeatIndex, type SeatedTable, type StampPose } from "@/app/lib/games/mahjong/types";
@@ -44,6 +55,11 @@ type Captured = { key: string; handIndex: number; result: HandResult; dora: numb
 
 function MyClock({ deadline, bank, turnMs }: { deadline: number; bank: number; turnMs: number }) {
   const left = useRemaining(deadline, 200);
+  // The last five seconds tick, once each. Only your own clock is drawn here, so only you hear it.
+  const seconds = left === null ? null : Math.ceil(left / 1000);
+  useEffect(() => {
+    if (seconds !== null && seconds > 0 && seconds <= 5) playCue("clock_low");
+  }, [seconds]);
   if (left === null) return null;
   const base = Math.max(0, left - bank);
   const inBank = Math.min(left, bank);
@@ -61,7 +77,12 @@ function MyClock({ deadline, bank, turnMs }: { deadline: number; bank: number; t
 
 function Toggle({ on, onChange, children, title }: { on: boolean; onChange: (on: boolean) => void; children: React.ReactNode; title?: string }) {
   return (
-    <button type="button" role="switch" aria-checked={on} className={styles.toggle} data-on={on || undefined} onClick={() => onChange(!on)} title={title}>
+    <button type="button" role="switch" aria-checked={on} className={styles.toggle} data-on={on || undefined} onClick={() => {
+        playCue("ui_click");
+        onChange(!on);
+      }}
+      title={title}
+    >
       <i aria-hidden="true" />
       {children}
     </button>
@@ -76,7 +97,9 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
   const signedIn = Boolean(user);
   const verified = Boolean(user?.email_verified);
   const viewer = initialized ? (user ? String(user.id) : "anon") : null;
-  const { table, load, apply, take, myPick, setMyPick } = useMahjongTable(tableId, viewer);
+  const { table: liveTable, load, apply, take, myPick, setMyPick } = useMahjongTable(tableId, viewer);
+  // Pushes that arrive in a burst are shown one at a time, so each move can be seen.
+  const table = useDisplayTable(liveTable);
 
   const seated = isSeatedTable(table);
   const mySeat: SeatIndex | null = seated ? table.me.seat : null;
@@ -85,6 +108,10 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
   const seatHand = hand && isSeatHand(hand) ? hand : null;
   const bottom: SeatIndex = mySeat ?? 0;
   const seatStyles = useSeatStyles(table?.seats ?? NO_SEATS);
+
+  useEffect(() => {
+    markPlayedHere();
+  }, []);
 
   const [helpOn, setHelpOn] = useHelpOn();
   const [singleTap, setSingleTap] = useSingleTap();
@@ -105,6 +132,20 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
 
   // Each hand starts clean: nothing lifted, the three toggles off, the result open. Settings stay.
   const handKey = game ? `${table?.id}:${game.hand_index}` : "none";
+  // The end-of-hand reveal plays only for a hand watched ending (a reload mid-result goes straight to the panel).
+  const [liveSeen, setLiveSeen] = useState<string | null>(null);
+  if (hand && hand.phase !== "over" && liveSeen !== handKey) setLiveSeen(handKey);
+  const [revealed, setRevealed] = useState<string | null>(null);
+  const [posed, setPosed] = useState<string | null>(null);
+  const handOver = Boolean(hand && hand.phase === "over" && hand.result);
+  const revealing = handOver && liveSeen === handKey && revealed !== handKey && !motionOff();
+  const holdPose = revealing && posed !== handKey;
+  const onRevealDone = useCallback(() => {
+    setRevealed(handKey);
+    setPosed(handKey);
+  }, [handKey]);
+  const onRevealBeat = useCallback(() => setPosed(handKey), [handKey]);
+
   const [seenHand, setSeenHand] = useState(handKey);
   if (seenHand !== handKey) {
     setSeenHand(handKey);
@@ -116,6 +157,14 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
     setCollapsed(false);
     setError(null);
   }
+
+  // The coach's last read, kept between your turns so the panel doesn't vanish and come back.
+  const liveCoach = seatHand?.help.coach ?? null;
+  const liveHasUi = Boolean(liveCoach && (liveCoach.win_path || liveCoach.suggestion !== undefined || liveCoach.improvers));
+  const [kept, setKept] = useState<{ key: string; coach: Coach } | null>(null);
+  if (liveCoach && liveHasUi && kept?.coach !== liveCoach) setKept({ key: handKey, coach: liveCoach });
+  const coachUi = liveHasUi ? liveCoach : kept && kept.key === handKey && hand?.phase !== "over" ? kept.coach : null;
+  const coachStale = Boolean(coachUi && !liveHasUi);
 
   // The last full result, kept: the table drops it from view once the game is over.
   const [captured, setCaptured] = useState<Captured | null>(null);
@@ -172,6 +221,8 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
     },
     [apply, tableId],
   );
+
+  useTableSounds(table, mySeat);
 
   const options = seatHand?.options ?? null;
   const myTurn = Boolean(seatHand && options?.phase === "turn" && hand?.turn === mySeat);
@@ -273,10 +324,10 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
     const out: Record<number, ChibiPose> = {};
     ([0, 1, 2, 3] as SeatIndex[]).forEach((seat) => {
       const line = standingOf(standing, seat);
-      out[seat] = stamps[seat] ?? seatPose(seat, hand, line ? { place: line.place } : null);
+      out[seat] = stamps[seat] ?? seatPose(seat, holdPose && hand ? { ...hand, result: null } : hand, line ? { place: line.place } : null);
     });
     return out;
-  }, [hand, stamps, standing]);
+  }, [hand, holdPose, stamps, standing]);
 
   // ── Tile marks (help and lesson) ────────────────────────────────────
   const lessonMove = table && seatHand && options && hand?.phase !== "over" ? lessonMoveOf(table) : null;
@@ -289,14 +340,17 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
       return map;
     }
     if (!helpOn) return map;
-    const best = seatHand.help.coach?.best ?? [];
+    const coach = seatHand.help.coach;
+    const best = coach?.best ?? [];
+    const pick = coach?.suggestion;
     for (const id of all) {
       const kind = kindOf(id);
-      if (best.includes(kind)) map.set(id, "best");
+      if (pick ? pick.action === "discard" && id === pick.tile : best.includes(kind)) map.set(id, "best");
       else if (seatHand.help.tenpai_discards[String(kind)]) map.set(id, "ready");
     }
     return map;
   }, [helpOn, lessonMove, myTurn, riichiMode, seatHand]);
+  const safe = useMemo(() => (helpOn && myTurn && seatHand ? safeTiles(seatHand) : undefined), [helpOn, myTurn, seatHand]);
   const fade = useMemo(() => {
     if (!lessonMove) return undefined;
     return (id: TileId) => (lessonMove.type !== "discard" ? true : lessonMove.riichi && !riichiMode ? false : kindOf(id) !== lessonMove.kind);
@@ -359,7 +413,7 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
   const practiceAgain = () =>
     void run("again", async () => {
       if (!user) enter(await createGuestTable({ level: table?.level === "easy" ? "easy" : "normal" }));
-      else enter(await createMahjongTable({ kind: "practice", length: table?.length ?? "east", level: table && table.level !== "auto" ? table.level : "normal", speed: "untimed" }));
+      else enter(await createMahjongTable({ kind: "practice", length: table?.length ?? "east", level: table && table.level !== "auto" ? table.level : "normal", speed: table?.speed ?? "untimed", coach: table?.coach ?? false }));
     });
   const nextLesson = () =>
     void run("lesson", async () => {
@@ -375,6 +429,8 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
   if (lessonKey && keptLesson !== lessonKey) setKeptLesson(lessonKey);
 
   // ── Rendering ───────────────────────────────────────────────────────
+  const doneResult = table?.status === "done" ? table.result : null;
+  const gameId = doneResult && "replay" in doneResult && doneResult.replay ? doneResult.replay : undefined;
   const shell = (children: React.ReactNode, title = "Mahjong") => (
     <SiteShell>
       <div className={styles.page}>
@@ -383,6 +439,9 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
             <FaArrowLeft aria-hidden="true" /> Mahjong
           </Link>
           <h1>{title}</h1>
+          <BetaTag />
+          <span className={styles.headSpace} />
+          <FeedbackButton tableId={tableId} gameId={gameId} />
         </header>
         {children}
       </div>
@@ -447,7 +506,16 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
       lessonInfo && table.status === "done" ? (
         <LessonDone lesson={lessonInfo} result={win} signedIn={signedIn} onNext={nextLesson} busy={working !== null} error={notice} />
       ) : (
-        <GameOver table={table} seatStyles={seatStyles} me={mySeat} onAgain={table.kind === "practice" ? practiceAgain : null} againBusy={working === "again"} signedIn={signedIn} />
+        <GameOver
+          table={table}
+          seatStyles={seatStyles}
+          me={mySeat}
+          onAgain={table.kind === "practice" ? practiceAgain : null}
+          againBusy={working === "again"}
+          signedIn={signedIn}
+          review={seated ? (table.me.review ?? null) : null}
+          badges={seated ? (table.me.badges_earned ?? []) : []}
+        />
       ),
       title,
     );
@@ -462,7 +530,7 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
   const asked = seatHand && options ? true : false;
   const lastTile = hand.last_discard?.tile ?? null;
   const turnName = hand.turn !== null ? seatLabel(table.seats[hand.turn]) : null;
-  const clockUntil = table.clock?.phase === "between" ? table.clock.until : null;
+  const clockUntil = table.clock?.phase === "between" && table.speed !== "untimed" ? table.clock.until : null;
   const me = seated ? table.me : null;
   const myInfo = hand.seats[bottom];
   const status = (() => {
@@ -474,9 +542,12 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
     return turnName ? `${turnName}’s turn.` : "";
   })();
   const guide = lessonMove;
+  const whoOf = (seat: number) => seatLabel(table.seats[seat]);
+  const inRiichi = Boolean(seatHand && hand.seats[seatHand.seat].riichi);
+  const closedHand = Boolean(seatHand && hand.seats[seatHand.seat].melds.every((meld) => meld.type === "ankan"));
 
   const spectatorBacks = watching ? (
-    <div className={styles.watchHand} aria-label={`${myInfo.count} tiles in hand`}>
+    <div className={styles.watchHand} data-fly-src={bottom} aria-label={`${myInfo.count} tiles in hand`}>
       {Array.from({ length: myInfo.has_drawn ? myInfo.count - 1 : myInfo.count }, (_, index) => (
         <TileBack key={index} size={phone ? 20 : 30} tint={seatStyles[bottom]?.color} />
       ))}
@@ -492,6 +563,7 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
             <FaArrowLeft aria-hidden="true" /> Mahjong
           </Link>
           <h1>{title}</h1>
+          <BetaTag />
           <span className={styles.live} data-on={connected || undefined} title={connected ? "Live" : "Reconnecting…"}>
             <i aria-hidden="true" />
             {table.length === "south" ? "East-South" : "East-only"}
@@ -502,8 +574,10 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
             </span>
           ) : null}
           <span className={styles.headSpace} />
+          <SoundControl />
           {seated ? <Toggle on={helpOn} onChange={setHelpOn} title="Hints for beginners">Help</Toggle> : null}
-          <button type="button" className={styles.round} onClick={() => setSheet(true)} aria-label="Cheat sheet" title="Cheat sheet">
+          <FeedbackButton tableId={tableId} />
+          <button type="button" className={styles.round} onClick={() => setSheet(true)} aria-label="Help: easy patterns and the basics" title="Easy patterns and the basics">
             ?
           </button>
           {seated && !leaving ? (
@@ -546,19 +620,24 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
                 seatStyles={seatStyles}
                 poses={poses}
                 callouts={callouts}
-                mineMelds={(size) => myInfo.melds.map((meld, index) => <PublicMeld key={index} meld={meld} owner={bottom} size={size} labels={false} />)}
                 floaters={reactions.on ? <ReactionLayer stage={reactions.stage} /> : null}
+                overlay={
+                  revealing && hand.result ? (
+                    <HandReveal result={hand.result} table={table} seatStyles={seatStyles} label={game.label} onBeat={onRevealBeat} onDone={onRevealDone} />
+                  ) : null
+                }
               />
             </div>
-            <p className={styles.status} aria-live="polite">
+            <p className={styles.status} data-mine={(myTurn && !over) || (asked && options?.phase === "calls" && !over) || undefined} aria-live="polite">
               {status}
             </p>
             {spectatorBacks}
             {seatHand ? (
               <>
                 {lesson ? <div className={styles.coachInline}><LessonCoach table={table} waiting={!asked || Boolean(over)} /></div> : null}
-                <div className={styles.dock}>
-                {me && me.deadline && table.speed !== "untimed" && asked && !over ? <MyClock deadline={me.deadline} bank={me.bank} turnMs={me.turn_ms} /> : null}
+                <div className={styles.dock} data-mine={(myTurn && !over) || undefined}>
+                {phone && helpOn && coachUi && !over ? <CoachStrip hand={seatHand} coach={coachUi} selected={selected} closed={closedHand} inRiichi={inRiichi} who={whoOf} myTurn={myTurn} stale={coachStale} /> : null}
+                {me && me.deadline && me.turn_ms !== null && table.speed !== "untimed" && asked && !over ? <MyClock deadline={me.deadline} bank={me.bank} turnMs={me.turn_ms} /> : null}
                 <MyHand
                   tiles={seatHand.hand}
                   drawn={seatHand.drawn}
@@ -571,6 +650,9 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
                   marks={marks}
                   fade={myTurn ? fade : undefined}
                   label="Your hand"
+                  seat={bottom}
+                  ready={!over && (seatHand.help.waits.length > 0 || hand.seats[seatHand.seat].riichi > 0)}
+                  safe={safe}
                 />
                 {error ? (
                   <p className={styles.error} role="alert">
@@ -588,9 +670,12 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
                   }}
                   onAct={(action) => void act(action)}
                   guide={guide}
+                  advice={helpOn && !lesson && liveHasUi ? (liveCoach?.call_advice ?? null) : null}
+                  suggestion={liveCoach?.suggestion ?? null}
+                  timed={Boolean(me?.deadline && me.turn_ms !== null && table.speed !== "untimed")}
                 />
                 </div>
-                {helpOn && !lesson && !over ? <ActionHints options={options} /> : null}
+                {helpOn && !lesson && !over && !(liveHasUi && liveCoach?.call_advice?.length) ? <ActionHints options={options} /> : null}
                 {!lesson ? (
                   <div className={styles.toggles} role="group" aria-label="Table options">
                     <Toggle on={autoWin} onChange={setAutoWin} title="Declare tsumo or ron by itself when you can">
@@ -618,7 +703,8 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
                 <LessonCoach table={table} waiting={!asked || Boolean(over)} />
               </div>
             ) : null}
-            {seatHand && helpOn && !over ? <HelpPanel hand={seatHand} selected={selected} myTurn={myTurn} inRiichi={Boolean(seatHand && hand.seats[seatHand.seat].riichi)} /> : null}
+            {seatHand && helpOn && !over && !phone && coachUi ? <CoachPanel hand={seatHand} coach={coachUi} selected={selected} closed={closedHand} inRiichi={inRiichi} who={whoOf} myTurn={myTurn} stale={coachStale} /> : null}
+            {seatHand && helpOn && !over ? <HelpPanel hand={seatHand} selected={selected} myTurn={myTurn} inRiichi={inRiichi} coached={Boolean(coachUi)} /> : null}
             {watching ? <SpectatorStrip table={table} seatStyles={seatStyles} bottom={bottom} signedIn={signedIn} verified={verified} myPick={myPick} onPick={setMyPick} /> : null}
             <ReactionBar
               stage={reactions.stage}
@@ -634,7 +720,7 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
           </aside>
         </div>
 
-        {showResult && captured && hand.result ? (
+        {showResult && captured && hand.result && !revealing ? (
           <ResultPanel
             result={hand.result}
             table={table}
@@ -649,6 +735,7 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
             onNext={onNext}
             collapsed={collapsed}
             onCollapse={setCollapsed}
+            after={seatHand?.help.coach?.review ? <ReviewCard review={seatHand.help.coach.review} who={whoOf} /> : null}
           />
         ) : null}
         {sheet ? <CheatSheet onClose={() => setSheet(false)} /> : null}

@@ -54,6 +54,9 @@ const COPY: Record<string, string> = {
   tournament_closed: "Sign-up for that tournament has closed.",
   invalid_tournament: "Something in that tournament isn't valid.",
   profile_not_found: "No player by that name.",
+  trial_no_fees: "Mahjong is in its beta: nothing is charged or paid, so tournaments and tables have no entry fee.",
+  trial_mode: "Mahjong is in its beta: no Cash or Credit changes hands. Chip tables are free to sit at.",
+  invalid_feedback: "Write something between 1 and 2,000 characters.",
   // Card exchange
   card_bound: "Starter-pack cards stay with you. They can't be sold or traded.",
   card_not_tradeable: "You don't have a spare copy of that card to trade.",

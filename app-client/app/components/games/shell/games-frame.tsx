@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { TICKER_TAP_ENABLED } from "@/app/lib/games/flags";
 import { usePathname } from "next/navigation";
+import { BetaTag } from "@/app/components/games/mahjong/beta/beta";
 import { NetWorthFloorNotice } from "@/app/components/games/shell/net-worth-floor-notice";
 import { useEffect, type ReactNode } from "react";
 import { SiteShell } from "@/app/components/layout/site-shell";
@@ -15,7 +16,7 @@ import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/games/shell/games-frame.module.scss";
 
 /** `flag`: a feature flag the item needs; GamesFrame only shows it to viewers it is on for. */
-export type GamesNavItem = { href: string; label: string; exact?: boolean; flag?: string };
+export type GamesNavItem = { href: string; label: string; exact?: boolean; flag?: string; beta?: boolean };
 
 export const GAMES_NAV: GamesNavItem[] = [
   { href: "/games", label: "Arcade", exact: true },
@@ -25,7 +26,7 @@ export const GAMES_NAV: GamesNavItem[] = [
   { href: "/games/duel", label: "Oshi duel" },
   { href: "/games/blackjack", label: "Blackjack" },
   { href: "/games/high-low", label: "High-low" },
-  { href: "/games/mahjong", label: "Mahjong", flag: "mahjong" },
+  { href: "/games/mahjong", label: "Mahjong", flag: "mahjong", beta: true },
   ...(TICKER_TAP_ENABLED ? [{ href: "/games/ticker-tap", label: "Ticker Tap" }] : []),
   { href: "/games/capsule", label: "Capsule" },
   { href: "/games/item-locker", label: "Locker" },
@@ -89,6 +90,7 @@ export function GamesFrame({ kicker, title, blurb, aside, children, live = false
               return (
                 <Link key={item.href} href={item.href} className={styles.navItem} aria-current={active ? "page" : undefined}>
                   {item.label}
+                  {item.beta ? <BetaTag className={styles.navBeta} /> : null}
                 </Link>
               );
             })}

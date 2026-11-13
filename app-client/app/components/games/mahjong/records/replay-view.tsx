@@ -8,7 +8,9 @@ import { Tile, TileMeld } from "@/app/components/games/mahjong/tile";
 import { meldRow, PlayerLink, signedPoints } from "@/app/components/games/mahjong/records/record-parts";
 import { MahjongShareButton } from "@/app/components/games/mahjong/share/share-button";
 import { replayCardPath, replayPath } from "@/app/components/games/mahjong/share/share-links";
+import { FeedbackButton } from "@/app/components/games/mahjong/feedback/feedback-button";
 import { gameErrorText } from "@/app/lib/games/errors";
+import { fmtChips } from "@/app/lib/games/mahjong/chips";
 import { fetchMahjongGame } from "@/app/lib/games/mahjong/api";
 import { eventSeat, eventText, handLabel, handStartSticks, outcomeOf, replaySteps, stateAt, winLimit, type ReplayState } from "@/app/lib/games/mahjong/replay";
 import { tileName, windLetter, type TileId } from "@/app/lib/games/mahjong/tiles";
@@ -511,6 +513,8 @@ function Standings({ record }: { record: GameRecord }) {
   const lines = record.result?.lines ?? [];
   const rows = [...lines].sort((a, b) => a.place - b.place);
   const paid = record.game.entry_fee > 0 && rows.some((row) => row.payout > 0);
+  const chipOf = (row: (typeof rows)[number]) => row.chips ?? record.players.find((entry) => entry.seat === row.seat)?.chips ?? null;
+  const chipped = rows.some((row) => typeof chipOf(row) === "number");
   return (
     <section className={styles.section}>
       <h2 className={styles.head}>Final standings</h2>
@@ -523,6 +527,7 @@ function Standings({ record }: { record: GameRecord }) {
               <th>Points</th>
               <th>Score</th>
               <th className={styles.hideSmall}>Rating</th>
+              {chipped ? <th>Chips</th> : null}
               {paid ? <th>Prize</th> : null}
             </tr>
           </thead>
@@ -542,6 +547,9 @@ function Standings({ record }: { record: GameRecord }) {
                     {row.rating_after !== null ? Math.round(row.rating_after) : "n/a"}
                     {change !== null && change !== 0 ? <span className={change > 0 ? styles.up : styles.down}> {change > 0 ? "+" : "−"}{Math.abs(change)}</span> : null}
                   </td>
+                  {chipped ? (
+                    <td className={(chipOf(row) ?? 0) > 0 ? styles.up : (chipOf(row) ?? 0) < 0 ? styles.down : undefined}>{typeof chipOf(row) === "number" ? fmtChips(chipOf(row) as number) : "–"}</td>
+                  ) : null}
                   {paid ? <td>{row.payout > 0 ? `$${row.payout.toLocaleString("en-US")}` : "none"}</td> : null}
                 </tr>
               );
@@ -550,7 +558,8 @@ function Standings({ record }: { record: GameRecord }) {
         </table>
       </div>
       <p className={styles.note} style={{ marginTop: "0.6rem" }}>
-        Score is (points − 30,000) ÷ 1,000 plus the placement bonus. {record.game.rated ? "This game was rated." : "This game was not rated."}
+        Score is (points − 30,000) ÷ 1,000 plus the placement bonus. {record.game.rated ? "This game was rated." : "This game was not rated."}{chipped ? " Chips are a record of the result at a chip table, worth nothing outside the beta." : ""}{" "}
+        <FeedbackButton gameId={record.game.id} label="Report a problem with this game" />
       </p>
       <div className={styles.actions} style={{ marginTop: "0.6rem" }}>
         <MahjongShareButton

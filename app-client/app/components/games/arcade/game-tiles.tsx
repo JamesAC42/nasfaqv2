@@ -6,6 +6,7 @@ import { FiArrowRight } from "react-icons/fi";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { TalentCard, type CardFace } from "@/app/components/games/cards/talent-card";
+import { BetaTag } from "@/app/components/games/mahjong/beta/beta";
 import { Tile } from "@/app/components/games/mahjong/tile";
 import { PlayingCard } from "@/app/components/games/shared/playing-card";
 import styles from "@/app/components/games/arcade/tiles.module.scss";
@@ -40,7 +41,10 @@ export function GameTiles({ tiles, faces, phone }: { tiles: ArcadeTile[]; faces:
               </span>
               <span className={styles.body}>
                 <span className={styles.titleRow}>
-                  <span className={styles.name}>{tile.name}</span>
+                  <span className={styles.name}>
+                    {tile.name}
+                    {tile.key === "mahjong" ? <> <BetaTag /></> : null}
+                  </span>
                   {tile.stat ? (
                     <span className={styles.stat} data-live={tile.stat.live || undefined}>
                       {tile.stat.live ? <i aria-hidden="true" /> : null}

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { GamesFrame } from "@/app/components/games/shell/games-frame";
+import { BetaTag } from "@/app/components/games/mahjong/beta/beta";
 import { TournamentForm } from "@/app/components/games/mahjong/tournaments/tournament-form";
 import { money, startsText } from "@/app/components/games/mahjong/tournaments/tournament-parts";
 import { gameErrorText } from "@/app/lib/games/errors";
@@ -66,7 +67,11 @@ export function TournamentsList() {
     <GamesFrame
       kicker="Mahjong · tournaments"
       title="Tournaments"
-      blurb="Knockouts of four to a table. The top two go through, down to one final table."
+      blurb={
+        <>
+          <BetaTag /> Knockouts of four to a table. The top two go through, down to one final table.
+        </>
+      }
       aside={
         <nav className={styles.links} aria-label="Mahjong pages">
           <Link href="/games/mahjong">Lobby</Link>

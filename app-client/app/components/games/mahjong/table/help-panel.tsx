@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import { EasyPatterns } from "@/app/components/games/mahjong/learn/easy-patterns";
 import { Tile, TileRow } from "@/app/components/games/mahjong/tile";
 import { kindName, kindOf, type TileId } from "@/app/lib/games/mahjong/tiles";
 import type { FuritenReason, SeatHand, WaitInfo, WinPreview } from "@/app/lib/games/mahjong/types";
@@ -42,7 +43,7 @@ function Waits({ waits }: { waits: WaitInfo[] }) {
 const awayText = (shanten: number) => (shanten < 0 ? "Complete: you can win" : shanten === 0 ? "Ready: one tile from winning" : `${shanten} away from ready`);
 
 /** Beginner help for your seat: what you wait on, what a discard does, furiten, why you can't win. */
-export function HelpPanel({ hand, selected, myTurn, inRiichi }: { hand: SeatHand; selected: TileId | null; myTurn: boolean; inRiichi: boolean }) {
+export function HelpPanel({ hand, selected, myTurn, inRiichi, coached = false }: { hand: SeatHand; selected: TileId | null; myTurn: boolean; inRiichi: boolean; /** The coach panel covers the rest; only the "this tile can't win" note stays. */ coached?: boolean }) {
   const help = hand.help;
   const coach = help.coach ?? null;
   const selectedKind = selected === null ? null : kindOf(selected);
@@ -52,7 +53,7 @@ export function HelpPanel({ hand, selected, myTurn, inRiichi }: { hand: SeatHand
   const showWaits = help.waits.length > 0 && (!hand.drawn || inRiichi) && selected === null;
 
   const lines: React.ReactNode[] = [];
-  if (coach) {
+  if (coach && !coached) {
     lines.push(
       <p key="coach" className={styles.helpLine}>
         <b>Coach.</b> {awayText(coach.shanten)}.{" "}
@@ -64,7 +65,9 @@ export function HelpPanel({ hand, selected, myTurn, inRiichi }: { hand: SeatHand
       </p>,
     );
   }
-  if (afterPick) {
+  if (coached) {
+    // nothing here: the coach panel has the explore and waits sections
+  } else if (afterPick) {
     lines.push(
       <div key="after" className={styles.helpBlock}>
         <p className={styles.helpLine}>
@@ -86,7 +89,7 @@ export function HelpPanel({ hand, selected, myTurn, inRiichi }: { hand: SeatHand
       </p>,
     );
   }
-  if (showWaits) {
+  if (showWaits && !coached) {
     lines.push(
       <div key="waits" className={styles.helpBlock}>
         <p className={styles.helpLine}>
@@ -96,7 +99,7 @@ export function HelpPanel({ hand, selected, myTurn, inRiichi }: { hand: SeatHand
       </div>,
     );
   }
-  if (help.furiten && help.waits.length) {
+  if (help.furiten && help.waits.length && !coached) {
     lines.push(
       <p key="furiten" className={styles.helpWarn}>
         {FURITEN_TEXT[help.furiten]}
@@ -132,13 +135,17 @@ export function CheatSheet({ onClose }: { onClose: () => void }) {
   }, [onClose]);
   return (
     <div className={styles.sheetScrim} onClick={onClose}>
-      <div className={styles.sheet} role="dialog" aria-modal="true" aria-label="Cheat sheet" onClick={(event) => event.stopPropagation()}>
+      <div className={styles.sheet} role="dialog" aria-modal="true" aria-label="Help: easy patterns and the basics" onClick={(event) => event.stopPropagation()}>
         <header>
-          <h2>Cheat sheet</h2>
-          <button type="button" className={styles.close} onClick={onClose} aria-label="Close">
+          <h2>Help</h2>
+          <button type="button" className={styles.close} onClick={onClose} aria-label="Close" autoFocus>
             ×
           </button>
         </header>
+        <section>
+          <h3>Five easy patterns</h3>
+          <EasyPatterns compact />
+        </section>
         <section>
           <h3>The goal</h3>
           <p>Build four sets and one pair from 14 tiles. A set is three in a row of one suit (a run) or three identical tiles (a triplet).</p>

@@ -13,6 +13,7 @@ export const LEARN_PAGES = [
   { href: "/games/mahjong/learn", label: "Start", exact: true },
   { href: "/games/mahjong/learn/tutorial", label: "Walkthrough" },
   { href: "/games/mahjong/learn/rules", label: "Rules" },
+  { href: "/games/mahjong/learn/easy-patterns", label: "Easy patterns" },
   { href: "/games/mahjong/learn/yaku", label: "Yaku" },
   { href: "/games/mahjong/learn/glossary", label: "Glossary" },
   { href: "/games/mahjong/learn/tips", label: "Tips" },

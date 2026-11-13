@@ -56,6 +56,7 @@ function startsIn(startsAt: number | null, now: number | null) {
 
 export function tableTitle(table: LobbyEntry) {
   if (table.tournament) return `${table.tournament.name} · ${table.tournament.round_name}`;
+  if (table.kind === "stakes" && table.chips) return "Chip table";
   if (table.kind === "stakes") return `${money(table.fee)} table`;
   return KIND_LABEL[table.kind] ?? table.kind;
 }
@@ -116,7 +117,7 @@ function when(iso: string) {
 }
 
 /** An upcoming or running tournament. */
-export function TournamentRow({ tournament }: { tournament: TournamentSummary }) {
+export function TournamentRow({ tournament, trial = false }: { tournament: TournamentSummary; trial?: boolean }) {
   const running = tournament.status === "running";
   return (
     <li className={styles.tournament}>
@@ -133,7 +134,7 @@ export function TournamentRow({ tournament }: { tournament: TournamentSummary })
           {" · "}
           <b>{tournament.entrants ?? 0}</b>/{tournament.seats} in
           {" · "}
-          {tournament.entry_fee > 0 && tournament.paid ? <>{money(tournament.entry_fee)} entry</> : "free"}
+          {tournament.entry_fee > 0 && tournament.paid && !trial ? <>{money(tournament.entry_fee)} entry</> : "free"}
           {tournament.repeat_weekly ? " · weekly" : null}
         </span>
       </Link>

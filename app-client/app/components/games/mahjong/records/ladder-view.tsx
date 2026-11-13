@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { GamesFrame } from "@/app/components/games/shell/games-frame";
+import { BetaTag } from "@/app/components/games/mahjong/beta/beta";
+import { ChipsBoard } from "@/app/components/games/mahjong/records/chips-board";
 import { HighlightRow, OshiTag, PlaceBar, PlayerLink, rate, seasonLabel, useMahjongRules } from "@/app/components/games/mahjong/records/record-parts";
 import { gameErrorText } from "@/app/lib/games/errors";
 import { fetchMahjongLeaderboard } from "@/app/lib/games/mahjong/api";
@@ -10,7 +12,11 @@ import type { LeaderboardResponse } from "@/app/lib/games/mahjong/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import styles from "@/app/components/games/mahjong/records/records.module.scss";
 
-type Tab = "ladder" | "oshi" | "picks";
+type Tab = "chipsWeek" | "chipsAll" | "ladder" | "oshi" | "picks";
+const CHIP_TABS: { key: Tab; label: string }[] = [
+  { key: "chipsWeek", label: "Chips this week" },
+  { key: "chipsAll", label: "Chips all time" },
+];
 const TABS: { key: Tab; label: string }[] = [
   { key: "ladder", label: "Ladder" },
   { key: "oshi", label: "Oshi standings" },
@@ -30,11 +36,22 @@ function seasonChoices(current: string, seen: string) {
 
 export function LadderView() {
   const { user } = useAuth();
-  const { rankName, rankedAfter } = useMahjongRules();
+  const { rules, rankName, rankedAfter } = useMahjongRules();
+  const trial = rules?.trial === true;
   const [season, setSeason] = useState<string | undefined>(undefined);
   const [data, setData] = useState<LeaderboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("ladder");
+  const [picked, setPicked] = useState<Tab | null>(null);
+  // In the beta the chip boards come first; the rated ladder is still one tab away.
+  const tab: Tab = picked ?? (trial ? "chipsWeek" : "ladder");
+  const setTab = (next: Tab) => setPicked(next);
+  const chipsTab = tab === "chipsWeek" || tab === "chipsAll";
+
+  useEffect(() => {
+    if (window.location.hash !== "#chips") return;
+    const timer = setTimeout(() => setPicked("chipsWeek"), 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,7 +71,11 @@ export function LadderView() {
     <GamesFrame
       kicker="Mahjong · ladder"
       title="Ladder"
-      blurb={data ? <>{seasonLabel(shown)}{isCurrent ? ", this season" : ""}. Ratings start at 1,500 each month.</> : undefined}
+      blurb={
+        <>
+          <BetaTag /> {data ? <>{seasonLabel(shown)}{isCurrent ? ", this season" : ""}. Ratings start at 1,500 each month.</> : null}
+        </>
+      }
       aside={
         <nav className={styles.links} aria-label="Mahjong pages">
           <Link href="/games/mahjong">Lobby</Link>
@@ -66,13 +87,13 @@ export function LadderView() {
       <div className={styles.page}>
         <div className={styles.toolbar}>
           <div className={styles.tabs} role="tablist" aria-label="Ladder sections">
-            {TABS.map((entry) => (
+            {[...(trial ? CHIP_TABS : []), ...TABS].map((entry) => (
               <button key={entry.key} type="button" role="tab" aria-selected={tab === entry.key} onClick={() => setTab(entry.key)}>
                 {entry.label}
               </button>
             ))}
           </div>
-          {data ? (
+          {data && !chipsTab ? (
             <label>
               <span className={styles.centerFact}>Season </span>
               <select className={styles.select} value={shown} onChange={(event) => setSeason(event.target.value)} aria-label="Season">
@@ -86,8 +107,9 @@ export function LadderView() {
           ) : null}
         </div>
 
-        {error ? <p className={styles.error}>{error}</p> : null}
-        {!data && !error ? <p className={styles.note}>Loading the ladder…</p> : null}
+        {chipsTab ? <ChipsBoard range={tab === "chipsWeek" ? "week" : "all"} /> : null}
+        {error && !chipsTab ? <p className={styles.error}>{error}</p> : null}
+        {!data && !error && !chipsTab ? <p className={styles.note}>Loading the ladder…</p> : null}
 
         {data && tab === "ladder" ? (
           <section className={styles.section} aria-label="Season ladder">

@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState, type CSSProperties } from "react";
 import { GamesFrame } from "@/app/components/games/shell/games-frame";
+import { BadgeShelf } from "@/app/components/games/mahjong/beta/beta";
 import { OshiTag, PlaceBar, ordinal, rate, seasonLabel, shortDate, useMahjongRules } from "@/app/components/games/mahjong/records/record-parts";
 import { apiErrorCode } from "@/app/lib/api";
 import { gameErrorText } from "@/app/lib/games/errors";
 import { fetchMahjongPlayer } from "@/app/lib/games/mahjong/api";
+import { fmtChips } from "@/app/lib/games/mahjong/chips";
 import type { PlayerRecord } from "@/app/lib/games/mahjong/types";
 import { talentAccent } from "@/app/lib/talent-color";
 import styles from "@/app/components/games/mahjong/records/records.module.scss";
@@ -62,6 +64,32 @@ export function PlayerView({ username }: { username: string }) {
               <OshiTag symbol={record.user.oshi} size={18} />
               {record.rank === "unranked" ? <p className={styles.note}>{rankedAfter} rated games in a season earn a rank.</p> : null}
             </div>
+
+            {record.chips ? (
+              <section className={styles.section} aria-label="Beta chips">
+                <h2 className={styles.head}>Beta chips</h2>
+                <dl className={styles.stats}>
+                  <div>
+                    <dt>This week</dt>
+                    <dd className={record.chips.week > 0 ? styles.up : record.chips.week < 0 ? styles.down : undefined}>{fmtChips(record.chips.week)}</dd>
+                    <small className={styles.dim}>{record.chips.week_games} {record.chips.week_games === 1 ? "game" : "games"}</small>
+                  </div>
+                  <div>
+                    <dt>All time</dt>
+                    <dd className={record.chips.all > 0 ? styles.up : record.chips.all < 0 ? styles.down : undefined}>{fmtChips(record.chips.all)}</dd>
+                    <small className={styles.dim}>{record.chips.all_games} {record.chips.all_games === 1 ? "game" : "games"}</small>
+                  </div>
+                </dl>
+                <p className={styles.note} style={{ marginTop: "0.6rem" }}>Chips are a record of results at chip tables. They are worth nothing outside the beta.</p>
+              </section>
+            ) : null}
+
+            {record.badges ? (
+              <section className={styles.section} aria-label="Badges">
+                <h2 className={styles.head}>Badges</h2>
+                <BadgeShelf badges={record.badges} />
+              </section>
+            ) : null}
 
             {totals.games === 0 ? (
               <p className={styles.empty}>{name} hasn’t finished a rated mahjong game yet.</p>
@@ -193,7 +221,7 @@ export function PlayerView({ username }: { username: string }) {
                         <span className={styles.gamePlace}>{mine?.place ? ordinal(mine.place) : "n/a"}</span>
                         <span>
                           <Link href={`/games/mahjong/replay/${game.id}`}>{game.tournament_name ?? KIND_WORDS[game.kind] ?? game.kind}</Link>
-                          <span className={styles.dim}> · {game.length === "south" ? "East-South" : "East-only"} · {shortDate(game.completed_at)}</span>
+                          <span className={styles.dim}> · {game.length === "south" ? "East-South" : "East-only"} · {shortDate(game.completed_at)}{typeof mine?.chips === "number" ? ` · ${fmtChips(mine.chips)} chips` : ""}</span>
                         </span>
                         <span className={styles.gamePlayers}>
                           {[...game.players]

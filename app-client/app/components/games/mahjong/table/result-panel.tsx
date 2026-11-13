@@ -38,7 +38,7 @@ function Payments({ result, table, seatStyles, me }: { result: HandResult; me: S
   );
 }
 
-function WinHand({ win }: { win: WinEntry }) {
+export function WinHand({ win }: { win: WinEntry }) {
   const [ref, width] = useElementWidth<HTMLDivElement>();
   const meldTiles = win.melds.reduce((sum, meld) => sum + meld.tiles.length, 0);
   const units = win.hand.length + 1 + meldTiles + 1.5;
@@ -62,12 +62,18 @@ function WinHand({ win }: { win: WinEntry }) {
   );
 }
 
-function WinCard({ win, result, table, seatStyles }: { win: WinEntry; result: WinResult } & Names) {
+/** Each scoring line of a win: the yaku, then dora, ura dora and red fives. */
+export function winLines(win: WinEntry): { label: string; han: string }[] {
   const dora = win.dora;
   const lines: { label: string; han: string }[] = win.yaku.map((entry) => ({ label: yakuName(entry.key), han: entry.han >= 13 ? "Yakuman" : `${entry.han} han` }));
   if (dora.dora) lines.push({ label: `Dora ×${dora.dora}`, han: `${dora.dora} han` });
   if (dora.ura) lines.push({ label: `Ura dora ×${dora.ura}`, han: `${dora.ura} han` });
   if (dora.red) lines.push({ label: `Red five ×${dora.red}`, han: `${dora.red} han` });
+  return lines;
+}
+
+function WinCard({ win, result, table, seatStyles }: { win: WinEntry; result: WinResult } & Names) {
+  const lines = winLines(win);
   const limit = win.limit ? LIMITS[win.limit] : null;
   return (
     <article className={styles.win} style={{ "--tal": seatStyles[win.seat]?.color } as CSSProperties} data-big={limit ? "" : undefined}>
@@ -178,10 +184,12 @@ export type ResultPanelProps = Names & {
   onNext: () => void;
   collapsed: boolean;
   onCollapse: (collapsed: boolean) => void;
+  /** The coach's look back, shown after the points. */
+  after?: React.ReactNode;
 };
 
 /** The panel after every hand: who won what, the hand, yaku, fu, and where the points went. */
-export function ResultPanel({ result, table, seatStyles, label, dora, me, until, ready, busy, lesson, onNext, collapsed, onCollapse }: ResultPanelProps) {
+export function ResultPanel({ result, table, seatStyles, label, dora, me, until, ready, busy, lesson, onNext, collapsed, onCollapse, after }: ResultPanelProps) {
   const left = useRemaining(until, 500);
   const big = result.type === "win" && result.wins.some((win) => win.yakuman > 0 || win.limit !== null);
   const top = result.type === "win" ? result.wins.reduce((best, win) => (win.han > best.han ? win : best), result.wins[0]) : null;
@@ -258,6 +266,7 @@ export function ResultPanel({ result, table, seatStyles, label, dora, me, until,
             </>
           )}
           <Payments result={result} table={table} seatStyles={seatStyles} me={me} />
+          {after}
           <p className={styles.footnote}>
             {result.renchan ? "The dealer stays." : "The deal passes."} Honba {result.honba_next}.
           </p>

@@ -294,7 +294,7 @@ function buildTiles({
       href: "/games/mahjong",
       name: "Mahjong",
       hook: "Four players, coins and candlesticks. Learn it against bots, then sit at a real table.",
-      price: "Free tables · stakes tables",
+      price: "Free to play · beta",
       stat: null,
     },
     {

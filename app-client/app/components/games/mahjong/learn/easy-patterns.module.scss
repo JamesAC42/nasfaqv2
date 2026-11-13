@@ -1,0 +1,68 @@
+@use "../../../../styles/mixins" as *;
+
+.list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: none;
+}
+
+.item {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.7rem;
+
+  h3 {
+    @include display(1.2rem);
+    margin: 0;
+  }
+
+  small {
+    @include label;
+    color: var(--dim);
+  }
+}
+
+.num {
+  @include num;
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.hand {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.25rem 0;
+}
+
+.caption {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--dim);
+}
+
+.counts,
+.trap {
+  margin: 0;
+  max-width: 44rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--mid);
+}
+
+.trap b {
+  @include label;
+  margin-right: 0.3rem;
+  color: var(--warn);
+}

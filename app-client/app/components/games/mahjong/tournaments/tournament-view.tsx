@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { GamesFrame } from "@/app/components/games/shell/games-frame";
+import { BetaTag } from "@/app/components/games/mahjong/beta/beta";
 import { Bracket } from "@/app/components/games/mahjong/tournaments/bracket";
 import { countdown, formatWords, money, roundShape, startsText } from "@/app/components/games/mahjong/tournaments/tournament-parts";
 import { OshiTag, ordinal } from "@/app/components/games/mahjong/records/record-parts";
@@ -86,7 +87,7 @@ export function TournamentView({ id }: { id: number }) {
       kicker="Mahjong · tournament"
       title={tournament?.name ?? "Tournament"}
       live={connected && tournament?.status === "running"}
-      blurb={tournament ? <>{tournament.status === "completed" ? "Finished" : tournament.status === "cancelled" ? "Cancelled" : tournament.status === "running" ? "Running now" : `Starts ${startsText(tournament.starts_at)}`}{tournament.repeat_weekly ? " · repeats weekly" : ""}</> : undefined}
+      blurb={tournament ? <><BetaTag /> {tournament.status === "completed" ? "Finished" : tournament.status === "cancelled" ? "Cancelled" : tournament.status === "running" ? "Running now" : `Starts ${startsText(tournament.starts_at)}`}{tournament.repeat_weekly ? " · repeats weekly" : ""}</> : undefined}
       aside={
         <nav className={styles.links} aria-label="Mahjong pages">
           <Link href="/games/mahjong/tournaments">All tournaments</Link>

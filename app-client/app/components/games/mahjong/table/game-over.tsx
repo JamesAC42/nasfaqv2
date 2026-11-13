@@ -7,8 +7,13 @@ import { MahjongShareButton } from "@/app/components/games/mahjong/share/share-b
 import { replayCardPath, replayPath } from "@/app/components/games/mahjong/share/share-links";
 import { fmtNumber } from "@/app/lib/format";
 import { points, seatLabel, sha256Hex, signed } from "@/app/lib/games/mahjong/table-model";
-import type { MahjongTable, SeatIndex } from "@/app/lib/games/mahjong/types";
+import type { MahjongTable, Review, SeatIndex } from "@/app/lib/games/mahjong/types";
 import { scoreText } from "@/app/lib/games/mahjong/yaku";
+import { BadgeMark } from "@/app/components/games/mahjong/beta/beta";
+import { ReviewCard } from "@/app/components/games/mahjong/table/review-card";
+import { badgeText } from "@/app/lib/games/mahjong/badges";
+import { fmtChips } from "@/app/lib/games/mahjong/chips";
+import coachStyles from "@/app/components/games/mahjong/table/coach.module.scss";
 import styles from "@/app/components/games/mahjong/table/table-panels.module.scss";
 
 const ORDINAL = ["", "1st", "2nd", "3rd", "4th"];
@@ -47,10 +52,14 @@ export type GameOverProps = {
   onAgain: (() => void) | null;
   againBusy: boolean;
   signedIn: boolean;
+  /** The coach's look back at the last hand (coached tables). */
+  review?: Review | null;
+  /** Badge keys this game earned. */
+  badges?: string[];
 };
 
 /** The end of a game: standings, rating and prizes, the revealed seed, and where to go next. */
-export function GameOver({ table, seatStyles, me, onAgain, againBusy, signedIn }: GameOverProps) {
+export function GameOver({ table, seatStyles, me, onAgain, againBusy, signedIn, review, badges = [] }: GameOverProps) {
   const result = table.result;
   if (!result) return null;
   if ("cancelled" in result) {
@@ -69,12 +78,33 @@ export function GameOver({ table, seatStyles, me, onAgain, againBusy, signedIn }
   }
   const mine = me !== null ? result.standings.find((line) => line.seat === me) : null;
   const replayHref = result.replay ? `/games/mahjong/replay/${result.replay}` : null;
+  const single = (table.length as string) === "hand";
+  const who = (seat: number) => seatLabel(table.seats[seat]);
+  const reviewCard = review ? <ReviewCard review={review} who={who} title={single ? undefined : "Look back at the last hand"} /> : null;
+  const chipRows = table.chips ? result.standings.filter((line) => line.chips !== null && line.chips !== undefined) : [];
   return (
     <section className={styles.over} aria-label="Game over">
       <header>
         <small>Game over</small>
         <h2>{mine ? `You finished ${ORDINAL[mine.place]}` : `${seatLabel(table.seats[result.standings[0].seat])} wins`}</h2>
       </header>
+      {single ? reviewCard : null}
+      {badges.length ? (
+        <section aria-label="New badges">
+          <p className={styles.fine}>New badge{badges.length === 1 ? "" : "s"}</p>
+          <ul className={coachStyles.badges}>
+            {badges.map((key) => (
+              <li key={key}>
+                <BadgeMark badge={key} size={32} />
+                <span>
+                  <b>{badgeText(key).name}</b>
+                  <small>{badgeText(key).description}</small>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <ol className={styles.standings}>
         {result.standings.map((line) => {
           const seat = table.seats[line.seat];
@@ -122,6 +152,19 @@ export function GameOver({ table, seatStyles, me, onAgain, againBusy, signedIn }
           );
         })}
       </ol>
+      {chipRows.length ? (
+        <section aria-label="Chips">
+          <ul className={coachStyles.chipLine}>
+            {chipRows.map((line) => (
+              <li key={line.seat}>
+                {who(line.seat)}{" "}
+                <b data-dir={(line.chips ?? 0) > 0 ? "up" : (line.chips ?? 0) < 0 ? "down" : undefined}>{fmtChips(line.chips ?? 0)} chips</b>
+              </li>
+            ))}
+          </ul>
+          <p className={styles.fine}>Chips are play money: no Cash or Credit changes hands.</p>
+        </section>
+      ) : null}
       {mine && table.fee > 0 ? (
         <p className={styles.paidLine}>
           You paid {fmtNumber(table.fee, "$")} and won {fmtNumber(mine.payout, "$")}.
@@ -144,11 +187,12 @@ export function GameOver({ table, seatStyles, me, onAgain, againBusy, signedIn }
           </ol>
         </details>
       ) : null}
+      {!single ? reviewCard : null}
       <Seed seed={result.seed} hash={result.seed_hash} />
       <div className={styles.overLinks}>
         {onAgain ? (
           <button type="button" className={styles.next} onClick={onAgain} disabled={againBusy}>
-            {againBusy ? "Dealing…" : "Play again"}
+            {againBusy ? "Dealing…" : single ? "Play another hand" : "Play again"}
           </button>
         ) : null}
         {replayHref ? (
@@ -170,8 +214,13 @@ export function GameOver({ table, seatStyles, me, onAgain, againBusy, signedIn }
             The bracket
           </Link>
         ) : null}
+        {single ? (
+          <Link href="/games/mahjong/learn/easy-patterns" className={styles.plain}>
+            Five easy patterns
+          </Link>
+        ) : null}
         <Link href="/games/mahjong" className={styles.plain}>
-          Lobby
+          {single ? "Back to mahjong" : "Lobby"}
         </Link>
       </div>
       {!signedIn ? (

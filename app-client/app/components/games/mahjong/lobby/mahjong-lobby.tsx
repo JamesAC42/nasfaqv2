@@ -5,13 +5,16 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { FiArrowRight } from "react-icons/fi";
 import { GamesFrame, SignInToPlay } from "@/app/components/games/shell/games-frame";
+import { BadgeStrip, BetaTag } from "@/app/components/games/mahjong/beta/beta";
+import { DiscordLink, FeedbackButton } from "@/app/components/games/mahjong/feedback/feedback-button";
 import { LiveTableRow, Segmented, TournamentRow, limitsLine, stakesBlock } from "@/app/components/games/mahjong/lobby/lobby-parts";
 import { Tile } from "@/app/components/games/mahjong/tile";
 import { apiErrorCode, type ApiError } from "@/app/lib/api";
 import { fmtInteger, fmtNumber } from "@/app/lib/format";
 import { gameErrorText } from "@/app/lib/games/errors";
+import { chipsLine, fmtChips, hasPlayedHere, markPlayedHere } from "@/app/lib/games/mahjong/chips";
 import { createGuestTable, createMahjongTable, fetchMahjongLobby, fetchMahjongMe, fetchTournaments, mahjongChannels, sitMahjongTable } from "@/app/lib/games/mahjong/api";
-import type { BotLevel, GameLength, LobbyPush, LobbyResponse, MahjongLimits, SeatedResponse, TournamentSummary } from "@/app/lib/games/mahjong/types";
+import type { BotLevel, GameLength, LobbyPush, LobbyResponse, MeResponse, SeatedResponse, Speed, TournamentSummary } from "@/app/lib/games/mahjong/types";
 import { primeChannel, useGamesChannel, useGamesConnected, useSeedChannel } from "@/app/lib/games/use-games-socket";
 import { useNow } from "@/app/lib/use-now";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -21,6 +24,8 @@ const LENGTHS: { value: GameLength; label: string }[] = [
   { value: "east", label: "East-only" },
   { value: "south", label: "East-South" },
 ];
+type PracticeLength = GameLength | "hand";
+const PRACTICE_LENGTHS: { value: PracticeLength; label: string }[] = [{ value: "hand", label: "One quick hand" }, ...LENGTHS];
 const LEVELS: { value: BotLevel; label: string }[] = [
   { value: "easy", label: "Easy" },
   { value: "normal", label: "Normal" },
@@ -39,7 +44,9 @@ export function MahjongLobby() {
 
   const [seed, setSeed] = useState<LobbyResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [limits, setLimits] = useState<MahjongLimits | null>(null);
+  const [me, setMe] = useState<MeResponse | null>(null);
+  const [playedHere, setPlayedHere] = useState(true);
+  const limits = me?.limits ?? null;
   const [tournaments, setTournaments] = useState<TournamentSummary[] | null>(null);
 
   useEffect(() => {
@@ -56,10 +63,15 @@ export function MahjongLobby() {
   }, [user?.id]);
 
   useEffect(() => {
+    const timer = setTimeout(() => setPlayedHere(hasPlayedHere()), 0);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     if (!signedIn) return;
     let cancelled = false;
     fetchMahjongMe()
-      .then((response) => !cancelled && setLimits(response.limits))
+      .then((response) => !cancelled && setMe(response))
       .catch(() => {
         /* the API decides again at the seat */
       });
@@ -76,7 +88,8 @@ export function MahjongLobby() {
   const myTable = seed?.my_table ?? null;
 
   const [length, setLength] = useState<GameLength>("east");
-  const [practiceLength, setPracticeLength] = useState<GameLength>("east");
+  const [practiceLength, setPracticeLength] = useState<PracticeLength>("east");
+  const [practiceSpeed, setPracticeSpeed] = useState<Extract<Speed, "untimed" | "standard">>("untimed");
   const [level, setLevel] = useState<BotLevel>("normal");
   const [friendLength, setFriendLength] = useState<GameLength>("east");
   const [friendSpeed, setFriendSpeed] = useState<"standard" | "relaxed">("standard");
@@ -97,7 +110,9 @@ export function MahjongLobby() {
     setErrors({});
     setSeatedAt(null);
     try {
-      enter(await make());
+      const response = await make();
+      markPlayedHere();
+      enter(response);
     } catch (error) {
       // Already at a table: say so and offer the way back, rather than quietly opening it.
       const tableId = (error as Partial<ApiError>)?.body?.table_id;
@@ -111,7 +126,10 @@ export function MahjongLobby() {
     }
   };
 
-  const practice = () => run("practice", () => createMahjongTable({ kind: "practice", length: practiceLength, level, speed: "untimed" }));
+  const practice = () => run("practice", () => createMahjongTable({ kind: "practice", length: practiceLength, level, speed: practiceSpeed }));
+  // The first hand: one hand against easy bots, no clock, coach on. The guest endpoint can't take a length, so a signed-out visitor gets the guided hand instead.
+  const firstHand = () =>
+    run("first", () => (signedIn ? createMahjongTable({ kind: "practice", level: "easy", length: "hand", speed: "untimed", coach: true }) : createGuestTable({ lesson: "riichi" })));
   const guestPractice = () => run("guest", () => createGuestTable({ level: level === "easy" ? "easy" : "normal" }));
   const quick = () => run("quick", () => createMahjongTable({ kind: "ranked", length }));
   const friend = () => run("friend", () => createMahjongTable({ kind: "friend", length: friendLength, speed: friendSpeed, level: friendLevel, coach }));
@@ -121,6 +139,10 @@ export function MahjongLobby() {
   const playing = tables?.filter((table) => table.status === "playing").length ?? 0;
   const watching = tables?.reduce((sum, table) => sum + table.spectators, 0) ?? 0;
   const lobbyTables = tables ?? [];
+  const trial = rules?.trial === true;
+  // A newcomer has no badges and no games. Signed in, that is known only once /me says so (an older API sends no badges: then nobody is a newcomer).
+  const newcomer = trial && (signedIn ? Array.isArray(me?.badges) && me.badges.length === 0 && (me.rating?.games ?? 0) === 0 : initialized && !playedHere);
+  const chips = me?.chips ?? null;
   const openTournaments = (tournaments ?? []).filter((entry) => entry.status === "signup" || entry.status === "running");
 
   return (
@@ -130,7 +152,7 @@ export function MahjongLobby() {
       live={connected}
       blurb={
         <>
-          Riichi mahjong on NASFAQ’s own tiles. <b>{fmtInteger(playing)}</b> tables running, <b>{fmtInteger(watching)}</b> watching.
+          <BetaTag /> Riichi mahjong on NASFAQ’s own tiles. <b>{fmtInteger(playing)}</b> tables running, <b>{fmtInteger(watching)}</b> watching.
         </>
       }
       aside={
@@ -138,6 +160,8 @@ export function MahjongLobby() {
           <Link href="/games/mahjong/ladder">Ladder</Link>
           <Link href="/games/mahjong/ladder#highlights">Replays</Link>
           <Link href="/games/mahjong/learn">Guide</Link>
+          <FeedbackButton />
+          <DiscordLink />
         </nav>
       }
     >
@@ -160,6 +184,58 @@ export function MahjongLobby() {
           </Link>
         ) : null}
 
+        {trial ? (
+          <p className={styles.betaLine}>
+            <b>Beta.</b> You play with chips only. No Cash or Credit is ever taken or paid, and chips are worth nothing outside the beta.
+          </p>
+        ) : null}
+
+        {newcomer ? (
+          <section className={styles.firstHand} aria-labelledby="mj-first">
+            <span className={styles.firstTiles} aria-hidden="true">
+              <Tile kind={9} size={44} labels={false} />
+              <Tile kind={33} size={44} labels={false} />
+              <Tile kind={22} size={44} labels={false} />
+            </span>
+            <div className={styles.firstText}>
+              <h2 id="mj-first">Play your first hand</h2>
+              <p>
+                {signedIn
+                  ? "One hand against three easy bots. No clock, hints on, about three minutes. Nothing to lose."
+                  : "A guided hand: the table tells you each move and why. No account needed, about three minutes."}
+              </p>
+              <button type="button" className={styles.primary} disabled={busy === "first" || !initialized} onClick={firstHand}>
+                {busy === "first" ? "Dealing…" : "Play your first hand"}
+              </button>
+              {errors.first ? <p className={styles.error}>{errors.first}</p> : null}
+              <p className={styles.firstLinks}>
+                New to the game? <Link href="/games/mahjong/learn/tutorial">Walkthrough</Link> · <Link href="/games/mahjong/learn/easy-patterns">Five easy patterns</Link> · <Link href="/games/mahjong/learn/rules">Rules</Link>
+              </p>
+            </div>
+          </section>
+        ) : null}
+
+        {trial && signedIn && !newcomer && (chips || me?.badges?.length) ? (
+          <section className={styles.mySummary} aria-label="Your beta so far">
+            {chips ? (
+              <p className={styles.chipLine}>
+                <span>
+                  <small>Chips this week</small>
+                  <b data-sign={Math.sign(chips.week)}>{fmtChips(chips.week)}</b> <em>{fmtInteger(chips.week_games)} {chips.week_games === 1 ? "game" : "games"}</em>
+                </span>
+                <span>
+                  <small>Chips all time</small>
+                  <b data-sign={Math.sign(chips.all)}>{fmtChips(chips.all)}</b> <em>{fmtInteger(chips.all_games)} {chips.all_games === 1 ? "game" : "games"}</em>
+                </span>
+                <Link href="/games/mahjong/ladder#chips">Leaderboards <FiArrowRight aria-hidden="true" /></Link>
+              </p>
+            ) : null}
+            <BadgeStrip badges={me?.badges} />
+          </section>
+        ) : null}
+
+        {newcomer ? null : (
+        <>
         <Link href="/games/mahjong/learn" className={styles.newHere}>
           <span className={styles.newHereTiles} aria-hidden="true">
             <Tile kind={9} size={30} labels={false} />
@@ -176,13 +252,23 @@ export function MahjongLobby() {
         <p className={styles.tutorialLine}>
           <Link href="/games/mahjong/learn/tutorial">Play the guided tutorial hand</Link>: four moves, a riichi and a win.
         </p>
+        </>
+        )}
 
         {initialized && !signedIn ? (
           <div className={styles.guest}>
-            <SignInToPlay what="sit with other players or play for Credit. Watching is free" />
-            <button type="button" className={styles.primary} disabled={busy === "guest"} onClick={guestPractice}>
-              {busy === "guest" ? "Dealing…" : "Try a practice hand"}
-            </button>
+            {trial ? (
+              <p className={styles.note}>
+                <Link href="/login">Sign in</Link> or <Link href="/register">make an account</Link> to sit with other players and keep your chips. Watching is free.
+              </p>
+            ) : (
+              <SignInToPlay what="sit with other players or play for Credit. Watching is free" />
+            )}
+            {newcomer ? null : (
+              <button type="button" className={styles.primary} disabled={busy === "guest"} onClick={guestPractice}>
+                {busy === "guest" ? "Dealing…" : "Try a practice hand"}
+              </button>
+            )}
             {errors.guest ? <p className={styles.error}>{errors.guest}</p> : null}
           </div>
         ) : null}
@@ -206,9 +292,18 @@ export function MahjongLobby() {
 
             <div className={styles.mode}>
               <h3>Practice vs bots</h3>
-              <p>You and three bots. Not rated, nothing at stake, no clock to speak of. Hints are on.</p>
+              <p>{practiceSpeed === "untimed" ? "You and three bots. Not rated, nothing at stake, no clock. Hints are on." : "You and three bots. Not rated, nothing at stake, on the standard clock. Hints are on."}</p>
               <Segmented label="Bots" value={level} options={LEVELS} onChange={setLevel} />
-              <Segmented label="Length" value={practiceLength} options={LENGTHS} onChange={setPracticeLength} />
+              <Segmented label="Length" value={practiceLength} options={PRACTICE_LENGTHS} onChange={setPracticeLength} />
+              <Segmented
+                label="Clock"
+                value={practiceSpeed}
+                options={[
+                  { value: "untimed", label: "Untimed" },
+                  { value: "standard", label: `Standard${rules ? ` · ${rules.speeds.standard.turn}s` : ""}` },
+                ]}
+                onChange={setPracticeSpeed}
+              />
               <button type="button" className={styles.primary} disabled={!signedIn || busy === "practice"} onClick={practice}>
                 {busy === "practice" ? "Dealing…" : "Practice"}
               </button>
@@ -244,16 +339,55 @@ export function MahjongLobby() {
         <section className={styles.section} aria-labelledby="mj-stakes">
           <div className={styles.headRow}>
             <h2 id="mj-stakes" className={styles.head}>
-              Stakes tables
+              {trial ? "Chip tables" : "Stakes tables"}
             </h2>
             <Segmented label="Length" value={stakesLength} options={LENGTHS} onChange={setStakesLength} />
           </div>
-          <p className={styles.lede}>
-            Four players, no bots. The fee goes in, places pay a fixed prize, and points are never worth money. Credit only.
-          </p>
-          {signedIn && limits ? <p className={styles.standing} data-blocked={limits.blocked ? "" : undefined}>{limitsLine(limits)}</p> : null}
+          {trial ? (
+            <p className={styles.lede}>
+              Four players. Free to sit at, with as many chips as you like to play: each game just records chips by where you finish. Bots join after {rules?.bot_fill_seconds ?? 45} seconds if seats are open.
+            </p>
+          ) : (
+            <p className={styles.lede}>
+              Four players, no bots. The fee goes in, places pay a fixed prize, and points are never worth money. Credit only.
+            </p>
+          )}
+          {!trial && signedIn && limits ? <p className={styles.standing} data-blocked={limits.blocked ? "" : undefined}>{limitsLine(limits)}</p> : null}
+          {trial && signedIn && chips ? (
+            <p className={styles.standing}>
+              Your chips: <b>{fmtChips(chips.week)}</b> this week ({fmtInteger(chips.week_games)} {chips.week_games === 1 ? "game" : "games"}), <b>{fmtChips(chips.all)}</b> all time ({fmtInteger(chips.all_games)} {chips.all_games === 1 ? "game" : "games"}).
+            </p>
+          ) : null}
           <ul className={styles.tiers}>
             {(rules?.stakes ?? []).map((tier) => {
+              if (trial) {
+                const key = `stakes-${tier.fee}`;
+                const size = tier.chips?.length ? Math.max(...tier.chips.map((value) => Math.abs(value))) : tier.fee;
+                const block = !signedIn ? "Sign in to sit at a chip table." : !verified ? "Verify your email to sit with other players." : null;
+                return (
+                  <li key={tier.fee} className={styles.tier} data-blocked={block ? "" : undefined}>
+                    <div className={styles.tierFee}>
+                      <small>Table</small>
+                      <b>{fmtInteger(size)}</b>
+                    </div>
+                    <dl className={styles.prizes} aria-label={`Chips by place at the ${fmtInteger(size)} table: ${tier.chips ? chipsLine(tier.chips) : ""}`}>
+                      {(tier.chips ?? []).map((value, index) => (
+                        <div key={index}>
+                          <dt>{["1st", "2nd", "3rd", "4th"][index]}</dt>
+                          <dd data-zero={value === 0 || undefined}>{fmtChips(value)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <div className={styles.tierGo}>
+                      <button type="button" className={styles.primary} disabled={Boolean(block) || busy === key} onClick={() => stakes(tier.fee)}>
+                        {busy === key ? "Sitting…" : "Sit down"}
+                      </button>
+                    </div>
+                    {block ? <p className={styles.note}>{block}</p> : null}
+                    {errors[key] ? <p className={styles.error}>{errors[key]}</p> : null}
+                  </li>
+                );
+              }
               const block = stakesBlock(limits, tier, signedIn, verified);
               const key = `stakes-${tier.fee}`;
               return (
@@ -285,7 +419,7 @@ export function MahjongLobby() {
               );
             })}
           </ul>
-          {rules ? (
+          {rules && !trial ? (
             <p className={styles.fine}>
               A week’s results, up or down, stay within what your Credit turns into Cash at the Saturday review ({Math.round(rules.weekly_rate * 100)}% of it, or {money(rules.weekly_minimum)}). Up to {rules.paid_games_per_day} paid games a day.
             </p>
@@ -320,7 +454,7 @@ export function MahjongLobby() {
           {tournaments === null ? null : openTournaments.length ? (
             <ul className={styles.tournamentList}>
               {openTournaments.map((entry) => (
-                <TournamentRow key={entry.id} tournament={entry} />
+                <TournamentRow key={entry.id} tournament={entry} trial={trial} />
               ))}
             </ul>
           ) : (

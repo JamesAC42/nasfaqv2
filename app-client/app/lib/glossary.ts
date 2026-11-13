@@ -46,6 +46,8 @@ export const GLOSSARY: ReadonlyArray<GlossaryEntry> = [
   { key: "mj-han", term: "Han and fu", def: "Mahjong: han is the doubling unit of a hand’s value (each yaku and each dora adds some); fu are minipoints from its shape. Past a point a hand pays a fixed limit: mangan, haneman, baiman, sanbaiman, yakuman.", href: "/games/mahjong/learn/glossary#han", flag: "mahjong" },
   { key: "mj-dora", term: "Dora", def: "Mahjong: a bonus tile worth one han. The tile after the dora indicator on the wall is the dora, and every red five counts too.", href: "/games/mahjong/learn/glossary#dora", flag: "mahjong" },
   { key: "mj-calls", term: "Chi, pon, kan", def: "Mahjong: taking another player’s discard to finish a run (chi, only from the player on your left), a triplet (pon) or a four of a kind (kan). It opens your hand.", href: "/games/mahjong/learn/glossary#chi", flag: "mahjong" },
+  { key: "mj-chips", term: "Chips", def: "Mahjong beta: the record of how you finish at chip tables. Each finished game adds or subtracts a fixed number of chips by place. Chips are never a balance, can’t be spent or sent, and are worth nothing outside the beta.", href: "/games/mahjong/learn/glossary#chips", flag: "mahjong" },
+  { key: "mj-beta", term: "Beta (trial mode)", def: "Mahjong is in beta: no Cash or Credit is ever taken or paid, at any table or tournament.", href: "/games/mahjong/learn/rules#money", flag: "mahjong" },
   { key: "mj-honba", term: "Honba", def: "Mahjong: the repeat counter. It grows whenever a hand ends without the deal passing, and adds 300 to a win on a discard.", href: "/games/mahjong/learn/glossary#honba", flag: "mahjong" },
 ];
 

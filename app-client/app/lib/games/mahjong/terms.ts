@@ -114,6 +114,9 @@ export const MAHJONG_TERMS: ReadonlyArray<MahjongTerm> = [
   { term: "Kuitan", reading: "KOO-ee-tahn", english: "Open all simples", explain: "Calling to make a hand of only 2s through 8s. Allowed here: open hands can score tanyao." },
   { term: "Placement", english: "Your finishing position", explain: "First to fourth. The final score gives +15, +5, −5 and −15 for it on top of points, so late in the game finishing higher can matter more than points." },
 
+  // ── The beta ──────────────────────────────────────────────────────────────
+  { term: "Chips", english: "The beta’s record of how you finish", explain: "A chip table adds or subtracts a fixed number of chips for each place. Chips are a score, not money: there is no balance, nothing to spend, and they are worth nothing outside the beta." },
+  { term: "Beta", english: "Trial mode: no money at all", explain: "While mahjong is in beta, no Cash or Credit is ever taken or paid. Tables and tournaments are free, and you play for chips." },
   // ── Draws ─────────────────────────────────────────────────────────────────
   { term: "Ryuukyoku", reading: "ree-YOO-kyoh-koo", english: "A draw", explain: "A hand that ends with nobody winning: the wall running out (exhaustive), or one of the abortive draws." },
   { term: "Nagashi mangan", reading: "nah-GAH-shee MAN-gan", english: "Discards of only terminals and honors", explain: "At an exhaustive draw, if every one of your discards was a terminal or an honor and none was called, you are paid a mangan as if self-drawn, instead of the tenpai payments." },

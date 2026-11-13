@@ -6,7 +6,13 @@
 
 .links {
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+
+  button,
+  a {
+    white-space: nowrap;
+  }
 
   a {
     @include label;
@@ -585,5 +591,128 @@
     height: 0.45rem;
     border-radius: 50%;
     background: var(--blue);
+  }
+}
+
+// ── Beta ────────────────────────────────────────────────────────────────────
+.betaLine {
+  margin: 1rem 0 0;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--warn);
+  background: var(--warn-wash);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.firstHand {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin: 1rem 0 0;
+  padding: 1.5rem;
+  border: 1px solid var(--blue-line);
+  background: var(--blue-wash);
+
+  @include phone {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.1rem;
+  }
+}
+
+.firstTiles {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+}
+
+.firstText {
+  display: grid;
+  justify-items: start;
+  gap: 0.7rem;
+  min-width: 0;
+
+  h2 {
+    @include display(1.75rem);
+    margin: 0;
+  }
+
+  p {
+    margin: 0;
+    max-width: 40rem;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: var(--mid);
+  }
+
+  .primary {
+    padding: 0.7rem 1.4rem;
+    font-size: 1rem;
+  }
+}
+
+.firstText .firstLinks {
+  font-size: 0.8125rem;
+  color: var(--dim);
+
+  a {
+    color: var(--blue);
+  }
+}
+
+.mySummary {
+  display: grid;
+  gap: 0.7rem;
+  margin: 1rem 0 0;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.chipLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 2rem;
+  margin: 0;
+
+  span {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  small {
+    @include label;
+  }
+
+  b {
+    @include num(wide);
+    font-size: 1.35rem;
+    font-weight: 700;
+
+    &[data-sign="1"] {
+      color: var(--up);
+    }
+
+    &[data-sign="-1"] {
+      color: var(--down);
+    }
+  }
+
+  em {
+    font-size: 0.78rem;
+    font-style: normal;
+    color: var(--dim);
+  }
+
+  a {
+    @include label;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: auto;
+    color: var(--blue);
+    text-decoration: none;
   }
 }

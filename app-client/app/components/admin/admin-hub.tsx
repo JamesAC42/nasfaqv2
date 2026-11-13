@@ -31,6 +31,7 @@ import { normalizeMarketStatus } from "@/app/lib/normalizers";
 import { fetchAdminOverview } from "@/app/lib/predictions/api";
 import type { AdminOverview } from "@/app/lib/predictions/types";
 import type { MarketStatus } from "@/app/lib/types";
+import { useFeature } from "@/app/lib/features";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMarketStore } from "@/app/stores/market-store";
 import { connectSite, useSiteStore } from "@/app/stores/site-store";
@@ -581,6 +582,7 @@ function BugReports({ now }: { now: number }) {
 export function AdminHub() {
   const access = useAdminAccess();
   const { user } = useAuth();
+  const mahjongOn = useFeature("mahjong");
   const now = useNow(1000);
   const [stats, setStats] = useState<Loaded<AdminOverviewStats>>(empty);
   const [status, setStatus] = useState<Loaded<Partial<MarketStatus>>>(empty);
@@ -654,6 +656,7 @@ export function AdminHub() {
     { href: "/admin/users", label: "Users", line: "Every account: search, sort, verify, rename, suspend, and what admins have done to each.", show: isAdmin },
     { href: "/admin/people", label: "People & roles", line: "Find a player, hand out or take back roles, suspend or reset a profile.", show: isAdmin },
     { href: "/admin/moderation", label: "Moderation", line: "Chat reports, mutes and bans, and the log of admin actions.", show: isAdmin },
+    { href: "/admin/mahjong-feedback", label: "Mahjong feedback", line: "Notes players send from the mahjong beta, newest first.", show: isAdmin && mahjongOn },
     { href: "/admin/announcements", label: "Announcements", line: "Popups visitors see once: write, schedule and retire them.", show: isAdmin },
     { href: "/admin/exchange", label: "Exchange review", line: "Lopsided card sales and trades involving new accounts.", show: isAdmin },
     { href: "/admin/analytics", label: "Analytics", line: "Sign-ups, active players, retention, referrals and visitors from our own data, plus Umami for both sites.", show: isAdmin },

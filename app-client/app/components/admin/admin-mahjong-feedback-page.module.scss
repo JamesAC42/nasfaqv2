@@ -1,0 +1,49 @@
+@use "../../styles/mixins" as *;
+
+// /admin/mahjong-feedback
+
+.list {
+  display: grid;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+
+  > li {
+    display: grid;
+    gap: 0.4rem;
+    min-width: 0;
+    padding: 0.8rem 0;
+    border-top: 1px solid var(--rule);
+  }
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.9rem;
+  font-size: 0.8125rem;
+  color: var(--dim);
+
+  a {
+    color: var(--blue);
+  }
+
+  b {
+    color: var(--text);
+  }
+
+  code {
+    font-size: 0.75rem;
+  }
+}
+
+.body {
+  margin: 0;
+  max-width: 48rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

@@ -1,5 +1,24 @@
 @use "../../../../styles/mixins" as *;
 
+// Motion is for people who want it: everything animated here stops under the OS "reduce motion"
+// setting and under the site's calm mode.
+@mixin still {
+  @media (prefers-reduced-motion: reduce) {
+    @content;
+  }
+
+  :global(html[data-calm="true"]) & {
+    @content;
+  }
+}
+
+// Something that just arrived (a discard, a called set) travels in; the wrapper adds no space.
+.fly {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
 // The board: a flat, top-down table in the site's terminal look. You are at the bottom. The other
 // three sit around a center box; each seat's plate and the backs of its hand sit by the corners, the
 // ponds sit between them and the center box, and every face stays upright so it can be read.
@@ -160,6 +179,7 @@
 // ── Name plates ─────────────────────────────────────────────────────────────
 .plate {
   --tal: var(--blue);
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -168,9 +188,51 @@
   padding: 0.15rem 0.45rem 0.15rem 0.15rem;
   border: 1px solid transparent;
 
+  // Whose turn it is: a bold frame that breathes, and a marker bobbing over the plate.
   &[data-turn] {
-    border-color: var(--blue-line);
+    border-color: var(--blue);
     background: var(--blue-wash);
+
+    &::after {
+      content: "";
+      position: absolute;
+      inset: -3px;
+      border: 2px solid var(--blue);
+      pointer-events: none;
+      animation: turn-ring 1.2s ease-in-out infinite;
+
+      @include still {
+        animation: none;
+      }
+    }
+
+    &::before {
+      content: "";
+      position: absolute;
+      top: -8px;
+      left: 50%;
+      z-index: 1;
+      width: 12px;
+      height: 7px;
+      background: var(--blue);
+      clip-path: polygon(0 0, 100% 0, 50% 100%);
+      transform: translateX(-50%);
+      pointer-events: none;
+      animation: turn-marker 1.2s ease-in-out infinite;
+
+      @include still {
+        animation: none;
+      }
+    }
+  }
+
+  // A riichi was just declared: the plate swells once.
+  &[data-pulse] {
+    animation: plate-pulse 900ms ease-out 1;
+
+    @include still {
+      animation: none;
+    }
   }
 
   .corner & {
@@ -282,6 +344,64 @@
     border-radius: 1px;
     background: radial-gradient(circle at 50% 50%, #cc3a2f 0 1.5px, transparent 1.6px), #f6f0dd;
     box-shadow: 0 0 0 1px var(--rule-2);
+  }
+
+  // The stick drops in.
+  &[data-fresh] i {
+    animation: stick-drop 520ms cubic-bezier(0.3, 0.7, 0.4, 1) 1;
+
+    @include still {
+      animation: none;
+    }
+  }
+}
+
+@keyframes turn-ring {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes turn-marker {
+  0%,
+  100% {
+    transform: translate(-50%, 0);
+  }
+  50% {
+    transform: translate(-50%, -3px);
+  }
+}
+
+@keyframes plate-pulse {
+  0% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes stick-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-22px) rotate(-8deg);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(2px) rotate(0);
+  }
+  75% {
+    transform: translateY(-3px);
+  }
+  100% {
+    transform: none;
   }
 }
 
@@ -605,8 +725,64 @@
 
 // ── Your hand ───────────────────────────────────────────────────────────────
 .hand {
+  position: relative;
   width: 100%;
   padding: 14px 0 10px;
+
+  // Your turn: a line along the top of the hand that breathes.
+  &[data-turn]::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--blue);
+    pointer-events: none;
+    animation: hand-turn 1.2s ease-in-out infinite;
+
+    @include still {
+      animation: none;
+    }
+  }
+
+  // Ready (the table says the hand is waiting on something): a soft glow along the tiles' base.
+  &[data-ready]::after {
+    content: "";
+    position: absolute;
+    left: 6%;
+    right: 6%;
+    bottom: 0;
+    height: 14px;
+    background: radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--blue) 55%, transparent), transparent 70%);
+    pointer-events: none;
+    animation: ready-glow 2.6s ease-in-out infinite;
+
+    @include still {
+      animation: none;
+      opacity: 0.7;
+    }
+  }
+}
+
+@keyframes hand-turn {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes ready-glow {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.95;
+  }
 }
 
 .handRow {
@@ -623,6 +799,26 @@
 
   &[data-lifted] {
     z-index: 2;
+  }
+
+  // The tile you just drew slides in from above and to the right.
+  &[data-new] {
+    animation: draw-in 220ms cubic-bezier(0.2, 0.85, 0.3, 1) 1 both;
+
+    @include still {
+      animation: none;
+    }
+  }
+}
+
+@keyframes draw-in {
+  from {
+    opacity: 0;
+    transform: translate(18px, -22px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 

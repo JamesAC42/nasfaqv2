@@ -403,6 +403,69 @@ export function MahjongSection() {
   if (!enabled) return null;
   const rules = data?.rules;
   const percent = rules ? `${Number((rules.weekly_rate * 100).toFixed(2))}%` : null;
+  const trial = rules?.trial === true;
+  const biggest = rules?.stakes.filter((tier) => tier.chips?.length).at(-1)?.chips;
+  const example = biggest ? `the biggest table pays ${biggest.map((value) => `${value > 0 ? "+" : "−"}${fmtInteger(Math.abs(value))}`).join(", ")} chips for first to fourth` : "each place pays a fixed number of chips, and the lower places pay negative chips";
+  const trialItems = [
+    {
+      k: "ways to play",
+      title: "Practice, friends, quick match, chip tables",
+      body: "Practice against bots is free and unrated: one quick hand or a full game, with or without a clock. Quick match is rated and free, with bots filling empty seats after a short wait. Friend rooms are a link. Chip tables are free to sit at.",
+    },
+    {
+      k: "chips",
+      title: "Chip tables",
+      body: (
+        <>
+          Each finished game at a chip table records <Term k="mj-chips">chips</Term> by place: {example}. Chips are a record, not a balance: there is nothing to buy, spend or send, and they are worth nothing outside the beta. Bots take empty seats after a short wait and earn no chips.
+        </>
+      ),
+    },
+    {
+      k: "no money",
+      title: "No Cash or Credit",
+      body: (
+        <>
+          Mahjong is in <Term k="mj-beta">beta</Term>. No Cash or Credit is ever taken or paid at any table, and tournaments have no entry fee and no prize pool.
+        </>
+      ),
+    },
+    {
+      k: "rating",
+      title: "Ladder and seasons",
+      body: "Rated games move your rating by how you placed against each of the other three. Ranks are names for rating bands. Seasons are calendar months, and a new season starts everyone halfway back to 1,500. Bots’ ratings never move.",
+    },
+    {
+      k: "leaderboards",
+      title: "Chip leaderboards",
+      body: "The ladder page ranks net chips for the week, which starts Saturday at midnight New York time, and for all time. The rated ladder sits beside them.",
+    },
+    {
+      k: "badges",
+      title: "Badges",
+      body: "Six first-time badges mark a first game, win, riichi win, self-draw, mangan and table win. They show in the lobby and on your record.",
+    },
+    {
+      k: "watching",
+      title: "Watching and picks",
+      body: "Anyone can watch a live table with no delay, and spectators are never sent a hidden tile. Verified, signed-in viewers can send reactions, cheer a seat and pick who wins before the second hand. Picks are free and count on a leaderboard.",
+    },
+    {
+      k: "feedback",
+      title: "Feedback",
+      body: "The lobby’s Send feedback button sends a note straight to the people building mahjong, and the Discord is open for everything else.",
+    },
+    {
+      k: "learn",
+      title: "Where to learn",
+      body: (
+        <>
+          The <Link href="/games/mahjong/learn/tutorial">walkthrough</Link> goes from the tiles to a first win, with two guided hands. The <Link href="/games/mahjong/learn/easy-patterns">five easy patterns</Link> are the yaku to aim for first. After that come the{" "}
+          <Link href="/games/mahjong/learn/rules">rules</Link>, the <Link href="/games/mahjong/learn/yaku">yaku</Link>, the <Link href="/games/mahjong/learn/glossary">glossary</Link> and <Link href="/games/mahjong/learn/tips">tips</Link>.
+        </>
+      ),
+    },
+  ];
   return (
     <Section
       id="mahjong"
@@ -414,20 +477,27 @@ export function MahjongSection() {
             <Term k="mj-riichi">riichi</Term> when you’re one tile away, and win by drawing the last tile yourself or taking a discard. The server deals, checks every move and keeps the wall sealed: its hash is published
             before the game, and the replay lets you check it afterwards.
           </p>
-          <p>
-            It spends <Term k="credit">Credit</Term> and never your cash, and the only money in it is entry fees and fixed prizes. Points at the table are never worth money.
-          </p>
+          {trial ? (
+            <p>
+              Mahjong is in <Term k="mj-beta">beta</Term>: you play with <Term k="mj-chips">chips</Term>, and no Cash or Credit is ever taken or paid. Points at the table are never worth money.
+            </p>
+          ) : (
+            <p>
+              It spends <Term k="credit">Credit</Term> and never your cash, and the only money in it is entry fees and fixed prizes. Points at the table are never worth money.
+            </p>
+          )}
         </>
       }
       links={[
         { href: "/games/mahjong", label: "Open the tables" },
         { href: "/games/mahjong/learn", label: "Learn mahjong" },
         { href: "/games/mahjong/learn/rules", label: "The rules" },
+        ...(trial ? [{ href: "/games/mahjong/learn/easy-patterns", label: "Five easy patterns" }] : []),
       ]}
     >
       <Rules
         cols={3}
-        items={[
+        items={trial ? trialItems : [
           {
             k: "ways to play",
             title: "Practice, friends, ranked, stakes",

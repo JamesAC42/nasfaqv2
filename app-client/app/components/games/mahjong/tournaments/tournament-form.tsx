@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useMahjongRules } from "@/app/components/games/mahjong/learn/use-rules";
 import { formatWords } from "@/app/components/games/mahjong/tournaments/tournament-parts";
 import { gameErrorText } from "@/app/lib/games/errors";
 import { createTournament } from "@/app/lib/games/mahjong/api";
@@ -19,6 +20,7 @@ function defaultStart() {
 /** Staff only: makes a tournament. */
 export function TournamentForm() {
   const router = useRouter();
+  const trial = useMahjongRules().data?.rules.trial === true;
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [seats, setSeats] = useState<4 | 8 | 16>(8);
@@ -38,7 +40,7 @@ export function TournamentForm() {
       setError("Pick a start time.");
       return;
     }
-    const body: CreateTournamentBody = { name: name.trim(), seats, length, final_length: finalLength, speed, entry_fee: Math.max(0, Number(fee) || 0), starts_at: when.toISOString(), repeat_weekly: weekly };
+    const body: CreateTournamentBody = { name: name.trim(), seats, length, final_length: finalLength, speed, entry_fee: trial ? 0 : Math.max(0, Number(fee) || 0), starts_at: when.toISOString(), repeat_weekly: weekly };
     setBusy(true);
     setError(null);
     try {
@@ -80,10 +82,17 @@ export function TournamentForm() {
           <span>Starts (your time)</span>
           <input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} required />
         </label>
-        <label className={styles.formField}>
-          <span>Entry fee ($, 0 for free)</span>
-          <input type="number" min={0} step={1} value={fee} onChange={(event) => setFee(event.target.value)} />
-        </label>
+        {trial ? (
+          <div className={styles.formField}>
+            <span>Entry fee</span>
+            <input value="Free" disabled aria-label="Entry fee: tournaments are free during the beta" readOnly />
+          </div>
+        ) : (
+          <label className={styles.formField}>
+            <span>Entry fee ($, 0 for free)</span>
+            <input type="number" min={0} step={1} value={fee} onChange={(event) => setFee(event.target.value)} />
+          </label>
+        )}
       </div>
       <div className={styles.formRow}>
         <label className={styles.formField}>
@@ -112,6 +121,7 @@ export function TournamentForm() {
           <span>Repeat weekly</span>
         </label>
       </div>
+      {trial ? <p className={styles.note}>Tournaments are free during the beta: no entry fee, no prize pool.</p> : null}
       <p className={styles.note}>{formatWords({ seats, length, final_length: finalLength, speed })}</p>
       {error ? <p className={styles.error}>{error}</p> : null}
       <div className={styles.formActions}>

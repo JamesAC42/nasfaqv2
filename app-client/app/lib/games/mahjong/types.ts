@@ -221,7 +221,7 @@ export type CallOptions = {
 
 export type Options = TurnOptions | CallOptions;
 
-export type WinPreview = { ok: boolean; han: number; fu: number; yaku: YakuKey[]; limit: LimitName | null };
+export type WinPreview = { ok: boolean; han: number; fu: number; yaku: YakuKey[]; limit: LimitName | null; /** Before ura dora, honba and sticks. */ points?: number };
 export type WaitInfo = {
   kind: TileKind;
   /** Copies you can't see yet. */
@@ -231,7 +231,146 @@ export type WaitInfo = {
 };
 
 export type CoachDiscard = { kind: TileKind; shanten: number; useful: number; kinds: TileKind[] };
-export type Coach = { shanten: number; discards: CoachDiscard[]; /** the kinds worth discarding */ best: TileKind[] };
+// ── Coach data (api/src/services/games/mahjong/coach.js). Everything past `best` is optional: an older
+// payload without it must still render. ──────────────────────────────────────────────────────────────
+export type HandForm = "standard" | "seven_pairs" | "thirteen_orphans";
+export type CoachShape = { shanten: number; form: HandForm; by_form?: Record<HandForm, number | null> };
+export type CoachWait = { kind: TileKind; left: number; ron_ok: boolean; tsumo_ok: boolean };
+export type CoachReady = { waits: CoachWait[]; ron_ok: boolean; tsumo_ok: boolean; furiten: "discard" | "riichi" | null };
+/** One discard the coach looked at (`improvers`, best first). */
+export type CoachRow = {
+  kind: TileKind;
+  /** After throwing this kind (0 is ready). */
+  shanten: number;
+  left: number;
+  improve: { kind: TileKind; left: number }[];
+  riichi: boolean;
+  /** Riichi seats this kind is certainly safe against. */
+  safe_against: SeatIndex[];
+  ready: CoachReady | null;
+  recommended: boolean;
+};
+
+export type SuggestionCode =
+  | "win_now" | "riichi_locked" | "safe_against_riichi" | "least_risky_against_riichi" | "avoids_furiten"
+  | "ready_with_yaku" | "makes_ready" | "keeps_yaku" | "isolated_honor" | "isolated_terminal" | "keeps_most_draws" | "least_useful";
+export type CoachSuggestion = {
+  action: "tsumo" | "discard";
+  kind: TileKind;
+  tile: TileId;
+  riichi: boolean;
+  code: SuggestionCode;
+  danger?: SeatIndex[];
+  seat?: SeatIndex;
+  waits?: number;
+  left?: number;
+  yaku?: string | string[];
+  count?: number;
+  han?: number;
+  fu?: number;
+  points?: number;
+};
+
+export type BlockedCode = "furiten_own_discard" | "furiten_passed" | "furiten_riichi" | "no_yaku_open_hand" | "no_tiles_left" | "no_yaku_in_sight";
+export type WinBlock = { code: BlockedCode; kinds?: TileKind[] };
+export type YakuSightStatus = "met" | "near" | "available";
+export type YakuSight = { key: string; status: YakuSightStatus; kind?: TileKind; off?: number; need?: number; pairs?: number; triplets?: number; suit?: number };
+export type WinWait = { kind: TileKind; left: number; ron_ok: boolean; tsumo_ok: boolean; ron: WinPreview | null; tsumo: WinPreview | null };
+export type WinPath = {
+  subject: "hand" | "after_discard" | "complete";
+  discard_kind: TileKind | null;
+  ready: boolean;
+  can_win_now: WinWait[] | null;
+  yaku_in_sight: YakuSight[];
+  blocked: WinBlock[];
+};
+
+export type EffectCode =
+  | "opens_hand_no_riichi" | "shanten_change" | "gives_yaku" | "keeps_yaku" | "loses_yaku" | "no_yaku_in_sight"
+  | "adds_dora_indicator" | "meld_has_dora" | "uses_red_five" | "wins_hand" | "adds_yaku" | "locks_hand"
+  | "costs_stick" | "waits_left" | "already_has_yaku" | "furiten_wait" | "tsumo_available" | "keeps_closed";
+export type CallEffect = {
+  code: EffectCode;
+  from?: number;
+  to?: number;
+  yaku?: string | string[];
+  count?: number;
+  tsumo?: boolean;
+  han?: number;
+  fu?: number;
+  points?: number;
+  limit?: LimitName | null;
+  waits?: number;
+  left?: number;
+  kind?: TileKind | "discard" | "riichi";
+};
+export type CallRecommend = "take" | "skip" | "either";
+export type CallAdviceOption =
+  | { type: "ron" | "kan" | "tsumo" }
+  | { type: "pon" | "chi"; tiles: TileId[] }
+  | { type: "riichi"; kind: TileKind; tile: TileId }
+  | { type: "ankan" | "kakan"; kind: TileKind };
+export type CallAdvice = { option: CallAdviceOption; effects: CallEffect[]; recommend: CallRecommend };
+
+export type ReviewOutcome = "won_tsumo" | "won_ron" | "dealt_in" | "lost_to_tsumo" | "lost_to_ron" | "draw_ready" | "draw_not_ready" | "aborted";
+export type CopyWhere = {
+  own_hand: number;
+  own_melds: number;
+  own_discards: number;
+  other_discards: number;
+  other_melds: number;
+  other_hands: number;
+  dora_indicators: number;
+  wall: number | null;
+  dead_wall: number | null;
+  unseen: number;
+};
+export type MomentCode = "discarded_winning_shape" | "dealt_in_after_riichi" | "dealt_in" | "ready_but_furiten" | "folded_safely" | "waited_on_dead_tiles" | "won_by_draw_with_n_left";
+export type ReviewMoment = {
+  code: MomentCode;
+  turn?: number;
+  discard?: TileKind;
+  from?: number;
+  to?: number;
+  better?: TileKind[];
+  tile?: TileKind;
+  riichi_seat?: SeatIndex;
+  kinds?: TileKind[];
+  against?: SeatIndex;
+  discards?: number;
+  left?: number;
+};
+export type ReviewWait = { kind: TileKind; won_on?: boolean; copies: CopyWhere };
+export type Review = {
+  seat: SeatIndex;
+  outcome: ReviewOutcome;
+  delta: number;
+  ready_turn: number | null;
+  final: {
+    won: boolean;
+    shanten: number;
+    form: HandForm;
+    waits: ReviewWait[];
+    improve: ReviewWait[];
+    furiten_kinds: TileKind[];
+  };
+  moments: ReviewMoment[];
+};
+
+export type Coach = {
+  shanten: number;
+  discards: CoachDiscard[];
+  /** the kinds worth discarding */
+  best: TileKind[];
+  shape?: CoachShape;
+  improvers?: CoachRow[];
+  suggestion?: CoachSuggestion | null;
+  win_path?: WinPath;
+  call_advice?: CallAdvice[];
+  riichi_seats?: SeatIndex[];
+  /** Once the hand is over: a look back at it. */
+  review?: Review | null;
+};
 
 export type Help = {
   waits: WaitInfo[];
@@ -278,7 +417,7 @@ export type SeatHand = PublicHand & {
 
 export const isSeatHand = (hand: PublicHand | SeatHand | null | undefined): hand is SeatHand => Boolean(hand && "hand" in hand);
 
-export type FinalStanding = { seat: SeatIndex; place: number; points: number; /** The game score: (points - 30000) / 1000 plus placement bonus */ score: number };
+export type FinalStanding = { seat: SeatIndex; place: number; chips?: number | null; points: number; /** The game score: (points - 30000) / 1000 plus placement bonus */ score: number };
 export type FinalLine = FinalStanding & {
   user_id: number | null;
   rating_before: number | null;
@@ -329,10 +468,15 @@ export type TableMe = {
   bank: number;
   /** Epoch ms your clock runs out. */
   deadline: number | null;
-  turn_ms: number;
+  /** Null on an untimed table: draw no clock. */
+  turn_ms: number | null;
   ready: boolean;
   /** Autopilot has the seat. */
   auto: boolean;
+  /** Badge keys this game earned (set once the game is over). */
+  badges_earned?: string[];
+  /** A look back at the last hand, once the game is over (coached tables). */
+  review?: Review | null;
 };
 
 /** A table as the public channel and GET /tables/:id send it (publicTable). */
@@ -344,6 +488,10 @@ export type MahjongTable = {
   speed: Speed;
   level: SeatBotLevel;
   coach: boolean;
+  /** A chip table (trial mode): nothing is paid. */
+  chips?: boolean;
+  /** Net chips for first to fourth on a chip table. */
+  chip_results?: number[] | null;
   /** Entry fee in Credit; 0 for free tables. */
   fee: number;
   /** Prize for first to fourth, null if there is no fee. */
@@ -387,7 +535,7 @@ export type SeatGrant = {
 
 // ── Requests and responses ──────────────────────────────────────────────────
 export type CreateTableBody =
-  | { kind: "practice"; length?: GameLength; speed?: Speed; level?: BotLevel }
+  | { kind: "practice"; /** "hand": one hand, then the game ends. */ length?: GameLength | "hand"; speed?: Speed; level?: BotLevel; coach?: boolean }
   | { kind: "tutorial"; lesson: string }
   | { kind: "friend"; length?: GameLength; speed?: "standard" | "relaxed"; level?: BotLevel; coach?: boolean }
   | { kind: "ranked"; length?: GameLength }
@@ -423,6 +571,8 @@ export type LobbyEntry = {
   starts_at: number | null;
   tournament: TournamentTag | null;
   spectators: number;
+  /** A chip table (trial mode): nothing is paid. */
+  chips?: boolean;
 };
 
 /** What `lobby:mahjong` pushes. */
@@ -437,11 +587,15 @@ export type StakeTier = {
   cut: number;
   /** First prize less the fee. */
   top_net: number;
+  /** Trial mode: the net chips for first to fourth, e.g. [1000, 100, -500, -1000]. */
+  chips?: number[];
 };
 
 export type Rank = { key: Exclude<RankKey, "unranked">; name: string; min: number };
 
 export type MahjongRules = {
+  /** True in the beta: no Cash or Credit is ever taken or paid; stakes tables are chip tables. */
+  trial?: boolean;
   stakes: StakeTier[];
   paid_games_per_day: number;
   weekly_rate: number;
@@ -488,7 +642,25 @@ export type MahjongLimits = {
   day_resets_at: string;
 };
 
-export type MeResponse = { rating: { season: string; rating: number; games: number; rank: RankKey }; limits: MahjongLimits };
+export type MeResponse = {
+  rating: { season: string; rating: number; games: number; rank: RankKey };
+  limits: MahjongLimits;
+  trial?: boolean;
+  chips?: ChipTotals;
+  badges?: BadgeRow[];
+};
+
+// ── Chips, badges, feedback (trial mode) ────────────────────────────────────
+/** Net chips this week (from Saturday 00:00 New York) and all time, with games counted. */
+export type ChipTotals = { week: number; week_games: number; all: number; all_games: number };
+export type BadgeKey = "first_game" | "first_win" | "first_riichi_win" | "first_tsumo" | "first_mangan" | "first_table_win";
+export type BadgeRow = { badge: BadgeKey | (string & {}); earned_at: string; game_id: number | null };
+export type ChipRange = "week" | "all";
+export type ChipLeader = { rank: number | null; username: string; chips: number; games: number };
+export type ChipLeaderboardResponse = { range: ChipRange; leaders: (ChipLeader & { rank: number })[]; me: ChipLeader | null };
+export type FeedbackBody = { body: string; table_id?: number; game_id?: number; page?: string };
+export type FeedbackItem = { id: number; user_id: number; username: string; body: string; table_id: number | null; game_id: number | null; page: string | null; created_at: string };
+export type FeedbackResponse = { feedback: FeedbackItem[]; next_before: number | null };
 
 // ── Tournaments ─────────────────────────────────────────────────────────────
 export type TournamentStatus = "signup" | "running" | "completed" | "cancelled";
@@ -583,6 +755,8 @@ export type GamePlayer = {
   place: number | null;
   points: number | null;
   score: number | null;
+  /** Net chips for the game (chip tables, humans only), else null. */
+  chips?: number | null;
   rating_before: number | null;
   rating_after: number | null;
   payout: number;
@@ -726,6 +900,8 @@ export type PlayerRecord = {
   tournaments_won: { id: number; name: string; at: string }[];
   picks: { correct: number; total: number };
   recent: RecentGame[];
+  badges?: BadgeRow[];
+  chips?: ChipTotals;
 };
 
 // ── Reactions (reactions:mahjong:{id}) ──────────────────────────────────────

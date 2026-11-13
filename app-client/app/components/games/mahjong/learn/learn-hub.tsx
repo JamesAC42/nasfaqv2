@@ -76,6 +76,12 @@ export function LearnHub() {
           </Link>
         </li>
         <li>
+          <Link href="/games/mahjong/learn/easy-patterns">
+            <b>Five easy patterns</b>
+            <span>The five yaku to reach for first, each with a pictured hand and the one trap to avoid.</span>
+          </Link>
+        </li>
+        <li>
           <Link href="/games/mahjong/learn/yaku">
             <b>Yaku</b>
             <span>

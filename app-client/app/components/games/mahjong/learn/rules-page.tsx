@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { LearnFrame } from "@/app/components/games/mahjong/learn/learn-frame";
 import { useMahjongRules } from "@/app/components/games/mahjong/learn/use-rules";
 import { fmtInteger } from "@/app/lib/format";
+import { fmtChips } from "@/app/lib/games/mahjong/chips";
 import { LIMIT_ORDER, LIMITS } from "@/app/lib/games/mahjong/yaku";
 import learn from "@/app/components/games/mahjong/learn/learn.module.scss";
 import styles from "@/app/components/games/mahjong/learn/reference.module.scss";
@@ -44,6 +45,7 @@ export function RulesPage() {
   const { data, failed } = useMahjongRules();
   const rules = data?.rules ?? null;
   const dash = "…";
+  const trial = rules?.trial === true;
   const standard = rules?.speeds.standard;
   const relaxed = rules?.speeds.relaxed;
   const first = rules?.stakes[0];
@@ -313,10 +315,10 @@ export function RulesPage() {
                 <td>None</td>
               </tr>
               <tr>
-                <td>Stakes table</td>
-                <td>Four players, no bots</td>
+                <td>{trial ? "Chip table" : "Stakes table"}</td>
+                <td>{trial ? `Four players; bots fill open seats after ${rules ? `${rules.bot_fill_seconds} seconds` : dash}` : "Four players, no bots"}</td>
                 <td>Yes</td>
-                <td>An entry fee into a fixed prize table</td>
+                <td>{trial ? "None: the result is recorded in chips" : "An entry fee into a fixed prize table"}</td>
               </tr>
               <tr>
                 <td>Tournament table</td>
@@ -377,6 +379,59 @@ export function RulesPage() {
         </ul>
       </Section>
 
+      {trial ? (
+        <Section id="money" title="Chips and the beta">
+          <p>
+            Mahjong is in beta. <b>No Cash or Credit is ever taken or paid</b>, at any table, and chips are worth nothing outside the beta.
+          </p>
+          <ul>
+            <li>
+              <b>Chip tables are free.</b> Sitting down costs nothing and there is no balance to run out of.
+            </li>
+            <li>
+              <b>Chips are a record.</b> When a chip game finishes, each human player gets the chips for their place: first to fourth, as the table below shows. Bots get none, and a game that is cancelled records nothing.
+            </li>
+            <li>
+              <b>Leaderboards.</b> Net chips are ranked for the week (from Saturday 00:00 New York) and for all time, on the ladder page.
+            </li>
+            <li>
+              <b>Tournaments are free.</b> There is no entry fee and no prize pool.
+            </li>
+            <li>
+              <b>Bots</b> take the empty seats at a chip table after {rules ? rules.bot_fill_seconds : dash} seconds.
+            </li>
+          </ul>
+          {rules?.stakes.some((tier) => tier.chips?.length) ? (
+            <div className={learn.scroll}>
+              <table className={learn.facts}>
+                <thead>
+                  <tr>
+                    <th className={learn.n}>Table</th>
+                    <th className={learn.n}>1st</th>
+                    <th className={learn.n}>2nd</th>
+                    <th className={learn.n}>3rd</th>
+                    <th className={learn.n}>4th</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rules.stakes.map((tier) => (
+                    <tr key={tier.fee}>
+                      <td className={learn.n}>{fmtInteger(Math.max(...(tier.chips ?? [tier.fee]).map((value) => Math.abs(value))))}</td>
+                      {[0, 1, 2, 3].map((place) => (
+                        <td key={place} className={learn.n}>
+                          {fmtChips(tier.chips?.[place] ?? 0)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+          <p>Rating and rank, a record on your profile, badges and your name on a leaderboard are what you take away.</p>
+        </Section>
+      ) : null}
+      {!trial ? (
       <Section id="money" title="Money">
         <p>
           Mahjong follows the rules every side game does: <b>Credit only, never Cash</b>; no spending while your net worth is under {rules ? dollars(rules.min_net_worth) : dash}; no spending while you’re in the red. A table of four
@@ -447,6 +502,7 @@ export function RulesPage() {
           Everything else you earn at mahjong isn’t money: rating and rank, titles, a record on your profile, your name on a leaderboard and a headline on the Wire.
         </p>
       </Section>
+      ) : null}
     </LearnFrame>
   );
 }

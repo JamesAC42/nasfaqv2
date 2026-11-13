@@ -6,6 +6,7 @@ import { ReactionFace } from "@/app/components/common/reaction-face";
 import type { SeatStyle } from "@/app/components/games/mahjong/table/seat-portrait";
 import { useReactionsOn } from "@/app/components/games/mahjong/table/table-prefs";
 import type { ChibiPose } from "@/app/lib/art-manifest";
+import { playCue } from "@/app/lib/games/mahjong/sound";
 import { seatLabel, seatsBySide, SIDES, type Side } from "@/app/lib/games/mahjong/table-model";
 import { STAMP_POSES, type MahjongTable, type SeatIndex, type StampPose } from "@/app/lib/games/mahjong/types";
 import { sendGamesMessage, useGamesEvents, type GamesPayload } from "@/app/lib/games/use-games-socket";
@@ -147,6 +148,7 @@ function createStage() {
     const cheer = /^cheer-([0-3])$/.exec(id);
     const glyph = cheer ? CHEER_GLYPH : GLYPHS.get(id);
     if (!glyph) return;
+    playCue("reaction");
     if (isCalm() || reducedMotion()) return bumpTally(id, count);
     const drawn = Math.min(count, MAX_PER_ITEM);
     for (let index = 0; index < drawn; index += 1) spawn(glyph, source, cheer ? Number(cheer[1]) : -2, count >= 3, index * 110 + Math.random() * 80);

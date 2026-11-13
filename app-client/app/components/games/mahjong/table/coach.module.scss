@@ -1,0 +1,740 @@
+@use "../../../../styles/mixins" as *;
+
+// The coach beside the board (desktop), its one-line strip and sheet (phone), call-prompt effects, the
+// after-hand review and the "?" dialog.
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+// ── Panel ───────────────────────────────────────────────────────────────────
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--blue-line);
+  background: var(--ink-2);
+
+  > header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+
+    b {
+      @include label;
+      color: var(--blue-2);
+    }
+
+    small {
+      font-size: 0.66rem;
+      color: var(--dim);
+    }
+  }
+
+  &[data-stale] .content {
+    opacity: 0.55;
+  }
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--rule);
+}
+
+.label {
+  @include label;
+  margin: 0;
+  color: var(--dim);
+}
+
+.fine {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--dim);
+}
+
+.say {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--mid);
+
+  b {
+    color: var(--text);
+  }
+}
+
+.explore {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.warn,
+.blocked p {
+  margin: 0;
+  padding: 0.4rem 0.55rem;
+  border-left: 3px solid var(--warn);
+  background: var(--warn-wash);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.blocked {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.danger {
+  padding: 0.4rem 0.55rem;
+  border-left: 3px solid var(--blue-2);
+  background: var(--blue-wash);
+
+  p {
+    margin: 0;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--text);
+  }
+}
+
+// ── Meter ───────────────────────────────────────────────────────────────────
+.meter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    color: var(--dim);
+
+    // The bar between steps.
+    &::before {
+      content: "";
+      position: absolute;
+      top: 5px;
+      right: 50%;
+      width: 100%;
+      height: 2px;
+      background: var(--rule-2);
+    }
+
+    &:first-child::before {
+      display: none;
+    }
+
+    i {
+      position: relative;
+      z-index: 1;
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--rule-2);
+      border-radius: 50%;
+      background: var(--ink-2);
+    }
+
+    &[data-done] {
+      color: var(--mid);
+
+      &::before {
+        background: var(--blue);
+      }
+
+      i {
+        border-color: var(--blue);
+        background: var(--blue);
+      }
+    }
+
+    &[data-now] {
+      color: var(--text);
+      font-weight: 700;
+
+      &::before {
+        background: var(--blue);
+      }
+
+      i {
+        border-color: var(--blue);
+        background: var(--ink-2);
+        box-shadow: 0 0 0 3px var(--blue-wash);
+      }
+    }
+  }
+}
+
+.headline {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+// ── What to throw ───────────────────────────────────────────────────────────
+.pick {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+
+  p {
+    margin: 0;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: var(--mid);
+
+    b {
+      color: var(--text);
+    }
+  }
+}
+
+.helpers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  small {
+    @include num;
+    font-size: 0.66rem;
+    color: var(--dim);
+  }
+}
+
+.waits {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    &[data-dead] {
+      opacity: 0.55;
+    }
+  }
+
+  span {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    font-size: 0.8rem;
+    color: var(--text);
+  }
+
+  em {
+    @include num;
+    font-style: normal;
+    font-size: 0.68rem;
+    font-weight: 500;
+    color: var(--dim);
+  }
+
+  small {
+    font-size: 0.7rem;
+    line-height: 1.35;
+    color: var(--mid);
+  }
+}
+
+// ── Ways to win you're near ─────────────────────────────────────────────────
+.sight {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--rule-2);
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+  touch-action: manipulation;
+
+  b {
+    font-size: 0.74rem;
+  }
+
+  small {
+    font-size: 0.64rem;
+    color: var(--dim);
+  }
+
+  &[data-status="met"] {
+    border-color: var(--blue);
+    background: var(--blue-wash);
+  }
+
+  &[aria-expanded="true"] {
+    border-color: var(--blue-2);
+  }
+
+  &:hover {
+    border-color: var(--blue);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.more {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--mid);
+
+  small {
+    color: var(--dim);
+  }
+}
+
+// ── Phone: strip and sheet ──────────────────────────────────────────────────
+.stripWrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+
+  &[data-stale] .strip {
+    opacity: 0.6;
+  }
+}
+
+.strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 2.1rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--blue-line);
+  background: var(--blue-wash);
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+
+  span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  b {
+    flex: none;
+    font-size: 0.7rem;
+    color: var(--blue-2);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.sheet {
+  max-height: 42vh;
+  padding: 0.6rem 0.65rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--blue-line);
+  background: var(--ink-2);
+}
+
+// ── Call prompt ─────────────────────────────────────────────────────────────
+.callRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.4rem;
+}
+
+.call {
+  display: flex;
+  flex: 1 1 11rem;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  max-width: 100%;
+
+  // A timed table: leave room for the longest explanation so nothing moves while the clock runs.
+  &[data-reserve] {
+    min-height: 9.5rem;
+  }
+}
+
+.why {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--mid);
+}
+
+.badge {
+  align-self: flex-start;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--rule-2);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.03em;
+  color: var(--mid);
+
+  &[data-rec="take"] {
+    border-color: var(--blue-line);
+    color: var(--blue-2);
+  }
+}
+
+.shapes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.shape {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--blue-line);
+  background: var(--blue-wash);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--blue);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+}
+
+// ── Pip marks on the hand ───────────────────────────────────────────────────
+.pickMark {
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  width: 14px;
+  height: 9px;
+  transform: translateX(-50%);
+  background: var(--blue-2);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  pointer-events: none;
+}
+
+// ── Review ──────────────────────────────────────────────────────────────────
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--blue-line);
+  background: var(--ink-2);
+
+  h3 {
+    @include label;
+    margin: 0;
+    color: var(--blue-2);
+  }
+
+  h4 {
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--text);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--mid);
+  }
+}
+
+.reviewWaits {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--mid);
+  }
+
+  b {
+    color: var(--text);
+  }
+}
+
+.moments {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    padding: 0.4rem 0.5rem;
+    border-left: 3px solid var(--blue-line);
+    background: var(--blue-wash);
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--text);
+  }
+}
+
+// ── Game over extras ────────────────────────────────────────────────────────
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--blue-line);
+    background: var(--blue-wash);
+    color: var(--blue-2);
+    font-size: 0.78rem;
+
+    span {
+      display: flex;
+      flex-direction: column;
+      color: var(--text);
+    }
+
+    small {
+      font-size: 0.68rem;
+      color: var(--mid);
+    }
+  }
+}
+
+.chipLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8rem;
+  color: var(--mid);
+
+  b {
+    @include num;
+    color: var(--text);
+  }
+
+  b[data-dir="up"] {
+    color: var(--up);
+  }
+
+  b[data-dir="down"] {
+    color: var(--down);
+  }
+}
+
+// ── The "?" dialog ──────────────────────────────────────────────────────────
+.dialogScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: color-mix(in srgb, var(--ink) 55%, transparent);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(34rem, 100%);
+  max-height: 86vh;
+  padding: 0.85rem 1rem;
+  overflow-y: auto;
+  border: 1px solid var(--rule-2);
+  background: var(--ink);
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  h2 {
+    @include display;
+    margin: 0;
+    font-size: 1rem;
+    color: var(--text);
+  }
+}
+
+.close {
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 1px solid var(--rule-2);
+  background: none;
+  font-size: 1.1rem;
+  color: var(--text);
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--blue);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .chip,
+  .strip {
+    transition: border-color 0.15s;
+  }
+}
+
+.safeMark {
+  position: absolute;
+  top: -5px;
+  right: -3px;
+  display: grid;
+  place-items: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--up);
+  color: var(--ink);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.call > button {
+  width: 100%;
+}
+
+// Several ways to make one call: each is a card, tiles and the coach's lean on one line, effects under.
+.shape {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+
+  > span:first-child {
+    order: 0;
+  }
+
+  .badge {
+    order: 1;
+    margin-left: auto;
+  }
+
+  .why {
+    order: 2;
+    flex: 1 0 100%;
+  }
+}

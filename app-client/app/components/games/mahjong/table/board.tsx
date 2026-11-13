@@ -1,13 +1,15 @@
 "use client";
 
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Fly, centerOf } from "@/app/components/games/mahjong/table/fly";
 import { PublicMeld, Tile, TileBack } from "@/app/components/games/mahjong/tile";
 import { SeatPortrait, type SeatStyle } from "@/app/components/games/mahjong/table/seat-portrait";
 import type { ChibiPose } from "@/app/lib/art-manifest";
+import { pondMark, takeThrow, usePrevHand } from "@/app/lib/games/mahjong/motion";
 import { useRemaining } from "@/app/lib/games/use-remaining";
 import { windLetter, windName } from "@/app/lib/games/mahjong/tiles";
 import { RANK_NAMES, SIDES, points, seatLabel, seatsBySide, type Side } from "@/app/lib/games/mahjong/table-model";
-import type { GameView, MahjongTable, PondEntry, PublicHand, PublicSeat, SeatIndex } from "@/app/lib/games/mahjong/types";
+import type { GameView, MahjongTable, Meld, PondEntry, PublicHand, PublicSeat, SeatIndex } from "@/app/lib/games/mahjong/types";
 import styles from "@/app/components/games/mahjong/table/table-board.module.scss";
 
 /** The width of an element, kept current. Zero until the first measure. */
@@ -60,15 +62,25 @@ export function pondSize(width: number) {
 // ── One discard pond: lines of six, a riichi tile on its side, called tiles dimmed ───────────────
 // Faces stay upright for every seat. The lines grow away from the center box, and each seat's tiles
 // flow the way that seat reads them (top and right seats run backwards on screen).
-const Pond = memo(function Pond({ entries, ps, lastTile, side }: { entries: PondEntry[]; ps: number; lastTile: number | null; side: Side }) {
+const Pond = memo(function Pond({ entries, ps, lastTile, side, seat, mark, mine }: { entries: PondEntry[]; ps: number; lastTile: number | null; side: Side; seat: SeatIndex; mark: number; mine: boolean }) {
   const lines = chunk(entries, 6);
   const vertical = side === "left" || side === "right";
+  // A new discard travels from where it was thrown: the lifted tile in your hand, or the backs of theirs.
+  const from = useCallback(() => {
+    if (mine) {
+      const thrown = takeThrow();
+      if (thrown) return thrown;
+    }
+    return centerOf(`[data-fly-src="${seat}"]`);
+  }, [mine, seat]);
   return (
-    <div className={styles.pond} data-side={side} style={{ [vertical ? "minWidth" : "minHeight"]: vertical ? Math.round(ps * 3) : Math.round(ps * 4) } as CSSProperties} aria-label="Discards">
+    <div className={styles.pond} data-side={side} data-pond-seat={seat} style={{ [vertical ? "minWidth" : "minHeight"]: vertical ? Math.round(ps * 3) : Math.round(ps * 4) } as CSSProperties} aria-label="Discards">
       {lines.map((line, index) => (
         <div key={index} className={styles.pondLine}>
           {line.map((entry) => (
-            <Tile key={entry.n} id={entry.tile} size={ps} labels={ps >= 21 ? undefined : false} rotated={entry.riichi} dim={entry.called} highlight={entry.tile === lastTile} />
+            <Fly key={entry.n} fresh={entry.n > mark} kind={entry.riichi ? "riichi" : "discard"} from={from} data-tile={entry.tile}>
+              <Tile id={entry.tile} size={ps} labels={ps >= 21 ? undefined : false} rotated={entry.riichi} dim={entry.called} highlight={entry.tile === lastTile} />
+            </Fly>
           ))}
         </div>
       ))}
@@ -98,6 +110,7 @@ function SeatPlate({
   deadline,
   cheers,
   score,
+  fresh,
 }: {
   seat: PublicSeat | null;
   hand: PublicHand;
@@ -109,13 +122,15 @@ function SeatPlate({
   deadline: number | null;
   cheers: number;
   score?: boolean;
+  /** Declared riichi with this push: the stick drops and the seat lights up for a moment. */
+  fresh?: boolean;
 }) {
   const info = hand.seats[seatIndex];
   const dealer = hand.dealer === seatIndex;
   const turn = hand.turn === seatIndex;
   const rank = seat?.rank ? RANK_NAMES[seat.rank] : null;
   return (
-    <div className={styles.plate} data-turn={turn || undefined} data-me={isMe || undefined} style={{ "--tal": style.color } as CSSProperties}>
+    <div className={styles.plate} data-turn={turn || undefined} data-me={isMe || undefined} data-pulse={fresh || undefined} style={{ "--tal": style.color } as CSSProperties}>
       <SeatPortrait seat={seat} pose={pose} size={size} color={style.color} />
       <div className={styles.plateText}>
         <span className={styles.plateName}>
@@ -130,7 +145,7 @@ function SeatPlate({
           {seat?.bot ? <span className={styles.badge}>Bot</span> : null}
           {seat && !seat.bot && seat.away ? <span className={styles.badge} data-warn="">Away</span> : null}
           {seat && !seat.bot && !seat.connected && !seat.away ? <span className={styles.badge} data-warn="">Offline</span> : null}
-          {info.riichi ? <span className={styles.riichi} title={info.riichi === 2 ? "Double riichi" : "Riichi"}><i aria-hidden="true" />{info.riichi === 2 ? "W" : ""}</span> : null}
+          {info.riichi ? <span className={styles.riichi} data-fresh={fresh || undefined} title={info.riichi === 2 ? "Double riichi" : "Riichi"}><i aria-hidden="true" />{info.riichi === 2 ? "W" : ""}</span> : null}
           {rank && !seat?.bot ? <span className={styles.rank}>{rank}</span> : null}
           {seat && seat.rating !== null && !seat.bot ? <span className={styles.rating}>{seat.rating}</span> : null}
           {cheers > 0 ? <span className={styles.cheers} title="Cheers from the rail">{cheers}</span> : null}
@@ -194,13 +209,29 @@ export type BoardProps = {
   seatStyles: SeatStyle[];
   poses: Record<number, ChibiPose>;
   callouts: Callout[];
-  /** The bottom seat's melds, drawn beside its name plate at the size given. */
-  mineMelds?: (size: number) => ReactNode;
   floaters?: ReactNode;
+  /** Drawn over the board (the win reveal). */
+  overlay?: ReactNode;
 };
 
-export function Board({ table, game, hand, bottom, me, seatStyles, poses, callouts, mineMelds, floaters }: BoardProps) {
+/** A called set. When it is new, the called tile flies to it from the pond it was taken from. */
+function MeldView({ meld, owner, size, fresh }: { meld: Meld; owner: SeatIndex; size: number; fresh: boolean }) {
+  const from = useCallback(() => (meld.called !== null && meld.from !== null && (meld.type === "chi" || meld.type === "pon" || meld.type === "minkan") ? centerOf(`[data-pond-seat="${meld.from}"] [data-tile="${meld.called}"]`) : null), [meld]);
+  return (
+    <Fly fresh={fresh} kind="meld" from={from}>
+      <PublicMeld meld={meld} owner={owner} size={size} labels={false} />
+    </Fly>
+  );
+}
+
+export function Board({ table, game, hand, bottom, me, seatStyles, poses, callouts, floaters, overlay }: BoardProps) {
   const [ref, width] = useElementWidth<HTMLDivElement>();
+  const prev = usePrevHand(hand, `${table.id}:${game.hand_index}`);
+  const newRiichi = (seat: SeatIndex) => Boolean(prev && hand.seats[seat].riichi > prev.seats[seat].riichi);
+  const newMeld = (seat: SeatIndex, index: number) => {
+    const before = prev?.seats[seat].melds;
+    return Boolean(before && (index >= before.length || before[index].type !== hand.seats[seat].melds[index].type));
+  };
   const heightCap = useHeightCap();
   const ps = Math.min(pondSize(width), Math.max(16, heightCap));
   const sides = seatsBySide(bottom);
@@ -219,8 +250,8 @@ export function Board({ table, game, hand, bottom, me, seatStyles, poses, callou
     const concealed = seatInfo.has_drawn ? seatInfo.count - 1 : seatInfo.count;
     return (
       <div className={styles.seatInfo} data-side={side}>
-        <SeatPlate seat={table.seats[seatIndex]} hand={hand} seatIndex={seatIndex} style={style} pose={poses[seatIndex] ?? "idle"} size={plateSize} isMe={false} deadline={deadlineOf(seatIndex)} cheers={table.cheers[seatIndex] ?? 0} />
-        <div className={styles.backs} aria-label={`${seatInfo.count} tiles in hand`}>
+        <SeatPlate seat={table.seats[seatIndex]} hand={hand} seatIndex={seatIndex} style={style} pose={poses[seatIndex] ?? "idle"} size={plateSize} isMe={false} deadline={deadlineOf(seatIndex)} cheers={table.cheers[seatIndex] ?? 0} fresh={newRiichi(seatIndex)} />
+        <div className={styles.backs} data-fly-src={seatIndex} aria-label={`${seatInfo.count} tiles in hand`}>
           {Array.from({ length: concealed }, (_, index) => (
             <TileBack key={index} size={back} tint={style.color} />
           ))}
@@ -229,7 +260,7 @@ export function Board({ table, game, hand, bottom, me, seatStyles, poses, callou
         {seatInfo.melds.length ? (
           <div className={styles.melds}>
             {seatInfo.melds.map((meld, index) => (
-              <PublicMeld key={index} meld={meld} owner={seatIndex} size={meldSize} labels={false} />
+              <MeldView key={index} meld={meld} owner={seatIndex} size={meldSize} fresh={newMeld(seatIndex, index)} />
             ))}
           </div>
         ) : null}
@@ -238,7 +269,7 @@ export function Board({ table, game, hand, bottom, me, seatStyles, poses, callou
   };
   const pond = (side: Side) => {
     const seatIndex = sides[side];
-    return <Pond entries={hand.seats[seatIndex].pond} ps={ps} lastTile={hand.last_discard?.seat === seatIndex ? lastTile : null} side={side} />;
+    return <Pond entries={hand.seats[seatIndex].pond} ps={ps} lastTile={hand.last_discard?.seat === seatIndex ? lastTile : null} side={side} seat={seatIndex} mark={pondMark(prev, seatIndex)} mine={seatIndex === me} />;
   };
 
   const mine = sides.bottom;
@@ -264,11 +295,18 @@ export function Board({ table, game, hand, bottom, me, seatStyles, poses, callou
       </div>
       <div className={styles.bottomPond}>{pond("bottom")}</div>
       <div className={styles.mineRow}>
-        <SeatPlate seat={table.seats[mine]} hand={hand} seatIndex={mine} style={seatStyles[mine]} pose={poses[mine] ?? "idle"} size={plateSize} isMe={me === mine} deadline={me === mine ? null : deadlineOf(mine)} cheers={table.cheers[mine] ?? 0} score />
-        {myInfo.melds.length && mineMelds ? <div className={styles.mineMelds}>{mineMelds(Math.max(20, meldSize + 8))}</div> : null}
+        <SeatPlate seat={table.seats[mine]} hand={hand} seatIndex={mine} style={seatStyles[mine]} pose={poses[mine] ?? "idle"} size={plateSize} isMe={me === mine} deadline={me === mine ? null : deadlineOf(mine)} cheers={table.cheers[mine] ?? 0} score fresh={newRiichi(mine)} />
+        {myInfo.melds.length ? (
+          <div className={styles.mineMelds}>
+            {myInfo.melds.map((meld, index) => (
+              <MeldView key={index} meld={meld} owner={mine} size={Math.max(20, meldSize + 8)} fresh={newMeld(mine, index)} />
+            ))}
+          </div>
+        ) : null}
       </div>
       <CalloutLayer callouts={callouts} bottom={bottom} />
       {floaters}
+      {overlay}
     </section>
   );
 }

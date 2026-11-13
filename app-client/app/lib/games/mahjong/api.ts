@@ -3,7 +3,11 @@ import { seatHeaders, saveSeatToken } from "@/app/lib/games/mahjong/seat-token";
 import type {
   ActionResponse,
   CreateTableBody,
+  ChipLeaderboardResponse,
+  ChipRange,
   CreateTournamentBody,
+  FeedbackBody,
+  FeedbackResponse,
   GameRecord,
   HighlightsResponse,
   LeaderboardResponse,
@@ -83,3 +87,10 @@ export const pickTournamentWinner = (id: number, userId: number) => post<{ pick:
 export const createTournament = (body: CreateTournamentBody) => post<{ tournament: TournamentResponse["tournament"] }>("/tournaments", body);
 export const cancelTournament = (id: number) => post<{ ok: true }>(`/tournaments/${id}/cancel`);
 export const fetchPairReport = (days?: number) => get<{ pairs: PairRow[]; linking: boolean }>(`/admin/pairs${days ? `?days=${days}` : ""}`);
+
+// ── Beta: chips and feedback ────────────────────────────────────────────────
+export const fetchChipLeaderboard = (range: ChipRange) => get<ChipLeaderboardResponse>(`/chips/leaderboard?range=${range}`);
+/** Signed in. Throws invalid_feedback (body.field), rate_limited, or the sign-in error. */
+export const sendFeedback = (body: FeedbackBody) => post<{ ok: true; id: number }>("/feedback", body);
+/** Admin: newest first; pass `next_before` to page. */
+export const fetchFeedback = (before?: number) => get<FeedbackResponse>(`/admin/feedback${before ? `?before=${before}` : ""}`);
