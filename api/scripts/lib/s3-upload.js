@@ -3,6 +3,7 @@
 // ART_UPLOAD_AWS_ACCESS_KEY_ID / ART_UPLOAD_AWS_SECRET_ACCESS_KEY (a key that can only write the
 // art/ and gachaprizes/ prefixes), else the API's AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY.
 const { S3Client, ListObjectsV2Command, PutObjectCommand } = require("@aws-sdk/client-s3");
+const { clientOptions } = require("../../src/s3Bucket");
 
 const IMMUTABLE = "public, max-age=31536000, immutable";
 
@@ -13,7 +14,9 @@ function uploadTarget() {
   const secretAccessKey = process.env.ART_UPLOAD_AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY;
   if (!bucket || !region) throw new Error("Set ART_S3_BUCKET (or AWS_SW_BUCKET) and AWS_REGION in api/.env");
   if (!accessKeyId || !secretAccessKey) throw new Error("Set ART_UPLOAD_AWS_ACCESS_KEY_ID / ART_UPLOAD_AWS_SECRET_ACCESS_KEY in api/.env");
-  const client = new S3Client({ region, credentials: { accessKeyId, secretAccessKey }, followRegionRedirects: true });
+  // R2: AWS_ENDPOINT_URL_S3 (or ART_S3_ENDPOINT for a different store) and AWS_REGION=auto.
+  const endpoint = process.env.ART_S3_ENDPOINT || process.env.AWS_ENDPOINT_URL_S3 || process.env.AWS_ENDPOINT_URL || null;
+  const client = new S3Client(clientOptions({ accessKeyId, secretAccessKey, region, endpoint }));
   return { client, bucket, region };
 }
 
