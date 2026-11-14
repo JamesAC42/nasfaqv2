@@ -66,6 +66,11 @@ const ALIASES = {
   MIZ: { strong: ["Mizumiya Su", "Mizumiya", "水宮枢"] },
   CHH: { strong: ["Rindo Chihaya", "Chihaya", "輪堂千速"] },
   VIV: { strong: ["Kikirara Vivi", "Kikirara", "綺々羅々ヴィヴィ"], weak: ["Vivi"] },
+  // ASOBI★MAWARI-TAI!
+  KYO: { strong: ["Hyakuto Kyoko", "Hyakuto", "百灯キョーコ"], weak: ["Kyoko"] },
+  MEL: { strong: ["Achichi Mela", "Achichi", "熱千めら"], weak: ["Mela"] },
+  SOP: { strong: ["Sorashina Sopia", "Sorashina", "Sopia", "宙科そぴあ", "そぴあ"] },
+  TSU: { strong: ["Suzuna Tsuzuri", "Suzuna", "Tsuzuri", "鈴鳴つづり"] },
   // Myth
   CLI: { strong: ["Mori Calliope", "Calliope", "Calli", "Moririn"], weak: ["Mori"] },
   KRA: { strong: ["Takanashi Kiara", "Kiara", "Tenchou", "Tencho"] },

@@ -84,12 +84,15 @@ async function getBanners(db, talents, now = new Date()) {
     const talent = bySymbolId.get(Number(rows[0].featured_asset_id));
     featured = { key: rows[0].key, name: rows[0].name, talent, starts_at: rows[0].starts_at, ends_at: rows[0].ends_at };
   } else if (talents.length) {
-    // No scheduled banner: rotate a featured talent every week, deterministically.
+    // No scheduled banner: rotate a featured talent every week, deterministically. Only talents listed
+    // before the week started are drawn, so an IPO listing mid-week doesn't reshuffle this week's pick.
     const start = weekStartUtc(now);
     const end = new Date(start.getTime() + 7 * 86_400_000);
     const weekKey = start.toISOString().slice(0, 10);
-    const index = parseInt(crypto.createHash("sha256").update(`featured:${weekKey}`).digest("hex").slice(0, 8), 16) % talents.length;
-    const talent = [...talents].sort((a, b) => a.symbol.localeCompare(b.symbol))[index];
+    const established = talents.filter((talent) => !talent.listed_on || talent.listed_on < weekKey);
+    const candidates = (established.length ? established : [...talents]).sort((a, b) => a.symbol.localeCompare(b.symbol));
+    const index = parseInt(crypto.createHash("sha256").update(`featured:${weekKey}`).digest("hex").slice(0, 8), 16) % candidates.length;
+    const talent = candidates[index];
     featured = { key: `featured-${weekKey}`, name: `${talent.name} week`, talent, starts_at: start.toISOString(), ends_at: end.toISOString() };
   }
 
