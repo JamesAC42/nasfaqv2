@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const app = join(here, "..", "app", "lib", "art");
 const repo = join(here, "..", "..");
-const TALENT_COUNT = 73;
+const TALENT_COUNT = 77;
 const AREA_ORDER = ["site", "home", "market", "games", "gallery", "predictions", "howto", "admin", "legal"];
 const PRIORITY = { high: "P0", medium: "P1", low: "P2" };
 const RANK = { P0: 0, P1: 1, P2: 2 };
