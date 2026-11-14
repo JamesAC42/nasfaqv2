@@ -107,7 +107,8 @@ is the recommendation for the first IPO.
   about a tenth of a point. The new unit gets its own index from listing day.
 - **Cards and gacha.** Her five cards join the pool on listing day, not before (the art usually
   isn't ready earlier). Add a **debut banner** (a `games.card_banners` row with
-  `featured_asset_id`), and fix the weekly featured rotation so adding talents doesn't reshuffle it.
+  `featured_asset_id`). The weekly featured rotation draws only talents listed before the week
+  started, so adding talents doesn't reshuffle it.
 - **Chat.** Her room and the unit's room appear automatically (the 5-minute resync).
 - **News and the Wire.** An "IPO window opens" and an "IPO day" Wire item; notifications to everyone
   who follows the unit or subscribed.
@@ -130,8 +131,9 @@ From the detector (run 5 October against hololive.hololivepro.com/en/talents):
 Unit label: **ASOBI★MAWARI-TAI!** (no "hololive" prefix, like FLOW GLOW and ReGLOSS). All four
 tickers are free today.
 
-Still needed per member: a theme **colour** (the detector doesn't return one), an **oshimark SVG**
-(uploaded to `icons/`), **aliases**, and the **art** below.
+Each member has a theme color (set at /admin/ipo; the detector doesn't return one), aliases in
+`talents.js`, and a row in `channelscraper/hololive_channels.csv`; the unit has headline keywords.
+Still needed per member: an **oshimark SVG** (uploaded to `icons/`) and the **art** below.
 
 **Timing.** History only starts when we start scraping; YouTube's API returns today's totals, not
 the past. So the sooner they're tracked (as `prelaunch`), the sooner debut mode has a trailing week
@@ -249,11 +251,21 @@ or holdings the IPO didn't make. In production, run it inside an API pod:
 kubectl --context nasfaq-prod -n nasfaq exec deploy/api-scheduler -- node scripts/revert-ipo-listing.js --event <id>
 ```
 
-**Locally:** there's no scraper, so `node scripts/seed-dev.js ipo-stats [days]` writes made-up daily
-stats for the talents in an announced or open IPO and prices them.
+**Locally:** `node scripts/seed-dev.js ipo [YYYY-MM-DD]` announces an IPO for the ASOBI★MAWARI-TAI!
+talents through the same code as /admin/ipo. There's no scraper, so `node scripts/seed-dev.js
+ipo-stats [days]` writes made-up daily stats for the talents in an announced or open IPO and prices
+them; then open and list it from /admin/ipo.
 
-**Not built yet:** the debut card banner and the featured-rotation fix (with the art), aliases, the
-unit's headline keywords.
+**Cards.** A talent's cards join the pool when she lists. With no scheduled banner, the weekly
+featured talent is drawn only from talents listed before that week started (`listTalents` carries
+each IPO talent's `listed_on`), so a mid-week listing doesn't reshuffle it; she joins the draw the
+next Monday. A **debut banner** is still an admin step: a `games.card_banners` row with her
+`featured_asset_id`, written by SQL (there's no admin page for it).
+
+**Aliases and headlines.** New talents need an entry in `ALIASES` (`api/src/services/talents.js`),
+then `node api/scripts/export-talent-aliases.js` for the HoloNews scraper's copy. A new unit needs
+`UNIT_ORDER` (`app-client/app/lib/market-units.ts`) and a `UNIT_WORDS` entry in
+`app-client/app/components/articles/headline-art.tsx`.
 
 ## Questions for BBB
 
