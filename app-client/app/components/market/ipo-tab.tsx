@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { Sparkline } from "@/app/components/common/sparkline";
+import { IpoExplainer, IpoFaq, IpoSteps } from "@/app/components/market/ipo-guide";
 import { IpoMark } from "@/app/components/market/ipo-mark";
 import { formatCountdown } from "@/app/lib/market-clock";
 import { unitLabel } from "@/app/lib/market-units";
@@ -25,6 +26,7 @@ import {
   type IpoTalent,
   type MyIpoSubscription,
 } from "@/app/lib/ipo";
+import { holdSummary } from "@/app/lib/ipo-guide.mjs";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useTheme } from "@/app/providers/theme-provider";
 import { onMarketEvent } from "@/app/stores/market-store";
@@ -149,6 +151,7 @@ function OrderPanel({ event, talent, onChanged }: { event: IpoEvent; talent: Ipo
   const delta = cost - (mine?.held_cash ?? 0);
   const same = Boolean(mine && qty === mine.requested_shares);
   const fill = estimateFill(talent, qty);
+  const help = holdSummary({ qty, price, held: mine?.held_cash ?? 0, cash: free, cap: talent.player_cap, capPct: event.player_cap_pct, offered: talent.shares_offered });
 
   const set = (value: number) => {
     setError(null);
@@ -268,6 +271,11 @@ function OrderPanel({ event, talent, onChanged }: { event: IpoEvent; talent: Ipo
           </button>
         </div>
       </div>
+      {/* What this amount holds from Cash, and how the per-player limit applies. */}
+      <p className={styles.help} aria-live="polite">
+        {help.hold ? <span>{help.hold}</span> : null}
+        {help.cap ? <span>{help.cap}</span> : null}
+      </p>
 
       <input
         type="range"
@@ -416,7 +424,7 @@ function TalentCard({ event, talent, onChanged }: { event: IpoEvent; talent: Ipo
   );
 }
 
-function EventBlock({ event, now, onChanged }: { event: IpoEvent; now: number | null; onChanged: () => void }) {
+function EventBlock({ event, now, known, onChanged }: { event: IpoEvent; now: number | null; known: boolean; onChanged: () => void }) {
   const stage = ipoStage(event, now ?? 0);
   return (
     <section className={styles.event} aria-labelledby={`ipo-${event.id}`}>
@@ -428,29 +436,19 @@ function EventBlock({ event, now, onChanged }: { event: IpoEvent; now: number | 
           </span>
           <h2 id={`ipo-${event.id}`}>{event.title}</h2>
         </div>
-        <dl className={styles.timeline}>
-          <div data-done={event.status !== "announced" || undefined}>
-            <dt>Window opens</dt>
-            <dd>{etMoment(event.window_opens_at)}</dd>
-          </div>
-          <div data-done={(event.status === "open" && !event.window_open) || event.status === "listed" || undefined}>
-            <dt>Window closes</dt>
-            <dd>{etMoment(event.window_closes_at)}</dd>
-          </div>
-          <div data-done={event.status === "listed" || undefined}>
-            <dt>Starts trading</dt>
-            <dd>{listingDay(event.listing_date)}, 09:00 ET</dd>
-          </div>
-          {stage.next ? (
+        {stage.next ? (
+          <dl className={styles.timeline}>
             <div className={styles.countdown} suppressHydrationWarning>
               <dt>{stage.next.label} in</dt>
               <dd>
                 <Countdown at={stage.next.at} now={now} />
               </dd>
             </div>
-          ) : null}
-        </dl>
+          </dl>
+        ) : null}
       </header>
+      <IpoSteps event={event} now={now} />
+      <IpoExplainer event={event} now={now} known={known} />
       <div className={styles.cards}>
         {event.talents.map((talent) => (
           <TalentCard key={talent.listing_id} event={event} talent={talent} onChanged={onChanged} />
@@ -463,7 +461,7 @@ function EventBlock({ event, now, onChanged }: { event: IpoEvent; now: number | 
 /** The IPO tab: talents coming to market, their channels as we track them, and the subscription window. */
 export function IpoTab() {
   const now = useNow();
-  const { user } = useAuth();
+  const { user, initialized: authReady } = useAuth();
   const userId = user?.id ?? null;
   const [shared, setShared] = useState<IpoEvent[] | null>(null);
   const [mine, setMine] = useState<{ userId: number; subscriptions: MyIpoSubscription[] } | null>(null);
@@ -485,6 +483,10 @@ export function IpoTab() {
   }, [userId]);
 
   const events = useMemo(() => (shared ? withMine(shared, mine && mine.userId === userId ? mine.subscriptions : []) : null), [shared, mine, userId]);
+  // Whether we know if the viewer has subscribed yet: signed out, or their subscriptions have loaded.
+  const known = authReady && (userId === null || mine?.userId === userId);
+  // The FAQ answers with the IPO that's taking subscriptions, or the next one.
+  const featured = events?.find((event) => event.window_open) ?? events?.[0] ?? null;
 
   // Livelier while a window is open, so demand moves as people subscribe. Hidden tabs don't poll;
   // coming back to the tab refreshes at once.
@@ -528,9 +530,8 @@ export function IpoTab() {
         <div className={styles.kick}>IPO · new talents</div>
         <h2>New talents come to market here first.</h2>
         <p>
-          We start tracking a new talent&apos;s channel the day she&apos;s announced. Before she lists there&apos;s a window to <b>subscribe</b> at the IPO
-          price with Cash (held until listing, like a queued buy). Oversubscribed? Everyone gets a fair share, at least one, and the rest of the cash comes back.
-          She starts trading at the 09:00 ET settlement on listing day, opening at the IPO price.
+          We start tracking a new talent’s channel the day she’s announced. Before she lists, there’s a window to <b>subscribe</b>{" "}for her shares at the IPO price, set
+          below her fair value. New to IPOs? Read <b>How this IPO works</b>{" "}below, or the <Link href="/how-to-play#ipo">IPO section of How to play</Link>.
         </p>
       </div>
       {error ? (
@@ -543,8 +544,9 @@ export function IpoTab() {
         <p className={styles.empty}>No IPOs right now. When new talents debut, they show up here first, with their channel numbers, before they list.</p>
       ) : null}
       {events?.map((event) => (
-        <EventBlock key={event.id} event={event} now={now} onChanged={load} />
+        <EventBlock key={event.id} event={event} now={now} known={known} onChanged={load} />
       ))}
+      {featured ? <IpoFaq event={featured} now={now} signedIn={Boolean(user)} /> : null}
     </div>
   );
 }

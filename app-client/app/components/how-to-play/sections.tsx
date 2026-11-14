@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { StockChip } from "@/app/components/common/stock-chip";
-import { GAMES, SECTIONS, type SectionId } from "@/app/components/how-to-play/content";
+import { GAMES, IPO_ROOKIE_DAYS, SECTIONS, SHARES_PER_WINDOW, TRADE_FEE, type SectionId } from "@/app/components/how-to-play/content";
 import { ChanceDemo, ChibiTag, PullDiagram, RarityFan, TalentStrip, TicketDemo, TickTimeline, useBusiestTalents } from "@/app/components/how-to-play/demos";
 import { TickKoma } from "@/app/components/how-to-play/tick-koma";
 import { GamesDiagram, MarketDiagram, PredictionsDiagram, TradingDiagram } from "@/app/components/how-to-play/diagrams";
@@ -318,6 +318,70 @@ export function WeeklySection() {
           },
           { k: "forced", title: "Or else", body: "Whatever's still over at the next Saturday, the broker takes from every holder in proportion, at the base rate." },
           { k: "the review", title: "Dividend Review", body: "Every payout, fee, max-share change and buyback, stock by stock, plus your own week, on the Market page." },
+        ]}
+      />
+    </Section>
+  );
+}
+
+// ── IPOs ────────────────────────────────────────────────────────────────────
+
+export function IpoSection() {
+  const fee = `${Math.round(TRADE_FEE * 100)}%`;
+  return (
+    <Section
+      id="ipo"
+      title="New talents: the IPO"
+      lede={
+        <>
+          <p>
+            A new talent doesn’t start trading the day she debuts. We track her channel first, then open an <Term k="ipo">IPO</Term>: a window to subscribe for her shares at the{" "}
+            <b>IPO price</b>, set below her fair value, before anyone can trade her.
+          </p>
+          <p>The IPO page shows each talent’s channel numbers, the IPO price, the discount, how many shares are on offer, the most one player can ask for, and how many have been asked for so far.</p>
+        </>
+      }
+      links={[{ href: "/market/ipo", label: "The IPO page" }]}
+    >
+      <Steps
+        items={[
+          {
+            title: "Subscribe",
+            body: "Pick how many shares of each talent you want. The full cost, shares × IPO price, is held from your Cash right away. Change the amount or withdraw any time until the window closes; the difference comes back at once.",
+          },
+          {
+            title: "The window closes, shares are handed out",
+            body: "If everything asked for fits, everyone gets what they asked for. If not, each player gets a share in proportion to their request, rounded down, and at least 1; the leftovers go to the largest remainders.",
+          },
+          {
+            title: "Listing",
+            body: "At the 09:00 ET settlement on listing day, your shares land at the IPO price and the cash for any you didn’t get comes back. The stock opens at its IPO price and trades like any other from the first batch after.",
+          },
+        ]}
+      />
+      <Rules
+        cols={4}
+        items={[
+          {
+            k: "cash only",
+            title: "Paid from Cash",
+            body: "Credit can’t pay for IPO shares, and there’s no fee. Each player can ask for only part of each talent’s offering; the IPO page shows the limit.",
+          },
+          {
+            k: "after listing",
+            title: "No sure thing",
+            body: `The ticks pull the price toward fair value, which is repriced every morning, so it can fall below the IPO price. Buying after listing costs the ask plus the ${fee} fee.`,
+          },
+          {
+            k: `${IPO_ROOKIE_DAYS} days`,
+            title: "Rookies",
+            body: "A new listing pays no dividend and charges no share fee at its first four Saturday reviews, and its max shares never drop below what players hold.",
+          },
+          {
+            k: `${SHARES_PER_WINDOW} sh`,
+            title: "Share limit",
+            body: `Shares you get in an IPO don’t count toward your ${SHARES_PER_WINDOW} per tick window. Trading them afterwards does.`,
+          },
         ]}
       />
     </Section>

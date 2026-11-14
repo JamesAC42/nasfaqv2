@@ -29,6 +29,14 @@ export const GLOSSARY: ReadonlyArray<GlossaryEntry> = [
   { key: "dividend", term: "Dividends & share fees", def: "Every Saturday each channel's week is ranked against the rest. The top pay a dividend per share you hold (in Credit), the bottom charge a fee (from Credit first, then cash), the middle nothing, never more than 10% of the stock's value. Fees can put your cash below zero." },
   { key: "evaluation", term: "Weekly evaluation", def: "Saturday 00:00 ET: dividends and fees, part of everyone's Credit turning into cash, new max shares from subscribers, and buybacks for stocks now over their max. The Dividend Review shows it all.", href: "/market/dividends" },
   { key: "bailout", term: "Bailout", def: "The Saturday review's way back in. If it ends with you holding no shares, with no Credit left to turn into cash and too little cash to buy the cheapest share, your cash goes up to $1,000 and you get $1,000 Credit. You need a verified email and a visit to the site in the last two weeks." },
+  {
+    key: "ipo",
+    term: "IPO",
+    def: "How a new talent comes to market. Before she lists, there's a window to subscribe for her shares at the IPO price, set below her fair value. The cost is held from your Cash until listing. If more is asked for than offered, everyone gets a share in proportion, at least 1. She starts trading at the 09:00 ET settlement on listing day, opening at the IPO price.",
+    href: "/market/ipo",
+  },
+  // 28 days is weeklyEvaluation.js ROOKIE_DAYS (IPO_ROOKIE_DAYS in how-to-play/content.ts).
+  { key: "rookie", term: "Rookie", def: "A talent listed by an IPO in the last 28 days (her first four Saturday reviews). She pays no dividend and charges no share fee, and her max shares never drop below what players hold." },
   { key: "net-worth", term: "Net worth", def: "Your cash (with what queued buys hold), your Credit and your shares at the current price. The leaderboard ranks this.", href: "/leaderboard" },
   { key: "momentum", term: "Momentum", def: "In the card duel, a card's bonus from its stock's move today, in whole percent, capped at ±8." },
   { key: "pity", term: "Pity", def: "The gacha's guarantee counter. Keep pulling and a high rarity is promised." },

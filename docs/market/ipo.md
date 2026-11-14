@@ -201,7 +201,11 @@ the IPO itself.
 
 **Players:** the Market › IPO tab (`/market/ipo`), a banner on the other market tabs, a note on the
 stock page of a ticker that isn't listed yet, Wire items (announced, window open, listed) and a
-notification with each player's allocation.
+notification with each player's allocation. The IPO tab explains itself with the event's own numbers
+(`components/market/ipo-guide.tsx`): the three steps with where the IPO is now, "How this IPO works"
+(open until the viewer has subscribed), a line under the order amount with the Cash it holds and the
+per-player limit, and an FAQ. How to play has an IPOs section. If a rule here changes, change that
+copy and `IPO_ROOKIE_DAYS` in `how-to-play/content.ts` too.
 
 **Market changes:**
 
