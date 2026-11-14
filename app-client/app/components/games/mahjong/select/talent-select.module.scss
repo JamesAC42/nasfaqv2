@@ -1,0 +1,593 @@
+@use "../../../../styles/mixins" as *;
+
+// The talent select before a mahjong table's first deal. Each seat has its own color (pointers, tags,
+// the seat list), separate from the talents' colors, so it stays put while picks change.
+
+@mixin still {
+  @media (prefers-reduced-motion: reduce) {
+    @content;
+  }
+
+  :global(html[data-calm="true"]) & {
+    @content;
+  }
+}
+
+.root {
+  --seat-0: #3fb8f5;
+  --seat-1: #f2a93b;
+  --seat-2: #b48cff;
+  --seat-3: #ff7ab8;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  width: 100%;
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 0.5rem 0 1.25rem;
+
+  [data-seat="0"] {
+    --seat: var(--seat-0);
+  }
+
+  [data-seat="1"] {
+    --seat: var(--seat-1);
+  }
+
+  [data-seat="2"] {
+    --seat: var(--seat-2);
+  }
+
+  [data-seat="3"] {
+    --seat: var(--seat-3);
+  }
+}
+
+:global([data-theme="light"]) .root {
+  --seat-0: #0a78b5;
+  --seat-1: #a85f00;
+  --seat-2: #6f45cf;
+  --seat-3: #c0337a;
+}
+
+// ── Head ────────────────────────────────────────────────────────────────────
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+
+  h2 {
+    @include display;
+    margin: 0.15rem 0 0;
+    font-size: 1.7rem;
+    line-height: 1.15;
+
+    @include phone {
+      font-size: 1.25rem;
+    }
+  }
+}
+
+.kicker {
+  @include label;
+}
+
+.timer {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  min-width: 3.6rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+
+  b {
+    @include num;
+    font-size: 1.6rem;
+    line-height: 1;
+  }
+
+  small {
+    @include label;
+    font-size: 0.55rem;
+  }
+
+  &[data-urgent] {
+    border-color: var(--warn);
+    color: var(--warn);
+  }
+
+  &[data-go] {
+    border-color: var(--blue);
+    color: var(--blue);
+
+    b {
+      @include display;
+      font-size: 1.4rem;
+    }
+  }
+}
+
+// ── Seats ───────────────────────────────────────────────────────────────────
+.seats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  @include phone {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+
+  li {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-width: 0;
+    padding: 0.45rem 0.55rem 0.45rem 0.75rem;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+
+    // The seat's color, down the left edge.
+    &::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 4px;
+      background: var(--seat);
+    }
+
+    &[data-me] {
+      border-color: color-mix(in srgb, var(--seat) 55%, var(--rule));
+      background: color-mix(in srgb, var(--seat) 8%, transparent);
+    }
+
+    &[data-ready] .seatStatus {
+      color: var(--seat);
+      font-weight: 700;
+    }
+  }
+}
+
+.seatFace {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--tal) 40%, transparent), transparent 72%),
+    color-mix(in srgb, var(--tal) 14%, var(--ink-3));
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--tal) 70%, transparent);
+
+  i {
+    @include display;
+    font-style: normal;
+    color: var(--dim);
+  }
+
+  @include phone {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+.seatText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  b {
+    overflow: hidden;
+    font-size: 0.85rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    em {
+      font-style: normal;
+      font-weight: 400;
+      color: var(--dim);
+    }
+  }
+}
+
+.seatTalent {
+  overflow: hidden;
+  font-size: 0.78rem;
+  color: var(--mid);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seatStatus {
+  @include label;
+  font-size: 0.58rem;
+}
+
+// ── The stage: one shape at every width ─────────────────────────────────────
+// Square cards, a fixed column count and gaps in container units, so a fraction of the stage is the
+// same card for every viewer (the live pointers are sent that way).
+.stageWrap {
+  position: relative;
+  // As wide as fits, but short enough that the whole roster and the Ready button share a screen.
+  width: min(100%, max(20rem, calc((100svh - 19rem) * var(--cols) / var(--rows))));
+  margin: 0 auto;
+  container-type: inline-size;
+  touch-action: none;
+  user-select: none;
+}
+
+.stage {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  gap: 0.8cqw;
+}
+
+.card {
+  --tal: var(--blue);
+  position: relative;
+  display: block;
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 1.1cqw;
+  background:
+    radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--tal) 32%, transparent), transparent 70%),
+    color-mix(in srgb, var(--tal) 10%, var(--ink-3));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tal) 35%, var(--rule));
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease,
+    filter var(--dur-fast) ease;
+
+  @include hover-device {
+    &:hover:not(:disabled) {
+      transform: translateY(-0.25cqw);
+      box-shadow: inset 0 0 0 2px var(--tal);
+    }
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  &:disabled {
+    cursor: default;
+  }
+
+  // Someone else is over it.
+  &[data-over] {
+    box-shadow:
+      inset 0 0 0 2px var(--seat),
+      0 0 0 1px var(--seat);
+  }
+
+  &[data-taken] {
+    box-shadow: inset 0 0 0 2px var(--seat);
+
+    .cardFace {
+      filter: grayscale(0.85) brightness(0.7);
+    }
+  }
+
+  &[data-mine] {
+    box-shadow:
+      inset 0 0 0 3px var(--tal),
+      0 0 1.4cqw color-mix(in srgb, var(--tal) 55%, transparent);
+  }
+
+  &[data-pop] {
+    animation: card-pop 520ms cubic-bezier(0.2, 0.9, 0.3, 1.25);
+
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      box-shadow: inset 0 0 0 0.6cqw var(--tal);
+      animation: card-ring 520ms ease-out forwards;
+      pointer-events: none;
+    }
+  }
+
+  @include still {
+    transition: none;
+
+    &[data-pop],
+    &[data-pop]::after {
+      animation: none;
+    }
+  }
+}
+
+// The data-over color comes from the hovering seat.
+.card[data-over="0"] {
+  --seat: var(--seat-0);
+}
+
+.card[data-over="1"] {
+  --seat: var(--seat-1);
+}
+
+.card[data-over="2"] {
+  --seat: var(--seat-2);
+}
+
+.card[data-over="3"] {
+  --seat: var(--seat-3);
+}
+
+.card[data-holder="0"] {
+  --seat: var(--seat-0);
+}
+
+.card[data-holder="1"] {
+  --seat: var(--seat-1);
+}
+
+.card[data-holder="2"] {
+  --seat: var(--seat-2);
+}
+
+.card[data-holder="3"] {
+  --seat: var(--seat-3);
+}
+
+.stage[data-locked] .card:not([data-mine]):not([data-taken]) {
+  filter: saturate(0.75);
+}
+
+.cardFace {
+  position: absolute;
+  inset: 6% 6% 0;
+  transition: filter var(--dur-fast) ease;
+}
+
+.cardName {
+  position: absolute;
+  inset: auto 0 0;
+  padding: 1.2cqw 0.4cqw 0.5cqw;
+  overflow: hidden;
+  background: linear-gradient(transparent, color-mix(in srgb, var(--ink) 88%, transparent) 55%);
+  font-size: 1.05cqw;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardTag {
+  position: absolute;
+  top: 0.5cqw;
+  left: 0.5cqw;
+  max-width: calc(100% - 1cqw);
+  padding: 0.15cqw 0.5cqw;
+  overflow: hidden;
+  border-radius: 0.6cqw;
+  background: var(--seat);
+  color: #fff;
+  font-size: 0.95cqw;
+  font-weight: 700;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: tag-in 260ms ease-out;
+
+  @include still {
+    animation: none;
+  }
+}
+
+:global([data-theme="dark"]) .cardTag {
+  color: #0b0d12;
+}
+
+// Small stages: names come off the cards (the line under the stage names what you're over), and a
+// taken card keeps a dot in its seat's color.
+@container (max-width: 620px) {
+  .cardName {
+    display: none;
+  }
+
+  .cardTag {
+    width: 2.6cqw;
+    height: 2.6cqw;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 0;
+  }
+}
+
+@keyframes card-pop {
+  0% {
+    transform: scale(1);
+  }
+
+  35% {
+    transform: scale(1.12);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes card-ring {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+@keyframes tag-in {
+  from {
+    opacity: 0;
+    transform: translateY(-40%);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+// ── Pointers ────────────────────────────────────────────────────────────────
+.cursorLayer {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-start;
+  will-change: transform, opacity;
+
+  svg {
+    flex: none;
+    fill: var(--seat);
+    stroke: var(--ink);
+    stroke-width: 1.2;
+    filter: drop-shadow(0 1px 1px rgb(0 0 0 / 35%));
+  }
+
+  span {
+    margin: 14px 0 0 -2px;
+    padding: 0.1rem 0.4rem;
+    border-radius: var(--radius-sm);
+    background: var(--seat);
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+}
+
+:global([data-theme="dark"]) .cursor span {
+  color: #0b0d12;
+}
+
+// ── Below the stage ─────────────────────────────────────────────────────────
+.focus {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-height: 1.6rem;
+  margin: 0;
+
+  b {
+    @include display;
+    font-size: 1.15rem;
+  }
+
+  small {
+    font-size: 0.78rem;
+    color: var(--dim);
+  }
+}
+
+.error {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--down);
+}
+
+.fine {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--dim);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+
+  @include phone {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.ready {
+  @include button-primary;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 16rem;
+  padding: 0.9rem 2rem;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+
+  small {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    opacity: 0.85;
+  }
+
+  &[data-on] {
+    background: transparent;
+    border-color: var(--blue);
+    color: var(--blue);
+
+    &:hover:not(:disabled) {
+      background: var(--blue-wash);
+      border-color: var(--blue-2);
+    }
+  }
+
+  @include phone {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+.minor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.plain {
+  @include button-secondary;
+  padding: 0.45rem 0.8rem;
+  text-decoration: none;
+}
+
+.confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--mid);
+}

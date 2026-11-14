@@ -376,6 +376,20 @@ live.post(
   })
 );
 
+// The talent select before the first deal. The body is the move: { action: "mj-pick-talent", talent }
+// or { action: "mj-ready", ready: true|false }. Its refusals are its own (talent_taken names the seat).
+const SELECT_ERRORS = { talent_taken: 409, already_ready: 409, pick_first: 409, select_closed: 409, invalid_talent: 400 };
+live.post("/tables/:id/select", moveLimit, async (req, res, next) => {
+  try {
+    noStore(res);
+    res.json(await tables.selectAction({ ...actor(req), tableId: idOf(req.params.id), action: bodyOf(req) }));
+  } catch (error) {
+    const status = SELECT_ERRORS[error?.code];
+    if (!status) return sendGameError(res, next, error);
+    return res.status(status).json({ error: error.code, ...(error.seat !== undefined ? { seat: error.seat } : {}) });
+  }
+});
+
 live.post(
   "/tables/:id/pick",
   pickLimit,

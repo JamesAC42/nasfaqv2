@@ -27,6 +27,7 @@ import { useMahjongTable } from "@/app/components/games/mahjong/table/use-mahjon
 import { useTableSounds } from "@/app/components/games/mahjong/table/use-table-sounds";
 import { HandReveal } from "@/app/components/games/mahjong/table/win-reveal";
 import { WaitingRoom } from "@/app/components/games/mahjong/table/waiting-room";
+import { TalentSelect } from "@/app/components/games/mahjong/select/talent-select";
 import { TileBack } from "@/app/components/games/mahjong/tile";
 import type { Coach } from "@/app/lib/games/mahjong/types";
 import type { ChibiPose } from "@/app/lib/art-manifest";
@@ -479,6 +480,11 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
   if (!table) return shell(<div className={styles.skeleton} aria-busy="true" />);
 
   const title = table.tournament ? `${table.tournament.name} · ${table.tournament.round_name}` : (KIND_TITLE[table.kind] ?? "Table");
+
+  // Before the first deal, players choose their talents (an API without the select never sends it).
+  if (table.status === "waiting" && table.select) {
+    return shell(<TalentSelect table={table} select={table.select} mySeat={mySeat} apply={apply} onLeave={onLeave} leaving={working === "leave"} />, title);
+  }
 
   if (table.status === "waiting") {
     return shell(

@@ -15,6 +15,12 @@
 //             after the wait like quick match, and a finished game writes down chips, not money.
 //   tournament  seated by tournaments.js.
 //
+// Before the first deal, every table with a player at it but the tutorial and the guided lessons has a
+// talent select: each seat picks a talent from the roster (one seat each), readies up, and the table
+// deals once everyone is ready or the select clock runs out (picking for whoever didn't). While it is
+// open the table is still "waiting", with `table.select` set. The seated players' pointers on that
+// screen are streamed on `mj-cursor:{id}` (handleCursor): ephemeral, never stored.
+//
 // Everything that changes a table runs under that table's lock, one step at a time. One timer per
 // table fires when the next thing is due (a bot's move, a player's clock, the pause between hands, an
 // open table's wait) and tick() does whatever is due then.
@@ -54,6 +60,19 @@ const SOLO_PAUSE_MS = 60_000;
 const AUTO_DISCARD_MS = 900;
 // A practice table with no clock waits on its player; one nobody has touched for this long is closed.
 const IDLE_PRACTICE_MS = 30 * 60_000;
+// The talent select: how long the players get to choose (untimed practice waits), and the beat between
+// everyone being ready and the deal, so the last picks can be seen.
+const SELECT_MS = 30_000;
+const SELECT_FRIEND_MS = 60_000;
+const SELECT_BEAT_MS = 1500;
+// Bots prefer talents that haven't been at a table lately: the last this many picks in this process.
+const RECENT_TALENTS = 24;
+// Cursors on the select screen: per socket a bucket of CURSOR_BURST refilled at CURSOR_PER_SECOND (extras
+// are dropped), and per table at most one batch every CURSOR_FLUSH_MS. Speeds are in stage widths a second.
+const CURSOR_PER_SECOND = 25;
+const CURSOR_BURST = 10;
+const CURSOR_FLUSH_MS = 40;
+const CURSOR_MAX_SPEED = 20;
 
 const tables = new Map(); // id -> table
 const roomCodes = new Map(); // friend room code -> table id
@@ -65,6 +84,9 @@ let pool = null;
 let memorySeq = 0;
 let talentSymbols = [];
 let overListener = null;
+const recentTalents = []; // the last RECENT_TALENTS talents picked at any table, newest last
+const cursorStreams = new Map(); // table id -> { pending: Map<seat, sample>, timer, last }
+const cursorBuckets = new WeakMap(); // socket -> { tokens, at }
 
 function tableError(code, extra = {}) {
   return Object.assign(new Error(code), { code, ...extra });
@@ -107,6 +129,7 @@ function humanSeat(table, player, { guest = false } = {}) {
     profile_color: player.profile_color ?? null,
     profile_picture_url: player.profile_picture_url ?? null,
     talent: talentFor(table, player.oshi ?? null, player.user_id ?? null),
+    oshi: player.oshi ?? null,
     rating: player.rating ?? null,
     rank: player.rank ?? null,
     bot: null,
@@ -278,7 +301,8 @@ function publicTable(table, seatIndex = null) {
     game: gameView(table, seatIndex),
     clock: clockView(table),
     starts_at: table.startAt,
-    expires_at: table.status === "waiting" ? table.expiresAt : null,
+    expires_at: table.status === "waiting" && !table.select ? table.expiresAt : null,
+    select: selectView(table),
     created_at: table.createdAt,
     tournament: table.tournament,
     lesson: table.lesson ? { key: table.lesson.key, step: table.lesson.step, steps: table.lesson.steps.length } : null,
@@ -380,6 +404,10 @@ function refreshAsks(table) {
 }
 
 function nextDue(table) {
+  if (table.status === "waiting" && table.select) {
+    const select = table.select;
+    return Math.min(select.startsAt ?? Infinity, select.locked ? Infinity : (select.deadline ?? Infinity), select.idleAt ?? Infinity);
+  }
   if (table.status === "waiting") return Math.min(table.startAt ?? Infinity, table.expiresAt ?? Infinity);
   if (table.status !== "playing") return Infinity;
   if (table.settling) return table.settling;
@@ -432,6 +460,7 @@ function autopilotLevel(table, seat) {
 async function tick(table) {
   if (tables.get(table.id) !== table) return;
   const now = Date.now();
+  if (table.status === "waiting" && table.select) return selectTick(table);
   if (table.status === "waiting") {
     if (table.startAt && now >= table.startAt) await startWhenDue(table);
     else if (table.expiresAt && now >= table.expiresAt) await cancelTable(table, "expired");
@@ -527,6 +556,258 @@ async function nextHand(table) {
   changed(table);
 }
 
+// ── Talent select ──────────────────────────────────────────────────────────
+// Who plays as which talent, chosen by the players before the first deal. The roster is the market's
+// listed talents (talentSymbols, the same list seats were always given talents from): every one has
+// seat art on the client, a chibi portrait or, until that exists, her oshimark.
+const selectsFor = (table) => !table.lesson && table.kind !== "tutorial" && humansAt(table).length > 0 && talentSymbols.length >= SEATS;
+const seatConnected = (seat) => hub.count(seatChannel(seat)) > 0;
+
+function selectView(table) {
+  const select = table.status === "waiting" ? table.select : null;
+  if (!select) return null;
+  return {
+    deadline: select.locked ? null : select.deadline,
+    starts_at: select.startsAt,
+    roster: select.roster,
+    picks: table.seats.map((seat, index) => ({ seat: index, talent: seat?.talent ?? null, ready: select.ready[index] })),
+    // One player and bots: nobody to stream a pointer to.
+    cursors: humansAt(table).length >= 2,
+  };
+}
+
+/** Where the first deal used to happen: open the talent select, or deal at once when there's nothing to choose. */
+async function selectOrDeal(table) {
+  if (!selectsFor(table)) return startGame(table);
+  // A shared table nobody has open (everyone away from the page) keeps the talents it was seated with.
+  if (table.kind !== "practice" && !humansAt(table).some(seatConnected)) return startGame(table);
+  shuffleSeats(table);
+  table.shuffled = true;
+  const now = Date.now();
+  // An untimed table (practice with no clock, a guest's hand) gives its player as long as they like.
+  const ms = table.noClock || table.speed === "untimed" ? null : table.kind === "friend" ? SELECT_FRIEND_MS : SELECT_MS;
+  for (const seat of table.seats) seat.talent = null;
+  table.select = {
+    roster: [...talentSymbols],
+    deadline: ms === null ? null : now + ms,
+    startsAt: null,
+    // Untimed practice waits on its player, like its game does, and closes if nobody ever comes.
+    idleAt: ms === null ? now + IDLE_PRACTICE_MS : null,
+    ready: table.seats.map(() => false),
+    locked: false,
+  };
+  table.startAt = null;
+  changed(table);
+}
+
+function freeTalents(table) {
+  const taken = new Set(table.seats.map((seat) => seat?.talent).filter(Boolean));
+  return table.select.roster.filter((symbol) => !taken.has(symbol));
+}
+
+/** A talent for a seat that hasn't picked: a player's oshi if it's free, for a bot one not seen lately, else any free one. */
+function autoPick(table, seat) {
+  if (seat.talent) return;
+  const free = freeTalents(table);
+  if (!free.length) return;
+  if (!seat.bot && seat.oshi && free.includes(seat.oshi)) {
+    seat.talent = seat.oshi;
+    return;
+  }
+  const fresh = seat.bot ? free.filter((symbol) => !recentTalents.includes(symbol)) : [];
+  const choices = fresh.length ? fresh : free;
+  seat.talent = choices[randomInt(choices.length)];
+}
+
+function botsPick(table) {
+  table.seats.forEach((seat, index) => {
+    if (!seat.bot) return;
+    autoPick(table, seat);
+    table.select.ready[index] = true;
+  });
+}
+
+function botsUnpick(table) {
+  table.seats.forEach((seat, index) => {
+    if (!seat.bot) return;
+    seat.talent = null;
+    table.select.ready[index] = false;
+  });
+}
+
+/** Once every player still at the table is ready, the bots take what's left and the deal follows a beat later. */
+function checkAllReady(table) {
+  const select = table.select;
+  if (select.startsAt) return;
+  const waiting = table.seats.some((seat, index) => !seat.bot && !seat.left && !select.ready[index]);
+  if (waiting) return;
+  botsPick(table);
+  select.startsAt = Date.now() + SELECT_BEAT_MS;
+}
+
+function rememberTalent(symbol) {
+  if (!symbol) return;
+  const at = recentTalents.indexOf(symbol);
+  if (at >= 0) recentTalents.splice(at, 1);
+  recentTalents.push(symbol);
+  if (recentTalents.length > RECENT_TALENTS) recentTalents.shift();
+}
+
+async function selectTick(table) {
+  const select = table.select;
+  const now = Date.now();
+  if (select.startsAt && now >= select.startsAt) return finishSelect(table);
+  if (!select.locked && select.deadline && now >= select.deadline) {
+    // Time: whoever hasn't picked is picked for (absent players too), and the table deals after the beat.
+    select.locked = true;
+    for (const seat of table.seats) if (!seat.bot) autoPick(table, seat);
+    botsPick(table);
+    select.ready = select.ready.map(() => true);
+    select.startsAt = now + SELECT_BEAT_MS;
+    return changed(table);
+  }
+  if (select.idleAt && now >= select.idleAt) {
+    table.status = "cancelled";
+    table.result = { cancelled: "idle" };
+    table.asks = {};
+    publish(table);
+    discard(table);
+    return;
+  }
+  schedule(table);
+}
+
+async function finishSelect(table) {
+  for (const seat of table.seats) autoPick(table, seat);
+  for (const seat of table.seats) rememberTalent(seat.talent);
+  table.select = null;
+  await startGame(table);
+}
+
+/**
+ * A seated player's move on the select screen: { action: "mj-pick-talent", talent } takes a talent
+ * nobody else has (until you're ready), { action: "mj-ready", ready } says you're done (it needs a pick)
+ * or takes it back.
+ */
+async function selectAction({ userId = null, token = null, tableId, action }) {
+  return withLock(tableId, async () => {
+    const table = getTableOrThrow(tableId);
+    const index = seatOf(table, { userId, token });
+    if (index < 0) throw tableError("forbidden");
+    const select = table.status === "waiting" ? table.select : null;
+    if (!select) throw tableError("select_closed");
+    const seat = table.seats[index];
+    const name = String(action?.action || "");
+    if (name === "mj-pick-talent") {
+      const talent = typeof action.talent === "string" ? action.talent : "";
+      if (!select.roster.includes(talent)) throw tableError("invalid_talent");
+      if (select.locked || select.ready[index]) throw tableError("already_ready");
+      const holder = table.seats.findIndex((other, at) => at !== index && other?.talent === talent);
+      if (holder >= 0) throw tableError("talent_taken", { seat: holder });
+      seat.talent = talent;
+    } else if (name === "mj-ready") {
+      if (typeof action.ready !== "boolean") throw tableError("invalid_action");
+      if (select.locked) throw tableError("select_closed");
+      if (action.ready && !seat.talent) throw tableError("pick_first");
+      select.ready[index] = action.ready;
+      if (action.ready) checkAllReady(table);
+      else if (select.startsAt) {
+        // Taken back during the beat: the bots put their picks down again.
+        select.startsAt = null;
+        botsUnpick(table);
+      }
+    } else {
+      throw tableError("invalid_action");
+    }
+    seat.away = false;
+    seat.left = false;
+    if (select.idleAt) select.idleAt = Date.now() + IDLE_PRACTICE_MS;
+    changed(table);
+    return { table: publicTable(table, index) };
+  });
+}
+
+// Pointers: a seated player's socket sends { action: "mj-cursor", table, x, y, vx, vy, t, hover, gone }
+// (x, y in 0..1 across the select stage, speeds in stage widths a second, t the sender's own clock in
+// ms, hover a talent or null, gone when the pointer left the stage). Each one is checked and stamped
+// with the seat and the server's time, and the table sends what came in as one batch at most every
+// CURSOR_FLUSH_MS on mj-cursor:{id}: { type: "mj-cursors", table_id, server_time, cursors: [...] }.
+// It's never part of the table's state and never stored. Only the process that holds the table hears
+// these (the games socket is served there, see server.js); the batch goes out through hub.publish,
+// so it reaches sockets on any process.
+function takeCursorToken(ws) {
+  const now = Date.now();
+  let bucket = cursorBuckets.get(ws);
+  if (!bucket) {
+    bucket = { tokens: CURSOR_BURST, at: now };
+    cursorBuckets.set(ws, bucket);
+  }
+  bucket.tokens = Math.min(CURSOR_BURST, bucket.tokens + ((now - bucket.at) / 1000) * CURSOR_PER_SECOND);
+  bucket.at = now;
+  if (bucket.tokens < 1) return false;
+  bucket.tokens -= 1;
+  return true;
+}
+
+function cleanCursor(raw, roster) {
+  const num = (value) => (typeof value === "number" && Number.isFinite(value) ? value : null);
+  const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
+  const round = (value) => Math.round(value * 10_000) / 10_000;
+  const x = num(raw.x);
+  const y = num(raw.y);
+  if (x === null || y === null) return null;
+  const t = num(raw.t);
+  return {
+    x: round(clamp(x, 0, 1)),
+    y: round(clamp(y, 0, 1)),
+    vx: round(clamp(num(raw.vx) ?? 0, -CURSOR_MAX_SPEED, CURSOR_MAX_SPEED)),
+    vy: round(clamp(num(raw.vy) ?? 0, -CURSOR_MAX_SPEED, CURSOR_MAX_SPEED)),
+    t: t !== null && t >= 0 ? Math.round(t) : 0,
+    hover: typeof raw.hover === "string" && roster.includes(raw.hover) ? raw.hover : null,
+    gone: raw.gone === true,
+  };
+}
+
+function handleCursor(ws, message) {
+  const table = tables.get(Number(message?.table));
+  if (!table || table.status !== "waiting" || !table.select || humansAt(table).length < 2) return;
+  // The seat whose private channel this socket holds: only its token opens that channel.
+  const index = table.seats.findIndex((seat) => seat?.token && ws.gameChannels?.has(seatChannel(seat)));
+  if (index < 0) return;
+  if (!takeCursorToken(ws)) return;
+  const sample = cleanCursor(message, table.select.roster);
+  if (!sample) return;
+  let stream = cursorStreams.get(table.id);
+  if (!stream) {
+    stream = { pending: new Map(), timer: null, last: 0 };
+    cursorStreams.set(table.id, stream);
+  }
+  stream.pending.set(index, { seat: index, ...sample, at: Date.now() });
+  if (stream.timer) return;
+  const wait = stream.last + CURSOR_FLUSH_MS - Date.now();
+  if (wait <= 0) return flushCursors(table.id);
+  stream.timer = setTimeout(() => flushCursors(table.id), wait);
+  stream.timer.unref?.();
+}
+
+function flushCursors(tableId) {
+  const stream = cursorStreams.get(tableId);
+  if (!stream) return;
+  clearTimeout(stream.timer);
+  stream.timer = null;
+  if (!stream.pending.size) return;
+  const cursors = [...stream.pending.values()];
+  stream.pending.clear();
+  stream.last = Date.now();
+  hub.publish(`mj-cursor:${tableId}`, { type: "mj-cursors", table_id: tableId, server_time: stream.last, cursors });
+}
+
+function dropCursors(table) {
+  const stream = cursorStreams.get(table.id);
+  if (stream) clearTimeout(stream.timer);
+  cursorStreams.delete(table.id);
+}
+
 // ── Starting and finishing ─────────────────────────────────────────────────
 function shuffleSeats(table) {
   for (let i = SEATS - 1; i > 0; i -= 1) {
@@ -540,7 +821,9 @@ function shuffleSeats(table) {
 
 async function startGame(table) {
   if (table.seats.some((seat) => !seat)) throw tableError("table_not_full");
-  if (!table.lesson) shuffleSeats(table);
+  // A table that had a talent select was shuffled when it opened, so its seats stay where they were picked.
+  if (!table.lesson && !table.shuffled) shuffleSeats(table);
+  dropCursors(table);
   const speed = speedOf(table);
   for (const seat of table.seats) {
     seat.bank = speed.bank * 1000;
@@ -568,7 +851,7 @@ async function startWhenDue(table) {
   } else {
     for (let index = 0; index < SEATS; index += 1) if (!table.seats[index]) table.seats[index] = botSeat(table, table.level);
   }
-  await startGame(table);
+  await selectOrDeal(table);
 }
 
 async function finishTable(table) {
@@ -616,6 +899,7 @@ function releaseUser(table, seat) {
 function discard(table) {
   if (tables.get(table.id) !== table) return;
   clearTimeout(table.timer);
+  dropCursors(table);
   for (const seat of table.seats) releaseSeat(table, seat);
   if (table.code) roomCodes.delete(table.code);
   tables.delete(table.id);
@@ -715,7 +999,7 @@ async function createSoloTable({ player, guest = false, lessonKey = null, level,
   table.seats[0] = humanSeat(table, player, { guest });
   registerSeat(table, 0);
   for (let index = 1; index < SEATS; index += 1) table.seats[index] = botSeat(table, table.level);
-  await startGame(table);
+  await selectOrDeal(table);
   return table;
 }
 
@@ -778,7 +1062,7 @@ async function createGuestTable({ ipKey, lesson = null, level = "easy" }) {
   const now = Date.now();
   const recent = (guestStarts.get(ipKey) || []).filter((at) => now - at < 10 * 60_000);
   if (recent.length >= SETTINGS.guestTablesPerIp) throw tableError("mahjong_guest_limit");
-  const open = [...tables.values()].filter((table) => table.seats.some((seat) => seat?.guest) && table.status === "playing").length;
+  const open = [...tables.values()].filter((table) => table.seats.some((seat) => seat?.guest) && (table.status === "playing" || table.status === "waiting")).length;
   if (open >= SETTINGS.guestTables) throw tableError("mahjong_guest_busy");
   recent.push(now);
   guestStarts.set(ipKey, recent);
@@ -787,7 +1071,7 @@ async function createGuestTable({ ipKey, lesson = null, level = "easy" }) {
   return seatedView(table, humanIndexOf(table));
 }
 
-// The seats are shuffled when a solo table deals, so the one human is wherever they landed.
+// The seats are shuffled when a solo table deals (or opens its talent select), so the one human is wherever they landed.
 const humanIndexOf = (table) => table.seats.findIndex((seat) => seat && !seat.bot);
 
 function seatedView(table, index) {
@@ -796,7 +1080,7 @@ function seatedView(table, index) {
 
 // ── Sitting down and leaving ───────────────────────────────────────────────
 async function sitLocked(table, player) {
-  if (table.status !== "waiting") throw tableError("table_not_open");
+  if (table.status !== "waiting" || table.select) throw tableError("table_not_open");
   if (seatIndexOfUser(table, player.user_id) >= 0) throw tableError("already_seated", { table_id: table.id });
   const index = table.seats.findIndex((seat) => !seat);
   if (index < 0) throw tableError("table_full");
@@ -848,6 +1132,24 @@ async function leaveTable({ userId = null, token = null, tableId }) {
     const index = seatOf(table, { userId, token });
     if (index < 0) throw tableError("forbidden");
     const seat = table.seats[index];
+    if (table.status === "waiting" && table.select) {
+      // The game has as good as begun: practice closes, anywhere else the seat is picked for and goes on autopilot.
+      if (!RECORDED.has(table.kind)) {
+        table.status = "cancelled";
+        table.result = { cancelled: "left" };
+        table.asks = {};
+        publish(table);
+        discard(table);
+        return { ok: true };
+      }
+      seat.away = true;
+      seat.left = true;
+      if (!seat.talent) autoPick(table, seat);
+      table.select.ready[index] = true;
+      checkAllReady(table);
+      changed(table);
+      return { ok: true };
+    }
     if (table.status === "waiting" && table.kind !== "tournament") {
       if (seat.fee > 0) await records.inTransaction(pool, (client) => records.refundOpenEntries(client, { gameId: table.dbId, userId: seat.user_id }));
       releaseSeat(table, seat);
@@ -884,11 +1186,11 @@ async function leaveTable({ userId = null, token = null, tableId }) {
 async function startTable({ userId, tableId }) {
   return withLock(tableId, async () => {
     const table = getTableOrThrow(tableId);
-    if (table.kind !== "friend" || table.status !== "waiting") throw tableError("table_not_open");
+    if (table.kind !== "friend" || table.status !== "waiting" || table.select) throw tableError("table_not_open");
     if (table.hostUserId !== Number(userId)) throw tableError("forbidden");
     if (siteState.gamesPaused()) throw tableError("games_paused");
     for (let index = 0; index < SEATS; index += 1) if (!table.seats[index]) table.seats[index] = botSeat(table, table.level);
-    await startGame(table);
+    await selectOrDeal(table);
     return { table: publicTable(table, seatIndexOfUser(table, userId)) };
   });
 }
@@ -1106,6 +1408,9 @@ async function init(db, { onTableOver = null } = {}) {
     }
   });
 
+  // Pointers on the talent select screen, on their own channel too.
+  hub.registerAction("mj-cursor", handleCursor);
+
   // Emoji, stamps and cheers at a table: decoration on its own channel, never part of the table's state.
   hub.registerAction(
     "mj-react",
@@ -1170,6 +1475,9 @@ function seatPresence(table) {
 function reset() {
   for (const table of tables.values()) clearTimeout(table.timer);
   for (const timer of presenceTimers.values()) clearTimeout(timer);
+  for (const stream of cursorStreams.values()) clearTimeout(stream.timer);
+  cursorStreams.clear();
+  recentTalents.length = 0;
   lobbyPush.stop();
   tables.clear();
   roomCodes.clear();
@@ -1198,10 +1506,18 @@ module.exports = {
   reset,
   returnToSeat,
   roomByCode,
+  selectAction,
   startTable,
   tableOfUser,
   withLock,
   // For tests.
   _tables: tables,
   _tick: tick,
+  _setTalentsForTests: (symbols) => {
+    const before = talentSymbols;
+    talentSymbols = [...symbols];
+    return () => {
+      talentSymbols = before;
+    };
+  },
 };

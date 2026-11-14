@@ -113,12 +113,15 @@ function createConnectionCap({ redis, limit = CONNECTIONS_PER_IP, ttlMs = 90_000
 /**
  * Caps the messages one socket may send: past `limit` in `windowMs` it's closed with 1008 (policy
  * violation). Install it before the socket's own message handlers; they should ignore a message
- * once the socket isn't open (ws.readyState !== 1), which is what a closed one is.
+ * once the socket isn't open (ws.readyState !== 1), which is what a closed one is. A socket can set
+ * `ws.exemptMessage(raw)` to leave some messages out of the count, if it caps those itself (the games
+ * hub's streamed pointer messages).
  */
 function limitMessages(ws, { limit = MESSAGES_PER_WINDOW, windowMs = MESSAGE_WINDOW_MS, now = Date.now } = {}) {
   let windowStart = now();
   let count = 0;
-  ws.on("message", () => {
+  ws.on("message", (raw) => {
+    if (ws.exemptMessage?.(raw)) return;
     const at = now();
     if (at - windowStart >= windowMs) {
       windowStart = at;

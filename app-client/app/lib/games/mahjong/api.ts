@@ -18,6 +18,7 @@ import type {
   PlayerRecord,
   RulesResponse,
   SeatedResponse,
+  SelectAction,
   TableResponse,
   TournamentResponse,
   TournamentsResponse,
@@ -40,6 +41,8 @@ export const mahjongChannels = {
   table: (id: number | string) => `mahjong:${id}`,
   reactions: (id: number | string) => `reactions:mahjong:${id}`,
   tournament: (id: number | string) => `mahjong-tournament:${id}`,
+  /** Players' pointers on a table's talent select. */
+  cursors: (id: number | string) => `mj-cursor:${id}`,
 } as const;
 
 // ── Lobby and rules ─────────────────────────────────────────────────────────
@@ -68,6 +71,8 @@ export const backToSeat = (id: number) => post<ActionResponse>(`/tables/${id}/ba
 /** "Next hand": skip the rest of the pause between hands. */
 export const readyForNext = (id: number) => post<ActionResponse>(`/tables/${id}/ready`, undefined, seatHeaders(id));
 export const actMahjong = (id: number, action: MahjongAction) => post<ActionResponse>(`/tables/${id}/action`, { action }, seatHeaders(id));
+/** The talent select before the first deal: pick a talent, or say you're ready (or not). */
+export const selectMahjong = (id: number, action: SelectAction) => post<ActionResponse>(`/tables/${id}/select`, action, seatHeaders(id));
 /** A spectator's free pick of who wins the game (before the second hand). */
 export const pickGameWinner = (id: number, seat: number) => post<{ pick: { seat: number; name: string } }>(`/tables/${id}/pick`, { seat });
 

@@ -515,8 +515,37 @@ export type MahjongTable = {
   cheers: number[];
   spectators: number;
   result: TableResult | null;
+  /**
+   * The talent select before the first deal: set while it is open (the table is still "waiting").
+   * Missing from an API that predates it.
+   */
+  select?: TableSelect | null;
   server_time: number;
 };
+
+/** One seat on the talent select: its pick so far and whether it is ready. */
+export type SelectPick = { seat: SeatIndex; talent: string | null; ready: boolean };
+
+export type TableSelect = {
+  /** Epoch ms the select closes and picks for whoever hasn't; null with no clock (or once it has closed). */
+  deadline: number | null;
+  /** Epoch ms the table deals: set once everyone is ready or the clock ran out. */
+  starts_at: number | null;
+  /** Talent tickers to choose from, in the order every viewer lays them out. */
+  roster: string[];
+  picks: SelectPick[];
+  /** Whether players' pointers are streamed (two or more players at the table). */
+  cursors: boolean;
+};
+
+/** A move on the talent select (POST /tables/:id/select). */
+export type SelectAction = { action: "mj-pick-talent"; talent: string } | { action: "mj-ready"; ready: boolean };
+
+/** One player's pointer on the select stage: x, y in 0..1, speeds in stage widths a second. */
+export type CursorSample = { seat: SeatIndex; x: number; y: number; vx: number; vy: number; t: number; hover: string | null; gone: boolean; at: number };
+
+/** What `mj-cursor:{id}` pushes: the pointers that moved since the last batch. Never table state. */
+export type CursorPush = { type: "mj-cursors"; table_id: number; server_time: number; cursors: CursorSample[] };
 
 /** A seated player's table: the public table plus `me`. */
 export type SeatedTable = MahjongTable & { me: TableMe };
