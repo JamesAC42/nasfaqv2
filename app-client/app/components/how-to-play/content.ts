@@ -1,17 +1,19 @@
 // Copy for the how-to-play guide. Every number here is checked against the API:
 // - market: api/src/services/{trading,marketAdjustments,settlement,fundamentals,portfolioCash}.js
+// - IPOs: api/src/services/ipo.js and the rookie rule in weeklyEvaluation.js
 // - games: api/src/services/games/** and GAMES_DESIGN.md
 // - predictions: api/src/services/predictions/** and docs/predictions/PREDICTIONS_DESIGN.md
 // If a rule changes there, change it here too.
 import { TICKER_TAP_ENABLED } from "@/app/lib/games/flags";
 
-export type SectionId = "market" | "trading" | "ticks" | "weekly" | "games" | "predictions" | "community" | "glossary" | "faq";
+export type SectionId = "market" | "trading" | "ticks" | "weekly" | "ipo" | "games" | "predictions" | "community" | "glossary" | "faq";
 
 export const SECTIONS: ReadonlyArray<{ id: SectionId; label: string }> = [
   { id: "market", label: "Market" },
   { id: "trading", label: "Trading" },
   { id: "ticks", label: "Ticks" },
   { id: "weekly", label: "Dividends" },
+  { id: "ipo", label: "IPOs" },
   { id: "games", label: "Games" },
   { id: "predictions", label: "Predictions" },
   { id: "community", label: "Community" },
@@ -22,6 +24,7 @@ export const SECTIONS: ReadonlyArray<{ id: SectionId; label: string }> = [
 export const STARTER_CASH = 10_000; // portfolioCash.js DEFAULT_STARTER_CASH
 export const TRADE_FEE = 0.01; // trading.js DEFAULT_TRADING_FEE_RATE
 export const SHARES_PER_WINDOW = 180; // trading.js DEFAULT_LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL
+export const IPO_ROOKIE_DAYS = 28; // weeklyEvaluation.js ROOKIE_DAYS: a new listing's first four Saturday reviews
 
 export type Game = {
   key: string;
