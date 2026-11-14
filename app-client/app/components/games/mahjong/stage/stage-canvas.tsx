@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import { portraitSpot, SEAT_YAW, seatPoint, TILE, type Vec3 } from "@/app/components/games/mahjong/stage/geometry";
+import { portraitFocus, portraitSpot, SEAT_YAW, seatPoint, TILE, type Vec3 } from "@/app/components/games/mahjong/stage/geometry";
 import { seatColor, useStage } from "@/app/components/games/mahjong/stage/mock-state";
 import { basePose, handAnchor, narrowness } from "@/app/components/games/mahjong/stage/rig";
 import { fx } from "@/app/components/games/mahjong/stage/fx";
@@ -60,8 +60,21 @@ function beamMaterial(color: string) {
 
 // ── Lights ───────────────────────────────────────────────────────────────────
 const LAMP: Vec3 = [0, 96, 4];
+
+/**
+ * Light levels, chosen with ACES tone mapping at EXPOSURE so the ivory tile faces read as ivory with
+ * visible shading rather than clipping to white: by day soft daylight from the room plus the lamp, by
+ * night a warm lamp pool in a cool dark room.
+ */
+const EXPOSURE = 0.92;
+const LEVELS = {
+  day: { pendant: 1.35, hemi: 0.42, fill: 0.2, env: 0.2, spot: 4.2, beam: 0.42, pool: 0.3, sky: "#c9b998", backdrop: 0.66 },
+  night: { pendant: 3.5, hemi: 0.36, fill: 0.34, env: 0.2, spot: 6.2, beam: 0.8, pool: 0.42, sky: "#04060b", backdrop: 0.9 },
+} as const;
 /** Where the win spotlight hangs: high above the far side, so its beam slants across the frame. */
 const SPOT_FROM: Vec3 = [0, 125, -30];
+/** The win spotlight's half-angle: tight enough to single out one seat. */
+const SPOT_ANGLE = 0.17;
 
 function Lights({ day }: { day: boolean }) {
   const pendant = useRef<THREE.SpotLight>(null);
@@ -86,13 +99,14 @@ function Lights({ day }: { day: boolean }) {
     };
   }, [get]);
 
+  const lv = day ? LEVELS.day : LEVELS.night;
   useEffect(() => {
     const { scene } = get();
-    scene.environmentIntensity = day ? 0.32 : 0.28;
-    scene.background = new THREE.Color(day ? "#e7dcc6" : "#04060b");
-    scene.fog = new THREE.Fog(day ? "#e7dcc6" : "#04060b", 170, 420);
+    scene.environmentIntensity = lv.env;
+    scene.background = new THREE.Color(lv.sky);
+    scene.fog = new THREE.Fog(lv.sky, 170, 420);
     invalidate();
-  }, [get, day, invalidate]);
+  }, [get, lv, invalidate]);
 
   useEffect(() => {
     const { scene } = get();
@@ -109,6 +123,9 @@ function Lights({ day }: { day: boolean }) {
 
   const level = useRef({ room: 1, spot: 0, aim: new THREE.Vector3(0, 0, 0) });
   const beam = useRef<THREE.Mesh>(null);
+  const pool = useRef<THREE.Mesh>(null);
+  const poolGlow = useMemo(() => radialTexture(0, 1), []);
+  useEffect(() => () => poolGlow.dispose(), [poolGlow]);
   const beamGeometry = useMemo(() => {
     // A unit-tall open cone, apex at the top, fading out toward the floor.
     const geometry = new THREE.CylinderGeometry(0.05, 1, 1, 48, 8, true);
@@ -120,15 +137,23 @@ function Lights({ day }: { day: boolean }) {
   useFrame((state) => {
     const { moment, reveal, reduced } = useStage.getState();
     const now = performance.now();
+    const narrow = narrowness(state.size.width / Math.max(1, state.size.height));
     let room = 1;
     let spotOn = 0;
     const aim = new THREE.Vector3(0, 0, 0);
     if (moment) {
       const t = (now - moment.at) / 1000;
       if (moment.kind === "win") {
-        room = 1 - 0.72 * smooth(t / 0.5);
+        room = 1 - 0.68 * smooth(t / 0.5);
         spotOn = smooth((t - 0.2) / 0.5);
-        const [hx, , hz] = moment.seat === 0 ? [0, 0, 30] : seatPoint(moment.seat, 0, 0, 34);
+        // On the winner's place: your hand, or an opponent's tiles and the chair behind them (on a
+        // phone, where the side players sit at the far corners, on the chair).
+        let [hx, , hz] = moment.seat === 0 ? [0, 0, 30] : seatPoint(moment.seat, 0, 0, 38);
+        if (moment.seat !== 0) {
+          const chair = portraitSpot(moment.seat, narrow).p;
+          hx += (chair[0] - hx) * narrow;
+          hz += (chair[2] + 8 - hz) * narrow;
+        }
         // The spot swings in from the middle of the table to the winner's place.
         const swing = reduced ? 1 : smooth((t - 0.15) / 0.9);
         aim.set(hx * swing, 0, hz * swing);
@@ -149,15 +174,22 @@ function Lights({ day }: { day: boolean }) {
     fx.room = l.room;
     for (let seat = 0; seat < 4; seat++) fx.seat[seat] = moment?.kind === "win" && moment.seat === seat ? l.spot : 0;
 
-    if (pendant.current) pendant.current.intensity = (day ? 1.9 : 4.6) * (0.25 + 0.75 * l.room);
-    if (hemi.current) hemi.current.intensity = (day ? 0.62 : 0.5) * (0.3 + 0.7 * l.room);
-    if (fill.current) fill.current.intensity = (day ? 0.32 : 0.6) * l.room;
+    if (pendant.current) pendant.current.intensity = lv.pendant * (0.25 + 0.75 * l.room);
+    if (hemi.current) hemi.current.intensity = lv.hemi * (0.3 + 0.7 * l.room);
+    if (fill.current) fill.current.intensity = lv.fill * l.room;
     if (spot.current) {
-      spot.current.intensity = l.spot * (day ? 5 : 7);
+      spot.current.intensity = l.spot * lv.spot;
       spotTarget.position.copy(l.aim);
       spot.current.visible = l.spot > 0.01;
     }
-    state.scene.environmentIntensity = (day ? 0.32 : 0.28) * (0.3 + 0.7 * l.room);
+    // A soft pool where the spot lands, so the light reads on the felt even past the tiles.
+    const footprint = pool.current;
+    if (footprint) {
+      footprint.position.set(l.aim.x, 0.06, l.aim.z);
+      (footprint.material as THREE.MeshBasicMaterial).opacity = l.spot * lv.pool;
+      footprint.visible = l.spot > 0.01;
+    }
+    state.scene.environmentIntensity = lv.env * (0.3 + 0.7 * l.room);
     const cone = beam.current;
     if (cone) {
       const top = SPOT_FROM;
@@ -167,9 +199,9 @@ function Lights({ day }: { day: boolean }) {
       const length = Math.hypot(dx, dy, dz);
       cone.position.set(...top);
       cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), new THREE.Vector3(dx / length, dy / length, dz / length));
-      const radius = Math.tan(0.2) * length;
+      const radius = Math.tan(SPOT_ANGLE) * length;
       cone.scale.set(radius, length, radius);
-      (cone.material as THREE.ShaderMaterial).uniforms.uOpacity.value = l.spot * (day ? 0.22 : 0.4);
+      (cone.material as THREE.ShaderMaterial).uniforms.uOpacity.value = l.spot * lv.beam * (1 - 0.8 * narrow);
       cone.visible = l.spot > 0.01;
     }
     if (Math.abs(l.room - room) > 0.002 || Math.abs(l.spot - spotOn) > 0.002) invalidate();
@@ -196,13 +228,20 @@ function Lights({ day }: { day: boolean }) {
       <hemisphereLight ref={hemi} args={[day ? "#fff8ec" : "#4b5f93", day ? "#b39a74" : "#07090f"]} />
       <directionalLight ref={fill} position={[-50, 60, 90]} color={day ? "#ffffff" : "#8fb2ff"} />
       <mesh ref={beam} geometry={beamGeometry} material={beamMat} visible={false} renderOrder={5} />
-      <spotLight ref={spot} position={SPOT_FROM} angle={0.2} penumbra={0.6} decay={0} color={day ? "#fffaf0" : "#fff2dc"} visible={false} />
+      <spotLight ref={spot} position={SPOT_FROM} angle={SPOT_ANGLE} penumbra={0.55} decay={0} color={day ? "#fffaf0" : "#fff2dc"} visible={false} />
+      <mesh ref={pool} rotation-x={-Math.PI / 2} visible={false} renderOrder={3}>
+        <planeGeometry args={[34, 34]} />
+        <meshBasicMaterial map={poolGlow} color={day ? "#fff1d6" : "#ffe6c2"} transparent opacity={0} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+      </mesh>
     </>
   );
 }
 
 // ── Room: backdrop, floor, the lamp and its glow ─────────────────────────────
 function Room({ day }: { day: boolean }) {
+  const lv = day ? LEVELS.day : LEVELS.night;
+  // A phone's steep camera would see the shade itself, right over the opponents: hang it higher there.
+  const shadeLift = useThree((s) => narrowness(s.size.width / Math.max(1, s.size.height))) * 34;
   const backdrop = useMemo(() => roomTexture(day), [day]);
   const glow = useMemo(() => radialTexture(0, 1), []);
   const backdropMat = useRef<THREE.MeshBasicMaterial>(null);
@@ -237,7 +276,7 @@ function Room({ day }: { day: boolean }) {
   useEffect(() => () => coneMaterial.dispose(), [coneMaterial]);
 
   useFrame((state) => {
-    if (backdropMat.current) backdropMat.current.color.setScalar(0.25 + 0.75 * fx.room);
+    if (backdropMat.current) backdropMat.current.color.setScalar(lv.backdrop * (0.25 + 0.75 * fx.room));
     if (coneRef.current) (coneRef.current.material as THREE.ShaderMaterial).uniforms.uOpacity.value = (day ? 0.05 : 0.11) * fx.room;
     if (motesRef.current && !useStage.getState().reduced) motesRef.current.rotation.y = state.clock.elapsedTime * 0.02;
   });
@@ -250,10 +289,10 @@ function Room({ day }: { day: boolean }) {
       </mesh>
       <mesh rotation-x={-Math.PI / 2} position-y={-70} receiveShadow>
         <circleGeometry args={[300, 48]} />
-        <meshStandardMaterial color={day ? "#b89a72" : "#07090e"} roughness={0.85} />
+        <meshStandardMaterial color={day ? "#9c8260" : "#07090e"} roughness={0.85} />
       </mesh>
       {/* The pendant: a brass shade and a hot bulb, mostly above the frame. */}
-      <group position={LAMP}>
+      <group position={[LAMP[0], LAMP[1] + shadeLift, LAMP[2]]}>
         <mesh position-y={3}>
           <cylinderGeometry args={[3, 9, 6, 32, 1, true]} />
           <meshStandardMaterial color="#b48a4f" metalness={0.9} roughness={0.3} side={THREE.DoubleSide} />
@@ -264,7 +303,7 @@ function Room({ day }: { day: boolean }) {
         </mesh>
         <mesh>
           <planeGeometry args={[40, 40]} />
-          <meshBasicMaterial map={glow} color={day ? "#fff6e0" : "#ffcf8f"} transparent opacity={0.35} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+          <meshBasicMaterial map={glow} color={day ? "#fff6e0" : "#ffcf8f"} transparent opacity={day ? 0.22 : 0.35} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
         </mesh>
         <mesh position-y={30}>
           <cylinderGeometry args={[0.2, 0.2, 60, 6]} />
@@ -298,8 +337,7 @@ function CameraRig() {
     let busy = false;
     if (moment && !reduced && (moment.kind === "riichi" || moment.kind === "win")) {
       const t = (performance.now() - moment.at) / 1000;
-      const focus = new THREE.Vector3(...(moment.seat === 0 ? seatPoint(0, 0, 4, 26) : portraitSpot(moment.seat, narrow).p));
-      if (moment.seat !== 0) focus.y -= 4;
+      const focus = new THREE.Vector3(...(moment.seat === 0 ? seatPoint(0, 0, 4, 26) : portraitFocus(moment.seat, narrow)));
       // Glide in over ~1 s, hold, glide back.
       const env = moment.kind === "riichi" ? smooth(t / 1.0) * (1 - smooth((t - 2.4) / 1.0)) : smooth(t / 1.2) * 0.1;
       target.lerp(focus, 0.38 * env);
@@ -382,7 +420,10 @@ export default function StageCanvas({ day }: { day: boolean }) {
       camera={{ fov: 40, near: 5, far: 900, position: [0, 61, 80] }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       onCreated={({ gl, get }) => {
-        gl.toneMappingExposure = 1.05;
+        // Filmic tone mapping into sRGB output; every color texture is tagged sRGB, data maps stay linear.
+        gl.toneMapping = THREE.ACESFilmicToneMapping;
+        gl.toneMappingExposure = EXPOSURE;
+        gl.outputColorSpace = THREE.SRGBColorSpace;
         // For measuring from the browser console (dev-only page): window.__mjThree().gl.info, etc.
         (window as unknown as { __mjThree?: typeof get }).__mjThree = get;
         // ANGLE's D3D compiler logs harmless X4122 precision notes for three's depth-packing chunk;

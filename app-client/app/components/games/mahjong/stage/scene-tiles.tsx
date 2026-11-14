@@ -39,7 +39,8 @@ function layout(state: LayoutInput, anchor: HandAnchor, now: boolean): Map<TileI
     const gap = state.drawn && i === mine.length - 1 ? 0.9 : 0;
     const x = -total / 2 + anchor.spacing * (i + 0.5) + gap;
     if (revealMine) {
-      out.set(id, { ...pose([x, d / 2, ROWS.hand - 2], FLAT, 0), delay: now ? 0 : i * 0.06 });
+      // Laid flat where the hand stood, just past the wall.
+      out.set(id, { ...pose([x, d / 2, ROWS.hand + 0.6], FLAT, 0), delay: now ? 0 : i * 0.06 });
       return;
     }
     out.set(id, { ...pose([anchor.center[0] + x, anchor.center[1], anchor.center[2]], anchor.pitch, 0), hand: true });
@@ -55,7 +56,7 @@ function layout(state: LayoutInput, anchor: HandAnchor, now: boolean): Map<TileI
       const isWin = state.reveal === seat && i === hand.length - 1;
       const x = shift - span / 2 + w * 1.02 * (i + 0.5) + (isWin ? 0.7 : 0);
       if (state.reveal === seat) {
-        out.set(id, { ...pose(seatPoint(seat, x, h / 2 + 0.25, ROWS.hand - 0.6), -0.32, SEAT_YAW[seat] + Math.PI), delay: now ? 0 : 0.35 + i * 0.07, glow: isWin ? 1 : 0 });
+        out.set(id, { ...pose(seatPoint(seat, x, h / 2 + 0.25, ROWS.hand + 0.2), -0.32, SEAT_YAW[seat] + Math.PI), delay: now ? 0 : 0.35 + i * 0.07, glow: isWin ? 1 : 0 });
       } else {
         out.set(id, pose(seatPoint(seat, x, h / 2, ROWS.hand), 0, SEAT_YAW[seat]));
       }
@@ -159,9 +160,15 @@ function tileMaterial(atlas: THREE.Texture, back: string) {
         body *= 1.0 - 0.35 * (1.0 - smoothstep(0.0, 0.05, abs(vObjPos.z - split)));
         // The face, from the atlas.
         float faceMask = smoothstep(0.7, 0.92, vObjNormal.z) * (1.0 - backMask);
-        vec2 fuv = clamp(vObjPos.xy / (2.0 * uHalf.xy) + 0.5, 0.0, 1.0);
-        float col = mod(vCell, ${ATLAS.cols}.0);
-        float row = floor(vCell / ${ATLAS.cols}.0);
+        // Half a texel in from the cell's edge, so filtering never reaches the neighboring face.
+        vec2 inset = vec2(0.5 / ${ATLAS.cellW}.0, 0.5 / ${ATLAS.cellH}.0);
+        vec2 fuv = clamp(vObjPos.xy / (2.0 * uHalf.xy) + 0.5, inset, 1.0 - inset);
+        // The cell index arrives as an interpolated varying, which is not exactly an integer on every
+        // fragment (24.0 can arrive as 23.99998). Unrounded, floor() then puts stray fragments of a
+        // tile whose cell starts an atlas row (9m, 8p, 7s, green dragon) into the wrong row: speckled faces.
+        float cell = floor(vCell + 0.5);
+        float col = mod(cell, ${ATLAS.cols}.0);
+        float row = floor(cell / ${ATLAS.cols}.0);
         vec2 auv = vec2((col + fuv.x) / ${ATLAS.cols}.0, 1.0 - (row + 1.0 - fuv.y) / ${ATLAS.rows}.0);
         vec3 face = texture2D(uAtlas, auv).rgb;
         diffuseColor.rgb *= mix(body, face, faceMask);
@@ -173,7 +180,7 @@ function tileMaterial(atlas: THREE.Texture, back: string) {
         totalEmissiveRadiance += vGlow * uGlowColor * 0.55;`
       );
   };
-  material.customProgramCacheKey = () => "stage-tile-v1";
+  material.customProgramCacheKey = () => "stage-tile-v2";
   return material;
 }
 
@@ -316,16 +323,84 @@ export function Tiles({ day, backColor }: { day: boolean; backColor: string }) {
   };
 
   return (
-    <instancedMesh
-      ref={meshRef}
-      args={[geometry, material, TILES]}
-      castShadow
-      receiveShadow
-      frustumCulled={false}
-      onPointerMove={onMove}
-      onPointerOut={onOut}
-      onClick={onClick}
-      userData={{ day }}
-    />
+    <>
+      <instancedMesh
+        ref={meshRef}
+        args={[geometry, material, TILES]}
+        castShadow
+        receiveShadow
+        frustumCulled={false}
+        onPointerMove={onMove}
+        onPointerOut={onOut}
+        onClick={onClick}
+        userData={{ day }}
+      />
+      <Wall material={material} />
+    </>
   );
+}
+
+// ── The wall ─────────────────────────────────────────────────────────────────
+/** Stacks per side, two tiles high, as at a real table. */
+const WALL_STACKS = 17;
+/**
+ * Distance of each wall's middle from the center: right up against the hand, so from your chair the
+ * wall in front of you stays clear of your third row of discards.
+ */
+const WALL_ROW = ROWS.hand - TILE.d / 2 - 0.5 - TILE.h / 2;
+
+/**
+ * The live wall, face down in front of each hand. Decorative: it holds no tile ids, it simply has as
+ * many stacks as the mock's draw pool still needs, so it shortens as the hand goes on. Stacks are taken
+ * from the far side first, so the walls in front of you and to your right are the last to go.
+ */
+function Wall({ material }: { material: THREE.Material }) {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const invalidate = useThree((state) => state.invalidate);
+  const remaining = useStage((s) => Math.min(WALL_STACKS * 4, Math.ceil(s.pool.length / 2)));
+  const count = WALL_STACKS * 4 * 2;
+  const geometry = useMemo(() => {
+    const box = new RoundedBoxGeometry(TILE.w, TILE.h, TILE.d, 2, 0.32);
+    // Faces point at the felt, so the cell never shows; the attributes only have to exist.
+    box.setAttribute("aCell", new THREE.InstancedBufferAttribute(new Float32Array(count), 1));
+    box.setAttribute("aGlow", new THREE.InstancedBufferAttribute(new Float32Array(count), 1));
+    return box;
+  }, [count]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  useEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    const dummy = new THREE.Object3D();
+    // Your wall fills first, then the one to your right, across, and to your left. Each runs from
+    // its owner's left hand, which is the corner it shares with the wall filled before it.
+    let i = 0;
+    let left = remaining;
+    for (let seat = 0; seat < 4; seat++) {
+      for (let stack = 0; stack < WALL_STACKS; stack++) {
+        const on = left > 0;
+        if (on) left -= 1;
+        const x = (stack - (WALL_STACKS - 1) / 2) * (TILE.w + 0.05);
+        for (let layer = 0; layer < 2; layer++) {
+          if (on) {
+            const [px, , pz] = seatPoint(seat, x, 0, WALL_ROW);
+            dummy.position.set(px, TILE.d / 2 + layer * (TILE.d + 0.02), pz);
+            dummy.rotation.set(-FLAT, SEAT_YAW[seat], 0, "YXZ");
+            dummy.scale.setScalar(1);
+          } else {
+            dummy.position.set(0, -50, 0);
+            dummy.scale.setScalar(0);
+          }
+          dummy.updateMatrix();
+          mesh.setMatrixAt(i++, dummy.matrix);
+        }
+      }
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingSphere();
+    invalidate();
+    // A new material (day/night back color) rebuilds the mesh, so its stacks are placed again too.
+  }, [remaining, material, invalidate]);
+
+  return <instancedMesh ref={meshRef} args={[geometry, material, count]} castShadow receiveShadow raycast={() => null} />;
 }

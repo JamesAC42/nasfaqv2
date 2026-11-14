@@ -46,6 +46,11 @@ export function tileAtlas(onReady: () => void): THREE.CanvasTexture {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+  // Trilinear plus anisotropy (the caller raises it to what the GPU allows) keeps the glyphs steady on
+  // tiles seen at a grazing angle across the table.
+  texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
   texture.anisotropy = 8;
   texture.userData = { ready: false, waiters: [onReady] };
   atlas = texture;

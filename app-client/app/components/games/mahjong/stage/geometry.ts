@@ -50,11 +50,35 @@ export const FLAT = -Math.PI / 2;
 /** How far a standing hand leans back toward its owner so the faces read from the chair. */
 export const HAND_LEAN = -0.42;
 
-/** Where each opponent's portrait sits and how big it is. Side seats tuck in on narrow screens. */
-export function portraitSpot(seat: number, narrow: number): { p: Vec3; size: number } {
+/**
+ * Where each opponent sits. `p` is the figure's anchor: the bottom middle of the cutout, just below the
+ * table's edge as the camera sees it, so the cut-off waist (or chest, on a bust) stays hidden and the
+ * head and shoulders rise above the rim. `shoulder` is how wide the bottom of the figure comes out,
+ * which sets the scale whatever the crop (see scene-portraits); `maxHeight` caps very tall art so a head
+ * never leaves the frame. `size` is the nominal figure height, for pinning overlays near the head.
+ * Side players sit behind their side of the table, toward its far end so the lens takes them in; on a
+ * phone they move further back so all three fit across the top.
+ */
+export function portraitSpot(seat: number, narrow: number): { p: Vec3; shoulder: number; maxHeight: number; size: number } {
   const lerp = (a: number, b: number) => a + (b - a) * narrow;
-  // On a phone the side players move up to the far corners, so all three line up across the top.
-  if (seat === 2) return { p: [0, lerp(7.5, 26), lerp(-60, -64)], size: lerp(44, 42) };
+  if (seat === 2) return { p: [0, lerp(-3.5, -7), lerp(-50.5, -60)], shoulder: lerp(27, 20), maxHeight: lerp(40, 30), size: lerp(32, 24) };
+  // Side players swing round from the middle of their side (landscape) to the far corner (phone): along
+  // an arc, pushed out so that in between they stay behind the rim rather than cutting across the felt.
   const side = seat === 1 ? 1 : -1;
-  return { p: [side * lerp(57, 27), lerp(11, 22), lerp(-12, -50)], size: lerp(40, 40) };
+  const angle = lerp(Math.atan2(-19, 49), Math.atan2(-50, 25));
+  const radius = lerp(Math.hypot(49, 19), Math.hypot(25, 50));
+  let x = Math.cos(angle) * radius;
+  let z = Math.sin(angle) * radius;
+  const out = 48 / Math.max(Math.abs(x), Math.abs(z));
+  if (out > 1) {
+    x *= out;
+    z *= out;
+  }
+  return { p: [side * x, lerp(-3.5, -8), z], shoulder: lerp(28, 20), maxHeight: lerp(42, 28), size: lerp(32, 22) };
+}
+
+/** Where the camera leans on an opponent's big moment: their chest, so the push-in keeps the table in view. */
+export function portraitFocus(seat: number, narrow: number): Vec3 {
+  const spot = portraitSpot(seat, narrow);
+  return [spot.p[0], spot.p[1] + spot.size * 0.35, spot.p[2]];
 }

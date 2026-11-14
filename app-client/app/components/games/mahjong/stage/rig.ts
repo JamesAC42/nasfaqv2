@@ -13,7 +13,9 @@ export const narrowness = (aspect: number) => Math.min(1, Math.max(0, (1.45 - as
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const lerp3 = (a: Vec3, b: Vec3, t: number): Vec3 => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
 
-const WIDE: CameraPose = { position: [0, 56, 71], target: [0, 0.4, -5], fov: 42 };
+// A little lower and further back than straight overhead, so there is room above the far rim for the
+// opponents' heads and the side players sit inside the frame.
+const WIDE: CameraPose = { position: [0, 47, 79], target: [0, 3, -7], fov: 44 };
 const TALL: CameraPose = { position: [0, 128, 52], target: [0, 0, -10], fov: 55 };
 
 export function basePose(aspect: number): CameraPose {
