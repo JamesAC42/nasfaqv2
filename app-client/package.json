@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsc -p tsconfig.sim-test.json && node --test .sim-test/app/lib/market-sim/tests/*.test.js",
+    "test": "node --test app/lib/*.test.mjs && tsc -p tsconfig.sim-test.json && node --test .sim-test/app/lib/market-sim/tests/*.test.js",
     "art:doc": "node scripts/art-spec.mjs",
     "hats": "node scripts/hat-fitter/server.mjs"
   },

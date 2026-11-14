@@ -38,7 +38,7 @@
 
 .rewards {
   display: grid;
-  margin: 0 0 1.25rem;
+  margin: 0.6rem 0 0;
   padding: 0;
   border: 1px solid var(--rule);
   list-style: none;
@@ -68,7 +68,96 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;
+  margin: 0.75rem 0 0;
+}
+
+// The three steps, each saying which site it happens on.
+.steps {
+  display: grid;
   margin: 0 0 2rem;
+  padding: 0;
+  border: 1px solid var(--rule);
+  list-style: none;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 0.85rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--rule);
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  &[data-state="current"] {
+    box-shadow: inset 2px 0 0 var(--blue);
+    background: var(--blue-wash);
+  }
+
+  &[data-state="todo"] .stepHead b {
+    color: var(--mid);
+  }
+}
+
+.stepNum {
+  @include num;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--rule-2);
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--mid);
+
+  [data-state="current"] > & {
+    border-color: var(--blue);
+    background: var(--blue);
+    color: var(--blue-ink);
+  }
+
+  [data-state="done"] > & {
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+}
+
+.stepBody {
+  min-width: 0;
+
+  > p {
+    margin: 0.35rem 0 0;
+    font-size: 0.875rem;
+    color: var(--mid);
+  }
+
+  > p.actions {
+    margin-top: 0.75rem;
+  }
+
+  a:not(.primary):not(.ghost) {
+    color: var(--blue);
+  }
+}
+
+.stepBody > p.stepHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text);
+
+  b {
+    font-weight: 700;
+  }
+}
+
+.site {
+  @include label;
 }
 
 .primary,
@@ -107,7 +196,7 @@
     margin: 0 0 0.6rem;
   }
 
-  ol {
+  ul {
     display: grid;
     gap: 0.45rem;
     margin: 0;
