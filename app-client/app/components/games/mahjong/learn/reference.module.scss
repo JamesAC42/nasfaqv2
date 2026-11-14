@@ -1,0 +1,299 @@
+@use "../../../../styles/mixins" as *;
+
+// The reference pages: yaku, glossary, rules and tips.
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.9rem;
+  margin: 0;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.chips {
+  @include tabs;
+  max-width: 100%;
+
+  button {
+    @include tab;
+    cursor: pointer;
+
+    &[aria-pressed="true"] {
+      @include tab-selected;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.search {
+  flex: 1 1 14rem;
+  min-width: 0;
+
+  input {
+    @include input-base;
+    padding: 0.5rem 0.7rem;
+    font-size: 0.875rem;
+  }
+}
+
+.count {
+  @include num;
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+.empty {
+  @include empty-state;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+}
+
+.group {
+  min-width: 0;
+  scroll-margin-top: 4.5rem;
+}
+
+// ── Yaku ────────────────────────────────────────────────────────────────────
+.yakuList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.yaku {
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--rule);
+  scroll-margin-top: 4.5rem;
+
+  &:target h3 a {
+    color: var(--blue);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.55;
+    color: var(--mid);
+  }
+}
+
+.yakuHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.7rem;
+
+  h3 {
+    @include display(1.15rem);
+    margin: 0;
+
+    a {
+      color: var(--text);
+      text-decoration: none;
+
+      &:hover {
+        color: var(--blue);
+      }
+    }
+  }
+}
+
+.japanese {
+  font-size: 0.8125rem;
+  font-style: italic;
+  color: var(--dim);
+}
+
+.value {
+  @include num;
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text);
+}
+
+.example {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: start;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--rule);
+  background: var(--ink-2);
+  overflow-x: auto;
+
+  span {
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--dim);
+  }
+}
+
+// ── Glossary ────────────────────────────────────────────────────────────────
+.letters {
+  @include label;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  padding: 0.7rem 0 0.2rem;
+
+  a,
+  span {
+    display: inline-grid;
+    place-items: center;
+    min-width: 1.7rem;
+    height: 1.7rem;
+    text-decoration: none;
+  }
+
+  a {
+    color: var(--text);
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+
+    &:hover {
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+
+  span {
+    color: var(--rule-2);
+  }
+}
+
+.terms {
+  display: grid;
+  margin: 0;
+}
+
+.entry {
+  display: grid;
+  grid-template-columns: minmax(8rem, 12rem) minmax(0, 1fr);
+  gap: 0.2rem 1.4rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--rule);
+  scroll-margin-top: 4.5rem;
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  &:target dt {
+    color: var(--blue);
+  }
+
+  dt {
+    @include display(1.05rem);
+    display: grid;
+    align-content: start;
+    gap: 0.1rem;
+    margin: 0;
+    color: var(--text);
+
+    small {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.04em;
+      color: var(--dim);
+    }
+  }
+
+  dd {
+    display: grid;
+    gap: 0.2rem;
+    margin: 0;
+    min-width: 0;
+    font-size: 0.875rem;
+    line-height: 1.55;
+    color: var(--mid);
+
+    b {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    a {
+      color: var(--blue);
+    }
+  }
+}
+
+// ── Rules ───────────────────────────────────────────────────────────────────
+.toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  margin: 0;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--rule);
+  list-style: none;
+
+  a {
+    @include label;
+    color: var(--blue);
+    text-decoration: none;
+  }
+}
+
+.moneyFacts {
+  @include num;
+}
+
+// ── Tips ────────────────────────────────────────────────────────────────────
+.tip {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--rule);
+  scroll-margin-top: 4.5rem;
+
+  h3 {
+    @include display(1.15rem);
+    margin: 0;
+    color: var(--text);
+  }
+
+  p {
+    margin: 0;
+    max-width: 46rem;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--mid);
+  }
+
+  b {
+    color: var(--text);
+    font-weight: 600;
+  }
+}

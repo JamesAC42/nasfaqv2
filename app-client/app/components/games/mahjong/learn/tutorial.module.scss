@@ -1,0 +1,302 @@
+@use "../../../../styles/mixins" as *;
+
+// The walkthrough: a strip of lesson chips, one lesson at a time, exercises checked in the browser.
+
+.wrap {
+  min-width: 0;
+  padding-top: 1rem;
+}
+
+.chips {
+  display: flex;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0 0 0.9rem;
+  list-style: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  button {
+    @include num;
+    flex: none;
+    min-width: 2.25rem;
+    height: 2.25rem;
+    padding: 0 0.6rem;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--mid);
+    font-size: 0.8125rem;
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--text);
+      color: var(--text);
+    }
+
+    &[aria-current="step"] {
+      background: var(--text);
+      border-color: var(--text);
+      color: var(--ink);
+    }
+
+    &[data-done="true"]:not([aria-current="step"]) {
+      border-color: var(--blue-line);
+      color: var(--blue);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.lesson {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0.4rem 0 1.2rem;
+  border-top: 1px solid var(--rule);
+
+  h2 {
+    @include display(1.6rem);
+    margin: 0;
+    color: var(--text);
+  }
+}
+
+.where {
+  @include label;
+  margin-top: 0.8rem;
+}
+
+.blurb {
+  margin: 0 0 0.6rem;
+  font-size: 0.9375rem;
+  color: var(--mid);
+}
+
+.exercises {
+  display: grid;
+  gap: 1.4rem;
+  min-width: 0;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+}
+
+.exercise {
+  display: grid;
+  gap: 0.7rem;
+  min-width: 0;
+  max-width: 46rem;
+}
+
+.exerciseHead {
+  @include label;
+  color: var(--blue);
+}
+
+.prompt {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.context {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--rule);
+  background: var(--ink-2);
+  overflow-x: auto;
+
+  > span:first-child {
+    @include label;
+  }
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.55rem 0;
+  min-height: 3.6rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.check {
+  @include button-primary;
+  @include label;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid var(--blue);
+  border-radius: var(--radius-sm);
+  background: var(--blue);
+  color: var(--blue-ink);
+  cursor: pointer;
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.ghost {
+  @include button-secondary;
+  @include label;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--mid);
+  cursor: pointer;
+}
+
+.count {
+  @include num;
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+.options {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: start;
+}
+
+.option {
+  max-width: 100%;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--text);
+  }
+
+  &[data-state="wrong"] {
+    color: var(--dim);
+    text-decoration: line-through;
+    border-style: dashed;
+  }
+
+  &[data-state="right"] {
+    border-color: var(--blue);
+    background: var(--blue-wash);
+  }
+
+  &:disabled {
+    cursor: default;
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.feedback {
+  margin: 0;
+  padding: 0.55rem 0 0.55rem 0.9rem;
+  border-left: 2px solid var(--rule-2);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--mid);
+
+  b {
+    color: var(--text);
+  }
+
+  &[data-tone="ok"] {
+    border-left-color: var(--blue);
+  }
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1.2rem;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.reset {
+  @include label;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dim);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+// ── Play ────────────────────────────────────────────────────────────────────
+.play {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0.8rem 0;
+  border: 1px solid var(--rule);
+  background: var(--rule);
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  > div {
+    display: grid;
+    align-content: start;
+    gap: 0.6rem;
+    min-width: 0;
+    padding: 1rem;
+    background: var(--ink);
+  }
+
+  h3 {
+    @include display(1.2rem);
+    margin: 0;
+    color: var(--text);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--mid);
+  }
+
+  button {
+    justify-self: start;
+  }
+}
+
+.practice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  margin-top: 0.6rem;
+}

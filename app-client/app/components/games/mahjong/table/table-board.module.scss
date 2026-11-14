@@ -1,0 +1,662 @@
+@use "../../../../styles/mixins" as *;
+
+// The board: a flat, top-down table in the site's terminal look. You are at the bottom. The other
+// three sit around a center box; each seat's plate and the backs of its hand sit by the corners, the
+// ponds sit between them and the center box, and every face stays upright so it can be read.
+
+.board {
+  --ps: 20px;
+  --cw: 150px;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--cw) minmax(0, 1fr);
+  grid-template-areas:
+    "lc tc rc"
+    "lp ct rp"
+    ". bp ."
+    "me me me";
+  gap: 0.3rem 0.25rem;
+  width: 100%;
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 0.4rem;
+  border: 1px solid var(--rule);
+  background: var(--ink-2);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.corner {
+  min-width: 0;
+
+  &[data-side="left"] {
+    grid-area: lc;
+    justify-self: start;
+  }
+
+  &[data-side="right"] {
+    grid-area: rc;
+    justify-self: end;
+  }
+}
+
+.topCol {
+  grid-area: tc;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  justify-self: center;
+}
+
+.sidePond {
+  min-width: 0;
+
+  &[data-side="left"] {
+    grid-area: lp;
+    justify-self: end;
+  }
+
+  &[data-side="right"] {
+    grid-area: rp;
+    justify-self: start;
+  }
+}
+
+.bottomPond {
+  grid-area: bp;
+  display: flex;
+  justify-content: center;
+}
+
+.mineRow {
+  grid-area: me;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.mineMelds {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+
+.seatInfo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.backs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1px;
+  max-width: 100%;
+  overflow: hidden;
+
+  .topCol & {
+    flex-wrap: nowrap;
+  }
+}
+
+.melds {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+// ── Ponds ───────────────────────────────────────────────────────────────────
+.pond {
+  display: flex;
+  gap: 1px;
+
+  &[data-side="bottom"] {
+    flex-direction: column;
+  }
+
+  &[data-side="top"] {
+    flex-direction: column-reverse;
+  }
+
+  &[data-side="left"] {
+    flex-direction: row-reverse;
+  }
+
+  &[data-side="right"] {
+    flex-direction: row;
+  }
+}
+
+.pondLine {
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+
+  .pond[data-side="top"] & {
+    flex-direction: row-reverse;
+  }
+
+  .pond[data-side="left"] & {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .pond[data-side="right"] & {
+    flex-direction: column-reverse;
+    align-items: center;
+  }
+}
+
+// ── Name plates ─────────────────────────────────────────────────────────────
+.plate {
+  --tal: var(--blue);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.15rem 0.45rem 0.15rem 0.15rem;
+  border: 1px solid transparent;
+
+  &[data-turn] {
+    border-color: var(--blue-line);
+    background: var(--blue-wash);
+  }
+
+  .corner & {
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.2rem 0.25rem;
+    text-align: center;
+  }
+}
+
+.plateText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+
+  .corner & {
+    align-items: center;
+    max-width: 100%;
+  }
+}
+
+.plateName {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  min-width: 0;
+
+  b {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  em {
+    @include label;
+    font-size: 0.5rem;
+    font-style: normal;
+    color: var(--blue);
+  }
+}
+
+.plateMeta {
+  @include num;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.64rem;
+  color: var(--mid);
+
+  .corner & {
+    justify-content: center;
+  }
+}
+
+.wind {
+  @include num;
+  display: inline-grid;
+  place-items: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 1px solid var(--rule-2);
+  font-size: 0.62rem;
+  font-style: normal;
+  font-weight: 700;
+  color: var(--mid);
+
+  &[data-dealer] {
+    border-color: var(--blue);
+    background: var(--blue);
+    color: var(--blue-ink);
+  }
+}
+
+.plateScore {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.badge {
+  @include label;
+  padding: 0 0.25rem;
+  border: 1px solid var(--rule-2);
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+
+  &[data-warn] {
+    border-color: var(--warn);
+    color: var(--warn);
+  }
+}
+
+.riichi {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.55rem;
+  font-weight: 700;
+
+  i {
+    display: block;
+    width: 1.15rem;
+    height: 0.32rem;
+    border-radius: 1px;
+    background: radial-gradient(circle at 50% 50%, #cc3a2f 0 1.5px, transparent 1.6px), #f6f0dd;
+    box-shadow: 0 0 0 1px var(--rule-2);
+  }
+}
+
+.rank,
+.rating {
+  color: var(--dim);
+
+  @include phone {
+    .corner & {
+      display: none;
+    }
+  }
+}
+
+.cheers {
+  &::before {
+    content: "📣 ";
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  }
+}
+
+.plateClock {
+  color: var(--blue);
+  font-weight: 700;
+
+  &[data-urgent] {
+    color: var(--warn);
+  }
+}
+
+// ── The portrait: a talent in a round with their color behind. No words. ───
+.portrait {
+  --tal: var(--blue);
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--tal) 40%, transparent), transparent 72%),
+    color-mix(in srgb, var(--tal) 14%, var(--ink-3));
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--tal) 70%, transparent);
+
+  b {
+    @include display;
+    font-size: 1rem;
+    color: var(--tal);
+  }
+}
+
+.portraitFace {
+  position: absolute;
+  inset: 4% 0 0;
+  animation: portrait-pop 240ms ease-out both;
+
+  :global(html[data-calm="true"]) & {
+    animation: none;
+  }
+}
+
+.portrait[data-pose="hype"] .portraitFace {
+  animation:
+    portrait-pop 240ms ease-out both,
+    portrait-hop 520ms 240ms ease-out 1;
+}
+
+.portrait[data-pose="shock"] .portraitFace {
+  animation:
+    portrait-pop 240ms ease-out both,
+    portrait-jolt 420ms 240ms ease-out 1;
+}
+
+:global(html[data-calm="true"]) .portrait .portraitFace {
+  animation: none;
+}
+
+@keyframes portrait-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8%) scale(0.96);
+  }
+}
+
+@keyframes portrait-hop {
+  40% {
+    transform: translateY(-8%);
+  }
+}
+
+@keyframes portrait-jolt {
+  25% {
+    transform: translateX(-4%);
+  }
+  50% {
+    transform: translateX(4%);
+  }
+  75% {
+    transform: translateX(-2%);
+  }
+}
+
+// ── The center box ──────────────────────────────────────────────────────────
+.center {
+  grid-area: ct;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.4rem 0.3rem;
+  border: 1px solid var(--rule-2);
+  background: var(--ink);
+}
+
+.centerTop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.round {
+  @include display;
+  font-size: calc(var(--ps) * 1.1);
+  color: var(--text);
+}
+
+.counters {
+  @include num;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.15rem 0.5rem;
+  font-size: max(0.62rem, calc(var(--ps) * 0.48));
+  color: var(--mid);
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  small {
+    @include label;
+    font-size: 0.5rem;
+  }
+}
+
+.honba {
+  display: block;
+  width: 0.6rem;
+  height: 0.6rem;
+  border: 2px solid var(--mid);
+  border-radius: 50%;
+}
+
+.stickIcon {
+  display: block;
+  width: 1rem;
+  height: 0.28rem;
+  border-radius: 1px;
+  background: radial-gradient(circle at 50% 50%, #cc3a2f 0 1.5px, transparent 1.6px), #f6f0dd;
+  box-shadow: 0 0 0 1px var(--rule-2);
+}
+
+.dora {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.compass {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas:
+    "top top"
+    "left right"
+    "bottom bottom";
+  gap: 2px;
+  width: 100%;
+}
+
+.cell {
+  @include num;
+  display: flex;
+  align-items: baseline;
+  gap: 0.2rem;
+  padding: 1px 3px;
+  border: 1px solid transparent;
+  font-size: max(0.56rem, calc(var(--ps) * 0.4));
+  color: var(--text);
+
+  i {
+    font-style: normal;
+    font-weight: 700;
+    color: var(--dim);
+  }
+
+  b {
+    font-weight: 600;
+  }
+
+  &[data-side="top"] {
+    grid-area: top;
+    justify-self: center;
+  }
+
+  &[data-side="bottom"] {
+    grid-area: bottom;
+    justify-self: center;
+  }
+
+  &[data-side="left"] {
+    grid-area: left;
+    justify-self: start;
+  }
+
+  &[data-side="right"] {
+    grid-area: right;
+    justify-self: end;
+  }
+
+  &[data-dealer] i {
+    color: var(--blue);
+  }
+
+  &[data-turn] {
+    border-color: var(--blue);
+    background: var(--blue-wash);
+  }
+}
+
+// ── Callouts ────────────────────────────────────────────────────────────────
+.callouts {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.callout {
+  @include display;
+  position: absolute;
+  font-size: clamp(1.7rem, calc(var(--ps) * 2.3), 3.2rem);
+  line-height: 1;
+  color: var(--text);
+  text-shadow:
+    0 2px 0 var(--ink),
+    0 0 16px color-mix(in srgb, var(--blue) 55%, transparent);
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  animation: callout 1.3s ease-out both;
+
+  &[data-side="bottom"] {
+    left: 50%;
+    top: 74%;
+  }
+
+  &[data-side="top"] {
+    left: 50%;
+    top: 24%;
+  }
+
+  &[data-side="left"] {
+    left: 20%;
+    top: 50%;
+  }
+
+  &[data-side="right"] {
+    left: 80%;
+    top: 50%;
+  }
+
+  &[data-tone="win"] {
+    font-size: clamp(2.2rem, calc(var(--ps) * 3), 4.2rem);
+    color: var(--blue-2);
+  }
+
+  &[data-tone="riichi"] {
+    color: var(--blue);
+  }
+
+  :global(html[data-calm="true"]) & {
+    animation: callout-calm 1.2s linear both;
+  }
+}
+
+@keyframes callout {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  14% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.15);
+  }
+  26%,
+  72% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -64%) scale(1);
+  }
+}
+
+@keyframes callout-calm {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  15%,
+  80% {
+    opacity: 1;
+  }
+}
+
+// ── Your hand ───────────────────────────────────────────────────────────────
+.hand {
+  width: 100%;
+  padding: 14px 0 10px;
+}
+
+.handRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+}
+
+.slot {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+
+  &[data-lifted] {
+    z-index: 2;
+  }
+}
+
+.markReady,
+.markBest {
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  display: block;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.markReady {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--blue);
+}
+
+.markBest {
+  width: 10px;
+  height: 7px;
+  background: var(--blue-2);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.slot[data-mark="lesson"] {
+  filter: drop-shadow(0 0 6px var(--blue));
+}
+
+.watchHand {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  padding: 0.35rem 0 0.1rem;
+}

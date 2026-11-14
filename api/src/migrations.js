@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { applyGamesSchema } = require("./gamesSchema");
+const { applyMahjongSchema } = require("./mahjongSchema");
 const { applyPredictionsSchema } = require("./services/predictions/schema");
 const { applyPoolsSchema } = require("./services/predictions/poolSchema");
 
@@ -1758,6 +1759,7 @@ async function applySchema(pool) {
   await pool.query(require("./services/ipo").schema);
   await pool.query(require("./services/auth").passwordResetSchema);
   await applyGamesSchema(pool);
+  await applyMahjongSchema(pool);
   await applyPredictionsSchema(pool);
 
   // Moderation (services/moderation.js). Site-wide suspension: a player with suspended_at set and

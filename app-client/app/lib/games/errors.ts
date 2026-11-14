@@ -37,6 +37,23 @@ const COPY: Record<string, string> = {
   games_paused: "New games are paused for an update. Back in a few minutes.",
   "404": "The arcade is being updated. Back shortly.",
   game_session_not_active: "That run was already submitted.",
+  // Mahjong
+  invalid_table: "That isn't a table you can open.",
+  table_not_full: "That table isn't full yet.",
+  lesson_not_found: "That lesson isn't available.",
+  tutorial_step: "Not that one: the lesson wants a different move.",
+  mahjong_weekly_limit: "That seat could take you past this week's mahjong limit. The limit resets Saturday at midnight ET.",
+  mahjong_daily_limit: "That's all your paid games for today. More at midnight ET.",
+  mahjong_same_network: "You can't sit at a paid table with someone who plays from your network.",
+  mahjong_account_too_new: "New accounts can play paid mahjong a few days after signing up. Free tables are open now.",
+  mahjong_guest_limit: "That's a lot of practice hands from one place. Try again in a few minutes, or sign up.",
+  mahjong_guest_busy: "The practice tables are full right now. Try again in a minute.",
+  mahjong_picks_closed: "Picks closed when the game got going.",
+  mahjong_prize_over_cap: "That prize is over what one tournament may pay.",
+  tournament_not_found: "That tournament is gone.",
+  tournament_closed: "Sign-up for that tournament has closed.",
+  invalid_tournament: "Something in that tournament isn't valid.",
+  profile_not_found: "No player by that name.",
   // Card exchange
   card_bound: "Starter-pack cards stay with you. They can't be sold or traded.",
   card_not_tradeable: "You don't have a spare copy of that card to trade.",
@@ -75,6 +92,10 @@ export function gameErrorText(error: unknown) {
   if (message === "pvp_account_too_new" && typeof availableAt === "string") {
     const when = new Date(availableAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
     return `New accounts can play for a stake from ${when}, like trading on the exchange. Tables with no stake are open now.`;
+  }
+  if (message === "mahjong_account_too_new" && typeof availableAt === "string") {
+    const when = new Date(availableAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    return `New accounts can play paid mahjong from ${when}. Free tables are open now.`;
   }
   return COPY[message] ?? (message && !/^\d+$/.test(message) ? message.replace(/_/g, " ") : "Something went wrong. Try again.");
 }

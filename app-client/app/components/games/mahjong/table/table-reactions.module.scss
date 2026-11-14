@@ -1,0 +1,172 @@
+@use "../../../../styles/mixins" as *;
+
+// Floating emoji over the board, and the row that sends them (reactions, stamps, cheers).
+
+.layer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+
+// Added by hand, moved by the Web Animations API: transform and opacity only.
+.floater {
+  position: absolute;
+  margin-left: -0.5em;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  line-height: 1;
+  opacity: 0;
+  user-select: none;
+  will-change: transform, opacity;
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.2rem 0.3rem;
+  border: 1px solid var(--rule);
+  background: var(--ink-2);
+}
+
+.group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem;
+  margin-left: 0.3rem;
+  padding-left: 0.4rem;
+  border-left: 1px solid var(--rule);
+}
+
+.button,
+.stamp,
+.cheer {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  padding: 0 0.2rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 1.15rem;
+  line-height: 1;
+  color: var(--text);
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 90ms ease-out;
+
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      background: var(--blue-wash);
+    }
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.88);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  // Calm mode: how many came in lately, in place of anything moving.
+  small {
+    @include num;
+    position: absolute;
+    top: 0;
+    right: 0;
+    min-width: 1rem;
+    padding: 0 0.2rem;
+    border-radius: 999px;
+    background: var(--blue);
+    color: var(--blue-ink);
+    font-size: 0.56rem;
+    font-weight: 700;
+    line-height: 1rem;
+    text-align: center;
+
+    &:empty {
+      display: none;
+    }
+  }
+}
+
+.stamp {
+  width: 2.25rem;
+  padding: 0;
+
+  > span {
+    width: 1.9rem;
+    height: 1.9rem;
+    overflow: hidden;
+    border-radius: 50%;
+  }
+}
+
+.cheer {
+  grid-auto-flow: column;
+  gap: 0.2rem;
+  padding: 0 0.45rem 0 0.2rem;
+  font-size: 0.9rem;
+
+  em {
+    @include num;
+    font-size: 0.68rem;
+    font-style: normal;
+    color: var(--mid);
+  }
+}
+
+.cheerFace {
+  --tal: var(--blue);
+  display: inline-block;
+  width: 1.4rem;
+  height: 1.4rem;
+  overflow: hidden;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--tal) 24%, var(--ink-3));
+  box-shadow: inset 0 0 0 2px var(--tal);
+
+  > span {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 2.1rem;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 0.8rem;
+  color: var(--dim);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}

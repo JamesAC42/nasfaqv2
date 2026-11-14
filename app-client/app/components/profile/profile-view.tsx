@@ -12,6 +12,7 @@ import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { FirstDaysCard } from "@/app/components/onboarding/first-days-card";
+import { MahjongProfileBlock } from "@/app/components/games/mahjong/records/profile-block";
 import { PictureModal, SecurityModal, SettingsModal } from "@/app/components/profile/profile-modals";
 import { ReferralPanel } from "@/app/components/profile/referral-panel";
 import {
@@ -373,6 +374,7 @@ export function ProfileView({ username }: { username?: string | null }) {
           <div className={styles.col}>
             <GachaBadges profile={profile} isSelf={isSelf} />
             <Oshiboards profile={profile} />
+            <MahjongProfileBlock username={profile.username} />
             {!isSelf && viewer.is_authenticated ? <HeadToHead profile={profile} /> : null}
           </div>
           <div className={styles.col}>

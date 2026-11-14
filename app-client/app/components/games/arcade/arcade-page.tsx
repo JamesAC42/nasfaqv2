@@ -23,6 +23,7 @@ import {
 import { usePhone } from "@/app/components/games/arcade/use-media";
 import type { CardFace } from "@/app/components/games/cards/talent-card";
 import { GamesFrame } from "@/app/components/games/shell/games-frame";
+import { useFeature } from "@/app/lib/features";
 import type { GameEntry, GameTable, TableGame } from "@/app/lib/games/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useGamesStore } from "@/app/stores/games-store";
@@ -57,6 +58,7 @@ export function ArcadePage() {
   const duel = useLobby("oshi-duel");
   const highLow = useLobby("high-low");
   const blackjack = useBlackjackLobby();
+  const mahjongOn = useFeature("mahjong");
   const seats = useMySeats(me, [duel.tables, highLow.tables], blackjack);
 
   const featured = banners?.banners.find((banner) => banner.kind === "featured" && banner.featured)?.featured ?? null;
@@ -96,7 +98,7 @@ export function ArcadePage() {
     tapFee: board?.game?.entry_fee_cash ?? null,
     // The collection's capsule pity reports card-style counters; the capsule's hard pity is 60.
     capsuleIn: signedIn && collection?.pity.capsule ? Math.max(1, 60 - collection.pity.capsule.pulls_since_ssr) : null,
-  }).filter((tile) => TICKER_TAP_ENABLED || tile.key !== "ticker-tap");
+  }).filter((tile) => (TICKER_TAP_ENABLED || tile.key !== "ticker-tap") && (mahjongOn || tile.key !== "mahjong"));
 
   return (
     <GamesFrame
@@ -286,6 +288,14 @@ function buildTiles({
       hook: "Higher or lower, nine calls, one double-down. Read the deck, rob a friend.",
       price: `Stake ${range(entry("high-low"), [0, 5000])}`,
       stat: tableStat(highLow),
+    },
+    {
+      key: "mahjong",
+      href: "/games/mahjong",
+      name: "Mahjong",
+      hook: "Four players, coins and candlesticks. Learn it against bots, then sit at a real table.",
+      price: "Free tables · stakes tables",
+      stat: null,
     },
     {
       key: "ticker-tap",

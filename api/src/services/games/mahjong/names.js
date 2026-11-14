@@ -1,0 +1,51 @@
+// Plain-English names for yaku keys (agari.js), for headlines and logs. The client has its own
+// table with the Japanese names and explanations (app/lib/games/mahjong/yaku.ts).
+
+const YAKU_NAMES = Object.freeze({
+  riichi: "Riichi",
+  "double-riichi": "Double riichi",
+  ippatsu: "Ippatsu",
+  "menzen-tsumo": "Fully concealed hand",
+  pinfu: "Pinfu",
+  iipeikou: "Pure double sequence",
+  ryanpeikou: "Twice pure double sequence",
+  tanyao: "All simples",
+  "yakuhai-white": "White dragon",
+  "yakuhai-green": "Green dragon",
+  "yakuhai-red": "Red dragon",
+  "yakuhai-seat": "Seat wind",
+  "yakuhai-round": "Round wind",
+  rinshan: "After a kan",
+  chankan: "Robbing a kan",
+  haitei: "Under the sea",
+  houtei: "Under the river",
+  chiitoitsu: "Seven pairs",
+  sanshoku: "Mixed triple sequence",
+  ittsu: "Pure straight",
+  chanta: "Half outside hand",
+  junchan: "Fully outside hand",
+  toitoi: "All triplets",
+  sanankou: "Three concealed triplets",
+  "sanshoku-doukou": "Triple triplets",
+  sankantsu: "Three kans",
+  honroutou: "All terminals and honors",
+  shousangen: "Little three dragons",
+  honitsu: "Half flush",
+  chinitsu: "Full flush",
+  kokushi: "Thirteen orphans",
+  suuankou: "Four concealed triplets",
+  daisangen: "Big three dragons",
+  shousuushii: "Little four winds",
+  daisuushii: "Big four winds",
+  tsuuiisou: "All honors",
+  chinroutou: "All terminals",
+  ryuuiisou: "All green",
+  chuuren: "Nine gates",
+  suukantsu: "Four kans",
+  tenhou: "Blessing of heaven",
+  chiihou: "Blessing of earth",
+});
+
+const yakuName = (key) => YAKU_NAMES[key] ?? key;
+
+module.exports = { YAKU_NAMES, yakuName };

@@ -3,12 +3,19 @@
 //   table:{id}           → { type: "table", table }
 //   blackjack:{tableKey} → { type: "blackjack", table }
 //   reactions:blackjack:{tableKey} → { type: "reactions", items: [[id, seat, count]] } (reactions.js)
+//   mahjong:{id}, lobby:mahjong, reactions:mahjong:{id}, mahjong-tournament:{id} (mahjong/tables.js)
+//   mj-seat:{token}      → one mahjong seat's own view. The token is a secret handed to that player
+//                          over HTTP; nothing else opens the channel.
 // Every message carries its `channel`. The hub is anonymous: everything it sends is public. Hidden information (duel picks before the
 // reveal, the dealer's hole card) is withheld by the engines before it gets here.
 
 const { WebSocketServer } = require("ws");
+const features = require("../../../features");
 
-const CHANNEL_RE = /^(lobby:[a-z0-9-]{1,40}|table:\d{1,12}|blackjack:[a-z0-9-]{1,20}|reactions:blackjack:[a-z0-9-]{1,20}|exchange)$/;
+const CHANNEL_RE = /^(lobby:[a-z0-9-]{1,40}|table:\d{1,12}|blackjack:[a-z0-9-]{1,20}|reactions:blackjack:[a-z0-9-]{1,20}|exchange|mahjong:\d{1,12}|mj-seat:[0-9a-f]{32}|reactions:mahjong:\d{1,12}|mahjong-tournament:\d{1,12})$/;
+// Channels behind a feature flag: [pattern, flag]. A socket whose viewer doesn't have the flag can't
+// subscribe (the flag is read when the socket opens, like everything else about its viewer).
+const FLAGGED_CHANNELS = [[/^(lobby:mahjong$|mahjong:|mj-seat:|reactions:mahjong:|mahjong-tournament:)/, "mahjong"]];
 // `me` is the signed-in player's own feed (exchange alerts: outbid, sold, trade offers). The
 // socket is authenticated at upgrade; `me` maps to `user:{id}` and is never public.
 const ME = "me";
@@ -31,7 +38,11 @@ function send(ws, payload) {
 
 function resolveChannel(ws, channel) {
   if (channel === ME) return ws.userId ? userChannel(ws.userId) : null;
-  return CHANNEL_RE.test(channel) ? channel : null;
+  if (!CHANNEL_RE.test(channel)) return null;
+  for (const [pattern, flag] of FLAGGED_CHANNELS) {
+    if (pattern.test(channel) && !features.enabledFor(flag, ws.audience ?? "everyone")) return null;
+  }
+  return channel;
 }
 
 function subscribe(ws, requested) {
@@ -110,6 +121,7 @@ function createGamesWss() {
     // Read when the socket opens. A suspension signs the player out, which closes this socket, so
     // the next one knows; and a verified email stays verified.
     ws.canReact = Boolean(req?.gamesUser?.email_verified && !req.gamesUser.suspension);
+    ws.audience = features.audienceOf(req?.gamesUser ?? null);
     ws.gameChannels = new Set();
     ws.isAlive = true;
     ws.on("pong", () => {

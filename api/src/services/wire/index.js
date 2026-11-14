@@ -571,7 +571,7 @@ const WIRE_GROUPS = {
   streams: "kind LIKE 'stream\\_%'",
   records: "kind IN ('subscriber_milestone', 'viewer_record', 'superchat_leader')",
   market: "kind IN ('market_mover', 'dividend_review', 'buyback', 'sold_out', 'ipo')",
-  games: "kind IN ('exchange_sale', 'ur_pull', 'prediction_resolved')",
+  games: "kind IN ('exchange_sale', 'ur_pull', 'prediction_resolved', 'mahjong_yakuman', 'mahjong_tournament')",
   vt: "kind = 'chatter_spike'",
   oshi: `kind = '${oshiWire.KIND}'`, // only with the oshi-wire flag (groupFor)
 };
@@ -587,14 +587,19 @@ function groupFor(group, { withOshi = false } = {}) {
   return group;
 }
 
-/** The conditions every read starts with: shown, in the window, and oshi moves only `withOshi`. */
-function baseWhere(withOshi) {
-  return [
+/**
+ * The conditions every read starts with: shown, in the window, oshi moves only `withOshi`, and
+ * mahjong's headlines (services/games/mahjong/records.js) only `withMahjong` (the mahjong flag).
+ */
+function baseWhere(withOshi, withMahjong = false) {
+  const where = [
     "NOT hidden",
     "occurred_at > now() - ($1 || ' hours')::interval",
     "occurred_at < now() + interval '7 days'",
     withOshi ? oshiWire.visibleSql() : `kind <> '${oshiWire.KIND}'`,
   ];
+  if (!withMahjong) where.push("kind NOT IN ('mahjong_yakuman', 'mahjong_tournament')");
+  return where;
 }
 
 function wireRow(row) {
@@ -617,9 +622,9 @@ function wireRow(row) {
  * page reads them newest first (order "time"), optionally one group (WIRE_GROUPS) or one talent, and
  * pages back with `before` (an occurred_at). Oshi moves only `withOshi` (the oshi-wire flag).
  */
-async function listWire(pool, { limit = 40, hours = 168, order = "rank", group = null, symbol = null, before = null, withOshi = false } = {}) {
+async function listWire(pool, { limit = 40, hours = 168, order = "rank", group = null, symbol = null, before = null, withOshi = false, withMahjong = false } = {}) {
   const params = [String(Math.min(24 * 30, Math.max(1, Number(hours) || 168))), Math.min(200, Math.max(1, Number(limit) || 40))];
-  const where = baseWhere(withOshi);
+  const where = baseWhere(withOshi, withMahjong);
   const only = groupFor(group, { withOshi });
   if (only) where.push(WIRE_GROUPS[only]);
   if (symbol) {
@@ -658,9 +663,9 @@ async function listWire(pool, { limit = 40, hours = 168, order = "rank", group =
 }
 
 /** How many items each group has in the window (the Wire page's chips), plus the total. The oshi group only `withOshi`. */
-async function countWire(pool, { hours = 168, symbol = null, withOshi = false } = {}) {
+async function countWire(pool, { hours = 168, symbol = null, withOshi = false, withMahjong = false } = {}) {
   const params = [String(Math.min(24 * 30, Math.max(1, Number(hours) || 168)))];
-  const where = baseWhere(withOshi);
+  const where = baseWhere(withOshi, withMahjong);
   if (symbol) {
     params.push(String(symbol).toUpperCase());
     where.push(`$2 = ANY(symbols)`);

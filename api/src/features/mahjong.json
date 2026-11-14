@@ -1,0 +1,4 @@
+{
+  "state": "staff",
+  "description": "Mahjong (docs/games/MAHJONG_DESIGN.md): the lobby, tables, tournaments, replays, ladder and guides under /games/mahjong, its arcade tile and games nav link, the mahjong record on profiles, its How to play section and glossary terms, everything under /api/games/mahjong, the mahjong channels on the games socket, mahjong share cards and its headlines on the Wire. Read the money settings in api/src/services/games/mahjong/settings.js with BBB before turning it on."
+}
