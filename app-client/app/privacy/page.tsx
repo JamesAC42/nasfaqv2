@@ -329,8 +329,8 @@ const sections: LegalSection[] = [
           <Fact term="nasfaq:refs">
             <p>Up to three invite codes or link tags from links you opened, for 30 days, sent along when you sign up.</p>
           </Fact>
-          <Fact term="nasfaq.returnTo, nasfaq.tapeEpoch">
-            <p>Session storage: the page to send you back to after signing in, and the price tape’s position. Cleared when you close the tab.</p>
+          <Fact term="nasfaq.returnTo, nasfaq.linkV1, nasfaq.tapeEpoch">
+            <p>Session storage: the page to send you back to after signing in, when you started linking a v1 account (so we can carry on after you sign in), and the price tape’s position. Cleared when you close the tab.</p>
           </Fact>
         </Facts>
         <p>You can clear any of this in your browser settings. Clearing cookies signs you out; clearing site data also resets your preferences.</p>
@@ -435,7 +435,7 @@ export default function PrivacyPage() {
     <LegalPage
       doc="privacy"
       title="Privacy Policy"
-      updated={{ iso: "2026-11-08", label: "November 8, 2026" }}
+      updated={{ iso: "2026-11-14", label: "November 14, 2026" }}
       art="legal-privacy-spot"
       intro={
         <p>
