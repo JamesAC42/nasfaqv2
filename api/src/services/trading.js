@@ -2299,5 +2299,27 @@ module.exports = {
   getPortfolioSummary,
   getPortfolioLedger,
   getPortfolioOrders,
-  _test: { clockLiveOrderInterval, resolveLiveOrderInterval, nextLiveOrderWindowAt, newFillLanding, publishFillLanding, settleLiveOrderChunk },
+  getTradingFeeRate,
+  /** The price-impact settings in force (env or defaults), for the admin market simulator. */
+  IMPACT_SETTINGS: Object.freeze({
+    transientHalfLifeMinutes: TRANSIENT_HALF_LIFE_MINUTES,
+    transientWeight: TRANSIENT_IMPACT_WEIGHT,
+    persistentWeight: PERSISTENT_IMPACT_WEIGHT,
+    slippageWeight: EXECUTION_SLIPPAGE_WEIGHT,
+    liveOrderShareLimitPerInterval: LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL,
+  }),
+  _test: {
+    clockLiveOrderInterval,
+    resolveLiveOrderInterval,
+    nextLiveOrderWindowAt,
+    newFillLanding,
+    publishFillLanding,
+    settleLiveOrderChunk,
+    // The pricing formulas, which the market simulator's engine mirrors (test/market-sim.test.js).
+    computeQuotes,
+    computeExecutionPrice,
+    applyTradeShock,
+    computeLiveMidPrice,
+    decayTransientOffset,
+  },
 };

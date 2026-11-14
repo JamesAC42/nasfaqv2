@@ -10,11 +10,13 @@
 // GET /player-analytics.
 // Announcement popups (services/announcements.js): GET and POST /announcements, PATCH and DELETE
 // /announcements/:id, POST /announcements/:id/retire and /restore.
+// The market simulator (services/marketSim.js): GET /market-sim/inputs, read-only.
 
 const express = require("express");
 const adminConsole = require("../services/adminConsole");
 const adminUsers = require("../services/adminUsers");
 const announcements = require("../services/announcements");
+const marketSim = require("../services/marketSim");
 const { announceSessionsRevoked } = require("../services/auth");
 const exchange = require("../services/games/exchange");
 const { ipClusters, ipHashingEnabled, sharedIpAccounts } = require("../services/ipHash");
@@ -164,6 +166,17 @@ router.delete(
   handle(async (req, res) => {
     const actor = requireSiteAdmin(req);
     res.json(await v1Link.unlink(req.ctx.pool, { userId: req.params.userId, actor, reason: req.body?.reason ?? null }));
+  })
+);
+
+// What the market simulator runs on: stocks, the settings in force, holdings and behavior profiles
+// under an anonymous index, and recent fills (?replay_days=1-30, ?profile_days=30-60). Read-only.
+router.get(
+  "/market-sim/inputs",
+  handle(async (req, res) => {
+    requireSiteAdmin(req);
+    res.set("Cache-Control", "no-store");
+    res.json(await marketSim.getInputs(req.ctx.pool, { replayDays: req.query.replay_days, profileDays: req.query.profile_days }));
   })
 );
 
