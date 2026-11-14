@@ -143,20 +143,25 @@ function usePortraitTextures(symbol: string | null, invalidate: () => void): Por
     const result: PortraitSet = { fallback, fallbackFit: measure(fallback.image as HTMLCanvasElement), loaded: {}, fit: null };
     if (!symbol) return result;
     for (const mood of MOODS) {
-      new THREE.TextureLoader().load(
-        `/art/_overlay/mahjong-pilot/${symbol}_${mood}.png`,
-        (texture) => {
-          texture.colorSpace = THREE.SRGBColorSpace;
-          texture.anisotropy = 4;
-          result.loaded[mood] = texture;
-          // Every mood is placed the way the idle image is (the set is drawn to one framing), so a
-          // mood change never shifts the figure; until idle arrives the first image to load stands in.
-          if (mood === "idle" || !result.fit) result.fit = measure(texture.image as HTMLImageElement) ?? result.fit;
-          invalidate();
-        },
-        undefined,
-        () => invalidate()
-      );
+      // Half-body art first; the older head-and-shoulders set stands in where it's missing.
+      const load = (paths: string[]): void => {
+        const [path, ...rest] = paths;
+        new THREE.TextureLoader().load(
+          path,
+          (texture) => {
+            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.anisotropy = 4;
+            result.loaded[mood] = texture;
+            // Every mood is placed the way the idle image is (the set is drawn to one framing), so a
+            // mood change never shifts the figure; until idle arrives the first image to load stands in.
+            if (mood === "idle" || !result.fit) result.fit = measure(texture.image as HTMLImageElement) ?? result.fit;
+            invalidate();
+          },
+          undefined,
+          () => (rest.length ? load(rest) : invalidate())
+        );
+      };
+      load([`/art/_overlay/mahjong-pilot/half/${symbol}_${mood}.png`, `/art/_overlay/mahjong-pilot/${symbol}_${mood}.png`]);
     }
     return result;
   }, [symbol, invalidate]);
