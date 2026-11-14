@@ -36,7 +36,11 @@ function toNumber(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-/** Listed talents with what the cards need: unit, icon, colour, price and today's move. */
+/**
+ * Listed talents with what the cards need: unit, icon, colour, price, today's move, and the date she
+ * listed through an IPO (`listed_on`, "YYYY-MM-DD"; null for talents that were on the market from
+ * the start).
+ */
 async function listTalents(db) {
   const { rows } = await db.query(`
     WITH latest_daily AS (
@@ -52,10 +56,13 @@ async function listTalents(db) {
       ld.mid_open,
       c.unit,
       c.icon,
-      c.color
+      c.color,
+      to_char(il.listed_on, 'YYYY-MM-DD') AS listed_on -- the market date she listed on
     FROM market.market_assets a
     JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
     LEFT JOIN latest_daily ld ON ld.asset_id = a.id
+    -- At most one live listing per talent (ipo_listings_one_live_per_asset_idx).
+    LEFT JOIN market.ipo_listings il ON il.asset_id = a.id AND il.status = 'listed'
     WHERE a.status IN ('active', 'halted') -- a talent's cards join the pool when she lists
     ORDER BY a.symbol ASC
   `);
@@ -71,6 +78,7 @@ async function listTalents(db) {
       color: row.color || null,
       price,
       move_pct: price !== null && open ? (price - open) / open : null,
+      listed_on: row.listed_on || null,
     };
   });
 }
