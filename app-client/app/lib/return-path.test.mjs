@@ -20,7 +20,7 @@ test("only paths on this site count as a place to go back to", () => {
     "https://evil.example/",
     "//evil.example",
     "/\\evil.example",
-    "/%5Cevil.example".replace("%5C", "\\"),
+    "/\t/evil.example", // browsers drop the tab and read //evil.example
     "/link-v1\nx",
     null,
     undefined,
