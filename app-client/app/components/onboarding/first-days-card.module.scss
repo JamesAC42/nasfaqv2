@@ -2,10 +2,11 @@
 
 // "Your first days": a checklist strip for brand-new accounts, on the front page and the profile.
 
+// The wash sits on solid ink, so a profile theme's pattern doesn't show through behind the text.
 .card {
   margin-top: 1rem;
   border: 1px solid var(--blue-line);
-  background: var(--blue-wash);
+  background: linear-gradient(var(--blue-wash), var(--blue-wash)), var(--ink);
 }
 
 // Every step done: one closing line, until it's closed.
