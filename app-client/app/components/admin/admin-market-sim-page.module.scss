@@ -1,0 +1,440 @@
+@use "../../styles/mixins" as *;
+
+// /admin/market-sim. Hairlines like the rest of the back office: knobs on the left, results on the
+// right. Blue is the scenario, gray is today's settings; green and red only mark gains and losses.
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(18rem, 22rem) minmax(0, 1fr);
+  gap: 0 2rem;
+  align-items: start;
+
+  @include desktop-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.controls {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem 0 1.5rem;
+  min-width: 0;
+}
+
+.results {
+  min-width: 0;
+}
+
+.modeLine {
+  margin: 0.5rem 0 0.25rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--mid);
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.5rem 0;
+
+  button {
+    @include label;
+    padding: 0.42rem 0.6rem;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--mid);
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--blue-line);
+      color: var(--blue);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.group {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.85rem 0 0.9rem;
+  border: 0;
+  border-top: 1px solid var(--rule);
+  min-width: 0;
+
+  legend {
+    @include section-heading;
+    float: left;
+    width: 100%;
+    padding: 0;
+    margin-bottom: 0.1rem;
+  }
+}
+
+.groupNote {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--dim);
+}
+
+.knob {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+
+  small {
+    font-size: 0.72rem;
+    line-height: 1.4;
+    color: var(--dim);
+  }
+
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--blue);
+  }
+
+  &[data-disabled] {
+    opacity: 0.45;
+  }
+
+  &[data-bare] {
+    padding-left: 0.75rem;
+    border-left: 1px solid var(--rule);
+  }
+}
+
+.knobHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+
+  > span:first-child {
+    font-size: 0.82rem;
+    color: var(--text);
+  }
+}
+
+.knobValue {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+
+  input {
+    width: 5.5rem;
+    text-align: right;
+  }
+
+  i {
+    @include label;
+    font-style: normal;
+    min-width: 1.6rem;
+  }
+}
+
+.runBar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.9rem 0 0.25rem;
+  border-top: 1px solid var(--rule);
+
+  progress {
+    flex: 1;
+    height: 0.5rem;
+    accent-color: var(--blue);
+  }
+
+  button {
+    flex: none;
+  }
+
+  > button:only-child {
+    flex: 1;
+    padding: 0.7rem;
+  }
+}
+
+.empty {
+  @include empty-state;
+  margin-top: 1rem;
+
+  b {
+    display: block;
+    margin-bottom: 0.35rem;
+  }
+
+  p {
+    margin: 0;
+    color: var(--mid);
+  }
+}
+
+// ── Results table ──────────────────────────────────────────────────────────
+// A narrow phone scrolls the table sideways rather than the page.
+.tableWrap {
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+
+  th,
+  td {
+    padding: 0.55rem 0.5rem;
+    border-bottom: 1px solid var(--rule);
+    text-align: right;
+    vertical-align: top;
+  }
+
+  thead th {
+    @include label;
+    font-weight: 400;
+  }
+
+  th:first-child {
+    text-align: left;
+    padding-left: 0;
+    font-weight: 400;
+  }
+
+  tbody th b {
+    display: block;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  tbody th small {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.72rem;
+    color: var(--dim);
+  }
+
+  td {
+    @include num;
+    white-space: nowrap;
+
+    small {
+      display: block;
+      margin-top: 0.15rem;
+      font-size: 0.66rem;
+      color: var(--dim);
+    }
+
+    small[data-verdict="better"] {
+      color: var(--blue);
+    }
+
+    small[data-verdict="worse"] {
+      color: var(--warn);
+    }
+  }
+
+  @include phone {
+    font-size: 0.76rem;
+
+    tbody th small {
+      display: none;
+    }
+  }
+}
+
+.check {
+  margin: 0.6rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--mid);
+}
+
+.caveats {
+  margin: 0.4rem 0 1.5rem;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--mid);
+}
+
+// ── Charts ─────────────────────────────────────────────────────────────────
+.charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  padding-top: 0.5rem;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.chart {
+  margin: 0;
+  min-width: 0;
+
+  figcaption {
+    display: grid;
+    gap: 0.15rem;
+
+    b {
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    span {
+      font-size: 0.72rem;
+      color: var(--dim);
+    }
+  }
+}
+
+.legend {
+  display: flex;
+  gap: 1rem;
+  padding: 0.5rem 0 0.25rem;
+
+  span {
+    @include label;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+
+    &::before {
+      content: "";
+      width: 0.8rem;
+      height: 0.5rem;
+      border-radius: 2px;
+    }
+
+    &[data-series="scenario"]::before {
+      background: var(--blue);
+    }
+
+    &[data-series="baseline"]::before {
+      background: var(--dim);
+      opacity: 0.6;
+    }
+  }
+}
+
+.plotWrap {
+  position: relative;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.grid {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+
+.zero {
+  stroke: var(--mid);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.axisText {
+  fill: var(--dim);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.hit {
+  fill: transparent;
+}
+
+g[data-active] .hit {
+  fill: var(--blue-wash);
+}
+
+.barScenario {
+  fill: var(--blue);
+}
+
+.barBaseline {
+  fill: var(--dim);
+  opacity: 0.55;
+}
+
+.lineScenario,
+.lineBaseline {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.lineScenario {
+  stroke: var(--blue);
+}
+
+.lineBaseline {
+  stroke: var(--dim);
+  stroke-dasharray: 5 4;
+}
+
+.crosshair {
+  stroke: var(--rule-2);
+  stroke-width: 1;
+}
+
+.dotScenario,
+.dotBaseline {
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.dotScenario {
+  fill: var(--blue);
+}
+
+.dotBaseline {
+  fill: var(--dim);
+}
+
+.tip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: var(--ink-2, var(--ink));
+  box-shadow: var(--shadow-pop);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
+
+  small {
+    @include label;
+  }
+
+  b {
+    @include num;
+    color: var(--text);
+  }
+
+  span {
+    color: var(--mid);
+  }
+}

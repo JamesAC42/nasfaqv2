@@ -1564,6 +1564,7 @@ async function getAdminAdjustmentHealth(pool, redis = null) {
 module.exports = {
   INTERVALS,
   INTERVAL_STRENGTH_TOTAL_PCT,
+  computeAdjustedPrice,
   acquireAdjustmentSchedulerLock,
   releaseAdjustmentSchedulerLock,
   applyDueAdjustments,

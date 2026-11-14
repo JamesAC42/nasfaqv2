@@ -613,6 +613,9 @@ function computeSettlementSupplies({ maxSupply, circulatingSupply, treasurySuppl
 module.exports = {
   settleMarketDay,
   computeSettlementSupplies,
+  PERSISTENT_DAILY_DECAY,
+  TRANSIENT_SETTLEMENT_DECAY,
+  computeOpeningState,
   // `afterDay(result)` runs after each settled day, before the next one settles (the historical
   // rebuild replays that day's adjustments there, which the next day's open carries forward).
   async settleMarketRange(pool, { from, to, force = false, marketDateOffsetDays = 0, redis = null, afterDay = null } = {}) {
