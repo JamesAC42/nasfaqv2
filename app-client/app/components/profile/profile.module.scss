@@ -1517,7 +1517,8 @@
   .kstrip,
   .grid2,
   .grid3,
-  .wide {
+  .wide,
+  .v1Invite {
     border-color: var(--th-line);
     background: var(--th-panel);
   }
@@ -1662,6 +1663,58 @@
   --th-pattern:
     radial-gradient(circle at 30% 40%, color-mix(in srgb, var(--th-a) 85%, transparent) 1.2px, transparent 1.8px) 0 0 / 38px 34px,
     radial-gradient(circle at 70% 80%, color-mix(in srgb, var(--th-a) 60%, transparent) 0.8px, transparent 1.4px) 9px 13px / 26px 29px;
+}
+
+// Golden Bull (the only stars theme) has the brightest accent, and its dots are dense enough to break
+// up the words over them. The dust settles behind text: the header's name and details sit on a scrim
+// of the deep color, and their chips and buttons get a solid floor. The pattern stays at full
+// strength on the right of the header and around the panels.
+.page[data-theme-pattern="stars"] {
+  --th-scrim: var(--th-b);
+
+  .banner:not([data-art])::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      linear-gradient(90deg, color-mix(in oklab, var(--th-scrim) 92%, transparent) 0%, color-mix(in oklab, var(--th-scrim) 78%, transparent) 50%, transparent 85%),
+      linear-gradient(180deg, transparent 25%, color-mix(in oklab, var(--th-scrim) 60%, transparent) 100%);
+
+    @include phone {
+      background: linear-gradient(180deg, color-mix(in oklab, var(--th-scrim) 40%, transparent) 0%, color-mix(in oklab, var(--th-scrim) 90%, transparent) 55%);
+    }
+  }
+
+  // With banner art the dust along the bottom keeps to the right, away from the name.
+  .bannerScrim::after {
+    -webkit-mask-image: linear-gradient(180deg, transparent, #000), linear-gradient(90deg, transparent 45%, #000 85%);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(180deg, transparent, #000), linear-gradient(90deg, transparent 45%, #000 85%);
+    mask-composite: intersect;
+
+    @include phone {
+      display: none;
+    }
+  }
+
+  .meta,
+  .bio {
+    color: color-mix(in srgb, var(--th-a) 20%, var(--text));
+  }
+
+  .meta [data-rarity] {
+    background: linear-gradient(color-mix(in srgb, var(--tint) 10%, transparent), color-mix(in srgb, var(--tint) 10%, transparent)), var(--th-scrim);
+  }
+
+  .actions .ghost {
+    background: color-mix(in oklab, var(--th-scrim) 88%, transparent);
+  }
+}
+
+:global(html[data-theme="light"]) .page[data-theme-pattern="stars"] {
+  --th-scrim: var(--ink);
 }
 
 .themeChoice[data-theme-pattern="v1"] {
