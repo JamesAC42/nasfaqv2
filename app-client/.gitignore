@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/.sim-test/
 
 # next.js
 /.next/

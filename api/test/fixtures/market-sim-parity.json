@@ -1,0 +1,525 @@
+{
+  "note": "Generated from the API's pricing functions. test/market-sim.test.js checks the API still gives these numbers; app-client/app/lib/market-sim/tests checks the simulator's engine does too.",
+  "settings": {
+    "fee_rate": 0.01,
+    "slippage_weight": 0.5,
+    "transient_weight": 0.7,
+    "persistent_weight": 0.15,
+    "transient_half_life_minutes": 60,
+    "persistent_daily_decay": 0.9,
+    "transient_settlement_decay": 0.1,
+    "strength_total_pct": 200,
+    "dividend": {
+      "rate_per_sigma": 0.04,
+      "deadzone_sigma": 0.35,
+      "cap": 0.1
+    },
+    "credit_conversion": {
+      "rate": 0.05,
+      "minimum": 10000
+    }
+  },
+  "quotes": [
+    {
+      "mid": 12,
+      "spread_bps": 400,
+      "bid": 11.76,
+      "ask": 12.24
+    },
+    {
+      "mid": 12,
+      "spread_bps": 150,
+      "bid": 11.91,
+      "ask": 12.09
+    },
+    {
+      "mid": 3.517,
+      "spread_bps": 400,
+      "bid": 3.44666,
+      "ask": 3.5873399999999998
+    },
+    {
+      "mid": 250.25,
+      "spread_bps": 0,
+      "bid": 250.25,
+      "ask": 250.25
+    },
+    {
+      "mid": 0.5,
+      "spread_bps": 1000,
+      "bid": 0.475,
+      "ask": 0.525
+    }
+  ],
+  "execution": [
+    {
+      "side": "buy",
+      "bid": 11.76,
+      "ask": 12.24,
+      "quantity": 25,
+      "depth": 2000,
+      "price": 12.316500000000001
+    },
+    {
+      "side": "buy",
+      "bid": 11.76,
+      "ask": 12.24,
+      "quantity": 180,
+      "depth": 2000,
+      "price": 12.790799999999999
+    },
+    {
+      "side": "sell",
+      "bid": 11.76,
+      "ask": 12.24,
+      "quantity": 25,
+      "depth": 2000,
+      "price": 11.6865
+    },
+    {
+      "side": "sell",
+      "bid": 3.4,
+      "ask": 3.6,
+      "quantity": 500,
+      "depth": 9000,
+      "price": 3.3055555555555554
+    },
+    {
+      "side": "buy",
+      "bid": 100,
+      "ask": 101,
+      "quantity": 1,
+      "depth": 1,
+      "price": 151.5
+    },
+    {
+      "side": "sell",
+      "bid": 9.9,
+      "ask": 10.1,
+      "quantity": 7.5,
+      "depth": 0,
+      "price": -27.225
+    }
+  ],
+  "shock": [
+    {
+      "side": "buy",
+      "quantity": 25,
+      "depth": 2000,
+      "persistent": 0,
+      "transient": 0,
+      "next_persistent": 0.001875,
+      "next_transient": 0.008749999999999999
+    },
+    {
+      "side": "sell",
+      "quantity": 180,
+      "depth": 2000,
+      "persistent": 0.02,
+      "transient": -0.01,
+      "next_persistent": 0.006500000000000001,
+      "next_transient": -0.073
+    },
+    {
+      "side": "buy",
+      "quantity": 500,
+      "depth": 9000,
+      "persistent": -0.1,
+      "transient": 0.3,
+      "next_persistent": -0.09166666666666667,
+      "next_transient": 0.33888888888888885
+    }
+  ],
+  "decay": [
+    {
+      "transient": 0.1,
+      "minutes": 0,
+      "value": 0.1
+    },
+    {
+      "transient": 0.1,
+      "minutes": 60,
+      "value": 0.05
+    },
+    {
+      "transient": 0.1,
+      "minutes": 90,
+      "value": 0.035355339059327376
+    },
+    {
+      "transient": -0.05,
+      "minutes": 360,
+      "value": -0.00078125
+    },
+    {
+      "transient": 0,
+      "minutes": 30,
+      "value": 0
+    }
+  ],
+  "live": [
+    {
+      "fair": 12,
+      "persistent": 0,
+      "transient": 0,
+      "mid": 12
+    },
+    {
+      "fair": 12,
+      "persistent": 0.02,
+      "transient": 0.05,
+      "mid": 12.870098175050598
+    },
+    {
+      "fair": 7.25,
+      "persistent": -0.1,
+      "transient": 0.03,
+      "mid": 6.759855194318125
+    }
+  ],
+  "adjusted": [
+    {
+      "mid": 12,
+      "base": 10,
+      "strength": 50,
+      "price": 11
+    },
+    {
+      "mid": 12,
+      "base": 10,
+      "strength": 150,
+      "price": 9
+    },
+    {
+      "mid": 8,
+      "base": 10,
+      "strength": 1,
+      "price": 8.02
+    },
+    {
+      "mid": 10,
+      "base": 10,
+      "strength": 80,
+      "price": 10
+    },
+    {
+      "mid": 15.5,
+      "base": 9.75,
+      "strength": 200,
+      "price": 4
+    }
+  ],
+  "opening": [
+    {
+      "prev_persistent": 0.05,
+      "prev_transient": 0.02,
+      "fair": 10,
+      "carried": 12,
+      "persistent": 0.045000000000000005,
+      "transient": 0.13732155679395458,
+      "mid_open": 12
+    },
+    {
+      "prev_persistent": 0.05,
+      "prev_transient": 0.02,
+      "fair": 10,
+      "carried": null,
+      "persistent": 0.045000000000000005,
+      "transient": 0.002,
+      "mid_open": 10.481220090796556
+    },
+    {
+      "prev_persistent": -0.2,
+      "prev_transient": 0.1,
+      "fair": 8,
+      "carried": 7.5,
+      "persistent": -0.18000000000000002,
+      "transient": 0.11546147886242884,
+      "mid_open": 7.5
+    }
+  ],
+  "strengths": [
+    {
+      "uniforms": [
+        0.1,
+        0.5,
+        0.9,
+        0.3,
+        0.7,
+        0.2
+      ],
+      "total": 200,
+      "min_pct": 0,
+      "max_pct": 200,
+      "strengths": [
+        9,
+        20,
+        81,
+        90
+      ]
+    },
+    {
+      "uniforms": [
+        0.99,
+        0.01,
+        0.5,
+        0.5,
+        0.5,
+        0.5
+      ],
+      "total": 200,
+      "min_pct": 20,
+      "max_pct": 90,
+      "strengths": [
+        90,
+        45,
+        20,
+        45
+      ]
+    },
+    {
+      "uniforms": [
+        0.3,
+        0.6,
+        0.2,
+        0.8,
+        0.1,
+        0.95
+      ],
+      "total": 100,
+      "min_pct": 0,
+      "max_pct": 100,
+      "strengths": [
+        6,
+        41,
+        30,
+        23
+      ]
+    },
+    {
+      "uniforms": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 200,
+      "min_pct": 0,
+      "max_pct": 200,
+      "strengths": [
+        1,
+        1,
+        197,
+        1
+      ]
+    },
+    {
+      "uniforms": [
+        0.999,
+        0.999,
+        0.999,
+        0.999,
+        0.999,
+        0.999
+      ],
+      "total": 160,
+      "min_pct": 10,
+      "max_pct": 80,
+      "strengths": [
+        80,
+        60,
+        10,
+        10
+      ]
+    }
+  ],
+  "dividend": [
+    {
+      "z": -10,
+      "rate": -0.1
+    },
+    {
+      "z": -2,
+      "rate": -0.066
+    },
+    {
+      "z": -1.35,
+      "rate": -0.04
+    },
+    {
+      "z": -0.36,
+      "rate": -0.00040000000000000034
+    },
+    {
+      "z": -0.35,
+      "rate": 0
+    },
+    {
+      "z": -0.2,
+      "rate": 0
+    },
+    {
+      "z": 0,
+      "rate": 0
+    },
+    {
+      "z": 0.3,
+      "rate": 0
+    },
+    {
+      "z": 0.35,
+      "rate": 0
+    },
+    {
+      "z": 0.5,
+      "rate": 0.006000000000000001
+    },
+    {
+      "z": 1.35,
+      "rate": 0.04
+    },
+    {
+      "z": 2.2,
+      "rate": 0.07400000000000001
+    },
+    {
+      "z": 3.5,
+      "rate": 0.1
+    },
+    {
+      "z": 10,
+      "rate": 0.1
+    }
+  ],
+  "rank": [
+    {
+      "values": [
+        0.001,
+        0.002,
+        5,
+        -3,
+        0.0015
+      ],
+      "scores": [
+        -0.5244005132792953,
+        0.5244005132792952,
+        1.2815515641401563,
+        -1.2815515641401563,
+        0
+      ]
+    },
+    {
+      "values": [
+        1,
+        1,
+        1
+      ],
+      "scores": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "values": [
+        0.3,
+        -0.2,
+        0.3,
+        0.1,
+        -0.5,
+        0.05,
+        0.02
+      ],
+      "scores": [
+        1.0675705250263339,
+        -0.7916386068611604,
+        1.0675705250263339,
+        0.3661063565868744,
+        -1.4652337943383782,
+        0,
+        -0.36610635658687424
+      ]
+    }
+  ],
+  "conversion": [
+    {
+      "credit": 1000000,
+      "converted": 50000
+    },
+    {
+      "credit": 99000,
+      "converted": 10000
+    },
+    {
+      "credit": 4000,
+      "converted": 4000
+    },
+    {
+      "credit": 0,
+      "converted": 0
+    },
+    {
+      "credit": -50,
+      "converted": 0
+    }
+  ],
+  "fill_sequence": {
+    "asset": {
+      "fair": 12,
+      "depth": 2000,
+      "spread_bps": 400
+    },
+    "fills": [
+      {
+        "side": "buy",
+        "quantity": 25,
+        "mid_before": 12,
+        "price": 12.316500000000001,
+        "fee": 3.0791250000000003,
+        "mid_after": 12.128179749061493
+      },
+      {
+        "side": "buy",
+        "quantity": 100,
+        "mid_before": 12.128179749061493,
+        "price": 12.68001192764379,
+        "fee": 12.680011927643791,
+        "mid_after": 12.654737484756847
+      },
+      {
+        "side": "sell",
+        "quantity": 40,
+        "mid_before": 12.654737484756847,
+        "price": 12.277626307711094,
+        "fee": 4.9110505230844375,
+        "mid_after": 12.441425238851355
+      },
+      {
+        "side": "buy",
+        "quantity": 180,
+        "mid_before": 12.441425238851355,
+        "price": 13.261315162091659,
+        "fee": 23.87036729176499,
+        "mid_after": 13.430545796256132
+      },
+      {
+        "side": "sell",
+        "quantity": 265,
+        "mid_before": 13.430545796256132,
+        "price": 12.28995669450908,
+        "fee": 32.56838524044906,
+        "mid_after": 12
+      },
+      {
+        "side": "buy",
+        "quantity": 3.5,
+        "mid_before": 12,
+        "price": 12.25071,
+        "fee": 0.42877485,
+        "mid_after": 12.017863282522601
+      }
+    ]
+  }
+}
