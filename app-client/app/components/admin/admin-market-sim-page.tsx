@@ -242,7 +242,7 @@ function MarketSim() {
               />
               <Knob
                 label="Short-lived push"
-                hint="How far an order moves the price for the next hour or so."
+                hint="How far an order moves the price until the ticks pull it back toward fair value."
                 value={params.transientWeight}
                 onChange={(value) => set("transientWeight", value)}
                 min={0}
@@ -269,17 +269,6 @@ function MarketSim() {
                 max={100}
                 step={1}
                 unit="%"
-                disabled={mode === "replay"}
-              />
-              <Knob
-                label="Short-lived push half-life"
-                hint="Minutes for the short-lived push to fade by half."
-                value={params.transientHalfLifeMinutes}
-                onChange={(value) => set("transientHalfLifeMinutes", value)}
-                min={5}
-                max={720}
-                step={5}
-                unit="min"
                 disabled={mode === "replay"}
               />
             </Group>

@@ -239,9 +239,14 @@
     font-size: 0.6875rem;
     color: var(--mid);
 
-    &:hover {
+    &:hover:not(:disabled) {
       color: var(--text);
       border-color: var(--text);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
     }
   }
 }

@@ -134,7 +134,7 @@ export function MarketSection() {
           {
             k: "live",
             title: "Price",
-            body: "Every buy pushes the price up and every sell pushes it down. Most of that push fades within hours; a little of it sticks around for days.",
+            body: "Every buy pushes the price up and every sell pushes it down, and the push stays put. The four daily ticks pull the price back toward its target, about half the gap each on average, and a little of the push carries into the next days.",
           },
           {
             k: "supply",

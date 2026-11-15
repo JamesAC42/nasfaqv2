@@ -101,6 +101,13 @@
   opacity: 0.55;
 }
 
+// A bucket's fills, off the mid-price line.
+.fillDot {
+  fill: var(--ink);
+  stroke: var(--mid);
+  stroke-width: 1.2;
+}
+
 .lastTag {
   rect {
     fill: var(--c);

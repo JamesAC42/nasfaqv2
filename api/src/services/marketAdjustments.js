@@ -13,8 +13,6 @@ const INTERVALS = [
 const INTERVAL_STRENGTH_TOTAL_PCT = 200;
 const DEFAULT_BATCH_LIMIT = 250;
 const ADJUSTMENT_SCHEDULER_LOCK_KEY = 9_204_002;
-const DEFAULT_TRANSIENT_HALF_LIFE_MINUTES = 60;
-const TRANSIENT_HALF_LIFE_MINUTES = Number(process.env.MARKET_TRANSIENT_HALF_LIFE_MINUTES || DEFAULT_TRANSIENT_HALF_LIFE_MINUTES);
 
 function toNumber(value, fallback = 0) {
   const parsed = Number(value);
@@ -176,22 +174,6 @@ function computeQuotes(midPrice, spreadBps) {
     bidPrice: midPrice * (1 - spreadPct / 2),
     askPrice: midPrice * (1 + spreadPct / 2),
   };
-}
-
-function decayTransientOffset(transientOffset, lastUpdatedAt, now = new Date()) {
-  const raw = Number(transientOffset || 0);
-  if (!Number.isFinite(raw) || raw === 0 || !lastUpdatedAt) return 0;
-
-  const last = new Date(lastUpdatedAt);
-  if (Number.isNaN(last.getTime())) return 0;
-
-  const dtMinutes = Math.max(0, (now.getTime() - last.getTime()) / 60000);
-  const decayFactor = Math.pow(0.5, dtMinutes / Math.max(TRANSIENT_HALF_LIFE_MINUTES, 1));
-  return raw * decayFactor;
-}
-
-function computeLiveMidPrice(baseRate, persistentOffset, transientOffset) {
-  return Math.max(baseRate, 0.000001) * Math.exp(persistentOffset + transientOffset);
 }
 
 function computeAdjustedPrice(currentMid, baseRate, strengthPct) {
@@ -493,11 +475,9 @@ async function applyInterval(client, interval, now = new Date(), drivers = null)
   }
 
   const baseRate = toNumber(interval.base_rate, toNumber(asset.current_fair_value, 0));
-  const currentMarketPrice = toNumber(asset.current_mid_price, 0);
+  // The tick starts from the stored mid, the price every page shows (a stock without one was skipped above).
+  const priceBefore = toNumber(asset.current_mid_price, 0);
   const persistentOffset = toNumber(asset.current_persistent_offset, 0);
-  const decayedTransientOffset = decayTransientOffset(asset.current_transient_offset, asset.offsets_updated_at, now);
-  const decayedOffsetPrice = computeLiveMidPrice(baseRate, persistentOffset, decayedTransientOffset);
-  const priceBefore = currentMarketPrice > 0 ? currentMarketPrice : decayedOffsetPrice;
   const strengthPct = toNumber(interval.strength_pct, 0);
   const priceAfter = Math.max(0.000001, computeAdjustedPrice(priceBefore, baseRate, strengthPct));
   const nextPremium = baseRate > 0 ? (priceAfter - baseRate) / baseRate : 0;

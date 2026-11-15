@@ -11,7 +11,8 @@ export type Overlays = { mark: boolean; ticks: boolean; volume: boolean; mine: b
 
 const TICK_NAMES: Record<string, string> = { open: "OPEN", lunch: "LUNCH", late: "LATE", overnight: "OVERNIGHT" };
 
-type Point = { t: number; close: number; mark: number | null; volume: number; up: boolean };
+/** `close` is the mid price, the line; `fill` is what the bucket's fills averaged, drawn apart from it. */
+type Point = { t: number; close: number; mark: number | null; volume: number; fill: number | null; up: boolean };
 
 function fmtTime(t: number, range: ChartRange, long = false) {
   const d = new Date(t);
@@ -72,11 +73,13 @@ export function PriceChart({
         const t = Date.parse(candle.bucket);
         const close = candle.close ?? candle.open;
         if (!Number.isFinite(t) || close === null || close === undefined) return null;
-        return { t, close, mark: candle.close_mark ?? null, volume: candle.volume_shares ?? 0, up: close >= (candle.open ?? close) };
+        const volume = candle.volume_shares ?? 0;
+        const fill = volume > 0 && candle.vwap !== null && candle.vwap !== undefined && candle.vwap > 0 ? candle.vwap : null;
+        return { t, close, mark: candle.close_mark ?? null, volume, fill, up: close >= (candle.open ?? close) };
       })
       .filter((point): point is Point => point !== null)
       .sort((a, b) => a.t - b.t);
-    if (livePrice !== null && liveAt !== null && out.length) out.push({ t: liveAt, close: livePrice, mark: null, volume: 0, up: livePrice >= out[out.length - 1].close });
+    if (livePrice !== null && liveAt !== null && out.length) out.push({ t: liveAt, close: livePrice, mark: null, volume: 0, fill: null, up: livePrice >= out[out.length - 1].close });
     return out;
   }, [candles, liveAt, livePrice]);
 
@@ -99,6 +102,9 @@ export function PriceChart({
       else points.forEach((point) => point.mark !== null && values.push(point.mark));
     }
     if (overlays.mine && avgCost) values.push(avgCost);
+    // Intraday fills show as dots off the line (a sale fills at the bid, under the mid), with the volume bars.
+    const showFills = intraday && overlays.volume;
+    if (showFills) points.forEach((point) => point.fill !== null && values.push(point.fill));
     let lo = Math.min(...values);
     let hi = Math.max(...values);
     const pad = (hi - lo || hi * 0.02 || 1) * 0.12;
@@ -119,8 +125,9 @@ export function PriceChart({
       .filter((tick) => tick.applied_at && tick.price_after !== null)
       .map((tick) => ({ tick, t: Date.parse(tick.applied_at as string) }))
       .filter(({ t }) => t >= t0 && t <= t1);
-    return { t0, t1, lo, hi, x, y, line, area, markLine, maxVol, barW, yTicks, xTicks, tickMarks };
-  }, [avgCost, H, W, intraday, latestMark, overlays.mark, overlays.mine, plotW, points, priceBottom, ticks]);
+    const fillDots = showFills ? points.filter((point) => point.fill !== null) : [];
+    return { t0, t1, lo, hi, x, y, line, area, markLine, maxVol, barW, yTicks, xTicks, tickMarks, fillDots };
+  }, [avgCost, H, W, intraday, latestMark, overlays.mark, overlays.mine, overlays.volume, plotW, points, priceBottom, ticks]);
 
   const first = points[0]?.close ?? 0;
   const last = points[points.length - 1]?.close ?? 0;
@@ -204,6 +211,9 @@ export function PriceChart({
               VOL
             </text>
           ) : null}
+          {model.fillDots.map((point) => (
+            <circle key={`fill-${point.t}`} cx={model.x(point.t)} cy={model.y(point.fill as number)} r={2.5} className={styles.fillDot} />
+          ))}
           <g className={styles.lastTag}>
             <rect x={plotW + 2} y={model.y(last) - 8} width={padR - 4} height={16} />
             <text x={plotW + padR / 2} y={model.y(last) + 4} textAnchor="middle">
@@ -224,7 +234,7 @@ export function PriceChart({
         <div className={styles.tip} style={{ left: Math.min(Math.max(model.x(hovered.t), 70), plotW - 70) }}>
           <b>{hovered.close.toFixed(2)}</b>
           <span>{fmtTime(hovered.t, range, true)}</span>
-          {hovered.volume ? <span>{hovered.volume.toLocaleString("en-US")} sh</span> : null}
+          {hovered.volume ? <span>{hovered.volume.toLocaleString("en-US")} sh{hovered.fill !== null ? ` filled at ${hovered.fill.toFixed(2)}` : ""}</span> : null}
           {!intraday && hovered.mark !== null ? <span>mark {hovered.mark.toFixed(2)}</span> : null}
         </div>
       ) : null}

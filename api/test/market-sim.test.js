@@ -23,8 +23,8 @@ test("the API still prices trades the way the simulator's fixture says", () => {
   const s = parity.settings;
   assert.equal(trading.getTradingFeeRate(), s.fee_rate);
   assert.deepEqual(
-    [trading.IMPACT_SETTINGS.slippageWeight, trading.IMPACT_SETTINGS.transientWeight, trading.IMPACT_SETTINGS.persistentWeight, trading.IMPACT_SETTINGS.transientHalfLifeMinutes],
-    [s.slippage_weight, s.transient_weight, s.persistent_weight, s.transient_half_life_minutes]
+    [trading.IMPACT_SETTINGS.slippageWeight, trading.IMPACT_SETTINGS.transientWeight, trading.IMPACT_SETTINGS.persistentWeight],
+    [s.slippage_weight, s.transient_weight, s.persistent_weight]
   );
   assert.deepEqual([settlement.PERSISTENT_DAILY_DECAY, settlement.TRANSIENT_SETTLEMENT_DECAY, adjustments.INTERVAL_STRENGTH_TOTAL_PCT], [s.persistent_daily_decay, s.transient_settlement_decay, s.strength_total_pct]);
   assert.deepEqual(s.dividend, { rate_per_sigma: weekly.CONFIG.ratePerSigma, deadzone_sigma: weekly.CONFIG.deadzoneSigma, cap: weekly.CONFIG.cap });
@@ -42,8 +42,6 @@ test("the API still prices trades the way the simulator's fixture says", () => {
     close(next.persistentOffset, row.next_persistent, "persistent");
     close(next.transientOffset, row.next_transient, "transient");
   }
-  const now = new Date("2026-11-10T12:00:00Z");
-  for (const row of parity.decay) close(t.decayTransientOffset(row.transient, new Date(now.getTime() - row.minutes * 60000), now), row.value, "decay", 1e-9);
   for (const row of parity.live) close(t.computeLiveMidPrice(row.fair, row.persistent, row.transient), row.mid, "live mid");
   for (const row of parity.adjusted) close(adjustments.computeAdjustedPrice(row.mid, row.base, row.strength), row.price, "tick");
   for (const row of parity.opening) {
@@ -225,8 +223,8 @@ test("the inputs endpoint end to end: real fills, anonymous players, no secret b
   // The fixture's run of fills, through the real trading code.
   for (const [i, fill] of fills.entries()) {
     const result = await trading.executeOrder(pool, { userId: ids[i % 3], symbol: "SIM", side: fill.side, quantity: fill.quantity, refreshDerivedState: false });
-    // Milliseconds of transient decay between fills is all that separates them from the fixture.
-    close(result.executed_price, fill.price, `fill ${i} price`, 1e-5);
+    // Each fill starts from the mid the one before it stored, as the fixture's sequence does.
+    close(result.executed_price, fill.price, `fill ${i} price`, 1e-9);
   }
 
   let user = null;

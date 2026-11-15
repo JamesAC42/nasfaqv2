@@ -14,7 +14,6 @@ type Parity = {
     slippage_weight: number;
     transient_weight: number;
     persistent_weight: number;
-    transient_half_life_minutes: number;
     persistent_daily_decay: number;
     transient_settlement_decay: number;
     strength_total_pct: number;
@@ -24,7 +23,6 @@ type Parity = {
   quotes: { mid: number; spread_bps: number; bid: number; ask: number }[];
   execution: { side: Side; bid: number; ask: number; quantity: number; depth: number; price: number }[];
   shock: { side: Side; quantity: number; depth: number; persistent: number; transient: number; next_persistent: number; next_transient: number }[];
-  decay: { transient: number; minutes: number; value: number }[];
   live: { fair: number; persistent: number; transient: number; mid: number }[];
   adjusted: { mid: number; base: number; strength: number; price: number }[];
   opening: { prev_persistent: number; prev_transient: number; fair: number; carried: number | null; persistent: number; transient: number; mid_open: number }[];
@@ -49,7 +47,6 @@ export function settingsFromParity(): SimSettings {
     slippage_weight: s.slippage_weight,
     transient_weight: s.transient_weight,
     persistent_weight: s.persistent_weight,
-    transient_half_life_minutes: s.transient_half_life_minutes,
     live_order_share_limit: 180,
     persistent_daily_decay: s.persistent_daily_decay,
     transient_settlement_decay: s.transient_settlement_decay,

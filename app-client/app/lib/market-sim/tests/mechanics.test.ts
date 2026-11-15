@@ -11,13 +11,13 @@ import {
   computeOpeningState,
   computeQuotes,
   creditConversion,
-  decayTransientOffset,
   dividendRate,
   feasibleStrengthBounds,
   fillPrice,
   generateStrengths,
   midFromFillPrice,
   rankScores,
+  transientAtMid,
 } from "../mechanics";
 import { parity } from "./helpers";
 
@@ -50,9 +50,18 @@ test("trade shock: persistent and transient offsets move by their weights", () =
   }
 });
 
-test("the transient offset halves every half-life, and the live mid uses both offsets", () => {
-  for (const row of parity.decay) close(decayTransientOffset(row.transient, row.minutes, settings.transient_half_life_minutes), row.value, `${row.minutes} minutes`, 1e-9);
+test("the live mid uses both offsets, and a fill restates the transient one to agree with the current mid", () => {
   for (const row of parity.live) close(computeLiveMidPrice(row.fair, row.persistent, row.transient), row.mid, "live mid");
+  for (const row of parity.live) close(transientAtMid(row.mid, row.fair, row.persistent), row.transient, "transient at mid", 1e-9);
+  // However long since the offsets last moved, a fill's shock moves the price from the current mid.
+  const mid = 13.91;
+  const fair = 13.37;
+  const persistent = 0.012;
+  for (const side of ["buy", "sell"] as const) {
+    const next = applyTradeShock(side, 80, 2000, persistent, transientAtMid(mid, fair, persistent), weights);
+    const sign = side === "buy" ? 1 : -1;
+    close(computeLiveMidPrice(fair, next.persistent, next.transient), mid * Math.exp(sign * (weights.persistent + weights.transient) * (80 / 2000)), `${side} mid after`);
+  }
 });
 
 test("a tick moves the price its strength of the way to the base rate", () => {

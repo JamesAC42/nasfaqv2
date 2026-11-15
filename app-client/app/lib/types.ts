@@ -127,6 +127,10 @@ export type CandlePoint = {
   close: number | null;
   close_mark?: number | null;
   volume_shares?: number | null;
+  /** The bucket's fills, apart from the price line: their average, lowest and highest prices. */
+  vwap?: number | null;
+  fill_low?: number | null;
+  fill_high?: number | null;
 };
 
 export type PredictionMarketScope = "public" | "mine" | "review_queue";
@@ -423,6 +427,8 @@ export type MarketAsset = {
   trading_state?: "open" | "buyback";
   /** What buys can take right now (max − held − the broker's buffer); 0 = sold out. */
   shares_for_sale?: number | null;
+  /** The shares an order is measured against for slippage: a buy of depth × 2% shares fills about 1% over the ask. */
+  liquidity_depth?: number | null;
   broker_buffer?: number | null;
   sold_out?: boolean;
   buyback?: MarketBuyback | null;

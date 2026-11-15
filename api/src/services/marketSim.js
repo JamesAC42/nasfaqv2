@@ -87,7 +87,6 @@ function simSettings() {
     slippage_weight: trading.IMPACT_SETTINGS.slippageWeight,
     transient_weight: trading.IMPACT_SETTINGS.transientWeight,
     persistent_weight: trading.IMPACT_SETTINGS.persistentWeight,
-    transient_half_life_minutes: trading.IMPACT_SETTINGS.transientHalfLifeMinutes,
     live_order_share_limit: trading.IMPACT_SETTINGS.liveOrderShareLimitPerInterval,
     persistent_daily_decay: settlement.PERSISTENT_DAILY_DECAY,
     transient_settlement_decay: settlement.TRANSIENT_SETTLEMENT_DECAY,

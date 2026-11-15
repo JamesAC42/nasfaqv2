@@ -5,7 +5,6 @@
     "slippage_weight": 0.5,
     "transient_weight": 0.7,
     "persistent_weight": 0.15,
-    "transient_half_life_minutes": 60,
     "persistent_daily_decay": 0.9,
     "transient_settlement_decay": 0.1,
     "strength_total_pct": 200,
@@ -128,33 +127,6 @@
       "transient": 0.3,
       "next_persistent": -0.09166666666666667,
       "next_transient": 0.33888888888888885
-    }
-  ],
-  "decay": [
-    {
-      "transient": 0.1,
-      "minutes": 0,
-      "value": 0.1
-    },
-    {
-      "transient": 0.1,
-      "minutes": 60,
-      "value": 0.05
-    },
-    {
-      "transient": 0.1,
-      "minutes": 90,
-      "value": 0.035355339059327376
-    },
-    {
-      "transient": -0.05,
-      "minutes": 360,
-      "value": -0.00078125
-    },
-    {
-      "transient": 0,
-      "minutes": 30,
-      "value": 0
     }
   ],
   "live": [

@@ -86,11 +86,14 @@ Each trade is immediate:
 
 - The API verifies the user, asset status, market open state, quantity, cash, and holdings.
 - It locks the asset, cash account, and holding rows.
-- It computes a live mid price from current fair value plus decayed offsets:
+- It starts from the stored mid (`current_mid_price`, the price every page shows, written by the last trade, tick or settlement). The transient offset is restated so the offsets agree with that mid, the same rule the ticks use. Nothing fades between trades: the price only moves at a trade, a tick or the daily settlement.
 
 ```text
-live_mid = fair_value * exp(persistent_offset + transient_offset)
+live_mid  = current_mid_price
+transient = ln(live_mid / fair_value) - persistent_offset
 ```
+
+  A stock with no stored mid (just reset) falls back to `fair_value * exp(persistent_offset + transient_offset)`.
 
 - It derives bid/ask from configured spread.
 - It computes slippage from order size versus `liquidity_depth`.
@@ -106,7 +109,7 @@ buy:  persistent += 0.15 * shock, transient += 0.7 * shock
 sell: persistent -= 0.15 * shock, transient -= 0.7 * shock
 ```
 
-- It recomputes mid/bid/ask from the updated offsets.
+- It recomputes mid/bid/ask from the updated offsets, so the new mid is `live_mid * exp(±(0.15 + 0.7) * shock)`.
 - It updates the current daily market state and publishes a websocket market event.
 
 This means price changes come from two sources:
