@@ -668,9 +668,9 @@ export function AdminMarketTuningPage() {
                 </div>
               </div>
 
-              <div className={styles.action} data-danger>
+              <div className={styles.action}>
                 <h3>Regenerate a day</h3>
-                <p>Re-runs settlement for that date and replaces its tick session. For same-day debugging.</p>
+                <p>A repair tool; nothing here needs doing day to day. Only if a day’s settlement or ticks came out wrong: it re-runs settlement for that date and replaces its tick session.</p>
                 <div className={styles.actionRow}>
                   <label className={ui.field}>
                     <span>Market date</span>
@@ -694,7 +694,7 @@ export function AdminMarketTuningPage() {
                       </button>
                     </>
                   ) : (
-                    <button type="button" className={ui.btnDanger} disabled={regenBusy || forceBusy || loading} onClick={() => setRegenArmed(true)}>
+                    <button type="button" className={ui.btnGhost} disabled={regenBusy || forceBusy || loading} onClick={() => setRegenArmed(true)}>
                       Regenerate day
                     </button>
                   )}
