@@ -134,8 +134,20 @@ test("settlement: activation, replays, the refresh and public payloads", { skip:
   await admin.query(`CREATE DATABASE ${DB_NAME}`);
   target.pathname = `/${DB_NAME}`;
   const pool = new Pool({ connectionString: target.href });
+  // pool.end() resolves once it has asked every connection to close, not once they have. Dropping the
+  // database WITH (FORCE) before then terminates a connection still on its way out, and the pool
+  // throws that "terminating connection" error after the test. So wait for every connection to go.
+  const open = new Set();
+  pool.on("connect", (client) => open.add(client));
+  pool.on("remove", (client) => open.delete(client));
   t.after(async () => {
+    const allClosed = new Promise((resolve) => {
+      const check = () => open.size === 0 && resolve();
+      pool.on("remove", check);
+      check();
+    });
     await pool.end();
+    await allClosed;
     await admin.query(`DROP DATABASE IF EXISTS ${DB_NAME} WITH (FORCE)`);
     await admin.end();
   });
