@@ -1,5 +1,6 @@
 // NASFAQ's service worker: push notifications only (the daily check-in reminder, api/src/services/
-// checkinReminders.js). It's registered only when a player turns notifications on in Settings
+// checkinReminders.js, and the bell's notifications, api/src/services/pushNotifications.js). It's
+// registered only when a player turns notifications on in Settings
 // (app/components/settings/notification-settings.tsx).
 //
 // It must never handle `fetch` or use the Cache API: a worker that serves pages or files from a cache
@@ -28,7 +29,9 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body: typeof data.body === "string" ? data.body : "",
-      tag: typeof data.tag === "string" ? data.tag : undefined,
+      tag: typeof data.tag === "string" && data.tag ? data.tag : undefined,
+      // A newer push with the same tag replaces the older one and still alerts.
+      renotify: typeof data.tag === "string" && data.tag ? true : undefined,
       icon: "/android-chrome-192x192.png",
       badge: "/favicon-32x32.png",
       data: { url },
@@ -42,14 +45,14 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil(
     (async () => {
       const open = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-      // Reuse a tab that's already on the site: bring it forward and take it to the check-in.
+      // Reuse a tab that's already on the site: bring it forward and take it to the push's page.
       for (const client of open) {
         if (new URL(client.url).origin !== target.origin) continue;
         await client.focus();
         try {
           await client.navigate(target.href);
         } catch {
-          // A tab this worker doesn't control can't be steered: open the check-in in a new one.
+          // A tab this worker doesn't control can't be steered: open the page in a new one.
           await self.clients.openWindow(target.href);
         }
         return;

@@ -858,7 +858,7 @@ export function AdminHub() {
                   {hb?.push ? (
                     <p className={styles.muted}>
                       {hb.push.configured
-                        ? `Push is on: ${countOf(hb.push.players, "player")} on ${countOf(hb.push.devices, "device")}, ${fmtCount(hb.push.checkin_reminder_players)} with the check-in reminder.`
+                        ? `Push is on: ${countOf(hb.push.players, "player")} on ${countOf(hb.push.devices, "device")}, ${fmtCount(hb.push.checkin_reminder_players)} with the check-in reminder. Groups: Market ${fmtCount(hb.push.group_players.market)}, Bets ${fmtCount(hb.push.group_players.bets)}, Social ${fmtCount(hb.push.group_players.social)}, Exchange ${fmtCount(hb.push.group_players.exchange)}.`
                         : "Push is off: the WEB_PUSH_* keys aren't set."}
                     </p>
                   ) : null}

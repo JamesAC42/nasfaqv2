@@ -11,25 +11,30 @@ const chatNotify = require("./chatNotify");
 const hub = require("./games/tables/hub");
 
 const KEEP_PER_USER = 300;
-const KINDS = new Set([
-  "friend_request",
-  "friend_accepted",
-  "mention",
-  "reply",
-  "achievement",
-  "prediction_won",
-  "prediction_lost",
-  "prediction_void",
-  "proposal_approved",
-  "exchange",
-  "wishlist",
-  "dividend",
-  "buyback",
-  "ipo",
-  "referral",
-  // The daily check-in reminder (checkinReminders.js), for players who turned it on in Settings.
-  "checkin",
-]);
+// Every kind, and the push group a player turns on in Settings to get it on their phone too
+// (pushNotifications.js). A new kind goes here with its group, so it can't be left out of one.
+// "checkin" is the only kind without one: the daily reminder has its own toggle and sends its own push
+// (checkinReminders.js).
+const PUSH_GROUPS = Object.freeze(["market", "bets", "social", "exchange"]);
+const KIND_GROUPS = Object.freeze({
+  dividend: "market",
+  buyback: "market",
+  ipo: "market",
+  achievement: "market",
+  prediction_won: "bets",
+  prediction_lost: "bets",
+  prediction_void: "bets",
+  mention: "social",
+  reply: "social",
+  friend_request: "social",
+  friend_accepted: "social",
+  referral: "social",
+  proposal_approved: "social",
+  exchange: "exchange",
+  wishlist: "exchange",
+  checkin: null,
+});
+const KINDS = new Set(Object.keys(KIND_GROUPS));
 
 function money(value) {
   const n = Number(value);
@@ -134,11 +139,33 @@ async function pruneInboxes(db, userIds) {
   );
 }
 
-/** Push rows (from notify with publish: false) to their owners' open sockets. */
+// Called with every batch publish() sends out (pushNotifications.js queues the phone pushes from it).
+// It runs after publish returns and never throws into it.
+let publishListener = null;
+
+/** Sets the one listener for published rows (null to remove it). */
+function onPublish(listener) {
+  publishListener = typeof listener === "function" ? listener : null;
+}
+
+/**
+ * Push rows (from notify with publish: false) to their owners' open sockets, and hand them to the
+ * publish listener (pushes, which only go out for rows that committed).
+ */
 function publish(rows) {
+  const sent = [];
   for (const row of rows || []) {
     if (!row) continue;
+    sent.push(row);
     hub.publishToUser(Number(row.user_id), { type: "notification", notification: toView(row), server_time: Date.now() });
+  }
+  if (sent.length && publishListener) {
+    const listener = publishListener;
+    setImmediate(() => {
+      Promise.resolve()
+        .then(() => listener(sent))
+        .catch(() => {});
+    });
   }
 }
 
@@ -299,4 +326,4 @@ async function notifyChatMessage(pool, { message, channel, author }) {
   }
 }
 
-module.exports = { notify, notifyMany, pruneInboxes, publish, list, unreadCount, markRead, recordExchangeAlerts, notifyChatMessage, mentionCandidates, exchangeText, money };
+module.exports = { KINDS, KIND_GROUPS, PUSH_GROUPS, onPublish, notify, notifyMany, pruneInboxes, publish, list, unreadCount, markRead, recordExchangeAlerts, notifyChatMessage, mentionCandidates, exchangeText, money };

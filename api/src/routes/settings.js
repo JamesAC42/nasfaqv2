@@ -1,7 +1,9 @@
 // A player's settings (the /settings page): Notifications (services/notificationSettings.js) and
 // Display (services/displaySettings.js).
 // GET    /api/settings/notifications                 → { preferences, push: { available, public_key }, devices }
-// PUT    /api/settings/notifications                 { preferences: { checkin_reminder_push: true } } → the same
+// PUT    /api/settings/notifications                 { preferences: { checkin_reminder_push: true, push_market: true } } → the same
+//        (push_market, push_bets, push_social and push_exchange turn on pushes for those groups of the
+//        bell's notifications: services/pushNotifications.js)
 // POST   /api/settings/notifications/devices         { subscription } (a PushSubscription's toJSON()) → the same, plus device_id
 // DELETE /api/settings/notifications/devices/:id     → the same
 // POST   /api/settings/notifications/devices/remove  { endpoint }: this browser's own, when it turns push off

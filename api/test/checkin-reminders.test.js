@@ -193,8 +193,8 @@ test("check-in reminders", { skip: !databaseUrl, timeout: 120_000 }, async (t) =
 
   await t.test("off by default", async () => {
     const fresh = await addUser(pool, "Fresh");
-    assert.deepEqual((await settings.getSettings(pool, fresh)).preferences, { checkin_reminder_push: false });
-    assert.deepEqual((await settings.getSettings(pool, quiet)).preferences, { checkin_reminder_push: false });
+    assert.deepEqual((await settings.getSettings(pool, fresh)).preferences, { checkin_reminder_push: false, push_market: false, push_bets: false, push_social: false, push_exchange: false });
+    assert.deepEqual((await settings.getSettings(pool, quiet)).preferences, { checkin_reminder_push: false, push_market: false, push_bets: false, push_social: false, push_exchange: false });
   });
 
   await t.test("before the hour nothing goes out", async () => {
@@ -340,7 +340,7 @@ test("check-in reminders", { skip: !databaseUrl, timeout: 120_000 }, async (t) =
 
       const initial = await call("GET", "/notifications", owner);
       assert.equal(initial.status, 200);
-      assert.deepEqual(initial.body.preferences, { checkin_reminder_push: false });
+      assert.deepEqual(initial.body.preferences, { checkin_reminder_push: false, push_market: false, push_bets: false, push_social: false, push_exchange: false });
       assert.deepEqual(initial.body.push, { available: true, public_key: keys.publicKey });
       assert.deepEqual(initial.body.devices, []);
 
