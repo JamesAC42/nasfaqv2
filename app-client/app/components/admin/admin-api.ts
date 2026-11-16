@@ -438,7 +438,8 @@ export type SchedulerBeat = {
 };
 
 /** Browser push (api/src/services/webPush.js): configured means the WEB_PUSH_* keys are set. */
-export type PushStatus = { configured: boolean; players: number; devices: number; checkin_reminder_players: number };
+export type PushGroupCounts = { market: number; bets: number; social: number; exchange: number };
+export type PushStatus = { configured: boolean; players: number; devices: number; checkin_reminder_players: number; group_players: PushGroupCounts };
 export type SchedulerHealth = { generated_at: string | null; alerts_configured: boolean; schedulers: SchedulerBeat[]; push: PushStatus | null };
 
 export function normalizeSchedulerHealth(row: Record<string, unknown> | null | undefined): SchedulerHealth {
@@ -464,7 +465,14 @@ export function normalizeSchedulerHealth(row: Record<string, unknown> | null | u
     push: r.push && typeof r.push === "object"
       ? (() => {
           const push = r.push as Record<string, unknown>;
-          return { configured: Boolean(push.configured), players: int(push.players), devices: int(push.devices), checkin_reminder_players: int(push.checkin_reminder_players) };
+          const groups = (push.group_players && typeof push.group_players === "object" ? push.group_players : {}) as Record<string, unknown>;
+          return {
+            configured: Boolean(push.configured),
+            players: int(push.players),
+            devices: int(push.devices),
+            checkin_reminder_players: int(push.checkin_reminder_players),
+            group_players: { market: int(groups.market), bets: int(groups.bets), social: int(groups.social), exchange: int(groups.exchange) },
+          };
         })()
       : null,
   };

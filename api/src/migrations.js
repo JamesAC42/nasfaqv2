@@ -2185,6 +2185,37 @@ async function applySchema(pool) {
       PRIMARY KEY (user_id, day)
     )
   `);
+  // Push for the bell (services/pushNotifications.js): one switch per group of notification kinds
+  // (notifications.js KIND_GROUPS), all off until the player turns one on.
+  await pool.query(`
+    ALTER TABLE market.notification_preferences
+      ADD COLUMN IF NOT EXISTS push_market BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS push_bets BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS push_social BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS push_exchange BOOLEAN NOT NULL DEFAULT false
+  `);
+  // Bell notifications waiting to go out as pushes, queued after the notification committed. The
+  // scheduler claims rows (claimed_at) before it sends anything, so a push goes out at most once
+  // however many pods race; a crash after the claim loses that push rather than sending it twice.
+  // Claimed rows are kept a day, then deleted.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.push_queue (
+      id BIGSERIAL PRIMARY KEY,
+      notification_id BIGINT NOT NULL REFERENCES market.notifications(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL,
+      push_group TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      href TEXT NULL,
+      queued_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      claimed_at TIMESTAMPTZ NULL,
+      CONSTRAINT push_queue_notification_key UNIQUE (notification_id)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_push_queue_pending_idx ON market.push_queue (id) WHERE claimed_at IS NULL`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_push_queue_user_kind_idx ON market.push_queue (user_id, kind) WHERE claimed_at IS NULL`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_push_queue_claimed_idx ON market.push_queue (claimed_at) WHERE claimed_at IS NOT NULL`);
 }
 
 module.exports = { applySchema };

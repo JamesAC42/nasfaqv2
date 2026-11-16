@@ -260,6 +260,8 @@ app.use(
 const pool = createPool(cfg.databaseUrl);
 // Credit moves (games, predictions) queue leaderboard refreshes from inside their transactions.
 require("./services/netWorth").useLeaderboardRefreshPool(pool);
+// Bell notifications queue their pushes once they're published (services/pushNotifications.js).
+require("./services/pushNotifications").usePool(pool);
 // The readiness probe's own connection, so a busy pool doesn't read as a broken pod. Its limits stay
 // inside the probe's 5 s timeout.
 const healthPool = createPool(cfg.databaseUrl, { max: 1, connectionTimeoutMs: 3_000, statementTimeoutMs: 2_000 });
@@ -1014,6 +1016,9 @@ async function main() {
     // The daily check-in reminder by push, once a day at 18:00 ET (services/checkinReminders.js; Off
     // without the WEB_PUSH_* keys, CHECKIN_REMINDERS_ENABLED=false to stop it).
     stoppers.push(require("./services/checkinReminders").startCheckinReminderScheduler(pool, console, redis));
+    // Sends the bell's notifications as pushes to players who turned their group on (services/
+    // pushNotifications.js; Off without the WEB_PUSH_* keys, PUSH_NOTIFICATIONS_ENABLED=false to stop it).
+    stoppers.push(require("./services/pushNotifications").startPushQueueScheduler(pool, console, redis));
   }
   // Turned off (PREDICTION_MARKET_SCHEDULER_ENABLED=false) it only reports Off, from the scheduler pod.
   stoppers.push(startPredictionsScheduler(pool, console, redis));

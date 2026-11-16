@@ -28,6 +28,9 @@ const SCHEDULERS = [
   { name: "referrals", label: "Referrals", staleAfterMs: 30 * MINUTE },
   // Sends once a day (checkinReminders.js); Off without the push keys. Ticks every 5 minutes.
   { name: "checkin-reminders", label: "Check-in reminders", staleAfterMs: 60 * MINUTE },
+  // Sends the bell's notifications as pushes (pushNotifications.js); Off without the push keys. Ticks
+  // every 5 seconds; a Saturday review's pushes can take a tick a minute or two.
+  { name: "push-queue", label: "Push queue", staleAfterMs: 15 * MINUTE, stallAfterMs: 10 * MINUTE },
   { name: "watchdog", label: "Watchdog", staleAfterMs: 10 * MINUTE },
 ];
 const specFor = (name) => SCHEDULERS.find((spec) => spec.name === name) || null;

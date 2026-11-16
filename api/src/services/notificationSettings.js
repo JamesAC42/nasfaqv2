@@ -10,10 +10,16 @@
 
 const webPush = require("./webPush");
 const { reminderHour } = require("./checkinReminders");
+const { PUSH_GROUPS } = require("./notifications");
 
-/** Every preference: its column and its default. The API takes and returns them by these keys. */
+/**
+ * Every preference: its column and its default. The API takes and returns them by these keys. Besides
+ * the reminder, one push switch per group of bell notifications (push_market, push_bets, ...; which
+ * kinds each covers is notifications.js KIND_GROUPS, sent by pushNotifications.js).
+ */
 const PREFERENCES = Object.freeze({
   checkin_reminder_push: { column: "checkin_reminder_push", default: false },
+  ...Object.fromEntries(PUSH_GROUPS.map((group) => [`push_${group}`, { column: `push_${group}`, default: false }])),
 });
 /** The most browsers and phones one player can have push on in at once; the oldest goes first. */
 const MAX_DEVICES = 10;
@@ -167,16 +173,22 @@ async function forgetDevice(db, userId, endpoint) {
   return rowCount > 0;
 }
 
-/** For the admin hub: whether push is on, and how many players and devices have it. */
+/**
+ * For the admin hub: whether push is on, how many players and devices have it, and how many of those
+ * players have the reminder and each group on.
+ */
 async function pushSummary(db) {
   const { rows } = await db.query(`
     SELECT
       (SELECT COUNT(*)::int FROM market.push_subscriptions) AS devices,
       (SELECT COUNT(DISTINCT user_id)::int FROM market.push_subscriptions) AS players,
-      (SELECT COUNT(*)::int FROM market.notification_preferences p
-        WHERE p.checkin_reminder_push AND EXISTS (SELECT 1 FROM market.push_subscriptions s WHERE s.user_id = p.user_id)) AS checkin_reminder_players
+      COUNT(*) FILTER (WHERE p.checkin_reminder_push)::int AS checkin_reminder_players,
+      ${PUSH_GROUPS.map((group) => `COUNT(*) FILTER (WHERE p.push_${group})::int AS ${group}`).join(", ")}
+    FROM market.notification_preferences p
+    WHERE EXISTS (SELECT 1 FROM market.push_subscriptions s WHERE s.user_id = p.user_id)
   `);
-  return { configured: webPush.isConfigured(), ...rows[0] };
+  const { devices, players, checkin_reminder_players: checkinReminderPlayers, ...groups } = rows[0];
+  return { configured: webPush.isConfigured(), devices, players, checkin_reminder_players: checkinReminderPlayers, group_players: groups };
 }
 
 module.exports = {
