@@ -78,8 +78,9 @@ export function LadderView() {
   const isCurrent = data ? data.season === data.current_season : !season;
   const playerIds = useMemo(() => [...(data?.ladder ?? []), ...(data?.picks ?? [])].map((row) => row.user_id), [data]);
   const worth = useNetWorth(playerIds);
-  // The season picker keeps its place on every board, so the tabs never move: out of sight where a
-  // season doesn't apply (the chip boards), there but not usable until the ladder arrives.
+  // The season picker: left out where a season doesn't apply (the chip boards) and until the rules say
+  // which board is showing, there but not usable until the ladder arrives. It's no taller than the
+  // tabs, so the tabs stay put either way.
   const seasonHidden = !settled || chipsTab;
 
   return (

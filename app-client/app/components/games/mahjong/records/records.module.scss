@@ -154,21 +154,24 @@
   }
 }
 
-// Always in the toolbar at one size, no taller than the tabs, so nothing moves when it shows or hides.
+// No taller than the tabs, so the tabs never move when it shows or hides: beside them it fits their
+// row, and where it wraps under them (a phone) only what's below it moves. Out of the way on the chip
+// boards, where a season doesn't apply.
 .season {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
 
   &[data-hidden] {
-    visibility: hidden;
+    display: none;
   }
 }
 
 .select {
   @include input-base;
   width: 10.5rem;
-  padding: 0.35rem 0.6rem;
+  height: 2rem;
+  padding: 0 0.6rem;
   font-size: 0.8125rem;
 }
 
