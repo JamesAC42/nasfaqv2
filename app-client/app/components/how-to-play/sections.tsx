@@ -400,7 +400,7 @@ export function GamesSection() {
       lede={
         <>
           <p>
-            Every game spends <Term k="credit">Credit</Term> and never your cash. Games, bets and buying cards close while your net worth is under $50,000; free cards and selling your cards stay open. Winnings come back as Credit; refunds go back where they came
+            Every game spends <Term k="credit">Credit</Term> and never your cash, so a pull, an entry or a bet needs enough Credit to cover it. Winnings come back as Credit; refunds go back where they came
             from. The server rolls every result, rates are posted on each game, and multiplayer stakes sit in escrow until the hand is done.
           </p>
           <p>Open tables can be watched by anyone, even signed out. Hidden picks stay hidden until the reveal.</p>

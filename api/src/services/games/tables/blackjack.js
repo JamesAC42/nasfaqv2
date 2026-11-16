@@ -6,7 +6,7 @@
 // (siteState) no bets are taken, so no round starts; a round already dealt plays out.
 //
 // Blackjack spends Credit only, never Cash, and blackjackLimits.js caps what a player can win or lose
-// in a week, how many hands they play a day, and closes the tables under a net worth floor.
+// in a week and how many hands they play a day.
 
 const crypto = require("node:crypto");
 const economy = require("../../economy");

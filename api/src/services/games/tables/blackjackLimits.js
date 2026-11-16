@@ -9,12 +9,10 @@
 //   on the way up too. A natural can land up to half a bet past the top; every other result stays
 //   inside it. Doubling needs room for the doubled stake on both sides.
 // - A number of hands a day.
-// - No bets while net worth is under a floor. A hand already dealt plays out.
 //
 // The week runs from Saturday 00:00 New York, when the review runs (weeklyEvaluation.js), and a day
 // from midnight New York. Hands count by when they were bet; refunded rounds don't count. Hands a day
-// have an env var; the weekly cap follows the conversion settings and the floor is the one every
-// side mode shares (economy.SETTINGS.sideModeMinNetWorth).
+// have an env var; the weekly cap follows the conversion settings.
 
 const economy = require("../../economy");
 const { getCurrentNetWorth } = require("../../netWorth");
@@ -30,7 +28,6 @@ function amount(value, fallback) {
 function limitSettings(env = process.env) {
   return {
     handsPerDay: Math.floor(amount(env.BLACKJACK_HANDS_PER_DAY, 50)),
-    minNetWorth: economy.SETTINGS.sideModeMinNetWorth,
     weeklyRate: economy.SETTINGS.weeklyConversionRate,
     weeklyMinimum: economy.SETTINGS.weeklyConversionMinimum,
   };
@@ -42,7 +39,6 @@ function publicRules(settings = limitSettings()) {
     weekly_minimum: settings.weeklyMinimum,
     weekly_rate: settings.weeklyRate,
     hands_per_day: settings.handsPerDay,
-    min_net_worth: settings.minNetWorth,
   };
 }
 
@@ -54,9 +50,9 @@ function weeklyLimitFor(credit, settings = limitSettings()) {
 /**
  * Where a player stands, from what's been read. Pure, so the rules are tested on their own.
  * `weekNet` is this week's settled result, `openStakes` what's out on tables that haven't settled.
- * `blocked` says why they can't bet at all ("net_worth", "weekly_limit", "daily_limit"), else null.
+ * `blocked` says why they can't bet at all ("weekly_limit", "daily_limit"), else null.
  */
-function planLimits({ credit, netWorth, weekNet, openStakes, handsToday }, settings = limitSettings()) {
+function planLimits({ credit, weekNet, openStakes, handsToday }, settings = limitSettings()) {
   const weeklyLimit = weeklyLimitFor(credit, settings);
   const net = round2(weekNet);
   const open = round2(openStakes);
@@ -64,8 +60,7 @@ function planLimits({ credit, netWorth, weekNet, openStakes, handsToday }, setti
   const winRoom = round2(weeklyLimit - net);
   const room = Math.max(0, Math.min(lossRoom, winRoom));
   let blocked = null;
-  if (Number(netWorth) < settings.minNetWorth) blocked = "net_worth";
-  else if (room <= 0) blocked = "weekly_limit";
+  if (room <= 0) blocked = "weekly_limit";
   else if (handsToday >= settings.handsPerDay) blocked = "daily_limit";
   return {
     blocked,
@@ -77,8 +72,6 @@ function planLimits({ credit, netWorth, weekNet, openStakes, handsToday }, setti
     max_bet: blocked ? 0 : room,
     hands_today: handsToday,
     hands_per_day: settings.handsPerDay,
-    net_worth: round2(netWorth),
-    min_net_worth: settings.minNetWorth,
     credit: round2(credit),
   };
 }
@@ -89,7 +82,6 @@ function limitError(code, extra = {}) {
 
 /** Throws why this wager can't be placed, if it can't. */
 function assertCanBet(plan, wager) {
-  if (plan.blocked === "net_worth") throw limitError("blackjack_net_worth_floor", { limit: plan.min_net_worth });
   if (plan.blocked === "weekly_limit") throw limitError("blackjack_weekly_limit", { limit: plan.weekly_limit });
   if (plan.blocked === "daily_limit") throw limitError("blackjack_daily_limit", { limit: plan.hands_per_day });
   if (wager > plan.max_bet) throw limitError("blackjack_bet_over_limit", { max_bet: plan.max_bet });
@@ -131,7 +123,6 @@ async function readPlan(db, userId, settings = limitSettings()) {
   const plan = planLimits(
     {
       credit: worth.credit_balance,
-      netWorth: worth.total_equity,
       weekNet: Number(rows[0].week_net),
       openStakes: Number(rows[0].open_stakes),
       handsToday: Number(rows[0].hands_today),
