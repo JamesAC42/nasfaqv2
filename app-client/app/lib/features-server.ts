@@ -33,3 +33,9 @@ export const serverFeatures = cache(async (): Promise<Record<string, boolean>> =
 export async function requireFeature(flag: string) {
   if ((await serverFeatures())[flag] !== true) notFound();
 }
+
+/** Renders the 404 page for anyone none of these flags is on for (a page whose sections have their own flags). */
+export async function requireAnyFeature(...flags: string[]) {
+  const features = await serverFeatures();
+  if (!flags.some((flag) => features[flag] === true)) notFound();
+}

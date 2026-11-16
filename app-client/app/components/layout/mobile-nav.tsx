@@ -58,7 +58,7 @@ export function MobileNav() {
               <Link href="/how-to-play" className={styles.sheetLink} onClick={close}>
                 How to play
               </Link>
-              {user && flags["checkin-reminders"] ? (
+              {(user && flags["checkin-reminders"]) || flags["timezone-setting"] ? (
                 <Link href="/settings" className={styles.sheetLink} aria-current={isActivePath(pathname, "/settings") ? "page" : undefined} onClick={close}>
                   Settings
                 </Link>

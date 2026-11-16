@@ -51,7 +51,9 @@ export function ProfileView({ username }: { username?: string | null }) {
   const { user, logout } = useAuth();
   const { theme } = useTheme();
   const referralsOn = useFeature("referrals");
-  const settingsOn = useFeature("checkin-reminders");
+  const remindersOn = useFeature("checkin-reminders");
+  const displayOn = useFeature("timezone-setting");
+  const settingsOn = remindersOn || displayOn;
   const assets = useMarketStore((state) => state.assets);
   const tradingRevision = useProfileStore((state) => state.tradingRevision);
   const [bundle, setBundle] = useState<ProfileBundle | null>(null);

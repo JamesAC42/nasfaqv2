@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/app/lib/api";
 import { browserPushEnvironment, keyBytes, pushSupport, type PushSupport } from "@/app/lib/push-support.mjs";
 import { timeAgo } from "@/app/lib/time";
+import { MARKET_TIME_ZONE, wallClock, zonedInstant } from "@/app/lib/display-time.mjs";
+import { useTimeFormat, type TimeFormat } from "@/app/lib/use-display-time";
 import styles from "@/app/components/settings/settings.module.scss";
 
 // The Notifications section of /settings (api/src/routes/settings.js). Reminders are listed one row
@@ -26,8 +28,11 @@ type Settings = {
   device_id?: number;
 };
 
-/** 18 → "6 PM", 0 → "12 AM". */
-const hourText = (hour: number) => `${hour % 12 || 12} ${hour < 12 ? "AM" : "PM"}`;
+/** The New York hour 18 as "6 PM ET", or "8 AM JST (18:00 ET)" for a player on their own time. */
+function hourText(tf: TimeFormat, hour: number) {
+  const today = wallClock(Date.now(), MARKET_TIME_ZONE);
+  return tf.format(zonedInstant(today.year, today.month, today.day, hour, 0, MARKET_TIME_ZONE), { hour: "numeric" }, { alongside: true });
+}
 
 const SW_PATH = "/sw.js";
 const DEVICE_KEY = "nasfaq.pushDevice";
@@ -95,6 +100,7 @@ function SupportNote({ support }: { support: PushSupport }) {
 }
 
 export function NotificationSettings() {
+  const tf = useTimeFormat();
   const [data, setData] = useState<Settings | null>(null);
   const [support, setSupport] = useState<PushSupport | null>(null);
   const [here, setHere] = useState<number | null>(null);
@@ -215,7 +221,7 @@ export function NotificationSettings() {
         <div className={styles.tableRow} role="row">
           <span role="cell">
             <b>Daily check-in</b>
-            <small>Once a day at {hourText(data.schedule?.checkin_reminder_hour ?? 18)} ET, if you haven’t checked in yet. The check-in resets at midnight ET.</small>
+            <small>Once a day at {hourText(tf, data.schedule?.checkin_reminder_hour ?? 18)}, if you haven’t checked in yet. The check-in resets at midnight ET.</small>
           </span>
           <span role="cell">
             {canToggle ? (
