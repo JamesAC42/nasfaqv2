@@ -30,6 +30,8 @@ const FLAG = "checkin-reminders";
 const INTERVAL_MS = 5_000;
 const HOLD_MS = 3_000;
 const RETRY_MS = [10_000, 60_000];
+// Claims take turns under this (pg_advisory_xact_lock), so one burst is never split between workers.
+const CLAIM_LOCK_KEY = 9_204_150;
 const CLAIM_LIMIT = 200;
 const SEND_CONCURRENCY = 16;
 // One tick stops claiming after this long; the rest waits for the next tick.
@@ -160,13 +162,19 @@ function usePool(pool, options = {}) {
 
 /**
  * Claims pending rows: the oldest `limit` rows' (player, kind) pairs, with every pending row of
- * those pairs, so a burst goes out as one push. Rows another worker is claiming right now are
- * skipped (SKIP LOCKED, so two workers never wait on or deadlock over each other), and a row it
- * claimed already fails the claimed_at check. Either way each row is claimed once. Rows older than
+ * those pairs, so a burst goes out as one push. Claims take turns under a transaction-level
+ * advisory lock: two workers each taking part of one player's burst would send that player two
+ * summaries of the same kind. Claiming is one quick UPDATE; sending happens after the lock is
+ * released. A row claimed already also fails the claimed_at check, so each row is claimed once. Rows older than
  * STALE_PENDING (the worker was down or turned off) are never claimed; prune() deletes them.
  */
 async function claim(pool, { limit = CLAIM_LIMIT, holdMs = HOLD_MS } = {}) {
-  const { rows } = await pool.query(
+  const client = await pool.connect();
+  let rows;
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock($1)", [CLAIM_LOCK_KEY]);
+    ({ rows } = await client.query(
     `
     WITH head AS (
       SELECT user_id, kind FROM market.push_queue
@@ -187,7 +195,14 @@ async function claim(pool, { limit = CLAIM_LIMIT, holdMs = HOLD_MS } = {}) {
     RETURNING q.id, q.notification_id, q.user_id, q.kind, q.push_group, q.title, q.body, q.href
   `,
     [limit, holdMs, STALE_PENDING]
-  );
+    ));
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
   return rows.map((row) => ({ ...row, id: Number(row.id), notification_id: Number(row.notification_id), user_id: Number(row.user_id) }));
 }
 
