@@ -11,7 +11,11 @@
   white-space: nowrap;
 }
 
+// The search and filter bar stays in reach while the list scrolls.
 .controls {
+  position: sticky;
+  top: calc(var(--rail-height) + var(--tape-height) + env(safe-area-inset-top, 0px));
+  z-index: 5;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -19,6 +23,39 @@
   margin: 0;
   padding: 0.8rem 0;
   border-bottom: 1px solid var(--rule);
+  background: color-mix(in srgb, var(--ink) 94%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.quiz {
+  @include label;
+  padding: 0.5rem 0.8rem;
+  border: 1px dashed var(--blue);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--blue);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--blue-wash);
+  }
+
+  &[aria-pressed="true"] {
+    border-style: solid;
+    background: var(--blue);
+    color: var(--blue-ink);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.groupCount {
+  @include num;
+  margin-left: 0.35rem;
+  color: var(--dim);
+  font-weight: 400;
 }
 
 .chips {
@@ -64,7 +101,7 @@
 
 .group {
   min-width: 0;
-  scroll-margin-top: 4.5rem;
+  scroll-margin-top: calc(var(--rail-height) + var(--tape-height) + 7.5rem);
 }
 
 // ── Yaku ────────────────────────────────────────────────────────────────────
@@ -84,11 +121,11 @@
 .yaku {
   display: grid;
   align-content: start;
-  gap: 0.5rem;
+  gap: 0.6rem;
   min-width: 0;
-  padding: 1rem 0;
+  padding: 1.25rem 0;
   border-bottom: 1px solid var(--rule);
-  scroll-margin-top: 4.5rem;
+  scroll-margin-top: calc(var(--rail-height) + var(--tape-height) + 4.5rem);
 
   &:target h3 a {
     color: var(--blue);
@@ -96,9 +133,44 @@
 
   p {
     margin: 0;
-    font-size: 0.875rem;
-    line-height: 1.55;
+    max-width: 62ch;
+    font-size: 0.9375rem;
+    line-height: 1.6;
     color: var(--mid);
+  }
+
+  &[data-quiz="shown"] h3 {
+    @media (prefers-reduced-motion: no-preference) {
+      :global(html:not([data-calm="true"])) & {
+        animation: flip var(--dur-med, 240ms) var(--ease-out, ease-out) both;
+      }
+    }
+  }
+}
+
+@keyframes flip {
+  from {
+    opacity: 0;
+    transform: perspective(500px) rotateX(-60deg);
+  }
+}
+
+.guess {
+  @include label;
+  padding: 0.45rem 0.75rem;
+  border: 1px dashed var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: var(--ink-2);
+  color: var(--text);
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
   }
 }
 
@@ -132,35 +204,68 @@
 .value {
   @include num;
   margin-left: auto;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--rule-2);
+  border-radius: 999px;
   font-size: 0.75rem;
+  white-space: nowrap;
   color: var(--text);
+
+  &[data-yakuman] {
+    border-color: var(--blue);
+    background: var(--blue-wash);
+    color: var(--blue);
+    font-weight: 700;
+  }
 }
 
 .example {
   display: grid;
-  gap: 0.4rem;
+  gap: 0.45rem;
   justify-items: start;
   min-width: 0;
   max-width: 100%;
-  padding: 0.6rem 0.7rem;
+  padding: 0.7rem 0.8rem;
   border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
   background: var(--ink-2);
   overflow-x: auto;
 
-  span {
-    font-size: 0.78rem;
-    line-height: 1.4;
-    color: var(--dim);
+  > span {
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--mid);
   }
 }
 
 // ── Glossary ────────────────────────────────────────────────────────────────
 .letters {
   @include label;
+  position: sticky;
+  top: calc(var(--rail-height) + var(--tape-height) + env(safe-area-inset-top, 0px) + 3.6rem);
+  z-index: 4;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.15rem;
-  padding: 0.7rem 0 0.2rem;
+  gap: 0.2rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--rule);
+  background: color-mix(in srgb, var(--ink) 94%, transparent);
+  backdrop-filter: blur(6px);
+
+  @include phone {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+
+    a,
+    span {
+      flex: none;
+    }
+  }
 
   a,
   span {
@@ -198,11 +303,11 @@
 
 .entry {
   display: grid;
-  grid-template-columns: minmax(8rem, 12rem) minmax(0, 1fr);
-  gap: 0.2rem 1.4rem;
-  padding: 0.8rem 0;
+  grid-template-columns: minmax(8rem, 13rem) minmax(0, 62ch);
+  gap: 0.25rem 1.6rem;
+  padding: 1rem 0;
   border-bottom: 1px solid var(--rule);
-  scroll-margin-top: 4.5rem;
+  scroll-margin-top: calc(var(--rail-height) + var(--tape-height) + 8rem);
 
   @include phone {
     grid-template-columns: minmax(0, 1fr);
@@ -230,11 +335,11 @@
 
   dd {
     display: grid;
-    gap: 0.2rem;
+    gap: 0.25rem;
     margin: 0;
     min-width: 0;
-    font-size: 0.875rem;
-    line-height: 1.55;
+    font-size: 0.9375rem;
+    line-height: 1.6;
     color: var(--mid);
 
     b {
@@ -270,30 +375,152 @@
 }
 
 // ── Tips ────────────────────────────────────────────────────────────────────
+// Numbered within each tier by a CSS counter (each tier's tips are siblings).
 .tip {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.75rem;
   min-width: 0;
-  padding: 1rem 0;
+  padding: 1.5rem 0;
   border-bottom: 1px solid var(--rule);
-  scroll-margin-top: 4.5rem;
+  scroll-margin-top: calc(var(--rail-height) + var(--tape-height) + 3.5rem);
+  counter-increment: tip;
+
+  &:last-child {
+    border-bottom: 0;
+  }
 
   h3 {
-    @include display(1.15rem);
+    @include display(1.25rem);
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
     margin: 0;
+    line-height: 1.25;
     color: var(--text);
+
+    &::before {
+      @include num;
+      content: counter(tip, decimal-leading-zero);
+      flex: none;
+      font-size: 0.8125rem;
+      font-weight: 700;
+      color: var(--blue);
+    }
   }
 
   p {
     margin: 0;
-    max-width: 46rem;
-    font-size: 0.9rem;
+    max-width: 68ch;
+    font-size: 1rem;
+    line-height: 1.65;
+    color: var(--mid);
+  }
+
+  ul {
+    display: grid;
+    gap: 0.6rem;
+    max-width: 68ch;
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: 1rem;
     line-height: 1.6;
     color: var(--mid);
+
+    li::marker {
+      color: var(--blue);
+    }
   }
 
   b {
     color: var(--text);
     font-weight: 600;
+  }
+
+  > figure,
+  > aside,
+  > section {
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+  }
+
+  > figure {
+    justify-self: start;
+  }
+}
+
+// ── Glossary: draw a word ───────────────────────────────────────────────────
+.draw {
+  display: grid;
+  gap: 0.6rem;
+  max-width: 46rem;
+  margin: 1.25rem 0 0.5rem;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--rule);
+  border-top: 3px solid var(--blue);
+  border-radius: var(--radius-sm);
+  background: var(--ink-2);
+}
+
+.drawHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+
+  > span {
+    @include label;
+    color: var(--blue);
+    font-weight: 700;
+  }
+}
+
+.drawEmpty {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--mid);
+}
+
+.drawCard {
+  display: grid;
+  justify-items: start;
+  gap: 0.35rem;
+
+  > b {
+    @include display(1.6rem);
+    color: var(--text);
+  }
+
+  > small {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    color: var(--dim);
+  }
+
+  p {
+    max-width: 62ch;
+    margin: 0.2rem 0 0;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    color: var(--mid);
+
+    strong {
+      color: var(--text);
+    }
+
+    a {
+      color: var(--blue);
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    :global(html:not([data-calm="true"])) & {
+      animation: flip var(--dur-med, 240ms) var(--ease-out, ease-out) both;
+    }
+
+    :global(html:not([data-calm="true"])) & p {
+      animation: flip var(--dur-med, 240ms) var(--ease-out, ease-out) both;
+    }
   }
 }

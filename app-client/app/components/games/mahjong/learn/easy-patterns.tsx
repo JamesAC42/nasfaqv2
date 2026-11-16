@@ -42,11 +42,12 @@ export const EASY_PATTERNS: Pattern[] = [
 
 /**
  * The cheat sheet. `size` is the tile width of the example hands; `compact` drops the "counts when"
- * paragraphs, for a small panel. Mount it in a dialog or on a page.
+ * paragraphs, for a small panel; `rich` (the Learn page) labels them and sets each pattern apart.
+ * Mount it in a dialog or on a page.
  */
-export function EasyPatterns({ size = 22, compact = false }: { size?: number; compact?: boolean }) {
+export function EasyPatterns({ size = 22, compact = false, rich = false }: { size?: number; compact?: boolean; rich?: boolean }) {
   return (
-    <ol className={styles.list} aria-label="Five easy patterns">
+    <ol className={styles.list} aria-label="Five easy patterns" data-rich={rich ? "true" : undefined}>
       {EASY_PATTERNS.map((pattern, index) => {
         const info = YAKU[pattern.key];
         return (
@@ -60,7 +61,13 @@ export function EasyPatterns({ size = 22, compact = false }: { size?: number; co
               <TileRow {...rowFromExample(info.example)} size={size} />
             </div>
             <p className={styles.caption}>{info.example.caption}</p>
-            {compact ? null : <p className={styles.counts}>{pattern.counts}</p>}
+            {compact ? null : (
+              <p className={styles.counts}>
+                {rich ? <b>Counts when.</b> : null}
+                {rich ? " " : null}
+                {pattern.counts}
+              </p>
+            )}
             <p className={styles.trap}>
               <b>Trap.</b> {pattern.trap}
             </p>

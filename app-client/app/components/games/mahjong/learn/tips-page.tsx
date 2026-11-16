@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Hand, LearnFrame, Picture } from "@/app/components/games/mahjong/learn/learn-frame";
+import { HandLab } from "@/app/components/games/mahjong/learn/hand-lab";
+import { LearnArt } from "@/app/components/games/mahjong/learn/learn-art";
+import { Callout, Hand, LearnFrame, PageIntro, Picture, WithToc } from "@/app/components/games/mahjong/learn/learn-frame";
 import learn from "@/app/components/games/mahjong/learn/learn.module.scss";
 import styles from "@/app/components/games/mahjong/learn/reference.module.scss";
 
@@ -28,17 +30,28 @@ export function TipsPage() {
         </>
       }
     >
-      <ul className={styles.toc} aria-label="On this page">
-        <li>
-          <a href="#first">First games</a>
-        </li>
-        <li>
-          <a href="#better">Getting better</a>
-        </li>
-        <li>
-          <a href="#sense">Table sense</a>
-        </li>
-      </ul>
+      <PageIntro
+        art={<LearnArt slot="mahjong-learn-tips" width={420} priority />}
+        points={[
+          <>
+            <b>Tier 1 first.</b> Play a few games with it before you worry about tier 2.
+          </>,
+          <>
+            Know which <b>yaku</b> you’re heading for before you build or call.
+          </>,
+          <>
+            When someone declares riichi, <b>throw what they’ve thrown</b>.
+          </>,
+        ]}
+      />
+
+      <WithToc
+        items={[
+          ["first", "Tier 1 · First games"],
+          ["better", "Tier 2 · Getting better"],
+          ["sense", "Tier 3 · Table sense"],
+        ]}
+      >
 
       <section id="first" className={learn.section}>
         <span className={learn.kicker}>Tier 1</span>
@@ -76,6 +89,9 @@ export function TipsPage() {
             A tile a riichi player already discarded can’t win for them (that’s furiten), so it’s safe against them. When you don’t know what to throw, throw one of theirs. You’ll lose some hands to it. You’ll lose fewer to
             them.
           </p>
+          <Callout>
+            <p>A tile a riichi player already discarded can’t win for them. When in doubt, throw one of theirs.</p>
+          </Callout>
         </Tip>
         <Tip id="practice" title="Play bots first, then people">
           <p>
@@ -105,6 +121,7 @@ export function TipsPage() {
           <p>
             Pairs and four-tile runs are flexible too. When you’re choosing between two tiles that both seem useful, count how many different tiles would improve the hand after each choice, and pick the bigger number.
           </p>
+          <HandLab title="Compare the waits" presets={["two-sided", "middle", "edge", "pairs", "single", "three"]} editable={false} />
         </Tip>
         <Tip id="when-riichi" title="When to riichi, and when not to">
           <p>
@@ -125,6 +142,9 @@ export function TipsPage() {
             Remember what dealing in costs: the whole of their hand, plus the riichi stick and honba. One mistake against a riichi hand loses more than several small wins gain. Folding isn’t giving up; it’s keeping your
             points for the next hand.
           </p>
+          <Callout tone="watch">
+            <p>Dealing in costs the whole of their hand, plus the riichi stick and honba. One mistake against a riichi hand loses more than several small wins gain.</p>
+          </Callout>
         </Tip>
         <Tip id="reading" title="Reading discards">
           <p>
@@ -152,7 +172,13 @@ export function TipsPage() {
             less likely to be their wait, because a 4 discard rules out the two-sided waits that include it. The most dangerous tiles are the middle ones (4, 5, 6) that nobody has thrown.
           </p>
           <Picture label="They discarded a 4 of circles" caption="1 and 7 of circles are less risky for you now. Less, not safe.">
-            <Hand notation="4p" size={28} />
+            <span className={learn.tileLine}>
+              <Hand notation="4p" size={28} />
+              <span className={learn.arrow} aria-hidden="true">
+                →
+              </span>
+              <Hand notation="1p7p" size={28} gaps={[0]} highlightKinds={[9, 15]} />
+            </span>
           </Picture>
         </Tip>
       </section>
@@ -198,6 +224,7 @@ export function TipsPage() {
           </p>
         </Tip>
       </section>
+      </WithToc>
     </LearnFrame>
   );
 }

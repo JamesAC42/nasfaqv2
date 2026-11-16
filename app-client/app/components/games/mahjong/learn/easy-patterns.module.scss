@@ -66,3 +66,175 @@
   margin-right: 0.3rem;
   color: var(--warn);
 }
+
+// ── The Learn page's version (data-rich): each pattern a panel, its two lines labeled ──
+.list[data-rich="true"] {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 24rem), 1fr));
+  gap: 0.9rem;
+  padding-top: 1.25rem;
+
+  .item {
+    align-content: start;
+    gap: 0.65rem;
+    padding: 1rem 1.1rem 1.1rem;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-sm);
+    background: var(--ink-2);
+  }
+
+  .head h3 {
+    @include display(1.3rem);
+  }
+
+  .num {
+    display: grid;
+    place-items: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    border-radius: 50%;
+    background: var(--blue);
+    color: var(--blue-ink);
+    font-size: 0.875rem;
+    align-self: center;
+  }
+
+  .head {
+    align-items: center;
+  }
+
+  .counts,
+  .trap {
+    font-size: 0.9375rem;
+    line-height: 1.6;
+  }
+
+  .counts b {
+    @include label;
+    margin-right: 0.3rem;
+    color: var(--blue);
+  }
+
+  .trap {
+    padding: 0.55rem 0.7rem;
+    border-left: 3px solid var(--warn);
+    border-radius: var(--radius-sm);
+    background: var(--warn-wash);
+  }
+}
+
+// ── Spot the pattern ────────────────────────────────────────────────────────
+.quizList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 24rem), 1fr));
+  gap: 0.9rem;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quizItem {
+  display: grid;
+  align-content: start;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+
+  &[data-solved="true"] {
+    border-color: var(--blue-line);
+    background: var(--blue-wash);
+  }
+}
+
+.quizNum {
+  @include label;
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.situation {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.quizOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+
+  button {
+    padding: 0.45rem 0.7rem;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    background: var(--ink);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.875rem;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      border-color: var(--text);
+    }
+
+    &[data-state="wrong"] {
+      color: var(--dim);
+      text-decoration: line-through;
+      border-style: dashed;
+    }
+
+    &[data-state="right"] {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: var(--blue-ink);
+    }
+
+    &:disabled {
+      cursor: default;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.quizFeedback {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 0;
+
+  p {
+    margin: 0;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: var(--mid);
+  }
+
+  b {
+    color: var(--text);
+  }
+}
+
+.miss {
+  @media (prefers-reduced-motion: no-preference) {
+    :global(html:not([data-calm="true"])) & {
+      animation: nudge 360ms ease-out both;
+    }
+  }
+}
+
+@keyframes nudge {
+  20% {
+    transform: translateX(-5px);
+  }
+  45% {
+    transform: translateX(4px);
+  }
+  70% {
+    transform: translateX(-2px);
+  }
+}

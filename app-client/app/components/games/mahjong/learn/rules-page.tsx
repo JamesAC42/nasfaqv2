@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { LearnFrame } from "@/app/components/games/mahjong/learn/learn-frame";
+import { LearnArt } from "@/app/components/games/mahjong/learn/learn-art";
+import { Callout, Hand, LearnFrame, MeldRow, PageIntro, Picture, WithToc } from "@/app/components/games/mahjong/learn/learn-frame";
+import { Tile } from "@/app/components/games/mahjong/tile";
 import { useMahjongRules } from "@/app/components/games/mahjong/learn/use-rules";
 import { fmtInteger } from "@/app/lib/format";
 import { fmtChips } from "@/app/lib/games/mahjong/chips";
 import { LIMIT_ORDER, LIMITS } from "@/app/lib/games/mahjong/yaku";
 import learn from "@/app/components/games/mahjong/learn/learn.module.scss";
-import styles from "@/app/components/games/mahjong/learn/reference.module.scss";
 
 // The rule sheet for players, in plain words. It follows docs/games/MAHJONG_DESIGN.md section by
 // section. The numbers the server can change (clocks, ranks, fees, limits) are read from
@@ -30,9 +31,13 @@ const TOC = [
 ] as const;
 
 function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+  const number = TOC.findIndex(([key]) => key === id) + 1;
   return (
     <section id={id} className={learn.section}>
-      <h2>{title}</h2>
+      <h2>
+        <span className={learn.sectionNum}>{String(number).padStart(2, "0")}</span>
+        {title}
+      </h2>
       <div className={learn.prose}>{children}</div>
     </section>
   );
@@ -61,19 +66,35 @@ export function RulesPage() {
         </>
       }
     >
-      <ul className={styles.toc} aria-label="On this page">
-        {TOC.map(([id, label]) => (
-          <li key={id}>
-            <a href={`#${id}`}>{label}</a>
-          </li>
-        ))}
-      </ul>
+      <PageIntro
+        art={<LearnArt slot="mahjong-learn-rules" width={420} priority />}
+        points={[
+          <>
+            Four players, 136 tiles, and everyone starts on <b>25,000</b> points.
+          </>,
+          <>
+            A win is <b>four sets and a pair</b> (or seven pairs, or thirteen orphans) with at least one <b>yaku</b>. Dora aren’t yaku.
+          </>,
+          <>Clocks, ranks, limits and fees on this page are read from the server, so they match the tables.</>,
+        ]}
+      />
+
+      <WithToc items={TOC.map(([id, label]) => [id, id === "money" && trial ? "Chips and the beta" : label] as const)}>
 
       <Section id="game" title="The game">
         <p>
           Four players, 136 tiles: characters, circles and bamboo from 1 to 9, the four winds and the three dragons, four of each. One five in each suit is red. New to the tiles? The{" "}
           <Link href="/games/mahjong/learn/tutorial">walkthrough</Link> starts there.
         </p>
+        <Picture label="The 34 tiles, four of each" caption="Characters, circles and bamboo; the four winds and three dragons; the three red fives.">
+          <Hand notation="123456789m" size={24} />
+          <Hand notation="123456789p" size={24} />
+          <Hand notation="123456789s" size={24} />
+          <span className={learn.tileLine}>
+            <Hand notation="1234567z" size={24} gaps={[3]} />
+            <Hand notation="0m0p0s" size={24} />
+          </span>
+        </Picture>
         <ul>
           <li>
             <b>Length.</b> East-only is one wind round (at least four hands). East-South is two (at least eight).
@@ -143,6 +164,31 @@ export function RulesPage() {
           </li>
           <li>No kan when the wall is empty, and nothing but ron on the last discard.</li>
         </ul>
+        <div className={learn.pair}>
+          <Picture label="Chi" caption="A run, only from the player on your left. The taken tile lies sideways.">
+            <MeldRow calls={[{ type: "chi", tiles: "456p", called: 0 }]} />
+          </Picture>
+          <Picture label="Pon" caption="A triplet, from anyone.">
+            <MeldRow calls={[{ type: "pon", tiles: "777s", called: 1 }]} />
+          </Picture>
+          <Picture label="Kan" caption="Four of a kind: open from a discard, or closed from your own hand (end tiles face down).">
+            <MeldRow calls={[{ type: "minkan", tiles: "2222m", called: 3 }, { type: "ankan", tiles: "9999p" }]} />
+          </Picture>
+          <Picture label="No swap-calling" caption="You took a 4 for your 2-3. Your next discard can’t be another 4, or the 1 at the other end of that run.">
+            <span className={learn.tileLine}>
+              <MeldRow calls={[{ type: "chi", tiles: "423m", called: 0 }]} />
+              <span className={learn.arrow} aria-hidden="true">
+                →
+              </span>
+              <span className={learn.crossed} title="Can’t be discarded next">
+                <Tile kind={0} size={26} />
+              </span>
+              <span className={learn.crossed} title="Can’t be discarded next">
+                <Tile kind={3} size={26} />
+              </span>
+            </span>
+          </Picture>
+        </div>
       </Section>
 
       <Section id="riichi" title="Riichi">
@@ -156,12 +202,31 @@ export function RulesPage() {
           </li>
           <li>After riichi, every draw you don’t win or kan on is discarded.</li>
         </ul>
+        <Callout tone="watch">
+          <p>Riichi locks the hand: after it, every draw you don’t win or kan on is discarded. Check the wait before you declare.</p>
+        </Callout>
       </Section>
 
       <Section id="winning" title="Winning and furiten">
         <p>
           You need at least one yaku to win, and dora aren’t yaku. A winning hand is four sets and a pair, or seven pairs, or thirteen orphans.
         </p>
+        <div className={learn.pair}>
+          <Picture label="Four sets and a pair" caption="Three runs, a triplet and a pair.">
+            <Hand notation="123m456p789s777p55m" size={20} gaps={[2, 5, 8, 11]} />
+          </Picture>
+          <Picture label="Seven pairs" caption="Seven different pairs, closed.">
+            <Hand notation="1133m5577p2244s44z" size={20} gaps={[1, 3, 5, 7, 9, 11]} />
+          </Picture>
+          <Picture label="Thirteen orphans" caption="Every terminal and honor once, and one of them twice.">
+            <Hand notation="119m19p19s1234567z" size={20} />
+          </Picture>
+        </div>
+        <Callout>
+          <p>
+            A complete shape isn’t enough: you need at least one <b>yaku</b> to win, and dora aren’t yaku.
+          </p>
+        </Callout>
         <h3>Furiten</h3>
         <p>You can’t win on a discard (you can still win by self-draw) when:</p>
         <ul>
@@ -169,6 +234,13 @@ export function RulesPage() {
           <li>a tile you were waiting on was discarded this go-around and you didn’t win on it, until your next discard;</li>
           <li>you’re in riichi and a tile you were waiting on went by: for the rest of the hand.</li>
         </ul>
+        <Picture label="Waiting on 3 or 6 of circles, with a 3 in your own discards" caption="Furiten: neither a 3 nor a 6 of circles can win on a discard. Drawing one yourself still wins.">
+          <Hand notation="234m567s789p45p99m" size={22} gaps={[2, 5, 8, 10]} />
+          <span className={learn.tileLine}>
+            <small>Your discards</small>
+            <Hand notation="9s3p1z7m" size={20} highlightKinds={[11]} />
+          </span>
+        </Picture>
         <h3>Several winners</h3>
         <p>
           If two or three players win on the same discard, every one of them is paid. There is no head bump, and no draw for three. Each gets the honba bonus, and the riichi sticks on the table go to the winner who is next in
@@ -195,6 +267,12 @@ export function RulesPage() {
             than one player. No points move; the dealer stays and a counter is added.
           </li>
         </ul>
+        <Picture
+          label="Nine different terminals and honors"
+          caption="1 and 9 of characters, 1 and 9 of circles, 1 of bamboo, East, South, West and white: nine kinds in a first draw with no calls before it, so this player may call the hand off."
+        >
+          <Hand notation="19m19p1s1235z2346p7s" size={20} gaps={[12]} highlightKinds={[0, 8, 9, 17, 18, 27, 28, 29, 31]} />
+        </Picture>
       </Section>
 
       <Section id="scoring" title="Yaku and scoring">
@@ -211,11 +289,30 @@ export function RulesPage() {
           <li>Triplets: 2 open, 4 closed, doubled for terminals and honors. Kans are four times a triplet. A triplet finished by ron counts as open.</li>
           <li>An open hand worth only 20 counts as 30. Seven pairs is 25. Round up to the next 10.</li>
         </ul>
+        <div className={learn.pair}>
+          <Picture label="Edge wait: +2" caption="1-2 waits on 3 only.">
+            <Hand notation="12p" size={26} />
+          </Picture>
+          <Picture label="Middle wait: +2" caption="4-6 waits on 5 only.">
+            <Hand notation="46p" size={26} />
+          </Picture>
+          <Picture label="Single-tile wait: +2" caption="One tile waits for its twin.">
+            <Hand notation="8s" size={26} />
+          </Picture>
+        </div>
         <h3>Points</h3>
         <p>
           Base points = fu × 2<sup>han + 2</sup>, capped at the limits below. A non-dealer’s ron pays base × 4, a dealer’s base × 6. On a self-draw the dealer pays base × 2 and the others base × 1 (everyone pays a dealer base × 2).
           Each payment rounds up to the next 100. The hand is read whichever way scores most.
         </p>
+        <Callout tone="try" title="Worked example">
+          <p>
+            30 fu and 1 han: 30 × 2<sup>3</sup> = 240 base points. A non-dealer’s ron pays 240 × 4 = 960, rounded up to <b>1,000</b>.
+          </p>
+          <p>
+            30 fu and 3 han: 30 × 2<sup>5</sup> = 960 base points, × 4 = 3,840, rounded up to <b>3,900</b>.
+          </p>
+        </Callout>
         <div className={learn.scroll}>
           <table className={learn.facts}>
             <thead>
@@ -503,6 +600,7 @@ export function RulesPage() {
         </p>
       </Section>
       ) : null}
+      </WithToc>
     </LearnFrame>
   );
 }

@@ -1,4 +1,145 @@
 {
   "area": "mahjong-learn",
-  "slots": []
+  "slots": [
+    {
+      "id": "mahjong-learn-hub-hero",
+      "title": "Learn mahjong: hub hero",
+      "where": [
+        "/games/mahjong/learn → components/games/mahjong/learn/learn-hub.tsx, the art panel right of the welcome and progress at the top of the page"
+      ],
+      "kind": "illustration",
+      "w": 1600,
+      "h": 800,
+      "transparent": false,
+      "priority": "high",
+      "css": "measured: desktop 1440/1280/1021 542×279 (right column of the hub's top block), cover; tablets 721–1020px full content width above the welcome, about 766×332 at 800 wide; phones 341×147 at 375 wide",
+      "crop": "Cover-cropped, centered. Keep the hand and its felt inside the center 60% of the width and the middle 70% of the height; the edges are atmosphere only. No UI sits on top of it.",
+      "lighting": "a soft overhead table lamp on the felt, hololive blue ticker glow behind",
+      "style": "scene",
+      "animation": "none",
+      "fallback": "Drawn in learn-art.tsx (HubArt): a winning hand of real tiles standing in its five groups on a blue felt rail, the groups lifting one after another, a rising price line behind and three loose tiles drifting above, on a blue halftone wash.",
+      "brief": "A first lesson on the trading floor: a dark blue felt mahjong table edge seen from slightly above, with a complete riichi mahjong hand of ivory tiles standing on it, split into four sets and a pair with small gaps between the groups (circle and bamboo faces only: dot patterns and green sticks). Behind it, a big soft stock-ticker line climbs from left to right like a chart on a wall screen, and two or three loose tiles float in the air above the hand at playful angles, as if just drawn. Hololive blue (#3fb8f5) light on dark ink (#0a0c11), flat shapes with halftone shading, friendly and inviting.",
+      "notes": "No letters, numerals, Chinese characters or symbols anywhere (no character, wind or dragon tiles, no numbers on the chart). No real talents or people. Must read on both themes: keep the background dark ink, the page frames it with a hairline."
+    },
+    {
+      "id": "mahjong-learn-rules",
+      "title": "Learn mahjong: Rules page",
+      "where": [
+        "/games/mahjong/learn/rules → components/games/mahjong/learn/rules-page.tsx, the art panel beside \"In short\" at the top of the page"
+      ],
+      "kind": "illustration",
+      "w": 1200,
+      "h": 560,
+      "transparent": false,
+      "priority": "medium",
+      "css": "measured: desktop and tablet 414×206 (up to 414×240 when the \"In short\" lines wrap), right of the intro, cover; phones 341×138 at 375 wide, full width above the intro",
+      "crop": "Cover-cropped, centered, from 2.1:1 to anything between 1.9:1 and 2.45:1. Keep the subject inside the center 60% of the width and the middle 75% of the height. No UI sits on top of it.",
+      "lighting": "cool desk light from the upper left, blue rim light",
+      "style": "object",
+      "animation": "none",
+      "fallback": "Drawn in learn-art.tsx (RulesArt): a tilted rule sheet on a clipboard with ruled lines and a real tile pinned to its corner, a white scoring stick with a red dot across the front, and a clock ring with its hand ticking.",
+      "brief": "The house rule sheet: a clipboard holding a sheet with neat ruled lines (abstract bars, no writing) lies slightly tilted on a dark desk, an ivory mahjong tile with a dot face pinned to its corner, a white riichi scoring stick with a single red dot lying across the front, and a round table clock beside it. Hololive blue (#3fb8f5) accents on dark ink (#0a0c11), flat shapes with halftone shading, tidy and calm.",
+      "notes": "No legible text, letters or numerals anywhere, including on the sheet and the clock face. Tile faces dots or bamboo only."
+    },
+    {
+      "id": "mahjong-learn-patterns",
+      "title": "Learn mahjong: Five easy patterns",
+      "where": [
+        "/games/mahjong/learn/easy-patterns → components/games/mahjong/learn/easy-patterns-page.tsx, the art panel beside \"In short\" at the top of the page"
+      ],
+      "kind": "illustration",
+      "w": 1200,
+      "h": 560,
+      "transparent": false,
+      "priority": "medium",
+      "css": "measured: desktop and tablet 414×206 (up to 414×240 when the \"In short\" lines wrap), right of the intro, cover; phones 341×138 at 375 wide, full width above the intro",
+      "crop": "Cover-cropped, centered, from 2.1:1 to anything between 1.9:1 and 2.45:1. Keep all five plinths inside the center 70% of the width. No UI sits on top of it.",
+      "lighting": "a spotlight on the middle plinth, the others in soft blue light",
+      "style": "scene",
+      "animation": "none",
+      "fallback": "Drawn in learn-art.tsx (PatternsArt): five plinths of different heights, each holding a pattern made of real tiles (a riichi stick, a run of middle bamboo, three white dragons on the tallest, lit plinth, a single drawn tile, a run of characters with a wind).",
+      "brief": "A small showroom of five display plinths in a row, of varying heights, the middle one tallest and spotlit. On each sits a tiny arrangement of ivory mahjong tiles (dots and bamboo faces only): a scoring stick with a red dot, a short run of three tiles, three identical tiles stacked as a set on the tallest, a single tile tilted as if just drawn, and three tiles of one suit. Hololive blue (#3fb8f5) light, dark ink (#0a0c11) room, flat shapes with halftone shading.",
+      "notes": "No letters, numerals or labels on the plinths or tiles. No character, wind or dragon tile faces."
+    },
+    {
+      "id": "mahjong-learn-yaku",
+      "title": "Learn mahjong: Yaku page",
+      "where": [
+        "/games/mahjong/learn/yaku → components/games/mahjong/learn/yaku-page.tsx, the art panel beside \"In short\" at the top of the page"
+      ],
+      "kind": "illustration",
+      "w": 1200,
+      "h": 560,
+      "transparent": false,
+      "priority": "medium",
+      "css": "measured: desktop and tablet 414×206 (up to 414×240 when the \"In short\" lines wrap), right of the intro, cover; phones 341×138 at 375 wide, full width above the intro",
+      "crop": "Cover-cropped, centered, from 2.1:1 to anything between 1.9:1 and 2.45:1. Keep the chart inside the center 65% of the width and the middle 80% of the height. No UI sits on top of it.",
+      "lighting": "wall-screen glow from behind, the tallest column brightest",
+      "style": "scene",
+      "animation": "none",
+      "fallback": "Drawn in learn-art.tsx (YakuArt): a bar chart whose five bars are stacks of real tile backs rising left to right, each topped with a face-up tile, the tallest glowing.",
+      "brief": "Hand values as a market chart: five columns built from stacked mahjong tiles (most showing their backs) rise from left to right on a baseline like a bar chart on a trading screen, each topped by one face-up ivory tile (dot or bamboo face), the last and tallest column glowing like a breakout. Faint grid lines behind. Hololive blue (#3fb8f5) on dark ink (#0a0c11), flat shapes with halftone shading.",
+      "notes": "No axis labels, numbers, letters or currency signs. Tile faces dots or bamboo only."
+    },
+    {
+      "id": "mahjong-learn-glossary",
+      "title": "Learn mahjong: Glossary page",
+      "where": [
+        "/games/mahjong/learn/glossary → components/games/mahjong/learn/glossary-page.tsx, the art panel beside \"In short\" at the top of the page"
+      ],
+      "kind": "illustration",
+      "w": 1200,
+      "h": 560,
+      "transparent": false,
+      "priority": "low",
+      "css": "measured: desktop and tablet 414×206 (up to 414×240 when the \"In short\" lines wrap), right of the intro, cover; phones 341×138 at 375 wide, full width above the intro",
+      "crop": "Cover-cropped, centered, from 2.1:1 to anything between 1.9:1 and 2.45:1. Keep the cards inside the center 55% of the width. No UI sits on top of it.",
+      "lighting": "soft top light, blue edge glow on the middle card",
+      "style": "object",
+      "animation": "none",
+      "fallback": "Drawn in learn-art.tsx (GlossaryArt): three index cards fanned out with blue tabs and ruled lines, a real tile on each, the middle card raised and outlined in blue.",
+      "brief": "A fan of three index cards from a word box, each with a colored tab on top and abstract ruled lines (no writing), an ivory mahjong tile resting on each card (dot and bamboo faces only). The middle card is lifted slightly and edged in blue light. Hololive blue (#3fb8f5) accents on dark ink (#0a0c11), flat shapes with halftone shading.",
+      "notes": "No legible text, letters, numerals or Japanese characters anywhere."
+    },
+    {
+      "id": "mahjong-learn-tips",
+      "title": "Learn mahjong: Tips page",
+      "where": [
+        "/games/mahjong/learn/tips → components/games/mahjong/learn/tips-page.tsx, the art panel beside \"In short\" at the top of the page"
+      ],
+      "kind": "illustration",
+      "w": 1200,
+      "h": 560,
+      "transparent": false,
+      "priority": "medium",
+      "css": "measured: desktop and tablet 414×206 (up to 414×240 when the \"In short\" lines wrap), right of the intro, cover; phones 341×138 at 375 wide, full width above the intro",
+      "crop": "Cover-cropped, centered, from 2.1:1 to anything between 1.9:1 and 2.45:1. Keep the pond and the shield inside the center 60% of the width. No UI sits on top of it.",
+      "lighting": "dim table light, one tile lit from below in blue",
+      "style": "scene",
+      "animation": "none",
+      "fallback": "Drawn in learn-art.tsx (TipsArt): a discard pond of real tiles in two rows, all dimmed but one lit as the safe tile, with a shield and check mark outline beside it.",
+      "brief": "Reading the table: a neat discard pond of ivory mahjong tiles in rows on blue felt, seen from above, most tiles dimmed, one tile glowing softly as the safe one, and a simple shield shape with a check mark hovering beside the pond. Hololive blue (#3fb8f5) on dark ink (#0a0c11), flat shapes with halftone shading, a clever, calm mood.",
+      "notes": "No letters or numerals. Tile faces dots or bamboo only."
+    },
+    {
+      "id": "mahjong-learn-finish",
+      "title": "Learn mahjong: walkthrough finished",
+      "where": [
+        "/games/mahjong/learn/tutorial → components/games/mahjong/learn/tutorial.tsx, the spot at the top of the last step (Play it) once every lesson is done"
+      ],
+      "kind": "spot",
+      "w": 960,
+      "h": 560,
+      "transparent": false,
+      "priority": "low",
+      "css": "measured: 420×245 at the top of the Play it step on desktop, full content width at 2.4:1 on phones, cover",
+      "crop": "Cover-cropped, centered, from 1.7:1 to anything between 1.6:1 and 2.4:1. Keep the cup and the burst inside the center 60% of the width.",
+      "lighting": "celebratory burst of light from behind the cup",
+      "style": "object",
+      "animation": "none",
+      "fallback": "Drawn in learn-art.tsx (FinishArt): a blue trophy cup with real tiles bursting up out of it like confetti over slowly turning rays.",
+      "brief": "A small celebration for finishing the lessons: a chunky trophy cup in hololive blue (#3fb8f5) at the bottom center, with a handful of ivory mahjong tiles (dot and bamboo faces) bursting up out of it like confetti at playful angles, soft rays behind. Dark ink (#0a0c11) background, flat shapes with halftone shading, upbeat.",
+      "notes": "No text, ribbons with writing, numerals or real talents."
+    }
+  ]
 }

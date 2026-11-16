@@ -1,0 +1,309 @@
+@use "../../../../styles/mixins" as *;
+
+// The hand lab: presets, the hand, a readout, a palette of every tile, and the result of a try.
+
+@mixin moving {
+  @media (prefers-reduced-motion: no-preference) {
+    :global(html:not([data-calm="true"])) & {
+      @content;
+    }
+  }
+}
+
+.lab {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+  max-width: 46rem;
+  margin: 0.75rem 0 1.25rem;
+  padding: 1rem 1.1rem 1.1rem;
+  border: 1px solid var(--rule);
+  border-top: 3px solid var(--blue);
+  border-radius: var(--radius-sm);
+  background:
+    radial-gradient(color-mix(in srgb, var(--blue) 14%, transparent) 1px, transparent 1.4px) 0 0 / 8px 8px,
+    var(--ink-2);
+
+  @include phone {
+    padding: 0.85rem 0.8rem 0.95rem;
+  }
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.9rem;
+}
+
+.badge {
+  @include label;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--blue);
+  color: var(--blue-ink);
+  font-weight: 700;
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+
+  button {
+    @include label;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--rule-2);
+    border-radius: 999px;
+    background: var(--ink);
+    color: var(--mid);
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--text);
+      color: var(--text);
+    }
+
+    &[aria-pressed="true"] {
+      border-color: var(--blue);
+      background: var(--blue-wash);
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+.note {
+  min-height: 1.5em;
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--mid);
+}
+
+.hand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  min-width: 0;
+  padding: 0.6rem 0.5rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--blue) 9%, var(--ink));
+  box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--blue) 22%, transparent);
+
+  @include phone {
+    gap: 2px;
+    padding: 0.5rem 0.35rem 0.45rem;
+  }
+}
+
+.slot {
+  flex: none;
+  border: 1px dashed var(--rule-2);
+  border-radius: 12%;
+}
+
+.readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.8rem;
+  min-height: 2.4rem;
+
+  p {
+    margin: 0;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: var(--mid);
+  }
+
+  b {
+    color: var(--text);
+    font-weight: 600;
+  }
+}
+
+.ready,
+.notReady {
+  @include label;
+  display: inline-block;
+  margin-right: 0.35rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  vertical-align: 1px;
+}
+
+.ready {
+  background: var(--blue);
+  color: var(--blue-ink);
+}
+
+.notReady {
+  border: 1px solid var(--rule-2);
+  color: var(--mid);
+}
+
+.waits {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+
+  @include moving {
+    animation: rise var(--dur-med, 240ms) var(--ease-out, ease-out) both;
+  }
+}
+
+.show {
+  @include label;
+  padding: 0.45rem 0.8rem;
+  border: 1px dashed var(--blue);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--blue);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--blue-wash);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.palette {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+  min-width: 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rule);
+}
+
+.paletteLabel {
+  @include label;
+  margin-bottom: 0.2rem;
+}
+
+.paletteRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+
+  @include phone {
+    gap: 3px;
+  }
+}
+
+.result {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--rule-2);
+  border-left: 3px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+
+  &[data-ok="true"] {
+    border-color: var(--blue-line);
+    border-left-color: var(--blue);
+    background: var(--blue-wash);
+  }
+
+  @include moving {
+    animation: rise var(--dur-med, 240ms) var(--ease-out, ease-out) both;
+
+    &[data-ok="false"] {
+      animation: nudge 360ms ease-out both;
+    }
+  }
+}
+
+.resultText {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+  min-width: 0;
+  overflow-x: auto;
+
+  p {
+    display: flex;
+    gap: 0.4rem;
+    align-items: baseline;
+    margin: 0;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: var(--mid);
+
+    svg {
+      flex: none;
+      align-self: center;
+      color: var(--dim);
+    }
+  }
+
+  b {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  small {
+    @include label;
+  }
+}
+
+.result[data-ok="true"] .resultText p svg {
+  color: var(--blue);
+}
+
+.face {
+  align-self: center;
+}
+
+.reset {
+  @include label;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mid);
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes nudge {
+  20% {
+    transform: translateX(-5px);
+  }
+  45% {
+    transform: translateX(4px);
+  }
+  70% {
+    transform: translateX(-2px);
+  }
+}

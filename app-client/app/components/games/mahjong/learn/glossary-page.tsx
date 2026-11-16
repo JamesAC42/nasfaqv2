@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { LearnFrame } from "@/app/components/games/mahjong/learn/learn-frame";
+import { LearnArt } from "@/app/components/games/mahjong/learn/learn-art";
+import { LearnFrame, PageIntro } from "@/app/components/games/mahjong/learn/learn-frame";
 import { MAHJONG_TERMS, termAnchor } from "@/app/lib/games/mahjong/terms";
 import { YAKU_LIST } from "@/app/lib/games/mahjong/yaku";
 import styles from "@/app/components/games/mahjong/learn/reference.module.scss";
@@ -10,6 +11,49 @@ import learn from "@/app/components/games/mahjong/learn/learn.module.scss";
 
 const YAKU_BY_JAPANESE = new Map(YAKU_LIST.map((info) => [info.japanese.toLowerCase(), info.key]));
 const SORTED = [...MAHJONG_TERMS].sort((a, b) => a.term.localeCompare(b.term, "en", { sensitivity: "base" }));
+
+/** Draw a random word, guess what it means, then flip the card. */
+function WordDraw() {
+  const [index, setIndex] = useState<number | null>(null);
+  const [open, setOpen] = useState(false);
+  const draw = () => {
+    setIndex((current) => {
+      let next = Math.floor(Math.random() * SORTED.length);
+      if (next === current) next = (next + 1) % SORTED.length;
+      return next;
+    });
+    setOpen(false);
+  };
+  const entry = index === null ? null : SORTED[index];
+  return (
+    <section className={styles.draw} aria-label="Draw a word">
+      <div className={styles.drawHead}>
+        <span>Draw a word</span>
+        <button type="button" className={styles.quiz} onClick={draw}>
+          {entry ? "Another" : "Draw one"}
+        </button>
+      </div>
+      {entry ? (
+        <div className={styles.drawCard} key={entry.term} data-open={open ? "true" : "false"}>
+          <b>{entry.term}</b>
+          {entry.reading ? <small>{entry.reading}</small> : null}
+          {open ? (
+            <p role="status">
+              <strong>{entry.english}.</strong> {entry.explain}{" "}
+              <a href={`#${termAnchor(entry.term)}`}>In the list →</a>
+            </p>
+          ) : (
+            <button type="button" className={styles.guess} onClick={() => setOpen(true)}>
+              Know it? Flip the card
+            </button>
+          )}
+        </div>
+      ) : (
+        <p className={styles.drawEmpty}>Pull a random word from the {SORTED.length}, say what you think it means, then flip it.</p>
+      )}
+    </section>
+  );
+}
 
 export function GlossaryPage() {
   const [query, setQuery] = useState("");
@@ -38,6 +82,18 @@ export function GlossaryPage() {
         </>
       }
     >
+      <PageIntro
+        art={<LearnArt slot="mahjong-learn-glossary" width={420} priority />}
+        points={[
+          <>
+            <b>{MAHJONG_TERMS.length}</b> Japanese table words in plain English, A to Z.
+          </>,
+          <>Search by the word or by what it means: “wait”, “fold”, “dealer”.</>,
+          <>Words that name a yaku link to its pictured hand.</>,
+        ]}
+      />
+      <WordDraw />
+
       <div className={styles.controls}>
         <label className={styles.search}>
           <span className={styles.sr}>Search the glossary</span>
