@@ -213,8 +213,20 @@ test("settlement: activation, replays, the refresh and public payloads", { skip:
       assert.equal(await recorded(), null);
     }));
 
+  await t.test("a regular settle of an old gap day records a date after the settled history, not that day", () =>
+    withEnv({ MARKET_TARGET_SECRET: SECRET }, async () => {
+      const gap = day(5);
+      await pool.query(`DELETE FROM market.daily_market_reports WHERE market_date = $1`, [gap]);
+      await pool.query(`DELETE FROM market.asset_price_events WHERE event_type = 'daily_reset' AND ts::date = $1::date`, [gap]);
+      await pool.query(`DELETE FROM market.asset_daily_market_state WHERE market_date = $1`, [gap]);
+      await pool.query(`DELETE FROM market.market_settlement_runs WHERE market_date = $1`, [gap]);
+      await silenced(() => settlement.settleMarketDay(pool, { marketDate: gap }));
+      assert.equal(await recorded(), today, "the day after the latest completed settlement");
+      assert.deepEqual(await fairValues(), baseline, "the gap day settles at the formula's value");
+    }));
+
   let todayValues;
-  await t.test("the first regular settlement with the secret records its date and nudges from it", () =>
+  await t.test("the first regular settlement of a new day with the secret nudges from it", () =>
     withEnv({ MARKET_TARGET_SECRET: SECRET }, async () => {
       await silenced(() => settlement.settleMarketDay(pool, { marketDate: today }));
       assert.equal(await recorded(), today);
@@ -277,17 +289,17 @@ test("settlement: activation, replays, the refresh and public payloads", { skip:
           "/api/market/tuning/config",
           "/api/market/indexes/overview",
         ];
-        let checked = 0;
+        const answered = [];
         for (const path of paths) {
           const { status, text } = await get(path);
           if (status !== 200) continue;
-          checked += 1;
+          answered.push(path);
           assert.ok(!/nudge/i.test(text), `${path} mentions the factor`);
           for (const n of numbers(text)) {
             for (const secret of secretValues) assert.ok(Math.abs(n / secret - 1) > 1e-6, `${path} carries today's fair value ${secret}`);
           }
         }
-        assert.ok(checked >= 6, `only ${checked} public paths answered`);
+        assert.deepEqual(answered, paths, "every public path answered");
         // Admins see that it's on and since when, never a value.
         const adminConfig = JSON.parse((await get("/api/market/tuning/config", { "x-test-admin": "1" })).text);
         assert.equal(adminConfig.target_nudge_enabled, true);

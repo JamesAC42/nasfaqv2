@@ -17,8 +17,8 @@
 //   returned untouched and nothing here touches the database.
 // - Never rewrites history. Days before the activation date get no nudge. The activation date is
 //   MARKET_TARGET_NUDGE_FROM when set; otherwise the first regular (not forced) settlement that runs
-//   with the secret records its market date in market.market_runtime_state.target_nudge_from, and
-//   that stays. A forced replay (rebuild, "Regenerate a day") never records it, and nothing is nudged
+//   with the secret records its market date in market.market_runtime_state.target_nudge_from (or
+//   the day after the latest completed settlement, if that's later), and that stays. A forced replay (rebuild, "Regenerate a day") never records it, and nothing is nudged
 //   while no date is recorded.
 // - The nudge itself is never stored or sent anywhere. Changing the secret or the percent after
 //   activation changes what a replay of the days since would produce.
@@ -155,7 +155,12 @@ async function recordGate(client, marketDate, { config = settings() } = {}) {
       client,
       `
       UPDATE market.market_runtime_state
-      SET target_nudge_from = COALESCE(target_nudge_from, $2::date)
+      SET target_nudge_from = COALESCE(
+        target_nudge_from,
+        -- Never a day at or before one already settled: a regular settle of an old gap day must not
+        -- make a rebuild nudge the revealed days after it.
+        GREATEST($2::date, (SELECT max(market_date) + 1 FROM market.market_settlement_runs WHERE status = 'completed'))
+      )
       WHERE state_key = $1
       RETURNING target_nudge_from::text AS from_date
     `,
