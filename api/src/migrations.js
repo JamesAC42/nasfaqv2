@@ -334,6 +334,9 @@ async function applySchema(pool) {
       CONSTRAINT user_trade_streaks_longest_nonnegative_check CHECK (longest_streak_days >= 0)
     )
   `);
+  // 'new_york' once a row counts New York days (achievements/streaks.js); NULL rows were counted in
+  // UTC days and are rebuilt when next read.
+  await pool.query(`ALTER TABLE market.user_trade_streaks ADD COLUMN IF NOT EXISTS day_basis TEXT NULL`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS market.achievement_evaluation_runs (
       id BIGSERIAL PRIMARY KEY,

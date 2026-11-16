@@ -1,3 +1,13 @@
+// Trade days are New York days, as the check-in card's streak and market.user_active_days are: a
+// day turns over at 00:00 ET, so trading every evening still counts every day. (They were UTC days
+// until 2026-11; a UTC day turns over at 7 or 8 pm ET, so a morning trade one day and an evening
+// trade the next skipped a date and broke the streak.) Rows counted in UTC days have no day_basis
+// and are rebuilt from the whole history the first time they're read or a fill is counted.
+const { TIME_ZONE, dayKey } = require("../visits");
+
+const DAY_BASIS = "new_york";
+const TRADE_DAY = `(tf.ts AT TIME ZONE '${TIME_ZONE}')::date`;
+
 function normalizeDateKey(value) {
   if (!value) return null;
   if (value instanceof Date) {
@@ -98,8 +108,9 @@ async function upsertTradeStreakState(client, userId, state, lastTradeFillId = n
       streak_started_day,
       longest_streak_started_day,
       longest_streak_ended_day,
+      day_basis,
       updated_at
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now())
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now())
     ON CONFLICT (user_id)
     DO UPDATE SET
       current_streak_days = EXCLUDED.current_streak_days,
@@ -109,6 +120,7 @@ async function upsertTradeStreakState(client, userId, state, lastTradeFillId = n
       streak_started_day = EXCLUDED.streak_started_day,
       longest_streak_started_day = EXCLUDED.longest_streak_started_day,
       longest_streak_ended_day = EXCLUDED.longest_streak_ended_day,
+      day_basis = EXCLUDED.day_basis,
       updated_at = now()
     RETURNING
       user_id,
@@ -119,6 +131,7 @@ async function upsertTradeStreakState(client, userId, state, lastTradeFillId = n
       streak_started_day,
       longest_streak_started_day,
       longest_streak_ended_day,
+      day_basis,
       updated_at
   `,
     [
@@ -130,6 +143,7 @@ async function upsertTradeStreakState(client, userId, state, lastTradeFillId = n
       state.streak_started_day,
       state.longest_streak_started_day,
       state.longest_streak_ended_day,
+      DAY_BASIS,
     ]
   );
 
@@ -139,7 +153,7 @@ async function upsertTradeStreakState(client, userId, state, lastTradeFillId = n
 async function rebuildUserTradeStreakWithClient(client, userId) {
   const { rows } = await client.query(
     `
-    SELECT DISTINCT tf.ts::date AS trade_day
+    SELECT DISTINCT ${TRADE_DAY}::text AS trade_day
     FROM market.trade_fills tf
     WHERE tf.user_id = $1
     ORDER BY trade_day ASC
@@ -256,7 +270,8 @@ async function applyTradeFillsToStreakWithClient(client, userId, { since = null 
       last_trade_fill_id,
       streak_started_day,
       longest_streak_started_day,
-      longest_streak_ended_day
+      longest_streak_ended_day,
+      day_basis
     FROM market.user_trade_streaks
     WHERE user_id = $1
     FOR UPDATE
@@ -265,17 +280,18 @@ async function applyTradeFillsToStreakWithClient(client, userId, { since = null 
   );
   const existing = streakResult.rows[0] || null;
   const lastTradeDay = normalizeDateKey(existing?.last_trade_day);
-  if (!existing || (!lastTradeDay && !since)) {
+  if (!existing || existing.day_basis !== DAY_BASIS || (!lastTradeDay && !since)) {
     return rebuildUserTradeStreakWithClient(client, userId);
   }
 
   // LEAST skips a NULL: no last trade day reads from `since`, no `since` from the last trade day.
+  // The last trade day reads from its New York midnight.
   const { rows: fills } = await client.query(
     `
-    SELECT tf.id, tf.ts::date AS trade_day
+    SELECT tf.id, ${TRADE_DAY}::text AS trade_day
     FROM market.trade_fills tf
     WHERE tf.user_id = $1
-      AND tf.ts >= LEAST($2::date::timestamptz, $3::timestamptz)
+      AND tf.ts >= LEAST($2::date::timestamp AT TIME ZONE '${TIME_ZONE}', $3::timestamptz)
     ORDER BY tf.ts ASC, tf.id ASC
   `,
     [userId, lastTradeDay, since]
@@ -289,6 +305,55 @@ async function applyTradeFillsToStreakWithClient(client, userId, { since = null 
     return rebuildUserTradeStreakWithClient(client, userId);
   }
   return upsertTradeStreakState(client, userId, state, fills[fills.length - 1].id);
+}
+
+/**
+ * The streak as players should see it on `today` (a New York day, YYYY-MM-DD): a row keeps its
+ * count until the player's next fill, so one whose last trade day is before yesterday is over (0).
+ * Achievements read the stored count and the longest streak, not this.
+ */
+function liveStreakDays(row, today = dayKey()) {
+  const days = Math.max(0, Number(row?.current_streak_days || 0));
+  const last = normalizeDateKey(row?.last_trade_day);
+  if (!days || !last) return 0;
+  return last >= shiftDateByDays(today, -1) ? days : 0;
+}
+
+/**
+ * Recounts in New York days every streak row still counted in UTC days, a player at a time (each
+ * under its row lock, so a fill counted meanwhile waits). Achievements a recount makes due are
+ * awarded by the player's next fill. Once every row is recounted it reads one empty page. Returns
+ * how many rows it recounted.
+ */
+async function recountUtcStreaks(pool, { batchSize = 200 } = {}) {
+  let recounted = 0;
+  for (;;) {
+    const { rows } = await pool.query(
+      `SELECT user_id FROM market.user_trade_streaks WHERE day_basis IS DISTINCT FROM $1 ORDER BY user_id LIMIT $2`,
+      [DAY_BASIS, batchSize]
+    );
+    if (rows.length === 0) return recounted;
+    for (const row of rows) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const { rows: locked } = await client.query(
+          `SELECT day_basis FROM market.user_trade_streaks WHERE user_id = $1 FOR UPDATE`,
+          [row.user_id]
+        );
+        if (locked[0] && locked[0].day_basis !== DAY_BASIS) {
+          await rebuildUserTradeStreakWithClient(client, row.user_id);
+          recounted += 1;
+        }
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK").catch(() => {});
+        throw error;
+      } finally {
+        client.release();
+      }
+    }
+  }
 }
 
 async function rebuildUserTradeStreak(pool, userId) {
@@ -318,6 +383,7 @@ async function getUserTradeStreak(pool, userId) {
       streak_started_day,
       longest_streak_started_day,
       longest_streak_ended_day,
+      day_basis,
       updated_at
     FROM market.user_trade_streaks
     WHERE user_id = $1
@@ -326,8 +392,12 @@ async function getUserTradeStreak(pool, userId) {
     [userId]
   );
 
-  if (rows[0]) {
+  if (rows[0]?.day_basis === DAY_BASIS) {
     return rows[0];
+  }
+  if (rows[0]) {
+    // Counted in UTC days: count it again in New York days.
+    return rebuildUserTradeStreak(pool, userId);
   }
 
   const tradeCheck = await pool.query(
@@ -357,11 +427,14 @@ async function getUserTradeStreak(pool, userId) {
 }
 
 module.exports = {
+  DAY_BASIS,
   advanceStreakState,
   applyTradeFillsToStreakWithClient,
   buildStreakStateFromTradeDays,
   getUserTradeStreak,
+  liveStreakDays,
   normalizeDateKey,
   rebuildUserTradeStreak,
+  recountUtcStreaks,
   rebuildUserTradeStreakWithClient,
 };
