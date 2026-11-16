@@ -83,3 +83,37 @@ export function maxSellShares({ held, queued = 0, room = null }) {
   const shares = Math.max(0, Math.floor(capped));
   return { shares, all: shares > 0 && shares >= Math.floor(held || 0) };
 }
+
+/**
+ * A share count the ticket can hold: whole, not negative, no more than `max` (the MAX button's
+ * number), or what the share box takes when there's no max to go by.
+ * @param {number | string | null | undefined} value
+ * @param {number | null} [max]
+ */
+export function clampShares(value, max = null) {
+  const cap = max !== null && max !== undefined && Number.isFinite(max) ? Math.min(Math.max(0, Math.floor(max)), MAX_INPUT_SHARES) : MAX_INPUT_SHARES;
+  const shares = Math.floor(Number(value) || 0);
+  return Math.min(Math.max(shares, 0), cap);
+}
+
+/**
+ * The −/+ buttons: one share at a time, never past `max` and never under one share (when there's one
+ * to have). A count already over the max steps down to the max.
+ * @param {number} quantity
+ * @param {number} delta
+ * @param {number | null} [max]
+ */
+export function stepShares(quantity, delta, max = null) {
+  const next = clampShares(Math.floor(quantity || 0) + delta, max);
+  return Math.max(next, Math.min(1, clampShares(MAX_INPUT_SHARES, max)));
+}
+
+/**
+ * How far the on-screen keyboard reaches up from the bottom of the layout viewport, from the visual
+ * viewport's height and offset. Under `threshold` it's a browser bar moving, not a keyboard, so none.
+ * @param {{ innerHeight: number; viewHeight: number; offsetTop?: number; threshold?: number }} input
+ */
+export function keyboardInset({ innerHeight, viewHeight, offsetTop = 0, threshold = 60 }) {
+  const inset = Math.max(0, Math.round(innerHeight - viewHeight - (offsetTop || 0)));
+  return inset > threshold ? inset : 0;
+}
