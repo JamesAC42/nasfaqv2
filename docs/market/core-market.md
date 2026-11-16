@@ -32,6 +32,10 @@ is most of the fun).
   it is *sold out*: buys are refused until someone sells. A batch order bigger than what's left fills
   what's left. (BBB: purchases lock at the next tick; we lock the moment the last share goes, which
   is simpler to read and can't overshoot the max.)
+- **Orders are for whole shares.** A sale may also be exactly everything a player has left (held
+  minus queued sells), so a fraction already held can be sold. Fractions can still be held: a
+  forced buyback takes each holder's share of the excess to six decimals, and a buy that takes the
+  last shares for sale gets what's left, which can be a fraction of the broker's 2% buffer.
 - The old daily share print at settlement is gone. Shares only change weekly, in the open.
 
 ## Buybacks
