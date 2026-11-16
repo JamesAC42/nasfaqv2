@@ -264,6 +264,7 @@
   align-items: flex-end;
   gap: 10px;
   height: 150px;
+  margin-bottom: 56px; // the plinths hang below the box; this centers the whole of them
 
   > span {
     position: relative;

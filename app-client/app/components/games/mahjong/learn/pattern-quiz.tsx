@@ -58,10 +58,10 @@ function Question({ number, answer, situation }: { number: number; answer: YakuK
       <div className={styles.quizFeedback} role="status" aria-live="polite">
         {solved ? (
           <>
-            <TalentReaction pose="hype" size={phone ? 44 : 52} fresh />
             <p>
               <b>Right: {nameOf(answer).toLowerCase()}.</b> {info.example.caption}
             </p>
+            <TalentReaction pose="hype" size={phone ? 44 : 52} fresh className={styles.quizFace} />
           </>
         ) : last ? (
           <p key={last} className={styles.miss}>

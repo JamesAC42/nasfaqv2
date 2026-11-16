@@ -126,7 +126,8 @@
   min-width: 0;
   padding: 2rem 0;
   border-bottom: 1px solid var(--rule);
-  scroll-margin-top: calc(var(--sticky-top) + 3.5rem);
+  // The phone header hides on the way down and comes back on the way up, so never less than its height.
+  scroll-margin-top: max(calc(var(--sticky-top) + 3.5rem), calc(4.875rem + 3.5rem + env(safe-area-inset-top, 0px)));
 
   > h2 {
     @include display(1.6rem);

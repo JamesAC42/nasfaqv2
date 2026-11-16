@@ -219,6 +219,11 @@
   }
 }
 
+.quizFace {
+  flex: none;
+  margin-left: auto;
+}
+
 .miss {
   @media (prefers-reduced-motion: no-preference) {
     :global(html:not([data-calm="true"])) & {

@@ -26,9 +26,12 @@ export function LearnHub() {
   const finished = LESSONS.filter((_, index) => lessonDone(index)).length;
   const started = finished > 0;
   const allDone = finished >= LESSONS.length;
-  // Where the walkthrough will open: the lesson they stopped on, or the first one not done.
+  // The lesson to offer next: the one they stopped on if it isn't done, else the first not done after
+  // it, else the first not done at all.
   const firstOpen = Math.max(0, LESSONS.findIndex((_, index) => !lessonDone(index)));
-  const next = at >= 0 && at < LESSONS.length ? at : firstOpen;
+  const stoppedAt = at >= 0 && at < LESSONS.length ? at : 0;
+  const after = LESSONS.findIndex((_, index) => index >= stoppedAt && !lessonDone(index));
+  const next = after >= 0 ? after : firstOpen;
   const table = useStartTable();
 
   return (

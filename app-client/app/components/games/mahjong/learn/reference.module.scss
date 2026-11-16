@@ -25,6 +25,13 @@
   border-bottom: 1px solid var(--rule);
   background: color-mix(in srgb, var(--ink) 94%, transparent);
   backdrop-filter: blur(6px);
+
+  // On a phone the yaku bar wraps to three rows: too much screen to pin.
+  @include phone {
+    &:has(.chips) {
+      position: static;
+    }
+  }
 }
 
 .quiz {
@@ -101,7 +108,7 @@
 
 .group {
   min-width: 0;
-  scroll-margin-top: calc(var(--rail-height) + var(--tape-height) + 7.5rem);
+  scroll-margin-top: max(calc(var(--rail-height) + var(--tape-height) + 7.5rem), 12.5rem);
 }
 
 // ── Yaku ────────────────────────────────────────────────────────────────────
@@ -125,7 +132,7 @@
   min-width: 0;
   padding: 1.25rem 0;
   border-bottom: 1px solid var(--rule);
-  scroll-margin-top: calc(var(--rail-height) + var(--tape-height) + 4.5rem);
+  scroll-margin-top: max(calc(var(--rail-height) + var(--tape-height) + 4.5rem), 9.5rem);
 
   &:target h3 a {
     color: var(--blue);
@@ -242,7 +249,7 @@
 .letters {
   @include label;
   position: sticky;
-  top: calc(var(--rail-height) + var(--tape-height) + env(safe-area-inset-top, 0px) + 3.6rem);
+  top: calc(var(--rail-height) + var(--tape-height) + env(safe-area-inset-top, 0px) + 4rem);
   z-index: 4;
   display: flex;
   flex-wrap: wrap;
@@ -307,7 +314,7 @@
   gap: 0.25rem 1.6rem;
   padding: 1rem 0;
   border-bottom: 1px solid var(--rule);
-  scroll-margin-top: calc(var(--rail-height) + var(--tape-height) + 8rem);
+  scroll-margin-top: max(calc(var(--rail-height) + var(--tape-height) + 8rem), 13rem);
 
   @include phone {
     grid-template-columns: minmax(0, 1fr);
@@ -382,7 +389,7 @@
   min-width: 0;
   padding: 1.5rem 0;
   border-bottom: 1px solid var(--rule);
-  scroll-margin-top: calc(var(--rail-height) + var(--tape-height) + 3.5rem);
+  scroll-margin-top: max(calc(var(--rail-height) + var(--tape-height) + 3.5rem), 8.5rem);
   counter-increment: tip;
 
   &:last-child {

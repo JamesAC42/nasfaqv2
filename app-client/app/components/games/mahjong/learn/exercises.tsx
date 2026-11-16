@@ -45,16 +45,17 @@ export type Exercise = PickExercise | ChoiceExercise;
 const identity = (id: number) => (isRedFive(id) ? `r${kindOf(id)}` : String(kindOf(id)));
 
 /**
- * The line under an exercise. `react` puts a talent's reaction beside it: hype for an answer just
- * found, cope for a miss. Answers already done on an earlier visit show the line alone.
+ * The line under an exercise. `react` puts a talent's reaction after it, as decoration (hype for an
+ * answer just found, cope for a miss), never as the speaker of the line. Answers already done on an
+ * earlier visit show the line alone.
  */
 function Status({ children, tone, react = false }: { children: ReactNode; tone: "ok" | "no" | "idle"; react?: boolean }) {
   return (
     <div className={styles.feedbackRow} data-tone={tone} data-react={react ? "true" : undefined}>
-      {react ? <TalentReaction pose={tone === "ok" ? "hype" : "cope"} size={tone === "ok" ? 56 : 44} fresh className={styles.reaction} /> : null}
       <p className={styles.feedback} data-tone={tone} role="status" aria-live="polite">
         {children}
       </p>
+      {react ? <TalentReaction pose={tone === "ok" ? "hype" : "cope"} size={tone === "ok" ? 56 : 44} fresh className={styles.reaction} /> : null}
     </div>
   );
 }
