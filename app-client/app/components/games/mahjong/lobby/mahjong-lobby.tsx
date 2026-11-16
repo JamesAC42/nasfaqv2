@@ -147,7 +147,7 @@ export function MahjongLobby() {
   const chips = me?.chips ?? null;
   const openTournaments = (tournaments ?? []).filter((entry) => entry.status === "signup" || entry.status === "running");
   const botFill = rules?.bot_fill_seconds ?? 45;
-  const waitingQuick = lobbyTables.filter((table) => table.kind === "ranked" && table.status !== "playing").length;
+  const waitingQuick = lobbyTables.filter((table) => table.kind === "ranked" && table.status === "waiting").length;
 
   return (
     <GamesFrame

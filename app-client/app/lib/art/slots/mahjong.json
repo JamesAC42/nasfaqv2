@@ -12,14 +12,14 @@
       "h": 400,
       "transparent": false,
       "priority": "medium",
-      "css": "desktop: one third of the page width (~300–420) × 152, cover; 721–1020px: 256×160 thumbnail at the card's top left; phones: full card width (~340) × 112",
-      "crop": "Cover-cropped from 2.4:1 to anything between 1.6:1 and 3.7:1, centered. Keep the subject inside the center 60% of the width and the middle 70% of the height; the edges are atmosphere only. No UI sits on top of it.",
+      "css": "measured: desktop 1440 468×152, 1280 415×152, 1021 328×152 (one third of the page, full card width), cover; 721–1020px 240×160 thumbnail at the card's top left; phones 341×112 at 375 wide",
+      "crop": "Cover-cropped, centered, from 2.4:1 to anything between 1.5:1 (tablet thumbnail) and 3.1:1 (wide desktop). Keep the subject inside the center 55% of the width and the middle 70% of the height; the edges are atmosphere only. No UI sits on top of it.",
       "lighting": "neon: ticker-board blue glow from behind, cool rim light on the tiles",
       "style": "scene",
       "animation": "none",
       "fallback": "Drawn in mode-art.tsx: a stopwatch ring showing the bot-fill seconds beside four seat slots, three filled with real East, South and West tiles and one dashed slot with searching dots, over a fill meter, on a blue halftone wash.",
-      "brief": "Speed and matchmaking on a trading floor at night: a chunky stopwatch with its sweep hand mid-turn floats left of center, and to its right four ivory riichi mahjong tiles stand in a row on a dark felt rail, three upright and lit, the fourth position an empty glowing outline with motion streaks pulling a tile in. Faint ticker-board grid and speed lines behind. Hololive blue (#3fb8f5) light on dark ink (#0a0c11), flat shapes with halftone shading.",
-      "notes": "No text, numbers or symbols readable on the stopwatch face; no real talents. Must read on both the dark and the light theme: keep the background dark ink, since the card frames it with a hairline."
+      "brief": "Speed and matchmaking on a trading floor at night: a chunky stopwatch with its sweep hand mid-turn floats left of center, and to its right four ivory riichi mahjong tiles stand in a row (circle-suit faces, simple dot patterns only) on a dark felt rail, three upright and lit, the fourth position an empty glowing outline with motion streaks pulling a tile in. Faint ticker-board grid and speed lines behind. Hololive blue (#3fb8f5) light on dark ink (#0a0c11), flat shapes with halftone shading.",
+      "notes": "No letters, numerals or symbols anywhere: not on the stopwatch face, not on the tiles (dot faces only, no character or wind tiles). No real talents. Must read on both the dark and the light theme: keep the background dark ink, since the card frames it with a hairline."
     },
     {
       "id": "mahjong-lobby-practice",
@@ -32,14 +32,14 @@
       "h": 400,
       "transparent": false,
       "priority": "medium",
-      "css": "desktop: one third of the page width (~300–420) × 152, cover; 721–1020px: 256×160 thumbnail at the card's top left; phones: full card width (~340) × 112",
-      "crop": "Cover-cropped from 2.4:1 to anything between 1.6:1 and 3.7:1, centered. Keep the table inside the center 60% of the width and the middle 70% of the height. No UI sits on top of it.",
+      "css": "measured: desktop 1440 468×152, 1280 415×152, 1021 328×152 (one third of the page, full card width), cover; 721–1020px 240×160 thumbnail at the card's top left; phones 341×112 at 375 wide",
+      "crop": "Cover-cropped, centered, from 2.4:1 to anything between 1.5:1 (tablet thumbnail) and 3.1:1 (wide desktop). Keep the table inside the center 55% of the width and the middle 70% of the height; the edges are atmosphere only. No UI sits on top of it.",
       "lighting": "a single soft overhead lamp pooling on the table, blue spill at the edges",
       "style": "scene",
       "animation": "none",
       "fallback": "Drawn in mode-art.tsx: a top-down square table with your row of real face-up tiles at the bottom marked You (one tile glowing as the hint), and three seats of face-down tiles with hollow bot markers.",
-      "brief": "A calm practice table seen from above at a slight angle: a square mahjong table with a blue felt top, the near side shows a short row of face-up ivory tiles with one tile softly glowing as a hint, and the other three sides each hold a neat row of face-down tiles in front of three small, friendly desk-robot silhouettes (simple shapes, no faces of real people). A small desk lamp lights the near side. Dark ink (#0a0c11) room, hololive blue (#3fb8f5) felt and accents, flat shapes with halftone shading, relaxed mood.",
-      "notes": "No text or numbers. The robots are generic machines, not talents or characters from any game."
+      "brief": "A calm practice table seen from above at a slight angle: a square mahjong table with a blue felt top, the near side shows a short row of face-up ivory tiles showing circle and bamboo faces (dots and sticks only) with one tile softly glowing as a hint, and the other three sides each hold a neat row of face-down tiles in front of three small, friendly desk-robot silhouettes (simple shapes, no faces of real people). A small desk lamp lights the near side. Dark ink (#0a0c11) room, hololive blue (#3fb8f5) felt and accents, flat shapes with halftone shading, relaxed mood.",
+      "notes": "No letters or numerals anywhere: face-up tiles show dot and bamboo patterns only, no character, wind or dragon tiles. The robots are generic machines, not talents or characters from any game."
     },
     {
       "id": "mahjong-lobby-friend",
@@ -52,13 +52,13 @@
       "h": 400,
       "transparent": false,
       "priority": "medium",
-      "css": "desktop: one third of the page width (~300–420) × 152, cover; 721–1020px: 256×160 thumbnail at the card's top left; phones: full card width (~340) × 112",
-      "crop": "Cover-cropped from 2.4:1 to anything between 1.6:1 and 3.7:1, centered. Keep the door and the link inside the center 60% of the width and the middle 70% of the height. No UI sits on top of it.",
+      "css": "measured: desktop 1440 468×152, 1280 415×152, 1021 328×152 (one third of the page, full card width), cover; 721–1020px 240×160 thumbnail at the card's top left; phones 341×112 at 375 wide",
+      "crop": "Cover-cropped, centered, from 2.4:1 to anything between 1.5:1 (tablet thumbnail) and 3.1:1 (wide desktop). Keep the door and the link inside the center 55% of the width and the middle 70% of the height; the edges are atmosphere only. No UI sits on top of it.",
       "lighting": "warm-white light spilling out of the open door into a dark blue-lit hall",
       "style": "scene",
       "animation": "none",
       "fallback": "Drawn in mode-art.tsx: an open door with light spilling across the floor, an invite pill with a link icon, and four seats below it, three friends and one hollow bot seat.",
-      "brief": "A private room off the trading floor: a door standing half open with light spilling out across a dark floor, and floating in front of it a big glowing chain-link shape, like an invite being passed along. Through the gap you glimpse the corner of a mahjong table with a few ivory tiles. Three simple, faceless silhouette figures walk toward the door from the right. Hololive blue (#3fb8f5) chassis light, a warm white doorway, dark ink (#0a0c11) everywhere else, flat shapes with halftone shading.",
+      "brief": "A private room off the trading floor: a door standing half open with light spilling out across a dark floor, and floating in front of it a big glowing chain-link shape, like an invite being passed along. Through the gap you glimpse the corner of a mahjong table with a few ivory tiles (backs or dot faces). Three simple, faceless silhouette figures walk toward the door from the right. Hololive blue (#3fb8f5) chassis light, a warm white doorway, dark ink (#0a0c11) everywhere else, flat shapes with halftone shading.",
       "notes": "No text, no URL, no real talents; the figures stay anonymous silhouettes."
     },
     {
@@ -72,14 +72,14 @@
       "h": 480,
       "transparent": false,
       "priority": "low",
-      "css": "desktop and tablet: 224×136 at the block's top left, cover; phones: full width (~340) × 112",
-      "crop": "Cover-cropped from 1.67:1 to anything between 1.6:1 and 3:1, centered. Keep the chip stacks inside the center 70% of the width and the middle 60% of the height. No UI sits on top of it.",
+      "css": "measured: desktop and tablet 224×136 at the block's top left, cover; phones 306×112 at 375 wide",
+      "crop": "Cover-cropped, centered, from 1.67:1 to anything between 1.65:1 and 2.75:1 (phones). Keep the chip stacks inside the center 70% of the width and the middle 55% of the height. No UI sits on top of it.",
       "lighting": "overhead table light, cool blue rim on the chip edges",
       "style": "scene",
       "animation": "none",
       "fallback": "Drawn in mode-art.tsx: three chip stacks of rising height in the chassis blue and ink tones beside a pair of real tiles, on a blue halftone wash.",
-      "brief": "Three stacks of casino-style chips of rising height on the edge of a blue felt mahjong table, a pair of ivory tiles lying beside them and a scoring stick across the front. Chips in hololive blue (#3fb8f5), white and deep ink with simple edge stripes, no numbers or logos on them. Dark ink (#0a0c11) background, flat shapes with halftone shading.",
-      "notes": "No text, numbers, currency signs or logos. Shared by the beta Chip tables and the Stakes tables, so nothing that reads as real money."
+      "brief": "Three stacks of casino-style chips of rising height on the edge of a blue felt mahjong table, a pair of ivory tiles lying beside them (dot faces only) and a scoring stick across the front. Chips in hololive blue (#3fb8f5), white and deep ink with simple edge stripes, no numbers or logos on them. Dark ink (#0a0c11) background, flat shapes with halftone shading.",
+      "notes": "No letters, numerals, currency signs or logos anywhere, including on the chips and tiles. Shared by the beta Chip tables and the Stakes tables, so nothing that reads as real money."
     }
   ]
 }
