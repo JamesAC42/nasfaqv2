@@ -69,6 +69,12 @@ function requirePositiveQuantity(quantity) {
   return parsed;
 }
 
+function invalidQuantity() {
+  const error = new Error("invalid_quantity");
+  error.code = "invalid_quantity";
+  return error;
+}
+
 function computeNextLiveOrderTick(now = new Date()) {
   const tickMs = 10 * 60 * 1000;
   return new Date((Math.floor(now.getTime() / tickMs) + 1) * tickMs);
@@ -1071,7 +1077,10 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
       throw error;
     }
 
+    // Orders are for whole shares. A sale may also be everything you have left, fraction and all
+    // (checked below, once the holding is read).
     const parsedQuantity = requirePositiveQuantity(quantity);
+    if (normalizedSide === "buy" && !Number.isInteger(parsedQuantity)) throw invalidQuantity();
     const asset = await getLockedAssetBySymbol(client, symbol, { lock: false });
     if (!asset) {
       const error = new Error("asset_not_found");
@@ -1131,7 +1140,10 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
     if (normalizedSide === "sell") {
       // Shares already in queued sells aren't available to another one.
       const queuedShares = await sumPendingSellShares(client, { userId, assetId: asset.id });
-      if (toNumber(holding?.quantity, 0) - queuedShares < parsedQuantity) {
+      const available = toNumber(holding?.quantity, 0) - queuedShares;
+      // A fraction only clears out what's left (a partial fill can leave one), never part of a share.
+      if (!Number.isInteger(parsedQuantity) && Math.abs(parsedQuantity - available) > 1e-9) throw invalidQuantity();
+      if (available < parsedQuantity) {
         const error = new Error("insufficient_holdings");
         error.code = "insufficient_holdings";
         error.queuedShares = queuedShares;
@@ -2080,7 +2092,6 @@ async function getPortfolioSummary(pool, userId) {
       h.quantity,
       h.avg_cost_basis,
       a.current_mid_price,
-      a.current_fair_value,
       (h.quantity * COALESCE(a.current_mid_price, 0)) AS market_value,
       (h.quantity * (COALESCE(a.current_mid_price, 0) - h.avg_cost_basis)) AS unrealized_pnl
     FROM (SELECT $1::bigint AS user_id) me
@@ -2108,7 +2119,6 @@ async function getPortfolioSummary(pool, userId) {
       quantity: row.quantity,
       avg_cost_basis: row.avg_cost_basis,
       current_mid_price: row.current_mid_price,
-      current_fair_value: row.current_fair_value,
       market_value: row.market_value,
       unrealized_pnl: row.unrealized_pnl,
     }));

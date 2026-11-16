@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
+import { BuybackBadge } from "@/app/components/common/buyback-badge";
 import { useHasArt } from "@/app/components/common/use-art-image";
 import { artId } from "@/app/lib/art-manifest";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { ComingToMarketNote } from "@/app/components/market/ipo-banner";
 import { SiteShell } from "@/app/components/layout/site-shell";
+import { BuybackBanner } from "@/app/components/stock/buyback-banner";
 import { DividendsSection } from "@/app/components/stock/dividends-section";
 import { OshiProtection } from "@/app/components/stock/oshi-protection";
 import { ChartSection, DaySection, TicksSection } from "@/app/components/stock/market-sections";
@@ -16,6 +18,7 @@ import { BoardSection, HoldersSection, NewsSection } from "@/app/components/stoc
 import { fmtBig, yen, type Rank } from "@/app/components/stock/format";
 import { useChannelStreams, useSuperchats } from "@/app/components/stock/use-stock-data";
 import { FEE_RATE, n2, TradeTicket } from "@/app/components/trade/trade-ticket";
+import { activeBuyback, useBuybackSpotlight } from "@/app/lib/buyback";
 import { closeSeries, unitLabel } from "@/app/lib/market-units";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct, toneOf } from "@/app/lib/time";
@@ -144,6 +147,8 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
   const chatterSummary = useChatterStore((state) => state.summary);
   const fetchChatter = useChatterStore((state) => state.fetchChatter);
   const active = useScrollSpy(useMemo(() => SECTIONS.map(([id]) => id), []));
+  const spotlight = useBuybackSpotlight();
+  const frozen = Boolean(activeBuyback(asset));
 
   useEffect(() => {
     if (!channels.length) void fetchChannels();
@@ -219,7 +224,11 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
                   LIVE{live.viewer_count ? ` · ${fmtBig(live.viewer_count)}` : ""}
                 </button>
               ) : null}
-              {asset.trading_state === "buyback" ? (
+              {frozen && spotlight ? (
+                <a href="#buyback-title" className={styles.supplyBadge}>
+                  <BuybackBadge symbol={sym} size="md" />
+                </a>
+              ) : asset.trading_state === "buyback" ? (
                 <a href="#s-holders" className={styles.supplyPill} data-state="buyback">
                   <Term k="buyback">BUYBACK</Term>
                 </a>
@@ -312,6 +321,8 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
           )}
         </header>
 
+        <BuybackBanner asset={asset} held={holding?.quantity ?? 0} />
+
         <nav className={styles.snav} aria-label="Sections">
           {SECTIONS.map(([id, label]) => (
             <a key={id} href={`#${id}`} aria-current={active === id}>
@@ -403,8 +414,8 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
           <b>{n2(asset.current_mid_price)}</b>
           <small className={styles[toneOf(move)]}>{signedPct(move)}</small>
         </span>
-        <button type="button" className={styles.mBuy} onClick={() => openTrade(sym, "buy")}>
-          BUY
+        <button type="button" className={styles.mBuy} onClick={() => openTrade(sym, "buy")} disabled={frozen && spotlight} title={frozen && spotlight ? "Frozen for a buyback: no buys until it ends" : undefined}>
+          {frozen && spotlight ? "FROZEN" : "BUY"}
         </button>
         <button type="button" className={styles.mSell} onClick={() => openTrade(sym, "sell")} disabled={Boolean(user) && !(holding && holding.quantity > 0)}>
           SELL

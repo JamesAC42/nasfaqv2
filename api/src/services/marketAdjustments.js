@@ -1079,7 +1079,7 @@ function startAdjustmentScheduler(pool, logger = console, redis = null) {
 }
 
 async function getAdjustmentSummary(pool, { recentLimit = 20 } = {}) {
-  const [sessionsResult, nextResult, lastResult, recapResult, moversResult, compressionResult, feedResult, healthResult] = await Promise.all([
+  const [sessionsResult, nextResult, lastResult, recapResult, moversResult, feedResult, healthResult] = await Promise.all([
     pool.query(
       `
       SELECT
@@ -1206,37 +1206,6 @@ async function getAdjustmentSummary(pool, { recentLimit = 20 } = {}) {
     pool.query(
       `
       SELECT
-        a.symbol,
-        a.display_name,
-        c.icon,
-        c.color,
-        i.interval_key,
-        i.applied_at,
-        i.price_before,
-        i.price_after,
-        i.reasons_json AS reasons,
-        CASE
-          WHEN i.price_before IS NULL OR i.price_before = 0 THEN NULL
-          ELSE (i.price_after - i.price_before) / i.price_before
-        END AS move_pct,
-        NULL::numeric AS gap_compression_pct
-      FROM market.asset_adjustment_intervals i
-      JOIN market.market_assets a ON a.id = i.asset_id
-      JOIN yt.youtube_channels c ON c.youtube_channel_id = a.youtube_channel_id
-      WHERE i.status = 'applied'
-        AND i.applied_at >= now() - interval '7 days'
-      ORDER BY (
-        CASE
-          WHEN i.price_before IS NULL OR i.base_rate IS NULL OR ABS(i.price_before - i.base_rate) = 0 THEN NULL
-          ELSE (ABS(i.price_before - i.base_rate) - ABS(i.price_after - i.base_rate)) / ABS(i.price_before - i.base_rate)
-        END
-      ) DESC NULLS LAST, i.applied_at DESC
-      LIMIT 8
-    `
-    ),
-    pool.query(
-      `
-      SELECT
         i.id,
         s.market_date,
         a.symbol,
@@ -1286,9 +1255,9 @@ async function getAdjustmentSummary(pool, { recentLimit = 20 } = {}) {
     next_tick: nextResult.rows[0] || null,
     last_tick: lastResult.rows[0] || null,
     recaps: recapResult.rows,
+    // Ranked by the move only; nothing here is ordered by a hidden value (services/marketSecrecy.js).
     leaderboards: {
       movers: moversResult.rows,
-      gap_compression: compressionResult.rows,
     },
     feed: feedResult.rows,
     health: healthResult.rows[0] || null,

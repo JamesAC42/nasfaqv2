@@ -4,10 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
+import { BuybackBadge } from "@/app/components/common/buyback-badge";
 import { TickReasons } from "@/app/components/market/tick-reason";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { SiteShell } from "@/app/components/layout/site-shell";
+import { useBuybackSpotlight } from "@/app/lib/buyback";
 import { closeSeries, groupByUnit, UNIT_ORDER, unitLabel, unitName } from "@/app/lib/market-units";
 import { talentAccent } from "@/app/lib/talent-color";
 import { signedPct, toneOf } from "@/app/lib/time";
@@ -52,6 +54,8 @@ const QUICK: Array<{ key: string; label: string; test?: (row: Row) => boolean; s
   { key: "hot", label: "MOST TRADED", test: (row) => row.vol > 0, sort: ["vol", -1] },
   { key: "growth", label: "SUBS GROWING", test: (row) => (row.subsCh ?? 0) > 0, sort: ["subsCh", -1], lens: "channel" },
   { key: "bags", label: "MY BAGS", test: (row) => row.heldQty > 0, sort: ["held", -1] },
+  // Shown only with the buyback-spotlight flag, and only while a buyback is on.
+  { key: "buybacks", label: "BUYBACKS", test: (row) => row.asset.trading_state === "buyback" },
   { key: "sc", label: "TOP SUPERCHATS", sort: ["sc7", -1], lens: "channel" },
   { key: "stream", label: "MOST STREAMED", sort: ["stream7", -1], lens: "channel" },
   { key: "viewed", label: "MOST VIEWED", sort: ["views", -1], lens: "channel" },
@@ -265,6 +269,7 @@ export function Screener({ initialView }: { initialView?: string }) {
   const openTrade = useTradeStore((state) => state.openTrade);
   const { user } = useAuth();
   const { theme } = useTheme();
+  const spotlight = useBuybackSpotlight();
   const [range, setRange] = useStoredState<ChannelRange>(STORED.range, "7d", { parse: parseRange });
   const channels = useChannelData(range);
   const search = useRef<HTMLInputElement | null>(null);
@@ -454,6 +459,7 @@ export function Screener({ initialView }: { initialView?: string }) {
                 <b>{a.symbol}</b>
                 <small>{a.display_name}</small>
               </span>
+              <BuybackBadge symbol={a.symbol} size="xs" />
             </span>
           </td>
         );
@@ -764,6 +770,7 @@ export function Screener({ initialView }: { initialView?: string }) {
             <div className={styles.views}>
               {QUICK.map((entry) => {
                 const count = entry.test ? rows.filter(entry.test).length : rows.length;
+                if (entry.key === "buybacks" && !(spotlight && count > 0) && view !== entry.key) return null;
                 return (
                   <button key={entry.key} type="button" className={styles.view} aria-pressed={view === entry.key && !activeSaved} onClick={() => pickQuick(entry.key)}>
                     {entry.label} {entry.test || entry.key === "all" ? <span className={styles.n}>{count}</span> : null}
@@ -863,7 +870,9 @@ export function Screener({ initialView }: { initialView?: string }) {
                 <Link key={row.sym} href={`/stocks/${encodeURIComponent(row.sym)}`} className={styles.lrow}>
                   <Oshimark icon={row.asset.icon} symbol={row.sym} size={26} />
                   <span className={styles.lname}>
-                    <b>{row.sym}</b>
+                    <b>
+                      {row.sym} <BuybackBadge symbol={row.sym} size="xs" />
+                    </b>
                     <small>
                       {row.asset.display_name} · {unitLabel(row.asset.unit)}
                     </small>
@@ -890,6 +899,7 @@ export function Screener({ initialView }: { initialView?: string }) {
                         <b>
                           <Oshimark icon={row.asset.icon} symbol={row.sym} size={18} /> {row.sym}
                         </b>
+                        <BuybackBadge symbol={row.sym} size="xs" />
                         <span className={styles.px}>{n2(row.price)}</span>
                       </span>
                       <span className={styles.cardName}>

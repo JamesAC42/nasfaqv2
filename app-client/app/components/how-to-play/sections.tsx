@@ -7,6 +7,9 @@ import { StockChip } from "@/app/components/common/stock-chip";
 import { GAMES, IPO_ROOKIE_DAYS, SECTIONS, SHARES_PER_WINDOW, TRADE_FEE, type SectionId } from "@/app/components/how-to-play/content";
 import { ChanceDemo, ChibiTag, PullDiagram, RarityFan, TalentStrip, TicketDemo, TickTimeline, useBusiestTalents } from "@/app/components/how-to-play/demos";
 import { TickKoma } from "@/app/components/how-to-play/tick-koma";
+import { BuybackDemo } from "@/app/components/how-to-play/buyback-demo";
+import { BuybackMark } from "@/app/components/common/buyback-badge";
+import { useBuybackSpotlight } from "@/app/lib/buyback";
 import { GamesDiagram, MarketDiagram, PredictionsDiagram, TradingDiagram } from "@/app/components/how-to-play/diagrams";
 import styles from "@/app/components/how-to-play/how-to-play.module.scss";
 import { Term } from "@/app/components/common/tip";
@@ -269,6 +272,7 @@ export function TicksSection() {
 export function WeeklySection() {
   const oshiProtection = useFeature("oshi-protection");
   const dividendSpotlight = useFeature("dividend-spotlight");
+  const buybackSpotlight = useBuybackSpotlight();
   return (
     <Section
       id="weekly"
@@ -311,15 +315,48 @@ export function WeeklySection() {
           { k: "dividends", title: "Good weeks pay", body: "A channel whose numbers grew faster than the rest of the market this week pays you per share. It's a race against every other channel, every week." },
           { k: "share fees", title: "Bad weeks cost", body: "A channel that slipped against the rest charges holders per share. Holding a stock through a dead week costs you." },
           { k: "max shares", title: "Supply resets", body: "Max shares reset from subscriber count: bigger channels, more shares. A stock can go from plenty for sale to sold out overnight." },
-          {
-            k: "buyback",
-            title: "Too many shares",
-            body: "If max shares drop below what players hold, the stock freezes: no buys, no ticks. The broker buys at 120% of the frozen price, 10 points less each day.",
-          },
-          { k: "forced", title: "Or else", body: "Whatever's still over at the next Saturday, the broker takes from every holder in proportion, at the last revealed fair value." },
+          // With buyback-spotlight these two become the walkthrough below.
+          ...(buybackSpotlight
+            ? []
+            : [
+                {
+                  k: "buyback",
+                  title: "Too many shares",
+                  body: "If max shares drop below what players hold, the stock freezes: no buys, no ticks. The broker buys at 120% of the frozen price, 10 points less each day.",
+                },
+                { k: "forced", title: "Or else", body: "Whatever's still over at the next Saturday, the broker takes from every holder in proportion, at the last revealed fair value." },
+              ]),
           { k: "the review", title: "Dividend Review", body: "Every payout, fee, max-share change and buyback, stock by stock, plus your own week, on the Market page." },
         ]}
       />
+      {buybackSpotlight ? (
+        <div id="buybacks" className={styles.buybacks}>
+          <SubHead>Buybacks: too many shares</SubHead>
+          <div className={styles.split}>
+            <BuybackDemo />
+            <Steps
+              items={[
+                {
+                  title: "Max shares drop below what players hold",
+                  body: "Saturday’s new max shares come from subscriber counts. If players already hold more than that, the stock freezes: nobody can buy, and the ticks skip it until it ends.",
+                },
+                {
+                  title: "The broker buys the extra shares back",
+                  body: "It pays 120% of the frozen price on the first day, then 10 points less each day (never under 50%). Only the shares over the max get the offer, first come first served; sells past them get the frozen price.",
+                },
+                {
+                  title: "Holders sell it back, or Saturday does",
+                  body: "Once enough is sold back, the stock reopens at the next Open (09:00). Whatever is still over at the next Saturday’s evaluation, the broker takes from every holder in proportion, at the last revealed fair value.",
+                },
+              ]}
+            />
+          </div>
+          <p className={styles.buybackWhere}>
+            <b>Holding one? Selling early pays best.</b> Every frozen stock wears the <BuybackMark pct={1.2} size="xs" /> badge with today’s offer, Home lists them under Buybacks now, and if
+            you hold one, a bar at the top of the page tells you the offer.
+          </p>
+        </div>
+      ) : null}
     </Section>
   );
 }

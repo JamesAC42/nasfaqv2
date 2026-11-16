@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { FaSnowflake } from "react-icons/fa6";
+import { BuybackBadge } from "@/app/components/common/buyback-badge";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { Sparkline } from "@/app/components/common/sparkline";
+import { pctLabel, planOf, useBuybackSpotlight } from "@/app/lib/buyback";
 import { formatCountdown, getMarketClock } from "@/app/lib/market-clock";
 import { talentAccent } from "@/app/lib/talent-color";
 import { useNow } from "@/app/lib/use-now";
@@ -37,6 +40,7 @@ function StockPeek({ symbol }: { symbol: string }) {
   const holding = useProfileStore((state) => state.portfolio?.holdings.find((entry) => entry.symbol === symbol) ?? null);
   const { theme } = useTheme();
   const now = useNow();
+  const spotlight = useBuybackSpotlight();
 
   const series = useMemo(() => {
     if (!asset) return [];
@@ -55,13 +59,16 @@ function StockPeek({ symbol }: { symbol: string }) {
   const float = asset.circulating_supply !== null && (asset.max_supply ?? 0) > 0 ? asset.circulating_supply / (asset.max_supply as number) : null;
   const holdingPnl = holding && mid !== null && holding.avg_cost_basis ? (mid - holding.avg_cost_basis) / holding.avg_cost_basis : null;
   const clock = now ? getMarketClock(now) : null;
+  const plan = spotlight && now ? planOf(asset, now) : null;
 
   return (
     <div className={styles.card} style={{ "--c": talentAccent(asset.color, theme) } as React.CSSProperties}>
       <div className={styles.head}>
         <Oshimark icon={asset.icon} symbol={asset.symbol} size={32} />
         <div className={styles.who}>
-          <b>{asset.symbol}</b>
+          <b>
+            {asset.symbol} <BuybackBadge symbol={asset.symbol} size="xs" />
+          </b>
           <small>
             {asset.display_name}
             {asset.unit ? ` · ${asset.unit.replace(/^hololive\s+/i, "")}` : ""}
@@ -89,6 +96,12 @@ function StockPeek({ symbol }: { symbol: string }) {
           <b>{asset.trading_state === "buyback" ? "BUYBACK" : asset.sold_out ? "SOLD OUT" : float !== null ? `${Math.round(float * 100)}%` : "—"}</b>
         </div>
       </div>
+      {plan ? (
+        <div className={styles.buyback}>
+          <FaSnowflake aria-hidden /> Frozen: no buys. The broker pays <b>{pctLabel(plan.pct)}</b> ({plan.offer.toFixed(2)}) for the {Math.ceil(plan.over).toLocaleString("en-US")} shares still over
+          {plan.nextPct !== null ? `, ${pctLabel(plan.nextPct)} tomorrow` : ""}.
+        </div>
+      ) : null}
       {holding && holding.quantity > 0 ? (
         <div className={styles.holding}>
           You hold {holding.quantity.toLocaleString("en-US", { maximumFractionDigits: 2 })} ·{" "}

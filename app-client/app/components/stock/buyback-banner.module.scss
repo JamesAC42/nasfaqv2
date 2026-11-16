@@ -1,0 +1,257 @@
+@use "../../styles/mixins" as *;
+
+// The stock page's buyback banner: frozen blue, the offer big on the left, the schedule on the right.
+.banner {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 1.25rem;
+  align-items: stretch;
+  margin: 0.75rem 0 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--blue-line);
+  border-left: 4px solid var(--blue);
+  background: linear-gradient(120deg, color-mix(in srgb, var(--blue) 14%, var(--ink-2)), var(--ink-2) 60%);
+  overflow: hidden;
+
+  @include tablet-down {
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+
+    .schedule {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.9rem;
+    padding: 0.9rem 0.85rem;
+  }
+}
+
+// Frost in the corner: a soft ice-crystal hatch, no image.
+.frost {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    repeating-linear-gradient(60deg, transparent 0 14px, color-mix(in srgb, var(--blue) 7%, transparent) 14px 15px),
+    repeating-linear-gradient(-60deg, transparent 0 14px, color-mix(in srgb, var(--blue) 7%, transparent) 14px 15px);
+  -webkit-mask-image: radial-gradient(circle at 100% 0, #000, transparent 55%);
+  mask-image: radial-gradient(circle at 100% 0, #000, transparent 55%);
+  pointer-events: none;
+}
+
+.art {
+  align-self: end;
+  width: 100%;
+  aspect-ratio: 1;
+  margin-bottom: -1rem;
+
+  @include phone {
+    display: none;
+  }
+}
+
+.offer {
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.kicker {
+  @include label;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--blue);
+  font-weight: 700;
+
+  svg {
+    animation: spin 9s linear infinite;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  }
+}
+
+.big {
+  @include display(1.7rem);
+  margin: 0;
+  line-height: 1.05;
+  color: var(--text);
+
+  b {
+    @include num(wide);
+    display: inline-block;
+    color: var(--blue);
+    font-size: 2.6rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    text-shadow: 0 0 18px color-mix(in srgb, var(--blue) 45%, transparent);
+  }
+
+  &[data-done] b {
+    @include display;
+    color: var(--up);
+    font-size: inherit;
+    text-shadow: none;
+  }
+
+  .banner[data-tone="under"] & b {
+    color: var(--mid);
+    text-shadow: none;
+  }
+
+  @include phone {
+    font-size: 1.35rem;
+
+    b {
+      font-size: 2.2rem;
+    }
+  }
+}
+
+.versus {
+  @include num;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--mid);
+  font-size: 0.8rem;
+
+  b {
+    color: var(--text);
+    font-size: 1rem;
+  }
+}
+
+.vs {
+  @include label;
+}
+
+.advice {
+  margin: 0.15rem 0 0;
+  max-width: 34rem;
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-top: 0.2rem;
+}
+
+.sell {
+  @include button-primary;
+  padding: 0.55rem 0.95rem;
+}
+
+.noBuy {
+  @include label;
+  padding: 0.35rem 0.6rem;
+  border: 1px dashed var(--rule-2);
+  color: var(--mid);
+}
+
+.how {
+  @include label;
+  color: var(--blue);
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.schedule {
+  display: grid;
+  align-content: start;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.clocks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.4rem;
+  margin: 0;
+
+  div {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  dt {
+    @include label;
+  }
+
+  dd {
+    @include num;
+    margin: 0;
+    color: var(--mid);
+    font-size: 0.85rem;
+
+    b {
+      color: var(--text);
+    }
+  }
+
+  [data-tone="good"] dd b {
+    color: var(--up);
+  }
+}
+
+.left {
+  display: grid;
+  gap: 0.3rem;
+
+  p {
+    margin: 0;
+    font-size: 0.75rem;
+  }
+}
+
+.leftHead {
+  @include num;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.2rem 0.8rem;
+  font-size: 0.8rem;
+
+  b {
+    color: var(--blue);
+    font-size: 1rem;
+  }
+}
+
+.track {
+  height: 0.5rem;
+  border: 1px solid var(--blue-line);
+  background: repeating-linear-gradient(-45deg, transparent 0 5px, color-mix(in srgb, var(--blue) 18%, transparent) 5px 7px);
+
+  i {
+    display: block;
+    height: 100%;
+    background: var(--blue);
+  }
+}
+
+.dim {
+  color: var(--dim);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

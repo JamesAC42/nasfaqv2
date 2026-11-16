@@ -64,6 +64,10 @@ is most of the fun).
   it is *sold out*: buys are refused until someone sells. A batch order bigger than what's left fills
   what's left. (BBB: purchases lock at the next tick; we lock the moment the last share goes, which
   is simpler to read and can't overshoot the max.)
+- **Orders are for whole shares.** A sale may also be exactly everything a player has left (held
+  minus queued sells), so a fraction already held can be sold. Fractions can still be held: a
+  forced buyback takes each holder's share of the excess to six decimals, and a buy that takes the
+  last shares for sale gets what's left, which can be a fraction of the broker's 2% buffer.
 - The old daily share print at settlement is gone. Shares only change weekly, in the open.
 
 ## Buybacks
@@ -71,9 +75,12 @@ is most of the fun).
 When a weekly evaluation sets max shares below what players hold:
 
 1. The stock **freezes**: no buys, its price stops moving and the ticks skip it (the base rate still
-   updates every morning).
-2. The broker **offers to buy shares back** at 120% of the frozen price, 10 points less each day
-   (four ticks): 120%, 110%, 100%, … down to 50%. Sells during a buyback fill at that price.
+   updates every morning). The frozen price is the lower of the price at the evaluation and that
+   day's open, so a late pump can't raise the offer.
+2. The broker **offers to buy shares back** at 120% of the frozen price, 10 points less every 24 hours
+   from the start: 120%, 110%, 100%, … never under 50% (a Saturday buyback reaches 60% on its last
+   day). Only the shares still over the max get the offer; a sell past them fills at the frozen
+   price, so selling out and buying back at the Open isn't free money.
 3. If players sell enough to get back under max shares, the buyback ends at the next Open and the
    stock trades normally again.
 4. Otherwise, at the next weekly evaluation the broker **forces** the rest: it buys the excess back
@@ -82,6 +89,14 @@ When a weekly evaluation sets max shares below what players hold:
 
 Max shares can move again at that evaluation, so a buyback can leave a bigger gap than expected
 (BBB calls this an intended market risk).
+
+Every asset payload carries its buyback (`supplyView`: the frozen price, today's offer, the schedule
+`start` / `daily_step` / `floor`, the next step and the shares still over). Behind the
+`buyback-spotlight` flag the client makes them hard to miss (`app/lib/buyback.ts`,
+`buyback-plan.mjs`): a BUYBACK badge with today's offer wherever a stock shows, Buybacks now on Home
+and the market floor, a banner on the stock page (the offer against the market price, the daily
+step-down, countdowns, the shares left at the offer), a bar for players who hold one, and How to
+play's walkthrough. Holders also get the evaluation's inbox notification when one starts.
 
 ## Every week: the Weekly Evaluation (Saturday 00:00 ET)
 

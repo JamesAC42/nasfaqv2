@@ -460,7 +460,8 @@ export type MarketBuyback = {
   price: number;
   multiplier: number;
   next_step_at: string | null;
-  /** How much the multiplier drops each day, and where it stops. */
+  /** Where the multiplier starts (1.2), how much it drops each day, and where it stops. */
+  start: number;
   daily_step: number;
   floor: number;
   shares_bought: number;
@@ -700,7 +701,6 @@ export type MarketAdjustmentSummary = {
   recaps: MarketAdjustmentTickSummary[];
   leaderboards: {
     movers: MarketAdjustmentOutcome[];
-    gap_compression: MarketAdjustmentOutcome[];
   };
   feed: MarketAdjustmentOutcome[];
   health: MarketAdjustmentHealth | null;

@@ -38,6 +38,12 @@ const ALWAYS_HIDDEN = new Set([
   "current_fair_value",
   "current_fair_value_raw",
   "current_premium_pct",
+  // The stored mid is fair value × exp(persistent + transient), so the offsets beside a price give
+  // the target away. No public query selects them; dropped here in case one ever does.
+  "current_persistent_offset",
+  "current_transient_offset",
+  "persistent_offset",
+  "transient_offset",
   // A tick's private split of the distance it closed (services/tickDrivers.js). Never selected by a
   // public query; dropped here too in case one ever does.
   "driver_state",
@@ -77,6 +83,9 @@ const HIDDEN_UNTIL_TICKS_LAND = new Set([
   "premium_close_pct",
   "premium_discount_pct",
   "premium_pct",
+  // How hard each tick pulls. The day's breakdown shows them once its ticks are done
+  // (services/reportSession.js); nothing scrubbed carries them.
+  "strength_pct",
 ]);
 
 function scrub(value, hidden) {
@@ -174,4 +183,14 @@ async function revealedTargets(pool) {
   );
 }
 
-module.exports = { schema, scrubPublicMarketPayload, publicDailyReport, secretDailyReport, revealedTargets, targetsState };
+module.exports = {
+  schema,
+  scrubPublicMarketPayload,
+  publicDailyReport,
+  secretDailyReport,
+  revealedTargets,
+  targetsState,
+  // For tests that look for leaks.
+  ALWAYS_HIDDEN,
+  HIDDEN_UNTIL_TICKS_LAND,
+};
