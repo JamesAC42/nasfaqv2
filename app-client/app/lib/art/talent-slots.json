@@ -1,5 +1,5 @@
 {
-  "_comment": "Per-talent art slots (one image per listed talent, 73 today). Source of truth for art-pipeline/spec/slots.json together with the scene slots in ./slots. IDs are `SYMBOL/<slot>/<variant>`. Keep ids stable once art exists.",
+  "_comment": "Per-talent art slots (one image per listed talent, 77 today). Source of truth for art-pipeline/spec/slots.json together with the scene slots in ./slots. IDs are `SYMBOL/<slot>/<variant>`. Keep ids stable once art exists.",
   "slots": [
     {
       "id": "keyart",

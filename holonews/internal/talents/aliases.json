@@ -430,6 +430,43 @@
       "Vivi"
     ]
   },
+  "KYO": {
+    "strong": [
+      "Hyakuto Kyoko",
+      "Hyakuto",
+      "百灯キョーコ"
+    ],
+    "weak": [
+      "Kyoko"
+    ]
+  },
+  "MEL": {
+    "strong": [
+      "Achichi Mela",
+      "Achichi",
+      "熱千めら"
+    ],
+    "weak": [
+      "Mela"
+    ]
+  },
+  "SOP": {
+    "strong": [
+      "Sorashina Sopia",
+      "Sorashina",
+      "Sopia",
+      "宙科そぴあ",
+      "そぴあ"
+    ]
+  },
+  "TSU": {
+    "strong": [
+      "Suzuna Tsuzuri",
+      "Suzuna",
+      "Tsuzuri",
+      "鈴鳴つづり"
+    ]
+  },
   "CLI": {
     "strong": [
       "Mori Calliope",
