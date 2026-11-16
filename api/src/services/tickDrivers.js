@@ -17,6 +17,8 @@
 // toward its value". A tick moves the same way as the one before about 82% of the time, so the line
 // explains the tick that happened and never a trend. test/tick-drivers.test.js holds it to that.
 
+const targetNudge = require("./targetNudge");
+
 const DAY_MS = 86_400_000;
 const EPS = 1e-9;
 
@@ -45,7 +47,12 @@ const MAX_REASONS = 2;
 const MAX_FILL_LOOKBACK_MS = 3 * DAY_MS;
 
 const CHANNEL_KEYS = ["subs", "views", "uploads", "quiet", "stream"];
-/** Parts a reason can name. `other` (the unexplained rest, overshoots included) never is. */
+/**
+ * Parts a reason can name. `other` (the unexplained rest, overshoots included) never is, and nor is
+ * `market` (other market factors: the change in the fair value's server-side daily factor,
+ * targetNudge.js). A tick always runs before its day's fair value is revealed, so naming `market`
+ * would give that factor away.
+ */
 const NAMED_KEYS = [...CHANNEL_KEYS, "players", "players_earlier"];
 
 const STREAM_KINDS = {
@@ -467,9 +474,10 @@ function explainTick({ priceBefore, priceAfter, fairValue, previous = null, chan
  * tick, its fills since, and (when a settlement came in between) its channel snapshots and big streams.
  */
 async function loadTickContext(client, intervals, { now = new Date(), timeZone = "America/New_York" } = {}) {
-  const context = { timeZone, previous: new Map(), fills: new Map(), channelOf: new Map(), snapshots: new Map(), peaks: new Map() };
+  const context = { timeZone, previous: new Map(), fills: new Map(), channelOf: new Map(), snapshots: new Map(), peaks: new Map(), targetNudge: targetNudge.OFF };
   const assetIds = [...new Set(intervals.map((interval) => String(interval.asset_id)))];
   if (!assetIds.length) return context;
+  context.targetNudge = await targetNudge.loadGate(client, { inTransaction: true });
 
   const { rows: previousRows } = await client.query(
     `
@@ -594,7 +602,14 @@ function tickInput(context, interval, { priceBefore, priceAfter, fairValue, liqu
       const peak = context.peaks.get(`${context.channelOf.get(id)}|${metrics.stream.date}|${metrics.stream.kind}`);
       if (num(peak) > 0) metrics.stream.peak = num(peak);
     }
-    channel = { parts: splitFairValueChange({ byDate, from: prev.market_day, to: day, total }), meta: metrics };
+    // The fair value is the formula's × exp(daily factor), so in log terms the factor's change adds
+    // on top: split the formula's part between the channel drivers and keep the factor's apart.
+    const gate = context.targetNudge ?? targetNudge.OFF;
+    const channelId = context.channelOf.get(id);
+    const factorChange = gate.nudge(channelId, day) - gate.nudge(channelId, prev.market_day);
+    const parts = splitFairValueChange({ byDate, from: prev.market_day, to: day, total: total - factorChange });
+    if (Math.abs(factorChange) > EPS) parts.market = (parts.market ?? 0) + factorChange;
+    channel = { parts, meta: metrics };
   }
   return { priceBefore, priceAfter, fairValue, previous, channel, players, tickDay: zonedDay(now, context.timeZone) };
 }

@@ -23,6 +23,7 @@ const ipo = require("../services/ipo");
 const reportSession = require("../services/reportSession");
 const { scrubPublicMarketPayload, publicDailyReport, revealedTargets } = require("../services/marketSecrecy");
 const marketState = require("../services/marketState");
+const targetNudge = require("../services/targetNudge");
 const { sendPublicAssets, sendLatestReport, sendHub, ADJUSTMENT_SUMMARY_LIMITS } = require("../publicMarketCache");
 const { sendCachedJson } = require("../responseCache");
 const features = require("../features");
@@ -882,9 +883,13 @@ router.get("/assets/:symbol/treasury", async (req, res, next) => {
   }
 });
 
-router.get("/tuning/config", async (_req, res, next) => {
+router.get("/tuning/config", async (req, res, next) => {
   try {
-    res.json(marketDb.getMarketTuningConfig());
+    const config = marketDb.getMarketTuningConfig();
+    // Admins also see whether the fair value's server-side daily factor is on and since when
+    // (services/targetNudge.js); never the secret or a factor.
+    if (req.ctx?.user?.is_admin) Object.assign(config, await targetNudge.adminStatus(req.ctx.pool));
+    res.json(config);
   } catch (e) {
     next(e);
   }

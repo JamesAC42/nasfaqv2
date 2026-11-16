@@ -9,7 +9,9 @@ gambits are later phases.
 
 **Base rate (fair value).** Settled at 09:00 ET from the channel's YouTube numbers (subscribers, view
 and sub growth, uploads, big streams), ranked against every other listed channel. Trading never moves
-it. It is secret until that day's four ticks have landed; after that the settlement report shows it.
+it. It also includes a small daily factor only the market knows (within ±3% by default, from a
+server-side secret; `api/src/services/targetNudge.js`), so it can't be calculated exactly from the
+public numbers. It is secret until that day's four ticks have landed; after that the settlement report shows it.
 The per-share base rate no longer depends on the stock's share count (it is priced against a fixed
 reference supply of 10,000), so a weekly share change never reprices a stock by itself.
 

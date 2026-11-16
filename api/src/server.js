@@ -984,6 +984,9 @@ async function main() {
     console.log(
       `API listening on http://localhost:${cfg.port} (HTTP + WebSocket /api/livestreams/ws + /api/livestreams/buckets/ws + /api/stats/ws + /api/chat/ws + /api/market/ws + /api/prediction-markets/ws + /api/games/ws)`
     );
+    // Whether fair values carry the server-side daily factor (services/targetNudge.js); never its value.
+    // eslint-disable-next-line no-console
+    console.log(require("./services/targetNudge").startupLine());
   });
 
   if (cfg.enableMarketSettlementScheduler) {
