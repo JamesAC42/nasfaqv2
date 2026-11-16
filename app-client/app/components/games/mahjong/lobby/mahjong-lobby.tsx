@@ -7,7 +7,9 @@ import { FiArrowRight } from "react-icons/fi";
 import { GamesFrame, SignInToPlay } from "@/app/components/games/shell/games-frame";
 import { BadgeStrip, BetaTag } from "@/app/components/games/mahjong/beta/beta";
 import { DiscordLink, FeedbackButton } from "@/app/components/games/mahjong/feedback/feedback-button";
+import { SceneArt } from "@/app/components/common/scene-art";
 import { LiveTableRow, Segmented, TournamentRow, limitsLine, stakesBlock } from "@/app/components/games/mahjong/lobby/lobby-parts";
+import { ChipsArt, FriendArt, PracticeArt, QuickArt } from "@/app/components/games/mahjong/lobby/mode-art";
 import { Tile } from "@/app/components/games/mahjong/tile";
 import { apiErrorCode, type ApiError } from "@/app/lib/api";
 import { fmtInteger, fmtNumber } from "@/app/lib/format";
@@ -144,6 +146,8 @@ export function MahjongLobby() {
   const newcomer = trial && (signedIn ? Array.isArray(me?.badges) && me.badges.length === 0 && (me.rating?.games ?? 0) === 0 : initialized && !playedHere);
   const chips = me?.chips ?? null;
   const openTournaments = (tournaments ?? []).filter((entry) => entry.status === "signup" || entry.status === "running");
+  const botFill = rules?.bot_fill_seconds ?? 45;
+  const waitingQuick = lobbyTables.filter((table) => table.kind === "ranked" && table.status !== "playing").length;
 
   return (
     <GamesFrame
@@ -279,104 +283,211 @@ export function MahjongLobby() {
             Play
           </h2>
           <div className={styles.modes}>
-            <div className={styles.mode}>
-              <h3>Quick match</h3>
-              <p>Free and rated. Open seats fill with players; bots take what’s left after {rules?.bot_fill_seconds ?? 45} seconds.</p>
-              <Segmented label="Length" value={length} options={LENGTHS} onChange={setLength} />
-              <button type="button" className={styles.primary} disabled={!signedIn || !verified || busy === "quick"} onClick={quick}>
-                {busy === "quick" ? "Finding a seat…" : "Find a game"}
-              </button>
-              {signedIn && !verified ? <p className={styles.note}>Verify your email to sit with other players.</p> : null}
-              {errors.quick ? <p className={styles.error}>{errors.quick}</p> : null}
-            </div>
+            <article className={styles.mode} aria-labelledby="mj-mode-quick">
+              <div className={styles.modeStage}>
+                <SceneArt slot="mahjong-lobby-quick" fill width={420} fallback={<QuickArt seconds={botFill} />} />
+              </div>
+              <header className={styles.modeHead}>
+                <span className={styles.modeTags}>
+                  <span data-accent="">Rated</span>
+                  <span>Free</span>
+                </span>
+                <h3 id="mj-mode-quick">Quick match</h3>
+              </header>
+              <p className={styles.modeBlurb}>Free and rated. Open seats fill with players; bots take what’s left after {botFill} seconds.</p>
+              <div className={styles.modeOptions}>
+                <Segmented label="Length" value={length} options={LENGTHS} onChange={setLength} />
+                {tables ? (
+                  <div className={styles.modeBoard}>
+                    <span className={styles.fieldLabel}>On the floor</span>
+                    <dl>
+                      <div data-live={waitingQuick > 0 || undefined}>
+                        <dt>Waiting</dt>
+                        <dd>{fmtInteger(waitingQuick)}</dd>
+                      </div>
+                      <div>
+                        <dt>In play</dt>
+                        <dd>{fmtInteger(playing)}</dd>
+                      </div>
+                      <div>
+                        <dt>Watching</dt>
+                        <dd>{fmtInteger(watching)}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                ) : null}
+              </div>
+              <div className={styles.modeFoot}>
+                {signedIn && !verified ? <p className={styles.note}>Verify your email to sit with other players.</p> : null}
+                {errors.quick ? <p className={styles.error}>{errors.quick}</p> : null}
+                <button type="button" className={styles.primary} disabled={!signedIn || !verified || busy === "quick"} onClick={quick}>
+                  {busy === "quick" ? "Finding a seat…" : "Find a game"}
+                </button>
+              </div>
+            </article>
 
-            <div className={styles.mode}>
-              <h3>Practice vs bots</h3>
-              <p>{practiceSpeed === "untimed" ? "You and three bots. Not rated, nothing at stake, no clock. Hints are on." : "You and three bots. Not rated, nothing at stake, on the standard clock. Hints are on."}</p>
-              <Segmented label="Bots" value={level} options={LEVELS} onChange={setLevel} />
-              <Segmented label="Length" value={practiceLength} options={PRACTICE_LENGTHS} onChange={setPracticeLength} />
-              <Segmented
-                label="Clock"
-                value={practiceSpeed}
-                options={[
-                  { value: "untimed", label: "Untimed" },
-                  { value: "standard", label: `Standard${rules ? ` · ${rules.speeds.standard.turn}s` : ""}` },
-                ]}
-                onChange={setPracticeSpeed}
-              />
-              <button type="button" className={styles.primary} disabled={!signedIn || busy === "practice"} onClick={practice}>
-                {busy === "practice" ? "Dealing…" : "Practice"}
-              </button>
-              {!signedIn ? <p className={styles.note}>Signed out? Use “Try a practice hand” above.</p> : null}
-              {errors.practice ? <p className={styles.error}>{errors.practice}</p> : null}
-            </div>
+            <article className={styles.mode} aria-labelledby="mj-mode-practice">
+              <div className={styles.modeStage}>
+                <SceneArt slot="mahjong-lobby-practice" fill width={420} fallback={<PracticeArt />} />
+              </div>
+              <header className={styles.modeHead}>
+                <span className={styles.modeTags}>
+                  <span>Not rated</span>
+                  <span>Hints on</span>
+                </span>
+                <h3 id="mj-mode-practice">Practice vs bots</h3>
+              </header>
+              <p className={styles.modeBlurb}>{practiceSpeed === "untimed" ? "You and three bots. Not rated, nothing at stake, no clock. Hints are on." : "You and three bots. Not rated, nothing at stake, on the standard clock. Hints are on."}</p>
+              <div className={styles.modeOptions}>
+                <Segmented label="Bots" value={level} options={LEVELS} onChange={setLevel} />
+                <Segmented label="Length" value={practiceLength} options={PRACTICE_LENGTHS} onChange={setPracticeLength} />
+                <Segmented
+                  label="Clock"
+                  value={practiceSpeed}
+                  options={[
+                    { value: "untimed", label: "Untimed" },
+                    { value: "standard", label: `Standard${rules ? ` · ${rules.speeds.standard.turn}s` : ""}` },
+                  ]}
+                  onChange={setPracticeSpeed}
+                />
+              </div>
+              <div className={styles.modeFoot}>
+                {!signedIn ? <p className={styles.note}>Signed out? Use “Try a practice hand” above.</p> : null}
+                {errors.practice ? <p className={styles.error}>{errors.practice}</p> : null}
+                <button type="button" className={styles.primary} disabled={!signedIn || busy === "practice"} onClick={practice}>
+                  {busy === "practice" ? "Dealing…" : "Practice"}
+                </button>
+              </div>
+            </article>
 
-            <div className={styles.mode}>
-              <h3>Friend room</h3>
-              <p>A link for your friends. You deal when everyone’s in; bots take empty seats. Not rated.</p>
-              <Segmented label="Length" value={friendLength} options={LENGTHS} onChange={setFriendLength} />
-              <Segmented
-                label="Clock"
-                value={friendSpeed}
-                options={[
-                  { value: "standard", label: `Standard${rules ? ` · ${rules.speeds.standard.turn}s` : ""}` },
-                  { value: "relaxed", label: `Relaxed${rules ? ` · ${rules.speeds.relaxed.turn}s` : ""}` },
-                ]}
-                onChange={setFriendSpeed}
-              />
-              <Segmented label="Bots" value={friendLevel} options={LEVELS} onChange={setFriendLevel} />
-              <label className={styles.check}>
-                <input type="checkbox" checked={coach} onChange={(event) => setCoach(event.target.checked)} /> Coaching hints
-              </label>
-              <button type="button" className={styles.primary} disabled={!signedIn || !verified || busy === "friend"} onClick={friend}>
-                {busy === "friend" ? "Opening…" : "Create room"}
-              </button>
-              {errors.friend ? <p className={styles.error}>{errors.friend}</p> : null}
-            </div>
+            <article className={styles.mode} aria-labelledby="mj-mode-friend">
+              <div className={styles.modeStage}>
+                <SceneArt slot="mahjong-lobby-friend" fill width={420} fallback={<FriendArt />} />
+              </div>
+              <header className={styles.modeHead}>
+                <span className={styles.modeTags}>
+                  <span>Not rated</span>
+                  <span>Invite link</span>
+                </span>
+                <h3 id="mj-mode-friend">Friend room</h3>
+              </header>
+              <p className={styles.modeBlurb}>A link for your friends. You deal when everyone’s in; bots take empty seats. Not rated.</p>
+              <div className={styles.modeOptions}>
+                <Segmented label="Length" value={friendLength} options={LENGTHS} onChange={setFriendLength} />
+                <Segmented
+                  label="Clock"
+                  value={friendSpeed}
+                  options={[
+                    { value: "standard", label: `Standard${rules ? ` · ${rules.speeds.standard.turn}s` : ""}` },
+                    { value: "relaxed", label: `Relaxed${rules ? ` · ${rules.speeds.relaxed.turn}s` : ""}` },
+                  ]}
+                  onChange={setFriendSpeed}
+                />
+                <Segmented label="Bots" value={friendLevel} options={LEVELS} onChange={setFriendLevel} />
+                <label className={styles.check}>
+                  <input type="checkbox" checked={coach} onChange={(event) => setCoach(event.target.checked)} />
+                  <span>Coaching hints</span>
+                </label>
+              </div>
+              <div className={styles.modeFoot}>
+                {errors.friend ? <p className={styles.error}>{errors.friend}</p> : null}
+                <button type="button" className={styles.primary} disabled={!signedIn || !verified || busy === "friend"} onClick={friend}>
+                  {busy === "friend" ? "Opening…" : "Create room"}
+                </button>
+              </div>
+            </article>
           </div>
         </section>
 
         <section className={styles.section} aria-labelledby="mj-stakes">
-          <div className={styles.headRow}>
-            <h2 id="mj-stakes" className={styles.head}>
-              {trial ? "Chip tables" : "Stakes tables"}
-            </h2>
-            <Segmented label="Length" value={stakesLength} options={LENGTHS} onChange={setStakesLength} />
-          </div>
-          {trial ? (
-            <p className={styles.lede}>
-              Four players. Free to sit at, with as many chips as you like to play: each game just records chips by where you finish. Bots join after {rules?.bot_fill_seconds ?? 45} seconds if seats are open.
-            </p>
-          ) : (
-            <p className={styles.lede}>
-              Four players, no bots. The fee goes in, places pay a fixed prize, and points are never worth money. Credit only.
-            </p>
-          )}
-          {!trial && signedIn && limits ? <p className={styles.standing} data-blocked={limits.blocked ? "" : undefined}>{limitsLine(limits)}</p> : null}
-          {trial && signedIn && chips ? (
-            <p className={styles.standing}>
-              Your chips: <b>{fmtChips(chips.week)}</b> this week ({fmtInteger(chips.week_games)} {chips.week_games === 1 ? "game" : "games"}), <b>{fmtChips(chips.all)}</b> all time ({fmtInteger(chips.all_games)} {chips.all_games === 1 ? "game" : "games"}).
-            </p>
-          ) : null}
-          <ul className={styles.tiers}>
-            {(rules?.stakes ?? []).map((tier) => {
-              if (trial) {
+          <h2 id="mj-stakes" className={styles.head}>
+            {trial ? "Chip tables" : "Stakes tables"}
+          </h2>
+          <div className={styles.stakes} data-trial={trial || undefined}>
+            <div className={styles.stakesIntro}>
+              <div className={styles.stakesStage}>
+                <SceneArt slot="mahjong-lobby-chips" fill width={240} fallback={<ChipsArt />} />
+              </div>
+              <div className={styles.stakesText}>
+                {trial ? (
+                  <p className={styles.lede}>
+                    Four players. Free to sit at, with as many chips as you like to play: each game just records chips by where you finish. Bots join after {botFill} seconds if seats are open.
+                  </p>
+                ) : (
+                  <p className={styles.lede}>
+                    Four players, no bots. The fee goes in, places pay a fixed prize, and points are never worth money. Credit only.
+                  </p>
+                )}
+                {!trial && signedIn && limits ? <p className={styles.standing} data-blocked={limits.blocked ? "" : undefined}>{limitsLine(limits)}</p> : null}
+                {trial && signedIn && chips ? (
+                  <p className={styles.standing}>
+                    Your chips: <b>{fmtChips(chips.week)}</b> this week ({fmtInteger(chips.week_games)} {chips.week_games === 1 ? "game" : "games"}), <b>{fmtChips(chips.all)}</b> all time ({fmtInteger(chips.all_games)} {chips.all_games === 1 ? "game" : "games"}).
+                  </p>
+                ) : null}
+                <Segmented label="Length" value={stakesLength} options={LENGTHS} onChange={setStakesLength} layout="inline" />
+              </div>
+            </div>
+            {rules?.stakes?.length ? (
+              <div className={styles.tierHead} aria-hidden="true">
+                <span>{trial ? "Table" : "Fee"}</span>
+                <span>1st</span>
+                <span>2nd</span>
+                <span>3rd</span>
+                <span>4th</span>
+                {trial ? null : <span>House cut</span>}
+              </div>
+            ) : null}
+            <ul className={styles.tiers}>
+              {(rules?.stakes ?? []).map((tier) => {
+                if (trial) {
+                  const key = `stakes-${tier.fee}`;
+                  const size = tier.chips?.length ? Math.max(...tier.chips.map((value) => Math.abs(value))) : tier.fee;
+                  const block = !signedIn ? "Sign in to sit at a chip table." : !verified ? "Verify your email to sit with other players." : null;
+                  return (
+                    <li key={tier.fee} className={styles.tier} data-blocked={block ? "" : undefined}>
+                      <div className={styles.tierFee}>
+                        <small>Table</small>
+                        <b>{fmtInteger(size)}</b>
+                      </div>
+                      <dl className={styles.prizes} aria-label={`Chips by place at the ${fmtInteger(size)} table: ${tier.chips ? chipsLine(tier.chips) : ""}`}>
+                        {(tier.chips ?? []).map((value, index) => (
+                          <div key={index}>
+                            <dt>{["1st", "2nd", "3rd", "4th"][index]}</dt>
+                            <dd data-zero={value === 0 || undefined} data-sign={Math.sign(value)}>
+                              {fmtChips(value)}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                      <div className={styles.tierGo}>
+                        <button type="button" className={styles.primary} disabled={Boolean(block) || busy === key} onClick={() => stakes(tier.fee)}>
+                          {busy === key ? "Sitting…" : "Sit down"}
+                        </button>
+                      </div>
+                      {block ? <p className={styles.note}>{block}</p> : null}
+                      {errors[key] ? <p className={styles.error}>{errors[key]}</p> : null}
+                    </li>
+                  );
+                }
+                const block = stakesBlock(limits, tier, signedIn, verified);
                 const key = `stakes-${tier.fee}`;
-                const size = tier.chips?.length ? Math.max(...tier.chips.map((value) => Math.abs(value))) : tier.fee;
-                const block = !signedIn ? "Sign in to sit at a chip table." : !verified ? "Verify your email to sit with other players." : null;
                 return (
                   <li key={tier.fee} className={styles.tier} data-blocked={block ? "" : undefined}>
                     <div className={styles.tierFee}>
-                      <small>Table</small>
-                      <b>{fmtInteger(size)}</b>
+                      <small>Fee</small>
+                      <b>{money(tier.fee)}</b>
                     </div>
-                    <dl className={styles.prizes} aria-label={`Chips by place at the ${fmtInteger(size)} table: ${tier.chips ? chipsLine(tier.chips) : ""}`}>
-                      {(tier.chips ?? []).map((value, index) => (
+                    <dl className={styles.prizes} aria-label={`Prizes at the ${money(tier.fee)} table`}>
+                      {tier.prizes.map((prize, index) => (
                         <div key={index}>
                           <dt>{["1st", "2nd", "3rd", "4th"][index]}</dt>
-                          <dd data-zero={value === 0 || undefined}>{fmtChips(value)}</dd>
+                          <dd data-zero={prize === 0 || undefined}>{prize === 0 ? "—" : money(prize)}</dd>
                         </div>
                       ))}
+                      <div>
+                        <dt>House cut</dt>
+                        <dd data-zero="">{money(tier.cut)}</dd>
+                      </div>
                     </dl>
                     <div className={styles.tierGo}>
                       <button type="button" className={styles.primary} disabled={Boolean(block) || busy === key} onClick={() => stakes(tier.fee)}>
@@ -387,43 +498,14 @@ export function MahjongLobby() {
                     {errors[key] ? <p className={styles.error}>{errors[key]}</p> : null}
                   </li>
                 );
-              }
-              const block = stakesBlock(limits, tier, signedIn, verified);
-              const key = `stakes-${tier.fee}`;
-              return (
-                <li key={tier.fee} className={styles.tier} data-blocked={block ? "" : undefined}>
-                  <div className={styles.tierFee}>
-                    <small>Fee</small>
-                    <b>{money(tier.fee)}</b>
-                  </div>
-                  <dl className={styles.prizes} aria-label={`Prizes at the ${money(tier.fee)} table`}>
-                    {tier.prizes.map((prize, index) => (
-                      <div key={index}>
-                        <dt>{["1st", "2nd", "3rd", "4th"][index]}</dt>
-                        <dd data-zero={prize === 0 || undefined}>{prize === 0 ? "—" : money(prize)}</dd>
-                      </div>
-                    ))}
-                    <div>
-                      <dt>House cut</dt>
-                      <dd data-zero="">{money(tier.cut)}</dd>
-                    </div>
-                  </dl>
-                  <div className={styles.tierGo}>
-                    <button type="button" className={styles.primary} disabled={Boolean(block) || busy === key} onClick={() => stakes(tier.fee)}>
-                      {busy === key ? "Sitting…" : "Sit down"}
-                    </button>
-                  </div>
-                  {block ? <p className={styles.note}>{block}</p> : null}
-                  {errors[key] ? <p className={styles.error}>{errors[key]}</p> : null}
-                </li>
-              );
-            })}
-          </ul>
-          {rules && !trial ? (
-            <p className={styles.fine}>
-              A week’s results, up or down, stay within what your Credit turns into Cash at the Saturday review ({Math.round(rules.weekly_rate * 100)}% of it, or {money(rules.weekly_minimum)}). Up to {rules.paid_games_per_day} paid games a day.
-            </p>
-          ) : null}
+              })}
+            </ul>
+            {rules && !trial ? (
+              <p className={styles.fine}>
+                A week’s results, up or down, stay within what your Credit turns into Cash at the Saturday review ({Math.round(rules.weekly_rate * 100)}% of it, or {money(rules.weekly_minimum)}). Up to {rules.paid_games_per_day} paid games a day.
+              </p>
+            ) : null}
+          </div>
         </section>
 
         <section className={styles.section} aria-labelledby="mj-live">

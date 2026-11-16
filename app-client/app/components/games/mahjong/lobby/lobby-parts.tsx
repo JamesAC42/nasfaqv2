@@ -7,10 +7,25 @@ import { talentAccent } from "@/app/lib/talent-color";
 import type { LobbyEntry, MahjongLimits, StakeTier, TournamentSummary } from "@/app/lib/games/mahjong/types";
 import styles from "@/app/components/games/mahjong/lobby/mahjong-lobby.module.scss";
 
-/** A segmented picker: [ East-only | East-South ]. */
-export function Segmented<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: { value: T; label: string }[]; onChange: (value: T) => void }) {
+/**
+ * A segmented picker: [ East-only | East-South ]. `fill` (in the Play cards) stacks the label over
+ * equal-width segments that span the card; `inline` puts the label beside a compact picker.
+ */
+export function Segmented<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  layout = "fill",
+}: {
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+  layout?: "fill" | "inline";
+}) {
   return (
-    <div className={styles.field}>
+    <div className={styles.field} data-layout={layout}>
       <span className={styles.fieldLabel}>{label}</span>
       <div className={styles.seg} role="radiogroup" aria-label={label}>
         {options.map((option) => (

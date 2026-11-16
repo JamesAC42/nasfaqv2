@@ -232,6 +232,9 @@
   color: var(--mid);
 }
 
+// ── Play: the three mode cards ──────────────────────────────────────────────
+// One hairline grid; each card is a subgrid over five shared rows (art, title, blurb, options,
+// button), so titles, pickers and the buttons line up across the three cards.
 .modes {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -246,30 +249,211 @@
 }
 
 .mode {
+  --art-scale: 1;
   display: grid;
-  align-content: start;
-  gap: 0.7rem;
+  grid-row: span 5;
+  grid-template-rows: subgrid;
+  row-gap: 0;
   min-width: 0;
-  padding: 1rem;
-  background: var(--ink);
+  background: var(--ink-2);
 
-  h3 {
-    @include display(1.25rem);
-    margin: 0;
+  // Tablet: the art becomes a thumbnail beside the card's text.
+  @include tablet-down {
+    --art-scale: 0.86;
+    grid-row: auto;
+    grid-template-columns: 16rem minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr auto;
+
+    > :not(.modeStage) {
+      grid-column: 2;
+    }
   }
 
-  > p:first-of-type {
+  @include phone {
+    --art-scale: 0.82;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+
+    > :not(.modeStage) {
+      grid-column: 1;
+    }
+  }
+}
+
+// The art strip: a drawn scene (or the slot's image) on a blue halftone wash.
+.modeStage,
+.stakesStage {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(70% 110% at 50% 115%, color-mix(in srgb, var(--blue) 16%, transparent), transparent 70%),
+    linear-gradient(180deg, var(--ink), color-mix(in srgb, var(--blue) 4%, var(--ink)));
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(color-mix(in srgb, var(--blue) 28%, transparent) 1px, transparent 1.4px) 0 0 / 8px 8px;
+    mask-image: radial-gradient(75% 90% at 50% 100%, #000, transparent 85%);
+    opacity: 0.6;
+  }
+}
+
+.modeStage {
+  height: 9.5rem;
+  border-bottom: 1px solid var(--rule);
+
+  @include tablet-down {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    align-self: start;
+    height: 10rem;
+    margin: 1rem 0 1rem 1rem;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-sm);
+  }
+
+  @include phone {
+    grid-row: auto;
+    height: 7rem;
     margin: 0;
-    font-size: 0.875rem;
-    line-height: 1.45;
+    border: 0;
+    border-bottom: 1px solid var(--rule);
+    border-radius: 0;
+  }
+}
+
+.modeHead {
+  display: grid;
+  justify-items: start;
+  align-content: start;
+  gap: 0.45rem;
+  padding: 1rem 1.1rem 0;
+
+  h3 {
+    @include display(1.35rem);
+    margin: 0;
+    line-height: 1.15;
+  }
+}
+
+.modeTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+
+  span {
+    @include label;
+    padding: 0.15rem 0.45rem;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    font-size: 0.594rem;
+    line-height: 1.4;
     color: var(--mid);
+  }
+
+  span[data-accent] {
+    border-color: var(--blue-line);
+    background: var(--blue-wash);
+    color: var(--blue);
+  }
+}
+
+.modeBlurb {
+  margin: 0;
+  padding: 0.5rem 1.1rem 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--mid);
+}
+
+.modeOptions {
+  display: grid;
+  align-content: start;
+  gap: 0.8rem;
+  min-width: 0;
+  padding: 1rem 1.1rem 0;
+}
+
+// Quick match's live board: three ticker cells.
+.modeBoard {
+  display: grid;
+  gap: 0.35rem;
+
+  dl {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1px;
+    margin: 0;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-sm);
+    background: var(--rule);
+    overflow: hidden;
+  }
+
+  div {
+    display: grid;
+    gap: 0.2rem;
+    min-width: 0;
+    padding: 0.55rem 0.7rem 0.6rem;
+    background: var(--ink);
+  }
+
+  dt {
+    @include label;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.594rem;
+  }
+
+  dd {
+    @include num(wide);
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--text);
+  }
+
+  div[data-live] dt::before {
+    content: "";
+    flex: none;
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 50%;
+    background: var(--blue);
+  }
+
+  div[data-live] dd {
+    color: var(--blue);
+  }
+}
+
+.modeFoot {
+  display: grid;
+  align-content: end;
+  gap: 0.5rem;
+  padding: 1.1rem;
+
+  .primary {
+    justify-self: stretch;
+    padding: 0.75rem 1rem;
   }
 }
 
 .field {
   display: grid;
-  gap: 0.3rem;
+  gap: 0.35rem;
   min-width: 0;
+
+  &[data-layout="inline"] {
+    grid-auto-flow: column;
+    justify-content: start;
+    align-items: center;
+    gap: 0.75rem;
+  }
 }
 
 .fieldLabel {
@@ -278,13 +462,13 @@
 
 .seg {
   @include tabs;
-  align-self: start;
-  justify-self: start;
   max-width: 100%;
+  overflow: hidden;
 
   button {
     @include tab;
     padding: 0.45rem 0.8rem;
+    line-height: 1.25;
 
     &[data-on] {
       @include tab-selected;
@@ -292,19 +476,117 @@
 
     &:focus-visible {
       @include focus-ring;
+      outline-offset: -2px;
     }
+  }
+
+  button + button {
+    border-left: 1px solid var(--rule);
+  }
+
+  button[data-on] + button,
+  button + button[data-on] {
+    border-left-color: transparent;
+  }
+}
+
+// In the cards: equal segments across the full width, so every picker is the same width.
+.field[data-layout="fill"] .seg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  width: 100%;
+
+  button {
+    min-height: 2.3rem;
+    padding: 0.45rem 0.4rem;
+    text-align: center;
+    text-wrap: balance;
   }
 }
 
 .check {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.6rem;
+  min-height: 2.3rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
   font-size: 0.875rem;
   color: var(--mid);
+  cursor: pointer;
+
+  input {
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    accent-color: var(--blue);
+  }
+
+  &:has(input:checked) {
+    border-color: var(--blue-line);
+    background: var(--blue-wash);
+    color: var(--text);
+  }
+
+  &:has(input:focus-visible) {
+    @include focus-ring;
+  }
 }
 
-// ── Stakes ──────────────────────────────────────────────────────────────────
+// ── Stakes / chip tables ────────────────────────────────────────────────────
+.stakes {
+  --tier-cols: 7.5rem repeat(5, minmax(4rem, 6.5rem)) minmax(0, 1fr) auto;
+  --tier-span: 5;
+  margin-top: 0.75rem;
+  border: 1px solid var(--rule);
+  background: var(--ink-2);
+
+  &[data-trial] {
+    --tier-cols: 7.5rem repeat(4, minmax(4.5rem, 6.5rem)) minmax(0, 1fr) auto;
+    --tier-span: 4;
+  }
+}
+
+.stakesIntro {
+  --art-scale: 1;
+  display: grid;
+  grid-template-columns: 14rem minmax(0, 1fr);
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid var(--rule);
+
+  @include phone {
+    --art-scale: 0.85;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.9rem;
+  }
+}
+
+.stakesStage {
+  height: 8.5rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+
+  @include phone {
+    height: 7rem;
+  }
+}
+
+.stakesText {
+  display: grid;
+  justify-items: start;
+  gap: 0.7rem;
+  min-width: 0;
+
+  .lede,
+  .standing {
+    margin: 0;
+  }
+}
+
 .standing {
   @include num;
   margin: 0 0 0.75rem;
@@ -316,28 +598,47 @@
   }
 }
 
+.tierHead,
+.tier {
+  display: grid;
+  grid-template-columns: var(--tier-cols);
+  column-gap: 1rem;
+  padding-inline: 1.1rem;
+}
+
+.tierHead {
+  padding-block: 0.7rem 0.45rem;
+  border-bottom: 1px solid var(--rule);
+
+  span {
+    @include label;
+  }
+
+  @include phone {
+    display: none;
+  }
+}
+
 .tiers {
   display: grid;
   margin: 0;
   padding: 0;
   list-style: none;
-  border-top: 1px solid var(--rule);
 }
 
 .tier {
-  display: grid;
-  grid-template-columns: 7rem minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.4rem 1.25rem;
-  padding: 0.85rem 0;
+  row-gap: 0.4rem;
+  padding-block: 0.8rem;
   border-bottom: 1px solid var(--rule);
 
-  @include phone {
-    grid-template-columns: minmax(0, 1fr) auto;
+  &:last-child {
+    border-bottom: 0;
+  }
 
-    .prizes {
-      grid-column: 1 / -1;
-      grid-row: 2;
+  @include hover-device {
+    &:hover {
+      background: var(--ink-3);
     }
   }
 
@@ -349,6 +650,23 @@
   &[data-blocked] .tierFee b {
     color: var(--mid);
   }
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 0.6rem;
+  }
+}
+
+// Visually hidden on wide screens, where the column heads name the cells.
+@mixin wide-hidden {
+  @media (min-width: 721px) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 
 .tierFee {
@@ -357,6 +675,7 @@
 
   small {
     @include label;
+    @include wide-hidden;
   }
 
   b {
@@ -367,18 +686,20 @@
 }
 
 .prizes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem 1.25rem;
+  display: grid;
+  grid-column: 2 / span var(--tier-span);
+  grid-template-columns: subgrid;
   margin: 0;
 
   div {
     display: grid;
     gap: 0.1rem;
+    min-width: 0;
   }
 
   dt {
     @include label;
+    @include wide-hidden;
   }
 
   dd {
@@ -386,14 +707,38 @@
     margin: 0;
     font-size: 0.9375rem;
 
+    &[data-sign="1"] {
+      color: var(--up);
+    }
+
+    &[data-sign="-1"] {
+      color: var(--down);
+    }
+
     &[data-zero] {
       color: var(--dim);
     }
   }
+
+  @include phone {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    grid-template-columns: repeat(auto-fit, minmax(3.75rem, 1fr));
+    gap: 0.5rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: var(--radius-sm);
+    background: var(--ink-3);
+  }
 }
 
 .tierGo {
+  grid-column: -2 / -1;
   justify-self: end;
+
+  @include phone {
+    grid-column: 2;
+    grid-row: 1;
+  }
 }
 
 // ── Live tables ─────────────────────────────────────────────────────────────
