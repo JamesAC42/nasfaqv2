@@ -21,6 +21,11 @@ export type ArtAnchors = {
   feet_y?: number;
   /** Point of interest for cropping, as [x, y] fractions. */
   focus?: [number, number];
+  /** Talent cutouts drawn into a composite (the mahjong slots): face center and the line the table edge covers, as fractions of height. */
+  face_y?: number;
+  cut_y?: number;
+  /** Width of the opaque figure as a fraction of the image width. */
+  span?: number;
 };
 
 export type ArtImage = {

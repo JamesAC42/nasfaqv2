@@ -8,18 +8,18 @@
         "/games/mahjong → components/games/mahjong/lobby/mahjong-lobby.tsx, the art strip at the top of the Quick match card in the Play section"
       ],
       "kind": "illustration",
-      "w": 960,
-      "h": 400,
-      "transparent": false,
+      "w": 768,
+      "h": 987,
+      "transparent": true,
       "priority": "medium",
       "css": "measured: desktop 1440 468×152, 1280 415×152, 1021 328×152 (one third of the page, full card width), cover; 721–1020px 240×160 thumbnail at the card's top left; phones 341×112 at 375 wide",
-      "crop": "Cover-cropped, centered, from 2.4:1 to anything between 1.5:1 (tablet thumbnail) and 3.1:1 (wide desktop). Keep the subject inside the center 55% of the width and the middle 70% of the height; the edges are atmosphere only. No UI sits on top of it.",
-      "lighting": "neon: ticker-board blue glow from behind, cool rim light on the tiles",
-      "style": "scene",
+      "crop": "Composited, not cropped: the figure is scaled so its face lands at a set height and its cut line meets the table edge, and it stands at the frame's right. The frame's measured sizes are in css; tiles fill the room to the figure's left.",
+      "lighting": "even, flat studio light on a solid backdrop (the composite adds the blue glow)",
+      "style": "character",
       "animation": "none",
-      "fallback": "Drawn in mode-art.tsx: a stopwatch ring showing the bot-fill seconds beside four seat slots, three filled with real East, South and West tiles and one dashed slot with searching dots, over a fill meter, on a blue halftone wash.",
-      "brief": "Speed and matchmaking on a trading floor at night: a chunky stopwatch with its sweep hand mid-turn floats left of center, and to its right four ivory riichi mahjong tiles stand in a row (circle-suit faces, simple dot patterns only) on a dark felt rail, three upright and lit, the fourth position an empty glowing outline with motion streaks pulling a tile in. Faint ticker-board grid and speed lines behind. Hololive blue (#3fb8f5) light on dark ink (#0a0c11), flat shapes with halftone shading.",
-      "notes": "No letters, numerals or symbols anywhere: not on the stopwatch face, not on the tiles (dot faces only, no character or wind tiles). No real talents. Must read on both the dark and the light theme: keep the background dark ink, since the card frames it with a hairline."
+      "fallback": "Drawn in mode-art.tsx: a stopwatch ring showing the bot-fill seconds beside four seat slots, three filled with real East, South and West tiles and one dashed slot with searching dots, over a fill meter, on a blue halftone wash. Once the talent art ships, the composite replaces it: code background, the talent cutout, the table edge and the real tiles in front.",
+      "brief": "Usada Pekora, waving players over to a table that's about to fill. Waist-up, facing the viewer, in the approved house style (cel shading, clean lineart).",
+      "notes": "Only the talent is generated: a waist-up cutout in her official outfit on a flat backdrop, with her whole head inside the picture and her arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays."
     },
     {
       "id": "mahjong-lobby-practice",
@@ -28,18 +28,18 @@
         "/games/mahjong → components/games/mahjong/lobby/mahjong-lobby.tsx, the art strip at the top of the Practice vs bots card in the Play section"
       ],
       "kind": "illustration",
-      "w": 960,
-      "h": 400,
-      "transparent": false,
+      "w": 768,
+      "h": 987,
+      "transparent": true,
       "priority": "medium",
       "css": "measured: desktop 1440 468×152, 1280 415×152, 1021 328×152 (one third of the page, full card width), cover; 721–1020px 240×160 thumbnail at the card's top left; phones 341×112 at 375 wide",
-      "crop": "Cover-cropped, centered, from 2.4:1 to anything between 1.5:1 (tablet thumbnail) and 3.1:1 (wide desktop). Keep the table inside the center 55% of the width and the middle 70% of the height; the edges are atmosphere only. No UI sits on top of it.",
-      "lighting": "a single soft overhead lamp pooling on the table, blue spill at the edges",
-      "style": "scene",
+      "crop": "Composited, not cropped: the figure is scaled so its face lands at a set height and its cut line meets the table edge, and it stands at the frame's right. The frame's measured sizes are in css; tiles fill the room to the figure's left.",
+      "lighting": "even, flat studio light on a solid backdrop (the composite adds the blue glow)",
+      "style": "character",
       "animation": "none",
-      "fallback": "Drawn in mode-art.tsx: a top-down square table with your row of real face-up tiles at the bottom marked You (one tile glowing as the hint), and three seats of face-down tiles with hollow bot markers.",
-      "brief": "A calm practice table seen from above at a slight angle: a square mahjong table with a blue felt top, the near side shows a short row of face-up ivory tiles showing circle and bamboo faces (dots and sticks only) with one tile softly glowing as a hint, and the other three sides each hold a neat row of face-down tiles in front of three small, friendly desk-robot silhouettes (simple shapes, no faces of real people). A small desk lamp lights the near side. Dark ink (#0a0c11) room, hololive blue (#3fb8f5) felt and accents, flat shapes with halftone shading, relaxed mood.",
-      "notes": "No letters or numerals anywhere: face-up tiles show dot and bamboo patterns only, no character, wind or dragon tiles. The robots are generic machines, not talents or characters from any game."
+      "fallback": "Drawn in mode-art.tsx: a top-down square table with your row of real face-up tiles at the bottom marked You (one tile glowing as the hint), and three seats of face-down tiles with hollow bot markers. Once the talent art ships, the composite replaces it: code background, the talent cutout, the table edge and the real tiles in front.",
+      "brief": "Hoshimachi Suisei, thinking hard over her hand, chin on her fingers. Waist-up, facing the viewer, in the approved house style (cel shading, clean lineart).",
+      "notes": "Only the talent is generated: a waist-up cutout in her official outfit on a flat backdrop, with her whole head inside the picture and her arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays."
     },
     {
       "id": "mahjong-lobby-friend",
@@ -48,18 +48,28 @@
         "/games/mahjong → components/games/mahjong/lobby/mahjong-lobby.tsx, the art strip at the top of the Friend room card in the Play section"
       ],
       "kind": "illustration",
-      "w": 960,
-      "h": 400,
-      "transparent": false,
+      "w": 768,
+      "h": 987,
+      "transparent": true,
       "priority": "medium",
       "css": "measured: desktop 1440 468×152, 1280 415×152, 1021 328×152 (one third of the page, full card width), cover; 721–1020px 240×160 thumbnail at the card's top left; phones 341×112 at 375 wide",
-      "crop": "Cover-cropped, centered, from 2.4:1 to anything between 1.5:1 (tablet thumbnail) and 3.1:1 (wide desktop). Keep the door and the link inside the center 55% of the width and the middle 70% of the height; the edges are atmosphere only. No UI sits on top of it.",
-      "lighting": "warm-white light spilling out of the open door into a dark blue-lit hall",
-      "style": "scene",
+      "crop": "Composited, not cropped: the figure is scaled so its face lands at a set height and its cut line meets the table edge, and it stands at the frame's right. The frame's measured sizes are in css; tiles fill the room to the figure's left.",
+      "lighting": "even, flat studio light on a solid backdrop (the composite adds the blue glow)",
+      "style": "character",
       "animation": "none",
-      "fallback": "Drawn in mode-art.tsx: an open door with light spilling across the floor, an invite pill with a link icon, and four seats below it, three friends and one hollow bot seat.",
-      "brief": "A private room off the trading floor: a door standing half open with light spilling out across a dark floor, and floating in front of it a big glowing chain-link shape, like an invite being passed along. Through the gap you glimpse the corner of a mahjong table with a few ivory tiles (backs or dot faces). Three simple, faceless silhouette figures walk toward the door from the right. Hololive blue (#3fb8f5) chassis light, a warm white doorway, dark ink (#0a0c11) everywhere else, flat shapes with halftone shading.",
-      "notes": "No text, no URL, no real talents; the figures stay anonymous silhouettes."
+      "fallback": "Drawn in mode-art.tsx: an open door with light spilling across the floor, an invite pill with a link icon, and four seats below it, three friends and one hollow bot seat. Once the talent art ships, the composite replaces it: code background, the talent cutout, the table edge and the real tiles in front.",
+      "brief": "Inugami Korone and Nekomata Okayu, Korone winking and waving you over to the open seat, Okayu laughing beside her. Waist-up, facing the viewer, in the approved house style (cel shading, clean lineart).",
+      "notes": "Only the talent is generated: a waist-up cutout in her official outfit on a flat backdrop, with her whole head inside the picture and her arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays.",
+      "variants": [
+        {
+          "name": "default",
+          "subject": "Korone, standing at the right"
+        },
+        {
+          "name": "partner",
+          "subject": "Okayu, beside her on the left, half behind"
+        }
+      ]
     },
     {
       "id": "mahjong-lobby-chips",
@@ -68,18 +78,18 @@
         "/games/mahjong → components/games/mahjong/lobby/mahjong-lobby.tsx, the art panel at the left of the Chip tables block (Stakes tables outside the beta)"
       ],
       "kind": "illustration",
-      "w": 800,
-      "h": 480,
-      "transparent": false,
+      "w": 768,
+      "h": 987,
+      "transparent": true,
       "priority": "low",
       "css": "measured: desktop and tablet 224×136 at the block's top left, cover; phones 306×112 at 375 wide",
-      "crop": "Cover-cropped, centered, from 1.67:1 to anything between 1.65:1 and 2.75:1 (phones). Keep the chip stacks inside the center 70% of the width and the middle 55% of the height. No UI sits on top of it.",
-      "lighting": "overhead table light, cool blue rim on the chip edges",
-      "style": "scene",
+      "crop": "Composited, not cropped: the figure is scaled so its face lands at a set height and its cut line meets the table edge, and it stands at the frame's right. The frame's measured sizes are in css; tiles fill the room to the figure's left.",
+      "lighting": "even, flat studio light on a solid backdrop (the composite adds the blue glow)",
+      "style": "character",
       "animation": "none",
-      "fallback": "Drawn in mode-art.tsx: three chip stacks of rising height in the chassis blue and ink tones beside a pair of real tiles, on a blue halftone wash.",
-      "brief": "Three stacks of casino-style chips of rising height on the edge of a blue felt mahjong table, a pair of ivory tiles lying beside them (dot faces only) and a scoring stick across the front. Chips in hololive blue (#3fb8f5), white and deep ink with simple edge stripes, no numbers or logos on them. Dark ink (#0a0c11) background, flat shapes with halftone shading.",
-      "notes": "No letters, numerals, currency signs or logos anywhere, including on the chips and tiles. Shared by the beta Chip tables and the Stakes tables, so nothing that reads as real money."
+      "fallback": "Drawn in mode-art.tsx: three chip stacks of rising height in the chassis blue and ink tones beside a pair of real tiles, on a blue halftone wash. Once the talent art ships, the composite replaces it: code background, the talent cutout, the table edge and the real tiles in front.",
+      "brief": "Pavolia Reine, celebrating a big finish, fists up beside her head. Waist-up, facing the viewer, in the approved house style (cel shading, clean lineart).",
+      "notes": "Only the talent is generated: a waist-up cutout in her official outfit on a flat backdrop, with her whole head inside the picture and her arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays."
     }
   ]
 }

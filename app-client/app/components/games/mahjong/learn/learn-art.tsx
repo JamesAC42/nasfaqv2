@@ -1,13 +1,14 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { SceneArt } from "@/app/components/common/scene-art";
+import { TalentScene } from "@/app/components/games/mahjong/talent-scene";
 import { Tile, TileBack } from "@/app/components/games/mahjong/tile";
 import styles from "@/app/components/games/mahjong/learn/learn-art.module.scss";
 
 // The drawn versions of the Learn pages' art slots (mahjong-learn-* in lib/art/slots/mahjong-learn.json).
 // Each fills its slot and centers a fixed composition scaled by --art-scale; colors are theme tokens,
-// tiles are the real tile set. A delivered image replaces the drawing with no code change.
+// tiles are the real tile set. Once a slot's talent art is in the manifest, TalentScene draws the talent
+// composite instead, with no code change.
 
 const t = (kind: number, size: number, extra?: { red?: boolean; rotated?: boolean; highlight?: boolean }) => <Tile kind={kind} size={size} labels={false} title="" {...extra} />;
 
@@ -211,8 +212,8 @@ const DRAWN = {
 
 export type LearnArtSlot = keyof typeof DRAWN;
 
-/** A Learn page's art: the slot's image when it ships, the drawing until then. Fills its parent. */
+/** A Learn page's art: the talent composite when its art ships, the drawing until then. Fills its parent. */
 export function LearnArt({ slot, width = 560, priority = false }: { slot: LearnArtSlot; width?: number; priority?: boolean }) {
   const Drawn = DRAWN[slot];
-  return <SceneArt slot={slot} fill width={width} priority={priority} fallback={<Drawn />} />;
+  return <TalentScene slot={slot} width={width} priority={priority} fallback={<Drawn />} />;
 }

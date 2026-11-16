@@ -7,9 +7,9 @@ import { FiArrowRight } from "react-icons/fi";
 import { GamesFrame, SignInToPlay } from "@/app/components/games/shell/games-frame";
 import { BadgeStrip, BetaTag } from "@/app/components/games/mahjong/beta/beta";
 import { DiscordLink, FeedbackButton } from "@/app/components/games/mahjong/feedback/feedback-button";
-import { SceneArt } from "@/app/components/common/scene-art";
 import { LiveTableRow, Segmented, TournamentRow, limitsLine, stakesBlock } from "@/app/components/games/mahjong/lobby/lobby-parts";
 import { ChipsArt, FriendArt, PracticeArt, QuickArt } from "@/app/components/games/mahjong/lobby/mode-art";
+import { TalentScene } from "@/app/components/games/mahjong/talent-scene";
 import { Tile } from "@/app/components/games/mahjong/tile";
 import { apiErrorCode, type ApiError } from "@/app/lib/api";
 import { fmtInteger, fmtNumber } from "@/app/lib/format";
@@ -285,7 +285,7 @@ export function MahjongLobby() {
           <div className={styles.modes}>
             <article className={styles.mode} aria-labelledby="mj-mode-quick">
               <div className={styles.modeStage}>
-                <SceneArt slot="mahjong-lobby-quick" fill width={420} fallback={<QuickArt seconds={botFill} />} />
+                <TalentScene slot="mahjong-lobby-quick" width={420} seconds={botFill} fallback={<QuickArt seconds={botFill} />} />
               </div>
               <header className={styles.modeHead}>
                 <span className={styles.modeTags}>
@@ -328,7 +328,7 @@ export function MahjongLobby() {
 
             <article className={styles.mode} aria-labelledby="mj-mode-practice">
               <div className={styles.modeStage}>
-                <SceneArt slot="mahjong-lobby-practice" fill width={420} fallback={<PracticeArt />} />
+                <TalentScene slot="mahjong-lobby-practice" width={420} fallback={<PracticeArt />} />
               </div>
               <header className={styles.modeHead}>
                 <span className={styles.modeTags}>
@@ -362,7 +362,7 @@ export function MahjongLobby() {
 
             <article className={styles.mode} aria-labelledby="mj-mode-friend">
               <div className={styles.modeStage}>
-                <SceneArt slot="mahjong-lobby-friend" fill width={420} fallback={<FriendArt />} />
+                <TalentScene slot="mahjong-lobby-friend" width={420} fallback={<FriendArt />} />
               </div>
               <header className={styles.modeHead}>
                 <span className={styles.modeTags}>
@@ -406,7 +406,7 @@ export function MahjongLobby() {
           <div className={styles.stakes} data-trial={trial || undefined}>
             <div className={styles.stakesIntro}>
               <div className={styles.stakesStage}>
-                <SceneArt slot="mahjong-lobby-chips" fill width={240} fallback={<ChipsArt />} />
+                <TalentScene slot="mahjong-lobby-chips" width={240} fallback={<ChipsArt />} />
               </div>
               <div className={styles.stakesText}>
                 {trial ? (
