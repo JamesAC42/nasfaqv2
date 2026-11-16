@@ -2,6 +2,13 @@
 
 Date: 2026-04-25
 
+> **Historical planning document.** This was written before BBB's plan was built, and most of the
+> "current system" it describes is gone: fair value divided by max shares, opening at fair value
+> times decaying offsets, the daily treasury print, immediate trades, one wallet, 180 shares per
+> 10-minute tick. A few passages were updated in place since, but don't rely on the rest. The
+> rules as they are now live in `docs/market/` (`core-market.md`, `credit.md`, `ipo.md`) and in How
+> to play.
+
 ## Executive Summary
 
 The BBB proposal is a game-economy redesign for NASFAQ's oshicoin market. It keeps YouTube channel performance as the root source of value, but changes the player experience from continuous manual trading around a daily fair value into a more structured stock-market simulation with scheduled price adjustments, credit/liquid currency separation, supply scarcity, buybacks, weekly dividends/fees, licenses, contracts, bonds, side content, and auto-trading.

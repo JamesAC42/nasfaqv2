@@ -37,15 +37,23 @@ export function groupByUnit(assets: MarketAsset[]) {
   return order.filter((unit) => byUnit.has(unit)).map((unit) => ({ unit, assets: byUnit.get(unit) ?? [] }));
 }
 
-/**
- * Daily settlement marks over the sparkline window, oldest first. The mark is
- * the price with short-term order impact stripped out, not the fair value:
- * live fair value is the game's hidden target and the API never sends it.
- */
-export function markSeries(asset: MarketAsset) {
+/** Each day's closing price over the sparkline window, oldest first (today's is the price so far). */
+export function closeSeries(asset: MarketAsset) {
   return asset.sparkline_candles
-    .map((candle) => candle.close_mark ?? candle.close)
+    .map((candle) => candle.close)
     .filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0);
+}
+
+/**
+ * The newest revealed target: the fair value (a day's settlement mark) of the latest day whose four
+ * ticks have all landed, usually yesterday's. Today's stays hidden until its last tick, and the API
+ * leaves it out until then.
+ */
+export function lastRevealedTarget(asset: MarketAsset) {
+  const marks = asset.sparkline_candles
+    .map((candle) => candle.close_mark)
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0);
+  return marks.at(-1) ?? null;
 }
 
 export function finite(value: number | null | undefined): value is number {

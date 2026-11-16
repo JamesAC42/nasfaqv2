@@ -29,7 +29,7 @@ import { previewOf } from "@/app/lib/streams";
 import { TradingPausedBanner } from "@/app/components/common/trading-paused-banner";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useSiteStore } from "@/app/stores/site-store";
-import { markSeries, UNIT_ORDER, unitLabel, unitName } from "@/app/lib/market-units";
+import { closeSeries, UNIT_ORDER, unitLabel, unitName } from "@/app/lib/market-units";
 import { useNewsStore } from "@/app/stores/news-store";
 import { CHATTER_TOPIC, heatLabel, useChatterStore, type ChatterTalent } from "@/app/stores/chatter-store";
 import { fetchFloor } from "@/app/lib/predictions/api";
@@ -120,8 +120,8 @@ function Masthead({ assets }: { assets: MarketAsset[] }) {
     const avgMove = moves.length ? moves.reduce((sum, value) => sum + value, 0) / moves.length : null;
     const up = moves.filter((value) => value > 0.00005).length;
     const down = moves.filter((value) => value < -0.00005).length;
-    // Equal-weight fair value index over the sparkline window, rebased to 100.
-    const series = assets.map(markSeries).filter((values) => values.length > 1);
+    // Equal-weight index of daily closing prices over the sparkline window, rebased to 100.
+    const series = assets.map(closeSeries).filter((values) => values.length > 1);
     const length = Math.min(...series.map((values) => values.length));
     const index = Number.isFinite(length) && length > 1
       ? Array.from({ length }, (_, i) => (series.reduce((sum, values) => sum + values[values.length - length + i] / values[values.length - length], 0) / series.length) * 100)
@@ -163,7 +163,7 @@ function Masthead({ assets }: { assets: MarketAsset[] }) {
           {pulse.index.length > 1 ? (
             <div className={styles.pulseSpark}>
               <Sparkline values={pulse.index} tone={pulse.index[pulse.index.length - 1] >= pulse.index[0] ? "up" : "down"} width={120} height={36} fill dot />
-              <span className={styles.sub}>settlement marks, {pulse.index.length}d</span>
+              <span className={styles.sub}>daily closes, {pulse.index.length}d</span>
             </div>
           ) : null}
           <div>

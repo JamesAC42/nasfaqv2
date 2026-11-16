@@ -196,7 +196,7 @@ export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
   },
   {
     q: "Why can't I buy this stock?",
-    a: "Either it's sold out (players hold every share for sale; buys wait for a seller or next Saturday's new max) or it's frozen for a buyback (max shares dropped below what players hold; you can only sell to the broker until it's over).",
+    a: "Either it's sold out (players hold every share for sale; buys are turned down until someone sells or next Saturday's review raises the max) or it's frozen for a buyback (max shares dropped below what players hold; you can only sell to the broker until it's over).",
   },
   {
     q: "Are the games rigged?",

@@ -10,7 +10,7 @@ import { PriceChart } from "@/app/components/stock/price-chart";
 import { CHART_RANGES, useCandles, useChannelStreams, useTape, useTickHistory, type ChartRange } from "@/app/components/stock/use-stock-data";
 import { TradeTicket } from "@/app/components/trade/trade-ticket";
 import { formatCountdown, getMarketClock } from "@/app/lib/market-clock";
-import { markSeries, unitName } from "@/app/lib/market-units";
+import { closeSeries, lastRevealedTarget, unitName } from "@/app/lib/market-units";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct, timeAgo, toneOf } from "@/app/lib/time";
 import type { MarketAsset, MarketHubTrade, MarketIndexBundle } from "@/app/lib/types";
@@ -119,7 +119,7 @@ function AssetPanel({ asset }: { asset: MarketAsset }) {
             range={range}
             overlays={{ mark: false, ticks: true, volume: true, mine: true }}
             ticks={ticks.data ?? []}
-            latestMark={markSeries(asset).at(-1) ?? null}
+            latestMark={lastRevealedTarget(asset)}
             avgCost={holding && holding.quantity > 0 ? holding.avg_cost_basis : null}
             livePrice={asset.current_mid_price}
             accent={accent}
@@ -369,7 +369,7 @@ function UnitPanel({ unit, assets }: { unit: string | null; assets: MarketAsset[
             <Link key={asset.symbol} href={`/chat?channel=${encodeURIComponent(`asset:${asset.id}`)}`} className={styles.member} data-peek-stock={asset.symbol} title={`${asset.display_name} chat`}>
               <Oshimark icon={asset.icon} symbol={asset.symbol} size={18} />
               <b>{asset.symbol}</b>
-              <Sparkline values={markSeries(asset)} tone={toneOf(asset.move_24h_pct) === "down" ? "down" : "up"} width={44} height={16} />
+              <Sparkline values={closeSeries(asset)} tone={toneOf(asset.move_24h_pct) === "down" ? "down" : "up"} width={44} height={16} />
               <span>{asset.current_mid_price?.toFixed(2) ?? "—"}</span>
               <span className={styles[toneOf(asset.move_24h_pct)]}>{signedPct(asset.move_24h_pct, 1)}</span>
             </Link>

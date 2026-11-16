@@ -28,8 +28,8 @@ export default async function Image({ params }: { params: Promise<{ stockName: s
   const [keyart, plate] = await Promise.all([artDataUri(manifest, `${symbol}/keyart/default`, 600), plateId ? artDataUri(manifest, plateId, 1200) : null]);
   const move = asset?.move_24h_pct ?? null;
   const tone = move === null || Math.abs(move) < 0.00005 ? OG.dim : move > 0 ? OG.up : OG.down;
-  const marks = (asset?.sparkline_candles ?? []).map((candle) => candle.close_mark ?? candle.close).filter((value): value is number => typeof value === "number" && value > 0);
-  const spark = sparkPath(marks, 520, 110);
+  const closes = (asset?.sparkline_candles ?? []).map((candle) => candle.close).filter((value): value is number => typeof value === "number" && value > 0);
+  const spark = sparkPath(closes, 520, 110);
 
   return new ImageResponse(
     (
