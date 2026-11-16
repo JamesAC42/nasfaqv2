@@ -64,6 +64,10 @@ Each fill used to start its own streak and achievement transaction the moment it
 
 Chat past the visible window (`CHAT_HISTORY_VISIBLE_DAYS`, keeping each room's newest `CHAT_HISTORY_MIN_MESSAGES`) moves to `chat.archived_messages` every 10 minutes on `api-scheduler`, under advisory lock `9204120` (`api/src/services/chatArchive.js`). Every history GET used to run this itself. Reads cover both tables with the same rules, so readers see the same history either way. The job reports as `chat-archive` on the admin heartbeats; the watchdog calls it failing after two hours without a clean tick. `CHAT_ARCHIVE_ENABLED=false` stops it, and `POST /api/chat/admin/archive` still runs one by hand.
 
+## Check-in reminders
+
+Players who turned the daily check-in reminder on in Settings, and haven't checked in yet, get one push a day at 18:00 ET (`CHECKIN_REMINDER_HOUR`, a New York hour), six hours before the check-in resets at midnight ET. It runs every 5 minutes on `api-scheduler` under advisory lock `9204140` (`api/src/services/checkinReminders.js`) and sends only once the hour has passed, until midnight. Each player's `market.checkin_reminder_sends` row for the day is written before anything goes out, so nobody is reminded twice in a day; a crash mid-send costs that day's reminder instead. The same reminder lands in the bell (kind `checkin`). A push service answering 404 or 410 deletes that device. It reports as `checkin-reminders` on the admin heartbeats, and the hub shows whether push is configured with its player and device counts. Without `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY` and `WEB_PUSH_SUBJECT` it reports Off and sends nothing; `CHECKIN_REMINDERS_ENABLED=false` stops it too. Behind the `checkin-reminders` flag: at `staff` only admins are reminded.
+
 ## Validation
 
 `api/test/market-ops.test.js` verifies cross-replica progress, singleton job ownership, completion/error persistence, disconnected-worker detection, and bulk-write equivalence with a frozen pre-change implementation. It checks all persisted financial fields for 73 assets, history ordering, atomic rollback, and unchanged supplies against PostgreSQL 16.
