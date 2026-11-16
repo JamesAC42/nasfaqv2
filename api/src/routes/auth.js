@@ -1,6 +1,7 @@
 const express = require("express");
 const auth = require("../services/auth");
 const firstDays = require("../services/firstDays");
+const notificationSettings = require("../services/notificationSettings");
 const { requestIpHash } = require("../services/ipHash");
 const referrals = require("../services/referrals");
 const { verifyTurnstile } = require("../services/turnstile");
@@ -202,8 +203,14 @@ router.post("/change-email", rateLimit(byUser("change-email", 3, 60), byUser("ch
   }
 });
 
+// { push_endpoint } (optional): this browser's push subscription, sent by the site so the browser stops
+// getting this player's reminders. Deleted while the session still says whose it is; best-effort, so
+// signing out never fails over it.
 router.post("/logout", async (req, res, next) => {
   try {
+    if (req.ctx?.user?.id && req.body?.push_endpoint) {
+      await notificationSettings.forgetDevice(req.ctx.pool, Number(req.ctx.user.id), req.body.push_endpoint).catch(() => false);
+    }
     const token = auth.getSessionTokenFromRequest(req);
     await auth.revokeSession(req.ctx.pool, token);
     res.setHeader("Set-Cookie", auth.buildExpiredSessionCookie());

@@ -58,6 +58,11 @@ export function MobileNav() {
               <Link href="/how-to-play" className={styles.sheetLink} onClick={close}>
                 How to play
               </Link>
+              {user && flags["checkin-reminders"] ? (
+                <Link href="/settings" className={styles.sheetLink} aria-current={isActivePath(pathname, "/settings") ? "page" : undefined} onClick={close}>
+                  Settings
+                </Link>
+              ) : null}
             </div>
             <div className={styles.sheetPrefs}>
               <button type="button" className={styles.textButton} aria-pressed={calm} onClick={toggleCalm}>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ComponentType } from "react";
-import { FaAt, FaHandHoldingDollar, FaMedal, FaNewspaper, FaRegBell, FaReply, FaRightLeft, FaHeart, FaSnowflake, FaSquarePollVertical, FaUserCheck, FaUserGroup, FaUserPlus } from "react-icons/fa6";
+import { FaAt, FaCalendarCheck, FaHandHoldingDollar, FaMedal, FaNewspaper, FaRegBell, FaReply, FaRightLeft, FaHeart, FaSnowflake, FaSquarePollVertical, FaUserCheck, FaUserGroup, FaUserPlus } from "react-icons/fa6";
 import { timeAgo } from "@/app/lib/time";
 import type { NotificationItem } from "@/app/stores/notification-store";
 import styles from "@/app/components/notifications/notifications.module.scss";
@@ -22,6 +22,7 @@ const ICONS: Record<string, ComponentType<{ "aria-hidden"?: boolean }>> = {
   dividend: FaHandHoldingDollar,
   buyback: FaSnowflake,
   referral: FaUserGroup,
+  checkin: FaCalendarCheck,
 };
 
 const TONE: Record<string, string> = {

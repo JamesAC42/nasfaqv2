@@ -21,6 +21,7 @@ const { announceSessionsRevoked } = require("../services/auth");
 const exchange = require("../services/games/exchange");
 const { ipClusters, ipHashingEnabled, sharedIpAccounts } = require("../services/ipHash");
 const schedulerHealth = require("../services/schedulerHealth");
+const notificationSettings = require("../services/notificationSettings");
 const moderation = require("../services/moderation");
 const umami = require("../services/umami");
 const playerAnalytics = require("../services/playerAnalytics");
@@ -115,16 +116,22 @@ router.get(
   })
 );
 
-// Every scheduler's heartbeat with the watchdog's verdict, and whether alerts reach Discord.
+// Every scheduler's heartbeat with the watchdog's verdict, whether alerts reach Discord, and whether
+// browser push is configured (the WEB_PUSH_* keys) with how many players and devices have it.
 router.get(
   "/schedulers",
   handle(async (req, res) => {
     requireSiteAdmin(req);
     res.set("Cache-Control", "no-store");
+    const [schedulers, push] = await Promise.all([
+      schedulerHealth.listSchedulerHealth(req.ctx.redis),
+      notificationSettings.pushSummary(req.ctx.pool).catch(() => null),
+    ]);
     res.json({
       generated_at: new Date().toISOString(),
       alerts_configured: Boolean(process.env.DISCORD_ALERT_WEBHOOK_URL),
-      schedulers: await schedulerHealth.listSchedulerHealth(req.ctx.redis),
+      schedulers,
+      push,
     });
   })
 );

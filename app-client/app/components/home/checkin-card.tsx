@@ -76,6 +76,13 @@ export function CheckinCard() {
     if (pastReset && enabled) void load();
   }, [enabled, load, pastReset]);
 
+  // The check-in reminder (and its row in the bell) links to /#checkin. The card arrives after the
+  // page does, so the browser's own jump to it has already missed: scroll once it's there.
+  const shown = Boolean(user && enabled && data);
+  useEffect(() => {
+    if (shown && window.location.hash === "#checkin") document.getElementById("checkin")?.scrollIntoView({ block: "center" });
+  }, [shown]);
+
   if (!user || !enabled || !data) return null;
 
   const claim = async () => {
@@ -104,7 +111,7 @@ export function CheckinCard() {
   const ramps = schedule.max_streak_days > 1;
 
   return (
-    <section className={styles.card} aria-labelledby="checkin-title" data-claimed={claimed ? "" : undefined}>
+    <section id="checkin" className={styles.card} aria-labelledby="checkin-title" data-claimed={claimed ? "" : undefined}>
       <div className={styles.main}>
         <div className={styles.head}>
           <h2 id="checkin-title">Daily check-in</h2>

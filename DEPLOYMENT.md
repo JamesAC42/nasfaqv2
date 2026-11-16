@@ -696,6 +696,8 @@ Optional keys, added to the same Secret by `kubectl patch` (the API pods read th
 - `IP_HASH_SALT`: a long random secret (`openssl rand -hex 32`). Sign-up and each session store a salted hash of the player's IP address (never the address) so admins can see accounts that share one, on People & roles and Exchange review. Without it nothing is stored and those pages say linking is off. Keep it stable: changing it starts the links over.
 - `DISCORD_ALERT_WEBHOOK_URL`: production alerts (settlement missing or failing, an incomplete YouTube scrape, a stopped scheduler, a burst of errors) post to this Discord webhook; `DISCORD_ALERT_ROLE_ID` optionally pings a role on each new alert. Without it nothing is sent. What each alert means: [docs/ops/alerts.md](docs/ops/alerts.md).
 
+- `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, `WEB_PUSH_SUBJECT`: browser and phone push for the daily check-in reminder (`api/src/services/webPush.js`). Make the key pair on your own machine with `npx web-push generate-vapid-keys`; the subject is a `mailto:` address push services can reach you at. Without all three, push is off: Settings says it isn't available and no reminders go out. Keep the pair stable: a new one stops every saved subscription working, and players have to turn reminders on again.
+
 For long-term: install [sealed-secrets](https://github.com/bitnami-labs/sealed-secrets) and commit a `SealedSecret` so the cluster is reproducible from git.
 
 ### Connection-pool math
