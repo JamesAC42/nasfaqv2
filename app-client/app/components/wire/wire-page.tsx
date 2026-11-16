@@ -16,6 +16,7 @@ import { useTheme } from "@/app/providers/theme-provider";
 import type { MarketAsset, WireItem } from "@/app/lib/types";
 import { CHATTER_TOPIC, heatLabel, useChatterStore, type ChatterTalent } from "@/app/stores/chatter-store";
 import { useMarketStore } from "@/app/stores/market-store";
+import { useTimeFormat, type TimeFormat } from "@/app/lib/use-display-time";
 import styles from "@/app/components/wire/wire-page.module.scss";
 
 // /wire: everything on the Wire (filter by kind, talent and window, newest first, paging back),
@@ -116,10 +117,10 @@ function dayLabel(key: string, now: number) {
 }
 
 /** "last 7 days", or "since Sun 10 PM" while collection hasn't covered the whole window yet. */
-function coverageText(history: History) {
+function coverageText(tf: TimeFormat, history: History) {
   const since = history.collecting_since ? Date.parse(history.collecting_since) : Number.NaN;
   if (Number.isFinite(since) && since > Date.parse(history.start)) {
-    return `since ${new Date(since).toLocaleString("en-US", { weekday: "short", hour: "numeric", timeZone: "America/New_York" })} ET`;
+    return `since ${tf.format(since, { weekday: "short", hour: "numeric" })}`;
   }
   return `last ${history.days} days`;
 }
@@ -640,6 +641,7 @@ function useHistory(symbol: string | null, days: number) {
 /** The board's week: posts per hour, the busiest hour, and who it was about. */
 function Pulse({ assets, onPick }: { assets: Map<string, MarketAsset>; onPick: (symbol: string) => void }) {
   const { history, failed } = useHistory(null, 7);
+  const tf = useTimeFormat();
   if (failed) return null;
   const busiestHour = history?.peak ? new Date(history.peak.at) : null;
   return (
@@ -652,11 +654,11 @@ function Pulse({ assets, onPick }: { assets: Map<string, MarketAsset>; onPick: (
       </header>
       <div className={styles.pulseBody}>
         <div className={styles.pulseStats}>
-          <Stat label="Posts" value={history ? history.total.toLocaleString("en-US") : "—"} sub={history ? coverageText(history) : " "} />
+          <Stat label="Posts" value={history ? history.total.toLocaleString("en-US") : "—"} sub={history ? coverageText(tf, history) : " "} />
           <Stat
             label="Busiest hour"
             value={history?.peak ? history.peak.posts.toLocaleString("en-US") : "—"}
-            sub={busiestHour ? busiestHour.toLocaleString("en-US", { weekday: "short", hour: "numeric", timeZone: "America/New_York" }) + " ET" : " "}
+            sub={busiestHour ? tf.format(busiestHour, { weekday: "short", hour: "numeric" }) : " "}
           />
           <div className={styles.topTalk}>
             <small>Most talked about</small>
@@ -704,13 +706,15 @@ function Stat({ label, value, sub }: { label: string; value: ReactNode; sub: Rea
 function HourChart({ history, height }: { history: History | null; height: number }) {
   const [hover, setHover] = useState<number | null>(null);
   const boxRef = useRef<HTMLDivElement | null>(null);
+  const tf = useTimeFormat();
   if (!history) return <div className={styles.chartEmpty} style={{ height }} />;
   const values = history.hourly;
   const count = values.length;
   const max = Math.max(1, ...values);
   const start = Date.parse(history.start);
   const at = (index: number) => new Date(start + index * 3_600_000);
-  const hourLabel = (date: Date) => date.toLocaleString("en-US", { weekday: "short", hour: "numeric", timeZone: "America/New_York" });
+  // The hour under the pointer in the display zone. Days and their gridlines stay New York days.
+  const hourLabel = (date: Date) => tf.format(date, { weekday: "short", hour: "numeric" });
   const etHour = (date: Date) => Number(date.toLocaleString("en-US", { hour: "numeric", hourCycle: "h23", timeZone: "America/New_York" }));
   const midnights = values.map((_, index) => index).filter((index) => index > 0 && etHour(at(index)) === 0);
   // Hours before collection started: shaded and labelled, so they don't read as a quiet week.
@@ -770,7 +774,7 @@ function HourChart({ history, height }: { history: History | null; height: numbe
       {shown !== null ? (
         <div className={styles.readout} style={{ left: `${Math.min(88, Math.max(12, ((shown + 0.5) / count) * 100))}%` }} role="status">
           <b>{shown < uncollected ? "Not collected yet" : `${values[shown].toLocaleString("en-US")} post${values[shown] === 1 ? "" : "s"}`}</b>
-          <span>{hourLabel(at(shown))} ET</span>
+          <span>{hourLabel(at(shown))}</span>
         </div>
       ) : null}
       <ul className={styles.srOnly}>
@@ -877,6 +881,7 @@ function Spark({ hourly, recentHours }: { hourly: number[]; recentHours: number 
 /** One talent's week on /vt/: posts per hour and what they were about. */
 function TalentWeek({ symbol, asset, onClose, onWire }: { symbol: string; asset: MarketAsset | null; onClose: () => void; onWire: () => void }) {
   const { history: current, latest } = useHistory(symbol, 7);
+  const tf = useTimeFormat();
   const history = current ?? latest;
   const loading = !current;
   // What Jev read, as bars; the posts it hasn't read yet as a note, not a topic.
@@ -891,7 +896,7 @@ function TalentWeek({ symbol, asset, onClose, onWire }: { symbol: string; asset:
           <b>{asset?.display_name ?? symbol}</b>
           <small>
             {current
-              ? `${current.total.toLocaleString("en-US")} posts ${coverageText(current)}${current.in_thread ? `, ${current.in_thread.toLocaleString("en-US")} of them in her own threads` : ""}`
+              ? `${current.total.toLocaleString("en-US")} posts ${coverageText(tf, current)}${current.in_thread ? `, ${current.in_thread.toLocaleString("en-US")} of them in her own threads` : ""}`
               : "Reading her week…"}
           </small>
         </span>

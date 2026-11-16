@@ -10,7 +10,8 @@ import { ArtSlot } from "@/app/components/common/art-slot";
 import { AssetPicker } from "@/app/components/common/asset-picker";
 import { num } from "@/app/components/market/bits";
 import { apiFetch } from "@/app/lib/api";
-import { formatEtTime, TICKS } from "@/app/lib/market-clock";
+import { TICKS } from "@/app/lib/market-clock";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { signedPct } from "@/app/lib/time";
 import type { MarketAsset, SessionBreakdown, TickReason } from "@/app/lib/types";
 import { useHubStore } from "@/app/stores/hub-store";
@@ -23,7 +24,6 @@ const pct = (value: number | null | undefined, digits = 2) => signedPct(value, d
 /** "Open", "Lunch", "Late", "Overnight". */
 export const adjustmentLabel = (key: string) => TICKS.find((tick) => tick.key === key)?.label ?? key;
 
-const et = (at: number) => formatEtTime(new Date(at));
 
 // ── Data ─────────────────────────────────────────────────────────────────
 const finishedCache = new Map<string, SessionBreakdown>();
@@ -161,6 +161,7 @@ function StepChart({
   ariaLabel: string;
   height?: number;
 }) {
+  const tf = useTimeFormat();
   const box = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
   const [hover, setHover] = useState<number | null>(null);
@@ -208,7 +209,7 @@ function StepChart({
               <line x1={layout.X(slot.at)} x2={layout.X(slot.at)} y1={layout.pad.t - 6} y2={height - layout.pad.b} className={styles.scSlot} />
               <text x={layout.X(slot.at) + 4} y={height - 10} className={styles.scAxis}>
                 {slot.label.toUpperCase()}
-                {narrow ? "" : ` ${et(slot.at)}`}
+                {narrow ? "" : ` ${tf.clock(slot.at, { was: "bare", label: false })}`}
               </text>
             </g>
           ))}
@@ -321,6 +322,9 @@ export function TalentDay({
   bare?: boolean;
 }) {
   const [picked, setPicked] = useState("");
+  const tf = useTimeFormat();
+  // The step table's times: one row each, so no zone name on every row (the chart's tips have it).
+  const et = (at: number) => tf.clock(at, { was: "bare", label: false });
   const live = !session.finished;
   const choices = assets.filter((asset) => paths.has(asset.symbol.toUpperCase()));
   const symbol = ((fixed ? "" : picked) || defaultSymbol || choices[0]?.symbol || "").toUpperCase();
@@ -336,7 +340,7 @@ export function TalentDay({
 
   const chartPoints: ChartPoint[] = path.points.map((point, i) => {
     const prev = path.points[i - 1];
-    if (point.kind === "open") return { at: point.at, value: point.price, kind: point.kind, tip: `Open · ${et(point.at)} ET · ${num(point.price)}` };
+    if (point.kind === "open") return { at: point.at, value: point.price, kind: point.kind, tip: `Open · ${tf.clock(point.at)} · ${num(point.price)}` };
     if (point.kind === "before") return { at: point.at, value: point.price, kind: point.kind, tip: "" };
     if (point.kind === "after") {
       const move = prev ? point.price / prev.price - 1 : 0;
@@ -347,7 +351,7 @@ export function TalentDay({
         kind: point.kind,
         key: point.key,
         label: pct(move, 1),
-        tip: `${adjustmentLabel(point.key ?? "")} adjustment · ${et(point.at)} ET · ${num(prev?.price)} → ${num(point.price)} (${pct(move)})${pull}${point.reasons?.length ? ` · ${point.reasons[0].text}` : ""}`,
+        tip: `${adjustmentLabel(point.key ?? "")} adjustment · ${tf.clock(point.at)} · ${num(prev?.price)} → ${num(point.price)} (${pct(move)})${pull}${point.reasons?.length ? ` · ${point.reasons[0].text}` : ""}`,
       };
     }
     return { at: point.at, value: point.price, kind: point.kind, tip: `${live ? "Now" : "Close"} · ${num(point.price)} · ${pct(path.total)} on the day` };
@@ -396,7 +400,7 @@ export function TalentDay({
             ) : (
               <>No adjustment has landed yet; trading has moved it <b>{pct(path.trade)}</b>.</>
             )}{" "}
-            {next ? `Next: the ${adjustmentLabel(next.key)} adjustment at ${et(Date.parse(next.scheduled_at))} ET.` : null}
+            {next ? `Next: the ${adjustmentLabel(next.key)} adjustment at ${tf.clock(next.scheduled_at, { alongside: true })}.` : null}
           </>
         ) : (
           <>

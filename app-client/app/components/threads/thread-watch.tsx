@@ -10,6 +10,7 @@ import { apiFetch } from "@/app/lib/api";
 import { signedPct, toneOf } from "@/app/lib/time";
 import type { MarketAsset } from "@/app/lib/types";
 import { useMarketStore } from "@/app/stores/market-store";
+import { useTimeFormat, type TimeFormat } from "@/app/lib/use-display-time";
 import styles from "@/app/components/threads/threads.module.scss";
 
 // ── Data ─────────────────────────────────────────────────────────────────
@@ -103,10 +104,11 @@ const hideBroken = (event: { currentTarget: HTMLImageElement }) => {
 };
 const isVideo = (url: string | null) => Boolean(url && /\.(webm|mp4)$/i.test(url));
 
-function stamp(seconds: number | null) {
+/** "11/16 21:05": the browser's time before the timezone-setting flag, the player's pick with it (the tooltip names the zone). */
+function stamp(tf: TimeFormat, seconds: number | null) {
   if (!seconds) return "—";
-  const date = new Date(seconds * 1000);
-  return `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")} ${date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })}`;
+  const at = seconds * 1000;
+  return `${tf.format(at, { month: "2-digit", day: "2-digit" }, { was: "local" })} ${tf.format(at, { hour: "2-digit", minute: "2-digit", hour12: false }, { was: "local", label: false })}`;
 }
 
 function ago(seconds: number | null, now: number) {
@@ -150,6 +152,7 @@ type Media = "all" | "media" | "text";
 type Preview = { postId: number; x: number; y: number; above: boolean } | null;
 
 export function ThreadWatch() {
+  const tf = useTimeFormat();
   const assets = useMarketStore((state) => state.assets);
   const assetMap = useMemo(() => new Map(assets.map((asset) => [asset.symbol.toUpperCase(), asset])), [assets]);
   const matchTalents = useMemo(() => buildTalentMatcher(assets), [assets]);
@@ -389,8 +392,8 @@ export function ThreadWatch() {
       <article key={post.post_id} id={`p${post.post_id}`} className={`${featured ? styles.op : styles.post} ${isMine ? styles.mine : ""} ${isToMe ? styles.toMe : ""}`}>
         <header className={styles.postHead}>
           <span className={styles.author}>{post.author || "Anonymous"}</span>
-          <time dateTime={post.timestamp ? new Date(post.timestamp * 1000).toISOString() : undefined} title={post.timestamp ? new Date(post.timestamp * 1000).toLocaleString() : undefined} suppressHydrationWarning>
-            {stamp(post.timestamp)}
+          <time dateTime={post.timestamp ? new Date(post.timestamp * 1000).toISOString() : undefined} title={post.timestamp ? tf.stamp(post.timestamp * 1000) : undefined} suppressHydrationWarning>
+            {stamp(tf, post.timestamp)}
           </time>
           <button type="button" className={styles.no} onClick={() => jumpTo(post.post_id)}>
             No.{post.post_id}
@@ -543,7 +546,7 @@ export function ThreadWatch() {
                 <div className={styles.feedMeta}>
                   <span>
                     {filtering ? `${feed.length} of ${posts.length - 1} replies` : `${posts.length - 1} replies`} · refreshes every minute · updated{" "}
-                    <span suppressHydrationWarning>{thread.updated_at ? new Date(thread.updated_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }) : "—"}</span>
+                    <span suppressHydrationWarning>{thread.updated_at ? tf.format(thread.updated_at, { hour: "2-digit", minute: "2-digit", hour12: false }, { was: "local" }) : "—"}</span>
                   </span>
                   <button type="button" onClick={() => feedEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" })}>
                     BOTTOM ↓
@@ -621,7 +624,7 @@ export function ThreadWatch() {
           <div className={styles.preview} style={{ left: preview.x, ...(preview.above ? { bottom: preview.y } : { top: preview.y }) }} role="tooltip">
             <div className={styles.postHead}>
               <span className={styles.author}>{previewPost.author || "Anonymous"}</span>
-              <time suppressHydrationWarning>{stamp(previewPost.timestamp)}</time>
+              <time suppressHydrationWarning>{stamp(tf, previewPost.timestamp)}</time>
               <span className={styles.no}>No.{previewPost.post_id}</span>
               {mine.has(previewPost.post_id) ? <span className={styles.youTag}>(YOU)</span> : null}
             </div>

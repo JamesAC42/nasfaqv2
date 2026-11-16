@@ -14,14 +14,15 @@ import { normalizeHexColor } from "@/app/lib/color";
 import { normalizeGameInventoryResponse, normalizeProfileBundle, normalizeTheme } from "@/app/lib/normalizers";
 import type { CosmeticTheme, GameInventoryResponse, ProfileBundle } from "@/app/lib/types";
 import { useAuthStore } from "@/app/stores/auth-store";
+import { currentTimeFormat, useTimeFormat, type TimeFormat } from "@/app/lib/use-display-time";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useReactionStore } from "@/app/stores/reaction-store";
 import styles from "@/app/components/profile/profile.module.scss";
 
 type Profile = ProfileBundle["profile"];
 
-function day(value: string) {
-  return new Date(value).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+function day(value: string, tf: TimeFormat = currentTimeFormat()) {
+  return tf.format(value, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }, { was: "local" });
 }
 
 // What a refused profile save says (api/src/profileDb.js and services/nameRules.js).
@@ -137,6 +138,7 @@ export function SettingsModal({
   onSaved: (bundle: ProfileBundle) => void;
   onSecurity?: () => void;
 }) {
+  const tf = useTimeFormat();
   const assets = useMarketStore((state) => state.assets);
   const [name, setName] = useState(profile.username);
   const [bio, setBio] = useState(profile.bio ?? "");
@@ -230,8 +232,8 @@ export function SettingsModal({
   const oshiCooldown = oshiRule?.cooldown_days ?? 30;
   const oshiNote = oshiWaitUntil
     ? oshi === ""
-      ? `Removing your oshi is always allowed; picking one again waits until ${day(oshiWaitUntil)}. `
-      : `You can pick a different oshi ${day(oshiWaitUntil)}. `
+      ? `Removing your oshi is always allowed; picking one again waits until ${day(oshiWaitUntil, tf)}. `
+      : `You can pick a different oshi ${day(oshiWaitUntil, tf)}. `
     : oshi !== "" && oshi !== currentOshi && !oshiRule?.first_pick
       ? `Saving uses your oshi change: the next one opens in ${oshiCooldown} days. `
       : `Your oshi can change once every ${oshiCooldown} days${oshiRule?.first_pick ? " (your first pick doesn't count)" : ""}. `;
@@ -246,7 +248,7 @@ export function SettingsModal({
             {rename?.needs_verified_email
               ? "Verify your email to change your username."
               : rename?.available_at
-                ? `You can change your username again ${day(rename.available_at)}. Names can change once every ${rename.cooldown_days} days.`
+                ? `You can change your username again ${day(rename.available_at, tf)}. Names can change once every ${rename.cooldown_days} days.`
                 : `Letters, numbers, underscores and single spaces, 3–32 characters. You can change it once every ${rename?.cooldown_days ?? 7} days. Staff words (admin, mod…), talent names and slurs aren't allowed.`}
           </small>
         </label>

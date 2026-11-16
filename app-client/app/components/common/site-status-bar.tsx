@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { TimeZonePrompt } from "@/app/components/common/time-zone-prompt";
 import { useStoredState } from "@/app/lib/use-stored-state";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { useAuthStore } from "@/app/stores/auth-store";
 import { connectSite, newRelease, useSiteStore, type Announcement } from "@/app/stores/site-store";
 import styles from "@/app/components/common/site-status-bar.module.scss";
@@ -10,8 +12,6 @@ import styles from "@/app/components/common/site-status-bar.module.scss";
 const DISMISSED_KEY = "nasfaq.announcement.dismissed";
 const parseDismissed = (value: unknown) => (typeof value === "string" ? value : null);
 
-const when = (value: string) =>
-  new Date(value).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 /** True once `expiresAt` has passed (re-renders at that moment). */
 function useExpired(expiresAt: string | null) {
@@ -58,6 +58,17 @@ function AnnouncementBar({ announcement, onDismiss }: { announcement: Announceme
  * without a reload.
  */
 export function SiteStatusBar() {
+  return (
+    <>
+      <SiteNotices />
+      {/* The one-time "show times in your zone?" bar (timezone-setting), last in the stack. */}
+      <TimeZonePrompt />
+    </>
+  );
+}
+
+function SiteNotices() {
+  const tf = useTimeFormat();
   const site = useSiteStore((state) => state.site);
   const release = useSiteStore(newRelease);
   const dismissed = useSiteStore((state) => state.dismissed);
@@ -82,7 +93,7 @@ export function SiteStatusBar() {
         <div className={styles.bar} data-tone="danger" role="status">
           <span className={styles.tag}>Account suspended</span>
           <p className={styles.message}>
-            {suspension.permanent || !suspension.until ? "An admin has suspended your account until further notice." : `An admin has suspended your account until ${when(suspension.until)}.`}
+            {suspension.permanent || !suspension.until ? "An admin has suspended your account until further notice." : `An admin has suspended your account until ${tf.format(suspension.until, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }, { was: "local" })}.`}
             {suspension.reason ? (
               <>
                 {" "}

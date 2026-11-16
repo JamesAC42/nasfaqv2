@@ -12,7 +12,8 @@ import { userNeedsEmailVerification } from "@/app/components/common/verification
 import { apiFetch } from "@/app/lib/api";
 import { pctLabel, planOf, useBuybackSpotlight } from "@/app/lib/buyback";
 import { buybackSell, yourOfferShares } from "@/app/lib/buyback-plan.mjs";
-import { formatEtTime, getMarketClock, ORDER_BATCH_MS } from "@/app/lib/market-clock";
+import { getMarketClock, ORDER_BATCH_MS } from "@/app/lib/market-clock";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { money } from "@/app/lib/time";
 import { buildTradeConfirmation, getTradeFailureNotice, type TradeConfirmation, type TradeExecutionResult, type TradeFailureNotice, type TradeSide } from "@/app/lib/trade";
 import { BIG_ORDER_SLIP, FEE_RATE, fillPrice, maxBuyShares, maxSellShares, orderTotals, slippageFraction, stepShares } from "@/app/lib/trade-estimate.mjs";
@@ -117,6 +118,7 @@ function BuybackNote({ asset, held, yours }: { asset: MarketAsset; held: number;
 /** What the order runs into on the supply side: sold out, the last shares, or a buyback. */
 function SupplyNote({ asset, side, qty, held, yours }: { asset: MarketAsset; side: TradeSide; qty: number; held: number; yours: number }) {
   const spotlight = useBuybackSpotlight();
+  const tf = useTimeFormat();
   const forSale = asset.shares_for_sale ?? null;
   const max = asset.max_supply ?? null;
   if (spotlight && asset.trading_state === "buyback" && asset.buyback) return <BuybackNote asset={asset} held={held} yours={yours} />;
@@ -130,7 +132,7 @@ function SupplyNote({ asset, side, qty, held, yours }: { asset: MarketAsset; sid
         </b>{" "}
         The broker pays <b>{n2(bb.price)}</b> a share ({Math.round(bb.multiplier * 100)}% of the frozen {n2(bb.frozen_price)}) for the{" "}
         {Math.ceil(bb.shares_over).toLocaleString("en-US")} shares still over the max
-        {next ? `, ${Math.round(Math.max(bb.floor, bb.multiplier - bb.daily_step) * 100)}% from ${next.toLocaleDateString("en-US", { weekday: "short", timeZone: "America/New_York" })} ${formatEtTime(next)} ET` : ""}. Past that, sells get the frozen price. No buys until it ends.
+        {next ? `, ${Math.round(Math.max(bb.floor, bb.multiplier - bb.daily_step) * 100)}% from ${tf.format(next, { weekday: "short" })} ${tf.clock(next, { alongside: true })}` : ""}. Past that, sells get the frozen price. No buys until it ends.
       </p>
     );
   }
@@ -245,6 +247,7 @@ export function TradeTicket({
   const allowance = useProfileStore((state) => state.orderAllowance);
   const pushFill = useMomentStore((state) => state.pushFill);
   const { user } = useAuth();
+  const tf = useTimeFormat();
   // A stock frozen for a buyback can only be sold (to the broker), so the ticket opens on Sell.
   const startSide: TradeSide = asset.trading_state === "buyback" ? "sell" : initialSide;
   const [side, setSide] = useState<TradeSide>(startSide);
@@ -433,7 +436,7 @@ export function TradeTicket({
               <ArtSlot kind="reaction" pose={queued.side === "buy" ? "moon" : "smug"} symbol={symbol} icon={asset.icon} width={artSize === "large" ? 520 : 260} vignette fadeLength={0.3} className={styles.qArt} />
               <div className={styles.qBand}>
                 <span>QUEUED</span>
-                <small>{queued.executeAfter ? `${formatEtTime(new Date(queued.executeAfter))} ET batch` : "next batch"}</small>
+                <small>{queued.executeAfter ? `${tf.clock(queued.executeAfter)} batch` : "next batch"}</small>
               </div>
             </div>
             <p>
@@ -441,7 +444,7 @@ export function TradeTicket({
               <b className={queued.side === "buy" ? styles.up : styles.down}>
                 {queued.side.toUpperCase()} {queued.requestedQuantity.toLocaleString("en-US")} {queued.symbol}
               </b>{" "}
-              is in the {queued.executeAfter ? `${formatEtTime(new Date(queued.executeAfter))} ET` : "next"} batch.
+              is in the {queued.executeAfter ? tf.clock(queued.executeAfter) : "next"} batch.
               {queued.remainingIntervalShares !== null ? ` You can queue ${queued.remainingIntervalShares.toLocaleString("en-US")} more shares before the next tick.` : ""}
             </p>
             <p className={styles.dim}>We&apos;ll show you the fill when it lands. You can cancel from the Activity tab until then.</p>
@@ -549,7 +552,7 @@ export function TradeTicket({
             ) : null}
             <SupplyNote asset={asset} side={side} qty={qty} held={holding?.quantity ?? 0} yours={yourOfferShares({ held: holding?.quantity ?? 0, eligible: holding?.buyback_offer_shares ?? null })} />
             <p className={styles.batch} suppressHydrationWarning>
-              Fills in the <b>{formatEtTime(batchAt)} ET</b> <Term k="batch">batch</Term>
+              Fills in the <b>{tf.clock(batchAt)}</b> <Term k="batch">batch</Term>
               {queuedAhead ? ` · ${queuedAhead} order${queuedAhead === 1 ? "" : "s"} queued on ${asset.symbol}` : ""}. The final price is set when the batch executes.
             </p>
             {failure ? (

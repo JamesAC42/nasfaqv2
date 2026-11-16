@@ -9,6 +9,7 @@ import { cardPath, cardValue, type Listing, type Wish } from "@/app/lib/games/ex
 import { useGamesEvents } from "@/app/lib/games/use-games-socket";
 import { money } from "@/app/lib/time";
 import { useAuth } from "@/app/providers/auth-provider";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { useExchangeStore } from "@/app/stores/exchange-store";
 import { useGamesStore } from "@/app/stores/games-store";
 import { CardName, Countdown, ItemName, ago } from "@/app/components/games/exchange/bits";
@@ -26,6 +27,7 @@ const REASON: Record<string, string> = {
 /** Your side of the exchange: what you're selling, what you're bidding on, what you've won, and what your binder is worth. */
 export function DeskPage() {
   const { user, initialized } = useAuth();
+  const tf = useTimeFormat();
   const desk = useExchangeStore((state) => state.desk);
   const prices = useExchangeStore((state) => state.prices);
   const collection = useGamesStore((state) => state.collection);
@@ -76,7 +78,7 @@ export function DeskPage() {
       {desk && !desk.eligibility.eligible ? (
         <p className={styles.notice}>
           {REASON[desk.eligibility.reason ?? ""] ?? "You can't trade yet."}
-          {desk.eligibility.available_at ? ` Opens ${new Date(desk.eligibility.available_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.` : ""}
+          {desk.eligibility.available_at ? ` Opens ${tf.format(desk.eligibility.available_at, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }, { was: "local" })}.` : ""}
         </p>
       ) : null}
 

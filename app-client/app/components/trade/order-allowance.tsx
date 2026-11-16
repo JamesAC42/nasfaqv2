@@ -1,9 +1,9 @@
 "use client";
 
 import { Term } from "@/app/components/common/tip";
-import { formatEtTime } from "@/app/lib/market-clock";
 import { tickWindowLabel } from "@/app/lib/trade";
 import { useProfileStore } from "@/app/stores/profile-store";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import styles from "@/app/components/trade/order-allowance.module.scss";
 
 const count = (value: number) => Math.floor(value).toLocaleString("en-US");
@@ -15,11 +15,13 @@ const count = (value: number) => Math.floor(value).toLocaleString("en-US");
  */
 export function OrderAllowanceMeter({ order = 0, compact = false }: { order?: number; compact?: boolean }) {
   const allowance = useProfileStore((state) => state.orderAllowance);
+  const tf = useTimeFormat();
   if (!allowance) return null;
   const { limit, used, remaining } = allowance;
   const over = order > remaining;
   const window = tickWindowLabel(allowance.window);
-  const reset = allowance.resetsAt ? `${formatEtTime(new Date(allowance.resetsAt))} ET` : "the next tick";
+  // The reset is the next tick, a New York time: shown in the player's zone with ET beside it.
+  const reset = allowance.resetsAt ? tf.clock(allowance.resetsAt, { alongside: true }) : "the next tick";
   const usedPct = Math.min(100, (used / limit) * 100);
   const orderPct = Math.min(100 - usedPct, (Math.min(order, remaining) / limit) * 100);
   const tone = remaining === 0 || over ? "warn" : remaining / limit < 0.2 ? "low" : undefined;

@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/app/lib/api";
-import { formatCountdown, formatEtTime, getMarketClock } from "@/app/lib/market-clock";
+import { formatCountdown, getMarketClock } from "@/app/lib/market-clock";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { money, timeAgo } from "@/app/lib/time";
 import { useNow } from "@/app/lib/use-now";
 import { onMarketEvent } from "@/app/stores/market-store";
@@ -69,6 +70,7 @@ function line(item: Latest): { tag: string; href: string; text: string } {
 }
 
 export function LiveBand() {
+  const tf = useTimeFormat();
   const [data, setData] = useState<Activity | null>(null);
   const online = useSiteStore((state) => state.online);
   const now = useNow();
@@ -128,7 +130,7 @@ export function LiveBand() {
         </span>
         {clock ? (
           <span className={styles.batch} suppressHydrationWarning>
-            Next order batch {formatEtTime(clock.nextBatchAt)} ET · <b>{formatCountdown(clock.secondsToNextBatch, { withHours: false })}</b>
+            Next order batch {tf.clock(clock.nextBatchAt)} · <b>{formatCountdown(clock.secondsToNextBatch, { withHours: false })}</b>
           </span>
         ) : null}
       </header>

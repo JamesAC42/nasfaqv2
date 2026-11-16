@@ -12,6 +12,7 @@ import { useGamesEvents, type GamesPayload } from "@/app/lib/games/use-games-soc
 import { unitLabel } from "@/app/lib/market-units";
 import { money } from "@/app/lib/time";
 import { useAuth } from "@/app/providers/auth-provider";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { useExchangeStore } from "@/app/stores/exchange-store";
 import { Countdown, RarityTag, ago } from "@/app/components/games/exchange/bits";
 import { ExchangeFrame } from "@/app/components/games/exchange/exchange-frame";
@@ -224,6 +225,7 @@ export function CardPage({ symbol, rarity }: { symbol: string; rarity: Rarity })
 
 /** Every sale as a dot on a line, with the current floor as a dashed guide. */
 export function PriceChart({ history, floor }: { history: CardDetail["history"]; floor: number | null }) {
+  const tf = useTimeFormat();
   const [hover, setHover] = useState<number | null>(null);
   // Draw at the real width so labels stay 10px whatever the column is.
   const [width, setWidth] = useState(520);
@@ -262,7 +264,7 @@ export function PriceChart({ history, floor }: { history: CardDetail["history"];
   return (
     <figure className={styles.chart} ref={setBox}>
       <figcaption>
-        {hover !== null ? "Sale" : "Last sale"} <b>{money(active.price)}</b> <small>{new Date(active.t).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small>
+        {hover !== null ? "Sale" : "Last sale"} <b>{money(active.price)}</b> <small>{tf.format(active.t, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }, { was: "local" })}</small>
       </figcaption>
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${points.length} sales between ${money(Math.min(...points.map((p) => p.price)))} and ${money(Math.max(...points.map((p) => p.price)))}`} onMouseLeave={() => setHover(null)}>
         {[hi, (hi + lo) / 2, lo].map((value) => (

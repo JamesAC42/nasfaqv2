@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { useApi } from "@/app/components/stock/use-stock-data";
 import { useFeature } from "@/app/lib/features";
 import type { OshiStatus } from "@/app/lib/types";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import styles from "@/app/components/stock/dossier.module.scss";
 
 // Oshi protection on the stock page (api/src/services/oshi.js): on your oshi, the shares you've held
@@ -16,10 +17,10 @@ import styles from "@/app/components/stock/dossier.module.scss";
 const num = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : Number(value) || 0);
 const normalize = (raw: Record<string, unknown>) => raw as unknown as OshiStatus;
 const shares = (value: number) => value.toLocaleString("en-US", { maximumFractionDigits: 2 });
-const weekday = (iso: string) => new Date(iso).toLocaleDateString("en-US", { weekday: "short", timeZone: "America/New_York" });
 
 export function OshiProtection({ symbol, held }: { symbol: string; held: number }) {
   const enabled = useFeature("oshi-protection");
+  const tf = useTimeFormat();
   const status = useApi<OshiStatus>(enabled ? "/api/market/me/oshi" : null, normalize);
   const { reload } = status;
   // A fill here changes what's covered: read it again when the position moves.
@@ -53,7 +54,7 @@ export function OshiProtection({ symbol, held }: { symbol: string; held: number 
         </p>
       ) : !data.covered ? (
         <p>
-          {data.set_at ? `Your oshi since ${weekday(data.set_at)}. ` : ""}Protection starts with next week: hold through it and those shares skip the share fee. A dividend
+          {data.set_at ? `Your oshi since ${tf.format(data.set_at, { weekday: "short" }, { was: "bare" })}. ` : ""}Protection starts with next week: hold through it and those shares skip the share fee. A dividend
           still pays on every share.
         </p>
       ) : holding > 0 ? (
@@ -68,7 +69,7 @@ export function OshiProtection({ symbol, held }: { symbol: string; held: number 
         <p>Shares of your oshi held all week skip Saturday’s share fee. A dividend still pays on every share.</p>
       )}
       {data.change.available_at ? (
-        <small>Your oshi can change again {new Date(data.change.available_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}.</small>
+        <small>Your oshi can change again {tf.format(data.change.available_at, { month: "short", day: "numeric" }, { was: "local" })}.</small>
       ) : null}
     </div>
   );

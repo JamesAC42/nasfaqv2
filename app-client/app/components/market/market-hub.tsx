@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, type ReactNode } from "react";
 import { SiteShell } from "@/app/components/layout/site-shell";
-import { formatCountdown, formatEtTime, getMarketClock } from "@/app/lib/market-clock";
+import { formatCountdown, getMarketClock } from "@/app/lib/market-clock";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { signedPct, toneOf } from "@/app/lib/time";
 import { useNow } from "@/app/lib/use-now";
 import { nextEvaluationAt, untilText } from "@/app/components/market/dividends-tab";
@@ -36,6 +37,7 @@ function shortDate(value: string | null | undefined) {
 export function MarketHub({ tab, children }: { tab: MarketTab; children: ReactNode }) {
   useMarketHub();
   const router = useRouter();
+  const tf = useTimeFormat();
   const now = useNow();
   const assets = useMarketStore((state) => state.assets);
   const report = useMarketStore((state) => state.report);
@@ -92,7 +94,7 @@ export function MarketHub({ tab, children }: { tab: MarketTab; children: ReactNo
       </>
     ),
     report: `${shortDate(report?.market_date)} · 09:00`,
-    dividends: now ? `SAT 00:00 · ${untilText(nextEvaluationAt(now) - now)}` : "weekly",
+    dividends: now ? `${tf.format(nextEvaluationAt(now), { weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }, { was: "bare" }).toUpperCase()} · ${untilText(nextEvaluationAt(now) - now)}` : "weekly",
     ipo: ipos.some((event) => event.window_open) ? (
       <>
         <i className={ui.liveDot} aria-hidden="true" />
@@ -133,7 +135,7 @@ export function MarketHub({ tab, children }: { tab: MarketTab; children: ReactNo
               </span>
             ) : clock ? (
               <span className={ui.batch}>
-                NEXT BATCH <b>{formatEtTime(clock.nextBatchAt)} · {formatCountdown(clock.secondsToNextBatch, { withHours: false })}</b>
+                NEXT BATCH <b>{tf.clock(clock.nextBatchAt, { was: "bare" })} · {formatCountdown(clock.secondsToNextBatch, { withHours: false })}</b>
               </span>
             ) : null}
           </div>

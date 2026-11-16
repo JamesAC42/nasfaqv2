@@ -5,7 +5,6 @@ import { ExchangeAlerts } from "@/app/components/games/exchange/exchange-alerts"
 import { OrderAllowanceMeter } from "@/app/components/trade/order-allowance";
 import { SiteStatusBar } from "@/app/components/common/site-status-bar";
 import { BuybackHeadsUp } from "@/app/components/common/buyback-heads-up";
-import { TimeZonePrompt } from "@/app/components/common/time-zone-prompt";
 import { BugReportButton } from "@/app/components/common/bug-report";
 import { ReactionFace, parseReaction } from "@/app/components/common/reaction-face";
 import Link from "next/link";
@@ -72,8 +71,6 @@ export function SiteShell({
   const pathname = usePathname();
   const { user, isLoading } = useAuth();
   const flags = useFeatures();
-  // Settings has a section per flag: Display (timezone-setting) and Notifications (checkin-reminders).
-  const settingsOn = Boolean(flags["checkin-reminders"] || flags["timezone-setting"]);
   const nav = useMemo(() => navFor(flags), [flags]);
   const { calm, toggleCalm } = useMotion();
   const assets = useMarketStore((state) => state.assets);
@@ -394,7 +391,7 @@ export function SiteShell({
             <>
             <ChatButton classes={{ button: styles.iconButton, hot: styles.iconButtonHot, badge: styles.badge, icon: styles.icon }} />
             <NotificationBell userId={Number(user.id)} classes={{ button: styles.iconButton, hot: styles.iconButtonHot, badge: styles.badge, icon: styles.icon }} />
-            {settingsOn ? (
+            {flags["checkin-reminders"] ? (
               <Link href="/settings" className={styles.iconButton} aria-label="Settings" title="Settings" aria-current={isActivePath(pathname, "/settings") ? "page" : undefined}>
                 <FaGear aria-hidden className={styles.icon} />
               </Link>
@@ -478,12 +475,6 @@ export function SiteShell({
             </>
           ) : null}
 
-          {!user && flags["timezone-setting"] ? (
-            <Link href="/settings" className={styles.iconButton} aria-label="Settings" title="Settings" aria-current={isActivePath(pathname, "/settings") ? "page" : undefined}>
-              <FaGear aria-hidden className={styles.icon} />
-            </Link>
-          ) : null}
-
           <div className={styles.prefs}>
             <button
               type="button"
@@ -534,7 +525,6 @@ export function SiteShell({
 
       <SiteStatusBar />
       <BuybackHeadsUp />
-      <TimeZonePrompt />
       <main className={[styles.main, fullBleed ? styles.mainFullBleed : ""].filter(Boolean).join(" ")}>{children}</main>
       <ExchangeAlerts signedIn={Boolean(user)} />
 

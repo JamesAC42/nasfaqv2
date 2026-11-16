@@ -213,6 +213,7 @@ export function TradingSection() {
 export function TicksSection() {
   const [first, second] = useBusiestTalents(2);
   const tickReasons = useFeature("tick-reasons");
+  const timeSetting = useFeature("timezone-setting");
   return (
     <Section
       id="ticks"
@@ -223,6 +224,11 @@ export function TicksSection() {
             At <b>Open 09:00</b>, <b>Lunch 15:00</b>, <b>Late 21:00</b>{" "}and <b>Overnight 03:00</b>{" "}(New York time), every talent&apos;s price gets pulled toward their fair
             value. Trading above fair? The tick drags it down. Below? It gets yanked up.
           </p>
+          {timeSetting ? (
+            <p>
+              The site shows clock times in New York time, or in yours if you pick it in <Link href="/settings#display">Settings</Link>. The ticks run on New York time either way.
+            </p>
+          ) : null}
           <p>
             Each talent draws four random pull strengths a day that add up to 200%. A 30% tick closes 30% of the gap; a 120% tick overshoots right past fair value. That&apos;s why
             people buy dips right before a tick.

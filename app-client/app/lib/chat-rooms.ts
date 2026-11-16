@@ -1,6 +1,7 @@
 import { unitName } from "@/app/lib/market-units";
 import { stickerPreview } from "@/app/lib/stickers";
 import type { AuthUser, ChatChannel, MarketAsset } from "@/app/lib/types";
+import { currentTimeFormat, type TimeFormat } from "@/app/lib/use-display-time";
 
 // What /chat and the floating window agree on: which rooms there are, what they're called, and
 // whether the viewer may post in one.
@@ -71,15 +72,15 @@ export function messagePreview(body: string | null | undefined, max = 60) {
 }
 
 /** Why the viewer can't post in this room, in words; null when they can (or it isn't known yet). */
-export function postingBlockedReason(channel: ChatChannel | null, user: AuthUser | null) {
+export function postingBlockedReason(channel: ChatChannel | null, user: AuthUser | null, tf: TimeFormat = currentTimeFormat()) {
   if (!channel) return null;
   if (user?.suspension) return "Your account is suspended, so you can't post.";
   const restriction = channel.chat_restriction;
   if (restriction?.type === "ban") {
-    return restriction.until ? `You're banned from chat until ${new Date(restriction.until).toLocaleString()}.` : "You're banned from chat.";
+    return restriction.until ? `You're banned from chat until ${tf.stamp(restriction.until)}.` : "You're banned from chat.";
   }
   if (restriction?.type === "mute" || channel.muted_until) {
-    return restriction?.until || channel.muted_until ? `You're muted here until ${new Date(String(restriction?.until || channel.muted_until)).toLocaleString()}.` : "You're muted in chat until an admin lifts it.";
+    return restriction?.until || channel.muted_until ? `You're muted here until ${tf.stamp(String(restriction?.until || channel.muted_until))}.` : "You're muted in chat until an admin lifts it.";
   }
   if (channel.posting_policy === "read_only") return "This room is read-only.";
   if (channel.posting_policy === "admins_only" && !user?.is_admin) return "Only admins can post in this room right now.";

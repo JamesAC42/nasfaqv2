@@ -1,4 +1,5 @@
 import { apiFetch } from "@/app/lib/api";
+import type { TimeFormat } from "@/app/lib/use-display-time";
 
 // IPOs (api/src/services/ipo.js, docs/market/ipo.md): new talents tracked before they list, a window
 // to subscribe at the IPO price, then listing at the 09:00 settlement.
@@ -233,10 +234,17 @@ export function listingDay(dateKey: string) {
   return Number.isNaN(date.getTime()) ? dateKey : date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 }
 
-/** "Sat, Oct 17, 09:00 ET" */
-export function etMoment(value: string | number | Date) {
+const MOMENT: Intl.DateTimeFormatOptions = { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false };
+
+/**
+ * "Sat, Oct 17, 09:00 ET". With the player's formatter (`tf`) it follows their time setting, New York
+ * time alongside since an IPO's window runs to a New York settlement: "Sat, Oct 17, 23:00 JST (09:00 ET)".
+ * Without one (admin pages) it's always ET.
+ */
+export function etMoment(value: string | number | Date, tf?: TimeFormat) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
+  if (tf) return tf.format(date, MOMENT, { alongside: true });
   return `${date.toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })} ET`;
 }
 
