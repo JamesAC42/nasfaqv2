@@ -113,10 +113,13 @@ function newToken() {
 }
 
 /** A talent for a seat: the player's oshi, else one picked by who they are; never one already at the table. */
-function talentFor(table, wanted, salt) {
+function talentFor(table, wanted, salt, { bot = false } = {}) {
   const taken = new Set(table.seats.filter(Boolean).map((seat) => seat.talent));
   if (wanted && !taken.has(wanted)) return wanted;
-  const free = talentSymbols.filter((symbol) => !taken.has(symbol));
+  const open = talentSymbols.filter((symbol) => !taken.has(symbol));
+  // Bots sit as a talent with 3D table art while one is free (SETTINGS.botTalents).
+  const drawn = bot ? open.filter((symbol) => SETTINGS.botTalents.includes(symbol)) : [];
+  const free = drawn.length ? drawn : open;
   if (!free.length) return wanted ?? null;
   const index = salt === null ? randomInt(free.length) : Number(salt) % free.length;
   return free[index];
@@ -154,7 +157,7 @@ function botSeat(table, level) {
     username: names[randomInt(names.length)],
     profile_color: "#8a94a6",
     profile_picture_url: null,
-    talent: talentFor(table, null, null),
+    talent: talentFor(table, null, null, { bot: true }),
     rating: SETTINGS.botRatings[level] ?? null,
     rank: null,
     bot: level,
@@ -605,7 +608,10 @@ function freeTalents(table) {
   return table.select.roster.filter((symbol) => !taken.has(symbol));
 }
 
-/** A talent for a seat that hasn't picked: a player's oshi if it's free, for a bot one not seen lately, else any free one. */
+/**
+ * A talent for a seat that hasn't picked: a player's oshi if it's free. A bot takes one with 3D table
+ * art if any is free (SETTINGS.botTalents), preferring one not seen lately; anyone else, any free one.
+ */
 function autoPick(table, seat) {
   if (seat.talent) return;
   const free = freeTalents(table);
@@ -614,8 +620,10 @@ function autoPick(table, seat) {
     seat.talent = seat.oshi;
     return;
   }
-  const fresh = seat.bot ? free.filter((symbol) => !recentTalents.includes(symbol)) : [];
-  const choices = fresh.length ? fresh : free;
+  const drawn = seat.bot ? free.filter((symbol) => SETTINGS.botTalents.includes(symbol)) : [];
+  const pool = drawn.length ? drawn : free;
+  const fresh = seat.bot ? pool.filter((symbol) => !recentTalents.includes(symbol)) : [];
+  const choices = fresh.length ? fresh : pool;
   seat.talent = choices[randomInt(choices.length)];
 }
 

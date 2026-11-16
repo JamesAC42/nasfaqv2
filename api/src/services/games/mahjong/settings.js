@@ -39,6 +39,18 @@ const SETTINGS = Object.freeze({
     return trialOverride === null ? TRIAL_FROM_ENV : trialOverride;
   },
 
+  /**
+   * Talents with 3D table art (the client lists the same ones in stage/art.ts). Bots pick from these
+   * first, so a solo table shows drawn figures rather than fallback cards while the set is small.
+   * MAHJONG_BOT_TALENTS, comma-separated tickers; empty means no preference.
+   */
+  botTalents: Object.freeze(
+    String(process.env.MAHJONG_BOT_TALENTS ?? "PEK,GUR,SUI")
+      .split(",")
+      .map((part) => part.trim().toUpperCase())
+      .filter(Boolean),
+  ),
+
   // ── Money ────────────────────────────────────────────────────────────────
   /**
    * Entry fees for stakes tables, in Credit. The median player holds about $91,000 Credit and can

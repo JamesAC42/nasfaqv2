@@ -18,7 +18,7 @@ import { useStageStore, type Mood } from "@/app/components/games/mahjong/stage/m
 import { hiddenBelow, narrowness } from "@/app/components/games/mahjong/stage/rig";
 import { fx } from "@/app/components/games/mahjong/stage/fx";
 import { radialTexture, silhouetteTexture } from "@/app/components/games/mahjong/stage/textures";
-import { artId, lookupArt, resolveArtUrl, type ChibiPose } from "@/app/lib/art-manifest";
+import { artId, lookupArt, textureArtUrl, type ChibiPose } from "@/app/lib/art-manifest";
 import { useArtStore } from "@/app/stores/art-store";
 
 const MOODS: Mood[] = ["idle", "think", "riichi", "win"];
@@ -204,7 +204,7 @@ function cardTexture(symbol: string | null, label: string, color: string, pose: 
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
   const art = symbol ? lookupArt(useArtStore.getState().manifest, artId(symbol, "reaction", pose)) : null;
-  const src = art ? resolveArtUrl(Object.entries(art.srcset ?? {}).sort((a, b) => Number(a[0]) - Number(b[0])).find(([width]) => Number(width) >= 384)?.[1] ?? art.src) : null;
+  const src = art ? textureArtUrl(Object.entries(art.srcset ?? {}).sort((a, b) => Number(a[0]) - Number(b[0])).find(([width]) => Number(width) >= 384)?.[1] ?? art.src) : null;
   if (src) {
     // Only a CORS-clean image may go into a WebGL texture: one that can't be read stays the ticker card.
     const image = new Image();

@@ -396,4 +396,23 @@ test("mahjong talent select, end to end", { skip: !databaseUrl, timeout: 300_000
     assert.ok(nextBots.includes(unused[1]), `a bot took ${unused[1]} (bots took ${nextBots.join(", ")})`);
     assert.ok(!nextBots.includes(unused[0]));
   });
+
+  await t.test("bots sit as talents with 3D table art while any is free", async () => {
+    tables.reset();
+    const restore = tables._setTalentsForTests(["AAA", "PEK", "BBB", "GUR", "CCC", "SUI"]);
+    try {
+      const userId = await user("drawn");
+      const seated = await tables.createTable({ userId, kind: "practice" });
+      const table = liveTable(seated.table.id);
+      await pick(userId, table.id, "GUR");
+      await ready(userId, table.id);
+      const bots = table.seats.filter((seat) => seat.bot).map((seat) => seat.talent).sort();
+      // GUR is taken, so two bots get PEK and SUI and the third falls back to the rest.
+      assert.deepEqual(bots.filter((symbol) => ["PEK", "SUI"].includes(symbol)), ["PEK", "SUI"]);
+      assert.ok(!bots.includes("GUR"));
+      await tables.leaveTable({ userId, tableId: table.id });
+    } finally {
+      restore();
+    }
+  });
 });

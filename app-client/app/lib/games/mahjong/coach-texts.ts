@@ -108,14 +108,21 @@ export function blockedText(block: WinBlock): string | null {
 }
 
 // ── Ways to win you're near ─────────────────────────────────────────────────
-export const SIGHT_STATUS: Record<YakuSightStatus, string> = { met: "you have it", near: "close", available: "available" };
+export const SIGHT_STATUS: Record<YakuSightStatus, string> = { met: "on track", near: "close", available: "available" };
 
-/** One chip: "All simples (tanyao): 2 tiles to swap out". */
-export function sightLabel(entry: YakuSight): { name: string; note: string } | null {
+/**
+ * One chip: "All simples (tanyao): 2 tiles to swap out". None of these say a win is there: a hand that
+ * already fits a yaku still has to be finished, so `shanten` (tiles from ready) goes on the note.
+ */
+export function sightLabel(entry: YakuSight, shanten: number): { name: string; note: string } | null {
   if (!yakuInfo(entry.key)) return null;
   const name = yakuName(entry.key);
-  if (entry.status === "met") return { name, note: "you have it" };
-  if (entry.status === "available") return { name, note: entry.key === "riichi" ? "available" : "comes with a win by self-draw" };
+  const finish = shanten > 0 ? `${plural(shanten, "tile")} from ready` : "counts when you win";
+  if (entry.status === "met") return { name, note: `on track · keep it · ${finish}` };
+  if (entry.status === "available") {
+    if (entry.key === "riichi") return { name, note: shanten > 0 ? "once you’re ready" : "you can declare it" };
+    return { name, note: "comes with a win by self-draw" };
+  }
   if (entry.status === "near") {
     if (entry.key === "tanyao") return { name, note: `${plural(entry.off ?? 0, "tile")} to swap out` };
     if (entry.key.startsWith("yakuhai")) return { name, note: "one more makes a triplet" };
@@ -144,7 +151,7 @@ const EFFECT_TEXT: Record<EffectCode, (e: CallEffect) => string> = {
     if (to === from) return `Doesn’t change how close you are: still ${shantenWord(to)}.`;
     return `Sets you back: ${shantenWord(to)}, from ${shantenWord(from)}.`;
   },
-  gives_yaku: (e) => `Gives you a yaku: ${yakuList(e.yaku)}.`,
+  gives_yaku: (e) => `Gives you a yaku for when the hand is finished: ${yakuList(e.yaku)}.`,
   keeps_yaku: (e) => `Keeps your ${yakuList(e.yaku)}.`,
   loses_yaku: (e) => `Gives up ${yakuList(e.yaku)}.`,
   no_yaku_in_sight: () => "An open hand needs a yaku to win, and this doesn’t give you one yet.",

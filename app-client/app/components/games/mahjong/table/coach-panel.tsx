@@ -118,16 +118,16 @@ function WinRows({ rows, closed, inRiichi, tsumoOnly }: { rows: WaitRow[]; close
 function Sight({ coach }: { coach: Coach }) {
   const [open, setOpen] = useState<string | null>(null);
   const id = useId();
-  const entries = (coach.win_path?.yaku_in_sight ?? []).filter((entry) => sightLabel(entry));
+  const entries = (coach.win_path?.yaku_in_sight ?? []).filter((entry) => sightLabel(entry, coach.shanten));
   if (!entries.length) return null;
   const shown = entries.find((entry) => entry.key === open);
   const info = shown ? yakuInfo(shown.key) : null;
   return (
     <div className={styles.sight}>
-      <p className={styles.label}>Ways to win you’re near</p>
+      <p className={styles.label}>Scoring you’re building</p>
       <ul className={styles.chips}>
         {entries.map((entry) => {
-          const text = sightLabel(entry)!;
+          const text = sightLabel(entry, coach.shanten)!;
           return (
             <li key={`${entry.key}${entry.kind ?? ""}`}>
               <button

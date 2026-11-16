@@ -87,6 +87,16 @@ export function resolveArtUrl(path: string | null | undefined) {
   return new URL(path, `http://localhost${ART_MANIFEST_URL.startsWith("/") ? "" : "/"}${ART_MANIFEST_URL}`).pathname;
 }
 
+/**
+ * The same picture for a WebGL texture: the CDN sends no CORS headers, so CDN art is read through
+ * the site (app/art-image). Art served from public/ is same-origin already.
+ */
+export function textureArtUrl(path: string | null | undefined) {
+  if (!path) return null;
+  if (!/^https?:\/\//.test(ART_MANIFEST_URL) || /^https?:\/\//.test(path)) return resolveArtUrl(path);
+  return `/art-image/${path.replace(/^\/+/, "")}`;
+}
+
 /** Pick the smallest chibi export that is at least `px` wide (falls back to the largest). */
 export function pickChibiSize(sizes: ArtChibi["sizes"] | null | undefined, px: number) {
   if (!sizes) return null;
