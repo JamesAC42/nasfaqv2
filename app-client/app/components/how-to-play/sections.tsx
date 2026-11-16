@@ -618,7 +618,7 @@ export function CommunitySection() {
           {
             k: "badges",
             title: "Achievements",
-            body: "Pay Credit: $100 for your first fill, $250 at 10 trades, $1,000 at 100, $300 for trading 3 talents, and $150 / $500 / $2,500 for 3, 7 and 30-day streaks.",
+            body: "Pay Credit: $100 for your first fill, $250 at 10 trades, $1,000 at 100, $300 for trading 3 talents, and $150 / $500 / $2,500 for trading 3, 7 and 30 days in a row (days turn over at 00:00 ET).",
           },
           ...(checkin
             ? [

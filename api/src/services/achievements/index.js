@@ -2,7 +2,9 @@ const { listDefinitions } = require("./definitions");
 const {
   applyTradeFillsToStreakWithClient,
   getUserTradeStreak,
+  liveStreakDays,
   rebuildUserTradeStreakWithClient,
+  recountUtcStreaks,
 } = require("./streaks");
 const { ensureUserCashAccount } = require("../portfolioCash");
 const economy = require("../economy");
@@ -634,7 +636,9 @@ module.exports = {
   handleTradeFills,
   holdTradeFills,
   listUserAchievements,
+  liveStreakDays,
   queueTradeFill,
+  recountUtcStreaks,
   syncDefinitions,
   tradeFillsIdle,
   _test: { fillQueue },

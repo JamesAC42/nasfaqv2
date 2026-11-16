@@ -2,6 +2,7 @@ const DEFAULT_STARTER_CASH = 10000;
 const { loadEquipped } = require("./games/equipped");
 const { profilePictureUrlSql } = require("../profilePictures");
 const economy = require("./economy");
+const { liveStreakDays } = require("./achievements/streaks");
 const { getStarterCredit } = require("./portfolioCash");
 // Only verified, unsuspended players are ranked: everyone else is left off every ranking here
 // (leaderboardPlayerSql, services/moderation.js). Their rows are kept, so verifying puts them on.
@@ -323,7 +324,7 @@ async function loadLeaderboardDecorations(pool, userIds) {
     const userId = toInt(row.user_id, 0);
     if (!decorationByUserId.has(userId)) continue;
     decorationByUserId.get(userId).streaks = {
-      current_streak_days: toInt(row.current_streak_days, 0),
+      current_streak_days: liveStreakDays(row),
       longest_streak_days: toInt(row.longest_streak_days, 0),
       last_trade_day: row.last_trade_day ? String(row.last_trade_day) : null,
     };
