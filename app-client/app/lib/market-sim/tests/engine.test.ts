@@ -135,11 +135,10 @@ test("presets and guard rails", () => {
   const proposed = PRESETS.find((preset) => preset.key === "package")?.apply(today);
   assert.equal(proposed?.spreadBps, 150);
   assert.equal(proposed?.feeOnlyOnQuickSells, true);
-  const wild = sanitizeParams({ ...today, days: 10_000, seeds: -3, feeRate: Number.NaN, transientHalfLifeMinutes: 0 }, today);
+  const wild = sanitizeParams({ ...today, days: 10_000, seeds: -3, feeRate: Number.NaN }, today);
   assert.equal(wild.days, 180);
   assert.equal(wild.seeds, 1);
   assert.equal(wild.feeRate, today.feeRate);
-  assert.equal(wild.transientHalfLifeMinutes, 1);
 });
 
 function stripTime<T extends { elapsedMs: number }>(value: T) {

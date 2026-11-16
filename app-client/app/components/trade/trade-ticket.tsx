@@ -9,6 +9,7 @@ import { apiFetch } from "@/app/lib/api";
 import { formatEtTime, getMarketClock, ORDER_BATCH_MS } from "@/app/lib/market-clock";
 import { money } from "@/app/lib/time";
 import { buildTradeConfirmation, getTradeFailureNotice, type TradeConfirmation, type TradeExecutionResult, type TradeFailureNotice, type TradeSide } from "@/app/lib/trade";
+import { BIG_ORDER_SLIP, FEE_RATE, fillPrice, maxBuyShares, maxSellShares, orderTotals, slippageFraction } from "@/app/lib/trade-estimate.mjs";
 import type { MarketAsset } from "@/app/lib/types";
 import { useNowEvery } from "@/app/lib/use-now";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -22,7 +23,7 @@ import styles from "@/app/components/trade/trade-drawer.module.scss";
 import { Term } from "@/app/components/common/tip";
 
 const PRESETS = [1, 10, 25, 50, 100];
-export const FEE_RATE = 0.01;
+export { FEE_RATE };
 
 // Buying Towa takes some convincing: the submit button says each of these in turn before it sends anything.
 const TOWA_DOUBTS = ["ARE YOU SURE?", "I'D RECONSIDER", "EXPERTS ADVISE AGAINST THIS"];
@@ -191,14 +192,22 @@ export function TradeTicket({
   const forSale = asset.shares_for_sale ?? null;
   const soldOut = !frozen && Boolean(asset.sold_out);
   const buyBlocked = side === "buy" && (frozen || soldOut);
-  const price = frozen && side === "sell" && asset.buyback ? asset.buyback.price : side === "buy" ? asset.current_ask_price ?? asset.current_mid_price : asset.current_bid_price ?? asset.current_mid_price;
-  const gross = (price ?? 0) * qty;
-  const fee = gross * FEE_RATE;
+  const toBroker = frozen && side === "sell" && Boolean(asset.buyback);
+  const quote = toBroker && asset.buyback ? asset.buyback.price : side === "buy" ? asset.current_ask_price ?? asset.current_mid_price : asset.current_bid_price ?? asset.current_mid_price;
+  // What a share should fill at: the quote moved by slippage on the order's size (the broker's
+  // buyback price is fixed). The batch still prices it then, after the orders ahead of it.
+  const depth = asset.liquidity_depth ?? null;
+  const slip = toBroker ? 0 : slippageFraction(qty, depth);
+  const price = quote === null || quote === undefined ? null : toBroker ? quote : fillPrice(side, quote, qty, depth);
   // The fee comes out of Credit first; Cash pays the shares and whatever Credit doesn't cover. A
   // sale also earns a little Credit.
-  const feeFromCredit = portfolio ? Math.min(Math.max(0, portfolio.credit_balance), fee) : 0;
-  const total = side === "buy" ? gross + fee - feeFromCredit : gross - (fee - feeFromCredit);
-  const creditEarned = side === "sell" ? gross * (portfolio?.economy?.sell_credit_rate ?? 0) : 0;
+  const { fee, feeFromCredit, total, creditEarned } = orderTotals({
+    side,
+    price: price ?? 0,
+    quantity: qty,
+    credit: portfolio?.credit_balance ?? 0,
+    sellCreditRate: portfolio?.economy?.sell_credit_rate ?? 0,
+  });
   const tradingOpen = marketStatus?.is_trading_open ?? true;
   const clock = getMarketClock(useNowEvery(ORDER_BATCH_MS));
   const batchAt = asset.next_live_order_execute_after ? new Date(asset.next_live_order_execute_after) : clock.nextBatchAt;
@@ -217,6 +226,30 @@ export function TradeTicket({
     if (lastPreset !== value) return value;
     const step = presetTarget(value) - qty;
     return step > 0 ? `+${step}` : "MAX";
+  };
+  // MAX: the biggest order that goes through. A buy stops at the shares left this tick, the shares
+  // for sale and what Cash covers at the slipped ask with the fee; a sale at what you hold that
+  // queued sells haven't promised, within the shares left this tick (ALL when that's everything).
+  const pending = useProfileStore((state) => state.pendingLiveOrders);
+  const queuedSells = pending.filter((order) => order.side === "sell" && order.symbol.toUpperCase() === symbol).reduce((sum, order) => sum + order.requested_quantity, 0);
+  const maxSell = maxSellShares({ held: holding?.quantity ?? 0, queued: queuedSells, room: Number.isFinite(room) ? room : null });
+  const maxBuy =
+    portfolio && !frozen && !soldOut
+      ? maxBuyShares({
+          ask: asset.current_ask_price ?? asset.current_mid_price,
+          depth,
+          cash: portfolio.cash_balance,
+          credit: portfolio.credit_balance,
+          room: Number.isFinite(room) ? room : null,
+          forSale,
+        })
+      : null;
+  const maxShares = side === "buy" ? maxBuy : canSell ? maxSell.shares : null;
+  const maxLabel = side === "sell" && maxSell.all ? "ALL" : "MAX";
+  const setMax = () => {
+    if (maxShares === null) return;
+    setQuantity(String(maxShares));
+    setLastPreset(null);
   };
 
   // Changing the shares, side or stock makes it a new order, so the doubts start over.
@@ -334,18 +367,35 @@ export function TradeTicket({
                   {presetLabel(value)}
                 </button>
               ))}
-              {side === "sell" && canSell ? (
-                <button type="button" onClick={() => setQuantity(String(Math.min(holding?.quantity ?? 0, room)))}>
-                  ALL
+              {maxShares !== null ? (
+                <button
+                  type="button"
+                  onClick={setMax}
+                  disabled={maxShares < 1}
+                  title={
+                    side === "buy"
+                      ? `The most this order can buy: ${maxShares.toLocaleString("en-US")} sh`
+                      : `The most this order can sell: ${maxShares.toLocaleString("en-US")} sh`
+                  }
+                >
+                  {maxLabel}
                 </button>
               ) : null}
             </div>
             <OrderAllowanceMeter order={qty} />
             <dl className={styles.est}>
               <dt>
-                <Term k="spread">{side === "buy" ? "Ask" : "Bid"}</Term>
+                <Term k="spread">{toBroker ? "Buyback price" : side === "buy" ? "Ask" : "Bid"}</Term>
               </dt>
-              <dd>{n2(price)}</dd>
+              <dd>{n2(quote)}</dd>
+              {qty > 0 && n2(price) !== n2(quote) ? (
+                <>
+                  <dt>
+                    <Term k="slippage">Est. fill</Term>
+                  </dt>
+                  <dd>{n2(price)}/sh</dd>
+                </>
+              ) : null}
               <dt>Shares</dt>
               <dd>{qty.toLocaleString("en-US")}</dd>
               <dt>
@@ -366,6 +416,11 @@ export function TradeTicket({
               <dt className={styles.total}>{side === "buy" ? "You pay" : "You get"}</dt>
               <dd className={styles.total}>{money(total)}</dd>
             </dl>
+            {slip >= BIG_ORDER_SLIP && qty > 0 ? (
+              <p className={styles.note}>
+                Big order: about {(slip * 100).toFixed(1)}% <Term k="slippage">price impact</Term>
+              </p>
+            ) : null}
             {portfolio && side === "buy" ? (
               <CashToSpend cash={portfolio.cash_balance} held={portfolio.held_cash} margin={portfolio.order_hold_margin} total={total} qty={qty} tooMuch={tooMuch} />
             ) : portfolio ? (

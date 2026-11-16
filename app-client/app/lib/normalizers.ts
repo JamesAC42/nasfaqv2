@@ -121,6 +121,9 @@ export function normalizeCandles(candles: Array<Record<string, unknown>>): Candl
     close: toNumber(item.close),
     close_mark: toNumber(item.close_mark),
     volume_shares: toNumber(item.volume_shares),
+    vwap: toNumber(item.vwap),
+    fill_low: toNumber(item.fill_low),
+    fill_high: toNumber(item.fill_high),
   }));
 }
 
@@ -613,6 +616,7 @@ export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
     max_supply: toNumber(asset.max_supply),
     trading_state: asset.trading_state === "buyback" ? "buyback" : "open",
     shares_for_sale: toNumber(asset.shares_for_sale),
+    liquidity_depth: toNumber(asset.liquidity_depth),
     broker_buffer: toNumber(asset.broker_buffer),
     sold_out: Boolean(asset.sold_out),
     buyback: normalizeBuyback(asset.buyback),

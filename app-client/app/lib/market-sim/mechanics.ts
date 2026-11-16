@@ -58,10 +58,12 @@ export function computeLiveMidPrice(fair: number, persistent: number, transient:
   return Math.max(fair || 0, MIN_PRICE) * Math.exp(persistent + transient);
 }
 
-/** trading.js decayTransientOffset, with the time since the offsets last moved in minutes. */
-export function decayTransientOffset(transient: number, minutes: number, halfLifeMinutes: number) {
-  if (!Number.isFinite(transient) || transient === 0) return 0;
-  return transient * Math.pow(0.5, Math.max(0, minutes) / Math.max(halfLifeMinutes, 1));
+/**
+ * trading.js startingQuote: a fill starts from the stored mid (the price the page shows), with the
+ * transient offset restated so the offsets agree with it, the way a tick restates it.
+ */
+export function transientAtMid(mid: number, fair: number, persistent: number) {
+  return Math.log(Math.max(mid, MIN_PRICE) / Math.max(fair || 0, MIN_PRICE)) - persistent;
 }
 
 /** marketAdjustments.js computeAdjustedPrice: a tick moves the price strengthPct of the way to the base rate. */

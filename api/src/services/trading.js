@@ -1,6 +1,5 @@
 const schedulerHealth = require("./schedulerHealth");
 const DEFAULT_TRADING_FEE_RATE = 0.01;
-const DEFAULT_TRANSIENT_HALF_LIFE_MINUTES = 60;
 const DEFAULT_TRANSIENT_IMPACT_WEIGHT = 0.7;
 const DEFAULT_PERSISTENT_IMPACT_WEIGHT = 0.15;
 const DEFAULT_EXECUTION_SLIPPAGE_WEIGHT = 0.5;
@@ -33,7 +32,6 @@ function getTradingFeeRate() {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_TRADING_FEE_RATE;
 }
 
-const TRANSIENT_HALF_LIFE_MINUTES = Number(process.env.MARKET_TRANSIENT_HALF_LIFE_MINUTES || DEFAULT_TRANSIENT_HALF_LIFE_MINUTES);
 const TRANSIENT_IMPACT_WEIGHT = Number(process.env.MARKET_TRANSIENT_IMPACT_WEIGHT || DEFAULT_TRANSIENT_IMPACT_WEIGHT);
 const PERSISTENT_IMPACT_WEIGHT = Number(process.env.MARKET_PERSISTENT_IMPACT_WEIGHT || DEFAULT_PERSISTENT_IMPACT_WEIGHT);
 const EXECUTION_SLIPPAGE_WEIGHT = Number(process.env.MARKET_EXECUTION_SLIPPAGE_WEIGHT || DEFAULT_EXECUTION_SLIPPAGE_WEIGHT);
@@ -76,31 +74,26 @@ function computeNextLiveOrderTick(now = new Date()) {
   return new Date((Math.floor(now.getTime() / tickMs) + 1) * tickMs);
 }
 
-function decayTransientOffset(transientOffset, lastUpdatedAt, now = new Date()) {
-  const raw = Number(transientOffset || 0);
-  if (!Number.isFinite(raw) || raw === 0 || !lastUpdatedAt) return 0;
-
-  const last = new Date(lastUpdatedAt);
-  if (Number.isNaN(last.getTime())) return 0;
-
-  const dtMinutes = Math.max(0, (now.getTime() - last.getTime()) / 60000);
-  const decayFactor = Math.pow(0.5, dtMinutes / Math.max(TRANSIENT_HALF_LIFE_MINUTES, 1));
-  return raw * decayFactor;
-}
-
-function getDecayedOffsets(asset, now = new Date()) {
-  const persistentOffset = Number(asset.current_persistent_offset || 0);
-  const transientOffset = decayTransientOffset(asset.current_transient_offset, asset.offsets_updated_at, now);
-
-  return {
-    persistentOffset: Number.isFinite(persistentOffset) ? persistentOffset : 0,
-    transientOffset: Number.isFinite(transientOffset) ? transientOffset : 0,
-  };
-}
-
 function computeLiveMidPrice(fairPrice, persistentOffset, transientOffset) {
   const fair = Math.max(Number(fairPrice || 0), 0.000001);
   return fair * Math.exp(persistentOffset + transientOffset);
+}
+
+/**
+ * The mid an order fills from: the stored one, the price every page shows (the last trade, tick or
+ * settlement wrote it). The transient offset is restated so the offsets agree with that mid, the way
+ * the ticks restate it, and a trade's shock then moves the price from exactly there. Only a stock
+ * with no stored mid (just reset) prices from its offsets.
+ */
+function startingQuote(asset, fairPrice) {
+  const fair = Math.max(Number(fairPrice || 0), 0.000001);
+  const persistentOffset = toNumber(asset.current_persistent_offset, 0);
+  const storedMid = toNumber(asset.current_mid_price, 0);
+  if (storedMid > 0) {
+    return { mid: storedMid, persistentOffset, transientOffset: Math.log(storedMid / fair) - persistentOffset };
+  }
+  const transientOffset = toNumber(asset.current_transient_offset, 0);
+  return { mid: computeLiveMidPrice(fair, persistentOffset, transientOffset), persistentOffset, transientOffset };
 }
 
 function computeShockPct(quantity, liquidityDepth) {
@@ -604,8 +597,8 @@ async function executeOrder(pool, {
     const feeRate = getTradingFeeRate();
     const now = new Date();
     const fairPrice = Math.max(toNumber(asset.current_fair_value, 0), 0.000001);
-    const { persistentOffset, transientOffset } = getDecayedOffsets(asset, now);
-    const liveMidBefore = buyback ? toNumber(asset.current_mid_price, 0) : computeLiveMidPrice(fairPrice, persistentOffset, transientOffset);
+    const { mid: startingMid, persistentOffset, transientOffset } = startingQuote(asset, fairPrice);
+    const liveMidBefore = buyback ? toNumber(asset.current_mid_price, 0) : startingMid;
     const quotesBefore = computeQuotes(liveMidBefore, asset.spread_bps);
     const executablePrice = buyback
       ? supply.buybackFillPrice(asset, buyback, parsedQuantity, now)
@@ -1108,8 +1101,7 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
     const holding = await getLockedHolding(client, userId, asset.id);
     const now = new Date();
     const fairPrice = Math.max(toNumber(asset.current_fair_value, 0), 0.000001);
-    const { persistentOffset, transientOffset } = getDecayedOffsets(asset, now);
-    const liveMidBefore = computeLiveMidPrice(fairPrice, persistentOffset, transientOffset);
+    const { mid: liveMidBefore } = startingQuote(asset, fairPrice);
     const quotesBefore = computeQuotes(liveMidBefore, asset.spread_bps);
     const activeBuyback = asset.trading_state === "buyback" ? await supply.getActiveBuyback(client, asset.id) : null;
     const indicativePrice = activeBuyback
@@ -1589,8 +1581,8 @@ function planLiveOrderChunk({ orders, assets, buybacks, accounts, holdings, iden
       const holdingKey = `${userId}:${assetId}`;
       const holding = holdings.get(holdingKey) || null;
       const fairPrice = Math.max(toNumber(asset.current_fair_value, 0), 0.000001);
-      const { persistentOffset, transientOffset } = getDecayedOffsets(asset, now);
-      const liveMidBefore = buyback ? toNumber(asset.current_mid_price, 0) : computeLiveMidPrice(fairPrice, persistentOffset, transientOffset);
+      const { mid: startingMid, persistentOffset, transientOffset } = startingQuote(asset, fairPrice);
+      const liveMidBefore = buyback ? toNumber(asset.current_mid_price, 0) : startingMid;
       const quotesBefore = computeQuotes(liveMidBefore, asset.spread_bps);
       const executablePrice = buyback
         ? supply.buybackFillPrice(asset, buyback, parsedQuantity, now)
@@ -2302,7 +2294,6 @@ module.exports = {
   getTradingFeeRate,
   /** The price-impact settings in force (env or defaults), for the admin market simulator. */
   IMPACT_SETTINGS: Object.freeze({
-    transientHalfLifeMinutes: TRANSIENT_HALF_LIFE_MINUTES,
     transientWeight: TRANSIENT_IMPACT_WEIGHT,
     persistentWeight: PERSISTENT_IMPACT_WEIGHT,
     slippageWeight: EXECUTION_SLIPPAGE_WEIGHT,
@@ -2320,6 +2311,6 @@ module.exports = {
     computeExecutionPrice,
     applyTradeShock,
     computeLiveMidPrice,
-    decayTransientOffset,
+    startingQuote,
   },
 };

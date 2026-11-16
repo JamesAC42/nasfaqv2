@@ -444,17 +444,22 @@ test("the batched live-order settlement", { skip: !databaseUrl, timeout: 600_000
     }
     assert.deepEqual(seen, rows.map((row) => Number(row.id)).reverse(), "every fill once, newest first");
 
-    // A stock's candle opens on its first fill of the chunk and closes on its last, not on whichever
-    // the database reads first.
+    // A stock's candle follows the mid: it closes on the mid its last fill of the chunk left (the
+    // stock's mid now), not on whichever fill the database reads first, and never on a fill's own
+    // price. The fills' prices come back beside it.
     const { rows: busiest } = await pool.query(
-      `SELECT a.symbol, (array_agg(f.price::text ORDER BY f.id))[1] AS first_price, (array_agg(f.price::text ORDER BY f.id DESC))[1] AS last_price
-       FROM market.trade_fills f JOIN market.market_assets a ON a.id = f.asset_id GROUP BY a.symbol ORDER BY COUNT(*) DESC LIMIT 1`
+      `SELECT a.symbol, a.current_mid_price::float8 AS mid, MIN(f.price)::float8 AS fill_low, MAX(f.price)::float8 AS fill_high,
+         (array_agg(f.price::text ORDER BY f.id))[1] AS first_price, (array_agg(f.price::text ORDER BY f.id DESC))[1] AS last_price
+       FROM market.trade_fills f JOIN market.market_assets a ON a.id = f.asset_id GROUP BY a.symbol, a.current_mid_price ORDER BY COUNT(*) DESC LIMIT 1`
     );
     assert.notEqual(busiest[0].first_price, busiest[0].last_price);
     const candles = await marketDb.getAssetCandles(pool, busiest[0].symbol, { interval: "1h", range: "24h" });
     assert.equal(candles.length, 1);
-    assert.equal(String(candles[0].open), busiest[0].first_price);
-    assert.equal(String(candles[0].close), busiest[0].last_price);
+    const near = (actual, expected, message) => assert.ok(Math.abs(Number(actual) - expected) <= 1e-9 * expected, `${message}: ${actual} vs ${expected}`);
+    near(candles[0].close, busiest[0].mid, "closes on the stock's mid");
+    assert.notEqual(String(candles[0].close), busiest[0].last_price);
+    near(candles[0].fill_low, busiest[0].fill_low, "lowest fill");
+    near(candles[0].fill_high, busiest[0].fill_high, "highest fill");
   });
 
   await t.test("however big the run, the site hears once, with the newest fills", async () => {

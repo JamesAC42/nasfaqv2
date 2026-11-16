@@ -4,7 +4,7 @@
 // Each day, as in the API: settlement at 09:00 sets a new fair value (from the calibrated model, so
 // today's real secret one is never used) and opens at yesterday's close with the persistent offset
 // faded; four ticks (09:00, 15:00, 21:00, 03:00) each pull the price their strength of the way to fair
-// value; orders between ticks fill at the live price (the transient offset fading by its half-life),
+// value; orders between ticks fill at the current mid (the price the page shows),
 // pay the spread, slippage and fee, and push the offsets; Saturday 00:00 pays dividends and charges
 // share fees on revealed values, then turns part of every Credit balance into Cash.
 //
@@ -26,7 +26,6 @@ import {
   computeLiveMidPrice,
   computeOpeningState,
   creditConversion,
-  decayTransientOffset,
   dividendRate,
   feasibleStrengthBounds,
   fillPrice,
@@ -38,6 +37,7 @@ import {
   sellCredit,
   smoothFairValue,
   TICKS_PER_DAY,
+  transientAtMid,
 } from "./mechanics";
 import { gaussian, mulberry32, seedFor, type Rng } from "./rng";
 import { correlation, mean, stdev } from "./stats";
@@ -78,7 +78,6 @@ export function runForward(inputs: SimInputs, params: SimParams, seed: number, c
   const momentum = models.map((model) => model.momentum);
   const persistent = assets.map(() => 0);
   const transient = assets.map(() => 0);
-  const updatedAt = assets.map(() => 0);
   const mid = assets.map((asset) => asset.mid);
   const revealed = assets.map((asset) => asset.fair.filter((value): value is number => value !== null && value > 0));
   const simFair: number[][] = assets.map(() => []);
@@ -101,17 +100,15 @@ export function runForward(inputs: SimInputs, params: SimParams, seed: number, c
     }
   });
 
-  const liveTransient = (index: number, at: number) => decayTransientOffset(transient[index], at - updatedAt[index], params.transientHalfLifeMinutes);
-  const liveMid = (index: number, at: number) => computeLiveMidPrice(fair[index], persistent[index], liveTransient(index, at));
-  const quote = (index: number, side: Side, quantity: number, at: number) => {
-    const before = liveMid(index, at);
+  // Fills start from the current mid, the price the page shows, as trading.js does.
+  const quote = (index: number, side: Side, quantity: number) => {
+    const before = mid[index];
     return { mid: before, price: fillPrice(side, before, spread[index], quantity, assets[index].depth, params.slippageWeight) };
   };
-  const commit = (index: number, side: Side, quantity: number, at: number) => {
-    const next = applyTradeShock(side, quantity, assets[index].depth, persistent[index], liveTransient(index, at), weights);
+  const commit = (index: number, side: Side, quantity: number) => {
+    const next = applyTradeShock(side, quantity, assets[index].depth, persistent[index], transientAtMid(mid[index], fair[index], persistent[index]), weights);
     persistent[index] = next.persistent;
     transient[index] = next.transient;
-    updatedAt[index] = at;
     mid[index] = computeLiveMidPrice(fair[index], next.persistent, next.transient);
   };
 
@@ -142,7 +139,7 @@ export function runForward(inputs: SimInputs, params: SimParams, seed: number, c
     let quantity = Math.floor(Math.min(wanted, shareLimit - player.windowShares));
     if (quantity < 1) return false;
     const feeRate = params.feeOnlyOnQuickSells ? 0 : params.feeRate;
-    let priced = quote(index, "buy", quantity, at);
+    let priced = quote(index, "buy", quantity);
     if (limit !== undefined && priced.price > limit) return false;
     const cost = (q: number, price: number) => {
       const fee = price * q * feeRate;
@@ -152,14 +149,14 @@ export function runForward(inputs: SimInputs, params: SimParams, seed: number, c
     if (player.cash < cost(quantity, priced.price).cash) {
       quantity = Math.floor(player.cash / (priced.price * (1 + feeRate)));
       if (quantity < 1) return false;
-      priced = quote(index, "buy", quantity, at);
+      priced = quote(index, "buy", quantity);
     }
     const paid = cost(quantity, priced.price);
     if (player.cash < paid.cash) return false;
     player.cash -= paid.cash;
     player.credit -= paid.fromCredit;
     player.windowShares += quantity;
-    commit(index, "buy", quantity, at);
+    commit(index, "buy", quantity);
     book.buy(playerIndex, index, quantity, { price: priced.price, fee: paid.fee, mid: priced.mid, at, day: day + 1 });
     checkLimits(index, at);
     return true;
@@ -172,7 +169,7 @@ export function runForward(inputs: SimInputs, params: SimParams, seed: number, c
     const quantity = Math.min(wanted, position.quantity, shareLimit - player.windowShares);
     if (!(quantity > 0)) return false;
     const feeApplies = !params.feeOnlyOnQuickSells || at - position.lastBuyAt < params.quickSellHours * 60;
-    const priced = quote(index, "sell", quantity, at);
+    const priced = quote(index, "sell", quantity);
     const gross = priced.price * quantity;
     const fee = feeApplies ? gross * params.feeRate : 0;
     const fromCredit = Math.min(Math.max(player.credit, 0), fee);
@@ -180,7 +177,7 @@ export function runForward(inputs: SimInputs, params: SimParams, seed: number, c
     player.cash += gross - (fee - fromCredit);
     player.credit += credit - fromCredit;
     player.windowShares += quantity;
-    commit(index, "sell", quantity, at);
+    commit(index, "sell", quantity);
     book.sell(playerIndex, index, quantity, { price: priced.price, fee, mid: priced.mid, credit });
     checkLimits(index, at);
     return true;
@@ -236,7 +233,7 @@ export function runForward(inputs: SimInputs, params: SimParams, seed: number, c
         const holdMinutes = profile.hold_hours_median === null ? null : profile.hold_hours_median * 60;
         const odds = held.map(([index, position]) => {
           const feeApplies = !params.feeOnlyOnQuickSells || at - position.lastBuyAt < params.quickSellHours * 60;
-          const bid = liveMid(index, at) * (1 - spread[index] / 20000);
+          const bid = mid[index] * (1 - spread[index] / 20000);
           const gain = position.basis > 0 ? (bid * (1 - (feeApplies ? params.feeRate : 0))) / position.basis - 1 : 0;
           const atLevel = (profile.take_profit !== null && gain >= profile.take_profit) || (profile.stop_loss !== null && gain <= profile.stop_loss);
           return (atLevel ? 4 : 1) * (holdMinutes !== null && at - position.lastBuyAt >= holdMinutes ? 3 : 1);
@@ -251,7 +248,7 @@ export function runForward(inputs: SimInputs, params: SimParams, seed: number, c
     if (index === null) return;
     const quantity = sampleSize(player);
     if (player.limitUser) {
-      limits[index].push({ player: playerIndex, quantity, limit: liveMid(index, at) * (1 - params.limitOffsetPct), postedAt: at });
+      limits[index].push({ player: playerIndex, quantity, limit: mid[index] * (1 - params.limitOffsetPct), postedAt: at });
       return;
     }
     buy(playerIndex, index, quantity, at);
@@ -263,7 +260,6 @@ export function runForward(inputs: SimInputs, params: SimParams, seed: number, c
       if (!assets[index].ticks_enabled || assets[index].frozen) continue;
       const after = Math.max(MIN_PRICE, computeAdjustedPrice(mid[index], fair[index], strengths[index][window]));
       transient[index] = Math.log(after / fair[index]) - persistent[index];
-      updatedAt[index] = at;
       mid[index] = after;
     }
     for (let index = 0; index < count; index += 1) checkLimits(index, at);
@@ -309,7 +305,6 @@ export function runForward(inputs: SimInputs, params: SimParams, seed: number, c
       );
       persistent[index] = opening.persistent;
       transient[index] = opening.transient;
-      updatedAt[index] = start;
       mid[index] = opening.midOpen;
     }
     // Outside income (games, check-ins…) lands; spending it can empty a balance but not overdraw it.

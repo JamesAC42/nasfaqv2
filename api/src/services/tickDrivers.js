@@ -32,7 +32,6 @@ const SMOOTHING_PREVIOUS_WEIGHT = 0.4;
 const SMOOTHING_LAGS = 6;
 
 // Trade price impact, read the way trading.js reads it.
-const TRANSIENT_HALF_LIFE_MINUTES = Math.max(Number(process.env.MARKET_TRANSIENT_HALF_LIFE_MINUTES || 60), 1);
 const TRANSIENT_IMPACT_WEIGHT = Number(process.env.MARKET_TRANSIENT_IMPACT_WEIGHT || 0.7);
 const PERSISTENT_IMPACT_WEIGHT = Number(process.env.MARKET_PERSISTENT_IMPACT_WEIGHT || 0.15);
 
@@ -228,22 +227,20 @@ function channelMetrics(byDate, to) {
 /**
  * What players' fills since the last tick did to the price, in log terms, the way trading.js applies
  * them: each fill shifts the price by (persistent + transient weight) × quantity / depth, and the
- * transient part fades with a 60-minute half-life, applied at each later trade. Returned as a push on
- * the distance a tick closes (buying lifts the price, so it pushes the tick down: negative).
+ * shift stays until the next tick. Returned as a push on the distance a tick closes (buying lifts the
+ * price, so it pushes the tick down: negative).
  */
 function playerPush(fills, liquidityDepth) {
   const depth = Math.max(num(liquidityDepth) ?? 0, 1);
   const list = (fills ?? []).filter((fill) => Number.isFinite(Date.parse(fill.ts)));
   if (!list.length) return { push: 0, net_shares: 0 };
-  const last = Math.max(...list.map((fill) => Date.parse(fill.ts)));
   let price = 0;
   let net = 0;
   for (const fill of list) {
     const sign = fill.side === "buy" ? 1 : -1;
     const quantity = Math.max(num(fill.quantity) ?? 0, 0);
     const shock = quantity / depth;
-    const fade = 0.5 ** ((last - Date.parse(fill.ts)) / 60_000 / TRANSIENT_HALF_LIFE_MINUTES);
-    price += sign * shock * (PERSISTENT_IMPACT_WEIGHT + TRANSIENT_IMPACT_WEIGHT * fade);
+    price += sign * shock * (PERSISTENT_IMPACT_WEIGHT + TRANSIENT_IMPACT_WEIGHT);
     net += sign * quantity;
   }
   return { push: -price, net_shares: Math.round(net * 1e6) / 1e6 };
@@ -395,7 +392,7 @@ function explainTick({ priceBefore, priceAfter, fairValue, previous = null, chan
       meta.players = { net_shares: num(players.net_shares) ?? 0, since: players.since ?? null };
     }
 
-    // The last split shrinks as later trades fade the old distance; anything beyond it is `other`.
+    // The last split shrinks when less of the old distance is left than it covered; anything beyond it is `other`.
     const carried = Math.log(prevFair / prevAfter);
     const rest = gapBefore - explained;
     const prevParts = previous.state?.parts && typeof previous.state.parts === "object" ? previous.state.parts : { other: carried };

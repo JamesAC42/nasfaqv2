@@ -10,7 +10,6 @@ export type SimSettings = {
   slippage_weight: number;
   transient_weight: number;
   persistent_weight: number;
-  transient_half_life_minutes: number;
   live_order_share_limit: number;
   persistent_daily_decay: number;
   transient_settlement_decay: number;
@@ -92,7 +91,6 @@ export type SimParams = {
   transientWeight: number;
   persistentWeight: number;
   persistentDecay: number;
-  transientHalfLifeMinutes: number;
   strengthTotalPct: number;
   /** Daily growth of every channel's size (a log rate: 0.0005 is about +0.05% a day). */
   driftPerDay: number;
