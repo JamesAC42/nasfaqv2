@@ -27,6 +27,8 @@ const KINDS = new Set([
   "buyback",
   "ipo",
   "referral",
+  // The daily check-in reminder (checkinReminders.js), for players who turned it on in Settings.
+  "checkin",
 ]);
 
 function money(value) {

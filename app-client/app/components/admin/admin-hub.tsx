@@ -60,6 +60,8 @@ function Row({ label, children, tone }: { label: string; children: ReactNode; to
   );
 }
 
+const countOf = (n: number, one: string) => `${fmtCount(n)} ${n === 1 ? one : `${one}s`}`;
+
 const PROBLEM_LABELS: Record<NonNullable<SchedulerBeat["problem"]>, string> = { missing: "Not reporting", gone: "Not reporting", stalled: "Stalled", failing: "Failing" };
 
 /** A heartbeat's pill: the watchdog's verdict when it has one, else the scheduler's own status. */
@@ -853,6 +855,13 @@ export function AdminHub() {
                       : <Row label="—">—</Row>}
                   </dl>
                   {hb ? <p className={styles.muted}>{hb.alerts_configured ? "Alerts go to Discord." : "Alerts are off: DISCORD_ALERT_WEBHOOK_URL isn't set."}</p> : null}
+                  {hb?.push ? (
+                    <p className={styles.muted}>
+                      {hb.push.configured
+                        ? `Push is on: ${countOf(hb.push.players, "player")} on ${countOf(hb.push.devices, "device")}, ${fmtCount(hb.push.checkin_reminder_players)} with the check-in reminder.`
+                        : "Push is off: the WEB_PUSH_* keys aren't set."}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
 

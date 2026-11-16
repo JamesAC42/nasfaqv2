@@ -437,7 +437,9 @@ export type SchedulerBeat = {
   retry_at: string | null;
 };
 
-export type SchedulerHealth = { generated_at: string | null; alerts_configured: boolean; schedulers: SchedulerBeat[] };
+/** Browser push (api/src/services/webPush.js): configured means the WEB_PUSH_* keys are set. */
+export type PushStatus = { configured: boolean; players: number; devices: number; checkin_reminder_players: number };
+export type SchedulerHealth = { generated_at: string | null; alerts_configured: boolean; schedulers: SchedulerBeat[]; push: PushStatus | null };
 
 export function normalizeSchedulerHealth(row: Record<string, unknown> | null | undefined): SchedulerHealth {
   const r = row ?? {};
@@ -459,6 +461,12 @@ export function normalizeSchedulerHealth(row: Record<string, unknown> | null | u
       consecutive_failures: int(beat.consecutive_failures),
       retry_at: str(beat.retry_at),
     })),
+    push: r.push && typeof r.push === "object"
+      ? (() => {
+          const push = r.push as Record<string, unknown>;
+          return { configured: Boolean(push.configured), players: int(push.players), devices: int(push.devices), checkin_reminder_players: int(push.checkin_reminder_players) };
+        })()
+      : null,
   };
 }
 

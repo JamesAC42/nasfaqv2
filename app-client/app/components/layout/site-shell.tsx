@@ -9,7 +9,7 @@ import { BugReportButton } from "@/app/components/common/bug-report";
 import { ReactionFace, parseReaction } from "@/app/components/common/reaction-face";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FaDiscord } from "react-icons/fa6";
+import { FaDiscord, FaGear } from "react-icons/fa6";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { MarketTape } from "@/app/components/layout/market-tape";
 import { MobileNav } from "@/app/components/layout/mobile-nav";
@@ -391,6 +391,11 @@ export function SiteShell({
             <>
             <ChatButton classes={{ button: styles.iconButton, hot: styles.iconButtonHot, badge: styles.badge, icon: styles.icon }} />
             <NotificationBell userId={Number(user.id)} classes={{ button: styles.iconButton, hot: styles.iconButtonHot, badge: styles.badge, icon: styles.icon }} />
+            {flags["checkin-reminders"] ? (
+              <Link href="/settings" className={styles.iconButton} aria-label="Settings" title="Settings" aria-current={isActivePath(pathname, "/settings") ? "page" : undefined}>
+                <FaGear aria-hidden className={styles.icon} />
+              </Link>
+            ) : null}
             <div ref={ordersRef} className={styles.ordersWrap}>
               <button
                 type="button"

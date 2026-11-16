@@ -318,6 +318,7 @@ api.use("/profiles", profileRoutes);
 api.use("/v1-link", v1LinkRoutes);
 api.use("/notifications", notificationRoutes);
 api.use("/referrals", require("./routes/referrals"));
+api.use("/settings", require("./routes/settings"));
 api.use("/stats", statsRoutes);
 api.use("/site", siteRoutes);
 api.use("/admin/assets", adminAssetsRoutes);
@@ -500,6 +501,9 @@ async function releaseGameTablesLease() {
 async function main() {
   // Stop functions of the timers started below, called on shutdown so no new work starts.
   const stoppers = [];
+  // Whether browser push (the check-in reminder) can send: on or off, never the keys (services/webPush.js).
+  // eslint-disable-next-line no-console
+  console.log(require("./services/webPush").startupLine());
   if (cfg.enableMigrations) {
     // Its own pool without the statement timeout: migrations may rewrite or index whole tables.
     const migrationPool = createPool(cfg.databaseUrl, { statementTimeoutMs: 0 });
@@ -1007,6 +1011,9 @@ async function main() {
     // Pays referral rewards after a new player's first fill, and deletes visit rows past retention
     // (services/referrals.js; REFERRALS_ENABLED=false to stop it).
     stoppers.push(require("./services/referrals").startReferralScheduler(pool, console, redis));
+    // The daily check-in reminder by push, once a day at 18:00 ET (services/checkinReminders.js; Off
+    // without the WEB_PUSH_* keys, CHECKIN_REMINDERS_ENABLED=false to stop it).
+    stoppers.push(require("./services/checkinReminders").startCheckinReminderScheduler(pool, console, redis));
   }
   // Turned off (PREDICTION_MARKET_SCHEDULER_ENABLED=false) it only reports Off, from the scheduler pod.
   stoppers.push(startPredictionsScheduler(pool, console, redis));

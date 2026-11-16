@@ -51,6 +51,7 @@ export function ProfileView({ username }: { username?: string | null }) {
   const { user, logout } = useAuth();
   const { theme } = useTheme();
   const referralsOn = useFeature("referrals");
+  const settingsOn = useFeature("checkin-reminders");
   const assets = useMarketStore((state) => state.assets);
   const tradingRevision = useProfileStore((state) => state.tradingRevision);
   const [bundle, setBundle] = useState<ProfileBundle | null>(null);
@@ -233,6 +234,11 @@ export function ProfileView({ username }: { username?: string | null }) {
                   <Link href="/games/item-locker" className={styles.ghost}>
                     LOCKER
                   </Link>
+                  {settingsOn ? (
+                    <Link href="/settings" className={styles.ghost}>
+                      SETTINGS
+                    </Link>
+                  ) : null}
                   <button
                     type="button"
                     className={styles.ghost}

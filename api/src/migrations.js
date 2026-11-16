@@ -2146,6 +2146,45 @@ async function applySchema(pool) {
   // recorded by the first regular settlement that runs with MARKET_TARGET_SECRET set. Earlier days
   // stay as they were on a rebuild. Not part of the public market status.
   await pool.query(`ALTER TABLE market.market_runtime_state ADD COLUMN IF NOT EXISTS target_nudge_from DATE NULL`);
+  // Notification settings (services/notificationSettings.js): one row per player who has changed
+  // one, off for anyone without a row. A new channel or reminder (email, say) is a new column here.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.notification_preferences (
+      user_id BIGINT PRIMARY KEY REFERENCES market.users(id) ON DELETE CASCADE,
+      checkin_reminder_push BOOLEAN NOT NULL DEFAULT false,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  // Browsers and phones a player turned push on in (services/webPush.js). The endpoint is the push
+  // service's address for that one browser: personal data, never logged or sent back to the site.
+  // One row per endpoint: a browser shared by two accounts belongs to whoever subscribed it last.
+  // A push service answering 404 or 410 means the browser dropped it, and the row is deleted.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.push_subscriptions (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      endpoint TEXT NOT NULL,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      device_label TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_success_at TIMESTAMPTZ NULL,
+      CONSTRAINT push_subscriptions_endpoint_key UNIQUE (endpoint)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_push_subscriptions_user_idx ON market.push_subscriptions (user_id)`);
+  // The daily check-in reminder (services/checkinReminders.js): one row per player per New York day,
+  // written before anything is sent, so a player is reminded at most once a day however many API
+  // pods race. delivered counts the devices that took it.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.checkin_reminder_sends (
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      day DATE NOT NULL,
+      sent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      delivered INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (user_id, day)
+    )
+  `);
 }
 
 module.exports = { applySchema };
