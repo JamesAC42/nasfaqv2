@@ -34,8 +34,7 @@ strengths that add up to 200%; each tick moves the price that share of the way t
 (over 100% overshoots). Per-stock min/max strengths are editable in the admin tuning page.
 
 **Trading.** Orders queue and fill in 10-minute batches. Buys and sells move the live price; the ticks
-pull it back. Orders are for whole shares (a sale may also be everything a player has left, fraction
-and all).
+pull it back.
 
 **The 180-share limit** (`MARKET_LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL`, default 180):
 - It counts per player, across every stock and both sides together.
