@@ -152,8 +152,19 @@ async function removeDevice(db, userId, deviceId) {
  */
 async function removeDeviceByEndpoint(db, userId, endpoint) {
   if (typeof endpoint !== "string" || !endpoint) throw settingsError("invalid_subscription");
-  await db.query(`DELETE FROM market.push_subscriptions WHERE endpoint = $1 AND user_id = $2`, [endpoint, userId]);
+  await forgetDevice(db, userId, endpoint);
   return getSettings(db, userId);
+}
+
+/**
+ * Deletes the player's row for this endpoint, if there is one, and says whether it did. Signing out
+ * calls it (routes/auth.js) so a shared browser stops getting the last player's reminders. It works
+ * whatever the flag or the push keys say, and does nothing for anything that isn't an endpoint.
+ */
+async function forgetDevice(db, userId, endpoint) {
+  if (!userId || typeof endpoint !== "string" || !endpoint || endpoint.length > 2048) return false;
+  const { rowCount } = await db.query(`DELETE FROM market.push_subscriptions WHERE endpoint = $1 AND user_id = $2`, [endpoint, userId]);
+  return rowCount > 0;
 }
 
 /** For the admin hub: whether push is on, and how many players and devices have it. */
@@ -173,6 +184,7 @@ module.exports = {
   PREFERENCES,
   addDevice,
   deviceLabel,
+  forgetDevice,
   getSettings,
   pushSummary,
   readPreferences,

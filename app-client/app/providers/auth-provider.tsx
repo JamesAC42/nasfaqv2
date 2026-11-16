@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from "react";
 import { apiErrorCode, apiFetch } from "@/app/lib/api";
 import { setGamesViewer } from "@/app/lib/games/use-games-socket";
+import { dropThisBrowserPush, thisBrowserPushEndpoint } from "@/app/lib/push-device";
 import { forgetRefs, keptRefs } from "@/app/lib/referrals";
 import type { AuthUser } from "@/app/lib/types";
 import { useAuthStore } from "@/app/stores/auth-store";
@@ -136,12 +137,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setError(null);
     try {
+      // This browser's check-in reminders belong to the player signing out: the API forgets the
+      // subscription with the session, and the browser drops it afterwards (lib/push-device.ts).
+      const pushEndpoint = await thisBrowserPushEndpoint();
       await apiFetch<{ ok: boolean }>("/api/auth/logout", {
         method: "POST",
-        body: "{}",
+        body: JSON.stringify(pushEndpoint ? { push_endpoint: pushEndpoint } : {}),
       });
       setUser(null);
       clearPortfolio();
+      if (pushEndpoint) void dropThisBrowserPush();
     } catch (error) {
       const message = String((error as Error).message || error);
       setError(message);

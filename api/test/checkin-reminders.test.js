@@ -392,6 +392,68 @@ test("check-in reminders", { skip: !databaseUrl, timeout: 120_000 }, async (t) =
     }
   });
 
+  await t.test("signing out forgets this browser for the player signing out, and never fails over it", async () => {
+    const express = require("express");
+    const authRoutes = require("../src/routes/auth");
+    const leaving = await addUser(pool, "Leaving");
+    const bystander = await addUser(pool, "Bystander");
+    const mine = subscription();
+    const theirs = subscription();
+    await settings.addDevice(pool, leaving, mine);
+    await settings.addDevice(pool, bystander, theirs);
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => {
+      const id = Number(req.headers["x-test-user"]) || null;
+      req.ctx = { pool, redis: null, user: id ? { id, is_admin: false, email_verified: true } : null };
+      next();
+    });
+    app.use("/api/auth", authRoutes);
+    const server = app.listen(0, "127.0.0.1");
+    t.after(() => server.close());
+    await new Promise((resolve) => server.once("listening", resolve));
+    const logout = (userId, body) =>
+      fetch(`http://127.0.0.1:${server.address().port}/api/auth/logout`, {
+        method: "POST",
+        headers: { ...(userId ? { "x-test-user": String(userId) } : {}), "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }).then((response) => response.status);
+    const count = async (userId) => (await pool.query(`SELECT COUNT(*)::int AS n FROM market.push_subscriptions WHERE user_id = $1`, [userId])).rows[0].n;
+
+    // Someone else's endpoint, or no session: nothing goes, and sign-out still answers 200.
+    assert.equal(await logout(leaving, { push_endpoint: theirs.endpoint }), 200);
+    assert.equal(await logout(null, { push_endpoint: mine.endpoint }), 200);
+    assert.equal(await count(bystander), 1);
+    assert.equal(await count(leaving), 1);
+    // Junk, or nothing at all: still 200.
+    assert.equal(await logout(leaving, { push_endpoint: { not: "a string" } }), 200);
+    assert.equal(await logout(leaving, {}), 200);
+    // The player's own browser: gone, whatever the flag or the keys say.
+    const restoreFlags = features.override({ "checkin-reminders": "off" });
+    const restoreKeys = webPush.override({});
+    try {
+      assert.equal(await logout(leaving, { push_endpoint: mine.endpoint }), 200);
+    } finally {
+      restoreKeys();
+      restoreFlags();
+    }
+    assert.equal(await count(leaving), 0);
+    assert.equal(await count(bystander), 1);
+    // A database failure while forgetting it doesn't stop the sign-out.
+    const broken = express();
+    broken.use(express.json());
+    broken.use((req, _res, next) => {
+      req.ctx = { pool: { query: async () => { throw new Error("down"); } }, redis: null, user: { id: leaving, is_admin: false } };
+      next();
+    });
+    broken.use("/api/auth", authRoutes);
+    const brokenServer = broken.listen(0, "127.0.0.1");
+    t.after(() => brokenServer.close());
+    await new Promise((resolve) => brokenServer.once("listening", resolve));
+    const response = await fetch(`http://127.0.0.1:${brokenServer.address().port}/api/auth/logout`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ push_endpoint: mine.endpoint }) });
+    assert.equal(response.status, 200);
+  });
+
   await t.test("the admin summary counts players and devices", async () => {
     const summary = await settings.pushSummary(pool);
     assert.equal(summary.configured, true);
