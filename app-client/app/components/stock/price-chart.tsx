@@ -1,9 +1,9 @@
 "use client";
 
 import { useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from "react";
-import { MARKET_TIME_ZONE } from "@/app/lib/market-clock";
 import type { CandlePoint, MarketAdjustmentOutcome } from "@/app/lib/types";
 import { useNow } from "@/app/lib/use-now";
+import { useTimeFormat, type TimeFormat } from "@/app/lib/use-display-time";
 import type { ChartRange } from "@/app/components/stock/use-stock-data";
 import styles from "@/app/components/stock/price-chart.module.scss";
 
@@ -14,11 +14,13 @@ const TICK_NAMES: Record<string, string> = { open: "OPEN", lunch: "LUNCH", late:
 /** `close` is the mid price, the line; `fill` is what the bucket's fills averaged, drawn apart from it. */
 type Point = { t: number; close: number; mark: number | null; volume: number; fill: number | null; up: boolean };
 
-function fmtTime(t: number, range: ChartRange, long = false) {
+// Intraday ranges show clock times in the display zone (the axis unlabeled, the hover with its
+// zone); longer ranges are daily buckets keyed by date, so they stay on those dates.
+function fmtTime(tf: TimeFormat, t: number, range: ChartRange, long = false) {
+  if (range === "1d") return tf.clock(t, { was: "bare", label: long });
+  if (range === "1w") return tf.format(t, { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }, { was: "bare", label: long });
   const d = new Date(t);
-  if (range === "1d") return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: MARKET_TIME_ZONE });
-  if (range === "1w" || long)
-    return d.toLocaleString("en-US", { weekday: "short", month: range === "1w" ? undefined : "short", day: "numeric", hour: range === "1w" ? "2-digit" : undefined, minute: range === "1w" ? "2-digit" : undefined, hour12: false, timeZone: range === "1w" ? MARKET_TIME_ZONE : "UTC" });
+  if (long) return d.toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour12: false, timeZone: "UTC" });
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
@@ -41,7 +43,7 @@ export function PriceChart({
   range: ChartRange;
   overlays: Overlays;
   ticks: MarketAdjustmentOutcome[];
-  /** Today's settlement mark, drawn flat on intraday ranges. */
+  /** The newest revealed target (usually yesterday's fair value), drawn flat on intraday ranges. */
   latestMark: number | null;
   avgCost: number | null;
   livePrice: number | null;
@@ -49,6 +51,7 @@ export function PriceChart({
   /** Fixed plot height in px; defaults to the dossier's size. */
   height?: number;
 }) {
+  const tf = useTimeFormat();
   const box = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [hover, setHover] = useState<number | null>(null);
@@ -164,7 +167,7 @@ export function PriceChart({
           ))}
           {model.xTicks.map((t) => (
             <text key={t} x={model.x(t)} y={H - 6} className={styles.axis} textAnchor="middle">
-              {fmtTime(t, range)}
+              {fmtTime(tf, t, range)}
             </text>
           ))}
           <path d={model.area} fill="url(#pc-fill)" />
@@ -174,7 +177,7 @@ export function PriceChart({
             <g>
               <line x1={0} x2={plotW} y1={model.y(latestMark)} y2={model.y(latestMark)} className={styles.mark} />
               <text x={plotW - 4} y={model.y(latestMark) - 4} className={styles.markLbl} textAnchor="end">
-                MARK
+                LAST TARGET
               </text>
             </g>
           ) : null}
@@ -233,7 +236,7 @@ export function PriceChart({
       {hovered && model ? (
         <div className={styles.tip} style={{ left: Math.min(Math.max(model.x(hovered.t), 70), plotW - 70) }}>
           <b>{hovered.close.toFixed(2)}</b>
-          <span>{fmtTime(hovered.t, range, true)}</span>
+          <span>{fmtTime(tf, hovered.t, range, true)}</span>
           {hovered.volume ? <span>{hovered.volume.toLocaleString("en-US")} sh{hovered.fill !== null ? ` filled at ${hovered.fill.toFixed(2)}` : ""}</span> : null}
           {!intraday && hovered.mark !== null ? <span>mark {hovered.mark.toFixed(2)}</span> : null}
         </div>

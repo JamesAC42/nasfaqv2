@@ -5,18 +5,20 @@ import { EmptyState } from "@/app/components/common/empty-state";
 import { OrderAllowanceMeter } from "@/app/components/trade/order-allowance";
 import { Medal } from "@/app/components/common/medal";
 import Link from "next/link";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BuybackBadge } from "@/app/components/common/buyback-badge";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { ShowcaseStrip } from "@/app/components/games/locker/showcase-strip";
 import { apiFetch } from "@/app/lib/api";
-import { formatEtTime } from "@/app/lib/market-clock";
+import { fetchMyPools, poolHref, type MyPools } from "@/app/lib/predictions/pools";
+import { usePoolAccess } from "@/app/lib/predictions/use-pool-access";
 import { normalizeArticleListResponse, normalizeProfileTradesPage, normalizeV1Account } from "@/app/lib/normalizers";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct, timeAgo, toneOf } from "@/app/lib/time";
 import type { ArticleListResponse, PredictionPortfolioResponse, ProfileBundle, ProfileRelationUser, V1Account } from "@/app/lib/types";
 import { useNow } from "@/app/lib/use-now";
+import { useTimeFormat, type TimeFormat } from "@/app/lib/use-display-time";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useTheme } from "@/app/providers/theme-provider";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -53,6 +55,7 @@ const RANGES = [
 ] as const;
 
 export function NetworthChart({ profile }: { profile: Profile }) {
+  const tf = useTimeFormat();
   const [range, setRange] = useState<(typeof RANGES)[number]["key"]>("30d");
   const box = useRef<HTMLDivElement | null>(null);
   const [w, setW] = useState(0);
@@ -159,7 +162,7 @@ export function NetworthChart({ profile }: { profile: Profile }) {
             <circle cx={model.x(points[points.length - 1].t)} cy={model.y(last)} r={3.5} className={styles.dot} />
             {hovered ? <line x1={model.x(hovered.t)} x2={model.x(hovered.t)} y1={8} y2={H - 22} className={styles.cross} /> : null}
             <text x={0} y={H - 6} className={styles.axis}>
-              {new Date(points[0].t).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              {tf.format(points[0].t, { month: "short", day: "numeric" }, { was: "local" })}
             </text>
             <text x={model.plotW} y={H - 6} textAnchor="end" className={styles.axis}>
               NOW
@@ -171,7 +174,7 @@ export function NetworthChart({ profile }: { profile: Profile }) {
         {hovered && model ? (
           <div className={styles.tip} style={{ left: Math.min(Math.max(model.x(hovered.t), 60), model.plotW - 60) }}>
             <b>{money(hovered.v)}</b>
-            <span>{new Date(hovered.t).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+            <span>{tf.format(hovered.t, { month: "short", day: "numeric" }, { was: "local" })}</span>
           </div>
         ) : null}
       </div>
@@ -271,6 +274,7 @@ export function Bags({ profile, isSelf }: { profile: Profile; isSelf: boolean })
 
 // ── Pending orders (self) ────────────────────────────────────────────────
 export function PendingOrders() {
+  const tf = useTimeFormat();
   const orders = useProfileStore((state) => state.pendingLiveOrders);
   const refreshTradingState = useProfileStore((state) => state.refreshTradingState);
   const icons = useIcons();
@@ -306,7 +310,7 @@ export function PendingOrders() {
                 {order.side.toUpperCase()} {order.requested_quantity}
               </b>{" "}
               {order.symbol}
-              <small>executes after {order.execute_after ? `${formatEtTime(new Date(order.execute_after))} ET` : "the next batch"}</small>
+              <small>executes after {order.execute_after ? tf.clock(order.execute_after) : "the next batch"}</small>
             </span>
             <button type="button" className={confirm === order.id ? styles.confirm : styles.mini} disabled={busy} onClick={() => (confirm === order.id ? void cancel(order.id) : setConfirm(order.id))}>
               {confirm === order.id ? "CONFIRM" : "CANCEL"}
@@ -326,8 +330,35 @@ export function PredictionExposure({ portfolio }: { portfolio: PredictionPortfol
   const positions = portfolio?.positions ?? [];
   const orders = portfolio?.open_orders ?? [];
   const reserved = orders.reduce((sum, order) => sum + order.cash_reserved, 0);
+  const { visible: poolsOn } = usePoolAccess();
+  const [pools, setPools] = useState<MyPools | null>(null);
+  useEffect(() => {
+    if (!poolsOn) return;
+    let alive = true;
+    fetchMyPools()
+      .then((result) => alive && setPools(result))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [poolsOn]);
+  const stakes = pools?.open ?? [];
   return (
-    <Sec title="Prediction exposure" aside={<Link href="/predictions">markets →</Link>}>
+    <Sec title="Prediction exposure" aside={<Link href="/predictions">pools →</Link>}>
+      {pools?.margin.in_red ? <p className={styles.note}>You owe {money(pools.margin.owed)} on margin. Credit that comes in pays it back.</p> : null}
+      {stakes.slice(0, 6).map((stake) => (
+        <Link key={`${stake.market_id}-${stake.outcome_id}`} href={poolHref(stake.slug)} className={styles.row}>
+          <span className={styles.outcome}>{stake.outcome_label.slice(0, 3).toUpperCase()}</span>
+          <span>
+            {stake.title}
+            <small>
+              {money(stake.stake)} on {stake.outcome_label}
+              {stake.borrowed > 0 ? `, ${money(stake.borrowed)} on margin` : ""}
+            </small>
+          </span>
+          <span className={styles.rv}>{stake.payout_if_wins !== null ? `pays ${money(stake.payout_if_wins)}` : ""}</span>
+        </Link>
+      ))}
       {positions.length ? (
         positions.slice(0, 6).map((position) => (
           <Link key={`${position.market_id}-${position.outcome_id}`} href={`/predictions/${enc(position.slug)}`} className={styles.row}>
@@ -341,8 +372,8 @@ export function PredictionExposure({ portfolio }: { portfolio: PredictionPortfol
             <span className={`${styles.rv} ${styles[toneOf(position.realized_pnl_cash)]}`}>{position.realized_pnl_cash ? `${position.realized_pnl_cash >= 0 ? "+" : "−"}${money(Math.abs(position.realized_pnl_cash))}` : ""}</span>
           </Link>
         ))
-      ) : (
-        <EmptyState>No prediction positions.</EmptyState>
+      ) : stakes.length ? null : (
+        <EmptyState>No open bets.</EmptyState>
       )}
       {orders.length ? (
         <p className={styles.note}>
@@ -355,6 +386,7 @@ export function PredictionExposure({ portfolio }: { portfolio: PredictionPortfol
 
 // ── Recent fills ─────────────────────────────────────────────────────────
 export function RecentFills({ bundle, base, onPage }: { bundle: ProfileBundle; base: string; onPage: (trades: ProfileBundle["trades"]) => void }) {
+  const tf = useTimeFormat();
   const icons = useIcons();
   const [busy, setBusy] = useState(false);
   const { items, pagination } = bundle.trades;
@@ -373,7 +405,7 @@ export function RecentFills({ bundle, base, onPage }: { bundle: ProfileBundle; b
         <>
           {items.map((trade) => (
             <div key={trade.id} className={styles.fill}>
-              <time suppressHydrationWarning title={new Date(trade.ts).toLocaleString()}>
+              <time suppressHydrationWarning title={tf.stamp(trade.ts)}>
                 {timeAgo(trade.ts)}
               </time>
               <b className={trade.side === "buy" ? styles.up : styles.down}>{trade.side.toUpperCase()}</b>
@@ -430,10 +462,11 @@ export function GachaBadges({ profile, isSelf }: { profile: Profile; isSelf: boo
 }
 
 // ── The original NASFAQ ──────────────────────────────────────────────────
-const longDay = (at: string | null) => (at ? new Date(at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "");
+const longDay = (tf: TimeFormat, at: string | null) => (at ? tf.format(at, { month: "long", day: "numeric", year: "numeric" }, { was: "local" }) : "");
 
 /** A snapshot of a player's account on the original NASFAQ, from the day they linked it. Theirs to hide. */
 export function V1Trophy({ account, isSelf, onChange }: { account: V1Account; isSelf: boolean; onChange: (next: V1Account) => void }) {
+  const tf = useTimeFormat();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -472,17 +505,17 @@ export function V1Trophy({ account, isSelf, onChange }: { account: V1Account; is
         <div>
           <span className={styles.label}>Username</span>
           <b>{account.username}</b>
-          <small>joined {longDay(account.joined_at)}</small>
+          <small>joined {longDay(tf, account.joined_at)}</small>
         </div>
         <div>
           <span className={styles.label}>Peak net worth</span>
           <b>{money(account.peak_net_worth)}</b>
-          <small>{longDay(account.peak_at)}</small>
+          <small>{longDay(tf, account.peak_at)}</small>
         </div>
         <div>
           <span className={styles.label}>Net worth at link</span>
           <b>{money(account.net_worth)}</b>
-          <small>linked {longDay(account.linked_at)}</small>
+          <small>linked {longDay(tf, account.linked_at)}</small>
         </div>
         <div>
           <span className={styles.label}>Rank at link</span>
@@ -692,13 +725,14 @@ export function Articles({ bundle, base, isSelf, onChange }: { bundle: ProfileBu
 
 // ── Achievements ─────────────────────────────────────────────────────────
 export function Achievements({ profile }: { profile: Profile }) {
+  const tf = useTimeFormat();
   const list = [...profile.achievements].sort((a, b) => String(b.earned_at ?? "").localeCompare(String(a.earned_at ?? "")));
   return (
     <Sec title="Achievements" aside={`${list.length} earned`} className={styles.wide}>
       {list.length ? (
         <div className={styles.ach}>
           {list.map((achievement) => (
-            <div key={achievement.key} className={styles.achItem} style={{ "--bc": achievement.badge_color || "var(--blue)" } as React.CSSProperties} title={achievement.earned_at ? `Earned ${new Date(achievement.earned_at).toLocaleDateString()}` : undefined}>
+            <div key={achievement.key} className={styles.achItem} style={{ "--bc": achievement.badge_color || "var(--blue)" } as React.CSSProperties} title={achievement.earned_at ? `Earned ${tf.format(achievement.earned_at, { year: "numeric", month: "numeric", day: "numeric" }, { was: "local", browserLocale: true })}` : undefined}>
               <Medal color={achievement.badge_color || "#3fb8f5"} mark={achievement.name.slice(0, 1)} size={34} />
               <span>
                 <b>{achievement.name}</b>

@@ -1,6 +1,6 @@
 // A buyback's numbers for the page: today's offer, every day's step down to the floor, the shares
-// still over the max (only those get the offer), and when it ends. Mirrors
-// api/src/services/marketSupply.js (buybackMultiplier, buybackFillPrice) and settlement.js (a buyback
+// still over the max (only those get the offer), what a sell fills at, and when it ends. Mirrors
+// api/src/services/marketSupply.js (buybackMultiplier, buybackFill) and settlement.js (a buyback
 // back under its max ends at the next Open). Plain JavaScript so `npm test` can run it without a
 // build (buyback-plan.test.mjs).
 
@@ -64,6 +64,33 @@ export function stepsOf(buyback, now, endsAt) {
 export function sharesAtOffer({ circulating, max, fallback }) {
   if (finite(circulating) && finite(max) && max > 0) return Math.max(0, circulating - max);
   return Math.max(0, finite(fallback) ? fallback : 0);
+}
+
+/**
+ * How many of a holder's shares can get the offer: those held before the last tick ahead of the
+ * buyback, less any sold since (`eligible`, the portfolio's buyback_offer_shares) and less sells
+ * already queued, which fill first. Without `eligible` (null): all of them.
+ * @param {{ held: number; eligible?: number | null; queued?: number }} input
+ */
+export function yourOfferShares({ held, eligible = null, queued = 0 }) {
+  const mine = Math.max(0, finite(held) ? held : 0);
+  const base = finite(eligible) ? Math.min(mine, Math.max(0, eligible)) : mine;
+  return Math.max(0, base - Math.max(0, finite(queued) ? queued : 0));
+}
+
+/**
+ * What a sell into the buyback fills at, as marketSupply.buybackFill works it out: the offer on the
+ * shares still over the max that are also the seller's to sell at it (`yours`), the frozen price on
+ * the rest. Returns the price per share and how many get the offer.
+ * @param {{ offer: number; frozen: number; over: number }} plan
+ * @param {number} quantity
+ * @param {number} [yours]
+ */
+export function buybackSell(plan, quantity, yours = Infinity) {
+  const frozen = finite(plan.frozen) ? plan.frozen : 0;
+  if (!(quantity > 0)) return { price: frozen, atOffer: 0 };
+  const atOffer = Math.max(0, Math.min(quantity, finite(plan.over) ? plan.over : 0, yours));
+  return { price: (atOffer * plan.offer + (quantity - atOffer) * frozen) / quantity, atOffer };
 }
 
 function etParts(now) {

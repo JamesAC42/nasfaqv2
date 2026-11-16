@@ -1717,6 +1717,20 @@ async function applySchema(pool) {
     )
   `);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS market_asset_buybacks_one_active_idx ON market.asset_buybacks (asset_id) WHERE status = 'active'`);
+  // The offer pays only on shares held before the last tick ahead of the buyback (offer_cutoff_at).
+  // A row is a holder who added shares between that tick and the start (late_shares, from the
+  // ledger); those sell at the frozen price. Buys are refused while frozen, so a holding only shrinks:
+  // the shares still at the offer are always the holding less late_shares. No row: all of them.
+  await pool.query(`ALTER TABLE market.asset_buybacks ADD COLUMN IF NOT EXISTS offer_cutoff_at TIMESTAMPTZ NULL`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.asset_buyback_late_shares (
+      buyback_id BIGINT NOT NULL REFERENCES market.asset_buybacks(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL,
+      late_shares NUMERIC NOT NULL,
+      PRIMARY KEY (buyback_id, user_id),
+      CONSTRAINT asset_buyback_late_shares_positive_check CHECK (late_shares > 0)
+    )
+  `);
   // Shares held are the circulating supply; the broker holds the rest. The old daily print is gone.
   // One time only (stocks still carrying the old base_emission): circulating is recomputed from the
   // holdings with the holdings table locked against fills, and max shares are raised only where
@@ -2129,6 +2143,93 @@ async function applySchema(pool) {
   // The source tag on the link a signed-out visitor arrived by (?ref=vt-banner; services/visits.js),
   // so /admin/analytics can set visitors next to sign-ups for each tag.
   await pool.query(`ALTER TABLE market.site_visits ADD COLUMN IF NOT EXISTS source TEXT NULL`);
+
+  // The first market date whose fair values carry the server-side daily factor (services/targetNudge.js),
+  // recorded by the first regular settlement that runs with MARKET_TARGET_SECRET set. Earlier days
+  // stay as they were on a rebuild. Not part of the public market status.
+  await pool.query(`ALTER TABLE market.market_runtime_state ADD COLUMN IF NOT EXISTS target_nudge_from DATE NULL`);
+  // Notification settings (services/notificationSettings.js): one row per player who has changed
+  // one, off for anyone without a row. A new channel or reminder (email, say) is a new column here.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.notification_preferences (
+      user_id BIGINT PRIMARY KEY REFERENCES market.users(id) ON DELETE CASCADE,
+      checkin_reminder_push BOOLEAN NOT NULL DEFAULT false,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  // Browsers and phones a player turned push on in (services/webPush.js). The endpoint is the push
+  // service's address for that one browser: personal data, never logged or sent back to the site.
+  // One row per endpoint: a browser shared by two accounts belongs to whoever subscribed it last.
+  // A push service answering 404 or 410 means the browser dropped it, and the row is deleted.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.push_subscriptions (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      endpoint TEXT NOT NULL,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      device_label TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_success_at TIMESTAMPTZ NULL,
+      CONSTRAINT push_subscriptions_endpoint_key UNIQUE (endpoint)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_push_subscriptions_user_idx ON market.push_subscriptions (user_id)`);
+  // The daily check-in reminder (services/checkinReminders.js): one row per player per New York day,
+  // written before anything is sent, so a player is reminded at most once a day however many API
+  // pods race. delivered counts the devices that took it.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.checkin_reminder_sends (
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      day DATE NOT NULL,
+      sent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      delivered INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (user_id, day)
+    )
+  `);
+  // Push for the bell (services/pushNotifications.js): one switch per group of notification kinds
+  // (notifications.js KIND_GROUPS), all off until the player turns one on.
+  await pool.query(`
+    ALTER TABLE market.notification_preferences
+      ADD COLUMN IF NOT EXISTS push_market BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS push_bets BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS push_social BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS push_exchange BOOLEAN NOT NULL DEFAULT false
+  `);
+  // Bell notifications waiting to go out as pushes, queued after the notification committed. The
+  // scheduler claims rows (claimed_at) before it sends anything, so a push goes out at most once
+  // however many pods race; a crash after the claim loses that push rather than sending it twice.
+  // Claimed rows are kept a day, then deleted.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.push_queue (
+      id BIGSERIAL PRIMARY KEY,
+      notification_id BIGINT NOT NULL REFERENCES market.notifications(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL REFERENCES market.users(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL,
+      push_group TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      href TEXT NULL,
+      queued_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      claimed_at TIMESTAMPTZ NULL,
+      CONSTRAINT push_queue_notification_key UNIQUE (notification_id)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_push_queue_pending_idx ON market.push_queue (id) WHERE claimed_at IS NULL`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_push_queue_user_kind_idx ON market.push_queue (user_id, kind) WHERE claimed_at IS NULL`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_push_queue_claimed_idx ON market.push_queue (claimed_at) WHERE claimed_at IS NOT NULL`);
+
+  // Display settings (services/displaySettings.js, the Display section of /settings): one row per
+  // player who has picked one. time_zone is how clock times show: 'market' (New York market time) or
+  // 'local' (the browser's own zone). NULL, or no row, means they haven't picked, so times show in
+  // New York time and the one-time "show them in your time?" prompt may still ask.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.display_preferences (
+      user_id BIGINT PRIMARY KEY REFERENCES market.users(id) ON DELETE CASCADE,
+      time_zone TEXT NULL CHECK (time_zone IN ('market', 'local')),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
 }
 
 module.exports = { applySchema };

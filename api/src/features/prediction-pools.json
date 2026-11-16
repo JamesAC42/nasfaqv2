@@ -1,4 +1,4 @@
 {
-  "state": "staff",
-  "description": "Prediction pools and margin (docs/design/predictions-pools.md): pools on the predictions floor and their pages (/predictions/pools/*, /predictions/history, /predictions/bookie, the Pools section of My bets), GET and POST /api/prediction-markets/pools/* and /margin, pool events on the predictions socket, and margin's in-the-red rules and repayment sweep. At \"on\", creating market-maker markets or turning their templates back on is refused."
+  "state": "on",
+  "description": "Prediction pools and margin (docs/design/predictions-pools.md): pools on the predictions floor and their pages (/predictions/pools/*, /predictions/history, /predictions/bookie, the Pools section of My bets), GET and POST /api/prediction-markets/pools/* and /margin, pool events on the predictions socket, pool bets on the tape, the forecasters board and the home page's activity band, stream-peak pools on the stream calendar, and margin's in-the-red rules. At \"on\", the market maker is retired: creating, submitting or approving a market-maker market or turning its templates back on is refused, and the scheduler opens none."
 }

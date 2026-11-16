@@ -22,6 +22,7 @@ import { PredictionsFrame } from "@/app/components/predictions/shell/predictions
 import { fetchAdminOverview } from "@/app/lib/predictions/api";
 import { predictionErrorText } from "@/app/lib/predictions/errors";
 import { STATUS_LABEL, TEMPLATE_LABEL, compactMoney, leader, money, outcomeColor, percent, timeAgo, timeLeft } from "@/app/lib/predictions/format";
+import { usePoolAccess } from "@/app/lib/predictions/use-pool-access";
 import { usePredictionFeed } from "@/app/lib/predictions/use-prediction-feed";
 import type { AdminMarket, AdminOverview } from "@/app/lib/predictions/types";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -244,6 +245,7 @@ type LiveFilter = "all" | "event" | "auto";
 export function AdminConsole() {
   const { initialized, user } = useAuth();
   const flags = useStaffFlags();
+  const pools = usePoolAccess();
   const now = useNow();
   const [data, setData] = useState<AdminOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -326,10 +328,10 @@ export function AdminConsole() {
   );
 
   const liveByTemplate = useMemo(() => {
-    const counts: Record<string, number> = {};
+    const counts: Record<string, number> = { ...data?.pools_live_by_template };
     for (const market of data?.live ?? []) if (market.auto_template) counts[market.auto_template] = (counts[market.auto_template] ?? 0) + 1;
     return counts;
-  }, [data?.live]);
+  }, [data?.live, data?.pools_live_by_template]);
 
   const live = useMemo(() => (data?.live ?? []).filter((market) => liveFilter === "all" || market.kind === liveFilter), [data?.live, liveFilter]);
 
@@ -384,9 +386,9 @@ export function AdminConsole() {
       aside={
         <>
           {loadedAt ? <span className={styles.synced}>synced {timeAgo(loadedAt, now)} ago</span> : null}
-          {flags.canCreate ? (
-            <Link href="/predictions/create" className={styles.newBtn}>
-              + New market
+          {pools.bookie ? (
+            <Link href="/predictions/bookie" className={styles.newBtn}>
+              + New pool
             </Link>
           ) : null}
         </>

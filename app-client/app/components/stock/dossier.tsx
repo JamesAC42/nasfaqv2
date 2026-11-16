@@ -19,7 +19,7 @@ import { fmtBig, yen, type Rank } from "@/app/components/stock/format";
 import { useChannelStreams, useSuperchats } from "@/app/components/stock/use-stock-data";
 import { FEE_RATE, n2, TradeTicket } from "@/app/components/trade/trade-ticket";
 import { activeBuyback, useBuybackSpotlight } from "@/app/lib/buyback";
-import { markSeries, unitLabel } from "@/app/lib/market-units";
+import { closeSeries, unitLabel } from "@/app/lib/market-units";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct, toneOf } from "@/app/lib/time";
 import type { MarketAsset } from "@/app/lib/types";
@@ -190,7 +190,7 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
   }, [asset, assets, channel, listed, superchats.rank.data]);
 
   const move = asset.move_24h_pct;
-  const series = markSeries(asset);
+  const series = closeSeries(asset);
   const d15 = series.length > 1 && asset.current_mid_price ? (asset.current_mid_price - series[0]) / series[0] : null;
   const total = asset.max_supply ?? (asset.circulating_supply ?? 0) + (asset.treasury_supply ?? 0);
   const float = total > 0 ? (asset.circulating_supply ?? 0) / total : null;
@@ -321,7 +321,7 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
           )}
         </header>
 
-        <BuybackBanner asset={asset} held={holding?.quantity ?? 0} />
+        <BuybackBanner asset={asset} held={holding?.quantity ?? 0} eligible={holding?.buyback_offer_shares ?? null} />
 
         <nav className={styles.snav} aria-label="Sections">
           {SECTIONS.map(([id, label]) => (

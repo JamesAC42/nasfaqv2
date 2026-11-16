@@ -1,0 +1,259 @@
+@use "../../styles/mixins" as *;
+
+// /settings: one column of sections, each under a hairline (DESIGN.md: rules, not cards).
+
+.page {
+  display: grid;
+  align-content: start;
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 44rem;
+  margin-inline: auto;
+}
+
+.pageHead {
+  display: grid;
+  align-content: start;
+  gap: 0.3rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--rule);
+
+  h1 {
+    @include display(2rem);
+    margin: 0;
+  }
+}
+
+.jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+
+  a {
+    @include label;
+    color: var(--mid);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--text);
+    }
+  }
+}
+
+.empty {
+  @include empty-state;
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.section {
+  display: grid;
+  gap: 0.75rem;
+  scroll-margin-top: 6rem;
+
+  h2 {
+    @include section-heading;
+    margin: 0;
+  }
+}
+
+.note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--mid);
+  line-height: 1.5;
+}
+
+.error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--down);
+}
+
+.dim {
+  @include label;
+}
+
+.label {
+  @include label;
+}
+
+.table {
+  display: grid;
+  border: 1px solid var(--rule);
+}
+
+.tableHead,
+.tableRow {
+  display: grid;
+  // One column per channel after the reminder's name: push now, email when it exists.
+  grid-template-columns: minmax(0, 1fr) 6.5rem;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.6rem 0.85rem;
+}
+
+.tableHead {
+  @include label;
+  border-bottom: 1px solid var(--rule);
+  background: var(--ink-2);
+}
+
+.tableRow > span:first-child {
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.875rem;
+
+  small {
+    font-size: 0.75rem;
+    color: var(--mid);
+  }
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+
+  input {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--blue);
+  }
+}
+
+.callout {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid var(--blue);
+  background: var(--ink-2);
+  font-size: 0.8125rem;
+
+  p {
+    margin: 0;
+    color: var(--mid);
+  }
+
+  ol {
+    margin: 0;
+    padding-left: 1.2rem;
+    display: grid;
+    gap: 0.3rem;
+  }
+}
+
+.linkButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--blue);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+.devices {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.device {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--rule);
+  font-size: 0.84rem;
+
+  > span {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  em {
+    font-style: normal;
+    color: var(--blue);
+  }
+
+  small {
+    font-size: 0.72rem;
+    color: var(--dim);
+  }
+}
+
+.button {
+  @include label;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--rule-2);
+  background: none;
+  color: var(--mid);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--text);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+// The Display section's picker: one row per choice, with the time now in that zone on the right.
+.choices {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--rule);
+  cursor: pointer;
+
+  &[data-on] {
+    border-color: var(--blue);
+    background: var(--blue-wash);
+  }
+
+  input {
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    accent-color: var(--blue);
+  }
+
+  > span {
+    display: grid;
+    gap: 0.15rem;
+    font-size: 0.875rem;
+    min-width: 0;
+
+    small {
+      font-size: 0.75rem;
+      color: var(--mid);
+    }
+  }
+}
+
+.sample {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--mid);
+  white-space: nowrap;
+}

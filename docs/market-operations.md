@@ -43,7 +43,7 @@ While `MARKET_WEEKLY_EVALUATION_CLOSE_TRADING` is on (the default until it has r
 
 Each chunk locks its rows in a fill's lock order (orders, stocks, buybacks, cash, holdings) and id order within each, works every order out in memory in (`execute_after`, id) order (`planLiveOrderChunk` in `trading.js`), and writes one statement per table (`liveOrderBatch.js`): about 20 statements and one commit however many orders it holds. It used to be about 22 statements and a commit per order, and every fill by one player waited on that player's cash row, so a player's orders ran one at a time however many workers there were.
 
-- **One clock per chunk.** A fill's price decays toward fair value with the time since the stock's last move. The chunk reads the clock once, so a price depends on the orders ahead of it, not on how long they took to write.
+- **One clock per chunk.** Each fill starts from the stock's stored mid as the orders ahead of it left it (nothing fades a price between trades and ticks). The chunk reads the clock once, so its fills share one time and a price depends only on the orders ahead of it.
 - **Fill time.** A chunk's fills share one `ts`, cut to the millisecond (the tape's cursor goes through a JS Date). Anything ordering fills by time has to break ties by id.
 - **Queue order across stocks.** Orders fill strictly in queue order. The old workers raced across stocks, so which of a player's orders got the last of their cash could change between runs.
 - **Stock locked by someone else.** The stock lock is `FOR NO KEY UPDATE NOWAIT`. `NOWAIT`, because a tick locks its stocks one at a time in its own order, so waiting while holding others could deadlock with it: the chunk rolls back and tries again on the next second (`skipped: "stocks_busy"`). `NO KEY UPDATE`, because a plain `FOR UPDATE` also conflicts with the key-share lock anyone inserting a row that references a stock holds (a player placing an order, the leaderboard refresh), which would turn chunks away for nothing and could deadlock with a player waiting on a wallet the chunk holds.
@@ -63,6 +63,10 @@ Each fill used to start its own streak and achievement transaction the moment it
 ## Chat archive
 
 Chat past the visible window (`CHAT_HISTORY_VISIBLE_DAYS`, keeping each room's newest `CHAT_HISTORY_MIN_MESSAGES`) moves to `chat.archived_messages` every 10 minutes on `api-scheduler`, under advisory lock `9204120` (`api/src/services/chatArchive.js`). Every history GET used to run this itself. Reads cover both tables with the same rules, so readers see the same history either way. The job reports as `chat-archive` on the admin heartbeats; the watchdog calls it failing after two hours without a clean tick. `CHAT_ARCHIVE_ENABLED=false` stops it, and `POST /api/chat/admin/archive` still runs one by hand.
+
+## Check-in reminders
+
+Players who turned the daily check-in reminder on in Settings, and haven't checked in yet, get one push a day at 18:00 ET (`CHECKIN_REMINDER_HOUR`, a New York hour), six hours before the check-in resets at midnight ET. It runs every 5 minutes on `api-scheduler` under advisory lock `9204140` (`api/src/services/checkinReminders.js`) and sends only once the hour has passed, until midnight. Each player's `market.checkin_reminder_sends` row for the day is written before anything goes out, so nobody is reminded twice in a day; a crash mid-send costs that day's reminder instead. The same reminder lands in the bell (kind `checkin`). A push service answering 404 or 410 deletes that device. It reports as `checkin-reminders` on the admin heartbeats, and the hub shows whether push is configured with its player and device counts. Without `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY` and `WEB_PUSH_SUBJECT` it reports Off and sends nothing; `CHECKIN_REMINDERS_ENABLED=false` stops it too. Behind the `checkin-reminders` flag: at `staff` only admins are reminded.
 
 ## Validation
 

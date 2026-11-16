@@ -7,7 +7,7 @@ import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { Oshimark } from "@/app/components/common/oshimark";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { apiFetch } from "@/app/lib/api";
-import { markSeries, unitLabel } from "@/app/lib/market-units";
+import { closeSeries, unitLabel } from "@/app/lib/market-units";
 import { normalizeCandles, normalizeLivestreams } from "@/app/lib/normalizers";
 import {
   assetForStream,
@@ -37,6 +37,7 @@ import { useLivestreamStore } from "@/app/stores/livestream-store";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useOpenStream, useStreamStore } from "@/app/stores/stream-store";
 import { useTradeStore } from "@/app/stores/trade-store";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import styles from "@/app/components/livestreams/stream-sheet.module.scss";
 
 type Session = {
@@ -87,6 +88,7 @@ function Host() {
 }
 
 function StreamSheet({ id }: { id: string }) {
+  const tf = useTimeFormat();
   const router = useRouter();
   const pathname = usePathname();
   const { theme } = useTheme();
@@ -307,7 +309,7 @@ function StreamSheet({ id }: { id: string }) {
           {status === "upcoming" ? (
             <>
               {roomKind ? <Stat label="Slot" value={CHAT_ROOM_LABEL[roomKind]} small /> : <Stat label="Starts" value={untilLabel(scheduled, now)} />}
-              <Stat label="Scheduled" value={localDateTime(scheduled)} small />
+              <Stat label="Scheduled" value={localDateTime(tf, scheduled)} small />
               {usualPeak ? <Stat label="Usual peak" value={compactCount(usualPeak)} sub="median, last 2 weeks" /> : null}
             </>
           ) : (
@@ -320,7 +322,7 @@ function StreamSheet({ id }: { id: string }) {
               <Stat
                 label="Peak"
                 value={compactCount(peak)}
-                sub={[session?.max_concurrent_viewers_at ? `at ${localTime(session.max_concurrent_viewers_at)}` : null, peak && usualPeak ? `${(peak / usualPeak).toFixed(1)}× usual` : null].filter(Boolean).join(" · ") || undefined}
+                sub={[session?.max_concurrent_viewers_at ? `at ${localTime(tf, session.max_concurrent_viewers_at)}` : null, peak && usualPeak ? `${(peak / usualPeak).toFixed(1)}× usual` : null].filter(Boolean).join(" · ") || undefined}
               />
               <Stat label="Average" value={compactCount(average)} />
               <Stat label={isLive ? "On air" : "Length"} value={isLive ? clockDuration(duration) : shortDuration(duration)} />
@@ -330,8 +332,8 @@ function StreamSheet({ id }: { id: string }) {
         </section>
         {status !== "upcoming" && actual ? (
           <p className={styles.when}>
-            {isLive ? "Went live" : "Streamed"} {localDateTime(actual)}
-            {status === "ended" && ended ? ` – ${localTime(ended)}` : ""}
+            {isLive ? "Went live" : "Streamed"} {localDateTime(tf, actual)}
+            {status === "ended" && ended ? ` – ${localTime(tf, ended)}` : ""}
             {lateMins !== null && lateMins >= 2 ? ` · started ${lateMins}m late` : ""}
           </p>
         ) : null}
@@ -366,6 +368,7 @@ function StreamSheet({ id }: { id: string }) {
 }
 
 function StatusPill({ status, roomKind, watching, scheduled, ended, now }: { status: string; roomKind: ReturnType<typeof chatRoomKind>; watching: number | null; scheduled: string | null; ended: string | null; now: number }) {
+  const tf = useTimeFormat();
   if (roomKind) return <span className={styles.pill}>{CHAT_ROOM_LABEL[roomKind].toUpperCase()} ROOM</span>;
   if (status === "live")
     return (
@@ -375,7 +378,7 @@ function StatusPill({ status, roomKind, watching, scheduled, ended, now }: { sta
       </span>
     );
   if (status === "upcoming") return <span className={`${styles.pill} ${styles.pillUp}`}>UPCOMING · {untilLabel(scheduled, now).toUpperCase()}</span>;
-  return <span className={styles.pill}>ENDED{ended ? ` · ${localDateTime(ended).toUpperCase()}` : ""}</span>;
+  return <span className={styles.pill}>ENDED{ended ? ` · ${localDateTime(tf, ended).toUpperCase()}` : ""}</span>;
 }
 
 function Stat({ label, value, sub, live, small }: { label: string; value: string; sub?: string; live?: boolean; small?: boolean }) {
@@ -396,7 +399,7 @@ function StockStrip({ asset, onTrade, onNavigate }: { asset: MarketAsset; onTrad
         <span>{asset.current_mid_price?.toFixed(2) ?? "—"}</span>
         <span className={styles[toneOf(asset.move_24h_pct)]}>{signedPct(asset.move_24h_pct)} today</span>
       </Link>
-      <Sparkline values={markSeries(asset)} tone={toneOf(asset.move_24h_pct) === "down" ? "down" : "up"} width={120} height={28} className={styles.stockSpark} />
+      <Sparkline values={closeSeries(asset)} tone={toneOf(asset.move_24h_pct) === "down" ? "down" : "up"} width={120} height={28} className={styles.stockSpark} />
       <button type="button" className={styles.trade} onClick={onTrade}>
         TRADE {asset.symbol}
       </button>
@@ -438,6 +441,7 @@ function useStreamCandles(symbol: string | null, start: string | null, live: boo
 }
 
 function StreamChart({ buckets, asset, start, end, live, now, loading, error }: { buckets: Bucket[]; asset: MarketAsset | null; start: string | null; end: string | null; live: boolean; now: number; loading: boolean; error: string | null }) {
+  const tf = useTimeFormat();
   const box = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
   const [hover, setHover] = useState<number | null>(null);
@@ -579,7 +583,7 @@ function StreamChart({ buckets, asset, start, end, live, now, loading, error }: 
 
             {model.ticks.map((t) => (
               <text key={t} x={model.x(t)} y={224} className={styles.axis} textAnchor="middle">
-                {new Date(t).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                {tf.format(t, { hour: "numeric", minute: "2-digit" }, { was: "local", label: false })}
               </text>
             ))}
 
@@ -594,7 +598,7 @@ function StreamChart({ buckets, asset, start, end, live, now, loading, error }: 
         )}
         {model && hover !== null && (hv || hp) ? (
           <div className={styles.tip} style={{ left: Math.min(Math.max(model.x(hover), 70), model.plotW - 70) }}>
-            <b>{new Date(hover).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</b>
+            <b>{tf.format(hover, { hour: "numeric", minute: "2-digit" }, { was: "local" })}</b>
             {hv ? (
               <span>
                 {compactCount(hv.avg)} avg · {compactCount(hv.max)} peak
@@ -646,10 +650,11 @@ function useChannelStreams(channelId: string | null) {
 }
 
 function MoreFrom({ data, channelId, currentId, creator, onOpen }: { data: ChannelStreams; channelId: string; currentId: string; creator: string; onOpen: (item: StreamPreview) => void }) {
+  const tf = useTimeFormat();
   const rows: Array<{ preview: StreamPreview; tag: string; meta: string; live: boolean }> = [];
   for (const item of data.live) rows.push({ preview: previewOf({ ...item, channel_id: item.channel_id ?? channelId }), tag: "LIVE", meta: `${compactCount(item.viewer_count)} watching`, live: true });
-  for (const item of data.upcoming) rows.push({ preview: previewOf({ ...item, status: "upcoming", channel_id: item.channel_id ?? channelId }), tag: "NEXT", meta: localDateTime(item.started_at), live: false });
-  for (const stream of data.past) rows.push({ preview: previewOf(stream), tag: stream.started_at ? new Date(stream.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase() : "PAST", meta: `${compactCount(stream.max_viewers)} peak · ${shortDuration(stream.duration_seconds)}`, live: false });
+  for (const item of data.upcoming) rows.push({ preview: previewOf({ ...item, status: "upcoming", channel_id: item.channel_id ?? channelId }), tag: "NEXT", meta: localDateTime(tf, item.started_at), live: false });
+  for (const stream of data.past) rows.push({ preview: previewOf(stream), tag: stream.started_at ? tf.format(stream.started_at, { month: "short", day: "numeric" }, { was: "local" }).toUpperCase() : "PAST", meta: `${compactCount(stream.max_viewers)} peak · ${shortDuration(stream.duration_seconds)}`, live: false });
   const shown = rows.filter((row) => row.preview.id !== currentId).slice(0, 6);
   if (!shown.length) return null;
   return (

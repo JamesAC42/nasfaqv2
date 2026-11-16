@@ -11,7 +11,7 @@ import { SiteShell } from "@/app/components/layout/site-shell";
 import { DividendsBoard } from "@/app/components/leaderboard/dividends-board";
 import { OshiboardTab } from "@/app/components/leaderboard/oshiboard-tab";
 import { useFeature } from "@/app/lib/features";
-import { formatEtTime } from "@/app/lib/market-clock";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { money, signedPct, toneOf } from "@/app/lib/time";
 import type { LeaderboardEntry, LeaderboardScope, LeaderboardWindow, MarketAsset } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -101,6 +101,7 @@ function Badges({ entry }: { entry: LeaderboardEntry }) {
 }
 
 function PlayersTab() {
+  const tf = useTimeFormat();
   const { user } = useAuth();
   const entries = useLeaderboardStore((state) => state.entries);
   const me = useLeaderboardStore((state) => state.me);
@@ -134,7 +135,7 @@ function PlayersTab() {
         </div>
         <div>
           <span className={styles.label}>Updated</span>
-          <b suppressHydrationWarning>{updated ? `${formatEtTime(updated)} ET` : "—"}</b>
+          <b suppressHydrationWarning>{updated ? tf.clock(updated) : "—"}</b>
           <small>last refresh</small>
         </div>
         <div>

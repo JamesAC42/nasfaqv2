@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { predictionErrorText } from "@/app/lib/predictions/errors";
 import { closePool, correctPool, extendPool, reopenPool, resolvePool, voidPool, type PoolDetail } from "@/app/lib/predictions/pools";
+import { useTimeFormat, type TimeFormat } from "@/app/lib/use-display-time";
 import styles from "@/app/components/predictions/pool/pool.module.scss";
 
 type Mode = "resolve" | "correct" | "void" | "extend" | "reopen" | null;
 
-const when = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const when = (tf: TimeFormat, iso: string) => tf.format(iso, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }, { was: "local" });
 
 const toLocalInput = (date: Date) => {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
@@ -20,6 +21,7 @@ const toLocalInput = (date: Date) => {
  * note, and a reopen needs a reason: they go on the pool's public record.
  */
 export function PoolActions({ pool, onChanged }: { pool: PoolDetail; onChanged: () => void }) {
+  const tf = useTimeFormat();
   const can = pool.can;
   const [mode, setMode] = useState<Mode>(null);
   const [outcome, setOutcome] = useState("");
@@ -159,7 +161,7 @@ export function PoolActions({ pool, onChanged }: { pool: PoolDetail; onChanged: 
             <span>Why</span>
             <input className={styles.input} minLength={3} maxLength={500} placeholder="Closed it by mistake" value={note} onChange={(event) => setNote(event.target.value)} required />
           </label>
-          <p className={styles.small}>Betting reopens until {when(pool.closes_at)}, when the pool was due to close. You can reopen a pool once, and your reason goes on its public record.</p>
+          <p className={styles.small}>Betting reopens until {when(tf, pool.closes_at)}, when the pool was due to close. You can reopen a pool once, and your reason goes on its public record.</p>
           <button type="submit" className={styles.primary} disabled={busy || note.trim().length < 3}>
             {busy ? "Working…" : "Reopen betting"}
           </button>

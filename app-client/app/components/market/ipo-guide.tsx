@@ -6,6 +6,7 @@ import { Term } from "@/app/components/common/tip";
 import { IPO_ROOKIE_DAYS, SHARES_PER_WINDOW, STARTER_CASH, TRADE_FEE } from "@/app/components/how-to-play/content";
 import { etMoment, ipoWindow, type IpoEvent } from "@/app/lib/ipo";
 import { ipoSteps, localMoment, rangeText } from "@/app/lib/ipo-guide.mjs";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import styles from "@/app/components/market/ipo-guide.module.scss";
 
 // The IPO page's explanations: the three steps and where this IPO is in them, "How this IPO works",
@@ -13,11 +14,16 @@ import styles from "@/app/components/market/ipo-guide.module.scss";
 // how-to-play/content.ts.
 
 const FEE = `${Math.round(TRADE_FEE * 100)}%`;
+// localMoment's shape (lib/ipo-guide.mjs), with the zone named by the time formatter.
+const LOCAL_MOMENT: Intl.DateTimeFormatOptions = { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" };
 
 /** Facts about one IPO the copy needs, in the viewer's own time once the page is running. */
 function useFacts(event: IpoEvent, now: number | null) {
-  // Server render and hydration show ET; the viewer's zone only exists in the browser.
-  const when = (value: string | Date) => (now === null ? etMoment(value) : localMoment(value));
+  // Server render and hydration show ET; the viewer's zone only exists in the browser. Before the
+  // time setting (its flag off) this page alone showed the browser's zone; with it, the player's pick.
+  const tf = useTimeFormat();
+  const flagged = tf.mode === "market" || tf.mode === "local";
+  const when = (value: string | Date) => (flagged ? tf.format(value, LOCAL_MOMENT) : now === null ? etMoment(value) : localMoment(value));
   const listing = ipoWindow(event.listing_date, 0)?.closes ?? new Date(event.window_closes_at);
   const talents = event.talents;
   const symbols = talents.map((talent) => talent.symbol);

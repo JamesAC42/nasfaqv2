@@ -388,6 +388,7 @@ const RESET_TABLES = [
   "market.asset_price_events",
   "market.dividend_payouts",
   "market.weekly_asset_evaluations",
+  "market.asset_buyback_late_shares",
   "market.asset_buybacks",
   "market.weekly_evaluations",
   "market.asset_daily_market_state",
@@ -432,7 +433,9 @@ const RESET_TABLES = [
   "games.user_reward_claims",
   "games.weekly_prize_payouts",
   "games.weekly_prize_settlements",
-  // Notifications about all of the above (dividends, fills, wins, friend requests)
+  // Notifications about all of the above (dividends, fills, wins, friend requests), and their pushes
+  // still waiting to go out (push settings and devices stay)
+  "market.push_queue",
   "market.notifications",
 ];
 

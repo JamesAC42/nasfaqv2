@@ -181,7 +181,8 @@
   dt {
     @include label;
     font-size: 0.58rem;
-    white-space: nowrap;
+    // A long label (Check-in reminders) wraps onto a second line instead of running into its value.
+    overflow-wrap: anywhere;
   }
 
   dd {

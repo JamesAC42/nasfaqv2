@@ -61,6 +61,8 @@ function Row({ label, children, tone }: { label: string; children: ReactNode; to
   );
 }
 
+const countOf = (n: number, one: string) => `${fmtCount(n)} ${n === 1 ? one : `${one}s`}`;
+
 const PROBLEM_LABELS: Record<NonNullable<SchedulerBeat["problem"]>, string> = { missing: "Not reporting", gone: "Not reporting", stalled: "Stalled", failing: "Failing" };
 
 /** A heartbeat's pill: the watchdog's verdict when it has one, else the scheduler's own status. */
@@ -652,8 +654,8 @@ export function AdminHub() {
     { href: "/admin/market-tuning", label: "Market tuning", line: "Tick schedule, force a tick, per-stock guardrails, reset.", show: isAdmin },
     { href: "/admin/market-sim", label: "Market simulator", line: "Try spreads, fees, growth and dividends on real data before changing anything. A sandbox.", show: isAdmin },
     { href: "/admin/assets", label: "Assets & prizes", line: "Emojis, profile pictures and the capsule prize pool.", show: access.canAssets },
-    { href: predsLink, label: "Predictions control room", line: "Approvals, calls, disputes and auto templates.", show: canPredictions },
-    { href: "/predictions/create", label: "New prediction market", line: "Write one up and send it for approval.", show: isAdmin || Boolean((user as Record<string, unknown> | null)?.can_create_prediction_markets) },
+    { href: predsLink, label: "Predictions control room", line: "Auto pool templates, and whatever's left of the old market-maker markets.", show: canPredictions },
+    { href: "/predictions/bookie", label: "Bookie desk", line: "Open a prediction pool and call its winner.", show: isAdmin || Boolean((user as Record<string, unknown> | null)?.is_bookie) },
     { href: "/admin/users", label: "Users", line: "Every account: search, sort, verify, rename, suspend, and what admins have done to each.", show: isAdmin },
     { href: "/admin/people", label: "People & roles", line: "Find a player, hand out or take back roles, suspend or reset a profile.", show: isAdmin },
     { href: "/admin/moderation", label: "Moderation", line: "Chat reports, mutes and bans, and the log of admin actions.", show: isAdmin },
@@ -856,6 +858,13 @@ export function AdminHub() {
                       : <Row label="—">—</Row>}
                   </dl>
                   {hb ? <p className={styles.muted}>{hb.alerts_configured ? "Alerts go to Discord." : "Alerts are off: DISCORD_ALERT_WEBHOOK_URL isn't set."}</p> : null}
+                  {hb?.push ? (
+                    <p className={styles.muted}>
+                      {hb.push.configured
+                        ? `Push is on: ${countOf(hb.push.players, "player")} on ${countOf(hb.push.devices, "device")}, ${fmtCount(hb.push.checkin_reminder_players)} with the check-in reminder. Groups: Market ${fmtCount(hb.push.group_players.market)}, Bets ${fmtCount(hb.push.group_players.bets)}, Social ${fmtCount(hb.push.group_players.social)}, Exchange ${fmtCount(hb.push.group_players.exchange)}.`
+                        : "Push is off: the WEB_PUSH_* keys aren't set."}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
 

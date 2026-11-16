@@ -10,6 +10,7 @@ import { AuthProvider } from "@/app/providers/auth-provider";
 import { MotionProvider } from "@/app/providers/motion-provider";
 import { ThemeProvider } from "@/app/providers/theme-provider";
 import { restoreRootPreferences } from "@/app/lib/root-preferences";
+import { DisplayTimeSync } from "@/app/lib/use-display-time";
 import { useMarketStore } from "@/app/stores/market-store";
 
 function MarketRealtimeConnector() {
@@ -34,6 +35,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       <MotionProvider>
         <AuthProvider>
           <MarketRealtimeConnector />
+          <DisplayTimeSync />
           <VisitCounter />
           {children}
           {/* Outside each page's shell so a playing stream survives moving between pages. */}

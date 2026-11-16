@@ -8,7 +8,8 @@
 //
 // A stock in a buyback (trading_state = 'buyback') is frozen: no buys, no ticks, the price stays put,
 // and sells fill at the broker's buyback price (120% of the frozen price, 10 points less per day,
-// floored at 50%).
+// floored at 50%) for the shares still over the max, and only on shares the seller held before the
+// last tick ahead of the buyback (offerCutoffBefore). Everything else sells at the frozen price.
 
 function envNumber(name, fallback) {
   const parsed = Number(process.env[name]);
@@ -50,15 +51,64 @@ function buybackPrice(buyback, now = new Date()) {
 }
 
 /**
- * What a sell into a buyback pays per share: the broker's offer for the shares still over the max,
- * the frozen price for any beyond that (so selling out and buying back at the Open isn't free money).
+ * A sell into a buyback: how many of its shares get the broker's offer and the price per share. The
+ * offer goes to the shares still over the max (first come, first served) and only to the seller's
+ * `eligible` shares (offerSharesFor); the rest fill at the frozen price, so selling out and buying
+ * back at the Open isn't free money and nor is buying on Friday to sell into Saturday's offer.
  */
-function buybackFillPrice(asset, buyback, quantity, now = new Date()) {
+function buybackFill(asset, buyback, quantity, now = new Date(), eligible = Infinity) {
   const over = Math.max(0, toNumber(asset.circulating_supply, 0) - toNumber(asset.max_supply, 0));
-  const atOffer = Math.min(quantity, over);
   const frozen = toNumber(buyback.frozen_price, 0);
-  if (!(quantity > 0)) return frozen;
-  return (atOffer * buybackPrice(buyback, now) + (quantity - atOffer) * frozen) / quantity;
+  if (!(quantity > 0)) return { price: frozen, atOffer: 0 };
+  const atOffer = Math.max(0, Math.min(quantity, over, eligible));
+  return { price: (atOffer * buybackPrice(buyback, now) + (quantity - atOffer) * frozen) / quantity, atOffer };
+}
+
+function buybackFillPrice(asset, buyback, quantity, now = new Date(), eligible = Infinity) {
+  return buybackFill(asset, buyback, quantity, now, eligible).price;
+}
+
+/**
+ * The seller's shares that can still get the offer: what they hold less what they added after the
+ * cutoff (`late`, market.asset_buyback_late_shares). Buys are refused while frozen, so a holding only
+ * shrinks and the late shares are the last to go.
+ */
+function offerSharesFor(held, late = 0) {
+  return Math.max(0, toNumber(held, 0) - toNumber(late, 0));
+}
+
+/** The tick hours in New York (Open, Lunch, Late, Overnight: marketAdjustments.INTERVALS). */
+const TICK_HOURS_ET = [3, 9, 15, 21];
+
+function etHour(at) {
+  return Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", hourCycle: "h23" }).format(at)) % 24;
+}
+
+/**
+ * The last tick strictly before `at`: shares held then are the ones the offer pays on. Friday's
+ * Late tick (21:00 ET) for the Saturday 00:00 evaluation, in EDT and EST alike (New York's offset is
+ * whole hours, so the ticks fall on the UTC hour).
+ */
+function offerCutoffBefore(at) {
+  const time = new Date(at).getTime();
+  let hour = Math.floor(time / 3_600_000) * 3_600_000;
+  if (hour === time) hour -= 3_600_000;
+  for (let step = 0; step < 12; step++, hour -= 3_600_000) {
+    if (TICK_HOURS_ET.includes(etHour(new Date(hour)))) return new Date(hour);
+  }
+  return new Date(hour);
+}
+
+/** Each seller's late shares in a buyback, Map user id → number. */
+async function lateSharesFor(client, buybackId, userIds) {
+  const late = new Map();
+  if (!buybackId || !userIds.length) return late;
+  const { rows } = await client.query(
+    `SELECT user_id, late_shares FROM market.asset_buyback_late_shares WHERE buyback_id = $1 AND user_id = ANY($2::bigint[])`,
+    [buybackId, userIds]
+  );
+  for (const row of rows) late.set(Number(row.user_id), toNumber(row.late_shares, 0));
+  return late;
 }
 
 /** When the buyback price next drops, or null at the floor. */
@@ -152,7 +202,11 @@ module.exports = {
   sharesForSale,
   buybackMultiplier,
   buybackPrice,
+  buybackFill,
   buybackFillPrice,
+  offerSharesFor,
+  offerCutoffBefore,
+  lateSharesFor,
   nextBuybackStepAt,
   getActiveBuyback,
   heldShares,

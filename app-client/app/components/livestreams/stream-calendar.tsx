@@ -14,14 +14,17 @@ import type { MarketAsset } from "@/app/lib/types";
 import { useTheme } from "@/app/providers/theme-provider";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useProfileStore } from "@/app/stores/profile-store";
+import { MARKET_TIME_ZONE, wallClock, zonedInstant } from "@/app/lib/display-time.mjs";
+import { useTimeFormat, type TimeFormat } from "@/app/lib/use-display-time";
 import ls from "@/app/components/livestreams/livestreams.module.scss";
 import styles from "@/app/components/livestreams/stream-calendar.module.scss";
 
 // The stream calendar, a mode of the Livestreams page (/livestreams?view=calendar): listed talents'
-// streams for the next week, laid out by day and time in the viewer's own time zone. A week grid on
+// streams for the next week, laid out by day and time in the viewer's own time zone (or New York
+// market time, for a player who picked it under the timezone-setting flag). A week grid on
 // wide screens, a day list on phones. Each stream links to the talent's stock; one with an open peak
-// prediction carries a target mark (and a link on phones).
-// Same data as the stream-peak predictions (GET /api/livestreams/calendar).
+// pool carries a target mark (and a link on phones).
+// Same data as the stream-peak pools (GET /api/livestreams/calendar).
 
 export type CalendarStream = {
   video_id: string;
@@ -34,10 +37,15 @@ export type CalendarStream = {
   display_name: string;
   icon: string | null;
   color: string | null;
-  prediction: { slug: string; title: string } | null;
+  prediction: { slug: string; title: string; pricing: "lmsr" | "pool" } | null;
 };
 
+/** Where a stream's open bet lives: a pool has its own page. */
+const betHref = (prediction: NonNullable<CalendarStream["prediction"]>) =>
+  prediction.pricing === "pool" ? `/predictions/pools/${encodeURIComponent(prediction.slug)}` : `/predictions/${encodeURIComponent(prediction.slug)}`;
+
 type Calendar = { generated_at: string; streams: CalendarStream[] };
+/** `date` is noon UTC on the day's calendar date: read it with timeZone "UTC" / getUTC*, whatever zone the calendar is in. */
 type Day = { key: string; start: number; end: number; date: Date; index: number };
 
 const DAYS = 7;
@@ -46,36 +54,35 @@ const REFRESH_MS = 60_000;
 const BANDS = [0, 4, 8, 12, 16, 20];
 
 const pad = (n: number) => String(n).padStart(2, "0");
-const localDayKey = (ms: number) => {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const localDayKey = (ms: number, zone: string) => {
+  const d = wallClock(ms, zone);
+  return `${d.year}-${pad(d.month)}-${pad(d.day)}`;
 };
 const firstName = (name: string) => name.trim().split(/\s+/).pop() ?? name;
 const hourText = (hour: number) => `${hour % 12 === 0 ? 12 : hour % 12} ${hour < 12 ? "AM" : "PM"}`;
 const bandText = (band: number) => `${hourText(band)} – ${hourText((band + 4) % 24)}`;
-const clockText = (ms: number) => {
-  const d = new Date(ms);
-  return `${d.getHours() % 12 === 0 ? 12 : d.getHours() % 12}:${pad(d.getMinutes())}`;
+const clockText = (ms: number, zone: string) => {
+  const d = wallClock(ms, zone);
+  return `${d.hour % 12 === 0 ? 12 : d.hour % 12}:${pad(d.minute)}`;
 };
-const timeText = (ms: number) => new Date(ms).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+/** "9:00 PM", in the browser's zone before the timezone-setting flag. `label` names the zone (the calendar says it once instead). */
+const timeText = (tf: TimeFormat, ms: number, label = true) => tf.format(ms, { hour: "numeric", minute: "2-digit" }, { was: "local", label });
 
-/** The next seven days, starting today, in the viewer's time zone (DST-safe: calendar days, not 24h steps). */
-function weekFrom(now: number): Day[] {
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
+/** The next seven days, starting today, in `zone` (DST-safe: calendar days, not 24h steps). */
+function weekFrom(now: number, zone: string): Day[] {
+  const today = wallClock(now, zone);
   return Array.from({ length: DAYS }, (_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-    const next = new Date(date);
-    next.setDate(date.getDate() + 1);
-    return { key: localDayKey(date.getTime()), start: date.getTime(), end: next.getTime(), date, index };
+    // Date.UTC carries a day past the month's end into the next month.
+    const date = new Date(Date.UTC(today.year, today.month - 1, today.day + index, 12));
+    const [y, m, d] = [date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate()];
+    return { key: `${y}-${pad(m)}-${pad(d)}`, start: zonedInstant(y, m, d, 0, 0, zone), end: zonedInstant(y, m, d + 1, 0, 0, zone), date, index };
   });
 }
 
 function dayName(day: Day, style: "short" | "long" = "short") {
   if (day.index === 0) return "Today";
   if (day.index === 1) return "Tomorrow";
-  return day.date.toLocaleDateString("en-US", { weekday: style });
+  return day.date.toLocaleDateString("en-US", { weekday: style, timeZone: "UTC" });
 }
 
 function stateLine(stream: CalendarStream, at: number, now: number) {
@@ -109,6 +116,16 @@ function subscribeClock(listener: () => void) {
 const useClock = () => useSyncExternalStore(subscribeClock, () => clockNow || null, () => null);
 const noSubscribe = () => () => {};
 const useTimeZone = () => useSyncExternalStore(noSubscribe, () => Intl.DateTimeFormat().resolvedOptions().timeZone ?? "", () => "");
+
+/**
+ * The zone the calendar lays out in, and the formatter: New York for a player who picked market time
+ * (timezone-setting flag), else the browser's own, as it always was.
+ */
+function useCalendarZone() {
+  const tf = useTimeFormat();
+  const browser = useTimeZone();
+  return { tf, zone: tf.mode === "market" ? MARKET_TIME_ZONE : browser || tf.browserZone };
+}
 
 function useCalendar() {
   const [data, setData] = useState<Calendar | null>(null);
@@ -145,7 +162,7 @@ export function StreamCalendar({ query, units, mine }: { query: string; units: s
   const assets = useMarketStore((state) => state.assets);
   const portfolio = useProfileStore((state) => state.portfolio);
   const now = useClock();
-  const zone = useTimeZone();
+  const { tf, zone } = useCalendarZone();
   const [picked, setPicked] = useState(0);
 
   const bySymbol = useMemo(() => new Map(assets.map((asset) => [asset.symbol.toUpperCase(), asset])), [assets]);
@@ -168,16 +185,16 @@ export function StreamCalendar({ query, units, mine }: { query: string; units: s
     });
   }, [bySymbol, data, held, mine, minute, query, units]);
 
-  const week = useMemo(() => (minute === null ? [] : weekFrom(minute * 60_000)), [minute]);
+  const week = useMemo(() => (minute === null ? [] : weekFrom(minute * 60_000, zone)), [minute, zone]);
   const byDay = useMemo(() => {
     const out = new Map<string, CalendarStream[]>();
     for (const stream of streams) {
-      const key = localDayKey(Date.parse(stream.starts_at as string));
+      const key = localDayKey(Date.parse(stream.starts_at as string), zone);
       if (!out.has(key)) out.set(key, []);
       out.get(key)!.push(stream);
     }
     return out;
-  }, [streams]);
+  }, [streams, zone]);
 
   const live = useMemo(() => streams.filter((stream) => stream.state === "live"), [streams]);
   const upNext = useMemo(
@@ -195,7 +212,7 @@ export function StreamCalendar({ query, units, mine }: { query: string; units: s
 
       <div className={styles.legendRow}>
         <Legend bets={streams.some((stream) => stream.prediction)} />
-        {zone ? <p className={styles.zone}>Times in your time zone ({zone.replace(/_/g, " ")})</p> : null}
+        {zone ? <p className={styles.zone}>{tf.mode === "market" ? "Times in New York market time (ET)" : `Times in your time zone (${zone.replace(/_/g, " ")})`}</p> : null}
       </div>
 
       {now === null || !data ? (
@@ -209,8 +226,8 @@ export function StreamCalendar({ query, units, mine }: { query: string; units: s
                 const count = (byDay.get(entry.key) ?? []).length;
                 return (
                   <button key={entry.key} type="button" role="tab" aria-selected={entry.index === day?.index} onClick={() => setPicked(entry.index)} className={styles.dayPill}>
-                    <span>{entry.index === 0 ? "Today" : entry.date.toLocaleDateString("en-US", { weekday: "short" })}</span>
-                    <b>{entry.date.getDate()}</b>
+                    <span>{entry.index === 0 ? "Today" : entry.date.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })}</span>
+                    <b>{entry.date.getUTCDate()}</b>
                     <small>{count ? `${count}` : "—"}</small>
                   </button>
                 );
@@ -236,6 +253,7 @@ export function StreamsUpNext(props: { className?: string; headClass?: string; a
 function UpNextBox({ className, headClass, asideClass }: { className?: string; headClass?: string; asideClass?: string }) {
   const { data } = useCalendar();
   const now = useClock();
+  const tf = useTimeFormat();
   const real = (data?.streams ?? []).filter((stream) => stream.starts_at && !((stream.state === "upcoming" || stream.state === "late") && now !== null && chatRoomKind({ title: stream.title ?? "", started_at: stream.starts_at }, now)));
   const live = real.filter((stream) => stream.state === "live");
   const next = now === null ? [] : real.filter((stream) => stream.state === "upcoming" && Date.parse(stream.starts_at as string) > now).slice(0, Math.max(2, 5 - live.length));
@@ -258,10 +276,10 @@ function UpNextBox({ className, headClass, asideClass }: { className?: string; h
                     <b>{firstName(stream.display_name)}</b>
                     <small>{stream.symbol}</small>
                   </span>
-                  {stream.prediction ? <FaBullseye className={styles.betMark} aria-label="Peak prediction open" /> : <span />}
+                  {stream.prediction ? <FaBullseye className={styles.betMark} aria-label="Peak pool open" /> : <span />}
                   <span className={styles.floorWhen} suppressHydrationWarning>
                     {stream.state === "live" ? "LIVE" : untilLabel(stream.starts_at, now).replace(/^in /, "")}
-                    <small>{stream.state === "live" ? (stream.peak_viewers ? `${compactCount(stream.peak_viewers)} peak` : "on air") : timeText(at)}</small>
+                    <small>{stream.state === "live" ? (stream.peak_viewers ? `${compactCount(stream.peak_viewers)} peak` : "on air") : timeText(tf, at)}</small>
                   </span>
                 </Link>
               );
@@ -309,7 +327,7 @@ function Legend({ bets }: { bets: boolean }) {
       </span>
       {bets ? (
         <span>
-          <FaBullseye className={styles.betMark} /> Peak prediction open
+          <FaBullseye className={styles.betMark} /> Peak pool open
         </span>
       ) : null}
     </div>
@@ -348,6 +366,7 @@ function NowStrip({ live, upNext, now, bySymbol }: { live: CalendarStream[]; upN
 }
 
 function StripCard({ stream, now, asset }: { stream: CalendarStream; now: number; asset: MarketAsset | null }) {
+  const { tf } = useCalendarZone();
   const at = Date.parse(stream.starts_at as string);
   return (
     <div className={styles.card} data-state={stream.state}>
@@ -363,14 +382,14 @@ function StripCard({ stream, now, asset }: { stream: CalendarStream; now: number
             ) : null}
           </span>
           <span className={styles.cardState} suppressHydrationWarning>
-            {stream.state === "live" ? null : `${timeText(at)} · `}
+            {stream.state === "live" ? null : `${timeText(tf, at, false)} · `}
             {stateLine(stream, at, now)}
           </span>
           {stream.title ? <span className={styles.cardTitle}>{stream.title}</span> : null}
         </span>
       </Link>
       {stream.prediction ? (
-        <Link href={`/predictions/${encodeURIComponent(stream.prediction.slug)}`} className={styles.betLink} title={stream.prediction.title}>
+        <Link href={betHref(stream.prediction)} className={styles.betLink} title={stream.prediction.title}>
           <FaBullseye aria-hidden="true" /> Bet on the peak
         </Link>
       ) : null}
@@ -378,13 +397,14 @@ function StripCard({ stream, now, asset }: { stream: CalendarStream; now: number
   );
 }
 
-function chipTitle(stream: CalendarStream, at: number, now: number) {
-  return [`${stream.display_name} · ${timeText(at)}`, stateLine(stream, at, now), stream.title, stream.prediction ? "Peak prediction open" : null].filter(Boolean).join("\n");
+function chipTitle(tf: TimeFormat, stream: CalendarStream, at: number, now: number) {
+  return [`${stream.display_name} · ${timeText(tf, at)}`, stateLine(stream, at, now), stream.title, stream.prediction ? "Peak pool open" : null].filter(Boolean).join("\n");
 }
 
 /** Wide screens: seven day columns, four-hour bands down the side, each stream a chip at its time. */
 function WeekGrid({ week, byDay, now }: { week: Day[]; byDay: Map<string, CalendarStream[]>; now: number }) {
-  const bandOf = (ms: number) => BANDS[Math.floor(new Date(ms).getHours() / 4)];
+  const { zone } = useCalendarZone();
+  const bandOf = (ms: number) => BANDS[Math.floor(wallClock(ms, zone).hour / 4)];
   const nowBand = bandOf(now);
   // Bands nobody streams in all week shrink to a sliver.
   const used = new Set<number>();
@@ -395,12 +415,12 @@ function WeekGrid({ week, byDay, now }: { week: Day[]; byDay: Map<string, Calend
       <div className={styles.corner} />
       {week.map((entry) => {
         const count = (byDay.get(entry.key) ?? []).length;
-        const weekend = entry.date.getDay() === 0 || entry.date.getDay() === 6;
+        const weekend = entry.date.getUTCDay() === 0 || entry.date.getUTCDay() === 6;
         return (
           <div key={entry.key} className={styles.dayHead} data-today={entry.index === 0 || undefined} data-weekend={weekend || undefined}>
             <b>{dayName(entry)}</b>
             <span>
-              {entry.date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              {entry.date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
               {count ? ` · ${count}` : ""}
             </span>
           </div>
@@ -417,7 +437,7 @@ function WeekGrid({ week, byDay, now }: { week: Day[]; byDay: Map<string, Calend
             const splitAt = isNowCell ? items.findIndex((stream) => stream.state !== "live" && stream.state !== "ended" && Date.parse(stream.starts_at as string) > now) : -1;
             const nowAt = isNowCell ? (splitAt === -1 ? items.length : splitAt) : -1;
             return (
-              <div key={entry.key} className={styles.cell} data-empty={!used.has(band) || undefined} data-today={entry.index === 0 || undefined} data-past={entry.index === 0 && band + 4 <= new Date(now).getHours() ? "" : undefined}>
+              <div key={entry.key} className={styles.cell} data-empty={!used.has(band) || undefined} data-today={entry.index === 0 || undefined} data-past={entry.index === 0 && band + 4 <= wallClock(now, zone).hour ? "" : undefined}>
                 {items.map((stream, index) => (
                   <Fragment key={stream.video_id}>
                     {index === nowAt ? <NowLine now={now} /> : null}
@@ -435,14 +455,16 @@ function WeekGrid({ week, byDay, now }: { week: Day[]; byDay: Map<string, Calend
 }
 
 function NowLine({ now }: { now: number }) {
+  const { zone } = useCalendarZone();
   return (
     <div className={styles.nowLine} aria-label="Now">
-      <span>NOW {clockText(now)}</span>
+      <span>NOW {clockText(now, zone)}</span>
     </div>
   );
 }
 
 function Chip({ stream, now }: { stream: CalendarStream; now: number }) {
+  const { tf, zone } = useCalendarZone();
   const at = Date.parse(stream.starts_at as string);
   const accent = useAccent(stream.color);
   return (
@@ -451,15 +473,15 @@ function Chip({ stream, now }: { stream: CalendarStream; now: number }) {
       className={styles.chip}
       data-state={stream.state}
       data-peek-stock={stream.symbol}
-      title={chipTitle(stream, at, now)}
+      title={chipTitle(tf, stream, at, now)}
       style={{ "--tal": accent } as CSSProperties}
     >
       <Face stream={stream} size={22} />
       <span className={styles.chipText}>
-        <time dateTime={stream.starts_at ?? undefined}>{stream.state === "live" ? "LIVE" : clockText(at)}</time>
+        <time dateTime={stream.starts_at ?? undefined}>{stream.state === "live" ? "LIVE" : clockText(at, zone)}</time>
         <b>{firstName(stream.display_name)}</b>
       </span>
-      {stream.prediction ? <FaBullseye className={styles.betMark} aria-label="Peak prediction open" /> : null}
+      {stream.prediction ? <FaBullseye className={styles.betMark} aria-label="Peak pool open" /> : null}
       {stream.state === "ended" && stream.peak_viewers ? <small className={styles.chipPeak}>{compactCount(stream.peak_viewers)}</small> : null}
     </Link>
   );
@@ -467,6 +489,7 @@ function Chip({ stream, now }: { stream: CalendarStream; now: number }) {
 
 /** Phones: one day at a time, a row per stream. */
 function DayList({ day, streams, now, bySymbol, filtering }: { day: Day; streams: CalendarStream[]; now: number; bySymbol: Map<string, MarketAsset>; filtering: boolean }) {
+  const { zone } = useCalendarZone();
   if (!streams.length) return <p className={ls.empty}>{filtering ? `Nothing matching these filters ${day.index === 0 ? "today" : `on ${dayName(day, "long")}`}.` : `No streams scheduled ${day.index === 0 ? "today" : `on ${dayName(day, "long")}`} yet.`}</p>;
   const nowIndex = day.index === 0 ? streams.findIndex((stream) => stream.state !== "live" && stream.state !== "ended" && Date.parse(stream.starts_at as string) > now) : -1;
   return (
@@ -483,8 +506,8 @@ function DayList({ day, streams, now, bySymbol, filtering }: { day: Day; streams
             ) : null}
             <li className={styles.row} data-state={stream.state}>
               <time className={styles.rowTime} dateTime={stream.starts_at ?? undefined}>
-                {clockText(at)}
-                <small>{new Date(at).getHours() < 12 ? "AM" : "PM"}</small>
+                {clockText(at, zone)}
+                <small>{wallClock(at, zone).hour < 12 ? "AM" : "PM"}</small>
               </time>
               <Link href={`/stocks/${encodeURIComponent(stream.symbol)}`} className={styles.rowMain}>
                 <Face stream={stream} size={40} />
@@ -504,7 +527,7 @@ function DayList({ day, streams, now, bySymbol, filtering }: { day: Day; streams
                 </span>
               </Link>
               {stream.prediction ? (
-                <Link href={`/predictions/${encodeURIComponent(stream.prediction.slug)}`} className={styles.betLink} title={stream.prediction.title}>
+                <Link href={betHref(stream.prediction)} className={styles.betLink} title={stream.prediction.title}>
                   <FaBullseye aria-hidden="true" /> Bet
                 </Link>
               ) : null}

@@ -15,6 +15,7 @@
 // tracked as prelaunch and can join another IPO).
 
 const notifications = require("./notifications");
+const netWorth = require("./netWorth");
 const { ensureUserCashAccount } = require("./portfolioCash");
 const { bootstrapAssetsWithClient } = require("./marketAdmin");
 const weeklyEvaluation = require("./weeklyEvaluation");
@@ -24,6 +25,7 @@ const { invalidateCachedJson } = require("../responseCache");
 const referenceImages = require("./referenceImages");
 const talentDetect = require("./talentDetect");
 const schedulerHealth = require("./schedulerHealth");
+const targetNudge = require("./targetNudge");
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
 
 const DEFAULTS = {
@@ -418,10 +420,13 @@ async function loadFairValueSeries(db, channelIds, { days = 60 } = {}) {
   `,
     [channelIds, days]
   );
+  // The same daily factor settlement puts on fair value (targetNudge.js). Admin only.
+  const gate = await targetNudge.loadGate(db);
   const byChannel = new Map();
   for (const row of rows) {
     if (!byChannel.has(row.youtube_channel_id)) byChannel.set(row.youtube_channel_id, []);
-    byChannel.get(row.youtube_channel_id).push({ day: row.day, fair_value: round2(toNumber(row.fundamental_value_smoothed) / 100) });
+    const fairValue = gate.apply(toNumber(row.fundamental_value_smoothed) / 100, row.youtube_channel_id, row.day);
+    byChannel.get(row.youtube_channel_id).push({ day: row.day, fair_value: round2(fairValue) });
   }
   return byChannel;
 }
@@ -1207,8 +1212,8 @@ async function listEvent(pool, eventId, { marketDate = todayKey(), force = false
         outcomes.push({ id: subscriptionId, status: allocated > 0 ? "allocated" : "refunded", allocated, refund });
         notices.push({ userId, symbol: listing.symbol, requested: toNumber(sub.requested_shares), allocated, price, refund });
       }
-      // Shares players now hold leave the broker; she opens at the IPO price with fair value pulling
-      // from there (transient offset ln(price/fair), decaying like any order impact).
+      // Shares players now hold leave the broker; she opens at the IPO price and the ticks pull it
+      // toward fair value from there (transient offset ln(price/fair): bookkeeping, nothing fades it).
       assets.push({ id: assetId, allocated: allocatedTotal, price, fair: Math.max(toNumber(listing.current_fair_value, 0), 0.000001), listingId: Number(listing.id) });
       listed.push({ symbol: listing.symbol, price, allocated: allocatedTotal, offered: toNumber(listing.shares_offered), subscribers: own.length });
     }
@@ -1289,6 +1294,8 @@ async function listEvent(pool, eventId, { marketDate = todayKey(), force = false
       href: `/stocks/${notice.symbol}`,
     }))
   );
+  // Every subscriber's held Cash became shares (or came back).
+  netWorth.queueLeaderboardRefresh(pool, null, { extraUserIds: notices.map((notice) => notice.userId) });
   await invalidateMarketAssetsCache(redis).catch(() => {});
   await invalidatePublicCache(redis, { settle: true });
   void publishMarketEvent(redis, { type: "market.ipo_update", event_id: Number(eventId), status: "listed", at: new Date().toISOString() });

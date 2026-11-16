@@ -52,3 +52,10 @@ export function useFeatures(): Flags {
 export function useFeature(flag: string): boolean {
   return useFeatures()[flag] === true;
 }
+
+/** Whether this viewer's flags have arrived, so an off flag really is off and not just unknown yet. */
+export function useFeaturesKnown(): boolean {
+  const viewer = useViewer();
+  const known = useFeatureStore((state) => state.viewer);
+  return viewer !== null && known === viewer;
+}

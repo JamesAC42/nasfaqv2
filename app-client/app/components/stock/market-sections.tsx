@@ -5,8 +5,9 @@ import { buildPaths, TalentDay, useSession } from "@/app/components/market/repor
 import { buildDays } from "@/app/components/market/report-model";
 import { PriceChart, type Overlays } from "@/app/components/stock/price-chart";
 import { CHART_RANGES, useCandles, useStats, useTickHistory, type ChartRange } from "@/app/components/stock/use-stock-data";
-import { formatCountdown, formatEtTime, getMarketClock, marketDateKey, TICKS } from "@/app/lib/market-clock";
-import { markSeries } from "@/app/lib/market-units";
+import { formatCountdown, getMarketClock, marketDateKey, TICKS } from "@/app/lib/market-clock";
+import { useTimeFormat } from "@/app/lib/use-display-time";
+import { lastRevealedTarget } from "@/app/lib/market-units";
 import { signedPct, timeAgo, toneOf } from "@/app/lib/time";
 import type { MarketAdjustmentOutcome, MarketAsset } from "@/app/lib/types";
 import { useChannelData } from "@/app/lib/use-channel-data";
@@ -17,7 +18,7 @@ import { Term, Tip } from "@/app/components/common/tip";
 import { TickReasons } from "@/app/components/market/tick-reason";
 
 const OVERLAYS: Array<[keyof Overlays, string]> = [
-  ["mark", "MARK"],
+  ["mark", "TARGET"],
   ["ticks", "TICKS"],
   ["volume", "VOLUME"],
   ["mine", "MY AVG"],
@@ -29,7 +30,7 @@ export function ChartSection({ asset, accent, avgCost }: { asset: MarketAsset; a
   const [overlays, setOverlays] = useState<Overlays>({ mark: true, ticks: true, volume: true, mine: true });
   const candles = useCandles(asset.symbol, range);
   const ticks = useTickHistory(asset.symbol);
-  const latestMark = markSeries(asset).at(-1) ?? null;
+  const latestMark = lastRevealedTarget(asset);
   const data = candles.data ?? [];
   const first = data.find((candle) => candle.close !== null)?.close ?? null;
   const last = range === "1d" ? asset.current_mid_price : data.at(-1)?.close ?? null;
@@ -73,7 +74,7 @@ export function ChartSection({ asset, accent, avgCost }: { asset: MarketAsset; a
           volume <b>{volume.toLocaleString("en-US")} sh</b>
         </span>
         {overlays.mark ? <span className={styles.legendNote}>
-            dashed line = settlement <Term k="mark">mark</Term>, the price with short-term order pressure stripped out
+            dashed line = the revealed <Term k="mark">target</Term>: each day’s fair value, shown once its four ticks have landed
           </span> : null}
       </div>
     </section>
@@ -140,6 +141,7 @@ function dayKey(value: string | null | undefined) {
 }
 
 export function TicksSection({ asset }: { asset: MarketAsset }) {
+  const tf = useTimeFormat();
   const now = useNow();
   const history = useTickHistory(asset.symbol);
   const clock = now ? getMarketClock(now) : null;
@@ -215,7 +217,7 @@ export function TicksSection({ asset }: { asset: MarketAsset }) {
           {log.length ? (
             <div className={styles.tickLog}>
               <div className={`${styles.logRow} ${styles.logHead}`} aria-hidden="true">
-                <span>When</span>
+                <span>When{tf.mode === "market" || tf.mode === "local" ? ` (${tf.label()})` : ""}</span>
                 <span>Tick</span>
                 <span>Price</span>
                 <span>Move</span>
@@ -242,6 +244,7 @@ export function TicksSection({ asset }: { asset: MarketAsset }) {
  * the way it went. Only what already happened; never the target or what the next tick does.
  */
 function WhyItMoved({ item }: { item: MarketAdjustmentOutcome }) {
+  const tf = useTimeFormat();
   const when = item.applied_at ? new Date(item.applied_at) : null;
   const details = (item.reasons ?? []).map((reason) => reason.detail).filter(Boolean);
   return (
@@ -250,7 +253,7 @@ function WhyItMoved({ item }: { item: MarketAdjustmentOutcome }) {
         <span className={styles.label}>Why the last tick moved</span>
         <span className={styles.whyTick} suppressHydrationWarning>
           {(TICK_LABEL[item.interval_key] ?? item.interval_key).toUpperCase()}
-          {when ? ` · ${formatEtTime(when)} ET` : ""} · <b className={styles[toneOf(item.move_pct)]}>{signedPct(item.move_pct)}</b>
+          {when ? ` · ${tf.clock(when)}` : ""} · <b className={styles[toneOf(item.move_pct)]}>{signedPct(item.move_pct)}</b>
         </span>
       </div>
       <TickReasons reasons={item.reasons} className={styles.whyLines} />
@@ -260,12 +263,13 @@ function WhyItMoved({ item }: { item: MarketAdjustmentOutcome }) {
 }
 
 function TickLogRow({ item }: { item: MarketAdjustmentOutcome }) {
+  const tf = useTimeFormat();
   const when = item.applied_at ?? item.scheduled_at;
   const date = when ? new Date(when) : null;
   return (
     <div className={styles.logRow}>
       <span className={styles.logWhen} suppressHydrationWarning>
-        {date ? `${date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" })} ${formatEtTime(date)}` : "—"}
+        {date ? `${tf.format(date, { month: "short", day: "numeric" })} ${tf.clock(date, { was: "bare", label: false })}` : "—"}
       </span>
       <b>{(TICK_LABEL[item.interval_key] ?? item.interval_key).toUpperCase()}</b>
       {item.applied_at ? (

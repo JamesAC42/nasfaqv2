@@ -11,7 +11,8 @@ import { AreaLine } from "@/app/components/market/mini-charts";
 import { buildDays, dateLabel, markIndex, type DayModel, type DayRow } from "@/app/components/market/report-model";
 import { adjustmentLabel, adjustmentShare, buildPaths, GapChart, TalentDay, useSession, type TalentPath } from "@/app/components/market/report-day";
 import { apiFetch } from "@/app/lib/api";
-import { formatEtTime, TICKS } from "@/app/lib/market-clock";
+import { TICKS } from "@/app/lib/market-clock";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { groupByUnit, unitLabel, unitName } from "@/app/lib/market-units";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct } from "@/app/lib/time";
@@ -147,7 +148,7 @@ function Lede({ date, rows, report }: { date: string; rows: DayRow[]; report: Da
   const bottom = sorted[sorted.length - 1];
   const up = rows.filter((row) => row.fd > 0.00005).length;
   const down = rows.filter((row) => row.fd < -0.00005).length;
-  const emissions = report?.notable_treasury_emissions ?? [];
+  const emissions = (report?.notable_treasury_emissions ?? []).filter((row) => (row.emission ?? 0) > 0);
   const topEm = emissions[0];
   const cheap = [...rows].filter((row) => row.prem !== null).sort((a, b) => (a.prem ?? 0) - (b.prem ?? 0))[0];
   const head =
@@ -388,6 +389,7 @@ function Ticks({ date, session }: { date: string; session?: SessionBreakdown | n
       pulls.set(entry.key, { avg: values.reduce((sum, value) => sum + value.pct, 0) / values.length, top });
     }
   }
+  const tf = useTimeFormat();
   const adjustments = useHubStore((state) => state.adjustments);
   const bySymbol = useAssetMap();
   const sameDay = (value: string | null | undefined) => (value ?? "").slice(0, 10) === date;
@@ -404,7 +406,7 @@ function Ticks({ date, session }: { date: string; session?: SessionBreakdown | n
       key={`${item.symbol}-${item.interval_key}-${value}`}
       symbol={item.symbol}
       icon={bySymbol.get(item.symbol.toUpperCase())?.icon ?? item.icon}
-      detail={`${label(item.interval_key)} · ${item.applied_at ? `${formatEtTime(new Date(item.applied_at))} ET` : ""}${item.reasons?.length ? ` · ${item.reasons[0].text}` : ""}`}
+      detail={`${label(item.interval_key)} · ${item.applied_at ? tf.clock(item.applied_at) : ""}${item.reasons?.length ? ` · ${item.reasons[0].text}` : ""}`}
       tone="flat"
       valueTone={tone}
       value={value}
@@ -428,7 +430,7 @@ function Ticks({ date, session }: { date: string; session?: SessionBreakdown | n
             <div key={tick.key} className={styles.tkc}>
               <div className={styles.tkh}>
                 <b>{tick.label.toUpperCase()}</b>
-                <span>{recap.applied_at ? `${formatEtTime(new Date(recap.applied_at))} ET` : `${String(tick.hour).padStart(2, "0")}:00 ET`}</span>
+                <span>{recap.applied_at ? tf.clock(recap.applied_at) : `${String(tick.hour).padStart(2, "0")}:00 ET`}</span>
               </div>
               <div className={styles.str}>
                 <i style={{ width: `${(((recap.avg_abs_move_pct ?? 0) / maxMove) * 100).toFixed(0)}%` }} />
@@ -600,7 +602,7 @@ function Lists({ rows, report, paths }: { rows: DayRow[]; report: DailyReport | 
               />
             )),
           )
-        : list("Dilution watch", "new shares", "", fromReport(report?.notable_treasury_emissions, (row) => row.emission, (row) => `${num(row.emission, 1)} sh`, (row) => `closed ${num(row.market_price)}`, () => "flat"))}
+        : list("Dilution watch", "new shares", "", fromReport(report?.notable_treasury_emissions?.filter((row) => (row.emission ?? 0) > 0),(row) => row.emission, (row) => `${num(row.emission, 1)} sh`, (row) => `closed ${num(row.market_price)}`, () => "flat"))}
       {list("Most traded", "shares, the session", "", fromReport(report?.top_volume, (row) => row.volume_shares, (row) => `${(row.volume_shares ?? 0).toLocaleString("en-US")} sh`, (row) => compactMoney(row.volume_cash), () => "flat"))}
       {list("Going quiet", "volume vs the session before", "", fromReport(report?.volume_losers, (row) => row.volume_change_pct, (row) => pct(row.volume_change_pct), (row) => `${compactMoney(row.volume_cash)} · ${(row.volume_shares ?? 0).toLocaleString("en-US")} sh`, (row) => toneClass(row.volume_change_pct)))}
     </div>
@@ -628,6 +630,7 @@ function LiveSession({
   window: { start: number; end: number } | null;
 }) {
   const { theme } = useTheme();
+  const tf = useTimeFormat();
   const assets = useMarketStore((state) => state.assets);
   const bySymbol = useAssetMap();
   const icon = (symbol: string) => bySymbol.get(symbol.toUpperCase())?.icon;
@@ -703,7 +706,7 @@ function LiveSession({
             Prices since the last close{done.length ? `, after the ${done.map((entry) => adjustmentLabel(entry.key)).join(", ")} adjustment${done.length === 1 ? "" : "s"}` : ""}.{" "}
             {top.asset.display_name} <StockChip symbol={top.asset.symbol} /> is up the most, from {num(top.prevClose)} to {num(top.price)}; {bottom.asset.display_name}{" "}
             <StockChip symbol={bottom.asset.symbol} /> is down the most. How far this morning&apos;s settlement moved each target, and how hard each adjustment pulls, stays secret
-            until the day&apos;s last adjustment{revealAt ? ` (${formatEtTime(new Date(revealAt))} ET)` : ""}. Then this becomes the settlement report.
+            until the day&apos;s last adjustment{revealAt ? ` (${tf.clock(revealAt)})` : ""}. Then this becomes the settlement report.
           </p>
         </div>
         <div className={styles.cast}>
@@ -747,7 +750,7 @@ function LiveSession({
           <span className={ui.kv}>
             {done.length} / {session?.adjustments.length || 4}
           </span>
-          <span className={ui.ks}>{next ? `next: ${adjustmentLabel(next.key)} at ${formatEtTime(new Date(next.scheduled_at))} ET` : "all landed"}</span>
+          <span className={ui.ks}>{next ? `next: ${adjustmentLabel(next.key)} at ${tf.clock(next.scheduled_at, { alongside: true })}` : "all landed"}</span>
         </div>
         <div>
           <span className={ui.label}>Session volume</span>
@@ -943,7 +946,7 @@ function Angle({
           <AreaLine values={values} markerIndex={markerIndex >= 0 ? markerIndex : null} labels={labels} />
         </div>
         <p className={ui.note} style={{ marginTop: "1.4rem" }}>
-          All-talent index, equal weight. The dashed line is this session.
+          All-talent index of revealed targets (each day’s fair value), equal weight. The dashed line is this session.
         </p>
       </div>
     </div>

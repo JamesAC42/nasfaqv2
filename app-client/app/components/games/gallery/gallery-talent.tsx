@@ -34,14 +34,17 @@ import type { Banner, Rarity, Talent } from "@/app/lib/games/types";
 import { unitLabel } from "@/app/lib/market-units";
 import { talentAccent } from "@/app/lib/talent-color";
 import { useGamesStore } from "@/app/stores/games-store";
+import { useTimeFormat, type TimeFormat } from "@/app/lib/use-display-time";
 import styles from "@/app/components/games/gallery/gallery-talent.module.scss";
 
 const pct = (bps: number) => `${(bps / 100).toFixed(bps % 100 === 0 ? 0 : 1)}%`;
 
-const fmtDay = (iso: string | null | undefined) => {
+const fmtDay = (tf: TimeFormat, iso: string | null | undefined) => {
   if (!iso) return null;
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: date.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
+  return Number.isNaN(date.getTime())
+    ? null
+    : tf.format(date, { month: "short", day: "numeric", year: date.getFullYear() === new Date().getFullYear() ? undefined : "numeric" }, { was: "local", browserLocale: true });
 };
 
 type BannerInfo = { featured: Banner | null; pullCost: number };
@@ -441,12 +444,13 @@ type PlateProps = {
 };
 
 function Plate({ talent, rarity, number, card, model, signedIn, shards, featured, pullCost, onView, onCraft }: PlateProps) {
+  const tf = useTimeFormat();
   const owned = Boolean(card);
   const cost = model.craftCost[rarity];
   const short = Math.max(0, cost - shards);
   const rateUp = featured && (rarity === "SSR" || rarity === "UR");
   const stars = Math.min(card?.stars ?? 0, MAX_STARS);
-  const since = fmtDay(card?.obtained_at);
+  const since = fmtDay(tf, card?.obtained_at);
 
   return (
     <li className={styles.plate} data-rarity={rarity} data-locked={!owned || undefined} style={{ "--rc": RARITY_COLOR[rarity] } as CSSProperties}>

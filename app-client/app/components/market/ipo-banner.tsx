@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { etMoment, fetchIpos, ipoStage, listingDay, type IpoEvent } from "@/app/lib/ipo";
 import { useNow } from "@/app/lib/use-now";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import styles from "@/app/components/market/ipo-banner.module.scss";
 
 // IPOs that are coming or open, shared by the market tabs (one fetch a minute at most).
@@ -41,6 +42,7 @@ export function useUpcomingIpos() {
 /** One line on the market floor while an IPO is coming or open. */
 export function IpoBanner({ className }: { className?: string }) {
   const events = useUpcomingIpos();
+  const tf = useTimeFormat();
   const now = useNow();
   const event = events.find((entry) => entry.window_open) ?? events[0];
   if (!event) return null;
@@ -56,7 +58,7 @@ export function IpoBanner({ className }: { className?: string }) {
         <b>{event.title}</b> <span className={styles.symbols}>{symbols}</span>
       </span>
       <span className={styles.when} suppressHydrationWarning>
-        {event.window_open ? `Subscriptions open · close ${etMoment(event.window_closes_at)}` : `${stage.label} · window opens ${etMoment(event.window_opens_at)} · lists ${listingDay(event.listing_date)}`}
+        {event.window_open ? `Subscriptions open · close ${etMoment(event.window_closes_at, tf)}` : `${stage.label} · window opens ${etMoment(event.window_opens_at, tf)} · lists ${listingDay(event.listing_date)}`}
       </span>
       <span className={styles.go} aria-hidden="true">
         →
@@ -68,13 +70,14 @@ export function IpoBanner({ className }: { className?: string }) {
 /** For a ticker that isn't listed yet: where she is in her IPO, or the fallback text. */
 export function ComingToMarketNote({ symbol, className, fallback }: { symbol: string; className?: string; fallback: string }) {
   const events = useUpcomingIpos();
+  const tf = useTimeFormat();
   const event = events.find((entry) => entry.talents.some((talent) => talent.symbol === symbol));
   const talent = event?.talents.find((entry) => entry.symbol === symbol);
   if (!event || !talent) return <p className={className}>{fallback}</p>;
   return (
     <p className={className}>
       <b>{talent.name_english || talent.display_name}</b> is coming to market.{" "}
-      {event.window_open ? `Subscriptions are open until ${etMoment(event.window_closes_at)}` : `Subscriptions open ${etMoment(event.window_opens_at)}`}, and {symbol} starts trading{" "}
+      {event.window_open ? `Subscriptions are open until ${etMoment(event.window_closes_at, tf)}` : `Subscriptions open ${etMoment(event.window_opens_at, tf)}`}, and {symbol} starts trading{" "}
       {listingDay(event.listing_date)} at 09:00 ET. <Link href={`/market/ipo#${symbol}`}>See the IPO →</Link>
     </p>
   );

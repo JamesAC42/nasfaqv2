@@ -11,6 +11,7 @@ import { unitLabel } from "@/app/lib/market-units";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money } from "@/app/lib/time";
 import { useNow } from "@/app/lib/use-now";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import {
   cancelIpoSubscription,
   compactCount,
@@ -320,11 +321,12 @@ function OrderPanel({ event, talent, onChanged }: { event: IpoEvent; talent: Ipo
 
 function OfferBlock({ event, talent, onChanged }: { event: IpoEvent; talent: IpoTalent; onChanged: () => void }) {
   const { user } = useAuth();
+  const tf = useTimeFormat();
   if (event.status === "announced") {
     return (
       <div className={styles.offer}>
         <p className={styles.pending}>
-          The IPO price is set when the window opens, <b>{etMoment(event.window_opens_at)}</b>: her debut value less {event.discount_pct}%.
+          The IPO price is set when the window opens, <b>{etMoment(event.window_opens_at, tf)}</b>: her debut value less {event.discount_pct}%.
         </p>
       </div>
     );

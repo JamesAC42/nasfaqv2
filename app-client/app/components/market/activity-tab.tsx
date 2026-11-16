@@ -8,7 +8,8 @@ import { Oshimark } from "@/app/components/common/oshimark";
 import { compactMoney, DivBar, num, RankRow, Seg, toneClass, useAssetMap } from "@/app/components/market/bits";
 import { FlowBars, MiniCandles } from "@/app/components/market/mini-charts";
 import { apiFetch } from "@/app/lib/api";
-import { formatCountdown, formatEtTime, getMarketClock, MARKET_TIME_ZONE, TICKS } from "@/app/lib/market-clock";
+import { formatCountdown, getMarketClock, MARKET_TIME_ZONE, TICKS } from "@/app/lib/market-clock";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { normalizeCandles, normalizeLeaderboardResponse } from "@/app/lib/normalizers";
 import { signedPct, timeAgo } from "@/app/lib/time";
 import type { CandlePoint, MarketHubTrade, MarketLiveOrderFlow } from "@/app/lib/types";
@@ -36,10 +37,6 @@ type Who = "all" | "friends" | "rivals" | "me";
 type FlowMode = "current_tick" | "per_minute" | "cycles_24h";
 
 const isBuy = (trade: MarketHubTrade) => trade.side.toLowerCase() === "buy";
-const etClock = (ts: string, seconds = false) => {
-  const date = new Date(ts);
-  return Number.isNaN(date.getTime()) ? "" : formatEtTime(date, { seconds });
-};
 
 function initials(name: string | null) {
   return (name || "anon").replace(/[^a-z0-9]/gi, "").slice(0, 2).toUpperCase() || "??";
@@ -104,6 +101,7 @@ function Kpis({ trades }: { trades: MarketHubTrade[] }) {
 
 // ── The queue: pending live orders, per stock ────────────────────────────
 function Queue() {
+  const tf = useTimeFormat();
   const now = useNow();
   const assets = useMarketStore((state) => state.assets);
   const paused = useMarketStore((state) => state.marketStatus?.trading_status === "manual_closed");
@@ -183,7 +181,7 @@ function Queue() {
       <div className={styles.qHead} suppressHydrationWarning>
         <div className={styles.when}>
           <small>NEXT BATCH</small>
-          {paused ? "HELD" : executeAt ? `${formatEtTime(executeAt)} ET` : "--:--"}
+          {paused ? "HELD" : executeAt ? tf.clock(executeAt) : "--:--"}
         </div>
         <div className={styles.cnt}>
           <small>LANDS IN</small>
@@ -300,12 +298,13 @@ function Queue() {
 
 // ── The tape, grouped by 10-minute batch ─────────────────────────────────
 const TapeRow = memo(function TapeRow({ trade, icon, tag, fresh, wave, accent }: { trade: MarketHubTrade; icon: string | null | undefined; tag: "friend" | "rival" | "me" | null; fresh: boolean; wave: number; accent: string }) {
+  const tf = useTimeFormat();
   const buy = isBuy(trade);
   const whale = trade.gross_cash >= WHALE;
   const mega = trade.gross_cash >= MEGA;
   return (
     <div className={[styles.fl, whale ? styles.whale : "", mega ? styles.mega : "", tag === "me" ? styles.me : "", fresh ? styles.fresh : ""].filter(Boolean).join(" ")} style={{ "--c": accent, "--wave": wave } as React.CSSProperties}>
-      <time>{etClock(trade.ts, true)}</time>
+      <time>{tf.clock(trade.ts, { seconds: true, was: "bare", label: false })}</time>
       {trade.username ? (
         <Link href={`/profile/${encodeURIComponent(trade.username)}`} className={styles.p}>
           <Avatar name={trade.username} color={trade.profile_color} />
@@ -359,6 +358,7 @@ function useFriendSets(enabled: boolean) {
 }
 
 function Tape({ initialTicker = "" }: { initialTicker?: string }) {
+  const tf = useTimeFormat();
   const liveTrades = useHubStore((state) => state.trades);
   const batchTotals = useHubStore((state) => state.batchTotals);
   const nextCursor = useHubStore((state) => state.nextCursor);
@@ -440,7 +440,7 @@ function Tape({ initialTicker = "" }: { initialTicker?: string }) {
     rendered.push(
       <div key={batch.key} className={`${styles.bgrp} ${landed ? styles.landed : ""}`}>
         <div className={styles.bgrpHead}>
-          <b>{formatEtTime(new Date(batch.key * BATCH_MS))} BATCH</b>
+          <b>{tf.clock(batch.key * BATCH_MS, { was: "bare" })} BATCH</b>
           <span>
             {fillCount.toLocaleString("en-US")} fills{hits.length < fillCount ? ` · ${hits.length} shown` : ""}
           </span>
@@ -520,6 +520,7 @@ function Tape({ initialTicker = "" }: { initialTicker?: string }) {
 
 // ── Side panels ──────────────────────────────────────────────────────────
 function PendingOrders() {
+  const tf = useTimeFormat();
   const { user } = useAuth();
   const orders = useProfileStore((state) => state.pendingLiveOrders);
   const fetchPortfolioOrders = useProfileStore((state) => state.fetchPortfolioOrders);
@@ -569,7 +570,7 @@ function PendingOrders() {
                   {buy ? "BUY" : "SELL"} {order.requested_quantity}
                 </b>{" "}
                 <b>{order.symbol}</b>
-                <small>executes after {order.execute_after ? `${etClock(order.execute_after)} ET` : "the next batch"}</small>
+                <small>executes after {order.execute_after ? tf.clock(order.execute_after) : "the next batch"}</small>
               </span>
               <button type="button" className={confirm === order.id ? styles.confirm : undefined} disabled={busy} onClick={() => (confirm === order.id ? void cancel(order.id) : setConfirm(order.id))}>
                 {confirm === order.id ? "CONFIRM" : "CANCEL"}
@@ -740,6 +741,7 @@ function ActiveTraders() {
 }
 
 function LastTick() {
+  const tf = useTimeFormat();
   const adjustments = useHubStore((state) => state.adjustments);
   const bySymbol = useAssetMap();
   const last = adjustments?.last_tick;
@@ -768,7 +770,7 @@ function LastTick() {
       <div className={ui.secHead}>
         <h2>Last tick</h2>
         <span className={ui.aside} suppressHydrationWarning>
-          {label.toUpperCase()} · {last.applied_at ? `${etClock(last.applied_at)} ET` : ""} · {last.applied_count ?? moves.length} moves
+          {label.toUpperCase()} · {last.applied_at ? tf.clock(last.applied_at) : ""} · {last.applied_count ?? moves.length} moves
         </span>
       </div>
       <div className={styles.adjf}>
@@ -888,6 +890,7 @@ function Clock({ now, zone, label, big }: { now: number; zone: string; label: st
 }
 
 function Heartbeat() {
+  const tf = useTimeFormat();
   const now = useNow();
   const status = useHubStore((state) => state.hub?.status ?? null);
   const report = useMarketStore((state) => state.report);
@@ -903,7 +906,7 @@ function Heartbeat() {
         </div>
         <div>
           <span>NEXT SETTLEMENT</span>
-          <b>{settleAt ? `${settleAt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: MARKET_TIME_ZONE }).toUpperCase()} · ${formatEtTime(settleAt)} ET` : "09:00 ET"}</b>
+          <b>{settleAt ? `${tf.format(settleAt, { month: "short", day: "numeric" }).toUpperCase()} · ${tf.clock(settleAt, { alongside: true })}` : "09:00 ET"}</b>
           <em>{settleAt && now ? `in ${formatCountdown(Math.max(0, (settleAt.getTime() - now) / 1000))}` : "daily"}</em>
         </div>
         <div>

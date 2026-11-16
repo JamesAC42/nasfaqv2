@@ -1,5 +1,6 @@
 const { bootstrapAssetsWithClient } = require("./marketAdmin");
 const { REFERENCE_SUPPLY } = require("./marketSupply");
+const targetNudge = require("./targetNudge");
 const FAIR_VALUE_SCALE_MULTIPLIER = Number(process.env.MARKET_PRICE_SCALE_MULTIPLIER || 100);
 const DEFAULT_MARKET_DATA_TIME_ZONE = "America/New_York";
 const SMOOTHING_PREVIOUS_WEIGHT = 0.4;
@@ -580,7 +581,14 @@ async function upsertCalculatedSnapshots(client, snapshots) {
   return rows.length;
 }
 
+/**
+ * Points every asset at its latest complete snapshot and prices its fair value from it, with the
+ * same server-side daily factor settlement applies (targetNudge.js), so a refresh between
+ * settlements never moves a stock's fair value off the one settlement gave it.
+ */
 async function refreshLatestAssetFairValues(client) {
+  const gate = await targetNudge.loadGate(client, { inTransaction: true });
+  if (gate.active) return refreshNudgedAssetFairValues(client, gate);
   const result = await client.query(
     `
     UPDATE market.market_assets a
@@ -606,6 +614,33 @@ async function refreshLatestAssetFairValues(client) {
     [FAIR_VALUE_SCALE_MULTIPLIER]
   );
 
+  return result.rowCount || 0;
+}
+
+async function refreshNudgedAssetFairValues(client, gate) {
+  const { rows } = await client.query(`
+    SELECT DISTINCT ON (youtube_channel_id) id, youtube_channel_id, snapshot_date::text AS snapshot_date
+    FROM market.channel_daily_snapshots
+    WHERE calculation_status = 'complete'
+    ORDER BY youtube_channel_id, snapshot_date DESC
+  `);
+  if (!rows.length) return 0;
+  const factors = rows.map((row) => ({ id: row.id, factor: Math.exp(gate.nudge(row.youtube_channel_id, row.snapshot_date)) }));
+  const result = await client.query(
+    `
+    UPDATE market.market_assets a
+    SET
+      latest_snapshot_date = s.snapshot_date,
+      latest_snapshot_id = s.id,
+      current_fair_value = (s.fundamental_value_smoothed / ${REFERENCE_SUPPLY}) * $1 * f.factor,
+      current_fair_value_raw = (s.fundamental_value_raw / ${REFERENCE_SUPPLY}) * $1,
+      updated_at = now()
+    FROM jsonb_to_recordset($2::jsonb) AS f(id bigint, factor float8)
+    JOIN market.channel_daily_snapshots s ON s.id = f.id
+    WHERE a.youtube_channel_id = s.youtube_channel_id
+  `,
+    [FAIR_VALUE_SCALE_MULTIPLIER, JSON.stringify(factors)]
+  );
   return result.rowCount || 0;
 }
 

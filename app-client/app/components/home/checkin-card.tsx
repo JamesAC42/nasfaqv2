@@ -5,9 +5,9 @@ import { useCallback, useEffect, useState } from "react";
 import { untilText } from "@/app/components/market/dividends-tab";
 import { apiFetch } from "@/app/lib/api";
 import { useFeature } from "@/app/lib/features";
-import { MARKET_TIME_ZONE } from "@/app/lib/market-clock";
 import { money } from "@/app/lib/time";
 import { useNow } from "@/app/lib/use-now";
+import { useTimeFormat, type TimeFormat } from "@/app/lib/use-display-time";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useProfileStore } from "@/app/stores/profile-store";
 import styles from "@/app/components/home/checkin-card.module.scss";
@@ -33,12 +33,16 @@ export type Checkin = {
 const whole = (value: number) => money(value).replace(".00", "");
 const credit = (value: number) => `+${whole(value)}`;
 
-/** "00:00 ET": when the day turns over, in market time. h23, because hour12: false can read midnight as 24:00. */
-function resetClock(iso: string) {
-  return `${new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: MARKET_TIME_ZONE })} ET`;
+/**
+ * "00:00 ET": when the day turns over, which is midnight in New York whatever the player's zone
+ * ("14:00 JST (00:00 ET)" on their own time). h23, because hour12: false can read midnight as 24:00.
+ */
+function resetClock(tf: TimeFormat, iso: string) {
+  return tf.format(iso, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }, { alongside: true });
 }
 
 export function CheckinCard() {
+  const tf = useTimeFormat();
   const { user } = useAuth();
   const enabled = useFeature("daily-checkin");
   const now = useNow();
@@ -76,6 +80,13 @@ export function CheckinCard() {
     if (pastReset && enabled) void load();
   }, [enabled, load, pastReset]);
 
+  // The check-in reminder (and its row in the bell) links to /#checkin. The card arrives after the
+  // page does, so the browser's own jump to it has already missed: scroll once it's there.
+  const shown = Boolean(user && enabled && data);
+  useEffect(() => {
+    if (shown && window.location.hash === "#checkin") document.getElementById("checkin")?.scrollIntoView({ block: "center" });
+  }, [shown]);
+
   if (!user || !enabled || !data) return null;
 
   const claim = async () => {
@@ -104,7 +115,7 @@ export function CheckinCard() {
   const ramps = schedule.max_streak_days > 1;
 
   return (
-    <section className={styles.card} aria-labelledby="checkin-title" data-claimed={claimed ? "" : undefined}>
+    <section id="checkin" className={styles.card} aria-labelledby="checkin-title" data-claimed={claimed ? "" : undefined}>
       <div className={styles.main}>
         <div className={styles.head}>
           <h2 id="checkin-title">Daily check-in</h2>
@@ -172,7 +183,7 @@ export function CheckinCard() {
               {whole(schedule.base)} Credit a day, or {whole(schedule.max)} while you’re on a trade streak (you traded yesterday).
             </>
           )}{" "}
-          A new day starts at {resetClock(data.resets_at)}
+          A new day starts at {resetClock(tf, data.resets_at)}
           {resetIn ? ` (in ${resetIn})` : ""}.
         </p>
       </div>

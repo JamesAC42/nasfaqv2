@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { FEE_RATE, fillPrice, maxBuyShares, maxSellShares, orderTotals, SLIPPAGE_WEIGHT, slippageFraction } from "./trade-estimate.mjs";
+import { clampShares, FEE_RATE, fillPrice, keyboardInset, maxBuyShares, maxSellShares, orderTotals, SLIPPAGE_WEIGHT, slippageFraction, stepShares } from "./trade-estimate.mjs";
 
 // npm test runs from app-client/. The API's own numbers (api/test/market-sim.test.js keeps them honest).
 const parity = JSON.parse(readFileSync(join(process.cwd(), "..", "api", "test", "fixtures", "market-sim-parity.json"), "utf8"));
@@ -56,4 +56,34 @@ test("MAX sell: what you hold less queued sells, within the allowance", () => {
   assert.deepEqual(maxSellShares({ held: 60, queued: 20, room: 180 }), { shares: 40, all: false });
   assert.deepEqual(maxSellShares({ held: 60, queued: 60, room: 180 }), { shares: 0, all: false });
   assert.deepEqual(maxSellShares({ held: 60.5, queued: 0, room: null }), { shares: 60, all: true });
+});
+
+test("share count: whole, not negative, within the MAX button's number or the share box", () => {
+  assert.equal(clampShares(42.9, 180), 42);
+  assert.equal(clampShares(-5, 180), 0);
+  assert.equal(clampShares("", 180), 0);
+  assert.equal(clampShares("250", 180), 180);
+  assert.equal(clampShares(5000, null), 5000, "no max known: anything the box takes");
+  assert.equal(clampShares(5_000_000, null), 999_999);
+  assert.equal(clampShares(10, 0), 0, "nothing to buy");
+});
+
+test("steppers: one share at a time, between one share and the max", () => {
+  assert.equal(stepShares(25, 1, 180), 26);
+  assert.equal(stepShares(25, -1, 180), 24);
+  assert.equal(stepShares(180, 1, 180), 180, "stops at the max");
+  assert.equal(stepShares(1, -1, 180), 1, "never under one share");
+  assert.equal(stepShares(0, 1, 180), 1);
+  assert.equal(stepShares(0, -1, 180), 1);
+  assert.equal(stepShares(500, -1, 180), 180, "over the max steps down to it");
+  assert.equal(stepShares(500, 1, 180), 180);
+  assert.equal(stepShares(3, 1, 0), 0, "nothing to buy: stays at none");
+  assert.equal(stepShares(25, 1, null), 26, "no max known");
+});
+
+test("keyboard inset: what the visual viewport loses at the bottom, ignoring browser bars", () => {
+  assert.equal(keyboardInset({ innerHeight: 800, viewHeight: 800 }), 0);
+  assert.equal(keyboardInset({ innerHeight: 800, viewHeight: 760 }), 0, "a toolbar, not a keyboard");
+  assert.equal(keyboardInset({ innerHeight: 800, viewHeight: 460 }), 340);
+  assert.equal(keyboardInset({ innerHeight: 800, viewHeight: 460, offsetTop: 120 }), 220, "the page scrolled up under the keyboard");
 });

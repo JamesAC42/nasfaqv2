@@ -14,6 +14,7 @@ import { normalizeArticleDetail } from "@/app/lib/normalizers";
 import type { ArticleDetail } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMarketStore } from "@/app/stores/market-store";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import styles from "@/app/components/articles/articles.module.scss";
 
 const DRAFT_KEY = "nasfaq:article-editor:draft";
@@ -51,6 +52,7 @@ function writeDraft(draft: Draft | null) {
 type View = "write" | "split" | "preview";
 
 export function ArticleEditor({ mode, slug }: { mode: "create" | "edit"; slug?: string }) {
+  const tf = useTimeFormat();
   const router = useRouter();
   const { user, initialized, isLoading: authLoading } = useAuth();
   const assets = useMarketStore((state) => state.assets);
@@ -178,7 +180,7 @@ export function ArticleEditor({ mode, slug }: { mode: "create" | "edit"; slug?: 
           <div>
             <h1>{mode === "edit" ? "Edit article" : "Write an article"}</h1>
             <p suppressHydrationWarning>
-              {words.toLocaleString("en-US")} words{readMinutes(content) ? ` · ${readMinutes(content)} min read` : ""} · {mode === "create" ? (savedAt ? `draft saved on this device ${new Date(savedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}` : "drafts save on this device as you type") : `editing “${original?.title ?? ""}”`}
+              {words.toLocaleString("en-US")} words{readMinutes(content) ? ` · ${readMinutes(content)} min read` : ""} · {mode === "create" ? (savedAt ? `draft saved on this device ${tf.format(savedAt, { hour: "2-digit", minute: "2-digit" }, { was: "local" })}` : "drafts save on this device as you type") : `editing “${original?.title ?? ""}”`}
             </p>
           </div>
           <div className={styles.edActs}>

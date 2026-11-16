@@ -37,7 +37,22 @@ type MarketTuningConfig = {
     broker_buffer_pct: number;
   };
   phase?: { status: string; description: string };
+  // Admin only: the fair value's server-side daily factor (api/src/services/targetNudge.js).
+  target_nudge_enabled?: boolean;
+  target_nudge_pct?: number;
+  target_nudge_from?: string | null;
+  target_nudge_from_source?: "env" | "recorded" | null;
 };
+
+/** One line on whether fair values carry the server-side daily factor, and since when. */
+function targetNudgeText(config: MarketTuningConfig | null): string | null {
+  if (!config || config.target_nudge_enabled === undefined) return null;
+  if (!config.target_nudge_enabled) return "Daily target factor: off (MARKET_TARGET_SECRET not set).";
+  const pct = `±${config.target_nudge_pct ?? 2}%`;
+  if (!config.target_nudge_from) return `Daily target factor: on (${pct}), starting with the next regular settlement.`;
+  const source = config.target_nudge_from_source === "env" ? "MARKET_TARGET_NUDGE_FROM" : "recorded at its first settlement";
+  return `Daily target factor: on (${pct}) from ${config.target_nudge_from}, ${source}.`;
+}
 
 type MarketTuningAsset = {
   id: number;
@@ -645,6 +660,7 @@ export function AdminMarketTuningPage() {
               ))}
               {!intervals.length ? <li className={styles.muted}>No interval config from the API.</li> : null}
             </ol>
+            {targetNudgeText(config) ? <p className={styles.muted}>{targetNudgeText(config)}</p> : null}
 
             <div className={styles.actions}>
               <div className={styles.action}>

@@ -3,14 +3,18 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { cents, money, timeAgo } from "@/app/lib/predictions/format";
+import { poolHref } from "@/app/lib/predictions/pools";
 import { usePredictionFeedConnected } from "@/app/lib/predictions/use-prediction-feed";
 import { useNow } from "@/app/lib/use-now";
 import styles from "@/app/components/predictions/floor/floor.module.scss";
 
 export const WHALE_CASH = 500;
+/** Pool bets start at $1,000, so a whale there is a much bigger bet. */
+const POOL_WHALE_CASH = 25_000;
 
 export type TapeItem = {
   key: string;
+  pricing?: "lmsr" | "pool";
   slug: string;
   title: string;
   outcome_code: string;
@@ -34,13 +38,14 @@ function Ago({ at }: { at: string }) {
 }
 
 function Row({ item }: { item: TapeItem }) {
-  const whale = item.cash >= WHALE_CASH;
+  const isPool = item.pricing === "pool";
+  const whale = item.cash >= (isPool ? POOL_WHALE_CASH : WHALE_CASH);
   return (
     <li className={`${styles.tapeRow} ${item.fresh ? styles.fresh : ""}`} data-whale={whale || undefined}>
-      <Link href={`/predictions/${encodeURIComponent(item.slug)}`} className={styles.tapeLink}>
+      <Link href={isPool ? poolHref(item.slug) : `/predictions/${encodeURIComponent(item.slug)}`} className={styles.tapeLink}>
         <span className={styles.tapeLine}>
           <span className={styles.tapeWho}>
-            <b>{item.username ?? "A limit order"}</b> {item.side === "buy" ? "bought" : "sold"}{" "}
+            <b>{item.username ?? "A limit order"}</b> {isPool ? "bet" : item.side === "buy" ? "bought" : "sold"}{" "}
             <em style={{ "--oc": item.color } as CSSProperties}>{item.outcome_label}</em>
           </span>
           <span className={styles.tapeCash}>
@@ -50,7 +55,7 @@ function Row({ item }: { item: TapeItem }) {
         </span>
         <span className={styles.tapeLine}>
           <span className={styles.tapeMarket}>
-            @ {cents(item.avg_price)} · {item.title}
+            {isPool ? item.title : `@ ${cents(item.avg_price)} · ${item.title}`}
           </span>
           <span className={styles.tapeAgo}>
             <Ago at={item.at} />
@@ -64,7 +69,7 @@ function Row({ item }: { item: TapeItem }) {
 export function LiveTape({ items, loading }: { items: TapeItem[] | null; loading: boolean }) {
   const connected = usePredictionFeedConnected();
   return (
-    <section className={styles.tape} aria-label="Live trades">
+    <section className={styles.tape} aria-label="Live bets">
       <header className={styles.sideHead}>
         <h2>
           <i className={styles.liveDot} data-on={connected || undefined} aria-hidden="true" />
@@ -73,7 +78,7 @@ export function LiveTape({ items, loading }: { items: TapeItem[] | null; loading
         <span className={styles.sideMeta}>{connected ? "live" : "reconnecting…"}</span>
       </header>
       {items === null || (loading && !items.length) ? (
-        <p className={styles.sideEmpty}>Loading trades…</p>
+        <p className={styles.sideEmpty}>Loading bets…</p>
       ) : items.length ? (
         <ol className={styles.tapeList}>
           {items.map((item) => (
@@ -81,7 +86,7 @@ export function LiveTape({ items, loading }: { items: TapeItem[] | null; loading
           ))}
         </ol>
       ) : (
-        <p className={styles.sideEmpty}>Quiet floor. Make the first trade.</p>
+        <p className={styles.sideEmpty}>Quiet floor. Make the first bet.</p>
       )}
     </section>
   );

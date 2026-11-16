@@ -6,7 +6,7 @@ import { SceneArt } from "@/app/components/common/scene-art";
 import { StockChip } from "@/app/components/common/stock-chip";
 import { GAMES, IPO_ROOKIE_DAYS, SHARES_PER_WINDOW, TRADE_FEE, type SectionId } from "@/app/components/how-to-play/content";
 import { useVisibleSections } from "@/app/components/how-to-play/visible-sections";
-import { ChanceDemo, ChibiTag, PullDiagram, RarityFan, TalentStrip, TicketDemo, TickTimeline, useBusiestTalents } from "@/app/components/how-to-play/demos";
+import { ChibiTag, PoolDemo, PullDiagram, RarityFan, TalentStrip, TicketDemo, TickTimeline, useBusiestTalents } from "@/app/components/how-to-play/demos";
 import { TickKoma } from "@/app/components/how-to-play/tick-koma";
 import { BuybackDemo } from "@/app/components/how-to-play/buyback-demo";
 import { BuybackMark } from "@/app/components/common/buyback-badge";
@@ -116,7 +116,7 @@ export function MarketSection() {
         <>
           <p>
             Every listed hololive talent has a ticker. The price is whatever players pay for it, but underneath there&apos;s a <b>fair value</b>{" "}built from their real
-            YouTube channel. Big streams count too: a 3D live, a new outfit or an original song lifts fair value for a day. Prices wander on hype, and four
+            YouTube channel. Big streams count too: a 3D live, a new outfit or an original song lifts fair value, most of it that day, fading over the next few. Prices wander on hype, and four
             times a day they get dragged back toward what the numbers say.
           </p>
           <p>You win by owning the right talents before everyone else figures it out.</p>
@@ -136,17 +136,17 @@ export function MarketSection() {
           {
             k: "hidden",
             title: "Fair value",
-            body: "Repriced every morning from subscribers, recent views against their usual, sub growth and upload streaks. Quiet channels get marked down. It moves 25% a day at most, and you never see the exact number.",
+            body: "Repriced every morning from subscribers, recent views against their usual, sub growth and upload streaks. Quiet channels get marked down. It moves 25% a day at most. It also includes a small daily factor only the market knows, so it can’t be calculated exactly. Today's number stays hidden until the day's last tick has landed; then the daily report shows it.",
           },
           {
             k: "live",
             title: "Price",
-            body: "Every buy pushes the price up and every sell pushes it down, and the push stays put. The four daily ticks pull the price back toward its target, about half the gap each on average, and a little of the push carries into the next days.",
+            body: "Every buy pushes the price up and every sell pushes it down, and the push stays put. The four daily ticks pull the price back toward its target, about half the gap each on average. Settlement doesn't reset anything: each day opens where the last one closed, push and all.",
           },
           {
             k: "supply",
             title: "Shares can sell out",
-            body: "Each talent has max shares, reset every Saturday from their subscriber count. Buying takes shares from the broker, selling gives them back. When nothing's left for sale, buys wait for a seller.",
+            body: "Each talent has max shares, reset every Saturday from their subscriber count. Buying takes shares from the broker, selling gives them back. When nothing's left for sale, buys are turned down until someone sells or Saturday's review raises the max.",
           },
           {
             k: "score",
@@ -217,6 +217,7 @@ export function TradingSection() {
 export function TicksSection() {
   const [first, second] = useBusiestTalents(2);
   const tickReasons = useFeature("tick-reasons");
+  const timeSetting = useFeature("timezone-setting");
   return (
     <Section
       id="ticks"
@@ -227,6 +228,11 @@ export function TicksSection() {
             At <b>Open 09:00</b>, <b>Lunch 15:00</b>, <b>Late 21:00</b>{" "}and <b>Overnight 03:00</b>{" "}(New York time), every talent&apos;s price gets pulled toward their fair
             value. Trading above fair? The tick drags it down. Below? It gets yanked up.
           </p>
+          {timeSetting ? (
+            <p>
+              The site shows clock times in New York time, or in yours if you pick it in <Link href="/settings#display">Settings</Link>. The ticks run on New York time either way.
+            </p>
+          ) : null}
           <p>
             Each talent draws four random pull strengths a day that add up to 200%. A 30% tick closes 30% of the gap; a 120% tick overshoots right past fair value. That&apos;s why
             people buy dips right before a tick.
@@ -288,7 +294,7 @@ export function WeeklySection() {
             <Term k="dividend">dividend</Term> on every share you hold; the worst charge a <b>share fee</b>. The middle pays nothing. Never more than 10% of the stock&apos;s value either way.
           </p>
           <p>
-            Dividends are paid in <Term k="credit">Credit</Term>. Fees come out of your Credit first, then your cash, even if that takes your cash below zero. In the red, you
+            Dividends are paid in <Term k="credit">Credit</Term>. Fees come out of your Credit first, then your cash, even if that takes your cash below zero. With cash below zero, you
             can&apos;t buy until you sell something or earn it back. Pick your bags like it matters. The same night, part of everyone&apos;s Credit turns into cash: 5%, or $10k if that&apos;s more.
           </p>
           {oshiProtection ? (
@@ -326,9 +332,9 @@ export function WeeklySection() {
                 {
                   k: "buyback",
                   title: "Too many shares",
-                  body: "If max shares drop below what players hold, the stock freezes: no buys, no ticks. The broker buys at 120% of the frozen price, 10 points less each day.",
+                  body: "If max shares drop below what players hold, the stock freezes: no buys, no ticks. The broker buys at 120% of the frozen price, 10 points less each day. Shares bought after Friday’s Late tick (21:00) get the frozen price.",
                 },
-                { k: "forced", title: "Or else", body: "Whatever's still over at the next Saturday, the broker takes from every holder in proportion, at the base rate." },
+                { k: "forced", title: "Or else", body: "Whatever's still over at the next Saturday, the broker takes from every holder in proportion, at the last revealed fair value." },
               ]),
           { k: "the review", title: "Dividend Review", body: "Every payout, fee, max-share change and buyback, stock by stock, plus your own week, on the Market page." },
         ]}
@@ -346,11 +352,11 @@ export function WeeklySection() {
                 },
                 {
                   title: "The broker buys the extra shares back",
-                  body: "It pays 120% of the frozen price on the first day, then 10 points less each day (never under 50%). Only the shares over the max get the offer, first come first served; sells past them get the frozen price.",
+                  body: "It pays 120% of the frozen price on the first day, then 10 points less each day (never under 50%). Only the shares over the max get the offer, first come first served; sells past them get the frozen price. So do shares bought after Friday’s Late tick (21:00).",
                 },
                 {
                   title: "Holders sell it back, or Saturday does",
-                  body: "Once enough is sold back, the stock reopens at the next Open (09:00). Whatever is still over at the next Saturday’s evaluation, the broker takes from every holder in proportion, at the base rate.",
+                  body: "Once enough is sold back, the stock reopens at the next Open (09:00). Whatever is still over at the next Saturday’s evaluation, the broker takes from every holder in proportion, at the last revealed fair value.",
                 },
               ]}
             />
@@ -441,7 +447,7 @@ export function GamesSection() {
       lede={
         <>
           <p>
-            Every game spends <Term k="credit">Credit</Term> and never your cash, so a pull, an entry or a bet needs enough Credit to cover it. Winnings come back as Credit; refunds go back where they came
+            Every game spends <Term k="credit">Credit</Term> and never your cash, so a pull, an entry or a bet needs enough Credit to cover it. While you’re <Term k="in-the-red">in the red</Term>{" "}on margin, games, bets and buying cards are closed; free cards and selling your cards stay open. Winnings come back as Credit; refunds go back where they came
             from. The server rolls every result, rates are posted on each game, and multiplayer stakes sit in escrow until the hand is done.
           </p>
           <p>Open tables can be watched by anyone, even signed out. Hidden picks stay hidden until the reveal.</p>
@@ -648,38 +654,62 @@ export function PredictionsSection() {
   return (
     <Section
       id="predictions"
-      title="Prices are chances"
+      title="Winners split the pot"
       art="howto-predictions"
       diagram={<PredictionsDiagram />}
       lede={
         <>
           <p>
-            Prediction markets ask yes-or-no (or which-one) questions about hololive and the market. A share pays <b>$1</b>{" "}if its outcome happens and <b>$0</b>{" "}if it
-            doesn&apos;t, so a YES at 62¢ means the floor thinks it&apos;s 62% likely.
+            Prediction <Term k="pool">pools</Term> ask a question about hololive or the market, with 2 to 100 options to pick from. Everyone’s bets go in one pot. When the result is called, the winners
+            split the whole pot by how much each of them put in. There’s no rake and no house on the other side: players pay players.
           </p>
-          <p>A house market maker always quotes a price, so every trade fills instantly. Sell any time before the market closes.</p>
+          <p>
+            The <Term k="odds">odds</Term> are just the bets so far. <b>3.00×</b>{" "}on an option means every $1 on it pays $3 if it wins and the pool closed right then, and they move with every bet until
+            betting closes.
+          </p>
         </>
       }
       links={[
         { href: "/predictions", label: "Open the floor" },
         { href: "/predictions/portfolio", label: "Your bets" },
+        { href: "/predictions/history", label: "Finished pools" },
       ]}
     >
       <div className={styles.split}>
-        <ChanceDemo />
+        <PoolDemo />
         <Steps
           items={[
-            { title: "Buy YES or NO", body: "Spend $1 up to $25,000 of Credit. Your buy moves the price; prices stay between 1¢ and 99¢. 1% fee." },
-            { title: "Or set a limit", body: "\"Buy YES while it's 40¢ or less, up to $200.\" It rests, reserving your Credit, and fills when the price gets there." },
-            { title: "Trading closes", body: "Resting orders are cancelled and their Credit released. Now it waits for the answer." },
-            {
-              title: "The result gets called",
-              body: "A resolver proposes the outcome with a source. Holders get a dispute window (12 h by default). No disputes and it's final.",
-            },
-            { title: "Winners get $1 a share", body: "Losing shares close at $0. A void undoes the whole market: everyone gets back what they put in, fees included, and anything made by selling goes back too." },
+            { title: "Pick an option and bet", body: "$1,000 of Credit or more (a bookie can ask for more). Bets spend Credit and never your cash, and they need a verified email. Accounts under 7 days old can have $10,000 in open pools." },
+            { title: "Raise it while it's open", body: "Add to your bet or back another option. Bets can't be withdrawn. The slip shows what yours would pay if the pool closed right after it, and the odds keep moving." },
+            { title: "Betting closes", body: "At the time on the pool, or sooner if the bookie closes it early. A bookie can reopen one they closed early, once, until its closing time. Auto pools shut before the answer can be known: stream pools before the stream starts, tick pools 5 minutes before the tick." },
+            { title: "The result gets called", body: "A bookie calls their own pool with a source link or a note, and auto pools call themselves from NASFAQ data. Admins can call or void any pool. Other staff can't call, correct or void a pool they have money in." },
+            { title: "Winners get paid", body: "Right away, in Credit, by their share of the winning side. If nobody backed the winner, every bet comes back." },
           ]}
         />
       </div>
+      <Rules
+        cols={4}
+        items={[
+          { k: "bookies", title: "Who runs them", body: "Bookies are players with the role. Their pools open straight away, and they can close, reopen, extend or void one that hasn't been called. They can't bet in their own." },
+          { k: "7 days", title: "If a call is wrong", body: "Staff can correct or void a result for 7 days. A correction takes back what the first result paid, from Credit, even below zero, then pays the right side. A void gives every bet back." },
+          { k: "public", title: "On the record", body: "Who bet what is public, and so is every early close, reopen, call, correction and void, with who made it and the source or reason. Pool history lists every finished pool and how you did." },
+          { k: "net worth", title: "While it rides", body: "Money in an open pool isn't in your net worth until it pays out, so a big bet can move you down the leaderboard until the pool ends." },
+        ]}
+      />
+      <SubHead>Margin: betting more than you have</SubHead>
+      <Rules
+        cols={4}
+        items={[
+          { k: "25%", title: "The line", body: "Out of Credit? A pool bet can borrow the rest, up to 25% of what your shares are worth and $100,000 at most. You tick the box on the slip each time. It takes an account 7 days old and a verified email." },
+          { k: "below $0", title: "In the red", body: "Borrowing takes your Credit below zero, and that's what you owe. It counts against your net worth. Until it's paid back you can't bet, play games, pull capsules or buy cards." },
+          { k: "repay", title: "Paying it back", body: "Any Credit that comes in goes toward it: winnings, dividends, achievements, the little a share sale earns. Cash never repays it. There's no interest, and nothing gets sold for you." },
+          { k: "stocks", title: "Stocks stay open", body: "Margin never touches your cash, and in the red you can still buy and sell shares. If a pool you borrowed for is voided, the void cancels that debt." },
+        ]}
+      />
+      <p className={styles.worked}>
+        <b>For example:</b>{" "}you have $2,000 Credit, $5,000 cash and $80,000 in shares, so your line is $20,000. You bet $15,000: $2,000 comes from Credit and $13,000 is borrowed, which leaves Credit at <span className={styles.nowrap}>−$13,000</span>{" "}and cash
+        at $5,000. Win $30,000 and Credit lands at +$17,000. Lose, and you’re <Term k="in-the-red">in the red</Term>{" "}until $13,000 of Credit comes in.
+      </p>
     </Section>
   );
 }
@@ -761,7 +791,7 @@ export function CommunitySection() {
           {
             k: "/wire",
             title: "The Wire",
-            body: `Headlines as they happen: big price moves, sell-outs, buybacks, records, rare pulls, card sales, called predictions and IPOs${oshiWire ? ", and who changed their oshi" : ""}.`,
+            body: `Headlines as they happen: big price moves, sell-outs, buybacks, records, rare pulls, card sales, called pools and IPOs${oshiWire ? ", and who changed their oshi" : ""}.`,
           },
           { k: "/threads", title: "/vt/ threads", body: "The general, mirrored, with tickers linked. Lurk the source." },
           { k: "/livestreams", title: "Livestreams", body: `Who's on air right now, with viewer counts${calendar ? ", and a calendar of what's coming up" : ""}.` },

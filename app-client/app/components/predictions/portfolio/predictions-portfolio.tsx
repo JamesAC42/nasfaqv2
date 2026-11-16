@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { MyPoolsSection } from "@/app/components/predictions/pool/my-pools";
+import type { MyPools } from "@/app/lib/predictions/pools";
+import { usePoolAccess } from "@/app/lib/predictions/use-pool-access";
 import { PredictionsFrame, usePredictionCash } from "@/app/components/predictions/shell/predictions-frame";
 import { cancelLimitOrder, fetchMarket, fetchPortfolio } from "@/app/lib/predictions/api";
 import { predictionErrorText } from "@/app/lib/predictions/errors";
@@ -363,6 +365,8 @@ export function PredictionsPortfolio() {
   const { user, initialized } = useAuth();
   const { refreshCash } = usePredictionCash();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [pools, setPools] = useState<MyPools | null>(null);
+  const access = usePoolAccess();
   const [error, setError] = useState<string | null>(null);
   const [looks, setLooks] = useState<Map<string, OutcomeLook>>(new Map());
   const [flashes, setFlashes] = useState<Record<string, Flash>>({});
@@ -473,19 +477,22 @@ export function PredictionsPortfolio() {
   const allLooks = useMemo(() => new Map([...rowLooks(portfolio), ...looks]), [portfolio, looks]);
   const blurb = useMemo(() => {
     if (!portfolio) return undefined;
-    const markets = new Set(portfolio.positions.map((row) => row.market_id)).size;
-    if (!portfolio.positions.length) return "No open bets right now. The floor's waiting.";
+    const rows = [...portfolio.positions, ...(pools?.open ?? [])];
+    const count = new Set(rows.map((row) => row.market_id)).size;
+    if (!rows.length) return "No open bets right now. The floor's waiting.";
     return (
       <>
-        <b>{portfolio.positions.length}</b> open {portfolio.positions.length === 1 ? "bet" : "bets"} across <b>{markets}</b> {markets === 1 ? "market" : "markets"}. Prices move live.
+        <b>{rows.length}</b> open {rows.length === 1 ? "bet" : "bets"} across <b>{count}</b> {count === 1 ? "pool" : "pools"}. Odds move live.
       </>
     );
-  }, [portfolio]);
+  }, [portfolio, pools]);
 
   const open = portfolio?.positions.filter((row) => LIVE.has(row.status)) ?? [];
+  // Market-maker markets are history once pools are on: their tables only show for players with rows in them.
+  const showMarkets = Boolean(portfolio && (portfolio.positions.length || portfolio.orders.length || portfolio.settled.length || (access.loaded && !access.visible)));
 
   return (
-    <PredictionsFrame kicker="Portfolio" title="My bets" blurb={user ? blurb : undefined} live={Boolean(user && portfolio?.positions.length)}>
+    <PredictionsFrame kicker="Portfolio" title="My bets" blurb={user ? blurb : undefined} live={Boolean(user && (portfolio?.positions.length || pools?.open.length))}>
       {!initialized && !user ? (
         <p className={styles.loading}>Loading…</p>
       ) : !user ? (
@@ -503,29 +510,33 @@ export function PredictionsPortfolio() {
         )
       ) : (
         <div className={styles.page}>
-          <Totals portfolio={portfolio} />
-          <MyPoolsSection />
-          <section className={styles.section} aria-labelledby="open-head">
-            <header className={styles.head}>
-              <h2 id="open-head">Open positions</h2>
-              <span>{open.length}</span>
-            </header>
-            <Positions rows={open} looks={allLooks} flashes={flashes} />
-          </section>
-          <section className={styles.section} aria-labelledby="orders-head">
-            <header className={styles.head}>
-              <h2 id="orders-head">Resting orders</h2>
-              <span>{portfolio.orders.length}</span>
-            </header>
-            <Orders rows={portfolio.orders} looks={allLooks} onCancelled={onCancelled} />
-          </section>
-          <section className={styles.section} aria-labelledby="settled-head">
-            <header className={styles.head}>
-              <h2 id="settled-head">Settled</h2>
-              <span>{portfolio.settled.length}</span>
-            </header>
-            <Settled rows={portfolio.settled} looks={allLooks} />
-          </section>
+          <MyPoolsSection onData={setPools} />
+          {showMarkets ? (
+            <>
+              <Totals portfolio={portfolio} />
+              <section className={styles.section} aria-labelledby="open-head">
+                <header className={styles.head}>
+                  <h2 id="open-head">Open positions</h2>
+                  <span>{open.length}</span>
+                </header>
+                <Positions rows={open} looks={allLooks} flashes={flashes} />
+              </section>
+              <section className={styles.section} aria-labelledby="orders-head">
+                <header className={styles.head}>
+                  <h2 id="orders-head">Resting orders</h2>
+                  <span>{portfolio.orders.length}</span>
+                </header>
+                <Orders rows={portfolio.orders} looks={allLooks} onCancelled={onCancelled} />
+              </section>
+              <section className={styles.section} aria-labelledby="settled-head">
+                <header className={styles.head}>
+                  <h2 id="settled-head">Settled</h2>
+                  <span>{portfolio.settled.length}</span>
+                </header>
+                <Settled rows={portfolio.settled} looks={allLooks} />
+              </section>
+            </>
+          ) : null}
         </div>
       )}
     </PredictionsFrame>

@@ -6,14 +6,17 @@ import { ArtSlot } from "@/app/components/common/art-slot";
 import { BuybackPill } from "@/app/components/common/buyback-badge";
 import { BuybackMeter } from "@/app/components/common/buyback-meter";
 import { untilText } from "@/app/components/market/dividends-tab";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { FaMinus, FaPlus } from "react-icons/fa6";
 import { userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { apiFetch } from "@/app/lib/api";
 import { pctLabel, planOf, useBuybackSpotlight } from "@/app/lib/buyback";
-import { formatEtTime, getMarketClock, ORDER_BATCH_MS } from "@/app/lib/market-clock";
+import { buybackSell, yourOfferShares } from "@/app/lib/buyback-plan.mjs";
+import { getMarketClock, ORDER_BATCH_MS } from "@/app/lib/market-clock";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { money } from "@/app/lib/time";
 import { buildTradeConfirmation, getTradeFailureNotice, type TradeConfirmation, type TradeExecutionResult, type TradeFailureNotice, type TradeSide } from "@/app/lib/trade";
-import { BIG_ORDER_SLIP, FEE_RATE, fillPrice, maxBuyShares, maxSellShares, orderTotals, slippageFraction } from "@/app/lib/trade-estimate.mjs";
+import { BIG_ORDER_SLIP, FEE_RATE, fillPrice, maxBuyShares, maxSellShares, orderTotals, slippageFraction, stepShares } from "@/app/lib/trade-estimate.mjs";
 import type { MarketAsset } from "@/app/lib/types";
 import { useNowEvery } from "@/app/lib/use-now";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -79,17 +82,21 @@ function CashToSpend({ cash, held, margin, total, qty, tooMuch }: { cash: number
   );
 }
 
-/** The buyback on the ticket (buyback-spotlight): today's offer, the step-down, what's left at it. */
-function BuybackNote({ asset }: { asset: MarketAsset }) {
+/**
+ * The buyback on the ticket (buyback-spotlight): today's offer, the step-down, what's left at it.
+ * `held` / `yours`: the seller's shares, and how many of them the offer pays on.
+ */
+function BuybackNote({ asset, held, yours }: { asset: MarketAsset; held: number; yours: number }) {
   const now = useNowEvery(60_000);
   const plan = planOf(asset, now);
   if (!plan) return null;
+  const noneOfYours = held > 0 && yours <= 0;
   return (
     <div className={styles.supplyNote} data-tone="buyback">
       <div className={styles.bbHead}>
         <BuybackPill asset={asset} now={now} size="md" />
         <span>
-          Broker pays <b>{n2(plan.backUnder ? plan.frozen : plan.offer)}</b> a share
+          Broker pays <b>{n2(plan.backUnder || noneOfYours ? plan.frozen : plan.offer)}</b> a share
         </span>
       </div>
       {plan.backUnder ? null : <BuybackMeter steps={plan.steps} endLabel={null} size="sm" />}
@@ -99,6 +106,7 @@ function BuybackNote({ asset }: { asset: MarketAsset }) {
         ) : (
           <>
             <b>{Math.ceil(plan.over).toLocaleString("en-US")}</b> shares left at {pctLabel(plan.pct)}; past those, sells get the frozen {n2(plan.frozen)}.
+            {noneOfYours ? " Yours were bought after the last tick before the buyback, so they get the frozen price." : yours < held ? ` ${Math.ceil(yours).toLocaleString("en-US")} of yours get the offer.` : ""}
             {plan.nextStepAt !== null && plan.nextPct !== null ? ` ${pctLabel(plan.nextPct)} in ${untilText(plan.nextStepAt - now)}.` : ""} No buys until it ends.
           </>
         )}
@@ -108,11 +116,12 @@ function BuybackNote({ asset }: { asset: MarketAsset }) {
 }
 
 /** What the order runs into on the supply side: sold out, the last shares, or a buyback. */
-function SupplyNote({ asset, side, qty }: { asset: MarketAsset; side: TradeSide; qty: number }) {
+function SupplyNote({ asset, side, qty, held, yours }: { asset: MarketAsset; side: TradeSide; qty: number; held: number; yours: number }) {
   const spotlight = useBuybackSpotlight();
+  const tf = useTimeFormat();
   const forSale = asset.shares_for_sale ?? null;
   const max = asset.max_supply ?? null;
-  if (spotlight && asset.trading_state === "buyback" && asset.buyback) return <BuybackNote asset={asset} />;
+  if (spotlight && asset.trading_state === "buyback" && asset.buyback) return <BuybackNote asset={asset} held={held} yours={yours} />;
   if (asset.trading_state === "buyback" && asset.buyback) {
     const bb = asset.buyback;
     const next = bb.next_step_at ? new Date(bb.next_step_at) : null;
@@ -123,7 +132,7 @@ function SupplyNote({ asset, side, qty }: { asset: MarketAsset; side: TradeSide;
         </b>{" "}
         The broker pays <b>{n2(bb.price)}</b> a share ({Math.round(bb.multiplier * 100)}% of the frozen {n2(bb.frozen_price)}) for the{" "}
         {Math.ceil(bb.shares_over).toLocaleString("en-US")} shares still over the max
-        {next ? `, ${Math.round(Math.max(bb.floor, bb.multiplier - bb.daily_step) * 100)}% from ${next.toLocaleDateString("en-US", { weekday: "short", timeZone: "America/New_York" })} ${formatEtTime(next)} ET` : ""}. Past that, sells get the frozen price. No buys until it ends.
+        {next ? `, ${Math.round(Math.max(bb.floor, bb.multiplier - bb.daily_step) * 100)}% from ${tf.format(next, { weekday: "short" })} ${tf.clock(next, { alongside: true })}` : ""}. Past that, sells get the frozen price. No buys until it ends.
       </p>
     );
   }
@@ -145,6 +154,59 @@ function SupplyNote({ asset, side, qty }: { asset: MarketAsset; side: TradeSide;
       <b>{Math.floor(forSale).toLocaleString("en-US")}</b> <Term k="max-supply">shares left for sale</Term>
       {qty > forSale ? ". Your batch fills what's left when it runs." : "."}
     </p>
+  );
+}
+
+/**
+ * A − or + beside the share box: a tap (or Enter/Space) steps once; held down it keeps stepping,
+ * faster as it goes, until let go.
+ */
+function ShareStep({ label, disabled, onStep, children }: { label: string; disabled: boolean; onStep: () => void; children: ReactNode }) {
+  const hold = useRef({ timer: 0, repeated: false });
+  // The newest onStep, so a hold that outlives a render still steps against the current max.
+  const latest = useRef(onStep);
+  useEffect(() => {
+    latest.current = onStep;
+  });
+  useEffect(() => {
+    const held = hold.current;
+    return () => window.clearTimeout(held.timer);
+  }, []);
+  // Reaching the max (or one share) turns the button off mid-hold; the hold ends there.
+  useEffect(() => {
+    if (!disabled) return;
+    window.clearTimeout(hold.current.timer);
+    hold.current.repeated = false;
+  }, [disabled]);
+  const stop = () => {
+    window.clearTimeout(hold.current.timer);
+    window.removeEventListener("pointerup", stop);
+    window.removeEventListener("pointercancel", stop);
+  };
+  const start = (event: ReactPointerEvent) => {
+    if (event.button !== 0) return;
+    stop();
+    hold.current.repeated = false;
+    const next = (wait: number) => {
+      hold.current.timer = window.setTimeout(() => {
+        hold.current.repeated = true;
+        latest.current();
+        next(wait > 100 ? 90 : Math.max(35, wait * 0.9));
+      }, wait);
+    };
+    next(400);
+    // A button that turns disabled at the max stops getting pointer events, so listen on the window.
+    window.addEventListener("pointerup", stop, { once: true });
+    window.addEventListener("pointercancel", stop, { once: true });
+  };
+  const click = () => {
+    if (hold.current.repeated) hold.current.repeated = false;
+    else onStep();
+  };
+  return (
+    <button type="button" className={styles.step} aria-label={label} disabled={disabled} onPointerDown={start} onPointerLeave={stop} onContextMenu={(event) => event.preventDefault()} onClick={click}>
+      {children}
+    </button>
   );
 }
 
@@ -185,6 +247,7 @@ export function TradeTicket({
   const allowance = useProfileStore((state) => state.orderAllowance);
   const pushFill = useMomentStore((state) => state.pushFill);
   const { user } = useAuth();
+  const tf = useTimeFormat();
   // A stock frozen for a buyback can only be sold (to the broker), so the ticket opens on Sell.
   const startSide: TradeSide = asset.trading_state === "buyback" ? "sell" : initialSide;
   const [side, setSide] = useState<TradeSide>(startSide);
@@ -195,22 +258,41 @@ export function TradeTicket({
     setSide(startSide);
   }
   const [quantity, setQuantity] = useState("25");
-  const [lastPreset, setLastPreset] = useState<number | null>(null);
   const [doubts, setDoubts] = useState({ order: "", count: 0 });
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<TradeFailureNotice | null>(null);
   const [queued, setQueued] = useState<TradeConfirmation | null>(null);
   const qtyInput = useRef<HTMLInputElement | null>(null);
+  const qtyRow = useRef<HTMLDivElement | null>(null);
+  const qtyId = useId();
   const failureRef = useRef<HTMLDivElement | null>(null);
   const symbol = asset.symbol.toUpperCase();
 
   // Whatever floats over the page (the chat window) moves off the ticket as soon as it's there.
   useEffect(() => announceKeepClear(), []);
+  // Typing straight away suits a mouse and keyboard. On a touch screen focusing the box raises the
+  // keyboard over the ticket, so there it waits to be tapped.
   useEffect(() => {
-    if (!autoFocus) return;
+    if (!autoFocus || window.matchMedia?.("(pointer: coarse)").matches) return;
     const id = window.setTimeout(() => qtyInput.current?.focus(), 60);
     return () => window.clearTimeout(id);
   }, [autoFocus]);
+  // When a phone's keyboard does come up over the ticket on a page, bring the share box up so the
+  // estimate stays in view under it. (The drawer lifts itself above the keyboard and does the same.)
+  const revealTimer = useRef(0);
+  const revealQty = () => {
+    if (!window.matchMedia?.("(pointer: coarse)").matches || qtyRow.current?.closest("[role='dialog']")) return;
+    window.clearTimeout(revealTimer.current);
+    revealTimer.current = window.setTimeout(() => {
+      const row = qtyRow.current;
+      if (!row) return;
+      // Already in the top half of what's showing: leave the page where it is.
+      const top = row.getBoundingClientRect().top - (window.visualViewport?.offsetTop ?? 0);
+      if (top >= 0 && top < (window.visualViewport?.height ?? window.innerHeight) / 2) return;
+      row.scrollIntoView({ block: "start" });
+    }, 350);
+  };
+  useEffect(() => () => window.clearTimeout(revealTimer.current), []);
   // On a phone the submit button stays pinned, so what went wrong can be out of view above it.
   useEffect(() => {
     if (failure) failureRef.current?.scrollIntoView({ block: "center" });
@@ -227,12 +309,20 @@ export function TradeTicket({
   const soldOut = !frozen && Boolean(asset.sold_out);
   const buyBlocked = side === "buy" && (frozen || soldOut);
   const toBroker = frozen && side === "sell" && Boolean(asset.buyback);
-  const quote = toBroker && asset.buyback ? asset.buyback.price : side === "buy" ? asset.current_ask_price ?? asset.current_mid_price : asset.current_bid_price ?? asset.current_mid_price;
-  // What a share should fill at: the quote moved by slippage on the order's size (the broker's
-  // buyback price is fixed). The batch still prices it then, after the orders ahead of it.
+  const batchNow = useNowEvery(ORDER_BATCH_MS);
+  const pending = useProfileStore((state) => state.pendingLiveOrders);
+  const queuedSells = pending.filter((order) => order.side === "sell" && order.symbol.toUpperCase() === symbol).reduce((sum, order) => sum + order.requested_quantity, 0);
+  // Selling to the broker: the offer on the shares still over the max that you held before the last
+  // tick ahead of the buyback (less sells you've queued, which fill first), the frozen price on the rest.
+  const brokerPlan = toBroker ? planOf(asset, batchNow) : null;
+  const yours = yourOfferShares({ held: holding?.quantity ?? 0, eligible: holding?.buyback_offer_shares ?? null, queued: queuedSells });
+  const brokerQuote = brokerPlan ? (yours > 0 && brokerPlan.over > 0 ? brokerPlan.offer : brokerPlan.frozen) : asset.buyback?.price;
+  const quote = toBroker ? brokerQuote : side === "buy" ? asset.current_ask_price ?? asset.current_mid_price : asset.current_bid_price ?? asset.current_mid_price;
+  // What a share should fill at: the quote moved by slippage on the order's size (a sale to the
+  // broker has no slippage). The batch still prices it then, after the orders ahead of it.
   const depth = asset.liquidity_depth ?? null;
   const slip = toBroker ? 0 : slippageFraction(qty, depth);
-  const price = quote === null || quote === undefined ? null : toBroker ? quote : fillPrice(side, quote, qty, depth);
+  const price = quote === null || quote === undefined ? null : toBroker ? (brokerPlan ? buybackSell(brokerPlan, qty, yours).price : quote) : fillPrice(side, quote, qty, depth);
   // The fee comes out of Credit first; Cash pays the shares and whatever Credit doesn't cover. A
   // sale also earns a little Credit.
   const { fee, feeFromCredit, total, creditEarned } = orderTotals({
@@ -243,29 +333,16 @@ export function TradeTicket({
     sellCreditRate: portfolio?.economy?.sell_credit_rate ?? 0,
   });
   const tradingOpen = marketStatus?.is_trading_open ?? true;
-  const clock = getMarketClock(useNowEvery(ORDER_BATCH_MS));
+  const clock = getMarketClock(batchNow);
   const batchAt = asset.next_live_order_execute_after ? new Date(asset.next_live_order_execute_after) : clock.nextBatchAt;
   const queuedAhead = asset.pending_live_order_count ?? 0;
   const canSell = (holding?.quantity ?? 0) > 0;
   const tooMuch = side === "buy" ? (portfolio ? total > portfolio.cash_balance : false) : qty > (holding?.quantity ?? 0);
 
-  // The share buttons stop at what's left this tick, so pressing 100 twice lands on the most you can queue.
   const room = allowance ? Math.max(0, Math.floor(allowance.remaining)) : Infinity;
-  const presetTarget = (value: number) => Math.min(lastPreset === value ? qty + value : value, room);
-  const preset = (value: number) => {
-    setQuantity(String(presetTarget(value)));
-    setLastPreset(value);
-  };
-  const presetLabel = (value: number) => {
-    if (lastPreset !== value) return value;
-    const step = presetTarget(value) - qty;
-    return step > 0 ? `+${step}` : "MAX";
-  };
   // MAX: the biggest order that goes through. A buy stops at the shares left this tick, the shares
   // for sale and what Cash covers at the slipped ask with the fee; a sale at what you hold that
   // queued sells haven't promised, within the shares left this tick (ALL when that's everything).
-  const pending = useProfileStore((state) => state.pendingLiveOrders);
-  const queuedSells = pending.filter((order) => order.side === "sell" && order.symbol.toUpperCase() === symbol).reduce((sum, order) => sum + order.requested_quantity, 0);
   const maxSell = maxSellShares({ held: holding?.quantity ?? 0, queued: queuedSells, room: Number.isFinite(room) ? room : null });
   const maxBuy =
     portfolio && !frozen && !soldOut
@@ -281,10 +358,12 @@ export function TradeTicket({
   const maxShares = side === "buy" ? maxBuy : canSell ? maxSell.shares : null;
   const maxLabel = side === "sell" && maxSell.all ? "ALL" : "MAX";
   const setMax = () => {
-    if (maxShares === null) return;
-    setQuantity(String(maxShares));
-    setLastPreset(null);
+    if (maxShares !== null) setQuantity(String(maxShares));
   };
+  // A share button sets the count to its number; one over what the order can take is off (MAX is
+  // the most). The −/+ buttons move one share within the same max.
+  const presetOver = (value: number) => maxShares !== null && value > maxShares;
+  const step = (delta: number) => setQuantity((current) => String(stepShares(Number(current) || 0, delta, maxShares)));
 
   // Changing the shares, side or stock makes it a new order, so the doubts start over.
   const towaBuy = side === "buy" && symbol === "TOW";
@@ -357,7 +436,7 @@ export function TradeTicket({
               <ArtSlot kind="reaction" pose={queued.side === "buy" ? "moon" : "smug"} symbol={symbol} icon={asset.icon} width={artSize === "large" ? 520 : 260} vignette fadeLength={0.3} className={styles.qArt} />
               <div className={styles.qBand}>
                 <span>QUEUED</span>
-                <small>{queued.executeAfter ? `${formatEtTime(new Date(queued.executeAfter))} ET batch` : "next batch"}</small>
+                <small>{queued.executeAfter ? `${tf.clock(queued.executeAfter)} batch` : "next batch"}</small>
               </div>
             </div>
             <p>
@@ -365,7 +444,7 @@ export function TradeTicket({
               <b className={queued.side === "buy" ? styles.up : styles.down}>
                 {queued.side.toUpperCase()} {queued.requestedQuantity.toLocaleString("en-US")} {queued.symbol}
               </b>{" "}
-              is in the {queued.executeAfter ? `${formatEtTime(new Date(queued.executeAfter))} ET` : "next"} batch.
+              is in the {queued.executeAfter ? tf.clock(queued.executeAfter) : "next"} batch.
               {queued.remainingIntervalShares !== null ? ` You can queue ${queued.remainingIntervalShares.toLocaleString("en-US")} more shares before the next tick.` : ""}
             </p>
             <p className={styles.dim}>We&apos;ll show you the fill when it lands. You can cancel from the Activity tab until then.</p>
@@ -391,19 +470,27 @@ export function TradeTicket({
                 SELL
               </button>
             </div>
-            <label className={styles.qty}>
-              <span>SHARES</span>
-              <input ref={qtyInput} inputMode="numeric" value={quantity} onChange={(event) => setQuantity(event.target.value.replace(/[^\d]/g, "").slice(0, 6))} aria-label="Shares" />
-            </label>
+            <div ref={qtyRow} className={styles.qty} data-reveal>
+              <label htmlFor={qtyId}>SHARES</label>
+              <ShareStep label="One share fewer" disabled={qty <= 1} onStep={() => step(-1)}>
+                <FaMinus aria-hidden="true" />
+              </ShareStep>
+              <input id={qtyId} ref={qtyInput} inputMode="numeric" value={quantity} onChange={(event) => setQuantity(event.target.value.replace(/[^\d]/g, "").slice(0, 6))} onFocus={revealQty} aria-label="Shares" />
+              <ShareStep label="One share more" disabled={qty >= (maxShares ?? 999_999)} onStep={() => step(1)}>
+                <FaPlus aria-hidden="true" />
+              </ShareStep>
+            </div>
             <div className={styles.presets}>
               {PRESETS.map((value) => (
-                <button key={value} type="button" onClick={() => preset(value)}>
-                  {presetLabel(value)}
+                <button key={value} type="button" aria-pressed={qty === value} disabled={presetOver(value)} onClick={() => setQuantity(String(value))}>
+                  {value}
                 </button>
               ))}
               {maxShares !== null ? (
                 <button
                   type="button"
+                  className={styles.max}
+                  aria-pressed={qty === maxShares && maxShares > 0}
                   onClick={setMax}
                   disabled={maxShares < 1}
                   title={
@@ -412,7 +499,8 @@ export function TradeTicket({
                       : `The most this order can sell: ${maxShares.toLocaleString("en-US")} sh`
                   }
                 >
-                  {maxLabel}
+                  <b>{maxLabel}</b>
+                  <small>{maxShares.toLocaleString("en-US")}</small>
                 </button>
               ) : null}
             </div>
@@ -462,9 +550,9 @@ export function TradeTicket({
                 You hold {(holding?.quantity ?? 0).toLocaleString("en-US")} sh{tooMuch ? " · you don't hold that many" : ""}
               </p>
             ) : null}
-            <SupplyNote asset={asset} side={side} qty={qty} />
+            <SupplyNote asset={asset} side={side} qty={qty} held={holding?.quantity ?? 0} yours={yourOfferShares({ held: holding?.quantity ?? 0, eligible: holding?.buyback_offer_shares ?? null })} />
             <p className={styles.batch} suppressHydrationWarning>
-              Fills in the <b>{formatEtTime(batchAt)} ET</b> <Term k="batch">batch</Term>
+              Fills in the <b>{tf.clock(batchAt)}</b> <Term k="batch">batch</Term>
               {queuedAhead ? ` · ${queuedAhead} order${queuedAhead === 1 ? "" : "s"} queued on ${asset.symbol}` : ""}. The final price is set when the batch executes.
             </p>
             {failure ? (

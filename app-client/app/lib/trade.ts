@@ -1,4 +1,5 @@
 import { pickTradeConfirmationImage } from "@/app/lib/trade-confirmation-images";
+import { currentTimeFormat } from "@/app/lib/use-display-time";
 
 // Order submission helpers shared by the trade drawer and older trade panels.
 
@@ -140,12 +141,13 @@ export function getTradeFailureNotice(errorCode: string, side: TradeSide, symbol
       const used = limit !== null && remaining !== null ? limit - remaining : null;
       const window = typeof details?.window === "string" ? WINDOW_LABEL[details.window] ?? details.window : null;
       const resetsAt = typeof details?.resets_at === "string" ? new Date(details.resets_at) : null;
-      const resetLabel = resetsAt && !Number.isNaN(resetsAt.getTime()) ? resetsAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/New_York" }) : null;
+      // Built when the order is refused, so the zone as it is then (a message, not a live render).
+      const resetLabel = resetsAt && !Number.isNaN(resetsAt.getTime()) ? currentTimeFormat().clock(resetsAt, { alongside: true }) : null;
       const usage = limit !== null && used !== null ? `You've used ${used} of your ${limit} shares${window ? ` for the ${window} window` : " this tick window"}` : "You've used your share allowance for this tick window";
       const room = remaining ? ` (${remaining} left, so try ${remaining} or fewer)` : "";
       return {
         title: remaining ? "Over your share limit" : "Share limit reached",
-        message: `${usage}${room}.${resetLabel ? ` It resets at the next tick, ${resetLabel} ET.` : " It resets at the next tick."}`,
+        message: `${usage}${room}.${resetLabel ? ` It resets at the next tick, ${resetLabel}.` : " It resets at the next tick."}`,
       };
     }
     default:

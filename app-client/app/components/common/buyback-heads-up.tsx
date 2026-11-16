@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { FaSnowflake } from "react-icons/fa6";
 import { n2 } from "@/app/components/trade/trade-ticket";
 import { pctLabel, planOf, useBuybackAssets } from "@/app/lib/buyback";
+import { yourOfferShares } from "@/app/lib/buyback-plan.mjs";
 import { useStoredState } from "@/app/lib/use-stored-state";
 import { useNowEvery } from "@/app/lib/use-now";
 import { useAuthStore } from "@/app/stores/auth-store";
@@ -33,8 +34,11 @@ export function BuybackHeadsUp() {
 
   const mine = frozen
     .map((asset) => {
-      const held = holdings.find((holding) => holding.symbol.toUpperCase() === asset.symbol)?.quantity ?? 0;
-      const plan = held > 0 ? planOf(asset, now) : null;
+      const holding = holdings.find((item) => item.symbol.toUpperCase() === asset.symbol);
+      const held = holding?.quantity ?? 0;
+      // Only holders with shares the offer pays on (not ones bought after the last tick before it).
+      const yours = yourOfferShares({ held, eligible: holding?.buyback_offer_shares ?? null });
+      const plan = yours > 0 ? planOf(asset, now) : null;
       return plan && !plan.backUnder ? { asset, held, plan } : null;
     })
     .filter((row): row is NonNullable<typeof row> => row !== null);

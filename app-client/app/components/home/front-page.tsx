@@ -17,7 +17,8 @@ import { money, signedPct, timeAgo, toneOf } from "@/app/lib/time";
 import type { EvaluationRow, MarketAsset, MyDividendWeek, NewsItem, ReportRow, WeeklyEvaluation, WireItem } from "@/app/lib/types";
 import { apiFetch } from "@/app/lib/api";
 import { useNow } from "@/app/lib/use-now";
-import { nextEvaluationAt, untilText } from "@/app/components/market/dividends-tab";
+import { nextEvaluationAt, reviewWhen, untilText } from "@/app/components/market/dividends-tab";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { useLocalFlag } from "@/app/lib/use-local-flag";
 import { threadLines, useThreadPosts } from "@/app/lib/use-thread";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -29,11 +30,12 @@ import { previewOf } from "@/app/lib/streams";
 import { TradingPausedBanner } from "@/app/components/common/trading-paused-banner";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useSiteStore } from "@/app/stores/site-store";
-import { markSeries, UNIT_ORDER, unitLabel, unitName } from "@/app/lib/market-units";
+import { closeSeries, UNIT_ORDER, unitLabel, unitName } from "@/app/lib/market-units";
 import { useNewsStore } from "@/app/stores/news-store";
 import { CHATTER_TOPIC, heatLabel, useChatterStore, type ChatterTalent } from "@/app/stores/chatter-store";
 import { fetchFloor } from "@/app/lib/predictions/api";
 import { leader as predictionLeader, outcomeColor } from "@/app/lib/predictions/format";
+import { multiplierText, poolHref } from "@/app/lib/predictions/pools";
 import type { PredictionMarket as PredictionMarketV2 } from "@/app/lib/predictions/types";
 import styles from "@/app/components/home/front-page.module.scss";
 import { LIFTS_FAIR_VALUE, WIRE_TAGS, isOshiMove, wireTone, wireWhen } from "@/app/components/wire/wire-kit";
@@ -110,6 +112,7 @@ function DatelineDate() {
 }
 
 function Masthead({ assets }: { assets: MarketAsset[] }) {
+  const tf = useTimeFormat();
   const { user } = useAuth();
   const marketStatus = useMarketStore((state) => state.marketStatus);
   const online = useSiteStore((state) => state.online);
@@ -120,8 +123,8 @@ function Masthead({ assets }: { assets: MarketAsset[] }) {
     const avgMove = moves.length ? moves.reduce((sum, value) => sum + value, 0) / moves.length : null;
     const up = moves.filter((value) => value > 0.00005).length;
     const down = moves.filter((value) => value < -0.00005).length;
-    // Equal-weight fair value index over the sparkline window, rebased to 100.
-    const series = assets.map(markSeries).filter((values) => values.length > 1);
+    // Equal-weight index of daily closing prices over the sparkline window, rebased to 100.
+    const series = assets.map(closeSeries).filter((values) => values.length > 1);
     const length = Math.min(...series.map((values) => values.length));
     const index = Number.isFinite(length) && length > 1
       ? Array.from({ length }, (_, i) => (series.reduce((sum, values) => sum + values[values.length - length + i] / values[values.length - length], 0) / series.length) * 100)
@@ -131,9 +134,7 @@ function Masthead({ assets }: { assets: MarketAsset[] }) {
     return { avgMove, up, down, index, soldOut, buybacks };
   }, [assets]);
 
-  const settled = marketStatus?.last_settlement_completed_at
-    ? new Date(marketStatus.last_settlement_completed_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: MARKET_TIME_ZONE })
-    : null;
+  const settled = marketStatus?.last_settlement_completed_at ? tf.clock(marketStatus.last_settlement_completed_at) : null;
 
   return (
     <header className={styles.masthead}>
@@ -143,7 +144,7 @@ function Masthead({ assets }: { assets: MarketAsset[] }) {
         </h1>
         <div className={styles.dateline}>
           <DatelineDate />
-          {settled ? <span>SETTLED {settled} ET</span> : null}
+          {settled ? <span>SETTLED {settled}</span> : null}
           <span>{assets.length || "—"} TALENTS LISTED</span>
           {online !== null ? (
             <span className={styles.online} title="People on NASFAQ right now">
@@ -163,7 +164,7 @@ function Masthead({ assets }: { assets: MarketAsset[] }) {
           {pulse.index.length > 1 ? (
             <div className={styles.pulseSpark}>
               <Sparkline values={pulse.index} tone={pulse.index[pulse.index.length - 1] >= pulse.index[0] ? "up" : "down"} width={120} height={36} fill dot />
-              <span className={styles.sub}>settlement marks, {pulse.index.length}d</span>
+              <span className={styles.sub}>daily closes, {pulse.index.length}d</span>
             </div>
           ) : null}
           <div>
@@ -604,6 +605,7 @@ function shortEvalDate(value: string) {
 
 /** Last Saturday's review (who paid, who charged, whose max shares moved) and the countdown to the next. */
 function DividendReview() {
+  const tf = useTimeFormat();
   const { user } = useAuth();
   const now = useNow();
   const spotlight = useFeature("dividend-spotlight");
@@ -667,7 +669,9 @@ function DividendReview() {
           <b className={styles.reviewClock} suppressHydrationWarning>
             {next && now ? untilText(next - now) : "—"}
           </b>
-          <span className={styles.meta}>Saturday 00:00 ET</span>
+          <span className={styles.meta} suppressHydrationWarning>
+            {reviewWhen(tf, next)}
+          </span>
           {myNet !== null ? (
             <p className={styles.reviewMine}>
               Your last: <b className={styles[toneOf(myNet)]}>{myNet >= 0 ? "+" : ""}{money(myNet)}</b>
@@ -829,11 +833,11 @@ function PredictionsMini() {
       <div className={styles.colHead}>
         <h3>Predictions</h3>
         <Link href="/predictions" className={styles.label}>
-          All markets →
+          All pools →
         </Link>
       </div>
       {markets === null ? (
-        <p className={styles.empty}>Loading markets…</p>
+        <p className={styles.empty}>Loading pools…</p>
       ) : open.length ? (
         open.map((market) => {
           // Binary shows both sides with their labels (Yes/No, Up/Down); multi shows the leader.
@@ -842,28 +846,32 @@ function PredictionsMini() {
           const top = market.market_type === "multi" ? predictionLeader(market.outcomes) : null;
           const main = top ?? yes;
           const pct = main ? Math.round(main.price * 100) : null;
+          const isPool = market.pricing === "pool";
+          const noBets = isPool && !market.pool_total;
+          const mainText = isPool ? `${main?.label} ${multiplierText(main?.multiplier)}` : `${main?.label} ${top ? `${pct}%` : `${pct}¢`}`;
+          const otherText = top ? `${market.outcomes.length - 1} more` : isPool ? `${no?.label ?? "No"} ${multiplierText(no?.multiplier)}` : `${no?.label ?? "No"} ${100 - (pct ?? 0)}¢`;
           const barStyle = {
             "--pm-a": main ? outcomeColor(market, main) : "var(--blue)",
             "--pm-b": no && !top ? outcomeColor(market, no) : "var(--dim)",
           } as CSSProperties;
           return (
-            <Link key={market.id} href={`/predictions/${encodeURIComponent(market.slug)}`} className={styles.pm}>
+            <Link key={market.id} href={isPool ? poolHref(market.slug) : `/predictions/${encodeURIComponent(market.slug)}`} className={styles.pm}>
               <span className={styles.pmQ}>{market.title}</span>
-              {main && pct !== null ? (
+              {main && pct !== null && !noBets ? (
                 <span className={styles.pmBar} style={barStyle}>
                   <span className={styles.pmYes} style={{ width: `${Math.max(top ? 34 : 22, Math.min(78, pct))}%` }}>
-                    {main.label} {top ? `${pct}%` : `${pct}¢`}
+                    {mainText}
                   </span>
-                  <span className={styles.pmNo}>{top ? `${market.outcomes.length - 1} more` : `${no?.label ?? "No"} ${100 - pct}¢`}</span>
+                  <span className={styles.pmNo}>{otherText}</span>
                 </span>
               ) : (
-                <span className={styles.meta}>No trades yet</span>
+                <span className={styles.meta}>No bets yet</span>
               )}
             </Link>
           );
         })
       ) : (
-        <p className={styles.empty}>No open markets.</p>
+        <p className={styles.empty}>No open pools.</p>
       )}
     </div>
   );

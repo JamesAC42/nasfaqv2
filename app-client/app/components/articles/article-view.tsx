@@ -13,7 +13,7 @@ import { fromArticle, readMinutes, splitHeadline } from "@/app/components/articl
 import { fetchFrontPagePins, saveFrontPagePins } from "@/app/components/admin/admin-api";
 import { apiFetch } from "@/app/lib/api";
 import { safeImageUrl } from "@/app/lib/image-hosts";
-import { markSeries } from "@/app/lib/market-units";
+import { closeSeries } from "@/app/lib/market-units";
 import { MOOD_COLORS } from "@/app/lib/moods";
 import { normalizeArticleDetail, normalizeArticleListResponse } from "@/app/lib/normalizers";
 import { signedPct, timeAgo, toneOf } from "@/app/lib/time";
@@ -22,6 +22,7 @@ import { useAuth } from "@/app/providers/auth-provider";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useTradeStore } from "@/app/stores/trade-store";
 import styles from "@/app/components/articles/articles.module.scss";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { StoryReactions } from "@/app/components/articles/story-reactions";
 import { HideComment, hiddenCommentStyle } from "@/app/components/common/hide-comment";
 
@@ -50,6 +51,7 @@ function loadRecord(slug: string) {
 type AdminAction = "delete-article" | "delete-body" | "delete-news" | "thumbnail" | "remove-thumbnail" | "pin";
 
 export function ArticleView({ slug }: { slug: string }) {
+  const tf = useTimeFormat();
   const router = useRouter();
   const { user } = useAuth();
   const [article, setArticle] = useState<ArticleDetail | null>(null);
@@ -234,7 +236,7 @@ export function ArticleView({ slug }: { slug: string }) {
                 ) : (
                   <span>Imported by the HoloNews wire</span>
                 )}
-                <span title={published ? new Date(published).toLocaleString() : undefined}>{published ? new Date(published).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "unpublished"}</span>
+                <span title={published ? tf.stamp(published) : undefined}>{published ? tf.format(published, { month: "short", day: "numeric", year: "numeric" }, { was: "local" }) : "unpublished"}</span>
                 <span>{minutes ? `${minutes} min read` : "no body yet"}</span>
                 <span>{article.views.toLocaleString("en-US")} views</span>
                 <a href="#comments">{article.comment_count} comments</a>
@@ -379,7 +381,7 @@ function InThisStory({ article }: { article: ArticleDetail }) {
                 <small>{related.display_name}</small>
               </span>
             </Link>
-            {asset ? <Sparkline values={markSeries(asset)} tone={toneOf(move) === "down" ? "down" : "up"} width={70} height={22} /> : <span />}
+            {asset ? <Sparkline values={closeSeries(asset)} tone={toneOf(move) === "down" ? "down" : "up"} width={70} height={22} /> : <span />}
             <span className={styles.talentPx}>
               <b>{asset?.current_mid_price?.toFixed(2) ?? "—"}</b>
               <small className={styles[toneOf(move)]}>{signedPct(move)}</small>
@@ -429,6 +431,7 @@ function MoreStories({ article }: { article: ArticleDetail }) {
 type Sort = "newest" | "oldest" | "top";
 
 function Comments({ article, onChange }: { article: ArticleDetail; onChange: (next: ArticleDetail) => void }) {
+  const tf = useTimeFormat();
   const { user } = useAuth();
   const verify = userNeedsEmailVerification(user);
   const [sort, setSort] = useState<Sort>("newest");
@@ -538,7 +541,7 @@ function Comments({ article, onChange }: { article: ArticleDetail; onChange: (ne
                       {comment.mood}
                     </span>
                   ) : null}
-                  <time suppressHydrationWarning title={new Date(comment.created_at).toLocaleString()}>
+                  <time suppressHydrationWarning title={tf.stamp(comment.created_at)}>
                     {timeAgo(comment.created_at)}
                   </time>
                   <HideComment

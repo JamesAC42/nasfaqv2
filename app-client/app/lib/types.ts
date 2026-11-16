@@ -868,6 +868,8 @@ export type PortfolioHolding = {
   current_mid_price: number | null;
   market_value: number;
   unrealized_pnl: number;
+  /** In a buyback: how many of these shares can still get the offer (those held before its cutoff); null when not in one. */
+  buyback_offer_shares?: number | null;
 };
 
 export type PortfolioSummary = {

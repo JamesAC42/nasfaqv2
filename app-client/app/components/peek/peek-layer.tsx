@@ -44,10 +44,10 @@ function StockPeek({ symbol }: { symbol: string }) {
 
   const series = useMemo(() => {
     if (!asset) return [];
-    const marks = asset.sparkline_candles
-      .map((candle) => candle.close_mark ?? candle.close)
+    const closes = asset.sparkline_candles
+      .map((candle) => candle.close)
       .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
-    return asset.current_mid_price !== null ? [...marks, asset.current_mid_price] : marks;
+    return asset.current_mid_price !== null ? [...closes, asset.current_mid_price] : closes;
   }, [asset]);
 
   if (!asset) return null;

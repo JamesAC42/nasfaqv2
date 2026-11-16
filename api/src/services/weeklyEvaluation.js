@@ -10,6 +10,9 @@
 //      revealed base rate over the week, per share held. Fees may take cash below zero.
 //   3. Max shares from subscribers on a bell curve (normal CDF of the z-score of ln subscribers)
 //      between MIN and MAX. A stock now over its max starts a buyback (frozen, see marketSupply.js).
+//      Its offer only pays on shares held before the last tick ahead of it (Friday's Late tick, or
+//      the last one before an on-demand run): what each holder added since then is written down as
+//      late shares (startedLateShares), which sell at the frozen price.
 //      The first evaluation never sets a max below what players already hold.
 //   Rookies (listed by an IPO in the last ROOKIE_DAYS, docs/market/ipo.md): no dividend or fee (their
 //   week-over-week shift reads the launch, so they're left out of the ranking too), and their max
@@ -41,6 +44,7 @@ const pgNumeric = require("./pgNumeric");
 const notifications = require("./notifications");
 const marketState = require("./marketState");
 const trading = require("./trading");
+const netWorth = require("./netWorth");
 const { acquireSchedulerLock, releaseSchedulerLock } = require("./marketScheduler");
 const { getStarterCash, getStarterCredit } = require("./portfolioCash");
 const { publishMarketEvent, publishMarketStatusEvent } = require("./marketEvents");
@@ -573,6 +577,24 @@ function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, ass
   return { report, writes, notices };
 }
 
+/**
+ * For each buyback starting, the shares each holder added after the cutoff (the most they added from
+ * some moment since then, from the ledger: oshi.sharesAddedSince), which don't get the offer. Read
+ * with the holdings locked, so no fill lands in between. Rows with late shares only.
+ */
+async function startedLateShares(client, started, holdings, cutoff) {
+  const pairs = [];
+  for (const buyback of started) {
+    for (const [userId, quantity] of holdings.get(String(buyback.assetId)) || []) {
+      if (pgNumeric.compare(quantity, pgNumeric.ZERO) > 0) pairs.push({ userId, assetId: Number(buyback.assetId) });
+    }
+  }
+  const added = await oshi.sharesAddedSince(client, pairs, cutoff);
+  return pairs
+    .map((pair) => ({ ...pair, late: added.get(`${pair.userId}:${pair.assetId}`) ?? 0 }))
+    .filter((row) => row.late > 0);
+}
+
 // ── Writing it ────────────────────────────────────────────────────────────
 /**
  * The plan's writes: a handful of set-based statements whatever the number of players (it was one to
@@ -613,8 +635,8 @@ async function applyEvaluation(client, evaluationId, { report, writes, notices }
       WHERE a.id = s.id
     ),
     started AS (
-      INSERT INTO market.asset_buybacks (asset_id, started_evaluation_id, frozen_price, target_max_supply, held_at_start)
-      SELECT b."assetId", $1, b."frozenPrice", b."targetMaxSupply", b."heldAtStart"
+      INSERT INTO market.asset_buybacks (asset_id, started_evaluation_id, frozen_price, target_max_supply, held_at_start, offer_cutoff_at)
+      SELECT b."assetId", $1, b."frozenPrice", b."targetMaxSupply", b."heldAtStart", $7::timestamptz
       FROM jsonb_to_recordset($3::jsonb) AS b("assetId" bigint, "frozenPrice" numeric, "targetMaxSupply" numeric, "heldAtStart" numeric)
     ),
     lines AS (
@@ -630,8 +652,28 @@ async function applyEvaluation(client, evaluationId, { report, writes, notices }
     )
     UPDATE market.weekly_evaluations SET status = 'completed', completed_at = now(), report_json = $6::jsonb WHERE id = $1
   `,
-    [evaluationId, JSON.stringify(writes.assets), JSON.stringify(writes.buybacksStarted), JSON.stringify(writes.assetEvaluations), JSON.stringify(writes.payouts), JSON.stringify(report)]
+    [
+      evaluationId,
+      JSON.stringify(writes.assets),
+      JSON.stringify(writes.buybacksStarted),
+      JSON.stringify(writes.assetEvaluations),
+      JSON.stringify(writes.payouts),
+      JSON.stringify(report),
+      writes.offerCutoffAt ?? null,
+    ]
   );
+  // The buybacks that just started, each holder's shares bought after the cutoff.
+  if (writes.lateShares?.length) {
+    await client.query(
+      `
+      INSERT INTO market.asset_buyback_late_shares (buyback_id, user_id, late_shares)
+      SELECT b.id, l."userId", l.late
+      FROM jsonb_to_recordset($1::jsonb) AS l("assetId" bigint, "userId" bigint, late numeric)
+      JOIN market.asset_buybacks b ON b.asset_id = l."assetId" AND b.status = 'active' AND b.started_evaluation_id = $2
+    `,
+      [JSON.stringify(writes.lateShares), evaluationId]
+    );
+  }
   // Money: accounts opened on the way, then every Cash and Credit move with its ledger row.
   if (writes.accountsOpened.length) {
     await client.query(
@@ -772,6 +814,8 @@ async function evaluate(pool, { evalDate, dryRun, onDemand, redis, logger }) {
     // already, so no fill lands in between; an oshi change meanwhile only counts from next week.
     const protectedOshis = features.enabledFor(oshi.FLAG, "staff") ? await oshi.loadProtectedOshis(client, assets.map((asset) => asset.id), weekStartFor(evalDate), evaluationStartsAt(evalDate)) : null;
     const plan = planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, assets, activeBuybacks, holdings, wallets, protectedOshis, bailoutPlayers });
+    plan.writes.offerCutoffAt = supply.offerCutoffBefore(onDemand ? new Date() : evaluationStartsAt(evalDate));
+    plan.writes.lateShares = await startedLateShares(client, plan.writes.buybacksStarted, holdings, plan.writes.offerCutoffAt);
     report = plan.report;
     if (dryRun) {
       await client.query("ROLLBACK");
@@ -789,6 +833,8 @@ async function evaluate(pool, { evalDate, dryRun, onDemand, redis, logger }) {
   const finishedAt = Date.now();
 
   if (!dryRun) {
+    // Dividends, fees, the Credit conversion, forced buybacks and bailouts moved nearly every wallet.
+    netWorth.queueLeaderboardRefresh(pool, null, { everyone: true });
     notifications.publish(toPublish);
     await notifications.pruneInboxes(pool, toPublish.map((row) => row.user_id)).catch(() => {});
     await invalidateMarketAssetsCache(redis).catch(() => {});
@@ -986,6 +1032,7 @@ module.exports = {
   CONFIG,
   evaluationDateFor,
   evaluationStartsAt,
+  startedLateShares,
   weekStartFor,
   planEvaluation,
   todayInNewYork,

@@ -7,7 +7,7 @@ import { Oshimark } from "@/app/components/common/oshimark";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { compactMoney, DivBar, num, Seg, toneClass } from "@/app/components/market/bits";
 import { IndexChart } from "@/app/components/market/mini-charts";
-import { branchOf, groupByUnit, markSeries, UNIT_ORDER, unitLabel, unitName } from "@/app/lib/market-units";
+import { branchOf, groupByUnit, closeSeries, UNIT_ORDER, unitLabel, unitName } from "@/app/lib/market-units";
 import { signedPct } from "@/app/lib/time";
 import type { MarketAsset, MarketIndexBundle } from "@/app/lib/types";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -30,9 +30,9 @@ type IndexView = {
   volume: number | null;
 };
 
-/** Price now vs the first settlement mark in the sparkline window (~15 days). */
+/** Price now vs the first daily close in the sparkline window (~15 days). */
 function change15(asset: MarketAsset) {
-  const start = markSeries(asset)[0];
+  const start = closeSeries(asset)[0];
   const mid = asset.current_mid_price;
   return mid && start ? (mid - start) / start : null;
 }

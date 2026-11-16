@@ -6,13 +6,13 @@ import { FiCheck, FiCopy } from "react-icons/fi";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { fetchReferralSummary, referralLink, rewardText, type ReferralJoin, type ReferralSummary } from "@/app/lib/referrals";
 import { useAuth } from "@/app/providers/auth-provider";
+import { useTimeFormat, type TimeFormat } from "@/app/lib/use-display-time";
 import profile from "@/app/components/profile/profile.module.scss";
 import styles from "@/app/components/profile/referral-panel.module.scss";
 
 const enc = encodeURIComponent;
 
-const dayFormat = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-const whenText = (iso: string) => `${dayFormat.format(new Date(iso))} ET`;
+const whenText = (tf: TimeFormat, iso: string) => tf.format(iso, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 const SAME_NETWORK = "This account has used the same network as you or someone else you invited.";
 
@@ -20,13 +20,13 @@ const SAME_NETWORK = "This account has used the same network as you or someone e
  * Where one person who joined stands, in a few words. The shared network is the only reason a refusal
  * names: another player's suspension reads as a plain "didn't qualify" (the API doesn't send it either).
  */
-function statusOf(row: ReferralJoin): { text: string; tone: "up" | "down" | "flat"; title?: string } {
+function statusOf(tf: TimeFormat, row: ReferralJoin): { text: string; tone: "up" | "down" | "flat"; title?: string } {
   if (row.status === "pending") return { text: "waiting for their first trade", tone: "flat" };
   if (row.status === "expired") return { text: row.reason === "unverified" ? "email not verified in time" : "no trade in time", tone: "flat" };
   if (row.status === "refused") return row.reason === "shared_ip" ? { text: "didn't qualify: same network", tone: "down", title: SAME_NETWORK } : { text: "didn't qualify", tone: "down" };
   if (row.your_share === "paid") return { text: "you were paid", tone: "up" };
   if (row.your_share === "waiting") {
-    const when = row.your_share_retry_at ? whenText(row.your_share_retry_at) : null;
+    const when = row.your_share_retry_at ? whenText(tf, row.your_share_retry_at) : null;
     if (row.your_share_reason === "weekly_cap") return { text: when ? `weekly limit, yours lands ${when}` : "weekly limit reached", tone: "flat" };
     if (row.your_share_reason === "too_new") return { text: when ? `yours lands ${when}` : "yours lands when your account is older", tone: "flat" };
     if (row.your_share_reason === "unverified") return { text: "verify your email to get yours", tone: "flat" };
@@ -51,6 +51,7 @@ function invitedText({ username, status, reason, cash, credit }: NonNullable<Ref
  */
 export function ReferralPanel() {
   const userId = useAuth().user?.id ?? null;
+  const tf = useTimeFormat();
   const [summary, setSummary] = useState<ReferralSummary | null>(null);
   const [failed, setFailed] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -144,7 +145,7 @@ export function ReferralPanel() {
           {summary.joined.length ? (
             <div className={styles.list}>
               {summary.joined.map((row) => {
-                const status = statusOf(row);
+                const status = statusOf(tf, row);
                 return (
                   <div key={`${row.username}-${row.joined_at}`} className={profile.person}>
                     <PlayerAvatar username={row.username} pictureUrl={row.profile_picture_url} color={row.profile_color} size={22} />

@@ -105,6 +105,13 @@ function splitCharge(wallet, amount, from, { shortfall = null } = {}) {
   return { credit, cash };
 }
 
+// Net worth counts Cash and Credit, so a move queues the player's leaderboard row for a refresh. The
+// queue runs a couple of seconds later, by when the caller's transaction has committed (netWorth.js;
+// required here, not at the top, because it requires this module).
+function queueNetWorthRefresh(userIds) {
+  require("./netWorth").queueLeaderboardRefresh(null, null, { extraUserIds: userIds });
+}
+
 async function writeMove(client, userId, { cash, credit, entryType, referenceType, referenceId, assetId = null, quantityDelta = 0 }) {
   if (cash || credit) {
     await client.query(
@@ -115,6 +122,7 @@ async function writeMove(client, userId, { cash, credit, entryType, referenceTyp
     `,
       [userId, cash, credit]
     );
+    queueNetWorthRefresh([userId]);
   }
   await client.query(
     `
@@ -223,6 +231,7 @@ async function writeMoves(client, moves) {
   `,
     [JSON.stringify(moves)]
   );
+  queueNetWorthRefresh(moves.filter((move) => Number(move.cash) || Number(move.credit)).map((move) => move.userId));
 }
 
 /**

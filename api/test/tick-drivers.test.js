@@ -375,3 +375,62 @@ test("player push follows trading.js: buying is a negative push, and an older fi
   assert.ok(Math.abs(push + price) < 1e-12);
   assert.equal(net_shares, 60);
 });
+
+// ── The fair value's server-side daily factor (targetNudge.js) ───────────
+
+// The fair value is the formula's × exp(daily factor). A tick splits only the formula's change
+// between the channel drivers; the factor's change is its own private part, `market`, which a
+// reason never names (ticks run before their day's fair value is revealed).
+const targetNudge = require("../src/services/targetNudge");
+
+test("tick drivers keep the factor's change apart from the channel drivers, and never name it", () => {
+  const snapshot = (date, subs, views) => ({
+    snapshot_date: date,
+    subscriber_count: subs,
+    view_count: views,
+    video_count: 500,
+    size_anchor_raw: subs ** 0.42 * 2,
+    view_signal: 0.05,
+    sub_signal: 0.02,
+    upload_signal: 0.01,
+    event_signal: 0,
+    momentum_raw: 0.58 * 0.05 + 0.3 * 0.02 + 0.12 * 0.01,
+  });
+  const byDate = new Map();
+  for (let i = 0; i < 40; i += 1) {
+    const date = new Date(Date.UTC(2026, 9, 10) + i * 86_400_000).toISOString().slice(0, 10);
+    byDate.set(date, snapshot(date, 1_000_000 + i * 2_000 + (date === "2026-11-18" ? 20_000 : 0), 50_000_000 + i * 300_000));
+  }
+  const formulaChange = 0.012;
+  const gate = targetNudge.makeGate(targetNudge.settings({ MARKET_TARGET_SECRET: "test-only-secret" }), "2026-11-01", "recorded");
+  const id = "UC_ONE";
+  const factorChange = gate.nudge(id, "2026-11-18") - gate.nudge(id, "2026-11-17");
+  const prevFair = 10;
+  const fair = prevFair * Math.exp(formulaChange + factorChange);
+  const context = (targetNudgeGate) => ({
+    timeZone: "America/New_York",
+    previous: new Map([["1", { asset_id: "1", interval_key: "overnight", applied_at: "2026-11-18T08:00:00Z", price_after: 9.9, base_rate: prevFair, driver_state_json: null, market_day: "2026-11-17" }]]),
+    fills: new Map(),
+    channelOf: new Map([["1", id]]),
+    snapshots: new Map([[id, byDate]]),
+    peaks: new Map(),
+    targetNudge: targetNudgeGate,
+  });
+  const interval = { asset_id: 1, interval_key: "open", market_day: "2026-11-18" };
+  const args = { priceBefore: 9.9, priceAfter: 10.05, liquidityDepth: 2000, now: new Date("2026-11-18T14:00:00Z") };
+
+  const nudged = drivers.tickInput(context(gate), interval, { ...args, fairValue: fair });
+  const plain = drivers.tickInput(context(targetNudge.OFF), interval, { ...args, fairValue: prevFair * Math.exp(formulaChange) });
+  const { market, ...channelParts } = nudged.channel.parts;
+  assert.ok(Math.abs(market - factorChange) < 1e-12, "the factor's change is its own part");
+  assert.deepEqual(Object.keys(channelParts).sort(), Object.keys(plain.channel.parts).sort());
+  for (const [key, value] of Object.entries(plain.channel.parts)) assert.ok(Math.abs(channelParts[key] - value) < 1e-12, `${key} unchanged`);
+  assert.equal(plain.channel.parts.market, undefined);
+
+  const result = drivers.explainTick(nudged);
+  assert.ok(!drivers.NAMED_KEYS.includes("market"));
+  for (const reason of result.reasons) assert.notEqual(reason.kind, "market");
+  // It rides along only in the private split.
+  assert.ok(result.state.parts.market !== undefined);
+  assert.deepEqual(Object.keys(drivers.publicReasons(result.reasons)[0] ?? {}).filter((key) => !["kind", "text", "short", "detail"].includes(key)), []);
+});

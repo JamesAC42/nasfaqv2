@@ -545,9 +545,11 @@ export const useMarketStore = create<MarketState>((set, get) => ({
           return;
         }
 
-        // Dividends, fees, new max shares and buybacks: refetch the board (and the player's cash).
+        // Dividends, fees, new max shares and buybacks: refetch the board and the player's portfolio
+        // (their cash, and how many of their shares a new buyback's offer pays on), spread out.
         if (payload.type === "market.weekly_evaluation") {
           scheduleOverviewRefresh(get().refreshOverview, { soon: true });
+          if (useAuthStore.getState().user) window.setTimeout(() => void useProfileStore.getState().refreshTradingState(), REFRESH_SOON_MS + Math.random() * 2_000);
           return;
         }
 

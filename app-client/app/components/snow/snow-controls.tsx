@@ -1,8 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useEffect, useId, useRef, useState } from "react";
-import { LuSnowflake } from "react-icons/lu";
+import { useId, useState } from "react";
 import { SNOW_AMOUNT_MIN, useSnow, type SnowSettings } from "@/app/lib/snow";
 import shellStyles from "@/app/components/layout/site-shell.module.scss";
 import styles from "@/app/components/snow/snow.module.scss";
@@ -53,19 +52,13 @@ function windReadout(wind: number) {
   return `${wind < 0 ? "←" : "→"} ${Math.round(Math.abs(wind) * 100)}`;
 }
 
-/** Every snow setting. They apply as you move them, so you can watch the page while you tune it. */
-function SnowPanel() {
+/** Every snow setting but on/off. They apply as you move them, so you can watch the page while you tune it. */
+function SnowPanel({ id }: { id: string }) {
   const { on, still, settings, update, reset } = useSnow();
   const set = (change: Partial<SnowSettings>) => update(change);
 
   return (
-    <div className={styles.panel} role="group" aria-label="Snow settings">
-      <div className={styles.head}>
-        <strong>Snow</strong>
-        <button type="button" className={styles.power} aria-pressed={on} onClick={() => set({ on: !on })}>
-          {on ? "On" : "Off"}
-        </button>
-      </div>
+    <div id={id} className={styles.panel} role="group" aria-label="Snow settings">
       <div className={styles.rows} data-off={on ? undefined : ""}>
         <Slider label="Amount" value={settings.amount} min={SNOW_AMOUNT_MIN} max={1} readout={percent(settings.amount)} onChange={(amount) => set({ amount })} />
         <Slider label="Speed" value={settings.speed} min={0} max={1} readout={percent(settings.speed)} onChange={(speed) => set({ speed })} />
@@ -89,62 +82,47 @@ function SnowPanel() {
 }
 
 /**
- * Top bar: a snowflake next to the theme switch. Only there while snow is on offer, which CSS decides
- * from the attribute the boot script stamps, so the top bar doesn't jump when the page hydrates.
+ * The Display menus (account menu, the signed-out Display button, the phone's More sheet): Snow's
+ * on/off switch, and a caret that opens its other settings in place. Only there while snow is on offer.
  */
-export function SnowButton() {
-  const { on } = useSnow();
+export function SnowDisplayRow() {
+  const { offered, on, update } = useSnow();
   const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && !wrapRef.current?.contains(event.target)) setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false);
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
-  return (
-    <div ref={wrapRef} className={styles.wrap}>
-      <button
-        type="button"
-        className={[shellStyles.iconButton, on ? shellStyles.iconButtonHot : ""].filter(Boolean).join(" ")}
-        aria-label="Snow settings"
-        title="Snow settings"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <LuSnowflake className={shellStyles.icon} />
-      </button>
-      {open ? (
-        <div className={styles.popover}>
-          <SnowPanel />
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-/** Phone menu: a button that opens the same settings in place. */
-export function SnowSheetControls() {
-  const { offered, on } = useSnow();
-  const [open, setOpen] = useState(false);
+  const id = useId();
   if (!offered) return null;
   return (
     <>
-      <button type="button" className={shellStyles.textButton} aria-expanded={open} onClick={() => setOpen((current) => !current)}>
-        SNOW {on ? "ON" : "OFF"}
-      </button>
+      <div className={shellStyles.displayRow}>
+        <span id={`${id}-name`} className={shellStyles.displayName}>
+          Snow
+        </span>
+        <span className={shellStyles.displayPair}>
+          <button
+            type="button"
+            className={shellStyles.displayMore}
+            aria-label="More snow settings"
+            title="Amount, speed, wind and size"
+            aria-expanded={open}
+            aria-controls={open ? `${id}-panel` : undefined}
+            onClick={() => setOpen((current) => !current)}
+          >
+            <span className={shellStyles.caret} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={on}
+            aria-labelledby={`${id}-name`}
+            className={shellStyles.displayToggle}
+            onClick={() => update({ on: !on })}
+          >
+            {on ? "On" : "Off"}
+          </button>
+        </span>
+      </div>
       {open ? (
-        <div className={styles.sheet}>
-          <SnowPanel />
+        <div className={styles.inline}>
+          <SnowPanel id={`${id}-panel`} />
         </div>
       ) : null}
     </>
