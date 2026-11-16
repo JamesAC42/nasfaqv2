@@ -700,7 +700,6 @@ export type MarketAdjustmentSummary = {
   recaps: MarketAdjustmentTickSummary[];
   leaderboards: {
     movers: MarketAdjustmentOutcome[];
-    gap_compression: MarketAdjustmentOutcome[];
   };
   feed: MarketAdjustmentOutcome[];
   health: MarketAdjustmentHealth | null;

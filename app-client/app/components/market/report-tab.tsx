@@ -392,7 +392,7 @@ function Ticks({ date, session }: { date: string; session?: SessionBreakdown | n
   const bySymbol = useAssetMap();
   const sameDay = (value: string | null | undefined) => (value ?? "").slice(0, 10) === date;
   const recaps = (adjustments?.recaps ?? []).filter((recap) => sameDay(recap.market_date));
-  const outcomes = [...(adjustments?.feed ?? []), ...(adjustments?.leaderboards.movers ?? []), ...(adjustments?.leaderboards.gap_compression ?? [])].filter((item) => sameDay(item.market_date));
+  const outcomes = [...(adjustments?.feed ?? []), ...(adjustments?.leaderboards.movers ?? [])].filter((item) => sameDay(item.market_date));
   const unique = new Map<string, MarketAdjustmentOutcome>();
   outcomes.forEach((item) => unique.set(`${item.symbol}:${item.interval_key}`, item));
   const rows = [...unique.values()];
