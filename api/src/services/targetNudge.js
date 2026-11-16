@@ -6,7 +6,7 @@
 // is multiplied by exp(nudge), with
 //
 //   u     = the first 48 bits of HMAC-SHA256(MARKET_TARGET_SECRET, "<youtube_channel_id>|<YYYY-MM-DD>") / 2^48
-//   nudge = (2u − 1) × MARKET_TARGET_NUDGE_PCT / 100      (default 3: within ±3% in log terms)
+//   nudge = (2u − 1) × MARKET_TARGET_NUDGE_PCT / 100      (default 2: within ±2% in log terms)
 //
 // - Applied once, where the smoothed fundamental becomes the day's fair value (settlement and the
 //   fundamentals refresh of current_fair_value), never inside the smoothing chain: the smoothed
@@ -25,7 +25,7 @@
 
 const crypto = require("node:crypto");
 
-const DEFAULT_PCT = 3;
+const DEFAULT_PCT = 2;
 const MAX_PCT = 10;
 const STATE_KEY = "primary";
 

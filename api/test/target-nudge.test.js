@@ -86,12 +86,12 @@ test("a missing, empty or whitespace secret means no factor at all", async () =>
   await withEnv({ MARKET_TARGET_SECRET: "  " }, async () => assert.match(targetNudge.startupLine(), /target nudge: off$/));
   await withEnv({ MARKET_TARGET_SECRET: SECRET }, async () => {
     const line = targetNudge.startupLine();
-    assert.match(line, /target nudge: on \(±3%/);
+    assert.match(line, /target nudge: on \(±2%/);
     assert.ok(!line.includes(SECRET), "the startup line never carries the secret");
   });
   // A zero percent is off too; a bad percent or date falls back with a warning.
   assert.equal(on({ MARKET_TARGET_NUDGE_PCT: "0" }).enabled, false);
-  assert.equal(on({ MARKET_TARGET_NUDGE_PCT: "lots" }).pct, 3);
+  assert.equal(on({ MARKET_TARGET_NUDGE_PCT: "lots" }).pct, targetNudge.DEFAULT_PCT);
   assert.equal(on({ MARKET_TARGET_NUDGE_PCT: "50" }).pct, targetNudge.MAX_PCT);
   assert.equal(on({ MARKET_TARGET_NUDGE_FROM: "2026-13-40" }).from, null);
   assert.match(targetNudge.startupLine(on({ MARKET_TARGET_NUDGE_FROM: "soon" })), /ignored/);
@@ -250,7 +250,7 @@ test("settlement: activation, replays, the refresh and public payloads", { skip:
         const n = targetNudge.rawNudge(row.youtube_channel_id, today, config);
         assert.notEqual(n, 0);
         close(row.fair, plain * Math.exp(n), "nudged");
-        assert.ok(Math.abs(Math.log(row.fair / plain)) <= 0.03);
+        assert.ok(Math.abs(Math.log(row.fair / plain)) <= targetNudge.DEFAULT_PCT / 100);
       }
       // Old days untouched.
       assert.deepEqual((await fairValues()).filter((row) => row.day < today), baseline);

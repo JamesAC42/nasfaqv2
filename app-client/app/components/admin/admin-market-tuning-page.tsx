@@ -48,7 +48,7 @@ type MarketTuningConfig = {
 function targetNudgeText(config: MarketTuningConfig | null): string | null {
   if (!config || config.target_nudge_enabled === undefined) return null;
   if (!config.target_nudge_enabled) return "Daily target factor: off (MARKET_TARGET_SECRET not set).";
-  const pct = `±${config.target_nudge_pct ?? 3}%`;
+  const pct = `±${config.target_nudge_pct ?? 2}%`;
   if (!config.target_nudge_from) return `Daily target factor: on (${pct}), starting with the next regular settlement.`;
   const source = config.target_nudge_from_source === "env" ? "MARKET_TARGET_NUDGE_FROM" : "recorded at its first settlement";
   return `Daily target factor: on (${pct}) from ${config.target_nudge_from}, ${source}.`;
