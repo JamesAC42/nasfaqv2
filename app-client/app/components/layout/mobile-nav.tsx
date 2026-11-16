@@ -3,19 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { isActiveLink, isActivePath, MOBILE_TABS, navFor } from "@/app/components/layout/nav-config";
+import { isActiveLink, isActivePath, MOBILE_TABS, navFor, showSettingsLink } from "@/app/components/layout/nav-config";
 import { useFeatures } from "@/app/lib/features";
-import { ThemeChoices } from "@/app/components/layout/theme-switch";
-import { SnowSheetControls } from "@/app/components/snow/snow-controls";
+import { DisplayControls } from "@/app/components/layout/display-controls";
 import { useAuth } from "@/app/providers/auth-provider";
-import { useMotion } from "@/app/providers/motion-provider";
 import styles from "@/app/components/layout/site-shell.module.scss";
 
 /** Phone/tablet bottom bar: four main tabs plus a "More" sheet with everything else. */
 export function MobileNav() {
   const pathname = usePathname();
   const { user } = useAuth();
-  const { calm, toggleCalm } = useMotion();
   const [moreOpen, setMoreOpen] = useState(false);
   const flags = useFeatures();
   const nav = useMemo(() => navFor(flags), [flags]);
@@ -58,18 +55,17 @@ export function MobileNav() {
               <Link href="/how-to-play" className={styles.sheetLink} onClick={close}>
                 How to play
               </Link>
-              {user && flags["checkin-reminders"] ? (
+              {user && showSettingsLink(flags) ? (
                 <Link href="/settings" className={styles.sheetLink} aria-current={isActivePath(pathname, "/settings") ? "page" : undefined} onClick={close}>
                   Settings
                 </Link>
               ) : null}
             </div>
-            <div className={styles.sheetPrefs}>
-              <button type="button" className={styles.textButton} aria-pressed={calm} onClick={toggleCalm}>
-                CALM MODE {calm ? "ON" : "OFF"}
-              </button>
-              <ThemeChoices />
-              <SnowSheetControls />
+            <div className={styles.sheetDisplay} role="group" aria-label="Display">
+              <div className={styles.sheetLabel} aria-hidden="true">
+                Display
+              </div>
+              <DisplayControls />
             </div>
           </div>
         </div>

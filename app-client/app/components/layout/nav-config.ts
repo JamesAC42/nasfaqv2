@@ -38,6 +38,14 @@ export function navFor(flags: Record<string, boolean>, nav: NavGroup[] = NAV): N
   return nav.map((group) => (group.links ? { ...group, links: group.links.filter((link) => !link.feature || flags[link.feature] === true) } : group));
 }
 
+/**
+ * Whether Settings is linked (the account menu, the phone's More sheet). It sits behind
+ * checkin-reminders while Notifications is its only section; ungating it is this one line.
+ */
+export function showSettingsLink(flags: Record<string, boolean>) {
+  return flags["checkin-reminders"] === true;
+}
+
 export function isActivePath(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);

@@ -25,58 +25,14 @@
   }
 }
 
-.wrap {
-  position: relative;
-  display: none;
-}
-
-:global([data-season-now~="winter"]) .wrap {
-  display: block;
-}
-
-.popover {
-  @include popover;
-  position: absolute;
-  top: calc(100% + 0.6rem);
-  right: 0;
-  z-index: 50;
-  width: 19rem;
-  padding: 0.85rem;
-}
-
-.sheet {
-  grid-column: 1 / -1;
-  flex-basis: 100%;
-  padding-top: 0.35rem;
+// Opened in place from the Snow row of a Display menu.
+.inline {
+  padding-bottom: 0.2rem;
 }
 
 .panel {
   display: grid;
   gap: 0.6rem;
-}
-
-.head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  strong {
-    @include section-heading;
-  }
-}
-
-.power {
-  @include button-base;
-  min-width: 3.2rem;
-  padding: 0.3rem 0.55rem;
-  font-size: 0.625rem;
-  color: var(--mid);
-
-  &[aria-pressed="true"] {
-    background: var(--blue);
-    border-color: var(--blue);
-    color: var(--blue-ink);
-  }
 }
 
 .rows {
