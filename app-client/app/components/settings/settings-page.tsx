@@ -32,9 +32,6 @@ export function SettingsPage() {
       <div className={styles.page}>
         <header className={styles.pageHead}>
           <h1>Settings</h1>
-          <p>
-            Yours only. Your public page is on your <Link href="/profile">profile</Link>.
-          </p>
           {shown.length > 1 ? (
             <nav className={styles.jump} aria-label="Sections">
               {shown.map((section) => (
