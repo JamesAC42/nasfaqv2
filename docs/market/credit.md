@@ -27,10 +27,10 @@ writes one ledger row with `cash_delta` and `credit_delta`.
 | Buying shares | Cash (queued buys hold it: `trading.js`) | |
 | Selling shares | | Cash, plus a little Credit (`sellCreditRate`) |
 | Trading fee (1%) | Credit first, then Cash | |
-| Games, capsule machine, card gacha (games wallet) | Credit only (`sideModeFunds`). Pulls, entry fees and stakes stop under the net worth floor (`sideModeMinNetWorth`, `services/sideModeFloor.js`) | Credit; refunds go back where they came from |
-| Blackjack | Credit only, with its own limits (`services/games/tables/blackjackLimits.js`) and the same floor | Credit; refunds go back where they came from |
-| Card exchange: bids, buys, trade escrow | Credit only (`sideModeFunds`). Buys, bids and trade offers stop under the net worth floor; selling stays open | Credit (sales, a trade's cash); refunds go back where they came from |
-| Predictions | Credit only (`sideModeFunds`). Buys, limit orders and pool bets stop under the net worth floor | Credit (payouts, sales); releases and void refunds go back where they came from. A void also takes back what a player made selling, as Credit (can go below zero) |
+| Games, capsule machine, card gacha (games wallet) | Credit only (`sideModeFunds`) | Credit; refunds go back where they came from |
+| Blackjack | Credit only, with its own weekly and daily limits (`services/games/tables/blackjackLimits.js`) | Credit; refunds go back where they came from |
+| Card exchange: bids, buys, trade escrow | Credit only (`sideModeFunds`) | Credit (sales, a trade's cash); refunds go back where they came from |
+| Predictions | Credit only (`sideModeFunds`) | Credit (payouts, sales); releases and void refunds go back where they came from. A void also takes back what a player made selling, as Credit (can go below zero) |
 | Dividends (Saturday) | | Credit |
 | Margin on prediction pools | Credit only, going below zero. The debt counts against net worth and never stops stock trading | Only Credit pays it back, never Cash |
 | Share fees (Saturday) | Credit first, then Cash (can go below zero) | |
@@ -41,6 +41,12 @@ writes one ledger row with `cash_delta` and `credit_delta`.
 | New accounts, admin market reset | | Cash 10,000 and Credit (`ECONOMY_STARTER_CREDIT`) |
 
 Shards stay their own currency.
+
+**Spending in a side mode** needs the Credit to cover it, and nothing else: there's no net worth
+requirement (the owner, 2026-11-15). `economy.charge` refuses a charge Credit doesn't cover with
+`insufficient_credit`, and refuses any spending while Credit is below zero (`assertNotInRed`). So a
+side mode never takes Cash, and spending never takes Credit below zero except margin on pools, which
+has its own line and gate (`services/margin.js`).
 
 **Refunds** (an outbid bid, a refunded stake, a cancelled trade, a released or voided prediction)
 use `economy.refund`: Cash back up to what the player's Cash put into that thing (the ledger rows
@@ -62,7 +68,6 @@ BBB answered (October 1):
 | A minimum conversion | `weeklyConversionMinimum` (`ECONOMY_WEEKLY_CONVERSION_MINIMUM`) | **$10,000**: "5% or $10k, whichever is more". A balance under $10,000 converts entirely, so the floor can go past the 50% cap. |
 | Fees when Credit runs out | (code: `weeklyEvaluation.js`) | **Pull from Cash** for the difference (Cash can go below zero) |
 | Minigames, gacha, gambling, player trading | `sideModeFunds` (`ECONOMY_SIDE_MODE_FUNDS`: `credit` / `credit_then_cash`) | **Credit only** (`credit`; the owner, 2026-11-09, so losing at a side mode can't leave a player with no Cash to trade) |
-| Net worth under which games, capsules and bets close | `sideModeMinNetWorth` (`ECONOMY_SIDE_MODE_MIN_NET_WORTH`) | **$50,000** (BBB and the owner, 2026-11-09) |
 
 | Who gets an auto-bailout, and how much | `bailoutCash`, `bailoutCredit`, `bailoutActiveDays` (`ECONOMY_BAILOUT_CASH`, `ECONOMY_BAILOUT_CREDIT`, `ECONOMY_BAILOUT_ACTIVE_DAYS`) | **$1,000 and $1,000, seen in the last 14 days** (see below). `ECONOMY_BAILOUT_ACTIVE_DAYS=0` turns it off |
 
@@ -82,9 +87,8 @@ its two weeks; change it with the settings.
 
 BBB, relayed by the owner (November 2026): a small amount of Cash and Credit "to get somebody's foot
 back in the door if they have no shares and no money to buy shares with". It's the last safety net
-under Credit-only side modes and the net worth floor, for anyone who still finds a way to brick an
-account. Some players will lean on it to gamble, and BBB and the owner accepted that, so it has no
-anti-abuse rules. The code is `api/src/services/autoBailout.js`.
+under Credit-only side modes, for anyone who still finds a way to brick an account. Some players will
+lean on it to gamble, and BBB and the owner accepted that, so it has no anti-abuse rules. The code is `api/src/services/autoBailout.js`.
 
 **When.** At the Saturday review, in its transaction, after the fees, forced buybacks, conversion and
 new max shares. A date's review runs once, so it pays once, and a preview writes nothing. An on-demand
@@ -104,8 +108,14 @@ Open prediction positions and cards aren't counted, on purpose. Net worth doesn'
 they can't buy a share today, and the cost of being wrong is a small payment rather than a stuck player.
 
 **Who.** A verified email, no suspension, and a visit within `bailoutActiveDays` of the review
-(`market.user_active_days`). There's no cooldown: the money can only go into shares (it leaves them far
-under the floor), and holding it means they don't qualify next week.
+(`market.user_active_days`). There's no cooldown. The Cash can only go into shares, and holding Cash
+worth a share means they don't qualify next week.
+
+**Side modes.** The bailout's Credit is ordinary Credit: it can pay trading fees, games, capsules,
+card buys and bets, and whatever is left converts to Cash at the next review (it's under the $10,000
+minimum, so all of it does). The Cash can't go to a side mode, since they spend Credit only. So
+losing the bailout's Credit at the tables doesn't make a player bricked again; only losing the Cash
+on the market does.
 
 **How much.** Cash goes up to `bailoutCash`, which clears anything share fees took below zero, and
 `bailoutCredit` is added. Credit below zero (margin, a void) shrinks by that much and isn't forgiven,

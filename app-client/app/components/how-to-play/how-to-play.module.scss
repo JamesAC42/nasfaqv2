@@ -664,6 +664,26 @@ $sticky-top: calc(var(--rail-height) + var(--tape-height) + env(safe-area-inset-
   margin-bottom: -0.75rem;
 }
 
+// The buyback walkthrough (buyback-spotlight), under Saturday's rules.
+.buybacks {
+  display: grid;
+  gap: 1.5rem;
+  margin-top: 2rem;
+  scroll-margin-top: 6rem;
+}
+
+.buybackWhere {
+  margin: 0;
+  max-width: 46rem;
+  color: var(--mid);
+  font-size: 0.9rem;
+  line-height: 1.55;
+
+  b {
+    color: var(--text);
+  }
+}
+
 // Hairline grid of rule cards.
 .rules {
   display: grid;

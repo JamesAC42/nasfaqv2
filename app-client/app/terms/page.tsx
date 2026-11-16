@@ -344,7 +344,7 @@ export default function TermsPage() {
     <LegalPage
       doc="terms"
       title="Usage policy"
-      updated={{ iso: "2026-11-12", label: "November 12, 2026" }}
+      updated={{ iso: "2026-11-16", label: "November 16, 2026" }}
       art="legal-terms-spot"
       intro={
         <p>

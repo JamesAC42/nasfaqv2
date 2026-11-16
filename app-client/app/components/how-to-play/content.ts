@@ -1,17 +1,19 @@
 // Copy for the how-to-play guide. Every number here is checked against the API:
 // - market: api/src/services/{trading,marketAdjustments,settlement,fundamentals,portfolioCash}.js
+// - IPOs: api/src/services/ipo.js and the rookie rule in weeklyEvaluation.js
 // - games: api/src/services/games/** and GAMES_DESIGN.md
 // - predictions: api/src/services/predictions/pools.js, api/src/services/margin.js and docs/design/predictions-pools.md
 // If a rule changes there, change it here too.
 import { TICKER_TAP_ENABLED } from "@/app/lib/games/flags";
 
-export type SectionId = "market" | "trading" | "ticks" | "weekly" | "games" | "predictions" | "community" | "glossary" | "faq";
+export type SectionId = "market" | "trading" | "ticks" | "weekly" | "ipo" | "games" | "predictions" | "community" | "glossary" | "faq";
 
 export const SECTIONS: ReadonlyArray<{ id: SectionId; label: string }> = [
   { id: "market", label: "Market" },
   { id: "trading", label: "Trading" },
   { id: "ticks", label: "Ticks" },
   { id: "weekly", label: "Dividends" },
+  { id: "ipo", label: "IPOs" },
   { id: "games", label: "Games" },
   { id: "predictions", label: "Predictions" },
   { id: "community", label: "Community" },
@@ -22,6 +24,7 @@ export const SECTIONS: ReadonlyArray<{ id: SectionId; label: string }> = [
 export const STARTER_CASH = 10_000; // portfolioCash.js DEFAULT_STARTER_CASH
 export const TRADE_FEE = 0.01; // trading.js DEFAULT_TRADING_FEE_RATE
 export const SHARES_PER_WINDOW = 180; // trading.js DEFAULT_LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL
+export const IPO_ROOKIE_DAYS = 28; // weeklyEvaluation.js ROOKIE_DAYS: a new listing's first four Saturday reviews
 
 export type Game = {
   key: string;
@@ -86,7 +89,7 @@ const ALL_GAMES: Game[] = [
       "Blackjack pays 3:2, a win 1:1, a push refunds",
       "Double on your first two cards; no split, no insurance",
       "Dealer stands on all 17s. 15 s to bet, 15 s per turn",
-      "Up or down $10,000 a week (5% of your Credit if that's more), 50 hands a day, no bets under $50,000 net worth",
+      "Up or down $10,000 a week (5% of your Credit if that's more), 50 hands a day",
     ],
     tag: "table",
   },
@@ -153,7 +156,7 @@ export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
   },
   {
     q: "Why can't I trade, play or post?",
-    a: "Check three things: you're signed in, your email is verified (the link in your inbox; if you mistyped the address, you can change it from the notice), and the market isn't settling. Trading pauses for a few minutes around 09:00 ET while fair values reprice. Games, bets and buying cards also close while your net worth is under $50,000 or you're in the red on margin, and blackjack has its own weekly and daily limits.",
+    a: "Check three things: you're signed in, your email is verified (the link in your inbox; if you mistyped the address, you can change it from the notice), and the market isn't settling. Trading pauses for a few minutes around 09:00 ET while fair values reprice. Games, bets and buying cards need enough Credit to cover them and close while you're in the red on margin, and blackjack has its own weekly and daily limits.",
   },
   {
     q: "My order filled at a different price than I saw. Why?",
@@ -177,7 +180,7 @@ export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
   },
   {
     q: "What's Credit?",
-    a: "Your second balance. Games, the capsule machine, the card exchange and predictions spend it and never your cash, so you always have something to trade with. Games, bets and buying cards close while your net worth is under $50,000. The trading fee comes out of it first, then your cash. Dividends, winnings, achievements and a little of every sale land in it, it counts toward your net worth, and every Saturday 5% of it (or $10k, if that's more) turns into cash. Margin can take it below zero.",
+    a: "Your second balance. Games, the capsule machine, the card exchange and predictions spend it and never your cash, so you always have something to trade with. They need enough of it to cover what you spend. The trading fee comes out of it first, then your cash. Dividends, winnings, achievements and a little of every sale land in it, it counts toward your net worth, and every Saturday 5% of it (or $10k, if that's more) turns into cash. Margin can take it below zero.",
   },
   {
     q: "How do I get more cash?",
@@ -221,7 +224,7 @@ export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
   },
   {
     q: "Why did my net worth drop when I bet?",
-    a: "Money in an open pool isn't part of your net worth until it pays out, so it leaves your Credit when you bet and comes back only if you win or the pool is refunded. Bets close while your net worth is under $50,000, so a big enough bet can close them until the pool ends.",
+    a: "Money in an open pool isn't part of your net worth until it pays out, so it leaves your Credit when you bet and comes back only if you win or the pool is refunded. A big bet can move you down the leaderboard until the pool ends.",
   },
   {
     q: "What's margin?",

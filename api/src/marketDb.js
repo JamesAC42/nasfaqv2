@@ -446,6 +446,8 @@ async function listAssets(pool) {
         'started_at', bb.started_at, 'frozen_price', bb.frozen_price, 'target_max_supply', bb.target_max_supply, 'shares_bought', bb.shares_bought
       ) END AS active_buyback,
       a.latest_snapshot_date,
+      -- What the trade ticket's slippage estimate is worked out from.
+      a.liquidity_depth,
       COALESCE(v.volume_24h, 0) AS volume_24h,
       COALESCE(v.volume_cash_24h, 0) AS volume_cash_24h,
       COALESCE(plo.pending_live_order_count, 0) AS pending_live_order_count,
@@ -1841,10 +1843,17 @@ async function getAssetCandles(pool, symbol, { interval = "1d", range = "30d" } 
     return rows;
   }
 
+  // The line follows the mid price, never a fill's own price (a sale fills at the bid, below the mid,
+  // and would draw a dip that never happened). A fill's point is the mid it left behind, worked back
+  // from its price the way trading.js priced it: the mid before is price ÷ (half the spread ×
+  // slippage), and the trade's push moves it by exp(±impact × shares / depth). A sale into a buyback
+  // leaves the frozen price where it was. The fills themselves come back as fill_low, fill_high and
+  // vwap. Spread and depth are today's, which is what the stock traded at since the last settlement.
+  const { IMPACT_SETTINGS } = require("./services/trading");
   const { rows } = await pool.query(
     `
     WITH asset AS (
-      SELECT id
+      SELECT id, GREATEST(COALESCE(spread_bps, 0), 0) / 20000.0 AS half_spread, GREATEST(COALESCE(liquidity_depth, 0), 1) AS depth
       FROM market.market_assets
       WHERE symbol = $1
       LIMIT 1
@@ -1856,12 +1865,28 @@ async function getAssetCandles(pool, symbol, { interval = "1d", range = "30d" } 
         tf.ts,
         1 AS sequence,
         tf.id AS fill_id,
-        tf.price,
+        COALESCE(
+          bb.frozen_price,
+          tf.price
+            / ((1 + s.sign * a.half_spread) * (1 + s.sign * $4::numeric * tf.quantity / a.depth))
+            * exp(s.sign * $5::numeric * tf.quantity / a.depth)
+        ) AS price,
+        tf.price AS fill_price,
         tf.quantity,
         tf.gross_cash,
         1 AS trade_count
       FROM market.trade_fills tf
       JOIN asset a ON a.id = tf.asset_id
+      CROSS JOIN LATERAL (SELECT CASE WHEN tf.side = 'buy' THEN 1 ELSE -1 END AS sign) s
+      LEFT JOIN LATERAL (
+        SELECT b.frozen_price
+        FROM market.asset_buybacks b
+        WHERE b.asset_id = tf.asset_id
+          AND b.started_at <= tf.ts
+          AND (b.ended_at IS NULL OR b.ended_at > tf.ts)
+        ORDER BY b.started_at DESC
+        LIMIT 1
+      ) bb ON tf.side = 'sell'
       WHERE tf.ts >= now() - $3::interval
       UNION ALL
       SELECT
@@ -1871,6 +1896,7 @@ async function getAssetCandles(pool, symbol, { interval = "1d", range = "30d" } 
         0 AS sequence,
         0 AS fill_id,
         e.old_mid_price AS price,
+        NULL::numeric AS fill_price,
         0 AS quantity,
         0 AS gross_cash,
         0 AS trade_count
@@ -1887,6 +1913,7 @@ async function getAssetCandles(pool, symbol, { interval = "1d", range = "30d" } 
         2 AS sequence,
         0 AS fill_id,
         e.new_mid_price AS price,
+        NULL::numeric AS fill_price,
         0 AS quantity,
         0 AS gross_cash,
         0 AS trade_count
@@ -1902,6 +1929,8 @@ async function getAssetCandles(pool, symbol, { interval = "1d", range = "30d" } 
       MAX(price) AS high,
       MIN(price) AS low,
       (array_agg(price ORDER BY ts DESC, sequence DESC, fill_id DESC))[1] AS close,
+      MIN(fill_price) AS fill_low,
+      MAX(fill_price) AS fill_high,
       COALESCE(SUM(quantity), 0) AS volume_shares,
       COALESCE(SUM(gross_cash), 0) AS volume_cash,
       COALESCE(SUM(trade_count), 0)::INTEGER AS trade_count,
@@ -1913,7 +1942,7 @@ async function getAssetCandles(pool, symbol, { interval = "1d", range = "30d" } 
     GROUP BY bucket
     ORDER BY bucket ASC
   `,
-    [symbol, bucket, windowInterval]
+    [symbol, bucket, windowInterval, IMPACT_SETTINGS.slippageWeight, IMPACT_SETTINGS.persistentWeight + IMPACT_SETTINGS.transientWeight]
   );
   return rows;
 }

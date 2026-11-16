@@ -4,7 +4,6 @@
 // for them (Credit, by SETTINGS.sideModeFunds), and payouts land in Credit.
 
 const economy = require("../economy");
-const { assertAboveFloor } = require("../sideModeFloor");
 const lmsr = require("./lmsr");
 
 const round2 = (value) => Math.round(Number(value) * 100) / 100;
@@ -34,7 +33,6 @@ async function moveCash(client, userId, delta, { entryType, marketId, quantityDe
   const ledger = { entryType, referenceType, referenceId: referenceId ?? marketId, quantityDelta: round6(quantityDelta) };
   // Only spending is refused; a payout or refund always lands.
   if (amount < 0) {
-    await assertAboveFloor(client, userId);
     try {
       const result = await economy.charge(client, userId, -amount, { from: economy.SETTINGS.sideModeFunds, ...ledger });
       return round2(economy.sideModeSpendable(result.after));

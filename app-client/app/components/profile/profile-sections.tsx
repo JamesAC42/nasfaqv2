@@ -6,6 +6,7 @@ import { OrderAllowanceMeter } from "@/app/components/trade/order-allowance";
 import { Medal } from "@/app/components/common/medal";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { BuybackBadge } from "@/app/components/common/buyback-badge";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { ShowcaseStrip } from "@/app/components/games/locker/showcase-strip";
@@ -234,6 +235,7 @@ export function Bags({ profile, isSelf }: { profile: Profile; isSelf: boolean })
                       <Link href={`/stocks/${enc(holding.symbol)}`} className={styles.sym} data-peek-stock={holding.symbol}>
                         <Oshimark icon={icons.get(holding.symbol.toUpperCase())?.icon} symbol={holding.symbol} size={18} />
                         <b>{holding.symbol}</b>
+                        {isSelf ? <BuybackBadge symbol={holding.symbol} size="xs" /> : null}
                       </Link>
                     </td>
                     <td>{holding.quantity.toLocaleString("en-US", { maximumFractionDigits: 2 })}</td>

@@ -648,6 +648,7 @@ export function AdminHub() {
 
   const tools = [
     { href: "/admin/market-tuning", label: "Market tuning", line: "Tick schedule, force a tick, per-stock guardrails, reset.", show: isAdmin },
+    { href: "/admin/market-sim", label: "Market simulator", line: "Try spreads, fees, growth and dividends on real data before changing anything. A sandbox.", show: isAdmin },
     { href: "/admin/assets", label: "Assets & prizes", line: "Emojis, profile pictures and the capsule prize pool.", show: access.canAssets },
     { href: predsLink, label: "Predictions control room", line: "Auto pool templates, and whatever's left of the old market-maker markets.", show: canPredictions },
     { href: "/predictions/bookie", label: "Bookie desk", line: "Open a prediction pool and call its winner.", show: isAdmin || Boolean((user as Record<string, unknown> | null)?.is_bookie) },

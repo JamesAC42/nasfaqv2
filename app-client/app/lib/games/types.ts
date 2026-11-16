@@ -293,7 +293,7 @@ export type BlackjackTable = {
 
 /** Where a player stands against the limits (api/src/services/games/tables/blackjackLimits.js). */
 export type BlackjackLimits = {
-  blocked: "net_worth" | "weekly_limit" | "daily_limit" | null;
+  blocked: "weekly_limit" | "daily_limit" | null;
   weekly_limit: number;
   week_net: number;
   open_stakes: number;
@@ -302,8 +302,6 @@ export type BlackjackLimits = {
   max_bet: number;
   hands_today: number;
   hands_per_day: number;
-  net_worth: number;
-  min_net_worth: number;
   credit: number;
   week_resets_at: string;
   day_resets_at: string;
@@ -314,7 +312,6 @@ export type BlackjackRules = {
   weekly_minimum: number;
   weekly_rate: number;
   hands_per_day: number;
-  min_net_worth: number;
 };
 
 export type BlackjackLobbyRow = {

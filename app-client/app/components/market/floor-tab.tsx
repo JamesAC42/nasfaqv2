@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { memo, useEffect, useMemo, useState } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
+import { BuybackBadge } from "@/app/components/common/buyback-badge";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { StockChip } from "@/app/components/common/stock-chip";
+import { BuybacksNow } from "@/app/components/market/buybacks-now";
 import { compactMoney, num, toneClass, useAssetMap } from "@/app/components/market/bits";
 import { formatCountdown, formatEtTime, getMarketClock, TICKS } from "@/app/lib/market-clock";
 import { groupByUnit, unitLabel } from "@/app/lib/market-units";
@@ -106,6 +108,7 @@ function YourBook() {
               <span className={styles.sym}>
                 <Oshimark icon={asset?.icon} symbol={holding.symbol} size={16} />
                 {holding.symbol}
+                <BuybackBadge symbol={holding.symbol} size="xs" compact />
               </span>
               <span className={styles.meta}>
                 {holding.quantity.toLocaleString("en-US")} sh · avg {num(holding.avg_cost_basis)}
@@ -514,6 +517,7 @@ export function FloorTab() {
         <Movers assets={assets} />
       </aside>
       <div className={styles.colC}>
+        <BuybacksNow />
         <Breaking />
         <Spot assets={assets} />
         <Board assets={assets} />

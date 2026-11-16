@@ -1,6 +1,7 @@
 const express = require("express");
 const predictionMarketDb = require("../predictionMarketDb");
 const trading = require("../services/trading");
+const { scrubPublicMarketPayload } = require("../services/marketSecrecy");
 const { requireUserId } = require("../userContext");
 
 const router = express.Router();
@@ -15,7 +16,8 @@ router.get("/me", async (req, res, next) => {
   try {
     const userId = requireUserId(req);
     const portfolio = await trading.getPortfolioSummary(req.ctx.pool, userId);
-    res.json(portfolio);
+    // Your own holdings are no exception: today's fair value stays hidden until its ticks land.
+    res.json(scrubPublicMarketPayload(portfolio));
   } catch (e) {
     if (e?.code === "unauthenticated") {
       return res.status(401).json({ error: "unauthenticated" });

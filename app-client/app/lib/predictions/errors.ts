@@ -9,7 +9,6 @@ const COPY: Record<string, string> = {
   prediction_market_closed: "Betting on this has closed.",
   insufficient_cash: "Not enough cash.",
   insufficient_credit: "Not enough Credit. Bets never spend your cash.",
-  net_worth_floor: "Bets are closed while your net worth is this low. Build it back on the market and they reopen.",
   insufficient_shares: "You don't hold that many shares.",
   price_moved: "The price moved. Check the new quote and try again.",
   price_at_limit: "The price is already at the limit; nothing to fill.",
