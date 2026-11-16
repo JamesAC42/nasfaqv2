@@ -1,4 +1,4 @@
 {
-  "state": "staff",
+  "state": "on",
   "description": "Buybacks you can't miss: a BUYBACK badge with today's offer wherever a stock shows (the stocks table, list and cards, the tape, Peek, stock chips, Bags, the stock picker's search), Buybacks now on Home and the market floor, the stock page's buyback banner (the offer against the market price, the daily step-down, the shares left at the offer, what it means for you), a heads-up bar for players who hold one, and How to play's buyback walkthrough. Every asset payload already carries the buyback, so only the client hides these."
 }
