@@ -48,7 +48,14 @@ When a weekly evaluation sets max shares below what players hold:
 2. The broker **offers to buy shares back** at 120% of the frozen price, 10 points less every 24 hours
    from the start: 120%, 110%, 100%, … never under 50% (a Saturday buyback reaches 60% on its last
    day). Only the shares still over the max get the offer; a sell past them fills at the frozen
-   price, so selling out and buying back at the Open isn't free money.
+   price, so selling out and buying back at the Open isn't free money. The offer also pays only on
+   shares a player held before the last tick ahead of the buyback (Friday's Late tick, 21:00 ET, for
+   Saturday's evaluation; the last tick before an on-demand one): shares bought after it sell at the
+   frozen price, so buying on Friday a stock that is about to be cut and selling it into the offer
+   pays nothing. When a buyback starts, each holder's shares added since that tick are written down
+   from the ledger (`asset_buyback_late_shares`, the most they added from any moment since, as oshi
+   protection counts it); a holding only shrinks while frozen, so the shares still at the offer are
+   the holding less those.
 3. If players sell enough to get back under max shares, the buyback ends at the next Open and the
    stock trades normally again.
 4. Otherwise, at the next weekly evaluation the broker **forces** the rest: it buys the excess back
@@ -58,7 +65,9 @@ Max shares can move again at that evaluation, so a buyback can leave a bigger ga
 (BBB calls this an intended market risk).
 
 Every asset payload carries its buyback (`supplyView`: the frozen price, today's offer, the schedule
-`start` / `daily_step` / `floor`, the next step and the shares still over). Behind the
+`start` / `daily_step` / `floor`, the next step and the shares still over). A player's own holdings
+(`/api/portfolio/me`) carry `buyback_offer_shares`, how many of theirs can still get the offer, which
+the banner's line and the trade ticket's estimate use. Behind the
 `buyback-spotlight` flag the client makes them hard to miss (`app/lib/buyback.ts`,
 `buyback-plan.mjs`): a BUYBACK badge with today's offer wherever a stock shows, Buybacks now on Home
 and the market floor, a banner on the stock page (the offer against the market price, the daily

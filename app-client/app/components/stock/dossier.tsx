@@ -321,7 +321,7 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
           )}
         </header>
 
-        <BuybackBanner asset={asset} held={holding?.quantity ?? 0} />
+        <BuybackBanner asset={asset} held={holding?.quantity ?? 0} eligible={holding?.buyback_offer_shares ?? null} />
 
         <nav className={styles.snav} aria-label="Sections">
           {SECTIONS.map(([id, label]) => (

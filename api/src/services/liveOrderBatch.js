@@ -25,7 +25,7 @@ async function lockChunk(client, orderIds) {
   `,
     [orderIds]
   );
-  if (!orders.length) return { orders, assets: new Map(), buybacks: new Map(), accounts: new Map(), holdings: new Map(), identities: new Map() };
+  if (!orders.length) return { orders, assets: new Map(), buybacks: new Map(), lateShares: new Map(), accounts: new Map(), holdings: new Map(), identities: new Map() };
 
   const assetIds = [...new Set(orders.map((order) => Number(order.asset_id)))];
   const userIds = [...new Set(orders.map((order) => Number(order.user_id)))];
@@ -56,6 +56,13 @@ async function lockChunk(client, orderIds) {
   const { rows: buybackRows } = frozen.length
     ? await client.query(`SELECT * FROM market.asset_buybacks WHERE asset_id = ANY($1::bigint[]) AND status = 'active' ORDER BY asset_id FOR UPDATE`, [frozen])
     : { rows: [] };
+  // Shares bought after a buyback's cutoff (never written once it has started, so not locked).
+  const { rows: lateRows } = buybackRows.length
+    ? await client.query(`SELECT buyback_id, user_id, late_shares FROM market.asset_buyback_late_shares WHERE buyback_id = ANY($1::bigint[]) AND user_id = ANY($2::bigint[])`, [
+        buybackRows.map((row) => row.id),
+        userIds,
+      ])
+    : { rows: [] };
   const { rows: accountRows } = await client.query(
     `SELECT user_id, cash_balance, held_cash, credit_balance FROM market.portfolio_cash_balances WHERE user_id = ANY($1::bigint[]) ORDER BY user_id FOR UPDATE`,
     [userIds]
@@ -76,6 +83,7 @@ async function lockChunk(client, orderIds) {
     orders,
     assets: new Map(assetRows.map((row) => [Number(row.id), row])),
     buybacks: new Map(buybackRows.map((row) => [Number(row.asset_id), row])),
+    lateShares: new Map(lateRows.map((row) => [`${Number(row.buyback_id)}:${Number(row.user_id)}`, Number(row.late_shares)])),
     accounts: new Map(accountRows.map((row) => [Number(row.user_id), row])),
     holdings: new Map(holdingRows.map((row) => [`${Number(row.user_id)}:${Number(row.asset_id)}`, row])),
     identities: new Map(identityRows.map((row) => [Number(row.id), row])),

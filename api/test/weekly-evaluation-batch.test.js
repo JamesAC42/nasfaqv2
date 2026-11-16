@@ -221,7 +221,15 @@ async function seedMarket(pool) {
   }
   // A week was evaluated before (so this isn't the first evaluation).
   await pool.query(`INSERT INTO market.weekly_evaluations (eval_date, status, completed_at, report_json) VALUES ('2026-10-10', 'completed', now(), '{}')`);
-  return { users, asset, forcedOnly, starterOnly };
+  // One T00 holder bought 30 of their shares after Friday's Late tick (21:00 EDT, 01:00 UTC), and
+  // 10 more the day before: only the 30 miss the buyback's offer.
+  const lateBuyer = users[1];
+  await pool.query(
+    `INSERT INTO market.ledger_entries (user_id, asset_id, entry_type, quantity_delta, cash_delta, reference_type, reference_id, created_at)
+     VALUES ($1, $2, 'buy_asset_credit', 10, 0, 'trade_fill', 0, '2026-10-16T18:00:00Z'), ($1, $2, 'buy_asset_credit', 30, 0, 'trade_fill', 0, '2026-10-17T02:30:00Z')`,
+    [lateBuyer, asset.T00]
+  );
+  return { users, asset, forcedOnly, starterOnly, lateBuyer };
 }
 
 test("NUMERIC arithmetic in JS lands where Postgres does", () => {
@@ -377,6 +385,16 @@ test("the batched weekly evaluation matches the row-at-a-time one", { skip: !dat
     const opened = first.ledger.filter((row) => row.entry_type === "starter_cash_grant");
     assert.deepEqual(opened.map((row) => Number(row.user_id)), [seeded.starterOnly], "the holder without an account got the starter balances");
     assert.ok(first.balances.some((row) => Number(row.user_id) === seeded.forcedOnly), "the forced buyback opened the other one's account");
+    // The buybacks that started know their cutoff, Friday's Late tick, and who bought after it.
+    const { rows: cutoffs } = await newPool.query(
+      `SELECT a.symbol, b.offer_cutoff_at FROM market.asset_buybacks b JOIN market.market_assets a ON a.id = b.asset_id WHERE b.status = 'active' AND b.started_evaluation_id IS NOT NULL ORDER BY a.symbol`
+    );
+    assert.ok(cutoffs.length >= 2 && cutoffs.every((row) => row.offer_cutoff_at.toISOString() === "2026-10-17T01:00:00.000Z"), "cut off at Friday 21:00 EDT");
+    const { rows: late } = await newPool.query(
+      `SELECT l.user_id, l.late_shares::text FROM market.asset_buyback_late_shares l JOIN market.asset_buybacks b ON b.id = l.buyback_id WHERE b.asset_id = $1`,
+      [seeded.asset.T00]
+    );
+    assert.deepEqual(late.map((row) => [Number(row.user_id), Number(row.late_shares)]), [[seeded.lateBuyer, 30]], "the shares bought after it, and nobody else's");
     const delisted = first.buybacks.find((row) => Number(row.asset_id) === seeded.asset.T36);
     assert.equal(delisted.status, "active", "a delisted stock's buyback is left alone");
 
