@@ -51,6 +51,7 @@ const MOUNTS = {
   "profiles.js": "/profiles",
   "referrals.js": "/referrals",
   "site.js": "/site",
+  "settings.js": "/settings",
   "stats.js": "/stats",
   "v1Link.js": "/v1-link",
 };
