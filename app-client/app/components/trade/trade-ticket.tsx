@@ -3,10 +3,14 @@
 import Link from "next/link";
 import { OrderAllowanceMeter } from "@/app/components/trade/order-allowance";
 import { ArtSlot } from "@/app/components/common/art-slot";
+import { BuybackPill } from "@/app/components/common/buyback-badge";
+import { BuybackMeter } from "@/app/components/common/buyback-meter";
+import { untilText } from "@/app/components/market/dividends-tab";
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { FaMinus, FaPlus } from "react-icons/fa6";
 import { userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { apiFetch } from "@/app/lib/api";
+import { pctLabel, planOf, useBuybackSpotlight } from "@/app/lib/buyback";
 import { formatEtTime, getMarketClock, ORDER_BATCH_MS } from "@/app/lib/market-clock";
 import { money } from "@/app/lib/time";
 import { buildTradeConfirmation, getTradeFailureNotice, type TradeConfirmation, type TradeExecutionResult, type TradeFailureNotice, type TradeSide } from "@/app/lib/trade";
@@ -76,10 +80,40 @@ function CashToSpend({ cash, held, margin, total, qty, tooMuch }: { cash: number
   );
 }
 
+/** The buyback on the ticket (buyback-spotlight): today's offer, the step-down, what's left at it. */
+function BuybackNote({ asset }: { asset: MarketAsset }) {
+  const now = useNowEvery(60_000);
+  const plan = planOf(asset, now);
+  if (!plan) return null;
+  return (
+    <div className={styles.supplyNote} data-tone="buyback">
+      <div className={styles.bbHead}>
+        <BuybackPill asset={asset} now={now} size="md" />
+        <span>
+          Broker pays <b>{n2(plan.backUnder ? plan.frozen : plan.offer)}</b> a share
+        </span>
+      </div>
+      {plan.backUnder ? null : <BuybackMeter steps={plan.steps} endLabel={null} size="sm" />}
+      <p>
+        {plan.backUnder ? (
+          <>The extra shares are all sold back: sells get the frozen {n2(plan.frozen)}, and trading reopens at the Open.</>
+        ) : (
+          <>
+            <b>{Math.ceil(plan.over).toLocaleString("en-US")}</b> shares left at {pctLabel(plan.pct)}; past those, sells get the frozen {n2(plan.frozen)}.
+            {plan.nextStepAt !== null && plan.nextPct !== null ? ` ${pctLabel(plan.nextPct)} in ${untilText(plan.nextStepAt - now)}.` : ""} No buys until it ends.
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
+
 /** What the order runs into on the supply side: sold out, the last shares, or a buyback. */
 function SupplyNote({ asset, side, qty }: { asset: MarketAsset; side: TradeSide; qty: number }) {
+  const spotlight = useBuybackSpotlight();
   const forSale = asset.shares_for_sale ?? null;
   const max = asset.max_supply ?? null;
+  if (spotlight && asset.trading_state === "buyback" && asset.buyback) return <BuybackNote asset={asset} />;
   if (asset.trading_state === "buyback" && asset.buyback) {
     const bb = asset.buyback;
     const next = bb.next_step_at ? new Date(bb.next_step_at) : null;

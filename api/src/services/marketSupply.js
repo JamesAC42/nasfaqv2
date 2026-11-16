@@ -132,6 +132,8 @@ function supplyView(asset, buyback = null, now = new Date()) {
       price: buybackPrice(buyback, now),
       multiplier: buybackMultiplier(buyback.started_at, now),
       next_step_at: nextBuybackStepAt(buyback, now),
+      // The schedule, so a page can draw every day's offer (start − step × days, never under the floor).
+      start: BUYBACK_START,
       daily_step: BUYBACK_DAILY_STEP,
       floor: BUYBACK_FLOOR,
       shares_bought: toNumber(buyback.shares_bought, 0),
