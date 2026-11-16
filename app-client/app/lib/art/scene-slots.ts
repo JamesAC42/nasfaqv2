@@ -15,6 +15,8 @@ import howto from "@/app/lib/art/slots/howto.json";
 import admin from "@/app/lib/art/slots/admin.json";
 import legal from "@/app/lib/art/slots/legal.json";
 import gallery from "@/app/lib/art/slots/gallery.json";
+import mahjong from "@/app/lib/art/slots/mahjong.json";
+import mahjongLearn from "@/app/lib/art/slots/mahjong-learn.json";
 
 export type SceneKind =
   | "backdrop" // full-bleed behind a hero or section; text sits on top
@@ -56,7 +58,7 @@ export type SceneSlot = {
 
 type SlotFile = { area: string; slots: SceneSlot[] };
 
-export const SCENE_AREAS: SlotFile[] = [site, home, market, games, gallery, predictions, howto, admin, legal] as unknown as SlotFile[];
+export const SCENE_AREAS: SlotFile[] = [site, home, market, games, mahjong, mahjongLearn, gallery, predictions, howto, admin, legal] as unknown as SlotFile[];
 
 export const SCENE_SLOTS: Record<string, SceneSlot> = Object.fromEntries(SCENE_AREAS.flatMap((file) => file.slots).map((slot) => [slot.id, slot]));
 
