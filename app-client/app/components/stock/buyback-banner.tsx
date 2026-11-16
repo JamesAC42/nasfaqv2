@@ -8,6 +8,7 @@ import { Term } from "@/app/components/common/tip";
 import { untilText } from "@/app/components/market/dividends-tab";
 import { n2 } from "@/app/components/trade/trade-ticket";
 import { pctLabel, planOf, useBuybackSpotlight, type BuybackPlan } from "@/app/lib/buyback";
+import { yourOfferShares } from "@/app/lib/buyback-plan.mjs";
 import type { MarketAsset } from "@/app/lib/types";
 import { useNow } from "@/app/lib/use-now";
 import { useTradeStore } from "@/app/stores/trade-store";
@@ -15,13 +16,18 @@ import styles from "@/app/components/stock/buyback-banner.module.scss";
 
 const shares = (value: number) => Math.ceil(value).toLocaleString("en-US");
 
-/** The one line that says what to do, for a holder and for everyone else. */
-export function buybackAdvice(symbol: string, plan: BuybackPlan, held: number) {
+/**
+ * The one line that says what to do, for a holder and for everyone else. `yours`: how many of the
+ * holder's shares can get the offer (shares bought after the last tick before the buyback can't).
+ */
+export function buybackAdvice(symbol: string, plan: BuybackPlan, held: number, yours: number = held) {
   const premium = Math.round((plan.pct - 1) * 100);
   if (held > 0) {
     if (plan.backUnder) return `You hold ${shares(held)}. The extra shares are all sold back, so a sell now gets the frozen ${n2(plan.frozen)}. Hold on and trading reopens at the Open.`;
-    if (premium > 0) return `You hold ${shares(held)}. Sell now and the broker pays ${n2(plan.offer)} a share, ${premium}% more than the market price, while shares are left at the offer.`;
-    return `You hold ${shares(held)}. The offer is down to ${pctLabel(plan.pct)} of the market price. Whatever is still over on Saturday gets bought from every holder at the base rate.`;
+    if (yours <= 0) return `You hold ${shares(held)}, all bought after the last tick before the buyback, so a sell gets the frozen ${n2(plan.frozen)}.`;
+    const count = yours < held ? `You hold ${shares(held)}; ${shares(yours)} get the offer.` : `You hold ${shares(held)}.`;
+    if (premium > 0) return `${count} Sell now and the broker pays ${n2(plan.offer)} a share, ${premium}% more than the market price, while shares are left at the offer.`;
+    return `${count} The offer is down to ${pctLabel(plan.pct)} of the market price. Whatever is still over on Saturday gets bought from every holder at the base rate.`;
   }
   return plan.backUnder
     ? `You can’t buy ${symbol} until trading reopens at the Open.`
@@ -33,17 +39,18 @@ export function buybackAdvice(symbol: string, plan: BuybackPlan, held: number) {
  * against the market price, the daily step-down with today lit, the countdowns to the next drop and
  * the end, how many shares are still bought at the offer, and what it means for you.
  */
-export function BuybackBanner({ asset, held }: { asset: MarketAsset; held: number }) {
+export function BuybackBanner({ asset, held, eligible = null }: { asset: MarketAsset; held: number; eligible?: number | null }) {
   const shown = useBuybackSpotlight();
   const now = useNow();
   const openTrade = useTradeStore((state) => state.openTrade);
   if (!shown || now === null) return null;
   const plan = planOf(asset, now);
   if (!plan) return null;
+  const yours = yourOfferShares({ held, eligible });
   const bought = asset.buyback?.shares_bought ?? 0;
   const total = bought + plan.over;
   const premium = plan.backUnder ? 0 : plan.pct - 1;
-  const pose = held > 0 ? (premium > 0 && !plan.backUnder ? "hype" : "cope") : "shock";
+  const pose = held > 0 ? (premium > 0 && !plan.backUnder && yours > 0 ? "hype" : "cope") : "shock";
 
   return (
     <section className={styles.banner} aria-labelledby="buyback-title" data-tone={premium > 0 ? "over" : "under"}>
@@ -74,11 +81,11 @@ export function BuybackBanner({ asset, held }: { asset: MarketAsset; held: numbe
             </p>
           </>
         )}
-        <p className={styles.advice}>{buybackAdvice(asset.symbol, plan, held)}</p>
+        <p className={styles.advice}>{buybackAdvice(asset.symbol, plan, held, yours)}</p>
         <div className={styles.actions}>
           {held > 0 && !plan.backUnder ? (
             <button type="button" className={styles.sell} onClick={() => openTrade(asset.symbol, "sell")}>
-              Sell to the broker · {n2(plan.offer)}
+              Sell to the broker · {n2(yours > 0 ? plan.offer : plan.frozen)}
             </button>
           ) : (
             <span className={styles.noBuy}>No buys while frozen</span>

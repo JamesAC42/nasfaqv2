@@ -1716,6 +1716,20 @@ async function applySchema(pool) {
     )
   `);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS market_asset_buybacks_one_active_idx ON market.asset_buybacks (asset_id) WHERE status = 'active'`);
+  // The offer pays only on shares held before the last tick ahead of the buyback (offer_cutoff_at).
+  // A row is a holder who added shares between that tick and the start (late_shares, from the
+  // ledger); those sell at the frozen price. Buys are refused while frozen, so a holding only shrinks:
+  // the shares still at the offer are always the holding less late_shares. No row: all of them.
+  await pool.query(`ALTER TABLE market.asset_buybacks ADD COLUMN IF NOT EXISTS offer_cutoff_at TIMESTAMPTZ NULL`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.asset_buyback_late_shares (
+      buyback_id BIGINT NOT NULL REFERENCES market.asset_buybacks(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL,
+      late_shares NUMERIC NOT NULL,
+      PRIMARY KEY (buyback_id, user_id),
+      CONSTRAINT asset_buyback_late_shares_positive_check CHECK (late_shares > 0)
+    )
+  `);
   // Shares held are the circulating supply; the broker holds the rest. The old daily print is gone.
   // One time only (stocks still carrying the old base_emission): circulating is recomputed from the
   // holdings with the holdings table locked against fills, and max shares are raised only where

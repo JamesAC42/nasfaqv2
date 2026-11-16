@@ -147,7 +147,7 @@ function Lede({ date, rows, report }: { date: string; rows: DayRow[]; report: Da
   const bottom = sorted[sorted.length - 1];
   const up = rows.filter((row) => row.fd > 0.00005).length;
   const down = rows.filter((row) => row.fd < -0.00005).length;
-  const emissions = report?.notable_treasury_emissions ?? [];
+  const emissions = (report?.notable_treasury_emissions ?? []).filter((row) => (row.emission ?? 0) > 0);
   const topEm = emissions[0];
   const cheap = [...rows].filter((row) => row.prem !== null).sort((a, b) => (a.prem ?? 0) - (b.prem ?? 0))[0];
   const head =
@@ -600,7 +600,7 @@ function Lists({ rows, report, paths }: { rows: DayRow[]; report: DailyReport | 
               />
             )),
           )
-        : list("Dilution watch", "new shares", "", fromReport(report?.notable_treasury_emissions, (row) => row.emission, (row) => `${num(row.emission, 1)} sh`, (row) => `closed ${num(row.market_price)}`, () => "flat"))}
+        : list("Dilution watch", "new shares", "", fromReport(report?.notable_treasury_emissions?.filter((row) => (row.emission ?? 0) > 0),(row) => row.emission, (row) => `${num(row.emission, 1)} sh`, (row) => `closed ${num(row.market_price)}`, () => "flat"))}
       {list("Most traded", "shares, the session", "", fromReport(report?.top_volume, (row) => row.volume_shares, (row) => `${(row.volume_shares ?? 0).toLocaleString("en-US")} sh`, (row) => compactMoney(row.volume_cash), () => "flat"))}
       {list("Going quiet", "volume vs the session before", "", fromReport(report?.volume_losers, (row) => row.volume_change_pct, (row) => pct(row.volume_change_pct), (row) => `${compactMoney(row.volume_cash)} · ${(row.volume_shares ?? 0).toLocaleString("en-US")} sh`, (row) => toneClass(row.volume_change_pct)))}
     </div>
@@ -943,7 +943,7 @@ function Angle({
           <AreaLine values={values} markerIndex={markerIndex >= 0 ? markerIndex : null} labels={labels} />
         </div>
         <p className={ui.note} style={{ marginTop: "1.4rem" }}>
-          All-talent index, equal weight. The dashed line is this session.
+          All-talent index of revealed targets (each day’s fair value), equal weight. The dashed line is this session.
         </p>
       </div>
     </div>

@@ -13,7 +13,7 @@ import { fromArticle, readMinutes, splitHeadline } from "@/app/components/articl
 import { fetchFrontPagePins, saveFrontPagePins } from "@/app/components/admin/admin-api";
 import { apiFetch } from "@/app/lib/api";
 import { safeImageUrl } from "@/app/lib/image-hosts";
-import { markSeries } from "@/app/lib/market-units";
+import { closeSeries } from "@/app/lib/market-units";
 import { MOOD_COLORS } from "@/app/lib/moods";
 import { normalizeArticleDetail, normalizeArticleListResponse } from "@/app/lib/normalizers";
 import { signedPct, timeAgo, toneOf } from "@/app/lib/time";
@@ -379,7 +379,7 @@ function InThisStory({ article }: { article: ArticleDetail }) {
                 <small>{related.display_name}</small>
               </span>
             </Link>
-            {asset ? <Sparkline values={markSeries(asset)} tone={toneOf(move) === "down" ? "down" : "up"} width={70} height={22} /> : <span />}
+            {asset ? <Sparkline values={closeSeries(asset)} tone={toneOf(move) === "down" ? "down" : "up"} width={70} height={22} /> : <span />}
             <span className={styles.talentPx}>
               <b>{asset?.current_mid_price?.toFixed(2) ?? "—"}</b>
               <small className={styles[toneOf(move)]}>{signedPct(move)}</small>

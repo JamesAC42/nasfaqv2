@@ -2,6 +2,7 @@ const schedulerHealth = require("./schedulerHealth");
 const tickDrivers = require("./tickDrivers");
 const { invalidateMarketAssetsCache } = require("../marketCache");
 const { publishMarketEvent } = require("./marketEvents");
+const netWorth = require("./netWorth");
 
 const DEFAULT_TIME_ZONE = "America/New_York";
 const INTERVALS = [
@@ -640,6 +641,8 @@ async function applyDueAdjustments(pool, { now = new Date(), limit = DEFAULT_BAT
 
   if (applied.length > 0) {
     await invalidateMarketAssetsCache(redis);
+    // The holders of every stock that moved: one queued refresh for the whole batch.
+    netWorth.queueLeaderboardRefresh(pool, applied.map((item) => item.asset_id));
     void publishMarketEvent(redis, {
       type: "market.adjustments_applied",
       applied_count: applied.length,
@@ -830,6 +833,7 @@ async function replayAdjustmentsForDate(pool, { marketDate, until = new Date() }
     );
     await refreshCompletedSessions(client);
     await client.query("COMMIT");
+    if (finals.id.length) netWorth.queueLeaderboardRefresh(pool, finals.id);
     return { market_date: marketDate, applied_count: applied.id.length, skipped_count: skipped.length };
   } catch (error) {
     await client.query("ROLLBACK");
@@ -980,6 +984,7 @@ async function forceNextAdjustment(pool, { marketDate, now = new Date(), redis =
   }
 
   if (applied.length > 0) {
+    netWorth.queueLeaderboardRefresh(pool, applied.map((item) => item.asset_id));
     void publishMarketEvent(redis, {
       type: "market.adjustments_applied",
       forced: true,

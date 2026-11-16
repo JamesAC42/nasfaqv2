@@ -7,6 +7,7 @@ import { Oshimark } from "@/app/components/common/oshimark";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { n2, TradeTicket } from "@/app/components/trade/trade-ticket";
 import { unitLabel } from "@/app/lib/market-units";
+import { keyboardInset } from "@/app/lib/trade-estimate.mjs";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct, toneOf } from "@/app/lib/time";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -62,6 +63,41 @@ export function TradeDrawer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // A phone's keyboard covers the bottom of the screen without resizing the page, so while it's up
+  // the sheet sits on top of it and fits what's left; the pinned submit button then stays in reach.
+  const sheet = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const view = window.visualViewport;
+    const el = sheet.current;
+    if (!open || !view || !el) return;
+    const phone = window.matchMedia("(max-width: 720px)");
+    let raised = false;
+    const fit = () => {
+      // Pinch zoom shrinks the visual viewport too; that isn't a keyboard.
+      const inset = phone.matches && Math.abs(view.scale - 1) < 0.01 ? keyboardInset({ innerHeight: window.innerHeight, viewHeight: view.height, offsetTop: view.offsetTop }) : 0;
+      el.style.bottom = inset ? `${inset}px` : "";
+      el.style.maxHeight = inset ? `${Math.round(view.height - 8)}px` : "";
+      // Just came up: scroll the sheet (only the sheet) so the focused field sits near its top, with
+      // the estimate under it.
+      if (inset && !raised) {
+        const focused = document.activeElement;
+        if (focused instanceof HTMLElement && el.contains(focused)) {
+          const target = focused.closest("[data-reveal]") ?? focused;
+          el.scrollTop += target.getBoundingClientRect().top - el.getBoundingClientRect().top - 56;
+        }
+      }
+      raised = inset > 0;
+    };
+    fit();
+    view.addEventListener("resize", fit);
+    view.addEventListener("scroll", fit);
+    return () => {
+      view.removeEventListener("resize", fit);
+      view.removeEventListener("scroll", fit);
+      Object.assign(el.style, { bottom: "", maxHeight: "" });
+    };
+  }, [open]);
+
   const holding = useMemo(() => (symbol ? portfolio?.holdings.find((item) => item.symbol.toUpperCase() === symbol) ?? null : null), [portfolio, symbol]);
 
   if (!open || !asset) return null;
@@ -80,7 +116,7 @@ export function TradeDrawer() {
   return (
     <>
       <div className={styles.scrim} onClick={close} aria-hidden="true" />
-      <aside className={styles.drawer} role="dialog" aria-modal="true" aria-labelledby="trade-title" style={{ "--tal": accent } as React.CSSProperties}>
+      <aside ref={sheet} className={styles.drawer} role="dialog" aria-modal="true" aria-labelledby="trade-title" style={{ "--tal": accent } as React.CSSProperties}>
         <header className={styles.head}>
           <Oshimark icon={asset.icon} symbol={asset.symbol} size={38} />
           <div className={styles.id}>

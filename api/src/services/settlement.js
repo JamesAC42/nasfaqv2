@@ -408,7 +408,8 @@ function buildDailyReport(marketDate, settledStates, previousStatesByAssetId, pr
     volume_winners: topBy(fairValueChanges, "volume_change_pct", "desc"),
     volume_losers: topBy(fairValueChanges, "volume_change_pct", "asc"),
     top_volume: topBy(fairValueChanges, "volume_shares", "desc"),
-    notable_treasury_emissions: topBy(fairValueChanges, "emission", "desc"),
+    // There's no daily print any more (dailyEmission is 0), so this stays empty; it isn't a list of zeros.
+    notable_treasury_emissions: topBy(fairValueChanges.filter((row) => toNumber(row.emission, 0) > 0), "emission", "desc"),
   };
 }
 

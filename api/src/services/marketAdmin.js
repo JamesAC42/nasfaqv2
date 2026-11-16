@@ -388,6 +388,7 @@ const RESET_TABLES = [
   "market.asset_price_events",
   "market.dividend_payouts",
   "market.weekly_asset_evaluations",
+  "market.asset_buyback_late_shares",
   "market.asset_buybacks",
   "market.weekly_evaluations",
   "market.asset_daily_market_state",
