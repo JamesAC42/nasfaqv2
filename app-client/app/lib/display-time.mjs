@@ -70,7 +70,9 @@ const toDate = (at) => (at instanceof Date ? at : new Date(at));
 export function formatInZone(at, zone, options, locale = "en-US") {
   const date = toDate(at);
   if (Number.isNaN(date.getTime())) return "";
-  return formatter(locale, { ...options, timeZone: zone }).format(date);
+  // hour12: false means a 24-hour clock, but some ICU builds take it as h24 and print midnight as 24:00.
+  const clock = options && options.hour12 === false ? { ...options, hour12: undefined, hourCycle: "h23" } : options;
+  return formatter(locale, { ...clock, timeZone: zone }).format(date);
 }
 
 // Names Intl only gives in a language other than English.
@@ -168,7 +170,8 @@ export function displayMode({ mounted, flagOn, choice }) {
 }
 
 const HAS_CLOCK = (options) => Boolean(options && (options.hour || options.minute || options.timeStyle));
-const CLOCK_24H = { hour12: false, hour: "2-digit", minute: "2-digit" };
+// hourCycle, not hour12: false, which some ICU builds read as h24 and print midnight as 24:00.
+const CLOCK_24H = { hourCycle: "h23", hour: "2-digit", minute: "2-digit" };
 // toLocaleString()'s own defaults.
 const STAMP = { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" };
 
