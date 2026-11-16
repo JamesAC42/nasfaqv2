@@ -66,7 +66,7 @@ const PLURALS = Object.freeze({
   friend_request: "friend requests",
   friend_accepted: "new friends",
   referral: "referral bonuses",
-  proposal_approved: "approved proposals",
+  proposal_approved: "picked articles",
   exchange: "exchange updates",
   wishlist: "wishlist alerts",
 });
@@ -162,7 +162,8 @@ function usePool(pool, options = {}) {
  * Claims pending rows: the oldest `limit` rows' (player, kind) pairs, with every pending row of
  * those pairs, so a burst goes out as one push. Rows another worker is claiming right now are
  * skipped (SKIP LOCKED, so two workers never wait on or deadlock over each other), and a row it
- * claimed already fails the claimed_at check. Either way each row is claimed once.
+ * claimed already fails the claimed_at check. Either way each row is claimed once. Rows older than
+ * STALE_PENDING (the worker was down or turned off) are never claimed; prune() deletes them.
  */
 async function claim(pool, { limit = CLAIM_LIMIT, holdMs = HOLD_MS } = {}) {
   const { rows } = await pool.query(
@@ -170,13 +171,14 @@ async function claim(pool, { limit = CLAIM_LIMIT, holdMs = HOLD_MS } = {}) {
     WITH head AS (
       SELECT user_id, kind FROM market.push_queue
       WHERE claimed_at IS NULL AND queued_at <= now() - make_interval(secs => $2::double precision / 1000)
+        AND queued_at > now() - $3::interval
       ORDER BY id
       LIMIT $1
     ), pairs AS (SELECT DISTINCT user_id, kind FROM head),
     picked AS (
       SELECT q.id FROM market.push_queue q
       JOIN pairs ON pairs.user_id = q.user_id AND pairs.kind = q.kind
-      WHERE q.claimed_at IS NULL
+      WHERE q.claimed_at IS NULL AND q.queued_at > now() - $3::interval
       FOR UPDATE OF q SKIP LOCKED
     )
     UPDATE market.push_queue q SET claimed_at = now()
@@ -184,7 +186,7 @@ async function claim(pool, { limit = CLAIM_LIMIT, holdMs = HOLD_MS } = {}) {
     WHERE q.id = picked.id AND q.claimed_at IS NULL
     RETURNING q.id, q.notification_id, q.user_id, q.kind, q.push_group, q.title, q.body, q.href
   `,
-    [limit, holdMs]
+    [limit, holdMs, STALE_PENDING]
   );
   return rows.map((row) => ({ ...row, id: Number(row.id), notification_id: Number(row.notification_id), user_id: Number(row.user_id) }));
 }
@@ -339,14 +341,14 @@ function startPushQueueScheduler(pool, logger = console, redis = null, { interva
     running = true;
     heartbeat.update("running");
     try {
+      // Pruning every minute or so is plenty (claim() skips stale rows meanwhile).
+      if (ticks % 12 === 0) await prune(pool);
+      ticks += 1;
       const result = await runPushQueue(pool);
       if (result.claimed) {
         const failures = Object.entries(result.failures || {}).map(([key, count]) => `${key}×${count}`).join(" ");
         logger.log?.(`push queue: ${result.claimed} notifications, ${result.pushes} pushes, ${result.delivered} delivered, ${result.removed} gone, ${result.failed} failed${failures ? ` (${failures})` : ""}`);
       }
-      // Pruning every minute or so is plenty.
-      ticks += 1;
-      if (ticks % 12 === 1) await prune(pool);
       heartbeat.update("idle");
     } catch (error) {
       heartbeat.update("error", error);

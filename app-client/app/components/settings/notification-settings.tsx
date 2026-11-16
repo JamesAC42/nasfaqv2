@@ -36,7 +36,7 @@ const hourText = (hour: number) => `${hour % 12 || 12} ${hour < 12 ? "AM" : "PM"
 const GROUPS: { key: PreferenceKey; name: string; line: string }[] = [
   { key: "push_market", name: "Market", line: "Dividend payouts, buybacks, IPOs and achievements." },
   { key: "push_bets", name: "Bets", line: "When a bet you’re in wins, loses or is voided." },
-  { key: "push_social", name: "Social", line: "Mentions, replies, friend requests and referral bonuses." },
+  { key: "push_social", name: "Social", line: "Mentions, replies, friends, referrals and your picked articles." },
   { key: "push_exchange", name: "Exchange", line: "Sales, bids, trade offers and your wishlist." },
 ];
 /** What the page offers once a player first turns push on. Nothing turns on until they say so. */

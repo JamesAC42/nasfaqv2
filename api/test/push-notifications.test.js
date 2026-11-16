@@ -151,8 +151,14 @@ async function addUser(pool, name, { admin = false } = {}) {
 }
 
 test("push notifications by group", { skip: !databaseUrl, timeout: 120_000 }, async (t) => {
-  const pool = await freshDatabase(`nasfaq_push_groups_${process.pid}`);
-  t.after(() => pool.end());
+  const name = "nasfaq_push_groups_test";
+  const pool = await freshDatabase(name);
+  t.after(async () => {
+    await pool.end();
+    const admin = new Pool({ connectionString: databaseUrl });
+    await admin.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`).catch(() => {});
+    await admin.end();
+  });
   const restoreKeys = webPush.override(KEYED);
   t.after(restoreKeys);
 
@@ -319,7 +325,11 @@ test("push notifications by group", { skip: !databaseUrl, timeout: 120_000 }, as
 
       // notify() without { publish: false } publishes on a 400 ms timer, which can beat its COMMIT
       // (the prediction resolvers do this): the listener looks again and queues it once it commits.
-      push.usePool(pool, { retries: [400, 800], logger: quietLog });
+      push.usePool(pool, { retries: [300, 300, 300, 300, 300, 300, 300, 300, 300, 300], logger: quietLog });
+      const waitForQueue = async (count) => {
+        for (let i = 0; i < 50 && (await queueRows()).length < count; i += 1) await sleep(100);
+        return queueRows();
+      };
       try {
         const slow = await pool.connect();
         let late;
@@ -332,8 +342,7 @@ test("push notifications by group", { skip: !databaseUrl, timeout: 120_000 }, as
         } finally {
           slow.release();
         }
-        await sleep(800);
-        assert.deepEqual((await queueRows()).map((r) => Number(r.notification_id)), [Number(late.id)]);
+        assert.deepEqual((await waitForQueue(1)).map((r) => Number(r.notification_id)), [Number(late.id)]);
         await clearQueue();
 
         // The same, rolled back: nothing, ever.
@@ -346,7 +355,7 @@ test("push notifications by group", { skip: !databaseUrl, timeout: 120_000 }, as
         } finally {
           undone.release();
         }
-        await sleep(1200);
+        await sleep(3500); // past every retry
         assert.equal((await queueRows()).length, 0);
       } finally {
         notifications.onPublish(null);
@@ -446,6 +455,21 @@ test("push notifications by group", { skip: !databaseUrl, timeout: 120_000 }, as
       const skipped = await push.runPushQueue(pool, { send: off.send, holdMs: 0 });
       assert.equal(off.calls.length, 0);
       assert.equal(skipped.skipped, 1);
+    } finally {
+      restore();
+      await clearQueue();
+    }
+  });
+
+  await t.test("a backlog older than six hours is never sent", async () => {
+    const restore = features.override({ "checkin-reminders": "on" });
+    try {
+      await push.enqueue(pool, await bell([[staff, "mention", { title: "Old news" }]]));
+      await pool.query(`UPDATE market.push_queue SET queued_at = now() - interval '7 hours'`);
+      const service = pushService();
+      assert.equal((await push.runPushQueue(pool, { send: service.send, holdMs: 0 })).claimed, 0);
+      assert.equal(service.calls.length, 0);
+      assert.deepEqual(await push.prune(pool), { claimed: 0, stale: 1 });
     } finally {
       restore();
       await clearQueue();
