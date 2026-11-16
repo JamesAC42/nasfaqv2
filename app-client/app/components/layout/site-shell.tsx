@@ -8,23 +8,21 @@ import { BuybackHeadsUp } from "@/app/components/common/buyback-heads-up";
 import { BugReportButton } from "@/app/components/common/bug-report";
 import { ReactionFace, parseReaction } from "@/app/components/common/reaction-face";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { FaDiscord, FaGear } from "react-icons/fa6";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { FaDiscord } from "react-icons/fa6";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { DisplayControls } from "@/app/components/layout/display-controls";
 import { MarketTape } from "@/app/components/layout/market-tape";
 import { MobileNav } from "@/app/components/layout/mobile-nav";
-import { ThemeButton } from "@/app/components/layout/theme-switch";
-import { SnowButton } from "@/app/components/snow/snow-controls";
 import { announceOrderFill, FillMomentLayer } from "@/app/components/moments/fill-moment";
 import { TickMomentLayer } from "@/app/components/moments/tick-moment";
 import { StreamSheetHost } from "@/app/components/livestreams/stream-sheet";
 import { TradeDrawer } from "@/app/components/trade/trade-drawer";
 import { PeekLayer } from "@/app/components/peek/peek-layer";
-import { isActiveLink, isActivePath, isGroupActive, navFor } from "@/app/components/layout/nav-config";
+import { isActiveLink, isActivePath, isGroupActive, navFor, showSettingsLink } from "@/app/components/layout/nav-config";
 import { useFeatures } from "@/app/lib/features";
 import { RailStatus, RailWorth } from "@/app/components/layout/rail-status";
 import { useAuth } from "@/app/providers/auth-provider";
-import { useMotion } from "@/app/providers/motion-provider";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useMomentStore } from "@/app/stores/moment-store";
 import { useProfileStore } from "@/app/stores/profile-store";
@@ -44,6 +42,9 @@ function formatDateTime(value: string | null | undefined) {
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
+
+/** openMenu's key for the menu at the right end of the bar: the account menu, or Display when signed out. */
+const ACCOUNT_MENU = "account";
 
 function OrdersIcon() {
   return (
@@ -69,10 +70,11 @@ export function SiteShell({
   hideRibbon?: boolean;
 }) {
   const pathname = usePathname();
-  const { user, isLoading } = useAuth();
+  const router = useRouter();
+  const { user, isLoading, logout } = useAuth();
   const flags = useFeatures();
   const nav = useMemo(() => navFor(flags), [flags]);
-  const { calm, toggleCalm } = useMotion();
+  const showSettings = showSettingsLink(flags);
   const assets = useMarketStore((state) => state.assets);
   const refreshOverview = useMarketStore((state) => state.refreshOverview);
   const pendingOrders = useProfileStore((state) => state.pendingLiveOrders);
@@ -83,6 +85,14 @@ export function SiteShell({
   const clearPendingLiveOrders = useProfileStore((state) => state.clearPendingLiveOrders);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [isOrdersOpen, setIsOrdersOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  // A new page closes whatever menu was open (links in them close it on click too).
+  const [menuPath, setMenuPath] = useState(pathname);
+  if (menuPath !== pathname) {
+    setMenuPath(pathname);
+    setOpenMenu(null);
+    setIsOrdersOpen(false);
+  }
   // "The last day" for the orders popover's turned-down list, from when this page opened.
   const [dayAgo] = useState(() => Date.now() - 86_400_000);
   const liveOrderNotice = useMomentStore((state) => state.notice);
@@ -96,6 +106,9 @@ export function SiteShell({
   const headerRef = useRef<HTMLElement | null>(null);
   const navRef = useRef<HTMLElement | null>(null);
   const ordersRef = useRef<HTMLDivElement | null>(null);
+  const accountRef = useRef<HTMLDivElement | null>(null);
+  const accountButtonRef = useRef<HTMLButtonElement | null>(null);
+  const accountMenuId = useId();
 
   // Remember the last page outside the account screens, so signing in returns there.
   useEffect(() => {
@@ -201,11 +214,14 @@ export function SiteShell({
     function onPointerDown(event: PointerEvent) {
       const target = event.target;
       if (!(target instanceof Node)) return;
-      if (openMenu && !navRef.current?.contains(target)) setOpenMenu(null);
+      const menuRoot = openMenu === ACCOUNT_MENU ? accountRef.current : navRef.current;
+      if (openMenu && !menuRoot?.contains(target)) setOpenMenu(null);
       if (isOrdersOpen && !ordersRef.current?.contains(target)) setIsOrdersOpen(false);
     }
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
+      // Escape from inside the account menu hands focus back to its button rather than dropping it.
+      if (openMenu === ACCOUNT_MENU && accountRef.current?.contains(document.activeElement)) accountButtonRef.current?.focus();
       setOpenMenu(null);
       setIsOrdersOpen(false);
     }
@@ -290,7 +306,25 @@ export function SiteShell({
         user.can_resolve_prediction_markets ||
         user.can_void_prediction_markets),
   );
-  const profileHref = user ? "/profile" : "/login";
+  const accountOpen = openMenu === ACCOUNT_MENU;
+  const toggleAccount = () => {
+    setIsOrdersOpen(false);
+    setOpenMenu(accountOpen ? null : ACCOUNT_MENU);
+  };
+  const closeAccount = () => setOpenMenu(null);
+  async function signOut() {
+    setSigningOut(true);
+    try {
+      await logout();
+      setOpenMenu(null);
+      router.replace("/");
+      router.refresh();
+    } catch {
+      // The auth store keeps the error; the menu stays open so the player can try again.
+    } finally {
+      setSigningOut(false);
+    }
+  }
   const profileInitial = user?.username?.trim()?.charAt(0)?.toUpperCase() || "N";
   const profileImageUrl = user?.profile_picture_url?.trim() || null;
   const headerReaction = parseReaction(profileImageUrl);
@@ -343,7 +377,10 @@ export function SiteShell({
                     className={styles.navItem}
                     aria-expanded={open}
                     aria-current={active ? "page" : undefined}
-                    onClick={() => setOpenMenu(open ? null : group.key)}
+                    onClick={() => {
+                      setIsOrdersOpen(false);
+                      setOpenMenu(open ? null : group.key);
+                    }}
                   >
                     {group.label}
                     <span className={styles.caret} aria-hidden="true" />
@@ -391,18 +428,16 @@ export function SiteShell({
             <>
             <ChatButton classes={{ button: styles.iconButton, hot: styles.iconButtonHot, badge: styles.badge, icon: styles.icon }} />
             <NotificationBell userId={Number(user.id)} classes={{ button: styles.iconButton, hot: styles.iconButtonHot, badge: styles.badge, icon: styles.icon }} />
-            {flags["checkin-reminders"] ? (
-              <Link href="/settings" className={styles.iconButton} aria-label="Settings" title="Settings" aria-current={isActivePath(pathname, "/settings") ? "page" : undefined}>
-                <FaGear aria-hidden className={styles.icon} />
-              </Link>
-            ) : null}
             <div ref={ordersRef} className={styles.ordersWrap}>
               <button
                 type="button"
                 className={[styles.iconButton, visiblePendingOrders.length ? styles.iconButtonHot : ""].filter(Boolean).join(" ")}
                 aria-label={`Pending orders: ${visiblePendingOrders.length}`}
                 aria-expanded={isOrdersOpen}
-                onClick={() => setIsOrdersOpen((current) => !current)}
+                onClick={() => {
+                  setOpenMenu(null);
+                  setIsOrdersOpen((current) => !current);
+                }}
               >
                 <OrdersIcon />
                 {visiblePendingOrders.length ? <span className={styles.badge}>{visiblePendingOrders.length}</span> : null}
@@ -475,28 +510,17 @@ export function SiteShell({
             </>
           ) : null}
 
-          <div className={styles.prefs}>
-            <button
-              type="button"
-              className={styles.textButton}
-              aria-pressed={calm}
-              onClick={toggleCalm}
-              title="Turn off price flashes, the scrolling tape and big animations"
-            >
-              CALM
-            </button>
-            <SnowButton />
-            <ThemeButton />
-          </div>
-
-          {!user && !isLoading && !/^\/(login|register)(\/|$)/.test(pathname) ? (
-            <Link href="/register" className={styles.join}>
-              Join
-            </Link>
-          ) : null}
-          <Link href={profileHref} className={user ? styles.profile : styles.signIn}>
-            {user ? (
-              <>
+          {user ? (
+            <div ref={accountRef} className={styles.accountWrap}>
+              <button
+                ref={accountButtonRef}
+                type="button"
+                className={styles.profile}
+                aria-label={`Account menu: ${user.username}`}
+                aria-expanded={accountOpen}
+                aria-controls={accountOpen ? accountMenuId : undefined}
+                onClick={toggleAccount}
+              >
                 <span className={styles.avatar} aria-hidden="true">
                   {headerReaction ? (
                     <ReactionFace symbol={headerReaction.symbol} pose={headerReaction.pose} size={28} />
@@ -508,13 +532,72 @@ export function SiteShell({
                   )}
                 </span>
                 <span className={styles.profileName}>{user.username}</span>
-              </>
-            ) : isLoading ? (
-              "…"
-            ) : (
-              "Sign in"
-            )}
-          </Link>
+                <span className={styles.caret} aria-hidden="true" />
+              </button>
+              {accountOpen ? (
+                <div id={accountMenuId} className={styles.accountMenu}>
+                  <Link
+                    href="/profile"
+                    className={styles.menuLink}
+                    aria-current={isActivePath(pathname, "/profile") ? "page" : undefined}
+                    onClick={closeAccount}
+                  >
+                    <b>Profile</b>
+                  </Link>
+                  {showSettings ? (
+                    <Link
+                      href="/settings"
+                      className={styles.menuLink}
+                      aria-current={isActivePath(pathname, "/settings") ? "page" : undefined}
+                      onClick={closeAccount}
+                    >
+                      <b>Settings</b>
+                    </Link>
+                  ) : null}
+                  <div className={styles.menuSection} role="group" aria-label="Display">
+                    <span className={styles.menuSectionLabel} aria-hidden="true">
+                      Display
+                    </span>
+                    <DisplayControls />
+                  </div>
+                  <button type="button" className={styles.menuButton} disabled={signingOut} onClick={signOut}>
+                    <b>{signingOut ? "Signing out…" : "Sign out"}</b>
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <>
+              <div ref={accountRef} className={styles.accountWrap}>
+                <button
+                  ref={accountButtonRef}
+                  type="button"
+                  className={styles.textButton}
+                  aria-expanded={accountOpen}
+                  aria-controls={accountOpen ? accountMenuId : undefined}
+                  onClick={toggleAccount}
+                >
+                  Display
+                  <span className={styles.caret} aria-hidden="true" />
+                </button>
+                {accountOpen ? (
+                  <div id={accountMenuId} className={styles.accountMenu} role="group" aria-label="Display">
+                    <div className={styles.menuSection}>
+                      <DisplayControls />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+              {!isLoading && !/^\/(login|register)(\/|$)/.test(pathname) ? (
+                <Link href="/register" className={styles.join}>
+                  Join
+                </Link>
+              ) : null}
+              <Link href="/login" className={styles.signIn}>
+                {isLoading ? "…" : "Sign in"}
+              </Link>
+            </>
+          )}
         </div>
 
         {!hideRibbon ? <MarketTape /> : null}

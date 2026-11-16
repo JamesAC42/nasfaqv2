@@ -25,29 +25,9 @@
   }
 }
 
-.wrap {
-  position: relative;
-  display: none;
-}
-
-:global([data-season-now~="winter"]) .wrap {
-  display: block;
-}
-
-.popover {
-  @include popover;
-  position: absolute;
-  top: calc(100% + 0.6rem);
-  right: 0;
-  z-index: 50;
-  width: 19rem;
-  padding: 0.85rem;
-}
-
-.sheet {
-  grid-column: 1 / -1;
-  flex-basis: 100%;
-  padding-top: 0.35rem;
+// Opened in place from the Snow row of a Display menu.
+.inline {
+  padding: 0.55rem 0 0.2rem;
 }
 
 .panel {

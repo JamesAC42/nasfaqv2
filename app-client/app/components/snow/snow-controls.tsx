@@ -1,8 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useEffect, useId, useRef, useState } from "react";
-import { LuSnowflake } from "react-icons/lu";
+import { useId, useState } from "react";
 import { SNOW_AMOUNT_MIN, useSnow, type SnowSettings } from "@/app/lib/snow";
 import shellStyles from "@/app/components/layout/site-shell.module.scss";
 import styles from "@/app/components/snow/snow.module.scss";
@@ -89,61 +88,33 @@ function SnowPanel() {
 }
 
 /**
- * Top bar: a snowflake next to the theme switch. Only there while snow is on offer, which CSS decides
- * from the attribute the boot script stamps, so the top bar doesn't jump when the page hydrates.
+ * The Display menus (account menu, the signed-out Display button, the phone's More sheet): a Snow row
+ * whose button opens every setting in place. Only there while snow is on offer.
  */
-export function SnowButton() {
-  const { on } = useSnow();
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && !wrapRef.current?.contains(event.target)) setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false);
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
-  return (
-    <div ref={wrapRef} className={styles.wrap}>
-      <button
-        type="button"
-        className={[shellStyles.iconButton, on ? shellStyles.iconButtonHot : ""].filter(Boolean).join(" ")}
-        aria-label="Snow settings"
-        title="Snow settings"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <LuSnowflake className={shellStyles.icon} />
-      </button>
-      {open ? (
-        <div className={styles.popover}>
-          <SnowPanel />
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-/** Phone menu: a button that opens the same settings in place. */
-export function SnowSheetControls() {
+export function SnowDisplayRow() {
   const { offered, on } = useSnow();
   const [open, setOpen] = useState(false);
+  const panelId = useId();
   if (!offered) return null;
   return (
     <>
-      <button type="button" className={shellStyles.textButton} aria-expanded={open} onClick={() => setOpen((current) => !current)}>
-        SNOW {on ? "ON" : "OFF"}
-      </button>
+      <div className={shellStyles.displayRow}>
+        <span className={shellStyles.displayName}>Snow</span>
+        <button
+          type="button"
+          className={shellStyles.displayToggle}
+          data-on={on ? "" : undefined}
+          aria-label={`Snow settings (${on ? "on" : "off"})`}
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={() => setOpen((current) => !current)}
+        >
+          {on ? "On" : "Off"}
+          <span className={shellStyles.caret} aria-hidden="true" />
+        </button>
+      </div>
       {open ? (
-        <div className={styles.sheet}>
+        <div id={panelId} className={styles.inline}>
           <SnowPanel />
         </div>
       ) : null}
