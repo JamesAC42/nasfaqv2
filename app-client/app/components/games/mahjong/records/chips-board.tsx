@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { PlayerLink } from "@/app/components/games/mahjong/records/record-parts";
+import { useEffect, useMemo, useState } from "react";
+import { useNetWorth, type Worth } from "@/app/components/common/use-net-worth";
+import { PlayerCell, type PlayerLook } from "@/app/components/games/mahjong/records/record-parts";
 import { apiErrorCode } from "@/app/lib/api";
 import { fmtInteger } from "@/app/lib/format";
 import { gameErrorText } from "@/app/lib/games/errors";
@@ -13,12 +14,12 @@ import styles from "@/app/components/games/mahjong/records/records.module.scss";
 
 const SIGN_CLASS = (value: number) => (value > 0 ? styles.up : value < 0 ? styles.down : undefined);
 
-function Row({ row, rank, me }: { row: ChipLeader; rank: number | null; me?: boolean }) {
+function Row({ row, rank, me, worth }: { row: ChipLeader & PlayerLook; rank: number | null; me?: boolean; worth: Record<number, Worth> }) {
   return (
     <tr data-me={me || undefined}>
       <td>{rank ?? "–"}</td>
       <td>
-        <PlayerLink name={row.username} />
+        <PlayerCell player={row} worth={worth} />
       </td>
       <td className={SIGN_CLASS(row.chips)}>{fmtChips(row.chips)}</td>
       <td>{fmtInteger(row.games)}</td>
@@ -49,6 +50,8 @@ export function ChipsBoard({ range }: { range: ChipRange }) {
   const data = current?.data ?? null;
   const me = data?.me ?? null;
   const meInList = me ? data?.leaders.some((row) => row.username.toLowerCase() === me.username.toLowerCase()) : false;
+  const playerIds = useMemo(() => [...(data?.leaders ?? []), ...(data?.me ? [data.me] : [])].map((row: PlayerLook) => row.user_id), [data]);
+  const worth = useNetWorth(playerIds);
 
   return (
     <section className={styles.section} aria-label={range === "week" ? "Chips this week" : "Chips all time"}>
@@ -73,7 +76,7 @@ export function ChipsBoard({ range }: { range: ChipRange }) {
             </thead>
             <tbody>
               {data.leaders.map((row) => (
-                <Row key={row.username} row={row} rank={row.rank} me={Boolean(me && row.username.toLowerCase() === me.username.toLowerCase())} />
+                <Row key={row.username} row={row} rank={row.rank} me={Boolean(me && row.username.toLowerCase() === me.username.toLowerCase())} worth={worth} />
               ))}
               {me && !meInList ? (
                 <>
@@ -82,7 +85,7 @@ export function ChipsBoard({ range }: { range: ChipRange }) {
                       …
                     </td>
                   </tr>
-                  <Row row={me} rank={me.rank} me />
+                  <Row row={me} rank={me.rank} me worth={worth} />
                 </>
               ) : null}
             </tbody>

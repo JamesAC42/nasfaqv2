@@ -5,7 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { GamesFrame } from "@/app/components/games/shell/games-frame";
 import { BetaTag } from "@/app/components/games/mahjong/beta/beta";
 import { ChipsBoard } from "@/app/components/games/mahjong/records/chips-board";
-import { HighlightRow, OshiTag, PlaceBar, PlayerLink, rate, seasonLabel, useMahjongRules } from "@/app/components/games/mahjong/records/record-parts";
+import { HighlightRow, OshiTag, PlaceBar, PlayerCell, rate, seasonLabel, useMahjongRules } from "@/app/components/games/mahjong/records/record-parts";
+import { useNetWorth } from "@/app/components/common/use-net-worth";
 import { gameErrorText } from "@/app/lib/games/errors";
 import { fetchMahjongLeaderboard } from "@/app/lib/games/mahjong/api";
 import type { LeaderboardResponse } from "@/app/lib/games/mahjong/types";
@@ -23,6 +24,13 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "picks", label: "Spectators’ picks" },
 ];
 
+/** This month's season ("2026-11"), New York time like the API's, for the page before the ladder arrives. */
+function thisSeason() {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit" }).formatToParts(new Date());
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}`;
+}
+
 /** The last six seasons up to and including `current` ("2026-11"). */
 function seasonChoices(current: string, seen: string) {
   const [year, month] = current.split("-").map(Number);
@@ -36,8 +44,10 @@ function seasonChoices(current: string, seen: string) {
 
 export function LadderView() {
   const { user } = useAuth();
-  const { rules, rankName, rankedAfter } = useMahjongRules();
-  const trial = rules?.trial === true;
+  const { rules, settled, rankName, rankedAfter } = useMahjongRules();
+  // Until the rules arrive the tabs are laid out as the beta's (and kept out of sight), so they don't
+  // jump when the chip boards turn up in front of the ladder.
+  const trial = settled ? rules?.trial === true : true;
   const [season, setSeason] = useState<string | undefined>(undefined);
   const [data, setData] = useState<LeaderboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -63,9 +73,14 @@ export function LadderView() {
     };
   }, [season]);
 
-  const shown = data?.season ?? season ?? "";
-  const choices = useMemo(() => (data ? seasonChoices(data.current_season, data.season) : []), [data]);
-  const isCurrent = data ? data.season === data.current_season : true;
+  const shown = data?.season ?? season ?? thisSeason();
+  const choices = useMemo(() => (data ? seasonChoices(data.current_season, data.season) : [shown]), [data, shown]);
+  const isCurrent = data ? data.season === data.current_season : !season;
+  const playerIds = useMemo(() => [...(data?.ladder ?? []), ...(data?.picks ?? [])].map((row) => row.user_id), [data]);
+  const worth = useNetWorth(playerIds);
+  // The season picker keeps its place on every board, so the tabs never move: out of sight where a
+  // season doesn't apply (the chip boards), there but not usable until the ladder arrives.
+  const seasonHidden = !settled || chipsTab;
 
   return (
     <GamesFrame
@@ -73,7 +88,8 @@ export function LadderView() {
       title="Ladder"
       blurb={
         <>
-          <BetaTag /> {data ? <>{seasonLabel(shown)}{isCurrent ? ", this season" : ""}. Ratings start at 1,500 each month.</> : null}
+          <BetaTag /> {seasonLabel(shown)}
+          {isCurrent ? ", this season" : ""}. Ratings start at 1,500 each month.
         </>
       }
       aside={
@@ -86,32 +102,31 @@ export function LadderView() {
     >
       <div className={styles.page}>
         <div className={styles.toolbar}>
-          <div className={styles.tabs} role="tablist" aria-label="Ladder sections">
+          <div className={styles.tabs} role="tablist" aria-label="Ladder sections" data-pending={settled ? undefined : true} aria-hidden={settled ? undefined : true}>
             {[...(trial ? CHIP_TABS : []), ...TABS].map((entry) => (
               <button key={entry.key} type="button" role="tab" aria-selected={tab === entry.key} onClick={() => setTab(entry.key)}>
                 {entry.label}
               </button>
             ))}
           </div>
-          {data && !chipsTab ? (
-            <label>
-              <span className={styles.centerFact}>Season </span>
-              <select className={styles.select} value={shown} onChange={(event) => setSeason(event.target.value)} aria-label="Season">
-                {choices.map((choice) => (
-                  <option key={choice} value={choice}>
-                    {seasonLabel(choice)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
+          <label className={styles.season} data-hidden={seasonHidden || undefined} aria-hidden={seasonHidden || undefined}>
+            <span className={styles.centerFact}>Season</span>
+            <select className={styles.select} value={shown} disabled={!data || seasonHidden} onChange={(event) => setSeason(event.target.value)} aria-label="Season">
+              {choices.map((choice) => (
+                <option key={choice} value={choice}>
+                  {seasonLabel(choice)}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
-        {chipsTab ? <ChipsBoard range={tab === "chipsWeek" ? "week" : "all"} /> : null}
-        {error && !chipsTab ? <p className={styles.error}>{error}</p> : null}
-        {!data && !error && !chipsTab ? <p className={styles.note}>Loading the ladder…</p> : null}
+        {!settled ? <p className={styles.note}>Loading the ladder…</p> : null}
+        {settled && chipsTab ? <ChipsBoard range={tab === "chipsWeek" ? "week" : "all"} /> : null}
+        {settled && error && !chipsTab ? <p className={styles.error}>{error}</p> : null}
+        {settled && !data && !error && !chipsTab ? <p className={styles.note}>Loading the ladder…</p> : null}
 
-        {data && tab === "ladder" ? (
+        {settled && data && tab === "ladder" ? (
           <section className={styles.section} aria-label="Season ladder">
             <p className={styles.lede}>
               Play {rankedAfter} rated games in a season to be ranked. New seasons start everyone halfway back to 1,500. Bots’ ratings never move.
@@ -136,7 +151,7 @@ export function LadderView() {
                       <tr key={row.user_id} data-me={user?.id === row.user_id || undefined}>
                         <td>{row.place}</td>
                         <td>
-                          <PlayerLink name={row.username} color={row.profile_color} /> <OshiTag symbol={row.oshi} />
+                          <PlayerCell player={row} oshi={row.oshi} worth={worth} />
                         </td>
                         <td>
                           <span className={styles.rankName}>{rankName(row.rank)}</span>
@@ -159,7 +174,7 @@ export function LadderView() {
           </section>
         ) : null}
 
-        {data && tab === "oshi" ? (
+        {settled && data && tab === "oshi" ? (
           <section className={styles.section} aria-label="Oshi standings">
             <p className={styles.lede}>
               How each talent’s fans do at mahjong this season: their ranked players’ ratings, averaged. This is fans’ results at the table and has nothing to do with the stock or its price.
@@ -185,7 +200,7 @@ export function LadderView() {
           </section>
         ) : null}
 
-        {data && tab === "picks" ? (
+        {settled && data && tab === "picks" ? (
           <section className={styles.section} aria-label="Spectators’ picks">
             <p className={styles.lede}>Anyone can pick who wins a game before its second hand, for free. Nothing is paid on a pick. This is who calls them best.</p>
             {data.picks.length ? (
@@ -193,7 +208,7 @@ export function LadderView() {
                 {data.picks.map((row, index) => (
                   <li key={row.user_id}>
                     <b>{index + 1}</b>
-                    <PlayerLink name={row.username} color={row.profile_color} />
+                    <PlayerCell player={row} worth={worth} />
                     <span className={styles.rowEnd}>
                       <b>{row.correct}</b> right of {row.total} · {rate(row.correct, row.total)}
                     </span>
@@ -206,7 +221,7 @@ export function LadderView() {
           </section>
         ) : null}
 
-        {data ? (
+        {settled && data ? (
           <div id="highlights">
             {data.hand_of_the_day ? (
               <section className={styles.section} aria-label="Hand of the day">

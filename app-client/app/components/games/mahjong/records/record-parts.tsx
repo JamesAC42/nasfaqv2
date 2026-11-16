@@ -2,13 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { NetWorthBadge } from "@/app/components/common/net-worth-badge";
 import { Oshimark } from "@/app/components/common/oshimark";
+import { PlayerAvatar } from "@/app/components/common/player-avatar";
+import type { Worth } from "@/app/components/common/use-net-worth";
 import { Tile, TileMeld, type RowMeld } from "@/app/components/games/mahjong/tile";
 import { fetchMahjongRules } from "@/app/lib/games/mahjong/api";
 import { type TileId } from "@/app/lib/games/mahjong/tiles";
 import type { HighlightHand, LimitName, MahjongRules, Meld, RankKey } from "@/app/lib/games/mahjong/types";
 import { yakuName, scoreText } from "@/app/lib/games/mahjong/yaku";
 import { talentAccent } from "@/app/lib/talent-color";
+import type { Equipped } from "@/app/lib/types";
 import { useMarketStore } from "@/app/stores/market-store";
 import styles from "@/app/components/games/mahjong/records/records.module.scss";
 
@@ -16,9 +20,12 @@ import styles from "@/app/components/games/mahjong/records/records.module.scss";
 const FALLBACK = (key: string) => key.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
 let rulesRequest: Promise<MahjongRules | null> | null = null;
 
-/** The rules (the API owns rank names and the games needed for a rank); null until they arrive. */
+/**
+ * The rules (the API owns rank names and the games needed for a rank); null until they arrive, and
+ * if they can't be had. `settled` tells those apart: false while the request is still out.
+ */
 export function useMahjongRules() {
-  const [rules, setRules] = useState<MahjongRules | null>(null);
+  const [state, setState] = useState<{ rules: MahjongRules | null; settled: boolean }>({ rules: null, settled: false });
   useEffect(() => {
     let cancelled = false;
     rulesRequest ??= fetchMahjongRules()
@@ -27,13 +34,14 @@ export function useMahjongRules() {
         rulesRequest = null;
         return null;
       });
-    void rulesRequest.then((found) => !cancelled && setRules(found));
+    void rulesRequest.then((found) => !cancelled && setState({ rules: found, settled: true }));
     return () => {
       cancelled = true;
     };
   }, []);
+  const { rules, settled } = state;
   const rankName = (key: RankKey | string) => (key === "unranked" ? "Unranked" : (rules?.ranks.find((rank) => rank.key === key)?.name ?? FALLBACK(key)));
-  return { rules, rankName, rankedAfter: rules?.ranked_after_games ?? 3 };
+  return { rules, settled, rankName, rankedAfter: rules?.ranked_after_games ?? 3 };
 }
 
 // ── Small formatters ────────────────────────────────────────────────────────
@@ -78,6 +86,31 @@ export function PlayerLink({ name, color, bot }: { name: string; color?: string 
     <Link href={`/games/mahjong/player/${encodeURIComponent(name)}`} className={styles.player} style={style}>
       {name}
     </Link>
+  );
+}
+
+/** How a leaderboard row draws a player: the fields a chat message's author has. Bots have no id. */
+export type PlayerLook = {
+  user_id?: number | null;
+  username: string;
+  profile_color?: string | null;
+  profile_picture_url?: string | null;
+  equipped?: Equipped;
+};
+
+/**
+ * A player on a board the way chat shows them: picture, name, oshi, and their net worth rank (from
+ * `useNetWorth`). A bot gets just the name.
+ */
+export function PlayerCell({ player, oshi, worth, bot }: { player: PlayerLook; oshi?: string | null; worth?: Record<number, Worth>; bot?: boolean }) {
+  const id = bot ? null : (player.user_id ?? null);
+  return (
+    <span className={styles.who}>
+      {id ? <PlayerAvatar username={player.username} pictureUrl={player.profile_picture_url} color={player.profile_color} equipped={player.equipped} size={24} /> : null}
+      <PlayerLink name={player.username} color={player.profile_color} bot={bot} />
+      <OshiTag symbol={oshi} />
+      <NetWorthBadge worth={id ? worth?.[id] : undefined} amountClassName={styles.whoAmount} />
+    </span>
   );
 }
 

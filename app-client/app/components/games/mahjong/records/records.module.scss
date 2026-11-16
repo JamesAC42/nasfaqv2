@@ -91,12 +91,32 @@
   }
 }
 
+// The mark and ticker centered on each other, and the pair on the line's middle (an inline-flex box
+// otherwise sits on the mark's bottom edge, which leaves the pair riding high next to a name).
 .oshi {
   @include label;
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   color: var(--mid);
+  vertical-align: middle;
+}
+
+// A player on a board, as chat shows them: picture, name, oshi, net worth rank.
+.who {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+  vertical-align: middle;
+}
+
+// On a phone the badge keeps the rank and drops the amount (the title still has it).
+.whoAmount {
+  @include phone {
+    display: none;
+  }
 }
 
 // ── Tabs ────────────────────────────────────────────────────────────────────
@@ -114,6 +134,11 @@
   max-width: 100%;
   overflow-x: auto;
 
+  // Laid out but out of sight until the rules say which boards there are.
+  &[data-pending] {
+    visibility: hidden;
+  }
+
   button {
     @include tab;
     padding: 0.5rem 0.9rem;
@@ -129,9 +154,21 @@
   }
 }
 
+// Always in the toolbar at one size, no taller than the tabs, so nothing moves when it shows or hides.
+.season {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  &[data-hidden] {
+    visibility: hidden;
+  }
+}
+
 .select {
   @include input-base;
-  padding: 0.4rem 0.6rem;
+  width: 10.5rem;
+  padding: 0.35rem 0.6rem;
   font-size: 0.8125rem;
 }
 
@@ -150,9 +187,13 @@
     white-space: nowrap;
   }
 
+  // The player on one line (picture, name, oshi, rank); a narrow screen scrolls the table instead.
   td:nth-child(2) {
     font-family: var(--font-body);
-    white-space: normal;
+
+    .who {
+      flex-wrap: nowrap;
+    }
   }
 
   th:nth-child(n + 4),
@@ -216,7 +257,7 @@
   > li {
     display: flex;
     flex-wrap: wrap;
-    align-items: baseline;
+    align-items: center;
     gap: 0.3rem 1rem;
     padding: 0.7rem 0;
     border-bottom: 1px solid var(--rule);
