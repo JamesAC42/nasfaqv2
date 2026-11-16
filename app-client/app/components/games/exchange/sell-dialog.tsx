@@ -12,6 +12,13 @@ import { useGamesStore } from "@/app/stores/games-store";
 import { Dialog } from "@/app/components/games/exchange/bits";
 import styles from "@/app/components/games/exchange/exchange.module.scss";
 
+// Typing straight away suits a mouse and keyboard. On a touch screen focusing the box raises the
+// keyboard over the dialog, so there it waits to be tapped. A module-level ref callback keeps one
+// identity, so it runs only when the box first appears (or the sale type switches), never per keystroke.
+function focusUnlessTouch(input: HTMLInputElement | null) {
+  if (input && !window.matchMedia?.("(pointer: coarse)").matches) input.focus();
+}
+
 const FEE = 0.05;
 const HOURS = [1, 12, 24, 48];
 
@@ -143,7 +150,7 @@ export function SellDialog({
                 <span>Price</span>
                 <span className={styles.moneyInput}>
                   <i>$</i>
-                  <input inputMode="decimal" value={fixed} onChange={(event) => setFixed(clean(event.target.value))} autoFocus />
+                  <input inputMode="decimal" value={fixed} onChange={(event) => setFixed(clean(event.target.value))} ref={focusUnlessTouch} />
                 </span>
               </label>
             ) : (
@@ -153,7 +160,7 @@ export function SellDialog({
                     <span>Opening bid</span>
                     <span className={styles.moneyInput}>
                       <i>$</i>
-                      <input inputMode="decimal" value={start} onChange={(event) => setStart(clean(event.target.value))} autoFocus />
+                      <input inputMode="decimal" value={start} onChange={(event) => setStart(clean(event.target.value))} ref={focusUnlessTouch} />
                     </span>
                   </label>
                   <label className={styles.field}>
