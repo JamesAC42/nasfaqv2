@@ -64,6 +64,11 @@ function errorText(reason: unknown) {
   const message = String((reason as Error)?.message || reason || "");
   if (message === "push_unavailable") return "Push isn’t available on the site right now.";
   if (message === "invalid_subscription") return "This browser gave a push address the site doesn’t accept.";
+  // Chromium says this when the browser itself can’t reach its push service (Google’s, for Chrome and
+  // Brave). Nothing has reached the site yet. Brave keeps that service off until the player turns it on.
+  if (/push service error|push service not available/i.test(message)) {
+    return "This browser couldn’t reach its push service, so nothing was sent to the site. In Brave, turn on Settings → Privacy and security → “Use Google services for push messaging”, then restart Brave. Otherwise an ad blocker, VPN or network filter may be blocking it; try another browser, or your phone.";
+  }
   return message || "Something went wrong.";
 }
 
