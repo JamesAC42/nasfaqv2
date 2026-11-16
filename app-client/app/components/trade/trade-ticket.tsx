@@ -130,7 +130,17 @@ function ShareStep({ label, disabled, onStep, children }: { label: string; disab
     const held = hold.current;
     return () => window.clearTimeout(held.timer);
   }, []);
-  const stop = () => window.clearTimeout(hold.current.timer);
+  // Reaching the max (or one share) turns the button off mid-hold; the hold ends there.
+  useEffect(() => {
+    if (!disabled) return;
+    window.clearTimeout(hold.current.timer);
+    hold.current.repeated = false;
+  }, [disabled]);
+  const stop = () => {
+    window.clearTimeout(hold.current.timer);
+    window.removeEventListener("pointerup", stop);
+    window.removeEventListener("pointercancel", stop);
+  };
   const start = (event: ReactPointerEvent) => {
     if (event.button !== 0) return;
     stop();
@@ -230,7 +240,14 @@ export function TradeTicket({
   const revealQty = () => {
     if (!window.matchMedia?.("(pointer: coarse)").matches || qtyRow.current?.closest("[role='dialog']")) return;
     window.clearTimeout(revealTimer.current);
-    revealTimer.current = window.setTimeout(() => qtyRow.current?.scrollIntoView({ block: "start" }), 350);
+    revealTimer.current = window.setTimeout(() => {
+      const row = qtyRow.current;
+      if (!row) return;
+      // Already in the top half of what's showing: leave the page where it is.
+      const top = row.getBoundingClientRect().top - (window.visualViewport?.offsetTop ?? 0);
+      if (top >= 0 && top < (window.visualViewport?.height ?? window.innerHeight) / 2) return;
+      row.scrollIntoView({ block: "start" });
+    }, 350);
   };
   useEffect(() => () => window.clearTimeout(revealTimer.current), []);
   // On a phone the submit button stays pinned, so what went wrong can be out of view above it.
