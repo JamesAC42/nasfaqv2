@@ -321,6 +321,18 @@
   opacity: 0.7;
 }
 
+// The narrowest full-rail widths: a little less air between items, so staff (who also get Admin)
+// keep the whole countdown, which is what clips first.
+@media (min-width: $bp-tablet + 1) and (max-width: 1100px) {
+  .rail {
+    gap: 0.55rem;
+  }
+
+  .navItem {
+    padding-inline: 0.36rem;
+  }
+}
+
 .menu {
   @include popover;
   position: absolute;
