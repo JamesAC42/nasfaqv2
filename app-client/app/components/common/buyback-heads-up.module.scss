@@ -1,0 +1,28 @@
+// The holders' buyback heads-up: the notice bar's info tone, with a little frost.
+.bar {
+  background:
+    repeating-linear-gradient(-45deg, transparent 0 10px, color-mix(in srgb, var(--blue) 6%, transparent) 10px 11px),
+    var(--blue-wash);
+
+  b {
+    color: var(--text);
+  }
+
+  a {
+    text-decoration: none;
+  }
+}
+
+.flake {
+  animation: spin 9s linear infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

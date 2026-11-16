@@ -7,7 +7,7 @@ const economy = require("../src/services/economy");
 const fundamentals = require("../src/services/fundamentals");
 const pgNumeric = require("../src/services/pgNumeric");
 const settlement = require("../src/services/settlement");
-const sideModeFloor = require("../src/services/sideModeFloor");
+const gamesWallet = require("../src/services/games/wallet");
 const trading = require("../src/services/trading");
 const weekly = require("../src/services/weeklyEvaluation");
 
@@ -136,10 +136,10 @@ test("shares only count at what they're worth, in stocks that trade", () => {
   assert.equal(bailouts({ wallets: { 1: {} }, holdings: elsewhere }).paid.length, 1, "a stock outside the review (halted, delisted) can't be sold");
 });
 
-test("the default amounts leave a bailed-out player far under the side-mode floor", () => {
-  const { bailoutCash, bailoutCredit, sideModeMinNetWorth } = economy.SETTINGS;
+test("the default amounts are small, and the Credit all turns into Cash at the next review", () => {
+  const { bailoutCash, bailoutCredit, weeklyConversionMinimum } = economy.SETTINGS;
   assert.ok(bailoutCash > 0 && bailoutCredit > 0);
-  assert.ok(bailoutCash + bailoutCredit + COST * 3 < sideModeMinNetWorth / 10, "shares, Cash and Credit were each under a share");
+  assert.ok(bailoutCredit + COST < weeklyConversionMinimum, "under the conversion's minimum, so all of it converts");
 });
 
 /** Ten stocks at $10, the first with the worst week and the last with the best. */
@@ -454,7 +454,7 @@ test("the review pays once, and only the players who qualify", { skip: !database
     assert.equal(preview.skipped, "already_completed", "and a preview of it does nothing either");
   });
 
-  await t.test("a bailed-out player can really buy, and the games stay closed", async () => {
+  await t.test("a bailed-out player can really buy, and spend the Credit on a side mode but never the Cash", async () => {
     await pools.paid.query(`UPDATE market.market_runtime_state SET trading_status = 'open'`);
     const buyers = ["broke", "feeDebt", "margin", "bigDebtLittleCredit"];
     for (const name of buyers) {
@@ -466,9 +466,31 @@ test("the review pays once, and only the players who qualify", { skip: !database
       const { rows } = await pools.paid.query(`SELECT quantity::float AS quantity FROM market.portfolio_holdings WHERE user_id = $1 AND asset_id = $2`, [players[name], asset.B05]);
       assert.equal(rows[0]?.quantity, 1, `${name} holds the share`);
     }
-    // The floor still stands: the money can only go to the market.
-    await assert.rejects(sideModeFloor.assertAboveFloor(pools.paid, players.broke), { code: "net_worth_floor" });
-    await assert.rejects(sideModeFloor.assertAboveFloor(pools.paid, players.margin), { code: "net_worth_floor" });
+    // Side modes take the bailout's Credit like any other, and never its Cash.
+    const pull = async (userId, amount) => {
+      const client = await pools.paid.connect();
+      try {
+        await client.query("BEGIN");
+        await gamesWallet.debitCashForGameWithClient(client, { userId, amount, entryType: "gacha_pull_fee", referenceType: "gacha_pull", referenceId: 1 });
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    };
+    const wallet = async (name) => money((await snapshot(pools.paid)).balances, players[name]);
+    const broke = await wallet("broke");
+    await pull(players.broke, 500);
+    const pulled = await wallet("broke");
+    assert.equal(pulled.cash, broke.cash, "Cash untouched");
+    assert.ok(Math.abs(pulled.credit - (broke.credit - 500)) < 1e-6, "the pull came out of Credit");
+    await assert.rejects(pull(players.broke, 600), { code: "insufficient_credit" }, "the rest of the Credit doesn't cover it, and Cash isn't asked");
+    // Credit still below zero after the bailout can't be spent at all.
+    const margin = await wallet("margin");
+    await assert.rejects(pull(players.margin, 100), (error) => ["in_the_red", "insufficient_credit"].includes(error.code));
+    assert.deepEqual(await wallet("margin"), margin);
   });
 
   await t.test("next Saturday nobody who still has the money is paid again; running out again pays again", async () => {

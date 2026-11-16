@@ -301,9 +301,10 @@ function Result({ pool }: { pool: PoolDetail }) {
   );
 }
 
-const ACTION_LABEL = { resolved: "Resolved", corrected: "Corrected", voided: "Voided" } as const;
+const ACTION_LABEL = { closed: "Betting closed early", reopened: "Betting reopened", resolved: "Resolved", corrected: "Corrected", voided: "Voided" } as const;
+const NO_OUTCOME = new Set(["closed", "reopened", "voided"]);
 
-/** The pool's public record: every call, correction and void, with who and the source. */
+/** The pool's public record: an early close and a reopen, then every call, correction and void, with who and the source. */
 function Record({ pool }: { pool: PoolDetail }) {
   if (!pool.record.length) return null;
   return (
@@ -321,7 +322,7 @@ function Record({ pool }: { pool: PoolDetail }) {
           <li key={entry.id} data-action={entry.action}>
             <div className={styles.recordHead}>
               <b>{ACTION_LABEL[entry.action]}</b>
-              {entry.action === "voided" ? null : <span>{entry.outcome_label}</span>}
+              {NO_OUTCOME.has(entry.action) ? null : <span>{entry.outcome_label}</span>}
               {entry.previous_label && entry.action === "corrected" ? <span className={styles.was}>was {entry.previous_label}</span> : null}
               <time suppressHydrationWarning>{new Date(entry.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</time>
             </div>
@@ -335,7 +336,7 @@ function Record({ pool }: { pool: PoolDetail }) {
               </a>
             ) : null}
             <p className={styles.small}>
-              {money(entry.pool_total, 0)} pool
+              {money(entry.pool_total, 0)} {entry.action === "closed" || entry.action === "reopened" ? "in the pool then" : "pool"}
               {entry.paid_out > 0 ? ` · ${money(entry.paid_out, 0)} paid out` : ""}
               {entry.refunded > 0 ? ` · ${money(entry.refunded, 0)} refunded` : ""}
               {entry.clawed_back > 0 ? ` · ${money(entry.clawed_back, 0)} in earlier payouts taken back` : ""}

@@ -202,7 +202,7 @@ function OutcomeBar({ market, outcome, flash, tradeable }: { market: PredictionM
     );
   }
   return (
-    <Link href={marketHref(market, outcome.outcome_code)} className={styles.bar} style={style} aria-label={`Bet ${outcome.label} at ${cents(outcome.price)}`}>
+    <Link href={marketHref(market, outcome.outcome_code)} className={styles.bar} style={style} aria-label={market.pricing === "pool" ? `Bet ${outcome.label}, pays ${payText(outcome.multiplier)}` : `Bet ${outcome.label} at ${cents(outcome.price)}`}>
       {content}
     </Link>
   );

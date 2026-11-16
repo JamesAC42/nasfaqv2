@@ -11,6 +11,7 @@ import { money, STATUS_LABEL } from "@/app/lib/predictions/format";
 import { createPool, fetchBookiePools, poolHref, type BookiePool } from "@/app/lib/predictions/pools";
 import type { Category } from "@/app/lib/predictions/types";
 import { usePoolAccess } from "@/app/lib/predictions/use-pool-access";
+import { useNowEvery } from "@/app/lib/use-now";
 import styles from "@/app/components/predictions/pool/pool.module.scss";
 
 const toLocalInput = (date: Date) => new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
@@ -19,6 +20,7 @@ const toLocalInput = (date: Date) => new Date(date.getTime() - date.getTimezoneO
 export function BookieDesk() {
   const access = usePoolAccess();
   const router = useRouter();
+  const now = useNowEvery(60_000);
   const [scope, setScope] = useState<"mine" | "all">("mine");
   const [pools, setPools] = useState<BookiePool[] | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -174,6 +176,7 @@ export function BookieDesk() {
                         closes in <Countdown to={pool.closes_at} />
                       </span>
                     ) : null}
+                    {needsCall && new Date(pool.closes_at).getTime() > now ? <span>Closed early</span> : null}
                     <span>
                       {pool.bettors} {pool.bettors === 1 ? "bettor" : "bettors"}
                     </span>

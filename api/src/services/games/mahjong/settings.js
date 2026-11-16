@@ -77,7 +77,6 @@ const SETTINGS = Object.freeze({
   // can't reach the stock market faster than the conversion lets Credit through anyway.
   weeklyRate: economy.SETTINGS.weeklyConversionRate,
   weeklyMinimum: economy.SETTINGS.weeklyConversionMinimum,
-  minNetWorth: economy.SETTINGS.sideModeMinNetWorth,
 
   // ── Tables ───────────────────────────────────────────────────────────────
   /** Seconds a quick-match table waits for players before bots take the empty seats. */
@@ -162,7 +161,6 @@ function publicRules() {
     paid_games_per_day: SETTINGS.paidGamesPerDay,
     weekly_rate: SETTINGS.weeklyRate,
     weekly_minimum: SETTINGS.weeklyMinimum,
-    min_net_worth: SETTINGS.minNetWorth,
     bot_fill_seconds: SETTINGS.botFillSeconds,
     speeds: SPEEDS,
     ranks: RANKS,

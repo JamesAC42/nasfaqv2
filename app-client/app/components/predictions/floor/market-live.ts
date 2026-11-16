@@ -28,10 +28,10 @@ export function applyFill(market: PredictionMarket, fill: Fill): PredictionMarke
   };
 }
 
-/** The talent behind a tick-direction or stream-peak market: "PEK up on…", "Marine's stream…". */
+/** The talent behind a tick-direction market or a stream-peak market or pool: "PEK up on…", "Marine's stream…". */
 export function useMarketTalent(market: PredictionMarket): TalentMark | null {
   const assets = useMarketStore((state) => state.assets);
-  if (market.auto_template !== "tick-direction" && market.auto_template !== "stream-peak") return null;
+  if (market.auto_template !== "tick-direction" && market.auto_template !== "stream-peak" && market.auto_template !== "stream-peak-pool") return null;
   const linked = market.outcomes.find((outcome) => outcome.asset)?.asset;
   if (linked) return linked;
   const ticker = market.title.match(/^([A-Z]{2,5})\b/)?.[1];

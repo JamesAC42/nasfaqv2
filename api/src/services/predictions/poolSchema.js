@@ -53,13 +53,13 @@ async function applyPoolsSchema(pool) {
   await pool.query(`CREATE INDEX IF NOT EXISTS prediction_pool_bets_market_idx ON market.prediction_pool_bets (market_id, created_at DESC, id DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS prediction_pool_bets_user_idx ON market.prediction_pool_bets (user_id, created_at DESC)`);
 
-  // The public record of how each pool ended: every resolve, correction and void, with who, the
-  // source and what moved.
+  // The pool's public record: an early close and a reopen of betting, then how it ended (every
+  // resolve, correction and void), with who, the source or reason, and what moved.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS market.prediction_pool_resolutions (
       id BIGSERIAL PRIMARY KEY,
       market_id BIGINT NOT NULL REFERENCES market.prediction_markets(id) ON DELETE CASCADE,
-      action TEXT NOT NULL CHECK (action IN ('resolved', 'corrected', 'voided')),
+      action TEXT NOT NULL CHECK (action IN ('closed', 'reopened', 'resolved', 'corrected', 'voided')),
       outcome_id BIGINT NULL REFERENCES market.prediction_market_outcomes(id) ON DELETE SET NULL,
       previous_outcome_id BIGINT NULL REFERENCES market.prediction_market_outcomes(id) ON DELETE SET NULL,
       actor_user_id BIGINT NULL REFERENCES market.users(id) ON DELETE SET NULL,
@@ -75,6 +75,8 @@ async function applyPoolsSchema(pool) {
     )
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS prediction_pool_resolutions_market_idx ON market.prediction_pool_resolutions (market_id, created_at, id)`);
+  // Tables made before reopening existed have the narrower check.
+  await replaceCheck(pool, "market.prediction_pool_resolutions", "prediction_pool_resolutions_action_check", `action IN ('closed', 'reopened', 'resolved', 'corrected', 'voided')`);
 
 
 

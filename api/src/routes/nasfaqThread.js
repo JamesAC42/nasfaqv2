@@ -1,6 +1,7 @@
 const express = require("express");
 const path = require("node:path");
-const { HeadObjectCommand, PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
+const { HeadObjectCommand, PutObjectCommand } = require("@aws-sdk/client-s3");
+const s3Bucket = require("../s3Bucket");
 
 const router = express.Router();
 
@@ -145,23 +146,7 @@ function normalizeImageExtension(value) {
 }
 
 function getS3Client() {
-  const accessKeyId = optionalTrimmedString(process.env.AWS_ACCESS_KEY_ID);
-  const secretAccessKey = optionalTrimmedString(process.env.AWS_SECRET_ACCESS_KEY);
-  const region = optionalTrimmedString(process.env.AWS_REGION);
-  const bucket = optionalTrimmedString(process.env.AWS_SW_BUCKET);
-
-  if (!accessKeyId || !secretAccessKey || !region || !bucket) {
-    return null;
-  }
-
-  return {
-    bucket,
-    client: new S3Client({
-      region,
-      credentials: { accessKeyId, secretAccessKey },
-      followRegionRedirects: true,
-    }),
-  };
+  return s3Bucket.getS3Client();
 }
 
 function extensionFromContentType(contentType, fallbackExt) {

@@ -92,6 +92,26 @@
   }
 }
 
+// A stock in a buyback (buyback-spotlight): what's happening, in one line.
+.buyback {
+  padding: 0.45rem 0.75rem;
+  border-top: 1px solid var(--blue-line);
+  background: color-mix(in srgb, var(--blue) 12%, transparent);
+  color: var(--text);
+  font-size: 0.6875rem;
+  line-height: 1.45;
+
+  svg {
+    color: var(--blue);
+    vertical-align: -0.1em;
+  }
+
+  b {
+    @include num;
+    color: var(--blue);
+  }
+}
+
 .holding {
   @include num;
   padding: 0.4rem 0.75rem;

@@ -5,11 +5,11 @@ const limits = require("../src/services/games/tables/blackjackLimits");
 const blackjack = require("../src/services/games/tables/blackjack");
 const { grantCash, parseArgs } = require("../scripts/grant-cash");
 
-// Blackjack can't brick an account: it spends Credit only, a player's week stays inside a cap, there's
-// a number of hands a day, and no bets under a net worth floor. The rules on their own first, then the
-// real table on a freshly migrated database of its own.
-const settings = { handsPerDay: 50, minNetWorth: 50000, weeklyRate: 0.05, weeklyMinimum: 10000 };
-const plan = (facts = {}) => limits.planLimits({ credit: 100000, netWorth: 110000, weekNet: 0, openStakes: 0, handsToday: 0, ...facts }, settings);
+// Blackjack can't brick an account: it spends Credit only, a player's week stays inside a cap, and
+// there's a number of hands a day. The rules on their own first, then the real table on a freshly
+// migrated database of its own.
+const settings = { handsPerDay: 50, weeklyRate: 0.05, weeklyMinimum: 10000 };
+const plan = (facts = {}) => limits.planLimits({ credit: 100000, weekNet: 0, openStakes: 0, handsToday: 0, ...facts }, settings);
 const databaseUrl = process.env.CHAT_TEST_DATABASE_URL;
 
 test("rules: the weekly cap is what the player's Credit turns into Cash", () => {
@@ -45,16 +45,21 @@ test("rules: stakes out on other tables count against the loss side", () => {
   assert.equal(plan({ weekNet: 9000, openStakes: 500 }).max_bet, 1000);
 });
 
-test("rules: hands a day and the net worth floor", () => {
+test("rules: hands a day", () => {
   assert.equal(plan({ handsToday: 49 }).blocked, null);
   assert.equal(plan({ handsToday: 50 }).blocked, "daily_limit");
   assert.throws(() => limits.assertCanBet(plan({ handsToday: 50 }), 10), { code: "blackjack_daily_limit", limit: 50 });
-  assert.equal(plan({ netWorth: 50000 }).blocked, null);
-  assert.equal(plan({ netWorth: 49999.99 }).blocked, "net_worth");
-  assert.throws(() => limits.assertCanBet(plan({ netWorth: 1000 }), 10), { code: "blackjack_net_worth_floor", limit: 50000 });
-  // The floor is the one to tell them about: it doesn't lift by waiting.
-  assert.equal(plan({ netWorth: 1000, weekNet: -10000, handsToday: 50 }).blocked, "net_worth");
-  assert.equal(plan({ netWorth: 1000 }).max_bet, 0);
+  // The week's cap is the one to tell them about when both apply: it lasts longer.
+  assert.equal(plan({ weekNet: -10000, handsToday: 50 }).blocked, "weekly_limit");
+});
+
+test("rules: a small Credit balance plays like any other, within the cap", () => {
+  const small = plan({ credit: 500 });
+  assert.equal(small.blocked, null);
+  assert.equal(small.max_bet, 10000, "the cap doesn't shrink below its minimum; the wallet decides what's affordable");
+  limits.assertCanBet(small, 50);
+  assert.equal("net_worth" in small, false);
+  assert.equal("min_net_worth" in limits.publicRules(settings), false);
 });
 
 test("rules: doubling needs room for the doubled stake on both sides", () => {
@@ -68,7 +73,7 @@ test("rules: doubling needs room for the doubled stake on both sides", () => {
 test("rules: env vars change the numbers, and bad ones fall back", () => {
   assert.equal(limits.limitSettings({ BLACKJACK_HANDS_PER_DAY: "10" }).handsPerDay, 10);
   assert.equal(limits.limitSettings({ BLACKJACK_HANDS_PER_DAY: "many" }).handsPerDay, 50);
-  assert.equal(limits.limitSettings({}).minNetWorth, 50000);
+  assert.equal("minNetWorth" in limits.limitSettings({}), false);
 });
 
 async function waitFor(check, { timeoutMs = 20_000, everyMs = 50 } = {}) {
@@ -81,7 +86,7 @@ async function waitFor(check, { timeoutMs = 20_000, everyMs = 50 } = {}) {
   }
 }
 
-test("the real table: Credit only, the cap, the daily limit and the floor", { skip: !databaseUrl, timeout: 240_000 }, async (t) => {
+test("the real table: Credit only, the cap and the daily limit", { skip: !databaseUrl, timeout: 240_000 }, async (t) => {
   const target = new URL(databaseUrl);
   assert.ok(["127.0.0.1", "localhost"].includes(target.hostname));
   assert.equal(target.pathname, "/nasfaq_chat_test");
@@ -143,11 +148,17 @@ test("the real table: Credit only, the cap, the daily limit and the floor", { sk
   assert.deepEqual(await wallet(mixed), { cash: 100000, credit: 30 });
   await blackjack.leave({ userId: mixed, tableKey: "low" });
 
-  // Under the floor, whatever's in the wallet.
-  const low = await user("low", { credit: 40000 });
-  await blackjack.sit({ userId: low, tableKey: "low", seat: 0 });
-  await assert.rejects(blackjack.bet({ userId: low, tableKey: "low", amount: 50 }), { code: "blackjack_net_worth_floor", limit: 50000 });
-  await blackjack.leave({ userId: low, tableKey: "low" });
+  // A small net worth doesn't matter: Credit that covers the bet is enough.
+  const small = await user("small", { credit: 150 });
+  await blackjack.sit({ userId: small, tableKey: "mid", seat: 0 });
+  assert.equal((await blackjack.bet({ userId: small, tableKey: "mid", amount: 100 })).phase, "betting");
+  assert.deepEqual(await wallet(small), { cash: 0, credit: 50 });
+  await waitFor(async () => {
+    const table = blackjack.getTable("mid");
+    if (table.phase === "playing" && table.turn === 0) await blackjack.act({ userId: small, tableKey: "mid", action: "stand" }).catch(() => {});
+    return table.phase === "idle";
+  });
+  await blackjack.leave({ userId: small, tableKey: "mid" });
 
   // The week: this week's losses count, last week's and refunded rounds don't.
   const loser = await user("loser", { credit: 100000 });

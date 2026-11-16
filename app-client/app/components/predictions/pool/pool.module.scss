@@ -659,7 +659,10 @@
 }
 
 .red {
-  padding: 0.8rem 0.9rem;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  overflow: hidden;
   border: 1px solid var(--down);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--down) 12%, transparent);
@@ -677,6 +680,26 @@
 
   &[data-compact="true"] p {
     font-size: 0.8rem;
+  }
+}
+
+.redText {
+  flex: 1 1 auto;
+  align-self: center;
+  min-width: 0;
+  padding: 0.8rem 0 0.8rem 0.9rem;
+}
+
+// Stands on the banner's bottom edge, so the crop reads as the banner cutting her off.
+.redArt {
+  flex: 0 0 auto;
+  display: block;
+  width: 9.5rem;
+  height: auto;
+  margin-top: 0.5rem;
+
+  [data-compact="true"] > & {
+    width: 6.75rem;
   }
 }
 

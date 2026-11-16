@@ -239,9 +239,14 @@
     font-size: 0.6875rem;
     color: var(--mid);
 
-    &:hover {
+    &:hover:not(:disabled) {
       color: var(--text);
       border-color: var(--text);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
     }
   }
 }
@@ -335,6 +340,18 @@
   color: var(--warn);
 }
 
+.bbHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+
+  b {
+    font-size: 0.95rem;
+  }
+}
+
 // Sold out, the last shares for sale, or a buyback in progress.
 .supplyNote {
   margin: 0;
@@ -353,6 +370,16 @@
   &[data-tone="buyback"] {
     border-left-color: var(--blue);
     background: color-mix(in srgb, var(--blue) 7%, transparent);
+  }
+
+  // The buyback-spotlight version: a pill, the meter and one line.
+  &:is(div) {
+    display: grid;
+    gap: 0.45rem;
+
+    p {
+      margin: 0;
+    }
   }
 
   &[data-tone="soldout"] {

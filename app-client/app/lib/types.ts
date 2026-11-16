@@ -127,6 +127,10 @@ export type CandlePoint = {
   close: number | null;
   close_mark?: number | null;
   volume_shares?: number | null;
+  /** The bucket's fills, apart from the price line: their average, lowest and highest prices. */
+  vwap?: number | null;
+  fill_low?: number | null;
+  fill_high?: number | null;
 };
 
 export type PredictionMarketScope = "public" | "mine" | "review_queue";
@@ -423,6 +427,8 @@ export type MarketAsset = {
   trading_state?: "open" | "buyback";
   /** What buys can take right now (max − held − the broker's buffer); 0 = sold out. */
   shares_for_sale?: number | null;
+  /** The shares an order is measured against for slippage: a buy of depth × 2% shares fills about 1% over the ask. */
+  liquidity_depth?: number | null;
   broker_buffer?: number | null;
   sold_out?: boolean;
   buyback?: MarketBuyback | null;
@@ -454,7 +460,8 @@ export type MarketBuyback = {
   price: number;
   multiplier: number;
   next_step_at: string | null;
-  /** How much the multiplier drops each day, and where it stops. */
+  /** Where the multiplier starts (1.2), how much it drops each day, and where it stops. */
+  start: number;
   daily_step: number;
   floor: number;
   shares_bought: number;
@@ -694,7 +701,6 @@ export type MarketAdjustmentSummary = {
   recaps: MarketAdjustmentTickSummary[];
   leaderboards: {
     movers: MarketAdjustmentOutcome[];
-    gap_compression: MarketAdjustmentOutcome[];
   };
   feed: MarketAdjustmentOutcome[];
   health: MarketAdjustmentHealth | null;
@@ -884,7 +890,6 @@ export type PortfolioSummary = {
 /** The Credit rules in force (api services/economy.js); some are still open questions. */
 export type EconomySettings = {
   side_mode_funds: "credit" | "credit_then_cash";
-  side_mode_min_net_worth?: number;
   net_worth: "cash" | "cash_and_credit";
   weekly_conversion_rate: number;
   /** The conversion is at least this much (or all of a smaller balance). */

@@ -121,6 +121,9 @@ export function normalizeCandles(candles: Array<Record<string, unknown>>): Candl
     close: toNumber(item.close),
     close_mark: toNumber(item.close_mark),
     volume_shares: toNumber(item.volume_shares),
+    vwap: toNumber(item.vwap),
+    fill_low: toNumber(item.fill_low),
+    fill_high: toNumber(item.fill_high),
   }));
 }
 
@@ -559,6 +562,7 @@ function normalizeBuyback(value: unknown): MarketBuyback | null {
     price: toNumber(row.price) ?? 0,
     multiplier: toNumber(row.multiplier) ?? 1,
     next_step_at: row.next_step_at ? String(row.next_step_at) : null,
+    start: toNumber(row.start) ?? 1.2,
     daily_step: toNumber(row.daily_step) ?? 0.1,
     floor: toNumber(row.floor) ?? 0.5,
     shares_bought: toNumber(row.shares_bought) ?? 0,
@@ -613,6 +617,7 @@ export function normalizeAsset(asset: Record<string, unknown>): MarketAsset {
     max_supply: toNumber(asset.max_supply),
     trading_state: asset.trading_state === "buyback" ? "buyback" : "open",
     shares_for_sale: toNumber(asset.shares_for_sale),
+    liquidity_depth: toNumber(asset.liquidity_depth),
     broker_buffer: toNumber(asset.broker_buffer),
     sold_out: Boolean(asset.sold_out),
     buyback: normalizeBuyback(asset.buyback),
@@ -739,9 +744,6 @@ export function normalizeMarketAdjustmentSummary(value: Record<string, unknown>)
     leaderboards: {
       movers: Array.isArray(leaderboards.movers)
         ? (leaderboards.movers as Array<Record<string, unknown>>).map(normalizeAdjustmentOutcome)
-        : [],
-      gap_compression: Array.isArray(leaderboards.gap_compression)
-        ? (leaderboards.gap_compression as Array<Record<string, unknown>>).map(normalizeAdjustmentOutcome)
         : [],
     },
     feed: Array.isArray(value.feed) ? (value.feed as Array<Record<string, unknown>>).map(normalizeAdjustmentOutcome) : [],

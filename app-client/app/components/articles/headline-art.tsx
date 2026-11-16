@@ -19,6 +19,7 @@ const UNIT_WORDS: Array<[RegExp, (unit: string) => boolean]> = [
   [/\b(holox|holo x)\b/i, (unit) => /holoX/i.test(unit)],
   [/\b(regloss|dev_is|dev is)\b/i, (unit) => /ReGLOSS/i.test(unit)],
   [/\b(flow glow)\b/i, (unit) => /FLOW GLOW/i.test(unit)],
+  [/\basobi[\s★☆_-]*mawari[\s_-]*tai\b|あそびまわり隊|アソビマワリタイ/i, (unit) => /ASOBI.?MAWARI/i.test(unit)],
   [/\b(gamers)\b/i, (unit) => /GAMERS/i.test(unit)],
   [/\b(hololive en|hololive english|holoen)\b/i, (unit) => /^English/i.test(unit)],
 ];

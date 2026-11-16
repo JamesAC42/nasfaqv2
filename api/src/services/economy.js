@@ -49,12 +49,11 @@ const SETTINGS = Object.freeze({
    * land in Credit; refunds go back where the money came from (see refund).
    */
   sideModeFunds: envChoice("ECONOMY_SIDE_MODE_FUNDS", ["credit", "credit_then_cash"], "credit"),
-  /** BBB and the owner, 2026-11-09: no games, capsules or bets under this net worth (sideModeFloor.js). 0 turns it off. */
-  sideModeMinNetWorth: envNumber("ECONOMY_SIDE_MODE_MIN_NET_WORTH", 50000),
   /**
    * The auto-bailout (services/autoBailout.js). BBB: "a small amount of cash and credit". A bailout puts
-   * Cash at bailoutCash (about 80 shares of a $12 stock, November 2026) and adds bailoutCredit. Together
-   * they have to stay well under sideModeMinNetWorth, so it can't reopen the games.
+   * Cash at bailoutCash (about 80 shares of a $12 stock, November 2026) and adds bailoutCredit. The Cash
+   * buys shares. The Credit is like any other Credit: it pays trading fees and side modes, and what's
+   * left converts to Cash at the next review.
    */
   bailoutCash: envNumber("ECONOMY_BAILOUT_CASH", 1000),
   bailoutCredit: envNumber("ECONOMY_BAILOUT_CREDIT", 1000),
@@ -284,7 +283,6 @@ function sideModeSpendable(wallet) {
 function publicSettings() {
   return {
     side_mode_funds: SETTINGS.sideModeFunds,
-    side_mode_min_net_worth: SETTINGS.sideModeMinNetWorth,
     net_worth: SETTINGS.netWorth,
     weekly_conversion_rate: SETTINGS.weeklyConversionRate,
     weekly_conversion_minimum: SETTINGS.weeklyConversionMinimum,

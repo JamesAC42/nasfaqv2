@@ -13,12 +13,16 @@
 //                                               every talent card at every rarity (so every gallery banner,
 //                                               card and reaction is unlocked), 5,000 shards, email verified.
 //                                               Run `prizes` (or seed-gacha-prizes.js db) first for the prize list.
+//   node scripts/seed-dev.js ipo [YYYY-MM-DD]  an announced IPO for the debut talents below (IPO_TALENTS), as if an
+//                                              admin had created it from the detector's list; listing date defaults
+//                                              to two weeks out. Then `ipo-stats`, and open/list it at /admin/ipo.
 //   node scripts/seed-dev.js ipo-stats [days]  made-up daily channel stats (default 14 days, ending today) for
 //                                              talents in an IPO, then their (debut-mode) fair values, so the
 //                                              IPO pages have a data funnel to show. Local stand-in for the scraper.
 //
 // Refuses to run unless DATABASE_URL points at localhost, so it can never touch production.
 // Channel ids are made up, so YouTube stats and livestreams stay empty; real data needs a prod dump.
+// IPO_TALENTS use their real channel ids, so the admin page's detector sees them as already tracked.
 
 const { loadEnv } = require("../src/config");
 const { createPool } = require("../src/db");
@@ -98,6 +102,17 @@ const TALENTS = [
   ["VIV", "Kikirara Vivi", "hololive FLOW GLOW", "vivi", "#ae88fa", 10.77, 10.39, 8399],
   ["WAT", "Tsunomaki Watame", "hololive 4th Generation", "watame", "#feffe6", 15.83, 15.86, 8682],
   ["ZET", "Vestia Zeta", "hololive Indonesia", "zeta", "#bdbdc3", 11.03, 11.32, 7876]
+];
+
+// Debut talents not listed yet: `ipo` puts them in an IPO, the way the admin page creates one from the
+// detector (services/talentDetect.js), so the unit is written the way the detector reads it.
+// [symbol, English name, Japanese name, unit, icon, colour, birthday, X handle, profile slug, YouTube channel id]
+const IPO_TITLE = "ASOBI★MAWARI-TAI!";
+const IPO_TALENTS = [
+  ["KYO", "Hyakuto Kyoko", "百灯キョーコ", "ASOBI★MAWARI-TAI!", "kyoko", "#fb610e", "2000-05-08", "hyakuto_kyoko", "hyakuto-kyoko", "UCSjQDxud2HkAO2DVD3lwxmw"],
+  ["MEL", "Achichi Mela", "熱千めら", "ASOBI★MAWARI-TAI!", "mela", "#47b9ff", "2000-04-16", "achichi_mela", "achichi-mela", "UC8eitCE9Z6EwUCs-VUi1blg"],
+  ["SOP", "Sorashina Sopia", "宙科そぴあ", "ASOBI★MAWARI-TAI!", "sopia", "#957aff", "2000-06-13", "sorashina_sopia", "sorashina-sopia", "UCROQtXcp2loQEmvpe5rhJzQ"],
+  ["TSU", "Suzuna Tsuzuri", "鈴鳴つづり", "ASOBI★MAWARI-TAI!", "tsuzuri", "#b11b1b", "2000-06-28", "suzuna_tsuzuri", "suzuna-tsuzuri", "UCy9mgxB8pn2C4aNK_MPthDQ"],
 ];
 
 // Capsule prizes are copied from prod's public catalog, so names, odds and images (served from the
@@ -391,6 +406,38 @@ async function seedIpoStats(pool, daysArg) {
   }
 }
 
+// An announced IPO for IPO_TALENTS (tracked channels, prelaunch stocks), through the same code as the
+// admin page's "Create IPO". Without S3 credentials the reference pictures and oshimarks are skipped.
+async function seedIpo(pool, listingDateArg) {
+  const ipo = require("../src/services/ipo");
+  let listingDate = listingDateArg;
+  if (!listingDate) {
+    // Two weeks out, off the weekend (Saturday is the weekly evaluation), like the admin page's default.
+    const date = new Date();
+    date.setUTCDate(date.getUTCDate() + 14);
+    while ([0, 6].includes(date.getUTCDay())) date.setUTCDate(date.getUTCDate() + 1);
+    listingDate = date.toISOString().slice(0, 10);
+  }
+  const talents = IPO_TALENTS.map(([symbol, name, nameJapanese, unit, icon, color, birthday, twitterId, profileId, channelId]) => ({
+    youtube_channel_id: channelId,
+    name_short: name.split(" ").pop(),
+    name_english: name,
+    name_japanese: nameJapanese,
+    symbol,
+    icon,
+    color,
+    birthday,
+    twitter_id: twitterId,
+    profile_id: profileId,
+    unit,
+  }));
+  const result = await ipo.createEvent(pool, { title: IPO_TITLE, listing_date: listingDate, talents });
+  console.log(
+    `IPO #${result.event_id} "${IPO_TITLE}" announced, listing ${listingDate}: ${IPO_TALENTS.map(([symbol]) => symbol).join(", ")}.\n` +
+      "Run `ipo-stats` for their channel numbers, then open and list it at /admin/ipo."
+  );
+}
+
 async function makeAdmin(pool, username) {
   const user = await findUser(pool, username);
   await pool.query(`UPDATE market.users SET is_admin = true, email_verified = true, email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1`, [user.id]);
@@ -412,6 +459,7 @@ async function main() {
     else if (command === "verify") await verify(pool, args[0]);
     else if (command === "cash") await setCash(pool, args[0], args[1]);
     else if (command === "admin") await makeAdmin(pool, args[0]);
+    else if (command === "ipo") await seedIpo(pool, args[0]);
     else if (command === "ipo-stats") await seedIpoStats(pool, args[0]);
     else if (command === "unlock-all") await unlockAll(pool, args[0]);
     else if (command === "predictions") await require("./seed-predictions").seedPredictions(pool, args[0] || null);

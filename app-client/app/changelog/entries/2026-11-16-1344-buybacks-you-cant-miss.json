@@ -1,0 +1,17 @@
+{
+  "title": "Buybacks you can’t miss",
+  "changes": [
+    {
+      "kind": "new",
+      "text": "A stock frozen for a buyback now wears a BUYBACK badge with today’s offer everywhere it shows, and the Stocks page has a Buybacks view while one is on."
+    },
+    {
+      "kind": "new",
+      "text": "Home and the market floor list the buybacks that are on. The stock page shows what the broker pays, how the offer drops each day and how many shares are left at it, with a button to sell to the broker."
+    },
+    {
+      "kind": "new",
+      "text": "If you hold a stock in a buyback, a bar at the top of the page tells you today’s offer. How to play has a buyback walkthrough you can click through day by day."
+    }
+  ]
+}

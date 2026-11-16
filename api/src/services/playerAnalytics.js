@@ -270,6 +270,7 @@ const ACTIVITIES = [
   ["capsules", "Capsule pulls", "games.gacha_pulls", "user_id", "created_at", ""],
   ["pvp", "Duels and high-low seats", "games.pvp_match_players", "user_id", "joined_at", ""],
   ["predictions", "Prediction bets", "market.prediction_market_trades", "taker_user_id", "matched_at", "AND taker_user_id IS NOT NULL"],
+  ["pool_bets", null, "market.prediction_pool_bets", "user_id", "created_at", ""],
   ["chat", "Chat messages", "chat.messages", "author_id", "created_at", ""],
   ["chat_archived", null, "chat.archived_messages", "author_id", "created_at", ""],
 ];
@@ -289,7 +290,7 @@ async function activity(db, from, to) {
   const present = await tablesPresent(db);
   const parts = ACTIVITIES.filter((entry) => present.has(entry[2])).map(
     ([key, , table, userColumn, timeColumn, extra]) =>
-      `SELECT '${key === "chat_archived" ? "chat" : key}' AS key, ${userColumn} AS user_id FROM ${table} WHERE ${timeColumn} >= ${START("$1")} AND ${timeColumn} < ${END("$2")} ${extra}`
+      `SELECT '${key === "chat_archived" ? "chat" : key === "pool_bets" ? "predictions" : key}' AS key, ${userColumn} AS user_id FROM ${table} WHERE ${timeColumn} >= ${START("$1")} AND ${timeColumn} < ${END("$2")} ${extra}`
   );
   const { rows } = parts.length
     ? await db.query(`SELECT key, count(*) AS events, count(DISTINCT user_id) AS players FROM (${parts.join(" UNION ALL ")}) x GROUP BY key`, [from, to])

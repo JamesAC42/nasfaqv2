@@ -363,15 +363,15 @@ test("the carried split is private: the public form keeps only kind and wording"
   assert.deepEqual(scrubbed, { items: [{ reasons: out }] });
 });
 
-test("player push follows trading.js: buying is a negative push, older fills have faded", () => {
+test("player push follows trading.js: buying is a negative push, and an older fill counts in full", () => {
   const at = Date.parse("2026-11-01T19:00:00Z");
   const fills = [
     { side: "buy", quantity: 100, ts: new Date(at - 120 * 60_000).toISOString() },
     { side: "sell", quantity: 40, ts: new Date(at).toISOString() },
   ];
   const { push, net_shares } = drivers.playerPush(fills, 1_000);
-  // Buy: 0.1 × (0.15 + 0.7 × 0.25); sell: −0.04 × 0.85.
-  const price = 0.1 * (0.15 + 0.7 * 0.25) - 0.04 * 0.85;
+  // Buy: 0.1 × (0.15 + 0.7); sell: −0.04 × 0.85. A fill's push stays until the tick.
+  const price = 0.1 * 0.85 - 0.04 * 0.85;
   assert.ok(Math.abs(push + price) < 1e-12);
   assert.equal(net_shares, 60);
 });

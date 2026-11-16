@@ -155,7 +155,7 @@ test("mahjong trial mode, end to end", { skip: !databaseUrl, timeout: 600_000 },
 
   await t.test("a chip game moves no Cash or Credit and checks nothing about money", async () => {
     const fee = 1000;
-    const poor = await user("chip_poor", { cash: 100, credit: 30000 }); // under the net worth floor
+    const poor = await user("chip_poor", { cash: 100, credit: 30000 }); // little Cash
     const fresh = await user("chip_fresh", { ageDays: 0 }); // too new for a paid table
     const red = await user("chip_red", { cash: 200000, credit: -50 }); // in the red
     const twin = await user("chip_twin", { ip: "10.77.0.1" });
@@ -351,9 +351,9 @@ test("mahjong trial mode, end to end", { skip: !databaseUrl, timeout: 600_000 },
       await tables.leaveTable({ userId: payer, tableId: seated.table.id });
       assert.deepEqual(await balances(payer), { cash: 20000, credit: 90000 });
       assert.equal(publicRules().trial, false);
-      // And the checks are back: a player under the floor is turned away.
-      const poor = await user("paid_poor", { cash: 100, credit: 30000 });
-      await assert.rejects(tables.createTable({ userId: poor, kind: "stakes", tier: 200 }), { code: "net_worth_floor" });
+      // And the checks are back: a player in the red is turned away.
+      const red = await user("paid_red", { cash: 100, credit: -50 });
+      await assert.rejects(tables.createTable({ userId: red, kind: "stakes", tier: 200 }), { code: "in_the_red" });
     } finally {
       restore();
     }

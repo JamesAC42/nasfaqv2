@@ -50,13 +50,18 @@ Two fixes to v1:
 - **Bookie tools.** A "My pools" panel shows totals, bettors per option and the time left. From it
   a bookie can:
   - close a pool early or extend its closing time (up to 28 days from opening);
+  - reopen betting on a pool they closed early, once, before its closing time and before it's
+    called, with a reason. The early close and the reopen both go on the pool's record. A pool shut
+    by its schedule, an auto pool's lock or a call can't reopen;
   - duplicate a past pool;
   - resolve or void a pool.
+- **Who calls and voids.** A bookie runs only the pools they opened and can't bet in them. Admins can run, call, correct and void any pool, even one they have money in. Other prediction staff call auto pools, and correct or void results within 7 days, but can't call, correct or void a pool they have money in.
 - **A clear record of how each pool resolved.** A finished pool shows:
   - who resolved it and when;
   - the result, and the source link or note the bookie gave (one is required);
   - each option's final stake and multiplier;
-  - any later correction or void, with the reason, as its own entry.
+  - any later correction or void, with the reason, as its own entry;
+  - an early close and a reopen of betting, each with who did it and when.
 - **Notices.** You get a notification when a pool you bet on resolves (what you won, or that you
   lost), is voided (your refund), or is corrected (what changed). The existing notifications service
   sends them.
@@ -165,8 +170,12 @@ $15,000: $2,000 comes from Credit and $13,000 is borrowed, leaving Credit at −
 - **Auto pools** are their own templates, `stream-peak-pool` and `top-gainer-pool`. Both start off
   and carry #124's pause marker, so turning one on sticks. The market-maker templates stay as #124
   left them.
-- **Retiring the market maker.** Once the flag is `on`, creating a market-maker market or turning
-  one of their templates on is refused (`lmsr_retired`). Open ones finish as before.
+- **Retiring the market maker.** Once the flag is `on`, creating, submitting or approving a
+  market-maker market or turning one of their templates on is refused (`lmsr_retired`), and the
+  scheduler opens none even if a template was left on. Open ones finish as before.
+- **Once it's on.** Pool bets join the floor's tape, the forecasters board and the home page's
+  activity band, and the stream calendar links stream-peak pools. While the flag is at `staff` these
+  stay market-maker only, since they're shared by everyone.
 - **Bookies.** `market.users.is_bookie` appears as "Bookie" on the admin people page.
 - **Tables.** `prediction_pool_stakes`, `prediction_pool_bets` and `prediction_pool_resolutions`.
   The record is the last of these.

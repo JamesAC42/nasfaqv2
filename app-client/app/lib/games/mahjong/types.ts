@@ -629,7 +629,6 @@ export type MahjongRules = {
   paid_games_per_day: number;
   weekly_rate: number;
   weekly_minimum: number;
-  min_net_worth: number;
   bot_fill_seconds: number;
   speeds: Record<Speed, { turn: number; bank: number }>;
   ranks: Rank[];
@@ -653,7 +652,7 @@ export type LobbyResponse = {
 export type RulesResponse = { rules: MahjongRules; season: string };
 
 /** Why no paid game is open to the player right now. */
-export type LimitBlock = "net_worth" | "in_the_red" | "weekly_limit" | "daily_limit";
+export type LimitBlock = "in_the_red" | "weekly_limit" | "daily_limit";
 export type MahjongLimits = {
   blocked: LimitBlock | null;
   weekly_limit: number;
@@ -664,8 +663,6 @@ export type MahjongLimits = {
   win_room: number;
   games_today: number;
   games_per_day: number;
-  net_worth: number;
-  min_net_worth: number;
   credit: number;
   week_resets_at: string;
   day_resets_at: string;

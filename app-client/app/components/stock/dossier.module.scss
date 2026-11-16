@@ -206,6 +206,12 @@
   }
 }
 
+// The buyback badge's link, next to the ticker (buyback-spotlight).
+.supplyBadge {
+  display: inline-flex;
+  text-decoration: none;
+}
+
 // Sold out / buyback, next to the ticker.
 .supplyPill {
   @include num;
@@ -2032,6 +2038,13 @@
 .mBuy {
   background: var(--up);
   color: var(--up-ink, #04140c);
+
+  // Frozen for a buyback (buyback-spotlight).
+  &:disabled {
+    background: repeating-linear-gradient(-45deg, transparent 0 6px, color-mix(in srgb, var(--blue) 25%, transparent) 6px 8px), var(--ink-3);
+    color: var(--blue);
+    cursor: not-allowed;
+  }
 }
 
 .mSell {

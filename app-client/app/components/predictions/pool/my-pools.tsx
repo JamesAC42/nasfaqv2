@@ -18,15 +18,18 @@ const MARGIN_REASON: Record<string, string> = {
 };
 
 /** "My bets" for pools: stakes in pools still running, results, and margin. */
-export function MyPoolsSection() {
+export function MyPoolsSection({ onData }: { onData?: (data: MyPools) => void }) {
   const access = usePoolAccess();
   const [data, setData] = useState<MyPools | null>(null);
 
   const load = useCallback(() => {
     fetchMyPools()
-      .then(setData)
+      .then((result) => {
+        setData(result);
+        onData?.(result);
+      })
       .catch(() => {});
-  }, []);
+  }, [onData]);
   useEffect(() => {
     if (access.visible) load();
   }, [access.visible, load]);
@@ -53,7 +56,7 @@ export function MyPoolsSection() {
       ) : (
         <p className={styles.small}>
           {margin.available > 0
-            ? `Margin line: ${money(margin.line, 0)} (${Math.round(margin.line_share * 100)}% of your ${money(margin.share_value, 0)} in shares, up to ${money(margin.line_max, 0)}). A pool bet can borrow up to that once your Credit and Cash run out.`
+            ? `Margin line: ${money(margin.line, 0)} (${Math.round(margin.line_share * 100)}% of your ${money(margin.share_value, 0)} in shares, up to ${money(margin.line_max, 0)}). A pool bet can borrow up to that once your Credit runs out.`
             : (MARGIN_REASON[margin.reason ?? ""] ?? "No margin line right now.")}
         </p>
       )}

@@ -298,9 +298,13 @@ async function getOverview(pool) {
     ),
     count(
       pool,
-      `SELECT count(*) AS trades, COALESCE(sum(notional_cash), 0) AS volume_cash,
-              count(DISTINCT COALESCE(taker_user_id, buy_user_id)) AS traders
-       FROM market.prediction_market_trades WHERE matched_at > now() - interval '24 hours'`
+      `SELECT count(*) AS trades, COALESCE(sum(cash), 0) AS volume_cash, count(DISTINCT user_id) AS traders
+       FROM (
+         SELECT notional_cash AS cash, COALESCE(taker_user_id, buy_user_id) AS user_id
+         FROM market.prediction_market_trades WHERE matched_at > now() - interval '24 hours'
+         UNION ALL
+         SELECT amount, user_id FROM market.prediction_pool_bets WHERE created_at > now() - interval '24 hours'
+       ) bets`
     ),
     count(
       pool,

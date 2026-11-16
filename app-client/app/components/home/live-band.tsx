@@ -32,7 +32,7 @@ type Latest =
   | { kind: "trade"; at: string; username: string; side: string; quantity: number; symbol: string }
   | { kind: "blackjack"; at: string; username: string; outcome: string; net: number; table: string }
   | { kind: "card"; at: string; username: string; rarity: string; name: string; symbol: string }
-  | { kind: "prediction"; at: string; username: string; side: string; outcome: string; cash: number; title: string; slug: string };
+  | { kind: "prediction"; at: string; username: string; side: string; outcome: string; cash: number; title: string; slug: string; pricing?: "lmsr" | "pool" };
 
 type Activity = { window_hours: number; totals: Totals; latest: Latest[] };
 
@@ -62,7 +62,7 @@ function line(item: Latest): { tag: string; href: string; text: string } {
     case "prediction":
       return {
         tag: "Prediction",
-        href: `/predictions/${encodeURIComponent(item.slug)}`,
+        href: item.pricing === "pool" ? `/predictions/pools/${encodeURIComponent(item.slug)}` : `/predictions/${encodeURIComponent(item.slug)}`,
         text: `${item.side === "sell" ? "sold" : "bet"} ${money(item.cash)} ${item.side === "sell" ? "of" : "on"} ${item.outcome} · ${item.title}`,
       };
   }

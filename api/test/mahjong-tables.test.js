@@ -48,8 +48,8 @@ test("mahjong money goes through the games wallet as its own entry types, and th
 });
 
 test("the weekly cap: room for the fee on the way down and for first prize on the way up", () => {
-  const settings = { ...SETTINGS, weeklyMinimum: 10000, weeklyRate: 0.05, minNetWorth: 50000, paidGamesPerDay: 6 };
-  const base = { credit: 90000, netWorth: 120000, weekNet: 0, openFees: 0, openMaxNet: 0, gamesToday: 0 };
+  const settings = { ...SETTINGS, weeklyMinimum: 10000, weeklyRate: 0.05, paidGamesPerDay: 6 };
+  const base = { credit: 90000, weekNet: 0, openFees: 0, openMaxNet: 0, gamesToday: 0 };
   const fresh = limits.planLimits(base, settings);
   assert.equal(fresh.blocked, null);
   assert.equal(fresh.weekly_limit, 10000, "5% of $90,000 is under the $10,000 minimum");
@@ -75,10 +75,9 @@ test("the weekly cap: room for the fee on the way down and for first prize on th
   assert.equal(limits.planLimits({ ...base, weekNet: 10000 }, settings).blocked, "weekly_limit");
   assert.equal(limits.planLimits({ ...base, weekNet: -10000 }, settings).blocked, "weekly_limit");
 
-  const floor = limits.planLimits({ ...base, netWorth: 49999 }, settings);
-  assert.equal(floor.blocked, "net_worth");
-  assert.throws(() => limits.assertCanEnter(floor, { fee: 200, topNet: 200 }), { code: "net_worth_floor", limit: 50000 });
-  assert.equal(limits.planLimits({ ...base, credit: -5 }, settings).blocked, "in_the_red");
+  const red = limits.planLimits({ ...base, credit: -5 }, settings);
+  assert.equal(red.blocked, "in_the_red");
+  assert.throws(() => limits.assertCanEnter(red, { fee: 200, topNet: 200 }), { code: "in_the_red" });
   const day = limits.planLimits({ ...base, gamesToday: 6 }, settings);
   assert.throws(() => limits.assertCanEnter(day, { fee: 200, topNet: 200 }), { code: "mahjong_daily_limit", limit: 6 });
 });
@@ -351,8 +350,8 @@ test("mahjong tables and money, end to end", { skip: !databaseUrl, timeout: 600_
     const players = [];
     for (const name of ["stk_1", "stk_2", "stk_3", "stk_4"]) players.push(await user(name));
     // Who can't sit down.
-    const poor = await user("poor", { cash: 100, credit: 30000 });
-    await assert.rejects(tables.createTable({ userId: poor, kind: "stakes", tier: fee }), { code: "net_worth_floor" });
+    const inRed = await user("stk_red", { cash: 90000, credit: -50 });
+    await assert.rejects(tables.createTable({ userId: inRed, kind: "stakes", tier: fee }), { code: "in_the_red" });
     const fresh = await user("fresh", { ageDays: 0 });
     await assert.rejects(tables.createTable({ userId: fresh, kind: "stakes", tier: fee }), { code: "mahjong_account_too_new" });
     const broke = await user("broke", { cash: 90000, credit: 500 });

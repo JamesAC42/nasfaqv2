@@ -37,7 +37,6 @@ export function stakesBlock(limits: MahjongLimits | null, tier: StakeTier, signe
   if (!signedIn) return "Sign in to sit at a paid table.";
   if (!verified) return "Verify your email to sit with other players.";
   if (!limits) return null;
-  if (limits.blocked === "net_worth") return `Paid tables are closed while your net worth is under ${money(limits.min_net_worth)}. You’re at ${money(limits.net_worth)}. Build it back on the market and they reopen.`;
   if (limits.blocked === "in_the_red") return "You’re in the red on margin. Winnings and other Credit pay it back; until then you can’t spend Credit.";
   if (limits.blocked === "weekly_limit") return "You’ve hit this week’s mahjong limit. Paid tables reopen Saturday at midnight ET.";
   if (limits.blocked === "daily_limit") return `That’s your ${limits.games_per_day} paid games for today. More at midnight ET.`;

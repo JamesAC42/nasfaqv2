@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Script from "next/script";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { apiErrorCode, apiFetch } from "@/app/lib/api";
 import { keptRefs, rewardText, type ReferralSettings } from "@/app/lib/referrals";
+import { isLinkV1Path, isLocalPath, withNext } from "@/app/lib/return-path.mjs";
 import { signedPct, toneOf } from "@/app/lib/time";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMarketStore } from "@/app/stores/market-store";
@@ -48,12 +49,19 @@ const ERROR_MESSAGES: Record<string, string> = {
 
 export type AuthMode = "login" | "register" | "forgot" | "reset";
 
-const isLocalPath = (path: string) => path.startsWith("/") && !path.startsWith("//") && !/^\/(login|register|forgot-password|reset-password)/.test(path);
+/** ?next= from the address, when it's somewhere on this site. */
+function askedNext() {
+  const next = new URLSearchParams(window.location.search).get("next");
+  return isLocalPath(next) ? next : null;
+}
+
+const subscribeToNothing = () => () => {};
+const noNext = () => null;
 
 /** Where to go after signing in: ?next=, else the last page you were on, else the profile. */
 function nextPath() {
-  const next = new URLSearchParams(window.location.search).get("next") || "";
-  if (isLocalPath(next)) return next;
+  const next = askedNext();
+  if (next) return next;
   let last = "";
   try {
     last = window.sessionStorage.getItem("nasfaq.returnTo") || "";
@@ -106,6 +114,10 @@ export function AuthForm({ mode, token = "" }: { mode: AuthMode; token?: string 
   const turnstileWidget = useRef("");
   // Whose referral link brought this visitor here, if any (lib/referrals.ts).
   const [invite, setInvite] = useState<{ username: string; reward: ReferralSettings } | null>(null);
+  // ?next=, read after hydration (the server doesn't know the address). Kept on the links between
+  // sign-in and sign-up, and a new account goes there instead of its profile.
+  const next = useSyncExternalStore(subscribeToNothing, askedNext, noNext);
+  const linkingV1 = isLinkV1Path(next);
 
   useEffect(() => {
     if (mode !== "register") return;
@@ -218,7 +230,7 @@ export function AuthForm({ mode, token = "" }: { mode: AuthMode; token?: string 
     try {
       if (mode === "login") await login(username.trim(), password, turnstileToken);
       else await register(username.trim(), email.trim(), password, ogey, turnstileToken);
-      router.push(mode === "register" ? "/profile" : nextPath());
+      router.push(mode === "register" ? (askedNext() ?? "/profile") : nextPath());
     } catch {
       resetTurnstile();
     }
@@ -307,10 +319,10 @@ export function AuthForm({ mode, token = "" }: { mode: AuthMode; token?: string 
       <div className={styles.page}>
         <section className={styles.card}>
           <nav className={styles.tabs} aria-label="Account">
-            <Link href="/login" aria-current={mode === "login" ? "page" : undefined}>
+            <Link href={withNext("/login", next)} aria-current={mode === "login" ? "page" : undefined}>
               SIGN IN
             </Link>
-            <Link href="/register" aria-current={mode === "register" ? "page" : undefined}>
+            <Link href={withNext("/register", next)} aria-current={mode === "register" ? "page" : undefined}>
               MAKE AN ACCOUNT
             </Link>
           </nav>
@@ -350,6 +362,16 @@ export function AuthForm({ mode, token = "" }: { mode: AuthMode; token?: string 
               <>
                 <h1>{HEADINGS[mode]}</h1>
                 <p className={styles.lede}>{LEDES[mode]}</p>
+                {linkingV1 && usesStore && !user ? (
+                  <p className={styles.info} data-testid="link-v1-note">
+                    <span>
+                      <b>Linking your v1 account?</b>{" "}
+                      {mode === "register"
+                        ? "This makes your account here on holo.nasfaq.biz, the new game. It’s a new account, separate from your old one. As soon as it’s made, we’ll take you back to finish linking on nasfaq.biz."
+                        : "Sign in to your account here on holo.nasfaq.biz, the new game, not your old nasfaq.biz one. Then we’ll take you back to finish linking."}
+                    </span>
+                  </p>
+                ) : null}
                 {mode === "register" && invite && !user ? (
                   <p className={styles.info}>
                     <span>
@@ -361,7 +383,7 @@ export function AuthForm({ mode, token = "" }: { mode: AuthMode; token?: string 
                 {user && usesStore ? (
                   <div className={styles.info}>
                     <span>
-                      Already signed in as <b>{user.username}</b>. <Link href="/profile">Go to your profile →</Link>
+                      Already signed in as <b>{user.username}</b>. {linkingV1 && next ? <Link href={next}>Back to linking your v1 account →</Link> : <Link href="/profile">Go to your profile →</Link>}
                     </span>
                     {!user.email_verified ? (
                       <span className={styles.infoRow}>
@@ -388,11 +410,11 @@ export function AuthForm({ mode, token = "" }: { mode: AuthMode; token?: string 
             <p className={styles.switch} hidden={done}>
               {mode === "login" ? (
                 <>
-                  New here? <Link href="/register">Make an account</Link>.
+                  New here? <Link href={withNext("/register", next)}>Make an account</Link>.
                 </>
               ) : mode === "register" ? (
                 <>
-                  Already have one? <Link href="/login">Sign in</Link>.
+                  Already have one? <Link href={withNext("/login", next)}>Sign in</Link>.
                 </>
               ) : (
                 <>

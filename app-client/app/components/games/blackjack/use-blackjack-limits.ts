@@ -28,9 +28,6 @@ export function useBlackjackLimits(signedIn: boolean) {
 
 /** Why the player can't bet right now, in a sentence, or null when they can. */
 export function blockedText(limits: BlackjackLimits): string | null {
-  if (limits.blocked === "net_worth") {
-    return `Blackjack is closed while your net worth is under ${fmtNumber(limits.min_net_worth, "$")}. You're at ${fmtNumber(limits.net_worth, "$")}. Build it back on the market and the tables reopen.`;
-  }
   if (limits.blocked === "weekly_limit") return "You've hit this week's blackjack limit. The tables reopen Saturday at midnight ET.";
   if (limits.blocked === "daily_limit") return `That's your ${limits.hands_per_day} hands for today. More at midnight ET.`;
   return null;

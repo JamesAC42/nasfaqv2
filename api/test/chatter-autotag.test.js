@@ -14,12 +14,16 @@ test("names, nicknames and Japanese names all find the talent, once per mention"
   assert.equal(matcher.match("Usada Pekora").get("PEK").count, 1);
   assert.deepEqual(symbolsOf(matcher.match("ぺこらとみこちのコラボ")), ["MIK", "PEK"]);
   assert.deepEqual(symbolsOf(matcher.match("FuwaMoco 3D when")), ["BYS"]);
+  assert.deepEqual(symbolsOf(matcher.match("Hyakuto Kyoko, Achichi Mela, Sopia and Tsuzuri debut")), ["KYO", "MEL", "SOP", "TSU"]);
+  assert.deepEqual(symbolsOf(matcher.match("百灯キョーコと熱千めらと宙科そぴあと鈴鳴つづり")), ["KYO", "MEL", "SOP", "TSU"]);
 });
 
 test("everyday words only count when written as a name", () => {
   assert.deepEqual(symbolsOf(matcher.match("the marine corps, a mori, ao means blue")), []);
   assert.deepEqual(symbolsOf(matcher.match("Marine and Ao streamed")), ["HIO", "MAR"]);
   assert.equal(matcher.match("Ao").get("HIO").strong, false);
+  assert.deepEqual(symbolsOf(matcher.match("kyoko means today, a mela is a fair")), []);
+  assert.equal(matcher.match("Kyoko").get("KYO").strong, false);
 });
 
 test("threads: hololive generals and talent threads count, other agencies don't", () => {

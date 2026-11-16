@@ -4,6 +4,7 @@ import { ChatButton } from "@/app/components/chat/chat-button";
 import { ExchangeAlerts } from "@/app/components/games/exchange/exchange-alerts";
 import { OrderAllowanceMeter } from "@/app/components/trade/order-allowance";
 import { SiteStatusBar } from "@/app/components/common/site-status-bar";
+import { BuybackHeadsUp } from "@/app/components/common/buyback-heads-up";
 import { BugReportButton } from "@/app/components/common/bug-report";
 import { ReactionFace, parseReaction } from "@/app/components/common/reaction-face";
 import Link from "next/link";
@@ -518,6 +519,7 @@ export function SiteShell({
       </header>
 
       <SiteStatusBar />
+      <BuybackHeadsUp />
       <main className={[styles.main, fullBleed ? styles.mainFullBleed : ""].filter(Boolean).join(" ")}>{children}</main>
       <ExchangeAlerts signedIn={Boolean(user)} />
 

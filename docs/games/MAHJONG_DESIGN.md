@@ -186,8 +186,8 @@ Open hands lose one han where marked (−1), and can't use the ones marked close
 This section is what applies when trial mode (section 6) is off. While it is on, none of it runs: no
 fee is taken, no prize paid and none of these limits is checked.
 
-The rules every side mode follows (`docs/market/credit.md`, `services/sideModeFloor.js`) apply as
-they are: Credit only, never Cash; no spending under the net worth floor; no spending in the red.
+The rules every side mode follows (`docs/market/credit.md`) apply as they are: Credit only, never
+Cash; no spending in the red.
 Mahjong adds a table of four, where two players can agree to lose to each other, so:
 
 - **Only entry fees and fixed prizes.** Points are never worth money. A stakes table pays by placing:

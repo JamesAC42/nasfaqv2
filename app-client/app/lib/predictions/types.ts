@@ -119,6 +119,7 @@ export type PredictionMarketDetail = PredictionMarket & {
 
 export type Trade = {
   id: number;
+  pricing?: "lmsr" | "pool";
   market_id: number;
   slug: string;
   market_title: string;
@@ -230,6 +231,8 @@ export type AdminMarket = PredictionMarket & {
 export type AutoTemplate = { key: string; enabled: boolean; params: Record<string, number>; last_run_at: string | null; last_result: Record<string, unknown> };
 
 export type AdminOverview = {
+  /** Open auto pools by template. The console's own lists are the market maker's. */
+  pools_live_by_template?: Record<string, number>;
   queue: AdminMarket[];
   needs_call: AdminMarket[];
   proposals: AdminMarket[];

@@ -945,8 +945,8 @@ export function ActivityTab({ initialSymbol = "" }: { initialSymbol?: string }) 
       <Boards />
       <Heartbeat />
       <p className={ui.foot}>
-        Orders fill in 10-minute batches. Queued orders show as pressure on each stock until the batch executes them. Every fill nudges the price, and part of that push fades over the
-        next hour.
+        Orders fill in 10-minute batches. Queued orders show as pressure on each stock until the batch executes them. Every fill nudges the price, and the push stays until the next tick
+        pulls the price back toward its target.
       </p>
     </>
   );

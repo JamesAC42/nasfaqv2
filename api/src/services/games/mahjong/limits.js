@@ -1,5 +1,5 @@
 // What a player may pay to play mahjong (docs/games/MAHJONG_DESIGN.md §5). On top of what every side
-// mode checks when it spends (Credit only, the net worth floor, nothing while in the red):
+// mode checks when it spends (Credit only, nothing while in the red):
 //
 // - A weekly cap, up or down, the same size as blackjack's and separate from it: the week's result
 //   from mahjong stays within what the player's Credit turns into Cash at a review (5% of it or
@@ -32,14 +32,13 @@ const weeklyLimitFor = (credit, settings = SETTINGS) => Math.max(settings.weekly
  * `weekNet` is this week's settled result; `openFees` and `openMaxNet` are what unsettled entries
  * have paid and could still win. `blocked` says why no paid game is open to them, else null.
  */
-function planLimits({ credit, netWorth, weekNet, openFees, openMaxNet, gamesToday }, settings = SETTINGS) {
+function planLimits({ credit, weekNet, openFees, openMaxNet, gamesToday }, settings = SETTINGS) {
   const weeklyLimit = weeklyLimitFor(credit, settings);
   const net = round2(weekNet);
   const lossRoom = round2(weeklyLimit + net - openFees);
   const winRoom = round2(weeklyLimit - net - openMaxNet);
   let blocked = null;
-  if (Number(netWorth) < settings.minNetWorth) blocked = "net_worth";
-  else if (Number(credit) < 0) blocked = "in_the_red";
+  if (Number(credit) < 0) blocked = "in_the_red";
   else if (lossRoom <= 0 || winRoom <= 0) blocked = "weekly_limit";
   else if (gamesToday >= settings.paidGamesPerDay) blocked = "daily_limit";
   return {
@@ -51,15 +50,12 @@ function planLimits({ credit, netWorth, weekNet, openFees, openMaxNet, gamesToda
     win_room: winRoom,
     games_today: gamesToday,
     games_per_day: settings.paidGamesPerDay,
-    net_worth: round2(netWorth),
-    min_net_worth: settings.minNetWorth,
     credit: round2(credit),
   };
 }
 
 /** Throws why this entry can't be paid, if it can't. `topNet` is first prize less the fee. */
 function assertCanEnter(plan, { fee, topNet }) {
-  if (plan.blocked === "net_worth") throw limitError("net_worth_floor", { limit: plan.min_net_worth });
   if (plan.blocked === "in_the_red") throw limitError("in_the_red", { owed: -plan.credit });
   if (plan.blocked === "daily_limit") throw limitError("mahjong_daily_limit", { limit: plan.games_per_day });
   if (plan.blocked === "weekly_limit" || fee > plan.loss_room || topNet > plan.win_room) {
@@ -101,7 +97,6 @@ async function readPlan(db, userId, settings = SETTINGS) {
   const plan = planLimits(
     {
       credit: worth.credit_balance,
-      netWorth: worth.total_equity,
       weekNet: Number(rows[0].week_net),
       openFees: Number(rows[0].open_fees),
       openMaxNet: Number(rows[0].open_max_net),

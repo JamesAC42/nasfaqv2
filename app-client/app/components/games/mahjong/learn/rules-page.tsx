@@ -434,7 +434,7 @@ export function RulesPage() {
       {!trial ? (
       <Section id="money" title="Money">
         <p>
-          Mahjong follows the rules every side game does: <b>Credit only, never Cash</b>; no spending while your net worth is under {rules ? dollars(rules.min_net_worth) : dash}; no spending while you’re in the red. A table of four
+          Mahjong follows the rules every side game does: <b>Credit only, never Cash</b>, and no spending while you’re in the red. A table of four
           adds one more problem, two players agreeing to lose to each other, so these rules are tighter:
         </p>
         <ul>

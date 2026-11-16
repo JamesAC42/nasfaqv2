@@ -4,10 +4,13 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { StockChip } from "@/app/components/common/stock-chip";
-import { GAMES, type SectionId } from "@/app/components/how-to-play/content";
+import { GAMES, IPO_ROOKIE_DAYS, SHARES_PER_WINDOW, TRADE_FEE, type SectionId } from "@/app/components/how-to-play/content";
 import { useVisibleSections } from "@/app/components/how-to-play/visible-sections";
 import { ChanceDemo, ChibiTag, PullDiagram, RarityFan, TalentStrip, TicketDemo, TickTimeline, useBusiestTalents } from "@/app/components/how-to-play/demos";
 import { TickKoma } from "@/app/components/how-to-play/tick-koma";
+import { BuybackDemo } from "@/app/components/how-to-play/buyback-demo";
+import { BuybackMark } from "@/app/components/common/buyback-badge";
+import { useBuybackSpotlight } from "@/app/lib/buyback";
 import { GamesDiagram, MarketDiagram, PredictionsDiagram, TradingDiagram } from "@/app/components/how-to-play/diagrams";
 import styles from "@/app/components/how-to-play/how-to-play.module.scss";
 import { Term } from "@/app/components/common/tip";
@@ -138,7 +141,7 @@ export function MarketSection() {
           {
             k: "live",
             title: "Price",
-            body: "Every buy pushes the price up and every sell pushes it down. Most of that push fades within hours; a little of it sticks around for days.",
+            body: "Every buy pushes the price up and every sell pushes it down, and the push stays put. The four daily ticks pull the price back toward its target, about half the gap each on average, and a little of the push carries into the next days.",
           },
           {
             k: "supply",
@@ -273,6 +276,7 @@ export function TicksSection() {
 export function WeeklySection() {
   const oshiProtection = useFeature("oshi-protection");
   const dividendSpotlight = useFeature("dividend-spotlight");
+  const buybackSpotlight = useBuybackSpotlight();
   return (
     <Section
       id="weekly"
@@ -315,13 +319,110 @@ export function WeeklySection() {
           { k: "dividends", title: "Good weeks pay", body: "A channel whose numbers grew faster than the rest of the market this week pays you per share. It's a race against every other channel, every week." },
           { k: "share fees", title: "Bad weeks cost", body: "A channel that slipped against the rest charges holders per share. Holding a stock through a dead week costs you." },
           { k: "max shares", title: "Supply resets", body: "Max shares reset from subscriber count: bigger channels, more shares. A stock can go from plenty for sale to sold out overnight." },
-          {
-            k: "buyback",
-            title: "Too many shares",
-            body: "If max shares drop below what players hold, the stock freezes: no buys, no ticks. The broker buys at 120% of the frozen price, 10 points less each day.",
-          },
-          { k: "forced", title: "Or else", body: "Whatever's still over at the next Saturday, the broker takes from every holder in proportion, at the base rate." },
+          // With buyback-spotlight these two become the walkthrough below.
+          ...(buybackSpotlight
+            ? []
+            : [
+                {
+                  k: "buyback",
+                  title: "Too many shares",
+                  body: "If max shares drop below what players hold, the stock freezes: no buys, no ticks. The broker buys at 120% of the frozen price, 10 points less each day.",
+                },
+                { k: "forced", title: "Or else", body: "Whatever's still over at the next Saturday, the broker takes from every holder in proportion, at the base rate." },
+              ]),
           { k: "the review", title: "Dividend Review", body: "Every payout, fee, max-share change and buyback, stock by stock, plus your own week, on the Market page." },
+        ]}
+      />
+      {buybackSpotlight ? (
+        <div id="buybacks" className={styles.buybacks}>
+          <SubHead>Buybacks: too many shares</SubHead>
+          <div className={styles.split}>
+            <BuybackDemo />
+            <Steps
+              items={[
+                {
+                  title: "Max shares drop below what players hold",
+                  body: "Saturday’s new max shares come from subscriber counts. If players already hold more than that, the stock freezes: nobody can buy, and the ticks skip it until it ends.",
+                },
+                {
+                  title: "The broker buys the extra shares back",
+                  body: "It pays 120% of the frozen price on the first day, then 10 points less each day (never under 50%). Only the shares over the max get the offer, first come first served; sells past them get the frozen price.",
+                },
+                {
+                  title: "Holders sell it back, or Saturday does",
+                  body: "Once enough is sold back, the stock reopens at the next Open (09:00). Whatever is still over at the next Saturday’s evaluation, the broker takes from every holder in proportion, at the base rate.",
+                },
+              ]}
+            />
+          </div>
+          <p className={styles.buybackWhere}>
+            <b>Holding one? Selling early pays best.</b> Every frozen stock wears the <BuybackMark pct={1.2} size="xs" /> badge with today’s offer, Home lists them under Buybacks now, and if
+            you hold one, a bar at the top of the page tells you the offer.
+          </p>
+        </div>
+      ) : null}
+    </Section>
+  );
+}
+
+// ── IPOs ────────────────────────────────────────────────────────────────────
+
+export function IpoSection() {
+  const fee = `${Math.round(TRADE_FEE * 100)}%`;
+  return (
+    <Section
+      id="ipo"
+      title="New talents: the IPO"
+      lede={
+        <>
+          <p>
+            A new talent doesn’t start trading the day she debuts. We track her channel first, then open an <Term k="ipo">IPO</Term>: a window to subscribe for her shares at the{" "}
+            <b>IPO price</b>, set below her fair value, before anyone can trade her.
+          </p>
+          <p>The IPO page shows each talent’s channel numbers, the IPO price, the discount, how many shares are on offer, the most one player can ask for, and how many have been asked for so far.</p>
+        </>
+      }
+      links={[{ href: "/market/ipo", label: "The IPO page" }]}
+    >
+      <Steps
+        items={[
+          {
+            title: "Subscribe",
+            body: "Pick how many shares of each talent you want. The full cost, shares × IPO price, is held from your Cash right away. Change the amount or withdraw any time until the window closes; the difference comes back at once.",
+          },
+          {
+            title: "The window closes, shares are handed out",
+            body: "If everything asked for fits, everyone gets what they asked for. If not, each player gets a share in proportion to their request, rounded down, and at least 1; the leftovers go to the largest remainders.",
+          },
+          {
+            title: "Listing",
+            body: "At the 09:00 ET settlement on listing day, your shares land at the IPO price and the cash for any you didn’t get comes back. The stock opens at its IPO price and trades like any other from the first batch after.",
+          },
+        ]}
+      />
+      <Rules
+        cols={4}
+        items={[
+          {
+            k: "cash only",
+            title: "Paid from Cash",
+            body: "Credit can’t pay for IPO shares, and there’s no fee. Each player can ask for only part of each talent’s offering; the IPO page shows the limit.",
+          },
+          {
+            k: "after listing",
+            title: "No sure thing",
+            body: `The ticks pull the price toward fair value, which is repriced every morning, so it can fall below the IPO price. Buying after listing costs the ask plus the ${fee} fee.`,
+          },
+          {
+            k: `${IPO_ROOKIE_DAYS} days`,
+            title: "Rookies",
+            body: "A new listing pays no dividend and charges no share fee at its first four Saturday reviews, and its max shares never drop below what players hold.",
+          },
+          {
+            k: `${SHARES_PER_WINDOW} sh`,
+            title: "Share limit",
+            body: `Shares you get in an IPO don’t count toward your ${SHARES_PER_WINDOW} per tick window. Trading them afterwards does.`,
+          },
         ]}
       />
     </Section>
@@ -340,7 +441,7 @@ export function GamesSection() {
       lede={
         <>
           <p>
-            Every game spends <Term k="credit">Credit</Term> and never your cash. Games, bets and buying cards close while your net worth is under $50,000; free cards and selling your cards stay open. Winnings come back as Credit; refunds go back where they came
+            Every game spends <Term k="credit">Credit</Term> and never your cash, so a pull, an entry or a bet needs enough Credit to cover it. Winnings come back as Credit; refunds go back where they came
             from. The server rolls every result, rates are posted on each game, and multiplayer stakes sit in escrow until the hand is done.
           </p>
           <p>Open tables can be watched by anyone, even signed out. Hidden picks stay hidden until the reveal.</p>
@@ -507,7 +608,7 @@ export function MahjongSection() {
             k: "Credit only",
             title: "What it can cost",
             body: rules
-              ? `Stakes tables pay by finishing place, and a paid table or tournament needs a net worth of at least $${fmtInteger(rules.min_net_worth)}. Your net result from mahjong over a week stays within ${percent} of your Credit or $${fmtInteger(rules.weekly_minimum)}, whichever is more, and you can start ${rules.paid_games_per_day} paid games a day. It’s a budget of its own, separate from blackjack’s.`
+              ? `Stakes tables pay by finishing place. Your net result from mahjong over a week stays within ${percent} of your Credit or $${fmtInteger(rules.weekly_minimum)}, whichever is more, and you can start ${rules.paid_games_per_day} paid games a day. It’s a budget of its own, separate from blackjack’s.`
               : "Stakes tables pay by finishing place. Your net result from mahjong over a week stays within a limit tied to your Credit, and there’s a cap on paid games a day. It’s a budget of its own, separate from blackjack’s.",
           },
           {

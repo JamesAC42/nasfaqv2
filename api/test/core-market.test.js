@@ -63,6 +63,18 @@ test("a buyback pays the offer only on shares still over the max", () => {
   assert.equal(supply.buybackFillPrice({ circulating_supply: 990, max_supply: 1000 }, buyback, 10, at), 10); // back under: frozen price
 });
 
+test("a buyback's public view carries its whole schedule and the shares still over", () => {
+  const buyback = { frozen_price: 10, started_at: "2026-09-26T04:00:00Z", target_max_supply: 1000, shares_bought: 30 };
+  const asset = { circulating_supply: 1050, max_supply: 1000, treasury_supply: 0, trading_state: "buyback" };
+  const view = supply.supplyView(asset, buyback, new Date("2026-09-27T10:00:00Z")).buyback; // day 1
+  assert.equal(view.start, supply.BUYBACK_START);
+  assert.equal(view.daily_step, supply.BUYBACK_DAILY_STEP);
+  assert.equal(view.floor, supply.BUYBACK_FLOOR);
+  assert.ok(Math.abs(view.multiplier - 1.1) < 1e-12);
+  assert.equal(view.next_step_at.toISOString(), "2026-09-28T04:00:00.000Z");
+  assert.equal(view.shares_over, 50);
+});
+
 test("an evaluation starts at midnight New York time in both EDT and EST", () => {
   assert.equal(weekly.evaluationStartsAt("2026-09-26").toISOString(), "2026-09-26T04:00:00.000Z");
   assert.equal(weekly.evaluationStartsAt("2026-12-05").toISOString(), "2026-12-05T05:00:00.000Z");
