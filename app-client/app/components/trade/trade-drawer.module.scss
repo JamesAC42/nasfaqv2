@@ -192,16 +192,20 @@
   }
 }
 
+// The share box with a −/+ either side of the number.
 .qty {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
+  grid-template-columns: auto 2.75rem minmax(0, 1fr) 2.75rem;
+  align-items: stretch;
   border: 1px solid var(--rule-2);
   background: var(--ink-2);
+  // Brought to the top when a phone's keyboard opens, with BUY/SELL (or the top bar) still showing.
+  scroll-margin-top: calc(var(--rail-height, 3rem) + 0.75rem);
 
-  span {
+  > label {
     @include label;
-    padding-left: 0.75rem;
+    align-self: center;
+    padding: 0 0.5rem 0 0.75rem;
   }
 
   input {
@@ -226,27 +230,106 @@
   }
 }
 
+.step {
+  display: grid;
+  place-items: center;
+  min-height: 2.75rem;
+  border: 0;
+  border-left: 1px solid var(--rule);
+  background: none;
+  color: var(--mid);
+  font-size: 0.8rem;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+
+  // The − sits between the label and the number.
+  .qty > label + & {
+    border-right: 1px solid var(--rule);
+  }
+
+  &:hover:not(:disabled) {
+    color: var(--text);
+    background: var(--ink-3);
+  }
+
+  &:active:not(:disabled) {
+    background: var(--ink-3);
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+}
+
+// Share buttons set the count to their number; MAX (ALL on a full sell) is wider and says how many.
 .presets {
   display: flex;
   gap: 0.3rem;
 
   button {
     flex: 1;
+    min-width: 0;
+    min-height: 2.25rem;
     border: 1px solid var(--rule-2);
     background: none;
     padding: 0.35rem 0;
     @include num;
     font-size: 0.6875rem;
     color: var(--mid);
+    touch-action: manipulation;
+
+    @include phone {
+      min-height: 2.75rem;
+      font-size: 0.75rem;
+    }
 
     &:hover:not(:disabled) {
       color: var(--text);
       border-color: var(--text);
     }
 
+    &[aria-pressed="true"] {
+      color: var(--text);
+      border-color: var(--text);
+      background: var(--ink-3);
+    }
+
     &:disabled {
       opacity: 0.4;
       cursor: not-allowed;
+    }
+  }
+
+  .max {
+    flex: 1.6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.05rem;
+    padding: 0.2rem 0.25rem;
+    border-color: var(--blue);
+    color: var(--blue);
+    line-height: 1.1;
+
+    b {
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    small {
+      font-size: 0.625rem;
+      opacity: 0.85;
+    }
+
+    &:hover:not(:disabled),
+    &[aria-pressed="true"] {
+      color: var(--text);
+      border-color: var(--blue);
+      background: color-mix(in srgb, var(--blue) 14%, transparent);
     }
   }
 }

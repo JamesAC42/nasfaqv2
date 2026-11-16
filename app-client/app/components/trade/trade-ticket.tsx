@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { OrderAllowanceMeter } from "@/app/components/trade/order-allowance";
 import { ArtSlot } from "@/app/components/common/art-slot";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { FaMinus, FaPlus } from "react-icons/fa6";
 import { userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { apiFetch } from "@/app/lib/api";
 import { formatEtTime, getMarketClock, ORDER_BATCH_MS } from "@/app/lib/market-clock";
 import { money } from "@/app/lib/time";
 import { buildTradeConfirmation, getTradeFailureNotice, type TradeConfirmation, type TradeExecutionResult, type TradeFailureNotice, type TradeSide } from "@/app/lib/trade";
-import { BIG_ORDER_SLIP, FEE_RATE, fillPrice, maxBuyShares, maxSellShares, orderTotals, slippageFraction } from "@/app/lib/trade-estimate.mjs";
+import { BIG_ORDER_SLIP, FEE_RATE, fillPrice, maxBuyShares, maxSellShares, orderTotals, slippageFraction, stepShares } from "@/app/lib/trade-estimate.mjs";
 import type { MarketAsset } from "@/app/lib/types";
 import { useNowEvery } from "@/app/lib/use-now";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -114,6 +115,49 @@ function SupplyNote({ asset, side, qty }: { asset: MarketAsset; side: TradeSide;
   );
 }
 
+/**
+ * A − or + beside the share box: a tap (or Enter/Space) steps once; held down it keeps stepping,
+ * faster as it goes, until let go.
+ */
+function ShareStep({ label, disabled, onStep, children }: { label: string; disabled: boolean; onStep: () => void; children: ReactNode }) {
+  const hold = useRef({ timer: 0, repeated: false });
+  // The newest onStep, so a hold that outlives a render still steps against the current max.
+  const latest = useRef(onStep);
+  useEffect(() => {
+    latest.current = onStep;
+  });
+  useEffect(() => {
+    const held = hold.current;
+    return () => window.clearTimeout(held.timer);
+  }, []);
+  const stop = () => window.clearTimeout(hold.current.timer);
+  const start = (event: ReactPointerEvent) => {
+    if (event.button !== 0) return;
+    stop();
+    hold.current.repeated = false;
+    const next = (wait: number) => {
+      hold.current.timer = window.setTimeout(() => {
+        hold.current.repeated = true;
+        latest.current();
+        next(wait > 100 ? 90 : Math.max(35, wait * 0.9));
+      }, wait);
+    };
+    next(400);
+    // A button that turns disabled at the max stops getting pointer events, so listen on the window.
+    window.addEventListener("pointerup", stop, { once: true });
+    window.addEventListener("pointercancel", stop, { once: true });
+  };
+  const click = () => {
+    if (hold.current.repeated) hold.current.repeated = false;
+    else onStep();
+  };
+  return (
+    <button type="button" className={styles.step} aria-label={label} disabled={disabled} onPointerDown={start} onPointerLeave={stop} onContextMenu={(event) => event.preventDefault()} onClick={click}>
+      {children}
+    </button>
+  );
+}
+
 export function n2(value: number | null | undefined) {
   return value === null || value === undefined || !Number.isFinite(value) ? "—" : value.toFixed(2);
 }
@@ -161,22 +205,34 @@ export function TradeTicket({
     setSide(startSide);
   }
   const [quantity, setQuantity] = useState("25");
-  const [lastPreset, setLastPreset] = useState<number | null>(null);
   const [doubts, setDoubts] = useState({ order: "", count: 0 });
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<TradeFailureNotice | null>(null);
   const [queued, setQueued] = useState<TradeConfirmation | null>(null);
   const qtyInput = useRef<HTMLInputElement | null>(null);
+  const qtyRow = useRef<HTMLDivElement | null>(null);
+  const qtyId = useId();
   const failureRef = useRef<HTMLDivElement | null>(null);
   const symbol = asset.symbol.toUpperCase();
 
   // Whatever floats over the page (the chat window) moves off the ticket as soon as it's there.
   useEffect(() => announceKeepClear(), []);
+  // Typing straight away suits a mouse and keyboard. On a touch screen focusing the box raises the
+  // keyboard over the ticket, so there it waits to be tapped.
   useEffect(() => {
-    if (!autoFocus) return;
+    if (!autoFocus || window.matchMedia?.("(pointer: coarse)").matches) return;
     const id = window.setTimeout(() => qtyInput.current?.focus(), 60);
     return () => window.clearTimeout(id);
   }, [autoFocus]);
+  // When a phone's keyboard does come up over the ticket on a page, bring the share box up so the
+  // estimate stays in view under it. (The drawer lifts itself above the keyboard and does the same.)
+  const revealTimer = useRef(0);
+  const revealQty = () => {
+    if (!window.matchMedia?.("(pointer: coarse)").matches || qtyRow.current?.closest("[role='dialog']")) return;
+    window.clearTimeout(revealTimer.current);
+    revealTimer.current = window.setTimeout(() => qtyRow.current?.scrollIntoView({ block: "start" }), 350);
+  };
+  useEffect(() => () => window.clearTimeout(revealTimer.current), []);
   // On a phone the submit button stays pinned, so what went wrong can be out of view above it.
   useEffect(() => {
     if (failure) failureRef.current?.scrollIntoView({ block: "center" });
@@ -215,18 +271,7 @@ export function TradeTicket({
   const canSell = (holding?.quantity ?? 0) > 0;
   const tooMuch = side === "buy" ? (portfolio ? total > portfolio.cash_balance : false) : qty > (holding?.quantity ?? 0);
 
-  // The share buttons stop at what's left this tick, so pressing 100 twice lands on the most you can queue.
   const room = allowance ? Math.max(0, Math.floor(allowance.remaining)) : Infinity;
-  const presetTarget = (value: number) => Math.min(lastPreset === value ? qty + value : value, room);
-  const preset = (value: number) => {
-    setQuantity(String(presetTarget(value)));
-    setLastPreset(value);
-  };
-  const presetLabel = (value: number) => {
-    if (lastPreset !== value) return value;
-    const step = presetTarget(value) - qty;
-    return step > 0 ? `+${step}` : "MAX";
-  };
   // MAX: the biggest order that goes through. A buy stops at the shares left this tick, the shares
   // for sale and what Cash covers at the slipped ask with the fee; a sale at what you hold that
   // queued sells haven't promised, within the shares left this tick (ALL when that's everything).
@@ -247,10 +292,12 @@ export function TradeTicket({
   const maxShares = side === "buy" ? maxBuy : canSell ? maxSell.shares : null;
   const maxLabel = side === "sell" && maxSell.all ? "ALL" : "MAX";
   const setMax = () => {
-    if (maxShares === null) return;
-    setQuantity(String(maxShares));
-    setLastPreset(null);
+    if (maxShares !== null) setQuantity(String(maxShares));
   };
+  // A share button sets the count to its number; one over what the order can take is off (MAX is
+  // the most). The −/+ buttons move one share within the same max.
+  const presetOver = (value: number) => maxShares !== null && value > maxShares;
+  const step = (delta: number) => setQuantity((current) => String(stepShares(Number(current) || 0, delta, maxShares)));
 
   // Changing the shares, side or stock makes it a new order, so the doubts start over.
   const towaBuy = side === "buy" && symbol === "TOW";
@@ -357,19 +404,27 @@ export function TradeTicket({
                 SELL
               </button>
             </div>
-            <label className={styles.qty}>
-              <span>SHARES</span>
-              <input ref={qtyInput} inputMode="numeric" value={quantity} onChange={(event) => setQuantity(event.target.value.replace(/[^\d]/g, "").slice(0, 6))} aria-label="Shares" />
-            </label>
+            <div ref={qtyRow} className={styles.qty} data-reveal>
+              <label htmlFor={qtyId}>SHARES</label>
+              <ShareStep label="One share fewer" disabled={qty <= 1} onStep={() => step(-1)}>
+                <FaMinus aria-hidden="true" />
+              </ShareStep>
+              <input id={qtyId} ref={qtyInput} inputMode="numeric" value={quantity} onChange={(event) => setQuantity(event.target.value.replace(/[^\d]/g, "").slice(0, 6))} onFocus={revealQty} aria-label="Shares" />
+              <ShareStep label="One share more" disabled={qty >= (maxShares ?? 999_999)} onStep={() => step(1)}>
+                <FaPlus aria-hidden="true" />
+              </ShareStep>
+            </div>
             <div className={styles.presets}>
               {PRESETS.map((value) => (
-                <button key={value} type="button" onClick={() => preset(value)}>
-                  {presetLabel(value)}
+                <button key={value} type="button" aria-pressed={qty === value} disabled={presetOver(value)} onClick={() => setQuantity(String(value))}>
+                  {value}
                 </button>
               ))}
               {maxShares !== null ? (
                 <button
                   type="button"
+                  className={styles.max}
+                  aria-pressed={qty === maxShares && maxShares > 0}
                   onClick={setMax}
                   disabled={maxShares < 1}
                   title={
@@ -378,7 +433,8 @@ export function TradeTicket({
                       : `The most this order can sell: ${maxShares.toLocaleString("en-US")} sh`
                   }
                 >
-                  {maxLabel}
+                  <b>{maxLabel}</b>
+                  <small>{maxShares.toLocaleString("en-US")}</small>
                 </button>
               ) : null}
             </div>
