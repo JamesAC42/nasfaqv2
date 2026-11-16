@@ -7,7 +7,9 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
+import { NetWorthBadge } from "@/app/components/common/net-worth-badge";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
+import { useNetWorth, type Worth } from "@/app/components/common/use-net-worth";
 import { RichText, type Emoji } from "@/app/components/common/rich-text";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { SiteShell } from "@/app/components/layout/site-shell";
@@ -20,7 +22,7 @@ import { buildRooms, GLOBAL_ROOM, messagePreview, postingBlockedReason, roomTag,
 import { holdChatSocket, onChatSocketEvent, retainChatRooms, useChatSocketStatus } from "@/app/lib/chat-socket";
 import { markSeries, unitName } from "@/app/lib/market-units";
 import { normalizeChatChannel, normalizeChatMessage } from "@/app/lib/normalizers";
-import { money, signedPct, timeAgo, toneOf } from "@/app/lib/time";
+import { signedPct, timeAgo, toneOf } from "@/app/lib/time";
 import type { AuthUser, ChatChannel, ChatMessage, MarketAsset } from "@/app/lib/types";
 import { useReadReceipts } from "@/app/lib/use-read-receipts";
 import { useStoredState } from "@/app/lib/use-stored-state";
@@ -31,7 +33,6 @@ import { useTradeStore } from "@/app/stores/trade-store";
 import styles from "@/app/components/chat/chat.module.scss";
 
 type Page = { channel?: Record<string, unknown>; messages: Array<Record<string, unknown>>; has_more: boolean; next_cursor: string | null; history_limited: boolean; visible_days: number | null; minimum_messages?: number | null };
-type Worth = { rank: number; total_equity: number };
 
 const PINS_KEY = "nasfaq.chat.pinned_channels";
 const GROUP_MS = 5 * 60_000;
@@ -101,7 +102,6 @@ export function ChatApp() {
   const [hasMore, setHasMore] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [history, setHistory] = useState<{ limited: boolean; days: number | null; minimum: number | null }>({ limited: false, days: null, minimum: null });
-  const [worth, setWorth] = useState<Record<number, Worth>>({});
   const socket = useChatSocketStatus();
   const [atBottom, setAtBottom] = useState(true);
   const [unseen, setUnseen] = useState(0);
@@ -223,55 +223,9 @@ export function ChatApp() {
     // reloads: a reconnect while this load was in flight asks for it again (see catchUp).
   }, [markRead, roomKey, reloads]);
 
-  // Net worth badges for anyone who posted.
-  useEffect(() => {
-    const missing = [...new Set(messages.map((message) => message.author?.id).filter((id): id is number => typeof id === "number" && id > 0 && !worth[id]))];
-    if (!missing.length) return;
-    let cancelled = false;
-    apiFetch<{ entries: Array<Record<string, unknown>> }>(`/api/leaderboard/net-worth?user_ids=${missing.join(",")}`)
-      .then((raw) => {
-        if (cancelled) return;
-        setWorth((current) => {
-          const next = { ...current };
-          for (const entry of raw.entries || []) {
-            const id = Number(entry.user_id || 0);
-            if (id) next[id] = { rank: Number(entry.rank || 0), total_equity: Number(entry.total_equity || 0) };
-          }
-          for (const id of missing) if (!next[id]) next[id] = { rank: 0, total_equity: 0 };
-          return next;
-        });
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [messages, worth]);
-
-  // Ranks and net worth move all day: refresh the badges we've shown every few minutes.
-  const worthIds = useRef<number[]>([]);
-  useEffect(() => {
-    worthIds.current = Object.keys(worth).map(Number);
-  }, [worth]);
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      if (document.hidden) return;
-      const ids = worthIds.current.slice(-200);
-      if (!ids.length) return;
-      apiFetch<{ entries: Array<Record<string, unknown>> }>(`/api/leaderboard/net-worth?user_ids=${ids.join(",")}`)
-        .then((raw) =>
-          setWorth((current) => {
-            const next = { ...current };
-            for (const entry of raw.entries || []) {
-              const id = Number(entry.user_id || 0);
-              if (id) next[id] = { rank: Number(entry.rank || 0), total_equity: Number(entry.total_equity || 0) };
-            }
-            return next;
-          })
-        )
-        .catch(() => undefined);
-    }, 5 * 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
+  // Net worth badges for anyone who posted (refreshed every few minutes: ranks move all day).
+  const authorIds = useMemo(() => messages.map((message) => message.author?.id), [messages]);
+  const worth = useNetWorth(authorIds);
 
   // Keep the view pinned to the newest message when we should.
   useEffect(() => {
@@ -753,11 +707,7 @@ function Messages({
                     {author?.oshi_coin ? <Oshimark icon={author.oshi_coin.icon} symbol={author.oshi_coin.symbol} size={14} /> : null}
                     <CosmeticChip cosmetic={author?.equipped?.chat_flair} size={16} />
                     <CosmeticChip cosmetic={author?.equipped?.item} size={16} />
-                    {rank && rank.rank > 0 ? (
-                      <span className={`${styles.rank} ${rank.rank <= 3 ? styles.rankTop : rank.rank <= 10 ? styles.rankTen : ""}`} title={`Net worth ${money(rank.total_equity)}`}>
-                        #{rank.rank.toLocaleString("en-US")} <span>{money(rank.total_equity, { compact: true })}</span>
-                      </span>
-                    ) : null}
+                    <NetWorthBadge worth={rank} />
                   </div>
                 ) : null}
                 {removed ? (

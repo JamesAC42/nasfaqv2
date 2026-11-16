@@ -664,37 +664,6 @@
   }
 }
 
-.rank {
-  @include num;
-  display: inline-flex;
-  gap: 0.3rem;
-  padding: 0 0.3rem;
-  border: 1px solid var(--rule-2);
-  border-radius: var(--radius-sm);
-  font-size: 0.62rem;
-  line-height: 1.35;
-  color: var(--dim);
-
-  span {
-    color: var(--mid);
-  }
-}
-
-.rankTen {
-  border-color: var(--blue-line);
-  color: var(--blue);
-}
-
-.rankTop {
-  border-color: var(--blue);
-  background: var(--blue);
-  color: var(--blue-ink);
-
-  span {
-    color: inherit;
-  }
-}
-
 .text {
   font-size: 0.9rem;
   line-height: 1.45;
