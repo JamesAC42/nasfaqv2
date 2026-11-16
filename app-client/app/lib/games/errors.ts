@@ -1,5 +1,7 @@
 // Friendly copy for the games API's error codes (api/src/routes/games.js ERROR_STATUS).
 
+import { currentTimeFormat } from "@/app/lib/use-display-time";
+
 const COPY: Record<string, string> = {
   unauthenticated: "Sign in to play.",
   forbidden: "That isn't yours to do.",
@@ -71,7 +73,7 @@ export function gameErrorText(error: unknown) {
   // Account-age refusals say when it opens up (the API sends available_at).
   const availableAt = (error as { body?: { available_at?: unknown } | null })?.body?.available_at;
   if (message === "pvp_account_too_new" && typeof availableAt === "string") {
-    const when = new Date(availableAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    const when = currentTimeFormat().format(availableAt, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }, { was: "local" });
     return `New accounts can play for a stake from ${when}, like trading on the exchange. Tables with no stake are open now.`;
   }
   return COPY[message] ?? (message && !/^\d+$/.test(message) ? message.replace(/_/g, " ") : "Something went wrong. Try again.");

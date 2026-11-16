@@ -17,7 +17,8 @@ import { money, signedPct, timeAgo, toneOf } from "@/app/lib/time";
 import type { EvaluationRow, MarketAsset, MyDividendWeek, NewsItem, ReportRow, WeeklyEvaluation, WireItem } from "@/app/lib/types";
 import { apiFetch } from "@/app/lib/api";
 import { useNow } from "@/app/lib/use-now";
-import { nextEvaluationAt, untilText } from "@/app/components/market/dividends-tab";
+import { nextEvaluationAt, reviewWhen, untilText } from "@/app/components/market/dividends-tab";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { useLocalFlag } from "@/app/lib/use-local-flag";
 import { threadLines, useThreadPosts } from "@/app/lib/use-thread";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -111,6 +112,7 @@ function DatelineDate() {
 }
 
 function Masthead({ assets }: { assets: MarketAsset[] }) {
+  const tf = useTimeFormat();
   const { user } = useAuth();
   const marketStatus = useMarketStore((state) => state.marketStatus);
   const online = useSiteStore((state) => state.online);
@@ -132,9 +134,7 @@ function Masthead({ assets }: { assets: MarketAsset[] }) {
     return { avgMove, up, down, index, soldOut, buybacks };
   }, [assets]);
 
-  const settled = marketStatus?.last_settlement_completed_at
-    ? new Date(marketStatus.last_settlement_completed_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: MARKET_TIME_ZONE })
-    : null;
+  const settled = marketStatus?.last_settlement_completed_at ? tf.clock(marketStatus.last_settlement_completed_at) : null;
 
   return (
     <header className={styles.masthead}>
@@ -144,7 +144,7 @@ function Masthead({ assets }: { assets: MarketAsset[] }) {
         </h1>
         <div className={styles.dateline}>
           <DatelineDate />
-          {settled ? <span>SETTLED {settled} ET</span> : null}
+          {settled ? <span>SETTLED {settled}</span> : null}
           <span>{assets.length || "—"} TALENTS LISTED</span>
           {online !== null ? (
             <span className={styles.online} title="People on NASFAQ right now">
@@ -605,6 +605,7 @@ function shortEvalDate(value: string) {
 
 /** Last Saturday's review (who paid, who charged, whose max shares moved) and the countdown to the next. */
 function DividendReview() {
+  const tf = useTimeFormat();
   const { user } = useAuth();
   const now = useNow();
   const spotlight = useFeature("dividend-spotlight");
@@ -668,7 +669,9 @@ function DividendReview() {
           <b className={styles.reviewClock} suppressHydrationWarning>
             {next && now ? untilText(next - now) : "—"}
           </b>
-          <span className={styles.meta}>Saturday 00:00 ET</span>
+          <span className={styles.meta} suppressHydrationWarning>
+            {reviewWhen(tf, next)}
+          </span>
           {myNet !== null ? (
             <p className={styles.reviewMine}>
               Your last: <b className={styles[toneOf(myNet)]}>{myNet >= 0 ? "+" : ""}{money(myNet)}</b>

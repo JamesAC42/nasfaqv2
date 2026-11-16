@@ -10,7 +10,8 @@ import { Sparkline } from "@/app/components/common/sparkline";
 import { StockChip } from "@/app/components/common/stock-chip";
 import { BuybacksNow } from "@/app/components/market/buybacks-now";
 import { compactMoney, num, toneClass, useAssetMap } from "@/app/components/market/bits";
-import { formatCountdown, formatEtTime, getMarketClock, TICKS } from "@/app/lib/market-clock";
+import { formatCountdown, getMarketClock, TICKS } from "@/app/lib/market-clock";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { groupByUnit, unitLabel } from "@/app/lib/market-units";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct, timeAgo } from "@/app/lib/time";
@@ -341,6 +342,7 @@ function Board({ assets }: { assets: MarketAsset[] }) {
 
 // ── Right column ─────────────────────────────────────────────────────────
 function Bell() {
+  const tf = useTimeFormat();
   const now = useNow();
   const portfolio = useProfileStore((state) => state.portfolio);
   const clock = now ? getMarketClock(now) : null;
@@ -385,7 +387,7 @@ function Bell() {
       </div>
       <div className={styles.batch} suppressHydrationWarning>
         <span>
-          ORDER BATCH <b>{clock ? `${formatEtTime(clock.nextBatchAt)} ET` : "--:--"}</b>
+          ORDER BATCH <b>{clock ? tf.clock(clock.nextBatchAt) : "--:--"}</b>
         </span>
         <span className={styles.batchCount}>in {clock ? formatCountdown(clock.secondsToNextBatch, { withHours: false }) : "--:--"}</span>
       </div>

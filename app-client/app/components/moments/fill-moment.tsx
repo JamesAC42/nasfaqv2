@@ -16,6 +16,7 @@ import { useTheme } from "@/app/providers/theme-provider";
 import { onMarketEvent, useMarketStore } from "@/app/stores/market-store";
 import { inFirstDays, useFirstDaysStore } from "@/app/stores/first-days-store";
 import { useMomentStore, type FillMoment } from "@/app/stores/moment-store";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { useProfileStore } from "@/app/stores/profile-store";
 import { useTradeStore } from "@/app/stores/trade-store";
 import styles from "@/app/components/moments/fill-moment.module.scss";
@@ -237,6 +238,7 @@ function WhatHappensNow({ fill, asset, tick, until, onLeave }: { fill: Slide; as
 export function FillMomentLayer() {
   useOwnFills();
   const learning = useLearning();
+  const tf = useTimeFormat();
   const fills = useMomentStore((state) => state.fills);
   const dismiss = useMomentStore((state) => state.dismissFill);
   const setFillPopups = useMomentStore((state) => state.setFillPopups);
@@ -321,7 +323,7 @@ export function FillMomentLayer() {
     : buy
       ? "var(--up)"
       : "var(--down)";
-  const time = new Date(fill.at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/New_York" });
+  const time = tf.clock(fill.at);
   const title = onSummary ? `${fills.length} ORDERS FILLED` : buy ? "FILLED" : "SOLD";
 
   const toastsOnly = () => {
@@ -356,7 +358,7 @@ export function FillMomentLayer() {
           </h2>
           <span>
             {multi ? `${Math.min(index + 1, pages)}/${pages} · ` : ""}
-            {time} ET
+            {time}
           </span>
         </div>
         {multi && !calm && auto && !onSummary ? <div key={`timer-${index}`} className={styles.timer} style={{ animationDuration: `${AUTO_MS}ms` }} /> : null}

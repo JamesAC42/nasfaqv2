@@ -30,6 +30,7 @@ import {
 } from "@/app/components/profile/profile-sections";
 import { apiFetch } from "@/app/lib/api";
 import { useFeature } from "@/app/lib/features";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { normalizePredictionPortfolioResponse, normalizeProfileBundle } from "@/app/lib/normalizers";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct, toneOf } from "@/app/lib/time";
@@ -51,7 +52,10 @@ export function ProfileView({ username }: { username?: string | null }) {
   const { user, logout } = useAuth();
   const { theme } = useTheme();
   const referralsOn = useFeature("referrals");
-  const settingsOn = useFeature("checkin-reminders");
+  const tf = useTimeFormat();
+  const remindersOn = useFeature("checkin-reminders");
+  const displayOn = useFeature("timezone-setting");
+  const settingsOn = remindersOn || displayOn;
   const assets = useMarketStore((state) => state.assets);
   const tradingRevision = useProfileStore((state) => state.tradingRevision);
   const [bundle, setBundle] = useState<ProfileBundle | null>(null);
@@ -216,7 +220,7 @@ export function ProfileView({ username }: { username?: string | null }) {
                     <Oshimark icon={oshi.icon} symbol={oshi.symbol} size={16} /> Oshi {oshi.display_name}
                   </Link>
                 ) : null}
-                <span>Joined {new Date(profile.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
+                <span>Joined {tf.format(profile.created_at, { month: "short", year: "numeric" }, { was: "local" })}</span>
                 {profile.is_admin ? <span className={styles.tag}>ADMIN</span> : null}
                 <CosmeticChip cosmetic={profile.equipped.profile_badge} named />
                 <CosmeticChip cosmetic={profile.equipped.item} named />

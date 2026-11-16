@@ -1,17 +1,18 @@
 import type { Metadata } from "next";
 import { SettingsPage } from "@/app/components/settings/settings-page";
-import { requireFeature } from "@/app/lib/features-server";
+import { requireAnyFeature } from "@/app/lib/features-server";
 
-// Behind the checkin-reminders flag (api/src/features) while Notifications is the only section: a 404
-// for anyone it isn't on for. When a section that isn't gated lands (Display, say), drop these checks
-// and gate only the Notifications section.
+// Each section has its own flag (api/src/features): Notifications is checkin-reminders, Display is
+// timezone-setting. The page is a 404 for anyone neither is on for; once timezone-setting is on,
+// everyone gets it. When both flags are retired, drop these checks.
+const SECTION_FLAGS = ["checkin-reminders", "timezone-setting"];
 
 export async function generateMetadata(): Promise<Metadata> {
-  await requireFeature("checkin-reminders");
+  await requireAnyFeature(...SECTION_FLAGS);
   return { title: "Settings" };
 }
 
 export default async function Page() {
-  await requireFeature("checkin-reminders");
+  await requireAnyFeature(...SECTION_FLAGS);
   return <SettingsPage />;
 }

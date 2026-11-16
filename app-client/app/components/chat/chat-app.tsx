@@ -28,6 +28,7 @@ import { useAuth } from "@/app/providers/auth-provider";
 import { notePosted, setForegroundRoom, useChatNotifyStore } from "@/app/stores/chat-notify-store";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useTradeStore } from "@/app/stores/trade-store";
+import { useTimeFormat, type TimeFormat } from "@/app/lib/use-display-time";
 import styles from "@/app/components/chat/chat.module.scss";
 
 type Page = { channel?: Record<string, unknown>; messages: Array<Record<string, unknown>>; has_more: boolean; next_cursor: string | null; history_limited: boolean; visible_days: number | null; minimum_messages?: number | null };
@@ -55,15 +56,17 @@ function mergeMessages(list: ChatMessage[], incoming: ChatMessage[]) {
   return [...byId.values()].sort((a, b) => a.id - b.id);
 }
 
-const clock = (value: string) => new Date(value).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+// Messages' times: the browser's own before the timezone-setting flag, the player's pick with it.
+// No zone after each one (there are hundreds); the tooltip names it.
+const clock = (tf: TimeFormat, value: string) => tf.format(value, { hour: "2-digit", minute: "2-digit", hour12: false }, { was: "local", label: false });
+/** The calendar day a moment falls on, in the zone times show in, for the day dividers. */
+const dayOf = (tf: TimeFormat, value: string | number) => tf.format(value, { year: "numeric", month: "numeric", day: "numeric" }, { was: "local" });
 
-function dayLabel(value: string) {
-  const date = new Date(value);
-  const today = new Date();
-  const yesterday = new Date(Date.now() - 86_400_000);
-  if (date.toDateString() === today.toDateString()) return "Today";
-  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
-  return date.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+function dayLabel(tf: TimeFormat, value: string) {
+  const day = dayOf(tf, value);
+  if (day === dayOf(tf, Date.now())) return "Today";
+  if (day === dayOf(tf, Date.now() - 86_400_000)) return "Yesterday";
+  return tf.format(value, { weekday: "long", month: "short", day: "numeric" }, { was: "local" });
 }
 
 function RoomBadge({ room, size = 26 }: { room: Room; size?: number }) {
@@ -707,13 +710,14 @@ function Messages({
   onUpdated: (message: ChatMessage) => void;
   options: Parameters<typeof RichText>[0]["options"];
 }) {
+  const tf = useTimeFormat();
   const mutedIds = useChatNotifyStore((state) => state.mutedIds);
   const mentionRe = useMemo(() => (me ? new RegExp(`(^|[^\\w])@${me.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=$|[^\\w])`, "i") : null), [me]);
   return (
     <>
       {messages.map((message, index) => {
         const prev = messages[index - 1];
-        const newDay = !prev || new Date(prev.created_at).toDateString() !== new Date(message.created_at).toDateString();
+        const newDay = !prev || dayOf(tf, prev.created_at) !== dayOf(tf, message.created_at);
         const grouped = !newDay && prev && prev.author?.id === message.author?.id && Date.parse(message.created_at) - Date.parse(prev.created_at) < GROUP_MS;
         const author = message.author;
         const rank = author ? worth[author.id] : undefined;
@@ -724,12 +728,12 @@ function Messages({
           <div key={message.id}>
             {newDay ? (
               <div className={styles.day}>
-                <span suppressHydrationWarning>{dayLabel(message.created_at)}</span>
+                <span suppressHydrationWarning>{dayLabel(tf, message.created_at)}</span>
               </div>
             ) : null}
             <article className={`${styles.msg} ${grouped ? styles.grouped : ""} ${mentioned ? styles.mentioned : ""} ${message.is_mine ? styles.mine : ""}`}>
-              <time className={styles.msgTime} dateTime={message.created_at} title={new Date(message.created_at).toLocaleString()} suppressHydrationWarning>
-                {clock(message.created_at)}
+              <time className={styles.msgTime} dateTime={message.created_at} title={tf.stamp(message.created_at)} suppressHydrationWarning>
+                {clock(tf, message.created_at)}
               </time>
               {grouped ? (
                 <span />

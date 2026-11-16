@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { Term } from "@/app/components/common/tip";
-import { untilText } from "@/app/components/market/dividends-tab";
+import { reviewWhen, untilText } from "@/app/components/market/dividends-tab";
 import { apiFetch } from "@/app/lib/api";
 import { useFeature } from "@/app/lib/features";
 import { money, toneOf } from "@/app/lib/time";
 import type { MyDividendSummary } from "@/app/lib/types";
 import { useNow } from "@/app/lib/use-now";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useMarketStore } from "@/app/stores/market-store";
 import styles from "@/app/components/home/dividend-week-card.module.scss";
@@ -46,6 +47,7 @@ function reviewDay(value: string) {
 }
 
 export function DividendWeekCard() {
+  const tf = useTimeFormat();
   const { user } = useAuth();
   const enabled = useFeature("dividend-spotlight");
   const now = useNow();
@@ -175,7 +177,7 @@ export function DividendWeekCard() {
       <b className={styles.clock} suppressHydrationWarning>
         {reviewing ? "Now" : until}
       </b>
-      <p>{reviewing ? "The review is running. Your week lands here in a minute." : "Saturday 00:00 ET. Whatever you hold then pays a dividend or charges a share fee."}</p>
+      <p>{reviewing ? "The review is running. Your week lands here in a minute." : `${reviewWhen(tf, Number.isFinite(nextAt) ? nextAt : null)}. Whatever you hold then pays a dividend or charges a share fee.`}</p>
       <Link href="/market/dividends">What paid last time →</Link>
       <button type="button" className={styles.close} aria-label="Hide the countdown until the next review" title="Hide until the next review" onClick={hide}>
         ×

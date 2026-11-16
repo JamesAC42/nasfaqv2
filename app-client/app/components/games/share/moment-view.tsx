@@ -5,6 +5,7 @@ import { GamesFrame } from "@/app/components/games/shell/games-frame";
 import { ShareMoment } from "@/app/components/games/share/share-moment";
 import { momentCardPath, momentSummary, type Moment, type MomentKind } from "@/app/lib/games/moments";
 import { useAuth } from "@/app/providers/auth-provider";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import styles from "@/app/components/games/share/moment-view.module.scss";
 
 const PLAY: Record<MomentKind, { href: string; label: string; kicker: string }> = {
@@ -15,6 +16,7 @@ const PLAY: Record<MomentKind, { href: string; label: string; kicker: string }> 
 /** The page a shared link opens: the share card, what happened, and the way in. */
 export function MomentView({ kind, id, talent, moment }: { kind: MomentKind; id: string; talent: string | null; moment: Moment | null }) {
   const { user } = useAuth();
+  const tf = useTimeFormat();
   const play = PLAY[kind] ?? PLAY.blackjack;
   if (!moment) {
     return (
@@ -35,7 +37,7 @@ export function MomentView({ kind, id, talent, moment }: { kind: MomentKind; id:
           <img src={momentCardPath(kind, id, talent)} width={1200} height={630} alt={summary} />
           <figcaption>
             {summary}
-            {moment.at ? <time dateTime={moment.at}> {new Date(moment.at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}</time> : null}
+            {moment.at ? <time dateTime={moment.at}> {tf.format(moment.at, { dateStyle: "medium", timeStyle: "short" }, { was: "local" })}</time> : null}
           </figcaption>
         </figure>
         <div className={styles.actions}>

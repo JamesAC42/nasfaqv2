@@ -3,6 +3,7 @@
 import type { CSSProperties } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { talentAccent } from "@/app/lib/talent-color";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { unitLabel, unitName } from "@/app/lib/market-units";
 import type { MarketAsset } from "@/app/lib/types";
 import { useTheme } from "@/app/providers/theme-provider";
@@ -49,6 +50,7 @@ function unitCast(assets: MarketAsset[], title: string, units: string[]) {
 export function HeadlineArt({ title, kind, at, units = [], size, className }: { title: string; kind: "news" | "community"; at: string | null; units?: string[]; size: "lead" | "row" | "mini"; className?: string }) {
   const assets = useMarketStore((state) => state.assets);
   const { theme } = useTheme();
+  const tf = useTimeFormat();
   const { label, cast } = unitCast(assets, title, units);
   // The page's thumbnail class sizes the outer box; the layout lives on an inner stage that fills it.
   const classes = [styles.box, className].filter(Boolean).join(" ");
@@ -68,7 +70,7 @@ export function HeadlineArt({ title, kind, at, units = [], size, className }: { 
 
   const words = title.replace(/\s+/g, " ").trim().split(" ");
   const short = words.slice(0, size === "lead" ? 12 : 7).join(" ") + (words.length > (size === "lead" ? 12 : 7) ? "…" : "");
-  const date = at ? new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+  const date = at ? tf.format(at, { month: "short", day: "numeric", year: "numeric" }, { was: "local" }) : "";
   return (
     <span className={classes} aria-hidden="true">
       <span className={`${styles.stage} ${styles.paper}`} data-size={size}>

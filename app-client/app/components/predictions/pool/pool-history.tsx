@@ -9,12 +9,14 @@ import { money } from "@/app/lib/predictions/format";
 import { fetchPoolHistory, multiplierText, poolHref, type PoolHistoryItem } from "@/app/lib/predictions/pools";
 import { usePoolAccess } from "@/app/lib/predictions/use-pool-access";
 import { useAuth } from "@/app/providers/auth-provider";
+import { useTimeFormat, type TimeFormat } from "@/app/lib/use-display-time";
 import styles from "@/app/components/predictions/pool/pool.module.scss";
 
-const when = (at: string) => new Date(at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const when = (tf: TimeFormat, at: string) => tf.format(at, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }, { was: "local" });
 
 /** /predictions/history: every finished pool, newest first, and "Pools I bet on" with your result. */
 export function PoolHistory() {
+  const tf = useTimeFormat();
   const { user } = useAuth();
   const access = usePoolAccess();
   const search = useSearchParams();
@@ -109,7 +111,7 @@ export function PoolHistory() {
                 </span>
                 <span>{item.kind === "auto" ? "Auto pool" : item.bookie ? `Bookie ${item.bookie}` : "Pool"}</span>
                 {item.mine ? <span>You put in {money(item.mine.staked, 0)}</span> : null}
-                <time suppressHydrationWarning>{when(item.finished_at)}</time>
+                <time suppressHydrationWarning>{when(tf, item.finished_at)}</time>
               </div>
             </li>
           ))}

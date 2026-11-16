@@ -7,7 +7,7 @@ import { ArtSlot } from "@/app/components/common/art-slot";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { useApi } from "@/app/components/stock/use-stock-data";
-import { formatEtTime } from "@/app/lib/market-clock";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { unitLabel } from "@/app/lib/market-units";
 import { normalizeOshiboardResponse } from "@/app/lib/normalizers";
 import { talentAccent } from "@/app/lib/talent-color";
@@ -22,6 +22,7 @@ type BoardStat = { symbol: string; members: number; updated: string | null };
 
 /** Per-talent boards: who holds each talent as their oshi and biggest bag. */
 export function OshiboardTab({ initialCoin }: { initialCoin?: string }) {
+  const tf = useTimeFormat();
   const router = useRouter();
   const pathname = usePathname();
   const { user } = useAuth();
@@ -98,7 +99,7 @@ export function OshiboardTab({ initialCoin }: { initialCoin?: string }) {
         </div>
         <div>
           <span className={styles.label}>Updated</span>
-          <b suppressHydrationWarning>{updated ? `${formatEtTime(new Date(updated))} ET` : "—"}</b>
+          <b suppressHydrationWarning>{updated ? tf.clock(updated) : "—"}</b>
           <small>last refresh</small>
         </div>
         <div>

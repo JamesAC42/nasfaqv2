@@ -22,12 +22,6 @@
     @include display(2rem);
     margin: 0;
   }
-
-  p {
-    margin: 0;
-    font-size: 0.8125rem;
-    color: var(--mid);
-  }
 }
 
 .jump {
@@ -214,4 +208,52 @@
     opacity: 0.6;
     cursor: default;
   }
+}
+
+// The Display section's picker: one row per choice, with the time now in that zone on the right.
+.choices {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--rule);
+  cursor: pointer;
+
+  &[data-on] {
+    border-color: var(--blue);
+    background: var(--blue-wash);
+  }
+
+  input {
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    accent-color: var(--blue);
+  }
+
+  > span {
+    display: grid;
+    gap: 0.15rem;
+    font-size: 0.875rem;
+    min-width: 0;
+
+    small {
+      font-size: 0.75rem;
+      color: var(--mid);
+    }
+  }
+}
+
+.sample {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--mid);
+  white-space: nowrap;
 }

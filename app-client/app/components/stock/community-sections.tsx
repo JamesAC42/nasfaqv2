@@ -9,7 +9,7 @@ import { userNeedsEmailVerification } from "@/app/components/common/verification
 import { useApi, useArticles, useBoardMood, useComments, useOshiboard, useTape, useTreasury } from "@/app/components/stock/use-stock-data";
 import { HoverSpark } from "@/app/components/common/hover-spark";
 import { apiFetch } from "@/app/lib/api";
-import { formatEtTime } from "@/app/lib/market-clock";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { HideComment, hiddenCommentStyle } from "@/app/components/common/hide-comment";
 import { normalizeAssetCommentListResponse } from "@/app/lib/normalizers";
 import { money, signedPct, timeAgo, toneOf } from "@/app/lib/time";
@@ -377,6 +377,7 @@ export function BoardSection({ asset }: { asset: MarketAsset }) {
 export function NewsSection({ asset }: { asset: MarketAsset }) {
   const articles = useArticles(asset.symbol);
   const tape = useTape(asset.symbol);
+  const tf = useTimeFormat();
   const assets = useMarketStore((state) => state.assets);
   const mates = useMemo(() => assets.filter((entry) => entry.unit && entry.unit === asset.unit && entry.symbol !== asset.symbol), [asset.symbol, asset.unit, assets]);
   const items = articles.data ?? [];
@@ -434,13 +435,13 @@ export function NewsSection({ asset }: { asset: MarketAsset }) {
       ) : null}
 
       <div className={styles.label} style={{ margin: "1.2rem 0 0.4rem" }}>
-        Tape · recent fills
+        Tape · recent fills{tf.mode === "market" || tf.mode === "local" ? ` · ${tf.label()}` : ""}
       </div>
       {tape.data?.length ? (
         <div className={styles.tape}>
           {tape.data.map((trade) => (
             <div key={trade.id} className={styles.tapeRow}>
-              <time suppressHydrationWarning>{formatEtTime(new Date(trade.ts), { seconds: true })}</time>
+              <time suppressHydrationWarning>{tf.clock(trade.ts, { seconds: true, was: "bare", label: false })}</time>
               <b className={trade.side === "buy" ? styles.up : styles.down}>{trade.side.toUpperCase()}</b>
               <span>{trade.quantity.toLocaleString("en-US")} sh</span>
               <span>@ {trade.price.toFixed(2)}</span>

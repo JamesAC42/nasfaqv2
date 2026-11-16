@@ -55,7 +55,7 @@ export function MobileNav() {
               <Link href="/how-to-play" className={styles.sheetLink} onClick={close}>
                 How to play
               </Link>
-              {user && showSettingsLink(flags) ? (
+              {showSettingsLink(flags, Boolean(user)) ? (
                 <Link href="/settings" className={styles.sheetLink} aria-current={isActivePath(pathname, "/settings") ? "page" : undefined} onClick={close}>
                   Settings
                 </Link>

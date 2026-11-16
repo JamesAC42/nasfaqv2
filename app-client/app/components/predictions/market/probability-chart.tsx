@@ -6,6 +6,7 @@ import { fetchChart } from "@/app/lib/predictions/api";
 import { outcomeColor, percent } from "@/app/lib/predictions/format";
 import type { Chart, ChartRange, PredictionMarketDetail } from "@/app/lib/predictions/types";
 import { useTheme } from "@/app/providers/theme-provider";
+import { useTimeFormat, type TimeFormat } from "@/app/lib/use-display-time";
 import styles from "@/app/components/predictions/market/chart.module.scss";
 
 const RANGES: { key: ChartRange; label: string; seconds: number }[] = [
@@ -34,16 +35,19 @@ function cssVar(name: string, fallback: string) {
 
 const toSec = (at: string | number) => Math.floor(new Date(at).getTime() / 1000) as UTCTimestamp;
 
-function formatTick(time: Time, span: number, type: TickMarkType) {
-  const date = new Date(Number(time) * 1000);
-  if (type === TickMarkType.TimeWithSeconds) return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
-  if (span <= 86400 || type === TickMarkType.Time) return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+// Axis labels: the browser's time before the timezone-setting flag, the player's pick with it. No zone
+// on each tick; the crosshair's time names it.
+function formatTick(tf: TimeFormat, time: Time, span: number, type: TickMarkType) {
+  const at = Number(time) * 1000;
+  if (type === TickMarkType.TimeWithSeconds) return tf.format(at, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }, { was: "local", label: false });
+  if (span <= 86400 || type === TickMarkType.Time) return tf.format(at, { hour: "2-digit", minute: "2-digit", hour12: false }, { was: "local", label: false });
+  return tf.format(at, { month: "short", day: "numeric" }, { was: "local" });
 }
 
 /** Probability over time: one line per outcome in its colour, 0–100%, the tip moved by live trades. */
 export function ProbabilityChart({ market, live }: { market: PredictionMarketDetail; live: LiveTick | null }) {
   const { theme } = useTheme();
+  const tf = useTimeFormat();
   const [range, setRange] = useState<ChartRange>(() => defaultRange(market));
   const [data, setData] = useState<{ key: string; chart: Chart | null; prices: Record<string, number>; now: number } | null>(null);
   const [hover, setHover] = useState<Record<string, number> | null>(null);
@@ -137,8 +141,8 @@ export function ProbabilityChart({ market, live }: { market: PredictionMarketDet
       grid: { vertLines: { visible: false }, horzLines: { color: rule } },
       crosshair: { mode: CrosshairMode.Magnet, vertLine: { color: cssVar("--rule-2", "#2e3548"), labelVisible: false }, horzLine: { visible: false, labelVisible: false } },
       rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.06, bottom: 0.06 } },
-      timeScale: { borderVisible: false, timeVisible: span <= 7 * 86400, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true, tickMarkFormatter: (time: Time, type: TickMarkType) => formatTick(time, span, type) },
-      localization: { locale: "en-US", priceFormatter: (value: number) => `${Math.round(value)}%`, timeFormatter: (time: Time) => new Date(Number(time) * 1000).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) },
+      timeScale: { borderVisible: false, timeVisible: span <= 7 * 86400, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true, tickMarkFormatter: (time: Time, type: TickMarkType) => formatTick(tf, time, span, type) },
+      localization: { locale: "en-US", priceFormatter: (value: number) => `${Math.round(value)}%`, timeFormatter: (time: Time) => tf.format(Number(time) * 1000, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }, { was: "local" }) },
       handleScroll: false,
       handleScale: false,
     });
@@ -187,8 +191,8 @@ export function ProbabilityChart({ market, live }: { market: PredictionMarketDet
       chartRef.current = null;
       seriesRef.current = new Map();
     };
-    // colors derive from the market's outcomes; the theme changes the grid.
-  }, [seriesData, hasPoints, theme, span, colors, market.market_type, market.outcomes.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    // colors derive from the market's outcomes; the theme changes the grid; tf the axis's time zone.
+  }, [seriesData, hasPoints, theme, tf, span, colors, market.market_type, market.outcomes.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live tip: every trade on this market moves each line's last point.
   useEffect(() => {

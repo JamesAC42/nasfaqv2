@@ -1,4 +1,5 @@
 import type { LivestreamItem, MarketAsset } from "@/app/lib/types";
+import type { TimeFormat } from "@/app/lib/use-display-time";
 
 /** What we already know about a stream when someone opens it (the sheet fetches the rest). */
 export type StreamPreview = {
@@ -160,23 +161,27 @@ export function compactCount(value: number | null | undefined) {
   return Math.round(value).toLocaleString("en-US");
 }
 
-export const localTime = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "—");
+// Stream times were always in the viewer's own zone; with the timezone-setting flag they follow the
+// player's pick (lib/use-display-time.ts) and name the zone. `label: false` for a row in a long list.
+export const localTime = (tf: TimeFormat, iso: string | null | undefined, { label = true } = {}) =>
+  iso ? tf.format(iso, { hour: "numeric", minute: "2-digit" }, { was: "local", label }) : "—";
 
-export function localDateTime(iso: string | null | undefined) {
+export function localDateTime(tf: TimeFormat, iso: string | null | undefined) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return tf.format(iso, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }, { was: "local" });
 }
 
-/** Today / Tomorrow / Wednesday, Sep 30 in the viewer's time zone. */
-export function dayHeading(iso: string | null | undefined, now: number) {
+/** The calendar day a moment falls on in the zone times show in ("11/16/2026"), to compare days. */
+const dayOf = (tf: TimeFormat, at: string | number) => tf.format(at, { year: "numeric", month: "numeric", day: "numeric" }, { was: "local" });
+
+/** Today / Tomorrow / Wednesday, Sep 30, in the zone times show in. */
+export function dayHeading(tf: TimeFormat, iso: string | null | undefined, now: number) {
   if (!iso) return "Unscheduled";
-  const date = new Date(iso);
-  const today = new Date(now);
-  const tomorrow = new Date(now + 86_400_000);
-  if (date.getTime() < now) return "Waiting to start";
-  if (date.toDateString() === today.toDateString()) return "Today";
-  if (date.toDateString() === tomorrow.toDateString()) return "Tomorrow";
-  return date.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+  if (Date.parse(iso) < now) return "Waiting to start";
+  const day = dayOf(tf, iso);
+  if (day === dayOf(tf, now)) return "Today";
+  if (day === dayOf(tf, now + 86_400_000)) return "Tomorrow";
+  return tf.format(iso, { weekday: "long", month: "short", day: "numeric" }, { was: "local" });
 }
 
 // ── Free-chat rooms and placeholders ──────────────────────────────────────

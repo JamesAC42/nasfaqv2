@@ -16,6 +16,7 @@ import { fetchPool, multiplierText, type PoolDetail, type PoolOption } from "@/a
 import type { PredictionMarketDetail } from "@/app/lib/predictions/types";
 import { usePredictionFeed } from "@/app/lib/predictions/use-prediction-feed";
 import { useNow } from "@/app/lib/use-now";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import styles from "@/app/components/predictions/pool/pool.module.scss";
 
 const LOCK_TEXT: Record<string, string> = {
@@ -306,6 +307,7 @@ const NO_OUTCOME = new Set(["closed", "reopened", "voided"]);
 
 /** The pool's public record: an early close and a reopen, then every call, correction and void, with who and the source. */
 function Record({ pool }: { pool: PoolDetail }) {
+  const tf = useTimeFormat();
   if (!pool.record.length) return null;
   return (
     <section className={styles.section}>
@@ -313,7 +315,7 @@ function Record({ pool }: { pool: PoolDetail }) {
         <h2>Record</h2>
         {pool.correction_until && pool.status === "resolved" ? (
           <span className={styles.hint} suppressHydrationWarning>
-            Staff can correct it until {new Date(pool.correction_until).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+            Staff can correct it until {tf.format(pool.correction_until, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }, { was: "local" })}
           </span>
         ) : null}
       </div>
@@ -324,7 +326,7 @@ function Record({ pool }: { pool: PoolDetail }) {
               <b>{ACTION_LABEL[entry.action]}</b>
               {NO_OUTCOME.has(entry.action) ? null : <span>{entry.outcome_label}</span>}
               {entry.previous_label && entry.action === "corrected" ? <span className={styles.was}>was {entry.previous_label}</span> : null}
-              <time suppressHydrationWarning>{new Date(entry.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</time>
+              <time suppressHydrationWarning>{tf.format(entry.at, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }, { was: "local" })}</time>
             </div>
             <p>
               {entry.automatic ? "Called automatically from NASFAQ data" : `By ${entry.actor?.username ?? "staff"}`}

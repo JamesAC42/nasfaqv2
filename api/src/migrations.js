@@ -2216,6 +2216,18 @@ async function applySchema(pool) {
   await pool.query(`CREATE INDEX IF NOT EXISTS market_push_queue_pending_idx ON market.push_queue (id) WHERE claimed_at IS NULL`);
   await pool.query(`CREATE INDEX IF NOT EXISTS market_push_queue_user_kind_idx ON market.push_queue (user_id, kind) WHERE claimed_at IS NULL`);
   await pool.query(`CREATE INDEX IF NOT EXISTS market_push_queue_claimed_idx ON market.push_queue (claimed_at) WHERE claimed_at IS NOT NULL`);
+
+  // Display settings (services/displaySettings.js, the Display section of /settings): one row per
+  // player who has picked one. time_zone is how clock times show: 'market' (New York market time) or
+  // 'local' (the browser's own zone). NULL, or no row, means they haven't picked, so times show in
+  // New York time and the one-time "show them in your time?" prompt may still ask.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.display_preferences (
+      user_id BIGINT PRIMARY KEY REFERENCES market.users(id) ON DELETE CASCADE,
+      time_zone TEXT NULL CHECK (time_zone IN ('market', 'local')),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
 }
 
 module.exports = { applySchema };

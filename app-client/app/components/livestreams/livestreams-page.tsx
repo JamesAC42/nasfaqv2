@@ -34,6 +34,7 @@ import { useLivestreamStore } from "@/app/stores/livestream-store";
 import { useMarketStore } from "@/app/stores/market-store";
 import { useProfileStore } from "@/app/stores/profile-store";
 import { useOpenStream } from "@/app/stores/stream-store";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import styles from "@/app/components/livestreams/livestreams.module.scss";
 
 type View = "now" | "past" | "calendar";
@@ -295,11 +296,12 @@ function LiveCard({ item, asset, now, onOpen }: { item: LivestreamItem; asset: M
 
 // ── Schedule ─────────────────────────────────────────────────────────────
 function Schedule({ items, assets, now, onOpen }: { items: LivestreamItem[]; assets: MarketAsset[]; now: number; onOpen: (item: LivestreamItem) => void }) {
+  const tf = useTimeFormat();
   const minute = Math.floor(now / 60_000);
   const groups = useMemo(() => {
     const out: Array<{ heading: string; items: LivestreamItem[] }> = [];
     for (const item of items) {
-      const heading = dayHeading(item.started_at, now);
+      const heading = dayHeading(tf, item.started_at, now);
       const group = out.find((entry) => entry.heading === heading);
       if (group) group.items.push(item);
       else out.push({ heading, items: [item] });
@@ -308,7 +310,7 @@ function Schedule({ items, assets, now, onOpen }: { items: LivestreamItem[]; ass
     return out.sort((a, b) => (a.heading === "Waiting to start" ? -1 : b.heading === "Waiting to start" ? 1 : 0));
     // `now` ticks each second; day headings only change at midnight.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, minute]);
+  }, [items, minute, tf]);
 
   return (
     <div className={styles.schedule}>
@@ -320,7 +322,7 @@ function Schedule({ items, assets, now, onOpen }: { items: LivestreamItem[]; ass
             const until = untilLabel(item.started_at, now);
             return (
               <button key={item.id} type="button" className={styles.slot} onClick={() => onOpen(item)}>
-                <time suppressHydrationWarning>{localTime(item.started_at)}</time>
+                <time suppressHydrationWarning>{localTime(tf, item.started_at)}</time>
                 <span className={until.includes("late") || until === "any minute" ? styles.soon : styles.until} suppressHydrationWarning>
                   {until}
                 </span>
@@ -346,6 +348,7 @@ function Schedule({ items, assets, now, onOpen }: { items: LivestreamItem[]; ass
 
 // ── Free chat rooms ──────────────────────────────────────────────────────
 function ChatRooms({ items, assets, now, onOpen }: { items: LivestreamItem[]; assets: MarketAsset[]; now: number; onOpen: (item: LivestreamItem) => void }) {
+  const tf = useTimeFormat();
   const [open, setOpen] = useState(false);
   const shown = open ? items : items.slice(0, 5);
   return (
@@ -361,7 +364,7 @@ function ChatRooms({ items, assets, now, onOpen }: { items: LivestreamItem[]; as
           const at = item.started_at ? new Date(item.started_at) : null;
           return (
             <button key={item.id} type="button" className={`${styles.slot} ${styles.room}`} onClick={() => onOpen(item)}>
-              <time suppressHydrationWarning>{at ? at.toLocaleDateString("en-US", { month: "short", day: "numeric", ...(at.getFullYear() !== new Date(now).getFullYear() ? { year: "numeric" } : {}) }) : "—"}</time>
+              <time suppressHydrationWarning>{at ? tf.format(at, { month: "short", day: "numeric", ...(tf.format(at, { year: "numeric" }, { was: "local" }) !== tf.format(now, { year: "numeric" }, { was: "local" }) ? { year: "numeric" } : {}) }, { was: "local" }) : "—"}</time>
               <span className={styles.until}>{CHAT_ROOM_LABEL[kind]}</span>
               {asset ? <Oshimark icon={asset.icon} symbol={asset.symbol} size={22} /> : <span className={styles.noMark} />}
               <span className={styles.slotText}>
@@ -389,6 +392,7 @@ function ChatRooms({ items, assets, now, onOpen }: { items: LivestreamItem[]; as
 
 // ── Rail ─────────────────────────────────────────────────────────────────
 function OnAirRail({ live, upcoming, assets, now, onOpen }: { live: LivestreamItem[]; upcoming: LivestreamItem[]; assets: MarketAsset[]; now: number; onOpen: (item: LivestreamItem) => void }) {
+  const tf = useTimeFormat();
   const onAir = useMemo(() => {
     const seen = new Map<string, { asset: MarketAsset; viewers: number; item: LivestreamItem }>();
     for (const item of live) {
@@ -413,7 +417,7 @@ function OnAirRail({ live, upcoming, assets, now, onOpen }: { live: LivestreamIt
           <button type="button" className={styles.nextUp} onClick={() => onOpen({ ...next, status: "upcoming" })}>
             <b suppressHydrationWarning>{untilLabel(next.started_at, now).replace(/^in /, "")}</b>
             <span>
-              {next.creator} · {localTime(next.started_at)}
+              {next.creator} · {localTime(tf, next.started_at)}
             </span>
             <small>{next.title}</small>
           </button>
@@ -446,6 +450,7 @@ function OnAirRail({ live, upcoming, assets, now, onOpen }: { live: LivestreamIt
 
 // ── Past streams ─────────────────────────────────────────────────────────
 function PastStreams({ matcher, filtering, onOpen }: { matcher: (creator: string, title: string, channelId: string | null | undefined) => boolean; filtering: boolean; onOpen: (stream: PastStream) => void }) {
+  const tf = useTimeFormat();
   const assets = useMarketStore((state) => state.assets);
   const [page, setPage] = useState(0);
   const [week, setWeek] = useState<Week | null>(null);
@@ -486,7 +491,7 @@ function PastStreams({ matcher, filtering, onOpen }: { matcher: (creator: string
 
   const hours = rows.reduce((sum, stream) => sum + (stream.duration_seconds ?? 0), 0) / 3600;
   const top = rows.reduce<PastStream | null>((best, stream) => (!best || (stream.max_viewers ?? 0) > (best.max_viewers ?? 0) ? stream : best), null);
-  const range = week ? `${new Date(week.week_start).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${new Date(Date.parse(week.week_end) - 1).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : "…";
+  const range = week ? `${tf.format(week.week_start, { month: "short", day: "numeric" }, { was: "local" })} – ${tf.format(Date.parse(week.week_end) - 1, { month: "short", day: "numeric" }, { was: "local" })}` : "…";
 
   return (
     <section className={styles.past}>
@@ -557,8 +562,8 @@ function PastStreams({ matcher, filtering, onOpen }: { matcher: (creator: string
             return (
               <button key={stream.id} type="button" className={styles.tRow} role="row" onClick={() => onOpen(stream)}>
                 <span className={styles.tWhen} role="cell" suppressHydrationWarning>
-                  {stream.started_at ? `${new Date(stream.started_at).toLocaleDateString("en-US", { weekday: "short" })} ${new Date(stream.started_at).getDate()}` : "—"}
-                  <small>{localTime(stream.started_at)}</small>
+                  {stream.started_at ? `${tf.format(stream.started_at, { weekday: "short" }, { was: "local" })} ${tf.format(stream.started_at, { day: "numeric" }, { was: "local" })}` : "—"}
+                  <small>{localTime(tf, stream.started_at, { label: false })}</small>
                 </span>
                 <span className={styles.tStream} role="cell">
                   {asset ? <Oshimark icon={asset.icon} symbol={asset.symbol} size={20} /> : <span className={styles.noMark} />}

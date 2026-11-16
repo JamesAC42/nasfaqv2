@@ -11,6 +11,7 @@ import { useFeature } from "@/app/lib/features";
 import { money, signedPct } from "@/app/lib/time";
 import type { EvaluationRow, MyDividendWeek, WeeklyEvaluation } from "@/app/lib/types";
 import { useNow } from "@/app/lib/use-now";
+import { useTimeFormat, type TimeFormat } from "@/app/lib/use-display-time";
 import { useAuth } from "@/app/providers/auth-provider";
 import ui from "@/app/components/market/market.module.scss";
 import styles from "@/app/components/market/dividends-tab.module.scss";
@@ -30,6 +31,14 @@ export function nextEvaluationAt(now: number) {
   return now + (daysToSaturday * 86_400 - secondsIntoDay) * 1000;
 }
 
+/**
+ * When the next review runs, beside its countdown: "Saturday 00:00 ET", or "Saturday 14:00 JST
+ * (00:00 ET)" for a player on their own time. The review itself is always Saturday 00:00 in New York.
+ */
+export function reviewWhen(tf: TimeFormat, next: number | null) {
+  return next === null ? "Saturday 00:00 ET" : tf.format(next, { weekday: "long", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }, { alongside: true });
+}
+
 function dateLong(value: string) {
   return new Date(`${value}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
 }
@@ -46,6 +55,7 @@ export function untilText(ms: number) {
 
 /** The Dividend Review: the latest weekly evaluation (or any past one), and your own week. */
 export function DividendsTab({ initialDate }: { initialDate?: string }) {
+  const tf = useTimeFormat();
   const now = useNow();
   const { user } = useAuth();
   const bySymbol = useAssetMap();
@@ -182,7 +192,9 @@ export function DividendsTab({ initialDate }: { initialDate?: string }) {
           <span className={ui.kv} suppressHydrationWarning>
             {next && now ? untilText(next - now) : "—"}
           </span>
-          <span className={ui.ks}>Saturday 00:00 ET</span>
+          <span className={ui.ks} suppressHydrationWarning>
+            {reviewWhen(tf, next)}
+          </span>
         </div>
       </div>
 

@@ -6,12 +6,13 @@ import { ArtSlot } from "@/app/components/common/art-slot";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { TalentCard } from "@/app/components/games/cards/talent-card";
 import { RARITIES, RARITY_COLOR, RARITY_NAME } from "@/app/lib/games/rarity";
-import { formatCountdown, formatEtTime, getMarketClock, TICKS } from "@/app/lib/market-clock";
+import { formatCountdown, getMarketClock, TICKS } from "@/app/lib/market-clock";
 import { multiplierText, previewBet } from "@/app/lib/predictions/pools";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct, toneOf } from "@/app/lib/time";
 import type { MarketAsset } from "@/app/lib/types";
 import { useNow } from "@/app/lib/use-now";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import { useTheme } from "@/app/providers/theme-provider";
 import { useMarketStore } from "@/app/stores/market-store";
 import { TRADE_FEE } from "@/app/components/how-to-play/content";
@@ -131,6 +132,7 @@ function StripItem({ asset }: { asset: MarketAsset }) {
 const PRESETS = [1, 10, 25, 50, 100];
 
 export function TicketDemo() {
+  const tf = useTimeFormat();
   const talents = useBusiestTalents(4);
   const [picked, setPicked] = useState<string | null>(null);
   const [side, setSide] = useState<"buy" | "sell">("buy");
@@ -194,7 +196,7 @@ export function TicketDemo() {
         <p className={styles.batch} suppressHydrationWarning>
           {clock ? (
             <>
-              Joins the <b>{formatEtTime(clock.nextBatchAt)} ET</b>{" "}batch · <span className={styles.count}>{formatCountdown(clock.secondsToNextBatch, { withHours: false })}</span>
+              Joins the <b>{tf.clock(clock.nextBatchAt)}</b>{" "}batch · <span className={styles.count}>{formatCountdown(clock.secondsToNextBatch, { withHours: false })}</span>
             </>
           ) : (
             <>Joins the next 10-minute batch</>

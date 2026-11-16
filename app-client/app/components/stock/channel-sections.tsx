@@ -6,11 +6,12 @@ import { cleanCumulative, HoverSpark, type SparkPoint } from "@/app/components/c
 import type { StreamPreview } from "@/app/lib/streams";
 import { fmtBig, yen, type Rank } from "@/app/components/stock/format";
 import { streamSeconds, usePastStreams, useStats, type Loaded, type PastStream, type useSuperchats } from "@/app/components/stock/use-stock-data";
-import { formatEtTime, MARKET_TIME_ZONE } from "@/app/lib/market-clock";
+import { MARKET_TIME_ZONE } from "@/app/lib/market-clock";
 import { signedPct, timeAgo, toneOf } from "@/app/lib/time";
 import type { LivestreamItem, MarketAsset } from "@/app/lib/types";
 import { useChannelData } from "@/app/lib/use-channel-data";
 import { useNow } from "@/app/lib/use-now";
+import { useTimeFormat } from "@/app/lib/use-display-time";
 import styles from "@/app/components/stock/dossier.module.scss";
 
 type Streams = Loaded<{ live: LivestreamItem[]; upcoming: LivestreamItem[] }>;
@@ -335,6 +336,7 @@ function StreamHours({ week, live }: { week: PastStream[]; live: LivestreamItem[
 }
 
 export function StreamsSection({ asset, channelId, streams, onOpen }: { asset: MarketAsset; channelId: string | null; streams: Streams; onOpen: (item: StreamPreview) => void }) {
+  const tf = useTimeFormat();
   const [page, setPage] = useState(0);
   const past = usePastStreams(channelId, page);
   const thisWeek = usePastStreams(channelId, 0);
@@ -369,7 +371,7 @@ export function StreamsSection({ asset, channelId, streams, onOpen }: { asset: M
                 <b>{item.title}</b>
                 <small suppressHydrationWarning>
                   {item.viewer_count !== null ? `${fmtBig(item.viewer_count)} watching` : "live"}
-                  {item.started_at ? ` · started ${formatEtTime(new Date(item.started_at))} ET` : ""}
+                  {item.started_at ? ` · started ${tf.clock(item.started_at)}` : ""}
                 </small>
               </span>
             </button>
@@ -381,7 +383,7 @@ export function StreamsSection({ asset, channelId, streams, onOpen }: { asset: M
               </div>
               {upcoming.slice(0, 4).map((item) => (
                 <button key={item.id} type="button" className={styles.upc} onClick={() => onOpen(toModal(item))}>
-                  <time suppressHydrationWarning>{item.started_at ? `${new Date(item.started_at).toLocaleDateString("en-US", { weekday: "short", timeZone: MARKET_TIME_ZONE })} ${formatEtTime(new Date(item.started_at))} ET` : "TBA"}</time>
+                  <time suppressHydrationWarning>{item.started_at ? `${tf.format(item.started_at, { weekday: "short" })} ${tf.clock(item.started_at)}` : "TBA"}</time>
                   <span>{item.title}</span>
                 </button>
               ))}

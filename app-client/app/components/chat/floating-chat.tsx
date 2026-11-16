@@ -22,6 +22,7 @@ import { useAuth } from "@/app/providers/auth-provider";
 import { isRoomOn, markRoomSeen, notePosted, setForegroundRoom, useChatNotifyStore } from "@/app/stores/chat-notify-store";
 import { closeChatWindow, setChatWindowRoom, useChatWindowStore } from "@/app/stores/chat-window-store";
 import { useMarketStore } from "@/app/stores/market-store";
+import { useTimeFormat, type TimeFormat } from "@/app/lib/use-display-time";
 import chatStyles from "@/app/components/chat/chat.module.scss";
 import styles from "@/app/components/chat/chat-everywhere.module.scss";
 
@@ -61,7 +62,8 @@ function merge(list: ChatMessage[], incoming: ChatMessage[]) {
   return [...byId.values()].sort((a, b) => a.id - b.id).slice(-HISTORY);
 }
 
-const clock = (value: string) => new Date(value).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+// The browser's own time before the timezone-setting flag, the player's pick with it; the tooltip names the zone.
+const clock = (tf: TimeFormat, value: string) => tf.format(value, { hour: "2-digit", minute: "2-digit", hour12: false }, { was: "local", label: false });
 
 function usePhone() {
   const [phone, setPhone] = useState(() => window.matchMedia(PHONE).matches);
@@ -448,6 +450,7 @@ function RoomPicker({ rooms, roomKey, tag }: { rooms: Room[]; roomKey: string; t
 }
 
 const Row = memo(function Row({ message, grouped, viewer, muted, options, onUpdated }: { message: ChatMessage; grouped: boolean; viewer: AuthUser | null; muted: boolean; options: RichOptions; onUpdated: (message: ChatMessage) => void }) {
+  const tf = useTimeFormat();
   const author = message.author;
   const removed = message.status !== "active";
   const sticker = removed ? null : parseSticker(message.body);
@@ -468,8 +471,8 @@ const Row = memo(function Row({ message, grouped, viewer, muted, options, onUpda
                 {author.username}
               </Link>
             ) : null}
-            <time dateTime={message.created_at} title={new Date(message.created_at).toLocaleString()}>
-              {clock(message.created_at)}
+            <time dateTime={message.created_at} title={tf.stamp(message.created_at)}>
+              {clock(tf, message.created_at)}
             </time>
           </div>
         )}

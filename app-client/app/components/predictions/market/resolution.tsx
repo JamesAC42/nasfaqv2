@@ -7,6 +7,7 @@ import { predictionErrorText } from "@/app/lib/predictions/errors";
 import { outcomeColor, timeAgo, timeLeft } from "@/app/lib/predictions/format";
 import type { PredictionMarketDetail, Proposal } from "@/app/lib/predictions/types";
 import { useAuth } from "@/app/providers/auth-provider";
+import { useTimeFormat, type TimeFormat } from "@/app/lib/use-display-time";
 import styles from "@/app/components/predictions/market/market.module.scss";
 
 const PROPOSAL_LABEL: Record<Proposal["status"], string> = {
@@ -17,10 +18,11 @@ const PROPOSAL_LABEL: Record<Proposal["status"], string> = {
   overturned: "Overturned",
 };
 
-const fmtDate = (at: string) => new Date(at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+const fmtDate = (tf: TimeFormat, at: string) => tf.format(at, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }, { was: "local" });
 
 /** Rules, the source, and every call made on this market, with disputes. */
 export function RulesAndResolution({ market, onChanged }: { market: PredictionMarketDetail; onChanged: () => void }) {
+  const tf = useTimeFormat();
   const now = useNow(1000);
   const auto = market.kind === "auto";
   const current = market.proposals.find((entry) => entry.status === "proposed" || entry.status === "disputed") ?? null;
@@ -42,7 +44,7 @@ export function RulesAndResolution({ market, onChanged }: { market: PredictionMa
           </div>
           <div>
             <dt>Closes</dt>
-            <dd>{fmtDate(market.closes_at)}</dd>
+            <dd>{fmtDate(tf, market.closes_at)}</dd>
           </div>
           {!auto ? (
             <div>
@@ -87,6 +89,7 @@ export function RulesAndResolution({ market, onChanged }: { market: PredictionMa
 }
 
 function ProposalItem({ market, proposal, now }: { market: PredictionMarketDetail; proposal: Proposal; now: number }) {
+  const tf = useTimeFormat();
   const outcome = market.outcomes.find((entry) => entry.outcome_code === proposal.outcome_code) ?? null;
   const color = proposal.is_void || !outcome ? "var(--dim)" : outcomeColor(market, outcome);
   const windowOpen = (proposal.status === "proposed" || proposal.status === "disputed") && new Date(proposal.window_ends_at).getTime() > now;
@@ -131,7 +134,7 @@ function ProposalItem({ market, proposal, now }: { market: PredictionMarketDetai
       {proposal.status === "finalized" ? (
         <p className={styles.final}>
           {proposal.confirmer ? <>Confirmed by {proposal.confirmer.username}</> : system ? <>Settled from the data</> : <>Nobody disputed; finalized automatically</>}
-          {proposal.finalized_at ? <> · {fmtDate(proposal.finalized_at)}</> : null}
+          {proposal.finalized_at ? <> · {fmtDate(tf, proposal.finalized_at)}</> : null}
           {proposal.self_confirmed ? <span className={styles.flag}>self-confirmed</span> : null}
         </p>
       ) : null}

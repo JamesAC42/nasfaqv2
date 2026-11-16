@@ -39,11 +39,12 @@ export function navFor(flags: Record<string, boolean>, nav: NavGroup[] = NAV): N
 }
 
 /**
- * Whether Settings is linked (the account menu, the phone's More sheet). It sits behind
- * checkin-reminders while Notifications is its only section; ungating it is this one line.
+ * Whether Settings is linked (the account menu, the phone's More sheet): with either of its
+ * sections' flags.
  */
-export function showSettingsLink(flags: Record<string, boolean>) {
-  return flags["checkin-reminders"] === true;
+export function showSettingsLink(flags: Record<string, boolean>, signedIn = true) {
+  // Display (timezone-setting) works signed out too; Notifications (checkin-reminders) needs an account.
+  return flags["timezone-setting"] === true || (signedIn && flags["checkin-reminders"] === true);
 }
 
 export function isActivePath(pathname: string, href: string) {
