@@ -30,6 +30,8 @@ export const EMOJI = [
 ] as const;
 const GLYPHS: Map<string, string> = new Map(EMOJI.map((entry) => [entry.id as string, entry.glyph as string]));
 const CHEER_GLYPH = "📣";
+/** What the folded bar shows, so it never reads as an empty box. */
+const PREVIEW = ["🔥", "🎉", "😂", "🙏"];
 
 const POSE_LABEL: Record<StampPose, string> = { hype: "Hype", smug: "Smug", cope: "Cope", shock: "Shock", moon: "To the moon", idle: "Chill" };
 
@@ -286,26 +288,53 @@ export const ReactionBar = memo(function ReactionBar({ stage, on, setOn, canSend
   const attach = useCallback((element: HTMLDivElement | null) => stage.attachBar(element), [stage]);
   const sides = seatsBySide(bottom);
   const mine = mySeat !== null ? table.seats[mySeat] : null;
+  // Off is a real mute (nothing comes in, nothing floats): the bar folds to one strip that says so.
+  if (!on) {
+    return (
+      <div ref={attach} className={styles.bar} role="group" aria-label="Reactions" data-off="">
+        <button type="button" className={styles.strip} aria-label="Reactions are off. Show reactions" title="Show reactions" onClick={() => setOn(true)}>
+          <span className={styles.title}>Reactions off</span>
+          <span className={styles.preview} aria-hidden="true">
+            {PREVIEW.map((glyph) => (
+              <span key={glyph}>{glyph}</span>
+            ))}
+          </span>
+          <span className={styles.show}>
+            <FaEye aria-hidden="true" /> Show
+          </span>
+        </button>
+      </div>
+    );
+  }
   return (
     <div ref={attach} className={styles.bar} role="group" aria-label="Reactions">
-      {on && canSend ? (
+      <div className={styles.head}>
+        <span className={styles.title}>Reactions</span>
+        {!canSend ? <span className={styles.note}>You see what the table sends.</span> : null}
+        <button type="button" className={styles.toggle} aria-label="Hide reactions" title="Hide reactions" onClick={() => setOn(false)}>
+          <FaEyeSlash aria-hidden="true" /> Hide
+        </button>
+      </div>
+      {canSend ? (
         <>
-          {EMOJI.map((entry) => (
-            <SendButton key={entry.id} id={entry.id} label={`Send ${entry.label}`} stage={stage} disabled={!connected}>
-              <span aria-hidden="true">{entry.glyph}</span>
-            </SendButton>
-          ))}
+          <div className={styles.row}>
+            {EMOJI.map((entry) => (
+              <SendButton key={entry.id} id={entry.id} label={`Send ${entry.label}`} stage={stage} disabled={!connected}>
+                <span aria-hidden="true">{entry.glyph}</span>
+              </SendButton>
+            ))}
+          </div>
           {mine?.talent ? (
-            <span className={styles.group} aria-label="Your stamps">
+            <div className={styles.row} role="group" aria-label="Your stamps">
               {STAMP_POSES.map((pose) => (
                 <SendButton key={pose} id={`stamp-${pose}`} label={`Stamp: ${POSE_LABEL[pose]}`} stage={stage} disabled={!connected} className={styles.stamp}>
-                  <ReactionFace symbol={mine.talent as string} pose={pose as ChibiPose} size={26} crop="full" />
+                  <ReactionFace symbol={mine.talent as string} pose={pose as ChibiPose} size={48} crop="full" />
                 </SendButton>
               ))}
-            </span>
+            </div>
           ) : null}
           {mySeat === null ? (
-            <span className={styles.group} aria-label="Cheer a seat">
+            <div className={styles.cheers} role="group" aria-label="Cheer a seat">
               {SIDES.map((side) => {
                 const seat = sides[side];
                 const entry = table.seats[seat];
@@ -320,13 +349,10 @@ export const ReactionBar = memo(function ReactionBar({ stage, on, setOn, canSend
                   </SendButton>
                 );
               })}
-            </span>
+            </div>
           ) : null}
         </>
       ) : null}
-      <button type="button" className={styles.toggle} aria-label={on ? "Hide reactions" : "Show reactions"} title={on ? "Hide reactions" : "Show reactions"} onClick={() => setOn(!on)}>
-        {on ? <FaEye aria-hidden="true" /> : <FaEyeSlash aria-hidden="true" />}
-      </button>
     </div>
   );
 });

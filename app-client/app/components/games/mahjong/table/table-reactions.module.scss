@@ -24,22 +24,126 @@
 
 .bar {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.15rem;
-  padding: 0.2rem 0.3rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.35rem 0.5rem 0.45rem;
   border: 1px solid var(--rule);
   background: var(--ink-2);
+
+  // Folded: one strip, the whole of it a button.
+  &[data-off] {
+    padding: 0;
+  }
 }
 
-.group {
+.head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 1.6rem;
+}
+
+.title {
+  @include label;
+  flex: none;
+}
+
+.note {
+  font-size: 0.72rem;
+  color: var(--mid);
+}
+
+.toggle,
+.show {
   display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim);
+
+  svg {
+    font-size: 0.8rem;
+  }
+}
+
+.toggle {
+  margin-left: auto;
+  padding: 0.2rem 0.35rem;
+  border: 0;
+  background: none;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  min-height: 2.4rem;
+  padding: 0.3rem 0.6rem;
+  border: 0;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+
+  .show {
+    margin-left: auto;
+    color: var(--blue);
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      background: var(--blue-wash);
+    }
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+    outline-offset: -2px;
+  }
+}
+
+// A few faces, grayed: what turning them on brings back.
+.preview {
+  display: inline-flex;
+  gap: 0.3rem;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 0.95rem;
+  line-height: 1;
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+
+// The emoji row and the stamp row share one set of columns, so the two line up.
+.row {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  align-items: end;
+  gap: 0.15rem;
+
+  & + & {
+    padding-top: 0.25rem;
+    border-top: 1px solid var(--rule);
+  }
+}
+
+.cheers {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.15rem;
-  margin-left: 0.3rem;
-  padding-left: 0.4rem;
-  border-left: 1px solid var(--rule);
+  gap: 0.15rem 0.3rem;
 }
 
 .button,
@@ -48,14 +152,14 @@
   position: relative;
   display: inline-grid;
   place-items: center;
-  min-width: 2.25rem;
-  height: 2.25rem;
-  padding: 0 0.2rem;
+  min-width: 0;
+  height: 2.4rem;
+  padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: 6px;
   background: none;
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
-  font-size: 1.15rem;
+  font-size: 1.35rem;
   line-height: 1;
   color: var(--text);
   cursor: pointer;
@@ -106,22 +210,28 @@
   }
 }
 
+// A talent stamp: the whole figure, standing on the cell's floor, so every pose shares one baseline.
 .stamp {
-  width: 2.25rem;
-  padding: 0;
+  height: 3.3rem;
+  align-items: end;
+  padding-bottom: 0.15rem;
 
   > span {
-    width: 1.9rem;
-    height: 1.9rem;
-    overflow: hidden;
-    border-radius: 50%;
+    width: min(100%, 3rem);
+    height: 3rem;
+  }
+
+  img {
+    object-position: 50% 100%;
   }
 }
 
 .cheer {
   grid-auto-flow: column;
   gap: 0.2rem;
+  height: 2.25rem;
   padding: 0 0.45rem 0 0.2rem;
+  border-radius: 999px;
   font-size: 0.9rem;
 
   em {
@@ -146,27 +256,5 @@
     display: block;
     width: 100%;
     height: 100%;
-  }
-}
-
-.toggle {
-  display: inline-grid;
-  place-items: center;
-  width: 1.8rem;
-  height: 2.1rem;
-  margin-left: auto;
-  padding: 0;
-  border: 0;
-  background: none;
-  font-size: 0.8rem;
-  color: var(--dim);
-  cursor: pointer;
-
-  &:hover {
-    color: var(--text);
-  }
-
-  &:focus-visible {
-    @include focus-ring;
   }
 }
