@@ -638,6 +638,10 @@ test("mahjong tables and money, end to end", { skip: !databaseUrl, timeout: 600_
   await t.test("the ladder, highlights and the staff's pair report read back what was played", async () => {
     const ladder = await records.ladder(pool);
     assert.ok(ladder.every((row) => row.games >= 3), "three games to be ranked");
+    // Rows carry what chat draws a player with: picture, color and what they've equipped.
+    assert.ok(ladder.every((row) => row.user_id > 0 && "profile_picture_url" in row && "profile_color" in row && row.equipped && typeof row.equipped === "object"));
+    const picks = await records.pickLeaders(pool);
+    assert.ok(picks.every((row) => row.user_id > 0 && "profile_picture_url" in row && row.equipped && typeof row.equipped === "object"));
     const highlights = await records.highlights(pool);
     assert.ok(Array.isArray(highlights.biggest));
     if (highlights.hand_of_the_day) assert.ok(highlights.hand_of_the_day.points > 0 && highlights.hand_of_the_day.win.hand.length > 0);

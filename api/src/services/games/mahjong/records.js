@@ -5,6 +5,7 @@
 
 const gamesWallet = require("../wallet");
 const { profilePictureUrlSql } = require("../../../profilePictures");
+const { equippedJsonSql, normalizeEquipped } = require("../equipped");
 const { leaderboardPlayerSql } = require("../../moderation");
 const { headlinePlayerSql } = require("../../wire/players");
 const ratings = require("./ratings");
@@ -42,6 +43,21 @@ const PLAYER_COLUMNS = `
 const PLAYER_JOINS = `
   LEFT JOIN market.profile_pictures pp ON pp.id = u.profile_picture_id
   LEFT JOIN market.market_assets oa ON oa.id = u.oshi_coin_asset_id`;
+
+// How a leaderboard row draws a player, the same fields a chat message's author has: name, color, the
+// small picture and what they've equipped.
+const PLAYER_LOOK_COLUMNS = `
+  u.id, u.username, u.profile_color,
+  ${profilePictureUrlSql("small")} AS profile_picture_url,
+  ${equippedJsonSql("u.id")} AS equipped`;
+const PLAYER_LOOK_JOINS = `LEFT JOIN market.profile_pictures pp ON pp.id = u.profile_picture_id`;
+const playerLook = (row) => ({
+  user_id: Number(row.id),
+  username: row.username,
+  profile_color: row.profile_color ?? null,
+  profile_picture_url: row.profile_picture_url || null,
+  equipped: normalizeEquipped(row.equipped),
+});
 
 /** What a seat shows for a player: name, color, picture, their oshi and this season's rating. */
 async function loadPlayer(db, userId) {
@@ -423,7 +439,7 @@ const ratingRow = (row) => {
 /** The season's ladder: players with enough games, best rating first. Only players a leaderboard may show. */
 async function ladder(db, { season = ratings.seasonOf(), limit = 50 } = {}) {
   const { rows } = await db.query(
-    `SELECT r.*, ${PLAYER_COLUMNS}
+    `SELECT r.*, ${PLAYER_COLUMNS}, ${equippedJsonSql("u.id")} AS equipped
      FROM games.mahjong_ratings r
      JOIN market.users u ON u.id = r.user_id ${PLAYER_JOINS}
      WHERE r.season = $1 AND r.games >= $2 AND ${leaderboardPlayerSql("r.user_id")}
@@ -437,6 +453,7 @@ async function ladder(db, { season = ratings.seasonOf(), limit = 50 } = {}) {
     username: row.username,
     profile_color: row.profile_color,
     profile_picture_url: row.profile_picture_url || null,
+    equipped: normalizeEquipped(row.equipped),
     oshi: row.oshi || null,
     ...ratingRow(row),
   }));
@@ -515,14 +532,19 @@ async function highlights(db, { season = ratings.seasonOf() } = {}) {
 /** Spectators' picks: who has called the most winners (at least five calls settled). */
 async function pickLeaders(db, { limit = 20 } = {}) {
   const { rows } = await db.query(
-    `SELECT u.id, u.username, u.profile_color, COUNT(*) FILTER (WHERE k.correct)::int AS correct, COUNT(*)::int AS total
-     FROM games.mahjong_picks k JOIN market.users u ON u.id = k.user_id
-     WHERE k.correct IS NOT NULL AND ${leaderboardPlayerSql("k.user_id")}
-     GROUP BY u.id HAVING COUNT(*) >= 5
-     ORDER BY COUNT(*) FILTER (WHERE k.correct) DESC, COUNT(*) ASC, u.id LIMIT $1`,
+    `WITH callers AS (
+       SELECT k.user_id, COUNT(*) FILTER (WHERE k.correct)::int AS correct, COUNT(*)::int AS total
+       FROM games.mahjong_picks k
+       WHERE k.correct IS NOT NULL AND ${leaderboardPlayerSql("k.user_id")}
+       GROUP BY k.user_id HAVING COUNT(*) >= 5
+       ORDER BY COUNT(*) FILTER (WHERE k.correct) DESC, COUNT(*) ASC, k.user_id LIMIT $1
+     )
+     SELECT c.correct, c.total, ${PLAYER_LOOK_COLUMNS}
+     FROM callers c JOIN market.users u ON u.id = c.user_id ${PLAYER_LOOK_JOINS}
+     ORDER BY c.correct DESC, c.total ASC, u.id`,
     [limit]
   );
-  return rows.map((row) => ({ user_id: Number(row.id), username: row.username, profile_color: row.profile_color, correct: row.correct, total: row.total }));
+  return rows.map((row) => ({ ...playerLook(row), correct: row.correct, total: row.total }));
 }
 
 /** One player's mahjong record: this season, every season, tournaments won, picks, recent games. */
@@ -603,19 +625,20 @@ async function chipLeaderboard(db, { range = "week", viewerId = null } = {}) {
      ), numbered AS (
        SELECT *, ROW_NUMBER() OVER (PARTITION BY listed ORDER BY chips DESC, games DESC, user_id) AS place FROM ranked
      )
-     SELECT user_id, username, chips, games, CASE WHEN listed THEN place::int END AS rank FROM numbered
-     WHERE (listed AND place <= 50) OR user_id = $1::bigint ORDER BY listed DESC, place`,
+     SELECT n.chips, n.games, CASE WHEN n.listed THEN n.place::int END AS rank, ${PLAYER_LOOK_COLUMNS}
+     FROM numbered n JOIN market.users u ON u.id = n.user_id ${PLAYER_LOOK_JOINS}
+     WHERE (n.listed AND n.place <= 50) OR n.user_id = $1::bigint ORDER BY n.listed DESC, n.place`,
     [viewerId]
   );
-  const line = (row) => ({ rank: row.rank, username: row.username, chips: Number(row.chips), games: row.games });
+  const line = (row) => ({ rank: row.rank, ...playerLook(row), chips: Number(row.chips), games: row.games });
   const top = rows.filter((row) => row.rank !== null && row.rank <= 50).map(line);
   let me = null;
   if (viewerId) {
-    const mine = rows.find((row) => Number(row.user_id) === Number(viewerId));
+    const mine = rows.find((row) => Number(row.id) === Number(viewerId));
     if (mine) me = line(mine);
     else {
-      const { rows: names } = await db.query(`SELECT username FROM market.users WHERE id = $1`, [viewerId]);
-      me = { rank: null, username: names[0]?.username ?? null, chips: 0, games: 0 };
+      const { rows: found } = await db.query(`SELECT ${PLAYER_LOOK_COLUMNS} FROM market.users u ${PLAYER_LOOK_JOINS} WHERE u.id = $1`, [viewerId]);
+      me = found[0] ? line({ ...found[0], rank: null, chips: 0, games: 0 }) : { rank: null, user_id: Number(viewerId), username: null, profile_color: null, profile_picture_url: null, equipped: {}, chips: 0, games: 0 };
     }
   }
   return { range: week ? "week" : "all", leaders: top, me };

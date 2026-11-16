@@ -8,6 +8,7 @@ const features = require("../src/features");
 const ipHash = require("../src/services/ipHash");
 const bot = require("../src/services/games/mahjong/bot");
 const limits = require("../src/services/games/mahjong/limits");
+const ratings = require("../src/services/games/mahjong/ratings");
 const records = require("../src/services/games/mahjong/records");
 const round = require("../src/services/games/mahjong/round");
 const tables = require("../src/services/games/mahjong/tables");
@@ -288,12 +289,37 @@ test("mahjong trial mode, end to end", { skip: !databaseUrl, timeout: 600_000 },
 
     // The viewer with no chip games gets a line without a rank; a signed-out viewer gets none.
     const none = await records.chipLeaderboard(pool, { range: "week", viewerId: lbC });
-    assert.deepEqual(none.me, { rank: null, username: "lb_c", chips: 0, games: 0 });
+    assert.deepEqual(none.me, { rank: null, user_id: lbC, username: "lb_c", profile_color: null, profile_picture_url: null, equipped: {}, chips: 0, games: 0 });
     assert.equal((await records.chipLeaderboard(pool, { range: "week" })).me, null);
     // An unranked (unverified) viewer still sees their own result.
     const own = await records.chipLeaderboard(pool, { range: "all", viewerId: unverified });
     assert.equal(own.me.chips, 99999);
     assert.equal(own.leaders.some((row) => row.username === "lb_unverified"), false);
+
+    // Each line draws the player the way chat draws a message's author: id, color, picture, what's equipped.
+    await pool.query(`UPDATE market.users SET profile_color = '#336699' WHERE id = $1`, [lbB]);
+    const { rows: hat } = await pool.query(
+      `INSERT INTO games.user_cosmetics (user_id, cosmetic_key, cosmetic_type, rarity, source_type, source_reference_id, metadata_json)
+       VALUES ($1, 'lb_cap', 'hat', 'rare', 'gacha', 7, '{"display_name":"Lb cap","image_url":"https://example.test/cap.png"}') RETURNING id`,
+      [lbB]
+    );
+    await pool.query(`INSERT INTO games.user_equipped_cosmetics (user_id, slot_key, user_cosmetic_id) VALUES ($1, 'hat', $2)`, [lbB, hat[0].id]);
+    const dressed = pick(await records.chipLeaderboard(pool, { range: "week" }), "lb_b");
+    assert.equal(dressed.user_id, lbB);
+    assert.equal(dressed.profile_color, "#336699");
+    assert.equal(dressed.profile_picture_url, null);
+    assert.deepEqual(dressed.equipped, { hat: { key: "lb_cap", type: "hat", rarity: "rare", display_name: "Lb cap", image_url: "https://example.test/cap.png" } });
+    assert.deepEqual(pick(week, "lb_a").equipped, {});
+    // The ladder and the spectators' picks carry the same.
+    await pool.query(`INSERT INTO games.mahjong_ratings (user_id, season, rating, games) VALUES ($1, $2, 1520, 5)`, [lbB, ratings.seasonOf()]);
+    for (let index = 0; index < 5; index += 1) {
+      const { rows: game } = await pool.query(`INSERT INTO games.mahjong_games (kind, status, entry_fee) VALUES ('stakes', 'cancelled', 0) RETURNING id`);
+      await pool.query(`INSERT INTO games.mahjong_picks (user_id, game_id, picked_name, correct) VALUES ($1, $2, 'lb_a', $3)`, [lbB, game[0].id, index < 3]);
+    }
+    const onLadder = (await records.ladder(pool)).find((row) => row.user_id === lbB);
+    assert.deepEqual([onLadder.profile_color, onLadder.profile_picture_url, onLadder.equipped.hat.key], ["#336699", null, "lb_cap"]);
+    const caller = (await records.pickLeaders(pool)).find((row) => row.user_id === lbB);
+    assert.deepEqual(caller, { user_id: lbB, username: "lb_b", profile_color: "#336699", profile_picture_url: null, equipped: dressed.equipped, correct: 3, total: 5 });
 
     assert.deepEqual(await records.chipTotals(pool, lbA), { week: 100, week_games: 1, all: 5100, all_games: 2 });
     assert.deepEqual(await records.chipTotals(pool, lbC), { week: 0, week_games: 0, all: 0, all_games: 0 });
