@@ -11,12 +11,15 @@
   }
 }
 
+// Flex, not grid, so a composition wider than a small slot overflows evenly on both sides and the
+// scale (around its center) brings it back inside.
 .art {
   --art-scale: 1;
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
   background:
     radial-gradient(70% 90% at 50% 105%, color-mix(in srgb, var(--blue) 22%, transparent), transparent 70%),
@@ -24,6 +27,7 @@
     linear-gradient(160deg, color-mix(in srgb, var(--blue) 7%, var(--ink-2)), var(--ink-2) 65%);
 
   > * {
+    flex: none;
     transform: scale(var(--art-scale));
   }
 
@@ -41,7 +45,7 @@
   height: 230px;
 
   @include phone {
-    transform: scale(0.6);
+    --art-scale: 0.6;
   }
 }
 

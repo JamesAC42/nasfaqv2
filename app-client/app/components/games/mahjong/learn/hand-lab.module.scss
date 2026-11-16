@@ -29,6 +29,13 @@
   }
 }
 
+// It also sits inside prose (a lesson, a tip), whose paragraph margins and sizes must not reach in.
+.lab.lab p {
+  margin: 0;
+  max-width: none;
+  font-size: 0.9375rem;
+}
+
 .head {
   display: flex;
   flex-wrap: wrap;

@@ -192,13 +192,13 @@ export function HandLab({ presets = Object.keys(LAB_PRESETS) as LabPreset[], sta
             <p>
               {result ? <FiCheck aria-hidden="true" /> : <FiX aria-hidden="true" />}
               {result ? (
-                <>
+                <span>
                   <b>The {kindName(tried)} completes it:</b> {FORM_TEXT[result.form]}.
-                </>
+                </span>
               ) : (
-                <>
+                <span>
                   <b>The {kindName(tried)} doesn’t complete it.</b> {waits.length ? "Try another, or show the waits." : ""}
-                </>
+                </span>
               )}
             </p>
             <Grouped kinds={[...hand, tried]} size={phone ? 20 : 26} />

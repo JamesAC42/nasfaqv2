@@ -300,3 +300,100 @@
   gap: 0.6rem 1rem;
   margin-top: 0.6rem;
 }
+
+// ── Progress, feedback with a reaction, the finish ──────────────────────────
+@mixin moving {
+  @media (prefers-reduced-motion: no-preference) {
+    :global(html:not([data-calm="true"])) & {
+      @content;
+    }
+  }
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0 0 0.9rem;
+
+  > span:first-child {
+    flex: 1 1 auto;
+    max-width: 20rem;
+  }
+}
+
+.doneTag {
+  @include label;
+  margin-left: 0.6rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm);
+  background: var(--blue);
+  color: var(--blue-ink);
+  font-weight: 700;
+}
+
+.feedbackRow {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: 0;
+
+  > p {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  &[data-tone="ok"][data-react="true"] {
+    padding: 0.4rem 0.7rem 0.4rem 0.4rem;
+    border-radius: var(--radius-sm);
+    background: var(--blue-wash);
+
+    @include moving {
+      animation: rise var(--dur-med, 240ms) var(--ease-out, ease-out) both;
+    }
+  }
+
+  &[data-tone="no"] {
+    @include moving {
+      animation: nudge 360ms ease-out both;
+    }
+  }
+}
+
+.reaction {
+  flex: none;
+}
+
+.finishArt {
+  position: relative;
+  width: min(100%, 26.25rem);
+  aspect-ratio: 1.71 / 1;
+  margin: 0.4rem 0 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+
+  @include phone {
+    width: 100%;
+    aspect-ratio: 2.4 / 1;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes nudge {
+  20% {
+    transform: translateX(-5px);
+  }
+  45% {
+    transform: translateX(4px);
+  }
+  70% {
+    transform: translateX(-2px);
+  }
+}

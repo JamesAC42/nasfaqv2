@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ExerciseView } from "@/app/components/games/mahjong/learn/exercises";
+import { LearnArt } from "@/app/components/games/mahjong/learn/learn-art";
 import { LearnFrame } from "@/app/components/games/mahjong/learn/learn-frame";
 import { LESSONS } from "@/app/components/games/mahjong/learn/lessons";
 import { useWalkthroughProgress } from "@/app/components/games/mahjong/learn/progress";
@@ -98,12 +99,21 @@ export function Tutorial() {
             </button>
           </li>
         </ol>
+        <div className={styles.progress}>
+          <span className={learn.meter} role="progressbar" aria-valuemin={0} aria-valuemax={LESSONS.length} aria-valuenow={finished} aria-label="Lessons done">
+            <i style={{ width: `${(finished / LESSONS.length) * 100}%` }} />
+          </span>
+          <span className={learn.progressLine}>
+            {finished} of {LESSONS.length} done
+          </span>
+        </div>
 
         <article className={styles.lesson}>
           {lesson ? (
             <>
               <span className={styles.where}>
                 Lesson {current + 1} of {LESSONS.length}
+                {lessonDone(current) ? <b className={styles.doneTag}>Done</b> : null}
               </span>
               <h2>{lesson.title}</h2>
               <p className={styles.blurb}>{lesson.blurb}</p>
@@ -122,7 +132,12 @@ export function Tutorial() {
           ) : (
             <>
               <span className={styles.where}>Last step</span>
-              <h2>Play it</h2>
+              <h2>{finished >= LESSONS.length ? "All ten done. Play it" : "Play it"}</h2>
+              {finished >= LESSONS.length ? (
+                <div className={styles.finishArt}>
+                  <LearnArt slot="mahjong-learn-finish" width={420} />
+                </div>
+              ) : null}
               <PlayPanel />
             </>
           )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
+import { TalentReaction } from "@/app/components/common/talent-reaction";
 import { Tile, TileRow } from "@/app/components/games/mahjong/tile";
 import { isRedFive, kindOf, tileName, tilesFrom } from "@/app/lib/games/mahjong/tiles";
 import styles from "@/app/components/games/mahjong/learn/tutorial.module.scss";
@@ -43,11 +44,18 @@ export type Exercise = PickExercise | ChoiceExercise;
 
 const identity = (id: number) => (isRedFive(id) ? `r${kindOf(id)}` : String(kindOf(id)));
 
-function Status({ children, tone }: { children: ReactNode; tone: "ok" | "no" | "idle" }) {
+/**
+ * The line under an exercise. `react` puts a talent's reaction beside it: hype for an answer just
+ * found, cope for a miss. Answers already done on an earlier visit show the line alone.
+ */
+function Status({ children, tone, react = false }: { children: ReactNode; tone: "ok" | "no" | "idle"; react?: boolean }) {
   return (
-    <p className={styles.feedback} data-tone={tone} role="status" aria-live="polite">
-      {children}
-    </p>
+    <div className={styles.feedbackRow} data-tone={tone} data-react={react ? "true" : undefined}>
+      {react ? <TalentReaction pose={tone === "ok" ? "hype" : "cope"} size={tone === "ok" ? 56 : 44} fresh className={styles.reaction} /> : null}
+      <p className={styles.feedback} data-tone={tone} role="status" aria-live="polite">
+        {children}
+      </p>
+    </div>
   );
 }
 
@@ -57,6 +65,7 @@ function Pick({ exercise, done, onDone }: { exercise: PickExercise; done: boolea
   const [wrong, setWrong] = useState<string | null>(null);
   const [misses, setMisses] = useState(0);
   const [shown, setShown] = useState(false);
+  const [fresh, setFresh] = useState(false);
   const solved = done || shown;
   const answer = exercise.answer;
   const selection = solved ? answer : picked;
@@ -76,6 +85,7 @@ function Pick({ exercise, done, onDone }: { exercise: PickExercise; done: boolea
     const have = picked.map((index) => identity(ids[index])).sort();
     if (want.length === have.length && want.every((value, at) => value === have[at])) {
       setWrong(null);
+      setFresh(true);
       onDone();
       return;
     }
@@ -104,7 +114,7 @@ function Pick({ exercise, done, onDone }: { exercise: PickExercise; done: boolea
         ))}
       </div>
       {solved ? (
-        <Status tone="ok">
+        <Status tone="ok" react={fresh}>
           <b>{shown ? "Here it is. " : "Right. "}</b>
           {exercise.explain}
         </Status>
@@ -123,7 +133,11 @@ function Pick({ exercise, done, onDone }: { exercise: PickExercise; done: boolea
               {picked.length} of {exercise.count} tapped
             </span>
           </div>
-          {wrong ? <Status tone="no">{wrong}</Status> : null}
+          {wrong ? (
+            <Status key={misses} tone="no" react>
+              {wrong}
+            </Status>
+          ) : null}
         </>
       )}
     </div>
@@ -133,11 +147,13 @@ function Pick({ exercise, done, onDone }: { exercise: PickExercise; done: boolea
 function Choice({ exercise, done, onDone }: { exercise: ChoiceExercise; done: boolean; onDone: () => void }) {
   const [tried, setTried] = useState<number[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [fresh, setFresh] = useState(false);
 
   const choose = (index: number) => {
     if (done) return;
     if (index === exercise.answer) {
       setMessage(null);
+      setFresh(true);
       onDone();
       return;
     }
@@ -164,12 +180,14 @@ function Choice({ exercise, done, onDone }: { exercise: ChoiceExercise; done: bo
         ))}
       </div>
       {done ? (
-        <Status tone="ok">
+        <Status tone="ok" react={fresh}>
           <b>Right. </b>
           {exercise.explain}
         </Status>
       ) : message ? (
-        <Status tone="no">{message}</Status>
+        <Status key={tried.length} tone="no" react>
+          {message}
+        </Status>
       ) : null}
     </div>
   );

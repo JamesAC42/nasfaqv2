@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { Exercise } from "@/app/components/games/mahjong/learn/exercises";
+import { HandLab } from "@/app/components/games/mahjong/learn/hand-lab";
 import { ExampleHand, Hand, MeldRow, Picture } from "@/app/components/games/mahjong/learn/learn-frame";
 import { useMahjongRules } from "@/app/components/games/mahjong/learn/use-rules";
 import { LIMIT_ORDER, LIMITS, YAKU } from "@/app/lib/games/mahjong/yaku";
@@ -230,6 +231,7 @@ export const LESSONS: Lesson[] = [
         <p>
           More waits means more tiles that win. And a tile only counts if some of it is left: if you hold all four of a tile yourself, nobody can ever give you the fifth.
         </p>
+        <HandLab title="Try the waits" presets={["two-sided", "middle", "edge", "pairs", "single"]} editable={false} />
       </>
     ),
     exercises: [
