@@ -10,9 +10,8 @@ import { useEffect, useMemo, type CSSProperties } from "react";
 import { useHandPress, type MyHandProps } from "@/app/components/games/mahjong/table/my-hand";
 import { handKey, registerOverlay } from "@/app/components/games/mahjong/stage/overlay";
 import { useStageStore } from "@/app/components/games/mahjong/stage/model";
+import { edgeOf, marksOf, marksSpoken, TileMarks } from "@/app/components/games/mahjong/table/hand-marks";
 import { tileName, type TileId } from "@/app/lib/games/mahjong/tiles";
-import boardStyles from "@/app/components/games/mahjong/table/table-board.module.scss";
-import coachStyles from "@/app/components/games/mahjong/table/coach.module.scss";
 import styles from "@/app/components/games/mahjong/stage/stage.module.scss";
 
 export function HandButtons({ tiles, drawn, allowed, turn, selected, onSelect, onDiscard, singleTap, marks, fade, label, ready, safe }: MyHandProps) {
@@ -31,9 +30,9 @@ export function HandButtons({ tiles, drawn, allowed, turn, selected, onSelect, o
 
   if (laidDown) return null;
 
-  const button = (id: TileId) => {
+  const button = (id: TileId, index: number) => {
     const can = allowed.has(id);
-    const mark = marks.get(id);
+    const kinds = marksOf(id, marks, safe);
     const lifted = selected === id;
     return (
       <button
@@ -42,8 +41,9 @@ export function HandButtons({ tiles, drawn, allowed, turn, selected, onSelect, o
         type="button"
         className={styles.handKey}
         data-lifted={lifted || undefined}
+        data-mark-host={kinds.length ? "" : undefined}
         disabled={!can}
-        aria-label={`${tileName(id)}${id === drawn ? ", just drawn" : ""}`}
+        aria-label={`${tileName(id)}${id === drawn ? ", just drawn" : ""}${kinds.length ? `: ${marksSpoken(kinds)}` : ""}`}
         aria-pressed={lifted || undefined}
         onClick={(event) => press(id, event.currentTarget)}
         onPointerEnter={() => setUi({ hover: id })}
@@ -51,13 +51,7 @@ export function HandButtons({ tiles, drawn, allowed, turn, selected, onSelect, o
         onFocus={() => setUi({ hover: id })}
         onBlur={() => setUi({ hover: null })}
       >
-        {mark === "ready" ? <i className={boardStyles.markReady} aria-label="Leaves you ready" /> : null}
-        {mark === "best" ? <i className={boardStyles.markBest} aria-label="Coach's pick" /> : null}
-        {safe?.has(id) ? (
-          <i className={coachStyles.safeMark} role="img" aria-label="Certainly safe against riichi" title="Certainly safe against the riichi">
-            ✓
-          </i>
-        ) : null}
+        <TileMarks kinds={kinds} edge={edgeOf(index, all.length)} />
       </button>
     );
   };

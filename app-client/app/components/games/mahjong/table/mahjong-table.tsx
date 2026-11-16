@@ -29,6 +29,7 @@ import { HandReveal } from "@/app/components/games/mahjong/table/win-reveal";
 import { WaitingRoom } from "@/app/components/games/mahjong/table/waiting-room";
 import { TalentSelect } from "@/app/components/games/mahjong/select/talent-select";
 import { HandButtons } from "@/app/components/games/mahjong/stage/hand-buttons";
+import { MarkLegend } from "@/app/components/games/mahjong/table/hand-marks";
 import { LiveStage, webglAvailable } from "@/app/components/games/mahjong/stage/live-stage";
 import { TileBack } from "@/app/components/games/mahjong/tile";
 import type { Coach } from "@/app/lib/games/mahjong/types";
@@ -584,6 +585,8 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
       safe={safe}
     />
   ) : null;
+  // What the marks on your tiles mean: once, under your moves, until dismissed.
+  const markLegend = seatHand && helpOn && !lesson ? <MarkLegend marks={marks} safe={safe} /> : null;
   const actionBar = seatHand ? (
     <ActionBar
       options={over ? null : options}
@@ -695,6 +698,7 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
                       {statusLine}
                       {clock}
                       {actionBar}
+                      {markLegend}
                     </>
                   }
                   day={theme === "light"}
@@ -731,6 +735,7 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
                   </p>
                 ) : null}
                 {!use3d ? actionBar : null}
+                {!use3d ? markLegend : null}
                 </div>
                 {helpOn && !lesson && !over && !(liveHasUi && liveCoach?.call_advice?.length) ? <ActionHints options={options} /> : null}
                 {!lesson ? (

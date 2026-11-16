@@ -697,23 +697,6 @@
   }
 }
 
-.safeMark {
-  position: absolute;
-  top: -5px;
-  right: -3px;
-  display: grid;
-  place-items: center;
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
-  background: var(--up);
-  color: var(--ink);
-  font-size: 9px;
-  font-weight: 800;
-  line-height: 1;
-  pointer-events: none;
-}
-
 .call > button {
   width: 100%;
 }

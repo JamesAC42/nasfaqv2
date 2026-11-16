@@ -5,8 +5,8 @@ import { Tile } from "@/app/components/games/mahjong/tile";
 import { useElementWidth } from "@/app/components/games/mahjong/table/board";
 import { motionOff, noteThrow } from "@/app/lib/games/mahjong/motion";
 import { playCue } from "@/app/lib/games/mahjong/sound";
-import type { TileId } from "@/app/lib/games/mahjong/tiles";
-import coachStyles from "@/app/components/games/mahjong/table/coach.module.scss";
+import { tileName, type TileId } from "@/app/lib/games/mahjong/tiles";
+import { edgeOf, marksOf, marksSpoken, TileMarks } from "@/app/components/games/mahjong/table/hand-marks";
 import styles from "@/app/components/games/mahjong/table/table-board.module.scss";
 
 export type TileMark = "ready" | "best" | "lesson";
@@ -111,20 +111,15 @@ export function MyHand({ tiles, drawn, allowed, turn, selected, onSelect, onDisc
 
   const { press, onKeyDown } = useHandPress({ allowed, selected, onSelect, onDiscard, singleTap });
 
-  const render = (id: TileId, apart: boolean) => {
+  const render = (id: TileId, apart: boolean, index: number) => {
     const can = allowed.has(id);
     const mark = marks.get(id);
+    const kinds = marksOf(id, marks, safe);
     const faded = (turn && !can) || (fade ? fade(id) : false);
     return (
-      <span key={id} className={styles.slot} data-id={id} data-new={newDraw === id || undefined} data-apart={apart || undefined} data-mark={mark} data-lifted={selected === id || undefined} style={apart ? { marginLeft: Math.round(size * 0.45) } : undefined}>
-        <Tile id={id} size={size} dim={faded} selected={selected === id} onClick={can ? (event) => press(id, event.currentTarget) : undefined} disabled={!can} highlight={mark === "lesson"} />
-        {mark === "ready" ? <i className={styles.markReady} aria-label="Leaves you ready" /> : null}
-        {mark === "best" ? <i className={styles.markBest} aria-label="Coach's pick" /> : null}
-        {safe?.has(id) ? (
-          <i className={coachStyles.safeMark} role="img" aria-label="Certainly safe against riichi" title="Certainly safe against the riichi">
-            ✓
-          </i>
-        ) : null}
+      <span key={id} className={styles.slot} data-id={id} data-new={newDraw === id || undefined} data-apart={apart || undefined} data-mark={mark} data-mark-host={kinds.length ? "" : undefined} data-lifted={selected === id || undefined} style={apart ? { marginLeft: Math.round(size * 0.45) } : undefined}>
+        <Tile id={id} size={size} dim={faded} selected={selected === id} onClick={can ? (event) => press(id, event.currentTarget) : undefined} disabled={!can} highlight={mark === "lesson"} title={kinds.length ? `${tileName(id)}: ${marksSpoken(kinds)}` : undefined} />
+        <TileMarks kinds={kinds} edge={edgeOf(index, count)} />
       </span>
     );
   };
@@ -132,8 +127,8 @@ export function MyHand({ tiles, drawn, allowed, turn, selected, onSelect, onDisc
   return (
     <div ref={ref} className={styles.hand} role="group" aria-label={label} onKeyDown={onKeyDown} data-turn={turn || undefined} data-ready={ready || undefined}>
       <div ref={rowRef} className={styles.handRow} data-fly-src={seat}>
-        {tiles.map((id) => render(id, false))}
-        {drawn !== null ? render(drawn, true) : null}
+        {tiles.map((id, index) => render(id, false, index))}
+        {drawn !== null ? render(drawn, true, tiles.length) : null}
       </div>
     </div>
   );

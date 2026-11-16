@@ -1,0 +1,214 @@
+@use "../../../../styles/mixins" as *;
+
+// Help's marks on your tiles (hand-marks.tsx): the glyphs, the label over a tile, and the legend.
+
+// Glyph colors: blue for the coach's two marks, green for safe; each has its own shape too.
+.onTile,
+.glyph {
+  &[data-glyph="best"] {
+    fill: var(--blue-2);
+  }
+
+  &[data-glyph="ready"] {
+    fill: var(--blue);
+  }
+
+  &[data-glyph="safe"] {
+    fill: var(--up);
+    stroke: color-mix(in srgb, var(--up) 45%, #000);
+    stroke-width: 1.2;
+    stroke-linejoin: round;
+  }
+}
+
+// On the tile: the coach's pick and ready sit under it, the shield on its top corner.
+.onTile {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+
+  &[data-glyph="best"] {
+    left: 50%;
+    bottom: -9px;
+    width: 10px;
+    height: 8px;
+    transform: translateX(-50%);
+  }
+
+  &[data-glyph="ready"] {
+    left: 50%;
+    bottom: -9px;
+    width: 7px;
+    height: 7px;
+    transform: translateX(-50%);
+  }
+
+  &[data-glyph="safe"] {
+    top: -6px;
+    right: -4px;
+    width: 12px;
+    height: 14px;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+  }
+}
+
+.glyph {
+  flex: none;
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  vertical-align: -0.08rem;
+
+  &[data-glyph="ready"] {
+    width: 0.5rem;
+    height: 0.5rem;
+    margin: 0 0.1rem;
+  }
+}
+
+// The label over a tile: pointed at, focused from the keyboard, or lifted (a phone's first tap).
+.tip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  z-index: 6;
+  display: none;
+  gap: 0.3rem;
+  width: max-content;
+  max-width: min(15rem, 80vw);
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--ink);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  color: var(--text);
+  font-family: var(--font-body, inherit);
+  font-size: 0.72rem;
+  line-height: 1.3;
+  text-align: left;
+  white-space: normal;
+  transform: translateX(-50%);
+  pointer-events: none;
+
+  // A phone's hand sits in a scrolling dock: keep the label short so it clears the top.
+  @include phone {
+    bottom: calc(100% + 6px);
+    gap: 0.2rem;
+    max-width: min(17rem, 88vw);
+    padding: 0.28rem 0.45rem;
+    font-size: 0.68rem;
+    line-height: 1.25;
+
+    .tipRow small {
+      font-size: 0.64rem;
+    }
+
+    // Two marks on one tile: just their names, so the label stays short enough.
+    &[data-several] .tipRow small {
+      display: none;
+    }
+  }
+
+  &[data-edge="start"] {
+    left: 0;
+    transform: none;
+  }
+
+  &[data-edge="end"] {
+    left: auto;
+    right: 0;
+    transform: none;
+  }
+}
+
+.tipRow {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 0.35rem;
+
+  b {
+    font-weight: 700;
+  }
+
+  small {
+    grid-column: 2;
+    font-size: 0.68rem;
+    color: var(--mid);
+  }
+}
+
+[data-mark-host]:focus-visible > .tip,
+[data-mark-host]:has(:focus-visible) > .tip,
+[data-mark-host][data-lifted] > .tip {
+  display: grid;
+}
+
+@include hover-device {
+  [data-mark-host]:hover > .tip {
+    display: grid;
+  }
+
+  // Pointing at another tile: only its label shows, not the lifted one's too.
+  [role="group"]:hover [data-mark-host][data-lifted]:not(:hover) > .tip {
+    display: none;
+  }
+}
+
+// The legend: one line under your moves.
+.legend {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem 0.7rem;
+  margin: 0;
+  padding: 0.25rem 0.5rem;
+  border: 1px dashed var(--rule);
+  border-radius: 4px;
+  font-size: 0.72rem;
+  color: var(--mid);
+
+  ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--text);
+    white-space: nowrap;
+  }
+}
+
+.legendHint {
+  @include phone {
+    display: none;
+  }
+}
+
+.legendClose {
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.68rem;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--blue);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
